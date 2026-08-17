@@ -1,0 +1,3 @@
+# 大臣个人立绘目录
+# 命名规则：人名.png（如 蔡京.png、童贯.png）
+# 程序按 get_portrait_path(人名) 查找；缺省时回退到 assets/portraits 的通用立绘

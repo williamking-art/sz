@@ -1,0 +1,3 @@
+# 宋祚音频资源落位目录（规划性占位）
+# 正式音频资源（.ogg/.wav）落地时置于此目录，并在 audio/manifest.py 登记。
+# 试验稿与未批准素材禁止放此处，统一放 _scratch/generated-audio/。

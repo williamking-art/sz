@@ -1,0 +1,13 @@
+# Rust 构建产物
+/target
+
+# 本地工具链配置（含本机 mingw 链接器绝对路径，不应跨机共享）
+/.cargo
+
+# 本地存档目录（运行时生成）
+/save
+*.save
+
+# 操作系统/编辑器噪声
+.DS_Store
+Thumbs.db
