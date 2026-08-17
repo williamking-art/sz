@@ -1,0 +1,51 @@
+# ===== 宋祚 (Songzuo) 仓库忽略规则 =====
+# 依据 game/README.md 分层规范：dev/ 与 _scratch/ 不参与版本管理
+
+# --- 运行时生成的存档 ---
+game/saves/*
+!game/saves/.gitkeep
+
+# --- 临时归档与构建产物 (_scratch/) ---
+game/_scratch/
+_dev_tools/songzuo-game-studio/_scratch/
+
+# --- 密钥与本地配置（绝不入库） ---
+game/ai_config.json
+**/ai_config.json
+*.env
+.env
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# --- 构建缓存 / 打包产物 ---
+build/
+dist/
+*.exe
+*.spec
+game/build/
+game/dist/
+
+# --- 日志 ---
+*.log
+game/*.log
+
+# --- 项目数据目录（CodeBuddy 工作区数据，非源码） ---
+.codebuddy/
+
+# --- 操作系统 / 编辑器 ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# --- 第三方框架 / 包管理器缓存 / 本地工具（未纳入版本管理） ---
+deepseek-harness-master/
+.pnpm-store/
+tools/

@@ -1,0 +1,99 @@
+{
+  "static_sums": {
+    "prefecture_count": 12,
+    "households": 9990.0,
+    "land_wan_mu": 46800.0,
+    "grain_wan_shi": 11750.0,
+    "grain_yield_wan_shi": 141000.0,
+    "population_wan": 4995.0,
+    "garrisons_wan": 75.0,
+    "officials": 13.0,
+    "clerks": 104.0
+  },
+  "trajectory": [
+    {
+      "month": 1,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 2,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 3,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 4,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 5,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 6,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 7,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 8,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 9,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 10,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 11,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    },
+    {
+      "month": 12,
+      "granary": 1935,
+      "treasury_wan": 1896.6262114512335,
+      "inner_wan": 394.0977,
+      "grain_price": 0.8036162787955947
+    }
+  ]
+}

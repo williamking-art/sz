@@ -1,0 +1,6 @@
+{
+  "api_key": "sk_replace_me",
+  "base_url": "https://tokenrhythm.studio/v1",
+  "model": "deepseek-v4-flash-0731",
+  "enable_tools": "auto"
+}

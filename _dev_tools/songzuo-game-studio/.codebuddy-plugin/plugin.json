@@ -1,0 +1,158 @@
+{
+  "name": "songzuo-game-studio",
+  "version": "1.0.0",
+  "description": "A multi-expert game production team for Songzuo, a Northern Song Huizong governance simulator (AI-driven historical strategy game).",
+  "author": {
+    "name": "Songzuo Studio",
+    "email": "noreply@local"
+  },
+  "agents": [
+    "./agents/songzuo-game-studio-team-lead.md",
+    "./agents/song-narrative-designer.md",
+    "./agents/strategy-systems.md",
+    "./agents/core-engineering.md",
+    "./agents/ai-pipeline.md",
+    "./agents/tkinter-ui.md",
+    "./agents/art-assets.md",
+    "./agents/regression-qa.md",
+    "./agents/release-engineering.md",
+    "./agents/sound-music-designer.md",
+    "./agents/data-analytics.md",
+    "./agents/ai-integration.md"
+  ],
+
+  "expertType": "team",
+  "agentName": "songzuo-game-studio-team-lead",
+  "teamInfo": {
+    "leadAgent": "songzuo-game-studio-team-lead",
+    "memberAgents": [
+      "song-narrative-designer",
+      "strategy-systems",
+      "core-engineering",
+      "ai-pipeline",
+      "tkinter-ui",
+      "art-assets",
+      "regression-qa",
+      "release-engineering",
+      "sound-music-designer",
+      "data-analytics",
+      "ai-integration"
+    ]
+  },
+
+  "displayName": {
+    "en": "Songzuo Game Studio",
+    "zh": "宋祚游戏制造组"
+  },
+  "profession": {
+    "en": "Songzuo Game Studio",
+    "zh": "宋祚游戏制造组"
+  },
+  "displayDescription": {
+    "en": "A twelve-expert production studio for Songzuo, a Northern Song governance simulator — orchestration, history, systems, architecture, AI narrative, AI integration, UI, audio, analytics, QA and release.",
+    "zh": "《宋祚》十二人制造组：统筹、叙事、数值、架构、AI 管线、AI 落地、界面、音美、数据、质量与发布。"
+  },
+  "avatar": "avatars/team.png",
+  "categoryId": "03-GameSpatial",
+  "defaultInitPrompt": {
+    "zh": "为《宋祚》设计一个跨模块新功能，先由总制作人做任务路由，启用最少专家集合。",
+    "en": "Design a cross-module feature for Songzuo; start with the producer's task routing using the minimal expert set."
+  },
+  "plugin": "songzuo-game-studio",
+  "tags": [
+    { "en": "Northern-Song Simulation", "zh": "北宋历史模拟" },
+    { "en": "Strategy Balancing", "zh": "策略数值平衡" },
+    { "en": "AI Narrative Pipeline", "zh": "AI 叙事管线" }
+  ],
+  "quickPrompts": [
+    { "en": "Design a cross-module feature for Songzuo; start with the producer's task routing using the minimal expert set.", "zh": "为《宋祚》设计一个跨模块新功能，先由总制作人做任务路由，启用最少专家集合。" },
+    { "en": "Design a set of Huizong-era factional-strife events tagged history/inference/abstract with JSON contracts.", "zh": "用史实、合理推演、玩法抽象三标签，为徽宗朝设计一组党争事件并走 JSON 契约。" },
+    { "en": "Build and verify the Songzuo Windows EXE; confirm the release does not depend on dev/_scratch or local keys.", "zh": "打包并验证《宋祚》Windows EXE，确认发布产物不依赖 dev/_scratch 与本机密钥。" }
+  ],
+  "members": [
+    {
+      "id": "songzuo-game-studio-team-lead",
+      "displayName": { "en": "Zou Yunzhou", "zh": "邹运筹" },
+      "profession": { "en": "Game Producer", "zh": "游戏总制作人" },
+      "avatar": "avatars/songzuo-game-studio-team-lead.png",
+      "role": "lead"
+    },
+    {
+      "id": "song-narrative-designer",
+      "displayName": { "en": "Shi Hanqing", "zh": "史翰青" },
+      "profession": { "en": "Historical Narrative Designer", "zh": "历史叙事设计师" },
+      "avatar": "avatars/song-narrative-designer.png",
+      "role": "member"
+    },
+    {
+      "id": "strategy-systems",
+      "displayName": { "en": "Cai Quanheng", "zh": "蔡权衡" },
+      "profession": { "en": "Strategy & Systems Designer", "zh": "策略数值设计师" },
+      "avatar": "avatars/strategy-systems.png",
+      "role": "member"
+    },
+    {
+      "id": "core-engineering",
+      "displayName": { "en": "Gu Chenggou", "zh": "谷承构" },
+      "profession": { "en": "Core Architecture Engineer", "zh": "核心架构工程师" },
+      "avatar": "avatars/core-engineering.png",
+      "role": "member"
+    },
+    {
+      "id": "ai-pipeline",
+      "displayName": { "en": "Yan Shumi", "zh": "言枢密" },
+      "profession": { "en": "AI Narrative Pipeline Engineer", "zh": "AI 叙事管线工程师" },
+      "avatar": "avatars/ai-pipeline.png",
+      "role": "member"
+    },
+    {
+      "id": "tkinter-ui",
+      "displayName": { "en": "Jing Chengxuan", "zh": "景呈宣" },
+      "profession": { "en": "UI & Interaction Designer", "zh": "界面交互设计师" },
+      "avatar": "avatars/tkinter-ui.png",
+      "role": "member"
+    },
+    {
+      "id": "art-assets",
+      "displayName": { "en": "Hui Songyun", "zh": "惠宋韵" },
+      "profession": { "en": "Song-style Technical Artist", "zh": "宋式美术技术美术" },
+      "avatar": "avatars/art-assets.png",
+      "role": "member"
+    },
+    {
+      "id": "regression-qa",
+      "displayName": { "en": "Yan Guizheng", "zh": "严归正" },
+      "profession": { "en": "QA & Regression Engineer", "zh": "质量保障工程师" },
+      "avatar": "avatars/regression-qa.png",
+      "role": "member"
+    },
+    {
+      "id": "release-engineering",
+      "displayName": { "en": "Feng Zhiyuan", "zh": "封致远" },
+      "profession": { "en": "Release Engineer", "zh": "打包发布工程师" },
+      "avatar": "avatars/release-engineering.png",
+      "role": "member"
+    },
+    {
+      "id": "sound-music-designer",
+      "displayName": { "en": "Lü Qingshang", "zh": "吕清商" },
+      "profession": { "en": "Song-style Audio & Music Designer", "zh": "宋式音效音乐设计师" },
+      "avatar": "avatars/sound-music-designer.png",
+      "role": "member"
+    },
+    {
+      "id": "data-analytics",
+      "displayName": { "en": "Xi Weilan", "zh": "析微澜" },
+      "profession": { "en": "Data & Analytics Engineer", "zh": "数据与分析工程师" },
+      "avatar": "avatars/data-analytics.png",
+      "role": "member"
+    },
+    {
+      "id": "ai-integration",
+      "displayName": { "en": "Shen Boshi", "zh": "沈舶司" },
+      "profession": { "en": "AI Integration Engineer", "zh": "AI 接口落地专家" },
+      "avatar": "avatars/ai-integration.png",
+      "role": "member"
+    }
+  ]
+}

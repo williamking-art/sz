@@ -1,0 +1,23 @@
+[package]
+name = "songzuo_server"
+version = "0.1.0"
+edition = "2021"
+
+# 后端服务：持有游戏逻辑（GameState + 命令），通过 HTTP 暴露给前端客户端。
+# 玩家运行前端（tkinter），逻辑与结算全部在后端（本进程 / 将来部署到服务器）。
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+# 将来接 LLM 用（暂未启用）
+reqwest = { version = "0.12", features = ["json"], optional = true }
+
+[features]
+default = []
+llm = ["reqwest"]
+
+[profile.release]
+opt-level = 2
