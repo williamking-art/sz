@@ -15,6 +15,7 @@ from typing import Any
 from content.data import (
     TREASURY_CRISIS_LINE, TREASURY_COLLAPSE_LINE,
 )
+from core.game_state import _next_month
 
 from core.settlement_steps import (
     _settle_decrees, _apply_decree_effect,
@@ -52,7 +53,12 @@ __all__ = [
 # 主流水线
 # ------------------------------------------------------------
 def run_monthly_settlement(state, seed_offset: int = 0) -> list:
-    """执行月度结算，返回本轮结算日志列表"""
+    """执行月度结算，返回本轮结算日志列表。
+
+    seed_offset 用于确定性复现：以 (state.turn + seed_offset) 派生随机种子，
+    使相同回合+offset 的结算结果可复现，为 dev/replay 回放与平衡 A/B 对比打基础。
+    """
+    random.seed(state.turn * 1000003 + seed_offset)
     log = []
 
     # 更新年号
@@ -140,8 +146,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- Step 10: 隐藏状态 ----
     _settle_hidden(state, log)
 
-    # ---- Step 11: 记录 ----
+    # ---- Step 11: 记录与回合推进 ----
+    # 将月份/年份推进收敛到结算函数内部，确保与 Rust 后端（settle.rs）的推进位置一致，
+    # 避免 commands 层再次推进导致双端月份各推一次的漂移。
     state.settlement_log.append(log)
     state.turn += 1
+    state.year, state.month = _next_month(state.year, state.month)
+    state.update_era_name()
 
     return log

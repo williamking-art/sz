@@ -236,6 +236,24 @@ def _apply_decree_effect(state, decree, log):
                 state.change_granary(buy)
                 log.append(f"[平准] 籴粮 {buy}万石以托米价")
 
+    # 文档第八节白名单所列、此前在 _apply_decree_effect 中缺失的键：补齐以免 AI 拟诏被静默丢弃
+    if "army_strength" in effects:
+        # 全军战力增益：按各军现有兵力比例分摊（训练/整编加成）
+        bonus = int(effects["army_strength"])
+        total_troops = sum(u.troops for u in state.army_units) or 1
+        for u in state.army_units:
+            u.troops = min(int(u.troops * 1.5), u.troops + int(bonus * u.troops / total_troops))
+        if state.army_units:
+            log.append(f"[整军] 诏令整训，诸军战力益壮（增兵约{bonus}）")
+    if "factions_prestige" in effects:
+        delta = int(effects["factions_prestige"])
+        for fn, f in state.factions.items():
+            f["satisfaction"] = max(0, min(100, f["satisfaction"] + delta))
+        log.append(f"[朝堂] 诏抚百官，诸派系人心{'稍附' if delta >= 0 else '离散'}（{delta:+d}）")
+    if "art_mastery" in effects:
+        state.art_mastery = max(0, min(100, state.art_mastery + int(effects["art_mastery"])))
+        log.append(f"[文华] 陛下艺事精进（+{int(effects['art_mastery'])}）")
+
 
 # ------------------------------------------------------------
 # Step 2: 派系结算
@@ -1000,6 +1018,16 @@ def _settle_emperor_personal(state, log):
     """皇帝个人行动结算"""
     # 先做基础回调：上月临时带宽过期（最低 6），再结算本月个人行动加成
     state.decree_bandwidth = max(6, state.decree_bandwidth - 2)
+
+    # 自然衰老：随着年龄增长，龙体每月自然损耗，避免玩家靠"不点宴游/勤政"无限拖局
+    # 1101 起每过 4 年 +1 点/月基础衰减，1120 后加速（每过 2 年 +1 点/月）
+    if state.year >= 1120:
+        natural_decay = 1 + (state.year - 1120) // 2
+    else:
+        natural_decay = (state.year - 1101) // 4
+    if natural_decay > 0:
+        state.emperor_health = max(0, state.emperor_health - natural_decay)
+        log.append(f"[皇帝] 春秋渐高，龙体自然损耗 {natural_decay}")
 
     action = state.personal_action
     if action == "勤政":

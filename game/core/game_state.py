@@ -43,6 +43,15 @@ from core.game_state_econ import GameStateEconMixin
 from ui.panels_military import build_army_units, CentralArsenal
 
 
+def _next_month(year: int, month: int):
+    """推进一个月份，返回新的 (year, month)。作为模块级纯函数，供 commands 与 settlement 共用。"""
+    month += 1
+    if month > 12:
+        month = 1
+        year += 1
+    return year, month
+
+
 def _init_local_refugees(info: dict) -> int:
     """按路本地流民开局基数：边镇/高动乱路略高，腹里近 0，体现北宋常态流徙而非开局危机。"""
     p_type = info.get("type", "腹里州路")
