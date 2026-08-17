@@ -12,7 +12,7 @@ from content.data import (
     desensitize_trust, desensitize_shortage, desensitize_talent, desensitize_tech,
 )
 
-from core.game_state import GameState
+from core.game_state import GameState, _next_month
 from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.evaluation import evaluate_game, check_game_over
@@ -119,22 +119,16 @@ def advance_month(state: GameState) -> list:
     return events
 
 
-def _next_month(year: int, month: int):
-    month += 1
-    if month > 12:
-        month = 1
-        year += 1
-    return year, month
-
-
 # ============================================================
 # 统一拟旨（圣旨 / 密旨）— AI 解析结果落地
 # ============================================================
 def settle_turn(state: GameState, ai_client=None) -> tuple:
-    """执行月度结算，返回 (log, ai_report)。"""
+    """执行月度结算，返回 (log, ai_report)。
+
+    月份/年份的推进已收敛到 run_monthly_settlement 内部（与 Rust 后端 settle.rs 的
+    推进位置保持一致），本函数不再重复推进，避免双端月份各推一次的漂移。
+    """
     log = run_monthly_settlement(state)
-    # 结算完成后再推进月份，保证结算与事件都作用于当前月；回合数由 run_monthly_settlement 统一递增。
-    state.year, state.month = _next_month(state.year, state.month)
     report = ""
     if ai_client and ai_client.available:
         try:
