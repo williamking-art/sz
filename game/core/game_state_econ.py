@@ -193,7 +193,9 @@ class GameStateEconMixin:
         rate = max(COMMERCE_TAX_RATE_MIN, min(COMMERCE_TAX_RATE_MAX,
                     getattr(self, "commerce_tax_rate", COMMERCE_TAX_RATE_DEFAULT)))
         commerce_tax = int((commerce / 12.0) * rate * arrival * tax_coeff)
-        poll_tax = int((ANNUAL_TAX_BASE * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
+        # 役钱（徭役代役钱）：与 _settle_finance 同源——只从农 POP 征（坊郭户/官户/兵免役）
+        _farm_pop = sum(p["pops"]["农"]["size"] for p in self.prefectures.values())
+        poll_tax = int((_farm_pop * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
         maritime_trade = self.calc_maritime_trade()
         maritime_tax = int((maritime_trade / 12.0) *
                            (self.maritime.get("tariff", 0.10) if self.maritime.get("open") else 0.0) *
@@ -228,10 +230,17 @@ class GameStateEconMixin:
         clerk_cash_total, _ = self.calc_clerk_cash()
         corruption_cash_ded, _ = self.calc_corruption_deduction()
         personnel_cash = int(army_cash_total + official_cash_total + clerk_cash_total)
-        effective_cash_out = max(cash_out, personnel_cash)
+        # 与 _settle_finance 对齐：一体发钞时 effective_cash_out=0；否则取实际发放 personnel_cash
+        if self.pay_system.get("mode") == "一体发钞":
+            effective_cash_out = 0
+        else:
+            effective_cash_out = personnel_cash
+        # 加俸预算消耗（与 _settle_finance 同源：min(payraise_budget, 吏俸缺口+10000)）
+        clerk_gap_total, _ = self.calc_clerk_gap()
+        payraise_used = min(self.payraise_budget, int(clerk_gap_total) + 10_000)
         monthly_in = commerce_tax + poll_tax + maritime_tax + tax_color_total + salt_coin
         total_out = (expenditure + effective_cash_out
-                     + int(corruption_cash_ded) + sui_gong)
+                     + int(corruption_cash_ded) + payraise_used + sui_gong)
 
         # ---- 后端权威定性字段（前端一律读这里，杜绝多口径重复与真实层泄漏）----
         from content.data import desensitize_shortage, desensitize_price

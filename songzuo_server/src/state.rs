@@ -213,7 +213,6 @@ pub struct GameState {
     pub treasury: i64,
     #[serde(default)]
     pub imperial_treasury: i64,
-    #[serde(default)]
     // 内帑（甲口径）：imperial_treasury = 国库净结余抽成 + 榷酒课，与国库分理
 
     // 仓廪（经济全浮动重构：太仓本色粮，万石）

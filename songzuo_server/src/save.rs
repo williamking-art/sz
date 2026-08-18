@@ -7,13 +7,14 @@ use crate::state::GameState;
 use std::env;
 use std::path::PathBuf;
 
-/// 存档目录：默认 G:\sz\songzuo\saves，可用环境变量 SONGZUO_SAVE_DIR 覆盖。
+/// 存档目录：优先用环境变量 SONGZUO_SAVE_DIR 覆盖；云托管默认容器内持久卷 /data/saves，
+/// 不可用 Windows 绝对路径（容器内为 Linux）。挂载持久卷后存档才会跨重启保留。
 pub fn save_dir() -> PathBuf {
     if let Ok(d) = env::var("SONGZUO_SAVE_DIR") {
         PathBuf::from(d)
     } else {
-        // 与 Python content.data.SAVE_DIR 对齐
-        PathBuf::from(r"G:\sz\songzuo\saves")
+        // 云托管持久卷默认挂载点；与 Python content.data.SAVE_DIR 仅在本地演示时对齐
+        PathBuf::from("/data/saves")
     }
 }
 

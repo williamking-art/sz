@@ -5,12 +5,18 @@
 不直接 import / 调用 core.commands。这样：
   - LocalBackend  ：逻辑在本进程内执行（开发 / 单机离线，等同改造前行为）
   - HttpBackend   ：逻辑在远程 Rust 后端（songzuo_server）执行，前端只收发 JSON 快照
-两者对前端暴露完全相同的接口，切换只需改一个环境变量（SONGZUO_BACKEND）。
+两者对前端暴露完全相同的接口。
 
-上线时玩家运行前端，后端部署到服务器；前端设 SONGZUO_BACKEND=http://服务器:8080 即可。
+后端选择顺序：
+  1. 环境变量 SONGZUO_BACKEND（如 http://服务器:8080）—— 命令行/启动脚本最直接
+  2. backend_config.json 配置文件（分发 exe 时改文件即可切换）：
+       {"backend": "remote", "url": "https://..."}
+       {"backend": "local"} 或文件缺失 -> 本地
+  3. 缺省走本地。
 """
 
 import os
+import sys
 import json
 import urllib.request
 import urllib.error
@@ -49,11 +55,41 @@ class BackendClient:
 
     @staticmethod
     def create() -> "BackendClient":
-        """按环境变量 SONGZUO_BACKEND 选择实现；缺省走本地。"""
+        """选择后端实现：环境变量优先，其次 backend_config.json，缺省本地。"""
         url = os.environ.get("SONGZUO_BACKEND", "").strip()
+        if not url:
+            url = _read_config_url()
         if url:
             return HttpBackend(url.rstrip("/"))
         return LocalBackend()
+
+
+def _app_root() -> str:
+    """可写资源根（配置/存档）：frozen 时用 exe 同级目录，否则为 game/ 根。"""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _read_config_url() -> str:
+    """从 backend_config.json 读取远程后端地址；返回空串表示走本地。
+
+    文件格式：
+        {"backend": "remote", "url": "https://..."}  -> 远程后端
+        {"backend": "local"} 或文件缺失/损坏        -> 本地
+    """
+    try:
+        path = os.path.join(_app_root(), "backend_config.json")
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        if cfg.get("backend") == "remote":
+            return str(cfg.get("url", "")).strip()
+    except FileNotFoundError:
+        pass
+    except Exception:
+        # 配置损坏时静默降级为本地，保证游戏可启动
+        pass
+    return ""
 
 
 class LocalBackend(BackendClient):
@@ -151,7 +187,7 @@ class HttpBackend(BackendClient):
     def __init__(self, base_url):
         self.base = base_url
 
-    def _post(self, path, payload=None):
+    def _post(self, path, payload=None, _attempt=0):
         body = json.dumps(payload if payload is not None else {}).encode("utf-8")
         req = urllib.request.Request(
             self.base + path, data=body, headers={"Content-Type": "application/json"}
@@ -160,9 +196,21 @@ class HttpBackend(BackendClient):
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            # 5xx（含云托管缩容到 0 后的 503）一般可重试：实例正在冷启动
+            if 500 <= e.code < 600 and _attempt < self._max_retry:
+                return self._post(path, payload, _attempt + 1)
             raise RuntimeError(f"后端错误 {e.code}: {e.read().decode('utf-8', 'ignore')}")
         except Exception as e:
+            # 连接超时 / 连接拒绝等：云托管 MinNum=0 冷启动空窗，短退避重试
+            if _attempt < self._max_retry:
+                import time
+                time.sleep(self._retry_backoff * (2 ** _attempt))
+                return self._post(path, payload, _attempt + 1)
             raise RuntimeError(f"无法连接后端 {self.base}: {e}")
+
+    # 冷启动容错：云托管 MinNum=0 时首次请求可能 503/超时，重试可等实例唤醒
+    _max_retry = 3
+    _retry_backoff = 1.0
 
     @staticmethod
     def _to_state(d):
@@ -214,4 +262,10 @@ class HttpBackend(BackendClient):
             return []
 
     def conclude(self, state, ai_client=None):
-        raise NotImplementedError("HttpBackend 暂不支持 conclude；Rust 后端尚未实现结局评估。")
+        # 优先走远程 Rust 后端；若后端未实现 /api/conclude 或不可达，
+        # 降级为本地结论评估（与 LocalBackend 一致），保证游戏仍能正常收尾。
+        try:
+            r = self._post("/api/conclude")
+            return r.get("eval"), r.get("ai_eval", "")
+        except Exception:
+            return cmd.conclude(state, ai_client)

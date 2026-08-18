@@ -339,11 +339,20 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 mem.setdefault(minister_name, []).append(f"降密令：{item['title']}")
 
             elif name == "check_treasury":
-                t = getattr(state, "treasury", 0)
-                inc = state.statistics.get("total_income", 0) if isinstance(state.statistics, dict) else 0
-                exp = state.statistics.get("total_expenditure", 0) if isinstance(state.statistics, dict) else 0
-                res = f"度支实数：府库约 {t:,} 缗；本月入 {inc:,}、出 {exp:,}。"
-                mem.setdefault(minister_name, []).append("奉命勾校度支")
+                # 勾校度支消耗诏令带宽（模拟皇帝亲勾精力成本），带宽不足则只给定性
+                _bw_cost = 1
+                if getattr(state, "decree_bandwidth", 0) >= _bw_cost:
+                    state.decree_bandwidth -= _bw_cost
+                    t = getattr(state, "treasury", 0)
+                    inc = state.statistics.get("total_income", 0) if isinstance(state.statistics, dict) else 0
+                    exp = state.statistics.get("total_expenditure", 0) if isinstance(state.statistics, dict) else 0
+                    res = f"陛下亲勾度支（耗圣旨额度{_bw_cost}）：府库约 {t:,} 缗；本月入 {inc:,}、出 {exp:,}。"
+                    mem.setdefault(minister_name, []).append("奉命勾校度支（亲勾实数）")
+                else:
+                    # 带宽不足：只给定性，模拟"无暇细查"
+                    from content.data import desensitize_treasury
+                    res = f"陛下圣旨额度不足，无暇亲勾，仅知府库{desensitize_treasury(getattr(state, 'treasury', 0))}。"
+                    mem.setdefault(minister_name, []).append("欲勾校度支，然无暇亲查")
 
             elif name == "propose_governance":
                 item = {
@@ -670,10 +679,11 @@ def effects_to_dict(effects_list, authority=1.0):
     return out
 
 
-# 御笔直发可程序落地的效果键白名单（值须为数值）
-_EFFECT_WHITELIST = ("commerce_tax", "curtail_waste", "reduce_office",
-                     "treasury", "imperial_treasury", "prestige",
-                     "land_survey")
+# 御笔直发可程序落地的效果键白名单（值须为数值）。
+# 与 _TIER_BASE 对齐：凡 tier_to_value 能换算的键都允许 AI 给出（仍经档位→数值→封顶，
+# 不会越权）。此前仅放行 7 键，导致 _apply_decree_effect 已支持的外部态度/城防/人心/
+# 士绅囤粮/金融/科技/科举/军力/改革等键被丢弃，AI 拟诏能力被大幅压制。
+_EFFECT_WHITELIST = tuple(_TIER_BASE.keys())
 
 
 def _normalize_decree_effects(effects: dict):

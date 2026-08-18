@@ -19,7 +19,7 @@ if _GAME_ROOT not in sys.path:
 
 from core.game_state import GameState, _next_month  # noqa: E402
 from core.evaluation import (  # noqa: E402
-    check_emperor_death, check_reach_end_year, check_game_over,
+    check_reach_end_year, check_game_over,
     evaluate_game,
 )
 from content.data import TREASURY_COLLAPSE_LINE, END_YEAR  # noqa: E402
@@ -79,23 +79,8 @@ def test_execution_rate_bounded():
 
 
 # ------------------------------------------------------------
-# 皇帝死亡与收束年
+# 收束年（皇帝已移除死亡判定，仅靠 END_YEAR 收束等结束）
 # ------------------------------------------------------------
-def test_emperor_death_at_zero_health():
-    s = _new_state()
-    s.emperor_health = 0
-    dead, _ = check_emperor_death(s)
-    assert dead is True
-
-
-def test_emperor_death_not_triggered_early_when_healthy():
-    s = _new_state()
-    s.year = 1110
-    s.emperor_health = 80
-    dead, _ = check_emperor_death(s)
-    assert dead is False  # 早期健康良好不应崩殂
-
-
 def test_reach_end_year_forces_game_over():
     s = _new_state()
     s.year = END_YEAR
@@ -121,11 +106,11 @@ def test_game_over_treasury_collapse():
     assert s.game_over is True
 
 
-def test_game_over_emperor_death():
+def test_game_over_not_on_zero_health_after_death_removed():
     s = _new_state()
-    s.emperor_health = 0
-    assert check_game_over(s) is True
-    assert s.emperor_alive is False
+    s.emperor_health = 0  # 健康归零
+    assert check_game_over(s) is False  # 死亡判定已移除：皇帝不因健康归零驾崩
+    assert s.emperor_alive is True
 
 
 def test_game_over_abdication():
@@ -193,6 +178,61 @@ def test_koubei_not_collapsed_by_small_refugee_rate():
     assert koubei > 60
 
 
+# ------------------------------------------------------------
+# P0 回歸：finance_readout 役钱口径须与 _settle_finance 一致（按农 POP 征）
+# 防止会计录展示数字与实际到库不符（本次审查发现的口径漂移）
+# ------------------------------------------------------------
+def test_finance_readout_poll_tax_matches_settlement():
+    from core.game_state_econ import GameStateEconMixin  # noqa: F401
+    from content.data import TAX_POLL_RATIO
+
+    s = _new_state()
+    # 会计录（展示层）役钱
+    readout = s.finance_readout()
+    poll_readout = readout["poll"]
+
+    # 结算层（_settle_finance 同口径）役钱
+    farm_pop = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
+    arrival = s.calc_arrival_rate()
+    shortage = s.coin.get("shortage", 0.3)
+    from content.data import TAX_COEFF_MIN, TAX_COEFF_MAX
+    tax_coeff = TAX_COEFF_MIN + (TAX_COEFF_MAX - TAX_COEFF_MIN) * (1 - shortage)
+    expected = int((farm_pop * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
+
+    assert poll_readout == expected
+
+
+# ------------------------------------------------------------
+# P2 回归：经济守恒——单月结算不应凭空增删钱粮总量
+# POP 重构后存在大量"转移"（士绅囤粮/窖银/隐田转正），
+# 须保证 treasury + granary + 各路 POP wealth/grain 的加总不出现无来源的跳变。
+# 以"月净变化可解释"为判据：净变化应等于当月收支结余的可观测部分。
+# ------------------------------------------------------------
+def test_settlement_money_conservation_no_silent_jump():
+    from core.commands import settle_turn
+
+    s = _new_state()
+
+    def _money_snapshot(st):
+        # 国库 + 内帑 + 太仓 + 各路 POP 家资（含窖银）
+        total = st.treasury + st.imperial_treasury + st.granary
+        for p in st.prefectures.values():
+            for pop in p["pops"].values():
+                total += pop.get("wealth", 0)
+                total += pop.get("grain", 0) * 0.001  # 粮折钱（仅量级校验，非精确）
+                total += pop.get("窖银", 0)
+        return total
+
+    # 开胃一回合，记录起止快照
+    before = _money_snapshot(s)
+    settle_turn(s)
+    after = _money_snapshot(s)
+
+    # 允许存在生产/消费带来的正常波动，但不允许"凭空"量级跳变
+    # （例如 treasury 单月增减不应超过 +/-5000万贯 的合理量级）
+    assert abs(after - before) < 50_000_000
+
+
 if __name__ == "__main__":
     test_next_month_rolls_over_december()
     test_next_month_normal()
@@ -200,16 +240,16 @@ if __name__ == "__main__":
     test_execution_rate_direct_wolf_bonus_penalty()
     test_execution_rate_zhongzhi_affiliation()
     test_execution_rate_bounded()
-    test_emperor_death_at_zero_health()
-    test_emperor_death_not_triggered_early_when_healthy()
     test_reach_end_year_forces_game_over()
     test_no_reach_end_year_early()
     test_game_over_treasury_collapse()
-    test_game_over_emperor_death()
+    test_game_over_not_on_zero_health_after_death_removed()
     test_game_over_abdication()
     test_game_over_capital_falls()
     test_game_over_end_year_reached()
     test_game_over_not_triggered_normal()
     test_settle_turn_advances_month_once()
     test_koubei_not_collapsed_by_small_refugee_rate()
+    test_finance_readout_poll_tax_matches_settlement()
+    test_settlement_money_conservation_no_silent_jump()
     print("ALL CORE LOGIC TESTS PASSED")

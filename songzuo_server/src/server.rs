@@ -19,9 +19,10 @@ use crate::state::*;
 use axum::{
     extract::State,
     http::StatusCode,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
+use tower_http::cors::{Any, CorsLayer};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -77,6 +78,17 @@ pub async fn serve(addr: &str) {
     let state = AppState {
         game: Arc::new(Mutex::new(None)),
     };
+    // 默认开放 CORS（云托管后端面对浏览器/小程序前端），生产可按需收紧来源。
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    // 健康检查路由：供云托管 readiness probe 使用，返回 200 即视为就绪。
+    async fn healthz() -> StatusCode {
+        StatusCode::OK
+    }
+
     let app = Router::new()
         .route("/api/new_game", post(new_game_handler))
         .route("/api/action", post(action_handler))
@@ -84,6 +96,9 @@ pub async fn serve(addr: &str) {
         .route("/api/resolve_event", post(resolve_event_handler))
         .route("/api/save", post(save_handler))
         .route("/api/load", post(load_handler))
+        .route("/", get(healthz))
+        .route("/healthz", get(healthz))
+        .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

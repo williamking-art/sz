@@ -12,8 +12,15 @@ from ui.gui import SongZuoApp
 
 
 def _log_path():
-    """exe / 源码 同目录下的运行日志路径，便于排查启动异常。"""
-    base = os.path.dirname(os.path.abspath(sys.argv[0] if sys.argv and sys.argv[0] else __file__))
+    """exe / 源码 同目录下的运行日志路径，便于排查启动异常。
+
+    单文件(frozen)模式下 sys.argv[0] 指向临时解包目录，故改用 sys.executable
+    所在目录，保证日志落在 EXE 同级目录。
+    """
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(os.path.abspath(sys.executable))
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, "songzuo_runtime.log")
 
 
