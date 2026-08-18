@@ -23,26 +23,25 @@ def main():
         "prefecture_count": 0,
         "households": 0.0,
         "land_wan_mu": 0.0,
-        "grain_wan_shi": 0.0,      # grain 字段（原月产/或年产待裁）
-        "grain_yield_wan_shi": 0.0,  # grain_yield 字段（万石/年）
-        "population_wan": 0.0,
-        "garrisons_wan": 0.0,
+        "grain_wan_shi": 0.0,      # grain 字段（石/年 = land×ROAD_YIELD，年总产）
+        "population": 0.0,
+        "garrisons": 0.0,
         "officials": 0.0,
         "clerks": 0.0,
     }
     for name in PREFECTURE_LIST:
         info = PREFECTURE_INFO[name]
+        p = state.prefectures[name]
         sums["prefecture_count"] += 1
-        sums["households"] += info.get("households", 0)
-        sums["land_wan_mu"] += info.get("land", 0)
-        sums["grain_wan_shi"] += info.get("grain", 0)
-        sums["grain_yield_wan_shi"] += info.get("grain_yield", 0)
-        sums["population_wan"] += info.get("population", 0)
-        sums["officials"] += info.get("officials", 0)
-        sums["clerks"] += info.get("clerks", 0)
+        sums["households"] += p.get("households", 0)
+        sums["land_wan_mu"] += p.get("land", 0)
+        sums["grain_wan_shi"] += p.get("grain", 0)
+        sums["population"] += p.get("population", 0)
+        sums["officials"] += p.get("officials", 0)
+        sums["clerks"] += p.get("clerks", 0)
 
-    # 兵额真账已迁移到 army_units（troops 为人数），此处由实体聚合（人→万）
-    sums["garrisons_wan"] = sum(u.troops for u in state.army_units) / 10000.0
+    # 兵额真账已迁移到 army_units（troops 为人数），此处由实体聚合（真实人数）
+    sums["garrisons"] = sum(u.troops for u in state.army_units) / 1.0
 
     print("===== 静态总量 =====")
     for k, v in sums.items():
@@ -69,7 +68,7 @@ def main():
             print(f"{c} = {getattr(D, c)}")
 
     print("\n===== 月度轨迹（12 个月）=====")
-    hdr = "月 | 太仓(万石) | 国库(万贯) | 内帑(万贯) | 粮价(贯/石?) | 太仓月入/出"
+    hdr = "月 | 太仓(石) | 国库(贯) | 内帑(贯) | 粮价(贯/石) | 太仓月入/出"
     print(hdr)
     for i in range(12):
         state.year, state.month = (1000 + i // 12, i % 12 + 1)
@@ -82,22 +81,22 @@ def main():
         # 找太仓入仓行
         gin = state.granary_stats.get("canal_in", 0) + state.granary_stats.get("tax", 0)
         gout = state.granary_stats.get("military", 0) + state.granary_stats.get("sparrow", 0)
-        print(f"{i+1:2d} | {state.granary:6.0f} | {state.treasury/10000:9.0f} | "
-              f"{state.imperial_treasury/10000:7.0f} | {gp:6.2f} | Δg={dg:+5.0f} Δt={dt/10000:+6.0f} "
+        print(f"{i+1:2d} | {state.granary:6.0f} | {state.treasury:9.0f} | "
+              f"{state.imperial_treasury:7.0f} | {gp:6.2f} | Δg={dg:+5.0f} Δt={dt:+6.0f} "
               f"(入{gin:.0f}/出{gout:.0f})")
 
     print("\n===== 年内累计 =====")
-    print(f"总入(货币): {state.statistics['total_income']/10000:.0f}万贯")
-    print(f"总支(货币): {state.statistics['total_expenditure']/10000:.0f}万贯")
-    print(f"内帑总入: {state.statistics.get('total_inner_income',0)/10000:.0f}万贯")
+    print(f"总入(货币): {state.statistics['total_income']:.0f}贯")
+    print(f"总支(货币): {state.statistics['total_expenditure']:.0f}贯")
+    print(f"内帑总入: {state.statistics.get('total_inner_income',0):.0f}贯")
     print(f"税率: 工商{state.tax_breakdown}")
 
     print("\n===== 年度化估值 =====")
     monthly = state.statistics['total_income'] / 12.0
-    print(f"月均货币入: {monthly/10000:.1f}万贯 → 年化 {monthly*12/10000:.0f}万贯")
+    print(f"月均货币入: {monthly:.1f}贯 → 年化 {monthly*12:.0f}贯")
     annual_color = 0
-    print(f"盐课 SALT_COIN_UNIT={D.SALT_COIN_UNIT}（活基准：Σ盐产能×单位×price_factor×arrival）")
-    print(f"酒课 WINE_COIN_BASE={D.WINE_COIN_BASE}万贯/月 → 年化 {D.WINE_COIN_BASE*12/10000:.0f}万贯")
+    print(f"盐课 SALT_PROFIT_PER_JIN={D.SALT_COIN_UNIT}（活基准：Σ盐产能×单位×price_factor×arrival）")
+    print(f"酒课 WINE_COIN_BASE={D.WINE_COIN_BASE}贯/月 → 年化 {D.WINE_COIN_BASE*12:.0f}贯")
 
     print("\n===== 各 calc_* 量纲快照（当月）=====")
     ag, agn = state.calc_army_grain()
@@ -109,20 +108,20 @@ def main():
     cd, cgl = state.calc_corruption_deduction()
     mg = state.calc_monthly_grain()
     ti = state.calc_monthly_tax_income(1.0)
-    print(f"军粮: {ag:.1f}万石/月(本色×pay={ag*state.pay_system.get('grain_ratio',0.5):.1f}) 军饷: {ac:.1f}万贯/月")
-    print(f"官禄: {og:.2f}万石/月 官俸: {oc:.1f}万贯/月")
-    print(f"吏禄: {cg:.2f}万石/月 吏俸: {cc:.1f}万贯/月")
-    print(f"贪腐扣减: 钱{cd:.1f}万贯/月 粮{cgl:.1f}万石/月")
+    print(f"军粮: {ag:.1f}石/月(本色×pay={ag*state.pay_system.get('grain_ratio',0.5):.1f}) 军饷: {ac:.1f}贯/月")
+    print(f"官禄: {og:.2f}石/月 官俸: {oc:.1f}贯/月")
+    print(f"吏禄: {cg:.2f}石/月 吏俸: {cc:.1f}贯/月")
+    print(f"贪腐扣减: 钱{cd:.1f}贯/月 粮{cgl:.1f}石/月")
     mg_total, mg_by = mg
-    print(f"全国月粮产 calc_monthly_grain: 总额={mg_total:.0f}万石/月 分路={ {k: round(v,1) for k,v in list(mg_by.items())[:3]} }...")
+    print(f"全国月粮产 calc_monthly_grain: 总额={mg_total:.0f}石/月 分路={ {k: round(v,1) for k,v in list(mg_by.items())[:3]} }...")
     ti_total, ti_by = ti
-    print(f"二税折色 calc_monthly_tax_income: 总额={ti_total:.0f}万贯/月 分路={ {k: round(v,1) for k,v in list(ti_by.items())[:3]} }...")
+    print(f"二税折色 calc_monthly_tax_income: 总额={ti_total:.0f}贯/月 分路={ {k: round(v,1) for k,v in list(ti_by.items())[:3]} }...")
 
     out = {
         "static_sums": sums,
         "trajectory": [
-            {"month": i+1, "granary": state.granary, "treasury_wan": state.treasury/10000,
-             "inner_wan": state.imperial_treasury/10000, "grain_price": state.grain_price}
+            {"month": i+1, "granary": state.granary, "treasury": state.treasury,
+             "inner": state.imperial_treasury, "grain_price": state.grain_price}
             for i in range(12)
         ],
     }
