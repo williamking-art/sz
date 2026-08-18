@@ -184,6 +184,69 @@ def test_pop_migration_conservation():
     assert after2 == 1001, f"回乡丢人：{after2}"
 
 
+def test_save_load_roundtrip_fields():
+    """P0 回归：imperial_granary / mechanisms / 窖银 存档往返不丢。"""
+    s = _new_state()
+    s.imperial_granary = 123456
+    s.mechanisms = {"复式记账": {"org": "户部", "params": {}, "progress": 0}}
+    s.prefectures['两浙路']['pops']['士绅']['窖银'] = 99999
+    from core.save_load import save_game, load_game, _slot_path
+    assert save_game(s, slot=9)
+    s2 = load_game(9)
+    assert s2 is not None
+    assert s2.imperial_granary == 123456
+    assert s2.mechanisms == {"复式记账": {"org": "户部", "params": {}, "progress": 0}}
+    assert s2.prefectures['两浙路']['pops']['士绅']['窖银'] == 99999
+    if os.path.exists(_slot_path(9)):
+        os.remove(_slot_path(9))
+
+
+def test_settlement_deterministic():
+    """回放确定性：同状态两次结算序列一致（随机由 turn 驱动，可复现）。"""
+    s1 = _new_state()
+    s2 = _new_state()
+    from core.settlement import run_monthly_settlement
+    log1 = run_monthly_settlement(s1)
+    log2 = run_monthly_settlement(s2)
+    assert log1 == log2
+
+
+def test_gentry_hoard_below_cap():
+    """士绅囤粮不超上限（= 田产年产 ×20%，超限强制卖）。"""
+    s = _new_state()
+    from core.settlement import run_monthly_settlement
+    for _ in range(6):
+        run_monthly_settlement(s)
+    for name, p in s.prefectures.items():
+        land = max(float(p.get("land", 1)), 1.0)
+        gl = float(p.get("gentry_land", 0)) + float(p.get("hidden_land", 0))
+        cap = int(p.get("grain", 0) * gl / land * 0.2)
+        assert p["pops"]["士绅"]["grain"] <= cap, f"{name} 士绅囤粮超上限"
+
+
+def test_civilian_hoard_sell_conservation():
+    """士绅抛粮方向守恒：抛→粮减、钱/窖银增（粮变钱，钱粮互换）。"""
+    s = _new_state()
+    s._economy_ai = {'景气': '中', '士绅': '抛', '士绅力度': '中', '生产': '中'}
+    genty = s.prefectures['两浙路']['pops']['士绅']
+    w0, g0 = genty['wealth'], genty['grain']
+    y0 = genty.get('窖银', 0)
+    from core.settlement_steps import _settle_civilian_hoard
+    _settle_civilian_hoard(s, [])
+    assert genty['grain'] < g0, "抛粮应减粮"
+    assert genty['wealth'] + genty.get('窖银', 0) > w0 + y0, "抛粮应得钱/窖银"
+
+
+def test_tax_from_pop_no_over_deduct():
+    """税从 POP 征：不抽干 POP（保留 1 个月口粮钱，wealth 不为负）。"""
+    s = _new_state()
+    from core.settlement import run_monthly_settlement
+    run_monthly_settlement(s)
+    for p in s.prefectures.values():
+        for pop in p["pops"].values():
+            assert pop["wealth"] >= 0, "POP 财富不得为负"
+
+
 if __name__ == "__main__":
     # 无 pytest 时直接运行
     test_sum_routes_equals_total()

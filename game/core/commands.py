@@ -157,6 +157,13 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
             report = ""
     if check_game_over(state):
         state.game_over = True
+    # 自动存档：每年正月（1 月）自动写入槽 0（自动槽），游戏结束也存一份最终档
+    if state.month == 1 or state.game_over:
+        try:
+            from core.save_load import save_game
+            save_game(state, slot=0)
+        except Exception:
+            pass  # 自动存档失败不阻断结算
     return log, report
 
 

@@ -185,6 +185,52 @@ RANDOM_EVENTS = [
             {"text": "从轻发落", "effects": {"faction_change": {"宦官集团": 5, "清流言官": -5}}},
         ],
     },
+    {
+        "title": "黄河秋汛告急",
+        "prob": 0.03,
+        "desc": "都水监奏：黄河秋汛将至，河北堤防多有隐患",
+        "choices": [
+            {"text": "拨帑修堤", "effects": {"prestige": 2, "treasury": -500000, "population_satisfaction": 1}},
+            {"text": "暂缓", "effects": {"prestige": -1}},
+        ],
+    },
+    {
+        "title": "太学三舍法争议",
+        "prob": 0.04,
+        "desc": "太学推行三舍法，新旧两党争执不下",
+        "choices": [
+            {"text": "力主推行", "effects": {"prestige": 1, "faction_change": {"新党": 5, "旧党": -5}, "tech": 1}},
+            {"text": "罢废之", "effects": {"faction_change": {"旧党": 5, "新党": -5}}},
+            {"text": "折中调和", "effects": {"faction_change": {"新党": 1, "旧党": 1}}},
+        ],
+    },
+    {
+        "title": "市舶贡使献方物",
+        "prob": 0.03,
+        "desc": "市舶司奏：海外番商贡犀象、香药，请开市舶以广财源",
+        "choices": [
+            {"text": "广开市舶", "effects": {"prestige": 2, "treasury": 200000, "tech": 1}},
+            {"text": "仅受贡物", "effects": {"prestige": 1, "treasury": 100000}},
+        ],
+    },
+    {
+        "title": "常平仓奏请籴粜",
+        "prob": 0.04,
+        "desc": "户部奏请于丰歉之地籴粜常平，以平抑粮价",
+        "choices": [
+            {"text": "准奏", "effects": {"population_satisfaction": 2, "treasury": -200000}},
+            {"text": "不准", "effects": {"population_satisfaction": -1}},
+        ],
+    },
+    {
+        "title": "西军乏饷",
+        "prob": 0.03,
+        "desc": "陕西沿边奏：西军粮饷久欠，军心浮动",
+        "choices": [
+            {"text": "拨帑补饷", "effects": {"treasury": -600000, "army_strength": 2, "prestige": 1}},
+            {"text": "暂缓", "effects": {"army_strength": -3, "prestige": -2}},
+        ],
+    },
 ]
 
 
