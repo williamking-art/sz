@@ -4,18 +4,19 @@
 原先不同界面各维护一份 `_format_effects`，name_map 并集不一致，
 造成双份维护与口径漂移。此处收敛为单一权威源。
 """
+from ui.format_units import humanize_coin
 
 # 效果键 → 中文名
 _NAME_MAP = {
     "prestige": "皇威",
-    "treasury": "国帑(万贯)",
-    "imperial_treasury": "内帑(万贯)",
+    "treasury": "国帑(贯)",
+    "imperial_treasury": "内帑(贯)",
     "population_satisfaction": "民心",
     "external_jin": "金态度",
     "external_liao": "辽态度",
     "external_xixia": "西夏态度",
     "defense_bonus": "城防",
-    "finance": "财利(万贯)",
+    "finance": "财利(贯)",
     "talent": "人才",
     "tech": "科技",
     "army": "军力",
@@ -45,11 +46,10 @@ def format_effects(effects: dict) -> str:
             parts.append(f"工商征率{(v * 100):.0f}%")
         elif k in _NAME_MAP:
             if k in ("treasury", "imperial_treasury"):
-                v2 = v / 10000
                 sign = "+" if v >= 0 else ""
-                parts.append(f"{_NAME_MAP[k]}{sign}{v2:.0f}")
+                parts.append(f"{_NAME_MAP[k]}{sign}{humanize_coin(v)}")
             elif k in ("curtail_waste", "reduce_office"):
-                parts.append(f"{_NAME_MAP[k]}月省{v / 10000:.0f}万贯")
+                parts.append(f"{_NAME_MAP[k]}月省{humanize_coin(v)}")
             else:
                 sign = "+" if v >= 0 else ""
                 parts.append(f"{_NAME_MAP[k]}{sign}{v}")

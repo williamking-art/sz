@@ -31,7 +31,7 @@ from content.data import (
     OFFICIAL_PAY_PER_MONTH, OFFICIAL_GRAIN_PER_MONTH,
     CLERK_PAY_PER_MONTH, CLERK_GRAIN_PER_MONTH, CLERK_PER_OFFICIAL,
     CORRUPTION_MULT, BRIBE_FLOOR, IMPERIAL_SHARE,
-    WINE_YIELD_PER_GRAIN, SALT_COIN_UNIT, SALT_CAPACITY_BASE, SALT_POP_BASE,
+    WINE_YIELD_PER_GRAIN, SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
     SALT_PRICE_FLOOR, SALT_PRICE_CEIL, WINE_COIN_BASE,
     MATERIAL_PRICE_BASE, RESOURCE_DIMS,
 )
@@ -50,6 +50,48 @@ def _next_month(year: int, month: int):
         month = 1
         year += 1
     return year, month
+
+
+def _build_pops(info: dict, p_type: str) -> dict:
+    """每路 POP 群体开局分配（参考维多利亚人口分层）。
+
+    各 POP = {size(人数), wealth(钱/贯), grain(粮/石)}；钱粮守恒：
+    士绅 wealth 为囤粮本钱、grain 为其囤粮，随低买高卖此消彼长。
+    """
+    from content.data import (
+        POP_SHARE, GENTRY_TREASURY_SOUTH, GENTRY_TREASURY_NORTH,
+        CIVILIAN_HOARD_SOUTH, CIVILIAN_HOARD_NORTH,
+        RESOURCE_DIMS, RAW_DIMS,
+    )
+    pop_total = info.get("population", 0)
+    south = p_type in ("财赋膏腴", "沿海市舶", "天府沃野")
+    share_shen = POP_SHARE["士绅"] * (1.3 if south else 0.7)
+    sz_shen = int(pop_total * share_shen)
+    sz_gong = int(pop_total * POP_SHARE["工匠"])
+    sz_shang = int(pop_total * POP_SHARE["商人"])
+    _off = round(info.get("households", 0) * 0.00135)   # 官数（与 officials 派生同口径）
+    sz_guan = _off + _off * 8                             # 官 + 吏（在籍人口的一部分，须从农里扣除）
+    sz_nong = max(0, pop_total - sz_shen - sz_gong - sz_shang - sz_guan)
+    monthly_grain = info.get("grain", 0) / 12.0
+    monthly_tax = info.get("monthly_tax", 200_000)
+    # 商品种类（成品，多商品支持；后期玩家新增商品经 register_finished_good 加入）
+    _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
+    _g0 = lambda: {d: 0 for d in _goods_dims}
+    return {
+        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.5), "goods": _g0()},
+        "士绅": {
+            "size": sz_shen,
+            "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH)),
+            "grain": int(monthly_grain * (CIVILIAN_HOARD_SOUTH if south else CIVILIAN_HOARD_NORTH)),
+            "goods": _g0(),
+            "窖银": 0,           # 士绅窖藏之银（贯）：退出流通、可后续掏出（挥霍/抄家）
+        },
+        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0()},
+        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0), "grain": int(monthly_grain * 0.2), "goods": _g0()},
+        "官僚": {"size": sz_guan,
+                  "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.1), "goods": _g0()},
+        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0()},  # 兵额由 army_units 聚合后回填
+    }
 
 
 def _init_local_refugees(info: dict) -> int:
@@ -115,11 +157,15 @@ class GameState(GameStateEconMixin):
 
         # ---- 内帑 / 内藏库（皇帝私库，与国库分理）----
         self.imperial_treasury: int = INNER_TREASURY_START
+        # 内帑粮（石，皇帝私库的粮，皇庄皇租本色入此；田产的是粮不是钱，不折银）
+        self.imperial_granary: int = 0
+        # 酒课（贯/月，进内帑净入）：开局 WINE_COIN_BASE，随酒坊建设增加（见 _settle_workshops）
+        self.wine_tax: int = WINE_COIN_BASE
 
         # ---- 经济全浮动重构新增状态 ----
         # 七维物资仓：{dim: {"stock": 现有, "cap": 容量}}
         from content.data import RESOURCE_DIMS
-        self.resources: dict = {d: {"stock": 0, "cap": 5000} for d in RESOURCE_DIMS}
+        self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
         # 工程系统（玩家手动发起，逐月推进）：{pid: {...}}
         self.projects: dict = {}
         # 制作/作坊系统（配方：粮→酒 等）：{wid: {...}}
@@ -130,11 +176,12 @@ class GameState(GameStateEconMixin):
         # 监察力度（整顿吏治提升，压缩贪腐扣减）
         self.oversight: float = 0.30
 
-        # ---- 中央粮仓（太仓，实物粮万石；田赋征本色经漕运汇聚于此）----
+        # ---- 中央粮仓（太仓，实物粮石；田赋征本色经漕运汇聚于此）----
         self.granary: int = GRANARY_START
-        self.granary_cap: int = GRANARY_START_CAP     # 仓容（万石），可经新建仓储工程扩建
+        self.granary_cap: int = GRANARY_START_CAP     # 仓容（石），可经新建仓储工程扩建
         self.granary_stats: dict = {"canal_in": 0, "military": 0, "converted": 0,
-                                    "relief": 0, "tax": 0, "sparrow": 0, "canal_loss": 0}
+                                    "relief": 0, "tax": 0, "sparrow": 0, "canal_loss": 0,
+                                    "official": 0}
 
         # ---- 通货 / 物价（货币经济学，钱/物之比）----
         self.money_supply: float = MONEY_SUPPLY_START   # 货币有效供给（贯）
@@ -178,7 +225,7 @@ class GameState(GameStateEconMixin):
         # ---- 俸禄/军饷制度（支出侧货币化演化）----
         self.pay_system: dict = dict(PAY_SYSTEM_DEFAULT)
 
-        # ---- 动态粮价（石/贯，区域+通货+季节+丰歉驱动）----
+        # ---- 动态粮价（贯/石，区域+通货+季节+丰歉驱动）----
         self.grain_price: float = 1.0
 
         # ---- 经济信息不对称：真实层 vs 认知层（滞后奏报）----
@@ -291,23 +338,41 @@ class GameState(GameStateEconMixin):
             p_type = info.get("type", "腹里州路")
             self.prefectures[name] = {
                 "name": info.get("name", name),     # 舆图展示名（可由圣旨更名）
-                "households": info["households"],   # 户数(万)
-                "land": info["land"],               # 田亩(万亩)
-                "grain": info["grain"],             # 粮产(万石)
+                "households": info["households"],   # 户数(户)
+                "land": info["land"],               # 田亩(亩，在册 = 自耕农田 + 地主田 + 官田 + 皇庄)
+                # 田亩归属（开局数据，随抑兼并/清丈/隐漏演化）：粮是田产的，按归属分配
+                "self_farm_land": int(info["land"] * 0.40),   # 自耕农田（亩，主户自耕，产粮自留）
+                "gentry_land": int(info["land"] * 0.50),      # 地主田（亩，士绅所有，佃户租种交租）
+                "official_land": int(info["land"] * 0.08),    # 官田（亩，官府所有，租佃租入归国库）
+                "imperial_land": int(info["land"] * 0.02),    # 皇庄（亩，皇室所有，产粮归内帑）
+                "grain": info["grain"],             # 粮产(石)
                 "mood": info["mood"],               # 民情 0-100
                 "govern": info["govern"],           # 治理度 0-100
-                "population": info.get("population", info["households"] // 2),  # 人口(万)
+                "population": info.get("population", info["households"] * 4),  # 人口(口，在籍，户均4口)
                 "unrest": info.get("unrest", 15),               # 动乱 0-100
-                "monthly_tax": info.get("monthly_tax", 20),     # 月税实收锚(万贯)→二税折色 tax_base
-                "hidden_land": info.get("hidden_land", 0),      # 隐田(万亩)
-                "storage": info.get("storage", 0),              # 存粮(万石)
+                "monthly_tax": info.get("monthly_tax", 200_000),     # 月税实收锚(贯)→二税折色 tax_base
+                "hidden_land": info.get("hidden_land", 0),      # 隐田(亩，开局数字 = land×25%，随清丈/隐漏回升演化)
+                "storage": info.get("storage", 0),              # 存粮(石，州仓/上供仓，漕运只动此仓)
+                # 常平仓存粮（石，平抑储备，与州仓 storage 分离、不参与漕运上供）：
+                # 初值 = 月产 20%；容量上限 = 月产 50%（见 _settle_granary），防止籴入无上限膨胀
+                "changping_stock": info.get("changping_stock",
+                                            round(info.get("grain", 0) / 12 * 0.2)),
                 # 经济全浮动重构新增字段（兼容缺省）
-                "grain_yield": info.get("grain_yield", info["grain"] * 12),   # 粮年产量(万石/年)
+                "grain_yield": info.get("grain_yield", info["grain"]),   # 兼容旧字段：粮年产量(石/年)（新口径 grain 即年产，不再 ×12）
                 "yields": dict(info.get("yields", {})),                        # 七维物资初值
-                "officials": info.get("officials", round(info["households"] * 0.00027)),  # 官数（万官；口径 A：Σ≈3万落史实）
-                "clerks": info.get("clerks", round(info["households"] * 0.00027) * 8),    # 吏数（=官×8）
+                "officials": info.get("officials", round(info["households"] * 0.00135)),  # 官数（真实官；households 为在籍明户，×0.00135 → 全国约 2.7 万官，史实 2-4 万）
+                "clerks": info.get("clerks", round(info["households"] * 0.00135) * 8),    # 吏数（=官×8，全国约 21.6 万，史实 20-30 万）
                 "route_mult": info.get("route_mult", 1.0),                     # 路级乘数
-                "local_finance": info.get("storage", 0),                       # 地方财力(派生初值)
+                # 地方财力（贯，俸给足额率用）：地方留成月税实收的 25% 作俸给财力。
+                # 单位统一：不得用 storage（石）当财力（贯），否则 pay_ratio 恒满、吏俸缺口恒 0。
+                "local_finance": info.get("local_finance",
+                                          round(info.get("monthly_tax", 200_000) * 0.25)),
+                # 地方府库（贯）：州县常平仓粜籴的钱账（与中央国库分理），初值约 3 个月税入
+                "local_treasury": info.get("local_treasury",
+                                           round(info.get("monthly_tax", 200_000) * 3)),
+                # POP 人口群体（参考维多利亚）：每路按职业分六群体，每群体 {size, wealth, grain}
+                # 士绅 wealth/grain 即其囤粮居奇的资金与粮储（钱粮守恒，取代旧 civilian_granary/gentry_treasury）
+                "pops": _build_pops(info, p_type),
                 "pay_ratio": 0.5,                                              # 俸给充足率初值
                 "gap": 0,                                                      # 俸给缺口初值
                 # 开局区域米价：按"京畿边镇贵、膏腴贱"原则给变量（避免开局全 1.00 平庸），
@@ -323,6 +388,11 @@ class GameState(GameStateEconMixin):
                 "orgs": [],
                 "rename_log": [],
             }
+
+        # 兵额回填到各路 POP：兵 POP.size = 该路 army_units 兵额合计（兵额唯一真账）
+        for u in self.army_units:
+            if u.station in self.prefectures and u.troops > 0:
+                self.prefectures[u.station]["pops"]["兵"]["size"] += u.troops
 
         # 防区派生：此时 prefectures 已就绪（fortification 由 DEFENSE_LINES 初值，garrison 由各路聚合）
         self._derive_defense_lines()
@@ -397,8 +467,8 @@ class GameState(GameStateEconMixin):
                 "backlog": 0,              # 政务积压
                 # ---- 五层承接层扩展字段 ----
                 "branches": {},            # 地理挂载：{路名: [分机构名]}（与 prefectures[路]["orgs"] 双向索引）
-                "budget_in": 0,           # 机构经济生命周期：本月进项（朝廷拨/民间工程，万贯）
-                "budget_out": 0,          # 机构经济生命周期：本月支出（工匠俸/工训营/流民口粮，万贯）
+                "budget_in": 0,           # 机构经济生命周期：本月进项（朝廷拨/民间工程，贯）
+                "budget_out": 0,          # 机构经济生命周期：本月支出（工匠俸/工训营/流民口粮，贯）
                 "net": 0,                 # 机构经济生命周期：本月净结余（受崩盘线约束）
             }
             for name, info in CENTRAL_ORG_INFO.items()
@@ -439,14 +509,14 @@ class GameState(GameStateEconMixin):
         self.imperial_treasury += delta
 
     def change_granary(self, delta: int):
-        """修改中央粮仓存粮（万石），自动封顶于容量。"""
+        """修改中央粮仓存粮（石），自动封顶于容量。"""
         self.granary = max(0, min(self.granary_cap, self.granary + delta))
 
     def granary_capacity_used(self) -> float:
         return self.granary / max(self.granary_cap, 1)
 
     def change_granary_cap(self, delta: int):
-        """新建仓储：扩建中央仓容量（万石）。"""
+        """新建仓储：扩建中央仓容量（石）。"""
         self.granary_cap = max(0, min(GRANARY_CAP_SOFT, self.granary_cap + delta))
 
     # 经济计算族见 core/game_state_econ.GameStateEconMixin（mixin 继承）

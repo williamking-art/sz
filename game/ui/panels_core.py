@@ -14,9 +14,10 @@ from ai.client import AIClient, _org_by_affiliation
 import ai.decree as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
-    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES, LOCAL_ACTS,
+    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
     _bar, _format_effects, _judge_effects)
 from ui.theme import GOLD_LIGHT
+from ui.format_units import humanize_coin, humanize_land, humanize_households
 
 
 class PanelsCoreMixin:
@@ -176,8 +177,8 @@ class PanelsCoreMixin:
         if getattr(self, "_hud_pills", None):
             self._hud_pills["威望"][1].configure(text=f"◆威望 {int(s.prestige)}")
             self._hud_pills["民心"][1].configure(text=f"♥民心 {int(s.population_satisfaction)}")
-            self._hud_pills["国库"][1].configure(text=f"◈国库 {int(s.treasury/10000)}万")
-            self._hud_pills["内帑"][1].configure(text=f"⛃内帑 {int(s.imperial_treasury/10000)}万")
+            self._hud_pills["国库"][1].configure(text=f"◈国库 {humanize_coin(s.treasury)}")
+            self._hud_pills["内帑"][1].configure(text=f"⛃内帑 {humanize_coin(s.imperial_treasury)}")
         if getattr(self, "_hud_left", None):
             self._refresh_left_card()
         self._refresh_status()
@@ -691,8 +692,8 @@ class PanelsCoreMixin:
         grid = tk.Frame(inner, bg=PAPER)
         grid.pack(fill="x", padx=10, pady=4)
         cells = [
-            ("田亩户籍", f"垦田 {s.land['cultivated']}万亩\n隐漏 {int(s.land['hidden_rate']*100)}%\n在籍 {s.land['households']}万户"),
-            ("金融货币", f"交子 {s.jiaozi['issued']}万\n信用 {int(s.jiaozi['trust'])}\n市舶{'开' if s.maritime['open'] else '未'}"),
+            ("田亩户籍", f"垦田 {humanize_land(s.land['cultivated'])}\n隐漏 {int(s.land['hidden_rate']*100)}%\n在籍 {humanize_households(s.land['households'])}"),
+            ("金融货币", f"交子 {humanize_coin(s.jiaozi['issued'])}\n信用 {int(s.jiaozi['trust'])}\n市舶{'开' if s.maritime['open'] else '未'}"),
             ("科举学校", f"{'开科' if s.exam['open'] else '停科'}\n人才 {int(s.exam['talent_pool'])}\n州县学 {s.exam['schools']}"),
             ("科技工技", f"技 {int(s.tech['level'])}\n火药 {s.tech['gunpowder']}\n水利 {s.tech['hydraulics']}"),
             ("外交", f"海盟{'成' if getattr(s,'alliance_jin_liao',False) else '未'}\n辽 {self._ext_att('辽')}\n西夏 {self._ext_att('西夏')}"),

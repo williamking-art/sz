@@ -41,9 +41,16 @@
    - `commerce_tax`：工商征率（0.05~0.40，综合税负口径）。玩家说"征三成""0.13"可直接用精确值，否则用档位（微0.10/小0.15/中0.20/大0.30）。
    - `curtail_waste`：省浮费，长期变法，月省额度（贯，5万~15万）。
    - `reduce_office`：裁汰冗员，长期变法，月省额度（贯，5万~15万）。
+   - `land_survey`：方田均税/清丈隐田，降田赋隐漏率，用档位（微/小/中/大），不填精确数。
    - `treasury` / `imperial_treasury`：拨帑/发内帑（贯）。
    - `prestige`：皇威 ±。
    其余效果一律交给推演叙事，不填 effects。
+
+10. **若诏令是开发新作物/新矿/引进新物产**（如「劝种棉花」「开煤矿」「引种占城稻」），在 new_material 中给出：
+    - `dim`：物资键（拼音/英文小写，如 mian / mei），不得与现有 盐茶丝麻蔗果木石铁绸布 重复
+    - `name`：中文名（如 棉花 / 煤）
+    - `unit`：单位（斤 / 匹 / 根 / 方）
+    价格由程序默认，勿填；此类诏令归 `fixed_tech` 类。
 
 ## 输出契约（严格遵守，仅输出 JSON）
 {
@@ -55,6 +62,7 @@
   "effects": {"commerce_tax": 0.15, "curtail_waste": 100000} | null,
   "task": {"task_name": "...", "months": 12} | null,
   "rename": {"region": "旧名", "new_name": "新名"} | null,
+  "new_material": {"dim": "mian", "name": "棉花", "unit": "斤"} | null,
   "reform": {
     "reform_type": "改名|裁撤|新建|新建官职|改下辖|改权限|越权授权",
     "target_org": "目标机构", "new_name": "新名", "new_org": "新建机构",

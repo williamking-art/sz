@@ -9,7 +9,7 @@ from content.data import (
     ANNUAL_TAX_BASE, TAX_POLL_RATIO, MONTHLY_EXP_CIVIL_BASE,
     PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
-    SALT_COIN_UNIT, SALT_CAPACITY_BASE, SALT_POP_BASE,
+    SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
     SALT_PRICE_FLOOR, SALT_PRICE_CEIL,
     WINE_COIN_BASE, IMPERIAL_SHARE, TAX_COLOR_RATE,
     MONEY_SUPPLY_START, PRICE_LEVEL_BASE, PRICE_LEVEL_MIN,
@@ -47,7 +47,7 @@ class GameStateEconMixin:
         随科技 / 工业(艺术) 增长（市舶是独立税源，走 calc_maritime_trade，不再作为税基乘数）：
           - 科技 level 50→100：×1.0→×1.25；
           - 工业/艺术 mastery 85→100：×1.0→×1.0375；
-          - 人口贡献小项：population // 10。
+          - 人口贡献小项：population // 100_000。
         开局（tech=50, art=85）≈ 3.5 亿贯——不再因"市舶未开"打对折。
         """
         base = 350_000_000
@@ -55,7 +55,7 @@ class GameStateEconMixin:
         tech_mult = 1.0 + (tech - 50) / 200.0                      # 50→1.0, 100→1.25
         art = self.art_mastery
         art_mult = 1.0 + (art - 85) / 400.0                        # 85→1.0, 100→1.0375
-        return base * tech_mult * art_mult + self.population // 10
+        return base * tech_mult * art_mult + self.population // 100_000
 
     def calc_maritime_trade(self) -> float:
         """市舶海外贸易年总额（贯/年，独立税源）。
@@ -87,12 +87,27 @@ class GameStateEconMixin:
             return "工商重榷（约二至三成）"
         return "工商苛征（三成以上）"
 
+    def _jiaozi_acceptance(self) -> float:
+        """交子接受度 = 信用度(trust)，决定发行交子实际流通的比例（贬值部分退出流通）。"""
+        return max(0.0, min(1.0, self.jiaozi.get("trust", 60) / 100.0))
+
+    def _jiaozi_ceiling(self) -> int:
+        """交子可发额度 = 准备金 × 准备金率（皇威高可放宽准备金约束）。"""
+        prestige_ratio = 2.0 + (self.prestige - 50) / 50.0   # 皇威 50→2倍, 100→3倍, 0→1倍
+        return int(self.jiaozi.get("reserve", 0) * max(1.0, prestige_ratio))
+
     def calc_price_level(self) -> float:
         """物价水平 = 货币有效供给 / 实物经济总量（钱/物之比）。"""
-        # 货币有效供给：民间铜钱存量（含国库在内的广义货币主体）+ 有效交子 + 白银折钱。
-        # 国库余额仅作短期充盈因子，负库存不代表通货消失（朝廷可征发/借贷），故以基础货币盘兜底。
-        copper_base = MONEY_SUPPLY_START + max(0.0, self.treasury) * 0.3
-        jiaozi_eff = self.jiaozi.get("issued", 0) * 10000 * (self.jiaozi.get("trust", 60) / 100.0)
+        # 货币有效供给 = Σ各 POP 财富（民间持钱）+ 国库/内帑（国家持钱）+ 有效交子 + 白银折钱。
+        # 货币总量由 POP 经济自然派生（不再用 MONEY_SUPPLY_START 常量兜底），
+        # 钱在 POP 间流转、税入国库、俸禄回民间，总量随经济涨落。
+        pop_wealth = 0.0
+        for p in self.prefectures.values():
+            for pop in p.get("pops", {}).values():
+                pop_wealth += float(pop.get("wealth", 0))
+        copper_base = pop_wealth + max(0.0, self.treasury) + max(0.0, self.imperial_treasury)
+        # 有效交子 = 发行 × 接受度（trust×皇威；超发→信用崩→接受度降→贬值部分退出流通）
+        jiaozi_eff = self.jiaozi.get("issued", 0) * self._jiaozi_acceptance()
         maritime = getattr(self, "maritime", {}) or {}
         silver = maritime.get("silver_in", 0) * (1 if maritime.get("open") else 0) * 10000
         money = copper_base + jiaozi_eff + silver
@@ -100,18 +115,14 @@ class GameStateEconMixin:
         self.money_supply = max(0, money)
 
         # 实物经济总量 = 月粮产(随科技/田亩) 折算贯值 + 工商产出(随市舶/人口/科技/工业)
-        # 校准：货币存量已放大到 2 亿，real_output 同步放大，保持 money/real_output 比值在
-        # 开局钱荒基调（≈0.5）下不骤变。工商产出统一走 calc_commerce（税基同源）。
         grain_prod = sum(p.get("grain", 0) for p in self.prefectures.values()) / 12.0
-        real_output = grain_prod * 10000 + self.calc_commerce()
+        real_output = grain_prod + self.calc_commerce()
 
-        # 货币流通速度：同等货币以更高周转支撑更多交易，防止税基抬升后物价触底钱荒恶化。
-        # price = 货币有效供给 × 周转次数 / 实物经济总量
         pl = PRICE_LEVEL_BASE * (money * PRICE_VELOCITY / max(real_output, 1))
         return _clamp(pl, PRICE_LEVEL_MIN, PRICE_LEVEL_MAX)
 
     def calc_grain_price(self) -> float:
-        """全国基准粮价（石/贯）：物价 × 季节 × 丰歉 × 灾害。"""
+        """全国基准粮价（贯/石）：物价 × 季节 × 丰歉 × 灾害（按灾级放大）。"""
         price = self.price_level
         m = self.month
         if m in (4, 5, 6, 7):        # 青黄不接
@@ -119,16 +130,38 @@ class GameStateEconMixin:
         elif m in (9, 10, 11):       # 秋收
             price *= 0.90
         if self.disaster_severity > 0:
-            price *= 1.5
+            # 灾年粮价按灾级放大：轻灾1级×1.5、中灾3级×2.5、重灾5级×3.5
+            # （史实灾年粮价可达丰年 3~5 倍）
+            price *= 1.0 + self.disaster_severity * 0.5
         return _clamp(price, GRAIN_PRICE_MIN, GRAIN_PRICE_MAX)
 
     def calc_region_grain_price(self, name: str) -> float:
-        """某州府区域粮价（石/贯）：基准粮价 × 本地供需比。"""
+        """某州府区域粮价（贯/石）：基准粮价 × 本地供需比。
+
+        市场供给 = 本地年成月均（grain/12）**含隐田产**：隐田不征田赋，但其产粮
+        仍入市场供给（供人食用、平抑粮价）。隐田产按该路隐田/在册比例折算：
+        供给 = grain × (1 + hidden_land/land) / 12。storage 是政府仓（非市场供给），
+        不计入供需比；常平粜籴的粮流由 _settle_granary 显式作用于当月当地价。
+        """
         p = self.prefectures.get(name)
         if not p:
             return self.grain_price
-        need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN          # 月需求（万石）
-        supply = p.get("grain", 0) / 12.0 + p.get("storage", 0) * 0.05   # 月供应
+        # 隐户 2000 万口也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求：
+        # 隐户系数 = 总口/在籍 = (population + hidden_households×4) / population
+        total_pop = self.population + self.land.get("hidden_households", 0) * 4
+        factor = total_pop / max(self.population, 1)
+        # 酒耗粮：酿酒消耗粮食（总酒课 × WINE_GRAIN_PER_GUAN），按该路在籍人口比例摊入当地需求
+        from content.data import WINE_COIN_BASE, WINE_TAX_SHARE, WINE_GRAIN_PER_GUAN
+        wine_grain_monthly = self.wine_tax / WINE_TAX_SHARE * WINE_GRAIN_PER_GUAN  # 随酒课（酒产量）动态
+        wine_share = wine_grain_monthly * (p.get("population", 0) / max(self.population, 1))
+        need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN * factor + wine_share   # 月需求（石，含隐户+酒耗）
+        grain = float(p.get("grain", 0))                                # 在册年总产（石/年）
+        # 市场供给只含在册田产（隐田产收益全归士绅、不进市场流通，见 _settle_land_local）
+        total_grain = grain
+        # 士绅囤粮挤压流通：士绅 POP 屯粮越多，市场流通粮越少、粮价越高（囤积居奇）
+        from content.data import HOARD_SUPPLY_SQUEEZE
+        hoard = float(p.get("pops", {}).get("士绅", {}).get("grain", 0))
+        supply = max(total_grain / 12.0 - hoard * HOARD_SUPPLY_SQUEEZE, 0.01)  # 月供应（石）
         ratio = max(0.5, min(2.0, need / max(supply, 0.01)))
         price = self.grain_price * ratio
         return _clamp(price, GRAIN_PRICE_MIN, GRAIN_PRICE_MAX)
@@ -240,7 +273,7 @@ class GameStateEconMixin:
             "net": monthly_in - total_out,         # 月结余（正=结余 负=亏空）
             "imperial_treasury": self.imperial_treasury,   # 内帑余额（甲口径：抽成+酒课）
             "wine_coin": WINE_COIN_BASE,           # 月酒课（进内帑）
-            "granary": self.granary,               # 太仓净储（万石）
+            "granary": self.granary,               # 太仓净储（石）
             "granary_cap": self.granary_cap,       # 太仓仓容
             "rate": rate,                          # 当前征率
             "shortage_desc": shortage_desc,        # 钱荒定性（后端权威）
@@ -273,32 +306,33 @@ class GameStateEconMixin:
         return max(lo, min(hi, v))
 
     # ---- 二税折色（全进国库，钱）----
-    # monthly_tax_i = tax_base_i × arrival × tax_coeff × route_mult_i × TAX_COLOR_RATE
-    # tax_base_i = 现有 monthly_tax 初值（万贯/月）作锚。
+    # POP 化：二税折色 = 田赋本色（税粮）× 折色率 × 粮价（替代凭空 monthly_tax 锚）
+    # 折色率 = TAX_COLOR_RATE（田赋中折银的比例），本色折银互为消长
     def calc_monthly_tax_income(self, tax_coeff: float = 1.0):
-        arrival = self.calc_arrival_rate()
+        _, grain_by = self.calc_monthly_grain()              # 田赋本色（税粮，运期才有）
         by_route = {}
         total = 0.0
-        for name, p in self.prefectures.items():
-            base = float(p.get("monthly_tax", 0))            # 万贯/月 锚
-            rm = float(p.get("route_mult", 1.0))
-            inc = base * arrival * tax_coeff * rm * TAX_COLOR_RATE
+        for name, g in grain_by.items():
+            inc = g * TAX_COLOR_RATE * self.grain_price      # 税粮 × 折色率 × 粮价 = 折色钱
             by_route[name] = inc
             total += inc
         return total, by_route
 
-    # ---- 太仓月入（田赋本色）----
-    # grain_in_i = grain_yield_i/12 × LAND_TAX_RATE_BENEFIT × arrival × 丰歉 × 隐漏 × 水利科技
+    # ---- 太仓月入（田赋本色，三运期征收）----
+    # 产粮集中在三运期（春3/夏6/秋9月，与漕运同节奏）：每期征收 1/3 年产，非运期不征本色。
+    # grain_in_i = grain_i/3 × LAND_TAX_RATE_BENEFIT × arrival × 丰歉(yield) × 隐漏 × 水利科技
     def calc_monthly_grain(self):
+        if getattr(self, "month", 1) not in (3, 6, 9):
+            return 0.0, {name: 0.0 for name in self.prefectures}
         arrival = self.calc_arrival_rate()
         hyd = self.tech.get("hydraulics", 40) / 100.0       # 水利科技 0-1
         hidden = self.land.get("hidden_rate", 0.35)         # 隐漏率
-        harvest = self.land.get("yield", 1.0) / 1.0         # 丰歉系数（与亩产系数同向）
+        harvest = self.land.get("yield", 1.0)               # 亩产丰歉系数
         by_route = {}
         total = 0.0
         for name, p in self.prefectures.items():
-            gy = float(p.get("grain_yield", 0))
-            grain_in = gy / 12.0 * LAND_TAX_RATE_BENEFIT * arrival * harvest * (1 - hidden) * (0.8 + 0.4 * hyd)
+            gy = float(p.get("grain", 0))                   # 年总产（石/年）= land × ROAD_YIELD
+            grain_in = gy / 3.0 * LAND_TAX_RATE_BENEFIT * arrival * harvest * (1 - hidden) * (0.8 + 0.4 * hyd)
             by_route[name] = grain_in
             total += grain_in
         return total, by_route
@@ -317,7 +351,7 @@ class GameStateEconMixin:
             for u in self.army_units:
                 if u.station == name:
                     mult = UNIT_TIER.get(u.tier, UNIT_TIER["禁军"])["grain_mult"]
-                    g += u.troops * mult * SOLDIER_GRAIN_PER_MONTH
+                    g += u.troops * mult * SOLDIER_GRAIN_PER_MONTH  # 每兵月耗(石)
             by_route[name] = g
             total += g
         return total, by_route
@@ -340,7 +374,7 @@ class GameStateEconMixin:
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
-            g = float(p.get("officials", 0)) * OFFICIAL_GRAIN_PER_MONTH / 10000.0  # 官额/万 × 每万官
+            g = float(p.get("officials", 0)) * OFFICIAL_GRAIN_PER_MONTH  # 官×每官月禄(石)
             by_route[name] = g
             total += g
         return total, by_route
@@ -349,7 +383,7 @@ class GameStateEconMixin:
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
-            c = float(p.get("officials", 0)) * OFFICIAL_PAY_PER_MONTH / 10000.0
+            c = float(p.get("officials", 0)) * OFFICIAL_PAY_PER_MONTH
             by_route[name] = c
             total += c
         return total, by_route
@@ -359,9 +393,11 @@ class GameStateEconMixin:
         p = self.prefectures.get(route, {})
         local = float(p.get("local_finance", 0))
         # 应得：官+吏的折色应发基准（官少吏多，吏按 CLERK_PAY_PER_MONTH）
+        # 单位统一：officials/clerks 为真实人数，OFFICIAL/CLERK_PAY_PER_MONTH 为贯/人月，
+        # due 直接为贯（不再 /10000，与 calc_clerk_gap 的 qdue 口径一致）。
         officials = float(p.get("officials", 0))
         clerks = float(p.get("clerks", 0))
-        due = officials * OFFICIAL_PAY_PER_MONTH / 10000.0 + clerks * CLERK_PAY_PER_MONTH / 10000.0
+        due = officials * OFFICIAL_PAY_PER_MONTH + clerks * CLERK_PAY_PER_MONTH
         if due <= 0:
             return 1.0
         # 加俸预算为全国池，按"官额缺口"占比摊还：缺口 = max(0, 应得due - 地方财力)，
@@ -371,7 +407,7 @@ class GameStateEconMixin:
         for q in self.prefectures.values():
             qo = float(q.get("officials", 0))
             qc = float(q.get("clerks", 0))
-            qdue = qo * OFFICIAL_PAY_PER_MONTH / 10000.0 + qc * CLERK_PAY_PER_MONTH / 10000.0
+            qdue = qo * OFFICIAL_PAY_PER_MONTH + qc * CLERK_PAY_PER_MONTH
             due_total += qdue
             gap_total += max(0.0, qdue - float(q.get("local_finance", 0)))
         my_gap = max(0.0, due - local)
@@ -381,7 +417,7 @@ class GameStateEconMixin:
             share = due / due_total
         else:
             share = 0.0
-        financed = local + self.payraise_budget * share / 10000.0
+        financed = local + self.payraise_budget * share
         return self._clamp(financed / due, 0.0, 1.0)
 
     def calc_clerk_grain(self):
@@ -389,7 +425,7 @@ class GameStateEconMixin:
         by_route = {}
         for name, p in self.prefectures.items():
             pr = self.calc_pay_ratio(name)
-            g = float(p.get("clerks", 0)) * CLERK_GRAIN_PER_MONTH / 10000.0 * pr
+            g = float(p.get("clerks", 0)) * CLERK_GRAIN_PER_MONTH * pr  # 吏×每吏月禄(石)
             by_route[name] = g
             total += g
         return total, by_route
@@ -399,7 +435,7 @@ class GameStateEconMixin:
         by_route = {}
         for name, p in self.prefectures.items():
             pr = self.calc_pay_ratio(name)
-            c = float(p.get("clerks", 0)) * CLERK_PAY_PER_MONTH / 10000.0 * pr
+            c = float(p.get("clerks", 0)) * CLERK_PAY_PER_MONTH * pr
             by_route[name] = c
             total += c
         return total, by_route
@@ -412,7 +448,7 @@ class GameStateEconMixin:
             pr = self.calc_pay_ratio(name)
             clerks = float(p.get("clerks", 0))
             officials = float(p.get("officials", 0))
-            due = officials * OFFICIAL_PAY_PER_MONTH / 10000.0 + clerks * CLERK_PAY_PER_MONTH / 10000.0
+            due = officials * OFFICIAL_PAY_PER_MONTH + clerks * CLERK_PAY_PER_MONTH
             gap = due * (1 - pr)
             by_route[name] = gap
             total += gap
@@ -424,7 +460,7 @@ class GameStateEconMixin:
         # 折色扣减 = gap × CORRUPTION_MULT × (1 - oversight)，下限 BRIBE_FLOOR 顽固
         cash_ded = gap_total * CORRUPTION_MULT * (1 - self.oversight)
         cash_ded = cash_ded * (1 - BRIBE_FLOOR) + gap_total * BRIBE_FLOOR * 0.3
-        # 本色损耗（太仓）：贪腐放大雀鼠耗，量纲取 cash_ded 金额折算粮（约 1:1 万石等价）
+        # 本色损耗（太仓）：贪腐放大雀鼠耗，量纲取 cash_ded 金额折算粮（约 1:1 石等价）
         grain_loss = gap_total * CORRUPTION_MULT * 0.5 * (1 - self.oversight)
         return cash_ded, grain_loss
 
@@ -432,7 +468,7 @@ class GameStateEconMixin:
     def calc_salt_coin(self, arrival: float = 1.0) -> float:
         """月盐课（贯），随盐产区产能、食盐人口、到库率浮动。
 
-        盐课 = Σ各路 yields["salt"] × SALT_COIN_UNIT × price_factor × arrival × (总人口/SALT_POP_BASE)
+        盐课 = Σ各路盐产量(斤/年) × SALT_PROFIT_PER_JIN × price_factor × arrival × (总人口/SALT_POP_BASE)
           - 盐产区产能：各路七维物资初值 yields["salt"] 之和（工程/市舶可改 yields 或 resources 而变）
           - price_factor：产能/基准产能比越紧俏价越高，夹在 [SALT_PRICE_FLOOR, SALT_PRICE_CEIL]
           - 总人口缩放：食盐人口增减直接线性反映到盐课（开局缩放=1）
@@ -448,13 +484,13 @@ class GameStateEconMixin:
         price_factor = 1.0 + (min(adequacy, 2.0) - 1.0) * 0.3
         price_factor = max(SALT_PRICE_FLOOR, min(SALT_PRICE_CEIL, price_factor))
         pop_scale = total_pop / SALT_POP_BASE if SALT_POP_BASE > 0 else 1.0
-        return salt_capacity * SALT_COIN_UNIT * price_factor * arrival * pop_scale
+        return salt_capacity / 12.0 * SALT_PROFIT_PER_JIN * price_factor * arrival * pop_scale
 
     # ---- 内帑反馈（重构口径）----
     def calc_imperial_treasury(self, net: float = 0.0):
         """结余为正时抽成；另计酒课入内帑。返回 (抽成额, 酒课额)。"""
         share = max(0.0, net) * IMPERIAL_SHARE
-        wine = WINE_COIN_BASE * (1.0 + 0.01 * (self.tech.get("level", 50) - 50))
+        wine = self.wine_tax * (1.0 + 0.01 * (self.tech.get("level", 50) - 50))
         return share, wine
 
     # ---- 防区派生视图（各路 garrisons 聚合）----

@@ -733,6 +733,16 @@ class AIClient:
             o["task"] = t if isinstance(t, dict) else None
             r = o.get("rename")
             o["rename"] = r if isinstance(r, dict) else None
+            # 归一化 new_material（新作物/新矿注册契约）：须有 dim 才保留
+            nm = o.get("new_material")
+            if isinstance(nm, dict) and nm.get("dim"):
+                o["new_material"] = {
+                    "dim": str(nm.get("dim", ""))[:16],
+                    "name": str(nm.get("name", ""))[:12],
+                    "unit": str(nm.get("unit", "斤"))[:4],
+                }
+            else:
+                o["new_material"] = None
             # 归一化 reform 字段（完全自由，无硬性禁令）
             if isinstance(rf, dict):
                 o["reform"] = {
@@ -821,6 +831,50 @@ class AIClient:
             return o if o["advice"] else None
         raw = self._call(sys_p, "", temperature=0.9, max_tokens=200)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("advice"))
+
+    def economy_decide(self, posture):
+        """AI 推演本月全国经济动态（景气/士绅囤粮/生产力度），返回档位 dict。
+
+        失败返回 None，由调用方回退到按粮价方向的兜底逻辑。
+        """
+        sys_p = _load_prompt("economy", posture=posture)
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            out = {}
+            for k in ("景气", "士绅力度", "生产"):
+                v = o.get(k, "中")
+                out[k] = v if v in ("微", "小", "中", "大") else "中"
+            g = o.get("士绅", "观望")
+            out["士绅"] = g if g in ("囤", "抛", "观望") else "观望"
+            return out
+        raw = self._call(sys_p, "", temperature=0.7, max_tokens=200)
+        return self._postprocess(raw, validate, lambda: None)
+
+    def survey_settle(self, posture):
+        """推演方田均税/清丈隐田/抑兼并的落地效果档位。
+
+        返回 {"hidden_cleared": tier, "gentry_returned": tier, "outcome": str}；
+        失败返回 None，由调用方回退到按 effects 档位的兜底。
+        """
+        sys_p = _load_prompt("survey_settle", posture=posture)
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            hc = o.get("hidden_cleared", "小")
+            gr = o.get("gentry_returned", "小")
+            oc = o.get("outcome", "小成")
+            if hc not in ("微", "小", "中", "大"):
+                hc = "小"
+            if gr not in ("微", "小", "中", "大"):
+                gr = "小"
+            if oc not in ("顺利", "小成", "受阻"):
+                oc = "小成"
+            return {"hidden_cleared": hc, "gentry_returned": gr, "outcome": oc}
+        raw = self._call(sys_p, "", temperature=0.7, max_tokens=200)
+        return self._postprocess(raw, validate, lambda: None)
 
     def final_eval(self, start_year, end_year, posture):
         sys_p = _load_prompt("final_eval", start_year=start_year, end_year=end_year, posture=posture)

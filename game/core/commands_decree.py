@@ -352,6 +352,22 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
         }
         _apply_decree_effect(state, decree_holder, [])
 
+    # 新作物/新矿注册（预留接口落地）：AI 推演「劝种新作物/开新矿/引进新物产」时，
+    # 经 new_material 契约注册进物资格局；价格程序默认，产量开局 0 随劝种/开矿演化。
+    new_mat = parse_result.get("new_material")
+    if new_mat and new_mat.get("dim"):
+        from content.data import register_raw_material, MATERIAL_PRICE_BASE
+        dim = str(new_mat.get("dim", "")).strip()
+        if dim and dim not in MATERIAL_PRICE_BASE:
+            name = new_mat.get("name", dim)
+            unit = new_mat.get("unit", "斤")
+            register_raw_material(dim, unit, 150)  # 新物资默认价 150 钱/单位
+            log_new = f"[新物产] 诏引「{name}」（{dim}，{unit}），已入物资格局，各路可劝种/开矿增其产。"
+            _enqueue(state, {"task_name": f"推广{name}", "months": 12, "category": "fixed_tech",
+                             "params": params, "minister": minister, "progress": 0,
+                             "last_log": log_new}, is_secret)
+            return f"〔{parse_result.get('title','诏')}〕{log_new}"
+
     # 固定程序四类：以规则方式登记为长期任务（或即时简报）
     if cat in ("fixed_tech", "fixed_finance", "fixed_army", "fixed_construction"):
         task = parse_result.get("task") or {

@@ -154,11 +154,11 @@ ANNUAL_TAX_BASE = 80_000_000    # 年应征基准 ~8000万贯（含田赋60%+工
 # 朝廷经常性货币开支派生基准（可见支出，单位贯/月）。
 # 原写死的 MONTHLY_EXPENDITURE_BASE(210万) 已废除，改由本基准派生；
 # 营造/赏赐等原常项不再写死，改由工程系统 + 派生公式给出，避免破坏既有结算。
-MONTHLY_EXP_CIVIL_BASE = 1_300_000   # 朝廷经常性货币开支派生基准（营造/赏赐/诸司常费，不含军俸/官俸折色）
+MONTHLY_EXP_CIVIL_BASE = 550_000    # 朝廷经常性货币开支派生基准（营造/赏赐/诸司常费，税基 POP 化后按收入规模校准）
 
 # 二税折色：各路 monthly_tax_income_i = tax_base_i × arrival × tax_coeff × ROUTE_MULT_i × COLOR_RATE
-# tax_base_i 取现有 monthly_tax 初值（单位万贯/月）作锚，开局全国锚≈109.7万贯/月，全进国库（钱）。
-TAX_COLOR_RATE = 1.0            # 折色率（二税折色入钱；一条鞭时仍走本色改折银分支，不重算以免双计）
+# tax_base_i 取现有 monthly_tax 初值（单位贯/月）作锚，开局全国锚≈1_097_000贯/月，全进国库（钱）。
+TAX_COLOR_RATE = 0.40           # 折色率（田赋中折银的比例：40% 折银入国库、60% 本色入太仓；税基 POP 化后校准）
 ROUTE_MULT_DEFAULT = 1.0        # 路级乘数默认（个别路可微调，如京畿加征/边镇减免），见 PREFECTURE_INFO.route_mult
 
 # 田赋本色率：原 LAND_TAX_RATE=0.15 现拆为「本色率+综合率」两层，保留兼容。
@@ -166,55 +166,133 @@ LAND_TAX_RATE = 0.15            # 兼容旧值（综合田赋率，结算沿用�
 LAND_TAX_RATE_BENEFIT = 0.10    # 本色率：太仓月入 = Σ各路 grain_yield_i/12 × 本色率 × 到账 × 丰歉 × 隐漏 × 水利
 LAND_TAX_RATE_BASE = 0.10       # 同 LAND_TAX_RATE_BENEFIT 别名（口径文档要求）
 
-# 兵员单位：ARMY_INIT 仅保留质量参数；兵额(万)改由各路 garrisons 派生并汇总（详见 GARRISON_DERIVE）。
-# 人均常量（单位：规模=万兵/万官/万吏，消耗=万石或万贯 per 月）：
-SOLDIER_GRAIN_PER_MONTH = 2.0   # 每万兵月耗粮（万石）
-SOLDIER_PAY_PER_MONTH = 0.5     # 每万兵月饷（万贯）
-OFFICIAL_PAY_PER_MONTH = 30      # 每万官月俸折色（万贯）— 官额量级≈数千，故 per 万官 × 官额/10000
-OFFICIAL_GRAIN_PER_MONTH = 15    # 每万官月禄米（万石）
-CLERK_PAY_PER_MONTH = 2.0        # 每万吏月俸折色（万贯）
-CLERK_GRAIN_PER_MONTH = 1.5      # 每万吏月禄米（万石）
+# 兵员单位：ARMY_INIT 仅保留质量参数；兵额(人)改由各路 garrisons 派生并汇总（详见 GARRISON_DERIVE）。
+# 人均常量（单位已是真实兵/官/吏，消耗=石或贯 per 月）：
+SOLDIER_GRAIN_PER_MONTH = 2.0   # 每兵月耗粮（石）
+SOLDIER_PAY_PER_MONTH = 0.5     # 每兵月饷（贯）
+OFFICIAL_PAY_PER_MONTH = 30      # 每官月俸折色（贯）
+OFFICIAL_GRAIN_PER_MONTH = 15    # 每官月禄米（石）
+CLERK_PAY_PER_MONTH = 2.0        # 每吏月俸折色（贯）
+CLERK_GRAIN_PER_MONTH = 1.5      # 每吏月禄米（石）
 CLERK_PER_OFFICIAL = 8           # 吏数 = 官数 × 8
 CORRUPTION_MULT = 0.8             # 吏俸缺口→贪腐扣减放大系数
 BRIBE_FLOOR = 0.2                # 加俸无法消除的顽固贪腐下限（pay_ratio 折损下限 0.2）
 IMPERIAL_SHARE = 0.10            # 内帑抽成：结余为正时 max(0,净结余)×IMPERIAL_SHARE（plan L148/L207 定稿 0.1）
-WINE_YIELD_PER_GRAIN = 0.6       # 酿酒耗粮：每万石粮酿 WINE_YIELD_PER_GRAIN 万酒单位
+WINE_YIELD_PER_GRAIN = 0.6       # 酿酒耗粮：每石粮酿 WINE_YIELD_PER_GRAIN 酒单位
 # 盐课（活基准）：不再写死月额，改为随「盐产区产能 × 动态盐价 × 食盐人口」浮动。
-#   盐课 = Σ各路 yields["salt"] × SALT_COIN_UNIT × price_factor × arrival × (总人口 / SALT_POP_BASE)
+#   盐课 = Σ各路盐产量(斤/年) × SALT_PROFIT_PER_JIN × price_factor × arrival × (总人口 / SALT_POP_BASE)
 #   price_factor 由 盐产能 / 基准产能 之比决定（产能不足则价涨课利高，富余则价稳）；
 #   总人口缩放使食盐人口增减直接反映到盐课。
-#   开局 Σsalt≈231、总人口≈5065万 → price_factor=1.0、缩放=1 → 盐课≈50万贯/月（对齐 audit-data 史实量级）。
-SALT_COIN_UNIT = 3090            # 每单位盐产月折合课利钱（贯/单位/月）
-SALT_CAPACITY_BASE = 231.0       # 开局 Σ各路 yields["salt"] 基准（产能比分母）
-SALT_POP_BASE = 5065.0           # 开局总人口基准（万），食盐人口缩放分母
+#   开局 Σ盐产量≈1.85 亿斤/年 → price_factor=1.0、缩放=1 → 盐课≈39万贯/月（对齐史实榷盐净利 700~900万贯/年×到账率）。
+SALT_PROFIT_PER_JIN = 0.045      # 盐榷利单价（贯/斤）：史实每斤盐榷利 40~45 文；盐课 = 盐产量 × 此价 × 到账率
+SALT_CAPACITY_BASE = 185_000_000.0  # 开局 Σ各路盐产量基准（斤/年，1.85 亿斤）
+SALT_POP_BASE = 80_000_000.0     # 食盐人口基准（口）= 在籍人口 8000 万（与 12 路人口合计一致，开局 pop_scale≈1）
 SALT_PRICE_FLOOR = 0.6           # price_factor 下限（产能远不抵基准时）
 SALT_PRICE_CEIL = 1.3            # price_factor 上限（产能远超基准时）
 # 酒课（保底基准）：WINE_COIN_BASE 为「无作坊时的保底月额」，受 tech.level 微扰；
 #   玩家建作坊/工程产酒时，额外酒课走动态价 MATERIAL_PRICE_BASE["wine"]（见 settlement._settle_workshops）。
-WINE_COIN_BASE = 100_000          # 酒课保底月基准（贯，进内帤）—— audit-data 裁决：史实酒课~1000万/年，取象征性净额12%（开局约10万贯/月）
+WINE_COIN_BASE = 100_000
+# 内置作坊配方（玩家建作坊 / AI 拟诏可扩展）：{name, recipe(原料消耗), output_dim, yield(成品产出)}
+#   recipe 键为原料维度（grain_feed 表粮耗）；output_dim 为成品维度（绸/布/wine）。
+WORKSHOP_RECIPES = {
+    "丝坊": {"name": "丝坊", "recipe": {"silk": 10000}, "output_dim": "绸", "yield": 8000},
+    "麻坊": {"name": "麻坊", "recipe": {"hemp": 10000}, "output_dim": "布", "yield": 9000},
+    "酒坊": {"name": "酒坊", "recipe": {"grain_feed": 50000}, "output_dim": "wine", "yield": 30},
+}
+WINE_TAX_SHARE = 0.12          # 内帑取酒课净额比例（史实：酒课多数归地方军资库，进内帑者约 12%）
+WINE_GRAIN_PER_GUAN = 1.5      # 酿酒耗粮（石/贯总酒课）：酒耗粮 = 总酒课 × 此值，随酒课（酒产量）动态          # 酒课保底月基准（贯，进内帤）—— audit-data 裁决：史实酒课~1000万/年，取象征性净额12%（开局约10万贯/月）
 # 七维物资基准价（钱/单位，动态价=base×供需因子）；wine 为作坊榷酒课利基准价（不属七维物资仓）
 MATERIAL_PRICE_BASE = {
-    "salt": 300, "tea": 200, "silk": 500, "hemp": 80, "cane": 60,
+    "salt": 300, "tea": 200, "silk": 200, "hemp": 40, "cane": 60,
     "fruit": 70, "timber": 50, "stone": 30, "iron": 250,
     "wine": 400,   # 酒单位动态价（钱/单位）：作坊产酒折钱归内帑的系数基准
+    "绸": 800,     # 丝织成品（钱/匹），丝坊产出，高于生丝原料价
+    "布": 120,     # 麻织成品（钱/匹），麻坊产出，高于麻原料价
 }
 # 七维物资维度（与 PREFECTURE_INFO.yields 键对齐）
-RESOURCE_DIMS = ["salt", "tea", "silk", "hemp", "cane", "fruit", "timber", "stone", "iron"]
+# 原料维度（与 PREFECTURE_INFO.yields 键对齐；单位见 yields 注释）
+RAW_DIMS = ["salt", "tea", "silk", "hemp", "cane", "fruit", "timber", "stone", "iron"]
+# 成品维度（作坊产出，进物资仓；丝→绸、麻→布、粮→酒）
+FINISHED_DIMS = ["绸", "布", "wine"]
+# 物资仓维度 = 原料 + 成品（wine 走酒课进内帑，不入仓）
+RESOURCE_DIMS = RAW_DIMS + ["绸", "布"]
+# 原料单位表（供注册/展示；成品单位：绸/布=匹、wine=酒单位）
+# 民间屯粮（士绅囤积居奇，模拟南方地主操纵粮价）：
+#   开局屯粮 = 月产 × 系数（南方士绅势力大）。士绅每月囤/抛多少由 AI 推演（返回档位），
+#   程序按档位换算成具体量（见 core.settlement_steps._settle_civilian_hoard），不写死比例。
+CIVILIAN_HOARD_SOUTH = 2.0      # 南方路开局民间屯粮（= 月产 2 倍）
+CIVILIAN_HOARD_NORTH = 0.5      # 北方路开局民间屯粮（= 月产 0.5 倍）
+HOARD_SUPPLY_SQUEEZE = 0.03     # 屯粮挤压流通比例：每月 3% 屯粮退出流通、推高粮价
+GENTRY_TREASURY_NORTH = 12     # 北方士绅资金（贯）= 月税入 × 12（士绅财力有限，囤粮受资金约束）
+GENTRY_TREASURY_SOUTH = 24     # 南方士绅资金（贯）= 月税入 × 24（南方地主富）
+# ---- POP 人口群体模型（参考维多利亚：每路人口按职业分层，每 POP 有 人数/钱/粮）----
+POP_TYPES = ["农", "士绅", "工匠", "商人", "官僚", "兵"]
+POP_SHARE = {                 # 开局各 POP 占在籍人口比例（官僚/兵另由 officials/clerks/army 给出）
+    "士绅": 0.015,            # 地主+官，南方更集中
+    "工匠": 0.05,             # 坊郭工匠
+    "商人": 0.03,             # 行商坐贾
+    # 农 = 其余（1 - 士绅 - 工匠 - 商人）
+}
+RAW_UNITS = {"salt": "斤", "tea": "斤", "silk": "匹", "hemp": "匹", "cane": "斤",
+             "fruit": "斤", "timber": "根", "stone": "方", "iron": "斤", "绸": "匹", "布": "匹"}
+
+def register_raw_material(dim, unit, price, default_yield=0):
+    """预留接口：注册新作物 / 新矿（AI 拟诏开发时调用）。
+
+    加入原料维度、价格表、单位表，并为各路补默认产量（开局 0，之后劝种/开矿/市舶演化）。
+    返回 dim，供注册方回填叙事。"""
+    global RAW_DIMS, RESOURCE_DIMS
+    if dim not in RAW_DIMS:
+        RAW_DIMS.append(dim)
+    if dim not in RESOURCE_DIMS:
+        RESOURCE_DIMS.append(dim)
+    MATERIAL_PRICE_BASE[dim] = price
+    RAW_UNITS[dim] = unit
+    return dim
+
+
+def register_finished_good(dim, unit, price, demand=None):
+    """预留接口：注册新商品（成品，玩家/AI 开发新作物→新作坊→新商品时调用）。
+
+    加入成品维度、价格表、单位表、物资仓，并为各 POP 补默认商品需求分层。
+    demand 为可选 {pop: 占比}，缺省归入「布」类日用（农/兵消费）。
+    返回 dim。"""
+    global FINISHED_DIMS, RESOURCE_DIMS
+    if dim not in FINISHED_DIMS:
+        FINISHED_DIMS.append(dim)
+    if dim not in RESOURCE_DIMS:
+        RESOURCE_DIMS.append(dim)
+    MATERIAL_PRICE_BASE[dim] = price
+    RAW_UNITS[dim] = unit
+    GOODS_DEMAND.setdefault(dim, demand or {"农": 0.5, "兵": 0.5})
+    return dim
+
+
+# 各 POP 商品需求分层（按阶级买不同商品：士绅买绸贵、农兵买布日用；新增商品经 register_finished_good 加入）
+# 结构 {pop: {商品: 占比}}：该 POP 的消费额按占比分配到各商品
+GOODS_DEMAND = {
+    "士绅": {"绸": 0.7, "布": 0.3},
+    "官僚": {"绸": 0.5, "布": 0.5},
+    "商人": {"绸": 0.3, "布": 0.7},
+    "兵": {"布": 1.0},
+    "农": {"布": 1.0},
+}
+
 # 各路兵额派生说明（DEFENSE_DERIVE）：
 #   DEFENSE_LINES 的 garrison 不再写死，改为由各路 garrisons 聚合的只读视图：
 #   北线_太原真定 ← 河北+河东；中线_黄河渡口 ← 京西+东京；内线_东京城防 ← 东京+京西+禁军余部。
-#   兵额单位：万兵。开局 12 路合计 75 万兵，西军仅在陕西路。
+#   兵额单位：人（真实整数）。开局 12 路合计约 75 万兵（750000 人），西军仅在陕西路。
 
 # 税收结构
 TAX_LAND_RATIO = 0.60          # 田赋占六成（名义口径，实征走田亩系统）
 TAX_COMMERCE_RATIO = 0.30      # 工商占三成（名义口径；实征按 commerce_tax_rate 对经济总量征收）
-TAX_POLL_RATIO = 0.10          # 丁口(役钱)占一成
+TAX_POLL_RATIO = 0.10          # 丁口(役钱)占一成（税基 POP 化后校准）
 
-# 工商征率（玩家可调）：对 calc_commerce() 年工商经济总量按"几成"征收。
-# 默认 0.15 = 抽一成五。开局约 3.5 亿产出 × 0.15 ≈ 5250 万/年（名义）。
-# 调高增收但增商怨/民怨，调低惠商但减收。
-# 口径：0.05~0.40 为"综合税负"（商税+榷货+坊场钱 之总征率），非单一商税。
-COMMERCE_TAX_RATE_DEFAULT = 0.15
+# 工商征率（玩家可调）：对 POP 商品消费额（工匠/商人真实产值）按"几成"征收。
+# 默认 0.25 = 抽二成五。税基 POP 化后按真实商品消费额征，量级校准到收支平衡。
+COMMERCE_TAX_RATE_DEFAULT = 0.05
+# 工匠/商人人均月产值（贯）：工商税基 = (工匠+商人)size × 此值，为"产值流量"（不随财富存量下降，避免税抽干税基的螺旋）
+CRAFT_OUTPUT_PER_CAPITA = 4.5
 COMMERCE_TAX_RATE_MIN = 0.05   # 最低 0.5 成
 COMMERCE_TAX_RATE_MAX = 0.40   # 最高 4 成
 
@@ -265,7 +343,7 @@ EXTERNAL_FORCES = {
 # 战力改由 _army_power(unit, gunpowder) 统一派生（见 ui/panels_military.py）。
 #
 # 各路兵额唯一源头改为 ARMY_UNIT_INIT（单位：人，真实整数），
-# 由各路 PREFECTURE_INFO.garrisons 折算而来（原"万兵"×10000），
+# 由各路 PREFECTURE_INFO.garrisons 直接载入（已是真实人数），
 # 陕西"西军 20万"归入"禁军 200000"，数字原样、仅改归类。
 ARMY_UNIT_INIT = {
     # 军籍键仅 禁军/厢军/乡兵
@@ -569,85 +647,101 @@ YAMEN_INFO = {
 PREFECTURE_LIST = ["东京开封府", "京西路", "河北路", "河东", "陕西路", "两浙路", "江南东路", "江南西路", "荆湖南路", "福建路", "成都府路", "广南东路"]
 # 宋本土十二概括路。
 #   键为稳定 ID（不可改），name 为舆图与详情面板展示名（可由圣旨更名）。
+# 路级亩产基准（石/亩/年，方案 C 分路差异化）：
+#   北方旱作 1.0（京畿/腹里/缘边），南方稻作 2.5（财赋膏腴/沿海/天府）。
+#   各路 grain（年总产，石/年）= land（田亩）× ROAD_YIELD[路] × (1 - CASH_CROP_RATE[路])；
+#   丰歉/科技由 land["yield"] 动态放大。
+ROAD_YIELD = {
+    "东京开封府": 1.0, "京西路": 1.0, "河北路": 1.0, "河东": 1.0, "陕西路": 1.0,
+    "两浙路": 2.5, "江南东路": 2.5, "江南西路": 2.5, "荆湖南路": 2.5,
+    "福建路": 2.5, "成都府路": 2.5, "广南东路": 2.5,
+}
+# 经济作物占田（开局数据，按路×产物细分）：值为占该路田亩的比例。
+#   盐/木/石/铁为矿冶山林（不占农田）；茶/桑(丝)/麻/蔗/果 占田。
+#   北方旱作合计 10%（桑 5% + 麻 5%）、南方稻作桑茶蔗区合计 20%。
+#   粮田率 = 1 - Σ(该路各产物占比)；grain = land × ROAD_YIELD × 粮田率。
+CASH_CROP_LAND = {
+    "东京开封府": {"silk": 0.05, "hemp": 0.05},
+    "京西路":     {"silk": 0.05, "hemp": 0.05},
+    "河北路":     {"silk": 0.05, "hemp": 0.05},
+    "河东":       {"silk": 0.05, "hemp": 0.05},
+    "陕西路":     {"silk": 0.05, "hemp": 0.05},
+    "两浙路":     {"silk": 0.07, "tea": 0.05, "cane": 0.04, "hemp": 0.02, "fruit": 0.02},
+    "江南东路":   {"silk": 0.07, "tea": 0.05, "cane": 0.04, "hemp": 0.02, "fruit": 0.02},
+    "江南西路":   {"silk": 0.06, "tea": 0.06, "cane": 0.03, "hemp": 0.03, "fruit": 0.02},
+    "荆湖南路":   {"silk": 0.06, "tea": 0.06, "cane": 0.03, "hemp": 0.03, "fruit": 0.02},
+    "福建路":     {"silk": 0.04, "tea": 0.07, "cane": 0.06, "hemp": 0.01, "fruit": 0.02},
+    "成都府路":   {"silk": 0.06, "tea": 0.07, "cane": 0.02, "hemp": 0.03, "fruit": 0.02},
+    "广南东路":   {"silk": 0.04, "tea": 0.04, "cane": 0.08, "hemp": 0.02, "fruit": 0.02},
+}
 PREFECTURE_INFO = {
     # 字段说明（经济全浮动重构新增）：
-    #   grain_yield  粮年产量活值(万石/年) = 原 grain(月产)×12，保持各路相对比例
-    #   yields       dict: 七维物资初值(salt/tea/silk/hemp/cane/fruit/timber/stone/iron)，5~50 整数，按地理摊
-    #   officials    官数 = round(households×0.00125)
+    #   grain       年总产(石/年) = land × ROAD_YIELD[路]（口径：年产，不再有 ×12 的 grain_yield）
+    #   yields       dict: 七维物资年产量初值(开局写死，随政策/市舶/工程/劝农演化)。单位：
+    #               salt/tea/iron/cane/fruit=斤、silk/hemp=匹、timber=根、stone=方；盐为榷盐产能、铁为铁矿冶铁
+    #   officials    官数 = round(households×0.00135)（在籍明户 2000 万 → 全国约 2.7 万官）
     #   clerks       吏数 = officials×CLERK_PER_OFFICIAL(8)
     #   route_mult   路级乘数(二税折色)
-    "东京开封府": {"name": "东京开封府", "households": 830, "land": 4200, "grain": 980, "mood": 62, "govern": 60,
-                "population": 415, "unrest": 12, "monthly_tax": 46, "hidden_land": 620,
-                "storage": 540, "type": "京畿要地", "is_capital": True,
-                "grain_yield": 11760, "route_mult": 1.05,
-                "yields": {"salt": 10, "tea": 12, "silk": 20, "hemp": 10, "cane": 8, "fruit": 15, "timber": 12, "stone": 15, "iron": 12},
-                "officials": 1, "clerks": 8},
-    "京西路": {"name": "京西", "households": 540, "land": 3000, "grain": 640, "mood": 60, "govern": 58,
-                "population": 270, "unrest": 14, "monthly_tax": 28, "hidden_land": 470,
-                "storage": 330, "type": "腹里州路", "is_capital": False,
-                "grain_yield": 7680, "route_mult": 1.0,
-                "yields": {"salt": 6, "tea": 10, "silk": 10, "hemp": 25, "cane": 8, "fruit": 10, "timber": 15, "stone": 12, "iron": 12},
-                "officials": 1, "clerks": 8},
-    "河北路": {"name": "河北", "households": 910, "land": 4800, "grain": 720, "mood": 55, "govern": 55,
-                "population": 455, "unrest": 24, "monthly_tax": 40, "hidden_land": 700,
-                "storage": 380, "type": "缘边重镇", "is_capital": False,
-                "grain_yield": 8640, "route_mult": 0.95,
-                "yields": {"salt": 8, "tea": 8, "silk": 12, "hemp": 12, "cane": 6, "fruit": 10, "timber": 12, "stone": 30, "iron": 35},
-                "officials": 1, "clerks": 8},
-    "河东": {"name": "河东", "households": 600, "land": 3100, "grain": 540, "mood": 58, "govern": 57,
-                "population": 300, "unrest": 19, "monthly_tax": 26, "hidden_land": 430,
-                "storage": 290, "type": "缘边重镇", "is_capital": False,
-                "grain_yield": 6480, "route_mult": 0.95,
-                "yields": {"salt": 45, "tea": 8, "silk": 10, "hemp": 10, "cane": 6, "fruit": 10, "timber": 35, "stone": 40, "iron": 45},
-                "officials": 1, "clerks": 8},
-    "陕西路": {"name": "陕西", "households": 780, "land": 4500, "grain": 610, "mood": 50, "govern": 52,
-                "population": 390, "unrest": 30, "monthly_tax": 32, "hidden_land": 660,
-                "storage": 300, "type": "缘边重镇", "is_capital": False,
-                "grain_yield": 7320, "route_mult": 0.95,
-                "yields": {"salt": 12, "tea": 12, "silk": 12, "hemp": 12, "cane": 8, "fruit": 12, "timber": 40, "stone": 35, "iron": 40},
-                "officials": 1, "clerks": 8},
-    "两浙路": {"name": "两浙", "households": 1240, "land": 5200, "grain": 1680, "mood": 66, "govern": 68,
-                "population": 620, "unrest": 8, "monthly_tax": 78, "hidden_land": 540,
-                "storage": 880, "type": "财赋膏腴", "is_capital": False,
-                "grain_yield": 20160, "route_mult": 1.0,
-                "yields": {"salt": 40, "tea": 35, "silk": 45, "hemp": 12, "cane": 12, "fruit": 15, "timber": 18, "stone": 12, "iron": 15},
-                "officials": 2, "clerks": 16},
-    "江南东路": {"name": "江南东", "households": 1120, "land": 4900, "grain": 1540, "mood": 64, "govern": 65,
-                "population": 560, "unrest": 10, "monthly_tax": 70, "hidden_land": 560,
-                "storage": 800, "type": "财赋膏腴", "is_capital": False,
-                "grain_yield": 18480, "route_mult": 1.0,
-                "yields": {"salt": 15, "tea": 30, "silk": 40, "hemp": 12, "cane": 12, "fruit": 15, "timber": 15, "stone": 12, "iron": 15},
-                "officials": 1, "clerks": 8},
-    "江南西路": {"name": "江南西", "households": 1050, "land": 4700, "grain": 1460, "mood": 63, "govern": 64,
-                "population": 525, "unrest": 11, "monthly_tax": 64, "hidden_land": 580,
-                "storage": 760, "type": "财赋膏腴", "is_capital": False,
-                "grain_yield": 17520, "route_mult": 1.0,
-                "yields": {"salt": 12, "tea": 30, "silk": 25, "hemp": 12, "cane": 10, "fruit": 12, "timber": 15, "stone": 12, "iron": 15},
-                "officials": 1, "clerks": 8},
-    "荆湖南路": {"name": "荆湖", "households": 760, "land": 3600, "grain": 920, "mood": 60, "govern": 56,
-                "population": 380, "unrest": 18, "monthly_tax": 36, "hidden_land": 520,
-                "storage": 430, "type": "腹里州路", "is_capital": False,
-                "grain_yield": 11040, "route_mult": 1.0,
-                "yields": {"salt": 8, "tea": 15, "silk": 15, "hemp": 30, "cane": 10, "fruit": 12, "timber": 20, "stone": 15, "iron": 15},
-                "officials": 1, "clerks": 8},
-    "福建路": {"name": "福建", "households": 700, "land": 2600, "grain": 880, "mood": 61, "govern": 59,
-                "population": 350, "unrest": 13, "monthly_tax": 42, "hidden_land": 330,
-                "storage": 400, "type": "沿海市舶", "is_capital": False,
-                "grain_yield": 10560, "route_mult": 1.0,
-                "yields": {"salt": 35, "tea": 25, "silk": 15, "hemp": 12, "cane": 40, "fruit": 35, "timber": 20, "stone": 12, "iron": 15},
-                "officials": 1, "clerks": 8},
-    "成都府路": {"name": "川峡", "households": 880, "land": 3900, "grain": 1180, "mood": 65, "govern": 66,
-                "population": 440, "unrest": 12, "monthly_tax": 52, "hidden_land": 470,
-                "storage": 620, "type": "天府沃野", "is_capital": False,
-                "grain_yield": 14160, "route_mult": 1.0,
-                "yields": {"salt": 10, "tea": 40, "silk": 35, "hemp": 12, "cane": 25, "fruit": 30, "timber": 45, "stone": 15, "iron": 15},
-                "officials": 1, "clerks": 8},
-    "广南东路": {"name": "广南", "households": 580, "land": 2300, "grain": 600, "mood": 58, "govern": 53,
-                "population": 290, "unrest": 20, "monthly_tax": 34, "hidden_land": 300,
-                "storage": 280, "type": "沿海市舶", "is_capital": False,
-                "grain_yield": 7200, "route_mult": 1.0,
-                "yields": {"salt": 30, "tea": 12, "silk": 12, "hemp": 35, "cane": 35, "fruit": 40, "timber": 18, "stone": 12, "iron": 12},
-                "officials": 1, "clerks": 8},
+    "东京开封府": {"name": "东京开封府", "households": 1_661_662, "land": 42_000_000, "grain": 37_800_000, "mood": 62, "govern": 60,
+                "population": 6_646_648, "unrest": 12, "monthly_tax": 460_000, "hidden_land": 10_500_000,
+                "storage": 5_400_000, "type": "京畿要地", "is_capital": True,
+                "route_mult": 1.05,
+                "yields": {"salt": 0, "tea": 0, "silk": 1_000_000, "hemp": 500_000, "cane": 0, "fruit": 500_000, "timber": 200_000, "stone": 300_000, "iron": 0}},
+    "京西路": {"name": "京西", "households": 1_081_081, "land": 30_000_000, "grain": 27_000_000, "mood": 60, "govern": 58,
+                "population": 4_324_324, "unrest": 14, "monthly_tax": 280_000, "hidden_land": 7_500_000,
+                "storage": 3_300_000, "type": "腹里州路", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 0, "tea": 0, "silk": 500_000, "hemp": 3_000_000, "cane": 0, "fruit": 500_000, "timber": 500_000, "stone": 500_000, "iron": 500_000}},
+    "河北路": {"name": "河北", "households": 1_821_822, "land": 48_000_000, "grain": 43_200_000, "mood": 55, "govern": 55,
+                "population": 7_287_288, "unrest": 24, "monthly_tax": 400_000, "hidden_land": 12_000_000,
+                "storage": 3_800_000, "type": "缘边重镇", "is_capital": False,
+                "route_mult": 0.95,
+                "yields": {"salt": 18_000_000, "tea": 0, "silk": 2_000_000, "hemp": 2_000_000, "cane": 0, "fruit": 1_000_000, "timber": 500_000, "stone": 800_000, "iron": 4_000_000}},
+    "河东": {"name": "河东", "households": 1_201_201, "land": 31_000_000, "grain": 27_900_000, "mood": 58, "govern": 57,
+                "population": 4_804_804, "unrest": 19, "monthly_tax": 260_000, "hidden_land": 7_750_000,
+                "storage": 2_900_000, "type": "缘边重镇", "is_capital": False,
+                "route_mult": 0.95,
+                "yields": {"salt": 70_000_000, "tea": 0, "silk": 500_000, "hemp": 1_000_000, "cane": 0, "fruit": 500_000, "timber": 800_000, "stone": 1_000_000, "iron": 2_500_000}},
+    "陕西路": {"name": "陕西", "households": 1_561_562, "land": 45_000_000, "grain": 40_500_000, "mood": 50, "govern": 52,
+                "population": 6_246_248, "unrest": 30, "monthly_tax": 320_000, "hidden_land": 11_250_000,
+                "storage": 3_000_000, "type": "缘边重镇", "is_capital": False,
+                "route_mult": 0.95,
+                "yields": {"salt": 3_000_000, "tea": 0, "silk": 500_000, "hemp": 1_000_000, "cane": 0, "fruit": 500_000, "timber": 600_000, "stone": 1_000_000, "iron": 500_000}},
+    "两浙路": {"name": "两浙", "households": 2_482_482, "land": 52_000_000, "grain": 104_000_000, "mood": 66, "govern": 68,
+                "population": 9_929_928, "unrest": 8, "monthly_tax": 780_000, "hidden_land": 13_000_000,
+                "storage": 8_800_000, "type": "财赋膏腴", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 25_000_000, "tea": 8_000_000, "silk": 5_000_000, "hemp": 1_000_000, "cane": 3_000_000, "fruit": 2_000_000, "timber": 1_000_000, "stone": 500_000, "iron": 0}},
+    "江南东路": {"name": "江南东", "households": 2_242_242, "land": 49_000_000, "grain": 98_000_000, "mood": 64, "govern": 65,
+                "population": 8_968_968, "unrest": 10, "monthly_tax": 700_000, "hidden_land": 12_250_000,
+                "storage": 8_000_000, "type": "财赋膏腴", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 30_000_000, "tea": 6_000_000, "silk": 4_000_000, "hemp": 1_000_000, "cane": 1_000_000, "fruit": 1_000_000, "timber": 1_500_000, "stone": 500_000, "iron": 0}},
+    "江南西路": {"name": "江南西", "households": 2_102_102, "land": 47_000_000, "grain": 94_000_000, "mood": 63, "govern": 64,
+                "population": 8_408_408, "unrest": 11, "monthly_tax": 640_000, "hidden_land": 11_750_000,
+                "storage": 7_600_000, "type": "财赋膏腴", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 5_000_000, "tea": 6_000_000, "silk": 3_000_000, "hemp": 1_000_000, "cane": 500_000, "fruit": 1_000_000, "timber": 2_000_000, "stone": 500_000, "iron": 1_500_000}},
+    "荆湖南路": {"name": "荆湖", "households": 1_521_522, "land": 36_000_000, "grain": 72_000_000, "mood": 60, "govern": 56,
+                "population": 6_086_088, "unrest": 18, "monthly_tax": 360_000, "hidden_land": 9_000_000,
+                "storage": 4_300_000, "type": "腹里州路", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 2_000_000, "tea": 4_000_000, "silk": 1_000_000, "hemp": 2_000_000, "cane": 500_000, "fruit": 500_000, "timber": 2_000_000, "stone": 500_000, "iron": 0}},
+    "福建路": {"name": "福建", "households": 1_401_401, "land": 26_000_000, "grain": 52_000_000, "mood": 61, "govern": 59,
+                "population": 5_605_604, "unrest": 13, "monthly_tax": 420_000, "hidden_land": 6_500_000,
+                "storage": 4_000_000, "type": "沿海市舶", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 8_000_000, "tea": 4_000_000, "silk": 1_000_000, "hemp": 500_000, "cane": 4_000_000, "fruit": 3_000_000, "timber": 1_500_000, "stone": 500_000, "iron": 1_000_000}},
+    "成都府路": {"name": "川峡", "households": 1_761_762, "land": 39_000_000, "grain": 78_000_000, "mood": 65, "govern": 66,
+                "population": 7_047_048, "unrest": 12, "monthly_tax": 520_000, "hidden_land": 9_750_000,
+                "storage": 6_200_000, "type": "天府沃野", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 12_000_000, "tea": 6_000_000, "silk": 3_000_000, "hemp": 1_000_000, "cane": 2_000_000, "fruit": 2_000_000, "timber": 2_000_000, "stone": 500_000, "iron": 0}},
+    "广南东路": {"name": "广南", "households": 1_161_161, "land": 23_000_000, "grain": 46_000_000, "mood": 58, "govern": 53,
+                "population": 4_644_644, "unrest": 20, "monthly_tax": 340_000, "hidden_land": 5_750_000,
+                "storage": 2_800_000, "type": "沿海市舶", "is_capital": False,
+                "route_mult": 1.0,
+                "yields": {"salt": 12_000_000, "tea": 1_000_000, "silk": 1_000_000, "hemp": 2_000_000, "cane": 5_000_000, "fruit": 3_000_000, "timber": 1_500_000, "stone": 500_000, "iron": 0}},
 }
 
 # ============================================================
@@ -722,11 +816,12 @@ TIER_ORDER = ["无", "微", "小", "中", "大"]
 # 田亩户籍总览
 # ============================================================
 LAND_INFO = {
-    "cultivated": 46000,   # 垦田（万亩）
-    "households": 2000,    # 在籍户数（万户）
-    "hidden_rate": 0.35,   # 隐漏率
-    "wasteland": 8000,     # 荒田（万亩）
-    "yield": 1.0,          # 亩产系数
+    "cultivated": 460_000_000,       # 垦田（亩）
+    "households": 20_000_000,        # 在籍明户（户）——12 路 PREFECTURE_INFO.households 合计即此值
+    "hidden_households": 5_000_000,  # 隐户（户，不在籍，UI 不显示；设计锚：总户 2500 万 = 明 2000 万 + 隐 500 万，总口 1 亿）
+    "hidden_rate": 0.35,             # 田赋隐漏率（税收口径，与隐户人口锚不同维）
+    "wasteland": 80_000_000,         # 荒田（亩）
+    "yield": 1.0,                    # 亩产系数
 }
 
 
@@ -734,9 +829,9 @@ LAND_INFO = {
 # 金融 / 货币 / 市舶 / 交子 / 官营机构（扩展维度）
 # ============================================================
 JIAOZI_INFO = {
-    "issued": 0,          # 已发交子（万贯）
+    "issued": 0,          # 已发交子（贯）
     "trust": 60,          # 纸币信用（0~100）
-    "reserve": 200,       # 本钱准备（万贯）
+    "reserve": 2_000_000, # 本钱准备（贯）
 }
 MARITIME_INFO = {
     "open": False,        # 市舶司是否广开
@@ -762,11 +857,11 @@ STANDARD_INFO = {
 FINANCE_ACTS = ["行交子", "榷货市舶", "设银行", "定金银铜三品本位", "平抑物价", "铸铁钱"]
 
 # ============================================================
-# 仓廪漕运（实物粮：万石）——「仓廪虚实，系乎国运」
+# 仓廪漕运（实物粮最小单位：石，已去「万」）——「仓廪虚实，系乎国运」
 # ============================================================
-GRANARY_START = 1500           # 中央粮仓（太仓）初始存粮 (万石)
-GRANARY_START_CAP = 2000       # 中央仓初始容量 (万石)，可经"新建仓储"工程扩建
-GRANARY_CAP_SOFT = 15000       # 仓储扩建软上限 (万石)
+GRANARY_START = 15_000_000     # 中央粮仓（太仓）初始存粮 (石)
+GRANARY_START_CAP = 20_000_000 # 中央仓初始容量 (石)，可经"新建仓储"工程扩建
+GRANARY_CAP_SOFT = 150_000_000 # 仓储扩建软上限 (石)
 
 # 开局各路米价（按"京畿边镇贵、膏腴贱"原则硬编码，避免全 1.0 平庸）
 # 后续由 calc_region_grain_price 每月按供需比动态调整，此处仅给开局变量。
@@ -779,9 +874,9 @@ PREFECTURE_INITIAL_GRAIN_PRICE = {
     "腹里州路":   1.00,   # 京西/荆湖/广南
 }
 CANAL_MONTHLY_RATE = 0.90      # 漕运效率基准：每月把州府可输存粮的 90% 输往中央仓
-MILITARY_GRAIN_MONTHLY = 60    # 军粮月耗 (万石)，从中央仓支取（禁军/厢军/西军粮饷）
-OFFICIAL_GRAIN_MONTHLY = 20    # 官俸本色禄米月耗 (万石)，从中央仓支取
-DISASTER_RELIEF_GRAIN = 20     # 单次开仓赈济耗粮 (万石)
+MILITARY_GRAIN_MONTHLY = 600_000    # 军粮月耗 (石)，从中央仓支取（禁军/厢军/西军粮饷）
+OFFICIAL_GRAIN_MONTHLY = 200_000    # 官俸本色禄米月耗 (石)，从中央仓支取
+DISASTER_RELIEF_GRAIN = 200_000     # 单次开仓赈济耗粮 (石)
 SPARROW_RAT = 0.01             # 雀鼠耗：存粮月自然损耗率（1%）
 CANAL_LOSS_BASE = 0.04         # 漕运漂没基础损耗（4%）
 CANAL_LOSS_CORRUPT_WEIGHT = 0.06  # 漕运侵盗损耗随押运官贪腐放大系数
@@ -806,8 +901,8 @@ PAY_SYSTEM_DEFAULT = {
     "grain_ratio": 0.5,          # 本色（禄米/军粮）占比
     "cash_ratio": 0.5,           # 折色（俸钱/饷钱）占比
 }
-# 俸禄总盘子（月度基准）：本色禄米+军粮 ≈ 80 万石，折色俸钱+饷钱 ≈ 200 万贯
-PAY_GRANARY_BASE = 80           # 本色月度总盘子（万石）= 军粮60 + 禄米20
+# 俸禄总盘子（月度基准）：本色禄米+军粮 ≈ 80 万石（即 8e5 石），折色俸钱+饷钱 ≈ 200 万贯
+PAY_GRANARY_BASE = 800_000      # 本色月度总盘子（石）= 军粮60万 + 禄米20万
 PAY_CASH_BASE = 2_000_000       # 折色月度总盘子（贯）
 
 # 漕运阻塞（0 通畅 ~ 100 阻塞）
@@ -815,10 +910,10 @@ CANAL_BLOCK_START = 10
 
 # 一条鞭法（田赋改征银）与俸禄改革均为长期政务，无额外常量
 
-# 区域粮价（石/贯）——按人口/产量供需，京畿边镇贵、膏腴贱
+# 区域粮价（贯/石）——按人口/产量供需，京畿边镇贵、膏腴贱
 GRAIN_PRICE_MIN = 0.4
 GRAIN_PRICE_MAX = 2.5
-PER_CAPITA_MONTH_GRAIN = 0.2    # 人均月需粮（石），用于区域供需比
+PER_CAPITA_MONTH_GRAIN = 0.3    # 人均月耗粮（石），含口粮/加工损耗/酿造畜养等综合消耗，用于区域供需比
 
 # 常平仓（区域粮价自动稳定器）
 CHANGPING_HIGH = 1.6            # 粮价高于此则常平粜粮抑价

@@ -226,7 +226,7 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
     # 国库
     if "treasury" in effects:
         state.change_treasury(effects["treasury"])
-        log.append(f"国帑 {'+' if effects['treasury']>=0 else ''}{effects['treasury']/10000:.0f}万贯")
+        log.append(f"国帑 {'+' if effects['treasury']>=0 else ''}{effects['treasury']:.0f}贯")
 
     # 人口满意度
     if "population_satisfaction" in effects:

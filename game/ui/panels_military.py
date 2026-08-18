@@ -328,7 +328,5 @@ def distribute_arsenal(state, unit: ArmyUnit, items: Optional[dict] = None) -> d
 # 自适应显示
 # ============================================================
 def _fmt_count(n: float, unit: str) -> str:
-    """<10000 显示 'n 单位'，否则 'x.x 万单位'。"""
-    if n < 10000:
-        return f"{int(round(n))}{unit}"
-    return f"{n/10000:.1f}万{unit}"
+    """直接显示真实数+千分位，无万进位。"""
+    return f"{int(round(n)):,}{unit}"

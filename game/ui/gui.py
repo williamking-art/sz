@@ -40,7 +40,7 @@ from core.commands import AIRuntimeError as _AIRuntimeError
 
 from ui.gui_common import (
     PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
-    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES, LOCAL_ACTS,
+    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
     _bar, _format_effects, _judge_effects,
 )
 from ui.panels_basic import PanelsBasicMixin
