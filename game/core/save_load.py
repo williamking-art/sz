@@ -42,6 +42,8 @@ def save_game(state, slot: int = 1) -> bool:
         "treasury": state.treasury,
         "imperial_treasury": state.imperial_treasury,
         "wine_tax": getattr(state, "wine_tax", 100000),
+        "imperial_granary": getattr(state, "imperial_granary", 0),
+        "mechanisms": getattr(state, "mechanisms", {}),
 
         # 仓廪 / 通货（新字段，兼容旧档缺省）
         "granary": getattr(state, "granary", 1500),
@@ -199,6 +201,8 @@ def load_game(slot: int = 1):
     state.treasury = data.get("treasury", 5000000)
     state.imperial_treasury = data.get("imperial_treasury", 1000000)
     state.wine_tax = data.get("wine_tax", getattr(state, "wine_tax", 100000))
+    state.imperial_granary = data.get("imperial_granary", getattr(state, "imperial_granary", 0))
+    state.mechanisms = data.get("mechanisms", getattr(state, "mechanisms", {}))
 
     # 恢复仓廪/通货（含旧档兼容默认）
     state.granary = data.get("granary", getattr(state, "granary", 1500))
@@ -333,6 +337,22 @@ def load_game(slot: int = 1):
         p.setdefault("changping_stock", round(p.get("grain", 0) / 12 * 0.2))
         p.setdefault("pay_ratio", 0.5)
         p.setdefault("gap", 0)
+        # POP 迁移（v2）：无 pops 的旧档用 _build_pops 重建；有 pops 则逐 POP 补 goods/窖银 键
+        from content.data import RESOURCE_DIMS, RAW_DIMS
+        _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
+        if not isinstance(p.get("pops"), dict):
+            from content.data import PREFECTURE_INFO
+            from core.game_state import _build_pops
+            _info = PREFECTURE_INFO.get(pname, {})
+            if _info:
+                p["pops"] = _build_pops(_info, _info.get("type", "腹里州路"))
+        else:
+            for _pop in p["pops"].values():
+                if not isinstance(_pop, dict):
+                    continue
+                if not isinstance(_pop.get("goods"), dict):
+                    _pop["goods"] = {d: 0 for d in _goods_dims}
+                _pop.setdefault("窖银", 0)
     # 经济全浮动重构状态字段缺省兼容
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))

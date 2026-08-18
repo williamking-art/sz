@@ -128,26 +128,27 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
     月份/年份的推进已收敛到 run_monthly_settlement 内部（与 Rust 后端 settle.rs 的
     推进位置保持一致），本函数不再重复推进，避免双端月份各推一次的漂移。
     """
+    # AI 经济推演（景气/士绅囤粮/生产）须在结算之前注入，本月生效（结算内读 _economy_ai）
+    if ai_client and ai_client.available:
+        try:
+            eco = ai_client.economy_decide(state.posture)
+            if eco:
+                state._economy_ai = eco
+        except Exception:
+            pass  # 经济推演失败则回退兜底，不阻断结算
     log = run_monthly_settlement(state)
     report = ""
     if ai_client and ai_client.available:
+        # 月报是装饰性 AI 文本，失败降级为空、绝不 raise——
+        # 结算已就地发生，若 raise 会让 UI 误判"未推进"而重复结算（双月推进）
         try:
-            summary = state.get_state_summary()
             monthly = ai_client.monthly_report(state.year, state.month, state.era_name, state.posture)
-            # monthly_report 返回 {"report": str, "scenes": [...]}
             if isinstance(monthly, dict):
                 report = str(monthly.get("report") or "")
             else:
                 report = str(monthly or "")
-            # AI 推演本月经济动态（景气/士绅囤粮/生产），覆盖各 POP 消费与士绅囤抛的兜底
-            try:
-                eco = ai_client.economy_decide(state.posture)
-                if eco:
-                    state._economy_ai = eco
-            except Exception:
-                pass  # 经济推演失败则回退兜底，不阻断结算
-        except Exception as e:
-            raise AIRuntimeError(f"月度结算时 AI 报告中断（{type(e).__name__}）：请检查 AI 配置或网络后重试。") from e
+        except Exception:
+            report = ""
     if check_game_over(state):
         state.game_over = True
     return log, report

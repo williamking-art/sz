@@ -40,7 +40,6 @@ from content.ministers import (
     org_lead,
 )
 from core.game_state_econ import GameStateEconMixin
-from ui.panels_military import build_army_units, CentralArsenal
 
 
 def _next_month(year: int, month: int):
@@ -78,7 +77,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
     _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
-        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.5), "goods": _g0()},
+        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0), "goods": _g0()},
         "士绅": {
             "size": sz_shen,
             "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH)),
@@ -255,6 +254,8 @@ class GameState(GameStateEconMixin):
         # ---- 军事（兵额唯一真账 = army_units 实体列表）----
         # 旧 self.armies（质量参数 dict）已废弃：质量并入 UNIT_TIER，战力由 _army_power 派生。
         # 旧各路 prefectures[路]["garrisons"] 已删除：兵额改由各路 army_units.troops 求和派生。
+        # 延迟导入：core 不得顶层依赖 ui（避免潜伏环），见 TEAM.md 工程约束
+        from ui.panels_military import build_army_units, CentralArsenal
         self.army_units: list = build_army_units(self)
         # 中央武库
         self.central_arsenal: CentralArsenal = CentralArsenal()
@@ -797,17 +798,18 @@ class GameState(GameStateEconMixin):
         ex = s.get("exam_ext", {})
         te = s.get("tech_ext", {})
         gr = s.get("granary_ext", {})
+        _att = lambda a: "友善" if a >= 70 else ("一般" if a >= 40 else ("敌视" if a >= 20 else "仇敌"))
         return (
             f"时间：{s['time']}；皇威：{s['prestige']['desc']}；"
             f"国库：{s['treasury']['desc']}；内帑：{s['imperial_treasury']['desc']}；民心：{s['pop_sat_desc']}；"
             f"金融：交子{fin.get('jiaozi_trust','')}、{fin.get('coin_shortage','')}、{fin.get('maritime_open','')}；"
-            f"仓廪：{gr.get('granary','')}（太仓存量占比{int(gr.get('granary_util',0)*100)}%）、米价{gr.get('price','')}、"
+            f"仓廪：{gr.get('granary','')}、米价{gr.get('price','')}、"
             f"漕运{gr.get('canal','')}、{gr.get('whip','')}、俸禄{gr.get('pay','')}；"
             f"科举：{ex.get('open','')}（{ex.get('mode','')}）、人才{ex.get('talent','')}；"
             f"科技：{te.get('level','')}；外交：{s.get('diplomacy_ext',{}).get('alliance','')}；"
-            f"金态度：{self.external.get('金',{}).get('attitude',50)}，"
-            f"辽态度：{self.external.get('辽',{}).get('attitude',50)}，"
-            f"西夏态度：{self.external.get('西夏',{}).get('attitude',50)}。"
+            f"金态度：{_att(self.external.get('金',{}).get('attitude',50))}，"
+            f"辽态度：{_att(self.external.get('辽',{}).get('attitude',50))}，"
+            f"西夏态度：{_att(self.external.get('西夏',{}).get('attitude',50))}。"
         )
 
     # ================================================================
