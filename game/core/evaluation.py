@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 结算评价系统"""
-import random
-
 from content.data import EVAL_WEIGHTS, EVAL_OUTCOMES, END_YEAR
 
 
@@ -78,7 +76,7 @@ def evaluate_game(state) -> dict:
     total = max(0, min(100, sum(scores[k] * EVAL_WEIGHTS[k] for k in EVAL_WEIGHTS)))
 
     # 判定结局
-    outcome = "身死国灭"
+    outcome = "社稷倾覆"
     for threshold, name in EVAL_OUTCOMES:
         if total >= threshold:
             outcome = name
@@ -98,7 +96,7 @@ def _get_outcome_desc(outcome: str) -> str:
         "守成": "虽无开拓之功，然守成有方，大宋基业得以维系。",
         "治平": "庸主之姿，乏善可陈。天下粗安，然隐患已伏。",
         "昏聩": "嬉游无度、任用非人，国势日蹙，堪称昏聩之主。",
-        "身死国灭": "重蹈史实覆辙，靖康之耻，身死国灭，为天下笑。",
+        "社稷倾覆": "重蹈史实覆辙，靖康之耻，社稷倾覆，为天下笑。",
     }
     return descs.get(outcome, "")
 
@@ -148,26 +146,11 @@ def check_abdication(state) -> tuple:
     return (False, "")
 
 # ------------------------------------------------------------
-# 死亡判定
+# 收束年判定
 # ------------------------------------------------------------
-def check_emperor_death(state) -> tuple:
-    """检测皇帝是否死亡，(是否死亡, 原因)"""
-    if state.emperor_health <= 0:
-        return (True, "龙驭上宾")
-    # 强制收束年：到达 END_YEAR 后无论如何收束，避免玩家无限拖局刷分
-    if state.year >= END_YEAR:
-        if state.emperor_health < 20 or random.random() < 0.5:
-            return (True, "岁暮龙驭（收束年驾崩）")
-        return (False, "")
-    # 自然衰老：年事渐高（1120 年后）且龙体欠佳时，每月有一定概率寝疾
-    if state.year >= 1120 and state.emperor_health < 30:
-        if random.random() < 0.03:
-            return (True, "寝疾弥留")
-    return (False, "")
-
-
 def check_reach_end_year(state) -> tuple:
-    """到达强制收束年但皇帝尚在人世时，游戏仍应以收束方式结束，不再允许继续拖延。"""
+    """到达强制收束年（END_YEAR）后游戏收束，不再允许继续拖延，避免无限拖局刷分。
+    皇帝不会因健康归零而驾崩——游戏仅在收束年、国库崩坏、退位、京城陷落时结束。"""
     if state.year >= END_YEAR:
         return (True, "收束之年已至，国事当有定论")
     return (False, "")
@@ -180,13 +163,6 @@ def check_game_over(state):
     if state.treasury < TREASURY_COLLAPSE_LINE:
         state.game_over = True
         state.game_result = "国用耗竭，天下鼎沸——大宋府库空虚，纲纪尽弛"
-        return True
-    # 死亡
-    dead, reason = check_emperor_death(state)
-    if dead:
-        state.game_over = True
-        state.emperor_alive = False
-        state.game_result = f"大宋皇帝{state.emperor_name}驾崩——{reason}"
         return True
 
     # 退位

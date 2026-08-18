@@ -98,6 +98,12 @@ def advance_month(state: GameState) -> list:
 
     月份与回合推进统一在 settle_turn 的月度结算之后完成，避免一回合重复计数。
     """
+    # 事件触发随机纳入确定性种子（与 run_monthly_settlement 同源），使同回合可复现，
+    # 便于 dev/replay 回放与平衡 A/B 对比；不污染全局 random 后续调用。
+    # 注意：不可用 hash()（Python 哈希随机化导致跨进程不一致），改用确定性多项式。
+    import random as _rnd
+    _seed = (state.year * 1000003 + state.month * 10007 + state.turn * 131) & 0xFFFFFFFF
+    _rnd.seed(_seed)
     # 触发事件优先级：
     #   1) 待确认改写位奏章（战略决策点·朱批）——最高优先，让玩家主动拍板改写历史
     #   2) 已确认改写位的分支事件

@@ -6,6 +6,7 @@
 use crate::state::*;
 use crate::constants::*;
 use rand::Rng;
+use serde_json::Value;
 
 /// 执行月度结算，返回日志。
 pub fn settle_turn(state: &mut GameState) -> Vec<String> {
@@ -401,8 +402,10 @@ pub fn settle_land_local(state: &mut GameState, _log: &mut Vec<String>) -> f64 {
             * (1.0 - hidden)
             * (0.8 + 0.4 * hyd);
         grain_in += inflow;
-        if let Some(s) = p.get_mut("storage").and_then(|v| v.as_f64().as_mut()) {
-            *s += inflow;
+        if let Some(v) = p.get_mut("storage") {
+            if let Some(s) = v.as_f64() {
+                *v = serde_json::json!(s + inflow);
+            }
         }
     }
     grain_in
@@ -473,7 +476,7 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
 
     // 田赋本色入：settle_land_local 已将本色粮写入各路 storage（州仓），
     // 太仓只通过下方漕运汇聚接收（对齐 Python L456→L628-646），绝不再二次加 grain_in。
-    let grain_in = settle_land_local(state, log);
+    let _grain_in = settle_land_local(state, log);
 
     // ── 漕运汇聚（对齐 Python _settle_granary L628-646：州府 storage → 中央太仓）──
     // Rust 简化：固定 canal_eff=CANAL_MONTHLY_RATE（忽略随机 block 演化），
@@ -494,8 +497,10 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
             let loss = take * loss_rate;
             let arrive = take - loss;
             // 更新该路 storage
-            if let Some(s) = p.get_mut("storage").and_then(|v| v.as_f64().as_mut()) {
-                *s -= take;
+            if let Some(v) = p.get_mut("storage") {
+                if let Some(s) = v.as_f64() {
+                    *v = serde_json::json!((s - take).max(0.0));
+                }
             }
             state.granary = (state.granary + arrive).clamp(0.0, state.granary_cap);
             canal += arrive;

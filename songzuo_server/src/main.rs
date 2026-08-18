@@ -22,9 +22,15 @@ use server::serve;
 
 #[tokio::main]
 async fn main() {
-    // 监听地址可用环境变量 SONGZUO_ADDR 覆盖，默认 127.0.0.1:8080（本机演示）。
-    // 上线时改为 0.0.0.0:8080 并前置 nginx 反向代理。
-    let addr = std::env::var("SONGZUO_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
-    println!("[songzuo_server] 宋祚后端启动，存档目录 = {:?}", save::save_dir());
+    // 云托管部署：优先监听平台注入的 PORT 环境变量，并强制绑定 0.0.0.0（readiness probe
+    // 只探服务端口，127.0.0.1 会导致探针失败）。本地演示仍可用 SONGZUO_ADDR 覆盖。
+    let addr = if let Ok(a) = std::env::var("SONGZUO_ADDR") {
+        a
+    } else if let Ok(port) = std::env::var("PORT") {
+        format!("0.0.0.0:{}", port)
+    } else {
+        "0.0.0.0:8080".into()
+    };
+    println!("[songzuo_server] 宋祚后端启动，监听 {}，存档目录 = {:?}", addr, save::save_dir());
     serve(&addr).await;
 }

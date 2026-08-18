@@ -717,6 +717,11 @@ class GameState(GameStateEconMixin):
             "health": self.emperor_health,
             "treasury": {"amount": self.treasury, "desc": treasury_desc},
             "imperial_treasury": {"amount": self.imperial_treasury, "desc": desensitize_treasury(self.imperial_treasury)},
+            # 认知层滞后值（上月 economy_knowledge 快照，供脱敏层做"奏报延迟"）
+            "treasury_lagged": self.economy_knowledge.get("treasury"),
+            "imperial_treasury_lagged": self.economy_knowledge.get("imperial_treasury"),
+            "granary_lagged": self.economy_knowledge.get("granary"),
+            "refugee_count_lagged": self.economy_knowledge.get("refugee_count"),
             "arrival_rate": {"value": round(arrival, 2), "desc": arrival_desc},
             "factions": {
                 name: {
@@ -771,6 +776,10 @@ class GameState(GameStateEconMixin):
                 "pay": self.pay_system.get("mode", "本色折色"),
                 "whip": "已行一条鞭" if self.single_whip else "仍征本色",
             },
+            "granary_amount": self.granary,
+            # ---- 米价趋势（数值供脱敏层比较，不直发 AI） ----
+            "grain_price": round(self.grain_price, 3),
+            "grain_price_prev": round(self.economy_knowledge.get("grain_price", self.grain_price), 3),
             "exam_ext": {
                 "open": "开科取士" if self.exam["open"] else "停科",
                 "mode": self.exam["mode"],
@@ -792,16 +801,35 @@ class GameState(GameStateEconMixin):
 
     @property
     def posture(self) -> str:
-        """AI 所需的精简脱敏态势字符串。"""
+        """AI 所需的精简脱敏态势字符串。
+
+        改进：国库/太仓/流民用区间脱敏（"约X至Y万缗"）替代纯定性
+        （"充裕"），让 AI 知道量级可做有依据判断，但区间内不确定性
+        使其无法精确计算最优解——这才是真实的决策混沌。
+        认知层滞后：经济读数用上月快照（economy_knowledge），模拟奏报延迟。
+        """
+        from ai.desensitize import desensitize_band
         s = self.get_state_summary()
         fin = s.get("finance_ext", {})
         ex = s.get("exam_ext", {})
         te = s.get("tech_ext", {})
         gr = s.get("granary_ext", {})
         _att = lambda a: "友善" if a >= 70 else ("一般" if a >= 40 else ("敌视" if a >= 20 else "仇敌"))
+        # 区间脱敏：国库/太仓/流民用区间+认知层滞后，其余仍用定性
+        _treasury_band = desensitize_band(
+            s["treasury"]["amount"], "缗", width_pct=0.20,
+            lag_value=s.get("treasury_lagged"))
+        _granary_band = desensitize_band(
+            s.get("granary_amount", 0), "石", width_pct=0.20,
+            lag_value=s.get("granary_lagged")) if s.get("granary_amount", 0) > 0 else "太仓告罄"
+        _ref = s.get("refugee_count", 0)
+        _ref_band = desensitize_band(
+            _ref, "口", width_pct=0.25,
+            lag_value=s.get("refugee_count_lagged")) if _ref > 0 else "无"
         return (
             f"时间：{s['time']}；皇威：{s['prestige']['desc']}；"
-            f"国库：{s['treasury']['desc']}；内帑：{s['imperial_treasury']['desc']}；民心：{s['pop_sat_desc']}；"
+            f"国库：{_treasury_band}（{s['treasury']['desc']}）；"
+            f"太仓：{_granary_band}；流民：{_ref_band}；民心：{s['pop_sat_desc']}；"
             f"金融：交子{fin.get('jiaozi_trust','')}、{fin.get('coin_shortage','')}、{fin.get('maritime_open','')}；"
             f"仓廪：{gr.get('granary','')}、米价{gr.get('price','')}、"
             f"漕运{gr.get('canal','')}、{gr.get('whip','')}、俸禄{gr.get('pay','')}；"

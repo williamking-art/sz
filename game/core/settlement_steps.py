@@ -341,12 +341,12 @@ def _settle_economy(state, log):
     for name, p in state.prefectures.items():
         pops = p["pops"]
         if _boom in ("中", "大"):
-            _move = int(pops["农"]["size"] * 0.0008)               # 0.08%/月 城市化
+            _move = round(pops["农"]["size"] * 0.0008)              # 0.08%/月 城市化（round 避免截断丢人）
             pops["农"]["size"] -= _move
-            pops["工匠"]["size"] += int(_move * 0.6); pops["商人"]["size"] += int(_move * 0.4)
+            pops["工匠"]["size"] += int(_move * 0.6); pops["商人"]["size"] += _move - int(_move * 0.6)
         elif _boom == "微":
-            _back = int((pops["工匠"]["size"] + pops["商人"]["size"]) * 0.0008)  # 0.08%/月 回乡
-            pops["工匠"]["size"] -= int(_back * 0.6); pops["商人"]["size"] -= int(_back * 0.4)
+            _back = round((pops["工匠"]["size"] + pops["商人"]["size"]) * 0.0008)  # 0.08%/月 回乡
+            pops["工匠"]["size"] -= int(_back * 0.6); pops["商人"]["size"] -= (_back - int(_back * 0.6))
             pops["农"]["size"] += _back
     for name, p in state.prefectures.items():
         local = p.get("refugees", 0)
@@ -746,6 +746,7 @@ def _settle_granary(state, log):
                 buy = min(short, farmers["grain"])
                 if buy * price > pop["wealth"]:
                     buy = max(0, pop["wealth"] // price_wen)
+                buy = min(buy, farmers["grain"])   #  affordability 重赋值后再次封顶，防农民粮变负
                 if buy > 0:
                     _cost = int(buy * price * 1000) / 1000.0   # 文级精度（1贯=1000文）
                     pop["wealth"] -= _cost; pop["grain"] += buy
@@ -773,6 +774,10 @@ def _settle_granary(state, log):
         "price_level": state.price_level,
         "coin_shortage": state.coin.get("shortage", 0.3),
         "canal_block": state.canal_block,
+        # 认知层滞后快照（供脱敏层做"奏报延迟"，AI 看到的是上月数而非实时）
+        "treasury": state.treasury,
+        "imperial_treasury": state.imperial_treasury,
+        "refugee_count": state.refugee_count,
     })
     if len(state.economy_history) > 12:
         state.economy_history = state.economy_history[-12:]
@@ -780,64 +785,8 @@ def _settle_granary(state, log):
         state.economy_knowledge = dict(state.economy_history[-1])
 
 
-def _settle_civilian_hoard(state, log):
-    """士绅囤粮操作（钱粮守恒）：AI 推演档位优先，无 AI 时按粮价方向兜底。
-
-    囤 = 士绅用 wealth 买粮（wealth↓ grain↑，受资金约束）；抛 = 卖粮得钱（grain↓ wealth↑）。
-    士绅囤粮挤压市场流通（见 calc_region_grain_price 的 HOARD_SUPPLY_SQUEEZE）。
-    """
-    from content.data import HOARD_SUPPLY_SQUEEZE
-    from content.data import TIER_RANGE
-    # AI 经济动态推演（settle_turn 已注入 state._economy_ai：{景气,士绅,士绅力度,生产}）或无
-    _eco = getattr(state, "_economy_ai", None) or {}
-    _ai_act = _eco.get("士绅", "") if _eco.get("士绅") in ("囤", "抛") else None
-    _ai_tier = _eco.get("士绅力度", "中")
-    for name, p in state.prefectures.items():
-        genty = p["pops"]["士绅"]
-        price = p.get("grain_price", state.grain_price)
-        if _ai_act:
-            act, tier = _ai_act, _ai_tier   # AI 推演（全国统一景气下的士绅行为）
-        else:
-            # 兜底：丰收贱买囤积、高价惜售/抛售获利（不再高价囤，与常平粜粮方向一致）
-            if price < 0.6:
-                act, tier = "囤", "小"
-            elif price > 2.2:
-                act, tier = "抛", "中"
-            elif price > 1.6:
-                act, tier = "抛", "微"       # 高价惜售（小幅抛售获利）
-            else:
-                # 粮价平稳：士绅卖囤粮换钱（买商品/维持现金流），卖 5%/月使囤粮存量稳定
-                act, tier = "抛", "中"
-        mult = TIER_RANGE.get(tier, 0.5) * 0.05   # 囤/抛比例：微0.0125/小0.025/中0.05/大0.09（不 round）
-        # 士绅囤粮上限 = 士绅田产年产的 20%（史实囤积约占产粮 10-20%，避免永动机式囤积）
-        _land = max(float(p.get("land", 1)), 1.0)
-        _gentry_land_total = float(p.get("gentry_land", 0)) + float(p.get("hidden_land", 0))
-        _hoard_cap = int(p.get("grain", 0) * _gentry_land_total / _land * 0.2)
-        if act == "囤":
-            buy = int(p.get("grain", 0) / 12.0 * mult)      # 月产 × 档位
-            afford = genty["wealth"] // max(int(price * 1000), 1)  # 资金能买多少石（文级精度）
-            room = max(0, _hoard_cap - genty["grain"])       # 囤粮余量（上限约束）
-            buy = min(buy, afford, room)
-            if buy > 0:
-                genty["wealth"] -= int(buy * price * 1000) / 1000.0
-                genty["grain"] += buy
-        elif act == "抛":
-            sell = int(genty["grain"] * mult)
-            if sell > 0:
-                genty["grain"] -= sell
-                genty["wealth"] += int(sell * price * 0.3)            # 30% 进流通
-                genty["窖银"] = genty.get("窖银", 0) + int(sell * price * 0.7)  # 70% 窖藏
-        # 超上限强制卖粮（士绅粮仓装不下，超出部分必卖回市场，体现囤积有上限）
-        if genty["grain"] > _hoard_cap:
-            _excess = genty["grain"] - _hoard_cap
-            genty["grain"] = _hoard_cap
-            genty["wealth"] += int(_excess * price * 0.3)
-            genty["窖银"] = genty.get("窖银", 0) + int(_excess * price * 0.7)
-        # 窖银年化回流（挥霍/购地/市舶投资，每月 2% 窖银流出，流向服务提供者=消费，不积累 wealth）
-        _draw = int(genty.get("窖银", 0) * 0.01)
-        genty["窖银"] = genty.get("窖银", 0) - _draw
-        p["pops"]["工匠"]["wealth"] += int(_draw * 0.5)
-        p["pops"]["商人"]["wealth"] += int(_draw * 0.5)
+# 士绅囤粮/窖银已拆分至独立子模块（P2-5 巨文件拆分），此处 re-export 保持调用兼容。
+from core.settlement_civilian import _settle_civilian_hoard  # noqa: E402,F401
 
 
 def _avg_corruption(state):
@@ -901,7 +850,7 @@ def _settle_finance(state: Any, log: Any) -> Any:
     tax_color_total, tax_color_by = state.calc_monthly_tax_income(tax_coeff)
     salt_coin = state.calc_salt_coin(arrival)
     material_coin = 0.0
-    monthly_tax_full = monthly_tax + tax_color_total + salt_coin + material_coin
+    monthly_tax_full = monthly_tax + tax_color_total + salt_coin + material_coin  # 目标收入（展示/预期）
 
     # 税从 POP 征（钱守恒）：役钱→农；二税折色按田亩归属拆分（农担自耕田、士绅担地主田）；工商税→工匠60%+商人40%；盐课+市舶→商人
     from content.data import PER_CAPITA_MONTH_GRAIN
@@ -914,6 +863,7 @@ def _settle_finance(state: Any, log: Any) -> Any:
         "工匠": int(commerce_tax * 0.6),
         "商人": int(commerce_tax * 0.4) + int(salt_coin) + maritime_tax,
     }
+    actual_tax = 0.0
     for _agent, _tax_total in _tax_agents.items():
         _total_wealth = sum(p["pops"][_agent]["wealth"] for p in state.prefectures.values())
         if _total_wealth <= 0:
@@ -922,7 +872,9 @@ def _settle_finance(state: Any, log: Any) -> Any:
             _pop = _p["pops"][_agent]
             _deduct = int(_tax_total * (_pop["wealth"] / _total_wealth))
             _min_wealth = int(_pop["size"] * PER_CAPITA_MONTH_GRAIN * state.grain_price)  # 保留1个月口粮钱，不足则欠税
-            _pop["wealth"] -= min(_deduct, max(0, _pop["wealth"] - _min_wealth))
+            _paid = min(_deduct, max(0, _pop["wealth"] - _min_wealth))
+            _pop["wealth"] -= _paid
+            actual_tax += _paid   # 累计实际到库税额（保底豁免部分不入库，钱不凭空生）
 
     wr = getattr(state, "waste_reform", None) or {}
     if wr.get("active"):
@@ -982,30 +934,35 @@ def _settle_finance(state: Any, log: Any) -> Any:
             _p["pops"]["兵"]["wealth"] += int(army_cash_total * _p["pops"]["兵"]["size"] / _total_soldiers)
         if _p["pops"]["官僚"]["size"] > 0:
             _p["pops"]["官僚"]["wealth"] += int((official_cash_total + clerk_cash_total) * _p["pops"]["官僚"]["size"] / _total_guan)
-    # 一体发钞时俸禄由交子支付（国库不发现金），否则按 cash_out/personnel_cash 实发
-    effective_cash_out = 0 if state.pay_system.get("mode") == "一体发钞" else max(cash_out, personnel_cash)
+    # 一体发钞时俸禄由交子支付（国库不发现金）；否则按实际发放 personnel_cash 计出（不以 cash_out 上限蒸发）
+    if state.pay_system.get("mode") == "一体发钞":
+        effective_cash_out = 0
+    else:
+        effective_cash_out = personnel_cash
     total_out = (expenditure + effective_cash_out
                  + int(corruption_cash_ded) + payraise_used + sui_gong)
     net = monthly_tax_full - total_out
+    # 实际到库净额：保底豁免的税不入国库（钱不凭空生），故用 actual_tax 替代目标 monthly_tax_full
+    actual_net = actual_tax - total_out
 
     treasury_before = state.treasury
-    imp_share, wine_coin = state.calc_imperial_treasury(net)
-    # 国库保持整数贯：net 为 float（各 calc_* 乘积），入账前截断
-    state.treasury += int(net) - int(imp_share)
+    imp_share, wine_coin = state.calc_imperial_treasury(actual_net)
+    # 国库保持整数贯：actual_net 为 float（各 calc_* 乘积），入账前截断
+    state.treasury += int(actual_net) - int(imp_share)
     state.imperial_treasury += int(imp_share) + int(wine_coin)
-    state.statistics["total_income"] += int(monthly_tax_full)
+    state.statistics["total_income"] += int(actual_tax)
     state.statistics["total_expenditure"] += total_out
 
-    assert abs((state.treasury - treasury_before) - (net - int(imp_share))) < 1, \
-        f"财政恒等断裂：Δtreasury={state.treasury-treasury_before} net={net} imp={int(imp_share)}"
+    assert abs((state.treasury - treasury_before) - (actual_net - int(imp_share))) < 1, \
+        f"财政恒等断裂：Δtreasury={state.treasury-treasury_before} actual_net={actual_net} imp={int(imp_share)}"
 
     inc_parts = f"工商{commerce_tax:.0f}+役钱{poll_tax:.0f}+二税折色{tax_color_total:.0f}+盐课{salt_coin:.0f}"
     if maritime_tax > 0:
         inc_parts += f"+市舶{maritime_tax:.0f}"
     if net < 0:
-        log.append(f"[财政] 货币月入 {monthly_tax:.0f}贯（{inc_parts}） 支 {total_out:.0f}贯 亏空 {abs(net):.0f}贯（宜折变补之）")
+        log.append(f"[财政] 货币月入 {actual_tax:.0f}贯（{inc_parts}） 支 {total_out:.0f}贯 亏空 {abs(actual_net):.0f}贯（宜折变补之）")
     else:
-        log.append(f"[财政] 货币月入 {monthly_tax:.0f}贯（{inc_parts}） 支 {total_out:.0f}贯 结余 {net:.0f}贯")
+        log.append(f"[财政] 货币月入 {actual_tax:.0f}贯（{inc_parts}） 支 {total_out:.0f}贯 结余 {actual_net:.0f}贯")
     if sui_gong > 0:
         log.append(f"[岁币] 岁币岁赐 {sui_gong:.0f}贯，纳贡以安边")
 
@@ -1375,7 +1332,7 @@ def _settle_emperor_personal(state, log):
         log.append("[皇帝] 挥毫翰墨，才情洋溢")
     elif action == "崇道修醮":
         state.taoism_leaning = min(100, state.taoism_leaning + 4)
-        state.treasury -= 50000
+        state.change_treasury(-50000)
         for fn in ["新党", "旧党"]:
             if random.random() < 0.5:
                 state.factions[fn]["satisfaction"] += 5
@@ -1383,7 +1340,7 @@ def _settle_emperor_personal(state, log):
     elif action == "享乐宴游":
         state.emperor_health -= 5
         state.pleasure_leaning = min(100, state.pleasure_leaning + 4)
-        state.treasury -= 80000
+        state.change_treasury(-80000)
         log.append("[皇帝] 宴游享乐，损耗龙体")
     else:
         state.emperor_health = max(0, min(100,

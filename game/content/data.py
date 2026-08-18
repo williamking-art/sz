@@ -19,7 +19,10 @@ _BASE = (
 _MEIPASS: str | None = getattr(sys, "_MEIPASS", None)
 # 共用：基于 _BASE 推导资源与存档目录
 ASSETS_DIR = os.path.join(_MEIPASS, "assets") if _MEIPASS else os.path.join(_BASE, "assets")
-SAVE_DIR = os.path.join(_BASE, "saves")
+
+# 存档统一放在"我的文档/宋祚/saves"，与 exe 所在位置解耦，便于分发与跨版本保留进度
+_DOCUMENTS = os.path.expanduser("~/Documents")
+SAVE_DIR = os.path.join(_DOCUMENTS, "宋祚", "saves")
 
 # 资源目录（底图等）
 MAP_DIR = os.path.join(ASSETS_DIR, "map")

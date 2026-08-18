@@ -30,10 +30,18 @@ dist/
 *.spec
 game/build/
 game/dist/
+# PyInstaller 目录模式分发产物（含 _internal/ 系统 DLL，均不参与版本管理）
+game/SongZuo/
 
 # --- 日志 ---
 *.log
 game/*.log
+
+# --- 运行产物 / 快捷方式（不入版） ---
+songzuo_server/run*.out
+songzuo_server/run*.err
+songzuo_server/deploy.log.err
+game/宋祚.exe.lnk
 
 # --- 项目数据目录（CodeBuddy 工作区数据，非源码） ---
 .codebuddy/

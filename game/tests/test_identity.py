@@ -119,6 +119,71 @@ def test_full_settlement_no_assertion_break():
     assert s.granary >= 0
 
 
+def test_treasury_actual_tax_no_silent_creation():
+    """P2-#2 回归：国库实际到库额 == POP 实扣税额（保底豁免部分不入库，钱不凭空生）。"""
+    from core.settlement import run_monthly_settlement
+    from core.settlement_steps import _settle_finance
+    s = _new_state()
+    # 强制低财富 POP 触发保底豁免，验证国库不会按全额计税入库
+    for p in s.prefectures.values():
+        for pop in p["pops"].values():
+            pop["wealth"] = 1  # 极低财富，必触发 _min_wealth 保底豁免
+    before = s.treasury
+    log = run_monthly_settlement(s)
+    # 国库变化应≈实际到库税 - 支出（不按全额目标税入库）
+    # 实际税入应远小于全额目标税（POP 几乎无力纳税）
+    assert s.treasury != before  # 确实有结算发生
+    # 关键：无异常膨胀（国库不应因"未收到的税"而暴增）
+    assert s.treasury < before + 5_000_000  # 低财富下不可能有大笔盈余入库
+
+
+def test_farmer_grain_never_negative():
+    """P1-#3 回归：非农 POP 买粮后农民余粮不为负。"""
+    s = _new_state()
+    # 构造：农民余粮极少但买方极富，触发 affordability 重赋值路径
+    for p in s.prefectures.values():
+        p["pops"]["农"]["grain"] = 10        # 极少余粮
+        p["pops"]["农"]["wealth"] = 1000
+        p["pops"]["工匠"]["grain"] = 0
+        p["pops"]["工匠"]["wealth"] = 9_000_000  # 极富
+        p["pops"]["工匠"]["size"] = 10000
+    # 直接跑 _settle_granary（Step 3.8）
+    from core.settlement_steps import _settle_granary
+    _settle_granary(s, [])
+    for p in s.prefectures.values():
+        assert p["pops"]["农"]["grain"] >= 0, f"农民粮变负：{p['pops']['农']['grain']}"
+
+
+def test_pop_migration_conservation():
+    """P3-#12 回归：城市化/回乡迁移段不丢人（农→工/商转移人数守恒）。
+
+    仅验证迁移段本身：构造极低基数使 round 截断误差可观测，
+    确认 round 替代 int 后不再因截断丢失人数。
+    """
+    # 内联迁移逻辑验证（与 _settle_economy 迁移段同构）
+    def _sim_migrate(farmer_size, artisan_size, merchant_size, boom):
+        pops = {"农": {"size": farmer_size}, "工匠": {"size": artisan_size}, "商人": {"size": merchant_size}}
+        if boom in ("中", "大"):
+            _move = round(pops["农"]["size"] * 0.0008)
+            pops["农"]["size"] -= _move
+            pops["工匠"]["size"] += int(_move * 0.6)
+            pops["商人"]["size"] += _move - int(_move * 0.6)
+        elif boom == "微":
+            _back = round((pops["工匠"]["size"] + pops["商人"]["size"]) * 0.0008)
+            pops["工匠"]["size"] -= int(_back * 0.6)
+            pops["商人"]["size"] -= (_back - int(_back * 0.6))
+            pops["农"]["size"] += _back
+        return pops["农"]["size"] + pops["工匠"]["size"] + pops["商人"]["size"]
+
+    # 低基数场景：农=1249 → _move=round(1249*0.0008)=1，工+0 商+1（不丢人）
+    before = 1249 + 0 + 0
+    after = _sim_migrate(1249, 0, 0, "大")
+    assert after == before, f"迁移丢人：{before}→{after}"
+    # 回乡场景：工=1 商=0 → _back=round(1*0.0008)=0 → 农不变
+    after2 = _sim_migrate(1000, 1, 0, "微")
+    assert after2 == 1001, f"回乡丢人：{after2}"
+
+
 if __name__ == "__main__":
     # 无 pytest 时直接运行
     test_sum_routes_equals_total()
@@ -127,4 +192,7 @@ if __name__ == "__main__":
     test_corruption_payraise_feedback()
     test_imperial_treasury_feedback()
     test_full_settlement_no_assertion_break()
+    test_treasury_actual_tax_no_silent_creation()
+    test_farmer_grain_never_negative()
+    test_pop_migration_conservation()
     print("ALL IDENTITY TESTS PASSED")

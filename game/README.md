@@ -98,3 +98,24 @@ python gui_main.py
 ```bash
 pip install -r requirements.txt
 ```
+
+### 后端连接（本地 / 云托管）
+
+游戏逻辑默认在本进程内执行（本地单机）。如需连接云端 Rust 后端（`songzuo_server`），按以下优先级配置：
+
+1. **环境变量**（命令行/启动脚本）：
+
+   ```bash
+   set SONGZUO_BACKEND=https://songzuo-298842-11-1440445995.sh.run.tcloudbase.com
+   python gui_main.py
+   ```
+
+2. **配置文件**（exe 分发场景，与 `ai_config.json` 惯例一致）：在 `game/`（或 exe 同级目录）放 `backend_config.json`：
+
+   ```json
+   { "backend": "remote", "url": "https://songzuo-298842-11-1440445995.sh.run.tcloudbase.com" }
+   ```
+
+   置为 `{ "backend": "local" }` 或删除该文件即回到本地模式。
+
+后端选择顺序：`SONGZUO_BACKEND` 环境变量 > `backend_config.json` > 本地。
