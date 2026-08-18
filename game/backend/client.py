@@ -86,14 +86,8 @@ class LocalBackend(BackendClient):
                                                         is_secret=p.get("is_secret", False)), s),
             "merge_drafts":
                 lambda s, p, ai: (cmd.merge_drafts(s, p.get("draft_ids", [])), s),
-            "local_policy":
-                lambda s, p, ai: (cmd.local_policy(s, p.get("pref_name", ""), p.get("act", ""), ai), s),
-            "granary_policy":
-                lambda s, p, ai: (cmd.granary_policy(s, p.get("act", ""), int(p.get("amount", 0)), ai), s),
             "do_personal_action":
                 lambda s, p, ai: (cmd.do_personal_action(s, p.get("name", "")), s),
-            "choose_major_policy":
-                lambda s, p, ai: (cmd.choose_major_policy(s, p.get("policy", "")), s),
             "audience_dialogue":
                 lambda s, p, ai: (cmd.audience_dialogue(s, p.get("minister", ""), p.get("text", ""), ai), s),
             "start_tech_research":

@@ -24,7 +24,7 @@ def main():
     # 3) 军费（粮饷两笔独立账、按军籍分档）
     ag, ag_by = s.calc_army_grain()
     ac, ac_by = s.calc_army_cash()
-    print(f"[军费] 月军粮={ag:.1f}万石 月军饷={ac:.1f}万贯 (兵额人不变, 分档后允许微调)")
+    print(f"[军费] 月军粮={ag:.0f}石 月军饷={ac:.0f}贯 (兵额人不变, 分档后允许微调)")
 
     # 4) 武库初值
     print(f"[武库] 枪刀={s.central_arsenal.stock['枪刀']} 火器={s.central_arsenal.stock['火器']}")
