@@ -85,6 +85,8 @@ _TIER_BASE = {
     "commerce_tax": 0.15,              # 工商征率（设定值：tier 档位→税率，非增量）
     "curtail_waste": 100_000,          # 省浮费：月省贯（设定值）
     "reduce_office": 100_000,          # 裁汰冗员：月省贯（设定值）
+    "land_survey": 0.05,               # 方田均税：清丈隐田，降隐漏率（微/小/中/大 → 0.0125/0.025/0.05/0.09）
+    "hoard": 0.05,                     # 士绅囤粮：囤/抛「中」档 = 月产(囤)或屯粮(抛)的 5%（AI 推演档位）
     "finance": 800_000,                # 金融（交子/市舶收益）±
     "talent": 3,                       # 科举得才 ±
     "tech": 3,                         # 科技积累 ±
@@ -96,7 +98,7 @@ _TIER_CAP = {
     "prestige": 12, "treasury": 3_000_000, "population_satisfaction": 10,
     "external_jin": 12, "external_liao": 12, "external_xixia": 12,
     "defense_bonus": 10, "finance": 3_000_000, "talent": 10, "tech": 10,
-    "army": 10, "reform": 10,
+    "army": 10, "reform": 10, "land_survey": 0.10,
 }
 
 
@@ -675,7 +677,8 @@ def effects_to_dict(effects_list, authority=1.0):
 
 # 御笔直发可程序落地的效果键白名单（值须为数值）
 _EFFECT_WHITELIST = ("commerce_tax", "curtail_waste", "reduce_office",
-                     "treasury", "imperial_treasury", "prestige")
+                     "treasury", "imperial_treasury", "prestige",
+                     "land_survey")
 
 
 def _normalize_decree_effects(effects: dict):

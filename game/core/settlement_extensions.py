@@ -62,7 +62,7 @@ def _settle_tech(state, log):
         if monthly <= 0:
             continue
         if state.treasury >= monthly:
-            state.change_treasury(-monthly)
+            state.change_treasury(-int(monthly))
             talent = 1.0 + min(masters, 20) * 0.1
             proj["progress"] = proj.get("progress", 0) + int(50 * talent)
             if proj["progress"] >= 1000:
@@ -74,7 +74,7 @@ def _settle_tech(state, log):
                 if pname not in state.tech["unlocked"]:
                     state.tech["unlocked"].append(pname)
         else:
-            log.append(f"[研发] {pname} 月费不济（需 {monthly}万贯），进度停滞")
+            log.append(f"[研发] {pname} 月费不济（需 {monthly}贯），进度停滞")
 
 
 def _settle_org_economy(state, log):
@@ -88,7 +88,8 @@ def _settle_org_economy(state, log):
         o["budget_in"] = base_grant
         out = 1 + len(o.get("posts", [])) * 0.5 + len(o.get("branches", {})) * 0.3
         o["budget_out"] = round(out, 2)
-        net = round(o["budget_in"] - o["budget_out"], 2)
+        # 国库记账为整数贯：net 先取整再入账（"文"级精度只存在于物价体系，不进国库）
+        net = int(round(o["budget_in"] - o["budget_out"]))
         o["net"] = net
         if net != 0:
             state.change_treasury(net)

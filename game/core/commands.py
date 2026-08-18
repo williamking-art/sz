@@ -28,7 +28,7 @@ from core.commands_decree import (
     _apply_rename, _draft_to_effects_dict, _enqueue, _generate_decree_effects, _random_faction_stances, _rule_draft, _run_fixed, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_edict_from_review, issue_free_decree, issue_kouyu, issue_secret_decree, merge_drafts, preview_draft, reject_edict_draft,
 )
 from core.commands_policy import (
-    _state_summary_min, diplomacy_policy, exam_policy, finance_policy, govern_yamen, granary_policy, local_policy, military_expand, reform_policy, science_policy, start_project, start_workshop,
+    _state_summary_min, start_project, start_workshop,
 )
 
 
@@ -139,6 +139,13 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
                 report = str(monthly.get("report") or "")
             else:
                 report = str(monthly or "")
+            # AI 推演本月经济动态（景气/士绅囤粮/生产），覆盖各 POP 消费与士绅囤抛的兜底
+            try:
+                eco = ai_client.economy_decide(state.posture)
+                if eco:
+                    state._economy_ai = eco
+            except Exception:
+                pass  # 经济推演失败则回退兜底，不阻断结算
         except Exception as e:
             raise AIRuntimeError(f"月度结算时 AI 报告中断（{type(e).__name__}）：请检查 AI 配置或网络后重试。") from e
     if check_game_over(state):
@@ -203,7 +210,7 @@ __all__ = [
     "new_game", "audience_minister", "issue_decree", "issue_secret_decree",
     "do_personal_action", "choose_major_policy", "advance_month", "settle_turn",
     "resolve_event", "save", "load", "save_slots", "conclude",
-    "audience_dialogue", "issue_drafted_decree", "preview_draft", "govern_yamen", "local_policy",
+    "audience_dialogue", "issue_drafted_decree", "preview_draft",
 ]
 
 

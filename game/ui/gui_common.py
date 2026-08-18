@@ -22,7 +22,6 @@ KAI = "KaiTi"
 SANS = "Microsoft YaHei"
 
 DECREE_CATEGORIES = ["财政", "军事", "人事", "民生", "外交"]
-LOCAL_ACTS = ["劝农", "赈灾", "平盗", "减税"]
 
 
 def _bar(value, width=10):

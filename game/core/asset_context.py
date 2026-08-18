@@ -181,7 +181,7 @@ def start_research(state, node_id: str, silver_in: int = 0,
         "idea": False, "source": source, "fund": fund,
     }
     src_note = {"panel": "陛下亲定", "decree": "圣旨推演", "council": "大臣献策嘉纳"}.get(source, "朝议")
-    return f"已拨帑 {silver_in/10000:.0f}万贯（{src_note}），立「{node[3]}」之研。"
+    return f"已拨帑 {silver_in:.0f}贯（{src_note}），立「{node[3]}」之研。"
 
 
 def _pop_invention(state, index: int):

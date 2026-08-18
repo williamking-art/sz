@@ -10,7 +10,7 @@ import tkinter as tk
 import ui.theme as theme
 from ai.client import AIClient, _org_by_affiliation
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
-    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES, LOCAL_ACTS,
+    BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
     _bar, _format_effects, _judge_effects)
 
 

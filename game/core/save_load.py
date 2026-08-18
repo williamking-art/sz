@@ -41,6 +41,7 @@ def save_game(state, slot: int = 1) -> bool:
         "arrival_rate_base": state.arrival_rate_base,
         "treasury": state.treasury,
         "imperial_treasury": state.imperial_treasury,
+        "wine_tax": getattr(state, "wine_tax", 100000),
 
         # 仓廪 / 通货（新字段，兼容旧档缺省）
         "granary": getattr(state, "granary", 1500),
@@ -197,6 +198,7 @@ def load_game(slot: int = 1):
     state.arrival_rate_base = data.get("arrival_rate_base", 0.45)
     state.treasury = data.get("treasury", 5000000)
     state.imperial_treasury = data.get("imperial_treasury", 1000000)
+    state.wine_tax = data.get("wine_tax", getattr(state, "wine_tax", 100000))
 
     # 恢复仓廪/通货（含旧档兼容默认）
     state.granary = data.get("granary", getattr(state, "granary", 1500))
@@ -317,13 +319,18 @@ def load_game(slot: int = 1):
             continue
         p.setdefault("refugees", 0)
         p.setdefault("orgs", [])
-        # 经济全浮动重构字段缺省兼容
-        p.setdefault("grain_yield", p.get("grain", 0) * 12)
+        # 经济全浮动重构字段缺省兼容（grain 新口径 = 年总产，旧档 grain 为旧税基口径，读档后可能失真）
+        p.setdefault("grain_yield", p.get("grain", 0))
         p.setdefault("yields", {})
         p.setdefault("officials", 1)
         p.setdefault("clerks", 8)
         p.setdefault("route_mult", 1.0)
-        p.setdefault("local_finance", p.get("storage", 0))
+        # 旧档兼容：地方财力缺省按"月税留成 25%"重建（贯），不用 storage（石）当财力
+        p.setdefault("local_finance", round(p.get("monthly_tax", 200000) * 0.25))
+        # 旧档兼容：地方府库（贯）缺省按"3 个月税入"重建
+        p.setdefault("local_treasury", round(p.get("monthly_tax", 200000) * 3))
+        # 旧档兼容：常平仓存粮（石）缺省按"月产 20%"重建（与 GameState 初值一致）
+        p.setdefault("changping_stock", round(p.get("grain", 0) / 12 * 0.2))
         p.setdefault("pay_ratio", 0.5)
         p.setdefault("gap", 0)
     # 经济全浮动重构状态字段缺省兼容
@@ -342,6 +349,9 @@ def load_game(slot: int = 1):
     state._derive_defense_lines() if hasattr(state, "_derive_defense_lines") else None
     state.authority_matters = data.get("authority_matters", state.authority_matters)
     state.land = data.get("land", state.land)
+    # 旧档兼容：隐户锚（UI 不显示）缺失时补默认，保持总户 2500 万口径
+    if isinstance(state.land, dict):
+        state.land.setdefault("hidden_households", 5_000_000)
     state.jiaozi = data.get("jiaozi", state.jiaozi)
     state.maritime = data.get("maritime", state.maritime)
     state.coin = data.get("coin", state.coin)
