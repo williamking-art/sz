@@ -63,14 +63,9 @@ def _load_prompt(name: str, **kwargs) -> str:
 
 # ============================================================
 # 档位换算表（AI 只给 tier，数字由程序掷定并封顶）
+# 单一权威源已迁至 content/data.py（TIER_RANGE/TIER_ORDER），此处只做导入转发
 # ============================================================
-TIER_RANGE = {
-    "无": 0.0,
-    "微": 0.25,
-    "小": 0.5,
-    "中": 1.0,
-    "大": 1.8,
-}
+from content.data import TIER_RANGE, TIER_ORDER
 TIER_KEYS = list(TIER_RANGE.keys())
 
 # 各维度档位 → 基准数值（再乘皇威乘数等）

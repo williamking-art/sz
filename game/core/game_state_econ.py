@@ -114,9 +114,9 @@ class GameStateEconMixin:
         money *= (1 - self.coin.get("private_melt", 0.2))
         self.money_supply = max(0, money)
 
-        # 实物经济总量 = 月粮产(随科技/田亩) 折算贯值 + 工商产出(随市舶/人口/科技/工业)
+        # 实物经济总量 = 月粮产 × 粮价（石折贯）+ 工商产出（贯），避免石贯混加
         grain_prod = sum(p.get("grain", 0) for p in self.prefectures.values()) / 12.0
-        real_output = grain_prod + self.calc_commerce()
+        real_output = grain_prod * self.grain_price + self.calc_commerce()
 
         pl = PRICE_LEVEL_BASE * (money * PRICE_VELOCITY / max(real_output, 1))
         return _clamp(pl, PRICE_LEVEL_MIN, PRICE_LEVEL_MAX)
@@ -156,12 +156,12 @@ class GameStateEconMixin:
         wine_share = wine_grain_monthly * (p.get("population", 0) / max(self.population, 1))
         need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN * factor + wine_share   # 月需求（石，含隐户+酒耗）
         grain = float(p.get("grain", 0))                                # 在册年总产（石/年）
-        # 市场供给只含在册田产（隐田产收益全归士绅、不进市场流通，见 _settle_land_local）
+        # 市场供给 = 在册田产月均 + POP 存粮 2%/月释放（囤积真实入市、谷贱伤农）
         total_grain = grain
-        # 士绅囤粮挤压流通：士绅 POP 屯粮越多，市场流通粮越少、粮价越高（囤积居奇）
         from content.data import HOARD_SUPPLY_SQUEEZE
         hoard = float(p.get("pops", {}).get("士绅", {}).get("grain", 0))
-        supply = max(total_grain / 12.0 - hoard * HOARD_SUPPLY_SQUEEZE, 0.01)  # 月供应（石）
+        _pop_release = sum(pop.get("grain", 0) for pop in p.get("pops", {}).values()) * 0.02
+        supply = max(total_grain / 12.0 + _pop_release - hoard * HOARD_SUPPLY_SQUEEZE, 0.01)  # 月供应（石）
         ratio = max(0.5, min(2.0, need / max(supply, 0.01)))
         price = self.grain_price * ratio
         return _clamp(price, GRAIN_PRICE_MIN, GRAIN_PRICE_MAX)
@@ -180,7 +180,7 @@ class GameStateEconMixin:
             PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
             COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
             SOLDIER_PAY_PER_MONTH, OFFICIAL_PAY_PER_MONTH, CLERK_PAY_PER_MONTH,
-            SALT_COIN_UNIT, SALT_CAPACITY_BASE, SALT_POP_BASE,
+            SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
             SALT_PRICE_FLOOR, SALT_PRICE_CEIL,
             WINE_COIN_BASE, IMPERIAL_SHARE, TAX_COLOR_RATE,
         )
@@ -332,7 +332,7 @@ class GameStateEconMixin:
         total = 0.0
         for name, p in self.prefectures.items():
             gy = float(p.get("grain", 0))                   # 年总产（石/年）= land × ROAD_YIELD
-            grain_in = gy / 3.0 * LAND_TAX_RATE_BENEFIT * arrival * harvest * (1 - hidden) * (0.8 + 0.4 * hyd)
+            grain_in = gy / 3.0 * LAND_TAX_RATE_BENEFIT * arrival * harvest * (1 - hidden) * (0.8 + 0.4 * hyd) * (1 - TAX_COLOR_RATE)
             by_route[name] = grain_in
             total += grain_in
         return total, by_route

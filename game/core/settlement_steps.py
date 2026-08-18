@@ -198,7 +198,7 @@ def _apply_decree_effect(state, decree, log):
         state.land["hidden_rate"] = max(0.0, state.land["hidden_rate"] - float(effects["land_survey"]))
         # 政策 → 田亩归属/POP：清丈隐田转正 + 抑兼并退田 + 士绅吐粮（钱粮守恒）
         # 效果由 AI 推演评估（据隐田规模/士绅阻力/皇威推演清多少、退多少），无 AI 按档位兜底
-        from ai.client_utils import TIER_RANGE
+        from content.data import TIER_RANGE
         _hidden_mult = TIER_RANGE.get("小", 0.5) * 0.10   # 兜底：清隐田 5%
         _gentry_mult = TIER_RANGE.get("小", 0.5) * 0.10   # 兜底：退地主田 5%
         try:
@@ -336,6 +336,18 @@ def _settle_economy(state, log):
         for name, p in state.prefectures.items():
             share = p.get("population", 1) / max(state.population, 1)
             p["pops"]["农"]["size"] = max(0, p["pops"]["农"]["size"] + int(growth * share))
+    # POP 职业流动（城市化/萧条回乡）：景气旺→农民进城做工经商；萧条→工匠商人回乡
+    _boom = (getattr(state, "_economy_ai", None) or {}).get("景气", "中")
+    for name, p in state.prefectures.items():
+        pops = p["pops"]
+        if _boom in ("中", "大"):
+            _move = int(pops["农"]["size"] * 0.0008)               # 0.08%/月 城市化
+            pops["农"]["size"] -= _move
+            pops["工匠"]["size"] += int(_move * 0.6); pops["商人"]["size"] += int(_move * 0.4)
+        elif _boom == "微":
+            _back = int((pops["工匠"]["size"] + pops["商人"]["size"]) * 0.0008)  # 0.08%/月 回乡
+            pops["工匠"]["size"] -= int(_back * 0.6); pops["商人"]["size"] -= int(_back * 0.4)
+            pops["农"]["size"] += _back
     for name, p in state.prefectures.items():
         local = p.get("refugees", 0)
         if local <= 0 and p.get("unrest", 15) < 20:
@@ -446,7 +458,7 @@ def _settle_extensions(state, log):
         if over > 0:
             # 超发→信用崩（trust 降，贬值）+ 铜钱被挤兑囤积→钱荒加剧；皇威高可减缓贬值
             _prestige_factor = 2.0 - state.prestige / 50.0   # 皇威 0→2.0倍(快崩), 100→0(不崩)
-            state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - int(over / 200 * max(0.0, _prestige_factor)))
+            state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - int(over / 1_000_000 * 10 * max(0.0, _prestige_factor)))
             state.coin["shortage"] = min(0.9, state.coin.get("shortage", 0.3) + 0.01)
         else:
             # 适量发钞→缓解钱荒（纸币替代铜钱，铜钱流通压力减）
@@ -696,20 +708,27 @@ def _settle_granary(state, log):
             artisan["goods"][gdim] += int(artisan["size"] * (0.10 if gdim == "绸" else 0.20) * _prod)
         for gdim in merchant["goods"]:                      # 商人贩运
             merchant["goods"][gdim] += int(merchant["size"] * 0.10 * _prod)
-        for pop_name, pop in p["pops"].items():             # 各 POP 按阶级买商品
-            if pop_name in ("工匠", "商人"):
-                continue
-            spend = int(pop["wealth"] * {"士绅": 0.05, "官僚": 0.03, "兵": 0.01, "农": 0.005}.get(pop_name, 0.01) * _boom)
+        for pop_name, pop in p["pops"].items():             # 各 POP 按阶级买商品（有钱就消费，wealth 弹性收敛）
+            base_rate = {"士绅": 0.05, "官僚": 0.03, "商人": 0.03, "工匠": 0.02, "兵": 0.01, "农": 0.005}.get(pop_name, 0.01)
+            # 财富弹性：人均财富超基准（5 贯/人）越多，消费率越高（有钱就花，防 wealth 无限积累）
+            _per_capita = pop["wealth"] / max(pop["size"], 1)
+            _elastic = min(3.0, max(1.0, _per_capita / 5.0))
+            spend = int(pop["wealth"] * base_rate * _elastic * _boom)
             if spend > 0:
                 pop["wealth"] -= spend
                 for gdim, share in GOODS_DEMAND.get(pop_name, {"布": 1.0}).items():
                     if share > 0:
                         pop["goods"][gdim] = pop["goods"].get(gdim, 0) + int(spend * share)
                 artisan["wealth"] += int(spend * 0.7); merchant["wealth"] += int(spend * 0.3)  # 70%工匠 30%商人
+    # 商品消耗（折旧/损耗，各 POP 持有商品每月 3% 消耗，商品有使用寿命、用完再买，防只增不耗）
+    for name, p in state.prefectures.items():
+        for _pop in p["pops"].values():
+            for _gdim in _pop.get("goods", {}):
+                _pop["goods"][_gdim] = int(_pop["goods"][_gdim] * 0.95)
     # 士绅奢侈消费（蓄养奴婢/园林/宴饮/香火/收藏），消耗财富、钱流向工匠商人（服务），体现"富而奢"
     for name, p in state.prefectures.items():
         _genty = p["pops"]["士绅"]
-        _lux = int(_genty["wealth"] * 0.10)
+        _lux = int(_genty["wealth"] * 0.05)
         if _lux > 0:
             _genty["wealth"] -= _lux
             p["pops"]["工匠"]["wealth"] += int(_lux * 0.5); p["pops"]["商人"]["wealth"] += int(_lux * 0.5)
@@ -768,7 +787,7 @@ def _settle_civilian_hoard(state, log):
     士绅囤粮挤压市场流通（见 calc_region_grain_price 的 HOARD_SUPPLY_SQUEEZE）。
     """
     from content.data import HOARD_SUPPLY_SQUEEZE
-    from ai.client_utils import TIER_RANGE
+    from content.data import TIER_RANGE
     # AI 经济动态推演（settle_turn 已注入 state._economy_ai：{景气,士绅,士绅力度,生产}）或无
     _eco = getattr(state, "_economy_ai", None) or {}
     _ai_act = _eco.get("士绅", "") if _eco.get("士绅") in ("囤", "抛") else None
@@ -779,21 +798,21 @@ def _settle_civilian_hoard(state, log):
         if _ai_act:
             act, tier = _ai_act, _ai_tier   # AI 推演（全国统一景气下的士绅行为）
         else:
-            # 兜底：丰收贱买囤积、歉收惜售囤积、极端高价抛售获利
+            # 兜底：丰收贱买囤积、高价惜售/抛售获利（不再高价囤，与常平粜粮方向一致）
             if price < 0.6:
                 act, tier = "囤", "小"
-            elif price > 2.5:
+            elif price > 2.2:
                 act, tier = "抛", "中"
             elif price > 1.6:
-                act, tier = "囤", "微"
+                act, tier = "抛", "微"       # 高价惜售（小幅抛售获利）
             else:
                 # 粮价平稳：士绅卖囤粮换钱（买商品/维持现金流），卖 5%/月使囤粮存量稳定
                 act, tier = "抛", "中"
         mult = TIER_RANGE.get(tier, 0.5) * 0.05   # 囤/抛比例：微0.0125/小0.025/中0.05/大0.09（不 round）
-        # 士绅囤粮上限 = 士绅田产年产（地主田 + 隐田的产粮，囤 1 年即封顶，囤不了那么多）
+        # 士绅囤粮上限 = 士绅田产年产的 20%（史实囤积约占产粮 10-20%，避免永动机式囤积）
         _land = max(float(p.get("land", 1)), 1.0)
         _gentry_land_total = float(p.get("gentry_land", 0)) + float(p.get("hidden_land", 0))
-        _hoard_cap = int(p.get("grain", 0) * _gentry_land_total / _land)
+        _hoard_cap = int(p.get("grain", 0) * _gentry_land_total / _land * 0.2)
         if act == "囤":
             buy = int(p.get("grain", 0) / 12.0 * mult)      # 月产 × 档位
             afford = genty["wealth"] // max(int(price * 1000), 1)  # 资金能买多少石（文级精度）
@@ -806,15 +825,19 @@ def _settle_civilian_hoard(state, log):
             sell = int(genty["grain"] * mult)
             if sell > 0:
                 genty["grain"] -= sell
-                genty["wealth"] += int(sell * price * 0.2)            # 20% 进流通
-                genty["窖银"] = genty.get("窖银", 0) + int(sell * price * 0.8)  # 80% 窖藏（可后续掏出）
+                genty["wealth"] += int(sell * price * 0.3)            # 30% 进流通
+                genty["窖银"] = genty.get("窖银", 0) + int(sell * price * 0.7)  # 70% 窖藏
         # 超上限强制卖粮（士绅粮仓装不下，超出部分必卖回市场，体现囤积有上限）
         if genty["grain"] > _hoard_cap:
             _excess = genty["grain"] - _hoard_cap
             genty["grain"] = _hoard_cap
-            genty["wealth"] += int(_excess * price * 0.2)
-            genty["窖银"] = genty.get("窖银", 0) + int(_excess * price * 0.8)
-        # 窖银退出流通（藏富死钱），后续经抄家/清查政策一次性掏出，平时不自动回流
+            genty["wealth"] += int(_excess * price * 0.3)
+            genty["窖银"] = genty.get("窖银", 0) + int(_excess * price * 0.7)
+        # 窖银年化回流（挥霍/购地/市舶投资，每月 2% 窖银流出，流向服务提供者=消费，不积累 wealth）
+        _draw = int(genty.get("窖银", 0) * 0.01)
+        genty["窖银"] = genty.get("窖银", 0) - _draw
+        p["pops"]["工匠"]["wealth"] += int(_draw * 0.5)
+        p["pops"]["商人"]["wealth"] += int(_draw * 0.5)
 
 
 def _avg_corruption(state):
@@ -880,10 +903,14 @@ def _settle_finance(state: Any, log: Any) -> Any:
     material_coin = 0.0
     monthly_tax_full = monthly_tax + tax_color_total + salt_coin + material_coin
 
-    # 税从 POP 征（钱守恒）：役钱+二税折色→农、工商税→工匠60%+商人40%、盐课+市舶→商人
+    # 税从 POP 征（钱守恒）：役钱→农；二税折色按田亩归属拆分（农担自耕田、士绅担地主田）；工商税→工匠60%+商人40%；盐课+市舶→商人
     from content.data import PER_CAPITA_MONTH_GRAIN
+    _tot_land = sum(p.get("land", 1) for p in state.prefectures.values()) or 1
+    _self_share = sum(p.get("self_farm_land", 0) for p in state.prefectures.values()) / _tot_land
+    _gentry_share = sum(p.get("gentry_land", 0) for p in state.prefectures.values()) / _tot_land
     _tax_agents = {
-        "农": poll_tax + int(tax_color_total),
+        "农": poll_tax + int(tax_color_total * _self_share),
+        "士绅": int(tax_color_total * _gentry_share),
         "工匠": int(commerce_tax * 0.6),
         "商人": int(commerce_tax * 0.4) + int(salt_coin) + maritime_tax,
     }
@@ -940,6 +967,12 @@ def _settle_finance(state: Any, log: Any) -> Any:
     if state.external.get("西夏", {}).get("attitude", 50) >= 60:
         sui_gong += int(SUI_GONG_ANNUAL * 0.4 / 12)
 
+    # 兵 POP size 重聚合（兵额唯一真账 = army_units.troops 求和，避免增募/伤亡后 POP 漂移）
+    for _p in state.prefectures.values():
+        _p["pops"]["兵"]["size"] = 0
+    for _u in state.army_units:
+        if _u.station in state.prefectures and _u.troops > 0:
+            state.prefectures[_u.station]["pops"]["兵"]["size"] += _u.troops
     personnel_cash = int(army_cash_total + official_cash_total + clerk_cash_total)
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环，不凭空消失）
     _total_soldiers = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
@@ -949,7 +982,8 @@ def _settle_finance(state: Any, log: Any) -> Any:
             _p["pops"]["兵"]["wealth"] += int(army_cash_total * _p["pops"]["兵"]["size"] / _total_soldiers)
         if _p["pops"]["官僚"]["size"] > 0:
             _p["pops"]["官僚"]["wealth"] += int((official_cash_total + clerk_cash_total) * _p["pops"]["官僚"]["size"] / _total_guan)
-    effective_cash_out = max(cash_out, personnel_cash)
+    # 一体发钞时俸禄由交子支付（国库不发现金），否则按 cash_out/personnel_cash 实发
+    effective_cash_out = 0 if state.pay_system.get("mode") == "一体发钞" else max(cash_out, personnel_cash)
     total_out = (expenditure + effective_cash_out
                  + int(corruption_cash_ded) + payraise_used + sui_gong)
     net = monthly_tax_full - total_out
@@ -1285,7 +1319,7 @@ def _settle_disaster(state, log):
                     for k, rv in others.items():
                         add = int(spill * rv / tot)
                         if add > 0:
-                            state.prefectures[k]["refugees"] += add
+                            state.prefectures[k]["refugees"] = max(0, state.prefectures[k]["refugees"] - add)
             log.append(f"[赈济·{region}] 开太仓发粟 {relief}石赈灾，本地流民稍安，余者溢邻路")
         else:
             state.population_satisfaction = max(0, state.population_satisfaction - 3)
@@ -1304,7 +1338,9 @@ def _settle_disaster(state, log):
             add_ref = severity * 5000
             cap = int(p.get("population", 1_000_000) * 0.10)  # 人口(口)上限
             p["refugees"] = min(p.get("refugees", 0) + add_ref, cap)
-            log.append(f"[流民] {region}灾荒，本地流民骤增 {add_ref}，四散就食")
+            # 灾荒减产：受灾路年产减产（8%/级），下次收获即少粮，体现"灾年减产"而非只涨价
+            p["grain"] = int(p.get("grain", 0) * (1 - 0.08 * severity))
+            log.append(f"[流民] {region}灾荒，本地流民骤增 {add_ref}，四散就食，田禾减产")
         log.append(f"[灾荒] {region}发生灾荒！严重度 {severity}")
         state.statistics["total_disasters"] += 1
 
