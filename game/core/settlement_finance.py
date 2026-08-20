@@ -12,6 +12,7 @@ from content.data import (
     COMMERCE_TAX_RATE_DEFAULT, COMMERCE_TAX_RATE_MIN, COMMERCE_TAX_RATE_MAX,
     PAY_CASH_BASE, MONTHLY_EXP_CIVIL_BASE, SUI_GONG_ANNUAL,
     GRAIN_PRICE_MIN, GRAIN_PRICE_MAX,
+    ARREARS_COLLECT_RATE, OFFICIAL_SERVICE_TAX_RATIO,
 )
 
 
@@ -98,9 +99,24 @@ def _settle_finance(state: Any, log: Any) -> Any:
             _pop = _p["pops"][_agent]
             _deduct = int(_tax_total * (_pop["wealth"] / _total_wealth))
             _min_wealth = int(_pop["size"] * PER_CAPITA_MONTH_GRAIN * state.grain_price)  # 保留1个月口粮钱，不足则欠税
+            # 平衡修复（蔡权衡）：保底豁免 × MIN_WEALTH_FLOOR_RATIO（0.75）——农可多缴 25%
+            # 仍保生存底线（豁免线×0.5 验证），缓解「粮价下跌→农穷→税豁免」链
+            from content.data import MIN_WEALTH_FLOOR_RATIO
+            _min_wealth = int(_min_wealth * MIN_WEALTH_FLOOR_RATIO)
             _paid = min(_deduct, max(0, _pop["wealth"] - _min_wealth))
+            _short = _deduct - _paid
+            if _short > 0:
+                # A1：缺口记入欠税科目（替代原直接蒸发），后续逐月追缴；存档兼容见 save_load 迁移
+                _pop["欠税"] = _pop.get("欠税", 0) + _short
             _pop["wealth"] -= _paid
             actual_tax += _paid   # 累计实际到库税额（保底豁免部分不入库，钱不凭空生）
+            # A1 追缴段：紧随税征，按「可支付余力（wealth - 保底线）× ARREARS_COLLECT_RATE」回收欠税
+            _recoverable = max(0, _pop["wealth"] - _min_wealth)
+            _recover = min(_pop.get("欠税", 0), int(_recoverable * ARREARS_COLLECT_RATE))
+            if _recover > 0:
+                _pop["wealth"] -= _recover
+                _pop["欠税"] = _pop.get("欠税", 0) - _recover
+                actual_tax += _recover
 
     wr = getattr(state, "waste_reform", None) or {}
     if wr.get("active"):
@@ -122,8 +138,15 @@ def _settle_finance(state: Any, log: Any) -> Any:
 
     pay = state.pay_system.get("cash_ratio", 0.5)
     cash_pay = int(PAY_CASH_BASE * pay)
+    # C（A1）：真俸额先算，一体发钞时按真俸额单发交子（替代固定 cash_pay，防"纸钞+现金"双发）
+    army_cash_total, _ = state.calc_army_cash()
+    official_cash_total, _ = state.calc_official_cash()
+    clerk_cash_total, _ = state.calc_clerk_cash()
+    personnel_cash = int(army_cash_total + official_cash_total + clerk_cash_total)
+    # 官户免役钱（史实免役法·调参定案）：助役钱 = 俸钱总额 × OFFICIAL_SERVICE_TAX_RATIO（扣缴见俸禄发放后）
+    official_service_tax = int((official_cash_total + clerk_cash_total) * OFFICIAL_SERVICE_TAX_RATIO)
     if state.pay_system.get("mode") == "一体发钞":
-        state.jiaozi["issued"] += int(cash_pay)
+        state.jiaozi["issued"] += personnel_cash          # 交子按真俸额发行（单发，替代固定 cash_pay）
         state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - 2)
         expenditure = MONTHLY_EXP_CIVIL_BASE - waste_savings
         cash_out = 0
@@ -131,9 +154,6 @@ def _settle_finance(state: Any, log: Any) -> Any:
         expenditure = MONTHLY_EXP_CIVIL_BASE - waste_savings
         cash_out = cash_pay
 
-    army_cash_total, _ = state.calc_army_cash()
-    official_cash_total, _ = state.calc_official_cash()
-    clerk_cash_total, _ = state.calc_clerk_cash()
     corruption_cash_ded, corruption_grain_loss = state.calc_corruption_deduction()
     clerk_gap_total, _ = state.calc_clerk_gap()
     payraise_used = min(state.payraise_budget, int(clerk_gap_total) + 10_000)
@@ -151,7 +171,6 @@ def _settle_finance(state: Any, log: Any) -> Any:
     for _u in state.army_units:
         if _u.station in state.prefectures and _u.troops > 0:
             state.prefectures[_u.station]["pops"]["兵"]["size"] += _u.troops
-    personnel_cash = int(army_cash_total + official_cash_total + clerk_cash_total)
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环，不凭空消失）
     _total_soldiers = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
     _total_guan = sum(p["pops"]["官僚"]["size"] for p in state.prefectures.values()) or 1
@@ -160,6 +179,28 @@ def _settle_finance(state: Any, log: Any) -> Any:
             _p["pops"]["兵"]["wealth"] += int(army_cash_total * _p["pops"]["兵"]["size"] / _total_soldiers)
         if _p["pops"]["官僚"]["size"] > 0:
             _p["pops"]["官僚"]["wealth"] += int((official_cash_total + clerk_cash_total) * _p["pops"]["官僚"]["size"] / _total_guan)
+    # 官户免役钱（史实免役法·调参定案）：官户纳助役钱 = 俸钱总额 × 0.05，
+    # 从官僚 POP wealth 按 size 扣缴入国库（钱守恒：官僚交钱、国库收钱，不凭空生钱）
+    if official_service_tax > 0:
+        _tax_left = official_service_tax
+        for _p in state.prefectures.values():
+            if _p["pops"]["官僚"]["size"] > 0:
+                _take = int(official_service_tax * _p["pops"]["官僚"]["size"] / max(_total_guan, 1))
+                _p["pops"]["官僚"]["wealth"] = max(0, _p["pops"]["官僚"]["wealth"] - _take)
+                _tax_left -= _take
+        actual_tax += official_service_tax
+    # 支出回流（A1 定案·修货币漂移斜率 -13%→-3.5%）：常费不再纯蒸发 → 工匠 40% + 商人 60%（按 size 分摊，
+    # 政府花钱买营造/服务/商品，钱进民间）；贪腐扣减 → 官僚 wealth（隐性聚敛，可抄没）；岁币保留销币（真实外流）。
+    _civil_back = max(0, expenditure)
+    _total_artisan = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
+    _total_merchant = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
+    for _p in state.prefectures.values():
+        if _p["pops"]["工匠"]["size"] > 0:
+            _p["pops"]["工匠"]["wealth"] += int(_civil_back * 0.4 * _p["pops"]["工匠"]["size"] / _total_artisan)
+        if _p["pops"]["商人"]["size"] > 0:
+            _p["pops"]["商人"]["wealth"] += int(_civil_back * 0.6 * _p["pops"]["商人"]["size"] / _total_merchant)
+        if _p["pops"]["官僚"]["size"] > 0:
+            _p["pops"]["官僚"]["wealth"] += int(int(corruption_cash_ded) * _p["pops"]["官僚"]["size"] / _total_guan)
     # 一体发钞时俸禄由交子支付（国库不发现金）；否则按实际发放 personnel_cash 计出（不以 cash_out 上限蒸发）
     if state.pay_system.get("mode") == "一体发钞":
         effective_cash_out = 0
@@ -173,9 +214,26 @@ def _settle_finance(state: Any, log: Any) -> Any:
 
     treasury_before = state.treasury
     imp_share, wine_coin = state.calc_imperial_treasury(actual_net)
+    # 酒课税改造（加消耗完整定案）：酒课（60万贯/月）从工匠 60% / 商人 40% wealth 扣缴入内帑
+    # （钱守恒转移，修复现行 wine_coin 凭空入内帑的漏洞；酿酒耗粮另在 Step 3.8 从农存粮扣）
+    _wine_tax_cash = int(wine_coin)
+    if _wine_tax_cash > 0:
+        _art_total = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
+        _mer_total = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
+        _wine_left = _wine_tax_cash
+        for _p in state.prefectures.values():
+            _art, _mer = _p["pops"]["工匠"], _p["pops"]["商人"]
+            if _art["size"] > 0:
+                _take = int(_wine_tax_cash * 0.6 * _art["size"] / _art_total)
+                _art["wealth"] = max(0, _art["wealth"] - _take)
+                _wine_left -= _take
+            if _mer["size"] > 0:
+                _take = int(_wine_tax_cash * 0.4 * _mer["size"] / _mer_total)
+                _mer["wealth"] = max(0, _mer["wealth"] - _take)
+                _wine_left -= _take
     # 国库保持整数贯：actual_net 为 float（各 calc_* 乘积），入账前截断
     state.treasury += int(actual_net) - int(imp_share)
-    state.imperial_treasury += int(imp_share) + int(wine_coin)
+    state.imperial_treasury += int(imp_share) + _wine_tax_cash
     state.statistics["total_income"] += int(actual_tax)
     state.statistics["total_expenditure"] += total_out
 

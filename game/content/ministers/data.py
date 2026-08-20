@@ -35,25 +35,25 @@ PORTRAIT_DIR = os.path.join(_BASE, "portraits")
 MINISTERS = {
     # ===================== 中枢实权（1101 在任） =====================
     "韩忠彦": {"born": 1038, "role": "左相(尚书左仆射兼门下侍郎)", "faction": "旧党", "traits": "老成/调停/守正",
-               "portrait": "", "in_office": True, "loyalty": 0.42, "corruption": 0.30},
+               "portrait": "", "in_office": True, "loyalty": 0.42, "corruption": 0.30, "trait_ids": ["调停"]},
     "曾布":   {"born": 1036, "role": "右相(尚书右仆射兼中书侍郎)", "faction": "东南士人", "traits": "权谋/善变/理财",
-               "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.40},
+               "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.40, "trait_ids": ["权谋", "理财"]},
     "蔡京":   {"born": 1047, "role": "在野(1101被贬,1102崇宁拜相)", "faction": "新党", "traits": "权谋/聚敛/书法",
-               "portrait": "", "in_office": False, "loyalty": 0.85, "corruption": 0.78},
+               "portrait": "", "in_office": False, "loyalty": 0.85, "corruption": 0.78, "trait_ids": ["聚敛", "变法", "才艺"]},
     "李清臣": {"born": 1032, "role": "门下侍郎(1101十月罢)", "faction": "旧党", "traits": "文士/持重",
-               "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.28},
+               "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.28, "trait_ids": ["调停"]},
     "赵挺之": {"born": 1040, "role": "御史中丞", "faction": "旧党", "traits": "刚峭/与蔡京不合",
                "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.32},
     "邓洵武": {"born": 1055, "role": "吏部侍郎/枢密都承旨", "faction": "新党", "traits": "绍述/崇宁党人碑",
-               "portrait": "", "in_office": True, "loyalty": 0.76, "corruption": 0.50},
+               "portrait": "", "in_office": True, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["权谋", "变法"]},
 
     # ===================== 台谏（1101 在任，弹蔡京） =====================
     "陈瓘":   {"born": 1057, "role": "右司谏", "faction": "清流言官", "traits": "刚直/弹蔡京/谪贬",
-               "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.12},
+               "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.12, "trait_ids": ["刚直"]},
     "陈师锡": {"born": 1057, "role": "殿中侍御史", "faction": "清流言官", "traits": "清正/论事切直",
-               "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.14},
+               "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.14, "trait_ids": ["清正"]},
     "丰稷":   {"born": 1033, "role": "殿中侍御史(1101被黜改任)", "faction": "清流言官", "traits": "鲠亮/极论蔡京",
-               "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.10},
+               "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.10, "trait_ids": ["刚直", "清正"]},
 
     # ===================== 宦官（1101 初近幸，未掌大权） =====================
     "童贯":   {"born": 1054, "role": "供奉官/初近幸(未掌兵)", "faction": "宦官集团", "traits": "军略/逢迎/宦官",
@@ -61,48 +61,48 @@ MINISTERS = {
 
     # ===================== 西军（1101 在边） =====================
     "种师道": {"born": 1051, "role": "西军将领/后统帅", "faction": "西军集团", "traits": "老成/忠勇/将略",
-               "portrait": "", "in_office": True, "loyalty": 0.74, "corruption": 0.30},
+               "portrait": "", "in_office": True, "loyalty": 0.74, "corruption": 0.30, "trait_ids": ["军略"]},
     "姚古":   {"born": 1058, "role": "西军将领", "faction": "西军集团", "traits": "宿将/累战",
-               "portrait": "", "in_office": True, "loyalty": 0.68, "corruption": 0.32},
+               "portrait": "", "in_office": True, "loyalty": 0.68, "corruption": 0.32, "trait_ids": ["军略"]},
     "刘延庆": {"born": 1060, "role": "泾原将", "faction": "西军集团", "traits": "庸怯/拥兵",
-               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.40},
+               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.40, "trait_ids": ["怯懦"]},
     "刘法":   {"born": 1055, "role": "熙河将", "faction": "西军集团", "traits": "骁勇/战殁",
-               "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.28},
+               "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.28, "trait_ids": ["军略"]},
 
     # ===================== 主战/忠义（1101 在，未显） =====================
     "李纲":   {"born": 1083, "role": "太学/主战派", "faction": "清流言官", "traits": "刚直/主战/抗金",
-               "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.15},
+               "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.15, "trait_ids": ["忠勇"]},
     "宗泽":   {"born": 1060, "role": "地方官/后抗金", "faction": "清流言官", "traits": "忠勇/抗金",
-               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.18},
+               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.18, "trait_ids": ["忠勇"]},
     "张叔夜": {"born": 1065, "role": "知海州(1101降地方官,非开封府尹)", "faction": "清流言官", "traits": "忠义/守城",
-               "portrait": "", "in_office": True, "loyalty": 0.64, "corruption": 0.22},
+               "portrait": "", "in_office": True, "loyalty": 0.64, "corruption": 0.22, "trait_ids": ["忠勇"]},
     "韩世忠": {"born": 1089, "role": "低级军官", "faction": "西军集团", "traits": "悍勇/水战",
-               "portrait": "", "in_office": True, "loyalty": 0.60, "corruption": 0.35},
+               "portrait": "", "in_office": True, "loyalty": 0.60, "corruption": 0.35, "trait_ids": ["忠勇"]},
 
     # ===================== 皇子（1101 在） =====================
     "赵桓":   {"born": 1100, "role": "皇长子", "faction": "无", "traits": "平庸",
                "portrait": "", "in_office": True, "loyalty": 0.66, "corruption": 0.20},
     "赵楷":   {"born": 1101, "role": "皇子", "faction": "无", "traits": "才华/夺嫡心",
-               "portrait": "", "in_office": True, "loyalty": 0.30, "corruption": 0.40},
+               "portrait": "", "in_office": True, "loyalty": 0.30, "corruption": 0.40, "trait_ids": ["才艺"]},
 
     # ===================== 1101 中枢佐贰/新任（考据确证） =====================
     # 注：以下人物于建中靖国元年确证在任，补全中枢佐贰官，供「补佐贰/新建官职」推演。
     "蒋之奇": {"born": 1031, "role": "知枢密院事", "faction": "东南士人", "traits": "干练/通军务/善理财",
-               "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.35},
+               "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.35, "trait_ids": ["理财"]},
     "章楶":   {"born": 1027, "role": "同知枢密院事", "faction": "西军集团", "traits": "宿将/边防老成",
-               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.20},
+               "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.20, "trait_ids": ["军略"]},
     "陆佃":   {"born": 1042, "role": "尚书左丞", "faction": "旧党", "traits": "守正/博学/调停",
-               "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.25},
+               "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.25, "trait_ids": ["调停"]},
     "温益":   {"born": 1037, "role": "尚书右丞", "faction": "新党", "traits": "圆滑/阿附/多机变",
-               "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.45},
+               "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.45, "trait_ids": ["权谋"]},
     "吴居厚": {"born": 1037, "role": "知开封府", "faction": "新党", "traits": "聚敛/明达政务/吏干",
-               "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.50},
+               "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.50, "trait_ids": ["聚敛"]},
     "王古":   {"born": 1040, "role": "户部尚书", "faction": "东南士人", "traits": "理财/慎密/循良",
-               "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.28},
+               "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.28, "trait_ids": ["理财"]},
     "江公望": {"born": 1055, "role": "右司谏", "faction": "清流言官", "traits": "敢言/讽谏/守正",
-               "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.12},
+               "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.12, "trait_ids": ["刚直"]},
     "陈次升": {"born": 1044, "role": "左谏议大夫", "faction": "清流言官", "traits": "鲠直/弹劾/论蔡京",
-               "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.12},
+               "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.12, "trait_ids": ["刚直"]},
 
     # ===================== 地方大员（1101 已入仕） =====================
     "唐恪":   {"born": 1057, "role": "地方大员/后入中枢", "faction": "东南士人", "traits": "干练/后主和",
@@ -112,34 +112,39 @@ MINISTERS = {
 
     # ===================== 在野/未起用（政和/宣和才得势，in_office=False） =====================
     "蔡攸":   {"born": 1077, "role": "在野(蔡京之子)", "faction": "新党", "traits": "骄奢/佞幸/揽权",
-               "portrait": "", "in_office": False, "loyalty": 0.82, "corruption": 0.72},
+               "portrait": "", "in_office": False, "loyalty": 0.82, "corruption": 0.72, "trait_ids": ["揽权"]},
     "何执中": {"born": 1044, "role": "在野", "faction": "新党", "traits": "圆滑/持重/附蔡",
                "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.55},
     "郑居中": {"born": 1059, "role": "在野(外戚)", "faction": "新党", "traits": "恭俭/善逢迎/外戚",
-               "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.50},
+               "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["阿附"]},
     "余深":   {"born": 1050, "role": "在野", "faction": "新党", "traits": "柔佞/唯蔡京马首",
-               "portrait": "", "in_office": False, "loyalty": 0.80, "corruption": 0.60},
+               "portrait": "", "in_office": False, "loyalty": 0.80, "corruption": 0.60, "trait_ids": ["阿附"]},
     "王黼":   {"born": 1079, "role": "在野(后少宰)", "faction": "新党", "traits": "巧佞/聚敛/好大喜功",
-               "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.75},
+               "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.75, "trait_ids": ["聚敛", "揽权"]},
     "朱勔":   {"born": 1075, "role": "在野(后花石纲)", "faction": "新党", "traits": "搜括/花石纲/媚上",
-               "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.85},
+               "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.85, "trait_ids": ["聚敛"]},
     "林摅":   {"born": 1050, "role": "在野(后刑部尚书)", "faction": "新党", "traits": "苛酷/附新法",
-               "portrait": "", "in_office": False, "loyalty": 0.70, "corruption": 0.55},
+               "portrait": "", "in_office": False, "loyalty": 0.70, "corruption": 0.55, "trait_ids": ["阿附"]},
     "张商英": {"born": 1043, "role": "在野(被贬)", "faction": "新党", "traits": "能臣/变法/才高",
-               "portrait": "", "in_office": False, "loyalty": 0.60, "corruption": 0.35},
+               "portrait": "", "in_office": False, "loyalty": 0.60, "corruption": 0.35, "trait_ids": ["变法"]},
     "梁师成": {"born": 1063, "role": "在野(后掌书命)", "faction": "宦官集团", "traits": "狡黠/掌书命/豫政",
-               "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.72},
+               "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.72, "trait_ids": ["阿附", "揽权"]},
     "杨戬":   {"born": 1058, "role": "在野(后措置房)", "faction": "宦官集团", "traits": "搜括/营田/聚敛",
-               "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.70},
+               "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.70, "trait_ids": ["聚敛"]},
     "高俅":   {"born": 1068, "role": "殿前都指挥使", "faction": "宦官集团", "traits": "蹴鞠/典禁军/怙宠",
-               "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.55},
+               "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.55, "trait_ids": ["才艺"]},
     "侯蒙":   {"born": 1054, "role": "在野(后户部尚书)", "faction": "清流言官", "traits": "通达/敢言/识人才",
-               "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.18},
+               "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.18, "trait_ids": ["清正"]},
 
     # ===================== 未生（1101 尚未出生） =====================
     "岳飞":   {"born": 1103, "role": "未生(未来名将)", "faction": "西军集团", "traits": "精忠/神勇/军神",
                "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.10},
 }
+
+# 未在素材 2.2 标注特质的大臣，trait_ids 统一补空列表（不臆造，待考据单补齐）；
+# 已显式标注者见上（字段在档案内）。保证全部大臣均带 trait_ids 字段（机制层引用 TRAITS 键）。
+for _name, _fig in MINISTERS.items():
+    _fig.setdefault("trait_ids", [])
 
 # 派系统一档案：忠诚基线 / 贪腐基线 / 立绘分类 聚合为单条记录（唯一权威源）。
 # 各字段「无/未知派系」兜底互不相同，必须各自独立，严禁合并共享。
@@ -402,3 +407,119 @@ def get_portrait_path(name: str, kind: str = None):
         if os.path.isfile(path):
             return path
     return None
+
+
+# ============================================================
+# 大臣特质表（A3 落地，素材 a6_narrative_materials.md 第 2.2 节）
+#
+#   TRAITS = {特质id: {kind, desc, effects: {场景: 档位}, note}}
+#   kind: moral 品性 / political 政术 / fiscal 财政 / military 军事 / talent 才艺
+#   effects 全部为档位词（无/微/小/中/大，可带 +/-），数值换算归 content.data.TIER_RANGE
+#   （单一权威源），本表只承载"机制影响描述"；实际换算/触发由 core 侧按场景调用
+#   （本期已落地离任场景 apply_minister_departure）。
+#   三标签：代表大臣=史实概括；机制影响=玩法抽象。
+# ============================================================
+TRAITS = {
+    "刚直": {"kind": "moral", "desc": "不避权贵、直言敢谏",
+             "effects": {"谏诤弹劾_言路": "小", "因言获罪_清流": "-大"},
+             "note": "代表：陈瓘、陈次升、江公望、丰稷"},
+    "清正": {"kind": "moral", "desc": "廉洁自律、循规守法",
+             "effects": {"机构_贪腐": "-微", "贪墨案_免于牵连": "特殊"},
+             "note": "代表：丰稷、陈师锡、侯蒙"},
+    "权谋": {"kind": "political", "desc": "善纵横捭阖、结党营私",
+             "effects": {"朝争_派系手段": "小", "改制_党争分歧": "微"},
+             "note": "代表：曾布、邓洵武、温益"},
+    "理财": {"kind": "fiscal", "desc": "精于调度、通晓钱谷",
+             "effects": {"财政事件_treasury": "小", "户部_效率": "微"},
+             "note": "代表：曾布、王古、蒋之奇"},
+    "聚敛": {"kind": "fiscal", "desc": "搜括民财以媚上",
+             "effects": {"聚敛事件_treasury": "小", "聚敛事件_民怨": "-小"},
+             "note": "代表：蔡京、朱勔、杨戬、吴居厚、王黼"},
+    "军略": {"kind": "military", "desc": "晓畅军事、善守善攻",
+             "effects": {"西线防御_defense": "小", "边事_主战": "叙事"},
+             "note": "代表：章楶、种师道、姚古、刘法"},
+    "忠勇": {"kind": "military", "desc": "忠义敢战、临难不避",
+             "effects": {"战事_army士气": "小", "敌军压境_不降": "叙事"},
+             "note": "代表：李纲、宗泽、张叔夜、韩世忠"},
+    "怯懦": {"kind": "military", "desc": "临战畏葸、避战保全",
+             "effects": {"军事事件_army": "-小", "兵临城下_乞和": "叙事"},
+             "note": "代表：刘延庆"},
+    "阿附": {"kind": "political", "desc": "逢迎圣意、揣摩上心",
+             "effects": {"圣旨_执行效率": "小", "朝局_腐化": "微", "清流_厌恶": "叙事"},
+             "note": "代表：余深、林摅、郑居中、梁师成"},
+    "调停": {"kind": "political", "desc": "持重守中、弥合两党",
+             "effects": {"党争_调停选项": "小", "两派_满意度回落": "微"},
+             "note": "代表：韩忠彦、陆佃、李清臣"},
+    "变法": {"kind": "political", "desc": "笃信新法、绍述熙丰",
+             "effects": {"新法事件_推进": "小", "旧党_满意度": "-微"},
+             "note": "代表：邓洵武、张商英、蔡京（附）"},
+    "揽权": {"kind": "political", "desc": "权力欲强、私植党羽",
+             "effects": {"人事_安插亲信": "叙事", "同僚_冲突": "微", "权臣事件_派系": "小"},
+             "note": "代表：蔡攸、王黼、梁师成"},
+    "才艺": {"kind": "talent", "desc": "翰墨丹青、文采风流",
+             "effects": {"艺术翰林_art_mastery": "微", "诏书_文风": "叙事"},
+             "note": "代表：蔡京（书法）、赵楷、高俅（蹴鞠彩蛋）"},
+}
+
+# 生涯标记（素材 2.2 注：不属于"特质"，不参与机制换算，防"玩家改变不了史实结局"的挫败；
+# 仅供叙事/考据查询，不进入 trait_ids 机制引用）
+FATE_MARKS = {
+    "战殁": {"desc": "史实中阵亡于边事",
+             "note": "军事事件阵亡概率修正（叙事层，非玩家可干预）；代表：刘法（史实战殁于统安城之役）"},
+}
+
+# ============================================================
+# 离任影响表（A3 落地，素材 2.3 节）
+#
+#   DEPARTURE_RULES = {reason: {
+#       prestige / treasury / faction_satisfaction: 档位词（可带 +/-，无=不生效）,
+#       specials: [{when: 判定条件, effects: {目标: 档位词}}],   # 条件修饰
+#       handle: 岗位处理描述,
+#   }}
+#   when 判定口径（apply_minister_departure 写死，可审查）：
+#     清流言官=大臣派系；权臣=corruption≥0.6；老臣=(当前年-born)≥60；
+#     名将=含「军略/忠勇」特质；惩贪=corruption≥0.5（处死）；冤杀=其余处死。
+#   目标键：派系名→派系满意度；"corruption"→隐藏贪腐度（0-1 刻度微调）；"边境士气"→defense_bonus。
+#   离任数值化=玩法抽象；因果修饰=合理推演；离任事实（某人某年贬/殁）待考据单逐人核卷。
+# ============================================================
+DEPARTURE_RULES = {
+    "贬黜": {"prestige": "-微", "treasury": "无", "faction_satisfaction": "-小",
+             "handle": "清岗，依官制补缺",
+             "specials": [
+                 {"when": "清流言官", "effects": {"清流言官": "-大"}},
+                 {"when": "权臣", "effects": {"新党": "-中"}},
+             ]},
+    "致仕": {"prestige": "-微", "treasury": "-微", "faction_satisfaction": "-微",
+             "handle": "清岗，补缺",
+             "specials": [{"when": "老臣", "effects": {"东南士人": "微"}}]},
+    "病故": {"prestige": "-微", "treasury": "无", "faction_satisfaction": "-微",
+             "handle": "清岗，补缺", "specials": []},
+    "战殁": {"prestige": "-小", "treasury": "无", "faction_satisfaction": "-大",
+             "handle": "清岗，西军同袍接任（推演）",
+             "specials": [{"when": "名将", "effects": {"西军集团": "-大", "边境士气": "-小"}}]},
+    "处死": {"prestige": "无", "treasury": "无", "faction_satisfaction": "-中",
+             "handle": "清岗，补缺 + 派系失衡风险",
+             "specials": [
+                 {"when": "惩贪", "effects": {"清流言官": "微", "corruption": "-微"}},
+                 {"when": "冤杀", "effects": {"清流言官": "-大"}},
+             ]},
+    "乞休": {"prestige": "无", "treasury": "无", "faction_satisfaction": "-微",
+             "handle": "清岗，补缺", "specials": []},
+}
+
+
+def traits_of(name: str) -> list:
+    """大臣机制特质引用（MINISTERS[name].trait_ids → TRAITS 键）。
+
+    展示层 traits（自由文本字符串）保留不动；本函数只读机制层。
+    未标注特质的大臣返回 []（不臆造，待考据单补齐）。
+    """
+    return list(MINISTERS.get(name, {}).get("trait_ids", []))
+
+
+def departure_effects(reason: str) -> dict:
+    """离任原因 → 影响规则 dict（档位词，未换算；数值换算归 core 侧）。
+
+    未知原因返回 {}（调用方安全失败）。
+    """
+    return DEPARTURE_RULES.get(reason, {})

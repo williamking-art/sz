@@ -70,7 +70,9 @@ class ClientNarrativeMixin:
             if not isinstance(o, dict) or "narrative" not in o:
                 return None
             o["narrative"] = _clean_text(o.get("narrative", ""))
-            o["tone"] = str(o.get("tone", "平实"))[:6]
+            # 拒绝式：可选修饰字段（tone/hints）仅保留 AI 明确给出者，不默认填充
+            if "tone" in o:
+                o["tone"] = str(o["tone"])[:6]
             for extra in ("risk_hint", "talent_hint", "tech_hint", "defense_hint",
                           "alert_hint", "faction_hint"):
                 if extra in o:

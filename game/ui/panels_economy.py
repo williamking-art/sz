@@ -224,8 +224,9 @@ class PanelsEconomyMixin:
             for u in sorted(units, key=lambda x: (x.tier != "禁军", -x.troops)):
                 row = tk.Frame(card, bg=CARD)
                 row.pack(fill="x", padx=24, pady=1)
-                # 左：番号（军籍·兵种）
-                self._label(row, f"{u.name}（{u.branch}）", fg=INK, bg=CARD,
+                # 左：番号（军籍·兵种构成）
+                brs = "/".join(f"{b}{n}" for b, n in u.branches.items() if n > 0)
+                self._label(row, f"{u.name}（{brs}）", fg=INK, bg=CARD,
                             font=self._font(SANS, 10), anchor="w").pack(side="left")
                 # 右：兵额 / 装备率 / 士气 / 训练 / 防线
                 equip_rate = int(u.equip_rate() * 100)
@@ -612,8 +613,11 @@ class PanelsEconomyMixin:
             t.tag_configure("h", foreground=RED_D, font=self._font(KAI, 12, "bold"))
             t.tag_configure("b", foreground=INK, font=self._font(KAI, 12))
 
-            # 会用专家团（council_review）生成三省六部意见；不可用时给规则兜底
+            # 会用专家团（council_review）生成三省六部意见；AI 未接入时明确提示（不静默降级）
             review = None
+            if not (self.ai_client and getattr(self.ai_client, "available", False)):
+                self.self.messagebox.showwarning(
+                    "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。会签以规则意见代替。")
             try:
                 if getattr(self.ai_client, "available", False):
                     review = self.ai_client.council_review(

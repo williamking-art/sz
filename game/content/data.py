@@ -187,23 +187,27 @@ WINE_YIELD_PER_GRAIN = 0.6       # 酿酒耗粮：每石粮酿 WINE_YIELD_PER_GR
 #   price_factor 由 盐产能 / 基准产能 之比决定（产能不足则价涨课利高，富余则价稳）；
 #   总人口缩放使食盐人口增减直接反映到盐课。
 #   开局 Σ盐产量≈1.85 亿斤/年 → price_factor=1.0、缩放=1 → 盐课≈39万贯/月（对齐史实榷盐净利 700~900万贯/年×到账率）。
-SALT_PROFIT_PER_JIN = 0.045      # 盐榷利单价（贯/斤）：史实每斤盐榷利 40~45 文；盐课 = 盐产量 × 此价 × 到账率
+SALT_PROFIT_PER_JIN = 0.055     # 盐榷利单价（贯/斤）：史实每斤盐榷利 40~45 文；平衡修复 0.045→0.055；盐课 = 盐产量 × 此价 × 到账率
 SALT_CAPACITY_BASE = 185_000_000.0  # 开局 Σ各路盐产量基准（斤/年，1.85 亿斤）
 SALT_POP_BASE = 80_000_000.0     # 食盐人口基准（口）= 在籍人口 8000 万（与 12 路人口合计一致，开局 pop_scale≈1）
 SALT_PRICE_FLOOR = 0.6           # price_factor 下限（产能远不抵基准时）
 SALT_PRICE_CEIL = 1.3            # price_factor 上限（产能远超基准时）
 # 酒课（保底基准）：WINE_COIN_BASE 为「无作坊时的保底月额」，受 tech.level 微扰；
 #   玩家建作坊/工程产酒时，额外酒课走动态价 MATERIAL_PRICE_BASE["wine"]（见 settlement._settle_workshops）。
-WINE_COIN_BASE = 100_000
+WINE_COIN_BASE = 600_000        # 酒课保底月额（加消耗定案扩容 10万→60万贯/月；酒课从工匠60%/商人40% wealth 扣缴入内帑）
 # 内置作坊配方（玩家建作坊 / AI 拟诏可扩展）：{name, recipe(原料消耗), output_dim, yield(成品产出)}
-#   recipe 键为原料维度（grain_feed 表粮耗）；output_dim 为成品维度（绸/布/wine）。
+#   recipe 键为原料维度（grain_feed 表粮耗）；output_dim 为成品维度（绸/布/wine/meat）。
+#   grain_feed 从太仓扣（加工型消耗依托建筑，非无条件消耗）。
 WORKSHOP_RECIPES = {
     "丝坊": {"name": "丝坊", "recipe": {"silk": 10000}, "output_dim": "绸", "yield": 8000},
     "麻坊": {"name": "麻坊", "recipe": {"hemp": 10000}, "output_dim": "布", "yield": 9000},
     "酒坊": {"name": "酒坊", "recipe": {"grain_feed": 50000}, "output_dim": "wine", "yield": 30},
+    "畜栏": {"name": "畜栏", "recipe": {"grain_feed": 50000}, "output_dim": "meat", "yield": 2000},
 }
 WINE_TAX_SHARE = 0.12          # 内帑取酒课净额比例（史实：酒课多数归地方军资库，进内帑者约 12%）
-WINE_GRAIN_PER_GUAN = 1.5      # 酿酒耗粮（石/贯总酒课）：酒耗粮 = 总酒课 × 此值，随酒课（酒产量）动态          # 酒课保底月基准（贯，进内帤）—— audit-data 裁决：史实酒课~1000万/年，取象征性净额12%（开局约10万贯/月）
+WINE_GRAIN_PER_GUAN = 2.5      # 酿酒耗粮系数（石/贯总酒课，用于区域粮价需求推演；**不再作为无条件耗粮**，
+                               # 加工型耗粮已依托酒坊建筑：坊数×5万石/月从太仓扣）
+MEAT_PRICE = 0.5               # 畜栏产出折价（贯/单位，肉/畜产品售钱入内帑）
 # 七维物资基准价（钱/单位，动态价=base×供需因子）；wine 为作坊榷酒课利基准价（不属七维物资仓）
 MATERIAL_PRICE_BASE = {
     "salt": 300, "tea": 200, "silk": 200, "hemp": 40, "cane": 60,
@@ -226,6 +230,19 @@ RESOURCE_DIMS = RAW_DIMS + ["绸", "布"]
 CIVILIAN_HOARD_SOUTH = 2.0      # 南方路开局民间屯粮（= 月产 2 倍）
 CIVILIAN_HOARD_NORTH = 0.5      # 北方路开局民间屯粮（= 月产 0.5 倍）
 HOARD_SUPPLY_SQUEEZE = 0.03     # 屯粮挤压流通比例：每月 3% 屯粮退出流通、推高粮价
+HOARD_SPOIL_RATE = 0.03         # 超硬上限囤粮未售部分损耗率（雀鼠耗/霉变，A1）：强制出清卖不掉的部分按此损耗核销，不凭空变钱
+HOARD_COPPER_RATIO_BASE = 0.5   # 卖粮所得铜钱入窖比例（窖藏抽水复核定案：70%→50%）；交子部分仍全进 wealth 不入窖
+HOARD_CAP_MULT = 0.3            # 士绅囤粮软上限系数（A1 定案）：囤粮上限 = 士绅田产年产的该比例（原硬编码 0.2 上调），
+                                # 超软上限先售买方池、未售保留（囤积居奇机制保留）；仅超硬上限（软上限×1.5）强制出清
+# 窖银动用率（A1 定稿·用户史实指示 c + 窖藏抽水复核定案）：由 AI 推演档位（_economy_ai["窖银"]）决定每月动用比例，
+# 程序换算；无 AI（本地降级/缺键）兜底「小」= 0.5%/月被动缓释（藏富缓慢回流市场，不再完全冻结）。
+HOARD_DRAW_RATE = {"无": 0.0, "微": 0.002, "小": 0.005, "中": 0.01, "大": 0.02}
+# 开局货币校准（A1 定稿）：修复 F1（士绅卖粮造币）后补开局货币，防跌回通缩地板（物价 0.5）。
+# 数值按蔡权衡量化：开局缺约 9400 万贯才到物价 1.0；落地后按回放微调（目标开局物价 0.9~1.1）。
+# 开局货币校准（A1 定稿·蔡权衡量化定案）：START_MONEY_BOOST 170M。
+# 依据：物价 1.0 需名义货币约 2.86 亿，118M 后 60 月末仅 0.798 偏低；
+# 注入民间 wealth（按各 POP 财富比例分配），不注入国库。
+START_MONEY_BOOST = 170_000_000
 GENTRY_TREASURY_NORTH = 12     # 北方士绅资金（贯）= 月税入 × 12（士绅财力有限，囤粮受资金约束）
 GENTRY_TREASURY_SOUTH = 24     # 南方士绅资金（贯）= 月税入 × 24（南方地主富）
 # ---- POP 人口群体模型（参考维多利亚：每路人口按职业分层，每 POP 有 人数/钱/粮）----
@@ -291,10 +308,15 @@ GOODS_DEMAND = {
 TAX_LAND_RATIO = 0.60          # 田赋占六成（名义口径，实征走田亩系统）
 TAX_COMMERCE_RATIO = 0.30      # 工商占三成（名义口径；实征按 commerce_tax_rate 对经济总量征收）
 TAX_POLL_RATIO = 0.10          # 丁口(役钱)占一成（税基 POP 化后校准）
+# 欠税月追缴率（A1）：税征不足时缺口记入 POP 欠税科目，次月起每月最多按
+# 「可支付财富（wealth - 保底线）的该比例」追缴回收（替代原直接蒸发，钱不凭空生）。
+ARREARS_COLLECT_RATE = 0.25    # 欠税追缴率（/月，0.25 = 每月回收可支付余力的 25%；平衡修复 0.2→0.25）
+MIN_WEALTH_FLOOR_RATIO = 0.75  # 保底豁免口径系数（蔡权衡平衡修复）：_min_wealth × 0.75，
+                               # 农可多缴 25% 仍保生存底线（豁免线×0.5 验证）
 
 # 工商征率（玩家可调）：对 POP 商品消费额（工匠/商人真实产值）按"几成"征收。
 # 默认 0.25 = 抽二成五。税基 POP 化后按真实商品消费额征，量级校准到收支平衡。
-COMMERCE_TAX_RATE_DEFAULT = 0.05
+COMMERCE_TAX_RATE_DEFAULT = 0.06   # 平衡修复 0.05→0.06
 # 工匠/商人人均月产值（贯）：工商税基 = (工匠+商人)size × 此值，为"产值流量"（不随财富存量下降，避免税抽干税基的螺旋）
 CRAFT_OUTPUT_PER_CAPITA = 4.5
 COMMERCE_TAX_RATE_MIN = 0.05   # 最低 0.5 成
@@ -365,14 +387,37 @@ ARMY_UNIT_INIT = {
     "广南东路":   {"禁军": 10000,  "厢军": 10000,  "乡兵": 10000},
 }
 
-# 军籍待遇/素质基线（含粮饷双系数）。grain_mult 仅管粮、pay_mult 仅管饷，二者独立。
-# 旧 ARMY_INIT 的 strength/morale/training/equipment 并入：
-#   morale→morale_base, training→train_base, equipment→equip_base（装备实物率基线）。
+# 军籍素质基线（train/morale 用；粮饷已由 BRANCH_BASE×ARMY_RATE 按率计算，grain_mult/pay_mult 退役）。
 UNIT_TIER = {
-    "禁军": {"equip_base": 0.85, "train_base": 65, "morale_base": 70, "grain_mult": 1.0, "pay_mult": 1.0},
-    "厢军": {"equip_base": 0.45, "train_base": 35, "morale_base": 45, "grain_mult": 0.9, "pay_mult": 0.5},
-    "乡兵": {"equip_base": 0.30, "train_base": 25, "morale_base": 50, "grain_mult": 0.7, "pay_mult": 0.2},
+    "禁军": {"equip_base": 0.85, "train_base": 65, "morale_base": 70},
+    "厢军": {"equip_base": 0.45, "train_base": 35, "morale_base": 45},
+    "乡兵": {"equip_base": 0.30, "train_base": 25, "morale_base": 50},
 }
+
+# 军队粮饷/装备按率计算（蔡权衡数值定案，避免 21 张手写表）：
+#   粮饷人均 = BRANCH_BASE[兵种] × ARMY_RATE[军籍]（石/贯 每人/月）
+#   装备人均 = EQUIP_STD[兵种] × EQUIP_RATE[军籍]
+ARMY_RATE = {"禁军": 1.0, "厢军": 0.55, "乡兵": 0.35}   # 粮饷军籍系数
+EQUIP_RATE = {"禁军": 1.0, "厢军": 0.6, "乡兵": 0.4}    # 装备配给率（军籍装备差）
+BRANCH_BASE = {   # 禁军基准（石/贯 每人/月）
+    "重骑兵": {"grain": 2.0, "pay": 0.5},
+    "轻骑兵": {"grain": 1.8, "pay": 0.45},
+    "重步兵": {"grain": 1.7, "pay": 0.42},
+    "轻步兵": {"grain": 1.5, "pay": 0.38},
+    "弓弩兵": {"grain": 1.6, "pay": 0.40},
+    "器械兵": {"grain": 1.5, "pay": 0.38},
+    "水军":   {"grain": 1.7, "pay": 0.42},
+}
+
+
+def branch_std(tier: str, branch: str) -> dict:
+    """军籍×兵种 → 粮饷装备标准（按率计算，单一权威源）：
+    grain/pay = BRANCH_BASE[兵种] × ARMY_RATE[军籍]；equip = EQUIP_STD[兵种] × EQUIP_RATE[军籍]。
+    """
+    base = BRANCH_BASE.get(branch, BRANCH_BASE["轻步兵"])
+    rate = ARMY_RATE.get(tier, 1.0)
+    eq = {k: per * EQUIP_RATE.get(tier, 1.0) for k, per in EQUIP_STD.get(branch, {}).items()}
+    return {"grain": base["grain"] * rate, "pay": base["pay"] * rate, "equip": eq}
 
 # 战区类型：边地（陕西/河北/河东）多骑兵、内地多步弓。仅两档。
 FRONTIER_ROUTES = {"陕西路", "河北路", "河东"}
@@ -401,6 +446,33 @@ ARMY_UNIT_SPLIT = {
     ("厢军", "内地"): {"轻步兵": 0.45, "器械兵": 0.25, "水军": 0.15, "轻骑兵": 0.10, "重步兵": 0.05},
     ("乡兵", "边地"): {"轻步兵": 0.55, "器械兵": 0.30, "弓弩兵": 0.15},
     ("乡兵", "内地"): {"轻步兵": 0.55, "器械兵": 0.30, "弓弩兵": 0.15},
+}
+
+# 宋制军队番号素材（A7 史翰青，玩法抽象层；只动番号命名层，不碰 troops/结算/存档键）：
+#   禁军军号池按司（上四军史实 [B1]；殿前/马军/步军军号史实池，个别归属待考取一）；
+#   厢军 = 路+役种（史实役种名 [B3]）；乡兵 = 史实名（[B4]；南方诸路保甲兜底合理推演）。
+ARMY_ORG = {
+    # 上四军（三衙最高资次）
+    "禁军_上四": {"捧日": "殿前司", "天武": "殿前司", "龙卫": "侍卫马军司", "神卫": "侍卫步军司"},
+    # 普通军号池（按司，供非上四军号轮转）
+    "禁军_殿前马": ["骁骑", "宁朔", "龙猛", "飞猛", "神骑", "骁雄"],
+    "禁军_殿前步": ["神勇", "宣武", "虎翼", "广勇", "雄武", "效忠", "神锐", "威虎"],
+    "禁军_马军司": ["骁捷", "云骑", "武骑", "飞捷", "骁武", "广锐", "云翼", "克胜", "飞骑", "威远", "万捷", "云捷", "横塞", "蕃落"],
+    "禁军_步军司": ["雄勇", "广捷", "神捷"],
+    # 厢军役种（路 → 主/次役种，史实役种名，州军映射为路属玩法抽象）
+    "厢军_役种": {
+        "东京开封府": ("壮城", "装发"), "京西路": ("桥道", "清务"), "河北路": ("清务", "马监"),
+        "河东": ("马监", "壮城"), "陕西路": ("山场", "铁作"), "两浙路": ("水军", "酒务"),
+        "江南东路": ("竹作", "木务"), "江南西路": ("船坊", "装发"), "荆湖南路": ("车营", "桥道"),
+        "福建路": ("船坊", "水军"), "成都府路": ("盐井", "山场"), "广南东路": ("水军", "装发"),
+    },
+    # 乡兵史实名（按路；南方诸路以保甲兜底，合理推演）
+    "乡兵_名": {
+        "河北路": "河北弓箭社", "河东": "河东强壮", "陕西路": "陕西义勇", "京西路": "京西保甲",
+        "东京开封府": "京畿保甲", "福建路": "福建枪仗手", "广南东路": "广南土丁",
+        "两浙路": "两浙保甲", "江南东路": "江南东保甲", "江南西路": "江南西保甲",
+        "荆湖南路": "荆湖保甲", "成都府路": "川峡保甲",
+    },
 }
 
 # 中央武库初值（7 项实物，按全军应配总量给合理开局库存的 60% 作为可调拨余量）
@@ -782,15 +854,81 @@ EXTERNAL_REGIMES = {
 
 
 # 效果档位顺序（口谕走样降档用）
-TIER_ORDER = ["无", "微", "小", "中", "大"]
+TIER_ORDER = ["无", "微", "小", "中", "大", "巨", "极"]
 
-# 档位换算表（单一权威源：AI 只给 tier，数字由程序掷定并封顶；ai/client_utils 从此导入）
+# 档位换算表（单一权威源：AI 只给 tier，数字由程序掷定并封顶；ai/client_utils 从此导入）。
+# 用户确认：5 档 → 7 档（无/微/小/中/大/巨/极；大 1.8→1.5 归一，巨 2.0、极 2.5）。
 TIER_RANGE = {
     "无": 0.0,
     "微": 0.25,
     "小": 0.5,
     "中": 1.0,
-    "大": 1.8,
+    "大": 1.5,
+    "巨": 2.0,
+    "极": 2.5,
+}
+
+# 档位丰富表达映射表（AI 可输出生动词，validator 归一映射到标准档位）。
+# normalize_tier(词) → 标准档位；未知词按字形含「极/巨/大/中/小/微」就近归一。
+TIER_ALIAS = {
+    "无": ("无", "毫无", "绝无", "零"),
+    "微": ("微", "些许", "微澜", "略", "一星"),
+    "小": ("小", "稍", "小波", "微起", "浅"),
+    "中": ("中", "明显", "中浪", "可观", "寻常"),
+    "大": ("大", "显著", "大潮", "甚", "猛烈"),
+    "巨": ("巨", "剧烈", "巨涛", "严重", "浩大"),
+    "极": ("极", "极端", "海啸", "惊天", "绝伦"),
+}
+_TIER_ALIAS_REV = {a: k for k, vals in TIER_ALIAS.items() for a in vals}
+
+
+def normalize_tier(word) -> str:
+    """丰富表达 → 标准档位（validator 归一映射）；未知词就近匹配或回「无」。"""
+    if not isinstance(word, str):
+        return "无"
+    w = word.strip()
+    if w in _TIER_ALIAS_REV:
+        return _TIER_ALIAS_REV[w]
+    for k in ("极", "巨", "大", "中", "小", "微"):
+        if k in w:
+            return k
+    return "无"
+
+# ---- free_effect 通用契约（言枢密 v3 设计）：AI 自由动作可落地的白名单字段 ----
+# 拒绝式校验：AI 输出的 effects 键必须 ∈ 此白名单，否则整单拒绝（不落地）；
+# 数值经 TIER_RANGE/tier_to_value 换算并 CAP 封顶，AI 只有提议权。
+FREE_EFFECT_FIELD_WHITELIST = (
+    "prestige", "treasury", "population_satisfaction", "faction_change",
+    "external_jin", "external_liao", "external_xixia", "defense_bonus",
+    "tech", "art_mastery", "army", "finance", "talent",
+)
+# free_effect 单字段封顶（CAP，防 AI 提议越权量级）：字段 → (上限值)（与 ai/client_utils._TIER_CAP 对齐并扩展）
+FREE_EFFECT_CAP = {
+    "prestige": 12, "treasury": 3_000_000, "population_satisfaction": 10,
+    "external_jin": 12, "external_liao": 12, "external_xixia": 12,
+    "defense_bonus": 10, "tech": 10, "art_mastery": 10, "army": 10,
+    "finance": 3_000_000, "talent": 10,
+}
+# free_effect 成本（cost）超存量判定用的软上限比例：cost.treasury 超过当前国库该比例 → 整单不执行（拒绝）
+FREE_EFFECT_COST_REJECT_RATIO = 2.0
+
+# ---- 记忆知识库（Phase 3a，言枢密方案）：关系衰减 λ（/回合，单一权威源）----
+# w_eff = w_base × exp(-λ × Δturn)；λ 大 = 淡忘快（promises 诺言、progresses 进度）、
+# λ 小 = 持久（governs 主政、stance 态度、supports/opposes 立场）。
+MEMORY_RELATION_DECAY = {
+    "supports": 0.02, "opposes": 0.02, "involves": 0.03, "produces": 0.03,
+    "progresses": 0.02, "promises": 0.05, "stance": 0.015, "governs": 0.01,
+}
+MEMORY_ARCHIVE_WEIGHT = 0.25   # 归档阈值：w_eff 低于此 → 移入 memory_archive.json（不物理删除）
+
+# ---- 全游戏级强制 AI：统一错误码（单一权威源，AI 缺失/失败一律拒绝式报错，不降级不伪造）----
+AI_ERROR_CODES = {
+    "AI_NOT_CONFIGURED": "未接入 AI：请配置 OpenAI 兼容 API（base_url/api_key/model）",
+    "AI_TIMEOUT": "AI 服务连接超时：请检查网络或 base_url 后重试",
+    "AI_AUTH_FAILED": "AI 鉴权失败：请检查 api_key",
+    "AI_EMPTY_RESPONSE": "AI 返回空响应",
+    "AI_INVALID_JSON": "AI 返回非 JSON / 契约无法解析",
+    "AI_CONTRACT_FAILED": "AI 输出不满足契约（字段缺失/越界）",
 }
 
 
@@ -827,6 +965,28 @@ COIN_INFO = {
     "shortage": 0.30,     # 钱荒程度（0~1，越高越荒）
     "private_melt": 0.20, # 铜钱私铸/外流比例
 }
+
+# ---- 经济金融推演基准（蔡权衡定稿，接档位词丰富 7 档）----
+# economy_decide 扩展 5 金融字段：AI 只给三态词（增/稳/跌、缓/平/加剧、兴/平/衰、
+# 扩/稳/损、通胀/平/通缩），数值由程序按此基准换算并 CAP 封顶。
+FINANCE_DECIDE_BASE = {
+    "jiaozi_trust": {"cap": 5},          # 交子信任 增/跌 → trust ±5
+    "jiaozi_issued": {"cap": 1_000_000}, # 交子发行 增 → issued +100万（≤可发额度，超发触发既有崩溃）
+    "shortage": {"cap": 0.05},           # 钱荒 缓/加剧 → shortage ±0.05（clamp [0.05,0.95]）
+    "tariff": {"cap": 0.02},             # 市舶 兴/衰 → tariff ±0.02（clamp [0.05,0.20]）
+    "silver_in": {"cap": 10},            # 市舶白银 silver_in ±10（clamp [10,60] 万两/年）
+    "bank_capital": {"cap": 0.20},       # 银行 扩/损 → capital ±20%（仅 established）
+    "bank_reserve": {"cap": 500_000},    # 银行 reserve +50万
+    "price_mult": {"cap": 0.05},         # 价格系数 ±5%（挂 calc_price_level ×mult，clamp [0.5,3.0]）
+}
+# 三态词白名单（金融字段）
+FINANCE_STATES = {
+    "jiaozi_trust": ("增", "稳", "跌"),
+    "shortage": ("缓", "平", "加剧"),
+    "maritime": ("兴", "平", "衰"),
+    "bank": ("扩", "稳", "损"),
+    "price_trend": ("通胀", "平", "通缩"),
+}
 BANK_INFO = {
     "established": False, # 是否设立官营银行（如检校库/交子务升级）
     "capital": 0,         # 官营资本（万贯）
@@ -855,12 +1015,78 @@ PREFECTURE_INITIAL_GRAIN_PRICE = {
     "天府沃野":   0.90,   # 川峡
     "腹里州路":   1.00,   # 京西/荆湖/广南
 }
+
+# ---- 大臣家产（言枢密设计 + 蔡权衡数值；基线用史翰青 1101 开局，钱贯/田亩）----
+# 1101 年六贼多在野未起用，家产远小于靖康籍没时——蔡京 3万/800 殷实起步（崇宁后膨胀），
+# 朱勔 3万/1500（苏州富室），韩忠彦/曾布 在朝相臣较厚；陈瓘 清贫。存档序列化 state.minister_estate。
+ESTATE_INIT = {
+    "蔡京": {"wealth": 30_000, "land": 800},
+    "童贯": {"wealth": 20_000, "land": 300},
+    "王黼": {"wealth": 5_000, "land": 100},
+    "朱勔": {"wealth": 30_000, "land": 1_500},
+    "韩忠彦": {"wealth": 50_000, "land": 1_500},
+    "曾布": {"wealth": 60_000, "land": 2_000},
+    "陈瓘": {"wealth": 5_000, "land": 80},
+    "李纲": {"wealth": 10_000, "land": 300},
+    "种师道": {"wealth": 15_000, "land": 500},
+    "杨戬": {"wealth": 20_000, "land": 400},
+    "梁师成": {"wealth": 10_000, "land": 200},
+    "蔡攸": {"wealth": 10_000, "land": 200},
+    "高俅": {"wealth": 20_000, "land": 300},
+    "余深": {"wealth": 20_000, "land": 600},
+}
+# 家产档位词（脱敏：玩家/AI 只见档位；数值程序管、展示管、AI 只叙事）
+# 清贫<1万 / 小康≥1万 / 殷实≥3万 / 豪富≥10万 / 巨富≥50万（贯）
+ESTATE_TIERS = (
+    ("巨富", 500_000), ("豪富", 100_000), ("殷实", 30_000),
+    ("小康", 10_000), ("清贫", 0),
+)
+# 膨胀机制（史翰青 1101 基线 → 靖康籍没锚点：杨戬「尚拥万金」、朱勔田「跨连郡县」）：
+# 家产随年按 corruption 膨胀（俸禄基准 + 贪腐×系数）；封顶巨富上限（籍没锚点验证）
+ESTATE_GROWTH_BASE = 0.001       # 月俸禄基准（家产 ×1‰）
+ESTATE_GROWTH_CORRUPT = 0.05     # 月贪腐膨胀系数（家产 ×corruption×5%；杨戬 25 年→巨富锚点）
+ESTATE_WEALTH_CAP = 50_000_000   # 封顶（巨富档上限，靖康籍没锚点）
+# 家产钱的循环/田的循环（月流，程序守恒）
+ESTATE_FLOW = {
+    "salary_share": 0.20,      # 俸给划转家产比例（同步从官僚 POP wealth 扣，防双计）
+    "luxury_rate": 0.01,       # 奢侈消费 = 家产×0.01×BOOM_MULT×奢侈系数（→工匠/商人）
+    "hoard_rate": 0.30,        # 聚敛窖藏比例（→钱荒 shortage +）
+    "rent_rate": 0.05,         # 田租月率（并入 gentry_land 增产量）
+    "estate_tax_rate": 0.02,   # 田赋/免役钱比例（家产田 → 国库，守恒）
+    "persona_rich": 1_000_000, # 家产≥100万 → 丰厚（危险度 +0.15）
+    "persona_poor": 50_000,    # 家产≤5万 → 清贫（敢谏 +15%）
+    "seize_land_rate": 0.5,    # 抄没田比例（→官田）
+}
+# 建筑标准（政府 projects output 扩展 + POP buildings；Lv1-5 ×1.5/级，成本 ×1.8^(Lv-1)，维护 ×0.5%/月）
+BUILDING_STD = {
+    "水利": {"base_cost": 200_000, "effect": "yield_bonus", "maintain": 0.005},
+    "常平仓": {"base_cost": 150_000, "effect": "granary_cap", "maintain": 0.005},
+    "官营作坊": {"base_cost": 300_000, "effect": "workshop_output", "maintain": 0.005},
+    "官署": {"base_cost": 250_000, "effect": "decree_speed", "maintain": 0.005},
+    "军营": {"base_cost": 400_000, "effect": "army_power", "maintain": 0.005},
+    "学校": {"base_cost": 180_000, "effect": "exam_talent", "maintain": 0.005},
+}
+BUILDING_LEVEL_MULT = 1.5      # 每级效果 ×1.5
+BUILDING_COST_GROWTH = 1.8     # 建造成本 ×1.8^(Lv-1)
+BUILDING_EFFECT_CAP = 2.0      # 效果乘数封顶 ×2.0
+POP_BUILDING_TYPES = ("农田", "工坊", "商铺", "庄园")   # POP 建筑（阶层 wealth 出资，Lv1-5，×0.05/Lv）
+POP_BUILDING_EFFECT = 0.05     # 每级 ×0.05（封顶 ×2.0 由 BUILDING_EFFECT_CAP 统一）
+# 投资（invest_decide 复用 free_effect 载体；六领域基准年回报/风险）
+INVEST_BASE = {
+    "农业": {"return": 0.08, "risk": 0.15},
+    "水利": {"return": 0.10, "risk": 0.10},
+    "工坊": {"return": 0.12, "risk": 0.20},
+    "商铺": {"return": 0.15, "risk": 0.25},
+    "漕运": {"return": 0.10, "risk": 0.15},
+    "军器": {"return": 0.18, "risk": 0.30},
+}
+INVEST_FUND_SOURCES = ("treasury", "imperial_treasury")   # 资金来源：国库（会签/廷议执行率）/内帑（乾纲独断）
 CANAL_MONTHLY_RATE = 0.90      # 漕运效率基准：每月把州府可输存粮的 90% 输往中央仓
 MILITARY_GRAIN_MONTHLY = 600_000    # 军粮月耗 (石)，从中央仓支取（禁军/厢军/西军粮饷）
 OFFICIAL_GRAIN_MONTHLY = 200_000    # 官俸本色禄米月耗 (石)，从中央仓支取
 DISASTER_RELIEF_GRAIN = 200_000     # 单次开仓赈济耗粮 (石)
-SPARROW_RAT = 0.01             # 雀鼠耗：存粮月自然损耗率（1%）
-CANAL_LOSS_BASE = 0.04         # 漕运漂没基础损耗（4%）
+SPARROW_RAT = 0.012            # 雀鼠耗：存粮月自然损耗率（加消耗定案 1%→1.2%）
+CANAL_LOSS_BASE = 0.06         # 漕运漂没基础损耗（加消耗定案 4%→6%）
 CANAL_LOSS_CORRUPT_WEIGHT = 0.06  # 漕运侵盗损耗随押运官贪腐放大系数
 LAND_TAX_RATE = 0.15           # 田赋本色率：月田赋 = 月粮产 × 15%（按粮产系统核算）
 
@@ -869,6 +1095,45 @@ PRICE_LEVEL_BASE = 1.0         # 物价基准（钱/物之比 = 1）
 PRICE_LEVEL_MIN = 0.5          # 物价下限（钱荒极深）
 PRICE_LEVEL_MAX = 3.0          # 物价上限（恶性通胀）
 MONEY_SUPPLY_START = 200_000_000  # 货币有效供给初值（贯）：铜钱+有效交子+白银折钱。
+
+# ---- 建筑-时代交互（言枢密方案，告别纯数值）----
+# era_state 五维认知层（兴/平/衰，程序定幅迁移）：economy_center 财赋重心 /
+# culture 文教 / commerce 商贸 / military 军备 / urban 都市化
+ERA_DIMENSIONS = ("economy_center", "culture", "commerce", "military", "urban")
+ERA_TREND_SHIFT = {"兴": 10, "平": 0, "衰": -10}    # 每档迁移幅度（0-100 刻度，程序定幅）
+ERA_BUILDING_LINK = {          # 下行联动：建筑 → era 维度（乘数走既有公式，累积到 era）
+    "水利": "economy_center", "常平仓": "economy_center",
+    "学校": "culture", "市舶": "commerce", "码头": "commerce",
+    "军营": "military", "城防": "military", "官营作坊": "commerce",
+    "农田": "economy_center", "商铺": "commerce", "庄园": "economy_center",
+}
+ERA_UP_LINK = {                # 上行调制：国库/景气 → 建造速度/解锁
+    "build_speed_boost": 1.3,  # 国库充足+景气中/大 → 建造速度 ×1.3
+    "unlock_threshold": 60,    # economy_center/culture ≥60 → 新建筑解锁
+}
+# 科技-建筑映射（用户指示·建筑跟随科技）：节点/副指标 → 解锁建筑类型 + 阈值
+# 史实锚：三舍法→太学/州学、火药→火器作坊、水利机械→水利设施、市舶法→市舶司、冶铁→铁作
+# 科技没研出 → 建筑类型不可建/不出现（对齐「蓝图库只列现在真造得出的」设计）
+TECH_BUILDING_MAP = {
+    "hydraulics": ("水利", 30),          # 水利机械 ≥30 → 水利设施可建
+    "gunpowder": ("火器作坊", 30),        # 火药 ≥30 → 火器作坊
+    "iron": ("铁作", 30),                # 冶铁 ≥30 → 铁作
+    "school_three_halls": ("学校", 40),   # 三舍法（level ≥40）→ 太学/州学
+    "maritime_law": ("市舶司", 40),       # 市舶法（level ≥40）→ 市舶司
+}
+# 科技升级上限：建筑 Lv 上限 = f(科技等级)（level 0-100 → Lv1-6，clamp ≤5）
+BUILDING_LEVEL_CAP_STEP = 20            # level 每 20 → +1 Lv
+# ---- 新旧产业规模化（用户指示：产业属性 + 认知层感知 + 大臣立场）----
+# 建筑新旧产业分类：旧产业（传统）/新产业（科技解锁，跟随科技落地）
+INDUSTRY_CLASS = {
+    "old": ("农田", "磨坊", "手工作坊", "传统织坊", "木帆船", "常平仓", "官署", "庄园", "商铺", "水利", "军营"),
+    "new": ("重工业", "铁路", "商船货运", "机器局", "火器作坊", "市舶司", "铁作"),
+}
+# 产业结构认知层档位词（新产业占比 → 档位，脱敏：AI/大臣只见档位）
+INDUSTRY_SHARE_TIERS = (
+    ("新产业主导", 0.5), ("新旧并立", 0.25), ("新芽初萌", 0.1), ("纯旧产业", 0),
+)
+INDUSTRY_OLD_DECAY = 0.005   # 新产业兴起 → 旧产业相对衰落（月，转型阵痛）
 # 校准说明：岁入缗钱 5000~6000 万贯（流量），流通货币存量须按周转 3~4 次反推约 1.5~2.5 亿贯，
 # 否则"一年收税近 6000 万、流通仅 6000 万"会自相矛盾、把市场一年抽干。故存量取 2 亿贯。
 # 货币流通速度：周转次数/年。税基抬升后若无流通速度，货币/实物比会骤跌、物价触底钱荒恶化，
@@ -895,11 +1160,27 @@ CANAL_BLOCK_START = 10
 # 区域粮价（贯/石）——按人口/产量供需，京畿边镇贵、膏腴贱
 GRAIN_PRICE_MIN = 0.4
 GRAIN_PRICE_MAX = 2.5
-PER_CAPITA_MONTH_GRAIN = 0.5    # 人均月耗粮（石），含口粮/种粮/酿造/损耗/家畜综合（史实人均年耗 5-7 石）
+PER_CAPITA_MONTH_GRAIN = 0.5    # 人均月耗粮（石）**纯口粮口径**（种粮/酿酒/饲料/损耗已单列消耗，防双计）
+
+# ---- 消费端校准（Phase B 定稿）：按职业口粮 + 隐户消费 + 商品消费率 + POP 流动 ----
+GRAIN_CONSUME_PER_CAPITA = {"农": 0.5, "士绅": 0.5, "工匠": 0.4, "商人": 0.4, "官僚": 1.8, "兵": 1.5}  # 石/人/月
+# 官僚 1.8 = 官2.7万×6石 + 吏21.6万×1.2石 加权 ≈1.73 → 取 1.8（家口折算，调参定案；禄粟本色 15 石仍不动）
+OFFICIAL_SERVICE_TAX_RATIO = 0.05  # 官户免役钱比例（史实免役法：官户/形势户纳助役钱）= 官僚俸钱总额 × 此比例，入国库
+# 加消耗方案（用户指示·生产过剩处理，亩产保持史实不改；完整定案修正：加工型消耗依托酒坊/畜栏建筑）
+SEED_GRAIN_PER_MU = 0.065      # 种粮预留 = 耕地亩 × 此值 / 12（石/月，播种用；约 250万石/月，自然消耗）
+FARMER_STORE_CAP = 12          # 农储粮上限（石/人）：超出部分按 FARMER_SPOIL_RATE 月霉耗核销（收敛 ~12石/人）
+FARMER_SPOIL_RATE = 0.02       # 农超储霉耗率（/月，兜底防农存粮无限涨）
+HIDDEN_CONSUME_PER_CAPITA = 0.4    # 隐户人均月耗粮（石/口/月）；隐户不落籍，由该路士绅/地主供给
+GOODS_CONSUME_RATE = {"士绅": 0.05, "官僚": 0.03, "商人": 0.03, "工匠": 0.02, "兵": 0.02, "农": 0.010}  # 商品消费率（/月）；农 0.015→0.010（平衡修复：农不穷）
+BOOM_MULT = {"微": 0.4, "小": 0.7, "中": 1.0, "大": 1.4}  # 景气消费倍率（Phase B 定稿）：消费/奢侈品按景气放大，缺失默认「中」=1.0
+FARMER_SELL_FLOOR = 0.5            # 农最低供给份额：粮市撮合中农卖方权重保底（防农被挤出粮市）
+POP_FLOW_RATE = {"城市化": 0.0008, "回乡": 0.0008, "科举": 0.0001}  # POP 流动基准（/月）
+EXAM_HARD_POOR_SHARE = {"无": 0.0, "微": 0.3, "小": 0.5, "中": 0.7, "大": 0.9}  # 科举寒门（农）入仕占比
+URBAN_SPLIT = {"工匠": 0.6, "商人": 0.4}  # 城市化净流入在工匠/商人间的分配
 
 # 常平仓（区域粮价自动稳定器）
 CHANGPING_HIGH = 1.6            # 粮价高于此则常平粜粮抑价
-CHANGPING_LOW = 0.6             # 粮价低于此则常平籴粮托市
+CHANGPING_LOW = 0.9             # 粮价低于此则常平籴粮托市（加消耗定案 0.6→0.9，收储托价扩容）
 
 # 经济→事件压力反馈（粮荒/通胀→起义压力）
 ECONOMY_PRESSURE_THRESHOLD_GRANARY = 0.2   # 太仓存量低于容量 20% → 粮荒压力

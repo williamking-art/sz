@@ -158,7 +158,9 @@ def test_settle_turn_advances_month_once():
 
     s2 = _new_state()
     y0, m0, t0 = s2.year, s2.month, s2.turn
-    settle_turn(s2)
+    # 全游戏级强制 AI：settle_turn 需注入 AI 替身（拒绝式，无 AI 抛错）
+    from tests.fake_ai_backend import FakeAIClient
+    settle_turn(s2, ai_client=FakeAIClient())
     # settle_turn 内部已委托 run_monthly_settlement 推进，不应再推进一次
     assert (s2.year, s2.month) == _next_month(y0, m0)
     assert s2.turn == t0 + 1
@@ -223,9 +225,10 @@ def test_settlement_money_conservation_no_silent_jump():
                 total += pop.get("窖银", 0)
         return total
 
-    # 开胃一回合，记录起止快照
+    # 开胃一回合，记录起止快照（全游戏级强制 AI：注入替身）
+    from tests.fake_ai_backend import FakeAIClient
     before = _money_snapshot(s)
-    settle_turn(s)
+    settle_turn(s, ai_client=FakeAIClient())
     after = _money_snapshot(s)
 
     # 允许存在生产/消费带来的正常波动，但不允许"凭空"量级跳变

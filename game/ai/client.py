@@ -26,6 +26,14 @@ from ai.client_narrative import ClientNarrativeMixin
 from ai.client_utils import (
     _ai_unavailable, _app_root, _build_offer_context, _clean_text, _extract_json, _fallback_parse, _http_post_json, _load_prompt, _normalize_decree_effects, _normalize_effects, _org_by_affiliation, _prompt_dir, _safety_filter, _safety_lexicon_path, _similar, _tool_dispatch, _TOOL_SCHEMAS, _valid_tier, effects_to_dict, load_safety_lexicon, tier_to_value,
 )
+from ai.narrative_guard import (
+    _validate_narrative_numbers, _build_numeric_ranges, _build_source_closure,
+    build_character_statuses, build_character_blacklist, _validate_characters,
+)
+from content.data import normalize_tier
+
+# 档位白名单（7 档：无/微/小/中/大/巨/极）；validator 用 normalize_tier 归一丰富表达
+_TIERS7 = ("无", "微", "小", "中", "大", "巨", "极")
 
 
 class AIClient(ClientNarrativeMixin):
@@ -364,12 +372,11 @@ class AIClient(ClientNarrativeMixin):
         return msg.get("content") or ""
 
     def _postprocess(self, raw, validator, fallback, retry_prompt=None,
-                     retry_user=None, retry_temp: float = 0.3):
+                     retry_user=None, retry_temp: float = 0.3, ranges=None):
         """验收：解析 → validator 校验 → 复读检测；失败回喂修复或兜底。
 
-        retry_prompt/retry_user：可选。提供时，首次校验失败会用低温度
-        （retry_temp，结构档 0.3）把「校验失败原因」拼进提示补调一次，
-        仍失败才走 fallback。不提供则直接 fallback（向后兼容）。
+        三方案：ranges（叙事数值区间）传入时，AI 文本字段过 _validate_narrative_numbers
+        （数字须落在注入区间，区间外改写定性词）；无 ranges 跳过（向后兼容）。
         """
         obj = _extract_json(raw) if raw else None
         obj = validator(obj) if obj is not None else None
@@ -400,6 +407,9 @@ class AIClient(ClientNarrativeMixin):
                 _txt, _hit = _safety_filter(_txt)
                 if _hit:
                     return fallback()
+                # 三方案：叙事-数值一致（数字须落在注入区间，区间外改写定性词）
+                if ranges:
+                    _txt, _flagged = _validate_narrative_numbers(_txt, ranges)
                 obj[_field] = _txt
         # 复读检测（针对有 reply/advice/report 等文本字段）
         txt = obj.get("reply") or obj.get("advice") or obj.get("report") or obj.get("narrative") or ""
@@ -416,10 +426,18 @@ class AIClient(ClientNarrativeMixin):
     def dialogue(self, minister_name, faction, faction_stance, minister_traits,
                  minister_role, era_name, history, player_input, state_summary,
                  state=None):
+        # 两层记忆 + persona（Phase 3b）：召对 persona 槽（身份锚点/立场基线/盘面姿态/相关历史）
+        persona_hint = ""
+        if state is not None:
+            try:
+                from content.ministers.persona import _build_persona_prompt
+                persona_hint = _build_persona_prompt(state, minister_name, getattr(state, "turn", 0))
+            except Exception:
+                persona_hint = ""
         sys_p = _load_prompt(
             "audience_host", minister_name=minister_name, minister_role=minister_role,
             faction=faction, faction_stance=faction_stance, minister_traits=minister_traits,
-            era_name=era_name,
+            era_name=era_name, persona_hint=persona_hint or "（无特别注记）",
         )
         # 注入大臣长期记忆（落档于 minister_memory，复用其长久偏好/已办差回执）
         if state is not None:
@@ -442,8 +460,14 @@ class AIClient(ClientNarrativeMixin):
             if not isinstance(o, dict) or "reply" not in o:
                 return None
             o["reply"] = _clean_text(o.get("reply", ""))
-            o["mood"] = o.get("mood", "小") if _valid_tier(o.get("mood", "小")) else "小"
-            o["intent_hint"] = str(o.get("intent_hint", ""))[:12]
+            # 拒绝式：mood 缺失/非法 → 整单失败（丰富表达经 normalize_tier 归一）
+            if not isinstance(o.get("mood"), str) or not o["mood"].strip():
+                return None
+            o["mood"] = normalize_tier(o["mood"])
+            if o["mood"] not in _TIERS7:
+                return None
+            if "intent_hint" in o:
+                o["intent_hint"] = str(o["intent_hint"])[:12]
             return o
 
         # 真 function calling：仅当开启且提供了 state
@@ -498,11 +522,26 @@ class AIClient(ClientNarrativeMixin):
         sys_p = _load_prompt("decree_drafter", era_name="",
                              minister_advice=minister_advice or "（大臣未及建言）",
                              player_intent=player_intent or "（陛下意欲有所作为）")
+        # 记忆知识库（Phase 3a）：拟旨注入既往同类决策（keyword_search → summarize，脱敏）
+        if state is not None:
+            try:
+                mg = getattr(state, "memory", None)
+                if mg is not None:
+                    hits = mg.keyword_search(player_intent or "", top_k=6)
+                    hint = mg.summarize(hits, max_chars=100)
+                    if hint:
+                        sys_p += f"\n【既往同类诏令】{hint}（可参照成例，勿直引）"
+            except Exception:
+                pass
 
         def validate(o):
             if not isinstance(o, dict) or "body" not in o or "effects" not in o:
                 return None
-            o["title"] = str(o.get("title", "御笔诏"))[:40]
+            # 拒绝式：title 缺失/空 → 整单失败（不默认「御笔诏」）
+            title = o.get("title")
+            if not isinstance(title, str) or not title.strip():
+                return None
+            o["title"] = title.strip()[:40]
             o["body"] = _clean_text(o.get("body", ""))
             o["effects"] = _normalize_effects(o.get("effects", []))
             if not o["body"] or not o["effects"]:
@@ -528,11 +567,18 @@ class AIClient(ClientNarrativeMixin):
         def validate(o):
             if not isinstance(o, dict) or "body" not in o or "effects" not in o:
                 return None
-            o["title"] = str(o.get("title", "御笔诏"))[:40]
+            # 拒绝式：title 缺失/空 → 整单失败；org_hint 缺失不写入（渠道默认在消费侧 get）
+            title = o.get("title")
+            if not isinstance(title, str) or not title.strip():
+                return None
+            o["title"] = title.strip()[:40]
             o["body"] = _clean_text(o.get("body", ""))
             o["effects"] = _normalize_effects(o.get("effects", []))
-            hint = str(o.get("org_hint", "政府"))
-            o["org_hint"] = hint if hint in ("内廷", "政府", "地方") else "政府"
+            if "org_hint" in o:
+                hint = str(o["org_hint"])
+                if hint not in ("内廷", "政府", "地方"):
+                    return None
+                o["org_hint"] = hint
             if not o["body"] or not o["effects"]:
                 return None
             return o
@@ -547,8 +593,6 @@ class AIClient(ClientNarrativeMixin):
                          max_tokens=700, json_mode=True)
         res = self._postprocess(raw, validate,
                                 lambda: _ai_unavailable("draft_decree"))
-        if "org_hint" not in res:
-            res["org_hint"] = "政府"
         return res
 
     # ============================================================
@@ -565,11 +609,14 @@ class AIClient(ClientNarrativeMixin):
         def validate(o):
             if not isinstance(o, dict):
                 return None
-            o["memo"] = _clean_text(o.get("memo", "中书省据诏意拟稿如上，谨遵成法。"))
-            o["objections"] = _clean_text(o.get("objections", "门下省详览，未见违碍，可付外施行。"))
-            o["executions"] = _clean_text(o.get("executions", "尚书省及六部各供乃职，奉行惟谨。"))
-            v = str(o.get("verdict", "可准"))
-            o["verdict"] = v if v in ("可准", "宜改", "可驳") else "可准"
+            # 拒绝式：会签四字段缺失 → 整单失败（不默认填充）
+            for _k in ("memo", "objections", "executions"):
+                if not isinstance(o.get(_k), str) or not o.get(_k).strip():
+                    return None
+                o[_k] = _clean_text(o[_k])
+            if o.get("verdict") not in ("可准", "宜改", "可驳"):
+                return None
+            o["verdict"] = o["verdict"]
             o["revised_effects"] = _normalize_effects(o.get("revised_effects", []))
             return o
 
@@ -649,9 +696,13 @@ class AIClient(ClientNarrativeMixin):
             rf = o.get("reform")
             if isinstance(rf, dict) and rf.get("reform_type"):
                 o["category"] = "reform_org"
+            # 全游戏级强制 AI（拒绝式）：exec_mode/title 缺失或非法 → 整单失败（不默认填充）
             if o.get("exec_mode") not in ("instant", "longterm"):
-                o["exec_mode"] = "longterm"
-            o["title"] = str(o.get("title", "御笔诏"))[:40]
+                return None
+            title = o.get("title")
+            if not isinstance(title, str) or not title.strip():
+                return None
+            o["title"] = title.strip()[:40]
             o["body"] = _clean_text(o.get("body", ""))
             o["params"] = o.get("params", {}) if isinstance(o.get("params"), dict) else {}
             # 归一化 effects：仅保留白名单内可直接程序落地的键（其余交给推演叙事）
@@ -727,14 +778,24 @@ class AIClient(ClientNarrativeMixin):
         raw = self._cached_call("monthly", posture, sys_p, "", 0.7, 600)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("report"))
 
-    def event_narrative(self, event_title, event_context):
+    def event_narrative(self, event_title, event_context, state=None):
         sys_p = _load_prompt("event_narrative", event_title=event_title, event_context=event_context)
+        # 12 步 agent 化 P2：事件叙事闭集化（agent 只从本期来源闭集取材）
+        if state is not None:
+            try:
+                closure = _build_source_closure(state)
+                sys_p += f"\n{closure}"
+            except Exception:
+                pass
 
         def validate(o):
             if not isinstance(o, dict) or "narrative" not in o:
                 return None
             o["narrative"] = _clean_text(o.get("narrative", ""))
-            o["severity_hint"] = o.get("severity_hint", "中") if o.get("severity_hint") in ("轻", "中", "重") else "中"
+            # 拒绝式：severity_hint 缺失/非法 → 整单失败（不默认「中」）
+            if o.get("severity_hint") not in ("轻", "中", "重"):
+                return None
+            o["severity_hint"] = o["severity_hint"]
             # 众生相分幕（可选，向后兼容）
             scenes = o.get("scenes")
             if isinstance(scenes, list):
@@ -761,24 +822,85 @@ class AIClient(ClientNarrativeMixin):
         return self._postprocess(raw, validate, lambda: _ai_unavailable("advice"))
 
     def economy_decide(self, posture):
-        """AI 推演本月全国经济动态（景气/士绅囤粮/生产力度），返回档位 dict。
+        """AI 推演本月全国经济动态（全系统强制 AI，拒绝式）+ 金融 5 字段（蔡权衡定稿）。
 
-        失败返回 None，由调用方回退到按粮价方向的兜底逻辑。
+        核心字段（景气/士绅/士绅力度/生产）缺失或非法 → **整单返回 None**；金融字段
+        （交子信任/钱荒/市舶/银行/物价趋势）三态词白名单，缺失/非法 → **拒绝式报错**。
         """
+        from content.data import FINANCE_STATES
         sys_p = _load_prompt("economy", posture=posture)
 
         def validate(o):
             if not isinstance(o, dict):
                 return None
-            out = {}
+            # 拒绝式：核心字段缺失/非法 → 整单拒绝（丰富表达归一）
             for k in ("景气", "士绅力度", "生产"):
-                v = o.get(k, "中")
-                out[k] = v if v in ("微", "小", "中", "大") else "中"
-            g = o.get("士绅", "观望")
-            out["士绅"] = g if g in ("囤", "抛", "观望") else "观望"
+                if not isinstance(o.get(k), str) or not o[k].strip():
+                    return None
+                o[k] = normalize_tier(o[k])
+            if not isinstance(o.get("士绅"), str) or o["士绅"] not in ("囤", "抛", "观望"):
+                return None
+            out = {
+                "景气": o["景气"], "士绅": o["士绅"], "士绅力度": o["士绅力度"], "生产": o["生产"],
+            }
+            for k in ("窖银", "城市化", "回乡", "科举"):
+                v = o.get(k)
+                if isinstance(v, str) and v.strip():
+                    out[k] = normalize_tier(v)
+                else:
+                    out[k] = "无"   # 缺省 = 本月不发生（明确语义）
+            # 金融 5 字段（三态词白名单；缺失/非法 → 拒绝式整单失败）
+            for fk, states in (("jiaozi_trust", FINANCE_STATES["jiaozi_trust"]),
+                               ("shortage", FINANCE_STATES["shortage"]),
+                               ("maritime", FINANCE_STATES["maritime"]),
+                               ("bank", FINANCE_STATES["bank"]),
+                               ("price_trend", FINANCE_STATES["price_trend"])):
+                v = o.get(fk)
+                if not isinstance(v, str) or v not in states:
+                    return None
+                out[fk] = v
             return out
-        raw = self._call(sys_p, "", temperature=0.7, max_tokens=200)
+        raw = self._call(sys_p, "", temperature=0.7, max_tokens=300)
         return self._postprocess(raw, validate, lambda: None)
+
+    def free_effect_decide(self, posture, title="", body=""):
+        """AI 推演自由诏令的效果契约（言枢密 v3 free_effect 契约）。
+
+        返回 {"mode": "once"|"ongoing", "duration": int(0=永久), "name": str,
+              "effects": {白名单字段: 档位词/数值}, "cost": {"treasury"/"granary": int}}
+        或 _error 标记（拒绝式：不降级、不伪造）。程序侧 _apply_free_effect 白名单校验 +
+        CAP 封顶 + cost 承受/失衡拒绝；AI 只有提议权。
+        """
+        # 内联契约提示（言枢密 v3；free_effect.md 模板由言枢密接入后可换 _load_prompt）
+        sys_p = (
+            "你是北宋徽宗的辅政推演。把陛下自由诏令的长期/即时效果量化为 JSON 契约：\n"
+            '{"mode": "once"|"ongoing", "duration": 月数(0=永久，仅ongoing), "name": "制度名",'
+            '"effects": {白名单字段: 档位词(无/微/小/中/大，可带+/-)或数值},'
+            '"cost": {"treasury": 贯, "granary": 石}(可为空)}\n'
+            "白名单字段：prestige/treasury/population_satisfaction/faction_change"
+            "(值={\"派系\":档位})/external_jin/external_liao/external_xixia/defense_bonus/"
+            "tech/art_mastery/army/finance/talent。数值只用档位词，程序换算封顶。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict) or "mode" not in o or "effects" not in o:
+                return None
+            # 拒绝式：mode 缺失/非法 → 整单失败（不默认 once）
+            if o["mode"] not in ("once", "ongoing"):
+                return None
+            dur = o.get("duration")
+            o["duration"] = int(dur) if isinstance(dur, (int, float)) and dur > 0 else 0
+            if not isinstance(o.get("effects"), dict):
+                return None
+            if "name" in o:
+                o["name"] = str(o["name"])[:20]
+            o["cost"] = o.get("cost") if isinstance(o.get("cost"), dict) else {}
+            return o
+
+        user_p = (f"【诏意】{title or ''}\n{body or ''}\n"
+                  "请按契约给出效果与成本（档位词，白名单内，不写白名单外字段）。")
+        raw = self._call(sys_p, user_p, temperature=0.4, max_tokens=400, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("free_effect"))
 
     def survey_settle(self, posture):
         """推演方田均税/清丈隐田/抑兼并的落地效果档位。
@@ -791,15 +913,18 @@ class AIClient(ClientNarrativeMixin):
         def validate(o):
             if not isinstance(o, dict):
                 return None
-            hc = o.get("hidden_cleared", "小")
-            gr = o.get("gentry_returned", "小")
-            oc = o.get("outcome", "小成")
-            if hc not in ("微", "小", "中", "大"):
-                hc = "小"
-            if gr not in ("微", "小", "中", "大"):
-                gr = "小"
+            # 拒绝式：三字段缺失/非法 → 整单失败（丰富表达归一）
+            hc = o.get("hidden_cleared")
+            gr = o.get("gentry_returned")
+            oc = o.get("outcome")
+            if not isinstance(hc, str) or not isinstance(gr, str):
+                return None
+            hc = normalize_tier(hc)
+            gr = normalize_tier(gr)
+            if hc not in _TIERS7 or gr not in _TIERS7:
+                return None
             if oc not in ("顺利", "小成", "受阻"):
-                oc = "小成"
+                return None
             return {"hidden_cleared": hc, "gentry_returned": gr, "outcome": oc}
         raw = self._call(sys_p, "", temperature=0.7, max_tokens=200)
         return self._postprocess(raw, validate, lambda: None)
@@ -814,6 +939,195 @@ class AIClient(ClientNarrativeMixin):
             return o if o["commentary"] else None
         raw = self._call(sys_p, "", temperature=0.7, max_tokens=700)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("eval"))
+
+    # ============================================================
+    # 12 步 agent 化 P1：外交/军事/灾荒契约（档位词输出，程序换算封顶；守恒铁律——
+    # agent 只叙事/档位，不触碰税收/军粮/仓廪/国库守恒数值）
+    # ============================================================
+    def _agent_inject(self, state, role):
+        """角色注入（Phase 3b persona + Phase 3a 记忆图谱），loyalty 数值绝不注入。"""
+        try:
+            from content.ministers.persona import _build_persona_prompt
+            hint = _build_persona_prompt(state, role, getattr(state, "turn", 0))
+        except Exception:
+            hint = ""
+        try:
+            rows = state.memory.query(role, time_window=0, top_k=6)
+            mem = state.memory.summarize(rows, max_chars=100)
+        except Exception:
+            mem = ""
+        parts = [hint] if hint else []
+        if mem:
+            parts.append(f"【相关历史】{mem}")
+        return "\n".join(parts)
+
+    def diplomacy_decide(self, posture, state=None):
+        """外部外交（使节）契约：attitude 档位（微/小/中/大 → ±3~±8，CAP 8）、
+        岁币（订/毁 布尔，SUI_GONG_ANNUAL 由结算算）、盟约（结/断 布尔 → alliance_jin_liao）。
+        agent 只给档位词，不触碰岁币金额/国库。"""
+        role = "使节"
+        inj = self._agent_inject(state, role) if state is not None else ""
+        sys_p = (
+            "你是北宋外交使节。把本季外交动态量化为 JSON 契约：\n"
+            '{"attitude": "微|小|中|大", "sui_gong": "订|毁|不变", "alliance": "结|断|不变"}'
+            "\nattitude 档位（对金/辽/西夏态度变化 ±3~±8，程序换算封顶）；"
+            "岁币/盟约只给布尔意图，金额与国库由朝廷程序核算。"
+        )
+        if inj:
+            sys_p += f"\n{inj}"
+
+        def validate(o):
+            if not isinstance(o, dict) or "attitude" not in o:
+                return None
+            if not isinstance(o.get("attitude"), str) or not o["attitude"].strip():
+                return None
+            o["attitude"] = normalize_tier(o["attitude"])
+            if o["attitude"] not in _TIERS7:
+                return None
+            o["sui_gong"] = o.get("sui_gong", "不变") if o.get("sui_gong") in ("订", "毁", "不变") else "不变"
+            o["alliance"] = o.get("alliance", "不变") if o.get("alliance") in ("结", "断", "不变") else "不变"
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=200, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("diplomacy"))
+
+    def military_decide(self, posture, state=None):
+        """军事（枢密）契约：power 档位（战力 ±3~±8%）、army 档位（兵额 ±1万~±5万，CAP 5万）、
+        training/morale 档位（±2~±6）、levy 档位（征发 cost 10万~50万）。agent 只给档位词。"""
+        role = "枢密使"
+        inj = self._agent_inject(state, role) if state is not None else ""
+        sys_p = (
+            "你是北宋枢密使。把本季军事动态量化为 JSON 契约：\n"
+            '{"power": "微|小|中|大", "army": "微|小|中|大", "training": "微|小|中|大",'
+            '"morale": "微|小|中|大", "levy": "微|小|中|大"}'
+            "\n档位含义：power 战力 ±3~±8%；army 兵额 ±1万~±5万（CAP 5万）；"
+            "training/morale ±2~±6；levy 征发 cost 10万~50万。程序换算封顶。"
+        )
+        if inj:
+            sys_p += f"\n{inj}"
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            for k in ("power", "army", "training", "morale", "levy"):
+                v = o.get(k)
+                if not isinstance(v, str) or not v.strip():
+                    return None
+                o[k] = normalize_tier(v)
+                if o[k] not in _TIERS7:
+                    return None
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=200, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("military"))
+
+    def relief_decide(self, posture, state=None):
+        """灾荒赈济（按察使）契约：disaster_level 1~5（减产/粮价 1.5~3.5×）、
+        relief 档位（赈济 10万~50万石）、refugee 档位（流民 ±5万~±30万）。"""
+        role = "按察使"
+        inj = self._agent_inject(state, role) if state is not None else ""
+        sys_p = (
+            "你是朝廷按察使。把本季灾荒动态量化为 JSON 契约：\n"
+            '{"disaster_level": 1~5, "relief": "微|小|中|大", "refugee": "微|小|中|大"}'
+            "\ndisaster_level 灾级 1~5（减产/粮价 1.5~3.5× 既有公式）；"
+            "relief 赈济 10万~50万石；refugee 流民 ±5万~±30万。程序换算封顶。"
+        )
+        if inj:
+            sys_p += f"\n{inj}"
+
+        def validate(o):
+            if not isinstance(o, dict) or "disaster_level" not in o:
+                return None
+            lv = o.get("disaster_level")
+            if isinstance(lv, bool) or not isinstance(lv, (int, float)) or not (1 <= int(lv) <= 5):
+                return None
+            o["disaster_level"] = int(lv)
+            for k in ("relief", "refugee"):
+                v = o.get(k)
+                if not isinstance(v, str) or not v.strip():
+                    return None
+                o[k] = normalize_tier(v)
+                if o[k] not in _TIERS7:
+                    return None
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=200, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("relief"))
+
+    def invest_decide(self, posture, state=None):
+        """投资推演契约（复用 free_effect 载体）：领域/力度/来源/期限档位词。
+
+        返回 {"field": 六领域, "fund": "treasury"|"imperial_treasury", "tier": 档位, "months": int}
+        → 程序 invest() 按 INVEST_BASE 换算并记账（四账闭合守恒）。
+        """
+        from content.data import INVEST_BASE, INVEST_FUND_SOURCES
+        sys_p = (
+            "你是朝廷度支。把本季投资计划量化为 JSON 契约：\n"
+            '{"field": "农业|水利|工坊|商铺|漕运|军器", "fund": "treasury|imperial_treasury",'
+            '"tier": "微|小|中|大|巨|极", "months": 12}'
+            "\nfield 六领域（INVEST_BASE 基准）；fund=国库（会签执行）/内帑（乾纲独断）；"
+            "tier 投资力度档位（程序按 INVEST_BASE 年回报换算）；months 回报期限。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict) or "field" not in o or "fund" not in o:
+                return None
+            if o.get("field") not in INVEST_BASE:
+                return None
+            if o.get("fund") not in INVEST_FUND_SOURCES:
+                return None
+            if not isinstance(o.get("tier"), str) or not o["tier"].strip():
+                return None
+            o["tier"] = normalize_tier(o["tier"])
+            if o["tier"] not in _TIERS7:
+                return None
+            m = o.get("months", 12)
+            o["months"] = int(m) if isinstance(m, (int, float)) and 3 <= int(m) <= 60 else 12
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=200, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("invest"))
+
+    def era_decide(self, posture, state=None):
+        """时代推演契约（史官，每半年/重大事件后）：era_change 五维白名单 + trend 兴/平/衰
+        + region + narrative（≤120字）；拒绝式校验；era_state 按 trend 程序定幅迁移。"""
+        from content.data import ERA_DIMENSIONS
+        sys_p = (
+            "你是北宋史官。把本半年的时代变迁量化为 JSON 契约：\n"
+            '{"era_change": {"economy_center": "兴|平|衰", "culture": "兴|平|衰",'
+            '"commerce": "兴|平|衰", "military": "兴|平|衰", "urban": "兴|平|衰"},'
+            '"region": "路名或全国", "narrative": "≤120字时代注记"}'
+            "\nera_change 键仅限五维（economy_center/culture/commerce/military/urban）；"
+            "trend 只给 兴/平/衰（幅度 ±10 由程序定幅迁移，不报数字）；narrative 只叙事。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                from core.era_mechanic import era_brief, industry_brief
+                inj = f"\n【当前时代】{era_brief(state)}\n【产业结构】{industry_brief(state)}"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "era_change" not in o:
+                return None
+            ec = o.get("era_change")
+            if not isinstance(ec, dict):
+                return None
+            out = {}
+            for d in ERA_DIMENSIONS:
+                v = ec.get(d)
+                if v not in ("兴", "平", "衰"):
+                    return None
+                out[d] = v
+            o["era_change"] = out
+            o["region"] = str(o.get("region", "全国"))[:12]
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("era"))
 
 
 # ============================================================

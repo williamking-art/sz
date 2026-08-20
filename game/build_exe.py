@@ -20,18 +20,20 @@ OUT_DIR = HERE
 ICON = os.path.join(HERE, "assets", "icon.ico")
 
 # 需作为数据目录一起打包的内容（游戏运行时需要读取，非纯 Python 代码）
-DATA_DIRS = ["assets", "ai", "core", "ui", "backend", "content", "audio"]
+DATA_DIRS = ["assets", "ai", "core", "ui", "backend", "content", "audio", "memory"]
 
 # 运行时动态 import 的包（README 提到函数内延迟导入，PyInstaller 无法静态分析）
 HIDDEN_IMPORTS = [
-    "ai", "ai.client", "ai.decree", "ai.desensitize",
+    "ai", "ai.client", "ai.decree", "ai.desensitize", "ai.narrative_guard",
     "core", "core.commands", "core.commands_policy", "core.commands_decree",
     "core.game_state", "core.game_state_econ", "core.save_load", "core.events",
     "core.evaluation", "core.asset_context", "core.settlement", "core.settlement_steps",
     "core.settlement_reform", "core.settlement_extensions",
+    "core.free_effect", "core.tool_registry", "core.estate_mechanic", "core.era_mechanic",
     "ui", "ui.gui", "ui.map", "ui.theme", "ui.assets",
     "backend", "backend.client",
-    "content", "content.data", "content.ministers.data",
+    "content", "content.data", "content.ministers.data", "content.ministers.persona",
+    "memory", "memory.memory_graph",
     "audio", "audio.player", "audio.manifest",
 ]
 

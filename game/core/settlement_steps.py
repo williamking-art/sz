@@ -344,10 +344,10 @@ def _settle_economy(state, log):
             share = p.get("population", 1) / max(state.population, 1)
             pops["农"]["size"] = max(0, pops["农"]["size"] + int(growth * share))
         # 2) POP 职业流动（AI 化·Phase B 定稿）：城市化/回乡档位 → 程序换算速率，net 流守恒。
-        #    读 _economy_ai["城市化"/"回乡"]（言枢密扩展契约）；无 AI/缺键兜底：
-        #    城市化=中（景气中/大）else 无；回乡=中（景气微）else 无（复现现状 0.08%/月）。
+        #    全游戏级强制 AI（拒绝式）：无 _economy_ai（经济推演未注入）→ 城市化/回乡/科举
+        #    一律「无」（不流动、不伪造档位）；有推演才按档位流动。
         _eco = getattr(state, "_economy_ai", None) or {}
-        _boom = _eco.get("景气", "中")
+        _boom = _eco.get("景气", "中") if _eco else None
 
         def _flow_tier(key, fallback):
             v = _eco.get(key)
@@ -487,9 +487,30 @@ def _settle_land_local(state, log):
 
 
 def _settle_extensions(state, log):
-    """金融/科举/科技/外交 等扩展维度的自然演进。"""
+    """金融/科举/科技/外交 等扩展维度的自然演进。
+
+    经济金融推演接入（蔡权衡定稿）：读 _economy_ai 金融 5 字段（三态词）→ 程序换算
+    （FINANCE_DECIDE_BASE CAP 封顶），守恒由既有公式（交子超发崩溃/市舶关税/钱荒联动
+    tax_coeff）保证——AI 只给方向词，不触碰守恒数值。
+    """
+    _fin = getattr(state, "_economy_ai", None) or {}
+    _bank_on = getattr(state, "bank", {}).get("established", False) \
+        if isinstance(getattr(state, "bank", None), dict) else False
+
     if state.jiaozi["issued"] > 0:
         _ceiling = state._jiaozi_ceiling()                    # 可发额度 = 准备金 × 准备金率（皇威放宽）
+        over = max(0, state.jiaozi["issued"] - _ceiling)
+        # 金融调制（交子信任/发行——三态词，CAP ±5 / +100万）
+        _jt = _fin.get("jiaozi_trust", "稳")
+        if _jt == "增":
+            state.jiaozi["trust"] = min(100, state.jiaozi["trust"] + 5)
+        elif _jt == "跌":
+            state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - 5)
+        if _fin.get("jiaozi_issued") == "增" and over <= 0:
+            # 增发须 ≤ 可发额度（超发由下方既有超发逻辑触发崩溃）
+            _add = min(1_000_000, max(0, _ceiling - state.jiaozi["issued"]))
+            if _add > 0:
+                state.jiaozi["issued"] += _add
         over = max(0, state.jiaozi["issued"] - _ceiling)
         if over > 0:
             # 超发→信用崩（trust 降，贬值）+ 铜钱被挤兑囤积→钱荒加剧；皇威高可减缓贬值
@@ -499,9 +520,23 @@ def _settle_extensions(state, log):
         else:
             # 适量发钞→缓解钱荒（纸币替代铜钱，铜钱流通压力减）
             state.coin["shortage"] = max(0.1, state.coin.get("shortage", 0.3) - 0.005)
+    # 钱荒调制（缓/加剧 ±0.05，clamp [0.05,0.95]；联动 tax_coeff 由 finance 既有公式）
+    _sh = _fin.get("shortage", "平")
+    if _sh == "缓":
+        state.coin["shortage"] = max(0.05, state.coin.get("shortage", 0.3) - 0.05)
+    elif _sh == "加剧":
+        state.coin["shortage"] = min(0.95, state.coin.get("shortage", 0.3) + 0.05)
     if state.maritime["open"]:
         # 市舶外贸：关税抽解入国库 + 商人 POP 得外贸利润（白银流入民间）
         _trade_month = state.calc_maritime_trade() / 12.0                     # 月贸易额（贯）
+        # 市舶调制（兴/衰：tariff ±0.02 clamp [0.05,0.20]、silver_in ±10 clamp [10,60]）
+        _mt = _fin.get("maritime", "平")
+        if _mt == "兴":
+            state.maritime["tariff"] = max(0.05, min(0.20, state.maritime.get("tariff", 0.10) + 0.02))
+            state.maritime["silver_in"] = max(10, min(60, state.maritime.get("silver_in", 30) + 10))
+        elif _mt == "衰":
+            state.maritime["tariff"] = max(0.05, min(0.20, state.maritime.get("tariff", 0.10) - 0.02))
+            state.maritime["silver_in"] = max(10, min(60, state.maritime.get("silver_in", 30) - 10))
         _tariff_rate = state.maritime.get("tariff", 0.10)
         state.treasury += int(_trade_month * _tariff_rate)                    # 关税抽解
         _merchant_profit = int(_trade_month * (1 - _tariff_rate) * 0.3)       # 商人毛利 30%
@@ -510,12 +545,61 @@ def _settle_extensions(state, log):
             if _p["pops"]["商人"]["size"] > 0:
                 _p["pops"]["商人"]["wealth"] += int(_merchant_profit * _p["pops"]["商人"]["size"] / _total_merchant)
         state.coin["shortage"] = max(0.0, state.coin["shortage"] - 0.01)      # 白银流入缓解钱荒
+    # 银行调制（扩/损——仅 established；capital ±20%、reserve +50万）
+    if _bank_on:
+        _bk = _fin.get("bank", "稳")
+        if _bk == "扩":
+            state.bank["capital"] = state.bank.get("capital", 1.0) * 1.20
+            state.bank["reserve"] = state.bank.get("reserve", 0) + 500_000
+        elif _bk == "损":
+            state.bank["capital"] = state.bank.get("capital", 1.0) * 0.80
+            state.bank["reserve"] = max(0, state.bank.get("reserve", 0) - 500_000)
     state.jiaozi["trust"] = min(100, state.jiaozi["trust"] + 1)
+    # 价格系数调制（通胀/通缩 ±5%，挂 calc_price_level ×mult，clamp [0.5,3.0]；月度重置不落档）
+    _pt = _fin.get("price_trend", "平")
+    _pm = getattr(state, "_price_mult", 1.0)
+    if _pt == "通胀":
+        _pm = max(0.5, min(3.0, _pm * 1.05))
+    elif _pt == "通缩":
+        _pm = max(0.5, min(3.0, _pm * 0.95))
+    state._price_mult = _pm
+    # 大臣家产月度循环（奢侈消费/收租/聚敛窖藏/物议——守恒转移）
+    try:
+        from core.estate_mechanic import settle_minister_estate
+        settle_minister_estate(state, log)
+    except Exception:
+        pass
+    # 投资分期回报（国库/内帑回流，守恒）
+    try:
+        from core.estate_mechanic import settle_investments
+        settle_investments(state, log)
+    except Exception:
+        pass
+    # 建筑-时代交互（言枢密方案）：下行联动（建筑累积到 era_state 五维）
+    try:
+        from core.era_mechanic import settle_era_links
+        settle_era_links(state, log)
+    except Exception:
+        pass
+    # 新旧产业规模化（用户指示）：转型阵痛叙事 + 记忆记录
+    try:
+        from core.era_mechanic import settle_industry_shift
+        settle_industry_shift(state, log)
+    except Exception:
+        pass
 
     state.exam["talent_pool"] = max(0, min(100, state.exam["talent_pool"]
                                            - 1 + int(state.exam["schools"] / 40)))
 
     state.tech["level"] = max(0, min(100, state.tech["level"] + random.randint(-1, 1)))
+    # 建筑反馈科技（用户指示）：学校/书院 → 科技研发加速（tech level 加成）
+    try:
+        from core.era_mechanic import tech_build_bonus
+        _tb = tech_build_bonus(state)
+        if _tb > 0:
+            state.tech["level"] = max(0, min(100, state.tech["level"] + int(_tb)))
+    except Exception:
+        pass
     state.tech["gunpowder"] = max(0, min(100, state.tech["gunpowder"] + random.randint(-1, 1)))
     state.tech["iron"] = max(0, min(100, state.tech["iron"] + random.randint(0, 1)))
     if getattr(state, "maritime", {}).get("open"):
@@ -583,12 +667,24 @@ def _settle_longterm_decrees(state, log):
             task["progress"] = min(100, task.get("progress", 0) + rate)
             if random.random() < 0.5:
                 task["last_log"] = f"诸司奉行，事有进境（进度 {int(task['progress'])}%）。"
+            # 记忆知识库（Phase 3a）：任务推进写入图谱（progresses）
+            try:
+                tname = task.get("task_name", "政务")
+                state.memory.add_entity(f"task_{tname}", "task", tname, turn=state.turn)
+                state.memory.add_relation(f"task_{tname}", f"progress_{int(task['progress'])}",
+                                          "progresses", weight=1.0, turn=state.turn,
+                                          note=f"{label}进度{int(task['progress'])}%")
+            except Exception:
+                pass
             if task["progress"] >= 100:
                 queue.remove(task)
                 log.append(f"[{label}] {task.get('task_name', '政务')} 告成，钦此。")
 
     _progress(getattr(state, "longterm_public", []), "公开事务")
     _progress(getattr(state, "longterm_secret", []), "密令")
+    # free_effect 长期制度（言枢密 v3 契约）：「长期诏」步位旁月度结算
+    from core.free_effect import _settle_free_effects  # 延迟导入，避免顶层环
+    _settle_free_effects(state, log)
 
 
 # ------------------------------------------------------------
@@ -605,6 +701,14 @@ def _simulate_external(state, log):
         ex["storage"] = max(0, ex.get("storage", 0) + curve.get("power_growth", 0) * 40 * mult)
         att = ex.get("attitude", 50)
         ex["attitude"] = max(0, min(100, att + random.randint(-2, 2)))
+        # 记忆知识库（Phase 3a）：外部政权态度推演写入图谱（stance）
+        try:
+            state.memory.add_entity(f"external_{key}", "external_power", key, turn=state.turn)
+            state.memory.upsert_relation(f"external_{key}", "宋", "stance",
+                                         weight=1.0 + att / 100.0, turn=state.turn,
+                                         note=f"态度{att}")
+        except Exception:
+            pass
 
 
 # ------------------------------------------------------------
@@ -737,7 +841,8 @@ def _settle_granary(state, log):
     # ---- 商品交易（多商品）+ 粮市交易 + 各 POP 消费 ----
     # 工匠产不同商品、各 POP 按阶级买不同商品（钱→工匠/商人，钱守恒；新增商品经 register_finished_good 扩展）
     _eco = getattr(state, "_economy_ai", None) or {}
-    _boom = BOOM_MULT.get(_eco.get("景气", "中"), 1.0)   # Phase B 定稿：景气消费倍率（单一权威源，缺失默认「中」=1.0）
+    # 全游戏级强制 AI（拒绝式）：无经济推演 → 景气消费倍率中性 1.0（不伪造景气档位）
+    _boom = BOOM_MULT.get(_eco.get("景气", "中"), 1.0) if _eco else 1.0
     _prod = {"微": 0.5, "小": 0.75, "中": 1.0, "大": 1.3}.get(_eco.get("生产", "中"), 1.0)  # 生产力度
     for name, p in state.prefectures.items():
         artisan, merchant = p["pops"]["工匠"], p["pops"]["商人"]
@@ -1038,9 +1143,37 @@ def _evaluate_timeline_breaks(state, log):
 # ------------------------------------------------------------
 # Step 6: 军事/外交结算
 # ------------------------------------------------------------
+# 12 步 agent 化 P1 换算表（程序 TIER_RANGE 同源原则：agent 只给档位词，数值程序换算封顶）
+_P1_ATT_DELTA = {"微": 3, "小": 5, "中": 6, "大": 8}         # 外交 attitude ±3~±8（CAP 8）
+_P1_ARM_DELTA = {"微": 10000, "小": 20000, "中": 35000, "大": 50000}   # 兵额 ±1万~±5万（CAP 5万）
+_P1_TRAIN_DELTA = {"微": 2, "小": 3, "中": 5, "大": 6}       # 训练/士气 ±2~±6
+_P1_LEVY_COST = {"微": 100000, "小": 200000, "中": 350000, "大": 500000}  # 征发 cost 10万~50万
+_P1_RELIEF = {"微": 100000, "小": 200000, "中": 350000, "大": 500000}     # 赈济 10万~50万石
+_P1_REFUGEE = {"微": 50000, "小": 120000, "中": 200000, "大": 300000}     # 流民 ±5万~±30万
+
+
 def _settle_military_diplomacy(state, log):
-    """军事与外部势力推进"""
+    """军事与外部势力推进（12 步 agent 化 P1：外交/军事契约接线，守恒铁律——
+    岁币金额/兵额扣补走既有守恒步，agent 只给档位词）"""
     tl = state.timeline
+    _dip = getattr(state, "_diplomacy_ai", None)
+    _mil = getattr(state, "_military_ai", None)
+
+    # 外交契约（attitude 档位 → ±3~±8；岁币/盟约布尔）
+    if isinstance(_dip, dict) and not _dip.get("_error"):
+        d = _P1_ATT_DELTA.get(_dip.get("attitude", "小"), 5)
+        for k in ("金", "辽", "西夏"):
+            cur = state.external[k]["attitude"]
+            direction = 1 if cur < 70 else -1     # 岁币阈值 70 同源：低于趋善、高于遏制
+            state.external[k]["attitude"] = max(0, min(100, cur + direction * d))
+        if _dip.get("sui_gong") == "订":
+            state._sui_gong = True
+        elif _dip.get("sui_gong") == "毁":
+            state._sui_gong = False
+        if _dip.get("alliance") == "结":
+            state.alliance_jin_liao = True
+        elif _dip.get("alliance") == "断":
+            state.alliance_jin_liao = False
 
     jin = state.external["金"]
     if "jin_crushed" in tl:
@@ -1062,9 +1195,26 @@ def _settle_military_diplomacy(state, log):
     if random.random() < 0.1:
         xixia["attitude"] = max(10, min(90, xixia["attitude"] + random.randint(-10, 10)))
 
-    for u in state.army_units:
-        if random.random() < 0.05:
-            u.training = max(10, u.training - random.randint(1, 3))
+    # 军事契约（power%/兵额/训练士气/征发——训练士气与兵额调整程序换算，cost 由守恒步扣）
+    if isinstance(_mil, dict) and not _mil.get("_error"):
+        for u in state.army_units:
+            u.training = max(10, min(100, u.training + _P1_TRAIN_DELTA.get(_mil.get("training", "微"), 2)))
+            u.morale = max(10, min(100, u.morale + _P1_TRAIN_DELTA.get(_mil.get("morale", "微"), 2)))
+        # 兵额 ±（CAP 5万）：主军籍军队主兵种调整
+        d_arm = _P1_ARM_DELTA.get(_mil.get("army", "微"), 10000)
+        if state.army_units:
+            u = max(state.army_units, key=lambda x: x.troops)
+            main_b = max(u.branches, key=lambda b: u.branches[b]) if u.branches else None
+            if main_b:
+                u.branches[main_b] = max(0, u.branches[main_b] + d_arm)
+        levy = _P1_LEVY_COST.get(_mil.get("levy", "微"), 100000)
+        if getattr(state, "treasury", 0) >= levy:
+            state.change_treasury(-levy)     # 征发 cost 守恒扣款（程序，非 agent 直写）
+            log.append(f"[枢密] 征发军资 {levy} 贯")
+    else:
+        for u in state.army_units:
+            if random.random() < 0.05:
+                u.training = max(10, u.training - random.randint(1, 3))
 
 
 # ------------------------------------------------------------
@@ -1144,6 +1294,12 @@ def _trigger_event(state, category, log):
     })
     state.statistics["total_disasters" if "灾" in category or "起义" in category else "total_wars"] += 1
     state.change_prestige(-5, f"{category}爆发")
+    # 记忆知识库（Phase 3a）：事件落地写入图谱（event 实体 + involves）
+    try:
+        state.memory.turn = state.turn
+        state.memory.record_event(f"event_{state.turn}_{category}", category, turn=state.turn)
+    except Exception:
+        pass
 
 
 # ------------------------------------------------------------

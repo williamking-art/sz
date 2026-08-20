@@ -77,19 +77,21 @@ def _build_pops(info: dict, p_type: str) -> dict:
     _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
-        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0), "goods": _g0()},
+        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0), "goods": _g0(), "欠税": 0},
         "士绅": {
             "size": sz_shen,
             "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH)),
             "grain": int(monthly_grain * (CIVILIAN_HOARD_SOUTH if south else CIVILIAN_HOARD_NORTH)),
             "goods": _g0(),
             "窖银": 0,           # 士绅窖藏之银（贯）：退出流通、可后续掏出（挥霍/抄家）
+            "欠税": 0,           # 欠税科目（A1）：税征缺口累计，逐月追缴；存档兼容见 save_load 迁移
         },
-        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0()},
-        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0), "grain": int(monthly_grain * 0.2), "goods": _g0()},
+        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
+        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0},
         "官僚": {"size": sz_guan,
-                  "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.1), "goods": _g0()},
-        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0()},  # 兵额由 army_units 聚合后回填
+                  "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02), "goods": _g0(), "欠税": 0},
+        # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
+        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0},  # 兵额由 army_units 聚合后回填
     }
 
 
@@ -167,9 +169,51 @@ class GameState(GameStateEconMixin):
         self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
         # 工程系统（玩家手动发起，逐月推进）：{pid: {...}}
         self.projects: dict = {}
-        # 制作/作坊系统（配方：粮→酒 等）：{wid: {...}}
-        self.workshops: dict = {}
+        # 制作/作坊系统（配方：粮→酒/肉 等）：{wid: {...}}
+        # 加消耗修正·加工型消耗依托建筑：开局每路 2 酒坊 + 2 畜栏（各 ×5万石/月太仓粮耗 → 120万石/月），
+        # 酒坊产酒增 wine_tax、畜栏产肉折钱入内帑（玩家可建更多；存档已序列化 workshops）
+        from content.data import PREFECTURE_INFO, WORKSHOP_RECIPES
+        self.workshops = {}
+        _widx = 0
+        for _rname in PREFECTURE_INFO:
+            for _ in range(2):
+                _jw = WORKSHOP_RECIPES["酒坊"]
+                self.workshops[f"酒坊_{_rname}_{_widx}"] = {
+                    "name": "酒坊", "recipe": dict(_jw["recipe"]), "output_dim": _jw["output_dim"],
+                    "yield": _jw["yield"], "active": True}
+                _jc = WORKSHOP_RECIPES["畜栏"]
+                self.workshops[f"畜栏_{_rname}_{_widx}"] = {
+                    "name": "畜栏", "recipe": dict(_jc["recipe"]), "output_dim": _jc["output_dim"],
+                    "yield": _jc["yield"], "active": True}
+                _widx += 1
         # 内帑（甲口径）：imperial_treasury = 国库净结余抽成 + 榷酒课，与国库分理
+        # 对话口谕内帑调拨（商量确认式）：皇帝谕发内帑入国库，大臣商量回奏、当场点「准」才守恒移库
+        self.pending_inner_transfer = None   # {"amount": 贯, "turn": 回合}；None=无待准调拨
+        # free_effect 长期制度队列（言枢密 v3 契约）：[{name, mode, duration, effects, cost}]，
+        # 由 _settle_free_effects 在「长期诏」步位月度结算；存档已序列化
+        self.longterm_effects: list = []
+        # 记忆知识库（Phase 3a）：图谱存史、跨回合连贯；按存档槽位读写
+        from memory.memory_graph import MemoryGraph
+        self.memory = MemoryGraph()
+        self.memory_slot = 0
+        # 短期记忆库（Phase 3b，用户指示：短期不污染上下文、做过的事有记录）：
+        # append-only 行为日志（圣旨/口谕/决策，全量保留、可追溯、**不注入 AI 上下文**）
+        self.short_term_log: list = []
+        # 大臣自设工具注册表（三方案：注册护栏 + 上限 16 + 存档持久化）
+        self.tool_registry: dict = {}
+        # 金融推演价格系数（通胀/通缩 ±5%，clamp [0.5,3.0]；月度重置不落档）
+        self._price_mult: float = 1.0
+        # 时代状态（建筑-时代交互，言枢密方案）：五维认知层 0-100 刻度（兴/平/衰 程序定幅迁移）
+        from content.data import ERA_DIMENSIONS
+        self.era_state: dict = {d: 50 for d in ERA_DIMENSIONS}
+        # 建筑兴衰记录（记忆图谱 building 实体 + 毁损标记）
+        self.era_building_log: list = []
+        # 大臣家产（言枢密设计）：{大臣: {wealth, land}}；开局基线 ESTATE_INIT（存档序列化）
+        from content.data import ESTATE_INIT
+        self.minister_estate: dict = {k: dict(v) for k, v in ESTATE_INIT.items()}
+        # POP 建筑（政府 projects 复用；POP 建筑按路）：prefectures[路].buildings 由 _build_pops 初始化
+        # 投资记录（invest_decide 记账）：{invest_id: {field, fund, amount, return, risk, months_left, seized}}
+        self.investments: dict = {}
         # 加俸预算（厚禄养廉政令投入，逐月驱动 pay_ratio 上升）
         self.payraise_budget: int = 0
         # 监察力度（整顿吏治提升，压缩贪腐扣减）
@@ -374,6 +418,9 @@ class GameState(GameStateEconMixin):
                 # POP 人口群体（参考维多利亚）：每路按职业分六群体，每群体 {size, wealth, grain}
                 # 士绅 wealth/grain 即其囤粮居奇的资金与粮储（钱粮守恒，取代旧 civilian_granary/gentry_treasury）
                 "pops": _build_pops(info, p_type),
+                # POP 建筑（言枢密设计）：{农田/工坊/商铺/庄园: Lv1-5}，阶层 wealth 出资；
+                # 效果乘数对既有公式（×0.05/Lv 封顶 ×2.0），守恒走既有路径；存档迁移缺省 {}
+                "buildings": {},
                 "pay_ratio": 0.5,                                              # 俸给充足率初值
                 "gap": 0,                                                      # 俸给缺口初值
                 # 开局区域米价：按"京畿边镇贵、膏腴贱"原则给变量（避免开局全 1.00 平庸），
@@ -394,6 +441,17 @@ class GameState(GameStateEconMixin):
         for u in self.army_units:
             if u.station in self.prefectures and u.troops > 0:
                 self.prefectures[u.station]["pops"]["兵"]["size"] += u.troops
+
+        # 开局货币校准（A1 定稿）：修复 F1（士绅卖粮造币）后补开局货币，防跌回通缩地板。
+        # 注入民间 wealth（按各 POP 财富比例分配），不注入国库——物价由民间购买力驱动。
+        from content.data import START_MONEY_BOOST
+        _boost = START_MONEY_BOOST
+        _total_w = sum(pop.get("wealth", 0)
+                       for _p in self.prefectures.values() for pop in _p["pops"].values())
+        if _boost > 0 and _total_w > 0:
+            for _p in self.prefectures.values():
+                for pop in _p["pops"].values():
+                    pop["wealth"] += int(_boost * pop.get("wealth", 0) / _total_w)
 
         # 防区派生：此时 prefectures 已就绪（fortification 由 DEFENSE_LINES 初值，garrison 由各路聚合）
         self._derive_defense_lines()
@@ -738,7 +796,7 @@ class GameState(GameStateEconMixin):
                     for name in self.prefectures
                     if any(u.station == name and u.troops > 0 for u in self.army_units)
                 },
-                "armies": {u.unit_id: {"name": u.name, "tier": u.tier, "branch": u.branch,
+                "armies": {u.unit_id: {"name": u.name, "tier": u.tier, "branches": dict(u.branches),
                                        "troops": u.troops, "morale": u.morale,
                                        "training": u.training, "station": u.station,
                                        "defense_line": u.defense_line}
