@@ -134,6 +134,143 @@ HISTORICAL_EVENTS = [
             {"text": "置之不理", "effects": {"prestige": -2}},
         ],
     },
+    # ---- A6 落地：徽宗朝制度/财政/西线军事史实事件（素材 a6_narrative_materials.md 第 1 节）----
+    # 三标签约定：史实=有篇/卷级史料支撑；合理推演=史料未载但符合时代因果；玩法抽象=机制数值化与选项设计。
+    # effects 为档位词（无/微/小/中/大，可带 +/- 前缀表升/降），由 apply_event_choice 的换算层
+    # 经 content.data.TIER_RANGE（权威源）与 ai.client_utils.tier_to_value() 换算封顶；AI 只有叙事权。
+    {
+        "id": "chongning_party_proscription",
+        "year_range": (1102, 1104),
+        "prob": 0.05,
+        "title": "崇宁党禁·元祐党人碑",
+        "category": "党争",
+        "effects": {},
+        "desc": "崇宁元年九月，蔡京籍元祐、元符末司马光、苏轼等百二十人列「奸党」，御书刻石端礼门；三年复定三百有九人，立碑州县，元祐学术并禁，仕进之路一绝。",
+        "notes": "素材 E1：党籍立碑=史实；选项三分与档位=玩法抽象；「止立碑」路径=合理推演（史实未行）。素材「科举/士林」档位映射到既有派系「东南士人」（东南科举士绅）。",
+        "choices": [
+            {"text": "颁行党籍，追贬元祐诸臣", "effects": {
+                "prestige": "微",
+                "faction_change": {"新党": "中", "旧党": "-大", "清流言官": "-小", "东南士人": "-微"},
+            }},
+            {"text": "轻其籍，仅夺职罢归，不立碑", "effects": {
+                "prestige": "微",
+                "faction_change": {"新党": "小", "旧党": "-小", "清流言官": "-微"},
+            }},
+            {"text": "止立碑，戒敕两党各安其位", "effects": {
+                "prestige": "中",
+                "faction_change": {"新党": "-小", "旧党": "微", "清流言官": "小"},
+            }},
+        ],
+    },
+    {
+        "id": "school_three_halls",
+        "year_range": (1102, 1108),
+        "prob": 0.04,
+        "title": "学校贡举法·罢科举行三舍",
+        "category": "制度",
+        "effects": {},
+        "desc": "崇宁元年八月诏天下兴学贡士，广建州县学；三年十一月罢科举，士由州县学升太学，积学分出官，三舍升贡之制遂行，士风为之一变。",
+        "notes": "素材 E2：兴学贡士、罢科举=史实；选项与档位=玩法抽象；「并行/罢新法」路径=合理推演。素材「士林」档位映射到既有派系「东南士人」；tech 落到 state.tech['level']（0~100）。",
+        "choices": [
+            {"text": "行三舍升贡，广建州县学", "effects": {
+                "tech": "中",
+                "faction_change": {"新党": "中", "旧党": "-大", "东南士人": "中"},
+                "treasury": "-小",
+            }},
+            {"text": "科举三舍并行，徐徐图之", "effects": {
+                "tech": "微",
+                "faction_change": {"旧党": "微", "新党": "-微"},
+                "treasury": "-微",
+            }},
+            {"text": "罢新法，仍以科举取士", "effects": {
+                "faction_change": {"旧党": "中", "新党": "-大", "东南士人": "-微"},
+            }},
+        ],
+    },
+    {
+        "id": "recover_hehuang",
+        "year_range": (1103, 1104),
+        "prob": 0.05,
+        "title": "复河湟·熙河开边",
+        "category": "西线军事",
+        "effects": {},
+        "desc": "崇宁二年六月，王厚、童贯统兵出熙河，克湟州；三年四月复鄯州、廓州，河湟故地重归版图，熙河开边再起，西蕃震慑。",
+        "notes": "素材 E3：克湟州、复鄯廓=史实；选项与档位=玩法抽象；「还地于蕃」=合理推演。素材「army」档位归一到既有 army_strength 语义（各军训练/士气）；「西军集团」为既有派系。",
+        "choices": [
+            {"text": "命王厚统兵进讨，童贯监军", "effects": {
+                "prestige": "中",
+                "treasury": "-中",
+                "army": "小",
+                "external_xixia": "-小",
+                "faction_change": {"西军集团": "中"},
+            }},
+            {"text": "厚赏边功，按兵自固", "effects": {
+                "prestige": "微",
+                "treasury": "-微",
+                "external_xixia": "微",
+            }},
+            {"text": "罢兵息民，还地于蕃", "effects": {
+                "population_satisfaction": "小",
+                "prestige": "-小",
+                "faction_change": {"西军集团": "-中"},
+                "external_xixia": "中",
+            }},
+        ],
+    },
+    {
+        "id": "chongning_coinage",
+        "year_range": (1103, 1105),
+        "prob": 0.04,
+        "title": "铸当十钱·钱法之弊",
+        "category": "财政",
+        "effects": {},
+        "desc": "崇宁间改铸折五、当十大钱，钱重不副、虚价欺民，私铸蜂起，物价腾踊，京畿与东南钱法大坏。",
+        "notes": "素材 E4：改铸当十钱=史实；选项与档位=玩法抽象；「罢新钱」路径=合理推演。素材「corruption」档位暂不支持（GameState 无全局贪腐字段，per-minister 隐藏值不做事件级全局增减），已省略。",
+        "choices": [
+            {"text": "改铸当十钱，广收利源", "effects": {
+                "treasury": "中",
+                "population_satisfaction": "-中",
+                "prestige": "-小",
+            }},
+            {"text": "铸当五钱，严刑禁私铸", "effects": {
+                "treasury": "小",
+                "population_satisfaction": "-小",
+                "prestige": "微",
+            }},
+            {"text": "罢新钱，复祖钱法", "effects": {
+                "treasury": "-中",
+                "population_satisfaction": "小",
+                "faction_change": {"新党": "-中", "旧党": "小"},
+            }},
+        ],
+    },
+    {
+        "id": "fangtian_taxation",
+        "year_range": (1104, 1115),
+        "prob": 0.03,
+        "title": "方田均税·丈田定赋",
+        "category": "财政",
+        "effects": {},
+        "desc": "崇宁三年复行方田均税，丈量田亩、重定赋税，本意均平；然猾胥上下其手，豪右规避，小民反受其累，东南一路怨声渐起。",
+        "notes": "素材 E5：复行方田均税=史实；「东南怨声」细节=合理推演；选项与档位=玩法抽象。素材「corruption」档位暂不支持（同 E4），已省略；「东南士人」为既有派系。",
+        "choices": [
+            {"text": "厉行方田，务求均税", "effects": {
+                "treasury": "中",
+                "population_satisfaction": "-小",
+                "faction_change": {"东南士人": "-中"},
+            }},
+            {"text": "择廉吏分路措置，缓图之", "effects": {
+                "treasury": "小",
+                "population_satisfaction": "微",
+                "faction_change": {"东南士人": "-小"},
+            }},
+            {"text": "罢方田，抚定人心", "effects": {
+                "treasury": "-小",
+                "population_satisfaction": "中",
+                "faction_change": {"东南士人": "中", "新党": "-小"},
+            }},
+        ],
+    },
 ]
 
 # ============================================================
@@ -252,6 +389,83 @@ def get_random_event() -> dict | None:
     return None
 
 
+# ============================================================
+# 事件 effects 档位换算层（A6 落地）
+#
+# 双格式兼容：
+#   - 旧事件：effects 值为 int/float 数字，直写不动（保持既有行为与存档）。
+#   - 新事件：effects 值为档位词字符串（"无"/"微"/"小"/"中"/"大"，可带 "+"/"-"
+#     前缀表升/降，如 "中" 升、"-大" 降），在 apply_event_choice() 落地时经
+#     content.data.TIER_RANGE（单一权威源）与 ai.client_utils.tier_to_value()
+#     换算并封顶；数值换算归程序，AI 只有叙事权（与 ai 管线档位封顶同源）。
+# 延迟导入：events.py 仅顶层 import random；content.data / ai.client_utils
+#   均在函数内导入，避免新增顶层环依赖。
+# ============================================================
+# 参与档位换算的事件维度（与 ai/client_utils._TIER_BASE 支持的维度对齐）
+_TIER_DIMS = (
+    "prestige", "treasury", "population_satisfaction",
+    "external_jin", "external_liao", "external_xixia",
+    "defense_bonus", "tech", "army",
+)
+# 档位维度 → 状态应用键（"army" 归一到既有 army_strength 语义：各军训练/士气）
+_TIER_ALIAS = {"army": "army_strength"}
+# 派系满意度档位基准：0~100 刻度，与 population_satisfaction 的 _TIER_BASE 一致
+_FACTION_TIER_BASE = 3.0
+
+
+def _split_tier(value):
+    """拆解事件 effects 值：int/float 原样返回 (值, +1)；档位词字符串解析 ± 前缀。
+
+    返回 (档位词或数值, 方向)。方向 +1 表升、-1 表降，仅对档位词有意义。
+    """
+    if isinstance(value, (int, float)):
+        return value, 1.0
+    text = str(value).strip()
+    direction = 1.0
+    if text.startswith("+"):
+        text = text[1:]
+    elif text.startswith("-"):
+        direction = -1.0
+        text = text[1:]
+    return text, direction
+
+
+def _tier_value(dim: str, tier, direction: float) -> int:
+    """档位词 → 数值（延迟导入换算；数字直写原样返回）。
+
+    - dim 为既有 tier_to_value 维度（prestige/treasury/.../army）→ 走换算并封顶；
+    - faction_change（派系满意度）→ 用 0~100 刻度基准换算；
+    - 未知档位词 / 未知维度 → 0（安全失败：不抛出、不写状态）。
+    """
+    if isinstance(tier, (int, float)):
+        return int(tier)
+    if dim == "faction_change":
+        from content.data import TIER_RANGE  # 延迟导入，避免顶层环
+        return int(direction * round(_FACTION_TIER_BASE * TIER_RANGE.get(tier, 0.0)))
+    from ai.client_utils import tier_to_value  # 延迟导入，避免顶层环
+    if dim not in _TIER_DIMS:
+        return 0
+    return int(direction * tier_to_value(dim, tier, 1.0))
+
+
+def _resolve_effects(effects: dict) -> dict:
+    """事件 effects 双格式归一：档位词 → 数值；数字直写不动。
+
+    非数值键（_confirm_break / _dismiss_break 等内部指令键）原样直通，
+    未知数值维度安全忽略（返回 0），不新增任何 GameState 不存在的字段。
+    """
+    out = {}
+    for k, v in effects.items():
+        if k == "faction_change" and isinstance(v, dict):
+            out[k] = {fk: _tier_value("faction_change", *_split_tier(fv))
+                      for fk, fv in v.items()}
+        elif k in _TIER_DIMS:
+            out[_TIER_ALIAS.get(k, k)] = _tier_value(k, *_split_tier(v))
+        else:
+            out[k] = v
+    return out
+
+
 def apply_event_choice(state, event: dict, choice_idx: int) -> list:
     """执行事件选择，返回效果日志"""
     choices = event.get("choices", [])
@@ -259,7 +473,7 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
         return ["选择无效"]
 
     choice = choices[choice_idx]
-    effects = choice.get("effects", {})
+    effects = _resolve_effects(choice.get("effects", {}))
     log = []
 
     log.append(f"选择：{choice['text']}")
@@ -323,6 +537,14 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
     if "art_mastery" in effects:
         state.art_mastery = max(0, min(100,
             state.art_mastery + effects["art_mastery"]))
+
+    # 科技积累（学校贡举法 / 太学三舍法争议等；state.tech["level"] 0~100）
+    # A6 新增分支：tech 键此前在旧事件「太学三舍法争议」中即已出现但未落地，
+    # 本次补上应用逻辑（与结算每月 ±1 同量级），新事件 E2 经档位换算后生效。
+    if "tech" in effects:
+        delta = int(effects["tech"])
+        state.tech["level"] = max(0, min(100, state.tech.get("level", 50) + delta))
+        log.append(f"科技 {'+' if delta >= 0 else ''}{delta}")
 
     # 战略决策点·朱批（由奏报抉择触发，落/撤改写位）
     # 延迟导入避免 commands<->events 循环依赖

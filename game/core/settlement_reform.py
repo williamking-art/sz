@@ -166,6 +166,15 @@ def _fallback_reform(state, reform, related) -> dict:
     else:
         outcome = "evade"
         report = "诸司受诏，外示奉行而内多斟酌，推行稍缓。"
+    # 记忆知识库（Phase 3a）：机构改制写入图谱（org 实体 + governs）
+    try:
+        if target:
+            state.memory.add_entity(f"org_{target}", "org", target, turn=state.turn)
+            state.memory.add_relation(f"org_{target}", f"reform_{rtype}",
+                                      "governs", weight=1.0, turn=state.turn,
+                                      note=f"{rtype}·{outcome}")
+    except Exception:
+        pass
     return {
         "outcome": outcome,
         "court_report": report,

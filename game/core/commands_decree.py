@@ -47,11 +47,11 @@ def _run_fixed(state, cat, params):
     """固定程序四类的即时规则效果（长期类不在此处结算）。"""
     if cat == "fixed_finance":
         amt = int(params.get("amount", 0))
-        target = params.get("target")
-        # 拨入来源：移库时从何处支出（如「移国库入内帑」from=国库 to=内帑）
-        src = params.get("from")
+        target = params.get("target") or params.get("to")
+        # 拨入来源：移库时从何处支出（如「移内帑入国库」source=内藏 target=国库）
+        src = params.get("source") or params.get("from")
         if not target and src:
-            target = params.get("to", "国库")
+            target = "国库"
         if not amt or not target:
             return
         if target == "内藏":
@@ -272,6 +272,18 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         state.direct_decree_used += 1
         state.wolf_count += 1
         state.statistics["total_decrees"] += 1
+        # 两层记忆（Phase 3b）：短期行为日志（全量保留、不注入 AI）+ 短期喂长期（决策实体 + produces）
+        try:
+            state.short_term_log.append(
+                {"turn": state.turn, "kind": "decree", "title": decree_full["title"],
+                 "note": "御笔直发", "year": state.year, "month": state.month})
+            state.memory.turn = state.turn
+            did = state.memory.record_decision(decree_full["title"], {"prestige": 1},
+                                               turn=state.turn, note="御笔直发")
+            state.memory.add_relation(did, "皇权", "produces", weight=1.0, turn=state.turn, note="皇威")
+            state.memory.save(state.memory_slot)
+        except Exception:
+            pass
         warn = "（警告：狼来了！密旨公信力下降。）" if state.wolf_count >= 3 else ""
         return f"御笔直发：「{decree_full['title']}」{warn}"
     # 普通诏令
@@ -416,20 +428,38 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
             _enqueue(state, task, is_secret)
         return line
 
-    # 自由推演类
-    if mode == "instant":
-        return f"〔{parse_result.get('title','诏')}〕即时诏下，天下咸闻。"
-    task = parse_result.get("task") or {
-        "task_name": parse_result.get("title", "政务"),
-        "months": 18,
-    }
-    task["category"] = "free_edict"
-    task["params"] = params
-    task["minister"] = minister
-    task["progress"] = 0
-    task["last_log"] = "已下诏，待诸司奉行推演。"
-    _enqueue(state, task, is_secret)
-    return f"〔{parse_result.get('title','诏')}〕列为长期政务，由{ minister or '有司' }督办。"
+    # 自由推演类：接入 free_effect 通用契约（言枢密 v3）——AI 推演效果契约，
+    # 程序侧拒绝式校验落地（白名单/CAP/cost 承受/失衡拒绝）；AI 缺失/失败 → 诏令不落地并明确报错（不降级）。
+    if cat == "free_edict":
+        from core.free_effect import _apply_free_effect
+        from ai.client import AIClient
+        ai = AIClient.load_saved()
+        if ai is None or not getattr(ai, "available", False):
+            return f"〔{parse_result.get('title', '诏')}〕AI 未配置，诏令未落地（请先在 AI 设置配置 OpenAI 兼容 API）。"
+        contract = ai.free_effect_decide(
+            getattr(state, "posture", ""), parse_result.get("title", ""), parse_result.get("body", ""))
+        if isinstance(contract, dict) and not contract.get("_error"):
+            eff_log = _apply_free_effect(state, contract)
+            # 两层记忆（Phase 3b）：短期行为日志 + 短期喂长期（决策实体 + produces）
+            try:
+                state.short_term_log.append(
+                    {"turn": state.turn, "kind": "decree", "title": parse_result.get("title", "自由诏"),
+                     "note": "自由诏落地", "year": state.year, "month": state.month})
+                state.memory.turn = state.turn
+                did = state.memory.record_decision(
+                    parse_result.get("title", "自由诏"),
+                    str({k: v for k, v in (contract.get("effects") or {}).items()}),
+                    minister=minister or "", turn=state.turn,
+                    supports=(), opposes=(), note="自由诏落地")
+                for k, v in (contract.get("effects") or {}).items():
+                    state.memory.add_relation(did, str(k), "produces", weight=1.0,
+                                              turn=state.turn, note=f"效果·{v}")
+                state.memory.save(state.memory_slot)
+            except Exception:
+                pass
+            return f"〔{parse_result.get('title', '诏')}〕" + "；".join(eff_log)
+        err = contract.get("_error", "AI_CONTRACT_FAILED") if isinstance(contract, dict) else "AI_CONTRACT_FAILED"
+        return f"〔{parse_result.get('title', '诏')}〕AI 推演失败（{err}），诏令未落地。"
 
 
 def confirm_timeline_break(state: GameState, break_id: str) -> str:
@@ -549,5 +579,45 @@ def issue_kouyu(state: GameState, draft: dict) -> str:
     except Exception:
         pass
     return f"口宣：「{decree_full['title']}」即时传谕（效力稍弱，或失本意）。"
+
+
+# ============================================================
+# 对话口谕内帑调拨（商量确认式，用户定稿）
+#   皇帝在召对中谕「发内帑 X 贯入国库」→ 大臣商量回奏（不即时划账）→
+#   皇帝当场点「准」confirm 守恒移库 /「罢」cancel 不动账。
+#   皇帝私库乾纲独断：金额精确整数贯，不受口谕弱效/走样约束（非模糊指令）。
+# ============================================================
+def propose_inner_transfer(state: GameState, amount) -> str:
+    """口谕发内帑入国库（商量确认式）：记录 pending_inner_transfer，不划账。"""
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return "金额须为整数贯"
+    if amount <= 0:
+        return "金额须为正整数贯"
+    if amount > state.imperial_treasury:
+        return f"内帑不足（现有 {state.imperial_treasury} 贯），不予记录"
+    state.pending_inner_transfer = {"amount": amount, "turn": state.turn}
+    return f"已谕：发内帑 {amount} 贯入国库，待准（不即时划账）"
+
+
+def confirm_inner_transfer(state: GameState) -> str:
+    """准：守恒移库（国库 +amount、内帑 -amount），清除 pending。"""
+    p = getattr(state, "pending_inner_transfer", None)
+    if not p:
+        return "无待准之内帑调拨"
+    amt = int(p["amount"])
+    state.change_treasury(amt)
+    state.change_imperial_treasury(-amt)
+    state.pending_inner_transfer = None
+    return f"准：内帑 {amt} 贯入国库"
+
+
+def cancel_inner_transfer(state: GameState) -> str:
+    """罢：清除 pending，不动账。"""
+    if getattr(state, "pending_inner_transfer", None):
+        state.pending_inner_transfer = None
+        return "罢：不动内帑"
+    return "无待准之内帑调拨"
 
 

@@ -153,5 +153,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     state.turn += 1
     state.year, state.month = _next_month(state.year, state.month)
     state.update_era_name()
+    # 金融推演价格系数：月度重置（不落档，运行时态；下月按新金融词重新调制）
+    state._price_mult = 1.0
 
     return log

@@ -13,8 +13,15 @@ def _slot_path(slot: int) -> str:
 
 
 def save_game(state, slot: int = 1) -> bool:
-    """保存游戏到指定槽位"""
+    """保存游戏到指定槽位（含记忆知识库同步写盘）。"""
     os.makedirs(SAVE_DIR, exist_ok=True)
+    # 记忆知识库（Phase 3a）：回合末原子写盘到 slot_{slot}_memory.json
+    try:
+        state.memory.turn = state.turn
+        state.memory_slot = slot
+        state.memory.save(slot)
+    except Exception:
+        pass  # 记忆写盘失败不阻断主存档
 
     data = {
         "version": "0.1.0",
@@ -41,6 +48,14 @@ def save_game(state, slot: int = 1) -> bool:
         "arrival_rate_base": state.arrival_rate_base,
         "treasury": state.treasury,
         "imperial_treasury": state.imperial_treasury,
+        "pending_inner_transfer": getattr(state, "pending_inner_transfer", None),
+        "longterm_effects": getattr(state, "longterm_effects", []),
+        "short_term_log": getattr(state, "short_term_log", []),
+        "tool_registry": getattr(state, "tool_registry", {}),
+        "minister_estate": getattr(state, "minister_estate", {}),
+        "investments": getattr(state, "investments", {}),
+        "era_state": getattr(state, "era_state", {}),
+        "era_building_log": getattr(state, "era_building_log", []),
         "wine_tax": getattr(state, "wine_tax", 100000),
         "imperial_granary": getattr(state, "imperial_granary", 0),
         "mechanisms": getattr(state, "mechanisms", {}),
@@ -179,6 +194,11 @@ def load_game(slot: int = 1):
 
     state = GameState(data.get("difficulty", "史实"))
 
+    # 记忆知识库（Phase 3a）：按槽位加载（损坏 → 重建空图，不阻断游戏）
+    state.memory_slot = slot
+    state.memory.turn = data.get("turn", 0)
+    state.memory.load(slot)
+
     # 恢复基础时间
     state.year = data.get("year", 1101)
     state.month = data.get("month", 1)
@@ -200,6 +220,14 @@ def load_game(slot: int = 1):
     state.arrival_rate_base = data.get("arrival_rate_base", 0.45)
     state.treasury = data.get("treasury", 5000000)
     state.imperial_treasury = data.get("imperial_treasury", 1000000)
+    state.pending_inner_transfer = data.get("pending_inner_transfer")
+    state.longterm_effects = data.get("longterm_effects", []) or []
+    state.short_term_log = data.get("short_term_log", []) or []
+    state.tool_registry = data.get("tool_registry", {}) or {}
+    state.minister_estate = data.get("minister_estate", {}) or dict(getattr(state, "minister_estate", {}))
+    state.investments = data.get("investments", {}) or {}
+    state.era_state = data.get("era_state", {}) or dict(getattr(state, "era_state", {}))
+    state.era_building_log = data.get("era_building_log", []) or []
     state.wine_tax = data.get("wine_tax", getattr(state, "wine_tax", 100000))
     state.imperial_granary = data.get("imperial_granary", getattr(state, "imperial_granary", 0))
     state.mechanisms = data.get("mechanisms", getattr(state, "mechanisms", {}))
@@ -241,7 +269,32 @@ def load_game(slot: int = 1):
         state.army_units = build_army_units(state)
         state.central_arsenal = CentralArsenal()
     else:
-        state.army_units = [ArmyUnit(**d) for d in data.get("army_units", [])]
+        # 军队模型迁移（用户定稿·每路禁/厢/乡各一支）：
+        #   ① 旧版单兵种（branch/troops）→ branches {"军籍:兵种": 人数}；
+        #   ② 混合版（branches 键「军籍:兵种」复合键）→ 按军籍拆分到对应军队（每支单一军籍），兵额守恒。
+        _units = []
+        for d in data.get("army_units", []):
+            if not isinstance(d, dict):
+                continue
+            d = dict(d)
+            if "branches" not in d and "branch" in d:
+                d["branches"] = {f"{d.get('tier', '禁军')}:{d.pop('branch', '轻步兵')}": int(d.pop("troops", 0))}
+            brs = d.get("branches") or {}
+            if any(":" in k for k in brs):
+                # 复合键拆分：按军籍分组建（合并同军籍兵种），每支军队单一军籍
+                by_tier = {}
+                for k, n in brs.items():
+                    t, b = k.split(":", 1) if ":" in k else (d.get("tier", "禁军"), k)
+                    bucket = by_tier.setdefault(t, {})   # 先建桶再取，避免 RHS 先求值 KeyError
+                    bucket[b] = bucket.get(b, 0) + n
+                for t, brs2 in by_tier.items():
+                    nd = dict(d)
+                    nd["tier"] = t
+                    nd["branches"] = brs2
+                    _units.append(ArmyUnit(**nd))
+            else:
+                _units.append(ArmyUnit(**d))
+        state.army_units = _units
         _stock = data.get("central_arsenal", {}).get("stock", {})
         state.central_arsenal = CentralArsenal(stock=_stock) if _stock else CentralArsenal()
     state.defense_lines = data.get("defense_lines", state.defense_lines)
@@ -353,6 +406,8 @@ def load_game(slot: int = 1):
                 if not isinstance(_pop.get("goods"), dict):
                     _pop["goods"] = {d: 0 for d in _goods_dims}
                 _pop.setdefault("窖银", 0)
+                # A1 存档兼容：旧档 POP 无欠税科目则补 0（新结算读写 pop["欠税"]，防 KeyError）
+                _pop.setdefault("欠税", 0)
     # 经济全浮动重构状态字段缺省兼容
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))

@@ -23,7 +23,7 @@ from content.data import (
     CLERK_PAY_PER_MONTH, CLERK_GRAIN_PER_MONTH,
     WINE_YIELD_PER_GRAIN, LAND_TAX_RATE_BASE,
     MATERIAL_PRICE_BASE, RESOURCE_DIMS,
-    UNIT_TIER,
+    UNIT_TIER, branch_std,
     MARITIME_TRADE_BASE,
 )
 from content.data import (
@@ -119,6 +119,9 @@ class GameStateEconMixin:
         real_output = grain_prod * self.grain_price + self.calc_commerce()
 
         pl = PRICE_LEVEL_BASE * (money * PRICE_VELOCITY / max(real_output, 1))
+        # 金融推演价格系数（通胀/通缩 ±5%，clamp [0.5,3.0]；月度重置不落档——运行时态）
+        _pm = getattr(self, "_price_mult", 1.0)
+        pl *= _pm
         return _clamp(pl, PRICE_LEVEL_MIN, PRICE_LEVEL_MAX)
 
     def calc_grain_price(self) -> float:
@@ -317,12 +320,19 @@ class GameStateEconMixin:
     # ---- 二税折色（全进国库，钱）----
     # POP 化：二税折色 = 田赋本色（税粮）× 折色率 × 粮价（替代凭空 monthly_tax 锚）
     # 折色率 = TAX_COLOR_RATE（田赋中折银的比例），本色折银互为消长
+    # 平衡修复（蔡权衡）：折色**按月 1/12 摊**（每月都收钱，去财政季节性摆动；
+    # 年折色总额 = 年税基×折色率×粮价，与本色同税基——年均总量不变，平滑不造假账；本色仍运期不动）
     def calc_monthly_tax_income(self, tax_coeff: float = 1.0):
-        _, grain_by = self.calc_monthly_grain()              # 田赋本色（税粮，运期才有）
+        arrival = self.calc_arrival_rate()
+        hyd = self.tech.get("hydraulics", 40) / 100.0
+        hidden = self.land.get("hidden_rate", 0.35)
+        harvest = self.land.get("yield", 1.0)
         by_route = {}
         total = 0.0
-        for name, g in grain_by.items():
-            inc = g * TAX_COLOR_RATE * self.grain_price      # 税粮 × 折色率 × 粮价 = 折色钱
+        for name, p in self.prefectures.items():
+            gy = float(p.get("grain", 0))                   # 年总产（石/年）
+            grain_annual = gy * LAND_TAX_RATE_BENEFIT * arrival * harvest * (1 - hidden) * (0.8 + 0.4 * hyd)
+            inc = grain_annual * TAX_COLOR_RATE * self.grain_price / 12.0   # 年折色总额按月 1/12
             by_route[name] = inc
             total += inc
         return total, by_route
@@ -347,33 +357,38 @@ class GameStateEconMixin:
         return total, by_route
 
     # ---- 军粮 / 军饷（逐实体按军籍分档；粮、饷两笔独立账）----
-    # 旧模型：全军统一单价 × 全局质量系数 sf。现改为 Σ(unit.troops × 军籍系数)：
-    #   粮 = Σ(unit.troops × UNIT_TIER[tier].grain_mult) × SOLDIER_GRAIN_PER_MONTH
-    #   饷 = Σ(unit.troops × UNIT_TIER[tier].pay_mult)  × SOLDIER_PAY_PER_MONTH
-    # grain_mult/pay_mult 为两个独立系数，分别作用于粮/饷，不共用。
-    # 全局 sf 已废弃：质量影响并入 UNIT_TIER（equip_base/train_base/morale_base）。
-    def calc_army_grain(self):
+    # 每路禁/厢/乡各一支（用户定稿）：branches 键 = 兵种名，军籍由 u.tier 定；
+    # 粮/饷 = Σ_unit Σ_branches(人数 × branch_std(u.tier, 兵种).grain/pay)（BRANCH_BASE × ARMY_RATE 按率）。
+    # for_issue=True（太仓实发口径）：乡兵军队粮饷缺口自备（史实农隙自备，不造钱/造粮），仅发禁军+厢军。
+    # 兵 POP 口粮 1.5 石/月为军籍无关消费（GRAIN_CONSUME_PER_CAPITA），与军粮实发口径分离。
+    def calc_army_grain(self, for_issue: bool = False):
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
             g = 0.0
             for u in self.army_units:
-                if u.station == name:
-                    mult = UNIT_TIER.get(u.tier, UNIT_TIER["禁军"])["grain_mult"]
-                    g += u.troops * mult * SOLDIER_GRAIN_PER_MONTH  # 每兵月耗(石)
+                if u.station != name:
+                    continue
+                if for_issue and u.tier == "乡兵":
+                    continue   # 乡兵军粮自备，太仓不实发
+                for b, n in u.branches.items():
+                    g += n * branch_std(u.tier, b)["grain"]   # 石/人/月（兵种标准 × 军籍系数）
             by_route[name] = g
             total += g
         return total, by_route
 
-    def calc_army_cash(self):
+    def calc_army_cash(self, for_issue: bool = False):
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
             c = 0.0
             for u in self.army_units:
-                if u.station == name:
-                    mult = UNIT_TIER.get(u.tier, UNIT_TIER["禁军"])["pay_mult"]
-                    c += u.troops * mult * SOLDIER_PAY_PER_MONTH
+                if u.station != name:
+                    continue
+                if for_issue and u.tier == "乡兵":
+                    continue   # 乡兵无饷（自备）
+                for b, n in u.branches.items():
+                    c += n * branch_std(u.tier, b)["pay"]      # 贯/人/月（兵种标准 × 军籍系数）
             by_route[name] = c
             total += c
         return total, by_route

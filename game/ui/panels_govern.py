@@ -22,6 +22,45 @@ class PanelsGovernMixin:
     # 衙门 faction 简称 → 派系名（原 gui.py 类属性，拆分时保留）
     _FACTION_ALIAS = {"宦官": "宦官集团", "西军": "西军集团", "枢密": "清流言官"}
 
+
+# 对话口谕内帑调拨：金额解析（支持「50万」「500000」「五十万」→ 贯整数；失败返回 None）
+_CN_NUM = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
+           "七": 7, "八": 8, "九": 9, "十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def _cn_amount(s: str):
+    """中文数字 → int（五十万=500000、十二万=120000、三千=3000）。"""
+    total, num = 0, 0
+    for ch in s:
+        v = _CN_NUM.get(ch)
+        if v is None:
+            return None
+        if v == 10000:
+            total = (total + num if (total or num) else 1) * 10000
+            num = 0
+        elif v >= 10:
+            total += (num if num else 1) * v
+            num = 0
+        else:
+            num = v
+    return total + num
+
+
+def _parse_inner_amount(text: str):
+    """从召对输入提取内帑调拨金额（贯）；支持 500000 / 50万 / 五十万；失败返回 None。"""
+    t = str(text).replace(",", "").replace("，", "")
+    import re
+    m = re.search(r"(\d+)\s*万", t)
+    if m:
+        return int(m.group(1)) * 10000
+    m = re.search(r"\d+", t)
+    if m:
+        return int(m.group(0))
+    m = re.search(r"[零一二两三四五六七八九十百千万]+", t)
+    if m:
+        return _cn_amount(m.group(0))
+    return None
+
     def _chancellor_factions(self):
         """宰执派系（跟人，不跟派系）：占据宰相岗位（尚书左/右仆射）者所属派系。
 
@@ -291,6 +330,33 @@ class PanelsGovernMixin:
 
         refresh()
 
+        # 对话口谕内帑调拨（商量确认式）：待准栏（已谕未准时显示 + 准/罢）
+        pending_bar = tk.Frame(right, bg=PAPER)
+        pending_bar.pack(fill="x", pady=(0, 4))
+
+        def _refresh_pending():
+            for w in pending_bar.winfo_children():
+                w.destroy()
+            p = getattr(self.state, "pending_inner_transfer", None)
+            if not p:
+                return
+            amt = int(p["amount"])
+            self._label(pending_bar, f"已谕：发内帑 {amt} 贯入国库，待准", fg="#8a671e",
+                        bg=PAPER, font=self._font(KAI, 11)).pack(side="left", padx=4)
+            def _confirm():
+                from core.commands_decree import confirm_inner_transfer
+                msg = confirm_inner_transfer(self.state)
+                self.state.dialogue_history.append((minister, f"（朱批）{msg}"))
+                refresh(); _refresh_pending()
+            def _cancel():
+                from core.commands_decree import cancel_inner_transfer
+                msg = cancel_inner_transfer(self.state)
+                self.state.dialogue_history.append((minister, f"（朱批）{msg}"))
+                refresh(); _refresh_pending()
+            self._seal_btn(pending_bar, "准", _confirm, big=False).pack(side="left", padx=4)
+            self._btn(pending_bar, "罢", _cancel, width=6, ghost=True).pack(side="left", padx=4)
+        _refresh_pending()
+
         # 朱批输入框
         input_card = self._card(right)
         input_card.pack(fill="x", pady=(0, 8))
@@ -319,6 +385,22 @@ class PanelsGovernMixin:
             text = txt.get("1.0", "end-1c").strip()
             if not text or text == placeholder:
                 return
+            # 对话口谕内帑调拨（商量确认式）：输入含「内帑」→ 提议待准（不即时划账，不走 AI 召对）
+            if any(k in text for k in ("发内帑", "拨内帑", "内帑")):
+                from core.commands_decree import propose_inner_transfer
+                amt = _parse_inner_amount(text)
+                if amt is None:
+                    self.self.messagebox.showwarning(
+                        "内帑调拨", "未识别金额，请注明如「发内帑 50 万入国库」")
+                    return
+                msg = propose_inner_transfer(self.state, amt)
+                self.state.dialogue_history.append(("朕", text))
+                self.state.dialogue_history.append((minister, f"（回奏）{msg}"))
+                txt.delete("1.0", "end")
+                restore_placeholder()
+                refresh()
+                _refresh_pending()
+                return
             try:
                 _, self.state = self.backend.action(
                     self.state, "audience_dialogue",
@@ -330,6 +412,7 @@ class PanelsGovernMixin:
             txt.delete("1.0", "end")
             restore_placeholder()
             refresh()
+            _refresh_pending()
 
         def on_return(event):
             # Shift+Enter 换行；单独 Enter 发送
@@ -498,6 +581,10 @@ class PanelsGovernMixin:
             if not text:
                 self.self.messagebox.showinfo("提示", "请先写明诏意。")
                 return
+            if not (self.ai_client and getattr(self.ai_client, "available", False)):
+                self.self.messagebox.showwarning(
+                    "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。")
+                return
             try:
                 d = self.ai_client.polish_decree(text, self.state.get_state_summary())
             except _AIRuntimeError as e:
@@ -563,7 +650,10 @@ class PanelsGovernMixin:
             self._title(f3, "奏报摘要", fg=RED_D, bg=PAPER, font=self._font(KAI, 13, "bold"),
                         anchor="w").pack(fill="x", pady=4)
             report = ""
-            if self.ai_client and getattr(self.ai_client, "available", False):
+            if not (self.ai_client and getattr(self.ai_client, "available", False)):
+                self.self.messagebox.showwarning(
+                    "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。奏报暂缺。")
+            elif getattr(self.ai_client, "available", False):
                 try:
                     report = self.ai_client.monthly_report(
                         self.state.year, self.state.month, self.state.era_name, self.state.posture)

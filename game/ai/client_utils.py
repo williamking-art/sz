@@ -98,10 +98,12 @@ _TIER_CAP = {
 
 
 def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
-    """档位 → 数值。dim 不在表内返回 0。"""
+    """档位 → 数值。dim 不在表内返回 0。tier 经 normalize_tier 归一（丰富表达→标准档）。"""
+    from content.data import normalize_tier
+    tier = normalize_tier(tier)
     if dim == "commerce_tax":
         # 工商征率是"设定值"而非增量：tier 档位直接映射税率（玩家诏"征几成"由 AI 归档）。
-        _COMMERCE_TAX_TIER = {"无": 0.05, "微": 0.10, "小": 0.15, "中": 0.20, "大": 0.30}
+        _COMMERCE_TAX_TIER = {"无": 0.05, "微": 0.10, "小": 0.15, "中": 0.20, "大": 0.25, "巨": 0.30, "极": 0.35}
         return _COMMERCE_TAX_TIER.get(tier, 0.15)
     base = _TIER_BASE.get(dim, 0)
     mult = TIER_RANGE.get(tier, 0.0)
@@ -290,7 +292,83 @@ _TOOL_SCHEMAS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_state",
+            "description": "按需查询朝廷准确数值（问到才查：本地状态直接读，不耗 AI 推理、防瞎编数字）。"
+                         "target 枚举见参数；faction/road_mood 需填 name。同回合重复查询直接返回缓存。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string",
+                               "enum": ["treasury", "imperial_treasury", "granary",
+                                        "army_grain", "army_pay", "people_mood", "faction",
+                                        "road_mood", "grain_price", "transport", "tech_level",
+                                        "talent_pool", "jiaozi_issue", "prestige"],
+                               "description": "查什么：treasury=国库/imperial_treasury=内帑/"
+                                             "granary=太仓/army_grain=军粮月耗/army_pay=军饷月耗/"
+                                             "people_mood=民情/faction=派系满意度影响力/road_mood=某路民情/"
+                                             "grain_price=粮价/transport=漕运/tech_level=科技/talent_pool=人才池/"
+                                             "jiaozi_issue=交子发行/prestige=皇威"},
+                    "name": {"type": "string", "description": "对象名：faction=派系名、road_mood=路名"}
+                },
+                "required": ["target"]
+            }
+        }
+    },
 ]
+
+
+def _resolve_query_target(state, target: str, name: str = "") -> str:
+    """本地读精准值（不耗 AI 推理；数值直接来自 GameState，防推演漂移）。"""
+    tgt = str(target or "")
+    try:
+        if tgt == "treasury":
+            return f"国库{int(getattr(state, 'treasury', 0)):,}贯"
+        if tgt == "imperial_treasury":
+            return f"内帑{int(getattr(state, 'imperial_treasury', 0)):,}贯"
+        if tgt == "granary":
+            return f"太仓{int(getattr(state, 'granary', 0)):,}石"
+        if tgt == "army_grain":
+            try:
+                g, _ = state.calc_army_grain(for_issue=True)
+                return f"军粮实发约{int(g):,}石/月"
+            except Exception:
+                return "军粮数暂缺"
+        if tgt == "army_pay":
+            try:
+                c, _ = state.calc_army_cash(for_issue=True)
+                return f"军饷实发约{int(c):,}贯/月"
+            except Exception:
+                return "军饷数暂缺"
+        if tgt == "people_mood":
+            return f"民情{int(getattr(state, 'population_satisfaction', 50))}"
+        if tgt == "road_mood":
+            p = state.prefectures.get(name)
+            if p:
+                return f"{name}民情{p.get('mood', '中')}"
+            return f"无{name}路"
+        if tgt == "faction":
+            f = state.factions.get(name)
+            if f:
+                return f"{name}满意度{f.get('satisfaction', 50)}影响力{f.get('influence', 50)}"
+            return f"无{name}派系"
+        if tgt == "grain_price":
+            return f"粮价{float(getattr(state, 'grain_price', 1.0)):.2f}贯/石"
+        if tgt == "transport":
+            return f"漕运{int(getattr(state, 'transport', 0)):,}石/月"
+        if tgt == "tech_level":
+            return f"科技{int(getattr(state, 'tech', {}).get('level', 50))}"
+        if tgt == "talent_pool":
+            return f"人才池{int(getattr(state, 'exam', {}).get('talent_pool', 0))}"
+        if tgt == "jiaozi_issue":
+            return f"交子发行{int(getattr(state, 'jiaozi', {}).get('issued', 0)):,}贯"
+        if tgt == "prestige":
+            return f"皇威{int(getattr(state, 'prestige', 50))}"
+    except Exception:
+        pass
+    return f"查「{tgt}」暂不可用"
 
 
 def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
@@ -298,11 +376,11 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
 
     执行权在程序：所有数值经 tier_to_value() 档位封顶，模型无权直接改状态。
     """
-    results = []
     mem = getattr(state, "minister_memory", None)
     if not isinstance(mem, dict):
         mem = {}
         state.minister_memory = mem
+    results = []
 
     for tc in tool_calls or []:
         fn = tc.get("function", {})
@@ -363,6 +441,23 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 state.longterm_public.append(item)
                 res = f"施政已立案俟批：「{item['title']}」"
                 mem.setdefault(minister_name, []).append(f"提施政：{item['title']}")
+
+            elif name == "query_state":
+                # 省 token（用户定稿）：按需查询——问到才查本地精准值，同回合缓存
+                tgt = str(args.get("target", ""))
+                oname = str(args.get("name", ""))
+                key = f"{tgt}:{oname}"
+                cache = getattr(state, "_query_state_cache", None)
+                if cache is None:
+                    cache = {}
+                    state._query_state_cache = cache
+                if key in cache:
+                    res = f"{tgt}（本回合已查）{cache[key]}"
+                else:
+                    val = _resolve_query_target(state, tgt, oname)
+                    cache[key] = val
+                    res = f"{tgt} {val}"
+                mem.setdefault(minister_name, []).append(f"查{tgt}")
 
             elif name == "personnel_nominate":
                 nm = str(args.get("name", "某人"))
@@ -431,7 +526,7 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                     if any(p.get("name") == bname for p in pend):
                         res = f"「{bname}」前已有大臣献策，可不必重复。"
                     else:
-                        if effect_tier not in ("无", "微", "小", "中", "大"):
+                        if effect_tier not in ("无", "微", "小", "中", "大", "巨", "极"):
                             effect_tier = "微"
                         pend.append({
                             "kind": "科技" if kind == "科技" else "建筑",
@@ -451,6 +546,24 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
 
         except Exception as e:  # 单工具失败不影响其它
             res = f"办差受阻：{name} 执行出错（{e}）"
+        # 记忆知识库（Phase 3a）：召对工具调用结构化写入图谱（promise/stance，不从叙事挖）
+        try:
+            mg = getattr(state, "memory", None)
+            if mg is not None and minister_name:
+                mg.add_entity(f"minister_{minister_name}", "minister", minister_name, turn=getattr(state, "turn", 0))
+                tname = str(args.get("title", "") or args.get("target", "") or name)[:24]
+                if name in ("register_draft", "secret_order", "propose_governance",
+                            "personnel_nominate", "military_dispatch", "relief_grant",
+                            "offer_blueprint", "check_treasury"):
+                    mg.add_relation(f"minister_{minister_name}", f"tool_{name}_{tname}",
+                                    "promises", weight=1.0, turn=getattr(state, "turn", 0),
+                                    note=f"办差·{name}：{tname}")
+                else:
+                    mg.add_relation(f"minister_{minister_name}", f"tool_{name}",
+                                    "stance", weight=0.8, turn=getattr(state, "turn", 0),
+                                    note=f"表态·{name}")
+        except Exception:
+            pass
         results.append((call_id, res))
 
     return results
@@ -624,27 +737,36 @@ def _similar(a: str, b: str) -> float:
 
 
 def _ai_unavailable(kind, **extra):
-    """AI 不可用 / 解析失败且无补调余量时，返回统一错误标记。
+    """AI 不可用 / 解析失败且无补调余量时，返回统一错误标记（拒绝式，不伪造）。
 
-    上层（UI）据 `_error == 'AI_UNAVAILABLE'` 提示用户配置 AI，
-    不再返回任何伪造的叙事文本。
+    错误码见 content.data.AI_ERROR_CODES（AI_NOT_CONFIGURED 等）；上层据 `_error` 码提示配置 AI。
     """
-    return {"_error": "AI_UNAVAILABLE", "kind": kind, **extra}
+    from content.data import AI_ERROR_CODES
+    return {"_error": "AI_NOT_CONFIGURED",
+            "message": AI_ERROR_CODES.get("AI_NOT_CONFIGURED", ""),
+            "kind": kind, **extra}
+
+
+def _error_marker(code: str, kind="", **extra):
+    """按统一错误码构造错误标记（AI_TIMEOUT/AI_AUTH_FAILED/...）。"""
+    from content.data import AI_ERROR_CODES
+    return {"_error": code, "message": AI_ERROR_CODES.get(code, code), "kind": kind, **extra}
 
 
 def _fallback_parse(text, is_secret):
-    """AI 不可用时的错误标记（与在线 parse 同 schema，但标注 _error）。"""
+    """AI 未配置时的错误标记（与在线 parse 同 schema，标注 _error 码 = AI_NOT_CONFIGURED）。"""
+    from content.data import AI_ERROR_CODES
     return {
         "category": "free_edict",
         "exec_mode": "longterm",
-        "title": "（AI 不可用）",
+        "title": "（AI 未接入）",
         "body": text or "",
         "params": {},
         "effects": None,
         "task": None,
         "rename": None,
-        "narrative": "⚠ AI 配置缺失或不可用，无法推演拟旨。请先前往「AI 设置」配置模型。",
-        "_error": True,
+        "narrative": AI_ERROR_CODES.get("AI_NOT_CONFIGURED", "AI 未接入"),
+        "_error": "AI_NOT_CONFIGURED",
     }
 
 

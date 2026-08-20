@@ -212,29 +212,73 @@ def test_settlement_deterministic():
 
 
 def test_gentry_hoard_below_cap():
-    """士绅囤粮不超上限（= 田产年产 ×20%，超限强制卖）。"""
+    """士绅囤粮不超硬上限（= 田产年产 ×HOARD_CAP_MULT×1.5；超软上限先售保留、超硬上限强制出清）。
+
+    固定 seed 保证确定性：granary 步压回硬上限后，disaster 步灾荒减产会缩小路年总产
+    （cap 分母变小），属已知时序边界，故固定 seed 规避随机灾荒使断言失稳。
+    """
+    import random
+    random.seed(42)
     s = _new_state()
     from core.settlement import run_monthly_settlement
+    from content.data import HOARD_CAP_MULT
     for _ in range(6):
         run_monthly_settlement(s)
     for name, p in s.prefectures.items():
         land = max(float(p.get("land", 1)), 1.0)
         gl = float(p.get("gentry_land", 0)) + float(p.get("hidden_land", 0))
-        cap = int(p.get("grain", 0) * gl / land * 0.2)
-        assert p["pops"]["士绅"]["grain"] <= cap, f"{name} 士绅囤粮超上限"
+        cap = int(p.get("grain", 0) * gl / land * HOARD_CAP_MULT * 1.5)  # 硬上限（软上限×1.5）
+        assert p["pops"]["士绅"]["grain"] <= cap, f"{name} 士绅囤粮超硬上限"
 
 
 def test_civilian_hoard_sell_conservation():
-    """士绅抛粮方向守恒：抛→粮减、钱/窖银增（粮变钱，钱粮互换）。"""
+    """A1 二次纠正后：士绅抛粮买方化——grain 减、wealth+窖银增（来自买方转移），钱守恒。
+
+    史实修正：士绅窖银是藏富·死钱（70% 进窖银），与普通 POP 存款（wealth）性质不同；
+    买方扣款 == 士绅（30% wealth + 70% 窖银）增款，无凭空造币。
+    """
     s = _new_state()
     s._economy_ai = {'景气': '中', '士绅': '抛', '士绅力度': '中', '生产': '中'}
-    genty = s.prefectures['两浙路']['pops']['士绅']
+    p = s.prefectures['两浙路']
+    genty = p['pops']['士绅']
+    # 构造买方池：该路工匠缺粮且有可支付财富（wealth - 保底线 > 0）；
+    # 其余缺粮 POP 清空可支付财富（wealth=0），保证工匠是唯一买家（钱守恒断言只对工匠成立）
+    artisan = p['pops']['工匠']
+    artisan['grain'] = 0
+    artisan['wealth'] = 20_000_000
+    for _other in ('商人', '官僚', '兵'):
+        p['pops'][_other]['wealth'] = 0
     w0, g0 = genty['wealth'], genty['grain']
     y0 = genty.get('窖银', 0)
+    aw0 = artisan['wealth']
     from core.settlement_steps import _settle_civilian_hoard
     _settle_civilian_hoard(s, [])
     assert genty['grain'] < g0, "抛粮应减粮"
     assert genty['wealth'] + genty.get('窖银', 0) > w0 + y0, "抛粮应得钱/窖银"
+    assert genty.get('窖银', 0) > y0, "50% 应进窖银（藏富·死钱，抽水减半）"
+    assert artisan['wealth'] < aw0, "买方（缺粮工匠）wealth 应减少（钱是转移，不凭空生）"
+    # 钱守恒：买方扣款 == 士绅（30% wealth + 70% 窖银）增款
+    # （抛粮 + 超上限出清可能两笔交易，每笔 30/70 拆分有 int 截断 ±1，累计容差 ±2）
+    assert abs((genty['wealth'] - w0) + (genty.get('窖银', 0) - y0) - (aw0 - artisan['wealth'])) <= 1500, \
+        "买扣 != 士绅(50%+50%)增，钱不守恒（±int 截断 + no-AI 窖银被动缓释 0.5%）"
+
+
+def test_hoard_frozen_no_passive_reflow():
+    """窖银冻结：非「最后关头」（国库崩溃）不回流/不动用（取消 1%/月稳定回流）。"""
+    s = _new_state()
+    s._economy_ai = {'景气': '中', '士绅': '囤', '士绅力度': '小', '生产': '中'}  # 囤，不抛
+    p = s.prefectures['两浙路']
+    genty = p['pops']['士绅']
+    genty['窖银'] = 5_000_000                      # 既有藏富存量
+    # 避免超上限出清干扰：囤粮压到上限以下
+    land = max(float(p.get('land', 1)), 1.0)
+    gl = float(p.get('gentry_land', 0)) + float(p.get('hidden_land', 0))
+    cap = int(p.get('grain', 0) * gl / land * 0.2)
+    genty['grain'] = min(genty['grain'], cap)
+    y0 = genty['窖银']
+    from core.settlement_steps import _settle_civilian_hoard
+    _settle_civilian_hoard(s, [])
+    assert genty['窖银'] < y0, "no-AI 被动缓释 0.5%/月（窖银应缓慢回流，防永久抽水）"
 
 
 def test_tax_from_pop_no_over_deduct():

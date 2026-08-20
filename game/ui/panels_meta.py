@@ -240,18 +240,55 @@ class PanelsMetaMixin:
 
     def _ui_next_turn(self):
         s = self.state
+        # 防止结算期间重复点击
+        if getattr(self, '_settling', False):
+            return
         # 结算前快照（用于演出式涨跌对比）
         snap = dict(treasury=s.treasury, imperial_treasury=s.imperial_treasury, population_satisfaction=s.population_satisfaction,
                     imperial_prestige=s.prestige)
-        # 经 backend 推进一月（结算 + 事件触发），本地与远程统一入口
-        # advance 统一返回四元组 (events, log, report, new_state)
+        # AI 可用时异步结算，避免网络调用冻结 UI；不可用时同步快速路径
+        if self.ai_client and self.ai_client.available:
+            self._settling = True
+            tl, body = self._overlay("结 算 中", width=320, height=140)
+            self._title(body, "御 案 结 算 中 …",
+                        fg=RED, bg=PAPER, font=self._font(KAI, 16, "bold"),
+                        anchor="center").pack(pady=(24, 8))
+            import threading
+            def _worker():
+                try:
+                    result = self.backend.advance(s, self.ai_client)
+                except Exception as e:
+                    result = e
+                self.root.after(0, lambda: self._on_settle_done(result, snap, tl))
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            try:
+                events, log, report, new_state = self.backend.advance(s, self.ai_client)
+            except _AIRuntimeError as e:
+                self.messagebox.showerror("AI 叙事中断", str(e))
+                return
+            self._finish_settle(events, log, report, new_state, snap)
+
+    def _on_settle_done(self, result, snap, overlay_tl):
+        """后台结算完成后回到主线程的回调。"""
+        self._settling = False
         try:
-            events, log, report, new_state = self.backend.advance(s, self.ai_client)
-        except _AIRuntimeError as e:
-            # AI 运行时故障：停下并提醒，不推进月份
-            self.messagebox.showerror("AI 叙事中断", str(e))
+            overlay_tl.destroy()
+        except Exception:
+            pass
+        if isinstance(result, Exception):
+            if isinstance(result, _AIRuntimeError):
+                self.messagebox.showerror("AI 叙事中断", str(result))
+            else:
+                self.messagebox.showerror("结算错误", str(result))
             return
+        events, log, report, new_state = result
+        self._finish_settle(events, log, report, new_state, snap)
+
+    def _finish_settle(self, events, log, report, new_state, snap):
+        """结算完成后的 UI 更新（主线程）。"""
         self.state = new_state
+        s = self.state
         if s.game_over:
             self._ui_game_over()
             return
