@@ -34,13 +34,21 @@ from core.settlement_disaster import _normalize_disaster_region, _settle_disaste
 # Step 1: 诏令执行
 # ------------------------------------------------------------
 def _settle_decrees(state, log):
-    """执行本月诏令"""
+    """执行本月诏令（12 步 agent 化 P2+：诏令执行契约接线）"""
     # 月初重置：御笔直发额度恢复；狼来了计数仍按既有衰减规则
     state.direct_decree_used = 0
 
     if state.wolf_count > 0:
         if random.random() < 0.1:
             state.wolf_count = max(0, state.wolf_count - 1)
+
+    # 12 步 agent 化 P2+：读取诏令执行 AI 契约
+    _decree_ai = getattr(state, "_decree_execute_ai", None)
+    ai_tasks = []
+    if isinstance(_decree_ai, dict) and not _decree_ai.get("_error"):
+        ai_tasks = _decree_ai.get("tasks", [])
+        if _decree_ai.get("narrative"):
+            log.append(f"[诏令执行] {_decree_ai['narrative']}")
 
     executed = 0
     failed = 0
@@ -50,14 +58,27 @@ def _settle_decrees(state, log):
 
     remaining = []
     for decree in state.pending_decrees[:]:
+        # AI 契约加成：若有对应机构的高优先级任务，提升执行率
+        org_hint = decree.get("org_hint", "政府")
+        ai_boost = 0.0
+        for task in ai_tasks:
+            if task.get("org") == org_hint and task.get("priority") == "高":
+                ai_boost = 0.15  # 高优先级任务 +15% 执行率
+                break
+            elif task.get("org") == org_hint and task.get("priority") == "中":
+                ai_boost = 0.08
+                break
+
         rate = state.calc_decree_execution_rate(
             decree.get("faction_stances", {}),
             is_secret=decree.get("is_secret", False),
             is_direct=decree.get("is_direct", False),
             secret_loyalty=decree.get("secret_loyalty", 0.5),
             is_zhongzhi=decree.get("is_zhongzhi", False),
-            org_hint=decree.get("org_hint", "政府"),
+            org_hint=org_hint,
         )
+        rate = min(0.95, rate + ai_boost)  # 封顶 95%
+
         if random.random() < rate:
             _apply_decree_effect(state, decree, log)
             executed += 1
@@ -307,11 +328,23 @@ def _apply_decree_effect(state, decree, log):
 # Step 2: 派系结算
 # ------------------------------------------------------------
 def _settle_factions(state, log):
-    """派系内部结算"""
+    """派系内部结算（12 步 agent 化 P2+：派系结算契约接线）"""
+    # 12 步 agent 化 P2+：读取派系 AI 契约
+    _faction_ai = getattr(state, "_faction_ai", None)
+    ai_factions = {}
+    ai_events = []
+    if isinstance(_faction_ai, dict) and not _faction_ai.get("_error"):
+        ai_factions = _faction_ai.get("factions", {})
+        ai_events = _faction_ai.get("events", [])
+        if _faction_ai.get("narrative"):
+            log.append(f"[党争] {_faction_ai['narrative']}")
+
+    # 派系满意度/影响力/立场自然演进 + AI 契约调制
     for name, f in state.factions.items():
         cohesion_delta = random.randint(-2, 2)
         f["cohesion"] = max(10, min(100, f["cohesion"] + cohesion_delta))
 
+        # 基础满意度回归
         if f["satisfaction"] > 55:
             f["satisfaction"] = max(50, f["satisfaction"] - random.randint(0, 2))
         elif f["satisfaction"] < 45:
@@ -319,6 +352,49 @@ def _settle_factions(state, log):
 
         inf_delta = random.randint(-1, 1)
         f["influence"] = max(5, min(100, f["influence"] + inf_delta))
+
+        # AI 契约调制：按档位微调
+        if name in ai_factions:
+            ai_f = ai_factions[name]
+            sat_tier = ai_f.get("satisfaction", "小")
+            inf_tier = ai_f.get("influence", "小")
+            stance = ai_f.get("stance", "观望")
+
+            # 满意度档位映射
+            sat_map = {"微": 1, "小": 2, "中": 4, "大": 6}
+            inf_map = {"微": 1, "小": 2, "中": 3, "大": 5}
+
+            sat_delta = sat_map.get(sat_tier, 2)
+            inf_delta = inf_map.get(inf_tier, 2)
+
+            # 立场决定方向
+            if stance == "进取":
+                f["satisfaction"] = min(100, f["satisfaction"] + sat_delta)
+                f["influence"] = min(100, f["influence"] + inf_delta)
+            elif stance == "守成":
+                f["satisfaction"] = max(0, f["satisfaction"] - sat_delta)
+                f["influence"] = max(0, f["influence"] - inf_delta)
+            # 观望：不额外调整
+
+    # AI 契约事件
+    for event in ai_events:
+        etype = event.get("type", "")
+        desc = event.get("desc", "")
+        tier = event.get("tier", "小")
+        if etype == "党争":
+            log.append(f"[党争] {desc}")
+            state.change_prestige(-2, "党争")
+        elif etype == "联姻":
+            log.append(f"[联姻] {desc}")
+        elif etype == "分裂":
+            log.append(f"[分裂] {desc}")
+            state.change_prestige(-3, "派系分裂")
+        elif etype == "和解":
+            log.append(f"[和解] {desc}")
+            state.change_prestige(2, "派系和解")
+        elif etype == "清算":
+            log.append(f"[清算] {desc}")
+            state.change_prestige(-5, "派系清算")
 
     infs = [(name, f["influence"]) for name, f in state.factions.items()]
     infs.sort(key=lambda x: x[1], reverse=True)
@@ -397,7 +473,16 @@ def _settle_economy(state, log):
 
 def _settle_land_local(state, log):
     """田亩户籍与地方州县自然演进；田赋以实物粮（本色）征收入各州府储粮，
-    或（行一条鞭后）折银入国库。粮产率随科技/工业、田亩随开垦动态变化。"""
+    或（行一条鞭后）折银入国库。粮产率随科技/工业、田亩随开垦动态变化。
+    （12 步 agent 化 P2+：田亩地方契约接线）"""
+    # 12 步 agent 化 P2+：读取田亩地方 AI 契约
+    _land_ai = getattr(state, "_land_local_ai", None)
+    ai_prefs = {}
+    if isinstance(_land_ai, dict) and not _land_ai.get("_error"):
+        ai_prefs = _land_ai.get("prefectures", {})
+        if _land_ai.get("narrative"):
+            log.append(f"[田亩] {_land_ai['narrative']}")
+
     arrival = state.calc_arrival_rate()
 
     hyd = state.tech.get("hydraulics", 40) / 100.0
@@ -433,6 +518,26 @@ def _settle_land_local(state, log):
     # 产粮按田亩归属分配 + 田赋按田亩归属征（粮是田产的）
     _harvest = state.month in (3, 6, 9)
     for name, p in state.prefectures.items():
+        # AI 契约档位映射
+        ai_pref = ai_prefs.get(name, {})
+        survey_tier = ai_pref.get("survey", "小")
+        reclaim_tier = ai_pref.get("reclaim", "小")
+        tax_fair_tier = ai_pref.get("tax_fair", "小")
+        ai_mood = ai_pref.get("mood", "平实")
+
+        tier_map = {"微": 0.5, "小": 1.0, "中": 2.0, "大": 3.0}
+
+        # 清丈力度（AI 契约加成）
+        survey_boost = tier_map.get(survey_tier, 1.0)
+        # 劝垦力度（AI 契约加成）
+        reclaim_boost = tier_map.get(reclaim_tier, 1.0)
+        # 均税力度（AI 契约加成）
+        tax_fair_boost = tier_map.get(tax_fair_tier, 1.0)
+
+        # 地方民情：AI 契约直接设定
+        if ai_mood in ("安定", "平实", "动荡"):
+            p["mood"] = ai_mood
+
         tax = int(grain_by.get(name, 0))
         _land = max(float(p.get("land", 1)), 1.0)
         _nong, _shen = p["pops"]["农"], p["pops"]["士绅"]
@@ -449,6 +554,10 @@ def _settle_land_local(state, log):
             _shen["grain"] += int(produce * p.get("hidden_land", 0) / _land)            # 隐田→士绅(逃税)
         # 田赋按田亩归属征：自耕田→自耕农、地主田→士绅；官田皇庄免、隐田逃税
         _st = int(tax * p.get("self_farm_land", 0) / _land); _gt = int(tax * p.get("gentry_land", 0) / _land)
+        # AI 契约：均税力度减轻赋税负担
+        if tax_fair_boost > 1.0:
+            _st = int(_st * (1.0 - min(0.2, tax_fair_boost * 0.05)))
+            _gt = int(_gt * (1.0 - min(0.2, tax_fair_boost * 0.05)))
         _nong["grain"] = max(0, _nong["grain"] - _st); _shen["grain"] = max(0, _shen["grain"] - _gt)
         if state.single_whip:
             state.treasury += int((_st + _gt) * state.grain_price)
@@ -715,7 +824,16 @@ def _simulate_external(state, log):
 # Step 3.8: 仓廪漕运
 # ------------------------------------------------------------
 def _settle_granary(state, log):
-    """仓廪系统月度结算：漕运汇聚 + 雀鼠耗 + 本色支取 + 常平仓 + 认知层。"""
+    """仓廪系统月度结算：漕运汇聚 + 雀鼠耗 + 本色支取 + 常平仓 + 认知层。
+    （12 步 agent 化 P2+：仓廪漕运契约接线）"""
+    # 12 步 agent 化 P2+：读取仓廪漕运 AI 契约
+    _granary_ai = getattr(state, "_granary_ai", None)
+    ai_granary = {}
+    if isinstance(_granary_ai, dict) and not _granary_ai.get("_error"):
+        ai_granary = _granary_ai.get("granary", {})
+        if _granary_ai.get("narrative"):
+            log.append(f"[仓漕] {_granary_ai['narrative']}")
+
     block = state.canal_block
     if random.random() < 0.08:
         block = min(100, block + random.randint(3, 8))
@@ -726,10 +844,23 @@ def _settle_granary(state, log):
         block = min(100, block + random.randint(3, 10))
     block = max(0, block - random.randint(0, 2))
     state.canal_block = block
+
+    # AI 契约档位映射
+    tier_map = {"微": 0.5, "小": 1.0, "中": 1.5, "大": 2.0}
+    inflow_tier = ai_granary.get("inflow", "小")
+    outflow_tier = ai_granary.get("outflow", "小")
+    price_stabilize_tier = ai_granary.get("price_stabilize", "小")
+    army_supply_tier = ai_granary.get("army_supply", "小")
+
+    inflow_mult = tier_map.get(inflow_tier, 1.0)
+    outflow_mult = tier_map.get(outflow_tier, 1.0)
+    price_stabilize_mult = tier_map.get(price_stabilize_tier, 1.0)
+    army_supply_mult = tier_map.get(army_supply_tier, 1.0)
+
     # 三运制：漕运非月月进行——一年分春(3月)/夏(6月)/秋(9月)三个运期，
     # 运期当月发纲集中上供，其余月份不发纲（史实纲运节奏：岁漕三运）。
     if state.month in (3, 6, 9):
-        canal_eff = CANAL_MONTHLY_RATE * (1.0 - block / 100.0)
+        canal_eff = CANAL_MONTHLY_RATE * (1.0 - block / 100.0) * inflow_mult
     else:
         canal_eff = 0.0
 
@@ -752,7 +883,8 @@ def _settle_granary(state, log):
 
     granary_before_out = state.granary
 
-    sparrow = int(state.granary * SPARROW_RAT)
+    # AI 契约：雀鼠耗（outflow 档位调制）
+    sparrow = int(state.granary * SPARROW_RAT * outflow_mult)
     if sparrow > 0:
         state.granary = max(0, state.granary - sparrow)
         state.granary_stats["sparrow"] += sparrow
@@ -762,7 +894,8 @@ def _settle_granary(state, log):
     # 兵口粮联动（蔡权衡定案）：军粮实发按「禁/厢加权实发 + 乡兵缺口自备」口径
     # （乡兵军粮自备，太仓不造粮），故用 calc_army_grain(for_issue=True)
     army_grain_total, _ = state.calc_army_grain(for_issue=True)
-    mil_grain = int(army_grain_total * pay)
+    # AI 契约：军粮保障档位调制
+    mil_grain = int(army_grain_total * pay * army_supply_mult)
     official_grain_total, _ = state.calc_official_grain()
     off_grain = int(official_grain_total * pay)
     clerk_grain_total, _ = state.calc_clerk_grain()
@@ -837,6 +970,32 @@ def _settle_granary(state, log):
                 changping_acted = True
     if changping_acted:
         log.append("[常平] 州县常平仓平粜籴，物价稍纾")
+
+    # AI 契约：平抑物价（price_stabilize 档位调制常平仓操作强度）
+    if price_stabilize_mult > 1.0:
+        for name, p in state.prefectures.items():
+            price = p.get("grain_price", state.grain_price)
+            cp_stock = p.get("changping_stock", 0)
+            coffer = p.get("local_treasury", 0)
+            if price > CHANGPING_HIGH and cp_stock > 0:
+                # AI 加强平粜
+                ratio = min(0.45, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
+                sell = max(1, int(cp_stock * ratio))
+                sell = min(sell, cp_stock)
+                p["changping_stock"] = cp_stock - sell
+                p["local_treasury"] = coffer + int(sell * price)
+                p["grain_price"] = _recalc_region_price(state, name, extra_supply=sell)
+            elif price < CHANGPING_LOW and coffer > 0:
+                # AI 加强平籴
+                budget = int(coffer * 0.30 * price_stabilize_mult)
+                monthly_supply = max(p.get("grain", 0) / 12.0, 1.0)
+                cap = max(monthly_supply * 0.5, 1.0)
+                room = max(0, int(cap - cp_stock))
+                buy = min(int(budget / max(price, 0.4)), int(monthly_supply * 0.5), room)
+                if buy > 0:
+                    p["local_treasury"] = coffer - int(buy * price)
+                    p["changping_stock"] = cp_stock + buy
+                    p["grain_price"] = _recalc_region_price(state, name, extra_supply=-buy)
 
     # ---- 商品交易（多商品）+ 粮市交易 + 各 POP 消费 ----
     # 工匠产不同商品、各 POP 按阶级买不同商品（钱→工匠/商人，钱守恒；新增商品经 register_finished_good 扩展）

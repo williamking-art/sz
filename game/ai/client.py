@@ -1129,6 +1129,432 @@ class AIClient(ClientNarrativeMixin):
         raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=300, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("era"))
 
+    # ============================================================
+    # P2+ 步位：其余 12 步 agent 化
+    # ============================================================
+
+    def decree_execute_decide(self, posture, state=None):
+        """诏令执行契约（知制诰/六部）：把玩家下达的诏书按机构归属拆解为可执行任务。
+        输出：{"tasks": [{"org": "户部|工部|兵部|...", "action": "执行摘要", "priority": "高|中|低", "cost_tier": "微|小|中|大"}], "narrative": "执行叙事"}"""
+        sys_p = (
+            "你是北宋六部郎中，奉旨将陛下诏书拆解为各司其职的执行任务。\n"
+            "输入：诏书题名、正文、机构归属（内廷/政府/地方）。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"tasks": [{"org": "户部|工部|兵部|礼部|刑部|吏部|枢密院|三司|开封府|...", '
+            '"action": "具体执行摘要（≤30字）", "priority": "高|中|低", "cost_tier": "微|小|中|大"}], '
+            '"narrative": "执行叙事（≤120字，体现官僚体系运作、推诿与协作）"}\n'
+            "- org 必须为实在机构名；priority 高=本月必办、中=择期办、低=归档备查。\n"
+            "- cost_tier 仅表示行政成本档位（微/小/中/大），具体数值由程序换算。\n"
+            "- 只给档位不给数字；不写数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                # 注入当前诏草队列与机构状态
+                drafts = getattr(state, "edict_drafts", [])
+                if drafts:
+                    inj += f"\n【待行诏草】{len(drafts)} 件"
+                orgs = getattr(state, "central_orgs", {})
+                active_orgs = [k for k, v in orgs.items() if isinstance(v, dict) and not v.get("abolished") and (v.get("lead") or v.get("holders"))]
+                if active_orgs:
+                    inj += f"\n【在朝机构】{', '.join(active_orgs[:12])}"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "tasks" not in o:
+                return None
+            tasks = o.get("tasks", [])
+            if not isinstance(tasks, list):
+                return None
+            valid_tasks = []
+            for t in tasks[:8]:  # 最多 8 个任务
+                if not isinstance(t, dict):
+                    continue
+                org = str(t.get("org", "")).strip()
+                action = str(t.get("action", "")).strip()
+                priority = str(t.get("priority", "中")).strip()
+                cost_tier = str(t.get("cost_tier", "小")).strip()
+                if not org or not action:
+                    continue
+                if priority not in ("高", "中", "低"):
+                    priority = "中"
+                if cost_tier not in ("微", "小", "中", "大"):
+                    cost_tier = "小"
+                valid_tasks.append({"org": org[:12], "action": action[:30], "priority": priority, "cost_tier": cost_tier})
+            o["tasks"] = valid_tasks
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=400, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_execute"))
+
+    def faction_decide(self, posture, state=None):
+        """派系结算契约（党争推演）：推演各派系满意度/影响力变动、党争事件触发。
+        输出：{"factions": {"新党": {"satisfaction": "微|小|中|大", "influence": "微|小|中|大", "stance": "进取|守成|观望"}, ...}, "events": [{"type": "党争|联姻|分裂|和解", "desc": "事件描述", "tier": "微|小|中|大"}], "narrative": "党争叙事"}"""
+        sys_p = (
+            "你是北宋史官，记录朝堂党争流变。根据当前派系满意度、影响力、皇威、政策倾向，推演本月派系动态。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"factions": {"新党": {"satisfaction": "微|小|中|大", "influence": "微|小|中|大", "stance": "进取|守成|观望"}, '
+            '"旧党": {"satisfaction": "微|小|中|大", "influence": "微|小|中|大", "stance": "进取|守成|观望"}}, '
+            '"events": [{"type": "党争|联姻|分裂|和解|清算", "desc": "事件描述（≤40字）", "tier": "微|小|中|大"}], '
+            '"narrative": "党争叙事（≤150字，体现朝堂倾轧、言路攻讦、陛下平衡之术）"}\n'
+            "- satisfaction/influence 档位：微/小/中/大（正负由程序根据 stance 与政策判定）。\n"
+            "- stance：进取=主张变法、守成=维护祖制、观望=随势而动。\n"
+            "- events 类型仅限：党争/联姻/分裂/和解/清算。\n"
+            "- 只给档位不给数字；不写数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                factions = getattr(state, "factions", {})
+                if factions:
+                    lines = []
+                    for name, f in factions.items():
+                        sat = f.get("satisfaction", 50)
+                        inf = f.get("influence", 50)
+                        lines.append(f"{name}: 满意度{sat} 影响力{inf}")
+                    inj += f"\n【当前派系】{'; '.join(lines)}"
+                prestige = getattr(state, "prestige", 50)
+                inj += f"\n【皇威】{prestige}"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "factions" not in o:
+                return None
+            facs = o.get("factions", {})
+            if not isinstance(facs, dict):
+                return None
+            valid_facs = {}
+            for name, f in facs.items():
+                if not isinstance(f, dict):
+                    continue
+                sat = str(f.get("satisfaction", "小")).strip()
+                inf = str(f.get("influence", "小")).strip()
+                stance = str(f.get("stance", "观望")).strip()
+                if sat not in ("微", "小", "中", "大"):
+                    sat = "小"
+                if inf not in ("微", "小", "中", "大"):
+                    inf = "小"
+                if stance not in ("进取", "守成", "观望"):
+                    stance = "观望"
+                valid_facs[name] = {"satisfaction": sat, "influence": inf, "stance": stance}
+            o["factions"] = valid_facs
+            events = o.get("events", [])
+            if not isinstance(events, list):
+                events = []
+            valid_events = []
+            for e in events[:3]:
+                if not isinstance(e, dict):
+                    continue
+                etype = str(e.get("type", "")).strip()
+                desc = str(e.get("desc", "")).strip()
+                tier = str(e.get("tier", "小")).strip()
+                if etype not in ("党争", "联姻", "分裂", "和解", "清算"):
+                    continue
+                if tier not in ("微", "小", "中", "大"):
+                    tier = "小"
+                valid_events.append({"type": etype, "desc": desc[:40], "tier": tier})
+            o["events"] = valid_events
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:150]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=400, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("faction"))
+
+    def land_local_decide(self, posture, state=None):
+        """田亩与地方州县契约（户部/转运司/路分）：推演清丈、劝垦、均税、地方民情。
+        输出：{"prefectures": {"路名": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, "narrative": "田亩地方叙事"}"""
+        sys_p = (
+            "你是北宋转运使，巡按诸路田亩户籍。根据当前垦田、隐漏、荒田、各路民情，推演本月清丈劝垦成效。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"prefectures": {"京东": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}, '
+            '"河北": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, '
+            '"narrative": "田亩地方叙事（≤150字，体现清丈阻力、劝垦成效、百姓疾苦）"}\n'
+            "- survey=清丈力度、reclaim=劝垦力度、tax_fair=均税力度，档位：微/小/中/大。\n"
+            "- mood：安定/平实/动荡。\n"
+            "- 只给档位不给数字；不写数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                prefs = getattr(state, "prefectures", {})
+                if prefs:
+                    lines = []
+                    for name, p in list(prefs.items())[:8]:
+                        households = p.get("households", 0)
+                        land = p.get("land", 0)
+                        mood = p.get("mood", "中")
+                        lines.append(f"{name}: {households}万户 {land}万亩 民情{mood}")
+                    inj += f"\n【诸路概况】{'; '.join(lines)}"
+                cultivated = getattr(state, "cultivated_land", 0)
+                wasteland = getattr(state, "wasteland", 0)
+                inj += f"\n【全国垦田】{cultivated}万亩 【荒田】{wasteland}万亩"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "prefectures" not in o:
+                return None
+            prefs = o.get("prefectures", {})
+            if not isinstance(prefs, dict):
+                return None
+            valid_prefs = {}
+            for name, p in prefs.items():
+                if not isinstance(p, dict):
+                    continue
+                survey = str(p.get("survey", "小")).strip()
+                reclaim = str(p.get("reclaim", "小")).strip()
+                tax_fair = str(p.get("tax_fair", "小")).strip()
+                mood = str(p.get("mood", "平实")).strip()
+                if survey not in ("微", "小", "中", "大"):
+                    survey = "小"
+                if reclaim not in ("微", "小", "中", "大"):
+                    reclaim = "小"
+                if tax_fair not in ("微", "小", "中", "大"):
+                    tax_fair = "小"
+                if mood not in ("安定", "平实", "动荡"):
+                    mood = "平实"
+                valid_prefs[name] = {"survey": survey, "reclaim": reclaim, "tax_fair": tax_fair, "mood": mood}
+            o["prefectures"] = valid_prefs
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:150]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=500, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("land_local"))
+
+    def granary_decide(self, posture, state=None):
+        """仓廪漕运契约（户部/漕运司）：推演太仓存粟、漕运到仓、常平仓平粜、军粮调拨。
+        输出：{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大"}, "narrative": "仓漕叙事"}"""
+        sys_p = (
+            "你是北宋漕运使，掌太仓出纳、漕船调度、常平平粜。根据当前太仓存粟、漕运能力、军粮需求、粮价，推演本月仓漕运作。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大"}, '
+            '"narrative": "仓漕叙事（≤120字，体现漕运风险、仓储损耗、平粜成效、军粮保障）"}\n'
+            "- inflow=漕运入仓、outflow=发仓/平粜/军粮、price_stabilize=平抑物价、army_supply=军粮保障，档位：微/小/中/大。\n"
+            "- 只给档位不给数字；不写数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                granary = getattr(state, "granary", 0)
+                transport = getattr(state, "transport", 0)
+                grain_price = getattr(state, "grain_price", 1.0)
+                army_units = getattr(state, "army_units", [])
+                army_count = len(army_units)
+                inj += f"\n【太仓】{granary:,}石 【漕运】{transport:,}石/月 【粮价】{grain_price:.2f}贯/石 【军团】{army_count}支"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "granary" not in o:
+                return None
+            g = o.get("granary", {})
+            if not isinstance(g, dict):
+                return None
+            valid_g = {}
+            for k in ("inflow", "outflow", "price_stabilize", "army_supply"):
+                v = str(g.get(k, "小")).strip()
+                if v not in ("微", "小", "中", "大"):
+                    v = "小"
+                valid_g[k] = v
+            o["granary"] = valid_g
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("granary"))
+
+    def finance_decide(self, posture, state=None):
+        """财政金融契约（户部度支/市舶/交子务/银行）：推演货币、市舶、交子、银行、本位制等财政金融政务。
+        输出：{"narrative": "财政金融叙事（≤150字）", "tone": "得利|平实|扰民", "risk_hint": "隐患提示"}"""
+        sys_p = _load_prompt("finance", **{
+            "treasury_desc": "国库充盈" if (state and getattr(state, "treasury", 0) > 5_000_000) else "国库告匮",
+            "jiaozi_desc": "交子流通良好" if (state and getattr(state, "jiaozi", {}).get("issued", 0) > 0) else "交子未行",
+            "maritime_desc": "市舶通商兴旺" if (state and getattr(state, "maritime_trade", 0) > 0) else "市舶未通",
+            "coin_desc": "钱荒稍缓" if (state and getattr(state, "grain_price", 1.0) < 1.2) else "钱荒加剧",
+            "bank_desc": "银行已设" if (state and getattr(state, "bank", {}).get("established", False)) else "银行未设",
+            "act": "常规度支"
+        })
+        # 使用现有 finance.md 提示词
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:150]
+            tone = str(o.get("tone", "平实")).strip()
+            if tone not in ("得利", "平实", "扰民"):
+                tone = "平实"
+            o["tone"] = tone
+            o["risk_hint"] = _clean_text(str(o.get("risk_hint", "")))[:80]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("finance"))
+
+    def treasury_decide(self, posture, state=None):
+        """国库契约（三司/内帑）：推演国库收支、内帑拨付、度支平衡、储备金。
+        输出：{"treasury": {"income": "微|小|中|大", "expenditure": "微|小|中|大", "reserve": "微|小|中|大", "imperial_transfer": "微|小|中|大"}, "narrative": "国库叙事"}"""
+        sys_p = (
+            "你是北宋三司使，掌天下财赋出纳。根据当前国库存款、税收、支出、内帑拨付，推演本月国库收支平衡。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"treasury": {"income": "微|小|中|大", "expenditure": "微|小|中|大", "reserve": "微|小|中|大", "imperial_transfer": "微|小|中|大"}, '
+            '"narrative": "国库叙事（≤120字，体现入不敷出、节流开源、内帑拨付、储备金安危）"}\n'
+            "- income=税收收入、expenditure=经常支出、reserve=储备金积累、imperial_transfer=内帑拨付/回笼，档位：微/小/中/大。\n"
+            "- 只给档位不给数字；不写数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                treasury = getattr(state, "treasury", 0)
+                imperial = getattr(state, "imperial_treasury", 0)
+                stats = getattr(state, "statistics", {})
+                income = stats.get("total_income", 0) if isinstance(stats, dict) else 0
+                exp = stats.get("total_expenditure", 0) if isinstance(stats, dict) else 0
+                inj += f"\n【国库】{treasury:,}贯 【内帑】{imperial:,}贯 【本月入】{income:,} 【本月出】{exp:,}"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict) or "treasury" not in o:
+                return None
+            t = o.get("treasury", {})
+            if not isinstance(t, dict):
+                return None
+            valid_t = {}
+            for k in ("income", "expenditure", "reserve", "imperial_transfer"):
+                v = str(t.get(k, "小")).strip()
+                if v not in ("微", "小", "中", "大"):
+                    v = "小"
+                valid_t[k] = v
+            o["treasury"] = valid_t
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("treasury"))
+
+    def emperor_personal_decide(self, posture, state=None):
+        """皇帝个人契约（起居注/内侍省）：推演皇帝健康、心情、私务、宫廷琐事。
+        输出：{"health": "康|微恙|病", "mood": "怡|平|忧|怒", "private": "读书|射箭|宴乐|斋醮|处理密奏|...", "narrative": "起居注（≤100字）"}"""
+        sys_p = (
+            "你是北宋起居注，记录皇帝起居饮食、喜怒哀乐、私务处理。根据当前皇威、民心、朝局压力、年龄，推演本月皇帝个人状态。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"health": "康|微恙|病", "mood": "怡|平|忧|怒", "private": "读书|射箭|宴乐|斋醮|处理密奏|召对|巡幸|...", '
+            '"narrative": "起居注（≤100字，体现帝王日常、身心状态、私务与公务交织）"}\n'
+            "- health：康/微恙/病；mood：怡/平/忧/怒；private：自由文本（≤12字）。\n"
+            "- 只叙事不给数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                prestige = getattr(state, "prestige", 50)
+                mood_val = getattr(state, "population_satisfaction", 50)
+                year = getattr(state, "year", 1)
+                age = 20 + year // 12  # 简化年龄估算
+                inj += f"\n【皇威】{prestige} 【民心】{mood_val} 【约龄】{age}岁"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            health = str(o.get("health", "康")).strip()
+            if health not in ("康", "微恙", "病"):
+                health = "康"
+            mood = str(o.get("mood", "平")).strip()
+            if mood not in ("怡", "平", "忧", "怒"):
+                mood = "平"
+            private = str(o.get("private", "处理公务")).strip()[:12]
+            o["health"] = health
+            o["mood"] = mood
+            o["private"] = private
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:100]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=200, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("emperor_personal"))
+
+    def hidden_state_decide(self, posture, state=None):
+        """隐藏状态契约（密探/内侍/枢密）：推演谍报、暗流、潜在危机、未公开情报。
+        输出：{"intel": [{"region": "路名/外邦", "type": "谍报|流言|异动|密谋", "credibility": "低|中|高", "desc": "情报摘要"}], "crises": [{"type": "叛乱|瘟疫|外患|党祸|水旱", "probability": "微|小|中|大", "desc": "潜在危机描述"}], "narrative": "密探叙事"}"""
+        sys_p = (
+            "你是北宋枢密院密探头目，掌握朝野未公开之情报。根据当前外邦态度、派系矛盾、民情、灾荒征兆，推演本月隐情暗流。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"intel": [{"region": "河北/金国/辽国/...", "type": "谍报|流言|异动|密谋", "credibility": "低|中|高", "desc": "情报摘要（≤30字）"}], '
+            '"crises": [{"type": "叛乱|瘟疫|外患|党祸|水旱", "probability": "微|小|中|大", "desc": "潜在危机描述（≤40字）"}], '
+            '"narrative": "密探叙事（≤120字，体现情报网运作、真假难辨、防微杜渐）"}\n'
+            "- intel.type 仅限：谍报/流言/异动/密谋；credibility：低/中/高。\n"
+            "- crises.type 仅限：叛乱/瘟疫/外患/党祸/水旱；probability：微/小/中/大。\n"
+            "- 只给定性不给数值。"
+        )
+        inj = ""
+        if state is not None:
+            try:
+                ext_jin = getattr(state, "external_jin", 50)
+                ext_liao = getattr(state, "external_liao", 50)
+                ext_xixia = getattr(state, "external_xixia", 50)
+                factions = getattr(state, "factions", {})
+                refugee = getattr(state, "refugee_count", 0)
+                inj += f"\n【外邦】金{ext_jin} 辽{ext_liao} 西夏{ext_xixia} 【流民】{refugee:,}"
+                if factions:
+                    for name, f in factions.items():
+                        sat = f.get("satisfaction", 50)
+                        if sat < 30:
+                            inj += f" 【{name}不满】"
+            except Exception:
+                pass
+        sys_p += inj
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            intel = o.get("intel", [])
+            if not isinstance(intel, list):
+                intel = []
+            valid_intel = []
+            for i in intel[:4]:
+                if not isinstance(i, dict):
+                    continue
+                region = str(i.get("region", "")).strip()
+                itype = str(i.get("type", "")).strip()
+                cred = str(i.get("credibility", "中")).strip()
+                desc = str(i.get("desc", "")).strip()
+                if itype not in ("谍报", "流言", "异动", "密谋"):
+                    continue
+                if cred not in ("低", "中", "高"):
+                    cred = "中"
+                valid_intel.append({"region": region[:8], "type": itype, "credibility": cred, "desc": desc[:30]})
+            o["intel"] = valid_intel
+            crises = o.get("crises", [])
+            if not isinstance(crises, list):
+                crises = []
+            valid_crises = []
+            for c in crises[:3]:
+                if not isinstance(c, dict):
+                    continue
+                ctype = str(c.get("type", "")).strip()
+                prob = str(c.get("probability", "小")).strip()
+                desc = str(c.get("desc", "")).strip()
+                if ctype not in ("叛乱", "瘟疫", "外患", "党祸", "水旱"):
+                    continue
+                if prob not in ("微", "小", "中", "大"):
+                    prob = "小"
+                valid_crises.append({"type": ctype, "probability": prob, "desc": desc[:40]})
+            o["crises"] = valid_crises
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=400, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("hidden_state"))
+
 
 # ============================================================
 # AI 不可用时的错误标记（不伪造文本）
