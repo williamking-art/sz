@@ -175,6 +175,23 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
                 setattr(state, _attr, _r)
         except Exception:
             pass   # P1 契约失败不阻断结算（保留既有规则）
+
+    # 12 步 agent 化 P2+：其余步位契约注入
+    for _attr, _call in (("_decree_execute_ai", "decree_execute_decide"),
+                         ("_faction_ai", "faction_decide"),
+                         ("_land_local_ai", "land_local_decide"),
+                         ("_granary_ai", "granary_decide"),
+                         ("_finance_ai", "finance_decide"),
+                         ("_treasury_ai", "treasury_decide"),
+                         ("_emperor_personal_ai", "emperor_personal_decide"),
+                         ("_hidden_state_ai", "hidden_state_decide")):
+        try:
+            _r = getattr(ai_client, _call)(state.posture, state=state)
+            if isinstance(_r, dict) and not _r.get("_error"):
+                setattr(state, _attr, _r)
+        except Exception:
+            pass   # P2+ 契约失败不阻断结算
+
     log = run_monthly_settlement(state)
     report = ""
     # 月报为装饰性 AI 文本：失败拒绝式报错（不降级为空、不伪造），
