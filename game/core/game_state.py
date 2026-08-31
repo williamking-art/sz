@@ -201,6 +201,10 @@ class GameState(GameStateEconMixin):
         self.short_term_log: list = []
         # 大臣自设工具注册表（三方案：注册护栏 + 上限 16 + 存档持久化）
         self.tool_registry: dict = {}
+        # 新兵种注册表（branch_registry 仿 tool_registry：玩家自由设立 + 门槛 + 存档）
+        self.branch_registry: dict = {}
+        # 玩家科技注册表（tech_registry 仿 branch_registry：承接天马行空 + 门槛 + 存档）
+        self.tech_registry: dict = {}
         # 金融推演价格系数（通胀/通缩 ±5%，clamp [0.5,3.0]；月度重置不落档）
         self._price_mult: float = 1.0
         # 时代状态（建筑-时代交互，言枢密方案）：五维认知层 0-100 刻度（兴/平/衰 程序定幅迁移）
@@ -323,7 +327,13 @@ class GameState(GameStateEconMixin):
         self.council_reviews: dict = {}  # draft_id -> 会签意见
 
         # ---- 施政 ----
-        self.personal_action: str = ""
+        self.personal_action: str = ""   # 旧单值个人行动（兼容旧档；新通道走 imperial_action）
+        self.imperial_action: dict = {}  # 皇帝个人行动矩阵（契约 v2）：
+        #   {location, mode, action, prepared, pending_months, target}；
+        #   pending_months > 0 表示出京准备中（pending_imperial_trip 月度推进）
+        self.pending_imperial_trip = None   # 出京准备期（= imperial_action 同一 dict；准备中非 None，成行后置 None）
+        self.imperial_micro_count: int = 0  # 微服京城每月 1 次计数（程序限，结算月末归零）
+        self._emperor_ai = None             # 皇帝个人行动 AI 推演槽位（契约 v2 结果，回合内瞬态不落档）
         self.major_policy: str = ""
         self.major_policy_target: str = ""
 
@@ -496,6 +506,11 @@ class GameState(GameStateEconMixin):
         # ---- 扩展维度：外交细化（金/辽/夏关系动作后的态势标记） ----
         self.diplomacy_log: list = []      # 外交动作记录
         self.alliance_jin_liao: bool = False  # 是否联金抗辽（海上之盟）
+        # 外交对话协议（言枢密 diplomacy_dialogue 落地；存档持久化）
+        self.treaties: dict = {}                 # {势力: [{type, terms, turn, year, month}]}
+        self._at_war: dict = {}                  # {势力: 1/0} 战争标记
+        self._sui_gong_mult: dict = {"辽": 1.0, "金": 1.0, "西夏": 1.0}   # 岁币倍率
+        self._trade_income: dict = {}            # {势力: 榷场月入}
 
         # ---- 大臣长期记忆（真 function calling 落档；存档兼容旧档缺字段默认空） ----
         self.minister_memory: dict = {}    # {大臣名: [办差记录/长久偏好]}

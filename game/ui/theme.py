@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Tuple
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 # ---------------------------------------------------------------------------
 # 色彩体系（宋式文人美学）

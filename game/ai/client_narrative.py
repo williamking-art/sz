@@ -81,4 +81,6 @@ class ClientNarrativeMixin:
                 return None
             return o
         raw = self._call(sys_p, f"【朝局】{state_summary}", temperature=0.85)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("narrative"))
+        # AI 失败分级降级（落地改进 4 + T8 完整模板库）：叙事类失败 → 本地模板兜底（非 AI 伪造）
+        from ai.narrative_fallback import fallback_narrative
+        return self._postprocess(raw, validate, lambda: fallback_narrative(tag))

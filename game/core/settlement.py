@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
-"""宋祚 · 月度结算主流程
+"""宋祚 · 月度结算主流程（合并原 settlement_extensions.py / settlement_reform.py）
 
-原 1602 行文件已按功能拆分为：
-  - settlement_steps.py       Step 1~11 各结算函数
-  - settlement_reform.py      机构改制后果推演（reform_org 类圣旨）
-  - settlement_extensions.py 五层承接层月度钩子 + MECHANISMS 注册表
+结构：
+  - run_monthly_settlement 主流水线（Step 0 ~ 11）
+  - MECHANISMS 注册表 + 五层承接层月度钩子（机制槽 / 研发管线 / 机构经济生命周期）
+  - settle_reform 机构改制后果推演（reform_org 类圣旨）
 
-本文件仅保留 run_monthly_settlement 主流程，并 re-export 供其它模块
-（commands / tests / verify_ai_connect 等）直接 import 的符号，保持兼容。
+各 Step 结算函数见 core/settlement_steps.py；本文件 re-export 常用符号保持
+既有 import 兼容（commands / panels 等）。
 """
 import random
 from typing import Any
 
 from content.data import (
     TREASURY_CRISIS_LINE, TREASURY_COLLAPSE_LINE,
+    CHANGPING_HIGH, CHANGPING_LOW,
 )
 from core.game_state import _next_month
 
@@ -33,11 +34,6 @@ from core.settlement_steps import (
     _settle_emperor_personal,
     _settle_hidden,
 )
-from core.settlement_extensions import (
-    MECHANISMS,
-    _settle_mechanisms, _settle_tech, _settle_org_economy,
-)
-from core.settlement_reform import settle_reform
 
 # 兼容旧调用方可能直接引用这些符号
 __all__ = [
@@ -47,6 +43,274 @@ __all__ = [
     "_normalize_disaster_region",
     "MECHANISMS",
 ]
+
+
+# ============================================================
+# 五层承接层（原 settlement_extensions.py）
+# ============================================================
+# 层②机制槽注册表：键为玩家圣旨可声明的机制名，值为结算加成函数标识。
+# 仅做轻量、可解释的修正，不替换任何既有结算分支。
+MECHANISMS = {
+    "复式记账": {"desc": "钱粮出入双簿相核，月结精度提升，隐性亏空下降", "effect": "finance_precision"},
+    "运票": {"desc": "票物一致方可核销，转运损耗下降", "effect": "transport_loss_down"},
+    "常平粜籴": {"desc": "丰敛歉粜，平抑粮价波动", "effect": "grain_price_smooth"},
+    "工训营": {"desc": "召流民为工，训以匠艺，育理工人才", "effect": "train_craftsman"},
+    "市舶抽解": {"desc": "海舶抽税，增市舶之利", "effect": "maritime_tax_up"},
+}
+
+
+def _settle_mechanisms(state, log):
+    """层②机制槽：依据 state.mechanisms 注册项，施加纯加成/减耗修正。"""
+    for mname, m in state.mechanisms.items():
+        spec = MECHANISMS.get(mname)
+        if not spec:
+            continue
+        eff = spec["effect"]
+        org = m.get("org", "")
+        if eff == "finance_precision":
+            o = state.central_orgs.get(org)
+            if o:
+                o["efficiency"] = min(1.2, round(o["efficiency"] + 0.02, 2))
+        elif eff == "transport_loss_down":
+            state.land["canal_eff"] = min(0.98, state.land.get("canal_eff", 0.7) + 0.01)
+        elif eff == "grain_price_smooth":
+            if state.grain_price > CHANGPING_HIGH:
+                state.grain_price = max(CHANGPING_HIGH, state.grain_price - 2)
+            elif state.grain_price < CHANGPING_LOW:
+                state.grain_price = min(CHANGPING_LOW, state.grain_price + 2)
+        elif eff == "train_craftsman":
+            o = state.central_orgs.get(org)
+            if o and o.get("net", 0) >= 0:
+                for proj in state.tech.get("projects", {}).values():
+                    proj["masters"] = proj.get("masters", 0) + 1
+        elif eff == "maritime_tax_up":
+            state.statistics["total_income"] += int(state.calc_commerce() * 0.01)
+
+
+def _settle_tech(state, log):
+    """层③研发管线：tech["projects"] 中可研项目按 资源×时间×人才 推进。"""
+    projects = state.tech.get("projects", {})
+    if not projects:
+        return
+    for pname, proj in projects.items():
+        if proj.get("done"):
+            continue
+        masters = proj.get("masters", 0)
+        monthly = proj.get("monthly_cost", 0)
+        if monthly <= 0:
+            continue
+        if state.treasury >= monthly:
+            state.change_treasury(-int(monthly))
+            talent = 1.0 + min(masters, 20) * 0.1
+            proj["progress"] = proj.get("progress", 0) + int(50 * talent)
+            if proj["progress"] >= 1000:
+                proj["progress"] = 1000
+                proj["done"] = True
+                log.append(f"[研发] {pname} 研成！匠术精进，国力稍增")
+                if "unlocked" not in state.tech:
+                    state.tech["unlocked"] = []
+                if pname not in state.tech["unlocked"]:
+                    state.tech["unlocked"].append(pname)
+        else:
+            log.append(f"[研发] {pname} 月费不济（需 {monthly}贯），进度停滞")
+
+
+def _settle_org_economy(state, log):
+    """层④机构经济生命周期：汇总各机构 budget_in/out 算 net，走 change_treasury，
+    受 TREASURY_COLLAPSE_LINE 约束（不可绕过 game_over）。"""
+    for oname, o in state.central_orgs.items():
+        if o.get("abolished"):
+            o["budget_in"] = o["budget_out"] = o["net"] = 0
+            continue
+        base_grant = 2 + len(o.get("matter_keys", [])) * 1
+        o["budget_in"] = base_grant
+        out = 1 + len(o.get("posts", [])) * 0.5 + len(o.get("branches", {})) * 0.3
+        o["budget_out"] = round(out, 2)
+        # 国库记账为整数贯：net 先取整再入账（"文"级精度只存在于物价体系，不进国库）
+        net = int(round(o["budget_in"] - o["budget_out"]))
+        o["net"] = net
+        if net != 0:
+            state.change_treasury(net)
+    org_net = sum(o.get("net", 0) for o in state.central_orgs.values() if not o.get("abolished"))
+    state.statistics.setdefault("org_net", 0)
+    state.statistics["org_net"] = round(org_net, 2)
+
+
+# ============================================================
+# 机构改制后果推演（原 settlement_reform.py）
+# ============================================================
+def settle_reform(state, decree: dict) -> dict:
+    """结算一道 reform_org 类圣旨的后果。
+
+    后果完全由 AI 依「威望 + 相关大臣隐藏忠诚度 + 派系立场」推演决定，
+    不做写死的规则拒绝。返回叙事字典供 UI 展示（绝不泄露忠诚度数值）。
+    """
+    from ai.client import AIClient, _load_prompt, _clean_text
+
+    reform = decree.get("reform") or {}
+    rtype = reform.get("reform_type", "")
+    target = reform.get("target_org", "")
+    matter = reform.get("matter", "")
+
+    related = set()
+    if target and target in state.central_orgs:
+        lead = state.central_orgs[target].get("lead")
+        if lead:
+            related.add(lead)
+    if matter and matter in state.authority_matters:
+        owner = state.authority_matters[matter].get("owner", "")
+        if owner in state.central_orgs:
+            l = state.central_orgs[owner].get("lead")
+            if l:
+                related.add(l)
+    related = list(related)
+
+    fs = decree.get("faction_stances", {})
+    faction_text = "；".join(f"{k}：{v}" for k, v in fs.items()) or "（无显著派系反应）"
+
+    authority_brief = state.authority_brief_for_ai(target_org=target, target_ministers=related)
+    reform_text = decree.get("body") or decree.get("text") or decree.get("title", "")
+
+    client = AIClient.load_saved()
+    if client is None:
+        res = _fallback_reform(state, reform, related)
+        _apply_reform_result(state, decree, reform, res, related)
+        return res
+
+    sys_p = _load_prompt("reform_settle",
+                         reform_text=reform_text[:600],
+                         is_zhongzhi="是（御笔中旨强推）" if decree.get("is_zhongzhi") else "否（明发诏书）",
+                         authority_brief=authority_brief,
+                         faction_stance=faction_text)
+
+    def validate(o):
+        if not isinstance(o, dict) or "outcome" not in o:
+            return None
+        o["outcome"] = o.get("outcome", "smooth")
+        o["court_report"] = _clean_text(str(o.get("court_report", "")))[:300]
+        o["gazette"] = _clean_text(str(o.get("gazette", "")))[:160]
+        o["loyalty_delta"] = o.get("loyalty_delta", {}) if isinstance(o.get("loyalty_delta"), dict) else {}
+        o["corruption_delta"] = o.get("corruption_delta", {}) if isinstance(o.get("corruption_delta"), dict) else {}
+        o["org_effects"] = o.get("org_effects", {}) if isinstance(o.get("org_effects"), dict) else {}
+        o["faction_effects"] = o.get("faction_effects", {}) if isinstance(o.get("faction_effects"), dict) else {}
+        return o
+
+    user_p = "请依契约推演上述机构改制的落地后果。"
+    raw = client._call(sys_p, user_p, temperature=0.9, max_tokens=800)
+    res = client._postprocess(raw, validate, lambda: _fallback_reform(state, reform, related))
+    if res is None:
+        res = _fallback_reform(state, reform, related)
+
+    _apply_reform_result(state, decree, reform, res, related)
+    return res
+
+
+def _apply_reform_result(state, decree, reform, res, related):
+    """把 AI 推演结果回写：隐藏忠诚度变动、机构运行联动、机构树变更、派系联动。"""
+    for name, delta in res.get("loyalty_delta", {}).items():
+        if name in state.loyalty and isinstance(delta, (int, float)):
+            state.loyalty[name] = max(0.0, min(1.0, state.loyalty[name] + float(delta)))
+
+    for name, delta in res.get("corruption_delta", {}).items():
+        if name in state.corruption and isinstance(delta, (int, float)):
+            state.corruption[name] = max(0.0, min(1.0, state.corruption[name] + float(delta)))
+
+    for oname, eff in res.get("org_effects", {}).items():
+        o = state.central_orgs.get(oname)
+        if not o:
+            continue
+        if "efficiency" in eff and isinstance(eff["efficiency"], (int, float)):
+            o["efficiency"] = max(0.1, round(o["efficiency"] + float(eff["efficiency"]), 2))
+        if "backlog" in eff and isinstance(eff["backlog"], (int, float)):
+            o["backlog"] = max(0, int(o["backlog"] + float(eff["backlog"])))
+
+    fe = res.get("faction_effects", {})
+    fs = decree.setdefault("faction_stances", {})
+    for fname, d in fe.items():
+        if isinstance(d, (int, float)):
+            fs[fname] = max(-1.0, min(1.0, float(fs.get(fname, 0)) + float(d)))
+
+    rtype = reform.get("reform_type", "")
+    target = reform.get("target_org", "")
+    if rtype == "改名" and target in state.central_orgs and reform.get("new_name"):
+        state.central_orgs[reform["new_name"]] = state.central_orgs.pop(target)
+    elif rtype == "裁撤" and target in state.central_orgs:
+        state.central_orgs[target]["abolished"] = True
+        state.central_orgs[target]["efficiency"] = 0.0
+        state.central_orgs[target].setdefault("comissions", [])
+    elif rtype == "新建" and reform.get("new_org"):
+        new_org = reform["new_org"]
+        branches = reform.get("branches") or []
+        matter_raw = reform.get("matter", []) or []
+        matter_keys = [matter_raw] if isinstance(matter_raw, str) else list(matter_raw)
+        state.central_orgs[new_org] = {
+            "lead": "", "belong": "皇帝", "scope": reform.get("new_name", "新置机构"),
+            "authority": [], "matter_keys": matter_keys, "posts": [], "holders": {},
+            "comissions": [], "abolished": False,
+            "efficiency": 0.6, "backlog": 0,
+            "branches": {road: [f"{new_org}·{road}分司"] for road in branches},
+            "budget_in": 0, "budget_out": 0, "net": 0,
+        }
+        for road in branches:
+            if road in state.prefectures:
+                state.prefectures[road].setdefault("orgs", [])
+                if new_org not in state.prefectures[road]["orgs"]:
+                    state.prefectures[road]["orgs"].append(new_org)
+        for m in (reform.get("mechanisms") or []):
+            if m in MECHANISMS and m not in state.mechanisms:
+                state.mechanisms[m] = {"org": new_org, "params": {}, "progress": 0}
+    elif rtype == "新建官职" and target in state.central_orgs and reform.get("new_post"):
+        org = state.central_orgs[target]
+        org.setdefault("posts", [])
+        org.setdefault("holders", {})
+        post_title = reform["new_post"]
+        if not any(p.get("title") == post_title for p in org["posts"] if isinstance(p, dict)):
+            org["posts"].append({"title": post_title})
+            holder = reform.get("holder", "") or ""
+            org["holders"][post_title] = holder
+            if not org.get("lead"):
+                org["lead"] = holder
+    elif rtype == "改下辖" and target in state.central_orgs and reform.get("new_belong"):
+        state.central_orgs[target]["belong"] = reform["new_belong"]
+    elif rtype in ("改权限", "越权授权") and reform.get("matter") and reform.get("new_owner"):
+        m = reform["matter"]
+        if m in state.authority_matters:
+            state.authority_matters[m]["owner"] = reform["new_owner"]
+
+
+def _fallback_reform(state, reform, related) -> dict:
+    """AI 不可用时的极简退路：仅依威望与（隐藏）忠诚度给定性后果，绝不暴露数值。"""
+    pi = state.get_prestige_info()
+    level = pi.get("level", "中")
+    avg = sum(state.loyalty.get(n, 0.5) for n in related) / len(related) if related else 0.5
+    if level in ("高", "极高") and avg >= 0.6:
+        outcome = "smooth"
+        report = "诏下，相关衙门奉命惟谨，事权更易井然。"
+    elif avg < 0.4:
+        outcome = "sabotage"
+        report = "诏书虽颁，然有臣僚迁延观望，政务颇有积压。"
+    else:
+        outcome = "evade"
+        report = "诸司受诏，外示奉行而内多斟酌，推行稍缓。"
+    # 记忆知识库（Phase 3a）：机构改制写入图谱（org 实体 + governs）
+    try:
+        target = reform.get("target_org", "")
+        rtype = reform.get("reform_type", "")
+        if target:
+            state.memory.add_entity(f"org_{target}", "org", target, turn=state.turn)
+            state.memory.add_relation(f"org_{target}", f"reform_{rtype}",
+                                      "governs", weight=1.0, turn=state.turn,
+                                      note=f"{rtype}·{outcome}")
+    except Exception:
+        pass
+    return {
+        "outcome": outcome,
+        "court_report": report,
+        "gazette": "朝廷更定官制，以肃庶务。",
+        "loyalty_delta": {},
+        "org_effects": {},
+        "faction_effects": {},
+    }
 
 
 # ------------------------------------------------------------

@@ -11,7 +11,7 @@ import ui.theme as theme
 from content.data import (PERSONAL_ACTIONS, FACTION_NAMES, YAMEN_LIST, YAMEN_INFO,
     PREFECTURE_LIST, FIXED_PROCEDURES)
 from ai.client import AIClient, _org_by_affiliation
-import ai.decree as ai_decree
+import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
@@ -92,12 +92,15 @@ class PanelsMetaMixin:
             self._ui_back_to_menu()
         def open_misc():
             self._open_overlay(self._panel_misc, "设 置")
+        def open_ai():
+            self._open_overlay(lambda: self._panel_ai_config("settings"), "AI 配 置")
 
         menu = tk.Frame(inner, bg=PAPER)
         menu.pack(expand=True, fill="both", padx=40, pady=24)
         entries = [
             ("存 档", open_save),
             ("加 载", open_load),
+            ("AI 配 置", open_ai),
             ("主菜单", back_menu),
             ("设 置", open_misc),
         ]
@@ -150,21 +153,177 @@ class PanelsMetaMixin:
                       command=_vol_cb, bg=PAPER, fg=INK, troughcolor=PAPER2,
                       highlightthickness=0, font=self._font(SANS, 10), length=240)
         sc.pack(padx=30, pady=(2, 16), anchor="w")
+        # —— 字体（T10：楷体太细 → 可换宋体/黑体/雅黑/自定义；KAI 默认加粗）——
+        self._section(inner, "字 体")
+        self._label(inner, "界面字体：楷体 / 宋体 / 黑体 / 雅黑 / 系统默认（含 assets/fonts 自定义字体）",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 9)).pack(padx=30, pady=(4, 2), anchor="w")
+        ff_var = tk.StringVar(value=getattr(self, "_font_family_choice", "楷体"))
+        ff_row = tk.Frame(inner, bg=PAPER)
+        ff_row.pack(padx=30, pady=(2, 8), anchor="w")
+        self._label(ff_row, "字 体：", fg=INK, bg=PAPER, font=self._font(SANS, 11)).pack(side="left")
+        ff_menu = tk.OptionMenu(ff_row, ff_var, *[k for k, _lab in self._font_options()])
+        ff_menu.config(bg=CARD, fg=INK, relief="flat", font=self._font(SANS, 11),
+                       highlightthickness=0, activebackground=PAPER2)
+        ff_menu["menu"].config(bg=CARD, fg=INK, font=self._font(SANS, 10))
+        ff_menu.pack(side="left", padx=8)
+
+        def _ff_cb(*_a):
+            key = ff_var.get()
+            self._misc_set(font_family=key)
+            self._font_family_choice = key
+            self._apply_kai_family()
+            self.messagebox.showinfo("字体已更新",
+                                     f"界面字体已切换为「{key}」，新开面板即生效（已开面板需重开）。")
+
+        ff_var.trace_add("write", _ff_cb)
         # —— 界面字号 ——
         self._section(inner, "界 面 字 号")
-        self._label(inner, "字号档位：小 / 中 / 大（字号硬编码于各面板，需重启界面后生效）",
-                    fg=DIM, bg=PAPER).pack(padx=30, pady=(4, 2), anchor="w")
+        self._label(inner, "字号档位：小 / 中 / 大 / 特大（改后即时作用于新开面板）",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 9)).pack(padx=30, pady=(4, 2), anchor="w")
         fs = tk.IntVar(value=int(self._misc_get("font_scale", 1)))
+        from ui.panels_basic import _FONT_SCALE_TABLE as _FST
 
         def _font_cb():
             self._misc_set(font_scale=int(fs.get()))
+            self._font_scale = _FST.get(int(fs.get()), 1.0)   # 实时生效（新开面板）
 
         row = tk.Frame(inner, bg=PAPER)
         row.pack(padx=30, pady=(2, 8), anchor="w")
-        for lab, val in [("小", 0), ("中", 1), ("大", 2)]:
+        for lab, val in [("小", 0), ("中", 1), ("大", 2), ("特大", 3)]:
             tk.Radiobutton(row, text=lab, variable=fs, value=val, command=_font_cb,
                            bg=PAPER, fg=INK, font=self._font(SANS, 10), anchor="w").pack(
                 side="left", padx=12)
+        # —— Token 计量（工程可见性；命中率明细不占 HUD）——
+        self._section(inner, "工 程 可 见 性")
+        tk_row = tk.Frame(inner, bg=PAPER)
+        tk_row.pack(padx=30, pady=(2, 10), anchor="w")
+        self._btn(tk_row, "Token 用量",
+                  lambda: self._open_overlay(self._panel_token_meter, "Token 用量"),
+                  width=14, gold=True).pack(side="left", padx=4)
+        self._btn(tk_row, "清零计量", self._reset_token_meter, width=10,
+                  ghost=True).pack(side="left", padx=4)
+        self._label(inner, "token 明细与召对命中率见「Token 用量」表；顶栏只保留总量。",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 9)).pack(padx=30, pady=(0, 8), anchor="w")
+
+    # 契约方法 → 显示分组（Token 计量表；按调用类型聚合，单一映射源）
+    _TOKEN_GROUPS = {
+        "召对·AI": {"dialogue"},
+        "拟旨": {"polish_decree", "draft_decree", "parse_decree"},
+        "会签": {"council_review"},
+        "推演": {"economy_decide", "diplomacy_decide", "military_decide", "relief_decide",
+                 "finance_decide", "treasury_decide", "granary_decide", "faction_decide",
+                 "land_local_decide", "era_decide", "invest_decide", "free_effect_decide",
+                 "survey_settle", "decree_execute_decide", "emperor_personal_decide",
+                 "hidden_state_decide", "build_new_branch_decide", "research_decide"},
+        "月报叙事": {"monthly_report", "event_narrative", "advice", "final_eval"},
+    }
+    _TOKEN_GROUP_ORDER = ("拟旨", "会签", "推演", "月报叙事")
+
+    @staticmethod
+    def _token_group_of(method: str) -> str:
+        """契约方法名 → 显示分组（未命中归「其它」）；纯静态，供 UI 与测试共用。"""
+        for grp, methods in PanelsMetaMixin._TOKEN_GROUPS.items():
+            if method in methods:
+                return grp
+        return "其它"
+
+    def _token_meter_rows(self):
+        """组装 Token 计量表行（含召对命中行与合计行）。
+
+        数据源：AIClient.meter_summary()（按方法分桶 token）+ state._dialogue_stats
+        （召对预过滤/缓存命中与 AI 调用次数）+ token_usage（总桶）。
+        """
+        st = getattr(self.state, "_dialogue_stats", None) or {}
+        pre = int(st.get("prefilter_hits", 0) or 0)
+        ch = int(st.get("cache_hits", 0) or 0)
+        ai_calls = int(st.get("ai_calls", 0) or 0)
+        rows = [
+            ("召对·预过滤命中", pre, 0, 0, pre),
+            ("召对·缓存命中", ch, 0, 0, ch),
+        ]
+        meter = self.ai_client.meter_summary() if self.ai_client else {
+            "total": {"prompt": 0, "completion": 0, "calls": 0}, "by_method": {}}
+        by = meter.get("by_method", {})
+        groups = {}
+        for m, b in by.items():
+            g = groups.setdefault(self._token_group_of(m),
+                                  {"calls": 0, "prompt": 0, "completion": 0})
+            g["calls"] += int(b.get("calls", 0) or 0)
+            g["prompt"] += int(b.get("prompt", 0) or 0)
+            g["completion"] += int(b.get("completion", 0) or 0)
+        # 召对·AI：次数以 _dialogue_stats.ai_calls 为准（token 取 dialogue 分桶）
+        d = groups.pop("召对·AI", {"calls": 0, "prompt": 0, "completion": 0})
+        rows.append(("召对·AI", ai_calls, d["prompt"], d["completion"], 0))
+        for grp in self._TOKEN_GROUP_ORDER:
+            g = groups.pop(grp, {"calls": 0, "prompt": 0, "completion": 0})
+            rows.append((grp, g["calls"], g["prompt"], g["completion"], 0))
+        if groups:
+            calls = sum(g["calls"] for g in groups.values())
+            p = sum(g["prompt"] for g in groups.values())
+            c = sum(g["completion"] for g in groups.values())
+            rows.append(("其它", calls, p, c, 0))
+        total = meter.get("total", {})
+        hit_all = pre + ch
+        call_all = hit_all + ai_calls
+        rate = (hit_all / call_all * 100) if call_all else 0.0
+        rows.append(("合计", int(total.get("calls", 0) or 0),
+                     int(total.get("prompt", 0) or 0),
+                     int(total.get("completion", 0) or 0),
+                     f"{rate:.0f}%（召对）"))
+        return rows
+
+    def _panel_token_meter(self):
+        """Token 计量表（可滚动）：调用类型/次数/Prompt/Completion/命中 + 合计行。"""
+        import tkinter.ttk as ttk
+        inner = self._panel_shell("Token 用 量")
+        self._label(inner,
+                    "AI 调用 token 计量（按契约方法分桶；召对命中 = 预过滤/缓存拦截免调 AI）",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 10), anchor="w").pack(
+            padx=12, pady=(4, 6))
+        try:
+            style = ttk.Style()
+            style.configure("Songzuo.Treeview", background=CARD, fieldbackground=CARD,
+                            foreground=INK, rowheight=24, borderwidth=0,
+                            font=self._font(SANS, 10))
+            style.configure("Songzuo.Treeview.Heading", background=RED,
+                            foreground="#f3e6c4", font=self._font(SANS, 10, "bold"))
+        except Exception:
+            pass
+        frame = tk.Frame(inner, bg=PAPER)
+        frame.pack(fill="both", expand=True, padx=12, pady=4)
+        tree = ttk.Treeview(frame, style="Songzuo.Treeview",
+                            columns=("type", "calls", "prompt", "completion", "hit"),
+                            show="headings", height=12)
+        for cid, txt, w, anchor in (
+                ("type", "调用类型", 210, "w"), ("calls", "次数", 70, "e"),
+                ("prompt", "Prompt tokens", 130, "e"),
+                ("completion", "Completion tokens", 150, "e"),
+                ("hit", "命中", 110, "e")):
+            tree.heading(cid, text=txt)
+            tree.column(cid, width=w, anchor=anchor)
+        vsb = tk.Scrollbar(frame, orient="vertical", command=tree.yview, bg=PAPER2,
+                           troughcolor=PAPER, activebackground=GOLD)
+        tree.configure(yscrollcommand=vsb.set)
+        tree.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        for r in self._token_meter_rows():
+            tree.insert("", "end", values=r, tags=("total",) if r[0] == "合计" else ())
+        tree.tag_configure("total", background="#f1e7cf",
+                           font=self._font(SANS, 10, "bold"))
+        self._label(inner,
+                    "说明：召对命中行不消耗 token（预过滤/缓存拦截）；Prompt/Completion 按方法分桶累计；"
+                    "合计行命中列 = 召对省调率。",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 9), anchor="w").pack(
+            padx=12, pady=(4, 10))
+
+    def _reset_token_meter(self):
+        """清零 token 计量（客户端分桶 + 召对统计；状态内缓存命中一并清）。"""
+        if self.ai_client is not None:
+            self.ai_client.reset_meter()
+        st = getattr(self.state, "_dialogue_stats", None)
+        if isinstance(st, dict):
+            st.update({"prefilter_hits": 0, "cache_hits": 0, "ai_calls": 0})
+        self.messagebox.showinfo("清零完成", "Token 计量与召对命中统计已清零。")
 
     def _panel_ai_config(self, return_to):
         self._clear_all()
@@ -246,8 +405,20 @@ class PanelsMetaMixin:
         # 结算前快照（用于演出式涨跌对比）
         snap = dict(treasury=s.treasury, imperial_treasury=s.imperial_treasury, population_satisfaction=s.population_satisfaction,
                     imperial_prestige=s.prestige)
-        # AI 可用时异步结算，避免网络调用冻结 UI；不可用时同步快速路径
-        if self.ai_client and self.ai_client.available:
+        from backend.client import LocalBackend
+        if isinstance(self.backend, LocalBackend) and self.ai_client and self.ai_client.available:
+            # T6 本地拆分：后台 AI 推演族 → 主线程 12 步结算 → 叙事后补（UI 不卡驻）
+            self._ui_next_turn_split(s, snap)
+        elif isinstance(self.backend, LocalBackend):
+            # 无 AI：同步快速路径（settle_turn 拒绝式提示配置）
+            try:
+                events, log, report, new_state = self.backend.advance(s, self.ai_client)
+            except _AIRuntimeError as e:
+                self.messagebox.showerror("AI 叙事中断", str(e))
+                return
+            self._finish_settle(events, log, report, new_state, snap)
+        else:
+            # 远程后端：整包 advance 后台执行，避免网络调用冻结 UI（既有路径）
             self._settling = True
             tl, body = self._overlay("结 算 中", width=320, height=140)
             self._title(body, "御 案 结 算 中 …",
@@ -261,13 +432,110 @@ class PanelsMetaMixin:
                     result = e
                 self.root.after(0, lambda: self._on_settle_done(result, snap, tl))
             threading.Thread(target=_worker, daemon=True).start()
-        else:
+
+    def _ui_next_turn_split(self, s, snap):
+        """T6 本地结算拆分：事件触发（主线程）→ AI 推演族（后台，不写 state）
+        → 12 步本地结算（主线程）→ 月报叙事后补（不阻塞结算完成）。"""
+        self._settling = True
+        # ① 主线程本地事件触发（确定性、无网络）
+        try:
+            events = self.backend.advance_month(s) or []
+        except Exception:
+            events = []
+        # 路由：按玩家政令/状态唤醒领域契约（主线程读 state；失败退化为 P1 三契约保底）
+        woken = None
+        try:
+            from core.agent_router import route_agents
+            _hint = ""
             try:
-                events, log, report, new_state = self.backend.advance(s, self.ai_client)
-            except _AIRuntimeError as e:
+                _decs = getattr(s, "pending_decrees", []) or []
+                _hint = " ".join(str(d.get("title", "")) for d in _decs[-3:])
+            except Exception:
+                _hint = ""
+            woken = route_agents(_hint, s, getattr(s, "_last_agent_diff", None))
+        except Exception:
+            woken = None
+        # 结算中浮层 + AI 加载环
+        tl, body = self._overlay("结 算 中", width=360, height=190)
+        self._title(body, "御 案 结 算 中 …",
+                    fg=RED, bg=PAPER, font=self._font(KAI, 16, "bold"),
+                    anchor="center").pack(pady=(26, 6))
+        ring, set_loading = self._busy_ring(body)
+        ring.pack(pady=(4, 4))
+        set_loading(True)
+
+        def _on_success(results):
+            self._on_settle_ai_done(results, events, snap, tl)
+
+        def _on_error(exc):
+            self._settling = False
+            try:
+                tl.destroy()
+            except Exception:
+                pass
+            if isinstance(exc, _AIRuntimeError):
+                self.messagebox.showerror("AI 叙事中断", str(exc))
+            else:
+                self.messagebox.showerror("结算错误", str(exc))
+
+        from core.async_ai import run_settlement_ai
+        run_settlement_ai(self.ai_client, s.posture, s, woken,
+                          ui=self.root, on_success=_on_success, on_error=_on_error)
+
+    def _on_settle_ai_done(self, results, events, snap, tl):
+        """后台 AI 推演族完成后回到主线程：落地槽位 → 12 步本地结算 → 呈现 → 叙事后补。"""
+        self._settling = False
+        try:
+            tl.destroy()
+        except Exception:
+            pass
+        s = self.state
+        try:
+            log, new_state = self.backend.settle_local(s, results)
+        except Exception as e:
+            if isinstance(e, _AIRuntimeError):
                 self.messagebox.showerror("AI 叙事中断", str(e))
+            else:
+                self.messagebox.showerror("结算错误", str(e))
+            return
+        self.state = new_state
+        self._finish_settle(events, log, "", new_state, snap)
+        if not new_state.game_over:
+            # ③ 叙事后补：不阻塞结算完成
+            self._settle_narrative_postfill(new_state)
+
+    def _settle_narrative_postfill(self, state):
+        """结算完成后的月报叙事后补：后台生成，主线程追加展示；失败不阻塞、不伪造。"""
+        if not (self.ai_client and getattr(self.ai_client, "available", False)):
+            return
+        try:
+            from core.commands import monthly_report_args
+            args = monthly_report_args(state)
+        except Exception:
+            args = (state.year, state.month, state.era_name, state.posture)
+
+        def _on_success(report):
+            text = report.get("report", "") if isinstance(report, dict) else str(report or "")
+            if text:
+                self._settle_narrative_show(text)
+
+        def _on_error(exc):
+            # 叙事后补失败不阻断结算：明确提示缺月折，不伪造
+            self._log(f"〔月折〕AI 月报生成失败：{exc}")
+            self._settle_narrative_show("（本月月折暂缺：AI 月报生成失败）")
+
+        from core.async_ai import run_ai_call
+        run_ai_call(self.ai_client, "monthly_report", *args,
+                    on_success=_on_success, on_error=_on_error, ui=self.root)
+
+    def _settle_narrative_show(self, text):
+        """把后补月折追加到结算浮层（若仍开）或写入待办日志。"""
+        append = getattr(self, "_settle_late_append", None)
+        if append is not None:
+            if append(text):
                 return
-            self._finish_settle(events, log, report, new_state, snap)
+        self._pending_logs.append(f"【丞相月折（AI）】\n{text}")
+        self._log(f"〔月折〕{str(text)[:60]}")
 
     def _on_settle_done(self, result, snap, overlay_tl):
         """后台结算完成后回到主线程的回调。"""
@@ -377,6 +645,7 @@ class PanelsMetaMixin:
 
         def cont():
             tl.destroy()
+            self._settle_late_append = None
             self._refresh_head()
             self._refresh_hud()  # 回合结算后实时刷新顶部胶囊（威望/民心/国库/内帑等）
             if events:
@@ -385,6 +654,19 @@ class PanelsMetaMixin:
                 self._switch_panel(self._panel_overview, "朝堂一览")
 
         btn.configure(command=cont)
+
+        def _append_late(text):
+            """结算浮层仍开时追加一行（T6 月报叙事后补用）；浮层已关返回 False。"""
+            try:
+                self._label(log_inner, f"【丞相月折（AI）】\n{text}", fg=RED_D, bg=PAPER,
+                            font=self._font(KAI, 11), justify="left",
+                            anchor="w").pack(anchor="w", pady=(4, 1))
+                log_cv.yview_moveto(1.0)
+                return True
+            except Exception:
+                return False
+
+        self._settle_late_append = _append_late
         body.after(300, reveal)
 
     def _present_events(self, events, idx):

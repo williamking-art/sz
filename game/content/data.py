@@ -157,7 +157,7 @@ ANNUAL_TAX_BASE = 80_000_000    # 年应征基准 ~8000万贯（含田赋60%+工
 # 朝廷经常性货币开支派生基准（可见支出，单位贯/月）。
 # 原写死的 MONTHLY_EXPENDITURE_BASE(210万) 已废除，改由本基准派生；
 # 营造/赏赐等原常项不再写死，改由工程系统 + 派生公式给出，避免破坏既有结算。
-MONTHLY_EXP_CIVIL_BASE = 550_000    # 朝廷经常性货币开支派生基准（营造/赏赐/诸司常费，税基 POP 化后按收入规模校准）
+MONTHLY_EXP_CIVIL_BASE = 880_000    # 朝廷经常性货币开支派生基准（营造/赏赐/诸司常费，税基 POP 化后按收入规模校准）
 
 # 二税折色：各路 monthly_tax_income_i = tax_base_i × arrival × tax_coeff × ROUTE_MULT_i × COLOR_RATE
 # tax_base_i 取现有 monthly_tax 初值（单位贯/月）作锚，开局全国锚≈1_097_000贯/月，全进国库（钱）。
@@ -236,7 +236,8 @@ HOARD_CAP_MULT = 0.3            # 士绅囤粮软上限系数（A1 定案）：�
                                 # 超软上限先售买方池、未售保留（囤积居奇机制保留）；仅超硬上限（软上限×1.5）强制出清
 # 窖银动用率（A1 定稿·用户史实指示 c + 窖藏抽水复核定案）：由 AI 推演档位（_economy_ai["窖银"]）决定每月动用比例，
 # 程序换算；无 AI（本地降级/缺键）兜底「小」= 0.5%/月被动缓释（藏富缓慢回流市场，不再完全冻结）。
-HOARD_DRAW_RATE = {"无": 0.0, "微": 0.002, "小": 0.005, "中": 0.01, "大": 0.02}
+HOARD_DRAW_RATE = {"无": 0.0, "微": 0.002, "小": 0.005, "中": 0.01, "大": 0.02,
+                   "巨": 0.03, "极": 0.04}   # 审查 P1-3 修复：补巨/极，7 档闭合
 # 开局货币校准（A1 定稿）：修复 F1（士绅卖粮造币）后补开局货币，防跌回通缩地板（物价 0.5）。
 # 数值按蔡权衡量化：开局缺约 9400 万贯才到物价 1.0；落地后按回放微调（目标开局物价 0.9~1.1）。
 # 开局货币校准（A1 定稿·蔡权衡量化定案）：START_MONEY_BOOST 170M。
@@ -310,13 +311,13 @@ TAX_COMMERCE_RATIO = 0.30      # 工商占三成（名义口径；实征按 comm
 TAX_POLL_RATIO = 0.10          # 丁口(役钱)占一成（税基 POP 化后校准）
 # 欠税月追缴率（A1）：税征不足时缺口记入 POP 欠税科目，次月起每月最多按
 # 「可支付财富（wealth - 保底线）的该比例」追缴回收（替代原直接蒸发，钱不凭空生）。
-ARREARS_COLLECT_RATE = 0.25    # 欠税追缴率（/月，0.25 = 每月回收可支付余力的 25%；平衡修复 0.2→0.25）
-MIN_WEALTH_FLOOR_RATIO = 0.75  # 保底豁免口径系数（蔡权衡平衡修复）：_min_wealth × 0.75，
-                               # 农可多缴 25% 仍保生存底线（豁免线×0.5 验证）
+ARREARS_COLLECT_RATE = 0.25    # 欠税追缴率（/月；蔡权衡开局回调 0.25→0.22，恢复开局窘迫——追缴放缓）
+MIN_WEALTH_FLOOR_RATIO = 0.78  # 保底豁免口径系数（蔡权衡开局回调 0.75→0.78：豁免口径放宽——农免缴更多，
+                               # 税入略降，开局窘迫；农仍保生存底线）
 
 # 工商征率（玩家可调）：对 POP 商品消费额（工匠/商人真实产值）按"几成"征收。
 # 默认 0.25 = 抽二成五。税基 POP 化后按真实商品消费额征，量级校准到收支平衡。
-COMMERCE_TAX_RATE_DEFAULT = 0.06   # 平衡修复 0.05→0.06
+COMMERCE_TAX_RATE_DEFAULT = 0.06   # 蔡权衡开局回调：0.055→0.05（下限，备选旋钮——亏损仍浅则再调 ARREARS/MIN_WEALTH）
 # 工匠/商人人均月产值（贯）：工商税基 = (工匠+商人)size × 此值，为"产值流量"（不随财富存量下降，避免税抽干税基的螺旋）
 CRAFT_OUTPUT_PER_CAPITA = 4.5
 COMMERCE_TAX_RATE_MIN = 0.05   # 最低 0.5 成
@@ -325,6 +326,7 @@ COMMERCE_TAX_RATE_MAX = 0.40   # 最高 4 成
 # 破产兜底：国库深度亏空的两档阈值（贯）
 #  - TREASURY_CRISIS_LINE：国库跌破此值触发"库藏空虚"危机事件，逼玩家表态
 #  - TREASURY_COLLAPSE_LINE：跌破此值强判 game_over（国用耗竭，天下鼎沸）
+# 用户确认最终版：内帑黑洞不修（设计保留），危机线恢复原 −500万
 TREASURY_CRISIS_LINE = -5_000_000
 TREASURY_COLLAPSE_LINE = -20_000_000
 
@@ -490,14 +492,6 @@ FIREARM_TIERS = [
 ]
 
 
-def _firearm_tier(gunpowder: int) -> str:
-    """按火药军用程度返回当前制式火器形态名。"""
-    name = "突火枪"
-    for thr, n in FIREARM_TIERS:
-        if gunpowder >= thr:
-            name = n
-    return name
-
 DEFENSE_LINES = {
     # 防区 garrison 为只读派生视图：由各路 army_units 聚合（见 game_state.defense_lines_view()）。
     #   北线_太原真定 ← 河北 + 河东
@@ -620,6 +614,165 @@ PERSONAL_ACTIONS = {
         "desc": "大宴群臣、游幸园林，损健康耗国帑"
     },
 }
+
+# ============================================================
+# 皇帝个人行动矩阵（言枢密契约 v2 + A15 史实素材，单一权威源）
+# 结构：location -> mode -> action -> 行动定义
+#   label     三标签：史实 / 合理推演 / 玩法抽象（防捏造史实）
+#   desc      行动说明（UI 与叙事用）
+#   base_cost 程序基础开销（贯；AI 不写数值，守恒走此通道）
+#   fund      资源通道：treasury=公开大驾（国库）/ imperial_treasury=微服便服（内帑）
+#   risk      默认风险档（低/中/高；AI 契约可覆盖）
+#   era_gate  时代门槛（年份，None=不限；艮岳1117/延福宫1113/上清宝箓宫1117/东幸镇江1126）
+#   prep      公开出京准备期月数（与 prepared 联动：实际 = prep - (1 if prepared else 0)，即 1~2 月）
+#   distance  微服他地距离核算（True 时按目标路距离档定装备月数）
+#   micro_once 微服京城每月 1 次（程序按回合计数限）
+#   base_effects 程序兜底效果（数值；AI 契约失败时以此落地，不伪造 AI 文本）
+# 注：effects 落地白名单 = prestige / population_satisfaction / emperor_health /
+#     art_mastery / taoism_leaning / pleasure_leaning / factions.*.satisfaction /
+#     decree_bandwidth（bandwidth_bonus），与 state_applier 白名单对齐。
+# ============================================================
+IMPERIAL_LOCATIONS = ("宫里", "京城", "出京")
+IMPERIAL_MODES = ("公开", "微服")
+IMPERIAL_RISK_LEVELS = ("低", "中", "高")
+# 风险概率（程序掷定）：低 2% / 中 8% / 高 20%
+IMPERIAL_RISK_PROB = {"低": 0.02, "中": 0.08, "高": 0.20}
+
+IMPERIAL_ACTION_MATRIX = {
+    "宫里": {
+        "公开": {
+            "临朝": {
+                "label": "史实", "desc": "临朝视事、批阅奏章、召对大臣",
+                "base_cost": 0, "fund": "treasury", "risk": "低", "era_gate": None,
+                "base_effects": {"bandwidth_bonus": 2, "prestige": 3, "emperor_health": -2},
+            },
+            "书画翰墨": {
+                "label": "史实", "desc": "挥毫泼墨、吟诗作画，提升艺术造诣",
+                "base_cost": 0, "fund": "treasury", "risk": "低", "era_gate": None,
+                "base_effects": {"art_mastery": 3, "prestige": 1},
+            },
+            "崇道修醮": {
+                "label": "史实", "desc": "设醮祈福、召见方士，增道门与皇威",
+                "base_cost": 50000, "fund": "treasury", "risk": "低", "era_gate": None,
+                "base_effects": {"taoism_leaning": 4, "faction_change": {"新党": 3}},
+            },
+            "宴游享乐": {
+                "label": "史实", "desc": "大宴群臣、游幸园林，损健康耗国帑",
+                "base_cost": 80000, "fund": "treasury", "risk": "低", "era_gate": None,
+                "base_effects": {"emperor_health": -5, "pleasure_leaning": 4},
+            },
+        },
+        "微服": {},   # 宫里无微服（跨格子非法）
+    },
+    "京城": {
+        "公开": {
+            "幸艮岳": {
+                "label": "史实", "desc": "游幸艮岳万岁山，御制《艮岳记》（政和七年始筑）",
+                "base_cost": 300000, "fund": "treasury", "risk": "低", "era_gate": 1117,
+                "base_effects": {"pleasure_leaning": 3, "population_satisfaction": -2},
+            },
+            "延福宫宴游": {
+                "label": "史实", "desc": "延福宫宴游，与近臣赋诗观花（政和三年建）",
+                "base_cost": 150000, "fund": "treasury", "risk": "低", "era_gate": 1113,
+                "base_effects": {"pleasure_leaning": 2, "art_mastery": 1},
+            },
+            "上清宝箓宫": {
+                "label": "史实", "desc": "幸上清宝箓宫，会道士二千余人（政和七年）",
+                "base_cost": 100000, "fund": "treasury", "risk": "低", "era_gate": 1117,
+                "base_effects": {"taoism_leaning": 3, "prestige": 1},
+            },
+        },
+        "微服": {
+            "微行市井": {
+                "label": "史实(方向)+合理推演", "desc": "微服夜行汴京街市酒肆（传闻细节为推演）",
+                "base_cost": 20000, "fund": "imperial_treasury", "risk": "高", "era_gate": None,
+                "micro_once": True, "base_effects": {"prestige": -1},
+            },
+            "微行大臣府第": {
+                "label": "史实", "desc": "微服过近臣第宅（《宋史·王黼传》载微行过其家）",
+                "base_cost": 10000, "fund": "imperial_treasury", "risk": "中", "era_gate": None,
+                "micro_once": True, "base_effects": {"prestige": 1},
+            },
+        },
+    },
+    "出京": {
+        "公开": {
+            "巡幸东南": {
+                "label": "合理推演", "desc": "大驾巡幸东南（正史无成行，标推演）",
+                "base_cost": 500000, "fund": "treasury", "risk": "中", "era_gate": None,
+                "prep": 2, "bandwidth_cost": 1,
+                "base_effects": {"prestige": 2, "population_satisfaction": -1},
+            },
+            "东幸镇江": {
+                "label": "史实(避难)", "desc": "金军南下时东幸镇江避兵（靖康元年起）",
+                "base_cost": 300000, "fund": "treasury", "risk": "高", "era_gate": 1126,
+                "prep": 1, "bandwidth_cost": 1,
+                "base_effects": {"prestige": -5, "population_satisfaction": -3},
+            },
+        },
+        "微服": {
+            "微服他地": {
+                "label": "合理推演", "desc": "微服往他州路察访民情（近当月来回/中备1月/远备2月）",
+                "base_cost": 50000, "fund": "imperial_treasury", "risk": "中", "era_gate": None,
+                "distance": True, "base_effects": {"population_satisfaction": 2},
+            },
+        },
+    },
+}
+
+# 微服他地距离档 → 装备月数（近=当月来回 / 中=装备1月 / 远=装备2月）
+IMPERIAL_DISTANCE_MONTHS = {"近": 0, "中": 1, "远": 2}
+# 目标路名 → 距离档（关键词前缀匹配；未命中默认「中」）
+IMPERIAL_ROUTE_DISTANCE = {
+    "近": ("开封", "京畿", "京西", "京东"),
+    "中": ("河北", "河东", "淮南", "京西南", "京西北", "京东南", "京东北"),
+    "远": ("陕西", "江南", "两浙", "荆湖", "四川", "广南", "福建", "燕云", "永兴", "秦凤"),
+}
+
+
+def imperial_distance(target: str) -> str:
+    """目标州路名 → 距离档（近/中/远）；未识别默认「中」。"""
+    t = str(target or "")
+    for dist, kws in IMPERIAL_ROUTE_DISTANCE.items():
+        if any(k in t for k in kws):
+            return dist
+    return "中"
+
+
+def imperial_prep_months(location: str, mode: str, action: str,
+                         prepared: bool = False, target: str = "") -> int:
+    """行动准备期（月）：
+    - 公开出京：prep 基础月数 - (1 if prepared) → 1~2 月（pending_imperial_trip 月度推进）；
+    - 微服他地：按目标路距离档定装备月数（近0/中1/远2）；
+    - 其余（宫里/京城）：0（当月生效）。
+    """
+    cell = IMPERIAL_ACTION_MATRIX.get(location, {}).get(mode, {}).get(action) or {}
+    if cell.get("distance"):
+        return IMPERIAL_DISTANCE_MONTHS.get(imperial_distance(target), 1)
+    if location == "出京" and mode == "公开":
+        return max(1, int(cell.get("prep", 2)) - (1 if prepared else 0))
+    return 0
+
+
+# 皇帝个人行动 AI 契约 v2 effects 键 → 落地维度（与 state_applier 白名单 path 对齐）
+IMPERIAL_EFFECT_DIM = {
+    "威望": "prestige",
+    "民心": "population_satisfaction",
+    "健康": "emperor_health",
+    "心情": "pleasure_leaning",   # 心情 → 享乐/心情倾向（0~100）
+}
+# 0~100 刻度维度的档位基准（prestige/民心 走 ai.client_utils._TIER_BASE 同源换算）
+IMPERIAL_EFFECT_BASE = {"emperor_health": 3.0, "pleasure_leaning": 3.0}
+
+# 旧单值 personal_action → 宫里·公开 矩阵行动（旧档/旧 UI 通道迁移）
+# 旧键以 PERSONAL_ACTIONS 为准（享乐宴游）；矩阵行动名为「宴游享乐」。
+LEGACY_PERSONAL_ACTION_MAP = {
+    "勤政": "临朝",
+    "书画翰墨": "书画翰墨",
+    "崇道修醮": "崇道修醮",
+    "享乐宴游": "宴游享乐",
+}
+
 
 # 施政大项
 MAJOR_POLICIES = [
@@ -813,6 +966,22 @@ def _ext(name: str, typ: str, hotspot: tuple[float, float, float, float],
     return d
 
 
+# ============================================================
+# 外部势力省份（史翰青素材 A12：辽 5 京道 / 夏 2 州 + 其余本部）
+#   {势力: [(省名, 权重), ...]}——派生：人口/月税按权重分摊（省为展示层，不落独立状态）
+# ============================================================
+EXTERNAL_PROVINCES = {
+    "辽": [("南京道", 0.30), ("东京道", 0.20), ("上京道", 0.25), ("西京道", 0.15), ("中京道", 0.10)],
+    "西夏": [("兴庆府", 0.60), ("西平府", 0.40)],
+    "金": [("上京会宁", 0.55), ("黄龙府", 0.45)],
+    "高丽": [("开京", 0.50), ("西京平壤", 0.30), ("东京开城", 0.20)],
+    "大理": [("大理", 0.55), ("善阐", 0.45)],
+    "日本": [("京都", 0.40), ("镰仓", 0.35), ("九州", 0.25)],
+    # 其余势力（本部单一省）
+}
+_EXTERNAL_PROVINCES_DEFAULT = [("本部", 1.0)]
+
+
 EXTERNAL_REGIMES = {
     # —— 北方与西北 ——
     "辽":       _ext("辽", "游牧帝国", (0.6828, 0.3829, 0.1406, 0.125), 75, 380, 520, 0.030, 0.045),
@@ -909,6 +1078,41 @@ FREE_EFFECT_CAP = {
     "defense_bonus": 10, "tech": 10, "art_mastery": 10, "army": 10,
     "finance": 3_000_000, "talent": 10,
 }
+
+# ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与
+#      FREE_EFFECT_CAP 双权威源漂移；补 art_mastery 基值与封顶）----
+# tier_to_value(dim, tier) = TIER_VALUE_BASE[dim] × TIER_RANGE[tier] × authority，再 CAP 封顶。
+# 此表为全游戏唯一的档位基值权威源；ai/client_utils._TIER_BASE/_TIER_CAP 已改为从此 import。
+TIER_VALUE_BASE = {
+    "prestige": 4,                     # 皇威 ±
+    "treasury": 800_000,               # 国帑 ±（贯）
+    "population_satisfaction": 3,      # 民心 ±
+    "external_jin": 4,                 # 金态度 ±
+    "external_liao": 4,                # 辽态度 ±
+    "external_xixia": 4,               # 西夏态度 ±
+    "defense_bonus": 3,                # 城防 ±
+    "commerce_tax": 0.15,              # 工商征率（设定值：tier 档位→税率，非增量）
+    "curtail_waste": 100_000,          # 省浮费：月省贯（设定值）
+    "reduce_office": 100_000,          # 裁汰冗员：月省贯（设定值）
+    "land_survey": 0.05,               # 方田均税：清丈隐田，降隐漏率
+    "hoard": 0.05,                     # 士绅囤粮：囤/抛「中」档 = 月产(囤)或屯粮(抛)的 5%
+    "finance": 800_000,                # 金融（交子/市舶收益）±
+    "talent": 3,                       # 科举得才 ±
+    "tech": 3,                         # 科技积累 ±
+    "army": 3,                         # 军力 ±
+    "reform": 3,                       # 改革推进 ±
+    "art_mastery": 3,                  # 艺事精进 ±（审查修复：原 _TIER_BASE 缺此项致换算恒0）
+}
+# 单项封顶（与 FREE_EFFECT_CAP 对齐并扩展 curtail_waste/reduce_office/land_survey/hoard/reform）
+TIER_VALUE_CAP = {
+    "prestige": 12, "treasury": 3_000_000, "population_satisfaction": 10,
+    "external_jin": 12, "external_liao": 12, "external_xixia": 12,
+    "defense_bonus": 10, "finance": 3_000_000, "talent": 10, "tech": 10,
+    "army": 10, "reform": 10, "land_survey": 0.10,
+    "art_mastery": 10,                 # 审查修复：补 art_mastery 封顶
+    "curtail_waste": 500_000, "reduce_office": 500_000,
+    "hoard": 0.20,
+}
 # free_effect 成本（cost）超存量判定用的软上限比例：cost.treasury 超过当前国库该比例 → 整单不执行（拒绝）
 FREE_EFFECT_COST_REJECT_RATIO = 2.0
 
@@ -919,7 +1123,7 @@ MEMORY_RELATION_DECAY = {
     "supports": 0.02, "opposes": 0.02, "involves": 0.03, "produces": 0.03,
     "progresses": 0.02, "promises": 0.05, "stance": 0.015, "governs": 0.01,
 }
-MEMORY_ARCHIVE_WEIGHT = 0.25   # 归档阈值：w_eff 低于此 → 移入 memory_archive.json（不物理删除）
+MEMORY_ARCHIVE_WEIGHT = 0.25   # 归档阈值：w_eff 低于此 → 标记 archived（SQLite summaries 表，不物理删除）
 
 # ---- 全游戏级强制 AI：统一错误码（单一权威源，AI 缺失/失败一律拒绝式报错，不降级不伪造）----
 AI_ERROR_CODES = {
@@ -952,7 +1156,15 @@ JIAOZI_INFO = {
     "issued": 0,          # 已发交子（贯）
     "trust": 60,          # 纸币信用（0~100）
     "reserve": 2_000_000, # 本钱准备（贯）
+    # ---- 界制（T9 物价方案定稿·蔡权衡）：交子一界 36 回合，换界 5% 工墨费销毁 ----
+    "term": 36,           # 一界回合数（JIAOZI_TERM）
+    "cycle": 0,           # 当前界数（每换一界 +1）
+    "age": 0,             # 当前界已行用回合数（达 term 触发换界）
+    "redeemed_total": 0,  # 累计换界销毁（贯，statistics 口径）
 }
+# 交子界制常量（T9 定稿）：换界销毁为**销币通道**（回收流通货币，抑通胀）
+JIAOZI_TERM = 36            # 一界回合数
+JIAOZI_REDEEM_FEE = 0.05    # 换界工墨费比例（换界时按在发额 5% 销毁）
 MARITIME_INFO = {
     "open": False,        # 市舶司是否广开
     "tariff": 0.10,       # 舶税税率（抽解率）
@@ -963,8 +1175,10 @@ MARITIME_INFO = {
 MARITIME_TRADE_BASE = 20_000_000   # 广开市舶基准 2000万贯/年，随科技(造船/航海)/工业(商品供给)增长
 COIN_INFO = {
     "shortage": 0.30,     # 钱荒程度（0~1，越高越荒）
-    "private_melt": 0.20, # 铜钱私铸/外流比例
+    "private_melt": 0.10, # 铜钱私铸/外流比例（T9 定稿 0.2→0.1；熔化走 MELT_RATE 真实化）
 }
+# ---- 私铸熔化真实化（T9 定稿）：POP 铜钱 wealth 逐月真实熔化扣减 ----
+MELT_RATE = 0.001         # 民间铜钱熔化率（/月，wealth 0.1% 扣减，退出流通）
 
 # ---- 经济金融推演基准（蔡权衡定稿，接档位词丰富 7 档）----
 # economy_decide 扩展 5 金融字段：AI 只给三态词（增/稳/跌、缓/平/加剧、兴/平/衰、
@@ -1072,6 +1286,7 @@ BUILDING_EFFECT_CAP = 2.0      # 效果乘数封顶 ×2.0
 POP_BUILDING_TYPES = ("农田", "工坊", "商铺", "庄园")   # POP 建筑（阶层 wealth 出资，Lv1-5，×0.05/Lv）
 POP_BUILDING_EFFECT = 0.05     # 每级 ×0.05（封顶 ×2.0 由 BUILDING_EFFECT_CAP 统一）
 # 投资（invest_decide 复用 free_effect 载体；六领域基准年回报/风险）
+# 对齐（复用原有机制）：+科技领域（研发投入走既有投资通道，落地进 tech researching 加速）
 INVEST_BASE = {
     "农业": {"return": 0.08, "risk": 0.15},
     "水利": {"return": 0.10, "risk": 0.10},
@@ -1079,6 +1294,7 @@ INVEST_BASE = {
     "商铺": {"return": 0.15, "risk": 0.25},
     "漕运": {"return": 0.10, "risk": 0.15},
     "军器": {"return": 0.18, "risk": 0.30},
+    "科技": {"return": 0.0, "risk": 0.0, "rnd": True},   # 研发投入（无回报，加速 tech researching）
 }
 INVEST_FUND_SOURCES = ("treasury", "imperial_treasury")   # 资金来源：国库（会签/廷议执行率）/内帑（乾纲独断）
 CANAL_MONTHLY_RATE = 0.90      # 漕运效率基准：每月把州府可输存粮的 90% 输往中央仓
@@ -1093,6 +1309,35 @@ LAND_TAX_RATE = 0.15           # 田赋本色率：月田赋 = 月粮产 × 15%�
 # 通货 / 物价（货币经济学，钱/物之比）
 PRICE_LEVEL_BASE = 1.0         # 物价基准（钱/物之比 = 1）
 PRICE_LEVEL_MIN = 0.5          # 物价下限（钱荒极深）
+
+# ---- 新兵种（branch_registry 仿 tool_registry，玩家自由设立；言枢密契约 + 史翰青素材 + 蔡权衡数值）----
+# 特化系数（蔡权衡定稿）：equip 1+0.67×档 封顶2.0 / 非特化降配 1−0.33×档 下限0.5、
+# train 1+0.30×档 封顶1.75、position 场景表 +80%/−30%、cost 0.15/0.10/0.08
+BRANCH_SPEC = {
+    "specialize": {"equip": lambda t: min(2.0, 1 + 0.67 * t),     # t=档位指数 0~1.5
+                   "train": lambda t: min(1.75, 1 + 0.30 * t)},
+    "despecialize": {"equip": lambda t: max(0.5, 1 - 0.33 * t)},
+    "position": {"平原": 0.8, "山地": -0.3, "水战": -0.3, "攻城": 0.3, "守城": 0.3,
+                 "野战": 0.2, "巷战": -0.1},
+    "cost": {"禁军": 0.15, "厢军": 0.10, "乡兵": 0.08},   # 招募成本系数（/人/月 粮饷基准）
+}
+# 装备单价（贯/件）：枪刀5/弓弩8/火器30/战马50/盔甲20/舟船16.7/器械15
+EQUIP_PRICE = {"枪刀": 5, "弓弩": 8, "火器": 30, "战马": 50, "盔甲": 20,
+               "舟船": 16.7, "器械": 15}
+RECRUIT_MONTHS = 6            # 招募粮饷预支月数（成本 = Σ人数×(装备现值 + 粮饷×6月)）
+# 新兵种封顶（蔡权衡定稿）：战力 ≤1.8×、粮饷 ≤2.0×、双方向、注册 ≤3
+BRANCH_POWER_CAP = 1.8
+BRANCH_PAY_CAP = 2.0
+BRANCH_REGISTRY_MAX = 3
+# 科技门槛（史实锚）：火器→gunpowder≥30/45/65/85、弓弩→弓弩工艺、战马→马政
+BRANCH_TECH_GATE = {
+    "gunpowder": (30, 45, 65, 85),     # 火器档位 1~4 → gunpowder 门槛
+    "archery": 60,                     # 弓弩系
+    "cavalry": 55,                     # 马政
+}
+# 史实锚兵种（史翰青 A12）：神臂弩/胜捷军/水虎翼 史实番号、拐子马金军、火器北宋史实；
+# 赤心队待考禁用（不入锚）。
+BRANCH_ANCHORS = ("神臂弩", "胜捷军", "水虎翼", "拐子马", "火器军")
 PRICE_LEVEL_MAX = 3.0          # 物价上限（恶性通胀）
 MONEY_SUPPLY_START = 200_000_000  # 货币有效供给初值（贯）：铜钱+有效交子+白银折钱。
 
@@ -1171,16 +1416,44 @@ SEED_GRAIN_PER_MU = 0.065      # 种粮预留 = 耕地亩 × 此值 / 12（石/�
 FARMER_STORE_CAP = 12          # 农储粮上限（石/人）：超出部分按 FARMER_SPOIL_RATE 月霉耗核销（收敛 ~12石/人）
 FARMER_SPOIL_RATE = 0.02       # 农超储霉耗率（/月，兜底防农存粮无限涨）
 HIDDEN_CONSUME_PER_CAPITA = 0.4    # 隐户人均月耗粮（石/口/月）；隐户不落籍，由该路士绅/地主供给
-GOODS_CONSUME_RATE = {"士绅": 0.05, "官僚": 0.03, "商人": 0.03, "工匠": 0.02, "兵": 0.02, "农": 0.010}  # 商品消费率（/月）；农 0.015→0.010（平衡修复：农不穷）
-BOOM_MULT = {"微": 0.4, "小": 0.7, "中": 1.0, "大": 1.4}  # 景气消费倍率（Phase B 定稿）：消费/奢侈品按景气放大，缺失默认「中」=1.0
+GOODS_CONSUME_RATE = {"士绅": 0.05, "官僚": 0.03, "商人": 0.03, "工匠": 0.01, "兵": 0.02, "农": 0.010}  # 商品消费率（/月）；工匠 0.02→0.01（蔡权衡：防工匠破产）
+# 工匠存货外销变现（蔡权衡裁决：goods 存量 > 库存上限 → 外销，goods 出 == 外部钱入，守恒）
+GOODS_PRICE = {"布": 1, "绸": 3}          # 外销单价（贯/单位）
+EXPORT_STOCK_MONTHS = 12                  # 库存上限 = 月产 × 12（超上限触发外销）
+EXPORT_RATE = 0.3                         # 月外销 = 月产 × 0.3（min(存量-上限, 外销额)）
+BOOM_MULT = {"无": 0.0, "微": 0.4, "小": 0.7, "中": 1.0, "大": 1.4, "巨": 1.8, "极": 2.2}
+# 景气消费倍率（Phase B 定稿 + 审查 P1-3 修复）：消费/奢侈品按景气放大。
+# 补无/巨/极 3 档，7 档闭合——原缺此 3 档时 AI 出「巨」被 .get(默认1.0) 静默降级为中性。
 FARMER_SELL_FLOOR = 0.5            # 农最低供给份额：粮市撮合中农卖方权重保底（防农被挤出粮市）
 POP_FLOW_RATE = {"城市化": 0.0008, "回乡": 0.0008, "科举": 0.0001}  # POP 流动基准（/月）
 EXAM_HARD_POOR_SHARE = {"无": 0.0, "微": 0.3, "小": 0.5, "中": 0.7, "大": 0.9}  # 科举寒门（农）入仕占比
 URBAN_SPLIT = {"工匠": 0.6, "商人": 0.4}  # 城市化净流入在工匠/商人间的分配
 
+# ---- 俸禄指数化（T9 定稿·Step 4）：粮价 > 1.5 时俸禄 ×(1+0.1×超额) ----
+PAY_INDEX_BASE = 1.5            # 粮价触发基准（高于此指数化）
+PAY_INDEX_STEP = 0.1            # 超额每档系数（×0.1）
+
 # 常平仓（区域粮价自动稳定器）
 CHANGPING_HIGH = 1.6            # 粮价高于此则常平粜粮抑价
 CHANGPING_LOW = 0.9             # 粮价低于此则常平籴粮托市（加消耗定案 0.6→0.9，收储托价扩容）
+# ---- 常平扩容为货币稳定器（T9 定稿·蔡权衡）----
+# 平粜吸买家钱入地方府库（货币回收，不碰内帑；local_treasury 不在 money 公式）
+CHANGPING_CAP_RATIO = 1.0       # 常平仓容 = 月产 100%（原 50%）
+CHANGPING_BUY_BUDGET_RATIO = 0.50  # 平籴预算 = 地方府库 50%（原 30%）
+CHANGPING_SELL_RATIO = 0.60     # 平粜量上限 = 常平储 60%（价>2.0 档，原 45%）
+CHANGPING_PRICE_TARGET_LOW = 1.2   # 稳定器目标价下限（PRICE_TARGET_SUPER[0]）
+CHANGPING_PRICE_TARGET_HIGH = 2.5  # 稳定器目标价上限（PRICE_TARGET_SUPER[1]）
+# ---- 物价目标区间（T9 定稿）：物价全程 ∈ [0.8, 2.8]，稳定器目标 [1.2, 2.5] ----
+PRICE_TARGET_SUPER = (1.2, 2.5)
+PRICE_FLOOR_HARD = 0.8          # 断言下界（物价 ≥ 0.8）
+PRICE_CEIL_HARD = 2.8           # 断言上界（物价 ≤ 2.8，防触 3.0 恶性通胀）
+# ---- 稳定器净回收公式（T9 定稿）：月销币目标 = money × (price−1.2)/price × 0.5 ----
+STABILIZER_RECYCLE_RATE = 0.5   # 净回收系数（0.5）
+# ---- 铸钱受控（T9 定稿）：铜资源约束 + 熔耗 20% 净增 80% + 物价>2.0 禁止 ----
+MINT_MELT_LOSS = 0.20           # 铸钱熔耗 20%（熔铜铸钱损耗）
+MINT_NET_RATIO = 0.80           # 净增 80%（1 − 熔耗）
+MINT_PRICE_BAN = 2.0            # 物价 > 此值禁止铸钱（防助涨通胀）
+COPPER_RESOURCE_DIM = "iron"    # 铸钱金属资源维度（resources 记账；用既有 iron 维度承载铸钱金属，不新增维度破坏存档/初始化）
 
 # 经济→事件压力反馈（粮荒/通胀→起义压力）
 ECONOMY_PRESSURE_THRESHOLD_GRANARY = 0.2   # 太仓存量低于容量 20% → 粮荒压力
@@ -1188,6 +1461,29 @@ ECONOMY_PRESSURE_THRESHOLD_PRICE = 2.0     # 粮价高于 2.0 → 通胀压力
 
 # 岁币/岁赐支出（外交稳定 vs 财政负担）
 SUI_GONG_ANNUAL = 300_000      # 岁币岁赐年支出基准（贯），随外交态势浮动
+# ============================================================
+# 外交对话协议（言枢密 diplomacy_dialogue + 蔡权衡系数表）
+# ============================================================
+# 协议 → attitude 变化（六协议 × 档位；CAP ±15）
+_DIPLO_ATT = {
+    "和亲": {"微": 2, "小": 4, "中": 6, "大": 8, "极": 10},
+    "岁币": {"减": 2, "增": -2, "停": -8},
+    "榷场": {"开": 3, "扩": 2, "停": -5},
+    "盟约": {"结": 6, "断": -10},
+    "纳贡": {"献": 4, "停": -6},
+    "战争": {"小": -8, "中": -12, "大": -12},
+}
+DIPLO_ATT_CAP = 15              # 单次协议 attitude 变化 CAP
+DOWRY_BASE = {"微": 50_000, "小": 100_000, "中": 200_000, "大": 400_000, "极": 700_000}  # 和亲嫁妆（贯，内帑出守恒）
+SUI_GONG_MULT = {"增": 1.5, "减": 0.7, "停": 0.0}   # 岁币倍率（_settle_finance sui_gong × mult）
+TRADE_INCOME = {"微": 30_000, "小": 60_000, "中": 100_000, "大": 150_000, "极": 200_000}  # 榷场月入（国库，不重复计税）
+WAR_RISK_BOOST = 0.10           # 战争边患事件概率 +10%（基础概率上）
+# 国主 persona（言枢密：diplomacy_dialogue 注入 sys_p）
+MONARCH_PERSONAS = {
+    "辽": "辽帝耶律洪基：骄矜自负，重岁币之利，轻汉民之怨；喜和亲之固，恶盟约之缚。",
+    "金": "金主完颜阿骨打：雄猜善战，志在灭辽；岁币可收，战争可启，骄兵之性难驯。",
+    "西夏": "夏主李乾顺：狡黠善变，骑墙于宋辽之间；岁币多多益善，和亲可结，盟约不信。",
+}
 
 FINANCE_DESC = {
     "trust": {20: "交子几不可信", 40: "商民疑之", 60: "信用尚稳", 80: "远近信行"},
@@ -1303,9 +1599,9 @@ TECH_NODES: list[TechNode] = [
     ("M2_spindle",  "机械动力", 1, "水力大纺车", "水转大纺，昼夜不息", ["M1_noria"], 60, [("hydraulics",50)], {"silver":120000,"months":9,"masters":3}, {"trade_income":0.15}),
     ("M3_bellows",  "机械动力", 1, "水力鼓风",   "水排鼓风，铸冶不绝", ["M1_noria"], 55, [("iron",35)], {"silver":80000,"months":7,"masters":3}, {"build_cost":-0.08}),
     ("M4_furnace",  "机械动力", 2, "砖石高炉",   "高炉积薪，万斛铁出", ["M3_bellows"], 72, [("iron",55)], {"silver":300000,"months":18,"masters":6}, {"build_cost":-0.15}),
-    ("M5_steampump","机械动力", 4, "蒸汽抽水机", "汽机汲水，矿穴乃通", ["M4_furnace"], 80, [("west",1)], {"silver":500000,"months":20,"masters":6}, {"mining_income":0.20}),
+    ("M5_steampump","机械动力", 4, "蒸汽抽水机", "汽机汲水，矿穴乃通", ["M4_furnace"], 80, [("west",1)], {"silver":500000,"months":20,"masters":6}, {"mining_income":0.10}),
     ("M6_loco",     "机械动力", 5, "蒸汽机车",   "汽机驱动，铁轨万里", ["M5_steampump","E3_steel"], 85, [("west",2)], {"silver":1200000,"months":28,"masters":8}, {"canal_efficiency":0.30}),
-    ("M7_elecbasis","机械动力", 5, "电学基础",   "琥珀引电，磁石感线", ["M6_loco"], 88, [("west",2)], {"silver":1500000,"months":26,"masters":8}, {"production":0.15}),
+    ("M7_elecbasis","机械动力", 5, "电学基础",   "琥珀引电，磁石感线", ["M6_loco"], 88, [("west",2)], {"silver":1500000,"months":26,"masters":8}, {"production":0.08}),
     ("M8_ice",      "机械动力", 6, "内燃机",     "油气入炉，机转如雷", ["M6_loco","E4_oil"], 90, [("west",3)], {"silver":2000000,"months":30,"masters":10}, {"production":0.25}),
     ("M9_power",    "机械动力", 6, "电力传输",   "电枢旋转，千里动力一脉", ["M8_ice","M7_elecbasis"], 95, [("west",4)], {"silver":3000000,"months":32,"masters":12}, {"production":0.30}),
     # ---- 能源与材料 ----
@@ -1363,7 +1659,7 @@ BUILDING_BLUEPRINTS = {
     "I4_telegraph":  {"name": "电报局",   "kind": "通讯", "cost": {"silver":600000,"months":18}, "effect": {"decree_speed":-3}, "need_node": "I4_telegraph"},
     "H2_variola":    {"name": "痘苗局",   "kind": "医学", "cost": {"silver":80000,"months":10}, "effect": {"epidemic_risk":-0.30}, "need_node": "H2_variola"},
     "C4_fertilizer": {"name": "肥料局",   "kind": "农业", "cost": {"silver":150000,"months":12}, "effect": {"yield_bonus":0.15}, "need_node": "C4_fertilizer"},
-    "M5_steampump":  {"name": "蒸汽矿场", "kind": "矿业", "cost": {"silver":300000,"months":16}, "effect": {"mining_income":0.20}, "need_node": "M5_steampump"},
+    "M5_steampump":  {"name": "蒸汽矿场", "kind": "矿业", "cost": {"silver":300000,"months":16}, "effect": {"mining_income":0.10}, "need_node": "M5_steampump"},
     "M6_loco":       {"name": "机器局·铁路", "kind": "交通", "cost": {"silver":800000,"months":20}, "effect": {"canal_efficiency":0.30}, "need_node": "M6_loco"},
     "M9_power":      {"name": "发电厂",   "kind": "能源", "cost": {"silver":2000000,"months":24}, "effect": {"production":0.15}, "need_node": "M9_power"},
 }
@@ -1418,12 +1714,87 @@ REFORM_ACTS = ["更役法", "行方田均税", "整顿吏治", "抑兼并", "宽
 
 
 # ============================================================
-# 金融/科举/科技/军/外交/改革 → 脱敏描述辅助
+# 金融/科举/科技/军/外交/改革 → 脱敏描述辅助（原 data_desensitize.py 内联）
 # ============================================================
+def desensitize_prestige(value: int) -> str:
+    """皇威数值→脱敏描述"""
+    if value <= 25: return "皇威扫地"
+    if value <= 40: return "皇威不振"
+    if value <= 60: return "皇威平平"
+    if value <= 80: return "皇威尚隆"
+    return "皇威鼎盛"
 
-# 脱敏辅助函数 re-export（拆分自本文件，保持调用兼容）
-from content.data_desensitize import (
-    desensitize_prestige, desensitize_arrival, desensitize_satisfaction, desensitize_treasury,
-    desensitize_trust, desensitize_shortage, desensitize_granary, desensitize_price,
-    desensitize_canal, desensitize_talent, desensitize_tech,
-)
+def desensitize_arrival(rate: float) -> str:
+    """到账率→脱敏描述"""
+    if rate <= 0.2: return "十不存二"
+    if rate <= 0.4: return "不足五成"
+    if rate <= 0.6: return "六成上下"
+    if rate <= 0.8: return "十之七八"
+    return "几近全数"
+
+def desensitize_satisfaction(value: int) -> str:
+    """满意度→脱敏描述"""
+    if value <= 20: return "怨声载道"
+    if value <= 40: return "颇有微词"
+    if value <= 60: return "大体认可"
+    if value <= 80: return "心悦诚服"
+    return "感恩戴德"
+
+def desensitize_treasury(amount: int) -> str:
+    """国库→脱敏描述"""
+    if amount <= 0: return "库空如洗"
+    if amount <= 2000000: return "入不敷出"
+    if amount <= 5000000: return "略有结余"
+    if amount <= 10000000: return "国库充盈"
+    return "富甲天下"
+
+def desensitize_trust(value: int) -> str:
+    if value <= 20: return "交子几不可信"
+    if value <= 40: return "商民疑之"
+    if value <= 60: return "信用尚稳"
+    return "远近信行"
+
+def desensitize_shortage(rate: float) -> str:
+    if rate <= 0.1: return "泉货流转"
+    if rate <= 0.3: return "钱荒渐显"
+    if rate <= 0.6: return "钱荒严重"
+    return "几乎无钱可用"
+
+def desensitize_granary(amount: float, cap: float = 1500) -> str:
+    """太仓虚实（定性）：用于奏报与 AI 认知层，绝不下放精确存粮数。"""
+    if cap <= 0:
+        cap = 1500
+    r = amount / cap
+    if r >= 0.75: return "太仓丰盈，粟积如丘"
+    if r >= 0.5:  return "仓储殷实，足以支国用"
+    if r >= 0.25: return "仓廪见绌，宜促漕运"
+    if r > 0:     return "太仓空虚，几无隔宿之粮"
+    return "太仓告罄，京畿乏食"
+
+def desensitize_price(price: float) -> str:
+    """米价定性：用于趋势读数与 AI 认知层。"""
+    if price >= 2.0: return "米珠薪桂，民不堪命"
+    if price >= 1.5: return "米价腾涌，市井骚然"
+    if price >= 1.1: return "米价偏高，小民艰食"
+    if price <= 0.6: return "谷贱伤农，丰年反困"
+    if price <= 0.8: return "米价低平，农人或困"
+    return "米价适中，市侩安和"
+
+def desensitize_canal(block: int) -> str:
+    """漕运通滞定性。"""
+    if block >= 70: return "漕路断绝，纲船难通"
+    if block >= 40: return "漕运受阻，输粟不畅"
+    if block >= 15: return "漕途多阻，转运维艰"
+    return "漕运通畅，转输无滞"
+
+def desensitize_talent(value: int) -> str:
+    if value <= 20: return "人才凋零"
+    if value <= 50: return "人才平平"
+    if value <= 80: return "人才颇盛"
+    return "人才辈出"
+
+def desensitize_tech(value: int) -> str:
+    if value <= 20: return "技艺粗疏"
+    if value <= 50: return "技艺尚可"
+    if value <= 80: return "百工精进"
+    return "巧夺天工"

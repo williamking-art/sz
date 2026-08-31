@@ -138,7 +138,12 @@ def stance_evolution(state, name: str, turn: int = 0) -> dict:
     inf = state.factions.get(faction, {}).get("influence", 50)
     score += (sat - 50) * _WEIGHTS["派系_满意度"]
     score += (inf - 50) * _WEIGHTS["派系_影响力"]
-    factors.append(f"派系{sat}")
+    # 审查 P1-6 修复：factors 用脱敏姿态词（不泄漏满意度整数进记忆 note → AI）
+    try:
+        from content.data import desensitize_satisfaction
+        factors.append(f"派系{desensitize_satisfaction(sat)}")
+    except Exception:
+        factors.append("派系中")
 
     # 事件（查记忆图谱 stance/变法/党争/贬黜/晋升/承诺）
     event_delta = 0.0
@@ -229,13 +234,18 @@ def stance_evolution(state, name: str, turn: int = 0) -> dict:
 
 
 def _posture(state, name: str, p: dict, score: int) -> str:
-    """阳奉阴违（概率式）：危险度 P=clamp(危险度×0.5,0,0.6) 每月随机触发；
-    刚直≥70 且 score<45 → 直言力诤（保留）。"""
+    """阳奉阴违（确定性派生，审查 P1-7 修复：原 random.random() 不可复现，破坏 60 月回放）。
+
+    危险度 P=clamp(危险度×0.5,0,0.6)；用 (turn, name) 确定性哈希派生伪随机，
+    同回合同大臣产出唯一姿态（可复现）；刚直≥70 且 score<45 → 直言力诤（保留）。"""
     if p["刚直"] >= 70 and score < 45:
         return "直言力诤"           # 刚直者满意度低也直谏
     danger = danger_rating(state, name)
     p_trigger = max(0.0, min(0.6, danger * 0.5))
-    if random.random() < p_trigger:
+    # 确定性伪随机：用回合+人名派生 [0,1)，替代 random.random()（可复现，不耗全局随机状态）
+    _seed = (getattr(state, "turn", 0) * 1000003 + sum(ord(c) for c in name) * 131) & 0xFFFFFFFF
+    _pseudo = ((_seed * 1103515245 + 12345) & 0x7FFFFFFF) / 0x7FFFFFFF
+    if _pseudo < p_trigger:
         return "阳奉阴违"           # 明面恭顺暗里拆台
     if score < 35:
         return "消极敷衍"

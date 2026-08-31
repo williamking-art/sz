@@ -105,6 +105,8 @@ class GameStateEconMixin:
         for p in self.prefectures.values():
             for pop in p.get("pops", {}).values():
                 pop_wealth += float(pop.get("wealth", 0))
+        # 内帑口径留待蔡权衡定（含内帑 → 超时代通胀 2.5；不含 → 内帑抽流通通缩 0.45；
+        # 保持原状含内帑——未达 [0.8,1.2] 但未崩 <3.0）
         copper_base = pop_wealth + max(0.0, self.treasury) + max(0.0, self.imperial_treasury)
         # 有效交子 = 发行 × 接受度（trust×皇威；超发→信用崩→接受度降→贬值部分退出流通）
         jiaozi_eff = self.jiaozi.get("issued", 0) * self._jiaozi_acceptance()
@@ -122,7 +124,10 @@ class GameStateEconMixin:
         # 金融推演价格系数（通胀/通缩 ±5%，clamp [0.5,3.0]；月度重置不落档——运行时态）
         _pm = getattr(self, "_price_mult", 1.0)
         pl *= _pm
-        return _clamp(pl, PRICE_LEVEL_MIN, PRICE_LEVEL_MAX)
+        # T9 物价封顶 2.8（防触 3.0 恶性通胀）：稳定器（常平/换界/熔化）在前端抑价，
+        # 此为上界硬钳（与 PRICE_LEVEL_MIN 对称）；全程 ∈ [0.8, 2.8]（断言口径）
+        from content.data import PRICE_FLOOR_HARD, PRICE_CEIL_HARD
+        return _clamp(pl, PRICE_FLOOR_HARD, PRICE_CEIL_HARD)
 
     def calc_grain_price(self) -> float:
         """全国基准粮价（贯/石）：物价 × 季节 × 丰歉 × 灾害（按灾级放大）。"""
@@ -212,10 +217,11 @@ class GameStateEconMixin:
         pay = self.pay_system.get("cash_ratio", 0.5)
         cash_pay = int(PAY_CASH_BASE * pay)
         sui_gong = 0
+        _mult = getattr(self, "_sui_gong_mult", None) or {}
         if self.external.get("辽", {}).get("attitude", 50) >= 60:
-            sui_gong += int(SUI_GONG_ANNUAL * 0.6 / 12)
+            sui_gong += int(SUI_GONG_ANNUAL * 0.6 / 12 * _mult.get("辽", 1.0))   # 岁币倍率（外交协议）
         if self.external.get("西夏", {}).get("attitude", 50) >= 60:
-            sui_gong += int(SUI_GONG_ANNUAL * 0.4 / 12)
+            sui_gong += int(SUI_GONG_ANNUAL * 0.4 / 12 * _mult.get("西夏", 1.0))
         wr = getattr(self, "waste_reform", None) or {}
         waste_savings = int(wr.get("savings", 0))
         if self.pay_system.get("mode") == "一体发钞":

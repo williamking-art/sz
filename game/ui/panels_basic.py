@@ -14,10 +14,20 @@ from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREE
 from ui.theme import GOLD_LIGHT, round_rect
 from ui.dialog import MsgProxy
 
-# 字号全局缩放：由「杂项设置」font_scale 档位(0/1/2)决定倍率，作用于所有 _font 工厂
-_FONT_SCALE_TABLE = {0: 0.85, 1: 1.0, 2: 1.15}
+# 字号全局缩放：由「杂项设置」font_scale 档位(0-3：小/中/大/特大)决定倍率，作用于所有 _font 工厂
+_FONT_SCALE_TABLE = {0: 0.85, 1: 1.0, 2: 1.15, 3: 1.3}
 _FONT_MIN_SIZE = 6
 _FONT_MAX_SIZE = 96
+
+# 字体选择预设：显示名 → 回退链（theme.get_font_family 按可用性取首个存在的族）
+FONT_FAMILY_PRESETS = {
+    "楷体": ("KaiTi", "楷体", "STKaiti", "SimKai", "Microsoft YaHei"),
+    "宋体": ("SimSun", "宋体", "NSimSun", "Microsoft YaHei"),
+    "黑体": ("SimHei", "黑体", "Microsoft YaHei"),
+    "雅黑": ("Microsoft YaHei", "微软雅黑"),
+    "系统默认": ("Microsoft YaHei", "KaiTi", "SimSun", "SimHei"),
+}
+DEFAULT_FONT_FAMILY = "楷体"
 
 
 class PanelsBasicMixin:
@@ -39,6 +49,9 @@ class PanelsBasicMixin:
         size:   原始字号（int/float）
         weight: 可选第 3 参（如 "bold"），原样透传；无则不附加
         返回:   (实际字体名, 缩放后字号[, "bold"]) 三元组或二元组
+
+        T10 改进：KAI（楷体）未显式指定 weight 时**默认加粗**（用户反馈字体太细）；
+        KAI 实际族名按「设置 → 字体」选择解析（_kai_actual）。
         """
         scale = getattr(self, "_font_scale", 1.0)
         actual = getattr(self, "_kai_actual", "KaiTi")
@@ -46,15 +59,57 @@ class PanelsBasicMixin:
         scaled = max(_FONT_MIN_SIZE, min(_FONT_MAX_SIZE, int(round(size * scale))))
         if weight:
             return (fam, scaled, weight[0])
+        if family == "KAI":
+            # 楷体默认加粗：解决默认字体过细、正文字体可读性不足
+            return (fam, scaled, "bold")
         return (fam, scaled)
 
     def _load_font_scale(self):
-        """读取「杂项设置」字号档位（0/1/2 → 倍率），存 self._font_scale。"""
+        """读取「杂项设置」字号档位（0-3 → 倍率）与字体选择，存实例。"""
         try:
             idx = int(self._misc_get("font_scale", 1))
         except Exception:
             idx = 1
         self._font_scale = _FONT_SCALE_TABLE.get(idx, 1.0)
+        choice = self._misc_get("font_family", DEFAULT_FONT_FAMILY)
+        self._font_family_choice = choice if choice in FONT_FAMILY_PRESETS else DEFAULT_FONT_FAMILY
+        self._apply_kai_family()
+
+    def _apply_kai_family(self):
+        """按「字体」选择解析 KAI 实际族名（回退链保证存在；assets/fonts 自定义 ttf 族名直用）。"""
+        choice = getattr(self, "_font_family_choice", DEFAULT_FONT_FAMILY)
+        chain = FONT_FAMILY_PRESETS.get(choice, FONT_FAMILY_PRESETS[DEFAULT_FONT_FAMILY])
+        try:
+            from ui.theme import get_font_family
+            fam = get_font_family(chain)
+        except Exception:
+            fam = chain[0]
+        self._kai_actual = fam
+        return fam
+
+    def _font_options(self):
+        """可用字体选项（设置里列出）：预设 5 项 + assets/fonts 注册的自定义字体族。
+
+        返回 [(key, 显示名), ...]；自定义 ttf 以文件名（去扩展名）为 key。
+        """
+        options = [
+            ("楷体", "楷体（KaiTi）"), ("宋体", "宋体（SimSun）"), ("黑体", "黑体（SimHei）"),
+            ("雅黑", "雅黑（YaHei）"), ("系统默认", "系统默认"),
+        ]
+        try:
+            import os as _os
+            import sys as _sys
+            base = getattr(_sys, "_MEIPASS", _os.path.dirname(_os.path.abspath(__file__)))
+            font_dir = _os.path.join(_os.path.dirname(base), "assets", "fonts")
+            if _os.path.isdir(font_dir):
+                for fn in sorted(_os.listdir(font_dir)):
+                    if fn.lower().endswith((".ttf", ".otf", ".ttc")):
+                        name = fn.rsplit(".", 1)[0]
+                        if name not in [o[0] for o in options]:
+                            options.append((name, f"自定义·{name}"))
+        except Exception:
+            pass
+        return options
 
     def _resource(self, name):
         if getattr(sys, "frozen", False):
@@ -365,6 +420,54 @@ class PanelsBasicMixin:
 
         # 暴露加载态控制（AI 调用时设 loading）
         cv._set_loading = lambda v: state.update({"loading": bool(v)})
+
+    def _busy_ring(self, parent, size=64):
+        """AI 加载旋转环（复用 _round_icon_btn 的加载环画法，独立可复用）。
+
+        返回 (canvas, set_loading)：
+          - canvas 由调用方 pack/place 布局；
+          - set_loading(True/False) 控制旋转环显隐；
+          - 旋转由常驻动画 tick 驱动（register_anim），父控件销毁后自动退场。
+        """
+        cv = tk.Canvas(parent, width=size, height=size,
+                       bg=parent["bg"] if parent["bg"] else PAPER,
+                       highlightthickness=0)
+        state = {"loading": False, "seq": 0}
+
+        class _RingAnim:
+            def __init__(self, st):
+                self.st = st
+                self.alive = True
+
+            def step(self, seq):
+                if not self.st["loading"]:
+                    return
+                self.st["seq"] = seq
+                try:
+                    cv.delete("all")
+                    r = size / 2
+                    a0 = (seq * 12) % 360
+                    cv.create_arc(r - 20, r - 20, r + 20, r + 20,
+                                  start=a0, extent=90, style="arc",
+                                  outline=GOLD, width=3)
+                except Exception:
+                    self.alive = False  # 画布已销毁：退场
+
+        anim = _RingAnim(state)
+        self.register_anim(anim)
+        cv.bind("<Destroy>", lambda e: setattr(anim, "alive", False))
+
+        def set_loading(v):
+            state["loading"] = bool(v)
+            if state["loading"]:
+                anim.step(state["seq"] or 0)
+            else:
+                try:
+                    cv.delete("all")
+                except Exception:
+                    pass
+
+        return cv, set_loading
 
     def _endturn_btn(self, parent):
         """右下角大红色“回合推演”按钮。"""

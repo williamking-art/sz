@@ -11,13 +11,13 @@ import ui.theme as theme
 from content.data import (PERSONAL_ACTIONS, FACTION_NAMES, YAMEN_LIST, YAMEN_INFO,
     PREFECTURE_LIST, FIXED_PROCEDURES)
 from ai.client import AIClient, _org_by_affiliation
-import ai.decree as ai_decree
+import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
     _bar, _format_effects, _judge_effects)
 from ui.theme import GOLD_LIGHT
-from ui.format_units import humanize_coin, humanize_land, humanize_households
+from ui.gui_common import humanize_coin, humanize_land, humanize_households
 
 
 class PanelsCoreMixin:
@@ -54,8 +54,16 @@ class PanelsCoreMixin:
         self.main = self.overlay_host
         self._panel_shell_root = None
 
-        # 绑定 Esc 关闭最上层浮层
-        self.root.bind("<Escape>", lambda e: self._close_overlay())
+        # 绑定 Esc：有浮层时关闭最上层浮层；无浮层（纯舆图）时调出设置页面
+        def _on_esc(_e=None):
+            if getattr(self, "_overlay_stack", None):
+                self._close_overlay()
+            else:
+                try:
+                    self._open_overlay(self._panel_settings, "设 置")
+                except Exception:
+                    pass
+        self.root.bind("<Escape>", _on_esc)
 
         self._refresh_status()
         if not self._inited:
@@ -93,6 +101,14 @@ class PanelsCoreMixin:
             lab_w = tk.Label(pill, fg=INK, bg=CARD, font=self._font(SANS, 10, "bold"))
             lab_w.pack(padx=8, pady=3)
             self._hud_pills[lab] = (icon, lab_w)
+            # T14：国库/内帑 pill 挂悬浮收支栏（鼠标进入显示、离开隐藏）
+            # 判定区适度放大：pill 加大内边距（易触发），直接 bind 到 pill
+            if lab in ("国库", "内帑"):
+                lab_w.configure(padx=12, pady=6)
+                if lab == "国库":
+                    self._hud_tooltip(pill, "国 库 收 支", self._treasury_tooltip_lines)
+                else:
+                    self._hud_tooltip(pill, "内 帑 收 支", self._imperial_tooltip_lines)
         # token 用量（工程化可见性）
         token_lab = tk.Label(pill_frame, fg=DIM, bg=CARD, font=self._font(SANS, 9, "bold"))
         token_lab.pack(side="left", padx=(6, 0), pady=3)
@@ -126,6 +142,8 @@ class PanelsCoreMixin:
             ("州县", "province", self._panel_prefectures),
             ("仓廪", "overview", self._panel_granary),
             ("会计", "personnel", self._panel_accounting),
+            ("民生", "overview", self._panel_pop),
+            ("群臣", "ministers", self._panel_yamen),
             ("军政", "war", self._panel_military_affairs),
             ("科技", "tech", self._panel_tech),
             ("工程", "works", self._panel_engineering),
@@ -145,7 +163,8 @@ class PanelsCoreMixin:
         self._hud_dock = bottom_bar
         dock_items = [
             ("朝堂", "affairs", self._panel_overview),
-            ("群臣", "ministers", self._panel_yamen),
+            ("中枢", "ministers", self._panel_central_org),
+            ("外交", "war", self._panel_diplomacy),
             ("朝报", "gazette", self._panel_daily_log),
             ("个人行止", "memorial", self._panel_personal),
             ("拟旨", "military", self._panel_decree_entry),
@@ -154,6 +173,10 @@ class PanelsCoreMixin:
             self._round_icon_btn(bottom_bar, label,
                                  lambda f=fn, t=label: self._open_overlay(f, t),
                                  icon=icon_key, text_color=INK)
+        # 图鉴：大宋典制 wiki（只读，不依赖 AI）
+        self._round_icon_btn(bottom_bar, "图鉴",
+                             lambda: self._open_overlay(self._panel_codex, "图 鉴"),
+                             icon="menu", text_color=INK)
         # 设置：聚合 存档/加载/主菜单/设置 入口（作为浮层打开，由 _panel_settings 内部导航）
         self._round_icon_btn(bottom_bar, "设置",
                              lambda: self._open_overlay(self._panel_settings, "设 置"),
@@ -163,17 +186,104 @@ class PanelsCoreMixin:
         endturn.place(relx=1.0, rely=1.0, x=-14, y=-14, anchor="se")
         self._endturn_btn(endturn)
 
+    def _hud_tooltip(self, widget, title, lines_fn):
+        """宋式悬浮框：鼠标进入显示、离开隐藏；overrideredirect 不抢焦点、不挡操作。
+
+        lines_fn: 可调用 → [(文本, fg|None, bold|None), ...]（每次进入动态生成）。
+        """
+        tl = {"w": None}
+
+        def _show(_e=None):
+            if tl["w"] is not None:
+                try:
+                    if tl["w"].winfo_exists():
+                        return
+                except Exception:
+                    tl["w"] = None
+            try:
+                w = tk.Toplevel(self.root)
+                w.overrideredirect(True)
+                w.configure(bg="#140e0a")
+                panel = tk.Frame(w, bg=PAPER, relief="ridge", bd=1,
+                                 highlightbackground=GOLD, highlightthickness=2)
+                panel.pack(padx=3, pady=3)
+                self._title(panel, title, fg=RED, bg=PAPER,
+                            font=self._font(KAI, 13, "bold"), anchor="center").pack(
+                    padx=10, pady=(6, 2))
+                for text, fg, bold in lines_fn() or []:
+                    self._label(panel, text, fg=fg or INK, bg=PAPER,
+                                font=self._font(SANS, 9, "bold" if bold else ""),
+                                anchor="w").pack(anchor="w", padx=12, pady=1)
+                w.update_idletasks()
+                x = widget.winfo_rootx()
+                y = widget.winfo_rooty() + widget.winfo_height() + 4
+                w.geometry(f"+{x}+{y}")
+                w.lift()
+                tl["w"] = w
+            except Exception:
+                pass
+
+        def _hide(_e=None):
+            if tl["w"] is not None:
+                try:
+                    tl["w"].destroy()
+                except Exception:
+                    pass
+                tl["w"] = None
+
+        widget.bind("<Enter>", _show)
+        widget.bind("<Leave>", _hide)
+
+    def _treasury_tooltip_lines(self):
+        """国库悬浮栏内容：常项（税入分项 + 财政总结）+ 一次性 + 累计（flow_summary 纯派生）。"""
+        from core.flow_summary import build_flow_summary
+        t = build_flow_summary(self.state)["treasury"]
+        lines = [("常项收入", RED_D, True)]
+        for lab, v in t["regular_in"]:
+            lines.append((f"　{lab}：+{v:,} 贯", None, False))
+        if not t["regular_in"]:
+            lines.append(("　（本月无税入分项）", DIM, False))
+        lines.append((f"财政：入 {t['month_in']:,} 贯 / 支 {t['month_out']:,} 贯", INK, True))
+        lines.append(("一次性收支", RED_D, True))
+        shown = 0
+        for lab, v, fund in t["one_off"]:
+            if fund == "imperial":
+                continue
+            lines.append((f"　{lab}：{'+' if v >= 0 else ''}{v:,} 贯", None, False))
+            shown += 1
+        if not shown:
+            lines.append(("　（本月无大项）", DIM, False))
+        lines.append((f"累计入 {t['total_in']:,} / 出 {t['total_out']:,} 贯", DIM, False))
+        return lines
+
+    def _imperial_tooltip_lines(self):
+        """内帑悬浮栏内容：常项（酒课+抽成）+ 一次性/用度 + 余额。"""
+        from core.flow_summary import build_flow_summary
+        im = build_flow_summary(self.state)["imperial"]
+        lines = [("常项收入", RED_D, True)]
+        for lab, v in im["regular_in"]:
+            lines.append((f"　{lab}：+{v:,} 贯", None, False))
+        lines.append(("一次性/用度", RED_D, True))
+        shown = 0
+        for lab, v, _fund in im["one_off"]:
+            lines.append((f"　{lab}：{'+' if v >= 0 else ''}{v:,} 贯", None, False))
+            shown += 1
+        if not shown:
+            lines.append(("　（本月无内帑大项）", DIM, False))
+        lines.append((f"内帑现 {im['balance']:,} 贯", RED_D, True))
+        return lines
+
     def _refresh_hud(self):
         s = self.state
         if getattr(self, "_hud_time", None):
             # 古意纪年：年号·年份·季节·月份·朔日（每月初一称朔日）
             self._hud_time.configure(
                 text=f"{s.era_name}{s.year}年·{self._season_name(s.month)}·{s.month}月朔日")
-        # 顶栏 token 用量（工程化可见性）
+        # 顶栏 token 用量（工程化可见性；命中率统计移入「设置 → Token 用量」明细表）
         if getattr(self, "_hud_token", None):
             u = self.ai_client.token_usage if self.ai_client else {}
             self._hud_token.configure(
-                text=f"token ▸ {int(u.get('prompt', 0))+int(u.get('completion', 0)):,}")
+                text=f"词元 ▸ {int(u.get('prompt', 0))+int(u.get('completion', 0)):,}")
         if getattr(self, "_hud_pills", None):
             self._hud_pills["威望"][1].configure(text=f"◆威望 {int(s.prestige)}")
             self._hud_pills["民心"][1].configure(text=f"♥民心 {int(s.population_satisfaction)}")
