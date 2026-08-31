@@ -14,14 +14,19 @@ def _slot_path(slot: int) -> str:
 
 def save_game(state, slot: int = 1) -> bool:
     """保存游戏到指定槽位（含记忆知识库同步写盘）。"""
+    import logging as _lg
+    _slog = _lg.getLogger("save_load")
     os.makedirs(SAVE_DIR, exist_ok=True)
-    # 记忆知识库（Phase 3a）：回合末原子写盘到 slot_{slot}_memory.json
+    # 记忆知识库（Phase 3a）：回合末原子写盘到 slot_{slot}.db
+    # 审查 P2-2 修复：写盘失败记日志而非静默吞（防崩溃后无感知丢失记忆）
     try:
         state.memory.turn = state.turn
         state.memory_slot = slot
-        state.memory.save(slot)
-    except Exception:
-        pass  # 记忆写盘失败不阻断主存档
+        _ok = state.memory.save(slot)
+        if not _ok:
+            _slog.warning("记忆库写盘失败（slot=%s），主存档继续但不包含本轮记忆更新", slot)
+    except Exception as e:  # noqa: BLE001
+        _slog.warning("记忆库写盘异常（slot=%s，不阻断主存档）：%s", slot, e)
 
     data = {
         "version": "0.1.0",
@@ -52,10 +57,16 @@ def save_game(state, slot: int = 1) -> bool:
         "longterm_effects": getattr(state, "longterm_effects", []),
         "short_term_log": getattr(state, "short_term_log", []),
         "tool_registry": getattr(state, "tool_registry", {}),
+        "branch_registry": getattr(state, "branch_registry", {}),
+        "tech_registry": getattr(state, "tech_registry", {}),
         "minister_estate": getattr(state, "minister_estate", {}),
         "investments": getattr(state, "investments", {}),
         "era_state": getattr(state, "era_state", {}),
         "era_building_log": getattr(state, "era_building_log", []),
+        "treaties": getattr(state, "treaties", {}),
+        "_at_war": getattr(state, "_at_war", {}),
+        "_sui_gong_mult": getattr(state, "_sui_gong_mult", {"辽": 1.0, "金": 1.0, "西夏": 1.0}),
+        "_trade_income": getattr(state, "_trade_income", {}),
         "wine_tax": getattr(state, "wine_tax", 100000),
         "imperial_granary": getattr(state, "imperial_granary", 0),
         "mechanisms": getattr(state, "mechanisms", {}),
@@ -99,6 +110,8 @@ def save_game(state, slot: int = 1) -> bool:
         "last_audience": getattr(state, "last_audience", ""),
 
         "personal_action": state.personal_action,
+        "imperial_action": getattr(state, "imperial_action", {}),
+        "imperial_micro_count": getattr(state, "imperial_micro_count", 0),
         "major_policy": state.major_policy,
         "major_policy_target": state.major_policy_target,
 
@@ -224,10 +237,16 @@ def load_game(slot: int = 1):
     state.longterm_effects = data.get("longterm_effects", []) or []
     state.short_term_log = data.get("short_term_log", []) or []
     state.tool_registry = data.get("tool_registry", {}) or {}
+    state.branch_registry = data.get("branch_registry", {}) or {}
+    state.tech_registry = data.get("tech_registry", {}) or {}
     state.minister_estate = data.get("minister_estate", {}) or dict(getattr(state, "minister_estate", {}))
     state.investments = data.get("investments", {}) or {}
     state.era_state = data.get("era_state", {}) or dict(getattr(state, "era_state", {}))
     state.era_building_log = data.get("era_building_log", []) or []
+    state.treaties = data.get("treaties", {}) or {}
+    state._at_war = data.get("_at_war", {}) or {}
+    state._sui_gong_mult = data.get("_sui_gong_mult", {"辽": 1.0, "金": 1.0, "西夏": 1.0}) or {"辽": 1.0, "金": 1.0, "西夏": 1.0}
+    state._trade_income = data.get("_trade_income", {}) or {}
     state.wine_tax = data.get("wine_tax", getattr(state, "wine_tax", 100000))
     state.imperial_granary = data.get("imperial_granary", getattr(state, "imperial_granary", 0))
     state.mechanisms = data.get("mechanisms", getattr(state, "mechanisms", {}))
@@ -313,6 +332,19 @@ def load_game(slot: int = 1):
 
     # 恢复施政
     state.personal_action = data.get("personal_action", "")
+    # 皇帝个人行动矩阵（契约 v2）：旧档无 imperial_action 时由单值 personal_action 迁移
+    ia = data.get("imperial_action") or {}
+    if not isinstance(ia, dict) or not ia:
+        _legacy = {"勤政": "临朝", "书画翰墨": "书画翰墨",
+                   "崇道修醮": "崇道修醮", "宴游享乐": "宴游享乐"}.get(state.personal_action, "")
+        if _legacy:
+            ia = {"location": "宫里", "mode": "公开", "action": _legacy,
+                  "prepared": False, "pending_months": 0, "target": ""}
+    state.imperial_action = ia
+    state.imperial_micro_count = int(data.get("imperial_micro_count", 0) or 0)
+    # pending_imperial_trip = 准备中的 imperial_action（同一 dict 指针，不落档）
+    state.pending_imperial_trip = state.imperial_action if state.imperial_action.get("pending_months", 0) > 0 else None
+    state._emperor_ai = None   # 契约槽位为回合内瞬态，不落档
     state.major_policy = data.get("major_policy", "")
     state.major_policy_target = data.get("major_policy_target", "")
 
@@ -343,6 +375,23 @@ def load_game(slot: int = 1):
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
     state.minister_memory = data.get("minister_memory", {}) or {}
+    # 代码审理（旧机制融入新机制）：旧 minister_memory（dict）加载时自动迁入
+    # DialogueMemory（对话库，saves/slot_{slot}_dialogue.db）——新写入走新机制；
+    # minister_memory 降为兼容读（旧档可读，不再新增写入——离任已双写图谱）。
+    if state.minister_memory:
+        try:
+            from memory.dialogue_memory import get_dialogue_memory
+            _dm = get_dialogue_memory(state)
+            _dm.turn = state.turn
+            for _name, _entries in list(state.minister_memory.items()):
+                for _e in list(_entries or [])[-10:]:
+                    try:
+                        _dm.add_dialogue(_name, state.turn, _name, str(_e)[:200],
+                                         intent="", stance="旧档迁移")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     state.player_minister_status = data.get("player_minister_status", {}) or {}
     state.loyalty = data.get("loyalty", state.loyalty)
     state.corruption = data.get("corruption", state.corruption)

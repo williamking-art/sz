@@ -36,6 +36,30 @@ from content.data import normalize_tier
 _TIERS7 = ("无", "微", "小", "中", "大", "巨", "极")
 
 
+def _narrative_fallback(kind, minister_name=""):
+    """AI 失败分级降级（落地改进 4 + T8 完整模板库）：**叙事类**失败 → 本地模板兜底
+    （本地组装，非 AI 伪造，明确标注由程序代拟）；**推演类**（economy/military/
+    era 等）失败仍拒绝式（AIRuntimeError/None，必须 AI）。
+
+    模板库见 ai/narrative_fallback.py（多句式轮换 + 事件分档 + 结构化真值组装）。
+    """
+    from ai import narrative_fallback
+    from ai.client_utils import _ai_unavailable
+    if kind == "report":
+        return narrative_fallback.fallback_report()
+    if kind == "dialogue":
+        return narrative_fallback.fallback_dialogue(minister_name)
+    if kind == "narrative":
+        return narrative_fallback.fallback_narrative()
+    if kind == "advice":
+        return narrative_fallback.fallback_advice()
+    if kind == "event":
+        return narrative_fallback.fallback_event()
+    if kind == "eval":
+        return narrative_fallback.fallback_eval()
+    return _ai_unavailable(kind)
+
+
 class AIClient(ClientNarrativeMixin):
     """封装在线大模型调用；AI 不可用时返回错误标记（不伪造文本）。"""
 
@@ -46,24 +70,63 @@ class AIClient(ClientNarrativeMixin):
         self.available = bool(self.api_key)
         self.chat_url = f"{self.base_url}/chat/completions"
         self._prev_texts = []   # 复读检测历史
-        # 工具开关：'auto'(探测)/'on'(强制开)/'off'(强制关)
-        self.enable_tools = enable_tools if enable_tools in ("auto", "on", "off") else "auto"
+        # 工具开关：'auto'(探测)/'on'(强制开)/'off'(强制关)/'simple'(强制简化)
+        self.enable_tools = enable_tools if enable_tools in ("auto", "on", "off", "simple") else "auto"
         self.tools_supported = None  # None=未探测; True/False=已探测
         self.json_mode = None        # response_format=json_object 支持度：None=未探测; True/False=已探测
+        # 模型适配层（言枢密设计）：tool_mode 注册表 + 能力探测缓存
+        self.tool_mode = "tool_full"   # tool_full / tool_simple / json / error
+        self._cap_probe_cache = None   # capability_probe 结果缓存
         self.token_usage = {"prompt": 0, "completion": 0, "calls": 0}
+        self._meter = {}   # 按契约方法分桶：method → {"calls": n, "prompt": n, "completion": n}
         self._probe_cache = None  # (ok, msg) 在线自检缓存；None=未做过
         self._cache = {}
         self._cache_hits = 0
         self._cache_misses = 0
 
-    def _add_usage(self, usage: dict) -> None:
-        """累加 token 用量（O(1)，不打印玩家内容）。"""
+    # 内部辅助调用链（_meter_key_of 跳过，向上找真实契约方法名）
+    _METER_INTERNAL = {"_call", "_tool_roundtrip", "_cached_call", "_postprocess"}
+
+    def _meter_key_of(self) -> str:
+        """自动检测发起本次 _call 的契约方法名（按方法分桶，零侵入）。
+
+        调用链：契约方法 →（可选 _tool_roundtrip/_cached_call/_postprocess）→ _call
+        → _add_usage。从帧 2 起向上跳过内部辅助，取第一个外部方法名。
+        """
+        import sys
+        f = sys._getframe(2)   # _add_usage ← _call ← 调用方
+        while f is not None:
+            name = f.f_code.co_name
+            if name not in self._METER_INTERNAL:
+                return name
+            f = f.f_back
+        return "unknown"
+
+    def _add_usage(self, usage: dict, meter_key: str = "") -> None:
+        """累加 token 用量（O(1)，不打印玩家内容）；同时按契约方法分桶计量。"""
         try:
-            self.token_usage["prompt"] += int(usage.get("prompt_tokens", 0) or 0)
-            self.token_usage["completion"] += int(usage.get("completion_tokens", 0) or 0)
+            _p = int(usage.get("prompt_tokens", 0) or 0)
+            _c = int(usage.get("completion_tokens", 0) or 0)
+            self.token_usage["prompt"] += _p
+            self.token_usage["completion"] += _c
             self.token_usage["calls"] += 1
+            key = meter_key or self._meter_key_of()
+            b = self._meter.setdefault(key, {"calls": 0, "prompt": 0, "completion": 0})
+            b["calls"] += 1
+            b["prompt"] += _p
+            b["completion"] += _c
         except Exception:
             pass
+
+    def meter_summary(self) -> dict:
+        """按方法分桶计量快照（UI Token 计量表用；含总桶）。"""
+        return {"total": dict(self.token_usage), "by_method": {
+            k: dict(v) for k, v in self._meter.items()}}
+
+    def reset_meter(self) -> None:
+        """清零 token 计量（含总桶与分桶；召对统计在 GameState，另清）。"""
+        self.token_usage = {"prompt": 0, "completion": 0, "calls": 0}
+        self._meter = {}
 
     def _auth_headers(self) -> dict:
         """构造请求认证头（probe/_call 共用，api_key 仅内部使用，绝不外泄）。"""
@@ -222,6 +285,152 @@ class AIClient(ClientNarrativeMixin):
     def reset_probe(self) -> None:
         """清除在线自检缓存，下次 probe() 会真正联网重测（配置面板用）。"""
         self._probe_cache = None
+        self._cap_probe_cache = None
+
+    # ============================================================
+    # 模型适配层（言枢密设计：玩家任意 API 自动适配游戏）
+    # ============================================================
+    def capability_probe(self, timeout: float = 15, force: bool = False) -> dict:
+        """扩展能力探测四维：连通 / tool_calls / JSON 模式 / 工具参数质量 + 格式变体。
+
+        返回 {ok, tools, json_mode, format, error}——缓存（首次成功/失败后记住；
+        force=True 强制重测）。探测失败默认 json 模式（契约兜底不崩）。
+        """
+        if self._cap_probe_cache is not None and not force:
+            return self._cap_probe_cache
+        if not self.api_key:
+            self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
+                                     "format": "json", "error": "未配置 API Key"}
+            return self._cap_probe_cache
+        try:
+            headers = self._auth_headers()
+            payload = {"model": self.model,
+                       "messages": [{"role": "user", "content": "ping"}],
+                       "temperature": 0, "max_tokens": 1}
+            status, body, text = _http_post_json(self.chat_url, headers, payload, timeout)
+            if status != 200:
+                self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
+                                         "format": "json",
+                                         "error": f"模型返回 {status}：{str(text)[:120]}"}
+                return self._cap_probe_cache
+            # 维度 2/3：tool_calls + json_mode（原生 tools 探测）
+            json_ok = bool(self._probe_json_mode(timeout))
+            tools_ok = self._probe_tools(timeout)
+            if tools_ok:
+                fmt = "openai"
+                tools = "full"
+            elif json_ok:
+                fmt = "content_json"   # 无原生 tools → 参数嵌 content + JSON 约束
+                tools = "simple"
+            else:
+                fmt = "json"
+                tools = "none"
+            self.json_mode = json_ok
+            self._cap_probe_cache = {"ok": True, "tools": tools, "json_mode": json_ok,
+                                     "format": fmt, "error": ""}
+            return self._cap_probe_cache
+        except urllib.error.URLError as e:
+            reason = getattr(e, "reason", e)
+            msg = "连接超时" if isinstance(reason, TimeoutError) else "无法连接"
+            self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
+                                     "format": "json", "error": msg}
+            return self._cap_probe_cache
+        except Exception as e:  # noqa: BLE001
+            self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
+                                     "format": "json", "error": f"检测异常：{e}"}
+            return self._cap_probe_cache
+
+    def _probe_tools(self, timeout: float = 15) -> bool:
+        """探测原生 tools 支持：发带 tools 的极小请求，200 视为支持。"""
+        try:
+            headers = self._auth_headers()
+            payload = {"model": self.model,
+                       "messages": [{"role": "user", "content": "调 query_state 查 treasury"}],
+                       "temperature": 0, "max_tokens": 32,
+                       "tools": [{"type": "function", "function": {
+                           "name": "query_state",
+                           "parameters": {"type": "object",
+                                          "properties": {"target": {"type": "string"}},
+                                          "required": ["target"]}}}],
+                       "tool_choice": "auto"}
+            status, _, _ = _http_post_json(self.chat_url, headers, payload, timeout)
+            return status == 200
+        except Exception:
+            return False
+
+    def enable_tools(self, mode: str) -> None:
+        """工具模式：auto（自动探测）/ on（强制工具）/ off（强制 JSON）/ simple（强制简化）。"""
+        mode = str(mode).lower()
+        if mode == "auto":
+            cap = self.capability_probe(force=True)
+            if not cap["ok"]:
+                self.tool_mode = "error"
+            elif cap["tools"] == "full":
+                self.tool_mode = "tool_full"
+            elif cap["tools"] == "simple":
+                self.tool_mode = "tool_simple"
+            else:
+                self.tool_mode = "json"
+        elif mode == "on":
+            self.tool_mode = "tool_full"
+        elif mode == "off":
+            self.tool_mode = "json"
+        elif mode == "simple":
+            self.tool_mode = "tool_simple"
+        else:
+            self.tool_mode = "tool_full"
+
+    def _call_with_tools(self, system_prompt: str, user_prompt: str = "",
+                         history=None, schemas=None, tool_choice=None,
+                         temperature: float = 0.4, max_tokens: int = 500):
+        """统一入口（模型适配层）：按 tool_mode 选 schema → _call(tools=) → parse 归一
+        → 降级链（工具 → 简化重试 → JSON 契约 → 模板/报错，不伪造）。
+
+        返回 dict 含 tool_calls（结构化，经 parse_tool_calls 归一）或文本/None。
+
+        审查 P1-4 澄清：当前生产中各 *_decide 走 json_mode 纯 JSON 契约，本方法暂无
+        生产调用方，作为未来 Function Call 接线预留。实际改状态通道详见各契约 validate
+        + 12 步结算/free_effect/_tool_dispatch 消费。
+        """
+        from ai.client_utils import parse_tool_calls, SIMPLE_TOOL_SCHEMAS, STATE_TOOL_SCHEMAS
+        mode = getattr(self, "tool_mode", "tool_full")
+        if mode == "error":
+            return {"_error": "AI 工具不可用：模型探测失败，请检查配置"}
+        # 选 schema（fallback：STATE_TOOL_SCHEMAS 3 通用工具）
+        if schemas is None:
+            if mode == "tool_simple":
+                schemas = SIMPLE_TOOL_SCHEMAS
+            elif mode == "tool_full":
+                schemas = None   # 用调用方传入或 STATE_TOOL_SCHEMAS
+            if not schemas:
+                schemas = STATE_TOOL_SCHEMAS
+        # 降级链：工具（required）→ 简化重试 → JSON 契约
+        for attempt, (sch, choice) in enumerate([
+                (schemas, tool_choice or "auto"),
+                (SIMPLE_TOOL_SCHEMAS, "auto"),
+                (None, None),   # JSON 契约（无 tools）
+        ]):
+            try:
+                if sch is None:
+                    raw = self._call(system_prompt, user_prompt, history=history,
+                                     temperature=temperature, max_tokens=max_tokens,
+                                     json_mode=True)
+                else:
+                    raw = self._call(system_prompt, user_prompt, history=history,
+                                     temperature=temperature, max_tokens=max_tokens,
+                                     tools=sch, tool_choice=choice)
+                if raw is None:
+                    continue
+                if isinstance(raw, dict) and raw.get("tool_calls"):
+                    calls = parse_tool_calls(raw)
+                    if calls:
+                        return {"tool_calls": calls, "content": raw.get("content") or ""}
+                if sch is None:
+                    return raw   # JSON 契约文本
+                # 工具调用失败 → 下一级降级
+            except Exception:
+                continue
+        return {"_error": "AI 工具链全部降级失败"}
 
     @classmethod
     def load_saved(cls):
@@ -257,17 +466,22 @@ class AIClient(ClientNarrativeMixin):
         return h
 
     def _cached_call(self, cache_key: str, state_summary: str,
-                     system_prompt: str, user_prompt: str, temperature, max_tokens):
-        """带朝局 hash 的 LRU 缓存包装。命中则直接返回缓存文本。"""
+                     system_prompt: str, user_prompt: str, temperature, max_tokens,
+                     json_mode: bool = False, input_key: str = ""):
+        """带朝局 hash 的 LRU 缓存包装。命中则直接返回缓存文本。
+
+        input_key：输入差异键（如诏意文本/回合号）——同朝局不同输入不互撞；
+        json_mode：透传给 _call（结构调用缓存，同输入同朝局复用）。
+        """
         if not hasattr(self, "_cache"):
             self.__init_cache()
-        key = f"{cache_key}:{self._state_hash(state_summary)}"
+        key = f"{cache_key}:{input_key}:{self._state_hash(state_summary)}"
         if key in self._cache:
             self._cache_hits += 1
             return self._cache[key]
         self._cache_misses += 1
         raw = self._call(system_prompt, user_prompt, temperature=temperature,
-                        max_tokens=max_tokens)
+                        max_tokens=max_tokens, json_mode=json_mode)
         if raw is not None:
             self._cache[key] = raw
             # 限制缓存规模（最多 64 条），超出则清空（朝局已大变）
@@ -288,7 +502,8 @@ class AIClient(ClientNarrativeMixin):
     # ---------- 底层调用 ----------
     def _call(self, system_prompt: str, user_prompt: str = "",
               history=None, temperature: float = 0.8, max_tokens: int = 800,
-              tools=None, messages=None, json_mode: bool = False):
+              tools=None, messages=None, json_mode: bool = False,
+              tool_choice=None):
         """底层调用。若传 tools 且端点支持，返回 dict 含 tool_calls；否则返回文本。
 
         返回：
@@ -299,6 +514,13 @@ class AIClient(ClientNarrativeMixin):
         json_mode=True 时尝试附加 response_format=json_object（结构调用用）；
         端点不支持（返回错误含 response_format/json_object）则自动降级为纯
         prompt 约束并重试一次，不伪造成功。
+
+        T1（AI 只通过 Function Call 返回结构化变更）：
+        - tool_choice="required" 时 payload 附加 tool_choice="required"——AI 必须调工具；
+        - AI 未返回 tool_calls（直接文本）→ 丢弃重请求一次（附消息「请调用工具」），
+          仍无工具调用才返回原响应；
+        - 端点不支持 tool_choice=required（返回错误）→ 探测降级：记
+          self.tools_required_supported=False 并回退 "auto" 重试一次。
         """
         if not self.available:
             return None
@@ -316,9 +538,11 @@ class AIClient(ClientNarrativeMixin):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        want_required = bool(tools) and tool_choice == "required" \
+            and getattr(self, "tools_required_supported", True)
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+            payload["tool_choice"] = "required" if want_required else "auto"
         # json_mode：仅当端点未被确认不支持时附加；被拒则降级重试一次
         want_json = bool(json_mode) and self.json_mode is not False
         if want_json:
@@ -348,6 +572,11 @@ class AIClient(ClientNarrativeMixin):
                 self.json_mode = False
                 payload.pop("response_format", None)
                 continue
+            # T1 降级：端点不支持 tool_choice=required → 记录并回退 auto 重试一次
+            if attempt == 0 and want_required and "tool_choice" in err:
+                self.tools_required_supported = False
+                payload["tool_choice"] = "auto"
+                continue
             from core.errors import AIRuntimeError as _AIRE
             raise _AIRE(f"AI 服务返回错误（HTTP {status}）：{err}") from None
         try:
@@ -369,6 +598,28 @@ class AIClient(ClientNarrativeMixin):
                     },
                 })
             return {"content": msg.get("content") or "", "tool_calls": tcs}
+        # T1：tool_choice=required 时 AI 未返回 tool_calls（直接文本）→ 丢弃重请求一次
+        if want_required and attempt == 0:
+            messages = messages + [{"role": "assistant", "content": msg.get("content") or ""},
+                                   {"role": "user", "content":
+                                    "你上次没有调用工具，请调用 update_state 或 query_state 完成结构化变更。"}]
+            payload["messages"] = messages
+            try:
+                headers = self._auth_headers()
+                status, data, _ = _http_post_json(self.chat_url, headers, payload, timeout=30)
+            except Exception:
+                return msg.get("content") or ""
+            if status < 400:
+                try:
+                    msg2 = data["choices"][0]["message"]
+                    if msg2.get("tool_calls"):
+                        tcs = [{"id": tc.get("id", ""),
+                                "function": {"name": tc.get("function", {}).get("name", ""),
+                                             "arguments": tc.get("function", {}).get("arguments", "{}")}}
+                               for tc in msg2["tool_calls"]]
+                        return {"content": msg2.get("content") or "", "tool_calls": tcs}
+                except (KeyError, TypeError, IndexError):
+                    pass
         return msg.get("content") or ""
 
     def _postprocess(self, raw, validator, fallback, retry_prompt=None,
@@ -377,9 +628,21 @@ class AIClient(ClientNarrativeMixin):
 
         三方案：ranges（叙事数值区间）传入时，AI 文本字段过 _validate_narrative_numbers
         （数字须落在注入区间，区间外改写定性词）；无 ranges 跳过（向后兼容）。
+
+        审查 P2-5 修复：解析/校验失败时，按失败阶段区分错误码（AI_EMPTY_RESPONSE/
+        AI_INVALID_JSON/AI_CONTRACT_FAILED），覆盖 fallback 默认的 AI_NOT_CONFIGURED，
+        使 _error 码具备可诊断性。
         """
         obj = _extract_json(raw) if raw else None
+        # 审查 P2-5：按失败阶段定错误码（供 fallback 结果覆盖）
+        _fail_code = None
+        if not raw:
+            _fail_code = "AI_EMPTY_RESPONSE"
+        elif obj is None:
+            _fail_code = "AI_INVALID_JSON"
         obj = validator(obj) if obj is not None else None
+        if obj is None and _fail_code is None:
+            _fail_code = "AI_CONTRACT_FAILED"
         if obj is None:
             # 回喂修复：把校验失败如实告知模型，补调一次；仍失败才兜底
             if retry_prompt and retry_user:
@@ -397,7 +660,14 @@ class AIClient(ClientNarrativeMixin):
                 except Exception:
                     obj = None
             if obj is None:
-                return fallback()
+                fb = fallback()
+                # 审查 P2-5：用阶段失败码覆盖 fallback 默认 AI_NOT_CONFIGURED
+                if _fail_code and isinstance(fb, dict) and fb.get("_error"):
+                    from content.data import AI_ERROR_CODES
+                    if _fail_code in AI_ERROR_CODES:
+                        fb["_error"] = _fail_code
+                        fb["message"] = AI_ERROR_CODES.get(_fail_code, "")
+                return fb
         # 安全过滤：所有 AI 文本统一过敏感词，命中即按不可用返回，不向玩家展示
         for _field in ("reply", "advice", "report", "narrative", "body",
                        "commentary", "court_report", "gazette", "memo",
@@ -498,7 +768,7 @@ class AIClient(ClientNarrativeMixin):
                                  tools=_TOOL_SCHEMAS)
                 if isinstance(raw2, dict):
                     raw2 = self._postprocess(raw2.get("content") or "", validate,
-                                            lambda: _ai_unavailable("dialogue"))
+                                            lambda: _narrative_fallback("dialogue", minister_name))
                     if isinstance(raw2, dict):
                         raw2["tool_results"] = [r for _, r in results]
                     return raw2
@@ -513,15 +783,21 @@ class AIClient(ClientNarrativeMixin):
                 # 命中敏感词：AI 不可用，返回错误标记（不改动游戏状态）
                 return _ai_unavailable("dialogue")
         return self._postprocess(raw, validate,
-                                 lambda: _ai_unavailable("dialogue"))
+                                 lambda: _narrative_fallback("dialogue", minister_name))
 
     # ============================================================
     # 拟诏（知制诰）
     # ============================================================
-    def draft_decree(self, minister_advice, player_intent, state_summary, state=None):
+    def draft_decree(self, minister_advice, player_intent, state_summary, state=None,
+                     minister_name=""):
         sys_p = _load_prompt("decree_drafter", era_name="",
                              minister_advice=minister_advice or "（大臣未及建言）",
                              player_intent=player_intent or "（陛下意欲有所作为）")
+        # 拟旨文风参考（T8b 素材：史书笔法借鉴，非锁定模板；本体不依赖 _scratch）
+        try:
+            sys_p += "\n" + _load_prompt("decree_style_ref")
+        except Exception:
+            pass
         # 记忆知识库（Phase 3a）：拟旨注入既往同类决策（keyword_search → summarize，脱敏）
         if state is not None:
             try:
@@ -533,6 +809,19 @@ class AIClient(ClientNarrativeMixin):
                         sys_p += f"\n【既往同类诏令】{hint}（可参照成例，勿直引）"
             except Exception:
                 pass
+            # 拟旨人 persona（style_decree：个性影响取舍/褒贬/措辞温度，帝王口吻铁律）
+            if minister_name:
+                try:
+                    from content.ministers.persona import _build_persona_prompt
+                    persona_text = _build_persona_prompt(
+                        state, minister_name, getattr(state, "turn", 0))
+                    if persona_text:
+                        sys_p += (
+                            f"\n【拟旨人视角】{persona_text}\n"
+                            "拟旨人仅影响措辞取舍/褒贬倾向/温度（如蔡京颂词多、陈瓘警语多）；"
+                            "诏书口吻始终是皇帝「朕」，不得写成拟旨人自述。")
+                except Exception:
+                    pass
 
         def validate(o):
             if not isinstance(o, dict) or "body" not in o or "effects" not in o:
@@ -548,8 +837,10 @@ class AIClient(ClientNarrativeMixin):
                 return None
             return o
 
-        raw = self._call(sys_p, f"【朝局】{state_summary}", temperature=0.3,
-                         max_tokens=700, json_mode=True)
+        raw = self._cached_call("draft", state_summary, sys_p,
+                                f"【朝局】{state_summary}", 0.3, 700,
+                                json_mode=True,
+                                input_key=f"{player_intent or ''}|{getattr(state, 'turn', 0) if state is not None else ''}")
         return self._postprocess(raw, validate,
                                  lambda: _ai_unavailable("draft_decree"))
 
@@ -563,6 +854,11 @@ class AIClient(ClientNarrativeMixin):
             minister_advice="（陛下亲述诏意，无大臣建言）",
             player_intent=raw_intent or "（陛下意欲有所作为）",
         )
+        # 拟旨文风参考（T8b 素材：史书笔法借鉴，非锁定模板；本体不依赖 _scratch）
+        try:
+            sys_p += "\n" + _load_prompt("decree_style_ref")
+        except Exception:
+            pass
 
         def validate(o):
             if not isinstance(o, dict) or "body" not in o or "effects" not in o:
@@ -589,8 +885,8 @@ class AIClient(ClientNarrativeMixin):
             "请依知制诰之职，将陛下诏意润为正式诏书，并据施政主体判定机构归属（org_hint）。"
         )
         # 结构调用：低温 0.3 + json_mode，保证契约稳定（本接口无 state 入参，不走工具往返）
-        raw = self._call(sys_p, user_p, temperature=0.3,
-                         max_tokens=700, json_mode=True)
+        raw = self._cached_call("polish", state_summary, sys_p, user_p,
+                                0.3, 700, json_mode=True, input_key=raw_intent or "")
         res = self._postprocess(raw, validate,
                                 lambda: _ai_unavailable("draft_decree"))
         return res
@@ -751,9 +1047,12 @@ class AIClient(ClientNarrativeMixin):
             "请严格按 JSON 契约判定类别与执行时机，并拟出正式诏书。"
         )
         # 结构调用：低温 0.3 保证契约稳定；json_mode 附加 response_format；
-        # 校验失败时回喂修复补调一次，仍失败才走程序兜底（不侵入推演）。
-        raw = self._call(sys_p, user_p, temperature=0.3, max_tokens=900, json_mode=True)
-        return self._postprocess(raw, validate, lambda: _fallback_parse(text, is_secret),
+        # 校验失败时回喂修复补调一次，仍失败才走程序兜底（拟旨模板，不代拟效果）。
+        from ai.narrative_fallback import fallback_decree
+        raw = self._cached_call("parse", state_summary, sys_p, user_p,
+                                0.3, 900, json_mode=True, input_key=text or "")
+        return self._postprocess(raw, validate,
+                                 lambda: fallback_decree(text, is_secret),
                                  retry_prompt=sys_p, retry_user=user_p)
 
     def monthly_report(self, year, month, era_name, posture):
@@ -776,7 +1075,7 @@ class AIClient(ClientNarrativeMixin):
             return o if o["report"] else None
         # 朝局 hash 缓存（同月同态势不重复烧 token）
         raw = self._cached_call("monthly", posture, sys_p, "", 0.7, 600)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("report"))
+        return self._postprocess(raw, validate, lambda: _narrative_fallback("report"))
 
     def event_narrative(self, event_title, event_context, state=None):
         sys_p = _load_prompt("event_narrative", event_title=event_title, event_context=event_context)
@@ -806,9 +1105,25 @@ class AIClient(ClientNarrativeMixin):
                 ]
             else:
                 o["scenes"] = []
+            # 审查 P2-4 修复：人物查表——叙事命中已故/已黜 → 标记回喂
+            if state is not None:
+                try:
+                    statuses = build_character_statuses(state)
+                    _bad, _names = _validate_characters(o["narrative"], statuses)
+                    if _bad:
+                        o["_char_violation"] = _names
+                except Exception:
+                    pass
             return o if o["narrative"] else None
+        # 审查 P2-4 修复：传入数字区间 ranges（叙事数字须落在注入区间，区间外改写定性词）
+        _ranges = None
+        if state is not None:
+            try:
+                _ranges = _build_numeric_ranges(state)
+            except Exception:
+                _ranges = None
         raw = self._cached_call("event", event_context, sys_p, "", 0.8, 700)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("event"))
+        return self._postprocess(raw, validate, lambda: _narrative_fallback("event"), ranges=_ranges)
 
     def advice(self, posture, faction_hint=""):
         sys_p = _load_prompt("advice", posture=posture, faction_hint=faction_hint)
@@ -819,13 +1134,15 @@ class AIClient(ClientNarrativeMixin):
             o["advice"] = _clean_text(o.get("advice", ""))
             return o if o["advice"] else None
         raw = self._call(sys_p, "", temperature=0.9, max_tokens=200)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("advice"))
+        return self._postprocess(raw, validate, lambda: _narrative_fallback("advice"))
 
-    def economy_decide(self, posture):
+    def economy_decide(self, posture, state=None):
         """AI 推演本月全国经济动态（全系统强制 AI，拒绝式）+ 金融 5 字段（蔡权衡定稿）。
 
         核心字段（景气/士绅/士绅力度/生产）缺失或非法 → **整单返回 None**；金融字段
         （交子信任/钱荒/市舶/银行/物价趋势）三态词白名单，缺失/非法 → **拒绝式报错**。
+        state：与 agent 化签名一致（agent_router 统一传 state）；当前经济推演仅消费
+        posture，state 预留供记忆/角色注入，不改变既有语义。
         """
         from content.data import FINANCE_STATES
         sys_p = _load_prompt("economy", posture=posture)
@@ -843,10 +1160,21 @@ class AIClient(ClientNarrativeMixin):
             out = {
                 "景气": o["景气"], "士绅": o["士绅"], "士绅力度": o["士绅力度"], "生产": o["生产"],
             }
+            # 窖银/城市化/回乡/科举：合法档位词或合法别名 → 归一；其他（含含档位字的非法词如
+            # "超大"）→ 兜底「无」（本月不发生）。normalize_tier 对含档位字的词会字形就近归一，
+            # 故先校验词 ∈ 合法档位/别名集，避免"超大→大"式误归一。
+            _tier_words = set(_TIERS7)
+            try:
+                from content.data import TIER_ALIAS
+                for _vals in TIER_ALIAS.values():
+                    _tier_words.update(_vals)
+            except Exception:
+                pass
             for k in ("窖银", "城市化", "回乡", "科举"):
                 v = o.get(k)
                 if isinstance(v, str) and v.strip():
-                    out[k] = normalize_tier(v)
+                    w = v.strip()
+                    out[k] = normalize_tier(w) if w in _tier_words else "无"
                 else:
                     out[k] = "无"   # 缺省 = 本月不发生（明确语义）
             # 金融 5 字段（三态词白名单；缺失/非法 → 拒绝式整单失败）
@@ -1057,16 +1385,18 @@ class AIClient(ClientNarrativeMixin):
     def invest_decide(self, posture, state=None):
         """投资推演契约（复用 free_effect 载体）：领域/力度/来源/期限档位词。
 
-        返回 {"field": 六领域, "fund": "treasury"|"imperial_treasury", "tier": 档位, "months": int}
-        → 程序 invest() 按 INVEST_BASE 换算并记账（四账闭合守恒）。
+        对齐（复用原有机制）：field 支持"科技"领域（研发投入走既有投资通道，
+        落地 invest() field=科技 → tech researching 加速；node 可选：field=科技 时指定节点）。
+        返回 {"field": 七领域, "fund": "treasury"|"imperial_treasury", "tier": 档位, "months": int,
+              "node": 可选}
         """
         from content.data import INVEST_BASE, INVEST_FUND_SOURCES
         sys_p = (
             "你是朝廷度支。把本季投资计划量化为 JSON 契约：\n"
-            '{"field": "农业|水利|工坊|商铺|漕运|军器", "fund": "treasury|imperial_treasury",'
-            '"tier": "微|小|中|大|巨|极", "months": 12}'
-            "\nfield 六领域（INVEST_BASE 基准）；fund=国库（会签执行）/内帑（乾纲独断）；"
-            "tier 投资力度档位（程序按 INVEST_BASE 年回报换算）；months 回报期限。"
+            '{"field": "农业|水利|工坊|商铺|漕运|军器|科技", "fund": "treasury|imperial_treasury",'
+            '"tier": "微|小|中|大|巨|极", "months": 12, "node": "科技领域必填的节点id（官方或玩家注册）"}'
+            "\nfield 七领域（INVEST_BASE 基准；科技=研发投入走既有投资通道）；"
+            "fund=国库（会签执行）/内帑（乾纲独断）；tier 投资力度档位；months 回报期限。"
         )
 
         def validate(o):
@@ -1083,9 +1413,20 @@ class AIClient(ClientNarrativeMixin):
                 return None
             m = o.get("months", 12)
             o["months"] = int(m) if isinstance(m, (int, float)) and 3 <= int(m) <= 60 else 12
+            # 对齐：field=科技 时 node 必填（官方或玩家注册节点）
+            if o["field"] == "科技":
+                nid = str(o.get("node", "")).strip()
+                if not nid:
+                    return None
+                from core.asset_context import get_tech_node
+                from core.registries import node_entry
+                ok = get_tech_node(nid) is not None or (state is not None and node_entry(state, nid) is not None)
+                if not ok:
+                    return None
+                o["node"] = nid
             return o
 
-        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=200, json_mode=True)
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=250, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("invest"))
 
     def era_decide(self, posture, state=None):
@@ -1441,24 +1782,43 @@ class AIClient(ClientNarrativeMixin):
         return self._postprocess(raw, validate, lambda: _ai_unavailable("treasury"))
 
     def emperor_personal_decide(self, posture, state=None):
-        """皇帝个人契约（起居注/内侍省）：推演皇帝健康、心情、私务、宫廷琐事。
-        输出：{"health": "康|微恙|病", "mood": "怡|平|忧|怒", "private": "读书|射箭|宴乐|斋醮|处理密奏|...", "narrative": "起居注（≤100字）"}"""
+        """皇帝个人行动契约 v2（言枢密定稿 + A15 素材）：推演陛下本月个人行止与后果。
+
+        输出：{"location": "宫里|京城|出京", "mode": "公开|微服",
+              "action": "该 location×mode 格内白名单行动（跨格子非法）",
+              "prepared": bool, "risk": "低|中|高",
+              "effects": {"威望|民心|健康|心情": 档位词(可带 +/- 前缀)},
+              "narrative": "≤100字起居注叙事"}
+        拒绝式：location/mode/action 越界、跨格子、risk 非法、effects 键越界 → 整单失败
+        （程序只取档位词换算封顶；费用/时代门槛/月度限由程序核算，AI 不写数值）。
+        """
+        from content.data import (
+            IMPERIAL_ACTION_MATRIX, IMPERIAL_LOCATIONS, IMPERIAL_MODES,
+            IMPERIAL_RISK_LEVELS, IMPERIAL_EFFECT_DIM,
+        )
         sys_p = (
-            "你是北宋起居注，记录皇帝起居饮食、喜怒哀乐、私务处理。根据当前皇威、民心、朝局压力、年龄，推演本月皇帝个人状态。\n"
+            "你是北宋起居注兼内侍省都知，推演陛下本月个人行动与后果。\n"
             "输出契约（严格 JSON）：\n"
-            '{"health": "康|微恙|病", "mood": "怡|平|忧|怒", "private": "读书|射箭|宴乐|斋醮|处理密奏|召对|巡幸|...", '
-            '"narrative": "起居注（≤100字，体现帝王日常、身心状态、私务与公务交织）"}\n'
-            "- health：康/微恙/病；mood：怡/平/忧/怒；private：自由文本（≤12字）。\n"
-            "- 只叙事不给数值。"
+            '{"location": "宫里|京城|出京", "mode": "公开|微服", "action": "行动名",'
+            '"prepared": bool, "risk": "低|中|高",'
+            '"effects": {"威望": 档位词, "民心": 档位词, "健康": 档位词, "心情": 档位词},'
+            '"narrative": "起居注叙事（≤100字）"}\n'
+            "- action 必须属于该 (location, mode) 组合的合法行动白名单（跨格子非法）；\n"
+            "- effects 键仅限 威望/民心/健康/心情，值只用档位词（无/微/小/中/大/巨/极，可带 +/- 前缀表升降）；\n"
+            "- 只给档位不给数值；费用、时代门槛、行程由朝廷程序核算，陛下不可自定。"
         )
         inj = ""
         if state is not None:
             try:
+                act = getattr(state, "imperial_action", None) or {}
+                if act:
+                    inj += (f"\n【陛下本月已定行止】{act.get('location', '')}·"
+                            f"{act.get('mode', '')}·{act.get('action', '')}"
+                            f"（契约 action 须与此一致）")
                 prestige = getattr(state, "prestige", 50)
                 mood_val = getattr(state, "population_satisfaction", 50)
                 year = getattr(state, "year", 1)
-                age = 20 + year // 12  # 简化年龄估算
-                inj += f"\n【皇威】{prestige} 【民心】{mood_val} 【约龄】{age}岁"
+                inj += f"\n【皇威】{prestige} 【民心】{mood_val} 【年份】{year}年"
             except Exception:
                 pass
         sys_p += inj
@@ -1466,20 +1826,46 @@ class AIClient(ClientNarrativeMixin):
         def validate(o):
             if not isinstance(o, dict):
                 return None
-            health = str(o.get("health", "康")).strip()
-            if health not in ("康", "微恙", "病"):
-                health = "康"
-            mood = str(o.get("mood", "平")).strip()
-            if mood not in ("怡", "平", "忧", "怒"):
-                mood = "平"
-            private = str(o.get("private", "处理公务")).strip()[:12]
-            o["health"] = health
-            o["mood"] = mood
-            o["private"] = private
-            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:100]
-            return o
+            loc = str(o.get("location", ""))
+            mode = str(o.get("mode", ""))
+            action = str(o.get("action", ""))
+            if loc not in IMPERIAL_LOCATIONS or mode not in IMPERIAL_MODES:
+                return None
+            matrix = IMPERIAL_ACTION_MATRIX.get(loc, {}).get(mode, {})
+            if action not in matrix:
+                return None  # 跨格子非法 → 拒绝式整单失败
+            prepared = o.get("prepared")
+            if not isinstance(prepared, bool):
+                return None
+            risk = str(o.get("risk", ""))
+            if risk not in IMPERIAL_RISK_LEVELS:
+                return None
+            eff = o.get("effects")
+            if not isinstance(eff, dict):
+                return None
+            out_eff = {}
+            for k, v in eff.items():
+                if k not in IMPERIAL_EFFECT_DIM:
+                    return None  # 键越界 → 拒绝式
+                if not isinstance(v, str) or not v.strip():
+                    return None
+                text = v.strip()
+                direction = 1.0
+                if text.startswith("+"):
+                    text = text[1:]
+                elif text.startswith("-"):
+                    direction = -1.0
+                    text = text[1:]
+                tier = normalize_tier(text)
+                if tier not in _TIERS7:
+                    return None
+                out_eff[k] = ("-" if direction < 0 else "") + tier
+            narrative = _clean_text(str(o.get("narrative", "")))[:100]
+            return {"location": loc, "mode": mode, "action": action,
+                    "prepared": prepared, "risk": risk,
+                    "effects": out_eff, "narrative": narrative}
 
-        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=200, json_mode=True)
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=300, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("emperor_personal"))
 
     def hidden_state_decide(self, posture, state=None):
@@ -1554,6 +1940,166 @@ class AIClient(ClientNarrativeMixin):
 
         raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=400, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("hidden_state"))
+
+
+    def research_decide(self, posture, state=None):
+        """承接模式·研发推演契约（言枢密设计）：{node, invest, talent, risk, narrative}——
+        node 存在（官方 TECH_NODES 或玩家 tech_registry）、三档 ∈ 7 档词、拒绝式；
+        程序换算（invest→拨款额守恒、talent→masters 加成、risk→失败概率程序随机）。"""
+        from core.asset_context import get_tech_node
+        from core.registries import node_entry
+        sys_p = (
+            "你是承接研发的工部侍郎。把本期攻关量化为 JSON 契约：\n"
+            '{"node": "节点id（官方或玩家注册）", "invest": "微|小|中|大",'
+            '"talent": "微|小|中|大", "risk": "微|小|中|大", "narrative": "≤120字"}'
+            "\ninvest 拨款力度（程序按 10万~50万×档换算守恒入 tech 攻关）；"
+            "talent 工匠投入（→ masters 加成）；risk 失败概率（程序随机，非档位直译）。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict) or "node" not in o:
+                return None
+            nid = str(o.get("node", "")).strip()
+            if not nid:
+                return None
+            # node 存在（官方或玩家注册）
+            node = None
+            if get_tech_node(nid):
+                node = nid
+            elif state is not None:
+                try:
+                    if node_entry(state, nid):
+                        node = nid
+                except Exception:
+                    node = None
+            if not node:
+                return None
+            for k in ("invest", "talent", "risk"):
+                v = o.get(k)
+                if not isinstance(v, str) or v not in _TIERS7:
+                    return None
+                o[k] = v
+            o["node"] = nid
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("research"))
+
+    def diplomacy_dialogue(self, player_speech, target, state=None):
+        """外交对话契约（言枢密 design）：AI 扮演国主（MONARCH_PERSONAS 注入 sys_p）→
+        输出 {target, stance, agreement, terms, narrative}——拒绝式校验
+        （target∈辽/金/西夏、stance 6 姿态、agreement 6 类型、terms 按类型白名单）。"""
+        from content.data import MONARCH_PERSONAS
+        from core.diplomacy_treaty import TREATY_TYPES
+        persona = MONARCH_PERSONAS.get(target, "外国国主")
+        sys_p = (
+            f"你是{target}国主。{persona}\n"
+            "玩家（宋使）来议和战。以国主身份回奏，输出 JSON：\n"
+            '{"target": "' + target + '", "stance": "友善|警惕|强硬|傲慢|犹豫|备战",'
+            '"agreement": "和亲|岁币|榷场|盟约|纳贡|战争|拒绝",'
+            '"terms": {"tier": "微|小|中|大|极"}, "narrative": "≤120字"}'
+            "\nagreement 六协议（和亲/岁币/榷场/盟约/纳贡/战争）或拒绝；"
+            "terms.tier 为协议档位（程序按系数表换算 attitude/嫁妆/岁币/榷场/战争）；"
+            "拒绝 → agreement=拒绝（不伪造协议）。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            if o.get("target") not in ("辽", "金", "西夏"):
+                return None
+            if o.get("stance") not in ("友善", "警惕", "强硬", "傲慢", "犹豫", "备战"):
+                return None
+            ag = o.get("agreement")
+            if ag not in TREATY_TYPES + ("拒绝",):
+                return None
+            terms = o.get("terms") or {}
+            if not isinstance(terms, dict):
+                return None
+            # 岁币/榷场专用档位（对齐 SUI_GONG_MULT/_DIPLO_ATT 键）；其余协议 微~极
+            tier = str(terms.get("岁币") or terms.get("榷场") or terms.get("tier", "中"))
+            if ag == "岁币":
+                if tier not in ("增", "减", "停"):
+                    return None
+            elif ag == "榷场":
+                if tier not in ("开", "扩", "停"):
+                    return None
+            elif ag in ("和亲", "盟约", "纳贡", "战争"):
+                if tier not in ("微", "小", "中", "大", "极"):
+                    return None
+            o["terms"] = {"tier": tier}
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            return o
+
+        raw = self._call(sys_p, f"【宋使来议】{player_speech}", temperature=0.6,
+                         max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate,
+                                 lambda: {"target": target, "stance": "警惕",
+                                          "agreement": "拒绝",
+                                          "terms": {}, "narrative": "（国主未允所请。）"})
+
+    def build_new_branch_decide(self, posture, state=None):
+        """新兵种设立契约（言枢密 schema，branch_registry 落地）：
+        branch_name 任意名≤12字 + lineage 7 系（equipment/training/mobility 特化 +
+        position 场景）+ specialization 档位 + equip_focus（可选）+ narrative；
+        拒绝式（不重名/合法档位/不超科技由 register_branch 复核）。"""
+        from core.registries import SPECIALIZATION_TIERS
+        from content.data import BRANCH_BASE
+        sys_p = (
+            "你是北宋枢密院。把陛下设立新兵种的提案量化为 JSON 契约：\n"
+            '{"branch_name": "兵种名≤12字（史实番号如 神臂弩/胜捷军/水虎翼 或自创）",'
+            '"lineage": "重骑兵|轻骑兵|重步兵|轻步兵|弓弩兵|水军|器械兵",'
+            '"specialization": "equipment|training|mobility|equipment_training|equipment_mobility|training_mobility|balanced",'
+            '"tier": "微|小|中|大", "position": "平原|山地|水战|攻城|守城|野战|巷战",'
+            '"equip_focus": "火器|弓弩|战马|(可空)", "narrative": "≤120字建军叙事"}'
+            "\nspecialization 7 系 + tier 档位（程序按 BRANCH_SPEC 换算系数封顶）；"
+            "equip_focus 触发科技门槛（火器→gunpowder、弓弩→弓弩工艺、战马→马政）；"
+            "只给意图与叙事，数值/成本由 register_branch 程序核算。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict) or "branch_name" not in o:
+                return None
+            name = str(o.get("branch_name", "")).strip()[:12]
+            if not name:
+                return None
+            if o.get("lineage") not in BRANCH_BASE:
+                return None
+            if o.get("specialization") not in SPECIALIZATION_TIERS:
+                return None
+            if o.get("tier") not in _TIERS7:
+                return None
+            if o.get("position") not in ("平原", "山地", "水战", "攻城", "守城", "野战", "巷战"):
+                return None
+            o["branch_name"] = name
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
+            o["equip_focus"] = o.get("equip_focus") if o.get("equip_focus") in ("火器", "弓弩", "战马") else ""
+            return o
+
+        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("branch"))
+
+
+# ============================================================
+# 统一拟旨解析入口（原 ai/decree.py 内联）
+# ============================================================
+def parse_decree(text: str, state_summary: str = "", is_secret: bool = False) -> dict:
+    """解析一道拟旨，返回结构化结果。
+
+    圣旨 / 密旨 都由玩家自由拟定，交由 AI 推演判定：
+    - 类别：fixed_tech / fixed_finance / fixed_army / fixed_construction（走规则程序）
+            其余为 free_edict（自由推演）
+    - 执行时机：instant（即时）/ longterm（长期，月度推进核销）
+
+    全程依赖 AI，无离线兜底。AI 不可用时返回带 `_error` 标记的结构（T8 分级降级：
+    拟旨模板兜底，不代拟效果；与 AIClient.parse_decree 失败路径一致），由 UI 提示配置。
+    """
+    client = AIClient.load_saved()
+    if client is None:
+        from ai.narrative_fallback import fallback_decree
+        return fallback_decree(text, is_secret)
+    return client.parse_decree(text, state_summary, is_secret=is_secret)
 
 
 # ============================================================

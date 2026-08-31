@@ -176,9 +176,10 @@ class PanelsMenuMixin:
         ban = tk.Frame(f, bg=RED)
         ban.pack(fill="x")
         self._title(ban, "建中靖国元年 · 春正月", fg="#f3e6c4", bg=RED,
-                    font=self._font(KAI, 22, "bold"), anchor="center").pack(pady=18)
+                    font=self._font(KAI, 22, "bold"), anchor="center").pack(pady=14)
 
-        st_w = self._scrolled(f, bg=CARD, font=self._font(KAI, 13), padx=24, pady=20)
+        # —— 引子 ——
+        st_w = self._scrolled(f, bg=CARD, font=self._font(KAI, 13), padx=24, pady=14)
         st_w._text.insert("1.0",
             ("元符三年，向太后垂帘，立端王赵佶为帝。\n\n"
              "新帝登基，年号建中靖国，意在新旧两党之间调停中正，以靖国家。"
@@ -187,9 +188,25 @@ class PanelsMenuMixin:
              "而你，就是这位年仅十九岁的新天子——赵佶。\n\n"
              "你的每一个决定，都将影响大宋国祚的命运。\n是重蹈史实，还是中兴大宋？"))
         st_w._text.configure(state="disabled")
-        st_w.pack(fill="both", expand=True, padx=40, pady=16)
+        st_w.pack(fill="both", expand=True, padx=40, pady=(10, 6))
 
-        self._seal_btn(f, "登 基 治 国", self._build_game_screen, big=True).pack(pady=(0, 18))
+        # —— 开局邸报（史翰青 A14 文案落地，进奏院状报）——
+        from content.codex_text import GAZETTE_OPENING, GAZETTE_HEADER
+        gaz = self._scrolled(f, bg=CARD, font=self._font(KAI, 12), padx=24, pady=12, height=17)
+        t = gaz._text
+        t.tag_configure("h", foreground=RED_D, font=self._font(KAI, 13, "bold"), spacing1=8)
+        t.tag_configure("b", foreground=INK, font=self._font(KAI, 12))
+        t.insert("end", GAZETTE_HEADER + "\n", "h")
+        for head, body, _note in GAZETTE_OPENING:
+            t.insert("end", f"【{head}】", "h")
+            t.insert("end", body + "\n\n", "b")
+        t.configure(state="disabled")
+        gaz.pack(fill="both", expand=True, padx=40, pady=(0, 6))
+
+        # —— 开局入口：登基治国（不设可行动项引导，玩家自行探索）——
+        bar = tk.Frame(f, bg=PAPER)
+        bar.pack(pady=(4, 14))
+        self._seal_btn(bar, "登 基 治 国", self._build_game_screen, big=True).pack(side="left", padx=8)
 
     def _ui_game_over(self):
         s = self.state

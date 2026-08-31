@@ -10,7 +10,7 @@ HISTORICAL_EVENTS = [
     # (年份范围, 触发概率per月, 事件标题, 效果函数或效果dict, 描述)
     {
         "id": "huashigang",
-        "year_range": (1102, 1120),
+        "year_range": (1105, 1120),   # 应奉局崇宁四年（1105）置，此前不可触发（A15 时代门槛）
         "prob": 0.04,
         "title": "花石纲引发民怨",
         "category": "花石纲",
@@ -371,6 +371,86 @@ RANDOM_EVENTS = [
 ]
 
 
+# ============================================================
+# 皇帝个人行动 · 风险事件池（契约 v2 + A15 素材）
+# 区分「史实锚/史实方向」与「合理推演」：推演事件叙事必须明示「传闻/风闻」，
+# 防冒充史实（A15 核心原则）。时代门槛：花石纲类 1105 起、艮岳类 1117 起。
+# effects 数值直写（与旧事件一致），由 Step 9 皇帝个人结算落地。
+# mode 限定该风险事件适用的行动方式（公开/微服）。
+# ============================================================
+IMPERIAL_RISK_EVENTS = [
+    {
+        "id": "imp_yuci_rumor",
+        "title": "遇刺传闻·虚惊一场",
+        "label": "合理推演",
+        "mode": ("微服",),
+        "era_gate": None,
+        "effects": {"emperor_health": -3, "prestige": -2},
+        "desc": "风闻市井间有人图谋不轨，然查无实据，虚惊一场。（传闻，正史无徽宗行刺纪年）",
+    },
+    {
+        "id": "imp_weixing_recognized",
+        "title": "微行被认出·仓皇失仪",
+        "label": "合理推演",
+        "mode": ("微服",),
+        "era_gate": None,
+        "effects": {"prestige": -6},
+        "desc": "微行途中被人认出，仓皇脱身，失仪于市。（传闻细节，正史无纪年）",
+    },
+    {
+        "id": "imp_chafang_minqing",
+        "title": "微服察访·得闻民瘼",
+        "label": "合理推演",
+        "mode": ("微服", "公开"),
+        "era_gate": None,
+        "effects": {"population_satisfaction": 3, "prestige": 2},
+        "desc": "亲见民间疾苦，回宫诏求直言，恤民之政稍行。（推演事件）",
+    },
+    {
+        "id": "imp_difang_yinfeng",
+        "title": "地方应奉·搜括供上",
+        "label": "史实方向",
+        "mode": ("公开",),
+        "era_gate": 1105,
+        "effects": {"treasury": 200000, "population_satisfaction": -2},
+        "desc": "出京所过，州县争先应奉，献奇花异石，纲运扰民。（史实方向，应奉局 1105 后）",
+    },
+    {
+        "id": "imp_huashigang_minyuan",
+        "title": "花石纲民怨沸腾",
+        "label": "史实锚",
+        "mode": ("公开",),
+        "era_gate": 1105,
+        "effects": {"population_satisfaction": -5, "prestige": -3},
+        "desc": "应奉局搜刮东南、纲运扰民，东南民怨沸腾，伏乱之机已萌。（史实，1105 起）",
+    },
+    {
+        "id": "imp_tianxiang_jing",
+        "title": "天象示警·彗孛见于东",
+        "label": "史实锚",
+        "mode": ("公开", "微服"),
+        "era_gate": None,
+        "effects": {"prestige": -2, "population_satisfaction": 1},
+        "desc": "彗星见于东方，诏求直言，中外戒惧。（史实，逐年条目）",
+    },
+]
+
+
+def get_imperial_risk_event(state, action: dict) -> dict | None:
+    """按行动方式与时代门槛抽取皇帝个人行动风险事件（随机）。
+
+    action = {location, mode, action}；返回事件 dict（含 label 三标签）或 None。
+    """
+    candidates = [
+        ev for ev in IMPERIAL_RISK_EVENTS
+        if (ev.get("era_gate") is None or getattr(state, "year", 0) >= ev["era_gate"])
+        and (action or {}).get("mode") in ev.get("mode", ())
+    ]
+    if not candidates:
+        return None
+    return random.choice(candidates)
+
+
 def get_historical_event(year: int, month: int) -> dict | None:
     """根据年份检查是否有史实事件触发"""
     for ev in HISTORICAL_EVENTS:
@@ -445,7 +525,8 @@ def _tier_value(dim: str, tier, direction: float) -> int:
     from ai.client_utils import tier_to_value  # 延迟导入，避免顶层环
     if dim not in _TIER_DIMS:
         return 0
-    return int(direction * tier_to_value(dim, tier, 1.0))
+    # round 而非 int 截断（army 小 1.5 → 2，符合事件档位语义）
+    return int(round(direction * tier_to_value(dim, tier, 1.0)))
 
 
 def _resolve_effects(effects: dict) -> dict:

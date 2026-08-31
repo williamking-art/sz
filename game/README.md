@@ -4,7 +4,7 @@
 
 > **产品定位**：模拟一个穿越者（玩家），通过跟大臣的对话、发布圣旨（政策），来改变历史进程（北宋徽宗朝）。**AI 是游戏的核心引擎**——所有机制（经济/军事/政治/事件/外部/叙事）都通过 AI（agent）推演驱动，harness 保证稳定与编排，程序负责数值/守恒/校验。让 AI 更有效地发挥，就是游戏的宗旨。
 >
-> **架构**：整个游戏 harness 化 + agent 化（详见 `docs/游戏机制说明.md` §〇）：Harness 层（确定性/错误分类/动态工具注册/叙事数值校验）+ Agent 层（persona + 记忆知识库 + 大臣自设工具 + 12 步推演 agent）+ 程序层（结算守恒 + free_effect 契约 + query_state 按需查询）。
+> **架构**（详见 `docs/游戏机制说明.md`）：**AI 只通过 Function Call 返回结构化 changes 改状态**（3 工具 update_state/query_state/trigger_event + tool_choice required）→ 应用层 `engine/state_applier.py`（验证/合并/**守恒校验**/cascade/写库）→ 记忆库（**SQLite 一轮一库**：主库存圣旨/口谕/决策 + 对话记忆库存召对，每 3 回合总结去重）→ 叙事组装（narrative_guard 护栏 + persona 差异）。Agent 按需唤醒（economy 必调），异步化（UI 不卡），回合时序 = AI 推演 → 系统结算 → 形成叙事。
 
 ---
 
@@ -16,9 +16,10 @@
 songzuo/
 ├── 🎮 游戏本体（参与打包 / 运行所需）
 │   ├── gui_main.py          # GUI 版入口
-│   ├── ai/                  # AI 叙事管线（prompt 工程 / JSON 契约 / 错误标记 / narrative_guard 数值校验）
-│   ├── core/                # 游戏核心（状态 / 结算 / 存档 / 事件 / 评估 / free_effect 契约 / tool_registry 自设工具 / estate_mechanic 家产投资）
-│   ├── memory/              # agent 记忆知识库（memory_graph：实体/关系图谱 + 衰减 + 检索，跨回合连贯）
+│   ├── ai/                  # AI 叙事管线（prompt 工程 / JSON 契约 / 错误标记 / narrative_guard 数值校验 / contract_adapter 契约统一 / STATE_TOOL_SCHEMAS）
+│   ├── core/                # 游戏核心（状态 / 结算 / 存档 / 事件 / 评估 / free_effect 契约 / registries 注册表（科技+兵种）/ estate_mechanic 家产投资 / agent_router 按需唤醒 / async_ai 异步化）
+│   ├── engine/              # 应用层（state_applier：AI changes 验证/合并/守恒校验/cascade/写库，唯一改状态通道）
+│   ├── memory/              # agent 记忆（memory_graph 图谱 SQLite 一轮一库 + dialogue_memory 对话记忆库，每 3 回合总结去重）
 │   ├── ui/                  # 界面层（GUI / 舆图 / 主题 / 资源加载）
 │   ├── backend/             # AI 服务抽象层（本地 / 远程后端）
 │   ├── content/             # 数据表（派系 / 军队 / 州县 / 六部 / 科技 / 财政 / 大臣 / ministers/persona.py 人格 / 建筑 / 家产基线）
@@ -61,13 +62,14 @@ songzuo/
 
 | 模块 | 职责 |
 |------|------|
-| `ai/` | AI 叙事管线：`client.py`（prompt 载入 + JSON 契约 + 拒绝式校验 + AI_ERROR_CODES 6 码 + 角色 agent 契约 economy/diplomacy/military/relief/free_effect/invest_decide）、`narrative_guard.py`（叙事-数值校验 + 来源闭集 + 人物校验表）、`decree.py`（诏书润色）、`desensitize.py`（数值脱敏）、`prompts/`（35+ 角色 prompt，含 persona 注入段） |
-| `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（指令与月度结算）、`save_load.py`（存档序列化）、`events.py`（事件触发）、`evaluation.py`（结局评估）、`free_effect.py`（自由动作契约 once/ongoing + 白名单 + 拒绝式）、`tool_registry.py`（大臣自设工具动态注册）、`estate_mechanic.py`（大臣家产/投资记账）、`settlement_reform.py`（机构改制） |
-| `memory/` | agent 记忆知识库：`memory_graph.py`（实体/关系图谱 + 衰减 λ + query/keyword_search/summarize + 槽位原子写盘 + 损坏重建）；短期行为日志（圣旨/口谕/决策 append-only 不注入）+ 长期图谱（选择性注入） |
+| `ai/` | AI 叙事管线：`client.py`（LLM 调用 + tool_choice required + AI_ERROR_CODES 6 码 + 角色 agent 契约）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验 + 来源闭集 + 人物校验表）、`desensitize.py`（脱敏）、`prompts/`（35+ 角色 prompt + decree_style_ref 拟旨文风） |
+| `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事）+ `commands_decree.py`（拟旨族）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11 结算函数，含财政/灾荒/士绅囤粮）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调）、`async_ai.py`（后台 AI + 主线程回调，UI 不卡）、`free_effect.py`（契约落地）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维） |
+| `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层） |
+| `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离） |
 | `ui/` | 界面：`gui.py`（Tkinter 主界面）、`map.py`（水墨舆图）、`theme.py`（宋式配色）、`assets.py`（资源加载） |
 | `backend/` | AI 服务抽象：`client.py`（LocalBackend / HttpBackend 统一接口） |
 | `content/` | 数据：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化 + 阳奉阴违） |
-| `audio/` | 音频（规划性落地中）：`player.py`（非阻塞播放器封装，资源缺失静默降级）、`manifest.py`（资源清单与槽位登记）；音量权威源复用 `ui_config.json` 的 `volume` 键 |
+| `audio/` | 音频（规划性落地中）：`manifest.py`（资源清单与槽位登记）；音量权威源复用 `ui_config.json` 的 `volume` 键 |
 
 ---
 
@@ -99,7 +101,9 @@ python gui_main.py
 
 配置见 `ai_config.json`（需填入可用的 LLM `base_url` / `api_key` / `model`）。**AI 是游戏核心引擎**（全游戏级强制 AI）：未配置时，拟旨/月报/召对/推演/自由动作**不执行**并返回明确错误（`AI_NOT_CONFIGURED`，提示配置 OpenAI 兼容 API），绝不伪造效果。
 
-> **文档**：完整机制见 `docs/游戏机制说明.md`（AI 驱动架构/记忆/persona/省 token/经济金融 AI/家产/建筑/投资）；架构重构计划见 `analysis/refactor_plan_ai_harness.md`。
+> **文档**：完整机制见 `docs/游戏机制说明.md`（AI 驱动架构/记忆/persona/省 token/经济金融 AI/家产/建筑/投资）；AI 架构升级计划见 `analysis/refactor_ai_upgrade_plan.md`；harness 化重构见 `analysis/refactor_plan_ai_harness.md`。
+>
+> **测试注意**：本机 CodeBuddy 注入 sitecustomize shim（PYTHONPATH）会干扰测试（大量假失败）——跑 pytest 前先 `$env:PYTHONPATH=''` 并删 `CODEBUDDY_TOOL_CALL_ID`/`CODEBUDDY_SAFE_DELETE_BULK_STATE_DIR` 环境变量。
 
 依赖安装：
 

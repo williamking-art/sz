@@ -14,7 +14,8 @@ from content.data import FREE_EFFECT_FIELD_WHITELIST, FREE_EFFECT_CAP, FREE_EFFE
 
 
 def _clamp(v, cap):
-    return max(-cap, min(cap, int(v)))
+    """clamp 到 ±cap（保留小数——档位微 0.75 不截断，成本平衡评估准确；落地处自行 int）。"""
+    return max(-cap, min(cap, v))
 
 
 def _resolve_effect_value(dim, value):

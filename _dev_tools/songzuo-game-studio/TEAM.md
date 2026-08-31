@@ -57,23 +57,32 @@
 | 01 | 总制作人与技术统筹 | songzuo-game-studio-team-lead | 邹运筹 | `$songzuo-production-orchestrator` |
 | 02 | 北宋史与叙事设计师 | song-narrative-designer | 史翰青 | `$songzuo-historical-narrative` |
 | 03 | 策略系统与数值设计师 | strategy-systems | 蔡权衡 | `$songzuo-strategy-systems` |
-| 04 | 核心架构与存档工程师 | core-engineering | 谷承构 | `$songzuo-core-engineering` |
+| 04 | 核心架构师（结算流水线/状态机/存档/承接层核心）| core-architecture | 谷承构 | `$songzuo-core-engineering` |
 | 05 | AI 叙事管线工程师 | ai-pipeline | 言枢密 | `$songzuo-ai-pipeline` |
 | 06 | Tkinter 界面与交互设计师 | tkinter-ui | 景呈宣 | `$songzuo-tkinter-ui` |
 | 07 | 宋式美术与资源技术美术 | art-assets | 惠宋韵 | `$songzuo-art-assets` |
 | 08 | 质量保障与回归工程师 | regression-qa | 严归正 | `$songzuo-regression-qa` |
 | 09 | 打包与发布工程师 | release-engineering | 封致远 | `$songzuo-release-engineering` |
 | 10 | 宋式音效与音乐设计师 | sound-music-designer | 吕清商 | `$songzuo-audio-music` |
-| 11 | 玩法数据分析师 | data-analytics | 析微澜 | `$songzuo-analytics` |
-| 12 | AI 接口落地专家 | ai-integration | 沈舶司 | `$songzuo-ai-integration` |
+| 11 | 系统机制工程师（皇帝行动/机构/新机制/事件接线）| core-systems | 析微澜 | `$songzuo-analytics` |
+| 12 | 结算与经济落地工程师（经济/财政/物价/平衡落地）| core-settlement | 沈舶司 | `$songzuo-ai-integration` |
 
 ### 五、团队调度规则
 
 1. 每项任务由总制作人（席位 01）先做"任务路由"，只启用完成任务所需的最少专家集合。
 2. 单模块小改由一名主责专家执行，QA 负责验证；跨模块功能由一名主责专家维护唯一实施方案，其他专家仅提供约束和复核。
-3. 文件主责映射：
+3. **派单路由规则（按领域，避免单一专家承压）**：
+   - **结算/经济/财政/物价/平衡落地** → 席位 12（core-settlement 沈舶司）
+   - **系统机制（皇帝行动/机构/新机制/事件接线/状态）** → 席位 11（core-systems 析微澜）
+   - **架构核心（结算流水线/状态机/存档/承接层核心）** → 席位 04（core-architecture 谷承构）
+   - AI 契约/prompt/承接设计 → 席位 05（ai-pipeline 言枢密）；数值/平衡表 → 席位 03（strategy-systems 蔡权衡）
+   - UI/图鉴/简报 → 席位 06（tkinter-ui 景呈宣）；测试验证 → 席位 08（regression-qa 严归正）
+   - 历史素材/叙事 → 席位 02（史翰青）；美术 → 席位 07（惠宋韵）；发布 → 席位 09（封致远）；音美 → 席位 10（吕清商）
+4. 文件主责映射：
    - `ai/`、`backend/`：AI 叙事管线工程师主责；
-   - `core/`：核心架构与存档工程师主责，策略系统专家复核规则与数值；
+   - `core/settlement*.py`（结算/经济/财政/物价）：**结算与经济落地工程师（沈舶司）**主责，策略系统专家复核规则与数值；
+   - `core/`（其余：状态机/流水线/存档/承接层）：核心架构师（谷承构）主责，策略系统专家复核规则与数值；
+   - `core/`（系统机制：皇帝行动/机构/新机制/事件）：系统机制工程师（析微澜）主责；
    - `ui/`、`gui_main.py`：Tkinter 界面专家主责，美术专家复核视觉与资源；
    - `content/`：历史叙事与策略系统共同约束，由任务对应的主责专家落地；
    - `assets/`：美术资源专家主责，界面专家复核加载与显示；

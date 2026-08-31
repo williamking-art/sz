@@ -11,7 +11,7 @@ import ui.theme as theme
 from content.data import (PERSONAL_ACTIONS, FACTION_NAMES, YAMEN_LIST, YAMEN_INFO,
     PREFECTURE_LIST, FIXED_PROCEDURES)
 from ai.client import AIClient, _org_by_affiliation
-import ai.decree as ai_decree
+import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
@@ -23,43 +23,6 @@ class PanelsGovernMixin:
     _FACTION_ALIAS = {"宦官": "宦官集团", "西军": "西军集团", "枢密": "清流言官"}
 
 
-# 对话口谕内帑调拨：金额解析（支持「50万」「500000」「五十万」→ 贯整数；失败返回 None）
-_CN_NUM = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
-           "七": 7, "八": 8, "九": 9, "十": 10, "百": 100, "千": 1000, "万": 10000}
-
-
-def _cn_amount(s: str):
-    """中文数字 → int（五十万=500000、十二万=120000、三千=3000）。"""
-    total, num = 0, 0
-    for ch in s:
-        v = _CN_NUM.get(ch)
-        if v is None:
-            return None
-        if v == 10000:
-            total = (total + num if (total or num) else 1) * 10000
-            num = 0
-        elif v >= 10:
-            total += (num if num else 1) * v
-            num = 0
-        else:
-            num = v
-    return total + num
-
-
-def _parse_inner_amount(text: str):
-    """从召对输入提取内帑调拨金额（贯）；支持 500000 / 50万 / 五十万；失败返回 None。"""
-    t = str(text).replace(",", "").replace("，", "")
-    import re
-    m = re.search(r"(\d+)\s*万", t)
-    if m:
-        return int(m.group(1)) * 10000
-    m = re.search(r"\d+", t)
-    if m:
-        return int(m.group(0))
-    m = re.search(r"[零一二两三四五六七八九十百千万]+", t)
-    if m:
-        return _cn_amount(m.group(0))
-    return None
 
     def _chancellor_factions(self):
         """宰执派系（跟人，不跟派系）：占据宰相岗位（尚书左/右仆射）者所属派系。
@@ -381,7 +344,26 @@ def _parse_inner_amount(text: str):
         txt.bind("<FocusIn>", clear_placeholder)
         txt.bind("<FocusOut>", restore_placeholder)
 
+        dialogue_ctl = {"busy": False, "send_btn": None, "set_loading": None}
+
+        def _set_dialogue_busy(v):
+            dialogue_ctl["busy"] = bool(v)
+            btn = dialogue_ctl["send_btn"]
+            if btn is not None:
+                try:
+                    btn.config(state="disabled" if v else "normal")
+                except Exception:
+                    pass
+            set_loading = dialogue_ctl["set_loading"]
+            if set_loading is not None:
+                try:
+                    set_loading(v)
+                except Exception:
+                    pass
+
         def send():
+            if dialogue_ctl["busy"]:
+                return  # 推演中防重复点击
             text = txt.get("1.0", "end-1c").strip()
             if not text or text == placeholder:
                 return
@@ -390,7 +372,7 @@ def _parse_inner_amount(text: str):
                 from core.commands_decree import propose_inner_transfer
                 amt = _parse_inner_amount(text)
                 if amt is None:
-                    self.self.messagebox.showwarning(
+                    self.messagebox.showwarning(
                         "内帑调拨", "未识别金额，请注明如「发内帑 50 万入国库」")
                     return
                 msg = propose_inner_transfer(self.state, amt)
@@ -401,18 +383,52 @@ def _parse_inner_amount(text: str):
                 refresh()
                 _refresh_pending()
                 return
-            try:
-                _, self.state = self.backend.action(
-                    self.state, "audience_dialogue",
-                    {"minister": minister, "text": text}, self.ai_client)
-            except _AIRuntimeError as e:
-                # AI 运行时故障：停下并提醒，不写对话、不刷新状态
-                self.self.messagebox.showerror("AI 叙事中断", str(e))
+            if not (self.ai_client and getattr(self.ai_client, "available", False)):
+                self.messagebox.showerror(
+                    "AI 叙事中断",
+                    "AI 叙事不可用：召对需要 AI 接入。请在「游戏设置 → AI 配置」中完成配置后重试。")
                 return
-            txt.delete("1.0", "end")
-            restore_placeholder()
-            refresh()
-            _refresh_pending()
+            # T6 异步召对：主线程先入史/快照，AI 后台推演（加载环），回奏主线程落地
+            try:
+                from core.commands import audience_dialogue_prepare, audience_dialogue_apply
+                kwargs, note = audience_dialogue_prepare(self.state, minister, text)
+            except Exception as e:
+                self.messagebox.showerror("召对准备失败", str(e))
+                return
+            if note is not None:
+                # 已薨/罢黜：prepare 已写入史册说明，直接刷新
+                refresh()
+                _refresh_pending()
+                return
+            _set_dialogue_busy(True)
+
+            def _on_success(obj):
+                _set_dialogue_busy(False)
+                try:
+                    reply = audience_dialogue_apply(self.state, minister, obj)
+                except Exception as e:
+                    self.messagebox.showerror("AI 叙事中断", str(e))
+                    return
+                if not reply:
+                    self.messagebox.showerror(
+                        "AI 叙事中断",
+                        "AI 叙事不可用：召对需要 AI 接入。请在「游戏设置 → AI 配置」中完成配置后重试。")
+                    return
+                txt.delete("1.0", "end")
+                restore_placeholder()
+                refresh()
+                _refresh_pending()
+
+            def _on_error(exc):
+                _set_dialogue_busy(False)
+                if isinstance(exc, _AIRuntimeError):
+                    self.messagebox.showerror("AI 叙事中断", str(exc))
+                else:
+                    self.messagebox.showerror("召对错误", str(exc))
+
+            from core.async_ai import run_ai_call
+            run_ai_call(self.ai_client, "dialogue", **kwargs,
+                        on_success=_on_success, on_error=_on_error, ui=self.root)
 
         def on_return(event):
             # Shift+Enter 换行；单独 Enter 发送
@@ -425,7 +441,11 @@ def _parse_inner_amount(text: str):
 
         bar = tk.Frame(right, bg=PAPER)
         bar.pack(fill="x")
-        self._seal_btn(bar, "发 送", send, big=True).pack(side="left", padx=6)
+        dialogue_ctl["send_btn"] = self._seal_btn(bar, "发 送", send, big=True)
+        dialogue_ctl["send_btn"].pack(side="left", padx=6)
+        _ring, _set_loading = self._busy_ring(bar, size=44)
+        _ring.pack(side="left", padx=(4, 0))
+        dialogue_ctl["set_loading"] = _set_loading
         def _close_dialogue():
             if in_card:
                 self._close_overlay()
@@ -436,6 +456,48 @@ def _parse_inner_amount(text: str):
                   lambda: (_close_dialogue(), self._panel_decree_entry(minister)),
                   width=12, gold=True).pack(side="left", padx=6)
         self._btn(bar, "返 回", _close_dialogue, width=12, ghost=True).pack(side="left", padx=6)
+
+    def _close_and_switch(self, fn, title):
+        """关闭当前浮层并转调目标面板（朝局简报跳转用）。"""
+        try:
+            self._close_overlay()
+        except Exception:
+            pass
+        self._switch_panel(fn, title)
+
+    def _render_briefing(self, parent):
+        """朝局简报：程序规则可行动项（确定性推导，无 AI，不伪造），可点击跳转对应面板。
+
+        挂载点：月报面板（奏报摘要）顶部。规则来自 core.briefing（只读 state）。
+        """
+        from core.briefing import build_briefing_actions
+        actions = build_briefing_actions(self.state)
+        card = self._card(parent)
+        card.pack(fill="x", padx=2, pady=(2, 6))
+        self._card_title(card, "朝 局 简 报 · 可 行 事 项")
+        goto_map = {
+            "decree": (self._panel_decree_entry, "拟旨颁布"),
+            "audience": (self._panel_yamen, "群 臣"),
+            "tech": (self._panel_tech, "科 技 树"),
+            "army": (self._panel_military_affairs, "军政机务"),
+            "todo": (self._panel_todo, "在 办 事 务"),
+        }
+        for a in actions:
+            row = tk.Frame(card, bg=CARD)
+            row.pack(fill="x", padx=12, pady=1)
+            # 非纯颜色传意：急务用「●」符号 + 朱批色双编码
+            if a.get("urgent"):
+                mark, col = "● ", theme.DX_URGENT
+            else:
+                mark, col = "○ ", theme.DX_NORMAL
+            self._label(row, mark + str(a.get("title", "")), fg=col, bg=CARD,
+                        font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
+            self._label(row, str(a.get("desc", "")), fg=INK, bg=CARD,
+                        font=self._font(SANS, 9), anchor="w").pack(side="left", padx=(6, 0))
+            fn, title = goto_map.get(a.get("goto"), (self._panel_decree_entry, "拟旨颁布"))
+            self._btn(row, "前 往",
+                      lambda f=fn, t=title: self._close_and_switch(f, t),
+                      width=6, ghost=True).pack(side="right", padx=4)
 
     def _panel_decree_entry(self, minister=None):
         from content.data import ORG_AFFILIATION
@@ -576,25 +638,62 @@ def _parse_inner_amount(text: str):
             pv_body.config(text=d.get("body", ""))
             pv_eff.config(text=f"〔推演效果〕{_format_effects(d.get('effects', []))}")
 
+        polish_ctl = {"btn": None, "busy": False}
+
         def _polish():
+            if polish_ctl["busy"]:
+                return  # 推演中防重复点击
             text = intent.get("1.0", "end-1c").strip()
             if not text:
-                self.self.messagebox.showinfo("提示", "请先写明诏意。")
+                self.messagebox.showinfo("提示", "请先写明诏意。")
                 return
             if not (self.ai_client and getattr(self.ai_client, "available", False)):
-                self.self.messagebox.showwarning(
+                self.messagebox.showwarning(
                     "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。")
                 return
-            try:
-                d = self.ai_client.polish_decree(text, self.state.get_state_summary())
-            except _AIRuntimeError as e:
-                # AI 运行时故障：停下并提醒，不渲染预览
-                self.self.messagebox.showerror("AI 叙事中断", str(e))
-                return
-            d["org_hint"] = org_var.get()
-            if advice:
-                d["source_minister"] = minister
-            _render_preview(d)
+            # T6 异步化：后台润色，主线程落地渲染；任务中按钮禁用 + 预览显示推演中
+            polish_ctl["busy"] = True
+            btn = polish_ctl["btn"]
+            if btn is not None:
+                try:
+                    btn.config(state="disabled")
+                except Exception:
+                    pass
+            pv_body.config(text="推演中…（知制诰润色诏书）")
+            summary = self.state.get_state_summary()   # 主线程快照
+
+            def _on_success(d):
+                polish_ctl["busy"] = False
+                if btn is not None:
+                    try:
+                        btn.config(state="normal")
+                    except Exception:
+                        pass
+                try:
+                    pv_body.config(text="点按下方「圣旨润色」，知制诰将润色为正式诏书。")
+                except Exception:
+                    pass
+                d["org_hint"] = org_var.get()
+                if advice:
+                    d["source_minister"] = minister
+                _render_preview(d)
+
+            def _on_error(e):
+                polish_ctl["busy"] = False
+                if btn is not None:
+                    try:
+                        btn.config(state="normal")
+                    except Exception:
+                        pass
+                try:
+                    pv_body.config(text="润色失败，可重试。")
+                except Exception:
+                    pass
+                self.messagebox.showerror("AI 叙事中断", str(e))
+
+            from core.async_ai import run_ai_call
+            run_ai_call(self.ai_client, "polish_decree", text, summary,
+                        on_success=_on_success, on_error=_on_error, ui=self.root)
 
         # 其他 tab 体
         tab_bodies["本月待签"] = tk.Frame(right, bg=PAPER)
@@ -649,32 +748,44 @@ def _parse_inner_amount(text: str):
                 w.destroy()
             self._title(f3, "奏报摘要", fg=RED_D, bg=PAPER, font=self._font(KAI, 13, "bold"),
                         anchor="w").pack(fill="x", pady=4)
+            # 朝局简报（可行动项程序规则；确定性，无 AI，AI 缺失不降级伪造）
+            try:
+                self._render_briefing(f3)
+            except Exception:
+                pass
             report = ""
             if not (self.ai_client and getattr(self.ai_client, "available", False)):
-                self.self.messagebox.showwarning(
+                self.messagebox.showwarning(
                     "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。奏报暂缺。")
-            elif getattr(self.ai_client, "available", False):
-                try:
-                    report = self.ai_client.monthly_report(
-                        self.state.year, self.state.month, self.state.era_name, self.state.posture)
-                    if isinstance(report, dict):
-                        report = report.get("report", "")
-                    elif isinstance(report, str):
-                        report = report.strip()
-                        if report.startswith("{") or report.startswith("["):
-                            try:
-                                import json
-                                data = json.loads(report)
-                                if isinstance(data, dict):
-                                    report = data.get("report", "")
-                            except Exception:
-                                pass
-                except Exception:
-                    report = ""
-            report_lbl = self._label(f3, report or "（当前档期无奏报摘要，或 AI 不可用）", fg=INK, bg=PAPER,
-                                       font=self._font(KAI, 11), wraplength=560, justify="left")
-            report_lbl.pack(padx=6, pady=6)
-            _resp_labels.append((report_lbl, 36))
+                report_lbl = self._label(f3, "（当前档期无奏报摘要，或 AI 不可用）", fg=INK, bg=PAPER,
+                                         font=self._font(KAI, 11), wraplength=560, justify="left")
+                report_lbl.pack(padx=6, pady=6)
+                _resp_labels.append((report_lbl, 36))
+            else:
+                # T6 异步：月折后台生成，完成后回填（不阻塞 tab 渲染；朝局 hash 缓存防重复烧 token）
+                report_lbl = self._label(f3, "推演中…（起居注修月折）", fg=DIM, bg=PAPER,
+                                         font=self._font(KAI, 11), wraplength=560, justify="left")
+                report_lbl.pack(padx=6, pady=6)
+                _resp_labels.append((report_lbl, 36))
+                summary_args = (self.state.year, self.state.month,
+                                self.state.era_name, self.state.posture)
+
+                def _on_success(report):
+                    text = report.get("report", "") if isinstance(report, dict) else str(report or "")
+                    try:
+                        report_lbl.config(text=text or "（当前档期无奏报摘要）")
+                    except Exception:
+                        pass
+
+                def _on_error(e):
+                    try:
+                        report_lbl.config(text=f"（月折生成失败：{e}）")
+                    except Exception:
+                        pass
+
+                from core.async_ai import run_ai_call
+                run_ai_call(self.ai_client, "monthly_report", *summary_args,
+                            on_success=_on_success, on_error=_on_error, ui=self.root)
 
         # 响应式：窗口/容器尺寸变化时动态更新所有 wraplength
         def _refresh_wraplength(event=None):
@@ -707,17 +818,54 @@ def _parse_inner_amount(text: str):
             bb = tk.Frame(body, bg=PAPER)
             bb.pack(pady=10)
 
-            def _save():
-                d["body"] = txt.get("1.0", "end-1c").strip()
-                nd = self.ai_client.polish_decree(d["body"], self.state.get_state_summary())
-                for k in ("title", "effects", "org_hint"):
-                    d[k] = nd.get(k, d.get(k))
-                self.state.store_council_review(d["id"], {})
-                _refresh_list(); _render_other_tabs()
-                tl.destroy()
-                self.self.messagebox.showinfo("已存", "诏草已批改，重入待签。")
+            save_ctl = {"btn": None, "busy": False}
 
-            self._seal_btn(bb, "保 存 修 改", _save, big=True).pack(side="left", padx=8)
+            def _save():
+                if save_ctl["busy"]:
+                    return  # 推演中防重复点击
+                d["body"] = txt.get("1.0", "end-1c").strip()
+                # T6 异步化：润色后台执行，保存按钮禁用，完成后主线程落地
+                save_ctl["busy"] = True
+                btn = save_ctl["btn"]
+                if btn is not None:
+                    try:
+                        btn.config(state="disabled")
+                    except Exception:
+                        pass
+                summary = self.state.get_state_summary()
+
+                def _on_success(nd):
+                    save_ctl["busy"] = False
+                    if btn is not None:
+                        try:
+                            btn.config(state="normal")
+                        except Exception:
+                            pass
+                    for k in ("title", "effects", "org_hint"):
+                        d[k] = nd.get(k, d.get(k))
+                    self.state.store_council_review(d["id"], {})
+                    _refresh_list(); _render_other_tabs()
+                    try:
+                        tl.destroy()
+                    except Exception:
+                        pass
+                    self.messagebox.showinfo("已存", "诏草已批改，重入待签。")
+
+                def _on_error(e):
+                    save_ctl["busy"] = False
+                    if btn is not None:
+                        try:
+                            btn.config(state="normal")
+                        except Exception:
+                            pass
+                    self.messagebox.showerror("AI 叙事中断", str(e))
+
+                from core.async_ai import run_ai_call
+                run_ai_call(self.ai_client, "polish_decree", d["body"], summary,
+                            on_success=_on_success, on_error=_on_error, ui=self.root)
+
+            save_ctl["btn"] = self._seal_btn(bb, "保 存 修 改", _save, big=True)
+            save_ctl["btn"].pack(side="left", padx=8)
             self._btn(bb, "关 闭", tl.destroy, width=12, ghost=True).pack(side="left", padx=8)
 
         def _discard(idx):
@@ -746,13 +894,6 @@ def _parse_inner_amount(text: str):
         def _council_overlay(d):
             did = d["id"]
             review = self.state.council_reviews.get(did)
-            if not review:
-                try:
-                    review = self.ai_client.council_review(d, self.state.get_state_summary(), state=self.state)
-                except Exception:
-                    review = {"memo": "（会签不可用）", "objections": "（门下省未见条目）",
-                              "executions": "（六部俟旨）", "verdict": "可准", "revised_effects": []}
-                self.state.store_council_review(did, review)
             tl, body = self._overlay("御前廷议", width=780, height=640)
             self._title(body, f"〔廷议〕{d.get('title','')}", fg=RED, font=self._font(KAI, 16, "bold")).pack(pady=6)
 
@@ -799,16 +940,54 @@ def _parse_inner_amount(text: str):
             t = sc._text
             t.tag_configure("h", foreground=RED_D, font=self._font(KAI, 12, "bold"))
             t.tag_configure("b", foreground=INK, font=self._font(KAI, 12))
-            t.insert("end", "【中书省拟稿】\n", "h")
-            t.insert("end", review.get("memo", "") + "\n\n", "b")
-            t.insert("end", "【门下省封驳】\n", "h")
-            t.insert("end", review.get("objections", "") + "\n\n", "b")
-            t.insert("end", "【尚书省及六部执行】\n", "h")
-            t.insert("end", review.get("executions", "") + "\n\n", "b")
-            t.insert("end", f"【会签结论】{review.get('verdict','可准')}\n", "h")
-            rev = review.get("revised_effects", [])
-            if rev:
-                t.insert("end", f"〔拟改效果〕{_format_effects(rev)}\n", "b")
+
+            def _render_review(rev):
+                t.delete("1.0", "end")
+                t.insert("end", "【中书省拟稿】\n", "h")
+                t.insert("end", rev.get("memo", "") + "\n\n", "b")
+                t.insert("end", "【门下省封驳】\n", "h")
+                t.insert("end", rev.get("objections", "") + "\n\n", "b")
+                t.insert("end", "【尚书省及六部执行】\n", "h")
+                t.insert("end", rev.get("executions", "") + "\n\n", "b")
+                t.insert("end", f"【会签结论】{rev.get('verdict','可准')}\n", "h")
+                r2 = rev.get("revised_effects", [])
+                if r2:
+                    t.insert("end", f"〔拟改效果〕{_format_effects(r2)}\n", "b")
+
+            if review:
+                _render_review(review)
+            elif not (self.ai_client and getattr(self.ai_client, "available", False)):
+                # AI 未接入：规则意见代替（明确标注，不伪造 AI 文本）
+                fb = {"memo": "（会签不可用）", "objections": "（门下省未见条目）",
+                      "executions": "（六部俟旨）", "verdict": "可准", "revised_effects": []}
+                self.state.store_council_review(did, fb)
+                _render_review(fb)
+            else:
+                # T6 异步会签：先渲染"推演中"，完成后主线程回填
+                _render_review({"memo": "（廷议推演中…）", "objections": "（门下省核议中…）",
+                                "executions": "（六部承旨待办中…）", "verdict": "—", "revised_effects": []})
+                summary = self.state.get_state_summary()
+
+                def _on_success(rev):
+                    self.state.store_council_review(did, rev)
+                    try:
+                        _render_review(rev)
+                    except Exception:
+                        pass
+
+                def _on_error(e):
+                    fb = {"memo": "（会签不可用）", "objections": "（门下省未见条目）",
+                          "executions": "（六部俟旨）", "verdict": "可准", "revised_effects": []}
+                    self.state.store_council_review(did, fb)
+                    try:
+                        _render_review(fb)
+                    except Exception:
+                        pass
+                    self.messagebox.showerror("AI 叙事中断", str(e))
+
+                from core.async_ai import run_ai_call
+                run_ai_call(self.ai_client, "council_review", d, summary, state=self.state,
+                            on_success=_on_success, on_error=_on_error, ui=self.root)
             bb = tk.Frame(body, bg=PAPER)
             bb.pack(pady=8)
 
@@ -840,13 +1019,21 @@ def _parse_inner_amount(text: str):
         # 底部按钮栏：圣旨润色 / 去廷议 / 御笔直发 / 汇成诏书
         bottom = tk.Frame(inner, bg=PAPER)
         bottom.pack(side="bottom", fill="x", padx=10, pady=8)
-        self._seal_btn(bottom, "圣 旨 润 色", _polish, big=True).pack(side="left", padx=6)
+        polish_ctl["btn"] = self._seal_btn(bottom, "圣 旨 润 色", _polish, big=True)
+        polish_ctl["btn"].pack(side="left", padx=6)
         self._btn(bottom, "去 廷 议", lambda: _open_council(None), width=12, gold=True).pack(side="left", padx=6)
-        self._btn(bottom, "御 笔 直 发（明诏）",
-                  lambda: self._direct_issue(current_draft, org_var.get(), is_secret=False), width=14).pack(side="left", padx=6)
-        self._btn(bottom, "密 旨 直 发",
-                  lambda: self._direct_issue(current_draft, org_var.get(), is_secret=True), width=12,
-                  ghost=True).pack(side="left", padx=6)
+        _direct_btns = []
+        _d1 = self._btn(bottom, "御 笔 直 发（明诏）",
+                        lambda: self._direct_issue(current_draft, org_var.get(), is_secret=False,
+                                                   _busy_btns=_direct_btns), width=14)
+        _d1.pack(side="left", padx=6)
+        _direct_btns.append(_d1)
+        _d2 = self._btn(bottom, "密 旨 直 发",
+                        lambda: self._direct_issue(current_draft, org_var.get(), is_secret=True,
+                                                   _busy_btns=_direct_btns), width=12,
+                        ghost=True)
+        _d2.pack(side="left", padx=6)
+        _direct_btns.append(_d2)
         self._btn(bottom, "汇 成 诏 书",
                   lambda: self._merge_selected(lb), width=12).pack(side="left", padx=6)
         self._btn(bottom, "关 闭",
@@ -856,7 +1043,9 @@ def _parse_inner_amount(text: str):
         _select_tab("圣旨回书")
         _render_other_tabs()
 
-    def _direct_issue(self, draft, org_hint, is_secret=False):
+    def _direct_issue(self, draft, org_hint, is_secret=False, _busy_btns=None):
+        if getattr(self, "_direct_issue_busy", False):
+            return  # 推演中防重复点击
         if not draft:
             self.messagebox.showinfo("提示", "请先在右侧润色出诏草。")
             return
@@ -865,20 +1054,58 @@ def _parse_inner_amount(text: str):
             self.messagebox.showinfo("提示", "诏意正文为空。")
             return
         summary = self.state.get_state_summary()
-        res = ai_decree.parse_decree(text, summary, is_secret=is_secret)
-        if res.get("_error"):
-            self.messagebox.showerror("拟旨失败", res.get("narrative", "AI 不可用。"))
+
+        def _set_busy(v):
+            self._direct_issue_busy = bool(v)
+            for _b in (_busy_btns or []):
+                if _b is not None:
+                    try:
+                        _b.config(state="disabled" if v else "normal")
+                    except Exception:
+                        pass
+
+        def _land(res):
+            _set_busy(False)
+            if res.get("_error"):
+                self.messagebox.showerror("拟旨失败", res.get("narrative", "AI 不可用。"))
+                return
+            minister = draft.get("source_minister") or self._current_minister or "陛下"
+            msg, self.state = self.backend.action(
+                self.state, "issue_free_decree",
+                {"parse_result": res, "minister": minister, "is_secret": is_secret})
+            self._pending_logs.append(f"〔拟旨〕{msg}")
+            self._log(f"〔拟旨〕{msg}")
+            self._refresh_hud()
+            self.messagebox.showinfo("御笔直发", f"{msg}\n\n推演按语：{res.get('narrative','')}")
+            # 回到纯舆图（关闭本浮层）
+            self._close_overlay()
+
+        if not (self.ai_client and getattr(self.ai_client, "available", False)):
+            # 无 AI：同步程序兜底（_fallback_parse 含 _error 标记，不伪造）
+            try:
+                res = ai_decree.parse_decree(text, summary, is_secret=is_secret)
+            except Exception as e:
+                self.messagebox.showerror("AI 叙事中断", str(e))
+                return
+            _land(res)
             return
-        minister = draft.get("source_minister") or self._current_minister or "陛下"
-        msg, self.state = self.backend.action(
-            self.state, "issue_free_decree",
-            {"parse_result": res, "minister": minister, "is_secret": is_secret})
-        self._pending_logs.append(f"〔拟旨〕{msg}")
-        self._log(f"〔拟旨〕{msg}")
-        self._refresh_hud()
-        self.messagebox.showinfo("御笔直发", f"{msg}\n\n推演按语：{res.get('narrative','')}")
-        # 回到纯舆图（关闭本浮层）
-        self._close_overlay()
+        # T6 异步化：拟旨解析后台执行，任务中按钮禁用
+        _set_busy(True)
+
+        def _on_success(res):
+            try:
+                _land(res)
+            except Exception as e:
+                _set_busy(False)
+                self.messagebox.showerror("AI 叙事中断", str(e))
+
+        def _on_error(e):
+            _set_busy(False)
+            self.messagebox.showerror("AI 叙事中断", str(e))
+
+        from core.async_ai import run_ai_call
+        run_ai_call(self.ai_client, "parse_decree", text, summary, is_secret=is_secret,
+                    on_success=_on_success, on_error=_on_error, ui=self.root)
 
     def _merge_selected(self, lb):
         sel = list(lb.curselection())
@@ -927,64 +1154,407 @@ def _parse_inner_amount(text: str):
         bar.pack(pady=10)
         self._seal_btn(bar, "下 达", do, big=True).pack(side="left", padx=8)
 
+    # 中枢面板机构分组（只列中枢机构官员；运行态以 state.central_orgs 为权威）
+    _CENTRAL_ORG_GROUPS = (
+        ("宰 执（尚书省）", ("尚书省",)),
+        ("三 省·中书门下", ("中书省", "门下省")),
+        ("枢 密 院", ("枢密院",)),
+        ("三 衙", ("殿前司", "侍卫亲军马军司", "侍卫亲军步军司")),
+        ("中 枢 六 部", ("吏部", "户部", "礼部", "兵部", "刑部", "工部")),
+    )
+
+    def _faction_of(self, name):
+        """大臣姓名 → 派系名（state.factions leader 反查；回退 MINISTERS 档案）。"""
+        try:
+            for fn, f in self.state.factions.items():
+                if f.get("leader") == name:
+                    return fn
+        except Exception:
+            pass
+        try:
+            from content.ministers.data import MINISTERS
+            return MINISTERS.get(name, {}).get("faction", "")
+        except Exception:
+            return ""
+
+    def _panel_central_org(self):
+        """中枢面板：只列中枢机构官员（宰执/三省/枢密/三衙/六部 holders），
+        显示官职 + 姓名 + 派系，可召对奏对。数据源 state.central_orgs + MINISTERS。"""
+        inner = self._panel_shell("中 枢")
+        self._label(inner, "中枢机要，百官之枢。凡在任者皆可召对奏事；施政诏令仍由圣旨推演。",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(
+            padx=12, pady=(2, 10))
+        s = self.state
+        orgs = getattr(s, "central_orgs", None) or {}
+        shown = 0
+        for gtitle, keys in self._CENTRAL_ORG_GROUPS:
+            cards = []
+            for key in keys:
+                o = orgs.get(key)
+                if not o or o.get("abolished"):
+                    continue
+                for title, holder in (o.get("holders") or {}).items():
+                    if holder:
+                        cards.append((
+                            self._minister_card_data(holder, f"{key}·{title}"),
+                            self._minister_kind(holder),
+                            lambda m=holder, t=f"{title}", k=key: self._open_overlay(
+                                lambda: self._panel_dialogue(m, role=f"{k}·{t}"),
+                                f"召对 · {m}")))
+            if not cards:
+                continue
+            self._card_title2(inner, gtitle)
+            gc = self._card(inner)
+            gc.pack(fill="x", padx=10, pady=4)
+            self._minister_card_grid(gc, cards)
+            shown += len(cards)
+        if not shown:
+            self._label(inner, "（中枢机要暂无在任者）", fg=DIM, bg=PAPER,
+                        font=self._font(SANS, 11)).pack(padx=12, pady=10)
+
+    def _minister_kind(self, name):
+        """大臣立绘分类：military（西军等）/ civil（含宦官回退）；按派系档案 kind 判定。"""
+        try:
+            from content.ministers.data import FACTION_PROFILES
+            for fn, f in self.state.factions.items():
+                if f.get("leader") == name:
+                    k = FACTION_PROFILES.get(fn, {}).get("kind", "civil")
+                    return "military" if k == "military" else "civil"
+        except Exception:
+            pass
+        return "civil"
+
+    def _minister_card_data(self, name, role_label):
+        """大臣卡片数据：名字/年龄/官职/个性/生平（脱敏——不含 loyalty/corruption）。
+
+        数据源：MINISTERS（born/role/traits）+ persona.get_persona().style（性格一句话）
+        + A14 简介（CODEX_MINISTER_BIO，其余由职司程序生成）。
+        """
+        from content.ministers.data import MINISTERS
+        from content.codex_text import CODEX_MINISTER_BIO
+        fig = MINISTERS.get(name, {}) or {}
+        age = ""
+        try:
+            born = int(fig.get("born", 0) or 0)
+            if born > 0:
+                age = int(self.state.year) - born
+        except Exception:
+            age = ""
+        style = ""
+        try:
+            from content.ministers.persona import get_persona
+            style = str(get_persona(name).get("style", "") or "")
+        except Exception:
+            style = ""
+        if not style:
+            style = str(fig.get("traits", "") or "").replace("/", "，")
+        bio = CODEX_MINISTER_BIO.get(name, "")
+        if not bio:
+            role = str(fig.get("role", "") or "")
+            bio = f"{role}。" if role else "朝中大臣。"
+        return {"name": name, "age": age, "role": role_label,
+                "style": style, "bio": bio}
+
+    def _minister_card(self, parent, data, kind, on_audience):
+        """大臣立绘卡片：主体立绘 + 名字(年龄) / 官职 / 个性 / 生平 + 召见奏对。
+
+        宋式：描金卡片 + 分类立绘（civil=文臣 / military=武将占位），下方依次信息行。
+        """
+        from ui import assets as res
+        card = tk.Frame(parent, bg=CARD, relief="ridge", bd=1,
+                        highlightbackground=GOLD, highlightthickness=1)
+        por = res.minister_portrait(kind, size=(150, 200))
+        pic = tk.Label(card, image=por if por else None, bg=CARD)
+        pic.pack(pady=(10, 2))
+        if por:
+            card._por = por   # 防 GC 回收（黑屏）
+        age_txt = f"（{data['age']} 岁）" if data.get("age") else ""
+        self._title(card, f"{data['name']}{age_txt}", fg=RED_D, bg=CARD,
+                    font=self._font(KAI, 13, "bold"), anchor="center").pack(pady=(2, 0))
+        self._label(card, data.get("role", ""), fg=RED, bg=CARD,
+                    font=self._font(SANS, 9, "bold"), anchor="center").pack(pady=(0, 2))
+        if data.get("style"):
+            self._label(card, f"性格：{data['style']}", fg=INK, bg=CARD,
+                        font=self._font(SANS, 9), anchor="center",
+                        wraplength=160).pack(pady=(0, 1))
+        if data.get("bio"):
+            self._label(card, data["bio"], fg=DIM, bg=CARD, font=self._font(SANS, 8),
+                        anchor="w", wraplength=170, justify="left").pack(padx=8, pady=(0, 2))
+        self._btn(card, "召见奏对", on_audience, width=10).pack(pady=(2, 8))
+        return card
+
+    def _minister_card_grid(self, parent, cards):
+        """大臣卡片网格（3 列）：cards = [(data, kind, on_audience), ...]。"""
+        for i, (data, kind, on_aud) in enumerate(cards):
+            row, col = i // 3, i % 3
+            self._minister_card(parent, data, kind, on_aud).grid(
+                row=row, column=col, padx=6, pady=6, sticky="nsew")
+        for c in range(3):
+            parent.grid_columnconfigure(c, weight=1)
+
+    # 外交势力区域分组（与 content/data.py EXTERNAL_REGIMES 注释分区对齐，单一映射源）
+    _DIPLO_GROUPS = (
+        ("北方与西北", ("辽", "西夏", "吐蕃", "喀尔喀蒙古", "漠南蒙古", "科尔沁",
+                     "察哈尔", "海西", "建州", "东海")),
+        ("东 方", ("高丽", "日本", "琉球")),
+        ("西南与南方", ("大理", "安南", "占城", "真腊", "暹罗", "缅甸", "喜马拉雅山南诸国")),
+        ("中亚南亚", ("注辇", "西辽", "高昌回鹘", "汪古部")),
+        ("南 洋", ("吕宋", "柔佛", "苏门答剌", "婆罗", "爪哇", "美洛居", "渤泥")),
+    )
+
+    def _panel_diplomacy(self):
+        """外交：势力列表（按区域分组）→ 省份/当前关系/国主对话（异步框架）。
+
+        数据源：EXTERNAL_REGIMES（运行态 external_regimes）+ EXTERNAL_PROVINCES（省份权重）
+        + state 关系（attitude/alliance_jin_liao/_sui_gong）。国主对话契约
+        （diplomacy_dialogue）与条约（treaties）由谷承构落地后自动接入。
+        """
+        from content.data import EXTERNAL_PROVINCES
+        from ui.format_units import humanize_coin
+        inner = self._panel_shell("外 交")
+        self._label(inner, "四夷八荒，邦交纵横。择一国主，面议和战盟约；凡条约之成，皆载史册。",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(padx=12, pady=(2, 8))
+        s = self.state
+        regimes = getattr(s, "external_regimes", None) or {}
+
+        main = tk.Frame(inner, bg=PAPER)
+        main.pack(fill="both", expand=True, padx=10, pady=4)
+
+        # —— 左：势力列表（按组）——
+        left = tk.Frame(main, bg=PAPER, width=280)
+        left.pack(side="left", fill="y", padx=(0, 10))
+        self._label(left, "诸 国", fg=RED_D, bg=PAPER, font=self._font(KAI, 12, "bold"),
+                    anchor="w").pack(fill="x", pady=(0, 2))
+        lb = tk.Listbox(left, bg=CARD, fg=INK, selectbackground=RED,
+                        selectforeground="#f3e6c4", font=self._font(SANS, 10),
+                        relief="flat", bd=0, highlightthickness=0)
+        lb.pack(fill="both", expand=True, padx=6, pady=6)
+        rows = []
+        for gtitle, keys in self._DIPLO_GROUPS:
+            lb.insert("end", f"── {gtitle} ──")
+            rows.append(None)
+            for k in keys:
+                r = regimes.get(k)
+                if not r:
+                    continue
+                att = int(r.get("attitude", 50) or 50)
+                lb.insert("end", f"  {k}　力 {r.get('power', 0)}　态 {att}")
+                rows.append(k)
+
+        # —— 右：详情（省份 + 关系 + 对话）——
+        right = tk.Frame(main, bg=PAPER)
+        right.pack(side="left", fill="both", expand=True)
+
+        def _render_detail(idx):
+            if idx >= len(rows) or rows[idx] is None:
+                return
+            key = rows[idx]
+            r = regimes.get(key) or {}
+            for w in right.winfo_children():
+                w.destroy()
+            # 头部：势力名 + 国力/态度/人口/月税
+            head = tk.Frame(right, bg=PAPER)
+            head.pack(fill="x")
+            self._title(head, key, fg=RED, bg=PAPER, font=self._font(KAI, 16, "bold"),
+                        anchor="w").pack(side="left")
+            self._label(head,
+                        f"力 {r.get('power', 0)}　态 {int(r.get('attitude', 50) or 50)}　"
+                        f"口 {int(r.get('population', 0) or 0)} 万　"
+                        f"月税 {humanize_coin(int(r.get('monthly_tax', 0) or 0))}",
+                        fg=DIM, bg=PAPER, font=self._font(SANS, 10), anchor="e").pack(side="right")
+            # 省份卡
+            self._card_title2(right, "诸 省 分 野")
+            pcard = self._card(right)
+            pcard.pack(fill="x", padx=2, pady=4)
+            provs = EXTERNAL_PROVINCES.get(key, [("本部", 1.0)])
+            pop = int(r.get("population", 0) or 0)
+            tax = int(r.get("monthly_tax", 0) or 0)
+            for pname, weight in provs:
+                row = tk.Frame(pcard, bg=CARD)
+                row.pack(fill="x", padx=12, pady=2)
+                self._label(row, f"　{pname}", fg=INK, bg=CARD,
+                            font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
+                self._label(row,
+                            f"{int(weight * 100)}%　口 {int(pop * weight)} 万　税 {humanize_coin(int(tax * weight))}",
+                            fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+            # 当前关系卡
+            self._card_title2(right, "当 前 关 系")
+            rcard = self._card(right)
+            rcard.pack(fill="x", padx=2, pady=4)
+            _att = int(r.get("attitude", 50) or 50)
+            _word = "友善" if _att >= 70 else ("一般" if _att >= 40 else ("敌视" if _att >= 20 else "仇敌"))
+            rels = [f"态度：{_word}（{_att}）"]
+            if key == "金" and getattr(s, "alliance_jin_liao", False):
+                rels.append("盟约：已联金抗辽")
+            if getattr(s, "_sui_gong", False):
+                rels.append("岁币：已纳岁币")
+            self._label(rcard, "　" + "　".join(rels), fg=INK, bg=CARD,
+                        font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=12, pady=6)
+            self._label(rcard, "　（条约记录/盟约/岁币/战争协议契约由谷承构落地后接入）",
+                        fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="w").pack(
+                anchor="w", padx=12, pady=(0, 6))
+            # 国主对话区（异步框架：diplomacy_dialogue 契约待接入）
+            self._card_title2(right, "国 主 会 面")
+            dcard = self._card(right)
+            dcard.pack(fill="both", expand=True, padx=2, pady=4)
+            self._label(dcard, f"{key}国主（君主档案与外交对话契约待接入）",
+                        fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="w").pack(
+                anchor="w", padx=12, pady=2)
+            log_txt = self._scrolled(dcard, bg="#fffdf8", font=self._font(SANS, 10), height=6)
+            log_txt.pack(fill="both", expand=True, padx=10, pady=2)
+            entry_row = tk.Frame(dcard, bg=CARD)
+            entry_row.pack(fill="x", padx=10, pady=(2, 6))
+            entry = tk.Entry(entry_row, bg="#fffdf8", fg=INK, relief="flat",
+                             font=self._font(SANS, 10), insertbackground=INK,
+                             highlightthickness=1, highlightbackground=BORDER)
+            entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+            ctl = {"busy": False, "btn": None}
+            ring, set_loading = self._busy_ring(entry_row, size=36)
+            ring.pack(side="left", padx=(0, 4))
+            ctl["set_loading"] = set_loading
+
+            def _send_diplomacy():
+                if ctl["busy"]:
+                    return
+                text = entry.get().strip()
+                if not text:
+                    self.messagebox.showinfo("提示", "请先写下要与国主商议之事。")
+                    return
+                ctl["busy"] = True
+                btn = ctl["btn"]
+                if btn is not None:
+                    try:
+                        btn.config(state="disabled")
+                    except Exception:
+                        pass
+                if ctl["set_loading"]:
+                    try:
+                        ctl["set_loading"](True)
+                    except Exception:
+                        pass
+                log_txt._text.configure(state="normal")
+                log_txt._text.insert("end", f"朕：{text}\n\n")
+                log_txt._text.see("end")
+                log_txt._text.configure(state="disabled")
+
+                def _on_success(reply):
+                    ctl["busy"] = False
+                    if btn is not None:
+                        try:
+                            btn.config(state="normal")
+                        except Exception:
+                            pass
+                    if ctl["set_loading"]:
+                        try:
+                            ctl["set_loading"](False)
+                        except Exception:
+                            pass
+                    reply_text = reply.get("reply", "") if isinstance(reply, dict) else str(reply or "")
+                    log_txt._text.configure(state="normal")
+                    log_txt._text.insert("end", f"{key}国主：{reply_text}\n\n")
+                    log_txt._text.see("end")
+                    log_txt._text.configure(state="disabled")
+
+                def _on_error(exc):
+                    ctl["busy"] = False
+                    if btn is not None:
+                        try:
+                            btn.config(state="normal")
+                        except Exception:
+                            pass
+                    if ctl["set_loading"]:
+                        try:
+                            ctl["set_loading"](False)
+                        except Exception:
+                            pass
+                    if isinstance(exc, TypeError) and "diplomacy_dialogue" in str(exc):
+                        self.messagebox.showinfo(
+                            "待接入", "外交对话契约（diplomacy_dialogue）由谷承构落地后自动生效。")
+                    else:
+                        self.messagebox.showerror("AI 叙事中断", str(exc))
+
+                from core.async_ai import run_ai_call
+                run_ai_call(self.ai_client, "diplomacy_dialogue",
+                            key, text, self.state.posture,
+                            on_success=_on_success, on_error=_on_error, ui=self.root)
+
+            ctl["btn"] = self._seal_btn(entry_row, "遣 使", _send_diplomacy, big=False)
+            ctl["btn"].pack(side="right")
+
+        def _on_select(event=None):
+            sel = lb.curselection()
+            if sel:
+                _render_detail(sel[0])
+
+        lb.bind("<<ListboxSelect>>", _on_select)
+        # 默认选中「辽」
+        for i, k in enumerate(rows):
+            if k == "辽":
+                lb.selection_set(i)
+                lb.see(i)
+                _render_detail(i)
+                break
+
     def _panel_yamen(self):
-        """群臣：大臣列表（宰执 + 派系领袖 + 六部尚书），可召见奏对。施政一律走拟旨。"""
+        """群臣：大臣立绘卡片（宰执 + 派系领袖 + 六部尚书），可召见奏对。施政一律走拟旨。"""
         inner = self._panel_shell("群 臣")
         self._label(inner, "朝堂臣工，各有职司；召见入对，垂询天下。凡施政诏令，皆由圣旨推演。",
                     fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(padx=12, pady=(2, 10))
         s = self.state
         chancellors = self._chancellor_factions()
 
-        # 宰执（单列，朱红描金以示尊崇；跟人——占宰相岗位者所属派系）
+        # 宰执（卡片网格，朱红描金以示尊崇；跟人——占宰相岗位者所属派系）
         self._card_title2(inner, "宰 执")
-        fc = self._card(inner)
-        fc.pack(fill="x", padx=10, pady=4)
+        cards = []
         for fn in chancellors:
             if fn not in s.factions:
                 continue
             f = s.factions[fn]
-            row = tk.Frame(fc, bg=CARD, highlightbackground=GOLD, highlightthickness=1)
-            row.pack(fill="x", padx=12, pady=4)
-            self._title(row, f["leader"], fg=RED_D, bg=CARD, font=self._font(KAI, 14, "bold"), anchor="w").pack(side="left")
-            self._label(row, f"{fn}·宰执　影响{f['influence']}　心向{f['satisfaction']}",
-                        fg=DIM, bg=CARD, font=self._font(SANS, 10), anchor="e").pack(side="right")
-            self._btn(row, "召见奏对", lambda m=f["leader"], fn=fn: self._open_overlay(
-                lambda: self._panel_dialogue(m, role=f"{fn}·宰执"), f"召对 · {m}"),
-                width=10, ghost=False).pack(side="right", padx=6)
+            m = f["leader"]
+            cards.append((
+                self._minister_card_data(m, f"{fn}·宰执"),
+                self._minister_kind(m),
+                lambda mm=m, fn2=fn: self._open_overlay(
+                    lambda: self._panel_dialogue(mm, role=f"{fn2}·宰执"), f"召对 · {mm}")))
+        if cards:
+            fc = self._card(inner)
+            fc.pack(fill="x", padx=10, pady=4)
+            self._minister_card_grid(fc, cards)
 
-        # 其余派系领袖
+        # 其余派系领袖（卡片网格）
         self._card_title2(inner, "派 系 领 袖")
-        fc2 = self._card(inner)
-        fc2.pack(fill="x", padx=10, pady=4)
+        cards = []
         for fn in FACTION_NAMES:
             if fn in chancellors:
                 continue
             f = s.factions[fn]
-            row = tk.Frame(fc2, bg=CARD)
-            row.pack(fill="x", padx=12, pady=4)
-            self._title(row, f["leader"], fg=RED, bg=CARD, font=self._font(KAI, 13, "bold"), anchor="w").pack(side="left")
-            self._label(row, f"{fn}·影响{f['influence']}　心向{f['satisfaction']}",
-                        fg=DIM, bg=CARD, font=self._font(SANS, 10), anchor="e").pack(side="right")
-            self._btn(row, "召见奏对", lambda m=f["leader"], fn=fn: self._open_overlay(
-                lambda: self._panel_dialogue(m, role=f"{fn}·领袖"), f"召对 · {m}"),
-                width=10, ghost=False).pack(side="right", padx=6)
+            m = f["leader"]
+            cards.append((
+                self._minister_card_data(m, f"{fn}·领袖"),
+                self._minister_kind(m),
+                lambda mm=m, fn2=fn: self._open_overlay(
+                    lambda: self._panel_dialogue(mm, role=f"{fn2}·领袖"), f"召对 · {mm}")))
+        if cards:
+            fc2 = self._card(inner)
+            fc2.pack(fill="x", padx=10, pady=4)
+            self._minister_card_grid(fc2, cards)
 
-        # 六部尚书
+        # 六部尚书（卡片网格）
         self._card_title2(inner, "中 枢 六 部 尚 书")
-        yc = self._card(inner)
-        yc.pack(fill="x", padx=10, pady=4)
+        cards = []
         for name in YAMEN_LIST:
             y = s.yamen[name]
             fac_name = self._FACTION_ALIAS.get(y["faction"], y["faction"])
             leader = s.factions[fac_name]["leader"] if fac_name in s.factions else ""
-            row = tk.Frame(yc, bg=CARD)
-            row.pack(fill="x", padx=12, pady=4)
-            self._title(row, name, fg=RED, bg=CARD, font=self._font(KAI, 13, "bold"), anchor="w").pack(side="left")
-            self._label(row, f"尚书 {leader}　效{y['efficiency']}%", fg=DIM, bg=CARD,
-                        font=self._font(SANS, 10), anchor="e").pack(side="right")
-            self._btn(row, "召见奏对", lambda m=leader or f"{name}堂官", nm=name: self._open_overlay(
-                lambda: self._panel_dialogue(m, role=f"尚书·{nm}"), f"召对 · {m}"),
-                width=10, ghost=False).pack(side="right", padx=6)
+            cards.append((
+                self._minister_card_data(leader or f"{name}堂官", f"尚书·{name}"),
+                self._minister_kind(leader or f"{name}堂官"),
+                lambda m=leader or f"{name}堂官", nm=name: self._open_overlay(
+                    lambda: self._panel_dialogue(m, role=f"尚书·{nm}"), f"召对 · {m}")))
+        if cards:
+            yc = self._card(inner)
+            yc.pack(fill="x", padx=10, pady=4)
+            self._minister_card_grid(yc, cards)
 
     def _panel_map(self):
         """地图为全屏常驻底图，本函数仅刷新 HUD。"""
@@ -1073,3 +1643,41 @@ def _parse_inner_amount(text: str):
             parts.append(m)
         return "\n".join(parts)
 
+
+# 对话口谕内帑调拨：金额解析（支持「50万」「500000」「五十万」→ 贯整数；失败返回 None）
+_CN_NUM = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
+           "七": 7, "八": 8, "九": 9, "十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def _cn_amount(s: str):
+    """中文数字 → int（五十万=500000、十二万=120000、三千=3000）。"""
+    total, num = 0, 0
+    for ch in s:
+        v = _CN_NUM.get(ch)
+        if v is None:
+            return None
+        if v == 10000:
+            total = (total + num if (total or num) else 1) * 10000
+            num = 0
+        elif v >= 10:
+            total += (num if num else 1) * v
+            num = 0
+        else:
+            num = v
+    return total + num
+
+
+def _parse_inner_amount(text: str):
+    """从召对输入提取内帑调拨金额（贯）；支持 500000 / 50万 / 五十万；失败返回 None。"""
+    t = str(text).replace(",", "").replace("，", "")
+    import re
+    m = re.search(r"(\d+)\s*万", t)
+    if m:
+        return int(m.group(1)) * 10000
+    m = re.search(r"\d+", t)
+    if m:
+        return int(m.group(0))
+    m = re.search(r"[零一二两三四五六七八九十百千万]+", t)
+    if m:
+        return _cn_amount(m.group(0))
+    return None

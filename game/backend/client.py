@@ -35,6 +35,14 @@ class BackendClient:
     def advance(self, state, ai_client):
         raise NotImplementedError
 
+    def advance_month(self, state):
+        """T6 拆分：只触发当月事件（确定性、无网络），供本地异步结算路径用。"""
+        raise NotImplementedError
+
+    def settle_local(self, state, ai_results=None):
+        """T6 拆分：主线程本地 12 步结算 + 收尾（AI 推演结果已由调用方落地槽位）。"""
+        raise NotImplementedError
+
     def action(self, state, action, params, ai_client=None):
         raise NotImplementedError
 
@@ -104,6 +112,22 @@ class LocalBackend(BackendClient):
         # 与 HttpBackend 保持统一四元组签名 (events, log, report, new_state)
         return events, log, report, state
 
+    def advance_month(self, state):
+        """T6 拆分：只触发当月事件（纯本地、确定性），不推进回合。"""
+        return cmd.advance_month(state)
+
+    def settle_local(self, state, ai_results=None):
+        """T6 拆分：主线程落地 AI 推演结果 → 本地 12 步结算 → 终局/自动存档收尾。
+
+        返回 (log, new_state)。ai_results 为 run_settlement_ai 的 {attr: result}。
+        """
+        if ai_results:
+            for attr, val in ai_results.items():
+                setattr(state, attr, val)
+        log = cmd.settle_local(state)
+        cmd.finish_turn(state)
+        return log, state
+
     def action(self, state, action, params, ai_client=None):
         # 统一返回 (message, state)；本地模式下 state 即原对象（可能被动作修改）
         # 分派表：action 名 → handler(state, params, ai_client) -> (message, state)
@@ -124,6 +148,10 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: (cmd.merge_drafts(s, p.get("draft_ids", [])), s),
             "do_personal_action":
                 lambda s, p, ai: (cmd.do_personal_action(s, p.get("name", "")), s),
+            "choose_imperial_action":
+                lambda s, p, ai: (cmd.choose_imperial_action(
+                    s, p.get("location", ""), p.get("mode", ""), p.get("action", ""),
+                    p.get("target", ""), bool(p.get("prepared", False))), s),
             "audience_dialogue":
                 lambda s, p, ai: (cmd.audience_dialogue(s, p.get("minister", ""), p.get("text", ""), ai), s),
             "start_tech_research":

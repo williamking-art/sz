@@ -69,32 +69,21 @@ from content.data import TIER_RANGE, TIER_ORDER
 TIER_KEYS = list(TIER_RANGE.keys())
 
 # 各维度档位 → 基准数值（再乘皇威乘数等）
-_TIER_BASE = {
-    "prestige": 4,                     # 皇威 ±
-    "treasury": 800_000,               # 国帑 ±（贯）
-    "population_satisfaction": 3,      # 民心 ±
-    "external_jin": 4,                 # 金态度 ±
-    "external_liao": 4,                # 辽态度 ±
-    "external_xixia": 4,               # 西夏态度 ±
-    "defense_bonus": 3,                # 城防 ±
-    "commerce_tax": 0.15,              # 工商征率（设定值：tier 档位→税率，非增量）
-    "curtail_waste": 100_000,          # 省浮费：月省贯（设定值）
-    "reduce_office": 100_000,          # 裁汰冗员：月省贯（设定值）
-    "land_survey": 0.05,               # 方田均税：清丈隐田，降隐漏率（微/小/中/大 → 0.0125/0.025/0.05/0.09）
-    "hoard": 0.05,                     # 士绅囤粮：囤/抛「中」档 = 月产(囤)或屯粮(抛)的 5%（AI 推演档位）
-    "finance": 800_000,                # 金融（交子/市舶收益）±
-    "talent": 3,                       # 科举得才 ±
-    "tech": 3,                         # 科技积累 ±
-    "army": 3,                         # 军力 ±
-    "reform": 3,                       # 改革推进 ±
-}
-# 单项封顶（防止一诏/一举过大）
-_TIER_CAP = {
-    "prestige": 12, "treasury": 3_000_000, "population_satisfaction": 10,
-    "external_jin": 12, "external_liao": 12, "external_xixia": 12,
-    "defense_bonus": 10, "finance": 3_000_000, "talent": 10, "tech": 10,
-    "army": 10, "reform": 10, "land_survey": 0.10,
-}
+# 档位→数值换算基值/封顶：单一权威源在 content/data.py（审查 P1-2/P2-3 修复）。
+# content.data 顶层只 import os/sys，无循环导入风险，可直接顶层 import。
+from content.data import TIER_VALUE_BASE as _TIER_BASE, TIER_VALUE_CAP as _TIER_CAP
+
+# 向后兼容别名（部分测试/旧代码直接引用 _TIER_BASE/_TIER_CAP）
+# _TIER_BASE/_TIER_CAP 已是 content.data.TIER_VALUE_BASE/TIER_VALUE_CAP 的引用
+
+
+def _ensure_tier_tables():
+    """兼容占位：_TIER_BASE/_TIER_CAP 已在顶层填充，此函数保留供旧调用路径无副作用调用。"""
+    pass
+
+
+def _load_tier_tables():
+    return _TIER_BASE, _TIER_CAP
 
 
 def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
@@ -105,13 +94,14 @@ def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
         # 工商征率是"设定值"而非增量：tier 档位直接映射税率（玩家诏"征几成"由 AI 归档）。
         _COMMERCE_TAX_TIER = {"无": 0.05, "微": 0.10, "小": 0.15, "中": 0.20, "大": 0.25, "巨": 0.30, "极": 0.35}
         return _COMMERCE_TAX_TIER.get(tier, 0.15)
-    base = _TIER_BASE.get(dim, 0)
+    base_v = _TIER_BASE.get(dim, 0)
     mult = TIER_RANGE.get(tier, 0.0)
     cap = _TIER_CAP.get(dim, 0)
-    val = base * mult * authority
+    val = base_v * mult * authority
     if cap > 0:
         val = max(-cap, min(cap, val))
-    return round(val)
+    # 保留小数精度（小档位 微0.25/小0.5 不能被 round 成 0）
+    return round(val, 4)
 
 
 # ============================================================
@@ -319,6 +309,176 @@ _TOOL_SCHEMAS = [
     },
 ]
 
+# ============================================================
+# T1 · 结构化变更工具 schema（降级链 fallback 用；审查 P1-4 修复注释）
+# 审查澄清：当前生产中 AI 改状态的实际通道是「JSON 契约 + 12 步结算/free_effect/
+# _tool_dispatch 消费」，而非 Function Call + update_state。STATE_TOOL_SCHEMAS 作为
+# _call_with_tools 降级链的 fallback schema 保留（_call_with_tools 暂无生产调用方，
+# 为未来接线预留）。update_state 的 path 白名单须与 engine/state_applier.VALID_PATHS
+# 对齐后再接线。叙事文本绝不改状态（铁律 1 本质已落地）。
+# ============================================================
+STATE_TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "update_state",
+            "description": "通过结构化变更修改游戏状态（AI 唯一改状态通道）。"
+                           "changes 数组每项必带 reason；op 枚举 set/add/mul/remove/push。"
+                           "数值只给档位词或程序换算量级，守恒由程序校验。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "changes": {
+                        "type": "array",
+                        "description": "状态变更列表",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string", "description": "JSON 路径，如 treasury / factions.新党.satisfaction"},
+                                "op": {"type": "string", "enum": ["set", "add", "mul", "remove", "push"],
+                                       "description": "set=覆盖/add=加/mul=乘/remove=删/push=数组追加"},
+                                "value": {"description": "变更值（op=remove 时省略）"},
+                                "reason": {"type": "string", "description": "必填：变更理由（叙事/档位依据）"}
+                            },
+                            "required": ["path", "op", "reason"]
+                        }
+                    },
+                    "triggered_events": {
+                        "type": "array",
+                        "description": "可选：触发的连锁事件",
+                        "items": {"type": "object",
+                                  "properties": {"event_id": {"type": "string"},
+                                                 "context": {"type": "string"}},
+                                  "required": ["event_id"]}
+                    },
+                    "narrative_hint": {"type": "string", "description": "可选：变更叙事按语（≤120字）"}
+                },
+                "required": ["changes"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_state",
+            "description": "按 JSON 路径查询游戏状态（本地直接读，不耗 AI 推理）。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "paths": {"type": "array", "items": {"type": "string"},
+                              "description": "JSON 路径数组，如 [\"treasury\", \"factions.新党.satisfaction\"]"}
+                },
+                "required": ["paths"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trigger_event",
+            "description": "触发一个事件（event_id 须在事件表内，context 为上下文说明）。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "事件 id"},
+                    "context": {"type": "string", "description": "触发上下文（≤80字）"}
+                },
+                "required": ["event_id"]
+            }
+        }
+    },
+]
+
+
+def parse_tool_calls(response):
+    """从 LLM 响应提取 tool_calls → 结构化列表（模型适配层扩展）。
+
+    - 标准 openai：{tool_calls: [{id, function: {name, arguments}}]}
+    - content_json 变体：{tool_calls: [{id, function: {name}, content: '{"args"...}'}]}
+      ——arguments 空时从 content 提取 JSON（参数嵌 content 的端点）。
+    - 弱参数：arguments 空/坏 JSON → 从 content 提取；仍缺 → {}（必填缺失由
+      _tool_dispatch 拒绝式处理）。
+    输出统一 {call_id, name, arguments(dict)}；无 tool_calls → []。
+    """
+    if not isinstance(response, dict):
+        return []
+    tcs = response.get("tool_calls")
+    if not isinstance(tcs, list):
+        return []
+    out = []
+    for tc in tcs:
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function") or {}
+        args = fn.get("arguments") or ""
+        if not isinstance(args, str) or not args.strip():
+            # content_json 变体：参数嵌 content（JSON 字符串或 JSON 对象）
+            _content = tc.get("content") or fn.get("content") or ""
+            if isinstance(_content, str) and _content.strip():
+                args = _content
+            else:
+                args = "{}"
+        try:
+            args = json.loads(args) if isinstance(args, str) else (args or {})
+        except (ValueError, TypeError):
+            args = {}
+        if not isinstance(args, dict):
+            args = {}
+        out.append({"call_id": tc.get("id", ""), "name": fn.get("name", ""),
+                    "arguments": args})
+    return out
+
+
+# ============================================================
+# 模型适配层（言枢密设计）：SIMPLE_TOOL_SCHEMAS（精简工具 schema）
+# 每工具 2-3 核心必填参数 + 描述清晰 + 无深嵌套（弱模型可用）；
+# 最终 fallback = STATE_TOOL_SCHEMAS（3 通用工具）。
+# ============================================================
+SIMPLE_TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "register_draft",
+            "description": "登记诏草（必填：title 诏令名、summary 大意）",
+            "parameters": {"type": "object",
+                           "properties": {"title": {"type": "string"},
+                                          "summary": {"type": "string"}},
+                           "required": ["title", "summary"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "relief_grant",
+            "description": "赈济（必填：region 路名）",
+            "parameters": {"type": "object",
+                           "properties": {"region": {"type": "string"},
+                                          "grain": {"type": "integer"},
+                                          "silver": {"type": "integer"}},
+                           "required": ["region"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_treasury",
+            "description": "勾校度支（无参数）",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_state",
+            "description": "查询状态（必填：target 查什么）",
+            "parameters": {"type": "object",
+                           "properties": {"target": {"type": "string"},
+                                          "name": {"type": "string"}},
+                           "required": ["target"]},
+        },
+    },
+]
+
 
 def _resolve_query_target(state, target: str, name: str = "") -> str:
     """本地读精准值（不耗 AI 推理；数值直接来自 GameState，防推演漂移）。"""
@@ -484,9 +644,45 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                         for u in units:
                             u.training = max(0, min(100, u.training + scale * 2))
                     elif act == "增募":
+                        # 征兵转换（用户指示：POP 转换非凭空加兵额——人口守恒）：
+                        #   流民 → 厢军（史实优先：征流民为厢军，防乱+充实军力）；
+                        #   农 → 兵（流民不足时从该路农 POP size 扣，募农为兵；
+                        #            农最多募一半——保农生存，农富时难募）。
+                        _total_taken = 0
                         for u in units:
-                            u.troops += scale * 2000   # 增募按档加兵额（真实人数）
+                            _N = scale * 2000
+                            _station = getattr(u, "station", "") if getattr(u, "station", "") in state.prefectures else "东京开封府"
+                            _p = state.prefectures[_station]
+                            _taken = 0
+                            if u.tier == "厢军":          # 流民 → 厢军（史实优先）
+                                _ref = int(_p.get("refugees", 0))
+                                _t = min(_N, _ref)
+                                if _t > 0:
+                                    _p["refugees"] = _ref - _t
+                                    _taken += _t
+                            if _taken < _N:               # 农 → 兵（流民不足；农最多募一半）
+                                _farm = int(_p["pops"]["农"]["size"])
+                                _t2 = min(_N - _taken, max(0, _farm - int(_farm * 0.5)))
+                                _p["pops"]["农"]["size"] = _farm - _t2
+                                _taken += _t2
+                            # 兵额真账 = Σbranches（troops property 只读）——增募入兵种人数
+                            if u.branches:
+                                _bk = next(iter(u.branches))
+                                u.branches[_bk] = u.branches.get(_bk, 0) + _taken
+                            else:
+                                u.branches["轻步兵"] = _taken
+                            # 即时回填兵 POP size（兵额 == 兵 POP 一致；settle 会再聚合）
+                            _p["pops"]["兵"]["size"] = _p["pops"]["兵"].get("size", 0) + _taken
+                            _total_taken += _taken
                             u.training = max(0, min(100, u.training + scale))
+                        # 征发 cost（守恒扣款）：征兵费 = 实募人数 × 5 贯，
+                        # 国库出 → 兵 POP 安家费入（ΣΔ==0，不凭空）
+                        if _total_taken > 0 and getattr(state, "treasury", 0) >= _total_taken * 5:
+                            _cost = _total_taken * 5
+                            state.treasury -= _cost
+                            _sold = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
+                            for _p in state.prefectures.values():
+                                _p["pops"]["兵"]["wealth"] = _p["pops"]["兵"].get("wealth", 0) + int(_cost * _p["pops"]["兵"]["size"] / max(_sold, 1))
                     if act == "调赴" and tgt:
                         for u in units:
                             u.station = tgt   # ArmyUnit 无 deployed_to，用 station 表达调赴
@@ -500,14 +696,39 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 region = str(args.get("region", "畿内"))
                 grain = max(1, min(5, int(args.get("grain", 3) or 3)))
                 silver = max(0, min(5, int(args.get("silver", 0) or 0)))
-                before = state.treasury
                 cost = grain * 200000 + silver * 100000
-                # 直接扣帑（勿套 tier 换算，before-cost 是具体金额而非档位词，套用会归零）
-                state.treasury = max(0, before - cost)
-                state.population_satisfaction = max(0, min(100,
-                    state.population_satisfaction + grain * 2))
-                state.refugee_count = max(0, state.refugee_count - grain * 5000)
-                res = f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），发帑约 {cost:,} 缗，民心稍纾。"
+                if region not in getattr(state, "prefectures", {}):
+                    region = "东京开封府"
+                # 代码审理（旧机制融入新机制）：改状态经 engine/state_applier（验证/守恒）——
+                # 修复旧直写派生字段 state.refugee_count（与 prefectures 不一致 → 凭空造灭）
+                # 审查 P2-7 澄清：此处 reason=「赈济发帑」= 出钱购粮赈济（钱从 treasury 出，
+                # 粮从市场买），非「开仓发粟」直扣 granary。钱组守恒已闭合（treasury -cost
+                # → 农/工匠 +cost）。若改语义为开仓发粟，须另走 granary 扣减 + 粮组守恒。
+                try:
+                    from engine.state_applier import applier_pipeline
+                    _r = applier_pipeline(state, [("relief_grant", [
+                        {"path": "treasury", "op": "add", "value": -cost, "reason": "赈济发帑"},
+                        {"path": f"prefectures.{region}.pops.农.wealth", "op": "add",
+                         "value": int(cost * 0.6), "reason": "赈济购粮（农）"},
+                        {"path": f"prefectures.{region}.pops.工匠.wealth", "op": "add",
+                         "value": int(cost * 0.4), "reason": "赈济工赈（工匠）"},
+                        {"path": f"prefectures.{region}.refugees", "op": "add",
+                         "value": -grain * 5000, "reason": "赈济安置流民"},
+                    ])])
+                    if _r.get("conservation_failed"):
+                        res = "赈济未能落地（守恒校验失败：钱粮来源不足）"
+                    else:
+                        state.population_satisfaction = max(0, min(100,
+                            state.population_satisfaction + grain * 2))
+                        res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
+                               f"发帑约 {cost:,} 缗，民心稍纾。")
+                except Exception:
+                    # 兜底（state_applier 不可用）：旧逻辑但**不再直写派生字段 refugee_count**
+                    state.treasury = max(0, getattr(state, "treasury", 0) - cost)
+                    state.population_satisfaction = max(0, min(100,
+                        state.population_satisfaction + grain * 2))
+                    res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
+                           f"发帑约 {cost:,} 缗，民心稍纾。")
                 mem.setdefault(minister_name, []).append(f"赈 {region}")
 
             elif name == "offer_blueprint":
@@ -697,12 +918,14 @@ def _normalize_effects(raw_effects) -> list:
     """把模型给出的原始 effects 归一为契约内合法列表（单一权威校验）。
 
     - 只保留前 4 条（[:4] 截断，防溢出）
-    - faction_change：内层 value 每个键取值必须在 TIER_RANGE 内
+    - faction_change：内层 value 每个键取值先 normalize_tier 归一再校验 ∈ TIER_RANGE
     - commerce_tax：必须能转 float 且 0<v<=1，程序封顶后四舍五入两位
-    - 其余 dim 须在 _ALLOWED_DIMS 且 tier 合法（_valid_tier）
+    - 其余 dim 须在 _ALLOWED_DIMS 且 tier 经 normalize_tier 归一后合法（审查 P2-6 修复：
+      原直接 _valid_tier 不归一丰富表达如「显著」→ 静默丢弃，与全库归一设计矛盾）
 
     draft_decree / polish_decree / council_review 共用，消除三份重复。
     """
+    from content.data import normalize_tier
     effs = []
     for e in raw_effects[:4]:
         if not isinstance(e, dict):
@@ -712,8 +935,9 @@ def _normalize_effects(raw_effects) -> list:
         if dim == "faction_change":
             fc = {}
             for k, v in (e.get("value") or {}).items():
-                if v in TIER_RANGE:
-                    fc[k] = v
+                nv = normalize_tier(str(v)) if isinstance(v, str) else v
+                if nv in TIER_RANGE:
+                    fc[k] = nv
             if fc:
                 effs.append({"dim": "faction_change", "value": fc})
         elif dim == "commerce_tax":
@@ -725,8 +949,11 @@ def _normalize_effects(raw_effects) -> list:
                 v = None
             if v is not None and 0 < v <= 1:
                 effs.append({"dim": "commerce_tax", "value": round(v, 2)})
-        elif dim in _ALLOWED_DIMS and _valid_tier(tier):
-            effs.append({"dim": dim, "tier": tier})
+        elif dim in _ALLOWED_DIMS:
+            # 审查 P2-6：先归一丰富表达再校验，避免「显著」等合法别名被静默丢弃
+            ntier = normalize_tier(str(tier)) if isinstance(tier, str) else tier
+            if _valid_tier(ntier):
+                effs.append({"dim": dim, "tier": ntier})
     return effs
 
 
@@ -736,21 +963,19 @@ def _similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def _ai_unavailable(kind, **extra):
+def _ai_unavailable(kind, code="AI_NOT_CONFIGURED", **extra):
     """AI 不可用 / 解析失败且无补调余量时，返回统一错误标记（拒绝式，不伪造）。
 
-    错误码见 content.data.AI_ERROR_CODES（AI_NOT_CONFIGURED 等）；上层据 `_error` 码提示配置 AI。
+    审查 P2-5 修复：支持指定错误码（区分无配置/无效JSON/契约失败），默认 AI_NOT_CONFIGURED。
+    错误码见 content.data.AI_ERROR_CODES（6 码）；上层据 `_error` 码提示配置 AI 或诊断。
     """
     from content.data import AI_ERROR_CODES
-    return {"_error": "AI_NOT_CONFIGURED",
-            "message": AI_ERROR_CODES.get("AI_NOT_CONFIGURED", ""),
+    _valid_codes = set(AI_ERROR_CODES.keys())
+    if code not in _valid_codes:
+        code = "AI_NOT_CONFIGURED"
+    return {"_error": code,
+            "message": AI_ERROR_CODES.get(code, ""),
             "kind": kind, **extra}
-
-
-def _error_marker(code: str, kind="", **extra):
-    """按统一错误码构造错误标记（AI_TIMEOUT/AI_AUTH_FAILED/...）。"""
-    from content.data import AI_ERROR_CODES
-    return {"_error": code, "message": AI_ERROR_CODES.get(code, code), "kind": kind, **extra}
 
 
 def _fallback_parse(text, is_secret):
@@ -796,7 +1021,7 @@ def effects_to_dict(effects_list, authority=1.0):
                 out["commerce_tax"] = round(v, 2)
             else:
                 out["commerce_tax"] = tier_to_value("commerce_tax", e.get("tier", "无"), authority)
-        elif dim in _TIER_BASE:
+        elif dim in _ALLOWED_DIMS and dim != "faction_change":
             out[dim] = tier_to_value(dim, e.get("tier", "无"), authority)
     return out
 

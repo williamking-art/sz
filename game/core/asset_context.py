@@ -30,7 +30,11 @@ def current_era(state) -> int:
 
 
 def node_prereqs_met(state, node) -> bool:
-    """前置节点 + 总体 level + 副指标 是否满足。"""
+    """前置节点 + 总体 level + 副指标 是否满足。
+
+    承接模式（言枢密设计）：**去 west 硬门槛**——("west",N) 副指标跳过（玩家可承接
+    天马行空研发）；west 保留为跨时代加速因子（_settle_tech_research rate × (1+west×系数)）。
+    """
     tid = node[0]
     tech = _tech(state)
     for pre in node[5]:
@@ -39,6 +43,8 @@ def node_prereqs_met(state, node) -> bool:
     if int(tech.get("level", 0)) < node[6]:
         return False
     for dim, need in node[7]:
+        if dim == "west":
+            continue   # 去 west 硬门槛（承接模式）
         if int(tech.get(dim, 0)) < need:
             return False
     return True
@@ -298,6 +304,13 @@ def unlock_node(state, node_id: str, narrative: str = "") -> str:
     """正式点亮节点：入 unlocked、记里程碑、应用效果。返回叙事文本。"""
     tech = _tech(state)
     node = get_tech_node(node_id)
+    if node is None:
+        # 承接模式：玩家注册节点（tech_registry）兼容
+        try:
+            from core.registries import node_entry
+            node = node_entry(state, node_id)
+        except Exception:
+            node = None
     if not node:
         return "查无此新制。"
     if is_node_unlocked(state, node_id):

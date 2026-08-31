@@ -34,7 +34,7 @@ from content.data import (
     FIXED_PROCEDURES,
 )
 from ai.client import AIClient, _org_by_affiliation
-import ai.decree as ai_decree
+import ai.client as ai_decree
 import ui.theme as theme
 from core.commands import AIRuntimeError as _AIRuntimeError
 
@@ -49,10 +49,12 @@ from ui.panels_core import PanelsCoreMixin
 from ui.panels_govern import PanelsGovernMixin
 from ui.panels_economy import PanelsEconomyMixin
 from ui.panels_meta import PanelsMetaMixin
+from ui.panels_codex import PanelsCodexMixin
 
 
 class SongZuoApp(PanelsBasicMixin, PanelsMenuMixin, PanelsCoreMixin,
-                 PanelsGovernMixin, PanelsEconomyMixin, PanelsMetaMixin):
+                 PanelsGovernMixin, PanelsEconomyMixin, PanelsMetaMixin,
+                 PanelsCodexMixin):
     def __init__(self, root):
         self.root = root
         self.state = None
@@ -101,17 +103,17 @@ class SongZuoApp(PanelsBasicMixin, PanelsMenuMixin, PanelsCoreMixin,
         self._pending_logs.append(f"[warn] 窗口图标加载失败：{'; '.join(errs)}")
 
     def _register_fonts(self):
-        """注册打包字体（若有），并确定运行期楷体名与字号档位。"""
+        """注册打包字体（若有），并确定运行期楷体名。
+
+        T10：theme.register_fonts() 签名无参（此前误传 self.root 触发 TypeError 致字体
+        注册从未生效）；KAI 实际族名与字号档位由 _load_font_scale 按「设置 → 字体/字号」应用。
+        """
         global KAI
         try:
-            name = theme.register_fonts(self.root)
-            if name:
-                KAI = name                       # 保留 gui.py 命名空间的既有行为
-                self._kai_actual = name
-            else:
-                self._kai_actual = KAI           # 回退 KaiTi
+            theme.register_fonts()
         except Exception:
-            self._kai_actual = "KaiTi"
+            pass
+        KAI = getattr(self, "_kai_actual", "KaiTi")
 
     def _start_tick(self):
         self._tick_seq = 0

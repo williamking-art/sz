@@ -50,6 +50,16 @@ def _run_fixed(state, cat, params):
         target = params.get("target") or params.get("to")
         # 拨入来源：移库时从何处支出（如「移内帑入国库」source=内藏 target=国库）
         src = params.get("source") or params.get("from")
+        # T9 铸钱受控：target="铸钱"/"mint" → 铜资源约束 + 熔耗 20% 净增 80% + 物价>2.0 禁止
+        if target in ("铸钱", "mint"):
+            if amt <= 0:
+                return "铸钱量须为正。"
+            from core.settlement_steps import _settle_mint
+            _log = []
+            ok, msg = _settle_mint(state, _log, amount=amt)
+            if ok:
+                return f"〔铸钱〕{msg}"
+            return f"〔铸钱〕{msg}"
         if not target and src:
             target = "国库"
         if not amt or not target:
@@ -452,8 +462,20 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
                     minister=minister or "", turn=state.turn,
                     supports=(), opposes=(), note="自由诏落地")
                 for k, v in (contract.get("effects") or {}).items():
+                    # 审查 P2-8 修复：note 不存原始数值（防经 summarize 回灌 AI 泄漏量级）。
+                    # 数值→档位词归一（用 normalize_tier 反查不可行，改用定性描述）。
+                    _note_v = v
+                    if isinstance(v, (int, float)):
+                        try:
+                            from content.data import FREE_EFFECT_CAP
+                            _cap = FREE_EFFECT_CAP.get(k, 1)
+                            _ratio = abs(v) / max(_cap, 1)
+                            _note_v = ("微" if _ratio < 0.25 else "小" if _ratio < 0.5
+                                       else "中" if _ratio < 0.75 else "大")
+                        except Exception:
+                            _note_v = "中"
                     state.memory.add_relation(did, str(k), "produces", weight=1.0,
-                                              turn=state.turn, note=f"效果·{v}")
+                                              turn=state.turn, note=f"效果·{_note_v}")
                 state.memory.save(state.memory_slot)
             except Exception:
                 pass

@@ -11,12 +11,12 @@ import ui.theme as theme
 from content.data import (PERSONAL_ACTIONS, FACTION_NAMES, YAMEN_LIST, YAMEN_INFO,
     PREFECTURE_LIST, FIXED_PROCEDURES)
 from ai.client import AIClient, _org_by_affiliation
-import ai.decree as ai_decree
+import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
     _bar, _format_effects, _judge_effects)
-from ui.format_units import (humanize_grain_price, humanize_grain,
+from ui.gui_common import (humanize_grain_price, humanize_grain,
                              humanize_coin, humanize_households, humanize_land)
 from ui.panels_military import _fmt_count, EQUIP_KEYS
 
@@ -36,6 +36,10 @@ _TECH_EFFECT_LABELS = {
     "prestige": "皇威",
     "prestige_gain": "皇威增益",
     "exam_talent": "科举才俊",
+    "granary_cap": "扩仓容",
+    "workshop_output": "增作坊产出",
+    "trade_income": "贸易收入",
+    "build_speed": "建造速度",
     "decree_speed": "政令速率",
     "bandwidth_bonus": "圣裁带宽",
     "treasury": "国库",
@@ -150,16 +154,15 @@ class PanelsEconomyMixin:
             pops = s.prefectures[name]["pops"]
             lines.append(f"  {name}：农{_w(pops['农']['size'])} 绅{_w(pops['士绅']['size'])} 工{_w(pops['工匠']['size'])} "
                          f"商{_w(pops['商人']['size'])} 官{_w(pops['官僚']['size'])} 兵{_w(pops['兵']['size'])}")
-        # 全国 POP 钱粮窖银汇总
-        _tot = {"wealth": 0, "grain": 0, "窖银": 0}
+        # 全国 POP 钱粮汇总
+        _tot = {"wealth": 0, "grain": 0}
         for name in PREFECTURE_LIST:
             for pop in s.prefectures[name]["pops"].values():
                 _tot["wealth"] += pop.get("wealth", 0)
                 _tot["grain"] += pop.get("grain", 0)
-                _tot["窖银"] += pop.get("窖银", 0)
         lines.append("")
         lines.append(f"【民间 POP 汇总】持钱 {humanize_coin(_tot['wealth'])}　"
-                     f"存粮 {humanize_grain(_tot['grain'])}　士绅窖银 {humanize_coin(_tot['窖银'])}")
+                     f"存粮 {humanize_grain(_tot['grain'])}")
         card = self._card(inner)
         card.pack(fill="both", expand=True, padx=10, pady=4)
         txt = self._scrolled(card, bg=CARD, font=self._font(SANS, 11), padx=16, pady=14)
@@ -167,31 +170,462 @@ class PanelsEconomyMixin:
         txt._text.configure(state="disabled")
         txt.pack(fill="both", expand=True, padx=12, pady=12)
 
-    def _panel_personal(self):
-        inner = self._panel_shell("个人行止")
-        self._label(inner, "个人行动（每月一次）", fg=RED_D, bg=PAPER, font=self._font(KAI, 12), anchor="w").pack(padx=12, pady=6)
-        items = list(PERSONAL_ACTIONS.items())
-        card = self._card(inner)
-        card.pack(fill="x", padx=10, pady=4)
-        lb = tk.Listbox(card, bg=CARD, fg=INK, selectbackground=RED, selectforeground="#f3e6c4",
-                        font=self._font(SANS, 11), relief="flat", height=9, bd=0, highlightthickness=0)
-        lb.pack(fill="x", padx=14, pady=10)
-        for i, (name, info) in enumerate(items, 1):
-            lb.insert("end", f"[{i}] {name}  —— {info['desc']}")
+    # 皇帝行动效果键 → 中文名（详情卡预览；与 content.data 契约键对齐）
+    _IMPERIAL_EFFECT_NAMES = {
+        "prestige": "威望", "population_satisfaction": "民心", "emperor_health": "健康",
+        "pleasure_leaning": "心情", "art_mastery": "艺术造诣", "taoism_leaning": "道门倾向",
+        "bandwidth_bonus": "圣旨额度", "faction_change": "派系",
+    }
+    _IMPERIAL_RISK_FG = {"低": "DX_GOOD", "中": "DX_WARN", "高": "DX_URGENT"}
 
-        def do():
-            sel = lb.curselection()
-            if not sel:
-                self.self.messagebox.showinfo("提示", "请选择一项，或取消。")
+    def _panel_personal(self):
+        """个人行止 · 全矩阵：地点（宫里/京城/出京）× 方式（公开/微服）→ 行动白名单。
+
+        数据驱动自 content.data.IMPERIAL_ACTION_MATRIX（P0 权威，不写死行动名）；
+        约束（时代门槛/微服限次/出京准备期/距离核算）、开销（公开→国库/微服→内帑）、
+        风险档全部展示；旧 4 固定动作经 do_personal_action 通道仍兼容（映射宫里·公开格）。
+        """
+        from content.data import (IMPERIAL_ACTION_MATRIX, IMPERIAL_LOCATIONS, IMPERIAL_MODES,
+                                  IMPERIAL_DISTANCE_MONTHS, imperial_distance,
+                                  imperial_prep_months)
+        from ui.gui_common import humanize_coin
+        inner = self._panel_shell("个 人 行 止")
+        s = self.state
+
+        # —— 顶部：当前行止状态 ——
+        stat = tk.Frame(inner, bg=PAPER)
+        stat.pack(fill="x", padx=10, pady=(2, 6))
+        _pending = getattr(s, "pending_imperial_trip", None)
+        _cur = getattr(s, "imperial_action", None) or {}
+        if _pending is not None:
+            self._label(stat,
+                        f"大驾出京准备中：「{_pending.get('action', '')}」尚余 "
+                        f"{int(_pending.get('pending_months', 1))} 月（准备期内不可另定行止）",
+                        fg=theme.DX_URGENT, bg=PAPER, font=self._font(KAI, 12, "bold"),
+                        anchor="w").pack(anchor="w", padx=4, pady=2)
+        elif _cur and _cur.get("action"):
+            self._label(stat,
+                        f"本回合已定行止：{_cur.get('location', '')}·{_cur.get('mode', '')}"
+                        f"·{_cur.get('action', '')}（月末结算生效）",
+                        fg=RED_D, bg=PAPER, font=self._font(KAI, 12, "bold"),
+                        anchor="w").pack(anchor="w", padx=4, pady=2)
+        else:
+            self._label(stat, "择地点与行止方式，钦定陛下本回合行止（每月一次）。",
+                        fg=DIM, bg=PAPER, font=self._font(SANS, 10),
+                        anchor="w").pack(anchor="w", padx=4, pady=2)
+
+        # —— 主区：左地点 / 右方式+行动 ——
+        main = tk.Frame(inner, bg=PAPER)
+        main.pack(fill="both", expand=True, padx=10, pady=4)
+        left = tk.Frame(main, bg=PAPER, width=180)
+        left.pack(side="left", fill="y", padx=(0, 10))
+        self._label(left, "行止地点", fg=RED_D, bg=PAPER, font=self._font(KAI, 12, "bold"),
+                    anchor="w").pack(fill="x", pady=(0, 2))
+        state = {"loc": "宫里", "mode": "公开", "sel": None, "target": ""}
+        loc_btns = {}
+
+        def _set_loc(key):
+            state["loc"] = key
+            # 宫里无微服：切回公开（微服置灰）
+            if key == "宫里" and state["mode"] == "微服":
+                state["mode"] = "公开"
+                _set_mode("公开")
+            for k, b in loc_btns.items():
+                try:
+                    b.configure(bg=(RED if k == key else CARD),
+                                fg=("#f3e6c4" if k == key else RED_D),
+                                relief=("sunken" if k == key else "raised"))
+                except Exception:
+                    pass
+            loc_note_lbl.config(text=_loc_note.get(key, ""))
+            _refresh_mode()
+            _refresh_actions()
+
+        for loc in IMPERIAL_LOCATIONS:
+            b = self._btn(left, loc, lambda k=loc: _set_loc(k), width=10,
+                          ghost=(loc != state["loc"]))
+            b.pack(fill="x", pady=3)
+            loc_btns[loc] = b
+        _loc_note = {"宫里": "宫中视事，政务闲暇", "京城": "汴京内外，四方辐辏",
+                     "出京": "离京巡幸，需备銮驾"}
+        loc_note_lbl = self._label(left, _loc_note.get(state["loc"], ""), fg=DIM, bg=PAPER,
+                                   font=self._font(SANS, 9), anchor="w", wraplength=160,
+                                   justify="left")
+        loc_note_lbl.pack(fill="x", pady=(6, 0))
+
+        right = tk.Frame(main, bg=PAPER)
+        right.pack(side="left", fill="both", expand=True)
+
+        # —— 行止方式行 ——
+        mode_row = tk.Frame(right, bg=PAPER)
+        mode_row.pack(fill="x", pady=(0, 4))
+        self._label(mode_row, "行止方式：", fg=INK, bg=PAPER,
+                    font=self._font(SANS, 11)).pack(side="left")
+        mode_btns = {}
+
+        def _set_mode(key):
+            state["mode"] = key
+            for k, b in mode_btns.items():
+                try:
+                    b.configure(bg=(RED if k == key else CARD),
+                                fg=("#f3e6c4" if k == key else RED_D),
+                                relief=("sunken" if k == key else "raised"))
+                except Exception:
+                    pass
+            _refresh_actions()
+
+        def _refresh_mode():
+            """宫里无微服：微服方式置灰（跨格子非法提示）。"""
+            no_micro = state["loc"] == "宫里"
+            try:
+                mode_btns["微服"].configure(state="disabled" if no_micro else "normal")
+            except Exception:
+                pass
+            mode_note_lbl.config(text="宫里不设微服（宫中即陛下起居之地）。" if no_micro else
+                                 "微服出行开销走内帑，暴露风险较高。")
+
+        for md in IMPERIAL_MODES:
+            lab = "公开大驾" if md == "公开" else "微服便服"
+            b = self._btn(mode_row, lab, lambda k=md: _set_mode(k), width=12,
+                          ghost=(md != state["mode"]))
+            b.pack(side="left", padx=4)
+            mode_btns[md] = b
+        mode_note_lbl = self._label(mode_row, "", fg=DIM, bg=PAPER, font=self._font(SANS, 9),
+                                    anchor="w")
+        mode_note_lbl.pack(side="left", padx=(8, 0))
+
+        # —— 行动列表 + 详情 ——
+        act_row = tk.Frame(right, bg=PAPER)
+        act_row.pack(fill="both", expand=True, pady=(4, 0))
+        act_card = self._card(act_row)
+        act_card.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        self._card_title(act_card, "可 行 之 事")
+        lb = tk.Listbox(act_card, bg=CARD, fg=INK, selectbackground=RED,
+                        selectforeground="#f3e6c4", font=self._font(SANS, 11),
+                        relief="flat", bd=0, highlightthickness=0, height=10)
+        lb.pack(fill="both", expand=True, padx=10, pady=(2, 10))
+
+        det_card = self._card(act_row)
+        det_card.pack(side="left", fill="y", padx=(0, 0))
+        self._card_title(det_card, "细 目")
+        det_name = self._title(det_card, "（请选行动）", fg=RED, bg=CARD,
+                               font=self._font(KAI, 13, "bold"), anchor="center")
+        det_name.pack(pady=(4, 2))
+        det_desc = self._label(det_card, "", fg=INK, bg=CARD, font=self._font(KAI, 11),
+                               wraplength=270, justify="left", anchor="w")
+        det_desc.pack(anchor="w", padx=12, pady=2)
+        det_meta = tk.Frame(det_card, bg=CARD)
+        det_meta.pack(fill="x", padx=12, pady=(2, 2))
+        det_note = self._label(det_card, "", fg=theme.DX_WARN, bg=CARD,
+                               font=self._font(SANS, 9), wraplength=270, justify="left",
+                               anchor="w")
+        det_note.pack(anchor="w", padx=12, pady=(0, 8))
+        # 微服他地：目标路名输入（距离核算）
+        target_row = tk.Frame(det_card, bg=CARD)
+        target_row.pack(fill="x", padx=12, pady=(0, 8))
+        self._label(target_row, "目标路：", fg=INK, bg=CARD,
+                    font=self._font(SANS, 10)).pack(side="left")
+        target_var = tk.StringVar()
+        target_entry = tk.Entry(target_row, textvariable=target_var, bg="#fffdf8", fg=INK,
+                                relief="flat", font=self._font(SANS, 10), width=12,
+                                insertbackground=INK, highlightthickness=1,
+                                highlightbackground=BORDER)
+        target_entry.pack(side="left", padx=4)
+        target_hint = self._label(target_row, "", fg=DIM, bg=CARD, font=self._font(SANS, 9),
+                                  anchor="w")
+        target_hint.pack(side="left")
+        target_row.pack_forget()   # 默认隐藏，仅微服他地显示
+
+        def _target_updated(*_a):
+            t = (target_var.get() or "").strip()
+            if t:
+                d = imperial_distance(t)
+                m = IMPERIAL_DISTANCE_MONTHS.get(d, 1)
+                target_hint.config(text=f"「{d}」备 {m} 月")
+            else:
+                target_hint.config(text="")
+        target_var.trace_add("write", _target_updated)
+
+        rows = []
+
+        def _refresh_actions():
+            nonlocal rows
+            lb.delete(0, "end")
+            rows = []
+            matrix = IMPERIAL_ACTION_MATRIX.get(state["loc"], {}).get(state["mode"], {})
+            blocked = getattr(s, "pending_imperial_trip", None) is not None
+            micro_used = int(getattr(s, "imperial_micro_count", 0) or 0) >= 1
+            for name, cell in matrix.items():
+                disabled, reason = "", ""
+                if blocked:
+                    disabled, reason = "blocked", "大驾出京准备中，不可另定行止"
+                elif cell.get("micro_once") and micro_used:
+                    disabled, reason = "micro", "陛下本月已微服出宫，只可一次"
+                elif cell.get("era_gate") is not None and s.year < cell["era_gate"]:
+                    disabled, reason = "era", f"未至该时代（{cell['era_gate']} 年起可行）"
+                cost = int(cell.get("base_cost", 0) or 0)
+                fund = cell.get("fund", "treasury")
+                fund_lab = "国库" if fund == "treasury" else "内帑"
+                prefix = "〔不可〕" if disabled else "　"
+                lb.insert("end", f"{prefix}{name}　·　{fund_lab} {humanize_coin(cost)}　·　风险{cell.get('risk', '低')}")
+                rows.append({"action": name, "cell": cell, "disabled": disabled, "reason": reason})
+                if disabled:
+                    try:
+                        lb.itemconfig("end", fg="#b0a181")
+                    except Exception:
+                        pass
+            if not rows:
+                lb.insert("end", "（该格子无可行行动）")
+            if rows:
+                lb.selection_set(0)
+                _render_detail(0)
+            else:
+                _render_empty()
+
+        def _render_empty():
+            det_name.config(text="（无行动）")
+            det_desc.config(text="该地点与方式下无可行动项（跨格子非法）。")
+            for w in det_meta.winfo_children():
+                w.destroy()
+            det_note.config(text="")
+            target_row.pack_forget()
+
+        def _render_detail(idx):
+            if idx >= len(rows):
                 return
+            row = rows[idx]
+            cell = row["cell"]
+            name = row["action"]
+            det_name.config(text=name)
+            det_desc.config(text=cell.get("desc", ""))
+            for w in det_meta.winfo_children():
+                w.destroy()
+            cost = int(cell.get("base_cost", 0) or 0)
+            fund = cell.get("fund", "treasury")
+            fund_lab = "国库" if fund == "treasury" else "内帑"
+            risk = cell.get("risk", "低")
+            self._label(det_meta, f"开销：{fund_lab} {humanize_coin(cost)}",
+                        fg=INK, bg=CARD, font=self._font(SANS, 10), anchor="w").pack(fill="x", pady=1)
+            fg = getattr(theme, self._IMPERIAL_RISK_FG.get(risk, "DX_NORMAL"), theme.DX_NORMAL)
+            self._label(det_meta, f"风险：{risk}（{_risk_prob(risk)}）",
+                        fg=fg, bg=CARD, font=self._font(SANS, 10, "bold"), anchor="w").pack(fill="x", pady=1)
+            eff = cell.get("base_effects") or {}
+            if eff:
+                parts = []
+                for k, v in eff.items():
+                    if k == "faction_change":
+                        fc = "、".join(f"{fn}{val:+d}" for fn, val in (v or {}).items())
+                        parts.append(f"派系 {fc}")
+                        continue
+                    parts.append(f"{self._IMPERIAL_EFFECT_NAMES.get(k, k)}{v:+d}")
+                self._label(det_meta, "预期：" + "，".join(parts), fg=RED_D, bg=CARD,
+                            font=self._font(SANS, 10), anchor="w").pack(fill="x", pady=1)
+            if cell.get("bandwidth_cost"):
+                self._label(det_meta, "圣旨额度 -1（大驾在途，远程批奏）", fg=DIM, bg=CARD,
+                            font=self._font(SANS, 9), anchor="w").pack(fill="x", pady=1)
+            if cell.get("micro_once"):
+                self._label(det_meta, "微服限次：每月 1 次", fg=DIM, bg=CARD,
+                            font=self._font(SANS, 9), anchor="w").pack(fill="x", pady=1)
+            if cell.get("prep"):
+                self._label(det_meta, f"准备期：{int(cell['prep'])} 月（銮驾备毕成行）", fg=DIM,
+                            bg=CARD, font=self._font(SANS, 9), anchor="w").pack(fill="x", pady=1)
+            det_note.config(text=row["reason"] or "")
+            # 微服他地：距离核算输入
+            if cell.get("distance"):
+                target_row.pack(fill="x", padx=12, pady=(0, 8))
+                target_hint.config(text="")
+            else:
+                target_row.pack_forget()
+
+        def _risk_prob(risk):
+            from content.data import IMPERIAL_RISK_PROB
+            return f"{int(IMPERIAL_RISK_PROB.get(risk, 0.02) * 100)}%"
+
+        def _on_select(event=None):
+            sel = lb.curselection()
+            if sel and sel[0] < len(rows):
+                _render_detail(sel[0])
+
+        lb.bind("<<ListboxSelect>>", _on_select)
+
+        def _confirm():
+            sel = lb.curselection()
+            if not sel or sel[0] >= len(rows):
+                self.messagebox.showinfo("提示", "请先选择一项行止。")
+                return
+            row = rows[sel[0]]
+            if row["disabled"]:
+                self.messagebox.showinfo("不可行", row["reason"] or "此行动暂不可行。")
+                return
+            target = ""
+            if row["cell"].get("distance"):
+                target = (target_var.get() or "").strip()
+                if not target:
+                    self.messagebox.showinfo("提示", "请填写微服目标州路（如「两浙路」）。")
+                    return
             msg, self.state = self.backend.action(
-                self.state, "do_personal_action", {"name": items[sel[0]][0]})
-            self._pending_logs.append(f"个人行动《{items[sel[0]][0]}》：{msg}")
+                self.state, "choose_imperial_action",
+                {"location": state["loc"], "mode": state["mode"], "action": row["action"],
+                 "target": target, "prepared": False})
+            self._pending_logs.append(f"行止《{state['loc']}·{state['mode']}·{row['action']}》：{msg}")
+            self._log(f"〔行止〕{msg}")
+            self._refresh_hud()
+            self.messagebox.showinfo("钦定行止", msg)
+            self._close_overlay()
             self._switch_panel(self._panel_overview, "朝堂一览")
 
         bar = tk.Frame(inner, bg=PAPER)
         bar.pack(pady=10)
-        self._seal_btn(bar, "确 定", do, big=True).pack(side="left", padx=8)
+        self._seal_btn(bar, "钦 定 行 止", _confirm, big=True).pack(side="left", padx=8)
+        self._btn(bar, "返 回", lambda: self._close_overlay(), width=12, ghost=True).pack(side="left", padx=8)
+
+        # 初始渲染
+        _refresh_mode()
+        _refresh_actions()
+
+    # 六类 POP 顺序与显示名（民生面板单一权威源）
+    _POP_CLASSES = ("农", "士绅", "工匠", "商人", "官僚", "兵")
+
+    def _pop_aggregate(self):
+        """全国六类 POP 聚合：{类: {size, wealth, grain, goods, 窖银}}（只读 state）。"""
+        agg = {k: {"size": 0, "wealth": 0, "grain": 0, "goods": 0, "窖银": 0}
+               for k in self._POP_CLASSES}
+        for p in self.state.prefectures.values():
+            for name, pop in (p.get("pops") or {}).items():
+                if name not in agg:
+                    continue
+                a = agg[name]
+                a["size"] += int(pop.get("size", 0) or 0)
+                a["wealth"] += int(pop.get("wealth", 0) or 0)
+                a["grain"] += int(pop.get("grain", 0) or 0)
+                a["goods"] += sum(int(v) for v in (pop.get("goods") or {}).values())
+                a["窖银"] += int(pop.get("窖银", 0) or 0)
+        return agg
+
+    def _panel_pop(self):
+        """民生 · 六类人口经济总览：全国总览（表格）+ 关键指标 + 诸路明细（按路折叠）。
+
+        数据源：state.prefectures[路].pops（六类 POP 的 size/wealth/grain/goods/窖银）。
+        """
+        from ui.gui_common import humanize_coin, humanize_grain
+        inner = self._panel_shell("民 生")
+        self._label(inner,
+                    "天下生民，六等之众：农、士绅、工匠、商人、官僚、兵。钱粮货物，皆在民焉。",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(
+            padx=12, pady=(2, 8))
+        s = self.state
+        agg = self._pop_aggregate()
+
+        # —— 全国六类总览（表格卡片）——
+        self._card_title2(inner, "全 国 六 类 人 口 总 览")
+        card = self._card(inner)
+        card.pack(fill="x", padx=10, pady=4)
+        cols = [("类 别", "w"), ("人 数", "e"), ("持 钱", "e"), ("存 粮", "e"),
+                ("商 品", "e")]
+        for c, (txt, anchor) in enumerate(cols):
+            self._label(card, txt, fg=RED_D, bg=CARD, font=self._font(SANS, 10, "bold"),
+                        anchor=anchor).grid(row=0, column=c, padx=10, pady=(8, 2), sticky="we")
+        for r, name in enumerate(self._POP_CLASSES, 1):
+            a = agg[name]
+            vals = [
+                name,
+                f"{a['size']:,} 人",
+                humanize_coin(a["wealth"]),
+                humanize_grain(a["grain"]),
+                f"{a['goods']:,} 件",
+            ]
+            for c, v in enumerate(vals):
+                self._label(card, v, fg=(INK if c else RED_D), bg=CARD,
+                            font=self._font(SANS, 10, "bold" if c == 0 else ""),
+                            anchor=cols[c][1]).grid(row=r, column=c, padx=10, pady=2, sticky="we")
+        for c in range(len(cols)):
+            card.grid_columnconfigure(c, weight=1)
+
+        # —— 关键指标（民间经济健康）——
+        self._card_title2(inner, "关 键 指 标 · 民 间 经 济")
+        ind = self._card(inner)
+        ind.pack(fill="x", padx=10, pady=4)
+        tot = {"wealth": 0, "grain": 0, "goods": 0, "窖银": 0}
+        for a in agg.values():
+            tot["wealth"] += a["wealth"]
+            tot["grain"] += a["grain"]
+            tot["goods"] += a["goods"]
+            tot["窖银"] += a["窖银"]
+        ind_row = tk.Frame(ind, bg=CARD)
+        ind_row.pack(fill="x", padx=12, pady=8)
+        for lab, v, unit in (
+                ("民间总持钱", humanize_coin(tot["wealth"]), "贯"),
+                ("民间总存粮", humanize_grain(tot["grain"]), "石"),
+                ("商品存量", f"{tot['goods']:,}", "件")):
+            cell = tk.Frame(ind_row, bg=CARD, relief="ridge", bd=1,
+                            highlightbackground=GOLD, highlightthickness=1)
+            cell.pack(side="left", expand=True, fill="x", padx=4)
+            self._label(cell, lab, fg=DIM, bg=CARD, font=self._font(SANS, 9),
+                        anchor="center").pack(pady=(6, 0))
+            self._label(cell, v, fg=RED_D, bg=CARD, font=self._font(KAI, 12, "bold"),
+                        anchor="center").pack(pady=(0, 6))
+        self._label(inner, "（民间钱粮为民生之基；藏富之银不入市，察之者自明。）",
+                    fg=DIM, bg=PAPER, font=self._font(SANS, 9)).pack(padx=12, pady=(2, 6), anchor="w")
+
+        # —— 诸路明细（按路折叠）——
+        self._card_title2(inner, "诸 路 民 生 明 细")
+        open_st = {}
+        for name, p in s.prefectures.items():
+            pop = p.get("pops") or {}
+            disp = p.get("name", name)
+            wrap = tk.Frame(inner, bg=PAPER)
+            wrap.pack(fill="x", padx=10, pady=2)
+
+            def _tot_line(popd):
+                sizes = sum(int(x.get("size", 0) or 0) for x in popd.values())
+                wealth = sum(int(x.get("wealth", 0) or 0) for x in popd.values())
+                grain = sum(int(x.get("grain", 0) or 0) for x in popd.values())
+                goods = sum(sum(int(v) for v in (x.get("goods") or {}).values())
+                            for x in popd.values())
+                return (f"共 {sizes:,} 人　持钱 {humanize_coin(wealth)}　"
+                        f"存粮 {humanize_grain(grain)}　商品 {goods:,} 件")
+
+            hdr = tk.Frame(wrap, bg=PAPER)
+            hdr.pack(fill="x")
+            self._title(hdr, disp, fg=RED, bg=PAPER, font=self._font(KAI, 12, "bold"),
+                        anchor="w").pack(side="left")
+            self._label(hdr, _tot_line(pop), fg=DIM, bg=PAPER, font=self._font(SANS, 9),
+                        anchor="e").pack(side="right")
+            open_st[name] = {"open": False, "btn": None}
+
+            def _toggle(nm=name, wd=wrap, pd=pop):
+                open_st[nm]["open"] = not open_st[nm]["open"]
+                for w in list(wd.winfo_children()):
+                    if w is not hdr:
+                        w.destroy()
+                if open_st[nm]["open"]:
+                    detail = tk.Frame(wd, bg=CARD, relief="ridge", bd=1,
+                                      highlightbackground=BORDER, highlightthickness=1)
+                    detail.pack(fill="x", pady=(2, 2))
+                    for cls in self._POP_CLASSES:
+                        x = pd.get(cls)
+                        if not x:
+                            continue
+                        row = tk.Frame(detail, bg=CARD)
+                        row.pack(fill="x", padx=10, pady=1)
+                        self._label(row, f"　{cls}", fg=RED_D, bg=CARD,
+                                    font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
+                        self._label(row,
+                                    f"{int(x.get('size', 0) or 0):,} 人　持钱 "
+                                    f"{humanize_coin(int(x.get('wealth', 0) or 0))}　存粮 "
+                                    f"{humanize_grain(int(x.get('grain', 0) or 0))}　商品 "
+                                    f"{sum(int(v) for v in (x.get('goods') or {}).values()):,} 件",
+                                    fg=INK, bg=CARD, font=self._font(SANS, 9), anchor="w").pack(
+                            side="left", padx=(8, 0))
+                btn = open_st[nm]["btn"]
+                if btn is not None:
+                    try:
+                        btn.config(text="－ 收 起" if open_st[nm]["open"] else "＋ 明 细")
+                    except Exception:
+                        pass
+
+            open_st[name]["btn"] = self._btn(hdr, "＋ 明 细", _toggle, width=8, ghost=True)
+            open_st[name]["btn"].pack(side="right", padx=4)
 
     def _panel_military_affairs(self):
         """军政 = 真正的军事事务（军队实体/防线/战事/武库），无任何一键施政。"""
@@ -614,33 +1048,54 @@ class PanelsEconomyMixin:
             t.tag_configure("b", foreground=INK, font=self._font(KAI, 12))
 
             # 会用专家团（council_review）生成三省六部意见；AI 未接入时明确提示（不静默降级）
-            review = None
+            fallback = {"memo": f"工部奏请以国库拨银 {humanize_coin(silver)}，兴「{name}」之研，期{pre.get('months')}月。",
+                        "objections": "户部核库：国库尚有此力，度支可行。",
+                        "executions": "工部承领营造，度支司按月拨给，工毕核销。",
+                        "verdict": "可准", "revised_effects": []}
+
+            def _render_review(review):
+                t.delete("1.0", "end")
+                t.insert("end", "【中书省拟稿】\n", "h")
+                t.insert("end", f"{review.get('memo','')}\n\n", "b")
+                t.insert("end", "【门下省封驳】\n", "h")
+                t.insert("end", f"{review.get('objections','')}\n\n", "b")
+                t.insert("end", "【尚书省·六部执行】\n", "h")
+                t.insert("end", f"{review.get('executions','')}\n\n", "b")
+                t.insert("end", f"【廷议结论】{review.get('verdict','可准')}\n", "h")
+                t.insert("end", f"\n拨帑 {humanize_coin(silver)}（国库），工期 {pre.get('months')} 月；工部领办，匠役由将作监调拨。",
+                         "b")
+
             if not (self.ai_client and getattr(self.ai_client, "available", False)):
-                self.self.messagebox.showwarning(
+                self.messagebox.showwarning(
                     "AI 未接入", "未接入 AI，请配置 OpenAI 兼容 API（base_url/api_key/model）：游戏设置 → AI 配置。会签以规则意见代替。")
-            try:
-                if getattr(self.ai_client, "available", False):
-                    review = self.ai_client.council_review(
-                        {"title": f"国库拨银研「{name}」", "body": pre.get("desc", ""),
-                         "effects": [{"dim": "treasury", "value": -silver}],
-                         "org_hint": "政府"},
-                        self.state.get_state_summary(), state=self.state)
-            except Exception:
-                review = None
-            if not review:
-                review = {"memo": f"工部奏请以国库拨银 {humanize_coin(silver)}，兴「{name}」之研，期{pre.get('months')}月。",
-                          "objections": "户部核库：国库尚有此力，度支可行。",
-                          "executions": "工部承领营造，度支司按月拨给，工毕核销。",
-                          "verdict": "可准", "revised_effects": []}
-            t.insert("end", "【中书省拟稿】\n", "h")
-            t.insert("end", f"{review.get('memo','')}\n\n", "b")
-            t.insert("end", "【门下省封驳】\n", "h")
-            t.insert("end", f"{review.get('objections','')}\n\n", "b")
-            t.insert("end", "【尚书省·六部执行】\n", "h")
-            t.insert("end", f"{review.get('executions','')}\n\n", "b")
-            t.insert("end", f"【廷议结论】{review.get('verdict','可准')}\n", "h")
-            t.insert("end", f"\n拨帑 {humanize_coin(silver)}（国库），工期 {pre.get('months')} 月；工部领办，匠役由将作监调拨。",
-                     "b")
+                _render_review(fallback)
+            else:
+                # T6 异步会签：先渲染"推演中"，完成后主线程回填（UI 不卡驻）
+                _render_review({"memo": "（廷议推演中…）", "objections": "（门下省核议中…）",
+                                "executions": "（六部承旨待办中…）", "verdict": "—", "revised_effects": []})
+                summary = self.state.get_state_summary()
+
+                def _on_success(rev):
+                    try:
+                        _render_review(rev)
+                    except Exception:
+                        pass
+
+                def _on_error(e):
+                    try:
+                        _render_review(fallback)
+                    except Exception:
+                        pass
+                    self.messagebox.showerror("AI 叙事中断", str(e))
+
+                from core.async_ai import run_ai_call
+                run_ai_call(
+                    self.ai_client, "council_review",
+                    {"title": f"国库拨银研「{name}」", "body": pre.get("desc", ""),
+                     "effects": [{"dim": "treasury", "value": -silver}],
+                     "org_hint": "政府"},
+                    summary, state=self.state,
+                    on_success=_on_success, on_error=_on_error, ui=self.root)
 
             bb = tk.Frame(body, bg=PAPER)
             bb.pack(pady=10)
@@ -681,15 +1136,48 @@ class PanelsEconomyMixin:
                     fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(padx=12, pady=(4, 10))
         s = self.state
 
-        # 可建工程类别
+        # 可建工程类别（具体清单：政府建筑 + 科技蓝图）
         self._card_title2(inner, "可 建 工 程")
         cat = self._card(inner)
         cat.pack(fill="x", padx=10, pady=4)
-        fc = FIXED_PROCEDURES.get("fixed_construction", {})
-        self._label(cat, str(fc.get("label", "工程建设")) + "：置 site（所在）、kind（工类）、"
-                    "invest（耗银）、months（工期）",
-                    fg=INK, bg=CARD, font=self._font(SANS, 10), anchor="w",
-                    justify="left").pack(anchor="w", padx=12, pady=8)
+        from content.data import BUILDING_STD, BUILDING_BLUEPRINTS
+        items = []
+        for bname, bcfg in (BUILDING_STD or {}).items():
+            cost = bcfg.get("base_cost", 0)
+            eff = _TECH_EFFECT_LABELS.get(str(bcfg.get("effect", "")), str(bcfg.get("effect", "")))
+            items.append((bname, cost, eff))
+        for bid, bcfg in (BUILDING_BLUEPRINTS or {}).items():
+            nm = bcfg.get("name", bid)
+            cost = (bcfg.get("cost") or {}).get("silver", 0)
+            eff = bcfg.get("effect", "")
+            if isinstance(eff, dict):
+                # 科技蓝图 effect 为 dict：逐键映射中文（如 {'trade_income': 0.15} → 贸易收入+15%）
+                parts = []
+                for k, v in eff.items():
+                    label = _TECH_EFFECT_LABELS.get(str(k), str(k))
+                    if isinstance(v, (int, float)) and v != 0:
+                        pct = f"{'+' if v > 0 else ''}{int(v*100)}%" if abs(v) < 2 else f"{'+' if v > 0 else ''}{v}"
+                        parts.append(f"{label}{pct}")
+                    else:
+                        parts.append(f"{label}{v}")
+                eff = "、".join(parts)
+            else:
+                eff = _TECH_EFFECT_LABELS.get(str(eff), str(eff))
+            items.append((nm, cost, eff))
+        if items:
+            shown = 0
+            for name, cost, eff in items:
+                if shown >= 12:
+                    break
+                self._label(cat, f"· {name}（{cost//10000}万贯）{eff}",
+                            fg=INK, bg=CARD, font=self._font(SANS, 10), anchor="w",
+                            justify="left").pack(anchor="w", padx=12, pady=2)
+                shown += 1
+            self._label(cat, "（拟诏「营造」某建筑以兴工；工程类诏令经圣旨推演落地）",
+                        fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="w").pack(anchor="w", padx=12, pady=(4, 6))
+        else:
+            self._label(cat, "— 暂无可见工程 —", fg=DIM, bg=CARD, font=self._font(SANS, 10),
+                        anchor="w").pack(anchor="w", padx=12, pady=8)
 
         # 已开工工程（从在办筛“工程”类）
         self._card_title2(inner, "已 开 工")
