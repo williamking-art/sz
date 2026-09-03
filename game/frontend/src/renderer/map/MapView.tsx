@@ -121,28 +121,47 @@ export default function MapView() {
     if (!data || !markers || !controller) return;
     const map = controller.getMap()!;
 
-    // 政权标签
+    // 1. 宏观政权标签 (zoom: 0, 全国视野可见)
     const seenRegimes = new Set<string>();
     for (const f of data.regimes.features) {
       const p = f.properties as Record<string, unknown>;
-      if (p.kind === "sub") continue;
       if (p.kind !== "regime" && p.kind !== "part") continue;
-      const nm = String(p.name);
-      if (p.kind === "part") {
-        // 拼合块一政权多块,只挂一次政权标签(label_at 来自政权注册表)
-        if (seenRegimes.has(nm)) continue;
-        seenRegimes.add(nm);
-      }
+      const nm = String(p.name || "");
+      if (!nm) continue; // 中立省份无名
+      if (seenRegimes.has(nm)) continue;
+      seenRegimes.add(nm);
+
       const at = (p.label_at as [number, number]) || centerOf(f);
       const on = !!p.active;
       markers.addLabel(
         at,
-        String(p.display_name || p.name),
+        nm,
         `lbl-regime${on ? "" : " off"}`,
         0,
         on,
-        () => selectFeature("regime", String(p.name)),
-        { kind: "regime", name: String(p.name) }
+        () => selectFeature("regime", nm),
+        { kind: "regime", name: nm }
+      );
+    }
+
+    // 2. 辽道、夏道等省道级标签 (zoom: 3.6, 与宋路同级显现)
+    const seenRoads = new Set<string>();
+    for (const f of data.regimes.features) {
+      const p = f.properties as Record<string, unknown>;
+      const prov = String(p.province || "");
+      const nm = String(p.name || "");
+      if (!prov || prov === nm) continue; // 仅对分道的省份展示
+      if (seenRoads.has(prov)) continue;
+      seenRoads.add(prov);
+
+      const at = (p.label_at as [number, number]) || centerOf(f);
+      markers.addLabel(
+        at,
+        prov,
+        "lbl-circuit",
+        3.6,
+        true,
+        () => selectFeature("circuit", prov)
       );
     }
     // 分路标签
