@@ -147,7 +147,7 @@ export default function MapView() {
     // 政权标签
     for (const f of data.regimes.features) {
       const p = f.properties as Record<string, unknown>;
-      if (p.kind === "sub") continue;
+      if (p.kind !== "regime") continue; // part=省/地级拼合块、sub=分路,均不挂政权标签
       const at = (p.label_at as [number, number]) || centerOf(f);
       const on = !!p.active;
       markers.addLabel(
