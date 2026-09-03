@@ -22,7 +22,7 @@ function resolveBackendConfig(): BackendConfig {
   // 尝试读取 backend_config.json（位于 frontend/ 或 game/ 根）
   const candidates = [
     join(__dirname, "../../backend_config.json"),
-    join(__dirname, "../../../game/backend_config.json")
+    join(__dirname, "../../../backend_config.json")
   ];
   for (const p of candidates) {
     if (existsSync(p)) {
@@ -69,9 +69,17 @@ async function waitForBackend(url: string, attempts = 40, intervalMs = 500): Pro
   return false;
 }
 
+function resolvePythonCommand(cwd: string): string {
+  // 优先工程 venv（双击启动时 PATH 通常没有 python），其次 PATH 上的 python
+  const venvPython = join(cwd, ".venv", "Scripts", "python.exe");
+  if (existsSync(venvPython)) return venvPython;
+  return "python";
+}
+
 function spawnBackend(cfg: BackendConfig): void {
-  const cwd = cfg.cwd ?? join(__dirname, "../../../game");
-  const command = cfg.command ?? "python";
+  // __dirname = game/frontend/out/main,上三级即 game/(前端目录已移入 game/)
+  const cwd = cfg.cwd ?? join(__dirname, "../../..");
+  const command = cfg.command ?? resolvePythonCommand(cwd);
   const args = ["-m", "backend.server"];
   console.log(`[backend] spawn ${command} ${args.join(" ")} (cwd=${cwd})`);
   backendProc = spawn(command, args, {
@@ -81,6 +89,11 @@ function spawnBackend(cfg: BackendConfig): void {
   });
   backendProc.stdout?.on("data", (d) => console.log(`[backend] ${String(d).trimEnd()}`));
   backendProc.stderr?.on("data", (d) => console.error(`[backend] ${String(d).trimEnd()}`));
+  backendProc.on("error", (e) => {
+    // spawn 失败（ENOENT 等）只降级为“后端未连接”，不允许击穿主进程
+    console.error(`[backend] 启动失败: ${String(e)}`);
+    backendProc = null;
+  });
   backendProc.on("exit", (code) => {
     console.log(`[backend] 退出 code=${code}`);
     backendProc = null;
