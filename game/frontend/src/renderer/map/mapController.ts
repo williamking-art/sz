@@ -3,6 +3,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { buildLayerDefs, LAYER_IDS, THEME } from "./layers";
 import type { Selected } from "../store/gameStore";
 
+// 舆图数据资产基址（构建期从 game/assets/map/web/ 平移）
+export const MAP_BASE_URL = import.meta.env.BASE_URL + "map";
+
 export interface MapView {
   bounds: [number, number, number, number];
   center: [number, number];
@@ -82,6 +85,14 @@ export class MapController {
     src("regimes");
     src("cities");
     src("borders");
+    // 地形晕渲（山脉立体感）：ESRI World Hillshade，构建期平移至 map/tiles/hill
+    this.map.addSource("hill", {
+      type: "raster",
+      tiles: [`${MAP_BASE_URL}/tiles/hill/{z}/{x}/{y}.png`],
+      tileSize: 256,
+      minzoom: 4,
+      maxzoom: 8
+    });
     this.map.addSource("selected", {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] }
