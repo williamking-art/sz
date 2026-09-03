@@ -156,3 +156,6 @@ _schedule_restart.mjs
 /worktrees/
 # --- 顶层意外生成的空 lock(前端 lock 在 game/frontend/) ---
 /package-lock.json
+
+# --- 本仓库自身的行尾策略文件(dsh 忽略规则的例外) ---
+!.gitattributes
