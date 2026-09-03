@@ -39,7 +39,6 @@ from content.geo_admin import (
     REGIME_COLORS,
     REGIME_GEO,
     REGIME_PARTS,
-    REGIME_SUBDIVISIONS,
     active_regimes,
     all_city_points,
     validate_geo,
@@ -72,33 +71,16 @@ def _polygon_feature(name: str, ring: list[list[float]],
 
 
 def build_regimes() -> dict[str, object]:
-    """周边政权疆域层：active=False 者前端默认不渲染，待 timeline break 激活。
+    """周边政权疆域层:两类 feature,叠放次序(先=底层)。
 
-    三类 feature,叠放次序(先=底层):
-      1. part   —— use_parts 政权按 REGIME_PARTS 真实政区(省/地级)拼合,一区一块;
-      2. regime —— 其余政权(REGIME_GEO.polygon 手工近似,境外一势力一块);
-      3. sub    —— 分路(随母政权,后画覆盖母政权)。
-    分路自持 owner(初始=母政权,可单独易主);active=False 的母政权(如金)不输出其分路。
+      1. part   —— use_parts 政权按 REGIME_PARTS 真实政区(省/地级/NE Admin-1)拼合;
+      2. regime —— 其余政权(REGIME_GEO.polygon 手工近似,境外一势力一块)。
+    use_parts 且未注册拼合条目者(金与诸部,1101 年无建国)完全不上图;
+    分路(五京道/监军司)手工几何已退役,"可单独易主"转由运行时归属改写(P1)承担。
     """
     features: list[dict[str, object]] = []
     for key, geo in REGIME_GEO.items():
         if geo.get("use_parts"):
-            # use_parts 政权不出手工块;未在 REGIME_PARTS 注册拼合者(金与诸部,
-            # 1101 年无建国)完全不上图——无块无锚点无标签,金崛起时经 part
-            # 归属改写点亮
-            if not geo.get("active"):
-                continue
-            sub_fill = REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR)
-            for sub in REGIME_SUBDIVISIONS.get(key, []):
-                features.append(_polygon_feature(sub["name"], sub["polygon"], {
-                    "kind": "sub",
-                    "parent": key,
-                    "owner": sub.get("owner", key),
-                    "fill": sub.get("owner") and REGIME_COLORS.get(sub["owner"], sub_fill) or sub_fill,
-                    "seat": sub.get("seat", ""),
-                    "seat_at": sub.get("seat_at"),
-                    "label_at": sub.get("label_at"),
-                }))
             continue
         features.append(_polygon_feature(key, geo["polygon"], {
             "kind": "regime",
@@ -111,19 +93,8 @@ def build_regimes() -> dict[str, object]:
             "label_at": geo.get("label_at"),
             "note": geo.get("note", ""),
         }))
-        if not geo.get("active"):
-            continue  # 未兴政权(金):分路随母政权一并隐藏
-        sub_fill = REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR)
-        for sub in REGIME_SUBDIVISIONS.get(key, []):
-            features.append(_polygon_feature(sub["name"], sub["polygon"], {
-                "kind": "sub",
-                "parent": key,
-                "owner": sub.get("owner", key),
-                "fill": sub.get("owner") and REGIME_COLORS.get(sub["owner"], sub_fill) or sub_fill,
-                "seat": sub.get("seat", ""),
-                "seat_at": sub.get("seat_at"),
-                "label_at": sub.get("label_at"),
-            }))
+        # 分路(五京道/监军司)不再输出手工几何:政权版图已按真实政区拼合,
+        # "可单独易主"语义转由运行时归属改写(P1)承担。
     return {"type": "FeatureCollection",
             "features": [*regime_part_features(), *features]}
 

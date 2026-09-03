@@ -1975,6 +1975,210 @@
   {
    "geometry": {
     "coordinates": [
+     118.48,
+     36.68
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": true,
+    "level": "府",
+    "name": "青州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     119.41,
+     35.99
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "密州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     118.35,
+     35.06
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "沂州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     120.76,
+     37.81
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "登州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     119.94,
+     37.18
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "莱州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     119.16,
+     36.71
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "潍州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     117.97,
+     36.64
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东东路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "淄州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     116.83,
+     35.55
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东西路",
+    "game_unit": null,
+    "is_seat": true,
+    "level": "州",
+    "name": "兖州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     117.18,
+     34.26
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东西路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "徐州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     116.06,
+     35.4
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东西路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "济州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     116.3,
+     35.93
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东西路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "郓州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     115.51,
+     35.56
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "京东西路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "濮州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
      126.62,
      37.97
     ],
