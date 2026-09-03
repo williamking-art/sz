@@ -4,7 +4,6 @@ import { feature } from "topojson-client";
 import { MapController, MAP_BASE_URL, type MapView as MapViewData } from "./mapController";
 import { MarkerManager } from "./markers";
 import { deriveMapState } from "./state";
-import { SimplifyCache, tierForZoom } from "./simplify";
 import { useGameStore } from "../store/gameStore";
 
 const DEFAULT_VIEW: MapViewData = {
@@ -32,8 +31,6 @@ export default function MapView() {
   const controllerRef = useRef<MapController | null>(null);
   const markersRef = useRef<MarkerManager | null>(null);
   const dataRef = useRef<GeoData | null>(null);
-  const topoRef = useRef<SimplifyCache | null>(null);
-  const tierRef = useRef<number>(-1);
   const debounceRef = useRef<number | null>(null);
   const state = useGameStore((s) => s.state);
   const setSelected = useGameStore((s) => s.setSelected);
@@ -97,45 +94,21 @@ export default function MapView() {
         fc.features.forEach((f, j) => { f.id = j; });
       }
       dataRef.current = data;
-      topoRef.current = new SimplifyCache(topo);
+      // 政权几何全精度注入(不再按 zoom 分档简化):精确国界/省界被简化
+      // 会在中低缩放退化为直线多边形
       controller.setData(data);
       buildLabels();
       const map = controller.getMap()!;
-      // 首帧按当前 zoom 落一次简化档位 + 标签避让
-      applyTier(map.getZoom());
-      markersRef.current?.avoid();
-
-      // 视口稳定后（移动/缩放结束）按档位重简化 + 标签显隐避让（防抖）
+      // 视口稳定后标签显隐避让(防抖)
       map.on("moveend", () => {
         if (debounceRef.current) window.clearTimeout(debounceRef.current);
         debounceRef.current = window.setTimeout(() => {
-          applyTier(map.getZoom());
           markersRef.current?.refresh(map.getZoom());
           markersRef.current?.avoid();
         }, 120);
       });
     } catch (e) {
       console.error("[map] 数据加载失败", e);
-    }
-  }
-
-  /**
-   * 按 zoom 切换几何简化档位（TopoJSON 运行时动态简化）。
-   * 档位未变时 SimplifyCache 直接命中缓存，不重复解码。
-   */
-  function applyTier(zoom: number) {
-    const controller = controllerRef.current;
-    const topo = topoRef.current;
-    const data = dataRef.current;
-    if (!controller || !topo || !data) return;
-    if (tierRef.current === tierForZoom(zoom)) return;
-    tierRef.current = tierForZoom(zoom);
-    // 仅境外政权随档位简化;路填充/路界保持全精度(初始 setData 注入),
-    // 简化过滤会把边界线切成断续残段(放大后呈虚线)。
-    for (const layer of ["regimes"] as const) {
-      const fc = topo.get(layer, zoom);
-      fc.features.forEach((f, j) => { f.id = j; });
-      controller.setLayerData(layer, fc);
     }
   }
 
