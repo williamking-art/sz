@@ -10,7 +10,7 @@
    },
    "properties": {
     "circuit": "京畿路",
-    "game_unit": "东京开封府",
+    "game_unit": "京畿路",
     "is_seat": true,
     "level": "京府",
     "name": "开封府"
@@ -27,7 +27,7 @@
    },
    "properties": {
     "circuit": "京畿路",
-    "game_unit": "东京开封府",
+    "game_unit": "京畿路",
     "is_seat": false,
     "level": "府",
     "name": "颍昌府"
@@ -44,7 +44,7 @@
    },
    "properties": {
     "circuit": "京畿路",
-    "game_unit": "东京开封府",
+    "game_unit": "京畿路",
     "is_seat": false,
     "level": "州",
     "name": "郑州"
@@ -61,7 +61,7 @@
    },
    "properties": {
     "circuit": "京畿路",
-    "game_unit": "东京开封府",
+    "game_unit": "京畿路",
     "is_seat": false,
     "level": "州",
     "name": "滑州"
@@ -78,7 +78,7 @@
    },
    "properties": {
     "circuit": "京畿路",
-    "game_unit": "东京开封府",
+    "game_unit": "京畿路",
     "is_seat": false,
     "level": "州",
     "name": "陈州"
@@ -333,7 +333,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": true,
     "level": "府",
     "name": "太原府"
@@ -350,7 +350,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": false,
     "level": "州",
     "name": "潞州"
@@ -367,7 +367,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": false,
     "level": "府",
     "name": "平阳府"
@@ -384,7 +384,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": false,
     "level": "州",
     "name": "代州"
@@ -401,7 +401,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": false,
     "level": "州",
     "name": "忻州"
@@ -418,7 +418,7 @@
    },
    "properties": {
     "circuit": "河东路",
-    "game_unit": "河东",
+    "game_unit": "河东路",
     "is_seat": false,
     "level": "州",
     "name": "石州"
@@ -1370,7 +1370,7 @@
    },
    "properties": {
     "circuit": "淮南东路",
-    "game_unit": null,
+    "game_unit": "淮南东路",
     "is_seat": true,
     "level": "州",
     "name": "扬州"
@@ -1387,7 +1387,7 @@
    },
    "properties": {
     "circuit": "淮南东路",
-    "game_unit": null,
+    "game_unit": "淮南东路",
     "is_seat": false,
     "level": "州",
     "name": "楚州"
@@ -1404,7 +1404,7 @@
    },
    "properties": {
     "circuit": "淮南东路",
-    "game_unit": null,
+    "game_unit": "淮南东路",
     "is_seat": false,
     "level": "州",
     "name": "泰州"
@@ -1421,7 +1421,7 @@
    },
    "properties": {
     "circuit": "淮南东路",
-    "game_unit": null,
+    "game_unit": "淮南东路",
     "is_seat": false,
     "level": "州",
     "name": "通州"
@@ -1438,7 +1438,7 @@
    },
    "properties": {
     "circuit": "淮南东路",
-    "game_unit": null,
+    "game_unit": "淮南东路",
     "is_seat": false,
     "level": "州",
     "name": "真州"
@@ -1455,7 +1455,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": true,
     "level": "州",
     "name": "庐州"
@@ -1472,7 +1472,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": false,
     "level": "州",
     "name": "寿州"
@@ -1489,7 +1489,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": false,
     "level": "州",
     "name": "舒州"
@@ -1506,7 +1506,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": false,
     "level": "州",
     "name": "黄州"
@@ -1523,7 +1523,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": false,
     "level": "州",
     "name": "蕲州"
@@ -1540,7 +1540,7 @@
    },
    "properties": {
     "circuit": "淮南西路",
-    "game_unit": null,
+    "game_unit": "淮南西路",
     "is_seat": false,
     "level": "州",
     "name": "光州"
@@ -1557,7 +1557,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": true,
     "level": "府",
     "name": "江陵府"
@@ -1574,7 +1574,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "岳州"
@@ -1591,7 +1591,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "鼎州"
@@ -1608,7 +1608,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "澧州"
@@ -1625,7 +1625,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "鄂州"
@@ -1642,7 +1642,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "归州"
@@ -1659,7 +1659,7 @@
    },
    "properties": {
     "circuit": "荆湖北路",
-    "game_unit": null,
+    "game_unit": "荆湖北路",
     "is_seat": false,
     "level": "州",
     "name": "辰州"
@@ -1676,7 +1676,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": true,
     "level": "州",
     "name": "桂州"
@@ -1693,7 +1693,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "柳州"
@@ -1710,7 +1710,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "梧州"
@@ -1727,7 +1727,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "邕州"
@@ -1744,7 +1744,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "容州"
@@ -1761,7 +1761,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "琼州"
@@ -1778,7 +1778,7 @@
    },
    "properties": {
     "circuit": "广南西路",
-    "game_unit": null,
+    "game_unit": "广南西路",
     "is_seat": false,
     "level": "州",
     "name": "雷州"
@@ -1795,7 +1795,7 @@
    },
    "properties": {
     "circuit": "利州路",
-    "game_unit": null,
+    "game_unit": "利州路",
     "is_seat": true,
     "level": "府",
     "name": "兴元府"
@@ -1812,7 +1812,7 @@
    },
    "properties": {
     "circuit": "利州路",
-    "game_unit": null,
+    "game_unit": "利州路",
     "is_seat": false,
     "level": "州",
     "name": "利州"
@@ -1829,7 +1829,7 @@
    },
    "properties": {
     "circuit": "利州路",
-    "game_unit": null,
+    "game_unit": "利州路",
     "is_seat": false,
     "level": "州",
     "name": "阆州"
@@ -1846,7 +1846,7 @@
    },
    "properties": {
     "circuit": "利州路",
-    "game_unit": null,
+    "game_unit": "利州路",
     "is_seat": false,
     "level": "州",
     "name": "剑州"
@@ -1863,7 +1863,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": true,
     "level": "州",
     "name": "夔州"
@@ -1880,7 +1880,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "忠州"
@@ -1897,7 +1897,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "万州"
@@ -1914,7 +1914,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "达州"
@@ -1931,7 +1931,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "涪州"
@@ -1948,7 +1948,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "黔州"
@@ -1965,7 +1965,7 @@
    },
    "properties": {
     "circuit": "夔州路",
-    "game_unit": null,
+    "game_unit": "夔州路",
     "is_seat": false,
     "level": "州",
     "name": "施州"
@@ -1982,7 +1982,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": true,
     "level": "府",
     "name": "青州"
@@ -1999,7 +1999,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "密州"
@@ -2016,7 +2016,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "沂州"
@@ -2033,7 +2033,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "登州"
@@ -2050,7 +2050,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "莱州"
@@ -2067,7 +2067,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "潍州"
@@ -2084,7 +2084,7 @@
    },
    "properties": {
     "circuit": "京东东路",
-    "game_unit": null,
+    "game_unit": "京东东路",
     "is_seat": false,
     "level": "州",
     "name": "淄州"
@@ -2101,7 +2101,7 @@
    },
    "properties": {
     "circuit": "京东西路",
-    "game_unit": null,
+    "game_unit": "京东西路",
     "is_seat": true,
     "level": "州",
     "name": "兖州"
@@ -2118,7 +2118,7 @@
    },
    "properties": {
     "circuit": "京东西路",
-    "game_unit": null,
+    "game_unit": "京东西路",
     "is_seat": false,
     "level": "州",
     "name": "徐州"
@@ -2135,7 +2135,7 @@
    },
    "properties": {
     "circuit": "京东西路",
-    "game_unit": null,
+    "game_unit": "京东西路",
     "is_seat": false,
     "level": "州",
     "name": "济州"
@@ -2152,7 +2152,7 @@
    },
    "properties": {
     "circuit": "京东西路",
-    "game_unit": null,
+    "game_unit": "京东西路",
     "is_seat": false,
     "level": "州",
     "name": "郓州"
@@ -2169,7 +2169,7 @@
    },
    "properties": {
     "circuit": "京东西路",
-    "game_unit": null,
+    "game_unit": "京东西路",
     "is_seat": false,
     "level": "州",
     "name": "濮州"
