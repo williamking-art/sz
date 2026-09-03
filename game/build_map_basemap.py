@@ -199,37 +199,58 @@ def build_circuits() -> None:
                 },
                 "geometry": mapping(g),
             })
-    _save_web("circuits.geojson",
-              {"type": "FeatureCollection", "features": feats})
-
-    # 路级外框：各路政区并集的边界线（粗线层用）
+    # 将同一路下的所有地级碎片合并为完整大省板块(消除地级碎缝与锯齿台阶)
     by = {}
+    by_info = {}
     for f in feats:
-        by.setdefault(f["properties"]["name"], []).append(
-            shape(f["geometry"]).buffer(0))  # buffer(0) 修 DataV 自相交
-    out = []
+        name = f["properties"]["name"]
+        by.setdefault(name, []).append(shape(f["geometry"]).buffer(0))
+        by_info[name] = f["properties"]
+
+    road_features = []
+    border_features = []
+
     for name, geoms in by.items():
         u = unary_union(geoms).buffer(0)
-        # 相邻地级面边界数字化不重合,union 后 boundary 仍被切成 200+ 碎段,
-        # 渲染成点划线:先膨胀收缩闭微缝(约 +-150m,路界无感),再 linemerge 串段
+        # 闭微缝自愈合(约 +-150m), 消除相邻省市及外接政权交界处的发丝缝隙与锯齿
         u = u.buffer(0.0015).buffer(-0.0015)
+        at = u.representative_point()
+        p_info = by_info[name]
+
+        # 1. circuits.geojson: 20 大省完整板块
+        road_features.append({
+            "type": "Feature",
+            "properties": {
+                "kind": "circuit",
+                "name": name,
+                "type": p_info.get("type", ""),
+                "seat": p_info.get("seat", ""),
+                "game_unit": name,
+                "member_count": p_info.get("member_count", 0),
+                "label_at": [round(at.x, 4), round(at.y, 4)],
+            },
+            "geometry": mapping(u),
+        })
+
+        # 2. circuit_borders.geojson: 连续平滑省界描边线
         boundary = u.boundary
         if boundary.geom_type == "MultiLineString":
             boundary = linemerge(boundary)
-        at = u.representative_point()
-        info = CIRCUIT_INFO.get(name, {})
-        out.append({
+        border_features.append({
             "type": "Feature",
             "properties": {
                 "kind": "circuit_border",
                 "name": name,
-                "type": info.get("type", ""),
+                "type": p_info.get("type", ""),
                 "label_at": [round(at.x, 4), round(at.y, 4)],
             },
             "geometry": mapping(boundary),
         })
+
+    _save_web("circuits.geojson",
+              {"type": "FeatureCollection", "features": road_features})
     _save_web("circuit_borders.geojson",
-              {"type": "FeatureCollection", "features": out})
+              {"type": "FeatureCollection", "features": border_features})
 
 
 def main() -> int:
