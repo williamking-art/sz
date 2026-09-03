@@ -26,9 +26,10 @@ __all__ = ["CIRCUIT_INFO", "CIRCUIT_BOUNDS", "REGIME_GEO", "REGIME_SUBDIVISIONS"
            "subdivisions_of", "set_subdivision_owner", "set_regime_owner",
            "MAP_VIEW"]
 
-# 舆图数据覆盖范围（经纬度）：东亚 + 东南亚 + 澳大利亚，西抵哈萨克斯坦（46.5°E）。
+# 舆图数据覆盖范围（经纬度）：东亚 + 东南亚 + 澳大利亚。
+# 西界 60°E = 阿拉伯半岛最东端（阿曼），刚好令半岛出画；南界 -44° 含澳大利亚全境。
 # 数据四至仅限定可平移边界；玩家默认视野（东亚重心）由 build_map_geo.build_view 下发。
-MAP_VIEW = {"west": 46.5, "east": 150.0, "south": -44.0, "north": 56.0}
+MAP_VIEW = {"west": 60.0, "east": 150.0, "south": -44.0, "north": 56.0}
 
 # ============================================================
 # 一、路级注册表（省级）
