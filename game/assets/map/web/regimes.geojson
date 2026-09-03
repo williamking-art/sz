@@ -3118,7 +3118,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "辽宁省"
+    "province": "辽宁省",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -3656,7 +3657,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "呼和浩特市"
+    "province": "呼和浩特市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -4370,7 +4372,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "包头市"
+    "province": "包头市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -5756,7 +5759,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "赤峰市"
+    "province": "赤峰市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -6802,7 +6806,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "通辽市"
+    "province": "通辽市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -9444,7 +9449,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "呼伦贝尔市"
+    "province": "呼伦贝尔市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -10346,7 +10352,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "乌兰察布市"
+    "province": "乌兰察布市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -11652,7 +11659,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "兴安盟"
+    "province": "兴安盟",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -13414,7 +13422,8 @@
     "name": "辽",
     "note": "",
     "owner": "辽",
-    "province": "锡林郭勒盟"
+    "province": "锡林郭勒盟",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -14904,7 +14913,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "宁夏回族自治区"
+    "province": "宁夏回族自治区",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -16114,7 +16124,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "兰州市"
+    "province": "兰州市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -16336,7 +16347,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "嘉峪关市"
+    "province": "嘉峪关市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -16862,7 +16874,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "金昌市"
+    "province": "金昌市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -18156,7 +18169,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "白银市"
+    "province": "白银市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -19266,7 +19280,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "天水市"
+    "province": "天水市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -20556,7 +20571,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "武威市"
+    "province": "武威市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -22390,7 +22406,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "张掖市"
+    "province": "张掖市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -23784,7 +23801,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "平凉市"
+    "province": "平凉市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -25738,7 +25756,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "酒泉市"
+    "province": "酒泉市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -27232,7 +27251,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "庆阳市"
+    "province": "庆阳市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -28694,7 +28714,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "定西市"
+    "province": "定西市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -30200,7 +30221,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "陇南市"
+    "province": "陇南市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -30934,7 +30956,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "临夏回族自治州"
+    "province": "临夏回族自治州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -31144,7 +31167,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "乌海市"
+    "province": "乌海市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -32298,7 +32322,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "鄂尔多斯市"
+    "province": "鄂尔多斯市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -33080,7 +33105,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "巴彦淖尔市"
+    "province": "巴彦淖尔市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -34246,7 +34272,8 @@
     "name": "西夏",
     "note": "",
     "owner": "西夏",
-    "province": "阿拉善盟"
+    "province": "阿拉善盟",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -38728,7 +38755,8 @@
     "name": "吐蕃诸部",
     "note": "",
     "owner": "吐蕃",
-    "province": "青海省"
+    "province": "青海省",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -44258,7 +44286,8 @@
     "name": "吐蕃诸部",
     "note": "",
     "owner": "吐蕃",
-    "province": "西藏自治区"
+    "province": "西藏自治区",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -47016,7 +47045,8 @@
     "name": "吐蕃诸部",
     "note": "",
     "owner": "吐蕃",
-    "province": "阿坝藏族羌族自治州"
+    "province": "阿坝藏族羌族自治州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -50802,7 +50832,8 @@
     "name": "吐蕃诸部",
     "note": "",
     "owner": "吐蕃",
-    "province": "甘孜藏族自治州"
+    "province": "甘孜藏族自治州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -53084,7 +53115,8 @@
     "name": "吐蕃诸部",
     "note": "",
     "owner": "吐蕃",
-    "province": "甘南藏族自治州"
+    "province": "甘南藏族自治州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -57322,7 +57354,8 @@
     "name": "大理",
     "note": "云南·贵州；政区归属玩法抽象，史实边界待考",
     "owner": "大理",
-    "province": "云南省"
+    "province": "云南省",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -60012,7 +60045,8 @@
     "name": "大理",
     "note": "云南·贵州；政区归属玩法抽象，史实边界待考",
     "owner": "大理",
-    "province": "贵州省"
+    "province": "贵州省",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -61054,7 +61088,8 @@
     "name": "大理",
     "note": "云南·贵州；政区归属玩法抽象，史实边界待考",
     "owner": "大理",
-    "province": "攀枝花市"
+    "province": "攀枝花市",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -63588,7 +63623,8 @@
     "name": "大理",
     "note": "云南·贵州；政区归属玩法抽象，史实边界待考",
     "owner": "大理",
-    "province": "凉山彝族自治州"
+    "province": "凉山彝族自治州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -63904,7 +63940,8 @@
     ],
     "name": "金",
     "note": "生女真；timeline break'金崛起'激活，同时辽收缩",
-    "owner": "金"
+    "owner": "金",
+    "tint": "off"
    },
    "type": "Feature"
   },
@@ -64130,7 +64167,8 @@
     ],
     "name": "喀尔喀蒙古",
     "note": "",
-    "owner": "喀尔喀蒙古"
+    "owner": "喀尔喀蒙古",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64189,7 +64227,8 @@
     ],
     "name": "漠南蒙古",
     "note": "",
-    "owner": "漠南蒙古"
+    "owner": "漠南蒙古",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64244,7 +64283,8 @@
     ],
     "name": "科尔沁",
     "note": "",
-    "owner": "科尔沁"
+    "owner": "科尔沁",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64295,7 +64335,8 @@
     ],
     "name": "察哈尔",
     "note": "",
-    "owner": "察哈尔"
+    "owner": "察哈尔",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64346,7 +64387,8 @@
     ],
     "name": "海西",
     "note": "",
-    "owner": "海西"
+    "owner": "海西",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64397,7 +64439,8 @@
     ],
     "name": "建州",
     "note": "",
-    "owner": "建州"
+    "owner": "建州",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64448,7 +64491,8 @@
     ],
     "name": "东海",
     "note": "",
-    "owner": "东海"
+    "owner": "东海",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64515,7 +64559,8 @@
     ],
     "name": "高丽",
     "note": "",
-    "owner": "高丽"
+    "owner": "高丽",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64614,7 +64659,8 @@
     ],
     "name": "日本",
     "note": "",
-    "owner": "日本"
+    "owner": "日本",
+    "tint": "on"
    },
    "type": "Feature"
   },
@@ -64661,7 +64707,8 @@
     ],
     "name": "琉球",
     "note": "",
-    "owner": "琉球"
+    "owner": "琉球",
+    "tint": "on"
    },
    "type": "Feature"
   }

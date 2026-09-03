@@ -130,10 +130,12 @@ export default function MapView() {
     if (!controller || !topo || !data) return;
     if (tierRef.current === tierForZoom(zoom)) return;
     tierRef.current = tierForZoom(zoom);
-    for (const layer of ["circuits", "regimes", "circuit_borders"] as const) {
+    // 仅境外政权随档位简化;路填充/路界保持全精度(初始 setData 注入),
+    // 简化过滤会把边界线切成断续残段(放大后呈虚线)。
+    for (const layer of ["regimes"] as const) {
       const fc = topo.get(layer, zoom);
       fc.features.forEach((f, j) => { f.id = j; });
-      controller.setLayerData(layer === "circuit_borders" ? "borders" : layer, fc);
+      controller.setLayerData(layer, fc);
     }
   }
 

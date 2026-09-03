@@ -105,11 +105,14 @@ export function buildLayerDefs() {
       type: "fill" as const,
       source: "regimes",
       paint: {
+        // 数据侧烘焙 tint(on/off),前端 match 读取——布尔 case 表达式
+        // 在 topojson 解码路径上会被 MapLibre 求值失败并回退默认黑。
         "fill-color": [
-          "case",
-          ["get", "active"],
-          THEME.cRegime,
-          THEME.cRegimeOff
+          "match",
+          ["get", "tint"],
+          "off",
+          THEME.cRegimeOff,
+          THEME.cRegime
         ],
         "fill-opacity": 0.6
       }
