@@ -148,12 +148,15 @@ def regime_part_features() -> list[dict[str, object]]:
             exclude = set(ext.get("exclude", []))
             geoms = []
             label = ""
+            sub_want = ext.get("sub_admin")
             for src in ext_feats:
                 p = src["properties"]
                 nm = str(p.get("name_local") or p.get("name") or "")
                 if p.get("admin") in want and nm not in exclude:
+                    if sub_want and p.get("sub_admin") != sub_want:
+                        continue
                     geoms.append((shape(src["geometry"]).buffer(0), nm))
-                    label = label or str(p.get("admin"))
+                    label = label or str(sub_want or p.get("admin"))
             if geoms:
                 if spec.get("merge", True):
                     merged = unary_union([g for g, _ in geoms]).buffer(0)
