@@ -17,6 +17,9 @@ if exist "%NODE_DIR%\node.exe" (
   )
 )
 
+rem Expose project venv python so the Electron main process can spawn the backend
+set "PATH=%~dp0game\.venv\Scripts;%PATH%"
+
 if not exist "node_modules\.bin\electron-vite.cmd" (
   echo [start] Installing frontend dependencies ...
   call npm install --no-audit --no-fund
