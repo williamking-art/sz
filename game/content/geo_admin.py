@@ -410,6 +410,8 @@ REGIME_PARTS: dict = {
     "喀尔喀蒙古": {
         "union_external": {"file": "ne_admin1_ext.json",
                             "admin": ["Mongolia"]},
+        "merge": False,   # 逐省成块(同色),配合 borders 省界线层消除"大几何体"观感
+        "borders": True,
     },
     "喀喇汗": {
         "provinces": [],

@@ -83,6 +83,7 @@ export class MapController {
     src("rivers");
     src("circuits");
     src("regimes");
+    src("regime_borders");
     src("cities");
     src("borders");
     // 地形晕渲（山脉立体感）：ESRI World Hillshade，构建期平移至 map/tiles/hill
@@ -141,6 +142,7 @@ export class MapController {
     rivers: GeoJSON.FeatureCollection;
     circuits: GeoJSON.FeatureCollection;
     regimes: GeoJSON.FeatureCollection;
+    regime_borders: GeoJSON.FeatureCollection;
     cities: GeoJSON.FeatureCollection;
     borders: GeoJSON.FeatureCollection;
   }): void {
@@ -154,6 +156,7 @@ export class MapController {
     set("rivers", data.rivers);
     set("circuits", data.circuits);
     set("regimes", data.regimes);
+    set("regime_borders", data.regime_borders);
     set("cities", data.cities);
     set("borders", data.borders);
   }

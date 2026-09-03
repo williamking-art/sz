@@ -135,7 +135,8 @@ def regime_part_features() -> list[dict[str, object]]:
                 "properties": {**base, "province": label},
             })
 
-        # union_external:境外一体块——按国家过滤 NE Admin-1 后并出精确国界
+        # union_external:境外政权——按国家过滤 NE Admin-1;merge=False 时逐省
+        # 成块(同色,配合 regime_borders 省界线层消除"大简单几何体"观感)
         ext = spec.get("union_external")
         if ext:
             from shapely.geometry import mapping, shape
@@ -151,15 +152,23 @@ def regime_part_features() -> list[dict[str, object]]:
                 p = src["properties"]
                 nm = str(p.get("name_local") or p.get("name") or "")
                 if p.get("admin") in want and nm not in exclude:
-                    geoms.append(shape(src["geometry"]).buffer(0))
+                    geoms.append((shape(src["geometry"]).buffer(0), nm))
                     label = label or str(p.get("admin"))
             if geoms:
-                merged = unary_union(geoms).buffer(0)
-                features.append({
-                    "type": "Feature",
-                    "geometry": mapping(merged),
-                    "properties": {**base, "province": label},
-                })
+                if spec.get("merge", True):
+                    merged = unary_union([g for g, _ in geoms]).buffer(0)
+                    features.append({
+                        "type": "Feature",
+                        "geometry": mapping(merged),
+                        "properties": {**base, "province": label},
+                    })
+                else:
+                    for g, nm in geoms:
+                        features.append({
+                            "type": "Feature",
+                            "geometry": mapping(g),
+                            "properties": {**base, "province": nm},
+                        })
             continue
 
         for prov in spec.get("provinces", []):
@@ -175,6 +184,35 @@ def regime_part_features() -> list[dict[str, object]]:
                 if wanted == "*" or cname in wanted:
                     emit(c, cname)
     return features
+
+
+def build_regime_borders() -> dict[str, object]:
+    """逐省拼合政权的省界线层(kind=regime_border),前端细描边增强内部结构。"""
+    raw_dir = os.path.join(MAP_DIR, "raw")
+    features: list[dict[str, object]] = []
+    for key, spec in REGIME_PARTS.items():
+        if not spec.get("borders"):
+            continue
+        ext = spec.get("union_external")
+        if not ext:
+            continue
+        from shapely.geometry import mapping, shape
+
+        with open(os.path.join(raw_dir, ext["file"]), encoding="utf-8") as f:
+            ext_feats = json.load(f)["features"]
+        want = set(ext["admin"])
+        exclude = set(ext.get("exclude", []))
+        for src in ext_feats:
+            p = src["properties"]
+            nm = str(p.get("name_local") or p.get("name") or "")
+            if p.get("admin") not in want or nm in exclude:
+                continue
+            features.append({
+                "type": "Feature",
+                "geometry": mapping(shape(src["geometry"]).boundary),
+                "properties": {"kind": "regime_border", "name": key, "province": nm},
+            })
+    return {"type": "FeatureCollection", "features": features}
 
 
 def build_cities() -> dict[str, object]:
@@ -259,6 +297,7 @@ def generate_all(out_dir: str = OUT_DIR) -> int:
     os.makedirs(out_dir, exist_ok=True)
     outputs: dict[str, dict[str, object]] = {
         "regimes.geojson": build_regimes(),
+        "regime_borders.geojson": build_regime_borders(),
         "cities.geojson": build_cities(),
         "view.json": build_view(),
     }
