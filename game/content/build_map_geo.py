@@ -80,13 +80,33 @@ def build_regimes() -> dict[str, object]:
     """
     features: list[dict[str, object]] = []
     for key, geo in REGIME_GEO.items():
-        if not geo.get("use_parts"):
+        if geo.get("use_parts"):
+            # 撤块留标签:注册了 use_parts 但未提供拼合条目的政权(金与诸部,
+            # 1101 年无建国)输出 label_at 锚点,fill 层对 Point 不可见
+            if key not in REGIME_PARTS:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point",
+                                  "coordinates": geo.get("label_at") or [0, 0]},
+                    "properties": {
+                        "kind": "regime",
+                        "display_name": geo.get("name", key),
+                        "name": geo.get("name", key),
+                        "owner": geo.get("owner", key),
+                        "active": bool(geo.get("active")),
+                        "tint": "on" if geo.get("active") else "off",
+                        "always_show": key in EXTERNAL_ALWAYS_SHOW,
+                        "label_at": geo.get("label_at"),
+                        "note": geo.get("note", ""),
+                    },
+                })
+        else:
             features.append(_polygon_feature(key, geo["polygon"], {
                 "kind": "regime",
                 "display_name": geo.get("name", key),
                 "owner": geo.get("owner", key),
                 "active": bool(geo.get("active")),
-                "tint": "off" if not geo.get("active") else "on",
+                "tint": "on" if geo.get("active") else "off",
                 "always_show": key in EXTERNAL_ALWAYS_SHOW,
                 "label_at": geo.get("label_at"),
                 "note": geo.get("note", ""),
