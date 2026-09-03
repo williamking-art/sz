@@ -1,4 +1,4 @@
-import { Map, Warehouse, Calculator, Shield, FlaskConical, Hammer } from "lucide-react";
+import { Map, Warehouse, Calculator, Shield, FlaskConical, Hammer, BookOpen } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 
 // 右侧竖排功能钮：州县/仓廪/会计/军政/科技/工程
@@ -8,7 +8,8 @@ const ITEMS: { key: string; label: string; icon: React.ReactNode }[] = [
   { key: "accounting", label: "会计", icon: <Calculator size={20} /> },
   { key: "military", label: "军政", icon: <Shield size={20} /> },
   { key: "tech", label: "科技", icon: <FlaskConical size={20} /> },
-  { key: "engineering", label: "工程", icon: <Hammer size={20} /> }
+  { key: "engineering", label: "工程", icon: <Hammer size={20} /> },
+  { key: "codex", label: "典籍", icon: <BookOpen size={20} /> }
 ];
 
 export default function RightStrip() {
