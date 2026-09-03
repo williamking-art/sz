@@ -68,6 +68,7 @@ game/frontend/release/
 # --- 开发工具（仅专家团目录入库，其余开发脚本不参与版本管理） ---
 _dev_tools/*
 !_dev_tools/songzuo-game-studio/
+!_dev_tools/agnes_gen.py
 
 # --- 临时文件 / 本地辅助脚本 / 压缩包（不入库） ---
 *.tmpdir/
