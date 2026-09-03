@@ -35,6 +35,7 @@ from content.data import EXTERNAL_ALWAYS_SHOW, MAP_DIR
 from content.geo_admin import (
     CIRCUIT_INFO,
     MAP_VIEW,
+    REGIME_CITIES,
     REGIME_GEO,
     REGIME_PARTS,
     REGIME_SUBDIVISIONS,
@@ -140,6 +141,33 @@ def regime_part_features() -> list[dict[str, object]]:
                 "properties": {**base, "province": label},
             })
 
+        # union_external:境外一体块——按国家过滤 NE Admin-1 后并出精确国界
+        ext = spec.get("union_external")
+        if ext:
+            from shapely.geometry import mapping, shape
+            from shapely.ops import unary_union
+
+            with open(os.path.join(raw_dir, ext["file"]), encoding="utf-8") as f:
+                ext_feats = json.load(f)["features"]
+            want = set(ext["admin"])
+            exclude = set(ext.get("exclude", []))
+            geoms = []
+            label = ""
+            for src in ext_feats:
+                p = src["properties"]
+                nm = str(p.get("name_local") or p.get("name") or "")
+                if p.get("admin") in want and nm not in exclude:
+                    geoms.append(shape(src["geometry"]).buffer(0))
+                    label = label or str(p.get("admin"))
+            if geoms:
+                merged = unary_union(geoms).buffer(0)
+                features.append({
+                    "type": "Feature",
+                    "geometry": mapping(merged),
+                    "properties": {**base, "province": label},
+                })
+            continue
+
         for prov in spec.get("provinces", []):
             emit(by_name[prov], prov)
         for prov, cities in spec.get("prefectures", {}).items():
@@ -147,10 +175,10 @@ def regime_part_features() -> list[dict[str, object]]:
             with open(os.path.join(raw_dir, f"datav_{adcode}_full.json"),
                       encoding="utf-8") as f:
                 city_feats = json.load(f)["features"]
-            wanted = set(cities)
+            wanted = cities
             for c in city_feats:
                 cname = str(c["properties"]["name"])
-                if cname in wanted:
+                if wanted == "*" or cname in wanted:
                     emit(c, cname)
     return features
 
@@ -171,6 +199,21 @@ def build_cities() -> dict[str, object]:
                 "is_seat": p["name"] == circuit_info.get("seat"),
             },
         })
+    # 境外政权重点城市(装饰性标识,不带 game_unit)
+    for regime, cities in REGIME_CITIES.items():
+        for nm, lon, lat in cities:
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {
+                    "name": nm,
+                    "level": "",
+                    "circuit": regime,
+                    "game_unit": None,
+                    "is_seat": False,
+                    "kind": "regime_city",
+                },
+            })
     return {"type": "FeatureCollection", "features": features}
 
 

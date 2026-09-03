@@ -1971,6 +1971,96 @@
     "name": "施州"
    },
    "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     126.62,
+     37.97
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "高丽",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "",
+    "name": "开京"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     125.75,
+     39.03
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "高丽",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "",
+    "name": "西京"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     135.77,
+     35.01
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "日本",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "",
+    "name": "平安京"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     135.83,
+     34.69
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "日本",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "",
+    "name": "奈良"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     130.55,
+     33.52
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "日本",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "",
+    "name": "大宰府"
+   },
+   "type": "Feature"
   }
  ],
  "type": "FeatureCollection"
