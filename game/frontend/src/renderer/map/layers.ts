@@ -125,8 +125,8 @@ export function buildLayerDefs() {
       paint: {
         "circle-radius": [
           "case",
-          ["get", "is_seat"], 4,
-          2.5
+          ["get", "is_seat"], 3,
+          2.2
         ],
         "circle-color": [
           "case",
@@ -135,7 +135,7 @@ export function buildLayerDefs() {
           THEME.cCityTown
         ],
         "circle-stroke-color": THEME.gold,
-        "circle-stroke-width": 0.6
+        "circle-stroke-width": 0.5
       }
     }
   ];
