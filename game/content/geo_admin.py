@@ -332,6 +332,8 @@ REGIME_GEO: dict = {
     "高昌回鹘": {"name": "高昌回鹘", "active": True, "owner": "高昌回鹘", "label_at": [89.8, 42.9],
              "use_parts": True,
              "note": "东部天山；政区归属玩法抽象，史实边界待考"},
+    "塞尔柱": {"name": "塞尔柱", "active": True, "owner": "塞尔柱", "label_at": [68.0, 39.5],
+            "use_parts": True, "note": "塞尔柱帝国中亚东部/河中诸邦，西抵60°E舆图边界"},
     "身毒": {"name": "身毒", "active": True, "owner": "身毒", "label_at": [79.0, 22.5],
            "use_parts": True, "note": "印度诸王国；天竺古称"},
     "蒲甘": {"name": "蒲甘", "active": True, "owner": "蒲甘", "label_at": [95.0, 21.0],
@@ -385,6 +387,8 @@ REGIME_COLORS: dict = {
     "吕宋": "#baa58e",       # 珍珠灰金(菲律宾诸岛)
     "喀喇汗": "#b39d7e",     # 灰驼褐(西域)
     "高昌回鹘": "#d8c49a",   # 沙金(东部天山)
+    "塞尔柱": "#b99684",     # 呼罗珊泥金(中亚大帝国)
+    "南洋诸番": "#d8cfbe",   # 外围海岛中立底色(有省份无势力)
 }
 _DEFAULT_REGIME_COLOR = "#d8cbaa"
 
@@ -460,6 +464,29 @@ REGIME_PARTS: dict = {
             "五家渠市", "北屯市", "铁门关市", "双河市", "可克达拉市",
             "昆玉市", "胡杨河市",
         ]},
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "喀喇汗_七河"},
+        "merge": False,
+    },
+    "塞尔柱": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "塞尔柱"},
+        "merge": True,
+    },
+    # 东南亚外围诸岛：有省份、不用势力，一大岛一省
+    "南洋诸番_苏拉威西": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "南洋岛省_苏拉威西"},
+        "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
+    },
+    "南洋诸番_马鲁古": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "南洋岛省_马鲁古"},
+        "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
+    },
+    "南洋诸番_努沙登加拉": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "南洋岛省_努沙登加拉"},
+        "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
+    },
+    "南洋诸番_新几内亚": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "南洋岛省_新几内亚"},
+        "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
     },
     "高昌回鹘": {
         "provinces": [],

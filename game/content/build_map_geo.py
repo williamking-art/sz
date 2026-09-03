@@ -114,18 +114,19 @@ def regime_part_features() -> list[dict[str, object]]:
 
     features: list[dict[str, object]] = []
     for key, spec in REGIME_PARTS.items():
-        geo = REGIME_GEO[key]
+        geo = REGIME_GEO.get(key, {})
+        is_neutral = spec.get("neutral", False)
         base = {
             "kind": "part",
-            "display_name": geo.get("name", key),
-            "name": geo.get("name", key),
-            "owner": geo.get("owner", key),
-            "active": bool(geo.get("active")),
-            "tint": "on" if geo.get("active") else "off",
-            "fill": REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR),
-            "always_show": key in EXTERNAL_ALWAYS_SHOW,
-            "label_at": geo.get("label_at"),
-            "note": geo.get("note", ""),
+            "display_name": "" if is_neutral else geo.get("name", key),
+            "name": "" if is_neutral else geo.get("name", key),
+            "owner": "" if is_neutral else geo.get("owner", key),
+            "active": False if is_neutral else bool(geo.get("active")),
+            "tint": "on" if (not is_neutral and geo.get("active")) else "off",
+            "fill": spec.get("fill") or REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR),
+            "always_show": False if is_neutral else (key in EXTERNAL_ALWAYS_SHOW),
+            "label_at": None if is_neutral else geo.get("label_at"),
+            "note": "" if is_neutral else geo.get("note", ""),
         }
 
         def emit(src: dict[str, object], label: str) -> None:
