@@ -1,6 +1,6 @@
 # Songzuo Game Studio（宋祚游戏制造组）
 
-《宋祚》是一款以北宋徽宗朝为背景的治国模拟器。本专家包是一个 **Team 型多角色协作团队**：1 名主理人 + 11 名专家，覆盖从史实叙事、策略数值、核心架构、AI 管线、界面美术、音频、数据分析到质量保障与打包发布的全链路生产。
+《宋祚》是一款以北宋徽宗朝为背景的治国模拟器。本专家包是一个 **Team 型多角色协作团队**：1 名主理人 + 17 名专家（2026-09-03 负载均衡拆分），覆盖从史实叙事、策略数值、财政经济、核心架构、结算结局、AI 管线与提示词、界面框架与面板、美术音频、数据分析到质量保障与打包发布的全链路生产。
 
 ## 类型
 
@@ -10,8 +10,8 @@ Team 型（多角色协作团队）
 
 `songzuo-game-studio/` 是专家团的**主体维护源（single source of truth）**，所有定义的新增与修订都在本包内进行：
 
-- **`TEAM.md`**（本包）—— 专家团**主体权威定义**：总提示词 + 12 张角色卡 + 来源索引 + 调用示例 + Skillhub 分配表。优先读这份。
-- **`agents/`** —— 11 个可被 Team 模式逐个加载的独立专家文件（含 frontmatter 与 SendMessage 回传规范），与主理人 `songzuo-game-studio-team-lead.md`；`agents/INDEX.md` 为 Team 模式一键加载索引（成员表 + 路由映射 + 启动剧本）。
+- **`TEAM.md`**（本包）—— 专家团**主体权威定义**：总提示词 + 18 张角色卡 + 来源索引 + 调用示例 + Skillhub 分配表。优先读这份。
+- **`agents/`** —— 17 个可被 Team 模式逐个加载的独立专家文件（含 frontmatter 与 SendMessage 回传规范），与主理人 `songzuo-game-studio-team-lead.md`；`agents/INDEX.md` 为 Team 模式一键加载索引（成员表 + 路由映射 + 启动剧本）。
 - **`scripts/load_team.py`** —— 可执行加载脚本（解析 `agents/` 并输出团队配置/任务路由卡）。
 - **（历史副本已删除）** —— 工程内 `_scratch/team_orchestra.md` 曾为工作镜像，现已并入本包并删除，专家团定义唯一存于本包。
 
@@ -31,23 +31,28 @@ Team 型（多角色协作团队）
 
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
-| song-narrative-designer | 史翰青 | 北宋史与叙事设计：大臣/派系/事件/诏书，史实三标签（史实/推演/抽象） |
-| ai-pipeline | 言枢密 | AI 叙事管线：prompt/JSON 契约/脱敏/安全过滤/统一后端（Local+Http） |
+| song-narrative-designer | 史翰青 | 北宋史与叙事：大臣/派系/机构/州县，史实三标签（史实/推演/抽象）、人物口吻 |
+| event-narrative-designer | 闻机变 | 事件诏书叙事：事件卡/战略分支/改写叙事/timeline break 硬锚 |
+| ai-prompt-designer | 祝辞修 | AI 提示词：18 模板/分幕契约/诏书文风/脱敏规则设计 |
+| ai-pipeline | 言枢密 | AI 叙事管线：JSON 契约校验/脱敏实现/安全过滤/统一后端（Local+Http） |
 | ai-integration | 沈舶司 | AI 接口落地：连通性/能力探测、降级链、契约自检、推演不动点回归 |
 
 系统与数值
 
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
-| strategy-systems | 蔡权衡 | 策略数值：财政/派系/军队/州县/科技/结算/结局，MDA 链路、档位封顶 |
-| core-engineering | 谷承构 | 核心架构与存档：GameState/命令/12 步结算/事件触发/序列化迁移 |
+| strategy-systems | 蔡权衡 | 策略数值：派系/军政/科技/事件概率/结局权重，MDA 链路、平衡难度 |
+| economy-systems | 钱盈仓 | 财政经济：国库/仓廪/田赋/物价/州县经济、TIER_RANGE 档位封顶、钱荒口径 |
+| core-engineering | 谷承构 | 核心架构与存档：GameState/命令/序列化迁移/循环依赖/权威常量 |
+| settlement-engineering | 程月衡 | 结算与结局：12 步流水线/事件触发/七维结局评价/timeline break 改写位 |
 | data-analytics | 析微澜 | 数据与分析：遥测/平衡挖掘/策略回放/敏感度分析/可玩性诊断 |
 
 表现与交互
 
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
-| tkinter-ui | 景呈宣 | Tkinter 界面：舆图/宋式主题/信息层级/键盘/错误反馈 |
+| tkinter-ui | 景呈宣 | 界面框架：舆图层/宋式主题/弹窗/进度条/动效/事件循环 |
+| ui-panels | 潘章序 | 面板交互：六 Mixin 面板/信息层级/键盘可达/空与错误状态 |
 | art-assets | 惠宋韵 | 宋式美术：地图/立绘/图标/规范/资源命名与授权 |
 | sound-music-designer | 吕清商 | 宋式音频：雅乐/环境音/UI 音/事件配乐/播放总线 |
 
@@ -55,7 +60,8 @@ Team 型（多角色协作团队）
 
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
-| regression-qa | 严归正 | 质量保障：单元/数值/AI 契约/GUI/存档/打包回归，发布质量门 |
+| regression-qa | 严归正 | 质量保障：核心/数值/AI 契约/存档回归，验收矩阵与发布质量门 |
+| gui-release-qa | 顾验真 | 界面发布回归：GUI/资源/音频/打包回归、冻结 EXE 验证 |
 | release-engineering | 封致远 | 打包发布：依赖审计/PyInstaller/EXE/发布包边界 |
 
 ## 协作铁律（核心约束）
@@ -77,21 +83,29 @@ Team 型（多角色协作团队）
 **预设 Workflow**
 
 - `W1` 跨模块新功能：主理人路由 → 主责设计 → 复核成员 → regression-qa 验证 → 主理人验收。
-- `W2` 史实事件 + AI 叙事：song-narrative-designer（事件卡+三标签）→ ai-pipeline（JSON 契约与脱敏）→ 主理人汇编。
-- `W3` 发布验收：release-engineering（构建+启动验证）→ regression-qa（发布前回归）→ 主理人确认边界（不含 dev/_scratch/本机密钥）。
+- `W2` 史实事件 + AI 叙事：event-narrative-designer（事件卡+三标签）→ song-narrative-designer（人物核对）→ ai-prompt-designer（prompt 契约）→ ai-pipeline（管线落地）→ 主理人汇编。
+- `W3` 发布验收：release-engineering（构建+启动验证）→ gui-release-qa（GUI/打包回归）→ regression-qa（质量门）→ 主理人确认边界（不含 dev/_scratch/本机密钥）。
+- `W4` 结算/经济调参：economy-systems（变量表）→ settlement-engineering（结算落地）→ data-analytics（回放验证）→ regression-qa（落断言）。
 
 **单 agent 路由表**
 
 | 问法类型 | 直接调谁 |
 |---------|----------|
 | 跨模块需求/不明确/专家冲突/里程碑/架构取舍 | 主理人（本项目） |
-| 大臣/派系/事件/诏书/史实核查 | song-narrative-designer |
-| 财政/数值/平衡/结算/结局/极端场景 | strategy-systems |
+| 大臣/派系/机构/史实核查/人物口吻 | song-narrative-designer |
+| 事件卡/诏书叙事/战略分支/改写叙事 | event-narrative-designer |
+| 派系/军政/科技/结局权重/平衡/极端场景 | strategy-systems |
+| 财政/国库/仓廪/物价/州县经济/档位封顶 | economy-systems |
 | 状态机/命令/存档/迁移/循环依赖 | core-engineering |
-| prompt/JSON 契约/脱敏/安全过滤/后端 | ai-pipeline |
-| Tkinter/舆图/主题/交互/中文显示 | tkinter-ui |
+| 12 步结算/事件触发/结局评价/改写位 | settlement-engineering |
+| prompt 文本/分幕契约/文风/脱敏规则 | ai-prompt-designer |
+| JSON 契约校验/安全过滤/后端/错误路径 | ai-pipeline |
+| 连通性/能力探测/不动点回归 | ai-integration |
+| 主题/舆图/弹窗/动效/事件循环 | tkinter-ui |
+| 面板/交互/键盘/信息层级 | ui-panels |
 | 立绘/地图/图标/美术规范/资源 | art-assets |
-| 测试/回归/验收/坏输入/兼容 | regression-qa |
+| 核心/数值/AI 契约/存档回归/质量门 | regression-qa |
+| GUI/资源/音频/打包回归/冻结 EXE | gui-release-qa |
 | 打包/EXE/依赖/发布边界 | release-engineering |
 | 雅乐/音效/配乐/音频资源 | sound-music-designer |
 | 遥测/数据挖掘/平衡分析/回放 | data-analytics |
@@ -121,7 +135,7 @@ Team 型（多角色协作团队）
 
 ## 与游戏工程的关系
 
-本专家包是《宋祚》游戏工程（`G:\sz\game`）的多智能体开发团队，12 个席位已注册为 `songzuo-game-studio` 专家团实体。专家团的全部定义（总提示词 + 12 张角色卡 + 来源索引 + Skillhub 分配表 + 注册实体信息）**统一维护在本包内**（`TEAM.md` 为权威主体），工程内不再保留 `team_orchestra.md` 副本：
+本专家包是《宋祚》游戏工程（`G:\sz\game`）的多智能体开发团队，18 个席位已注册为 `songzuo-game-studio` 专家团实体。专家团的全部定义（总提示词 + 18 张角色卡 + 来源索引 + Skillhub 分配表 + 注册实体信息）**统一维护在本包内**（`TEAM.md` 为权威主体），工程内不再保留 `team_orchestra.md` 副本：
 
 - 专家文件里的「项目基准（实勘）」一律指向 `G:\sz\game` 的真实文件（`core/`、`content/`、`ai/`、`ui/`、`dev/`）。
 - 本包（`TEAM.md` + `agents/`）是**唯一权威配置来源**。
@@ -139,14 +153,14 @@ Team 型（多角色协作团队）
 
 ## 安装（对接本机游戏工程）
 
-专家包已置于 `G:\sz\_dev_tools\songzuo-game-studio`。要让其驱动 `G:\sz\game` 开发，在主理人侧以 Team 模式加载本包即可（主理人会 `TeamCreate` 拉起 11 名专家成员，按上文 SOP 调度）。
+专家包已置于 `G:\sz\_dev_tools\songzuo-game-studio`。要让其驱动 `G:\sz\game` 开发，在主理人侧以 Team 模式加载本包即可（主理人会 `TeamCreate` 拉起 17 名专家成员，按上文 SOP 调度）。
 
 如要作为独立专家包分发，保留目录结构：
 
 ```
 songzuo-game-studio/
 ├── README.md
-├── agents/            # 11 个专家 + 主理人定义
+├── agents/            # 17 个专家 + 主理人定义
 └── avatars/           # 头像
 ```
 

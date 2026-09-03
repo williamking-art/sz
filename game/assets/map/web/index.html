@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>宋祚 · 舆图</title>
+<link rel="stylesheet" href="./maplibre-gl.css">
+<style>
+/* 宋祚 · MapLibre Web 舆图 —— 色彩权威与 ui/theme.py 一致
+   宣纸 #f6ecd6 / 朱红 #8a2b22 / 深褐 #2b1d12 / 描金 #caa24a / 卡片 #fffaf0
+   离线无 glyphs 端点：几何用 fill/line/circle 层，标签全部走 HTML Marker。 */
+:root{--paper:#f6ecd6;--paper-dark:#efe2c4;--ink:#2b1d12;--ink-light:#5a4a3a;
+--red:#8a2b22;--red-dark:#7a1f1f;--gold:#caa24a;--gold-light:#e8d49c;--gold-dark:#8f6e28;
+--card:#fffaf0;--kai:"KaiTi","STKaiti","楷体","SimKai",serif;
+--sans:"Microsoft YaHei","微软雅黑","PingFang SC",sans-serif;}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
+body{font-family:var(--sans);color:var(--ink);background:var(--paper)}
+#map{position:absolute;inset:0}
+
+/* ---- L1 常驻 HUD：左上题名 ---- */
+#hud{position:absolute;top:14px;left:14px;z-index:10;min-width:200px;user-select:none;
+background:linear-gradient(160deg,rgba(255,250,240,.96),rgba(246,236,214,.94));
+border:1px solid var(--gold);border-radius:8px;padding:10px 16px 9px;
+box-shadow:0 2px 10px rgba(43,29,18,.22),inset 0 0 0 1px rgba(232,212,156,.6)}
+#hud .title{font-family:var(--kai);font-size:22px;letter-spacing:6px;color:var(--red);line-height:1.15}
+#hud .title .seal{display:inline-block;vertical-align:2px;margin-right:8px;width:22px;height:22px;
+line-height:22px;text-align:center;background:var(--red);color:var(--card);font-size:13px;
+letter-spacing:0;border-radius:4px;border:1px solid var(--gold)}
+#hud .era{margin-top:4px;font-size:12px;color:var(--ink-light);letter-spacing:1px}
+#hud .btn-reset{margin-top:7px;display:inline-block;cursor:pointer;font-family:var(--kai);
+font-size:12.5px;letter-spacing:2px;color:var(--gold-dark);border:1px solid var(--gold);
+border-radius:4px;padding:2px 10px;background:rgba(255,250,240,.7)}
+#hud .btn-reset:hover{background:var(--gold-light);color:var(--red-dark)}
+
+/* ---- 图例（左下，可折叠） ---- */
+#legend{position:absolute;left:14px;bottom:14px;z-index:10;width:170px;user-select:none;
+background:rgba(255,250,240,.95);border:1px solid var(--gold);border-radius:8px;
+box-shadow:0 2px 10px rgba(43,29,18,.18)}
+#legend .head{font-family:var(--kai);font-size:14px;letter-spacing:3px;color:var(--card);
+background:var(--red);padding:4px 12px;border-radius:7px 7px 0 0;cursor:pointer;
+display:flex;justify-content:space-between;align-items:center}
+#legend .head .arr{font-size:11px;transition:transform .2s}
+#legend.closed .arr{transform:rotate(-90deg)}
+#legend .body{padding:8px 12px 9px;font-size:12px;color:var(--ink-light)}
+#legend.closed .body{display:none}
+#legend .row{display:flex;align-items:center;margin:4px 0}
+#legend .sw{width:20px;height:13px;margin-right:8px;border-radius:3px;flex:none;border:1px solid rgba(43,29,18,.25)}
+#legend .dot{width:11px;height:11px;margin:1px 8px 1px 4px;border-radius:50%;flex:none}
+#legend .dot.seat{background:var(--red);border:1.5px solid var(--gold)}
+#legend .dot.town{background:#4a3a28}
+#legend .sw.jiji{background:#efd9a8}
+#legend .sw.fuli{background:#f3e7c6}
+#legend .sw.yanbian{background:#eddfba}
+#legend .sw.regime{background:#d8cbaa;border:1px dashed #6b5b45}
+#legend .sw.off{background:#e3dbc8;border:1px dashed #a99f8a}
+
+/* ---- L2 浮层：详情宣纸卡片（右下） ---- */
+#card{position:absolute;right:14px;bottom:44px;z-index:11;width:262px;display:none;user-select:none;
+background:var(--card);border:1px solid var(--gold);border-radius:8px;overflow:hidden;
+box-shadow:0 4px 16px rgba(43,29,18,.3),inset 0 0 0 1px rgba(232,212,156,.5)}
+#card.show{display:block;animation:cardIn .22s ease-out}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#card .chead{background:var(--red);color:var(--card);padding:6px 12px;display:flex;align-items:center}
+#card .chead .t{font-family:var(--kai);font-size:17px;letter-spacing:3px;flex:1}
+#card .chead .kind{font-size:11px;letter-spacing:1px;color:var(--gold-light);margin-right:8px}
+#card .chead .x{cursor:pointer;width:20px;height:20px;line-height:18px;text-align:center;
+border:1px solid var(--gold-light);border-radius:50%;font-size:12px;color:var(--gold-light)}
+#card .chead .x:hover{background:var(--red-dark)}
+#card .cbody{padding:9px 12px 11px;font-size:12.5px;line-height:1.7}
+#card .cbody .kv{display:flex}
+#card .cbody .k{width:58px;color:var(--gold-dark);flex:none}
+#card .cbody .v{color:var(--ink);flex:1}
+#card .cbody .note{margin-top:6px;padding-top:6px;border-top:1px dashed var(--gold-light);
+color:var(--ink-light);font-size:12px}
+
+/* ---- 加载幕 / 错误幕 ---- */
+#veil{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;gap:16px;
+align-items:center;justify-content:center;background:var(--paper);transition:opacity .45s}
+#veil.hide{opacity:0;pointer-events:none}
+#veil .ring{width:46px;height:46px;border-radius:50%;border:4px solid var(--gold-light);
+border-top-color:var(--red);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#veil .txt{font-family:var(--kai);font-size:17px;letter-spacing:5px;color:var(--ink-light)}
+#veil.err .ring{display:none}
+#veil .errbox{max-width:420px;background:var(--card);border:1px solid var(--red);
+border-radius:8px;padding:14px 18px;font-size:13px;color:var(--ink);display:none}
+#veil.err .errbox{display:block}
+#veil .errbox b{color:var(--red)}
+#veil .retry{margin-top:8px;display:inline-block;cursor:pointer;border:1px solid var(--gold);
+border-radius:4px;padding:2px 12px;color:var(--gold-dark)}
+#veil .retry:hover{background:var(--gold-light)}
+
+/* ---- HTML 标签 Marker（无 glyphs，全部 DOM 标签） ---- */
+.lbl{white-space:nowrap;cursor:pointer;user-select:none}
+.lbl-hidden{display:none}
+.lbl-regime{font-family:var(--kai);font-size:21px;letter-spacing:6px;color:var(--ink);
+text-shadow:0 0 3px var(--paper),0 0 6px var(--paper),0 0 2px var(--paper)}
+.lbl-regime.off{color:#8d8471;opacity:.75}
+.lbl-circuit{font-family:var(--kai);font-size:12.5px;letter-spacing:2px;color:var(--gold-dark);
+text-shadow:0 0 3px var(--paper),0 0 5px var(--paper)}
+.lbl-city{font-family:var(--kai);font-size:12px;letter-spacing:1px;color:var(--ink-light);
+text-shadow:0 0 3px var(--paper),0 0 5px var(--paper)}
+.lbl-city.seat{font-size:13px;color:var(--red-dark);font-weight:bold}
+.lbl-city.jingfu{font-size:15px;letter-spacing:2px}
+.lbl-city:hover,.lbl-circuit:hover,.lbl-regime:hover{color:var(--red)}
+
+/* 选中治所的呼吸光环（动效：呼吸光晕） */
+.pulse{width:26px;height:26px;border-radius:50%;border:2px solid var(--red);
+box-shadow:0 0 0 rgba(138,43,34,.55);animation:pulse 1.6s ease-out infinite;pointer-events:none}
+@keyframes pulse{0%{transform:scale(.55);opacity:.9}70%{transform:scale(1.15);opacity:0}100%{opacity:0}}
+
+/* 自定义朱印标注（applyState.markers） */
+.seal-mk{pointer-events:auto;text-align:center;cursor:default}
+.seal-mk .sq{width:18px;height:18px;margin:0 auto;background:var(--red);border:1.5px solid var(--gold);
+border-radius:3px;box-shadow:0 1px 4px rgba(43,29,18,.4)}
+.seal-mk .sq.warn{background:var(--gold-dark)}
+.seal-mk .tx{margin-top:3px;font-family:var(--kai);font-size:12px;letter-spacing:1px;color:var(--red-dark);
+text-shadow:0 0 3px var(--paper),0 0 5px var(--paper);white-space:nowrap}
+
+/* ---- MapLibre 控件宋式化 ---- */
+.maplibregl-ctrl-group{background:var(--card);border:1px solid var(--gold);border-radius:6px;
+box-shadow:0 2px 8px rgba(43,29,18,.2);overflow:hidden}
+.maplibregl-ctrl-group button{border:none!important}
+.maplibregl-ctrl-group button+button{border-top:1px solid var(--gold-light)!important}
+.maplibregl-ctrl button .maplibregl-ctrl-icon{filter:sepia(.6) saturate(1.6) hue-rotate(-12deg) brightness(.75)}
+.maplibregl-ctrl button:hover{background-color:var(--gold-light)!important}
+.maplibregl-ctrl-scale{background:rgba(255,250,240,.85);border:1px solid var(--gold);
+color:var(--ink);font:11px var(--sans);border-radius:2px}
+.maplibregl-ctrl-bottom-right{bottom:14px;right:14px}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-scale{margin-bottom:0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="hud">
+  <div class="title"><span class="seal">宋</span>宋祚 · 舆图</div>
+  <div class="era" id="hud-era">—</div>
+  <span class="btn-reset" id="btn-reset">复位全图</span>
+</div>
+
+<div id="legend">
+  <div class="head" id="legend-head"><span>图例</span><span class="arr">▾</span></div>
+  <div class="body">
+    <div class="row"><span class="sw jiji"></span>京畿路</div>
+    <div class="row"><span class="sw fuli"></span>腹里诸路</div>
+    <div class="row"><span class="sw yanbian"></span>沿边诸路</div>
+    <div class="row"><span class="dot seat"></span>治所（府州军监）</div>
+    <div class="row"><span class="dot town"></span>属城</div>
+    <div class="row"><span class="sw regime"></span>境外政权</div>
+    <div class="row"><span class="sw off"></span>未兴之势力</div>
+  </div>
+</div>
+
+<div id="card">
+  <div class="chead"><span class="kind" id="card-kind"></span><span class="t" id="card-title"></span><span class="x" id="card-x">✕</span></div>
+  <div class="cbody" id="card-body"></div>
+</div>
+
+<div id="veil">
+  <div class="ring"></div>
+  <div class="txt">舆图绘制中</div>
+  <div class="errbox" id="errbox"></div>
+</div>
+
+<script src="./maplibre-gl.js"></script>
+<script src="./map_app.js"></script>
+</body>
+</html>

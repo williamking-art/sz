@@ -1,0 +1,28 @@
+# 宋祚 · 可选增强依赖（A/B 项，2026-09-03）
+# 全部可选：缺失时游戏自动降级（结构校验跳过/计量走启发式/语音与语义静默关闭）。
+# 游戏本体运行依赖见 requirements.txt；本文件供按需安装：
+#   pip install -r requirements-extras.txt
+
+# ---- A1：AI 输出契约 JSON Schema 结构校验（ai/schemas.py）----
+jsonschema>=4.20
+
+# ---- A3：token 计量（ai/token_meter.py；离线分发需随包带 BPE 词表缓存）----
+tiktoken>=0.7
+
+# ---- B1：大臣语音朗读（audio/tts.py；微软在线服务，LGPL-3.0 动态调用）----
+edge-tts>=6.1
+
+# ---- B2：本地语义检索栈（ai/semantic.py + ai/vector_store.py）----
+# 模型下载：python -m ai.model_setup（约 90MB，bge-small-zh-v1.5 ONNX 版）
+onnxruntime>=1.17
+tokenizers>=0.15
+numpy>=1.24
+sqlite-vec>=0.1.3
+huggingface_hub>=0.23
+
+# ---- B3：Python 参考后端（backend/server.py；开发/测试/联调用）----
+fastapi>=0.110
+uvicorn>=0.27
+
+# ---- Web 舆图（MapLibre/WebGL，ui/map_web.py；缺省自动降级浏览器模式）----
+pywebview>=5.0

@@ -31,6 +31,7 @@ from ai.narrative_guard import (
     build_character_statuses, build_character_blacklist, _validate_characters,
 )
 from content.data import normalize_tier
+from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构层（可选，未装库自动跳过）
 
 # 档位白名单（7 档：无/微/小/中/大/巨/极）；validator 用 normalize_tier 归一丰富表达
 _TIERS7 = ("无", "微", "小", "中", "大", "巨", "极")
@@ -103,7 +104,11 @@ class AIClient(ClientNarrativeMixin):
         return "unknown"
 
     def _add_usage(self, usage: dict, meter_key: str = "") -> None:
-        """累加 token 用量（O(1)，不打印玩家内容）；同时按契约方法分桶计量。"""
+        """累加 token 用量（O(1)，不打印玩家内容）；同时按契约方法分桶计量。
+
+        A2 遥测（可选）：SONGZUO_TELEMETRY=1 时把调用计量写入 SQLite
+        （telemetry/store.py，析微澜席位）；任何异常静默——遥测绝不影响游戏。
+        """
         try:
             _p = int(usage.get("prompt_tokens", 0) or 0)
             _c = int(usage.get("completion_tokens", 0) or 0)
@@ -115,6 +120,17 @@ class AIClient(ClientNarrativeMixin):
             b["calls"] += 1
             b["prompt"] += _p
             b["completion"] += _c
+            # A2：可选遥测落库（默认关；失败静默）
+            if os.environ.get("SONGZUO_TELEMETRY") == "1":
+                try:
+                    from telemetry.store import get_store
+                    st = get_store()
+                    if st is not None:
+                        st.record_ai_call(method=key, prompt_tokens=_p,
+                                          completion_tokens=_c,
+                                          estimated=bool(usage.get("estimated")))
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -587,6 +603,18 @@ class AIClient(ClientNarrativeMixin):
         usage = data.get("usage", {})
         if isinstance(usage, dict) and usage:
             self._add_usage(usage)
+        else:
+            # A3（tiktoken 计量，可选）：端点未回 usage 时按消息估算，
+            # 标记 estimated=True 与端点真值区分；估算失败静默（计量缺失不影响游戏）。
+            try:
+                from ai.token_meter import estimate_messages_tokens
+                _ep, _ec = estimate_messages_tokens(
+                    messages, out_text=str(msg.get("content") or ""), model=self.model)
+                if _ep or _ec:
+                    self._add_usage({"prompt_tokens": _ep, "completion_tokens": _ec,
+                                     "estimated": True})
+            except Exception:
+                pass
         if tools and msg.get("tool_calls"):
             tcs = []
             for tc in msg["tool_calls"]:
@@ -640,6 +668,20 @@ class AIClient(ClientNarrativeMixin):
             _fail_code = "AI_EMPTY_RESPONSE"
         elif obj is None:
             _fail_code = "AI_INVALID_JSON"
+        # A1（jsonschema 结构层，可选）：业务 validator 之前先过 JSON Schema 结构校验。
+        # schema 未注册 / jsonschema 未安装 → 跳过（业务 validator 仍兜底，行为不变）；
+        # 结构不符 → 判契约失败，schema 错误详情回喂修复（见下方 retry_p 增强）。
+        _schema_err = ""
+        if obj is not None:
+            try:
+                _caller = sys._getframe(1).f_code.co_name
+            except Exception:
+                _caller = ""
+            _ok, _schema_err = _schema_check(_caller, obj)
+            if not _ok:
+                obj = None
+                if _fail_code is None:
+                    _fail_code = "AI_CONTRACT_FAILED"
         obj = validator(obj) if obj is not None else None
         if obj is None and _fail_code is None:
             _fail_code = "AI_CONTRACT_FAILED"
@@ -650,6 +692,9 @@ class AIClient(ClientNarrativeMixin):
                     retry_p = (retry_prompt
                                + "\n【程序校验提示】上一次输出未通过契约校验，"
                                  "请严格按 JSON 契约重新输出，勿附加解释文字。")
+                    if _schema_err:
+                        # A1：结构层错误详情回喂（字段路径+原因），提高一次修复成功率
+                        retry_p += f"\n【结构错误】{_schema_err}"
                     retry_raw = self._call(retry_p, retry_user,
                                            temperature=retry_temp,
                                            max_tokens=900, json_mode=True)
@@ -682,10 +727,20 @@ class AIClient(ClientNarrativeMixin):
                     _txt, _flagged = _validate_narrative_numbers(_txt, ranges)
                 obj[_field] = _txt
         # 复读检测（针对有 reply/advice/report 等文本字段）
+        # B2 语义升级：语义后端可用时加语义相似度判定（阈值 0.92，抓"换皮复读"——
+        # 同义改写字面相似度低但语义相同）；后端不可用（未装 onnxruntime/模型缺失）
+        # 自动回落纯字面检测，行为与旧版完全一致。
         txt = obj.get("reply") or obj.get("advice") or obj.get("report") or obj.get("narrative") or ""
         if txt and self._prev_texts:
-            if max(_similar(txt, p) for p in self._prev_texts[-3:]) > 0.6:
+            _recent = self._prev_texts[-3:]
+            if max(_similar(txt, p) for p in _recent) > 0.6:
                 return fallback()
+            try:
+                from ai.semantic import semantic_repetition_hit
+                if semantic_repetition_hit(txt, _recent):
+                    return fallback()
+            except Exception:
+                pass
         if txt:
             self._prev_texts.append(txt)
         return obj

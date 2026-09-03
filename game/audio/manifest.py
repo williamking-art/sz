@@ -54,6 +54,13 @@ AUDIO_SLOTS: list = [
     AudioSlot("sfx_omen", "sfx", trigger="祥瑞事件（吉·朱）"),
     AudioSlot("sfx_decree", "sfx", trigger="下诏/拟诏"),
     AudioSlot("sfx_click", "sfx", trigger="界面按钮点击（克制）"),
+    # —— 大臣语音朗读（B1：audio/tts.py，edge-tts 动态合成，缓存于 tts_cache/）——
+    # voice 类槽位不预置文件：运行时按台词合成（同人同声，见 TTSEngine.voice_for_minister）；
+    # edge-tts 未安装/离线时静默降级为纯文字，绝不阻塞 mainloop。
+    AudioSlot("voice_minister", "voice", trigger="召对回奏台词朗读（玩家点击/可选开关）",
+              volume_bias=0.9, source="edge-tts 在线合成（LGPL-3.0，动态调用）"),
+    AudioSlot("voice_narrator", "voice", trigger="月报/事件叙事旁白朗读（可选）",
+              volume_bias=0.8, source="edge-tts 在线合成（LGPL-3.0，动态调用）"),
 ]
 
 
