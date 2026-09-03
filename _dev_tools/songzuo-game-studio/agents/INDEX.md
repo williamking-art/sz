@@ -11,33 +11,45 @@
 |---|---|---|---|
 | `songzuo-game-studio-team-lead` | songzuo-game-studio-team-lead.md | 邹运筹 | 总制作人与技术统筹：任务路由、最少专家集合、冲突裁决、交付验收 |
 
-## 成员列表（11 名专家）
+## 成员列表（17 名专家，2026-09-03 负载均衡拆分）
+
+> 2026-09-03 起，6 个高负载席位各拆出 1 名专职专家（13~18），原席位职责收窄。
+> 拆分对应关系：04→13、03→14、06→15、08→16、05→17、02→18。
 
 | # | subagent_type | 文件 | 花名 | Skill | 主责触发 |
 |---|---|---|---|---|---|
-| 02 | `song-narrative-designer` | song-narrative-designer.md | 史翰青 | `$songzuo-historical-narrative` | content/ 数据、史实事件、角色口吻、诏书、AI 叙事事实核查 |
-| 03 | `strategy-systems` | strategy-systems.md | 蔡权衡 | `$songzuo-strategy-systems` | core/ 规则、content/ 数值、平衡、极端回归 |
-| 04 | `core-engineering` | core-engineering.md | 谷承构 | `$songzuo-core-engineering` | core/ 状态、存档、迁移、循环依赖、权威常量 |
-| 05 | `ai-pipeline` | ai-pipeline.md | 言枢密 | `$songzuo-ai-pipeline` | ai/、backend/、ai_config、模型切换、叙事安全 |
-| 06 | `tkinter-ui` | tkinter-ui.md | 景呈宣 | `$songzuo-tkinter-ui` | gui_main.py、ui/、玩家可见交互 |
+| 02 | `song-narrative-designer` | song-narrative-designer.md | 史翰青 | `$songzuo-historical-narrative` | content/ 人物/机构/州县数据、史实三标签核查、人物口吻 |
+| 03 | `strategy-systems` | strategy-systems.md | 蔡权衡 | `$songzuo-strategy-systems` | 派系/军政/科技/事件概率/结局权重、MDA、平衡、极端回归 |
+| 04 | `core-engineering` | core-engineering.md | 谷承构 | `$songzuo-core-engineering` | core/ GameState、命令、存档、迁移、循环依赖、权威常量 |
+| 05 | `ai-pipeline` | ai-pipeline.md | 言枢密 | `$songzuo-ai-pipeline` | ai/client.py 管线、JSON 契约校验、脱敏实现、安全过滤、后端 |
+| 06 | `tkinter-ui` | tkinter-ui.md | 景呈宣 | `$songzuo-tkinter-ui` | ui/ 框架：主题、舆图层、弹窗、进度条、动效、事件循环 |
 | 07 | `art-assets` | art-assets.md | 惠宋韵 | `$songzuo-art-assets` | assets/、水墨舆图、资源命名、授权 |
-| 08 | `regression-qa` | regression-qa.md | 严归正 | `$songzuo-regression-qa` | dev/verify_*、缺陷复现、发布质量门 |
+| 08 | `regression-qa` | regression-qa.md | 严归正 | `$songzuo-regression-qa` | 核心/数值/AI 契约/存档回归、验收矩阵、发布质量门 |
 | 09 | `release-engineering` | release-engineering.md | 封致远 | `$songzuo-release-engineering` | requirements.txt、PyInstaller、EXE、发布边界 |
 | 10 | `sound-music-designer` | sound-music-designer.md | 吕清商 | `$songzuo-audio-music` | audio/、音效规格、配乐、静音控制 |
 | 11 | `data-analytics` | data-analytics.md | 析微澜 | `$songzuo-analytics` | dev/analytics/、dev/replay/、平衡模拟、诊断 |
 | 12 | `ai-integration` | ai-integration.md | 沈舶司 | `$songzuo-ai-integration` | ai/client.py 连通性、json_mode/能力探测、契约自检、推演不动点回归、AI 输出正确性落地验证 |
+| 13 | `settlement-engineering` | settlement-engineering.md | 程月衡 | `$songzuo-settlement-engineering` | core/settlement*.py 12 步流水线、core/events.py 触发、core/evaluation.py 结局、timeline break 改写位 |
+| 14 | `economy-systems` | economy-systems.md | 钱盈仓 | `$songzuo-economy-systems` | 财政/国库/仓廪/田赋/物价/州县经济、TIER_RANGE 档位封顶、钱荒口径 |
+| 15 | `ui-panels` | ui-panels.md | 潘章序 | `$songzuo-ui-panels` | ui/panels_*.py 六 Mixin 面板、信息层级、键盘可达、空/错误状态 |
+| 16 | `gui-release-qa` | gui-release-qa.md | 顾验真 | `$songzuo-gui-release-qa` | GUI/资源/音频/打包回归、启动/点击/缩放/中文/键盘/缺资源、冻结 EXE 验证 |
+| 17 | `ai-prompt-designer` | ai-prompt-designer.md | 祝辞修 | `$songzuo-ai-prompt-designer` | ai/prompts/*.md 18 模板、分幕契约、诏书文风、脱敏规则设计 |
+| 18 | `event-narrative-designer` | event-narrative-designer.md | 闻机变 | `$songzuo-event-narrative` | core/events.py 事件卡、STRATEGIC_BRANCHES、PENDING_BREAK_EVENTS 改写叙事、诏书叙事 |
 
 ## 文件主责映射（路由依据）
 
-- `ai/`、`backend/` → 05 ai-pipeline
+- `ai/client.py`、`backend/` → 05 ai-pipeline
+  - `ai/prompts/*.md` 模板文本/分幕契约/文风 → 17 ai-prompt-designer（与 05 协同联调）
   - `ai/client.py` 连通性 / 能力探测 / 契约自检 / 推演不动点回归 → 12 ai-integration（与 05 协同，落地验证主责）
-- `core/` → 04 core-engineering（03 strategy-systems 复核规则与数值）
-- `ui/`、`gui_main.py` → 06 tkinter-ui（07 art-assets 复核视觉资源）
-- `content/` → 02 与 03 共同约束，对应主责落地
-- `assets/` → 07 art-assets（06 复核加载显示）
-- `audio/`（规划） → 10 sound-music-designer（06 复核播放时机）
-- `dev/analytics/`、`dev/replay/`（规划） → 11 data-analytics（03/08 复核）
-- `dev/verify_*`、交互测试 → 08 regression-qa
+- `core/game_state.py`、`core/commands*.py`、`core/save_load.py` → 04 core-engineering（03 复核规则与数值）
+  - `core/settlement.py`、`core/settlement_steps.py`、`core/events.py`、`core/evaluation.py` → 13 settlement-engineering（03/14 复核数值）
+- `ui/` 框架（theme/map/dialog/bars/effects）→ 06 tkinter-ui
+  - `ui/panels_*.py`、gui_main.py 面板与交互 → 15 ui-panels（06 复核框架一致性）
+- `content/` → 02 与 03/14 共同约束，对应主责落地
+- `assets/` → 07 art-assets（06/15 复核加载显示）
+- `audio/`（规划） → 10 sound-music-designer（06/15 复核播放时机）
+- `dev/analytics/`、`dev/replay/`（规划） → 11 data-analytics（03/14/08 复核）
+- `dev/verify_*` 核心回归 → 08 regression-qa；GUI/资源/音频/打包回归 → 16 gui-release-qa
 - `requirements.txt`、PyInstaller、发布 → 09 release-engineering
 - `_scratch/` → 各专家临时产物，禁止游戏本体依赖
 
@@ -51,15 +63,16 @@
    —— 先 spawn 主责专家，再按需 spawn 复核/协作专家。
 4. 成员产出经 SendMessage 回传主理人；主理人中转，成员互不直连。
 5. 跨模块功能：主责出唯一实施方案 → 复核专家回传约束 → 主理人汇总。
-6. 验证阶段 spawn 08 regression-qa 做回归；发布 spawn 09 release-engineering。
+6. 验证阶段 spawn 08 regression-qa（核心）+ 16 gui-release-qa（表现/打包）做回归；发布 spawn 09 release-engineering。
 7. 主理人按 TEAM.md 第七部分 DoD 验收并交付综合报告。
 ```
 
 ## 预设工作流 → 成员组合
 
-- `W1` 跨模块新功能：主理人路由 → 主责设计 → 复核成员 → 08 验证 → 主理人验收
-- `W2` 史实事件+AI 叙事：02 → 05 → 主理人汇编
-- `W3` 发布验收：09 → 08 → 主理人确认边界（不含 dev/_scratch/密钥）
+- `W1` 跨模块新功能：主理人路由 → 主责设计 → 复核成员 → 08+16 验证 → 主理人验收
+- `W2` 史实事件+AI 叙事：18 事件卡 → 02 人物核对 → 17 prompt 契约 → 05 管线落地 → 主理人汇编
+- `W3` 发布验收：09 → 16（打包/GUI 回归）→ 08（质量门）→ 主理人确认边界（不含 dev/_scratch/密钥）
+- `W4` 结算/经济调参：14 经济变量表 → 13 结算落地 → 11 回放验证 → 08 落断言
 
 ## 依赖与边界
 
@@ -67,9 +80,9 @@
 - 数值权威 `content/data.py`；状态权威 `core/game_state.py`；地图仅 `assets/map/empire_bg.png`、`desk_bg.png`。
 - 差异以 `TEAM.md` / 各 `.md` 角色卡为准；结构变更以游戏 `README.md` 同步。
 
-## CodeBuddy 子 agent 注册（2026-08-15）
+## CodeBuddy 子 agent 注册（2026-08-15，2026-09-03 增补）
 
-专家团 12 名成员已注册为 CodeBuddy 子 agent（subagent），注册位置：
+专家团 18 名成员（主理人 + 17 专家）已注册为 CodeBuddy 子 agent（subagent），注册位置：
 
 ```
 G:/sz/.codebuddy/agents/<subagent_type>.md
