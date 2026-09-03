@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """抓取 ESRI World Hillshade 地形晕渲瓦片到 assets/map/web/tiles/hill/{z}/{x}/{y}.png。
 
-覆盖范围：lon 45-150, lat -12-56（= MAP_VIEW 全视野），z5-z7。
+覆盖范围：lon 46.5-150, lat -44-56（= MAP_VIEW 全视野，含澳大利亚），z5-z7。
 ESRI 瓦片 URL 模式：/tile/{z}/{y}/{x}（注意 y 在前）。
 """
 import math
@@ -14,7 +14,7 @@ WEB = os.path.join(BASE, "assets", "map", "web")
 OUT = os.path.join(WEB, "tiles", "hill")
 UA = {"User-Agent": "Mozilla/5.0 (Songzuo basemap fetcher)"}
 
-LON0, LON1, LAT0, LAT1 = 45.0, 150.0, -12.0, 56.0
+LON0, LON1, LAT0, LAT1 = 46.5, 150.0, -44.0, 56.0
 ZOOMS = [5, 6, 7]
 
 

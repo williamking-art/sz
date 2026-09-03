@@ -119,12 +119,16 @@ def build_cities() -> dict[str, object]:
 
 
 def build_view() -> dict[str, object]:
-    """MapLibre 初始视野（fitBounds 用四至 + 中心点）。"""
+    """MapLibre 舆图视野。
+
+    bounds = MAP_VIEW 数据四至（全览/限位用）；center/zoom = 玩家默认视野，
+    重心在东亚（宋辽夏核心区）而非数据几何中点。
+    """
     return {
         "bounds": [MAP_VIEW["west"], MAP_VIEW["south"],
                    MAP_VIEW["east"], MAP_VIEW["north"]],
-        "center": [(MAP_VIEW["west"] + MAP_VIEW["east"]) / 2,
-                   (MAP_VIEW["south"] + MAP_VIEW["north"]) / 2],
+        "center": [108.0, 31.0],
+        "zoom": 4.0,
         "west": MAP_VIEW["west"], "east": MAP_VIEW["east"],
         "south": MAP_VIEW["south"], "north": MAP_VIEW["north"],
     }
