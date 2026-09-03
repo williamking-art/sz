@@ -32,6 +32,6 @@ if not exist "node_modules\.bin\electron-vite.cmd" (
 
 echo [start] Launching Songzuo (Electron dev) ...
 call npm run dev
-rem dev 退出/失败后暂停,避免双击场景窗口闪退看不到错误
+rem Pause after dev exits so errors stay visible (double-click scenario)
 echo [start] Session ended.
 pause
