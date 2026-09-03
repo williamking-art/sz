@@ -600,6 +600,60 @@ def _settle_land_local(state, log):
         y["efficiency"] = max(20, min(100, y["efficiency"] + random.randint(-2, 1)))
 
 
+def _settle_region_deepen(state, log):
+    """地区模型深化月度结算（参考《明末：捞金模拟器》）。
+
+    对每路补充字段做动态演化：
+      - public_support（民心）：随 mood/unrest/治理度 演化；
+      - gentry_resistance（士绅抵抗）：随清丈/抑兼并/士绅影响力 演化；
+      - city_defense（城防）：随军备/边患 演化；
+      - fiscal（财政）：随月税/支出 演化；
+      - controlled_by（控制势力）：默认宋，领土争夺时由 AI/事件改写。
+    轻量 O(路数)，不引入 N+1 查询；数值走既有 state 字段，不破坏守恒。
+    """
+    for name, p in state.prefectures.items():
+        # 民心：随动乱与治理演化（mood 同源，向 mood 收敛）
+        mood = p.get("mood", 50)
+        unrest = p.get("unrest", 15)
+        support = p.get("public_support", mood)
+        # 动乱高则民心降，治理高则民心升
+        drift = (mood - support) * 0.1 - (unrest - 15) * 0.05
+        p["public_support"] = max(0, min(100, support + drift))
+
+        # 2. 士绅抵抗：随士绅影响力与清丈力度演化
+        gentry = p.get("gentry_resistance", 30)
+        gentry_power = 0.0
+        try:
+            gentry_power = state.factions.get("东南士人", {}).get("influence", 50) / 100.0
+        except Exception:
+            pass
+        # 清丈（land_survey 施行）则士绅抵抗上升；治理高则下降
+        survey = 1.0 if state.land.get("survey_active") else 0.0
+        gentry_drift = (gentry_power - 0.5) * 2 + survey * 2 - (p.get("govern", 50) - 50) * 0.02
+        p["gentry_resistance"] = max(0, min(100, gentry + gentry_drift))
+
+        # 3. 城防：随军备/边患演化（边镇自然加固，腹里缓慢）
+        defense = p.get("city_defense", 40)
+        p_type = p.get("type", "腹里州路")
+        if p_type in ("边镇路", "沿边路"):
+            defense_drift = 0.3
+        elif p_type in ("京畿路", "京畿"):
+            defense_drift = 0.1
+        else:
+            defense_drift = -0.05
+        p["city_defense"] = max(0, min(100, defense + defense_drift))
+
+        # 4. 财政：随月税与支出演化（地方财政健康度）
+        fiscal = p.get("fiscal", 50)
+        monthly_tax = p.get("monthly_tax", 200_000)
+        # 财政健康度向"月税充足"收敛
+        fiscal_target = max(0, min(100, round(monthly_tax / 8000)))
+        p["fiscal"] = fiscal + (fiscal_target - fiscal) * 0.05
+
+        # 5. 控制势力：默认宋，领土争夺由事件/命令改写（此处不主动改）
+        p.setdefault("controlled_by", "宋")
+
+
 def _settle_extensions(state, log):
     """金融/科举/科技/外交 等扩展维度的自然演进。
 
