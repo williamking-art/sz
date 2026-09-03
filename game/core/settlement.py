@@ -23,7 +23,7 @@ from core.settlement_steps import (
     _settle_factions,
     _settle_economy, _settle_land_local, _settle_extensions,
     _settle_longterm_decrees, _simulate_external,
-    _settle_granary,
+    _settle_granary, _settle_region_deepen,
     _settle_finance,
     _settle_projects, _settle_workshops,
     _settle_treasury,
@@ -136,8 +136,34 @@ def _settle_org_economy(state, log):
     state.statistics["org_net"] = round(org_net, 2)
 
 
+def _settle_legacies(state, log):
+    """帝国修正（legacies）月度结算：施加效果 + 判定消除条件。
+
+    参考《明末：捞金模拟器》的帝国修正机制。开局即存在的条件式长期修正符，
+    带明确消除条件，让开局有历史包袱与破局目标。AI 缺失时程序兜底不伪造。
+    """
+    try:
+        from core.legacy_mechanic import settle_legacies
+        settle_legacies(state, log)
+    except Exception:
+        pass
+
+
+def _settle_focus(state, log):
+    """国策树（focus）月度结算：对已解锁节点施加长期效果。
+
+    参考《明末：捞金模拟器》的国策树机制。五大分支（政务/军事/科学/内卫/税务），
+    带权力等级、互斥分支、解锁建筑与长期效果。AI 缺失时程序兜底不伪造。
+    """
+    try:
+        from core.focus_mechanic import settle_focus
+        settle_focus(state, log)
+    except Exception:
+        pass
+
+
 # ============================================================
-# 机构改制后果推演（原 settlement_reform.py）
+# 机构改制结算（原 settlement_reform.py）
 # ============================================================
 def settle_reform(state, decree: dict) -> dict:
     """结算一道 reform_org 类圣旨的后果。
@@ -367,6 +393,9 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- Step 3.5: 田亩与地方州县 ----
     _settle_land_local(state, log)
 
+    # ---- Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
+    _settle_region_deepen(state, log)
+
     # ---- Step 3.6: 扩展维度自然演进（金融/科举/科技/外交） ----
     _settle_extensions(state, log)
 
@@ -397,6 +426,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     _settle_mechanisms(state, log)      # 层②机制槽：纯加成/减耗
     _settle_tech(state, log)            # 层③研发管线：资源×时间×人才推进
     _settle_org_economy(state, log)     # 层④机构经济生命周期：受崩盘线约束
+
+    # ---- Step 6.9: 帝国修正（legacies）结算 ----
+    _settle_legacies(state, log)
+
+    # ---- Step 6.10: 国策树（focus）长期效果结算 ----
+    _settle_focus(state, log)
 
     # ---- Step 7: 事件压力 ----
     _settle_events(state, log)

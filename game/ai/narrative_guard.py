@@ -152,3 +152,66 @@ def _validate_characters(text, statuses):
         if name in text:
             bad.append(f"{name}({st['status']})")
     return bool(bad), bad
+
+
+def build_mechanism_closure(state):
+    """四大机制改良来源闭集：当前生效的帝国修正（legacies）+ 已解锁国策（focus）。
+
+    返回注入文本【本期机制（仅限以下）】，供 AI 叙事引用，防止编造不存在的修正/国策。
+    """
+    parts = []
+    # 帝国修正（legacies）：生效中的
+    try:
+        for e in state.legacies.values():
+            if e.get("active"):
+                parts.append(f"修正·{e.get('name', '')}")
+    except Exception:
+        pass
+    # 国策树（focus）：已解锁节点
+    try:
+        for branch, bspec in state.focus_tree.items():
+            for nk, node in bspec.get("nodes", {}).items():
+                if node.get("unlocked"):
+                    parts.append(f"国策·{node.get('name', '')}")
+    except Exception:
+        pass
+    closure = "、".join(parts) if parts else "（本期无生效机制）"
+    return ("【本期机制（仅限以下）】" + closure +
+            "\n硬约束：叙事提及帝国修正/国策时，仅可引用上述机制，禁止编造不存在的修正或国策。")
+
+
+def _validate_mechanisms(text, state):
+    """叙事提及的机制（legacies/focus）查表：命中未生效/未解锁 → 标记（回喂修正）。
+    返回 (是否命中违规, 违规名单)。"""
+    if not text:
+        return False, []
+    bad = []
+    # 生效中的 legacy 名称
+    active_legacy = set()
+    try:
+        for e in state.legacies.values():
+            if e.get("active"):
+                active_legacy.add(e.get("name", ""))
+    except Exception:
+        pass
+    # 已解锁的 focus 节点名称
+    unlocked_focus = set()
+    try:
+        for branch, bspec in state.focus_tree.items():
+            for nk, node in bspec.get("nodes", {}).items():
+                if node.get("unlocked"):
+                    unlocked_focus.add(node.get("name", ""))
+    except Exception:
+        pass
+    # 检查叙事中是否出现"修正/国策"相关表述但对应机制未生效
+    for name in active_legacy | unlocked_focus:
+        if name and name in text:
+            continue
+    # 反向：叙事提到机制名但不在生效集内（编造）
+    for kw in ("新党专权", "冗官冗费", "隐田蔽课", "辽夏边患", "花石纲民怨",
+               "中央集权", "官制改革", "裁汰冗费", "整军经武", "修城固垒",
+               "军备军器", "兴百工", "修历法", "西学东渐", "设皇城司",
+               "整肃言路", "密探天下", "清丈田亩", "盐铁专卖", "一条鞭法"):
+        if kw in text and kw not in active_legacy and kw not in unlocked_focus:
+            return True, [f"{kw}(未生效)"]
+    return False, []

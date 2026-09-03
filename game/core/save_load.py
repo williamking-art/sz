@@ -135,6 +135,10 @@ def save_game(state, slot: int = 1) -> bool:
         "external_regimes": getattr(state, "external_regimes", {}),
         "longterm_public": getattr(state, "longterm_public", []),
         "longterm_secret": getattr(state, "longterm_secret", []),
+        # 四大机制改良（参考《明末：捞金模拟器》）：开局邸报 / 帝国修正 / 国策树
+        "opening_gazette": getattr(state, "opening_gazette", {}),
+        "legacies": getattr(state, "legacies", {}),
+        "focus_tree": getattr(state, "focus_tree", {}),
         "minister_memory": getattr(state, "minister_memory", {}),
         "player_minister_status": getattr(state, "player_minister_status", {}),
 
@@ -374,6 +378,10 @@ def load_game(slot: int = 1):
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
+    # 四大机制改良（旧档缺省兼容）：开局邸报 / 帝国修正 / 国策树
+    state.opening_gazette = data.get("opening_gazette", {}) or {}
+    state.legacies = data.get("legacies", {}) or {}
+    state.focus_tree = data.get("focus_tree", {}) or {}
     state.minister_memory = data.get("minister_memory", {}) or {}
     # 代码审理（旧机制融入新机制）：旧 minister_memory（dict）加载时自动迁入
     # DialogueMemory（对话库，saves/slot_{slot}_dialogue.db）——新写入走新机制；

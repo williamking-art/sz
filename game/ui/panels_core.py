@@ -168,6 +168,7 @@ class PanelsCoreMixin:
             ("朝报", "gazette", self._panel_daily_log),
             ("个人行止", "memorial", self._panel_personal),
             ("拟旨", "military", self._panel_decree_entry),
+            ("国策", "tech", self._panel_focus),
         ]
         for label, icon_key, fn in dock_items:
             self._round_icon_btn(bottom_bar, label,
@@ -820,6 +821,12 @@ class PanelsCoreMixin:
         for col in range(3):
             grid.grid_columnconfigure(col, weight=1)
 
+        # 开局邸报（首次开局展示，含待办三事）
+        self._render_gazette(inner)
+
+        # 帝国修正（legacies）：当前生效的历史包袱与消除进度
+        self._render_legacies(inner)
+
         if s.active_events:
             self._section(inner, "【当前事件】")
             ev_card = self._card(inner)
@@ -829,6 +836,127 @@ class PanelsCoreMixin:
                 self._label(ev_card, f"  ● {e['message']}", fg=RED_D, bg=CARD,
                             font=self._font(SANS, 11)).pack(anchor="w", padx=14, pady=3)
             self._label(ev_card, "", bg=CARD).pack(pady=2)
+
+    def _render_gazette(self, inner):
+        """开局邸报展示（仿《明末：捞金模拟器》opening_gazette）。
+
+        首次开局全屏展示后，在朝堂一览顶部以「邸报」卡片呈现正文与待办三事。
+        """
+        gz = getattr(self.state, "opening_gazette", None)
+        if not gz:
+            return
+        self._section(inner, "【开局邸报】")
+        card = self._card(inner)
+        card.pack(fill="x", padx=10, pady=4)
+        self._card_title(card, f"{gz.get('header', '大宋邸报')} · {gz.get('era', '')}")
+        body = gz.get("body", "")
+        if body:
+            self._label(card, body, fg=INK, bg=CARD, font=self._font(KAI, 11),
+                        anchor="w", justify="left", wraplength=560).pack(anchor="w", padx=14, pady=4)
+        tasks = gz.get("tasks", [])
+        if tasks:
+            self._label(card, "待办三事：", fg=RED_D, bg=CARD,
+                        font=self._font(KAI, 11, "bold")).pack(anchor="w", padx=14, pady=(6, 2))
+            for t in tasks:
+                mark = "●" if t.get("urgent") else "○"
+                self._label(card, f"  {mark} {t.get('title', '')}：{t.get('desc', '')}",
+                            fg=INK, bg=CARD, font=self._font(SANS, 10),
+                            anchor="w", justify="left", wraplength=560).pack(anchor="w", padx=14, pady=2)
+        hint = gz.get("hint", "")
+        if hint:
+            self._label(card, hint, fg=GOLD, bg=CARD, font=self._font(KAI, 10),
+                        anchor="w").pack(anchor="w", padx=14, pady=(6, 4))
+
+    def _render_legacies(self, inner):
+        """帝国修正（legacies）展示：当前生效的历史包袱与消除进度。"""
+        try:
+            from core.legacy_mechanic import active_legacies, cleared_legacies
+        except Exception:
+            return
+        active = active_legacies(self.state)
+        cleared = cleared_legacies(self.state)
+        if not active and not cleared:
+            return
+        self._section(inner, "【帝国修正】")
+        card = self._card(inner)
+        card.pack(fill="x", padx=10, pady=4)
+        self._card_title(card, "历史包袱 · 破局目标")
+        if active:
+            for e in active:
+                name = e.get("name", "")
+                desc = e.get("desc", "")
+                prog = e.get("progress", 0)
+                self._label(card, f"  ● {name}：{desc}", fg=RED_D, bg=CARD,
+                            font=self._font(SANS, 10), anchor="w", justify="left",
+                            wraplength=560).pack(anchor="w", padx=14, pady=2)
+                self._meter(card, prog, 100, label="消除进度")
+        if cleared:
+            names = "、".join(e.get("name", "") for e in cleared)
+            self._label(card, f"  ✓ 已消除：{names}", fg=GREEN, bg=CARD,
+                        font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=14, pady=2)
+
+    def _panel_focus(self):
+        """国策树面板：五大分支（政务/军事/科学/内卫/税务），节点卡片 + 解锁。"""
+        inner = self._panel_shell("国 策 树")
+        s = self.state
+        try:
+            from core.focus_mechanic import FOCUS_TREE, can_unlock, unlock_focus
+        except Exception:
+            self._label(inner, "国策树未初始化。", fg=INK, bg=PAPER,
+                        font=self._font(SANS, 11)).pack(padx=14, pady=8)
+            return
+        tree = getattr(s, "focus_tree", {}) or {}
+        if not tree:
+            self._label(inner, "国策树尚未建立，请先开始新游戏。", fg=INK, bg=PAPER,
+                        font=self._font(SANS, 11)).pack(padx=14, pady=8)
+            return
+        # 顶部说明
+        self._label(inner, "五大分支国策，择一而专，互斥相制。解锁节点以固国本。",
+                    fg=DIM, bg=PAPER, font=self._font(KAI, 11)).pack(anchor="w", padx=14, pady=(6, 2))
+        for branch, bspec in FOCUS_TREE.items():
+            cur = tree.get(branch, {})
+            self._section(inner, f"【{bspec['name']}】{bspec.get('desc', '')}")
+            card = self._card(inner)
+            card.pack(fill="x", padx=10, pady=4)
+            self._card_title(card, f"{bspec['name']} · 已解锁 {sum(1 for n in cur.get('nodes', {}).values() if n.get('unlocked'))}/{len(bspec['nodes'])}")
+            for nk, nd in bspec["nodes"].items():
+                node = cur.get("nodes", {}).get(nk, {})
+                unlocked = node.get("unlocked", False)
+                lvl = node.get("power_level", 0)
+                row = tk.Frame(card, bg=CARD)
+                row.pack(fill="x", padx=10, pady=3)
+                mark = "✓" if unlocked else "○"
+                fg = GREEN if unlocked else INK
+                self._label(row, f"{mark} {nd['name']}（权{nd['power_level']}）",
+                            fg=fg, bg=CARD, font=self._font(KAI, 11, "bold"),
+                            anchor="w").pack(side="left", padx=(0, 8))
+                self._label(row, nd.get("desc", ""), fg=DIM, bg=CARD,
+                            font=self._font(SANS, 9), anchor="w").pack(side="left", fill="x", expand=True)
+                if not unlocked:
+                    ok, reason = can_unlock(s, branch, nk)
+                    if ok:
+                        self._btn(row, "解锁", lambda b=branch, k=nk: self._do_focus_unlock(b, k),
+                                  width=6, ghost=True).pack(side="right", padx=(6, 0))
+                    else:
+                        self._label(row, reason, fg=DIM, bg=CARD,
+                                    font=self._font(SANS, 8), anchor="e").pack(side="right", padx=(6, 0))
+                else:
+                    self._label(row, f"解锁：{nd.get('unlock', '')}", fg=GREEN, bg=CARD,
+                                font=self._font(SANS, 8), anchor="e").pack(side="right", padx=(6, 0))
+
+    def _do_focus_unlock(self, branch, node_key):
+        """国策解锁交互：调用 unlock_focus 并刷新面板。"""
+        try:
+            from core.focus_mechanic import unlock_focus
+            res = unlock_focus(self.state, branch, node_key)
+            msg = res.get("message", "")
+            if res.get("ok"):
+                self.messagebox.showinfo("国策解锁", msg)
+            else:
+                self.messagebox.showwarning("国策解锁", msg)
+        except Exception as e:
+            self.messagebox.showerror("国策解锁", f"解锁失败：{e}")
+        self._open_overlay(self._panel_focus, "国 策 树")
 
     def _season_name(self, month):
         if month in (12, 1, 2):

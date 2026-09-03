@@ -1,0 +1,1308 @@
+{
+ "faction_names": [
+  "新党",
+  "旧党",
+  "宦官集团",
+  "西军集团",
+  "东南士人",
+  "清流言官"
+ ],
+ "faction_init": {
+  "新党": {
+   "influence": 90,
+   "satisfaction": 85,
+   "cohesion": 70,
+   "leader": "蔡京"
+  },
+  "旧党": {
+   "influence": 20,
+   "satisfaction": 20,
+   "cohesion": 40,
+   "leader": "韩忠彦"
+  },
+  "宦官集团": {
+   "influence": 70,
+   "satisfaction": 80,
+   "cohesion": 65,
+   "leader": "童贯"
+  },
+  "西军集团": {
+   "influence": 60,
+   "satisfaction": 70,
+   "cohesion": 75,
+   "leader": "种师道"
+  },
+  "东南士人": {
+   "influence": 50,
+   "satisfaction": 55,
+   "cohesion": 50,
+   "leader": "曾布"
+  },
+  "清流言官": {
+   "influence": 40,
+   "satisfaction": 40,
+   "cohesion": 55,
+   "leader": "陈瓘"
+  }
+ },
+ "yamen_list": [
+  "吏部",
+  "户部",
+  "礼部",
+  "兵部",
+  "刑部",
+  "工部"
+ ],
+ "yamen_info": {
+  "吏部": {
+   "duty": "铨选官吏、考核黜陟",
+   "faction": "旧党",
+   "acts": [
+    "整饬吏治",
+    "裁汰冗员",
+    "兴办科举"
+   ]
+  },
+  "户部": {
+   "duty": "户口田赋、度支钱粮",
+   "faction": "新党",
+   "acts": [
+    "清丈田亩",
+    "减免田赋",
+    "常平仓赈济"
+   ]
+  },
+  "礼部": {
+   "duty": "礼仪祭祀、科举学校",
+   "faction": "旧党",
+   "acts": [
+    "重开贡举",
+    "兴修礼乐",
+    "褒崇道教"
+   ]
+  },
+  "兵部": {
+   "duty": "武官选授、舆图军籍",
+   "faction": "西军",
+   "acts": [
+    "整练新军",
+    "缮修兵甲",
+    "置将练兵"
+   ]
+  },
+  "刑部": {
+   "duty": "律令刑名、刑狱冤滞",
+   "faction": "枢密",
+   "acts": [
+    "宽刑省狱",
+    "修订刑统",
+    "平反冤案"
+   ]
+  },
+  "工部": {
+   "duty": "山泽沟洫、营造工役",
+   "faction": "宦官",
+   "acts": [
+    "兴修水利",
+    "营缮宫观",
+    "开矿铸钱"
+   ]
+  }
+ },
+ "prefecture_list": [
+  "东京开封府",
+  "京西路",
+  "河北路",
+  "河东",
+  "陕西路",
+  "两浙路",
+  "江南东路",
+  "江南西路",
+  "荆湖南路",
+  "福建路",
+  "成都府路",
+  "广南东路"
+ ],
+ "tech_lines": [
+  "机械动力",
+  "能源与材料",
+  "化学化工",
+  "信息通讯",
+  "生命医学",
+  "观念与制度"
+ ],
+ "tech_nodes": [
+  {
+   "id": "M0_plow",
+   "line": "机械动力",
+   "era": 0,
+   "name": "牛耕挽犁",
+   "desc": "铁犁牛耕，九州之基",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "yield_bonus": 0.05
+   }
+  },
+  {
+   "id": "M1_noria",
+   "line": "机械动力",
+   "era": 0,
+   "name": "水排筒车",
+   "desc": "水激轮转，灌田碾谷",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "yield_bonus": 0.08
+   }
+  },
+  {
+   "id": "M2_spindle",
+   "line": "机械动力",
+   "era": 1,
+   "name": "水力大纺车",
+   "desc": "水转大纺，昼夜不息",
+   "prereq": [
+    "M1_noria"
+   ],
+   "cost": {
+    "silver": 120000,
+    "months": 9,
+    "masters": 3
+   },
+   "effect": {
+    "trade_income": 0.15
+   }
+  },
+  {
+   "id": "M3_bellows",
+   "line": "机械动力",
+   "era": 1,
+   "name": "水力鼓风",
+   "desc": "水排鼓风，铸冶不绝",
+   "prereq": [
+    "M1_noria"
+   ],
+   "cost": {
+    "silver": 80000,
+    "months": 7,
+    "masters": 3
+   },
+   "effect": {
+    "build_cost": -0.08
+   }
+  },
+  {
+   "id": "M4_furnace",
+   "line": "机械动力",
+   "era": 2,
+   "name": "砖石高炉",
+   "desc": "高炉积薪，万斛铁出",
+   "prereq": [
+    "M3_bellows"
+   ],
+   "cost": {
+    "silver": 300000,
+    "months": 18,
+    "masters": 6
+   },
+   "effect": {
+    "build_cost": -0.15
+   }
+  },
+  {
+   "id": "M5_steampump",
+   "line": "机械动力",
+   "era": 4,
+   "name": "蒸汽抽水机",
+   "desc": "汽机汲水，矿穴乃通",
+   "prereq": [
+    "M4_furnace"
+   ],
+   "cost": {
+    "silver": 500000,
+    "months": 20,
+    "masters": 6
+   },
+   "effect": {
+    "mining_income": 0.1
+   }
+  },
+  {
+   "id": "M6_loco",
+   "line": "机械动力",
+   "era": 5,
+   "name": "蒸汽机车",
+   "desc": "汽机驱动，铁轨万里",
+   "prereq": [
+    "M5_steampump",
+    "E3_steel"
+   ],
+   "cost": {
+    "silver": 1200000,
+    "months": 28,
+    "masters": 8
+   },
+   "effect": {
+    "canal_efficiency": 0.3
+   }
+  },
+  {
+   "id": "M7_elecbasis",
+   "line": "机械动力",
+   "era": 5,
+   "name": "电学基础",
+   "desc": "琥珀引电，磁石感线",
+   "prereq": [
+    "M6_loco"
+   ],
+   "cost": {
+    "silver": 1500000,
+    "months": 26,
+    "masters": 8
+   },
+   "effect": {
+    "production": 0.08
+   }
+  },
+  {
+   "id": "M8_ice",
+   "line": "机械动力",
+   "era": 6,
+   "name": "内燃机",
+   "desc": "油气入炉，机转如雷",
+   "prereq": [
+    "M6_loco",
+    "E4_oil"
+   ],
+   "cost": {
+    "silver": 2000000,
+    "months": 30,
+    "masters": 10
+   },
+   "effect": {
+    "production": 0.25
+   }
+  },
+  {
+   "id": "M9_power",
+   "line": "机械动力",
+   "era": 6,
+   "name": "电力传输",
+   "desc": "电枢旋转，千里动力一脉",
+   "prereq": [
+    "M8_ice",
+    "M7_elecbasis"
+   ],
+   "cost": {
+    "silver": 3000000,
+    "months": 32,
+    "masters": 12
+   },
+   "effect": {
+    "production": 0.3
+   }
+  },
+  {
+   "id": "E0_firewood",
+   "line": "能源与材料",
+   "era": 0,
+   "name": "柴薪取火",
+   "desc": "薪樵为燃，窑冶之基",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "build_speed": 0.05
+   }
+  },
+  {
+   "id": "E1_coal",
+   "line": "能源与材料",
+   "era": 0,
+   "name": "煤炭开采",
+   "desc": "山石可燃，代薪为薪",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "production": 0.08
+   }
+  },
+  {
+   "id": "E2_coke",
+   "line": "能源与材料",
+   "era": 2,
+   "name": "焦炭冶铁",
+   "desc": "煤炼成焦，火猛而无硫",
+   "prereq": [
+    "E1_coal",
+    "M4_furnace"
+   ],
+   "cost": {
+    "silver": 300000,
+    "months": 18,
+    "masters": 6
+   },
+   "effect": {
+    "build_cost": -0.18
+   }
+  },
+  {
+   "id": "E3_steel",
+   "line": "能源与材料",
+   "era": 4,
+   "name": "钢铁精炼",
+   "desc": "百炼成钢，器用坚利",
+   "prereq": [
+    "E2_coke"
+   ],
+   "cost": {
+    "silver": 800000,
+    "months": 22,
+    "masters": 7
+   },
+   "effect": {
+    "army_power": 0.2
+   }
+  },
+  {
+   "id": "E4_oil",
+   "line": "能源与材料",
+   "era": 5,
+   "name": "石油提炼",
+   "desc": "井中黑金，炼为灯油沥青",
+   "prereq": [
+    "E3_steel"
+   ],
+   "cost": {
+    "silver": 1500000,
+    "months": 26,
+    "masters": 8
+   },
+   "effect": {
+    "mining_income": 0.25
+   }
+  },
+  {
+   "id": "E5_alloy",
+   "line": "能源与材料",
+   "era": 6,
+   "name": "合金钢材",
+   "desc": "锰镍入钢，造轮船轨",
+   "prereq": [
+    "E4_oil"
+   ],
+   "cost": {
+    "silver": 2500000,
+    "months": 30,
+    "masters": 10
+   },
+   "effect": {
+    "army_power": 0.25,
+    "production": 0.15
+   }
+  },
+  {
+   "id": "E6_elecsteel",
+   "line": "能源与材料",
+   "era": 6,
+   "name": "电工钢",
+   "desc": "硅钢导磁，电机之骨",
+   "prereq": [
+    "E5_alloy",
+    "M9_power"
+   ],
+   "cost": {
+    "silver": 3500000,
+    "months": 34,
+    "masters": 12
+   },
+   "effect": {
+    "production": 0.35
+   }
+  },
+  {
+   "id": "C0_alchemy",
+   "line": "化学化工",
+   "era": 0,
+   "name": "炼丹术",
+   "desc": "炉鼎丹砂，化玄为妙",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "build_speed": 0.05
+   }
+  },
+  {
+   "id": "C1_gunpowder",
+   "line": "化学化工",
+   "era": 0,
+   "name": "火药成熟",
+   "desc": "硝硫木炭，一硝二磺三木",
+   "prereq": [
+    "C0_alchemy"
+   ],
+   "cost": {
+    "silver": 30000,
+    "months": 5,
+    "masters": 2
+   },
+   "effect": {
+    "army_power": 0.1
+   }
+  },
+  {
+   "id": "C1b_huochong",
+   "line": "化学化工",
+   "era": 1,
+   "name": "火铳",
+   "desc": "铜铁为管，火药推送子丸",
+   "prereq": [
+    "C1_gunpowder"
+   ],
+   "cost": {
+    "silver": 120000,
+    "months": 8,
+    "masters": 3
+   },
+   "effect": {
+    "army_power": 0.12
+   }
+  },
+  {
+   "id": "C1c_huoqiang",
+   "line": "化学化工",
+   "era": 2,
+   "name": "火枪",
+   "desc": "更制枪铳，演为列阵之器",
+   "prereq": [
+    "C1b_huochong"
+   ],
+   "cost": {
+    "silver": 300000,
+    "months": 14,
+    "masters": 5
+   },
+   "effect": {
+    "army_power": 0.15
+   }
+  },
+  {
+   "id": "C1d_suifa",
+   "line": "化学化工",
+   "era": 4,
+   "name": "燧发枪",
+   "desc": "燧石击发，机巧胜于人力",
+   "prereq": [
+    "C1c_huoqiang"
+   ],
+   "cost": {
+    "silver": 800000,
+    "months": 20,
+    "masters": 7
+   },
+   "effect": {
+    "army_power": 0.2
+   }
+  },
+  {
+   "id": "C2_acid",
+   "line": "化学化工",
+   "era": 3,
+   "name": "酸碱制取",
+   "desc": "石胆绿矾，化水为强酸",
+   "prereq": [
+    "C1_gunpowder"
+   ],
+   "cost": {
+    "silver": 250000,
+    "months": 16,
+    "masters": 5
+   },
+   "effect": {
+    "production": 0.1
+   }
+  },
+  {
+   "id": "C3_dye",
+   "line": "化学化工",
+   "era": 3,
+   "name": "合成染料",
+   "desc": "靛蓝茜草，色染天下",
+   "prereq": [
+    "C2_acid"
+   ],
+   "cost": {
+    "silver": 400000,
+    "months": 16,
+    "masters": 5
+   },
+   "effect": {
+    "trade_income": 0.2
+   }
+  },
+  {
+   "id": "C4_fertilizer",
+   "line": "化学化工",
+   "era": 4,
+   "name": "化学肥料",
+   "desc": "骨粉硝石，沃土千亩",
+   "prereq": [
+    "C2_acid"
+   ],
+   "cost": {
+    "silver": 600000,
+    "months": 18,
+    "masters": 6
+   },
+   "effect": {
+    "yield_bonus": 0.2
+   }
+  },
+  {
+   "id": "C5_rubber",
+   "line": "化学化工",
+   "era": 5,
+   "name": "人造橡胶",
+   "desc": "石脑油蒸，炼为弹体",
+   "prereq": [
+    "C4_fertilizer",
+    "E4_oil"
+   ],
+   "cost": {
+    "silver": 2000000,
+    "months": 28,
+    "masters": 9
+   },
+   "effect": {
+    "production": 0.2
+   }
+  },
+  {
+   "id": "C6_plastic",
+   "line": "化学化工",
+   "era": 6,
+   "name": "合成塑料",
+   "desc": "酚醛树脂，百器可塑",
+   "prereq": [
+    "C5_rubber"
+   ],
+   "cost": {
+    "silver": 3000000,
+    "months": 30,
+    "masters": 11
+   },
+   "effect": {
+    "production": 0.3
+   }
+  },
+  {
+   "id": "I0_block",
+   "line": "信息通讯",
+   "era": 0,
+   "name": "雕版印刷",
+   "desc": "雕木为版，刷印成书",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "exam_talent": 3
+   }
+  },
+  {
+   "id": "I1_movable",
+   "line": "信息通讯",
+   "era": 0,
+   "name": "活字印刷",
+   "desc": "胶泥活字，可拆可排",
+   "prereq": [
+    "I0_block"
+   ],
+   "cost": {
+    "silver": 20000,
+    "months": 4,
+    "masters": 2
+   },
+   "effect": {
+    "exam_talent": 5
+   }
+  },
+  {
+   "id": "I2_metaltype",
+   "line": "信息通讯",
+   "era": 1,
+   "name": "金属活字",
+   "desc": "铜锡浇铸，耐久复用",
+   "prereq": [
+    "I1_movable"
+   ],
+   "cost": {
+    "silver": 60000,
+    "months": 8,
+    "masters": 3
+   },
+   "effect": {
+    "exam_talent": 5
+   }
+  },
+  {
+   "id": "I3_post",
+   "line": "信息通讯",
+   "era": 2,
+   "name": "邮政驿站",
+   "desc": "驿路烽烟，传檄四方",
+   "prereq": [
+    "I2_metaltype"
+   ],
+   "cost": {
+    "silver": 150000,
+    "months": 10,
+    "masters": 4
+   },
+   "effect": {
+    "decree_speed": -2
+   }
+  },
+  {
+   "id": "I4_telegraph",
+   "line": "信息通讯",
+   "era": 5,
+   "name": "电报",
+   "desc": "铜线千里，电传讯息",
+   "prereq": [
+    "I3_post",
+    "M7_elecbasis"
+   ],
+   "cost": {
+    "silver": 1200000,
+    "months": 24,
+    "masters": 8
+   },
+   "effect": {
+    "decree_speed": -4
+   }
+  },
+  {
+   "id": "I5_phone",
+   "line": "信息通讯",
+   "era": 5,
+   "name": "电话",
+   "desc": "声波化电，隔空传语",
+   "prereq": [
+    "I4_telegraph"
+   ],
+   "cost": {
+    "silver": 2000000,
+    "months": 26,
+    "masters": 9
+   },
+   "effect": {
+    "decree_speed": -5
+   }
+  },
+  {
+   "id": "I6_radio",
+   "line": "信息通讯",
+   "era": 6,
+   "name": "无线电",
+   "desc": "电波无远弗届，千里同声",
+   "prereq": [
+    "I5_phone"
+   ],
+   "cost": {
+    "silver": 3000000,
+    "months": 30,
+    "masters": 11
+   },
+   "effect": {
+    "decree_speed": -6
+   }
+  },
+  {
+   "id": "H0_herbal",
+   "line": "生命医学",
+   "era": 0,
+   "name": "本草医方",
+   "desc": "尝百草辨药性，济世活人",
+   "prereq": [],
+   "cost": {
+    "silver": 0,
+    "months": 0,
+    "masters": 0
+   },
+   "effect": {
+    "epidemic_risk": -0.1
+   }
+  },
+  {
+   "id": "H1_forensic",
+   "line": "生命医学",
+   "era": 1,
+   "name": "法医检勘",
+   "desc": "验尸断狱，洗冤录成",
+   "prereq": [
+    "H0_herbal"
+   ],
+   "cost": {
+    "silver": 40000,
+    "months": 6,
+    "masters": 2
+   },
+   "effect": {
+    "epidemic_risk": -0.1
+   }
+  },
+  {
+   "id": "H2_variola",
+   "line": "生命医学",
+   "era": 2,
+   "name": "人痘接种",
+   "desc": "痘痂种鼻，以毒攻毒",
+   "prereq": [
+    "H1_forensic"
+   ],
+   "cost": {
+    "silver": 200000,
+    "months": 12,
+    "masters": 4
+   },
+   "effect": {
+    "epidemic_risk": -0.3
+   }
+  },
+  {
+   "id": "H3_anatomy",
+   "line": "生命医学",
+   "era": 3,
+   "name": "人体解剖",
+   "desc": "剖尸明理，血脉经络",
+   "prereq": [
+    "H2_variola"
+   ],
+   "cost": {
+    "silver": 400000,
+    "months": 14,
+    "masters": 5
+   },
+   "effect": {
+    "epidemic_risk": -0.2
+   }
+  },
+  {
+   "id": "H4_bacteria",
+   "line": "生命医学",
+   "era": 4,
+   "name": "细菌学说",
+   "desc": "微虫致病，灭之可防",
+   "prereq": [
+    "H3_anatomy"
+   ],
+   "cost": {
+    "silver": 800000,
+    "months": 20,
+    "masters": 6
+   },
+   "effect": {
+    "epidemic_risk": -0.4
+   }
+  },
+  {
+   "id": "H5_anesthesia",
+   "line": "生命医学",
+   "era": 5,
+   "name": "外科麻醉",
+   "desc": "麻沸汤药，剖腹不痛",
+   "prereq": [
+    "H4_bacteria"
+   ],
+   "cost": {
+    "silver": 1500000,
+    "months": 24,
+    "masters": 8
+   },
+   "effect": {
+    "epidemic_risk": -0.3,
+    "production": 0.05
+   }
+  },
+  {
+   "id": "H6_vaccine",
+   "line": "生命医学",
+   "era": 6,
+   "name": "疫苗学",
+   "desc": "减毒作苗，疫疠可御",
+   "prereq": [
+    "H5_anesthesia"
+   ],
+   "cost": {
+    "silver": 2200000,
+    "months": 28,
+    "masters": 9
+   },
+   "effect": {
+    "epidemic_risk": -0.5
+   }
+  },
+  {
+   "id": "X0_assembly",
+   "line": "观念与制度",
+   "era": 1,
+   "name": "流水线",
+   "desc": "工序拆解，流水作业，百器速成",
+   "prereq": [
+    "M2_spindle"
+   ],
+   "cost": {
+    "silver": 0,
+    "months": 6,
+    "masters": 0,
+    "idea": true
+   },
+   "effect": {
+    "production": 0.15
+   }
+  },
+  {
+   "id": "X1_standard",
+   "line": "观念与制度",
+   "era": 2,
+   "name": "标准化",
+   "desc": "模件互换，尺寸划一，营造尤便",
+   "prereq": [
+    "X0_assembly"
+   ],
+   "cost": {
+    "silver": 0,
+    "months": 8,
+    "masters": 0,
+    "idea": true
+   },
+   "effect": {
+    "build_cost": -0.12
+   }
+  },
+  {
+   "id": "X2_bookkeeping",
+   "line": "观念与制度",
+   "era": 3,
+   "name": "复式记账",
+   "desc": "出入分账，盈亏立见，财政为之一明",
+   "prereq": [
+    "I3_post"
+   ],
+   "cost": {
+    "silver": 0,
+    "months": 10,
+    "masters": 0,
+    "idea": true
+   },
+   "effect": {
+    "mining_income": 0.1
+   }
+  },
+  {
+   "id": "X3_regulation",
+   "line": "观念与制度",
+   "era": 4,
+   "name": "制式化军械",
+   "desc": "枪械划一，零件可换，士卒易用",
+   "prereq": [
+    "X1_standard",
+    "E3_steel"
+   ],
+   "cost": {
+    "silver": 0,
+    "months": 12,
+    "masters": 0,
+    "idea": true
+   },
+   "effect": {
+    "army_power": 0.15
+   }
+  }
+ ],
+ "building_std": {
+  "水利": {
+   "base_cost": 200000,
+   "effect": "yield_bonus",
+   "maintain": 0.005
+  },
+  "常平仓": {
+   "base_cost": 150000,
+   "effect": "granary_cap",
+   "maintain": 0.005
+  },
+  "官营作坊": {
+   "base_cost": 300000,
+   "effect": "workshop_output",
+   "maintain": 0.005
+  },
+  "官署": {
+   "base_cost": 250000,
+   "effect": "decree_speed",
+   "maintain": 0.005
+  },
+  "军营": {
+   "base_cost": 400000,
+   "effect": "army_power",
+   "maintain": 0.005
+  },
+  "学校": {
+   "base_cost": 180000,
+   "effect": "exam_talent",
+   "maintain": 0.005
+  }
+ },
+ "building_blueprints": {
+  "M2_spindle": {
+   "name": "大纺务",
+   "kind": "纺织",
+   "cost": {
+    "silver": 80000,
+    "months": 12
+   },
+   "effect": {
+    "trade_income": 0.15
+   },
+   "need_node": "M2_spindle"
+  },
+  "M4_furnace": {
+   "name": "铁冶务",
+   "kind": "冶金",
+   "cost": {
+    "silver": 200000,
+    "months": 16
+   },
+   "effect": {
+    "build_cost": -0.1
+   },
+   "need_node": "M4_furnace"
+  },
+  "C1_gunpowder": {
+   "name": "火药局",
+   "kind": "军工",
+   "cost": {
+    "silver": 60000,
+    "months": 8
+   },
+   "effect": {
+    "army_power": 0.1
+   },
+   "need_node": "C1_gunpowder"
+  },
+  "I0_block": {
+   "name": "国子监印书局",
+   "kind": "文化",
+   "cost": {
+    "silver": 50000,
+    "months": 8
+   },
+   "effect": {
+    "exam_talent": 3
+   },
+   "need_node": "I0_block"
+  },
+  "I4_telegraph": {
+   "name": "电报局",
+   "kind": "通讯",
+   "cost": {
+    "silver": 600000,
+    "months": 18
+   },
+   "effect": {
+    "decree_speed": -3
+   },
+   "need_node": "I4_telegraph"
+  },
+  "H2_variola": {
+   "name": "痘苗局",
+   "kind": "医学",
+   "cost": {
+    "silver": 80000,
+    "months": 10
+   },
+   "effect": {
+    "epidemic_risk": -0.3
+   },
+   "need_node": "H2_variola"
+  },
+  "C4_fertilizer": {
+   "name": "肥料局",
+   "kind": "农业",
+   "cost": {
+    "silver": 150000,
+    "months": 12
+   },
+   "effect": {
+    "yield_bonus": 0.15
+   },
+   "need_node": "C4_fertilizer"
+  },
+  "M5_steampump": {
+   "name": "蒸汽矿场",
+   "kind": "矿业",
+   "cost": {
+    "silver": 300000,
+    "months": 16
+   },
+   "effect": {
+    "mining_income": 0.1
+   },
+   "need_node": "M5_steampump"
+  },
+  "M6_loco": {
+   "name": "机器局·铁路",
+   "kind": "交通",
+   "cost": {
+    "silver": 800000,
+    "months": 20
+   },
+   "effect": {
+    "canal_efficiency": 0.3
+   },
+   "need_node": "M6_loco"
+  },
+  "M9_power": {
+   "name": "发电厂",
+   "kind": "能源",
+   "cost": {
+    "silver": 2000000,
+    "months": 24
+   },
+   "effect": {
+    "production": 0.15
+   },
+   "need_node": "M9_power"
+  }
+ },
+ "imperial_locations": [
+  "宫里",
+  "京城",
+  "出京"
+ ],
+ "imperial_modes": [
+  "公开",
+  "微服"
+ ],
+ "imperial_matrix": {
+  "宫里": {
+   "公开": {
+    "临朝": {
+     "label": "史实",
+     "desc": "临朝视事、批阅奏章、召对大臣",
+     "base_cost": 0,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "bandwidth_bonus": 2,
+      "prestige": 3,
+      "emperor_health": -2
+     }
+    },
+    "书画翰墨": {
+     "label": "史实",
+     "desc": "挥毫泼墨、吟诗作画，提升艺术造诣",
+     "base_cost": 0,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "art_mastery": 3,
+      "prestige": 1
+     }
+    },
+    "崇道修醮": {
+     "label": "史实",
+     "desc": "设醮祈福、召见方士，增道门与皇威",
+     "base_cost": 50000,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "taoism_leaning": 4,
+      "faction_change": {
+       "新党": 3
+      }
+     }
+    },
+    "宴游享乐": {
+     "label": "史实",
+     "desc": "大宴群臣、游幸园林，损健康耗国帑",
+     "base_cost": 80000,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "emperor_health": -5,
+      "pleasure_leaning": 4
+     }
+    }
+   },
+   "微服": {}
+  },
+  "京城": {
+   "公开": {
+    "幸艮岳": {
+     "label": "史实",
+     "desc": "游幸艮岳万岁山，御制《艮岳记》（政和七年始筑）",
+     "base_cost": 300000,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": 1117,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "pleasure_leaning": 3,
+      "population_satisfaction": -2
+     }
+    },
+    "延福宫宴游": {
+     "label": "史实",
+     "desc": "延福宫宴游，与近臣赋诗观花（政和三年建）",
+     "base_cost": 150000,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": 1113,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "pleasure_leaning": 2,
+      "art_mastery": 1
+     }
+    },
+    "上清宝箓宫": {
+     "label": "史实",
+     "desc": "幸上清宝箓宫，会道士二千余人（政和七年）",
+     "base_cost": 100000,
+     "fund": "treasury",
+     "risk": "低",
+     "era_gate": 1117,
+     "prep": 0,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "taoism_leaning": 3,
+      "prestige": 1
+     }
+    }
+   },
+   "微服": {
+    "微行市井": {
+     "label": "史实(方向)+合理推演",
+     "desc": "微服夜行汴京街市酒肆（传闻细节为推演）",
+     "base_cost": 20000,
+     "fund": "imperial_treasury",
+     "risk": "高",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": true,
+     "base_effects": {
+      "prestige": -1
+     }
+    },
+    "微行大臣府第": {
+     "label": "史实",
+     "desc": "微服过近臣第宅（《宋史·王黼传》载微行过其家）",
+     "base_cost": 10000,
+     "fund": "imperial_treasury",
+     "risk": "中",
+     "era_gate": null,
+     "prep": 0,
+     "distance": false,
+     "micro_once": true,
+     "base_effects": {
+      "prestige": 1
+     }
+    }
+   }
+  },
+  "出京": {
+   "公开": {
+    "巡幸东南": {
+     "label": "合理推演",
+     "desc": "大驾巡幸东南（正史无成行，标推演）",
+     "base_cost": 500000,
+     "fund": "treasury",
+     "risk": "中",
+     "era_gate": null,
+     "prep": 2,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "prestige": 2,
+      "population_satisfaction": -1
+     }
+    },
+    "东幸镇江": {
+     "label": "史实(避难)",
+     "desc": "金军南下时东幸镇江避兵（靖康元年起）",
+     "base_cost": 300000,
+     "fund": "treasury",
+     "risk": "高",
+     "era_gate": 1126,
+     "prep": 1,
+     "distance": false,
+     "micro_once": false,
+     "base_effects": {
+      "prestige": -5,
+      "population_satisfaction": -3
+     }
+    }
+   },
+   "微服": {
+    "微服他地": {
+     "label": "合理推演",
+     "desc": "微服往他州路察访民情（近当月来回/中备1月/远备2月）",
+     "base_cost": 50000,
+     "fund": "imperial_treasury",
+     "risk": "中",
+     "era_gate": null,
+     "prep": 0,
+     "distance": true,
+     "micro_once": false,
+     "base_effects": {
+      "population_satisfaction": 2
+     }
+    }
+   }
+  }
+ }
+}

@@ -32,7 +32,25 @@ from core.commands_decree import (
 def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
     """创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。"""
     state = GameState(difficulty=difficulty)
-    # 记忆基线（Phase 3a）：图谱存史——开局录大臣/派系/机构/外部政权实体
+    # 开局邸报（参考《明末：捞金模拟器》）：文言局势 + 待办三事，注入 state.opening_gazette
+    try:
+        from content.legacy_gazette import build_opening_gazette
+        state.opening_gazette = build_opening_gazette()
+    except Exception:
+        state.opening_gazette = {}
+    # 帝国修正（legacies）：开局即存在的条件式长期修正符
+    try:
+        from core.legacy_mechanic import init_legacies
+        init_legacies(state)
+    except Exception:
+        state.legacies = {}
+    # 国策树（focus）：五大分支（政务/军事/科学/内卫/税务）
+    try:
+        from core.focus_mechanic import init_focus_tree
+        init_focus_tree(state)
+    except Exception:
+        state.focus_tree = {}
+    # 记忆基线：开局录大臣/派系/机构/外部政权实体
     try:
         g = state.memory
         from content.ministers.data import MINISTERS, CENTRAL_ORG_INFO

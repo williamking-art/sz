@@ -30,6 +30,14 @@ VALID_PATHS: List[str] = [
     "prefectures.*.pops.官僚.wealth", "prefectures.*.pops.兵.wealth",
     "prefectures.*.refugees",
     "factions.*.satisfaction", "factions.*.influence",
+    # ---- 四大机制改良（legacies / focus / 地区深化）----
+    "land.hidden_rate", "land.hidden_households",
+    "waste_reform.active", "waste_reform.savings",
+    "defense_lines.*.fortification", "defense_lines.*.garrison",
+    "legacies.*.active", "legacies.*.progress",
+    "focus.*.unlocked", "focus.*.power_level",
+    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
+    "prefectures.*.city_defense", "prefectures.*.controlled_by",
 ]
 
 # 0-1 范围字段（修改后自动 clamp [0,1]）

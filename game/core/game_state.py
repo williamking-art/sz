@@ -106,6 +106,17 @@ def _init_local_refugees(info: dict) -> int:
     return max(0, base)
 
 
+def _init_city_defense(p_type: str) -> int:
+    """按路类型初始化城防（0~100）：边镇/沿边高，腹里低，京畿最高。"""
+    if p_type in ("京畿路", "京畿"):
+        return 80
+    if p_type in ("边镇路", "沿边路"):
+        return 65
+    if p_type in ("沿江路", "沿海路"):
+        return 50
+    return 40
+
+
 def _clamp(value: float, lo: float, hi: float) -> float:
     """把数值钳制到 [lo, hi] 闭区间（供各粮价/物价计算复用，消除重复 max/min）。"""
     return max(lo, min(hi, value))
@@ -374,6 +385,14 @@ class GameState(GameStateEconMixin):
         self.game_result: str = ""
         self.victory: bool = False
 
+        # ---- 四大机制改良（参考《明末：捞金模拟器》）----
+        # 开局邸报（文言局势 + 待办三事）：new_game 时由 content/legacy_gazette 生成注入
+        self.opening_gazette: dict = {}
+        # 帝国修正（legacies）：开局即存在的条件式长期修正符，带消除条件
+        self.legacies: dict = {}
+        # 国策树（focus）：五大分支（政务/军事/科学/内卫/税务），权力等级 + 互斥 + 解锁建筑
+        self.focus_tree: dict = {}
+
         # ---- 六部衙门 ----
         self.yamen: dict = {}
         for name in YAMEN_LIST:
@@ -445,6 +464,20 @@ class GameState(GameStateEconMixin):
                 # 本路所辖机构分支列表（与 central_orgs[机构]["branches"] 双向索引）
                 "orgs": [],
                 "rename_log": [],
+                # ---- 地区模型深化（参考《明末：捞金模拟器》）----
+                # 控制势力：默认宋；领土争夺时可为"辽/西夏/金/叛军"等
+                "controlled_by": info.get("controlled_by", "宋"),
+                # 民心（0~100）：与 mood 同源，供地区深化结算与展示
+                "public_support": info.get("public_support", info["mood"]),
+                # 士绅抵抗（0~100）：士绅对朝廷政策的抵抗度（清丈/仰兼并时上升）
+                "gentry_resistance": info.get("gentry_resistance",
+                                              max(0, min(100, 100 - int(info["govern"])))),
+                # 城防（0~100）：城防坚固度（边镇高、腹里低）
+                "city_defense": info.get("city_defense",
+                                         _init_city_defense(p_type)),
+                # 财政（贯/月）：地方财政健康度（0~100，基于月税与支出）
+                "fiscal": info.get("fiscal",
+                                   max(0, min(100, round(int(info.get("monthly_tax", 200_000)) / 8000)))),
             }
 
         # 兵额回填到各路 POP：兵 POP.size = 该路 army_units 兵额合计（兵额唯一真账）

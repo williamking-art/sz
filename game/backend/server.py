@@ -115,6 +115,12 @@ class SlotReq(BaseModel):
     slot: int = 1
 
 
+class AiConfigReq(BaseModel):
+    api_key: str = ""
+    base_url: str = ""
+    model: str = ""
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "backend": "python-reference", "has_state": _state is not None}
@@ -130,6 +136,7 @@ def api_new_game(req: NewGameReq):
 
 @app.post("/api/advance")
 def api_advance():
+    global _state
     _require_state()
     with _lock:
         events, log, report, _state = _backend.advance(_state, _get_ai())
@@ -139,6 +146,7 @@ def api_advance():
 
 @app.post("/api/action")
 def api_action(req: ActionReq):
+    global _state
     _require_state()
     with _lock:
         try:
@@ -150,6 +158,7 @@ def api_action(req: ActionReq):
 
 @app.post("/api/resolve_event")
 def api_resolve_event(req: ResolveReq):
+    global _state
     _require_state()
     with _lock:
         message, _state = _backend.resolve_event(
@@ -179,12 +188,101 @@ def api_save_slots():
         return {"slots": _json_safe(_backend.save_slots())}
 
 
+@app.get("/api/readouts")
+def api_readouts():
+    """只读派生读数（军政/会计/仓廪面板用）。
+
+    薄壳纪律：仅调用 GameState 现有方法并序列化，零业务逻辑复制。
+    army_units / central_arsenal 为对象，_state_to_dict 无法序列化，故在此展开。
+    """
+    _require_state()
+    with _lock:
+        s = _state
+        try:
+            s._derive_defense_lines()
+        except Exception:
+            pass
+        army = []
+        for u in getattr(s, "army_units", []) or []:
+            try:
+                army.append({
+                    "unit_id": u.unit_id, "name": u.name, "tier": u.tier,
+                    "branches": dict(u.branches), "troops": u.troops,
+                    "station": u.station, "defense_line": u.defense_line,
+                    "morale": u.morale, "training": u.training,
+                    "equip_rate": round(u.equip_rate(), 3),
+                    "army_name": u.army_name, "org_arm": u.org_arm,
+                    "scale": u.scale, "serial": u.serial,
+                })
+            except Exception:
+                continue
+        arsenal = {}
+        ca = getattr(s, "central_arsenal", None)
+        if ca is not None:
+            arsenal = dict(getattr(ca, "stock", {}) or {})
+        try:
+            finance = _json_safe(s.finance_readout())
+        except Exception:
+            finance = {}
+        try:
+            granary = {
+                "monthly": s.calc_monthly_grain()[0],
+                "army": s.calc_army_grain()[0],
+                "official": s.calc_official_grain()[0],
+                "clerk": s.calc_clerk_grain()[0],
+                "capacity_used": s.granary_capacity_used(),
+            }
+        except Exception:
+            granary = {}
+        return {
+            "army": army,
+            "arsenal": arsenal,
+            "finance": finance,
+            "granary": granary,
+            "defense_lines": _json_safe(s.defense_lines),
+        }
+
+
 @app.post("/api/conclude")
 def api_conclude():
     _require_state()
     with _lock:
         eval_result, ai_eval = _backend.conclude(_state, _get_ai())
         return {"eval": _json_safe(eval_result), "ai_eval": ai_eval}
+
+
+def _ai_config_path() -> str:
+    return os.path.join(_app_root(), "ai_config.json")
+
+
+@app.get("/api/ai_config")
+def api_ai_config_get():
+    """读 AI 配置（设置面板预填；不回传完整 key，只回是否已配）。"""
+    try:
+        with open(_ai_config_path(), "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        key = str(cfg.get("api_key", "") or "")
+        return {
+            "configured": bool(key),
+            "api_key_masked": (key[:4] + "…" + key[-4:]) if len(key) > 8 else "",
+            "base_url": str(cfg.get("base_url", "") or ""),
+            "model": str(cfg.get("model", "") or ""),
+        }
+    except Exception:
+        return {"configured": False, "api_key_masked": "", "base_url": "", "model": ""}
+
+
+@app.post("/api/ai_config")
+def api_ai_config_set(req: AiConfigReq):
+    """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。"""
+    global _ai
+    with _lock:
+        cfg = {"api_key": req.api_key, "base_url": req.base_url, "model": req.model}
+        with open(_ai_config_path(), "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        _ai = None  # 下次 _get_ai() 重建
+        client = _get_ai()
+        return {"ok": True, "available": bool(getattr(client, "available", False))}
 
 
 def main() -> None:

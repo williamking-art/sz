@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 宋祚 · 宋式水墨宣纸主题 token —— 色彩权威与 game/ui/theme.py 一致
+   宣纸 #f6ecd6 / 朱红 #8a2b22 / 深褐 #2b1d12 / 描金 #caa24a / 卡片 #fffaf0 */
+:root {
+  --paper: #f6ecd6;
+  --paper-dark: #efe2c4;
+  --ink: #2b1d12;
+  --ink-light: #5a4a3a;
+  --red: #8a2b22;
+  --red-dark: #7a1f1f;
+  --gold: #caa24a;
+  --gold-light: #e8d49c;
+  --gold-dark: #8f6e28;
+  --card: #fffaf0;
+  --kai: "KaiTi", "STKaiti", "楷体", "SimKai", serif;
+  --sans: "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+/* 宣纸质感底纹 */
+.paper-texture {
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(202, 162, 74, 0.05), transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(138, 43, 34, 0.04), transparent 55%);
+}
+
+/* 滚动条宋式化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dark);
+}
+
+/* MapLibre 控件宋式化 */
+.maplibregl-ctrl-group {
+  background: var(--card);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(43, 29, 18, 0.2);
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  border: none !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--gold-light) !important;
+}
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: sepia(0.6) saturate(1.6) hue-rotate(-12deg) brightness(0.75);
+}
+.maplibregl-ctrl button:hover {
+  background-color: var(--gold-light) !important;
+}
+.maplibregl-ctrl-scale {
+  background: rgba(255, 250, 240, 0.85);
+  border: 1px solid var(--gold);
+  color: var(--ink);
+  font: 11px var(--sans);
+  border-radius: 2px;
+}
+
+/* HTML 标签 Marker（无 glyphs，全部 DOM 标签） */
+.lbl {
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.lbl-hidden {
+  display: none;
+}
+.lbl-regime {
+  font-family: var(--kai);
+  font-size: 21px;
+  letter-spacing: 6px;
+  color: var(--ink);
+  text-shadow: 0 0 3px var(--paper), 0 0 6px var(--paper), 0 0 2px var(--paper);
+}
+.lbl-regime.off {
+  color: #8d8471;
+  opacity: 0.75;
+}
+.lbl-circuit {
+  font-family: var(--kai);
+  font-size: 12.5px;
+  letter-spacing: 2px;
+  color: var(--gold-dark);
+  text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
+}
+.lbl-city {
+  font-family: var(--kai);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--ink-light);
+  text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
+}
+.lbl-city.seat {
+  font-size: 13px;
+  color: var(--red-dark);
+  font-weight: bold;
+}
+.lbl-city.jingfu {
+  font-size: 15px;
+  letter-spacing: 2px;
+}
+.lbl-city:hover,
+.lbl-circuit:hover,
+.lbl-regime:hover {
+  color: var(--red);
+}
+
+/* 选中治所的呼吸光环 */
+.pulse {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  box-shadow: 0 0 0 rgba(138, 43, 34, 0.55);
+  animation: sz-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes sz-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 自定义朱印标注 */
+.seal-mk {
+  pointer-events: auto;
+  text-align: center;
+  cursor: default;
+}
+.seal-mk .sq {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  background: var(--red);
+  border: 1.5px solid var(--gold);
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(43, 29, 18, 0.4);
+}
+.seal-mk .sq.warn {
+  background: var(--gold-dark);
+}
+.seal-mk .tx {
+  margin-top: 3px;
+  font-family: var(--kai);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--red-dark);
+  text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
+  white-space: nowrap;
+}

@@ -55,8 +55,15 @@ Thumbs.db
 
 # --- 第三方框架 / 包管理器缓存 / 本地工具（未纳入版本管理） ---
 deepseek-harness-master/
-.pnpm-store/
+node_modules/
 tools/
+
+# --- Electron 前端构建产物 / 客户端工作区数据 ---
+game/frontend/out/
+game/frontend/dist/
+game/frontend/release/
+*.tsbuildinfo
+.zcode/
 
 # --- 开发工具（仅专家团目录入库，其余开发脚本不参与版本管理） ---
 _dev_tools/*
@@ -147,3 +154,5 @@ _schedule_restart.mjs
 /tmp/
 /.worktrees/
 /worktrees/
+# --- 顶层意外生成的空 lock(前端 lock 在 game/frontend/) ---
+/package-lock.json

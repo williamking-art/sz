@@ -125,8 +125,17 @@ class PanelsEconomyMixin:
         p = self.state.prefectures[pref_name]
         card = self._card(inner)
         card.pack(fill="x", padx=10, pady=4)
+        # 地区深化字段（民心/士绅抵抗/城防/财政/控制势力），旧档缺省兼容
+        _support = int(p.get("public_support", p.get("mood", 50)))
+        _gentry = int(p.get("gentry_resistance", 30))
+        _defense = int(p.get("city_defense", 40))
+        _fiscal = int(p.get("fiscal", 50))
+        _ctrl = p.get("controlled_by", "宋")
         self._label(card, (f"户数：{humanize_households(p['households'])}\n垦田：{humanize_land(p['land'])}\n粮产：{humanize_grain(p['grain'])}\n"
-                           f"民情：{_bar(int(p['mood']),20)} {p['mood']}\n治理：{_bar(int(p['govern']),20)} {p['govern']}"),
+                           f"民情：{_bar(int(p['mood']),20)} {p['mood']}\n治理：{_bar(int(p['govern']),20)} {p['govern']}\n"
+                           f"民心：{_bar(_support,20)} {_support}\n士绅抵抗：{_bar(_gentry,20)} {_gentry}\n"
+                           f"城防：{_bar(_defense,20)} {_defense}\n财政：{_bar(_fiscal,20)} {_fiscal}\n"
+                           f"控制势力：{_ctrl}"),
                     fg=INK, bg=CARD, font=self._font(SANS, 11), anchor="w").pack(anchor="w", padx=16, pady=12)
         self._label(inner, "地方之政（劝农、赈灾、平盗、减税等）请经「拟旨」系统拟诏施行，效果由中枢推演落地。",
                     fg=DIM, bg=PAPER, font=self._font(SANS, 10), anchor="w").pack(padx=12, pady=10)
@@ -145,7 +154,12 @@ class PanelsEconomyMixin:
         lines.append("【诸路概要】")
         for name in PREFECTURE_LIST:
             p = s.prefectures[name]
-            lines.append(f"  {name}：{humanize_households(p['households'])} {humanize_land(p['land'])} 粮{humanize_grain(p['grain'])} 民情{p['mood']}")
+            _support = int(p.get("public_support", p.get("mood", 50)))
+            _gentry = int(p.get("gentry_resistance", 30))
+            _defense = int(p.get("city_defense", 40))
+            _ctrl = p.get("controlled_by", "宋")
+            lines.append(f"  {name}：{humanize_households(p['households'])} {humanize_land(p['land'])} 粮{humanize_grain(p['grain'])} "
+                         f"民情{p['mood']} 民心{_support} 士绅{_gentry} 城防{_defense} 属{_ctrl}")
         # POP 人口分层（维多利亚式六类）：人数（万）
         lines.append("")
         lines.append("【诸路 POP 人口】（万：农/绅/工/商/官/兵）")
