@@ -39,6 +39,9 @@ export interface Selected {
   name: string;
   source?: string;
   id?: string;
+  props?: Record<string, unknown>;
+  feature?: GeoJSON.Feature;
+  coordinate?: [number, number];
 }
 
 // store 状态形状（区别于后端 GameState 快照）

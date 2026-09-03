@@ -10,22 +10,22 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
 
   const rows: [string, string][] = [];
   if (kind === "city") {
-    rows.push(["等级", str(p.level)]);
-    rows.push(["所属路", str(p.circuit)]);
-    rows.push(["职任", p.is_seat ? "路治所" : "属城"]);
-    rows.push(["辖属", str(p.game_unit)]);
-  } else if (kind === "circuit") {
-    rows.push(["类型", str(p.type)]);
-    rows.push(["治所", str(p.seat)]);
-    rows.push(["属城", str(p.member_count)]);
-    rows.push(["辖属", str(p.game_unit)]);
-  } else if (kind === "sub") {
-    rows.push(["所属政权", str(p.parent)]);
-    rows.push(["治所", str(p.seat)]);
-    rows.push(["归属", str(p.owner || p.parent)]);
+    rows.push(["等级", str(p.level) || (p.is_seat ? "府城" : "州城")]);
+    rows.push(["所属路分", str(p.circuit)]);
+    rows.push(["职任", p.is_seat ? "路道治所" : "属城"]);
+    if (p.game_unit) rows.push(["辖区经济", str(p.game_unit)]);
+  } else if (kind === "circuit" || kind === "sub") {
+    if (p.type) rows.push(["类型", str(p.type)]);
+    if (p.seat) rows.push(["治所府城", str(p.seat)]);
+    if (p.member_count) rows.push(["辖属州府", `${p.member_count} 州/府`]);
+    if (p.owner || p.parent || (p.name && p.name !== name)) {
+      rows.push(["所属势力", str(p.owner || p.parent || p.name)]);
+    }
+    if (p.game_unit) rows.push(["辖属经济", str(p.game_unit)]);
   } else {
-    rows.push(["状态", p.active ? "在位" : "未兴"]);
-    rows.push(["主号", str(p.owner)]);
+    rows.push(["状态", p.active ? "活跃" : "中立/未兴"]);
+    if (p.owner) rows.push(["所属主号", str(p.owner)]);
+    if (p.province && p.province !== name) rows.push(["省道区域", str(p.province)]);
   }
 
   return (

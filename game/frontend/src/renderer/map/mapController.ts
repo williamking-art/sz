@@ -116,23 +116,82 @@ export class MapController {
 
   private bindEvents(): void {
     if (!this.map) return;
-    this.map.on("click", LAYER_IDS.circuits, (e) => {
-      const f = e.features?.[0];
-      if (f) this.onSelect({ kind: "circuit", name: String(f.properties?.name ?? ""), id: String(f.id ?? "") });
-    });
-    this.map.on("click", LAYER_IDS.regimes, (e) => {
-      const f = e.features?.[0];
-      if (f) this.onSelect({ kind: "regime", name: String(f.properties?.name ?? ""), id: String(f.id ?? "") });
-    });
+
+    // 1. 点击城市（府州治所/属城）
     this.map.on("click", LAYER_IDS.cities, (e) => {
       const f = e.features?.[0];
-      if (f) this.onSelect({ kind: "city", name: String(f.properties?.name ?? ""), id: String(f.id ?? "") });
+      if (!f) return;
+      const props = (f.properties || {}) as Record<string, unknown>;
+      const geom = f.geometry as any;
+      const coord: [number, number] | undefined =
+        geom && geom.type === "Point" && Array.isArray(geom.coordinates)
+          ? [geom.coordinates[0], geom.coordinates[1]]
+          : undefined;
+
+      this.onSelect({
+        kind: "city",
+        name: String(props.name || ""),
+        id: String(f.id ?? ""),
+        props,
+        feature: f as unknown as GeoJSON.Feature,
+        coordinate: coord,
+      });
     });
-    // 光标
-    this.map.on("mouseenter", LAYER_IDS.circuits, () => this.map!.getCanvas().style.cursor = "pointer");
-    this.map.on("mouseleave", LAYER_IDS.circuits, () => this.map!.getCanvas().style.cursor = "");
-    this.map.on("mouseenter", LAYER_IDS.cities, () => this.map!.getCanvas().style.cursor = "pointer");
-    this.map.on("mouseleave", LAYER_IDS.cities, () => this.map!.getCanvas().style.cursor = "");
+
+    // 2. 点击宋路政区
+    this.map.on("click", LAYER_IDS.circuits, (e) => {
+      // 若同一点同时命中了城市点，优先响应城市点击
+      const cityHits = this.map!.queryRenderedFeatures(e.point, { layers: [LAYER_IDS.cities] });
+      if (cityHits.length > 0) return;
+
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = (f.properties || {}) as Record<string, unknown>;
+      this.onSelect({
+        kind: "circuit",
+        name: String(props.name || ""),
+        id: String(f.id ?? ""),
+        props,
+        feature: f as unknown as GeoJSON.Feature,
+        coordinate: [e.lngLat.lng, e.lngLat.lat],
+      });
+    });
+
+    // 3. 点击政权/道省（辽五京道、西夏道、境外势力）
+    this.map.on("click", LAYER_IDS.regimes, (e) => {
+      const cityHits = this.map!.queryRenderedFeatures(e.point, { layers: [LAYER_IDS.cities] });
+      if (cityHits.length > 0) return;
+      const circuitHits = this.map!.queryRenderedFeatures(e.point, { layers: [LAYER_IDS.circuits] });
+      if (circuitHits.length > 0) return;
+
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = (f.properties || {}) as Record<string, unknown>;
+      const prov = String(props.province || "");
+      const rname = String(props.name || "");
+      // 如果属于辽道或夏道分省，以道名为卡片名
+      const isRoad = !!prov && prov !== rname;
+      const title = isRoad ? prov : (rname || prov || "无主省份");
+
+      this.onSelect({
+        kind: isRoad ? "sub" : "regime",
+        name: title,
+        id: String(f.id ?? ""),
+        props,
+        feature: f as unknown as GeoJSON.Feature,
+        coordinate: [e.lngLat.lng, e.lngLat.lat],
+      });
+    });
+
+    // 光标手型
+    for (const lid of [LAYER_IDS.circuits, LAYER_IDS.regimes, LAYER_IDS.cities]) {
+      this.map.on("mouseenter", lid, () => {
+        if (this.map) this.map.getCanvas().style.cursor = "pointer";
+      });
+      this.map.on("mouseleave", lid, () => {
+        if (this.map) this.map.getCanvas().style.cursor = "";
+      });
+    }
   }
 
   // 一次性注入全部图层数据（由 MapView 加载/解码后调用）

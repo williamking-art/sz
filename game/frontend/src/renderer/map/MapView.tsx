@@ -45,8 +45,24 @@ export default function MapView() {
       view: DEFAULT_VIEW,
       onSelect: (sel) => {
         setSelected(sel);
-        // 点选治所/路/政权 → 弹出详情卡
-        pushOverlay({ kind: "detail", title: sel.name, props: { ...sel } });
+        // 1. 高亮朱红描边
+        if (controllerRef.current) {
+          controllerRef.current.highlightSelected(sel.feature ?? null);
+        }
+        // 2. 治所/城池激发朱红呼吸光环
+        if (markersRef.current && sel.coordinate) {
+          markersRef.current.pulseAt(sel.coordinate);
+        }
+        // 3. 弹出全属性详情卡 (props.props 完整透传)
+        pushOverlay({
+          kind: "detail",
+          title: sel.name,
+          props: {
+            kind: sel.kind,
+            name: sel.name,
+            props: sel.props || {},
+          },
+        });
       },
       onMapReady: () => {
         controllerRef.current = controller;
@@ -216,8 +232,64 @@ export default function MapView() {
   }
 
   function selectFeature(kind: string, name: string) {
-    setSelected({ kind, name });
-    pushOverlay({ kind: "detail", title: name, props: { kind, name } });
+    const data = dataRef.current;
+    let foundFeature: GeoJSON.Feature | undefined;
+    let foundProps: Record<string, unknown> = {};
+    let foundCoord: [number, number] | undefined;
+
+    if (data) {
+      if (kind === "city") {
+        const f = data.cities.features.find((c) => c.properties?.name === name);
+        if (f) {
+          foundFeature = f;
+          foundProps = (f.properties || {}) as Record<string, unknown>;
+          const g = f.geometry as any;
+          if (g && g.type === "Point" && Array.isArray(g.coordinates)) {
+            foundCoord = [g.coordinates[0], g.coordinates[1]];
+          }
+        }
+      } else if (kind === "circuit") {
+        // 先查宋路
+        let f = data.circuits.features.find((c) => c.properties?.name === name);
+        // 再查辽道/夏道
+        if (!f) {
+          f = data.regimes.features.find((r) => r.properties?.province === name);
+        }
+        if (f) {
+          foundFeature = f;
+          foundProps = (f.properties || {}) as Record<string, unknown>;
+          foundCoord = centerOf(f);
+        }
+      } else if (kind === "regime") {
+        const f = data.regimes.features.find((r) => r.properties?.name === name);
+        if (f) {
+          foundFeature = f;
+          foundProps = (f.properties || {}) as Record<string, unknown>;
+          foundCoord = centerOf(f);
+        }
+      }
+    }
+
+    const sel = {
+      kind,
+      name,
+      props: foundProps,
+      feature: foundFeature,
+      coordinate: foundCoord,
+    };
+
+    setSelected(sel);
+    if (controllerRef.current) {
+      controllerRef.current.highlightSelected(foundFeature ?? null);
+    }
+    if (markersRef.current && foundCoord) {
+      markersRef.current.pulseAt(foundCoord);
+    }
+    pushOverlay({
+      kind: "detail",
+      title: name,
+      props: { kind, name, props: foundProps },
+    });
   }
 
   // 状态同步：active/hidden/sub_owners/markers/focus/select
