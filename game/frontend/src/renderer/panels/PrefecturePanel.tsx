@@ -27,12 +27,29 @@ function SectionTitle({ text }: { text: string }) {
   return <p className="font-kai text-[15px] font-bold tracking-[0.3em] text-red">{text}</p>;
 }
 
+// 映射别名与邻路归属到 12 大经济单位
+function resolveRoadKey(name?: string | null): string | null {
+  if (!name) return null;
+  const direct = PREFECTURE_LIST.find((k) => k === name);
+  if (direct) return direct;
+  const clean = name.replace(/路|府$/g, "");
+  const fuzzy = PREFECTURE_LIST.find((k) => k.includes(clean) || clean.includes(k.replace(/路|府$/g, "")));
+  if (fuzzy) return fuzzy;
+  if (name.includes("京畿") || name.includes("开封")) return "东京开封府";
+  if (name.includes("河东")) return "河东";
+  if (name.includes("淮南")) return "江南东路"; // 淮南随邻近江南东路账册
+  if (name.includes("广南西")) return "广南东路"; // 广南西随广南东路
+  if (name.includes("利州") || name.includes("夔州")) return "成都府路"; // 川峡随成都府
+  if (name.includes("京东")) return "京西路"; // 京东随京西
+  return null;
+}
+
 export default function PrefecturePanel({ props }: { props?: { picked?: string } }) {
   const state = useGameStore((s) => s.state);
-  const initialRoad = typeof props?.picked === "string" ? props.picked : null;
-  const [view, setView] = useState<"list" | "detail" | "land">(initialRoad ? "detail" : "list");
+  const targetRoad = resolveRoadKey(props?.picked);
+  const [view, setView] = useState<"list" | "detail" | "land">(targetRoad ? "detail" : "list");
   const [picked, setPicked] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(initialRoad);
+  const [selected, setSelected] = useState<string | null>(targetRoad);
 
   if (!state) {
     return <p className="py-10 text-center text-dim">尚未开局，无州县可览。</p>;
