@@ -3,6 +3,7 @@ import { Loader2, User, Swords } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import constants from "../data/constants.json";
+import codexData from "../data/codex.json";
 
 // 群臣名录 —— 对齐 game/ui/panels_govern.py::_panel_yamen（L1498）
 // 三段卡片网格：宰执（跟人：占尚书左/右仆射者所属派系）/ 派系领袖 / 六部尚书。
@@ -40,14 +41,11 @@ function SectionTitle({ text }: { text: string }) {
 
 export default function MinistersPanel() {
   const state = useGameStore((s) => s.state);
+  const [tab, setTab] = useState<"cabinet" | "all">("cabinet");
   const [dialogue, setDialogue] = useState<{ minister: string; role: string } | null>(null);
 
-  if (!state) {
-    return <p className="py-10 text-center text-dim">尚未开局，无群臣可览。</p>;
-  }
-
-  const factions = asDict(pick(state, "factions", {}));
-  const yamen = asDict(pick(state, "yamen", {}));
+  const factions = state ? asDict(pick(state, "factions", {})) : {};
+  const yamen = state ? asDict(pick(state, "yamen", {})) : {};
   const centralOrgs = asDict(pick(state, "central_orgs", {}));
 
   // 宰执派系（跟人）：占尚书左/右仆射者所属派系
@@ -100,11 +98,106 @@ export default function MinistersPanel() {
     };
   });
 
+  const allMinisters = (codexData.minister || []) as any[];
+
   return (
-    <div className="space-y-5">
-      <p className="px-1 text-sm leading-relaxed text-dim">
-        朝堂臣工，各有职司；召见入对，垂询天下。凡施政诏令，皆由圣旨推演。
-      </p>
+    <div className="space-y-4">
+      {/* 顶部模式切换 Tab */}
+      <div className="flex items-center justify-between border-b border-gold/40 pb-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab("cabinet")}
+            className={`rounded px-3 py-1 font-kai text-sm transition ${
+              tab === "cabinet"
+                ? "bg-red text-paper shadow-sm"
+                : "bg-paper/70 text-ink hover:bg-gold-light/40"
+            }`}
+          >
+            宰执三省
+          </button>
+          <button
+            onClick={() => setTab("all")}
+            className={`rounded px-3 py-1 font-kai text-sm transition ${
+              tab === "all"
+                ? "bg-red text-paper shadow-sm"
+                : "bg-paper/70 text-ink hover:bg-gold-light/40"
+            }`}
+          >
+            朝野列卿 ({allMinisters.length}人)
+          </button>
+        </div>
+        <p className="text-xs text-dim font-kai">
+          {tab === "cabinet" ? "尚书省/枢密院/六部现任长官" : "北宋建中靖国年间在朝与在野名臣全览"}
+        </p>
+      </div>
+
+      {tab === "all" ? (
+        /* 全景列卿名录 */
+        <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-1">
+          {allMinisters.map((m) => {
+            const inOffice = m.sub === "在朝";
+            const faction = m.fields?.find((f: any) => f[0] === "派系")?.[1] || "—";
+            const role = m.fields?.find((f: any) => f[0] === "职司")?.[1] || "—";
+            const traits = m.fields?.find((f: any) => f[0] === "性情")?.[1] || "";
+            return (
+              <div
+                key={m.key}
+                className="group relative flex flex-col justify-between rounded-[3px] border border-border bg-card p-3 shadow-paper transition hover:border-gold hover:bg-gold-light/20"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-kai text-base font-bold text-ink">{m.name}</span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-kai ${
+                        inOffice ? "bg-red/10 text-red-dark border border-red/30" : "bg-paper text-dim"
+                      }`}
+                    >
+                      {m.sub}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-ink-light">
+                    <span className="text-dim">派系：</span>{faction}
+                  </div>
+                  <div className="text-xs text-ink-light truncate" title={role}>
+                    <span className="text-dim">职任：</span>{role}
+                  </div>
+                  {traits && (
+                    <div className="mt-1 text-[11px] text-dim truncate" title={traits}>
+                      性情：{traits}
+                    </div>
+                  )}
+                  {m.desc && (
+                    <p className="mt-2 text-xs leading-relaxed text-ink/80 line-clamp-2 text-justify font-kai bg-paper/40 p-1.5 rounded">
+                      {m.desc}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-border/40 flex justify-end">
+                  <button
+                    onClick={() => setDialogue({ minister: m.name, role })}
+                    className="flex items-center gap-1 rounded bg-red/90 px-3 py-1 font-kai text-xs tracking-wider text-paper transition hover:bg-red-dark"
+                  >
+                    <User size={12} /> 召见问策
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* 原有内阁与六部网格 */
+        <div className="space-y-5">
+          {!state ? (
+            <div className="rounded border border-gold/40 bg-card p-8 text-center">
+              <p className="font-kai text-base text-ink">尚未建立新朝开局，中枢职司虚位以待。</p>
+              <p className="mt-1 font-kai text-xs text-dim">请在上方切换【朝野列卿】浏览北宋名臣档案，或于朝堂开启新局。</p>
+            </div>
+          ) : (
+            <>
+              <p className="px-1 text-sm leading-relaxed text-dim">
+                朝堂臣工，各有职司；召见入对，垂询天下。凡施政诏令，皆由圣旨推演。
+              </p>
 
       {/* 宰执 */}
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
@@ -135,6 +228,10 @@ export default function MinistersPanel() {
           ))}
         </div>
       </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 召对浮层（内联展开） */}
       {dialogue && (
