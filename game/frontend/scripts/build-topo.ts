@@ -15,7 +15,7 @@ const SRC = resolve(__dirname, "../../assets/map/web");
 const DST = resolve(__dirname, "../public/map");
 
 // 需拓扑化的政区/势力（多边形）
-const TOPO_LAYERS = ["circuits", "regimes", "circuit_borders"];
+const TOPO_LAYERS = ["circuits", "regimes", "circuit_borders", "regime_borders"];
 // 保持 geojson 平移的图层
 const COPY_LAYERS = ["land", "rivers", "lakes", "cities"];
 

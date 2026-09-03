@@ -19,6 +19,7 @@ const DEFAULT_VIEW: MapViewData = {
 interface GeoData {
   circuits: GeoJSON.FeatureCollection;
   regimes: GeoJSON.FeatureCollection;
+  regime_borders: GeoJSON.FeatureCollection;
   cities: GeoJSON.FeatureCollection;
   land: GeoJSON.FeatureCollection;
   rivers: GeoJSON.FeatureCollection;
@@ -87,10 +88,11 @@ export default function MapView() {
       const circuits = feature(topo, topo.objects.circuits) as GeoJSON.FeatureCollection;
       const regimes = feature(topo, topo.objects.regimes) as GeoJSON.FeatureCollection;
       const borders = feature(topo, topo.objects.circuit_borders) as GeoJSON.FeatureCollection;
+      const regime_borders_fc = feature(topo, topo.objects.regime_borders) as GeoJSON.FeatureCollection;
 
-      const data: GeoData = { land, lakes, rivers, circuits, regimes, cities, borders };
+      const data: GeoData = { land, lakes, rivers, circuits, regimes, regime_borders: regime_borders_fc, cities, borders };
       // 预分配稳定 feature id（feature-state 依赖）
-      for (const fc of [circuits, regimes, cities, land, rivers, lakes, borders]) {
+      for (const fc of [circuits, regimes, regime_borders_fc, cities, land, rivers, lakes, borders]) {
         fc.features.forEach((f, j) => { f.id = j; });
       }
       dataRef.current = data;

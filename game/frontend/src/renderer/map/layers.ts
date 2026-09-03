@@ -41,6 +41,7 @@ export const LAYER_IDS = {
   circuits: "circuits",
   circuitBorders: "circuit-borders",
   regimes: "regimes",
+  regimeBorders: "regime-borders",
   cities: "cities",
   selected: "selected"
 } as const;
@@ -110,6 +111,13 @@ export function buildLayerDefs() {
         "fill-color": ["coalesce", ["get", "fill"], THEME.cRegime],
         "fill-opacity": 0.6
       }
+    },
+    // 逐省政权的省界线(内部结构,消除"大简单几何体"观感)
+    {
+      id: LAYER_IDS.regimeBorders,
+      type: "line" as const,
+      source: "regime_borders",
+      paint: { "line-color": THEME.goldDark, "line-width": 1.2, "line-opacity": 0.5 }
     },
     // 城市（治所/属城）
     {
