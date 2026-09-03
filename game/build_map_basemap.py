@@ -27,7 +27,7 @@ import os
 import sys
 
 from shapely.geometry import box, mapping, shape
-from shapely.ops import unary_union
+from shapely.ops import linemerge, unary_union
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 if BASE not in sys.path:
@@ -185,6 +185,12 @@ def build_circuits() -> None:
     out = []
     for name, geoms in by.items():
         u = unary_union(geoms).buffer(0)
+        # 相邻地级面边界数字化不重合,union 后 boundary 仍被切成 200+ 碎段,
+        # 渲染成点划线:先膨胀收缩闭微缝(约 +-150m,路界无感),再 linemerge 串段
+        u = u.buffer(0.0015).buffer(-0.0015)
+        boundary = u.boundary
+        if boundary.geom_type == "MultiLineString":
+            boundary = linemerge(boundary)
         at = u.representative_point()
         info = CIRCUIT_INFO.get(name, {})
         out.append({
@@ -195,7 +201,7 @@ def build_circuits() -> None:
                 "type": info.get("type", ""),
                 "label_at": [round(at.x, 4), round(at.y, 4)],
             },
-            "geometry": mapping(u.boundary),
+            "geometry": mapping(boundary),
         })
     _save_web("circuit_borders.geojson",
               {"type": "FeatureCollection", "features": out})
