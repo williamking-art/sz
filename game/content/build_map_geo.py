@@ -153,6 +153,18 @@ def regime_part_features() -> list[dict[str, object]]:
                         cnm = str(c["properties"]["name"])
                         if cities == "*" or cnm in cities:
                             geoms.append(shape(c["geometry"]).buffer(0))
+                # 若为南京道，将廊坊北三县(三河/大厂/香河)并入辽国幽燕腹心
+                if rname == "南京道":
+                    hebei_fn = os.path.join(raw_dir, "datav_130000_full.json")
+                    with open(hebei_fn, encoding="utf-8") as fh:
+                        hbf = json.load(fh)["features"]
+                    for c in hbf:
+                        if c["properties"].get("name") == "廊坊市":
+                            cg = shape(c["geometry"])
+                            if cg.geom_type == "MultiPolygon":
+                                for poly in cg.geoms:
+                                    if poly.centroid.y > 39.62:
+                                        geoms.append(poly.buffer(0))
                 if geoms:
                     merged = unary_union(geoms).buffer(0)
                     road_base = dict(base)

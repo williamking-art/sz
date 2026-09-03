@@ -173,6 +173,13 @@ def build_circuits() -> None:
             g = shape(f["geometry"])
             if g.is_empty:
                 continue
+
+            # 剔除廊坊北三县飞地(北纬 > 39.62°，位于北京与天津之间辽国南京道腹心)
+            if f["properties"].get("name") == "廊坊市" and g.geom_type == "MultiPolygon":
+                from shapely.geometry import MultiPolygon
+                south_parts = [poly for poly in g.geoms if poly.centroid.y <= 39.62]
+                if south_parts:
+                    g = south_parts[0] if len(south_parts) == 1 else MultiPolygon(south_parts)
             hit = _nearest_circuit(g.centroid, seeds)
             if hit is None:
                 hit = FORCE_CIRCUIT.get(f["properties"].get("name", ""))
@@ -190,7 +197,7 @@ def build_circuits() -> None:
                     "member_count": len(info.get("members", [])),
                     "prefecture": f["properties"].get("name", ""),
                 },
-                "geometry": f["geometry"],
+                "geometry": mapping(g),
             })
     _save_web("circuits.geojson",
               {"type": "FeatureCollection", "features": feats})
