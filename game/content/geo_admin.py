@@ -332,6 +332,18 @@ REGIME_GEO: dict = {
     "高昌回鹘": {"name": "高昌回鹘", "active": True, "owner": "高昌回鹘", "label_at": [89.8, 42.9],
              "use_parts": True,
              "note": "东部天山；政区归属玩法抽象，史实边界待考"},
+    "身毒": {"name": "身毒", "active": True, "owner": "身毒", "label_at": [79.0, 22.5],
+           "use_parts": True, "note": "印度诸王国；天竺古称"},
+    "蒲甘": {"name": "蒲甘", "active": True, "owner": "蒲甘", "label_at": [95.0, 21.0],
+           "use_parts": True, "note": "缅甸蒲甘王国"},
+    "大越": {"name": "大越", "active": True, "owner": "大越", "label_at": [105.5, 20.8],
+           "use_parts": True, "note": "安南李朝/交趾"},
+    "占婆": {"name": "占婆", "active": True, "owner": "占婆", "label_at": [108.5, 13.8],
+           "use_parts": True, "note": "占城国，占城稻原产地"},
+    "吴哥": {"name": "吴哥", "active": True, "owner": "吴哥", "label_at": [104.8, 12.5],
+           "use_parts": True, "note": "高棉帝国/真腊"},
+    "罗斛": {"name": "罗斛", "active": True, "owner": "罗斛", "label_at": [100.5, 15.0],
+           "use_parts": True, "note": "暹罗/素可泰前身"},
 }
 
 # ============================================================
@@ -347,6 +359,12 @@ REGIME_COLORS: dict = {
     "日本": "#d3aca4",      # 灰樱
     "喀尔喀蒙古": "#c6b393",  # 驼
     "琉球": "#c2b2a0",
+    "身毒": "#cfb997",       # 檀木褐金
+    "蒲甘": "#c2a688",       # 黄土褐
+    "大越": "#9fae9d",       # 青瓷绿
+    "占婆": "#c7a38f",       # 肉褐赤
+    "吴哥": "#b8ab93",       # 洞里萨灰绿
+    "罗斛": "#d2be92",       # 金稻黄
     "喀喇汗": "#b39d7e",     # 灰驼褐(西域)
     "高昌回鹘": "#d8c49a",   # 沙金(东部天山)
 }
@@ -431,6 +449,30 @@ REGIME_PARTS: dict = {
     },
     "琉球": {
         "provinces": ["台湾省"],
+    },
+    "身毒": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["India"]},
+        "merge": True,
+    },
+    "蒲甘": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["Myanmar"]},
+        "merge": True,
+    },
+    "大越": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["Vietnam"], "sub_admin": "大越"},
+        "merge": True,
+    },
+    "占婆": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["Vietnam"], "sub_admin": "占婆"},
+        "merge": True,
+    },
+    "吴哥": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["Cambodia"]},
+        "merge": True,
+    },
+    "罗斛": {
+        "union_external": {"file": "ne_admin1_ext.json", "admin": ["Thailand"]},
+        "merge": True,
     },
 }
 
