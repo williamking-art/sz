@@ -121,13 +121,12 @@ body {
   text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
 }
 .lbl-city.seat {
-  font-size: 13px;
-  color: var(--red-dark);
-  font-weight: bold;
+  font-size: 12px;
+  color: var(--ink-light);
 }
 .lbl-city.jingfu {
-  font-size: 15px;
-  letter-spacing: 2px;
+  font-size: 13px;
+  letter-spacing: 1.5px;
 }
 .lbl-city:hover,
 .lbl-circuit:hover,
