@@ -104,7 +104,7 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
     case "personal":
       return <PersonalPanel />;
     case "prefecture":
-      return <PrefecturePanel />;
+      return <PrefecturePanel props={item.props as any} />;
     case "granary":
       return <GranaryPanel />;
     case "accounting":

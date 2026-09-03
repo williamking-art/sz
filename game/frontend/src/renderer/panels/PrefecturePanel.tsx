@@ -27,11 +27,12 @@ function SectionTitle({ text }: { text: string }) {
   return <p className="font-kai text-[15px] font-bold tracking-[0.3em] text-red">{text}</p>;
 }
 
-export default function PrefecturePanel() {
+export default function PrefecturePanel({ props }: { props?: { picked?: string } }) {
   const state = useGameStore((s) => s.state);
-  const [view, setView] = useState<"list" | "detail" | "land">("list");
+  const initialRoad = typeof props?.picked === "string" ? props.picked : null;
+  const [view, setView] = useState<"list" | "detail" | "land">(initialRoad ? "detail" : "list");
   const [picked, setPicked] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialRoad);
 
   if (!state) {
     return <p className="py-10 text-center text-dim">尚未开局，无州县可览。</p>;

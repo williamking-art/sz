@@ -1,5 +1,9 @@
+import { useGameStore } from "../store/gameStore";
+import { Scroll, Landmark, Search } from "lucide-react";
+
 // 舆图要素详情卡：城池/诸路/政权/分路
 export default function DetailPanel({ props }: { props?: Record<string, unknown> }) {
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
   const kind = typeof props?.kind === "string" ? props.kind : "";
   const name = typeof props?.name === "string" ? props.name : "";
   const p = (props?.props as Record<string, unknown>) || {};
@@ -44,6 +48,51 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
           {str(p.note)}
         </div>
       )}
+
+      {/* 治国施政与巡幸操作区 */}
+      <div className="pt-2 flex flex-col gap-2">
+        {/* 1. 若为宋朝经济单位或所辖路，提供直达账册功能 */}
+        {p.game_unit && (
+          <button
+            onClick={() => {
+              pushOverlay({
+                kind: "prefecture",
+                title: `${p.game_unit} 治理`,
+                props: { picked: String(p.game_unit) },
+              });
+            }}
+            className="flex items-center justify-center gap-2 rounded border border-gold/60 bg-paper px-3 py-1.5 font-kai text-sm text-ink shadow-sm transition hover:border-gold hover:bg-gold-light/40"
+          >
+            <Landmark size={15} className="text-goldDark" /> 查阅路分账册 ({String(p.game_unit)})
+          </button>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          {/* 2. 聚焦巡阅 (平滑镜头飞跃下钻) */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("sz:map-focus", {
+                  detail: { name, kind, props: p },
+                })
+              );
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-gold/40 bg-paper/80 px-2 py-1.5 font-kai text-xs text-ink transition hover:bg-gold-light/30"
+          >
+            <Search size={13} className="text-ink-light" /> 巡阅聚焦
+          </button>
+
+          {/* 3. 颁旨施政快捷入口 */}
+          <button
+            onClick={() => {
+              pushOverlay({ kind: "decree", title: "拟旨" });
+            }}
+            className="flex items-center justify-center gap-1.5 rounded border border-red/40 bg-paper/80 px-2 py-1.5 font-kai text-xs text-red transition hover:bg-red/10"
+          >
+            <Scroll size={13} className="text-red" /> 拟旨施政
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
