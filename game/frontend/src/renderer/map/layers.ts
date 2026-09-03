@@ -98,7 +98,7 @@ export function buildLayerDefs() {
       id: LAYER_IDS.circuitBorders,
       type: "line" as const,
       source: "borders",
-      paint: { "line-color": THEME.goldDark, "line-width": 1, "line-opacity": 0.5 }
+      paint: { "line-color": THEME.goldDark, "line-width": 1.1, "line-opacity": 0.55 }
     },
     // 境外势力
     {
@@ -117,13 +117,14 @@ export function buildLayerDefs() {
       id: LAYER_IDS.regimeBorders,
       type: "line" as const,
       source: "regime_borders",
-      paint: { "line-color": THEME.goldDark, "line-width": 1.2, "line-opacity": 0.5 }
+      paint: { "line-color": THEME.goldDark, "line-width": 1.1, "line-opacity": 0.55 }
     },
     // 城市（治所/属城）
     {
       id: LAYER_IDS.cities,
       type: "circle" as const,
       source: "cities",
+      filter: ["!=", ["get", "kind"], "river"],
       paint: {
         "circle-radius": [
           "case",
