@@ -344,6 +344,18 @@ REGIME_GEO: dict = {
            "use_parts": True, "note": "高棉帝国/真腊"},
     "罗斛": {"name": "罗斛", "active": True, "owner": "罗斛", "label_at": [100.5, 15.0],
            "use_parts": True, "note": "暹罗/素可泰前身"},
+    "澜沧": {"name": "澜沧", "active": True, "owner": "澜沧", "label_at": [102.5, 18.5],
+           "use_parts": True, "note": "老挝部族/南掌前身，填补中南内陆"},
+    "柔佛": {"name": "柔佛", "active": True, "owner": "柔佛", "label_at": [102.5, 4.0],
+           "use_parts": True, "note": "马来半岛各邦"},
+    "三佛齐": {"name": "三佛齐", "active": True, "owner": "三佛齐", "label_at": [102.0, 0.5],
+            "use_parts": True, "note": "室利佛逝/苏门答腊大岛，海商枢纽"},
+    "爪哇": {"name": "爪哇", "active": True, "owner": "爪哇", "label_at": [110.0, -7.2],
+           "use_parts": True, "note": "爪哇大岛"},
+    "婆罗": {"name": "婆罗", "active": True, "owner": "婆罗", "label_at": [114.0, 0.5],
+           "use_parts": True, "note": "婆罗洲/加里曼丹大岛"},
+    "吕宋": {"name": "吕宋", "active": True, "owner": "吕宋", "label_at": [121.5, 14.5],
+           "use_parts": True, "note": "吕宋国/菲律宾群岛"},
 }
 
 # ============================================================
@@ -365,6 +377,12 @@ REGIME_COLORS: dict = {
     "占婆": "#c7a38f",       # 肉褐赤
     "吴哥": "#b8ab93",       # 洞里萨灰绿
     "罗斛": "#d2be92",       # 金稻黄
+    "澜沧": "#c4b79b",       # 湄公土黄(老挝)
+    "柔佛": "#a6b5a3",       # 马来青碧(马来半岛)
+    "三佛齐": "#cfae88",     # 海商赭金(苏门答腊)
+    "爪哇": "#c8a598",       # 赤陶赭(爪哇岛)
+    "婆罗": "#9faea2",       # 黛绿(婆罗洲/加里曼丹)
+    "吕宋": "#baa58e",       # 珍珠灰金(菲律宾诸岛)
     "喀喇汗": "#b39d7e",     # 灰驼褐(西域)
     "高昌回鹘": "#d8c49a",   # 沙金(东部天山)
 }
@@ -410,6 +428,8 @@ REGIME_PARTS: dict = {
             "四川省": ["甘孜藏族自治州", "阿坝藏族羌族自治州"],
             "甘肃省": ["甘南藏族自治州"],
         },
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "吐蕃_藏南"},
+        "merge": False,  # 保留省份拼合
     },
     "大理": {
         "provinces": ["云南省", "贵州省"],
@@ -451,7 +471,7 @@ REGIME_PARTS: dict = {
         "provinces": ["台湾省"],
     },
     "身毒": {
-        "union_external": {"file": "ne_admin1_ext.json", "admin": ["India"]},
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "身毒"},
         "merge": True,
     },
     "蒲甘": {
@@ -472,6 +492,30 @@ REGIME_PARTS: dict = {
     },
     "罗斛": {
         "union_external": {"file": "ne_admin1_ext.json", "admin": ["Thailand"]},
+        "merge": True,
+    },
+    "澜沧": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "澜沧"},
+        "merge": True,
+    },
+    "柔佛": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "柔佛"},
+        "merge": True,
+    },
+    "三佛齐": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "三佛齐"},
+        "merge": True,
+    },
+    "爪哇": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "爪哇"},
+        "merge": True,
+    },
+    "婆罗": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "婆罗"},
+        "merge": True,
+    },
+    "吕宋": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "吕宋"},
         "merge": True,
     },
 }

@@ -135,8 +135,8 @@ def regime_part_features() -> list[dict[str, object]]:
                 "properties": {**base, "province": label},
             })
 
-        # union_external:境外政权——按国家过滤 NE Admin-1;merge=False 时逐省
-        # 成块(同色,配合 regime_borders 省界线层消除"大简单几何体"观感)
+        # union_external:外部行政区(NE Admin-1)拼合
+        # 支持 admin 匹配、target_regime 匹配、sub_admin 匹配
         ext = spec.get("union_external")
         if ext:
             from shapely.geometry import mapping, shape
@@ -144,19 +144,27 @@ def regime_part_features() -> list[dict[str, object]]:
 
             with open(os.path.join(raw_dir, ext["file"]), encoding="utf-8") as f:
                 ext_feats = json.load(f)["features"]
-            want = set(ext["admin"])
+            want_admin = set(ext.get("admin", []))
+            want_regime = ext.get("target_regime")
+            sub_want = ext.get("sub_admin")
             exclude = set(ext.get("exclude", []))
             geoms = []
             label = ""
-            sub_want = ext.get("sub_admin")
+
             for src in ext_feats:
                 p = src["properties"]
                 nm = str(p.get("name_local") or p.get("name") or "")
-                if p.get("admin") in want and nm not in exclude:
-                    if sub_want and p.get("sub_admin") != sub_want:
-                        continue
+                match = False
+                if want_regime and p.get("target_regime") == want_regime:
+                    match = True
+                elif want_admin and p.get("admin") in want_admin and nm not in exclude:
+                    if not sub_want or p.get("sub_admin") == sub_want:
+                        match = True
+                
+                if match:
                     geoms.append((shape(src["geometry"]).buffer(0), nm))
-                    label = label or str(sub_want or p.get("admin"))
+                    label = label or str(want_regime or sub_want or p.get("admin"))
+
             if geoms:
                 if spec.get("merge", True):
                     merged = unary_union([g for g, _ in geoms]).buffer(0)
@@ -172,7 +180,8 @@ def regime_part_features() -> list[dict[str, object]]:
                             "geometry": mapping(g),
                             "properties": {**base, "province": nm},
                         })
-            continue
+            if not spec.get("provinces") and not spec.get("prefectures"):
+                continue
 
         for prov in spec.get("provinces", []):
             emit(by_name[prov], prov)
