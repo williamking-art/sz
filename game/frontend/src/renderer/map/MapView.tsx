@@ -147,9 +147,17 @@ export default function MapView() {
     const map = controller.getMap()!;
 
     // 政权标签
+    const seenRegimes = new Set<string>();
     for (const f of data.regimes.features) {
       const p = f.properties as Record<string, unknown>;
-      if (p.kind !== "regime") continue; // part=省/地级拼合块、sub=分路,均不挂政权标签
+      if (p.kind === "sub") continue;
+      if (p.kind !== "regime" && p.kind !== "part") continue;
+      const nm = String(p.name);
+      if (p.kind === "part") {
+        // 拼合块一政权多块,只挂一次政权标签(label_at 来自政权注册表)
+        if (seenRegimes.has(nm)) continue;
+        seenRegimes.add(nm);
+      }
       const at = (p.label_at as [number, number]) || centerOf(f);
       const on = !!p.active;
       markers.addLabel(
