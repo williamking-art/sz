@@ -136,6 +136,37 @@ def regime_part_features() -> list[dict[str, object]]:
                 "properties": {**base, "province": label},
             })
 
+        # sub_roads: 辽五京道、西夏各道（如宋分路分省）
+        sub_roads = spec.get("sub_roads")
+        if sub_roads:
+            from shapely.geometry import mapping, shape
+            from shapely.ops import unary_union
+
+            for rname, rspec in sub_roads.items():
+                geoms = []
+                for prov, cities in rspec.get("prefectures", {}).items():
+                    adcode = by_name[prov]["properties"]["adcode"]
+                    fn = os.path.join(raw_dir, f"datav_{adcode}_full.json")
+                    with open(fn, encoding="utf-8") as fh:
+                        city_feats = json.load(fh)["features"]
+                    for c in city_feats:
+                        cnm = str(c["properties"]["name"])
+                        if cities == "*" or cnm in cities:
+                            geoms.append(shape(c["geometry"]).buffer(0))
+                if geoms:
+                    merged = unary_union(geoms).buffer(0)
+                    road_base = dict(base)
+                    road_base["province"] = rname
+                    road_base["display_name"] = rname
+                    road_base["seat"] = rspec.get("seat", "")
+                    road_base["label_at"] = rspec.get("label_at")
+                    features.append({
+                        "type": "Feature",
+                        "geometry": mapping(merged),
+                        "properties": road_base,
+                    })
+            continue
+
         # union_external:外部行政区(NE Admin-1)拼合
         # 支持 admin 匹配、target_regime 匹配、sub_admin 匹配
         ext = spec.get("union_external")
@@ -200,31 +231,42 @@ def regime_part_features() -> list[dict[str, object]]:
 
 
 def build_regime_borders() -> dict[str, object]:
-    """逐省拼合政权的省界线层(kind=regime_border),前端细描边增强内部结构。"""
+    """辽五京道、西夏各道的省道界线层(kind=regime_border),与宋路界线同级细描边。"""
+    from shapely.geometry import mapping, shape
+    from shapely.ops import linemerge, unary_union
+
     raw_dir = os.path.join(MAP_DIR, "raw")
+    prov_path = os.path.join(raw_dir, "datav_100000_full.json")
+    with open(prov_path, encoding="utf-8") as f:
+        by_name = {p["properties"]["name"]: p for p in json.load(f)["features"]}
+
     features: list[dict[str, object]] = []
     for key, spec in REGIME_PARTS.items():
         if not spec.get("borders"):
             continue
-        ext = spec.get("union_external")
-        if not ext:
-            continue
-        from shapely.geometry import mapping, shape
-
-        with open(os.path.join(raw_dir, ext["file"]), encoding="utf-8") as f:
-            ext_feats = json.load(f)["features"]
-        want = set(ext["admin"])
-        exclude = set(ext.get("exclude", []))
-        for src in ext_feats:
-            p = src["properties"]
-            nm = str(p.get("name_local") or p.get("name") or "")
-            if p.get("admin") not in want or nm in exclude:
-                continue
-            features.append({
-                "type": "Feature",
-                "geometry": mapping(shape(src["geometry"]).boundary),
-                "properties": {"kind": "regime_border", "name": key, "province": nm},
-            })
+        sub_roads = spec.get("sub_roads")
+        if sub_roads:
+            for rname, rspec in sub_roads.items():
+                geoms = []
+                for prov, cities in rspec.get("prefectures", {}).items():
+                    adcode = by_name[prov]["properties"]["adcode"]
+                    fn = os.path.join(raw_dir, f"datav_{adcode}_full.json")
+                    with open(fn, encoding="utf-8") as fh:
+                        city_feats = json.load(fh)["features"]
+                    for c in city_feats:
+                        cnm = str(c["properties"]["name"])
+                        if cities == "*" or cnm in cities:
+                            geoms.append(shape(c["geometry"]).buffer(0))
+                if geoms:
+                    u = unary_union(geoms).buffer(0.0015).buffer(-0.0015)
+                    b = u.boundary
+                    if b.geom_type == "MultiLineString":
+                        b = linemerge(b)
+                    features.append({
+                        "type": "Feature",
+                        "geometry": mapping(b),
+                        "properties": {"kind": "regime_border", "name": key, "province": rname},
+                    })
     return {"type": "FeatureCollection", "features": features}
 
 
@@ -244,18 +286,19 @@ def build_cities() -> dict[str, object]:
                 "is_seat": p["name"] == circuit_info.get("seat"),
             },
         })
-    # 境外政权重点城市(装饰性标识,不带 game_unit)
+    # 辽、西夏与境外重点城市：府级治所赋予 is_seat: True, 享受与宋治所同等待遇
     for regime, cities in REGIME_CITIES.items():
         for nm, lon, lat in cities:
+            is_fu = "府" in nm
             features.append({
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": [lon, lat]},
                 "properties": {
                     "name": nm,
-                    "level": "",
+                    "level": "府" if is_fu else "州",
                     "circuit": regime,
                     "game_unit": None,
-                    "is_seat": False,
+                    "is_seat": is_fu,
                     "kind": "regime_city",
                 },
             })

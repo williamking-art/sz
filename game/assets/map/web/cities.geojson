@@ -2179,6 +2179,186 @@
   {
    "geometry": {
     "coordinates": [
+     116.4,
+     39.9
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "辽",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "析津府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     113.3,
+     40.1
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "辽",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "大同府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     120.2,
+     41.6
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "辽",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "大定府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     123.2,
+     41.3
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "辽",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "辽阳府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     119.4,
+     43.9
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "辽",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "临潢府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     106.3,
+     38.5
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "西夏",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "兴庆府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     106.3,
+     38.1
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "西夏",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "西平府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     102.6,
+     37.9
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "西夏",
+    "game_unit": null,
+    "is_seat": true,
+    "kind": "regime_city",
+    "level": "府",
+    "name": "西凉府"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     100.4,
+     38.9
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "西夏",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "州",
+    "name": "甘州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     98.5,
+     39.7
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "西夏",
+    "game_unit": null,
+    "is_seat": false,
+    "kind": "regime_city",
+    "level": "州",
+    "name": "肃州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
      126.62,
      37.97
     ],
@@ -2189,7 +2369,7 @@
     "game_unit": null,
     "is_seat": false,
     "kind": "regime_city",
-    "level": "",
+    "level": "州",
     "name": "开京"
    },
    "type": "Feature"
@@ -2207,7 +2387,7 @@
     "game_unit": null,
     "is_seat": false,
     "kind": "regime_city",
-    "level": "",
+    "level": "州",
     "name": "西京"
    },
    "type": "Feature"
@@ -2225,7 +2405,7 @@
     "game_unit": null,
     "is_seat": false,
     "kind": "regime_city",
-    "level": "",
+    "level": "州",
     "name": "平安京"
    },
    "type": "Feature"
@@ -2243,7 +2423,7 @@
     "game_unit": null,
     "is_seat": false,
     "kind": "regime_city",
-    "level": "",
+    "level": "州",
     "name": "奈良"
    },
    "type": "Feature"
@@ -2259,9 +2439,9 @@
    "properties": {
     "circuit": "日本",
     "game_unit": null,
-    "is_seat": false,
+    "is_seat": true,
     "kind": "regime_city",
-    "level": "",
+    "level": "府",
     "name": "大宰府"
    },
    "type": "Feature"
