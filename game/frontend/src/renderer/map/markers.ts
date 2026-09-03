@@ -91,12 +91,21 @@ export class MarkerManager {
         continue;
       }
       const rect = l.el.getBoundingClientRect();
+      // 首帧回流前 rect.width 经常为 0, 依据文字长度与字号严密估算包围盒, 彻底杜绝重合
+      const textLen = (l.el.textContent || "").length;
+      const isLarge = l.el.classList.contains("lbl-regime");
+      const fontSize = isLarge ? 20 : 13;
+      const estimatedW = textLen * fontSize + 16;
+      const actualW = rect.width || l.el.offsetWidth;
+      const finalW = Math.max(actualW, estimatedW);
+      const finalH = Math.max(rect.height || l.el.offsetHeight, fontSize + 8);
+
       boxes.push({
         key: i,
         x: p.x,
         y: p.y,
-        w: rect.width || l.el.offsetWidth || 40,
-        h: rect.height || l.el.offsetHeight || 14,
+        w: finalW,
+        h: finalH,
         priority: l.priority
       });
     }

@@ -171,13 +171,18 @@ export default function MapView() {
       );
     }
 
-    // 2. 辽道、夏道等省道级标签 (zoom: 3.6, 与宋路同级显现)
+    // 2. 辽五京道、西夏各道历史省道标签 (zoom: 3.6, 与宋路同级显现)
+    // 严格白名单机制：绝对杜绝现代区划字样(省/市/自治区/盟/州/县等)
+    const VALID_HISTORICAL_ROADS = new Set([
+      "南京道", "西京道", "中京道", "东京道", "上京道",
+      "兴庆府直辖", "河西走廊", "河南地",
+    ]);
+
     const seenRoads = new Set<string>();
     for (const f of data.regimes.features) {
       const p = f.properties as Record<string, unknown>;
       const prov = String(p.province || "");
-      const nm = String(p.name || "");
-      if (!prov || prov === nm) continue; // 仅对分道的省份展示
+      if (!VALID_HISTORICAL_ROADS.has(prov)) continue;
       if (seenRoads.has(prov)) continue;
       seenRoads.add(prov);
 
@@ -190,25 +195,6 @@ export default function MapView() {
         true,
         () => selectFeature("circuit", prov)
       );
-    }
-    // 分路标签
-    for (const f of data.regimes.features) {
-      const p = f.properties as Record<string, unknown>;
-      if (p.kind !== "sub") continue;
-      const at = (p.label_at as [number, number]) || centerOf(f);
-      const mk = markers.addLabel(
-        at,
-        String(p.name),
-        "lbl-circuit",
-        3.2,
-        true,
-        () => selectFeature("sub", String(p.name)),
-        { kind: "sub", name: String(p.name), parent: String(p.parent), owner: String(p.owner) }
-      );
-      const el = mk.getElement();
-      el.style.fontSize = "10.5px";
-      el.style.letterSpacing = "1.5px";
-      el.style.color = "#6b5b45";
     }
     // 路标签
     for (const f of data.borders.features) {
