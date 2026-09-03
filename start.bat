@@ -2,7 +2,7 @@
 rem Songzuo launcher: Electron frontend dev + auto-spawned Python backend.
 rem Backend spawn is handled by the Electron main process (src/main/index.ts).
 setlocal
-cd /d "%~dp0frontend"
+cd /d "%~dp0game\frontend"
 
 rem Prefer bundled Node (tools/nodejs), fallback to PATH
 set "NODE_DIR=%~dp0tools\nodejs"
