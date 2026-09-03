@@ -125,6 +125,17 @@ export default function MapView() {
           markersRef.current?.avoid();
         }, 120);
       });
+
+      // 点击地图空白海域/无要素处: 清除高亮与光环
+      map.on("click", (e) => {
+        const hits = map.queryRenderedFeatures(e.point, {
+          layers: ["cities", "circuits", "regimes"],
+        });
+        if (hits.length === 0) {
+          controller.highlightSelected(null);
+          markersRef.current?.clearPulse();
+        }
+      });
     } catch (e) {
       console.error("[map] 数据加载失败", e);
     }
@@ -329,6 +340,52 @@ export default function MapView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  // 监听详情卡下发的平滑下钻聚焦事件 (sz:map-focus)
+  useEffect(() => {
+    const handleFocus = (ev: Event) => {
+      const customEv = ev as CustomEvent<{ name: string; kind: string; props: Record<string, unknown> }>;
+      const { name, kind, props } = customEv.detail || {};
+      const controller = controllerRef.current;
+      const data = dataRef.current;
+      if (!controller || !data) return;
+      const map = controller.getMap();
+      if (!map) return;
+
+      if (kind === "city") {
+        const f = data.cities.features.find((c) => c.properties?.name === name);
+        if (f && f.geometry.type === "Point") {
+          const [lng, lat] = f.geometry.coordinates as [number, number];
+          map.flyTo({ center: [lng, lat], zoom: 6.2, duration: 800 });
+          markersRef.current?.pulseAt([lng, lat]);
+          controller.highlightSelected(f);
+        }
+      } else if (kind === "circuit" || kind === "sub") {
+        const f = data.circuits.features.find((c) => c.properties?.name === name) ||
+                  data.regimes.features.find((r) => r.properties?.province === name);
+        if (f) {
+          controller.highlightSelected(f);
+          const c = centerOf(f);
+          if (c) {
+            map.flyTo({ center: c, zoom: 5.4, duration: 800 });
+            markersRef.current?.pulseAt(c);
+          }
+        }
+      } else if (kind === "regime") {
+        const f = data.regimes.features.find((r) => r.properties?.name === name);
+        if (f) {
+          controller.highlightSelected(f);
+          const c = centerOf(f);
+          if (c) {
+            map.flyTo({ center: c, zoom: 4.8, duration: 800 });
+          }
+        }
+      }
+    };
+
+    window.addEventListener("sz:map-focus", handleFocus);
+    return () => window.removeEventListener("sz:map-focus", handleFocus);
+  }, []);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }
