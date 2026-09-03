@@ -11,12 +11,13 @@ import { useGameStore } from "../store/gameStore";
 const MAP_BASE_URL = import.meta.env.BASE_URL + "map";
 
 const DEFAULT_VIEW: MapViewData = {
-  bounds: [45, -12, 150, 56],
-  center: [97.5, 22],
+  bounds: [46.5, -44, 150, 56],
+  center: [108, 31],
   east: 150,
   north: 56,
-  south: -12,
-  west: 45
+  south: -44,
+  west: 46.5,
+  zoom: 4.0
 };
 
 interface GeoData {

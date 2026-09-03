@@ -10,6 +10,8 @@ export interface MapView {
   north: number;
   south: number;
   west: number;
+  /** 玩家默认视野级别；缺省回退 3.2（全览） */
+  zoom?: number;
 }
 
 export interface MapControllerOptions {
@@ -44,7 +46,8 @@ export class MapController {
         layers: []
       },
       center: this.view.center,
-      zoom: 3.2,
+      zoom: this.view.zoom ?? 3.2,
+      maxBounds: [[w, s], [e, n]],
       minZoom: 2,
       maxZoom: 9,
       attributionControl: false,
@@ -58,7 +61,7 @@ export class MapController {
       this.addSources();
       this.addLayers();
       this.bindEvents();
-      this.fitBounds();
+      // 初始视野 = center/zoom（东亚重心）；bounds 全览仅经 fitBounds() 显式触发
       this.onMapReady?.();
     });
   }
