@@ -6,8 +6,10 @@ import { presimplify, simplify, quantile, filterWeight } from "topojson-simplify
 // 注：topojson-simplify 期望 Topology<Objects<{}>>，与全局 TopoJSON.Topology 的
 // GeoJsonProperties 泛型不兼容，内部用 any 桥接，对外只暴露 GeoJSON.FeatureCollection。
 
-/** 顶点保留比例（由粗到细）；0 = 不简化，原始精度。 */
-export const TIERS = [0.35, 0.18, 0.08, 0.03, 0];
+/** 顶点保留比例(由粗到细);0 = 不简化,原始精度。
+ *  低 zoom 保持狠简(屏幕 1px≈数十公里,细节无意义);
+ *  中高 zoom 放宽:此前 0.08/0.03 会把自然路界简化成大直线。 */
+export const TIERS = [0.35, 0.3, 0.25, 0.15, 0];
 
 /** 档位索引：zoom 越高越细。 */
 export function tierForZoom(zoom: number): number {
