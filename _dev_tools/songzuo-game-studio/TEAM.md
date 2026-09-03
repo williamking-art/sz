@@ -387,7 +387,7 @@
 | 07 宋式美术·资源 TA | canvas-design 视觉设计 `canvas-design` | 1.0.6 | skill_2053081626394972160 | 基于设计哲学创作视觉稿（PNG/PDF），支撑美术规格卡与概念稿 |
 | 07 宋式美术·资源 TA | AI绘图（nano-banana-pro） | 1.0.1 | skill_2053082421296758784 | 通用 AI 图片生成与编辑（支持 4K）：大臣立绘概念稿、宋式纹样/UI 素材、事件插画草稿；可按规格卡分辨率与配色约束批量出图 |
 | 07 宋式美术·资源 TA | WorkRally AI 内容创作 `workrally` | 2.6.1 | skill_2053083918768267264 | 生图/生视频/画布/素材管理一体化：除出图外可管理 `assets/` 素材库，并产出宣传物料（发布预告图/短视频） |
-| 07 宋式美术·资源 TA | Agnes 生图 `agnes-image`（自定义） | 0.1.0 | 本地 `~/.workbuddy/skills/agnes-image/` | Agnes AI 官方 API 封装（OpenAI 兼容）：`agnes-image-2.1-flash` 文生图（1K-4K+宽高比）、`agnes-image-2.0-flash` 图生图/多图合成；含批量生成脚本 `scripts/agnes_gen.py` 与 `references/api.md`，官方标价 $0/图 |
+| 07 宋式美术·资源 TA | Agnes 生图 `agnes-image`（自定义） | 0.2.0 | 本地 `_dev_tools/agnes_gen.py` | Agnes AI 官方 API 最新旗舰 `agnes-image-2.5-flash`：文生图/图生图/多图合成(1K-4K+8种宽高比)，官方标价 $0/图，已落地为工程免依赖生图脚本 `_dev_tools/agnes_gen.py`，产物安全落盘至 `_scratch/generated-images/` |
 | 08 质量保障·回归 | diagnose `diagnose` | 1.0.0 | skill_2057443344813191168 | 系统化调试：重现→假设→验证→修复→回归测试 |
 | 09 打包发布 ✅ | `songzuo-release-engineering`（自定义·agent_created） | 0.1.0 | — | 已用 skill-creator 将 Skill 09 卡转为 `~/.workbuddy/skills/songzuo-release-engineering/`；依赖审计/构建缓存边界/`sys._MEIPASS` 兼容/发布包检查清单与 `references/project_benchmarks.md` 齐全 |
 | 10 宋式音效·音乐 | Tavily AI Search `tavily` | 1.0.0 | skill_2053082852155592704 | 检索北宋雅乐/教坊/大晟府音律史料与授权素材来源（配 [E2][E3][E4]） |
