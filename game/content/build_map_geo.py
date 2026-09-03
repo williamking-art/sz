@@ -83,38 +83,34 @@ def build_regimes() -> dict[str, object]:
     features: list[dict[str, object]] = []
     for key, geo in REGIME_GEO.items():
         if geo.get("use_parts"):
-            # 撤块留标签:注册了 use_parts 但未提供拼合条目的政权(金与诸部,
-            # 1101 年无建国)输出 label_at 锚点,fill 层对 Point 不可见
-            if key not in REGIME_PARTS:
-                features.append({
-                    "type": "Feature",
-                    "geometry": {"type": "Point",
-                                  "coordinates": geo.get("label_at") or [0, 0]},
-                    "properties": {
-                        "kind": "regime",
-                        "display_name": geo.get("name", key),
-                        "name": geo.get("name", key),
-                        "owner": geo.get("owner", key),
-                        "active": bool(geo.get("active")),
-                        "tint": "on" if geo.get("active") else "off",
-                        "fill": REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR),
-                        "always_show": key in EXTERNAL_ALWAYS_SHOW,
-                        "label_at": geo.get("label_at"),
-                        "note": geo.get("note", ""),
-                    },
-                })
-        else:
-            features.append(_polygon_feature(key, geo["polygon"], {
-                "kind": "regime",
-                "display_name": geo.get("name", key),
-                "owner": geo.get("owner", key),
-                "active": bool(geo.get("active")),
-                "tint": "on" if geo.get("active") else "off",
-                "fill": REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR),
-                "always_show": key in EXTERNAL_ALWAYS_SHOW,
-                "label_at": geo.get("label_at"),
-                "note": geo.get("note", ""),
-            }))
+            # use_parts 政权不出手工块;未在 REGIME_PARTS 注册拼合者(金与诸部,
+            # 1101 年无建国)完全不上图——无块无锚点无标签,金崛起时经 part
+            # 归属改写点亮
+            if not geo.get("active"):
+                continue
+            sub_fill = REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR)
+            for sub in REGIME_SUBDIVISIONS.get(key, []):
+                features.append(_polygon_feature(sub["name"], sub["polygon"], {
+                    "kind": "sub",
+                    "parent": key,
+                    "owner": sub.get("owner", key),
+                    "fill": sub.get("owner") and REGIME_COLORS.get(sub["owner"], sub_fill) or sub_fill,
+                    "seat": sub.get("seat", ""),
+                    "seat_at": sub.get("seat_at"),
+                    "label_at": sub.get("label_at"),
+                }))
+            continue
+        features.append(_polygon_feature(key, geo["polygon"], {
+            "kind": "regime",
+            "display_name": geo.get("name", key),
+            "owner": geo.get("owner", key),
+            "active": bool(geo.get("active")),
+            "tint": "on" if geo.get("active") else "off",
+            "fill": REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR),
+            "always_show": key in EXTERNAL_ALWAYS_SHOW,
+            "label_at": geo.get("label_at"),
+            "note": geo.get("note", ""),
+        }))
         if not geo.get("active"):
             continue  # 未兴政权(金):分路随母政权一并隐藏
         sub_fill = REGIME_COLORS.get(key, _DEFAULT_REGIME_COLOR)
