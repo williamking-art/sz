@@ -64,7 +64,7 @@ export function computeHidden(boxes: AvoidBox[], radius = 90): Set<number> {
 
 /** AABB 相交判定（含 1px 间隙，避免视觉贴边）。 */
 function overlap(a: AvoidBox, b: AvoidBox): boolean {
-  const gap = 1;
+  const gap = 10; // 中文字体安全留白间距，杜绝视觉粘连与重叠
   return (
     Math.abs(a.x - b.x) * 2 < a.w + b.w + gap &&
     Math.abs(a.y - b.y) * 2 < a.h + b.h + gap
