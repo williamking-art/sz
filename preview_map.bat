@@ -8,3 +8,4 @@ set "PY=%~dp0game\.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
 
 "%PY%" preview_map.py %*
+if errorlevel 1 pause
