@@ -208,16 +208,25 @@ export default function MapView() {
         () => selectFeature("circuit", String(p.name))
       );
     }
-    // 治所标签
+    // 治所与江河水系标签
     for (const f of data.cities.features) {
       const p = f.properties as Record<string, unknown>;
+      const geom = f.geometry;
+      if (geom.type !== "Point") continue;
+      const coord = geom.coordinates as [number, number];
+
+      // 著名古江河水系注记
+      if (p.kind === "river") {
+        markers.addLabel(coord, String(p.name), "lbl-river", 4.0, true);
+        continue;
+      }
+
+      // 城市与府州治所
       const seat = !!p.is_seat;
       const cls = `lbl-city${seat ? " seat" : ""}${p.level === "京府" ? " jingfu" : ""}`;
       const tier = p.level === "京府" ? 3.0 : seat ? 3.4 : 4.6;
-      const geom = f.geometry;
-      if (geom.type !== "Point") continue;
       markers.addLabel(
-        geom.coordinates as [number, number],
+        coord,
         String(p.name),
         cls,
         tier,

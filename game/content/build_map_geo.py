@@ -34,6 +34,7 @@ if __package__ in (None, ""):
 from content.data import EXTERNAL_ALWAYS_SHOW, MAP_DIR
 from content.geo_admin import (
     CIRCUIT_INFO,
+    HISTORICAL_RIVERS,
     MAP_VIEW,
     REGIME_CITIES,
     REGIME_COLORS,
@@ -314,6 +315,20 @@ def build_cities() -> dict[str, object]:
                     "kind": "regime_city",
                 },
             })
+    # 著名古江河大川标注 (青水墨色, 仅供标签渲染)
+    for nm, lon, lat in HISTORICAL_RIVERS:
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {
+                "name": nm,
+                "level": "水系",
+                "circuit": "大川",
+                "game_unit": None,
+                "is_seat": False,
+                "kind": "river",
+            },
+        })
     return {"type": "FeatureCollection", "features": features}
 
 

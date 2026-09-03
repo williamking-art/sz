@@ -134,6 +134,18 @@ body {
   color: var(--red);
 }
 
+/* 水墨古江河大川注记 */
+.lbl-river {
+  font-family: var(--kai);
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: #3b6b7a;
+  font-style: italic;
+  text-shadow: 0 0 3px var(--paper), 0 0 6px var(--paper);
+  pointer-events: none;
+  opacity: 0.88;
+}
+
 /* 选中治所的呼吸光环 */
 .pulse {
   width: 26px;
