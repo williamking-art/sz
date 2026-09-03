@@ -35,6 +35,7 @@ export const TIER = {
 
 export const LAYER_IDS = {
   land: "land",
+  hill: "hill",
   lakes: "lakes",
   rivers: "rivers",
   circuits: "circuits",
@@ -53,6 +54,13 @@ export function buildLayerDefs() {
       type: "fill" as const,
       source: "land",
       paint: { "fill-color": THEME.landGold, "fill-opacity": 0.55 }
+    },
+    // 地形晕渲（山脉立体感，半透明叠于陆地之上、政区之下）
+    {
+      id: LAYER_IDS.hill,
+      type: "raster" as const,
+      source: "hill",
+      paint: { "raster-opacity": 0.42 }
     },
     // 湖泊
     {

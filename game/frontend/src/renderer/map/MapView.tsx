@@ -1,14 +1,11 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { feature } from "topojson-client";
-import { MapController, type MapView as MapViewData } from "./mapController";
+import { MapController, MAP_BASE_URL, type MapView as MapViewData } from "./mapController";
 import { MarkerManager } from "./markers";
 import { deriveMapState } from "./state";
 import { SimplifyCache, tierForZoom } from "./simplify";
 import { useGameStore } from "../store/gameStore";
-
-// 舆图数据资产基址（构建期从 game/assets/map/web/ 平移）
-const MAP_BASE_URL = import.meta.env.BASE_URL + "map";
 
 const DEFAULT_VIEW: MapViewData = {
   bounds: [60, -44, 150, 56],
