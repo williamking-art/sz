@@ -36,6 +36,7 @@ from content.geo_admin import (
     CIRCUIT_INFO,
     MAP_VIEW,
     REGIME_GEO,
+    REGIME_PARTS,
     REGIME_SUBDIVISIONS,
     active_regimes,
     all_city_points,
@@ -70,23 +71,26 @@ def _polygon_feature(name: str, ring: list[list[float]],
 def build_regimes() -> dict[str, object]:
     """周边政权疆域层：active=False 者前端默认不渲染，待 timeline break 激活。
 
-    母政权 feature 之后追加分路 feature（kind="sub"，properties.parent=政权id）：
-    分路自持 owner（初始=母政权，可单独易主），随 feature 输出；
-    active=False 的母政权（如金）不输出其分路。
+    三类 feature,叠放次序(先=底层):
+      1. part   —— use_parts 政权按 REGIME_PARTS 真实政区(省/地级)拼合,一区一块;
+      2. regime —— 其余政权(REGIME_GEO.polygon 手工近似,境外一势力一块);
+      3. sub    —— 分路(随母政权,后画覆盖母政权)。
+    分路自持 owner(初始=母政权,可单独易主);active=False 的母政权(如金)不输出其分路。
     """
     features: list[dict[str, object]] = []
     for key, geo in REGIME_GEO.items():
-        features.append(_polygon_feature(key, geo["polygon"], {
-            "kind": "regime",
-            "display_name": geo.get("name", key),
-            "owner": geo.get("owner", key),
-            "active": bool(geo.get("active")),
-            "always_show": key in EXTERNAL_ALWAYS_SHOW,
-            "label_at": geo.get("label_at"),
-            "note": geo.get("note", ""),
-        }))
+        if not geo.get("use_parts"):
+            features.append(_polygon_feature(key, geo["polygon"], {
+                "kind": "regime",
+                "display_name": geo.get("name", key),
+                "owner": geo.get("owner", key),
+                "active": bool(geo.get("active")),
+                "always_show": key in EXTERNAL_ALWAYS_SHOW,
+                "label_at": geo.get("label_at"),
+                "note": geo.get("note", ""),
+            }))
         if not geo.get("active"):
-            continue  # 未兴政权（金）：分路随母政权一并隐藏
+            continue  # 未兴政权(金):分路随母政权一并隐藏
         for sub in REGIME_SUBDIVISIONS.get(key, []):
             features.append(_polygon_feature(sub["name"], sub["polygon"], {
                 "kind": "sub",
@@ -96,7 +100,57 @@ def build_regimes() -> dict[str, object]:
                 "seat_at": sub.get("seat_at"),
                 "label_at": sub.get("label_at"),
             }))
-    return {"type": "FeatureCollection", "features": features}
+    return {"type": "FeatureCollection",
+            "features": [*regime_part_features(), *features]}
+
+
+def regime_part_features() -> list[dict[str, object]]:
+    """use_parts 政权按 DataV 省级/地级真实边界拼合(kind="part")。
+
+    每省(或省内地级)一块 feature;properties.name=政权显示名(点击详情按政权
+    呈现),province=省/地级名,active/owner 继承政权注册表。原始文件由
+    fetch_basemap.py 下载至 assets/map/raw/(datav_100000=省级,datav_{adcode}=地级)。
+    """
+    raw_dir = os.path.join(MAP_DIR, "raw")
+    prov_path = os.path.join(raw_dir, "datav_100000_full.json")
+    with open(prov_path, encoding="utf-8") as f:
+        by_name = {p["properties"]["name"]: p
+                   for p in json.load(f)["features"]}
+
+    features: list[dict[str, object]] = []
+    for key, spec in REGIME_PARTS.items():
+        geo = REGIME_GEO[key]
+        base = {
+            "kind": "part",
+            "display_name": geo.get("name", key),
+            "name": geo.get("name", key),
+            "owner": geo.get("owner", key),
+            "active": bool(geo.get("active")),
+            "always_show": key in EXTERNAL_ALWAYS_SHOW,
+            "label_at": geo.get("label_at"),
+            "note": geo.get("note", ""),
+        }
+
+        def emit(src: dict[str, object], label: str) -> None:
+            features.append({
+                "type": "Feature",
+                "geometry": src["geometry"],
+                "properties": {**base, "province": label},
+            })
+
+        for prov in spec.get("provinces", []):
+            emit(by_name[prov], prov)
+        for prov, cities in spec.get("prefectures", {}).items():
+            adcode = by_name[prov]["properties"]["adcode"]
+            with open(os.path.join(raw_dir, f"datav_{adcode}_full.json"),
+                      encoding="utf-8") as f:
+                city_feats = json.load(f)["features"]
+            wanted = set(cities)
+            for c in city_feats:
+                cname = str(c["properties"]["name"])
+                if cname in wanted:
+                    emit(c, cname)
+    return features
 
 
 def build_cities() -> dict[str, object]:

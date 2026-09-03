@@ -8,9 +8,11 @@ import {
 import { join, resolve } from "path";
 import { topology } from "topojson-server";
 
-const ROOT = resolve(__dirname, "../..");
-const SRC = join(ROOT, "game/assets/map/web");
-const DST = join(ROOT, "frontend/public/map");
+// frontend 根(game/frontend);资产在上邻 game/assets/map/web
+// (前端目录移入 game/ 后,__dirname 上两级即 game,不再有 game/ 二级前缀)
+const ROOT = resolve(__dirname, "..");
+const SRC = resolve(__dirname, "../../assets/map/web");
+const DST = resolve(__dirname, "../public/map");
 
 // 需拓扑化的政区/势力（多边形）
 const TOPO_LAYERS = ["circuits", "regimes", "circuit_borders"];
