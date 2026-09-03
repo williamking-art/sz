@@ -159,3 +159,6 @@ _schedule_restart.mjs
 
 # --- 本仓库自身的行尾策略文件(dsh 忽略规则的例外) ---
 !.gitattributes
+
+# --- NE Admin-1 全量原始文件过大不入库,仅入库裁剪后的 kr_jp 子集 ---
+game/assets/map/raw/ne_10m_admin_1.geojson
