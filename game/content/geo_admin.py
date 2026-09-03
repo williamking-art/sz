@@ -545,6 +545,11 @@ REGIME_PARTS: dict = {
         "union_external": {"file": "ne_admin1_ext.json", "target_regime": "吕宋"},
         "merge": True,
     },
+    # 澳大利亚大陆：单一整体无势力省份，宣纸中立底色
+    "大洋洲_澳洲大陆": {
+        "union_external": {"file": "ne_admin1_ext.json", "target_regime": "大洋洲_澳洲大陆"},
+        "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
+    },
 }
 
 # ============================================================
