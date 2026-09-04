@@ -84,7 +84,7 @@ export default function FocusPanel() {
 
       {/* 分支说明横幅 */}
       <div className="flex items-center justify-between rounded-lg border border-gold/40 bg-card/60 px-4 py-2 text-xs">
-        <span className="font-kai text-ink/90">{branchData.desc}</span>
+        <span className="font-kai text-ink/90">{branchData.desc || ""}</span>
         <span className="font-kai text-dim">五维互制 · 择一专精</span>
       </div>
 
@@ -105,8 +105,13 @@ export default function FocusPanel() {
       <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {Object.entries(branchNodes).map(([nodeKey, node]: [string, any], idx) => {
           const isUnlocked = !!unlockedNodes[nodeKey]?.unlocked;
-          // 前置检查：如果不是第一个节点，前一个节点必须已解锁
-          const prereqKeys = node.prereq || [];
+          // 前置检查：如果不是第一个节点，前一个节点必须已解锁 (兼容 prereq 为 string 或 string[] 或 null)
+          const rawPrereq = node.prereq;
+          const prereqKeys: string[] = Array.isArray(rawPrereq)
+            ? rawPrereq
+            : typeof rawPrereq === "string"
+            ? [rawPrereq]
+            : [];
           const prereqSatisfied = prereqKeys.every((pk: string) => unlockedNodes[pk]?.unlocked);
           const canAct = !isUnlocked && prereqSatisfied;
 
