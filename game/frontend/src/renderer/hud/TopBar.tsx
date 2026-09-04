@@ -19,10 +19,10 @@ export default function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-      {/* 左：纯正皇家徽章 + 纪元（庄严只读展示，不做按钮） */}
+      {/* 左：纯正大宋皇室徽标 + 纪元（庄严只读展示，不做按钮） */}
       <div className="pointer-events-auto flex items-center gap-3 rounded-[3px] border border-gold bg-card px-2.5 py-1.5 shadow-paper">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold shadow-sm">
-          <span className="font-kai text-[22px] font-bold leading-none text-[#f3e6c4]">宋</span>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold shadow-sm">
+          <span className="font-kai text-[20px] font-bold leading-none text-[#f3e6c4]">宋</span>
         </div>
         <span className="whitespace-nowrap font-kai text-[15px] font-bold tracking-wide text-ink">
           {era || "建中靖国元年正月"}

@@ -14,6 +14,8 @@ game/ai_config.json
 **/ai_config.json
 *.env
 .env
+_dev_tools/.agnes_key
+*.agnes_key
 
 # --- Python ---
 __pycache__/
