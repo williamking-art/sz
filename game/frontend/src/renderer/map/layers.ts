@@ -15,8 +15,8 @@ export const THEME = {
   cRegime: "#d8cbaa", // 境外政权
   cRegimeOff: "#e3dbc8", // 未兴（金开局 inactive）
   cLineRegime: "#6b5b45",
-  cCitySeat: "#8a2b22",
-  cCityTown: "#4a3a28",
+  cCitySeat: "#a04a3c",   // 府治圆点：淡化朱红（弱化视觉权重）
+  cCityTown: "#6b5c48",   // 州县圆点：淡墨褐（不再深黑刺眼）
   // 底图（真实地理）：海面 / 陆地晕染 / 河湖
   sea: "#b0bfb6",
   landGold: "#e3c27f",
@@ -122,8 +122,8 @@ export function buildLayerDefs() {
       paint: {
         "circle-radius": [
           "case",
-          ["get", "is_seat"], 3,
-          2.2
+          ["get", "is_seat"], 2.8,
+          2.0
         ],
         "circle-color": [
           "case",
@@ -131,8 +131,10 @@ export function buildLayerDefs() {
           THEME.cCitySeat,
           THEME.cCityTown
         ],
+        "circle-opacity": 0.72,
         "circle-stroke-color": THEME.gold,
-        "circle-stroke-width": 0.5
+        "circle-stroke-width": 0.4,
+        "circle-stroke-opacity": 0.6
       }
     }
   ];
