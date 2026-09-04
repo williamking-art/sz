@@ -3,6 +3,17 @@ import { Crown, FolderOpen, BookOpen, Settings, LogOut, Loader2, Play, Sparkles 
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 
+// 主菜单背景图池（按序轮换：每次启动续接上次索引，且每 20s 自动切换下一张）
+const BG_POOL = [
+  "./images/menu_bg_1.png",
+  "./images/menu_bg_2.png",
+  "./images/menu_bg_3.png",
+  "./images/menu_bg_4.png",
+  "./images/menu_bg_5_night_palace.png",
+  "./images/menu_bg_6_snow_bianjing.png"
+];
+const BG_SWITCH_MS = 20000;
+
 const DIFFICULTIES = [
   { key: "史实", label: "史实推演", tag: "正史", desc: "依建中靖国元年旧制，新旧党争炽烈，北方辽金迭代在即，人事循常。" },
   { key: "轻松", label: "治平之治", tag: "安泰", desc: "四方风调雨顺，岁入充盈，流民易抚，朝堂阻力减半，宜初习治道。" },
@@ -15,6 +26,28 @@ export default function MainMenu() {
   const [busy, setBusy] = useState(false);
   const [hasSave, setHasSave] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // 背景轮换：续接上次索引；双图层交叉淡入淡出
+  const [bgIndex, setBgIndex] = useState(() => {
+    const last = Number(sessionStorage.getItem("sz:bgIndex") ?? "-1");
+    return (last + 1) % BG_POOL.length;
+  });
+  const [bgFading, setBgFading] = useState(false);
+
+  useEffect(() => {
+    sessionStorage.setItem("sz:bgIndex", String(bgIndex));
+  }, [bgIndex]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setBgFading(true);
+      setTimeout(() => {
+        setBgIndex((i) => (i + 1) % BG_POOL.length);
+        setBgFading(false);
+      }, 1500);
+    }, BG_SWITCH_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   const setState = useGameStore((s) => s.setState);
   const setInGame = useGameStore((s) => s.setInGame);
@@ -73,11 +106,25 @@ export default function MainMenu() {
 
   return (
     <div className="relative h-full w-full overflow-hidden select-none">
-      {/* 1. 全景大作壁纸背景（带极缓呼吸电影感） */}
+      {/* 1. 全景大作壁纸背景（按序轮换 + 交叉淡入淡出 + 极缓呼吸电影感） */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
-        style={{ backgroundImage: "url('./images/menu_bg_1.png')" }}
+        style={{ backgroundImage: `url('${BG_POOL[bgIndex]}')` }}
       />
+      {/* 轮换过渡层：切换期间淡入新图，完成后主层已同步为新图 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none transition-opacity duration-[1500ms]"
+        style={{
+          backgroundImage: `url('${BG_POOL[(bgIndex + 1) % BG_POOL.length]}')`,
+          opacity: bgFading ? 1 : 0
+        }}
+      />
+      {/* 预加载全部背景，避免切换闪白 */}
+      <div className="absolute h-0 w-0 overflow-hidden opacity-0">
+        {BG_POOL.map((src) => (
+          <img key={src} src={src} alt="" />
+        ))}
+      </div>
 
       {/* 2. 电影感全屏暗角与宣纸暗色渐变遮罩（左侧深黑渐变衬底，确保菜单字迹极度清晰） */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/30" />

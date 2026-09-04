@@ -52,10 +52,10 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
       {/* 治国施政与巡幸操作区 */}
       <div className="pt-2 flex flex-col gap-2">
         {/* 1. 若为宋朝经济单位、路分或所属府州，提供直达账册功能 */}
-        {(p.game_unit || (kind === "circuit" && name) || p.circuit) && (
+        {(p.game_unit || (kind === "circuit" && name) || Boolean(p.circuit)) && (
           <button
             onClick={() => {
-              const target = String(p.game_unit || (kind === "circuit" ? name : p.circuit) || name);
+              const target = String(p.game_unit || (kind === "circuit" ? name : String(p.circuit || "")) || name);
               pushOverlay({
                 kind: "prefecture",
                 title: `${target} 治理`,
@@ -64,7 +64,7 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
             }}
             className="flex items-center justify-center gap-2 rounded border border-gold/60 bg-paper px-3 py-1.5 font-kai text-sm text-ink shadow-sm transition hover:border-gold hover:bg-gold-light/40"
           >
-            <Landmark size={15} className="text-goldDark" /> 查阅路分账册 ({String(p.game_unit || (kind === "circuit" ? name : p.circuit) || name)})
+            <Landmark size={15} className="text-goldDark" /> 查阅路分账册 ({String(p.game_unit || (kind === "circuit" ? name : String(p.circuit || "")) || name)})
           </button>
         )}
 

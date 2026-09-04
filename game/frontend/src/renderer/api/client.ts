@@ -68,11 +68,15 @@ export interface AiConfigResult {
   api_key_masked: string;
   base_url: string;
   model: string;
+  has_key?: boolean;
+  message?: string;
+  available?: boolean;
 }
 
 export type ActionName =
   | "issue_decree"
   | "issue_secret_decree"
+  | "unlock_focus"
   | "issue_edict_from_review"
   | "reject_edict_draft"
   | "issue_free_decree"
