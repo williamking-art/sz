@@ -49,13 +49,7 @@ function main() {
   const viewSrc = join(SRC, "view.json");
   if (existsSync(viewSrc)) copyFileSync(viewSrc, join(DST, "view.json"));
 
-  // 4) 平移地形瓦片（若存在）
-  const tilesSrc = join(SRC, "tiles");
-  if (existsSync(tilesSrc)) {
-    copyDir(tilesSrc, join(DST, "tiles"));
-    console.log("[topo] 已平移 tiles/");
-  }
-
+  // 4) 地形瓦片已直接常驻 frontend/public/map/tiles/，无需从后端重复拷贝
   console.log("[topo] 完成 →", DST);
 }
 

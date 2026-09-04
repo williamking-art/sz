@@ -44,6 +44,8 @@ songzuo_server/run*.out
 songzuo_server/run*.err
 songzuo_server/deploy.log.err
 game/宋祚.exe.lnk
+game/assets/map/web/tiles/
+assets/map/web/tiles/
 
 # --- 项目数据目录（CodeBuddy 工作区数据，非源码） ---
 .codebuddy/
