@@ -125,22 +125,121 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     }
   }
 
-  // 快捷公文与君臣互动行止
-  function handleAction(act: string) {
-    if (act === "准奏") {
-      handleSend("准卿所奏，着中书、门下速拟明诏颁行。");
-    } else if (act === "赐茶") {
-      handleSend("卿经年国事鞅掌，内侍，且赐顾渚紫笋御茶，为卿解乏。");
-    } else if (act === "抚慰") {
-      handleSend("朕知卿一片体国忠诚，虽毁誉并至，朕自为卿洞察。");
-    } else if (act === "敲打") {
-      handleSend("近来朝堂朋党攻讦日烈，卿领袖群伦，当谨防任私徇情，清肃门生。");
-    } else if (act === "问财政") {
-      handleSend("今岁国库二税与两浙商榷岁入实收几何？仓庾可充兵食否？");
-    } else if (act === "问边防") {
-      handleSend("北疆辽夏兵甲动向如何？各路军帅整备坚壁可足御敌？");
-    }
+  // 根据大宋当前真实局势 + 大臣职掌，动态生成御前圣裁行动
+  interface PolicyOption {
+    label: string;
+    badge: string;
+    text: string;
+    isPrimary?: boolean;
+    color?: string;
   }
+
+  function getDynamicOptions(): PolicyOption[] {
+    const opts: PolicyOption[] = [];
+    const treasury = state ? pick<number>(state, "treasury", 5000000) : 5000000;
+    const granary = state ? pick<number>(state, "granary", 15000000) : 15000000;
+    const canalBlock = state ? pick<number>(state, "canal_block", 10) : 10;
+    const external = (state as any)?.external || {};
+    const liaoAtt = external["辽"]?.attitude ?? 50;
+    const xixiaAtt = external["西夏"]?.attitude ?? 50;
+    const activeEvents = (state as any)?.active_events || [];
+
+    // 1. 核心定策：准奏
+    opts.push({
+      label: "准 奏",
+      badge: "敕旨",
+      text: "准卿所奏，着中书、门下及该管衙门速拟明诏颁行，毋得稽迟。",
+      isPrimary: true
+    });
+
+    // 2. 根据大臣职掌分类派生专业选项
+    if (isMilitary) {
+      // 军事/枢密大臣专项
+      if (liaoAtt < 40 || xixiaAtt < 40) {
+        opts.push({
+          label: "九边饬备",
+          badge: "戎备",
+          text: "北疆塞上烽火戒严，卿总司枢府，着即严饬河东、河北诸关隘坚壁清野，严防谍探。"
+        });
+      }
+      opts.push({
+        label: "点检禁厢",
+        badge: "治军",
+        text: "三衙禁军与各路厢军月粮饷钱可曾足额？老弱羸病者当速核定，整军经武。"
+      });
+      opts.push({
+        label: "边贸榷场",
+        badge: "互市",
+        text: "辽夏近来边贸互市虚实如何？铁货茶引走私有无边吏私纵情弊？"
+      });
+    } else if (ministerRole.includes("仆射") || ministerRole.includes("相") || ministerRole.includes("侍郎") || ministerRole.includes("中丞")) {
+      // 宰执中枢大僚专项
+      opts.push({
+        label: "调停党争",
+        badge: "朝局",
+        text: "自建中靖国以来，朝堂新旧相攻，朋党蔓延。卿位极人臣，当如何调停众论，以安社稷？"
+      });
+      if (treasury < 4000000) {
+        opts.push({
+          label: "度支节流",
+          badge: "紧绌",
+          text: "目下国库用度日紧，三冗耗费颇巨。中书当速定裁汰冗官、省减浮费之策以充府库。"
+        });
+      } else {
+        opts.push({
+          label: "宽免积欠",
+          badge: "恤民",
+          text: "岁入尚安，江淮数路积年逃税包税亏欠，可议除豁免二分，以苏疲瘵。"
+        });
+      }
+    } else {
+      // 部使言官常规
+      opts.push({
+        label: "澄清吏治",
+        badge: "风宪",
+        text: "州县贪墨与胥吏舞文弄法之风屡禁不绝，卿主管所司，当严加考核，有罪必纠。"
+      });
+    }
+
+    // 3. 结合当前大宋宏观国情动态插入突发危机选项
+    if (canalBlock >= 20) {
+      opts.push({
+        label: "疏浚漕纲",
+        badge: "急务",
+        text: "汴河淮泗漕运梗阻，江淮纲船阻滞。着发工匠民夫疏浚浅涩，按期上供太仓。"
+      });
+    } else if (granary < 10000000) {
+      opts.push({
+        label: "平粜拨粮",
+        badge: "米价",
+        text: "常平太仓粮储见底，京畿米价腾贵。卿当严查豪商囤积，平籴平粜以安市井。"
+      });
+    } else if (activeEvents.length > 0) {
+      const topEv = activeEvents[0];
+      const evName = topEv.title || topEv.category || "四方急报";
+      opts.push({
+        label: "经略急变",
+        badge: "边报",
+        text: `近日地方有报【${evName}】，物议鼎沸。卿身为朝廷大臣，可有稳妥化解之方？`
+      });
+    }
+
+    // 4. 经典君臣情境互动（赐茶 / 勉励 / 敲打）
+    opts.push({
+      label: "赐顾渚紫笋",
+      badge: "皇恩",
+      text: "卿国事鞅掌，夙夜在公。内侍，特赐顾渚紫笋御茶一橐，以彰劳绩。"
+    });
+    opts.push({
+      label: "戒骄申饬",
+      badge: "戒勉",
+      text: "位高权重更当谨慎自守，毋任门生亲故擅作威福，引惹言路台谏非议。"
+    });
+
+    return opts;
+  }
+
+  const dynamicOptions = getDynamicOptions();
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-text font-kai overflow-hidden">
@@ -287,51 +386,27 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
 
           {/* 底部圣意交互区 */}
           <div className="border-t border-gold/40 bg-[#f4ebd6] p-3 space-y-2.5">
-            {/* 上层：预置决策快速操作条 */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* 上层：基于大宋当前局势与大臣职权动态派生的决策命令标签条 */}
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[12px] font-bold text-red-dark mr-1">圣意亲裁：</span>
-              <button
-                onClick={() => handleAction("准奏")}
-                disabled={busy}
-                className="flex items-center gap-1 rounded bg-red px-3 py-1 text-xs font-bold text-paper shadow-sm hover:bg-red-dark transition disabled:opacity-50"
-              >
-                <ThumbsUp size={12} /> 准 奏
-              </button>
-              <button
-                onClick={() => handleAction("赐茶")}
-                disabled={busy}
-                className="flex items-center gap-1 rounded border border-gold/60 bg-paper px-2.5 py-1 text-xs text-ink hover:bg-gold-light transition disabled:opacity-50"
-              >
-                <Coffee size={12} className="text-goldDark" /> 赐御茶
-              </button>
-              <button
-                onClick={() => handleAction("抚慰")}
-                disabled={busy}
-                className="flex items-center gap-1 rounded border border-gold/60 bg-paper px-2.5 py-1 text-xs text-ink hover:bg-gold-light transition disabled:opacity-50"
-              >
-                <Heart size={12} className="text-red" /> 勉励抚慰
-              </button>
-              <button
-                onClick={() => handleAction("敲打")}
-                disabled={busy}
-                className="flex items-center gap-1 rounded border border-gold/60 bg-paper px-2.5 py-1 text-xs text-ink hover:bg-gold-light transition disabled:opacity-50"
-              >
-                <AlertTriangle size={12} className="text-amber-800" /> 申饬戒骄
-              </button>
-              <button
-                onClick={() => handleAction("问财政")}
-                disabled={busy}
-                className="rounded border border-gold/60 bg-paper px-2.5 py-1 text-xs text-ink hover:bg-gold-light transition disabled:opacity-50"
-              >
-                问钱粮亏盈
-              </button>
-              <button
-                onClick={() => handleAction("问边防")}
-                disabled={busy}
-                className="rounded border border-gold/60 bg-paper px-2.5 py-1 text-xs text-ink hover:bg-gold-light transition disabled:opacity-50"
-              >
-                问辽夏戎备
-              </button>
+              {dynamicOptions.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => handleSend(opt.text)}
+                  disabled={busy}
+                  title={opt.text}
+                  className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-bold transition shadow-sm disabled:opacity-50 ${
+                    opt.isPrimary
+                      ? "bg-red text-paper hover:bg-red-dark"
+                      : "border border-gold/60 bg-paper text-ink hover:bg-gold-light hover:border-gold hover:text-red"
+                  }`}
+                >
+                  <span className={`text-[9.5px] px-1 py-0.2 rounded font-sans ${opt.isPrimary ? "bg-black/20 text-gold-light" : "bg-gold/15 text-goldDark"}`}>
+                    {opt.badge}
+                  </span>
+                  <span>{opt.label}</span>
+                </button>
+              ))}
             </div>
 
             {/* 下层：长条宣纸传旨输入框 */}
