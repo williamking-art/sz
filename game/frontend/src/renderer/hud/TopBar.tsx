@@ -19,8 +19,8 @@ export default function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-      {/* 左：纯正大宋皇室徽标 + 纪元（庄严只读展示，不做按钮） */}
-      <div className="pointer-events-auto flex items-center gap-3 rounded-[3px] border border-gold bg-card px-2.5 py-1.5 shadow-paper">
+      {/* 左：大宋皇室徽标 + 纪元（织锦底） */}
+      <div className="jade-badge pointer-events-auto flex items-center gap-3 px-2.5 py-1.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold shadow-sm">
           <span className="font-kai text-[20px] font-bold leading-none text-[#f3e6c4]">宋</span>
         </div>
@@ -29,12 +29,12 @@ export default function TopBar() {
         </span>
       </div>
 
-      {/* 右：数值胶囊 + 词元 */}
-      <div className="pointer-events-auto flex items-center gap-2 rounded-[3px] border border-gold bg-card px-2.5 py-2 shadow-paper">
-        <span className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-[13px] font-bold text-ink">
+      {/* 右：数值胶囊 + 词元（玉佩徽章底） */}
+      <div className="jade-badge pointer-events-auto flex items-center gap-2 px-2.5 py-2">
+        <span className="whitespace-nowrap rounded-[2px] border border-gold/40 bg-black/40 px-2 py-1 text-[13px] font-bold text-[#e8dcc0]">
           ◆威望 {Math.round(prestige)}
         </span>
-        <span className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-[13px] font-bold text-ink">
+        <span className="whitespace-nowrap rounded-[2px] border border-gold/40 bg-black/40 px-2 py-1 text-[13px] font-bold text-[#e8dcc0]">
           ♥民心 {Math.round(popular)}
         </span>
         <HoverCapsule
@@ -85,7 +85,7 @@ function HoverCapsule({
       <button
         onMouseEnter={onToggle}
         onFocus={onToggle}
-        className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-[13px] font-bold text-ink transition hover:bg-gold-light"
+        className="whitespace-nowrap rounded-[2px] border border-gold/40 bg-black/40 px-2 py-1 text-[13px] font-bold text-[#e8dcc0] transition hover:bg-gold/20"
       >
         {text}
       </button>

@@ -47,10 +47,10 @@ export default function Dock() {
           <button
             key={c.key}
             onClick={() => pushOverlay({ kind: c.key as never, title: c.label })}
-            className="group flex h-14 w-14 flex-col items-center justify-center rounded-full bg-card/90 shadow-paper backdrop-blur-sm transition hover:bg-gold-light hover:shadow-card"
+            className="tab-wood group flex h-14 w-14 flex-col items-center justify-center rounded-full transition"
           >
-            <span className="text-red transition group-hover:scale-110">{c.icon}</span>
-            <span className="mt-0.5 text-[10px] text-ink-light">{c.label}</span>
+            <span className="text-gold transition group-hover:scale-110">{c.icon}</span>
+            <span className="mt-0.5 text-[10px] text-[#e8dcc0]">{c.label}</span>
           </button>
         ))}
       </div>
@@ -60,7 +60,7 @@ export default function Dock() {
         <button
           onClick={handleAdvance}
           disabled={advancing}
-          className="group relative flex h-16 w-16 items-center justify-center rounded-full bg-red text-paper shadow-card transition hover:bg-red-dark disabled:opacity-60"
+          className="group relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-b from-red to-red-dark text-paper shadow-card ring-2 ring-gold/70 transition hover:scale-105 hover:shadow-gold/30 disabled:opacity-60"
         >
           {!advancing && <span className="absolute inset-0 rounded-full animate-breathe" />}
           <Play size={26} className="relative transition group-hover:scale-110" />

@@ -61,23 +61,23 @@ export default function OverlayStack() {
               className="absolute inset-0 bg-black/60 backdrop-blur-[2px] cursor-pointer"
               onClick={canClose ? () => popTo(i) : undefined}
             />
-            {/* 弹窗实体卡片 (必须置于遮罩之上 z-10，完全捕获鼠标与键盘事件) */}
-            <div className="relative z-10 pointer-events-auto flex max-h-[85vh] w-[min(640px,92vw)] flex-col rounded-[4px] border border-gold bg-card shadow-2xl animate-card-in select-text">
-              {/* 题头 */}
-              <div className="flex items-center justify-between border-b border-gold/50 px-5 py-2.5">
-                <span className="font-kai text-[19px] tracking-[0.18em] text-ink">{ov.title}</span>
+            {/* 弹窗实体卡片：织锦底纹 + 鎏金边框（置于遮罩之上 z-10，完全捕获事件） */}
+            <div className="panel-brocade relative z-10 pointer-events-auto flex max-h-[85vh] w-[min(660px,92vw)] flex-col rounded-[4px] animate-card-in select-text">
+              {/* 题头：卷轴织锦横幅 */}
+              <div className="panel-titlebar flex items-center justify-between px-5 py-3">
+                <span className="font-kai text-[19px] tracking-[0.22em] text-[#f0d9a8]">{ov.title}</span>
                 {canClose && (
                   <button
                     onClick={() => popTo(i)}
                     aria-label="关闭"
-                    className="rounded p-1 text-ink-light transition hover:bg-gold-light hover:text-ink"
+                    className="rounded border border-gold/40 bg-black/30 p-1 text-gold transition hover:border-gold hover:bg-gold/20 hover:text-[#f0d9a8]"
                   >
                     <X size={18} />
                   </button>
                 )}
               </div>
-              {/* 内容 */}
-              <div className="flex-1 overflow-y-auto p-5">
+              {/* 内容：暗纸底 */}
+              <div className="panel-content-dark flex-1 overflow-y-auto p-5">
                 <PanelBody kind={ov.kind} props={ov.props} />
               </div>
             </div>

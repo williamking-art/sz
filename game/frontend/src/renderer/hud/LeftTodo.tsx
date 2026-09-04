@@ -11,26 +11,23 @@ export default function LeftTodo() {
   return (
     <div className="pointer-events-auto absolute left-3 top-[92px] z-20 w-[220px]">
       <div className="rounded-[3px] border border-gold bg-card shadow-paper">
-        <div className="border-b border-border px-3 py-1.5">
-          <span className="font-kai text-[15px] tracking-[0.2em] text-ink">在 办</span>
+        <div className="panel-titlebar px-3 py-1.5">
+          <span className="font-kai text-[15px] tracking-[0.2em] text-[#f0d9a8]">在 办</span>
         </div>
         <ul className="px-1.5 py-1">
           {todos.map((t, i) => (
             <li key={i}>
               <button
                 onClick={() => pushOverlay({ kind: "todo", title: "在办事务" })}
-                className="group flex w-full items-center gap-2 rounded px-1.5 py-1 text-left transition hover:bg-gold-light"
+                className="group flex w-full items-center gap-2 rounded px-1.5 py-1 text-left transition hover:bg-gold/15"
               >
-                <span className="flex-1 truncate text-[12px] leading-snug text-ink">
+                <span className="flex-1 truncate text-[12px] leading-snug text-[#e8dcc0]">
                   {t.label}
                 </span>
-                <span className="h-2 w-[60px] shrink-0 overflow-hidden rounded-sm bg-[#e0d3b3]">
+                <span className="meter-track h-2 w-[60px] shrink-0">
                   <span
-                    className="block h-full rounded-sm transition-all"
-                    style={{
-                      width: `${Math.min(100, Math.round(t.progress * 0.6))}%`,
-                      backgroundColor: statusColor(t.progress)
-                    }}
+                    className="meter-fill block rounded-sm"
+                    style={{ width: `${Math.min(100, Math.round(t.progress * 0.6))}%` }}
                   />
                 </span>
               </button>

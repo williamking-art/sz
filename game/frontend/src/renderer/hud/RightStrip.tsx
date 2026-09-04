@@ -22,10 +22,10 @@ export default function RightStrip() {
         <button
           key={it.key}
           onClick={() => pushOverlay({ kind: it.key as never, title: it.label })}
-          className="group flex h-12 w-12 flex-col items-center justify-center rounded-full bg-card/90 shadow-paper backdrop-blur-sm transition hover:bg-gold-light hover:shadow-card"
+          className="tab-wood group flex h-12 w-12 flex-col items-center justify-center rounded-full transition"
         >
-          <span className="text-red transition group-hover:scale-110">{it.icon}</span>
-          <span className="mt-0.5 text-[10px] text-ink-light">{it.label}</span>
+          <span className="text-gold transition group-hover:scale-110">{it.icon}</span>
+          <span className="mt-0.5 text-[10px] text-[#e8dcc0]">{it.label}</span>
         </button>
       ))}
     </div>
