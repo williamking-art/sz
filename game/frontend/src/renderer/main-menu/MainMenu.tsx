@@ -85,27 +85,24 @@ export default function MainMenu() {
 
       {/* 3. 左侧大作排版区（完全对齐商业级大战略主界面构图） */}
       <div className="relative z-10 flex h-full flex-col justify-between px-16 py-12">
-        {/* 左上：Logo 标题组 */}
-        <div className="space-y-2">
+        {/* 左上：Logo 标题组（无杂乱印章，纯净名家书法题字） */}
+        <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red shadow-2xl ring-2 ring-gold/80">
-              <span className="font-kai text-3xl font-bold tracking-widest text-[#f9ebd0]">宋</span>
-            </div>
-            <div>
-              <div className="flex items-baseline gap-3">
-                <h1 className="font-kai text-6xl font-black tracking-[0.25em] text-[#f8ecd0] drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
-                  宋 祚
-                </h1>
-                <span className="rounded border border-gold/40 bg-black/40 px-2 py-0.5 font-kai text-xs text-gold">
-                  建中靖国
-                </span>
-              </div>
-              <p className="font-sans text-[11px] font-semibold tracking-[0.35em] text-gold/80 uppercase">
+            <img
+              src="./images/title_calligraphy.png"
+              alt="宋祚"
+              className="h-28 object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.95)] select-none"
+            />
+            <div className="flex flex-col justify-center gap-1.5 pb-1">
+              <span className="self-start rounded border border-gold/70 bg-black/60 px-2.5 py-0.5 font-kai text-xs tracking-widest text-gold shadow-sm">
+                建中靖国
+              </span>
+              <p className="font-sans text-[11px] font-bold tracking-[0.45em] text-gold/90 uppercase drop-shadow-sm">
                 THE SONG DYNASTY · MANDATE OF HEAVEN
               </p>
             </div>
           </div>
-          <p className="max-w-md font-kai text-sm tracking-widest text-[#d8cfbe]/80 pt-1">
+          <p className="max-w-md font-kai text-sm tracking-widest text-[#d8cfbe]/85 pl-1 border-l-2 border-gold/40 py-0.5">
             “建中靖国元年正月，帝即天子位。辽金迭代，外患渐迫；社稷安危，系于一念。”
           </p>
         </div>

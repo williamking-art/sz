@@ -36,10 +36,21 @@ DEFAULT_MODEL = "agnes-image-2.5-flash"
 
 
 def get_api_key() -> str:
-    """获取 API Key，优先级：环境变量 AGNES_API_KEY > game/ai_config.json > 命令行。"""
+    """获取 API Key，优先级：环境变量 AGNES_API_KEY > _dev_tools/.agnes_key > game/ai_config.json > 命令行。"""
     key = os.environ.get("AGNES_API_KEY")
     if key:
         return key.strip()
+
+    # 尝试读取 _dev_tools/.agnes_key
+    local_key_path = os.path.join(BASE_DIR, "_dev_tools", ".agnes_key")
+    if os.path.exists(local_key_path):
+        try:
+            with open(local_key_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except Exception:
+            pass
 
     # 尝试读取 game/ai_config.json
     cfg_path = os.path.join(BASE_DIR, "game", "ai_config.json")
