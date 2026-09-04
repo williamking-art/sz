@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import { humanizeCoin } from "../utils/format";
@@ -33,6 +33,7 @@ function formatRate(rate: number): string {
 
 export default function AccountingPanel() {
   const state = useGameStore((s) => s.state);
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
   const [fin, setFin] = useState<Dict | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,6 +168,22 @@ export default function AccountingPanel() {
           货币供给：{humanizeCoin(moneySupply)}　物价：{priceLevel.toFixed(2)}（钱/物之比）　
           钱荒：{String(fin.shortage_desc ?? "—")}
         </p>
+      </div>
+
+      {/* 底部快捷操作 */}
+      <div className="pt-2 border-t border-gold/30 flex items-center justify-between">
+        <button
+          onClick={() => pushOverlay({ kind: "pop", title: "天下民生 · 六民生齿与财帛" })}
+          className="flex items-center gap-1.5 rounded border border-gold/60 bg-paper px-3 py-1.5 font-kai text-xs text-ink transition hover:bg-gold-light"
+        >
+          <Users2 size={14} className="text-goldDark" /> 查阅六民生齿与民间财帛 (POP)
+        </button>
+        <button
+          onClick={() => pushOverlay({ kind: "decree", title: "拟旨 · 度支" })}
+          className="rounded bg-red px-4 py-1.5 font-kai text-xs font-bold text-paper transition hover:bg-red-dark"
+        >
+          拟旨度支
+        </button>
       </div>
     </div>
   );

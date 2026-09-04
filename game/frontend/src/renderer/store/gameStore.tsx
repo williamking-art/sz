@@ -15,6 +15,8 @@ export type PanelKind =
   | "prefecture"
   | "granary"
   | "focus"
+  | "diplomacy"
+  | "pop"
   | "codex"
   | "accounting"
   | "military"
