@@ -22,14 +22,27 @@ export interface CustomMarker {
   kind?: "warn" | "normal";
 }
 
+// 主次互斥组：macro（省/路名）与 micro（府/县名）同区域重叠时 macro 优先；
+// zoom 深入后（≥ macro 隐没档位或避让胜出）micro 才浮现。
+export interface MutualExclusion {
+  macro: (lab: LabelRecord) => boolean;
+  micro: (lab: LabelRecord) => boolean;
+}
+
 export class MarkerManager {
   private map: maplibregl.Map;
   private labels: (LabelRecord & { priority: number; lngLat: [number, number] })[] = [];
   private customMarkers: maplibregl.Marker[] = [];
   private pulseMarker: maplibregl.Marker | null = null;
+  private exclusions: MutualExclusion[] = [];
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+  }
+
+  /** 注册主次互斥组（如：省级路名 macro 优先于府县名 micro）。 */
+  registerMutualExclusion(rule: MutualExclusion): void {
+    this.exclusions.push(rule);
   }
 
   addLabel(
@@ -112,6 +125,35 @@ export class MarkerManager {
 
     // 参与避让的标签按结果显隐；未参与的（视口外/档位外）已在上一步隐藏
     const hidden = computeHidden(boxes);
+
+    // 主次互斥引擎：对每个互斥组，macro（省级路名）已显示于视口时，
+    // 与其邻近重叠的 micro（府县名）强制隐藏——除非 zoom 已深入超过 macro 档位（府名接班）。
+    for (const rule of this.exclusions) {
+      const shownMacro = this.labels.filter(
+        (l) => rule.macro(l) && l.visible && zoom >= l.tier && !l.el.classList.contains("lbl-hidden")
+      );
+      if (!shownMacro.length) continue;
+      // 宏观标签已随 zoom 深入淡出后（zoom 高于其档位 1.2 级），不再压制府名
+      const macroTiers = shownMacro.map((l) => l.tier);
+      const maxMacroTier = Math.max(...macroTiers);
+      const suppressMicro = zoom < maxMacroTier + 1.2;
+      if (!suppressMicro) continue;
+      for (let i = 0; i < this.labels.length; i++) {
+        const l = this.labels[i];
+        if (!rule.micro(l)) continue;
+        if (l.el.classList.contains("lbl-hidden")) continue;
+        const p = this.map.project(l.lngLat);
+        for (const m of shownMacro) {
+          const mp = this.map.project(m.lngLat);
+          // 屏幕距离 < 140px 视为同区域：路名在场，府名退让
+          if (Math.abs(p.x - mp.x) < 140 && Math.abs(p.y - mp.y) < 90) {
+            l.el.classList.add("lbl-hidden");
+            break;
+          }
+        }
+      }
+    }
+
     for (const b of boxes) {
       this.labels[b.key].el.classList.toggle("lbl-hidden", hidden.has(b.key));
     }

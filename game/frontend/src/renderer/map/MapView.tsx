@@ -225,15 +225,23 @@ export default function MapView() {
       const seat = !!p.is_seat;
       const cls = `lbl-city${seat ? " seat" : ""}${p.level === "京府" ? " jingfu" : ""}`;
       const tier = p.level === "京府" ? 3.0 : seat ? 3.4 : 4.6;
+      // 主次互斥：同屏出现省份/路分名时不显示府名，缩放到一定程度（路名避让落败或档位提高）才现府名
       markers.addLabel(
         coord,
         String(p.name),
         cls,
         tier,
         true,
-        () => selectFeature("city", String(p.name))
+        () => selectFeature("city", String(p.name)),
+        { kind: "city", parent: seat ? String(p.circuit || p.province || "") : "" }
       );
     }
+    // 注册主次互斥组：省级路名（macro）优先于府名（micro）——同区域重叠时路名先占位，
+    // 府名只有当 zoom 深入、路名隐去或错开后才浮现。
+    markers.registerMutualExclusion({
+      macro: (lab) => lab.el.classList.contains("lbl-circuit"),
+      micro: (lab) => lab.el.classList.contains("lbl-city")
+    });
     markers.refresh(map.getZoom());
   }
 
