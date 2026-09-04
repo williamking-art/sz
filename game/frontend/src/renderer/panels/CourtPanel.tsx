@@ -149,6 +149,20 @@ export default function CourtPanel() {
           <p className="text-sm text-dim">
             天潢：{ageTxt}天子 · 御着{seasonTxt}
           </p>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => pushOverlay({ kind: "ministers", title: "中枢群臣 · 列位卿僚" })}
+              className="rounded border border-gold/60 bg-paper px-3 py-1 font-kai text-xs font-bold text-ink transition hover:bg-gold-light"
+            >
+              御览中枢班列
+            </button>
+            <button
+              onClick={() => pushOverlay({ kind: "audience", title: "御前召对", props: { minister: "韩忠彦", role: "尚书左仆射兼门下侍郎" } })}
+              className="rounded bg-red px-3 py-1 font-kai text-xs font-bold text-paper transition hover:bg-red-dark shadow-sm"
+            >
+              召宰执入对
+            </button>
+          </div>
         </div>
       </div>
 

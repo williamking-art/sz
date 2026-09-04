@@ -42,7 +42,15 @@ function SectionTitle({ text }: { text: string }) {
 export default function MinistersPanel() {
   const state = useGameStore((s) => s.state);
   const [tab, setTab] = useState<"cabinet" | "all">("cabinet");
-  const [dialogue, setDialogue] = useState<{ minister: string; role: string } | null>(null);
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
+
+  function openAudience(name: string, role: string) {
+    pushOverlay({
+      kind: "audience",
+      title: `御前召对 · ${name}`,
+      props: { minister: name, role }
+    });
+  }
 
   const factions = state ? asDict(pick(state, "factions", {})) : {};
   const yamen = state ? asDict(pick(state, "yamen", {})) : {};
@@ -204,7 +212,7 @@ export default function MinistersPanel() {
         <SectionTitle text="宰 执" />
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {chancellorCards.map((c) => (
-            <MinisterCard key={c.name} card={c} gold onAudience={() => setDialogue({ minister: c.name, role: c.role })} />
+            <MinisterCard key={c.name} card={c} gold onAudience={() => openAudience(c.name, c.role)} />
           ))}
         </div>
       </div>
@@ -214,7 +222,7 @@ export default function MinistersPanel() {
         <SectionTitle text="派 系 领 袖" />
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {leaderCards.map((c) => (
-            <MinisterCard key={c.name} card={c} onAudience={() => setDialogue({ minister: c.name, role: c.role })} />
+            <MinisterCard key={c.name} card={c} onAudience={() => openAudience(c.name, c.role)} />
           ))}
         </div>
       </div>
@@ -224,22 +232,13 @@ export default function MinistersPanel() {
         <SectionTitle text="中 枢 六 部 尚 书" />
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {yamenCards.map((c) => (
-            <MinisterCard key={c.role} card={c} yamen={c.yamen} onAudience={() => setDialogue({ minister: c.name, role: c.role })} />
+            <MinisterCard key={c.role} card={c} yamen={c.yamen} onAudience={() => openAudience(c.name, c.role)} />
           ))}
         </div>
       </div>
             </>
           )}
         </div>
-      )}
-
-      {/* 召对浮层（内联展开） */}
-      {dialogue && (
-        <DialogueBox
-          minister={dialogue.minister}
-          role={dialogue.role}
-          onClose={() => setDialogue(null)}
-        />
       )}
     </div>
   );
@@ -285,81 +284,10 @@ function MinisterCard({
       )}
       <button
         onClick={onAudience}
-        className="mt-2.5 rounded-lg bg-paper/60 px-3 py-1.5 font-kai text-sm tracking-widest text-ink transition hover:bg-gold-light"
+        className="mt-2.5 rounded-lg bg-paper/60 px-3 py-1.5 font-kai text-sm font-bold tracking-widest text-ink transition hover:bg-gold-light hover:text-red border border-gold/30"
       >
-        召见奏对
+        御前召对
       </button>
-    </div>
-  );
-}
-
-// 召对条：口谕输入 + AI 奏对回复（对齐 _panel_dialogue 简化版）
-function DialogueBox({
-  minister, role, onClose
-}: {
-  minister: string;
-  role: string;
-  onClose: () => void;
-}) {
-  const setState = useGameStore((s) => s.setState);
-  const [text, setText] = useState("");
-  const [reply, setReply] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function ask() {
-    if (busy || !text.trim()) return;
-    setBusy(true);
-    setReply(null);
-    try {
-      const res = await getApiClient().action("audience_dialogue", {
-        minister,
-        text: text.trim()
-      });
-      setState(res.state);
-      setReply(res.message);
-    } catch (e) {
-      console.error("[audience_dialogue]", e);
-      setReply("召对失败：" + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-[1px]">
-      <div className="flex max-h-[70vh] w-[min(520px,92vw)] flex-col rounded-[4px] border border-gold bg-card shadow-card">
-        <div className="flex items-center justify-between border-b border-gold/50 px-5 py-2.5">
-          <span className="font-kai text-[19px] tracking-[0.18em] text-ink">召对 · {minister}</span>
-          <button onClick={onClose} className="rounded px-2 py-0.5 text-sm text-ink-light transition hover:bg-gold-light hover:text-ink">
-            关闭
-          </button>
-        </div>
-        <div className="space-y-3 overflow-y-auto p-5">
-          <p className="text-xs text-dim">{role} · 垂询国事，口谕问策</p>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={3}
-            placeholder="口谕（如：今岁国用不足，卿有何策？）"
-            className="w-full rounded-lg border border-border bg-paper/70 px-3 py-2 text-sm text-ink outline-none focus:border-gold"
-          />
-          <div className="flex justify-end">
-            <button
-              onClick={ask}
-              disabled={busy || !text.trim()}
-              className="flex items-center gap-2 rounded-lg bg-red px-5 py-1.5 font-kai text-sm tracking-widest text-paper transition hover:bg-red-dark disabled:opacity-60"
-            >
-              {busy && <Loader2 size={14} className="animate-spin" />}
-              {busy ? "奏对中…" : "传 谕"}
-            </button>
-          </div>
-          {reply && (
-            <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
-              <p className="whitespace-pre-wrap font-kai text-[15px] leading-relaxed text-ink">{reply}</p>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

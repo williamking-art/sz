@@ -24,6 +24,7 @@ import CodexPanel from "./CodexPanel";
 import FocusPanel from "./FocusPanel";
 import DiplomacyPanel from "./DiplomacyPanel";
 import PopPanel from "./PopPanel";
+import AudienceView from "./AudienceView";
 import PlaceholderPanel from "./PlaceholderPanel";
 
 // 浮层栈：宣纸奏章卡片叠于舆图之上，Esc 逐层关闭（对齐 panels_core.py::_overlay_stack）
@@ -50,6 +51,20 @@ export default function OverlayStack() {
     <div className="fixed inset-0 z-50 pointer-events-none">
       {overlays.map((ov, i) => {
         const canClose = ov.dismissible !== false;
+        
+        // 特殊通道：若为御前召对 (kind === "audience")，直接走全屏殿堂无缝沉浸层
+        if (ov.kind === "audience") {
+          return (
+            <div
+              key={ov.id}
+              className="fixed inset-0 z-50 pointer-events-auto"
+              style={{ zIndex: 100 + i * 10 }}
+            >
+              <AudienceView props={ov.props} />
+            </div>
+          );
+        }
+
         return (
           <div
             key={ov.id}
@@ -103,8 +118,9 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
     case "court":
       return <CourtPanel />;
     case "ministers":
-    case "audience":
       return <MinistersPanel />;
+    case "audience":
+      return <AudienceView props={props} />;
     case "gazette":
       return <GazettePanel />;
     case "todo":
