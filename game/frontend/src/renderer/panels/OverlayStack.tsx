@@ -102,6 +102,7 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
     case "court":
       return <CourtPanel />;
     case "ministers":
+    case "audience":
       return <MinistersPanel />;
     case "gazette":
       return <GazettePanel />;

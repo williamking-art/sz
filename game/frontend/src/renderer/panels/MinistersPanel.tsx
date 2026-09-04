@@ -260,8 +260,12 @@ function MinisterCard({
       }`}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-paper/70 text-red">
-          {card.kind === "military" ? <Swords size={22} /> : <User size={22} />}
+        <div className="relative h-14 w-12 shrink-0 overflow-hidden rounded border border-gold/60 bg-paper/70 shadow-sm">
+          <img
+            src={card.kind === "military" ? "./portraits/general.png" : "./portraits/minister.png"}
+            alt={card.name}
+            className="h-full w-full object-cover object-top"
+          />
         </div>
         <div className="min-w-0">
           <p className="truncate font-kai text-[15px] font-bold text-ink">{card.name}</p>

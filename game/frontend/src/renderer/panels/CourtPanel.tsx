@@ -120,12 +120,21 @@ export default function CourtPanel() {
   const legacies = asDict(pick(state, "legacies", {}));
   const activeEvents = pick<Dict[]>(state, "active_events", []);
 
+  // 动态匹配宋徽宗四时御容画像 (青年/中年/老年 × 冬夏)
+  const ageKey = year <= 1115 ? "young" : year <= 1125 ? "middle" : "old";
+  const seasonKey = [11, 12, 1, 2, 3].includes(month) ? "winter" : "summer";
+  const portraitUrl = `./portraits/emperor_${ageKey}_${seasonKey}.png`;
+
   return (
     <div className="space-y-5">
       {/* 御容卡 */}
-      <div className="flex gap-4 rounded-lg border border-gold/50 bg-card p-4">
-        <div className="flex h-28 w-24 shrink-0 items-center justify-center rounded border-2 border-gold bg-paper/70">
-          <span className="font-kai text-2xl tracking-widest text-red">御容</span>
+      <div className="flex gap-4 rounded-lg border border-gold/50 bg-card p-4 shadow-paper">
+        <div className="relative h-32 w-24 shrink-0 overflow-hidden rounded border-2 border-gold bg-paper/70 shadow-sm">
+          <img
+            src={portraitUrl}
+            alt="大宋皇帝御容"
+            className="h-full w-full object-cover object-top"
+          />
         </div>
         <div className="flex flex-col justify-center gap-1.5">
           <p className="font-kai text-lg tracking-[0.2em] text-ink">
