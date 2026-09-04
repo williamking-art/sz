@@ -1,7 +1,7 @@
 @echo off
 rem ============================================================
-rem Songzuo (Song Dynasty Sim) - Basemap & Route Preview
-rem Usage: preview_map.bat [--demo]
+rem Songzuo (Song Dynasty Sim) - Pure Python GUI Launcher
+rem Zero Node.js dependencies. Runs instantly via project venv.
 rem ============================================================
 setlocal
 cd /d "%~dp0game"
@@ -9,11 +9,11 @@ cd /d "%~dp0game"
 set "PY=%~dp0game\.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
 
-echo [Songzuo] Launching Map Preview Tool ...
-"%PY%" preview_map.py %*
+echo [Songzuo] Launching Pure Python Desktop GUI (gui_main.py) ...
+"%PY%" gui_main.py %*
 
 if errorlevel 1 (
     echo.
-    echo [Songzuo] Map preview exited with error.
+    echo [Songzuo] Python GUI exited with error code %errorlevel%.
     pause
 )
