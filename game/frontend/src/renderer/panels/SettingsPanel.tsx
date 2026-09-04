@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ChevronDown } from "lucide-react";
 import { getApiClient, type AiConfigResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
@@ -77,6 +77,10 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
   const [model, setModel] = useState("deepseek-chat");
+  const [activePreset, setActivePreset] = useState<string>("DeepSeek 官方");
+
+  const baseUrlRef = useRef<HTMLInputElement>(null);
+  const apiKeyRef = useRef<HTMLInputElement>(null);
 
   // 模型自动识别列表
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -163,23 +167,43 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDER_PRESETS.map((p) => (
-            <button
-              key={p.name}
-              onClick={() => {
-                if (p.baseUrl) setBaseUrl(p.baseUrl);
-                if (p.model) setModel(p.model);
-              }}
-              className={`rounded border p-2 text-left transition ${
-                baseUrl === p.baseUrl && model === p.model
-                  ? "border-red bg-red/10 shadow-sm"
-                  : "border-gold/30 bg-paper/60 hover:border-gold hover:bg-gold-light/30"
-              }`}
-            >
-              <div className="font-kai text-xs font-bold text-ink truncate">{p.name}</div>
-              <div className="mt-0.5 line-clamp-1 font-sans text-[10px] text-dim">{p.model || "自定义地址"}</div>
-            </button>
-          ))}
+          {PROVIDER_PRESETS.map((p) => {
+            const isSelected = activePreset === p.name;
+            return (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => {
+                  setActivePreset(p.name);
+                  if (p.name.includes("自定义")) {
+                    // 点击自定义时：若当前仍是官方地址则清空，并自动光标聚焦到 Base URL 输入框
+                    if (baseUrl === "https://api.deepseek.com" || baseUrl === "https://api.openai.com/v1" || baseUrl.includes("11434")) {
+                      setBaseUrl("");
+                      setModel("");
+                    }
+                    setTimeout(() => baseUrlRef.current?.focus(), 50);
+                    setMsg({ type: "success", text: "已切换为自定义中转站模式，请在下方输入您的接口地址与模型。" });
+                  } else {
+                    setBaseUrl(p.baseUrl);
+                    setModel(p.model);
+                    setMsg(null);
+                  }
+                }}
+                className={`rounded border p-2 text-left transition cursor-pointer ${
+                  isSelected
+                    ? "border-red bg-red/15 shadow-sm ring-1 ring-red/50"
+                    : "border-gold/40 bg-paper/70 hover:border-gold hover:bg-gold-light/40"
+                }`}
+              >
+                <div className={`font-kai text-xs font-bold truncate ${isSelected ? "text-red-dark" : "text-ink"}`}>
+                  {p.name}
+                </div>
+                <div className="mt-0.5 line-clamp-1 font-sans text-[10px] text-dim">
+                  {p.model || "支持任意网关"}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -209,9 +233,13 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
             <span className="font-sans text-[10px] text-dim">支持任意自定义中转 / OneAPI / 本地网关</span>
           </div>
           <input
+            ref={baseUrlRef}
             type="text"
             value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+            onChange={(e) => {
+              setBaseUrl(e.target.value);
+              setActivePreset("自定义中转站 / OneAPI");
+            }}
             placeholder="如：https://api.deepseek.com 或 https://your-proxy.com/v1"
             className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
           />
