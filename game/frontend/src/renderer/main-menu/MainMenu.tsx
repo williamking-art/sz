@@ -142,7 +142,7 @@ export default function MainMenu() {
                 icon={<Settings size={20} className="text-white/70" />}
                 title="治 平 机 务"
                 subtitle="AI模型接口 · 视听规制"
-                onClick={() => pushOverlay({ kind: "settings", title: "机务设置" })}
+                onClick={() => pushOverlay({ kind: "settings", title: "AI 枢密机务配置", props: { initialView: "ai" } })}
               />
 
               {/* 辞朝退出 */}

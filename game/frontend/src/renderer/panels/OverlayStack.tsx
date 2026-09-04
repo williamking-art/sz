@@ -117,7 +117,7 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
     case "engineering":
       return <EngineeringPanel />;
     case "settings":
-      return <SettingsPanel />;
+      return <SettingsPanel props={props as any} />;
     case "save":
       return <SavePanel />;
     case "conclude":
