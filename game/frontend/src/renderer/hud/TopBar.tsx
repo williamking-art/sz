@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Settings } from "lucide-react";
 import { useGameStore, hudEra, hudPrestige, hudPopular, hudTreasury, hudPrivy, hudToken, hudTreasuryFlow, hudPrivyFlow } from "../store/gameStore";
 import { humanizeCoin } from "../utils/format";
 
@@ -18,17 +19,13 @@ export default function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-      {/* 左：徽章 + 年号季节（点击徽章随时唤出主菜单/新开局） */}
+      {/* 左：纯正皇家徽章 + 纪元（庄严只读展示，不做按钮） */}
       <div className="pointer-events-auto flex items-center gap-3 rounded-[3px] border border-gold bg-card px-2.5 py-1.5 shadow-paper">
-        <button
-          onClick={() => pushOverlay({ kind: "newgame", title: "宋 祚 · 主 策" })}
-          title="点击返回主菜单 / 开启新朝"
-          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold transition hover:scale-105"
-        >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold shadow-sm">
           <span className="font-kai text-[22px] font-bold leading-none text-[#f3e6c4]">宋</span>
-        </button>
+        </div>
         <span className="whitespace-nowrap font-kai text-[15px] font-bold tracking-wide text-ink">
-          {era || "建中靖国元年"}
+          {era || "建中靖国元年正月"}
         </span>
       </div>
 
@@ -59,6 +56,15 @@ export default function TopBar() {
             词元 ▸ {token.toLocaleString("en-US")}
           </span>
         )}
+
+        {/* 右上角新设专属齿轮设置入口（主菜单 / 存档 / AI配置） */}
+        <button
+          onClick={() => pushOverlay({ kind: "settings", title: "机务设置" })}
+          title="系统机务设置 / 返回主菜单"
+          className="group flex h-7 w-7 items-center justify-center rounded-[2px] border border-border bg-paper/60 text-ink-light transition hover:border-gold hover:bg-gold-light hover:text-red"
+        >
+          <Settings size={15} className="transition group-hover:rotate-45" />
+        </button>
       </div>
     </div>
   );

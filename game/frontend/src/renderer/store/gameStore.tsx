@@ -54,6 +54,7 @@ interface StoreShape {
   overlays: OverlayEntry[];
   selected: Selected | null;
   advancing: boolean;
+  inGame: boolean;
 }
 
 type Action =
@@ -64,7 +65,8 @@ type Action =
   | { type: "POP_TO"; index: number }
   | { type: "CLEAR_OVERLAYS" }
   | { type: "SET_SELECTED"; selected: Selected | null }
-  | { type: "SET_ADVANCING"; advancing: boolean };
+  | { type: "SET_ADVANCING"; advancing: boolean }
+  | { type: "SET_IN_GAME"; inGame: boolean };
 
 let overlaySeq = 0;
 
@@ -75,7 +77,8 @@ const initialState: StoreShape = {
   state: null,
   overlays: [],
   selected: null,
-  advancing: false
+  advancing: false,
+  inGame: false
 };
 
 function reducer(s: StoreShape, a: Action): StoreShape {
@@ -96,6 +99,8 @@ function reducer(s: StoreShape, a: Action): StoreShape {
       return { ...s, selected: a.selected };
     case "SET_ADVANCING":
       return { ...s, advancing: a.advancing };
+    case "SET_IN_GAME":
+      return { ...s, inGame: a.inGame };
     default:
       return s;
   }
@@ -111,6 +116,7 @@ export interface GameStoreApi extends StoreShape {
   clearOverlays: () => void;
   setSelected: (selected: Selected | null) => void;
   setAdvancing: (advancing: boolean) => void;
+  setInGame: (inGame: boolean) => void;
 }
 
 export const GameStoreContext = createContext<GameStoreApi | null>(null);
@@ -127,7 +133,8 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     popTo: (index) => dispatch({ type: "POP_TO", index }),
     clearOverlays: () => dispatch({ type: "CLEAR_OVERLAYS" }),
     setSelected: (selected) => dispatch({ type: "SET_SELECTED", selected }),
-    setAdvancing: (advancing) => dispatch({ type: "SET_ADVANCING", advancing })
+    setAdvancing: (advancing) => dispatch({ type: "SET_ADVANCING", advancing }),
+    setInGame: (inGame) => dispatch({ type: "SET_IN_GAME", inGame })
   };
 
   return <GameStoreContext.Provider value={api}>{children}</GameStoreContext.Provider>;

@@ -5,6 +5,7 @@ import LeftTodo from "./hud/LeftTodo";
 import RightStrip from "./hud/RightStrip";
 import Dock from "./hud/Dock";
 import OverlayStack from "./panels/OverlayStack";
+import MainMenu from "./main-menu/MainMenu";
 import { ApiClient, setApiClient } from "./api/client";
 import { useGameStore } from "./store/gameStore";
 
@@ -13,6 +14,7 @@ export default function App() {
   const setBackend = useGameStore((s) => s.setBackend);
   const setState = useGameStore((s) => s.setState);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
+  const inGame = useGameStore((s) => s.inGame);
   const startShown = useRef(false);
 
   // 初始化：解析后端地址 → 探测已有存档，否则唤出开局面板
@@ -43,11 +45,7 @@ export default function App() {
         }
         setBackend(url, true, null);
 
-        // 启动时必定呈现大宋游戏主菜单，由玩家选择承统开局或继续旧局
-        if (!startShown.current) {
-          startShown.current = true;
-          pushOverlay({ kind: "newgame", title: "宋 祚 · 践 祚", dismissible: false });
-        }
+        // 默认进入 MainMenu 全屏开屏大作主菜单
       } catch (e) {
         console.error("[init] 后端连接失败", e);
         if (!cancelled) setBackend("", false, String(e));
@@ -60,9 +58,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 未进入游戏时：全屏呈现史诗级大宋开屏主界面 (MainMenu)
+  if (!inGame) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-black">
+        <MainMenu />
+        {/* 主菜单上支持唤起典籍库与机务设置 */}
+        <OverlayStack />
+      </div>
+    );
+  }
+
+  // 进入游戏后：呈现大宋天下舆图与常驻 HUD 治国中枢
   return (
     <div className="paper-texture relative h-full w-full overflow-hidden bg-paper">
-      {/* L0 舆图底图（取代 Tk 版 MapCanvas 的底图位） */}
+      {/* L0 舆图底图 */}
       <div className="absolute inset-0">
         <MapView />
       </div>
