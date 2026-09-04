@@ -231,54 +231,201 @@ export function hudTodos(state: GameState | null): TodoItem[] {
   return items;
 }
 
-/** 国库收支明细（前端派生，数据源为快照原始字段）。 */
-export function hudTreasuryFlow(state: GameState | null): [string, string][] {
-  if (!state) return [];
-  const stats = pick<Record<string, number>>(state, "statistics", {});
-  const tb = pick<Record<string, number>>(state, "tax_breakdown", {});
-  const rows: [string, string][] = [];
-
-  const labels: Record<string, string> = {
-    commerce: "商税",
-    poll: "役钱",
-    maritime: "市舶",
-    tax_color: "折色",
-    salt: "盐课"
-  };
-
-  for (const [k, v] of Object.entries(tb)) {
-    if (typeof v === "number" && v !== 0) {
-      const name = labels[k] || k;
-      rows.push([name, `+${humanizeCoin(v)}`]);
-    }
-  }
-
-  // 岁入岁出：开局第 0 回合若未发生月结，给出预算预估，推进后显示真实累计/月度实支
-  const totalInc = stats.total_income ?? 0;
-  const totalExp = stats.total_expenditure ?? 0;
-  if (totalInc === 0 && totalExp === 0) {
-    // 估算基准月度收支
-    const estInc = Object.values(tb).reduce((a, b) => a + (Number(b) || 0), 0);
-    rows.push(["月入预估", `+${humanizeCoin(estInc || 2880000)}`]);
-    rows.push(["月支总盘", `-${humanizeCoin(2320000)}`]);
-    rows.push(["月度净结", `+${humanizeCoin((estInc || 2880000) - 2320000)}`]);
-  } else {
-    rows.push(["累计入库", humanizeCoin(totalInc)]);
-    rows.push(["累计支出", humanizeCoin(totalExp)]);
-    rows.push(["收支结余", `${totalInc >= totalExp ? "+" : ""}${humanizeCoin(totalInc - totalExp)}`]);
-  }
-  return rows;
+export interface BudgetCategoryItem {
+  name: string;
+  amount: number;
+  desc?: string;
+  formula?: string;
 }
 
-/** 内帑收支明细。 */
-export function hudPrivyFlow(state: GameState | null): [string, string][] {
-  if (!state) return [];
+export interface BudgetFlowData {
+  title: string;
+  totalIn: number;
+  totalOut: number;
+  net: number;
+  subNotice?: string;
+  incomes: BudgetCategoryItem[];
+  expenses: BudgetCategoryItem[];
+  oneTimeItems?: BudgetCategoryItem[];
+}
+
+/** 深度财政结构化解析：国库月度定额与细目 */
+export function getTreasuryDetail(state: GameState | null): BudgetFlowData {
+  if (!state) {
+    return {
+      title: "国库月度定额",
+      totalIn: 0,
+      totalOut: 0,
+      net: 0,
+      incomes: [],
+      expenses: []
+    };
+  }
+
+  const tb = pick<Record<string, number>>(state, "tax_breakdown", {});
+  const comm = tb.commerce || 1130940;
+  const poll = tb.poll || 389015;
+  const taxCol = tb.tax_color || 864322;
+  const salt = tb.salt || 498151;
+  const maritime = tb.maritime || 0;
+
+  const totalIn = comm + poll + taxCol + salt + maritime;
+  // 支出细项基准（与 game_state_econ 对齐）
+  const milCash = 197439;
+  const offCash = 810030;
+  const clerkCash = 421946;
+  const civilExp = 880000;
+  const totalOut = milCash + offCash + clerkCash + civilExp;
+  const net = totalIn - totalOut;
+
+  const incomes: BudgetCategoryItem[] = [
+    {
+      name: "两税折色",
+      amount: taxCol,
+      desc: "二十路夏秋两税部分折纳钱帛直输国库，按自耕田与士绅田亩均摊。",
+      formula: "官民田46800万亩 × 亩折色率 × 实际到账率(约45%)"
+    },
+    {
+      name: "工商榷税",
+      amount: comm,
+      desc: "两浙、江南等诸路坊郭工商产值抽解，由工匠与行商分纳。",
+      formula: "全国工商月产值 × 征率(15%) × 钱荒系数"
+    },
+    {
+      name: "盐铁官榷",
+      amount: salt,
+      desc: "解盐、淮盐等诸路榷盐铁利，盐铁司统一钞引，利归公帑。",
+      formula: "诸路岁产盐18500万斤引税月度折算"
+    },
+    {
+      name: "身丁役钱",
+      amount: poll,
+      desc: "天下乡村夫役代役钱，农户免役而输钱，充备百司役使用度。",
+      formula: "在册农户2000余万户 × 役率折月"
+    }
+  ];
+
+  if (maritime > 0) {
+    incomes.push({
+      name: "市舶抽解",
+      amount: maritime,
+      desc: "泉州、广州、明州市舶司番商番货互市抽解关税。",
+      formula: "远洋商舶进港货值 × 抽解率(10%~20%)"
+    });
+  }
+
+  const expenses: BudgetCategoryItem[] = [
+    {
+      name: "百官俸禄",
+      amount: offCash,
+      desc: "中枢诸司与地方各路正印官折色俸钱，依品秩月给。",
+      formula: "在职官员2.7万员 × 俸格折色(50%)"
+    },
+    {
+      name: "朝廷常支",
+      amount: civilExp,
+      desc: "六部司署公文纸札、馆阁营造、礼仪祭祀及京畿常例公用。",
+      formula: "三省六部司署基准用度 - 节流削冗"
+    },
+    {
+      name: "胥吏食钱",
+      amount: clerkCash,
+      desc: "诸路各州县案牍吏员月度给食钱，吏俸充足则贪墨少。",
+      formula: "各路吏员21.6万名 × 月实发折钱"
+    },
+    {
+      name: "禁厢兵饷",
+      amount: milCash,
+      desc: "京师三衙禁军与九边防线折色兵饷钱，战时赏赉另给。",
+      formula: "在籍战兵70余万 × 步骑饷额折色"
+    }
+  ];
+
+  return {
+    title: "国库月度定额",
+    totalIn,
+    totalOut,
+    net,
+    subNotice: "税额受朝廷到账率与各路钱荒度动态折算，月结盈亏直接流转太库",
+    incomes,
+    expenses
+  };
+}
+
+/** 深度财政结构化解析：内帑月度定额与细目 */
+export function getPrivyDetail(state: GameState | null): BudgetFlowData {
+  if (!state) {
+    return {
+      title: "内帑月度定额",
+      totalIn: 0,
+      totalOut: 0,
+      net: 0,
+      incomes: [],
+      expenses: []
+    };
+  }
+
   const rawWine = pick<any>(state, "wine_tax", 600000);
   const wineVal = typeof rawWine === "number" ? rawWine : Number(rawWine?.month_coin ?? 600000);
-  return [
-    ["现额内帑", humanizeCoin(hudPrivy(state))],
-    ["榷酒月课", `+${humanizeCoin(wineVal)}`],
-    ["皇庄本色", "直入内府"],
-    ["内库出纳", "由御笔钦定"]
+  const royalLandInc = 80000;
+  const tributeInc = 40000;
+  const totalIn = wineVal + royalLandInc + tributeInc;
+
+  const palaceExp = 120000;
+  const craftExp = 80000;
+  const taoistExp = 50000;
+  const totalOut = palaceExp + craftExp + taoistExp;
+  const net = totalIn - totalOut;
+
+  const incomes: BudgetCategoryItem[] = [
+    {
+      name: "榷酒课钱",
+      amount: wineVal,
+      desc: "开封与诸路官酒务、曲院榷酒专卖之利，自旧制直入内帑封桩。",
+      formula: "诸路官私酒坊产出 × 酒课专卖税(每月60万贯基准)"
+    },
+    {
+      name: "皇庄子粒",
+      amount: royalLandInc,
+      desc: "京畿及各路皇室直辖庄田、御庄之田租与折色折变银入内库。",
+      formula: "皇室自占田亩产出折款(皇庄直辖不受外朝审计)"
+    },
+    {
+      name: "贡奉方物",
+      amount: tributeInc,
+      desc: "诸路转运使与四方藩国朝贡例进之金银、珠玉、香药珍玩折价。",
+      formula: "四方岁贡与内供进奉按月摊算"
+    }
   ];
+
+  const expenses: BudgetCategoryItem[] = [
+    {
+      name: "宫闱后省",
+      amount: palaceExp,
+      desc: "禁中后妃供奉、宫娥宦官禄米廪给及内廷日常供奉花销。",
+      formula: "大内仪制例支与四时赐赉"
+    },
+    {
+      name: "御前营造",
+      amount: craftExp,
+      desc: "翰林图画院、御器局、修内司琢玉及宫苑营造精工耗费。",
+      formula: "文华百工匠直与内供材料采办"
+    },
+    {
+      name: "修道斋醮",
+      amount: taoistExp,
+      desc: "崇真馆、延福宫醮坛金箓祈福、赐赏道长法官之供奉。",
+      formula: "宫廷醮道礼神随圣意增减"
+    }
+  ];
+
+  return {
+    title: "内帑月度定额",
+    totalIn,
+    totalOut,
+    net,
+    subNotice: "内藏库专供天子内府，与户部外朝国库分理，不入外廷常宪",
+    incomes,
+    expenses
+  };
 }
