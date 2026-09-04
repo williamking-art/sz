@@ -77,19 +77,13 @@ export function buildLayerDefs() {
       source: "rivers",
       paint: { "line-color": THEME.river, "line-width": 1.2, "line-opacity": 0.8 }
     },
-    // 政区（路）三型底色
+    // 政区（路）底色：全境统一使用古典宣纸米黄色，内部仅以描金界线分隔
     {
       id: LAYER_IDS.circuits,
       type: "fill" as const,
       source: "circuits",
       paint: {
-        "fill-color": [
-          "match",
-          ["get", "type"],
-          "京畿", THEME.cJijing,
-          "沿边", THEME.cYanbian,
-          THEME.cFuli
-        ],
+        "fill-color": THEME.cFuli,
         "fill-opacity": 0.75
       }
     },
