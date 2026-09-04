@@ -185,7 +185,7 @@ export default function DecreePanel() {
         /* ==== 自由拟旨模式（自由打字） ==== */
         <div className="space-y-3">
           {/* 圣旨大书写区 */}
-          <div className="edict-paper relative rounded-lg p-4">
+          <div className="relative rounded-lg border-2 border-gold/60 bg-gradient-to-b from-[#fefbf1] to-[#f9f2dc] p-4 shadow-paper">
             <div className="mb-2 flex items-center justify-between border-b border-gold/30 pb-1.5">
               <span className="font-kai text-sm font-bold tracking-widest text-red-dark">
                 【皇帝制曰 · 御前丹诏】
