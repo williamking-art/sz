@@ -17,35 +17,9 @@ interface MinisterMeta {
   role: string;
   faction: string;
   traits: string;
-}
-
-// 官品推导函数：依据史实官衔精准对应宋代官阶
-function getOfficialRank(role: string): string {
-  if (role.includes("左相") || role.includes("右相") || role.includes("太师") || role.includes("太傅") || role.includes("太保")) {
-    return "正一品 · 昭勋辅国";
-  }
-  if (role.includes("仆射") || role.includes("门下侍郎") || role.includes("中书侍郎") || role.includes("枢密使") || role.includes("知枢密院事")) {
-    return "从一品 · 执政宰辅";
-  }
-  if (role.includes("尚书") || role.includes("同知枢密院事") || role.includes("签书枢密院事") || role.includes("御史大夫")) {
-    return "正二品 · 八座尚书";
-  }
-  if (role.includes("侍郎") || role.includes("御史中丞") || role.includes("翰林学士") || role.includes("开封府尹")) {
-    return "从二品 · 卿贰近侍";
-  }
-  if (role.includes("谏议大夫") || role.includes("给事中") || role.includes("中书舍人") || role.includes("大理寺卿")) {
-    return "正三品 · 台阁通班";
-  }
-  if (role.includes("司谏") || role.includes("正言") || role.includes("侍御史") || role.includes("知州") || role.includes("转运使")) {
-    return "从四品 · 风宪按察";
-  }
-  if (role.includes("军") || role.includes("将") || role.includes("统制") || role.includes("都监")) {
-    return "从二品 · 节度边帅";
-  }
-  if (role.includes("在野")) {
-    return "从二品 · 暂羁外台";
-  }
-  return "从二品 · 中枢侍从";
+  nobility: string;
+  rank: string;
+  in_office: boolean;
 }
 
 export default function AudienceView({ props }: { props?: Record<string, unknown> }) {
@@ -60,8 +34,11 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   const ministerRole = dictInfo?.role || String(props?.role || "执政大臣");
   const ministerFaction = dictInfo?.faction || "清流正论";
 
-  // 2. 官阶品级准确对应
-  const officialRank = getOfficialRank(ministerRole);
+  // 2. 官品与爵位双轨呈现（依据宋代官制铁律）：
+  //    - 官品（rank）= 职事官阶，仅在朝为官者具备；在野/贬谪者官品空缺，绝不臆造；
+  //    - 爵位（nobility）= 身分性荣誉，虽贬谪在野仍保留（如国公/郡王/县公）。
+  const officialRank = dictInfo?.rank || "";
+  const nobleTitle = dictInfo?.nobility || "";
 
   // 3. 大臣立绘推导
   const isMilitary = ministerRole.includes("军") || ministerRole.includes("枢密") || ministerRole.includes("将") || ministerRole.includes("节度");
@@ -366,9 +343,23 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
               alt={ministerName}
               className="h-full max-h-none w-auto object-cover object-top filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] scale-105 transform origin-top"
             />
-            {/* 顶部品阶标签：与官职关联的真实宋代官品 */}
-            <div className="absolute top-2 left-2 rounded border border-gold/60 bg-black/80 px-2.5 py-1 text-[11.5px] font-bold text-gold tracking-widest backdrop-blur-sm shadow-md">
-              {officialRank}
+            {/* 顶部官阶/爵位标签：官品标官职之侧（在朝），爵位独立尊显（在野保留爵、白身示「布衣」） */}
+            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+              {officialRank && (
+                <div className="rounded border border-gold/60 bg-black/80 px-2.5 py-1 text-[11.5px] font-bold text-gold tracking-widest backdrop-blur-sm shadow-md">
+                  {officialRank}
+                </div>
+              )}
+              {nobleTitle && (
+                <div className="rounded border border-red/60 bg-red-950/70 px-2.5 py-1 text-[11.5px] font-bold text-[#f2d3a0] tracking-widest backdrop-blur-sm shadow-md">
+                  {nobleTitle}
+                </div>
+              )}
+              {!officialRank && !nobleTitle && (
+                <div className="rounded border border-border/60 bg-black/60 px-2.5 py-1 text-[11.5px] font-bold text-[#c9bda0] tracking-widest backdrop-blur-sm">
+                  白身布衣
+                </div>
+              )}
             </div>
           </div>
 

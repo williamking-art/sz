@@ -2,216 +2,345 @@
   "韩忠彦": {
     "role": "左相(尚书左仆射兼门下侍郎)",
     "faction": "旧党",
-    "traits": "老成/调停/守正"
+    "traits": "老成/调停/守正",
+    "nobility": "仪国公",
+    "rank": "正一品",
+    "in_office": true
   },
   "曾布": {
     "role": "右相(尚书右仆射兼中书侍郎)",
     "faction": "东南士人",
-    "traits": "权谋/善变/理财"
+    "traits": "权谋/善变/理财",
+    "nobility": "鲁国公",
+    "rank": "正一品",
+    "in_office": true
   },
   "蔡京": {
     "role": "在野(1101被贬,1102崇宁拜相)",
     "faction": "新党",
-    "traits": "权谋/聚敛/书法"
+    "traits": "权谋/聚敛/书法",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "李清臣": {
     "role": "门下侍郎(1101十月罢)",
     "faction": "旧党",
-    "traits": "文士/持重"
+    "traits": "文士/持重",
+    "nobility": "",
+    "rank": "从一品",
+    "in_office": true
   },
   "赵挺之": {
     "role": "御史中丞",
     "faction": "旧党",
-    "traits": "刚峭/与蔡京不合"
+    "traits": "刚峭/与蔡京不合",
+    "nobility": "",
+    "rank": "从二品",
+    "in_office": true
   },
   "邓洵武": {
     "role": "吏部侍郎/枢密都承旨",
     "faction": "新党",
-    "traits": "绍述/崇宁党人碑"
+    "traits": "绍述/崇宁党人碑",
+    "nobility": "",
+    "rank": "从二品",
+    "in_office": true
   },
   "陈瓘": {
     "role": "右司谏",
     "faction": "清流言官",
-    "traits": "刚直/弹蔡京/谪贬"
+    "traits": "刚直/弹蔡京/谪贬",
+    "nobility": "",
+    "rank": "从四品",
+    "in_office": true
   },
   "陈师锡": {
     "role": "殿中侍御史",
     "faction": "清流言官",
-    "traits": "清正/论事切直"
+    "traits": "清正/论事切直",
+    "nobility": "",
+    "rank": "从四品",
+    "in_office": true
   },
   "丰稷": {
     "role": "殿中侍御史(1101被黜改任)",
     "faction": "清流言官",
-    "traits": "鲠亮/极论蔡京"
+    "traits": "鲠亮/极论蔡京",
+    "nobility": "",
+    "rank": "从四品",
+    "in_office": true
   },
   "童贯": {
     "role": "供奉官/初近幸(未掌兵)",
     "faction": "宦官集团",
-    "traits": "军略/逢迎/宦官"
+    "traits": "军略/逢迎/宦官",
+    "nobility": "",
+    "rank": "正五品",
+    "in_office": true
   },
   "种师道": {
     "role": "西军将领/后统帅",
     "faction": "西军集团",
-    "traits": "老成/忠勇/将略"
+    "traits": "老成/忠勇/将略",
+    "nobility": "",
+    "rank": "正四品",
+    "in_office": true
   },
   "姚古": {
     "role": "西军将领",
     "faction": "西军集团",
-    "traits": "宿将/累战"
+    "traits": "宿将/累战",
+    "nobility": "",
+    "rank": "正四品",
+    "in_office": true
   },
   "刘延庆": {
     "role": "泾原将",
     "faction": "西军集团",
-    "traits": "庸怯/拥兵"
+    "traits": "庸怯/拥兵",
+    "nobility": "",
+    "rank": "正五品",
+    "in_office": true
   },
   "刘法": {
     "role": "熙河将",
     "faction": "西军集团",
-    "traits": "骁勇/战殁"
+    "traits": "骁勇/战殁",
+    "nobility": "",
+    "rank": "正四品",
+    "in_office": true
   },
   "李纲": {
     "role": "太学/主战派",
     "faction": "清流言官",
-    "traits": "刚直/主战/抗金"
+    "traits": "刚直/主战/抗金",
+    "nobility": "",
+    "rank": "从八品",
+    "in_office": true
   },
   "宗泽": {
     "role": "地方官/后抗金",
     "faction": "清流言官",
-    "traits": "忠勇/抗金"
+    "traits": "忠勇/抗金",
+    "nobility": "",
+    "rank": "从六品",
+    "in_office": true
   },
   "张叔夜": {
     "role": "知海州(1101降地方官,非开封府尹)",
     "faction": "清流言官",
-    "traits": "忠义/守城"
+    "traits": "忠义/守城",
+    "nobility": "",
+    "rank": "从六品",
+    "in_office": true
   },
   "韩世忠": {
     "role": "低级军官",
     "faction": "西军集团",
-    "traits": "悍勇/水战"
+    "traits": "悍勇/水战",
+    "nobility": "",
+    "rank": "正九品",
+    "in_office": true
   },
   "赵桓": {
     "role": "皇长子",
     "faction": "无",
-    "traits": "平庸"
+    "traits": "平庸",
+    "nobility": "京兆郡王",
+    "rank": "",
+    "in_office": true
   },
   "赵楷": {
     "role": "皇子",
     "faction": "无",
-    "traits": "才华/夺嫡心"
+    "traits": "才华/夺嫡心",
+    "nobility": "嘉王",
+    "rank": "",
+    "in_office": true
   },
   "蒋之奇": {
     "role": "知枢密院事",
     "faction": "东南士人",
-    "traits": "干练/通军务/善理财"
+    "traits": "干练/通军务/善理财",
+    "nobility": "",
+    "rank": "从一品",
+    "in_office": true
   },
   "章楶": {
     "role": "同知枢密院事",
     "faction": "西军集团",
-    "traits": "宿将/边防老成"
+    "traits": "宿将/边防老成",
+    "nobility": "",
+    "rank": "正二品",
+    "in_office": true
   },
   "陆佃": {
     "role": "尚书左丞",
     "faction": "旧党",
-    "traits": "守正/博学/调停"
+    "traits": "守正/博学/调停",
+    "nobility": "",
+    "rank": "从二品",
+    "in_office": true
   },
   "温益": {
     "role": "尚书右丞",
     "faction": "新党",
-    "traits": "圆滑/阿附/多机变"
+    "traits": "圆滑/阿附/多机变",
+    "nobility": "",
+    "rank": "从二品",
+    "in_office": true
   },
   "吴居厚": {
     "role": "知开封府",
     "faction": "新党",
-    "traits": "聚敛/明达政务/吏干"
+    "traits": "聚敛/明达政务/吏干",
+    "nobility": "",
+    "rank": "从三品",
+    "in_office": true
   },
   "王古": {
     "role": "户部尚书",
     "faction": "东南士人",
-    "traits": "理财/慎密/循良"
+    "traits": "理财/慎密/循良",
+    "nobility": "",
+    "rank": "正二品",
+    "in_office": true
   },
   "江公望": {
     "role": "右司谏",
     "faction": "清流言官",
-    "traits": "敢言/讽谏/守正"
+    "traits": "敢言/讽谏/守正",
+    "nobility": "",
+    "rank": "从四品",
+    "in_office": true
   },
   "陈次升": {
     "role": "左谏议大夫",
     "faction": "清流言官",
-    "traits": "鲠直/弹劾/论蔡京"
+    "traits": "鲠直/弹劾/论蔡京",
+    "nobility": "",
+    "rank": "正三品",
+    "in_office": true
   },
   "唐恪": {
     "role": "地方大员/后入中枢",
     "faction": "东南士人",
-    "traits": "干练/后主和"
+    "traits": "干练/后主和",
+    "nobility": "",
+    "rank": "从三品",
+    "in_office": true
   },
   "聂昌": {
     "role": "地方大员",
     "faction": "东南士人",
-    "traits": "峻急/敢任事"
+    "traits": "峻急/敢任事",
+    "nobility": "",
+    "rank": "从四品",
+    "in_office": true
   },
   "蔡攸": {
     "role": "在野(蔡京之子)",
     "faction": "新党",
-    "traits": "骄奢/佞幸/揽权"
+    "traits": "骄奢/佞幸/揽权",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "何执中": {
     "role": "在野",
     "faction": "新党",
-    "traits": "圆滑/持重/附蔡"
+    "traits": "圆滑/持重/附蔡",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "郑居中": {
     "role": "在野(外戚)",
     "faction": "新党",
-    "traits": "恭俭/善逢迎/外戚"
+    "traits": "恭俭/善逢迎/外戚",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "余深": {
     "role": "在野",
     "faction": "新党",
-    "traits": "柔佞/唯蔡京马首"
+    "traits": "柔佞/唯蔡京马首",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "王黼": {
     "role": "在野(后少宰)",
     "faction": "新党",
-    "traits": "巧佞/聚敛/好大喜功"
+    "traits": "巧佞/聚敛/好大喜功",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "朱勔": {
     "role": "在野(后花石纲)",
     "faction": "新党",
-    "traits": "搜括/花石纲/媚上"
+    "traits": "搜括/花石纲/媚上",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "林摅": {
     "role": "在野(后刑部尚书)",
     "faction": "新党",
-    "traits": "苛酷/附新法"
+    "traits": "苛酷/附新法",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "张商英": {
     "role": "在野(被贬)",
     "faction": "新党",
-    "traits": "能臣/变法/才高"
+    "traits": "能臣/变法/才高",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "梁师成": {
     "role": "在野(后掌书命)",
     "faction": "宦官集团",
-    "traits": "狡黠/掌书命/豫政"
+    "traits": "狡黠/掌书命/豫政",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "杨戬": {
     "role": "在野(后措置房)",
     "faction": "宦官集团",
-    "traits": "搜括/营田/聚敛"
+    "traits": "搜括/营田/聚敛",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "高俅": {
     "role": "殿前都指挥使",
     "faction": "宦官集团",
-    "traits": "蹴鞠/典禁军/怙宠"
+    "traits": "蹴鞠/典禁军/怙宠",
+    "nobility": "",
+    "rank": "从二品",
+    "in_office": true
   },
   "侯蒙": {
     "role": "在野(后户部尚书)",
     "faction": "清流言官",
-    "traits": "通达/敢言/识人才"
+    "traits": "通达/敢言/识人才",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   },
   "岳飞": {
     "role": "未生(未来名将)",
     "faction": "西军集团",
-    "traits": "精忠/神勇/军神"
+    "traits": "精忠/神勇/军神",
+    "nobility": "",
+    "rank": "",
+    "in_office": false
   }
 }
