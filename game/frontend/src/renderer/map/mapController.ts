@@ -114,6 +114,39 @@ export class MapController {
     });
   }
 
+  private pickFeatureAtPoint(e: maplibregl.MapMouseEvent, layer: string): maplibregl.MapGeoJSONFeature | null {
+    // 收集该 layer 下屏幕点命中的全部要素；多路边界重叠时
+    // 优先返回几何上真正包含（或最贴近）点击经纬度的那个
+    const hits = this.map!.queryRenderedFeatures(e.point, { layers: [layer] });
+    if (hits.length === 0) return null;
+    if (hits.length === 1) return hits[0];
+
+    const lng = e.lngLat.lng;
+    const lat = e.lngLat.lat;
+    for (const h of hits) {
+      const geom = h.geometry;
+      if (!geom) continue;
+      try {
+        // 粗判：点击点是否落在要素 bbox 内
+        const coords: number[][] = [];
+        const collect = (c: any): void => {
+          if (typeof c[0] === "number") coords.push(c as number[]);
+          else c.forEach((cc: any) => collect(cc));
+        };
+        collect(geom.coordinates);
+        const lons = coords.map((c) => c[0]);
+        const lats = coords.map((c) => c[1]);
+        const inBox = lng >= Math.min(...lons) && lng <= Math.max(...lons)
+          && lat >= Math.min(...lats) && lat <= Math.max(...lats);
+        if (inBox) return h;
+      } catch {
+        continue;
+      }
+    }
+    // 全部不含时退回第一个命中（边界接触点情形）
+    return hits[0];
+  }
+
   private bindEvents(): void {
     if (!this.map) return;
 
@@ -144,7 +177,8 @@ export class MapController {
       const cityHits = this.map!.queryRenderedFeatures(e.point, { layers: [LAYER_IDS.cities] });
       if (cityHits.length > 0) return;
 
-      const f = e.features?.[0];
+      // 命中同一屏幕点的多路要素时，精确挑选真正包含点击坐标的要素（避免相邻路误框选）
+      const f = this.pickFeatureAtPoint(e, LAYER_IDS.circuits);
       if (!f) return;
       const props = (f.properties || {}) as Record<string, unknown>;
       this.onSelect({
@@ -164,7 +198,7 @@ export class MapController {
       const circuitHits = this.map!.queryRenderedFeatures(e.point, { layers: [LAYER_IDS.circuits] });
       if (circuitHits.length > 0) return;
 
-      const f = e.features?.[0];
+      const f = this.pickFeatureAtPoint(e, LAYER_IDS.regimes);
       if (!f) return;
       const props = (f.properties || {}) as Record<string, unknown>;
       const prov = String(props.province || "");

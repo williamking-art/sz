@@ -202,10 +202,12 @@ def build_circuits() -> None:
     # 将同一路下的所有地级碎片合并为完整大省板块(消除地级碎缝与锯齿台阶)
     by = {}
     by_info = {}
+    by_prefectures = {}
     for f in feats:
         name = f["properties"]["name"]
         by.setdefault(name, []).append(shape(f["geometry"]).buffer(0))
         by_info[name] = f["properties"]
+        by_prefectures.setdefault(name, []).append(f["properties"].get("prefecture", ""))
 
     road_features = []
     border_features = []
@@ -227,6 +229,7 @@ def build_circuits() -> None:
                 "seat": p_info.get("seat", ""),
                 "game_unit": name,
                 "member_count": p_info.get("member_count", 0),
+                "prefecture": "、".join(x for x in by_prefectures.get(name, []) if x),
                 "label_at": [round(at.x, 4), round(at.y, 4)],
             },
             "geometry": mapping(u),
