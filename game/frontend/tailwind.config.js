@@ -6,20 +6,35 @@ export default {
       colors: {
         paper: "#f6ecd6",
         "paper-dark": "#efe2c4",
-        ink: "#2b1d12",
-        "ink-light": "#5a4a3a",
+        ink: "#1c120c",
+        "ink-light": "#423224",
         red: "#8a2b22",
         "red-dark": "#7a1f1f",
         gold: "#caa24a",
         "gold-light": "#e8d49c",
         "gold-dark": "#8f6e28",
         card: "#fffaf0",
-        dim: "#8a6b40",
+        dim: "#75552b",
         border: "#d8c08a"
       },
       fontFamily: {
-        kai: ['"KaiTi"', '"STKaiti"', '"楷体"', '"SimKai"', "serif"],
-        sans: ['"Microsoft YaHei"', '"微软雅黑"', '"PingFang SC"', "sans-serif"]
+        kai: [
+          '"Source Han Serif SC"',
+          '"Noto Serif SC"',
+          '"Songti SC"',
+          '"SimSun"',
+          '"STSong"',
+          '"KaiTi"',
+          '"STKaiti"',
+          '"楷体"',
+          "serif"
+        ],
+        sans: [
+          '"Microsoft YaHei"',
+          '"微软雅黑"',
+          '"PingFang SC"',
+          "sans-serif"
+        ]
       },
       boxShadow: {
         paper: "0 2px 10px rgba(43,29,18,.22), inset 0 0 0 1px rgba(232,212,156,.6)",

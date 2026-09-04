@@ -47,10 +47,10 @@ export default function Dock() {
           <button
             key={c.key}
             onClick={() => pushOverlay({ kind: c.key as never, title: c.label })}
-            className="group flex h-14 w-14 flex-col items-center justify-center rounded-full bg-card/90 shadow-paper backdrop-blur-sm transition hover:bg-gold-light hover:shadow-card"
+            className="group flex h-14 w-14 flex-col items-center justify-center rounded-full bg-card/95 shadow-paper backdrop-blur-sm transition hover:bg-gold-light hover:shadow-card border border-gold/40"
           >
             <span className="text-red transition group-hover:scale-110">{c.icon}</span>
-            <span className="mt-0.5 text-[10px] text-ink-light">{c.label}</span>
+            <span className="mt-0.5 text-[11.5px] font-bold text-ink">{c.label}</span>
           </button>
         ))}
       </div>
