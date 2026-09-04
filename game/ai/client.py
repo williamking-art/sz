@@ -61,15 +61,47 @@ def _narrative_fallback(kind, minister_name=""):
     return _ai_unavailable(kind)
 
 
+def normalize_endpoint(base_url: str) -> tuple[str, str, str]:
+    """智能解析用户输入的自定义 Base URL，返回 (clean_base, chat_url, models_url)。
+
+    完美兼容各种自定义中转与不同用户输入习惯:
+      - 仅输入域名: https://api.deepseek.com -> /v1/chat/completions & /v1/models
+      - 带 /v1:     https://api.openai.com/v1 -> /chat/completions & /models
+      - 完整端点:   https://my.com/v1/chat/completions -> 自动截取正确 base 并保留
+    """
+    raw = (base_url or "https://api.deepseek.com").strip().rstrip("/")
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+
+    if raw.endswith("/chat/completions"):
+        chat_url = raw
+        clean_base = raw[:-len("/chat/completions")].rstrip("/")
+    else:
+        # 如果已经带有 /v1
+        if raw.endswith("/v1"):
+            clean_base = raw
+            chat_url = f"{raw}/chat/completions"
+        else:
+            # 如果是 deepseek 官方或者只有主域名，尝试挂载 /v1
+            clean_base = raw
+            chat_url = f"{raw}/chat/completions" if "deepseek.com" in raw else f"{raw}/v1/chat/completions"
+
+    # 计算 models 端点
+    models_base = clean_base if clean_base.endswith("/v1") else (clean_base if "deepseek.com" in clean_base else f"{clean_base}/v1")
+    models_url = f"{models_base}/models"
+    return clean_base, chat_url, models_url
+
 class AIClient(ClientNarrativeMixin):
     """封装在线大模型调用；AI 不可用时返回错误标记（不伪造文本）。"""
 
     def __init__(self, api_key="", base_url="", model="", enable_tools="auto"):
-        self.api_key = api_key or ""
-        self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
-        self.model = model or "gpt-4o-mini"
+        self.api_key = (api_key or "").strip()
+        clean_base, chat_url, models_url = normalize_endpoint(base_url)
+        self.base_url = clean_base
+        self.chat_url = chat_url
+        self.models_url = models_url
+        self.model = (model or "deepseek-chat").strip()
         self.available = bool(self.api_key)
-        self.chat_url = f"{self.base_url}/chat/completions"
         self._prev_texts = []   # 复读检测历史
         # 工具开关：'auto'(探测)/'on'(强制开)/'off'(强制关)/'simple'(强制简化)
         self.enable_tools = enable_tools if enable_tools in ("auto", "on", "off", "simple") else "auto"
@@ -277,6 +309,35 @@ class AIClient(ClientNarrativeMixin):
         except Exception as e:  # noqa: BLE001
             self._probe_cache = (False, f"检测异常：{e}")
             return self._probe_cache
+
+    def fetch_available_models(self, timeout: float = 12) -> list[str]:
+        """尝试从远程端点 GET /models 获取该 Key 授权的所有可用模型。"""
+        if not self.api_key:
+            return ["deepseek-chat", "deepseek-reasoner", "gpt-4o-mini", "gpt-4o", "qwen-plus"]
+        try:
+            headers = self._auth_headers()
+            status, body, _ = _http_get_json(self.models_url, headers, timeout=timeout)
+            if status == 200 and isinstance(body, dict):
+                data = body.get("data", [])
+                models = []
+                for item in data:
+                    mid = item.get("id") if isinstance(item, dict) else str(item)
+                    if mid and isinstance(mid, str):
+                        models.append(mid)
+                if models:
+                    return sorted(models)
+            # 若失败或 404，尝试去掉 /v1 再试一次
+            alt_url = self.base_url.rstrip("/") + "/models"
+            if alt_url != self.models_url:
+                status2, body2, _ = _http_get_json(alt_url, headers, timeout=timeout)
+                if status2 == 200 and isinstance(body2, dict):
+                    data = body2.get("data", [])
+                    models = [i.get("id") for i in data if isinstance(i, dict) and i.get("id")]
+                    if models: return sorted(models)
+        except Exception as e:
+            print(f"[AIClient] 获取模型列表异常: {e}")
+        # 默认推荐清单
+        return ["deepseek-chat", "deepseek-reasoner", "gpt-4o", "gpt-4o-mini", "qwen-plus", "qwen-turbo"]
 
     def _probe_json_mode(self, timeout: float = 15):
         """探测 response_format=json_object 是否被端点支持。

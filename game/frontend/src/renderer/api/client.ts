@@ -168,10 +168,17 @@ export class ApiClient {
     return this.request("/api/ai_config");
   }
 
-  async setAiConfig(api_key: string, base_url: string, model: string): Promise<{ ok: boolean; available: boolean }> {
+  async setAiConfig(api_key: string, base_url: string, model: string): Promise<{ ok: boolean; available: boolean; message?: string }> {
     return this.request("/api/ai_config", {
       method: "POST",
       body: JSON.stringify({ api_key, base_url, model })
+    });
+  }
+
+  async fetchModels(api_key: string, base_url: string): Promise<{ ok: boolean; models: string[]; error?: string }> {
+    return this.request("/api/fetch_models", {
+      method: "POST",
+      body: JSON.stringify({ api_key, base_url })
     });
   }
 }

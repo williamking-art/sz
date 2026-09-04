@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ChevronDown } from "lucide-react";
 import { getApiClient, type AiConfigResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 
-// 常见大模型服务商预设（一键速填 Base URL 和 Model）
+// 常见大模型服务商快捷预设
 const PROVIDER_PRESETS = [
   {
-    name: "DeepSeek (推荐)",
+    name: "DeepSeek 官方",
     baseUrl: "https://api.deepseek.com",
     model: "deepseek-chat",
-    desc: "北宋叙事与朝堂推演表现极佳，成本极低"
+    desc: "北宋史实与朝堂奏对推荐"
   },
   {
     name: "OpenAI 官方",
@@ -21,7 +21,13 @@ const PROVIDER_PRESETS = [
     name: "本地 Ollama / vLLM",
     baseUrl: "http://127.0.0.1:11434/v1",
     model: "qwen2.5:7b",
-    desc: "纯本地离线运行，无需外网 Key"
+    desc: "离线本地运行，免外网 Key"
+  },
+  {
+    name: "自定义中转站 / OneAPI",
+    baseUrl: "",
+    model: "",
+    desc: "支持任意兼容 OpenAI 规范的聚合网关"
   }
 ];
 
@@ -31,7 +37,7 @@ export default function SettingsPanel() {
 
   return (
     <div className="space-y-4">
-      {/* 顶部直达 Tab：AI 算力与配置（默认高亮选中！） / 视听规制 */}
+      {/* 顶部直达 Tab */}
       <div className="flex items-center justify-between border-b border-gold/40 pb-2">
         <div className="flex gap-2">
           <button
@@ -56,7 +62,7 @@ export default function SettingsPanel() {
           </button>
         </div>
         <span className="font-kai text-xs text-dim">
-          {tab === "ai" ? "大模型接口 · 廷议叙事引擎" : "大晟府雅乐 · 环境音律规制"}
+          {tab === "ai" ? "自定义接口 · 智能模型识别" : "大晟府雅乐 · 环境音律规制"}
         </span>
       </div>
 
@@ -65,12 +71,17 @@ export default function SettingsPanel() {
   );
 }
 
-/** 直接呈现的 AI 配置视图（无任何中间过渡按钮！） */
+/** 智能 AI 配置核心表单（支持自定义接口与模型自动识别） */
 function AiConfigDirectView({ onClose }: { onClose: () => void }) {
   const [cfg, setCfg] = useState<AiConfigResult | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
   const [model, setModel] = useState("deepseek-chat");
+
+  // 模型自动识别列表
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -93,6 +104,31 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  // 自动探测并识别该接口下的所有可用模型
+  async function handleFetchModels() {
+    if (fetchingModels) return;
+    setFetchingModels(true);
+    setMsg(null);
+    try {
+      const res = await getApiClient().fetchModels(apiKey.trim(), baseUrl.trim());
+      if (res.ok && res.models && res.models.length > 0) {
+        setAvailableModels(res.models);
+        // 如果当前模型不在列表里，默认选第一个
+        if (!res.models.includes(model)) {
+          setModel(res.models[0]);
+        }
+        setMsg({ type: "success", text: `成功识别出 ${res.models.length} 个可用模型，请在下方点击或下拉选择。` });
+      } else {
+        setMsg({ type: "error", text: "未能从该接口拉取到模型列表，请确认 Key 与 Base URL 是否正确。" });
+      }
+    } catch (e) {
+      setMsg({ type: "error", text: "探测模型列表失败：" + (e instanceof Error ? e.message : String(e)) });
+    } finally {
+      setFetchingModels(false);
+    }
+  }
+
+  // 保存并强制在线自检
   async function handleSave() {
     if (busy) return;
     setBusy(true);
@@ -100,18 +136,18 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     try {
       const res = await getApiClient().setAiConfig(apiKey.trim(), baseUrl.trim(), model.trim());
       if (res.ok) {
-        setCfg(res);
+        setCfg(res as any);
         if (res.available) {
-          setMsg({ type: "success", text: "AI 接口连接成功！朝廷廷议、名臣奏对与史实推演已就绪。" });
+          setMsg({ type: "success", text: `AI 接口连接成功！${res.message || `当前模型【${model}】在线自检通过。`}` });
         } else {
-          setMsg({ type: "error", text: "配置已保存，但连通性探测失败：请检查 API Key、Base URL 或网络代理。" });
+          setMsg({ type: "error", text: `配置已保存，但连通自检未通过：${res.message || "请检查密钥、地址或模型名称。"}` });
         }
       } else {
         setMsg({ type: "error", text: "保存配置失败，请确认后端服务运行正常。" });
       }
     } catch (e) {
       console.error("[setAiConfig]", e);
-      setMsg({ type: "error", text: "配置失败：" + (e instanceof Error ? e.message : String(e)) });
+      setMsg({ type: "error", text: "保存失败：" + (e instanceof Error ? e.message : String(e)) });
     } finally {
       setBusy(false);
     }
@@ -119,18 +155,20 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="space-y-3.5">
-      {/* 预设快捷填入 */}
+      {/* 预设与自定义快捷切换 */}
       <div>
-        <div className="mb-1.5 flex items-center gap-1 font-kai text-xs text-dim">
-          <Sparkles size={12} className="text-goldDark" /> 常用服务商一键配置：
+        <div className="mb-1.5 flex items-center justify-between font-kai text-xs text-dim">
+          <span className="flex items-center gap-1">
+            <Sparkles size={12} className="text-goldDark" /> 服务商快捷模版（点击自动预填）：
+          </span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PROVIDER_PRESETS.map((p) => (
             <button
               key={p.name}
               onClick={() => {
-                setBaseUrl(p.baseUrl);
-                setModel(p.model);
+                if (p.baseUrl) setBaseUrl(p.baseUrl);
+                if (p.model) setModel(p.model);
               }}
               className={`rounded border p-2 text-left transition ${
                 baseUrl === p.baseUrl && model === p.model
@@ -138,8 +176,8 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
                   : "border-gold/30 bg-paper/60 hover:border-gold hover:bg-gold-light/30"
               }`}
             >
-              <div className="font-kai text-xs font-bold text-ink">{p.name}</div>
-              <div className="mt-0.5 line-clamp-1 font-sans text-[10px] text-dim">{p.model}</div>
+              <div className="font-kai text-xs font-bold text-ink truncate">{p.name}</div>
+              <div className="mt-0.5 line-clamp-1 font-sans text-[10px] text-dim">{p.model || "自定义地址"}</div>
             </button>
           ))}
         </div>
@@ -159,37 +197,76 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={cfg?.has_key ? "留空则保持现有密钥不变，输入则更新覆盖" : "输入 sk-... 密钥"}
+            placeholder={cfg?.has_key ? "保持留空则使用已保存密钥，输入则更新覆盖" : "输入 sk-... 密钥"}
             className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
           />
         </div>
 
-        {/* Base URL */}
+        {/* Base URL (支持自定义接口) */}
         <div className="space-y-1">
-          <span className="font-kai text-xs font-medium text-ink">Base URL（接口端点地址）</span>
+          <div className="flex justify-between text-xs">
+            <span className="font-kai font-medium text-ink">Base URL（自定义接口地址）</span>
+            <span className="font-sans text-[10px] text-dim">支持任意自定义中转 / OneAPI / 本地网关</span>
+          </div>
           <input
             type="text"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.deepseek.com 或 https://api.openai.com/v1"
+            placeholder="如：https://api.deepseek.com 或 https://your-proxy.com/v1"
             className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
           />
         </div>
 
-        {/* Model */}
+        {/* Model 与 智能识别按钮 */}
         <div className="space-y-1">
-          <span className="font-kai text-xs font-medium text-ink">Model（大模型名称）</span>
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="deepseek-chat 或 gpt-4o-mini"
-            className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
-          />
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-kai font-medium text-ink">Model（大模型名称）</span>
+            {/* 自动识别模型大按钮 */}
+            <button
+              onClick={handleFetchModels}
+              disabled={fetchingModels}
+              className="flex items-center gap-1 rounded bg-gold/20 px-2 py-0.5 font-kai text-xs text-goldDark transition hover:bg-gold/30 disabled:opacity-50"
+            >
+              {fetchingModels ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {fetchingModels ? "正在识别中…" : "🔍 自动探测识别模型列表"}
+            </button>
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="如 deepseek-chat 或 qwen-plus"
+              className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
+            />
+          </div>
+
+          {/* 若识别成功，展示快捷可选模型胶囊 */}
+          {availableModels.length > 0 && (
+            <div className="mt-2 space-y-1 rounded border border-gold/30 bg-card/70 p-2 text-xs">
+              <div className="font-kai text-[11px] text-dim">接口已识别可用模型（点击直接选择）：</div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                {availableModels.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setModel(m)}
+                    className={`rounded px-2 py-0.5 font-sans text-[11px] transition ${
+                      model === m
+                        ? "bg-red text-paper shadow-sm"
+                        : "bg-paper text-ink-light hover:bg-gold-light hover:text-ink"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 状态与反馈 */}
+      {/* 状态与反馈信息 */}
       {msg && (
         <div
           className={`flex items-start gap-2 rounded-lg border p-3 text-xs leading-relaxed font-kai ${
@@ -221,14 +298,14 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           className="flex items-center gap-2 rounded-lg bg-red px-6 py-2 font-kai text-sm font-bold tracking-widest text-paper shadow-card transition hover:bg-red-dark disabled:opacity-50"
         >
           {busy && <Loader2 size={15} className="animate-spin" />}
-          {busy ? "连通探测中…" : "保存并测试连接"}
+          {busy ? "连通测试中…" : "保存并在线自检"}
         </button>
       </div>
     </div>
   );
 }
 
-/** 音律与杂项设置 */
+/** 视听音律设置 */
 function AudioSettingsView() {
   const [muted, setMuted] = useState(false);
   const [vol, setVol] = useState(75);
