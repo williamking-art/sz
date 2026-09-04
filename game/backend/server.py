@@ -31,7 +31,18 @@ from pydantic import BaseModel
 from ai.client import AIClient
 from backend.client import LocalBackend, _app_root
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Songzuo Reference Backend", version="1.0")
+
+# 配置全放行跨域中间件 (彻底解决 OPTIONS 405 Method Not Allowed 与 Failed to fetch)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _lock = threading.Lock()
 _backend = LocalBackend()
