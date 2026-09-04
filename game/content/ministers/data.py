@@ -32,112 +32,164 @@ PORTRAIT_DIR = os.path.join(_BASE, "portraits")
 #   蔡攸/王黼/梁师成/朱勔/杨戬/高俅/余深/林摅/郑居中/何执中/张商英/侯蒙等均政和/宣和
 #   才得势，1101标注 in_office=False(在野/未起用)，不任中枢 lead，待历史进程启用。
 # ============================================================
+# ============================================================
+# 爵位体系（Nobility）：宋代封爵参照史实（王/郡王/国公/郡公/县公/侯/伯/子/男）。
+# 规则：爵位是「身分性荣誉」，不随官职罢黜而消失（贬谪在野仍保留爵位）；
+#       官品是「职事官阶」，随在任而定——在野/贬谪/未起用者不具官品（留空）。
+#   nobility  爵位称号（含史实建中靖国元年已封者与皇子皇弟身份爵）；未封者留空 ""
+#   rank      职事官品（"正一品"/"从一品"/"正二品"/"从二品"/"正三品"/"从三品"/"正四品"/"从四品"/"正五品"…）
+#             in_office=False 者 rank 一律留空 ""（在野无官品，只有爵位或白身）
+# ============================================================
 MINISTERS = {
     # ===================== 中枢实权（1101 在任） =====================
     "韩忠彦": {"born": 1038, "role": "左相(尚书左仆射兼门下侍郎)", "faction": "旧党", "traits": "老成/调停/守正",
+               "nobility": "仪国公", "rank": "正一品",
                "portrait": "", "in_office": True, "loyalty": 0.42, "corruption": 0.30, "trait_ids": ["调停"]},
     "曾布":   {"born": 1036, "role": "右相(尚书右仆射兼中书侍郎)", "faction": "东南士人", "traits": "权谋/善变/理财",
+               "nobility": "鲁国公", "rank": "正一品",
                "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.40, "trait_ids": ["权谋", "理财"]},
     "蔡京":   {"born": 1047, "role": "在野(1101被贬,1102崇宁拜相)", "faction": "新党", "traits": "权谋/聚敛/书法",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.85, "corruption": 0.78, "trait_ids": ["聚敛", "变法", "才艺"]},
     "李清臣": {"born": 1032, "role": "门下侍郎(1101十月罢)", "faction": "旧党", "traits": "文士/持重",
+               "nobility": "", "rank": "从一品",
                "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.28, "trait_ids": ["调停"]},
     "赵挺之": {"born": 1040, "role": "御史中丞", "faction": "旧党", "traits": "刚峭/与蔡京不合",
+               "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.32},
     "邓洵武": {"born": 1055, "role": "吏部侍郎/枢密都承旨", "faction": "新党", "traits": "绍述/崇宁党人碑",
+               "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["权谋", "变法"]},
 
     # ===================== 台谏（1101 在任，弹蔡京） =====================
     "陈瓘":   {"born": 1057, "role": "右司谏", "faction": "清流言官", "traits": "刚直/弹蔡京/谪贬",
+               "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.12, "trait_ids": ["刚直"]},
     "陈师锡": {"born": 1057, "role": "殿中侍御史", "faction": "清流言官", "traits": "清正/论事切直",
+               "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.14, "trait_ids": ["清正"]},
     "丰稷":   {"born": 1033, "role": "殿中侍御史(1101被黜改任)", "faction": "清流言官", "traits": "鲠亮/极论蔡京",
+               "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.10, "trait_ids": ["刚直", "清正"]},
 
     # ===================== 宦官（1101 初近幸，未掌大权） =====================
     "童贯":   {"born": 1054, "role": "供奉官/初近幸(未掌兵)", "faction": "宦官集团", "traits": "军略/逢迎/宦官",
+               "nobility": "", "rank": "正五品",
                "portrait": "", "in_office": True, "loyalty": 0.80, "corruption": 0.60},
 
     # ===================== 西军（1101 在边） =====================
     "种师道": {"born": 1051, "role": "西军将领/后统帅", "faction": "西军集团", "traits": "老成/忠勇/将略",
+               "nobility": "", "rank": "正四品",
                "portrait": "", "in_office": True, "loyalty": 0.74, "corruption": 0.30, "trait_ids": ["军略"]},
     "姚古":   {"born": 1058, "role": "西军将领", "faction": "西军集团", "traits": "宿将/累战",
+               "nobility": "", "rank": "正四品",
                "portrait": "", "in_office": True, "loyalty": 0.68, "corruption": 0.32, "trait_ids": ["军略"]},
     "刘延庆": {"born": 1060, "role": "泾原将", "faction": "西军集团", "traits": "庸怯/拥兵",
+               "nobility": "", "rank": "正五品",
                "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.40, "trait_ids": ["怯懦"]},
     "刘法":   {"born": 1055, "role": "熙河将", "faction": "西军集团", "traits": "骁勇/战殁",
+               "nobility": "", "rank": "正四品",
                "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.28, "trait_ids": ["军略"]},
 
     # ===================== 主战/忠义（1101 在，未显） =====================
     "李纲":   {"born": 1083, "role": "太学/主战派", "faction": "清流言官", "traits": "刚直/主战/抗金",
+               "nobility": "", "rank": "从八品",
                "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.15, "trait_ids": ["忠勇"]},
     "宗泽":   {"born": 1060, "role": "地方官/后抗金", "faction": "清流言官", "traits": "忠勇/抗金",
+               "nobility": "", "rank": "从六品",
                "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.18, "trait_ids": ["忠勇"]},
     "张叔夜": {"born": 1065, "role": "知海州(1101降地方官,非开封府尹)", "faction": "清流言官", "traits": "忠义/守城",
+               "nobility": "", "rank": "从六品",
                "portrait": "", "in_office": True, "loyalty": 0.64, "corruption": 0.22, "trait_ids": ["忠勇"]},
     "韩世忠": {"born": 1089, "role": "低级军官", "faction": "西军集团", "traits": "悍勇/水战",
+               "nobility": "", "rank": "正九品",
                "portrait": "", "in_office": True, "loyalty": 0.60, "corruption": 0.35, "trait_ids": ["忠勇"]},
 
-    # ===================== 皇子（1101 在） =====================
+    # ===================== 皇子（1101 在）—— 皇子以亲王身份爵为尊 =====================
     "赵桓":   {"born": 1100, "role": "皇长子", "faction": "无", "traits": "平庸",
+               "nobility": "京兆郡王", "rank": "",
                "portrait": "", "in_office": True, "loyalty": 0.66, "corruption": 0.20},
     "赵楷":   {"born": 1101, "role": "皇子", "faction": "无", "traits": "才华/夺嫡心",
+               "nobility": "嘉王", "rank": "",
                "portrait": "", "in_office": True, "loyalty": 0.30, "corruption": 0.40, "trait_ids": ["才艺"]},
 
     # ===================== 1101 中枢佐贰/新任（考据确证） =====================
     # 注：以下人物于建中靖国元年确证在任，补全中枢佐贰官，供「补佐贰/新建官职」推演。
     "蒋之奇": {"born": 1031, "role": "知枢密院事", "faction": "东南士人", "traits": "干练/通军务/善理财",
+               "nobility": "", "rank": "从一品",
                "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.35, "trait_ids": ["理财"]},
     "章楶":   {"born": 1027, "role": "同知枢密院事", "faction": "西军集团", "traits": "宿将/边防老成",
+               "nobility": "", "rank": "正二品",
                "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.20, "trait_ids": ["军略"]},
     "陆佃":   {"born": 1042, "role": "尚书左丞", "faction": "旧党", "traits": "守正/博学/调停",
+               "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.25, "trait_ids": ["调停"]},
     "温益":   {"born": 1037, "role": "尚书右丞", "faction": "新党", "traits": "圆滑/阿附/多机变",
+               "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.45, "trait_ids": ["权谋"]},
     "吴居厚": {"born": 1037, "role": "知开封府", "faction": "新党", "traits": "聚敛/明达政务/吏干",
+               "nobility": "", "rank": "从三品",
                "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.50, "trait_ids": ["聚敛"]},
     "王古":   {"born": 1040, "role": "户部尚书", "faction": "东南士人", "traits": "理财/慎密/循良",
+               "nobility": "", "rank": "正二品",
                "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.28, "trait_ids": ["理财"]},
     "江公望": {"born": 1055, "role": "右司谏", "faction": "清流言官", "traits": "敢言/讽谏/守正",
+               "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.12, "trait_ids": ["刚直"]},
     "陈次升": {"born": 1044, "role": "左谏议大夫", "faction": "清流言官", "traits": "鲠直/弹劾/论蔡京",
+               "nobility": "", "rank": "正三品",
                "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.12, "trait_ids": ["刚直"]},
 
     # ===================== 地方大员（1101 已入仕） =====================
     "唐恪":   {"born": 1057, "role": "地方大员/后入中枢", "faction": "东南士人", "traits": "干练/后主和",
+               "nobility": "", "rank": "从三品",
                "portrait": "", "in_office": True, "loyalty": 0.52, "corruption": 0.30},
     "聂昌":   {"born": 1068, "role": "地方大员", "faction": "东南士人", "traits": "峻急/敢任事",
+               "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.54, "corruption": 0.28},
 
     # ===================== 在野/未起用（政和/宣和才得势，in_office=False） =====================
+    # 规则铁律：在野/贬谪者不具职事官品（rank=""），若史实已封爵则保留爵位，未封者彻底白身。
     "蔡攸":   {"born": 1077, "role": "在野(蔡京之子)", "faction": "新党", "traits": "骄奢/佞幸/揽权",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.82, "corruption": 0.72, "trait_ids": ["揽权"]},
     "何执中": {"born": 1044, "role": "在野", "faction": "新党", "traits": "圆滑/持重/附蔡",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.55},
     "郑居中": {"born": 1059, "role": "在野(外戚)", "faction": "新党", "traits": "恭俭/善逢迎/外戚",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["阿附"]},
     "余深":   {"born": 1050, "role": "在野", "faction": "新党", "traits": "柔佞/唯蔡京马首",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.80, "corruption": 0.60, "trait_ids": ["阿附"]},
     "王黼":   {"born": 1079, "role": "在野(后少宰)", "faction": "新党", "traits": "巧佞/聚敛/好大喜功",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.75, "trait_ids": ["聚敛", "揽权"]},
     "朱勔":   {"born": 1075, "role": "在野(后花石纲)", "faction": "新党", "traits": "搜括/花石纲/媚上",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.85, "trait_ids": ["聚敛"]},
     "林摅":   {"born": 1050, "role": "在野(后刑部尚书)", "faction": "新党", "traits": "苛酷/附新法",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.70, "corruption": 0.55, "trait_ids": ["阿附"]},
     "张商英": {"born": 1043, "role": "在野(被贬)", "faction": "新党", "traits": "能臣/变法/才高",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.60, "corruption": 0.35, "trait_ids": ["变法"]},
     "梁师成": {"born": 1063, "role": "在野(后掌书命)", "faction": "宦官集团", "traits": "狡黠/掌书命/豫政",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.72, "trait_ids": ["阿附", "揽权"]},
     "杨戬":   {"born": 1058, "role": "在野(后措置房)", "faction": "宦官集团", "traits": "搜括/营田/聚敛",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.70, "trait_ids": ["聚敛"]},
     "高俅":   {"born": 1068, "role": "殿前都指挥使", "faction": "宦官集团", "traits": "蹴鞠/典禁军/怙宠",
+               "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.55, "trait_ids": ["才艺"]},
     "侯蒙":   {"born": 1054, "role": "在野(后户部尚书)", "faction": "清流言官", "traits": "通达/敢言/识人才",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.18, "trait_ids": ["清正"]},
 
     # ===================== 未生（1101 尚未出生） =====================
     "岳飞":   {"born": 1103, "role": "未生(未来名将)", "faction": "西军集团", "traits": "精忠/神勇/军神",
+               "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.10},
 }
 
