@@ -194,19 +194,19 @@ function HoverDetailCapsule({
             <div className="my-2.5 grid grid-cols-3 divide-x divide-gold/30 rounded border border-gold/40 bg-card py-2 text-center shadow-inner">
               <div className="px-1">
                 <div className="text-[11px] text-dim">月入总盘</div>
-                <div className="text-[14px] font-bold text-amber-900 mt-0.5">
+                <div className="text-[14px] font-bold text-emerald-800 mt-0.5">
                   +{humanizeCoin(data.totalIn)}
                 </div>
               </div>
               <div className="px-1">
                 <div className="text-[11px] text-dim">月支刚性</div>
-                <div className="text-[14px] font-bold text-emerald-800 mt-0.5">
+                <div className="text-[14px] font-bold text-red-dark mt-0.5">
                   -{humanizeCoin(data.totalOut)}
                 </div>
               </div>
               <div className="px-1">
                 <div className="text-[11px] text-dim">净结余</div>
-                <div className={`text-[14px] font-bold mt-0.5 ${data.net >= 0 ? "text-red font-extrabold" : "text-emerald-800"}`}>
+                <div className={`text-[14px] font-bold mt-0.5 ${data.net >= 0 ? "text-emerald-800 font-extrabold" : "text-red-dark font-extrabold"}`}>
                   {data.net >= 0 ? `+${humanizeCoin(data.net)}` : `-${humanizeCoin(Math.abs(data.net))}`}
                 </div>
               </div>
@@ -220,18 +220,18 @@ function HoverDetailCapsule({
 
             {/* 3. 纵向滚动明细区（可舒适滚动查看） */}
             <div className="max-h-[400px] space-y-3 overflow-y-auto pr-1">
-              {/* 固定收入区块 */}
+              {/* 固定收入区块（收：绿） */}
               <div>
                 <div className="flex items-center justify-between border-b border-gold/30 pb-0.5 mb-1.5">
-                  <span className="text-[13px] font-bold text-amber-900">固定收入明细</span>
-                  <span className="text-[11px] font-bold text-amber-900">+{humanizeCoin(data.totalIn)}</span>
+                  <span className="text-[13px] font-bold text-emerald-800">固定收入明细</span>
+                  <span className="text-[11px] font-bold text-emerald-800">+{humanizeCoin(data.totalIn)}</span>
                 </div>
                 <div className="space-y-1.5">
                   {data.incomes.map((item) => (
                     <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
                       <div className="flex items-center justify-between text-[12.5px]">
                         <span className="font-bold text-ink">{item.name}</span>
-                        <span className="font-bold text-amber-900">+{humanizeCoin(item.amount)}</span>
+                        <span className="font-bold text-emerald-800">+{humanizeCoin(item.amount)}</span>
                       </div>
                       {item.formula && (
                         <div className="mt-1 text-[10.5px] text-dim leading-snug">
@@ -248,18 +248,18 @@ function HoverDetailCapsule({
                 </div>
               </div>
 
-              {/* 固定支出区块 */}
+              {/* 固定支出区块（支：红） */}
               <div>
                 <div className="flex items-center justify-between border-b border-gold/30 pb-0.5 mb-1.5">
-                  <span className="text-[13px] font-bold text-emerald-800">固定支出明细</span>
-                  <span className="text-[11px] font-bold text-emerald-800">-{humanizeCoin(data.totalOut)}</span>
+                  <span className="text-[13px] font-bold text-red-dark">固定支出明细</span>
+                  <span className="text-[11px] font-bold text-red-dark">-{humanizeCoin(data.totalOut)}</span>
                 </div>
                 <div className="space-y-1.5">
                   {data.expenses.map((item) => (
                     <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
                       <div className="flex items-center justify-between text-[12.5px]">
                         <span className="font-bold text-ink">{item.name}</span>
-                        <span className="font-bold text-emerald-800">-{humanizeCoin(item.amount)}</span>
+                        <span className="font-bold text-red-dark">-{humanizeCoin(item.amount)}</span>
                       </div>
                       {item.formula && (
                         <div className="mt-1 text-[10.5px] text-dim leading-snug">
