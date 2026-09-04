@@ -69,18 +69,32 @@ async function waitForBackend(url: string, attempts = 40, intervalMs = 500): Pro
   return false;
 }
 
-function resolvePythonCommand(cwd: string): string {
-  // 优先工程 venv（双击启动时 PATH 通常没有 python），其次 PATH 上的 python
+function resolveBackendCommand(cwd: string): { command: string; args: string[] } {
+  // 打包环境：优先使用内置的 server.exe（resources/backend/server.exe），零 Python 依赖
+  if (app.isPackaged) {
+    // 必须用 process.resourcesPath（Electron 官方 resources 根绝对路径），
+    // 不能用 __dirname 推导：asar 虚拟路径下 path.join("..") 会产生错误盘符路径
+    const resourcesRoot = process.resourcesPath;
+    const bundledServer = join(resourcesRoot, "backend", "server.exe");
+    console.log(`[backend] probing bundled server: ${bundledServer}`);
+    if (existsSync(bundledServer)) {
+      return { command: bundledServer, args: [] };
+    }
+    console.warn(`[backend] bundled server.exe not found at ${bundledServer}`);
+  }
+  // 开发环境：优先工程 venv，其次 PATH 上的 python
   const venvPython = join(cwd, ".venv", "Scripts", "python.exe");
-  if (existsSync(venvPython)) return venvPython;
-  return "python";
+  if (existsSync(venvPython)) return { command: venvPython, args: ["-m", "backend.server"] };
+  return { command: "python", args: ["-m", "backend.server"] };
 }
 
 function spawnBackend(cfg: BackendConfig): void {
-  // __dirname = game/frontend/out/main,上三级即 game/(前端目录已移入 game/)
-  const cwd = cfg.cwd ?? join(__dirname, "../../..");
-  const command = cfg.command ?? resolvePythonCommand(cwd);
-  const args = ["-m", "backend.server"];
+  const isPackaged = app.isPackaged;
+  // 打包后：server.exe 自含全部数据，cwd 设为 resources 根；开发时：out/main 上三级即 game/
+  const cwd = cfg.cwd ?? (isPackaged ? process.resourcesPath : join(__dirname, "../../.."));
+  const { command, args } = cfg.command
+    ? { command: cfg.command, args: ["-m", "backend.server"] }
+    : resolveBackendCommand(cwd);
   console.log(`[backend] spawn ${command} ${args.join(" ")} (cwd=${cwd})`);
   backendProc = spawn(command, args, {
     cwd,

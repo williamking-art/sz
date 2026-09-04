@@ -6,6 +6,9 @@ directories:
 files:
   - out/**
   - package.json
+extraResources:
+  - from: resources/backend
+    to: backend
 asar: true
 win:
   target:
