@@ -1,4 +1,4 @@
-import { Landmark, Users, Newspaper, ScrollText, PenLine, Play } from "lucide-react";
+import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2 } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { getApiClient } from "../api/client";
 
@@ -8,6 +8,7 @@ const COMMANDS: { key: string; label: string; icon: React.ReactNode }[] = [
   { key: "ministers", label: "群臣", icon: <Users size={20} /> },
   { key: "gazette", label: "朝报", icon: <Newspaper size={20} /> },
   { key: "personal", label: "行止", icon: <ScrollText size={20} /> },
+  { key: "diplomacy", label: "邦交", icon: <Globe2 size={20} /> },
   { key: "decree", label: "拟旨", icon: <PenLine size={20} /> }
 ];
 
