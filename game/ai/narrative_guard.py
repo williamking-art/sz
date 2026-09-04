@@ -78,14 +78,19 @@ def _build_numeric_ranges(state):
 
 
 def _build_source_closure(state, extra=None):
-    """本回合真实来源闭集：①诏书/在办事务 ②本回合事件 ③记忆图谱检索闭集 ④本回合 log。
+    """本回合真实来源闭集：①诏书/在办事务/国策 ②本回合事件 ③记忆图谱检索闭集 ④本回合 log。
     返回注入文本【本期取材（仅限以下来源）】。"""
     parts = []
-    # ① 诏书/在办事务
+    # ① 诏书/在办事务/国策推进
     for d in list(getattr(state, "pending_decrees", []) or [])[-5:]:
         parts.append(f"诏·{d.get('title', '')[:12]}")
     for t in list(getattr(state, "longterm_public", []) or [])[-5:]:
         parts.append(f"务·{t.get('title', '')[:12]}")
+    act_focus = getattr(state, "active_focus", None)
+    if act_focus and isinstance(act_focus, dict) and act_focus.get("status") == "in_progress":
+        parts.append(f"策·推行{act_focus.get('name', '')}")
+    for cf in list(getattr(state, "completed_focuses", []) or [])[-3:]:
+        parts.append(f"策·既成{cf.get('name', '')}")
     # ② 本回合事件
     for e in list(getattr(state, "active_events", []) or [])[-5:]:
         parts.append(f"事·{e.get('category', '')[:12]}")

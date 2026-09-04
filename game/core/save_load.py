@@ -139,6 +139,8 @@ def save_game(state, slot: int = 1) -> bool:
         "opening_gazette": getattr(state, "opening_gazette", {}),
         "legacies": getattr(state, "legacies", {}),
         "focus_tree": getattr(state, "focus_tree", {}),
+        "active_focus": getattr(state, "active_focus", None),
+        "completed_focuses": getattr(state, "completed_focuses", []),
         "minister_memory": getattr(state, "minister_memory", {}),
         "player_minister_status": getattr(state, "player_minister_status", {}),
 
@@ -382,6 +384,8 @@ def load_game(slot: int = 1):
     state.opening_gazette = data.get("opening_gazette", {}) or {}
     state.legacies = data.get("legacies", {}) or {}
     state.focus_tree = data.get("focus_tree", {}) or {}
+    state.active_focus = data.get("active_focus", None)
+    state.completed_focuses = data.get("completed_focuses", []) or []
     state.minister_memory = data.get("minister_memory", {}) or {}
     # 代码审理（旧机制融入新机制）：旧 minister_memory（dict）加载时自动迁入
     # DialogueMemory（对话库，saves/slot_{slot}_dialogue.db）——新写入走新机制；
