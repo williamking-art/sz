@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Loader2, X, Send, Heart, Shield, Award, BookOpen, UserCheck, Flame, Scale, Coffee, ThumbsUp, AlertTriangle, UserMinus } from "lucide-react";
+import { Loader2, X, Send, Heart, Coffee, ThumbsUp, AlertTriangle } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
-import constants from "../data/constants.json";
+import ministersDict from "../data/ministers_dict.json";
 
 interface DialogueTurn {
   id: string;
@@ -13,29 +13,61 @@ interface DialogueTurn {
   content: string;
 }
 
+interface MinisterMeta {
+  role: string;
+  faction: string;
+  traits: string;
+}
+
+// 官品推导函数：依据史实官衔精准对应宋代官阶
+function getOfficialRank(role: string): string {
+  if (role.includes("左相") || role.includes("右相") || role.includes("太师") || role.includes("太傅") || role.includes("太保")) {
+    return "正一品 · 昭勋辅国";
+  }
+  if (role.includes("仆射") || role.includes("门下侍郎") || role.includes("中书侍郎") || role.includes("枢密使") || role.includes("知枢密院事")) {
+    return "从一品 · 执政宰辅";
+  }
+  if (role.includes("尚书") || role.includes("同知枢密院事") || role.includes("签书枢密院事") || role.includes("御史大夫")) {
+    return "正二品 · 八座尚书";
+  }
+  if (role.includes("侍郎") || role.includes("御史中丞") || role.includes("翰林学士") || role.includes("开封府尹")) {
+    return "从二品 · 卿贰近侍";
+  }
+  if (role.includes("谏议大夫") || role.includes("给事中") || role.includes("中书舍人") || role.includes("大理寺卿")) {
+    return "正三品 · 台阁通班";
+  }
+  if (role.includes("司谏") || role.includes("正言") || role.includes("侍御史") || role.includes("知州") || role.includes("转运使")) {
+    return "从四品 · 风宪按察";
+  }
+  if (role.includes("军") || role.includes("将") || role.includes("统制") || role.includes("都监")) {
+    return "从二品 · 节度边帅";
+  }
+  if (role.includes("在野")) {
+    return "从二品 · 暂羁外台";
+  }
+  return "从二品 · 中枢侍从";
+}
+
 export default function AudienceView({ props }: { props?: Record<string, unknown> }) {
   const popOverlay = useGameStore((s) => s.popOverlay);
   const state = useGameStore((s) => s.state);
   const setState = useGameStore((s) => s.setState);
 
   const ministerName = String(props?.minister || "韩忠彦");
-  const ministerRole = String(props?.role || "尚书左仆射兼门下侍郎");
 
-  // 大臣立绘推导
-  const isMilitary = ministerRole.includes("军") || ministerRole.includes("枢密") || ministerRole.includes("将");
+  // 1. 优先从权威字典查询该大臣史实职衔与派系，彻底杜绝从列表传进来的泛化“堂官/领袖”字符串
+  const dictInfo = ((ministersDict as Record<string, MinisterMeta>)[ministerName]) || null;
+  const ministerRole = dictInfo?.role || String(props?.role || "执政大臣");
+  const ministerFaction = dictInfo?.faction || "清流正论";
+
+  // 2. 官阶品级准确对应
+  const officialRank = getOfficialRank(ministerRole);
+
+  // 3. 大臣立绘推导
+  const isMilitary = ministerRole.includes("军") || ministerRole.includes("枢密") || ministerRole.includes("将") || ministerRole.includes("节度");
   const portraitUrl = isMilitary ? "./portraits/general.png" : "./portraits/minister.png";
 
-  // 大臣所属派系
-  const factions = (constants as any).faction_init || {};
-  let ministerFaction = "清流正论";
-  for (const [fn, fv] of Object.entries(factions) as any) {
-    if (fv.leader === ministerName) {
-      ministerFaction = fn;
-      break;
-    }
-  }
-
-  // 六维属性与特质参数生成（稳定伪随机）
+  // 4. 六维属性与特质参数生成（稳定伪随机）
   let seed = 0;
   for (let i = 0; i < ministerName.length; i++) seed = (seed * 37 + ministerName.charCodeAt(i)) % 10007;
   const stats = {
@@ -47,6 +79,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     scholar: isMilitary ? 65 + ((seed * 17) % 20) : 88 + ((seed * 17) % 11)
   };
 
+  // 特质标签（纯正中文标签，完全剥离前置 # 符号，对齐古代书契印鉴风格）
   const traits = [
     ministerFaction,
     isMilitary ? "经略九边" : "深谋远虑",
@@ -125,13 +158,12 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     }
   }
 
-  // 根据大宋当前真实局势 + 大臣职掌，动态生成御前圣裁行动
+  // 根据大臣专业职掌分类 + 大宋当前国情态势，高度精准派生对应的圣意选项
   interface PolicyOption {
     label: string;
     badge: string;
     text: string;
     isPrimary?: boolean;
-    color?: string;
   }
 
   function getDynamicOptions(): PolicyOption[] {
@@ -152,14 +184,14 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       isPrimary: true
     });
 
-    // 2. 根据大臣职掌分类派生专业选项
-    if (isMilitary) {
-      // 军事/枢密大臣专项
+    // 2. 根据大臣真实职权精确分类派生专业选项
+    if (isMilitary || ministerRole.includes("枢密") || ministerRole.includes("边") || ministerRole.includes("帅")) {
+      // 军事/边防枢臣
       if (liaoAtt < 40 || xixiaAtt < 40) {
         opts.push({
           label: "九边饬备",
           badge: "戎备",
-          text: "北疆塞上烽火戒严，卿总司枢府，着即严饬河东、河北诸关隘坚壁清野，严防谍探。"
+          text: "北疆辽夏塞上烽火戒严，卿总司枢府兵要，着即严饬河东、河北诸关隘坚壁清野，严防谍探。"
         });
       }
       opts.push({
@@ -172,8 +204,14 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         badge: "互市",
         text: "辽夏近来边贸互市虚实如何？铁货茶引走私有无边吏私纵情弊？"
       });
-    } else if (ministerRole.includes("仆射") || ministerRole.includes("相") || ministerRole.includes("侍郎") || ministerRole.includes("中丞")) {
-      // 宰执中枢大僚专项
+    } else if (
+      ministerRole.includes("相") ||
+      ministerRole.includes("仆射") ||
+      ministerRole.includes("侍郎") ||
+      ministerRole.includes("门下") ||
+      ministerRole.includes("中书")
+    ) {
+      // 宰相/三省宰执
       opts.push({
         label: "调停党争",
         badge: "朝局",
@@ -182,7 +220,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       if (treasury < 4000000) {
         opts.push({
           label: "度支节流",
-          badge: "紧绌",
+          badge: "度支",
           text: "目下国库用度日紧，三冗耗费颇巨。中书当速定裁汰冗官、省减浮费之策以充府库。"
         });
       } else {
@@ -192,16 +230,58 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           text: "岁入尚安，江淮数路积年逃税包税亏欠，可议除豁免二分，以苏疲瘵。"
         });
       }
-    } else {
-      // 部使言官常规
       opts.push({
-        label: "澄清吏治",
+        label: "整饬铨选",
+        badge: "大政",
+        text: "考课之法久废，请卿会同吏部严核中外荐举，务求公允。"
+      });
+    } else if (ministerRole.includes("户部") || ministerRole.includes("转运") || ministerRole.includes("理财")) {
+      // 户部/财税重臣
+      opts.push({
+        label: "核查两税",
+        badge: "赋税",
+        text: "目下诸路夏秋两税实收与折色成数几何？隐漏逃税之田当如何稽核？"
+      });
+      opts.push({
+        label: "平粜常平",
+        badge: "仓庾",
+        text: "常平太仓粮储与各路仓窖积粟足支几何？米价平籴平粜之政宜早为计。"
+      });
+    } else if (
+      ministerRole.includes("御史") ||
+      ministerRole.includes("司谏") ||
+      ministerRole.includes("正言") ||
+      ministerRole.includes("台") ||
+      ministerRole.includes("谏")
+    ) {
+      // 言官台谏清流
+      opts.push({
+        label: "弹劾贪墨",
         badge: "风宪",
-        text: "州县贪墨与胥吏舞文弄法之风屡禁不绝，卿主管所司，当严加考核，有罪必纠。"
+        text: "言路乃天下喉舌，近来内外百僚若有专权奸弊、贪墨渔利者，卿等自可直斥上闻。"
+      });
+      opts.push({
+        label: "整肃言路",
+        badge: "谏议",
+        text: "台谏论事当秉公体国，切不可借言事攻讦异己，陷入朋党倾轧之弊。"
+      });
+    } else if (ministerRole.includes("工部") || ministerRole.includes("营造") || ministerRole.includes("修内司")) {
+      // 工部营造
+      opts.push({
+        label: "督办营造",
+        badge: "工役",
+        text: "京畿修缮水利与军器修造工费度支如何？务使工物精纯，毋劳民伤财。"
+      });
+    } else {
+      // 通用卿僚
+      opts.push({
+        label: "勤修厥职",
+        badge: "勤政",
+        text: "卿在所司宜尽心奉职，凡有关于军国利害之实务，毋得隐匿瞻顾。"
       });
     }
 
-    // 3. 结合当前大宋宏观国情动态插入突发危机选项
+    // 3. 结合当前大宋宏观国情动态补充紧迫危机
     if (canalBlock >= 20) {
       opts.push({
         label: "疏浚漕纲",
@@ -210,21 +290,21 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       });
     } else if (granary < 10000000) {
       opts.push({
-        label: "平粜拨粮",
-        badge: "米价",
-        text: "常平太仓粮储见底，京畿米价腾贵。卿当严查豪商囤积，平籴平粜以安市井。"
+        label: "平抑粮价",
+        badge: "仓庾",
+        text: "常平仓粮储见底，京畿米价腾贵。卿当严查豪商囤积，平籴平粜以安市井。"
       });
     } else if (activeEvents.length > 0) {
       const topEv = activeEvents[0];
-      const evName = topEv.title || topEv.category || "四方急报";
+      const evName = topEv.title || topEv.category || "四方奏报";
       opts.push({
-        label: "经略急变",
-        badge: "边报",
-        text: `近日地方有报【${evName}】，物议鼎沸。卿身为朝廷大臣，可有稳妥化解之方？`
+        label: "应对边报",
+        badge: "急报",
+        text: `近日地方有报【${evName}】，物议鼎沸。卿身为朝廷栋梁，可有周全应对之方？`
       });
     }
 
-    // 4. 经典君臣情境互动（赐茶 / 勉励 / 敲打）
+    // 4. 经典君臣情境互动
     opts.push({
       label: "赐顾渚紫笋",
       badge: "皇恩",
@@ -252,7 +332,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       </div>
 
       {/* 2. 顶部金色端庄仪仗栏 */}
-      <div className="relative z-10 flex items-center justify-between border-b border-gold/40 bg-black/40 px-6 py-2.5 backdrop-blur-sm">
+      <div className="relative z-10 flex items-center justify-between border-b border-gold/40 bg-black/50 px-6 py-2.5 backdrop-blur-sm shadow-md">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red ring-1 ring-gold shadow-md">
             <span className="font-kai text-[17px] font-bold text-[#f5ebd3]">宋</span>
@@ -275,20 +355,20 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         </button>
       </div>
 
-      {/* 3. 核心双栏主舞台（左立绘身份，右长卷对白） */}
-      <div className="relative z-10 flex flex-1 overflow-hidden px-6 py-4 gap-6">
-        {/* 左侧：大臣立绘 + 宣纸六维卡片 (~32%) */}
-        <div className="flex w-[340px] shrink-0 flex-col justify-between">
-          {/* 大臣大立绘展示位 */}
-          <div className="relative flex flex-1 items-end justify-center overflow-hidden rounded-t-[4px] border-t border-x border-gold/50 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+      {/* 3. 核心双栏主舞台（左立绘顶天立地，右长卷对白） */}
+      <div className="relative z-10 flex flex-1 overflow-hidden px-6 pt-2 pb-4 gap-6">
+        {/* 左侧：大臣立绘顶头全幅展现 + 宣纸属性面板 (~32%) */}
+        <div className="flex w-[340px] shrink-0 flex-col justify-between h-full">
+          {/* 大臣大立绘展示位：立绘顶头全高展示，无多余顶部留白 */}
+          <div className="relative flex flex-1 items-end justify-center overflow-hidden rounded-t-[4px] border-t border-x border-gold/50 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
             <img
               src={portraitUrl}
               alt={ministerName}
-              className="max-h-[85%] w-auto object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.8)]"
+              className="h-full max-h-none w-auto object-cover object-top filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] scale-105 transform origin-top"
             />
-            {/* 顶部品阶标签 */}
-            <div className="absolute top-3 left-3 rounded border border-gold/50 bg-black/70 px-2.5 py-1 text-[11.5px] font-bold text-gold tracking-widest backdrop-blur-sm">
-              正一品 · 中枢枢辅
+            {/* 顶部品阶标签：与官职关联的真实宋代官品 */}
+            <div className="absolute top-2 left-2 rounded border border-gold/60 bg-black/80 px-2.5 py-1 text-[11.5px] font-bold text-gold tracking-widest backdrop-blur-sm shadow-md">
+              {officialRank}
             </div>
           </div>
 
@@ -307,7 +387,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
               {ministerRole}
             </p>
 
-            {/* 六维属性横排条（对齐参考图样式） */}
+            {/* 六维属性横排条 */}
             <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center text-[11px] font-sans">
               <div className="rounded border border-gold/30 bg-card py-1">
                 <span className="text-dim">忠诚</span> <strong className="text-red font-kai">{stats.loyalty}</strong>
@@ -329,11 +409,11 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
               </div>
             </div>
 
-            {/* 大臣特质词卡 */}
-            <div className="mt-2.5 flex flex-wrap gap-1">
+            {/* 大臣特质词卡：完全去除 # 符号，采用古雅方印徽标签 */}
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
               {traits.map((tr) => (
-                <span key={tr} className="rounded bg-paper px-1.5 py-0.5 text-[10.5px] text-dim border border-border">
-                  #{tr}
+                <span key={tr} className="rounded bg-paper px-2 py-0.5 text-[11px] font-kai font-medium text-dim border border-gold/30 shadow-xs">
+                  {tr}
                 </span>
               ))}
             </div>
@@ -341,7 +421,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         </div>
 
         {/* 右侧：长卷对白对话流 (~68%) */}
-        <div className="flex flex-1 flex-col rounded-[4px] border border-gold/60 bg-[#f9f5ea]/95 shadow-2xl overflow-hidden">
+        <div className="flex flex-1 flex-col rounded-[4px] border border-gold/60 bg-[#f9f5ea]/95 shadow-2xl overflow-hidden h-full">
           {/* 对白卷轴流主体 */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
             {turns.map((t) => (
@@ -422,7 +502,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                   }
                 }}
                 disabled={busy}
-                placeholder={`向 ${ministerName} 传达圣意口谕（例：今岁边患频起，卿有何经略之策？直接敲 Enter 发送）`}
+                placeholder={`向 ${ministerName} 传达圣意口谕（例：卿身为朝廷柱石，有何经略之策？直接敲 Enter 发送）`}
                 className="flex-1 rounded border border-gold/60 bg-card px-3.5 py-2 text-[14px] text-ink outline-none focus:border-red shadow-inner placeholder:text-dim/60"
               />
               <button
