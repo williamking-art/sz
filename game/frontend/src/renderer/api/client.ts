@@ -77,6 +77,8 @@ export type ActionName =
   | "issue_decree"
   | "issue_secret_decree"
   | "unlock_focus"
+  | "start_focus"
+  | "cancel_focus"
   | "issue_edict_from_review"
   | "reject_edict_draft"
   | "issue_free_decree"

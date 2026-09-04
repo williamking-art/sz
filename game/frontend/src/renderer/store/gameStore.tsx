@@ -187,31 +187,48 @@ export function hudToken(state: GameState | null): number | null {
   return Number(u.prompt ?? 0) + Number(u.completion ?? 0);
 }
 
-// 在办事由：longterm_public + longterm_secret（对齐 panels_core.py::_refresh_left_card）
+// 在办事由：active_focus(置顶国策) + longterm_public + longterm_secret（对齐 panels_core.py::_refresh_left_card）
 export interface TodoItem {
   label: string;
   progress: number;
+  isFocus?: boolean;
 }
 
 export function hudTodos(state: GameState | null): TodoItem[] {
   if (!state) return [];
+  const items: TodoItem[] = [];
+
+  // 1. 若当前有中枢正在施行的国策大策，以最高优先级置顶
+  const actFocus = pick<Record<string, unknown>>(state, "active_focus", {});
+  if (actFocus && actFocus.status === "in_progress" && actFocus.name) {
+    items.push({
+      label: `【国策】${actFocus.name}`,
+      progress: Math.max(5, Math.min(100, Number(actFocus.progress) || 0)),
+      isFocus: true
+    });
+  }
+
+  // 2. 长期诏令事务
   const pub = pick<Array<Record<string, unknown>>>(state, "longterm_public", []);
   const sec = pick<Array<Record<string, unknown>>>(state, "longterm_secret", []);
   const issues = [...pub, ...sec];
-  if (issues.length === 0) {
+
+  if (items.length === 0 && issues.length === 0) {
     return [
       { label: "暂无在办大事", progress: 20 },
       { label: "江山初定，百废待兴", progress: 15 }
     ];
   }
-  return issues.slice(0, 7).map((t) => {
+
+  for (const t of issues.slice(0, 7 - items.length)) {
     const raw = String(t.task_name ?? t.title ?? "事务");
     const label = raw.slice(0, 12);
-    // 进度条取色与 Tk 版同构：30 + hash%60
     let h = 0;
     for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) % 1_000_003;
-    return { label, progress: 30 + (h % 60) };
-  });
+    items.push({ label, progress: 30 + (h % 60) });
+  }
+
+  return items;
 }
 
 /** 国库收支明细（前端派生，数据源为快照原始字段）。 */

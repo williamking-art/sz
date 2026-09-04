@@ -390,8 +390,17 @@ class GameState(GameStateEconMixin):
         self.opening_gazette: dict = {}
         # 帝国修正（legacies）：开局即存在的条件式长期修正符，带消除条件
         self.legacies: dict = {}
-        # 国策树（focus）：五大分支（政务/军事/科学/内卫/税务），权力等级 + 互斥 + 解锁建筑
+        # 国策树（focus）：五大分支（政务/军事/科学/内卫/税务），时延推进 + AI长期记忆沉淀
         self.focus_tree: dict = {}
+        try:
+            from core.focus_mechanic import init_focus_tree
+            init_focus_tree(self)
+        except Exception:
+            pass
+        # 中枢当前在办国策：{branch, node_key, name, desc, power_level, elapsed_turns, total_turns, progress, cost_per_month, status, narrative_memory}
+        self.active_focus: dict | None = None
+        # 已施行完成的大策历史纪要：[{branch, node_key, name, power_level, year, month, turn, narrative_memory}]
+        self.completed_focuses: list = []
 
         # ---- 六部衙门 ----
         self.yamen: dict = {}
@@ -932,10 +941,22 @@ class GameState(GameStateEconMixin):
         _ref_band = desensitize_band(
             _ref, "口", width_pct=0.25,
             lag_value=s.get("refugee_count_lagged")) if _ref > 0 else "无"
+        # 基本国策长期记忆与正在施行政务
+        _focus_parts = []
+        if getattr(self, "completed_focuses", None):
+            _c_names = [f["name"] for f in self.completed_focuses if isinstance(f, dict)]
+            if _c_names:
+                _focus_parts.append(f"已定大策：{'、'.join(_c_names[-4:])}")
+        _act = getattr(self, "active_focus", None)
+        if _act and isinstance(_act, dict) and _act.get("status") == "in_progress":
+            _focus_parts.append(f"在施大策：{_act.get('name')}({_act.get('progress', 0)}%)")
+        _focus_str = f"国策：{'；'.join(_focus_parts)}；" if _focus_parts else ""
+
         return (
             f"时间：{s['time']}；皇威：{s['prestige']['desc']}；"
             f"国库：{_treasury_band}（{s['treasury']['desc']}）；"
             f"太仓：{_granary_band}；流民：{_ref_band}；民心：{s['pop_sat_desc']}；"
+            f"{_focus_str}"
             f"金融：交子{fin.get('jiaozi_trust','')}、{fin.get('coin_shortage','')}、{fin.get('maritime_open','')}；"
             f"仓廪：{gr.get('granary','')}、米价{gr.get('price','')}、"
             f"漕运{gr.get('canal','')}、{gr.get('whip','')}、俸禄{gr.get('pay','')}；"

@@ -18,10 +18,12 @@ export default function LeftTodo() {
           {todos.map((t, i) => (
             <li key={i}>
               <button
-                onClick={() => pushOverlay({ kind: "todo", title: "在办事务" })}
-                className="group flex w-full items-center gap-2 rounded px-1.5 py-1 text-left transition hover:bg-gold-light"
+                onClick={() => pushOverlay(t.isFocus ? { kind: "focus", title: "国策大计" } : { kind: "todo", title: "在办事务" })}
+                className={`group flex w-full items-center gap-2 rounded px-1.5 py-1 text-left transition ${
+                  t.isFocus ? "bg-red/5 hover:bg-red/10 border border-red/20 my-0.5" : "hover:bg-gold-light"
+                }`}
               >
-                <span className="flex-1 truncate text-[12px] leading-snug text-ink">
+                <span className={`flex-1 truncate text-[12px] leading-snug ${t.isFocus ? "font-bold text-red" : "text-ink"}`}>
                   {t.label}
                 </span>
                 <span className="h-2 w-[60px] shrink-0 overflow-hidden rounded-sm bg-[#e0d3b3]">
@@ -29,7 +31,7 @@ export default function LeftTodo() {
                     className="block h-full rounded-sm transition-all"
                     style={{
                       width: `${Math.min(100, Math.round(t.progress * 0.6))}%`,
-                      backgroundColor: statusColor(t.progress)
+                      backgroundColor: t.isFocus ? "#a93226" : statusColor(t.progress)
                     }}
                   />
                 </span>

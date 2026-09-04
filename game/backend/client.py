@@ -162,6 +162,10 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: self._invention_action(s, p, "reject"),
             "unlock_focus":
                 lambda s, p, ai: self._unlock_focus_action(s, p),
+            "start_focus":
+                lambda s, p, ai: self._start_focus_action(s, p),
+            "cancel_focus":
+                lambda s, p, ai: self._cancel_focus_action(s, p),
         }
         handler = handlers.get(action)
         if handler is None:
@@ -169,15 +173,32 @@ class LocalBackend(BackendClient):
         return handler(state, params, ai_client)
 
     @staticmethod
-    def _unlock_focus_action(state, params):
-        from core.focus_mechanic import can_unlock, unlock_focus
+    def _start_focus_action(state, params):
+        from core.focus_mechanic import start_focus
         branch = str(params.get("branch", ""))
         node_key = str(params.get("node_key", ""))
-        ok, reason = can_unlock(state, branch, node_key)
-        if not ok:
-            raise ValueError(f"不可施行此国策: {reason}")
-        msg = unlock_focus(state, branch, node_key)
-        return msg, state
+        res = start_focus(state, branch, node_key)
+        if not res.get("ok"):
+            raise ValueError(res.get("message", "不可施行此大策"))
+        return res.get("message", "已立案施行大策"), state
+
+    @staticmethod
+    def _cancel_focus_action(state, params):
+        from core.focus_mechanic import cancel_focus
+        res = cancel_focus(state)
+        if not res.get("ok"):
+            raise ValueError(res.get("message", "不可中止大策"))
+        return res.get("message", "已中止大策施行"), state
+
+    @staticmethod
+    def _unlock_focus_action(state, params):
+        from core.focus_mechanic import start_focus
+        branch = str(params.get("branch", ""))
+        node_key = str(params.get("node_key", ""))
+        res = start_focus(state, branch, node_key)
+        if not res.get("ok"):
+            raise ValueError(res.get("message", "不可施行此国策"))
+        return res.get("message", "已开办施行大策"), state
 
     @staticmethod
     def _research_action(state, params):
