@@ -21,6 +21,7 @@ import SettingsPanel from "./SettingsPanel";
 import SavePanel from "./SavePanel";
 import ConcludePanel from "./ConcludePanel";
 import CodexPanel from "./CodexPanel";
+import FocusPanel from "./FocusPanel";
 
 // 浮层栈：宣纸奏章卡片叠于舆图之上，Esc 逐层关闭（对齐 panels_core.py::_overlay_stack）
 export default function OverlayStack() {
@@ -124,6 +125,8 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
       return <ConcludePanel />;
     case "codex":
       return <CodexPanel props={props as any} />;
+    case "focus":
+      return <FocusPanel />;
     default:
       return <PlaceholderPanel kind={kind} />;
   }

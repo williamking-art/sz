@@ -1,0 +1,152 @@
+{
+  "govern": {
+    "name": "政务",
+    "desc": "整饬吏治，裁汰冗费，以固朝纲。",
+    "nodes": {
+      "g1_centralize": {
+        "name": "中央集权",
+        "desc": "收揽权柄，政令出于中枢。",
+        "power_level": 1,
+        "prereq": null,
+        "unlock": "吏治清明",
+        "effect": "govern_eff"
+      },
+      "g2_reform": {
+        "name": "官制改革",
+        "desc": "厘正官制，裁汰冗员。",
+        "power_level": 2,
+        "prereq": "g1_centralize",
+        "unlock": "新官制",
+        "effect": "govern_eff"
+      },
+      "g3_curtail": {
+        "name": "裁汰冗费",
+        "desc": "省浮节流，以实府库。",
+        "power_level": 3,
+        "prereq": "g2_reform",
+        "unlock": "省费令",
+        "effect": "govern_eff"
+      }
+    }
+  },
+  "military": {
+    "name": "军事",
+    "desc": "整军经武，修城固垒，以御外侮。",
+    "nodes": {
+      "m1_garrison": {
+        "name": "整军经武",
+        "desc": "整饬军旅，充实边备。",
+        "power_level": 1,
+        "prereq": null,
+        "unlock": "边军",
+        "effect": "military_eff"
+      },
+      "m2_fortify": {
+        "name": "修城固垒",
+        "desc": "增修城防，坚壁清野。",
+        "power_level": 2,
+        "prereq": "m1_garrison",
+        "unlock": "城防",
+        "effect": "military_eff"
+      },
+      "m3_war_machine": {
+        "name": "军备军器",
+        "desc": "广造军器，火器军用。",
+        "power_level": 3,
+        "prereq": "m2_fortify",
+        "unlock": "军器监",
+        "effect": "military_eff"
+      }
+    }
+  },
+  "science": {
+    "name": "科学",
+    "desc": "兴百工，修历法，奖掖技艺。",
+    "nodes": {
+      "s1_tech": {
+        "name": "兴百工",
+        "desc": "奖掖工匠，兴修水利机械。",
+        "power_level": 1,
+        "prereq": null,
+        "unlock": "工坊",
+        "effect": "science_eff"
+      },
+      "s2_calendar": {
+        "name": "修历法",
+        "desc": "校勘历法，精于天文。",
+        "power_level": 2,
+        "prereq": "s1_tech",
+        "unlock": "司天监",
+        "effect": "science_eff"
+      },
+      "s3_west": {
+        "name": "西学东渐",
+        "desc": "聘西洋匠，开机器局。",
+        "power_level": 3,
+        "prereq": "s2_calendar",
+        "unlock": "机器局",
+        "effect": "science_eff"
+      }
+    }
+  },
+  "internal": {
+    "name": "内卫",
+    "desc": "设密司，整肃言路，密探天下。",
+    "nodes": {
+      "i1_spy": {
+        "name": "设皇城司",
+        "desc": "设皇城司，刺探内外。",
+        "power_level": 1,
+        "prereq": null,
+        "unlock": "皇城司",
+        "effect": "internal_eff"
+      },
+      "i2_censor": {
+        "name": "整肃言路",
+        "desc": "整肃台谏，钳制异论。",
+        "power_level": 2,
+        "prereq": "i1_spy",
+        "unlock": "御史台",
+        "effect": "internal_eff"
+      },
+      "i3_control": {
+        "name": "密探天下",
+        "desc": "密探遍布，防患未然。",
+        "power_level": 3,
+        "prereq": "i2_censor",
+        "unlock": "密探网",
+        "effect": "internal_eff"
+      }
+    }
+  },
+  "tax": {
+    "name": "税务",
+    "desc": "清丈田亩，盐铁专卖，一条鞭法。",
+    "nodes": {
+      "t1_land_survey": {
+        "name": "清丈田亩",
+        "desc": "检括隐田，厘正田赋。",
+        "power_level": 1,
+        "prereq": null,
+        "unlock": "清册",
+        "effect": "tax_eff"
+      },
+      "t2_salt_iron": {
+        "name": "盐铁专卖",
+        "desc": "盐铁官营，利归公帑。",
+        "power_level": 2,
+        "prereq": "t1_land_survey",
+        "unlock": "盐铁司",
+        "effect": "tax_eff"
+      },
+      "t3_single_whip": {
+        "name": "一条鞭法",
+        "desc": "田赋折银，一条鞭征。",
+        "power_level": 3,
+        "prereq": "t2_salt_iron",
+        "unlock": "一条鞭",
+        "effect": "tax_eff"
+      }
+    }
+  }
+}

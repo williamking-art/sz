@@ -160,11 +160,24 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: self._invention_action(s, p, "approve"),
             "reject_invention":
                 lambda s, p, ai: self._invention_action(s, p, "reject"),
+            "unlock_focus":
+                lambda s, p, ai: self._unlock_focus_action(s, p),
         }
         handler = handlers.get(action)
         if handler is None:
             raise ValueError(f"未知动作: {action}")
         return handler(state, params, ai_client)
+
+    @staticmethod
+    def _unlock_focus_action(state, params):
+        from core.focus_mechanic import can_unlock, unlock_focus
+        branch = str(params.get("branch", ""))
+        node_key = str(params.get("node_key", ""))
+        ok, reason = can_unlock(state, branch, node_key)
+        if not ok:
+            raise ValueError(f"不可施行此国策: {reason}")
+        msg = unlock_focus(state, branch, node_key)
+        return msg, state
 
     @staticmethod
     def _research_action(state, params):
