@@ -56,7 +56,7 @@ export default function GranaryPanel() {
   const coin = asDict(pick(state, "coin", {}));
   const priceLevel = pick<number>(state, "price_level", 1);
   const paySystem = asDict(pick(state, "pay_system", {}));
-  const singleWhip = pick(state, "single_whip", false) === true;
+  const singleWhip = Boolean(pick<boolean>(state, "single_whip", false));
   const prefectures = asDict(pick(state, "prefectures", {}));
 
   const fin = asDict(ro?.finance);

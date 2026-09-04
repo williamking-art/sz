@@ -78,7 +78,7 @@ export default function CourtPanel() {
   const maritime = asDict(pick(state, "maritime", {}));
   const exam = asDict(pick(state, "exam", {}));
   const tech = asDict(pick(state, "tech", {}));
-  const alliance = pick(state, "alliance_jin_liao", false) === true;
+  const alliance = Boolean(pick<boolean>(state, "alliance_jin_liao", false));
   const bw = asNum(pick(state, "decree_bandwidth", 0));
   const pending = pick<unknown[]>(state, "pending_decrees", []).length;
 

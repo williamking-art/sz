@@ -281,10 +281,10 @@ export default function PersonalPanel() {
                     {effectLine(row.cell) && (
                       <p className="text-red">预期：{effectLine(row.cell)}</p>
                     )}
-                    {row.cell.bandwidth_cost && (
+                    {Boolean(row.cell.bandwidth_cost) && (
                       <p className="text-xs text-dim">圣旨额度 -1（大驾在途，远程批奏）</p>
                     )}
-                    {row.cell.micro_once && (
+                    {Boolean(row.cell.micro_once) && (
                       <p className="text-xs text-dim">微服限次：每月 1 次</p>
                     )}
                     {Boolean(row.cell.prep) && (
