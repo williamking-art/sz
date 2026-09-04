@@ -33,6 +33,7 @@ export default function SettingsPanel() {
   const pushOverlay = useGameStore((s) => s.pushOverlay);
   const popOverlay = useGameStore((s) => s.popOverlay);
   const clearOverlays = useGameStore((s) => s.clearOverlays);
+  const setInGame = useGameStore((s) => s.setInGame);
   const [view, setView] = useState<"menu" | "ai" | "misc">("menu");
 
   return (
@@ -43,7 +44,7 @@ export default function SettingsPanel() {
             <EntryButton icon={<Save size={18} />} text="存 档" onClick={() => pushOverlay({ kind: "save", title: "存档 · 读档" })} />
             <EntryButton icon={<FolderOpen size={18} />} text="加 载" onClick={() => pushOverlay({ kind: "save", title: "存档 · 读档" })} />
             <EntryButton icon={<Bot size={18} />} text="AI 配 置" onClick={() => setView("ai")} />
-            <EntryButton icon={<Home size={18} />} text="主 菜 单" onClick={() => clearOverlays()} />
+            <EntryButton icon={<Home size={18} />} text="返 回 主 单" onClick={() => { clearOverlays(); setInGame(false); }} />
             <EntryButton icon={<SlidersHorizontal size={18} />} text="杂 项" onClick={() => setView("misc")} />
           </div>
         </>
