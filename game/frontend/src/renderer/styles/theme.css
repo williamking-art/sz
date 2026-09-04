@@ -7,15 +7,15 @@
 :root {
   --paper: #f6ecd6;
   --paper-dark: #efe2c4;
-  --ink: #2b1d12;
-  --ink-light: #5a4a3a;
+  --ink: #1c120c;
+  --ink-light: #423224;
   --red: #8a2b22;
   --red-dark: #7a1f1f;
   --gold: #caa24a;
   --gold-light: #e8d49c;
   --gold-dark: #8f6e28;
   --card: #fffaf0;
-  --kai: "KaiTi", "STKaiti", "楷体", "SimKai", serif;
+  --kai: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", "STSong", "KaiTi", "STKaiti", serif;
   --sans: "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
 }
 
@@ -27,12 +27,18 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   font-family: var(--sans);
   color: var(--ink);
   background: var(--paper);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 /* 宣纸质感底纹 */
@@ -91,42 +97,49 @@ body {
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  font-weight: 600;
 }
 .lbl-hidden {
   display: none;
 }
 .lbl-regime {
   font-family: var(--kai);
-  font-size: 21px;
+  font-size: 23px;
+  font-weight: 700;
   letter-spacing: 6px;
   color: var(--ink);
   text-shadow: 0 0 3px var(--paper), 0 0 6px var(--paper), 0 0 2px var(--paper);
 }
 .lbl-regime.off {
-  color: #8d8471;
-  opacity: 0.75;
+  color: #736955;
+  opacity: 0.85;
 }
 .lbl-circuit {
   font-family: var(--kai);
-  font-size: 12.5px;
+  font-size: 14.5px;
+  font-weight: 700;
   letter-spacing: 2px;
   color: var(--gold-dark);
   text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
 }
 .lbl-city {
   font-family: var(--kai);
-  font-size: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
   letter-spacing: 1px;
-  color: var(--ink-light);
+  color: var(--ink);
   text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
 }
 .lbl-city.seat {
-  font-size: 12px;
-  color: var(--ink-light);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
 }
 .lbl-city.jingfu {
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 800;
   letter-spacing: 1.5px;
+  color: var(--red);
 }
 .lbl-city:hover,
 .lbl-circuit:hover,
@@ -137,13 +150,14 @@ body {
 /* 水墨古江河大川注记 */
 .lbl-river {
   font-family: var(--kai);
-  font-size: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
   letter-spacing: 2.5px;
-  color: #3b6b7a;
+  color: #2b5665;
   font-style: italic;
   text-shadow: 0 0 3px var(--paper), 0 0 6px var(--paper);
   pointer-events: none;
-  opacity: 0.88;
+  opacity: 0.95;
 }
 
 /* 选中治所的呼吸光环 */

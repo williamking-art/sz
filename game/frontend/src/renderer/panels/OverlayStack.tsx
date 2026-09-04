@@ -62,22 +62,22 @@ export default function OverlayStack() {
               onClick={canClose ? () => popTo(i) : undefined}
             />
             {/* 弹窗实体卡片 (必须置于遮罩之上 z-10，完全捕获鼠标与键盘事件) */}
-            <div className="relative z-10 pointer-events-auto flex max-h-[85vh] w-[min(640px,92vw)] flex-col rounded-[4px] border border-gold bg-card shadow-2xl animate-card-in select-text">
+            <div className="relative z-10 pointer-events-auto flex max-h-[88vh] w-[min(700px,94vw)] flex-col rounded-[4px] border border-gold bg-card shadow-2xl animate-card-in select-text">
               {/* 题头 */}
-              <div className="flex items-center justify-between border-b border-gold/50 px-5 py-2.5">
-                <span className="font-kai text-[19px] tracking-[0.18em] text-ink">{ov.title}</span>
+              <div className="flex items-center justify-between border-b border-gold/50 px-6 py-3">
+                <span className="font-kai text-[21px] font-bold tracking-[0.2em] text-ink">{ov.title}</span>
                 {canClose && (
                   <button
                     onClick={() => popTo(i)}
                     aria-label="关闭"
                     className="rounded p-1 text-ink-light transition hover:bg-gold-light hover:text-ink"
                   >
-                    <X size={18} />
+                    <X size={20} />
                   </button>
                 )}
               </div>
               {/* 内容 */}
-              <div className="flex-1 overflow-y-auto p-5">
+              <div className="flex-1 overflow-y-auto p-6 text-[14.5px]">
                 <PanelBody kind={ov.kind} props={ov.props} />
               </div>
             </div>
