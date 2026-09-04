@@ -29,12 +29,13 @@ function EntryButton({
   );
 }
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ props }: { props?: { initialView?: "ai" | "menu" | "misc" } }) {
   const pushOverlay = useGameStore((s) => s.pushOverlay);
   const popOverlay = useGameStore((s) => s.popOverlay);
   const clearOverlays = useGameStore((s) => s.clearOverlays);
   const setInGame = useGameStore((s) => s.setInGame);
-  const [view, setView] = useState<"menu" | "ai" | "misc">("menu");
+  const isDirectAi = props?.initialView === "ai";
+  const [view, setView] = useState<"menu" | "ai" | "misc">(props?.initialView || "menu");
 
   return (
     <div className="space-y-4">
@@ -49,7 +50,7 @@ export default function SettingsPanel() {
           </div>
         </>
       ) : view === "ai" ? (
-        <AiConfigView onBack={() => setView("menu")} />
+        <AiConfigView onBack={() => isDirectAi ? popOverlay() : setView("menu")} isDirect={isDirectAi} />
       ) : (
         <MiscView onBack={() => setView("menu")} />
       )}
@@ -58,7 +59,7 @@ export default function SettingsPanel() {
 }
 
 // ---- AI 配置（对齐 _panel_ai_config）----
-function AiConfigView({ onBack }: { onBack: () => void }) {
+function AiConfigView({ onBack, isDirect }: { onBack: () => void; isDirect?: boolean }) {
   const [cfg, setCfg] = useState<AiConfigResult | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
