@@ -124,22 +124,25 @@ body {
 }
 .lbl-city {
   font-family: var(--kai);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   letter-spacing: 1px;
-  color: var(--ink);
+  color: #6b5c48;
   text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
+  opacity: 0.8;
 }
 .lbl-city.seat {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4d4032;
+  opacity: 0.9;
 }
 .lbl-city.jingfu {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 14.5px;
+  font-weight: 700;
   letter-spacing: 1.5px;
   color: var(--red);
+  opacity: 0.95;
 }
 .lbl-city:hover,
 .lbl-circuit:hover,
