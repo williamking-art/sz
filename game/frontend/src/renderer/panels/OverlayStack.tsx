@@ -46,20 +46,22 @@ export default function OverlayStack() {
   if (overlays.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-30">
+    <div className="fixed inset-0 z-50 pointer-events-none">
       {overlays.map((ov, i) => {
         const canClose = ov.dismissible !== false;
         return (
           <div
             key={ov.id}
-            className="pointer-events-auto absolute inset-0 flex items-center justify-center"
-            style={{ zIndex: i + 1 }}
+            className="fixed inset-0 flex items-center justify-center pointer-events-auto"
+            style={{ zIndex: 100 + i * 10 }}
           >
+            {/* 全屏半透明遮罩 (点击空白关闭浮层) */}
             <div
-              className="absolute inset-0 bg-ink/25 backdrop-blur-[1px]"
+              className="absolute inset-0 bg-black/60 backdrop-blur-[2px] cursor-pointer"
               onClick={canClose ? () => popTo(i) : undefined}
             />
-            <div className="relative flex max-h-[82vh] w-[min(640px,90vw)] flex-col rounded-[4px] border border-gold bg-card shadow-card animate-card-in">
+            {/* 弹窗实体卡片 (必须置于遮罩之上 z-10，完全捕获鼠标与键盘事件) */}
+            <div className="relative z-10 pointer-events-auto flex max-h-[85vh] w-[min(640px,92vw)] flex-col rounded-[4px] border border-gold bg-card shadow-2xl animate-card-in select-text">
               {/* 题头 */}
               <div className="flex items-center justify-between border-b border-gold/50 px-5 py-2.5">
                 <span className="font-kai text-[19px] tracking-[0.18em] text-ink">{ov.title}</span>

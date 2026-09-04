@@ -217,18 +217,22 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           />
         </div>
 
-        {/* Model 与 智能识别按钮 */}
+        {/* Model 与 纯图标识别按钮 */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="font-kai font-medium text-ink">Model（大模型名称）</span>
-            {/* 自动识别模型大按钮 */}
+            {/* 自动识别模型：仅保留精致纯图标 */}
             <button
               onClick={handleFetchModels}
               disabled={fetchingModels}
-              className="flex items-center gap-1 rounded bg-gold/20 px-2 py-0.5 font-kai text-xs text-goldDark transition hover:bg-gold/30 disabled:opacity-50"
+              title="自动探测并识别该接口下的可用模型列表"
+              className="group flex h-6 w-6 items-center justify-center rounded border border-gold/50 bg-paper text-goldDark transition hover:border-red hover:bg-gold-light/40 hover:text-red disabled:opacity-50"
             >
-              {fetchingModels ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {fetchingModels ? "正在识别中…" : "🔍 自动探测识别模型列表"}
+              {fetchingModels ? (
+                <Loader2 size={13} className="animate-spin text-red" />
+              ) : (
+                <RefreshCw size={13} className="transition group-hover:rotate-90" />
+              )}
             </button>
           </div>
 
