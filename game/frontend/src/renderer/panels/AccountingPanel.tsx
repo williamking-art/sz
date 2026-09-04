@@ -152,8 +152,8 @@ export default function AccountingPanel() {
         <p className="mt-1 text-xs leading-relaxed text-dim">
           用度止呈总盘——冗官冗费深藏其中，账目无从分辨。欲治三冗，唯经拟旨下「省浮费/裁汰冗员」长期变法。
         </p>
-        <p className={`mt-1.5 text-sm font-bold ${net >= 0 ? "text-ink" : "text-red"}`}>
-          净额：{net >= 0 ? `月结余 ${humanizeCoin(net)}` : `月亏空 ${humanizeCoin(Math.abs(net))}`}
+        <p className={`mt-1.5 text-sm font-bold ${net >= 0 ? "text-emerald-800" : "text-red"}`}>
+          净额：{net >= 0 ? `月结余 +${humanizeCoin(net)}` : `月亏空 -${humanizeCoin(Math.abs(net))}`}
         </p>
       </div>
 
