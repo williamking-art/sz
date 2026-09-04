@@ -6,6 +6,7 @@ import { humanizeCoin } from "../utils/format";
 // 呈现格式对齐 game/ui/panels_core.py::_build_hud / _refresh_hud（双轨一致）
 export default function TopBar() {
   const state = useGameStore((s) => s.state);
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
   const [open, setOpen] = useState<"treasury" | "privy" | null>(null);
 
   const era = hudEra(state);
@@ -17,13 +18,17 @@ export default function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
-      {/* 左：徽章 + 年号季节 */}
+      {/* 左：徽章 + 年号季节（点击徽章随时唤出主菜单/新开局） */}
       <div className="pointer-events-auto flex items-center gap-3 rounded-[3px] border border-gold bg-card px-2.5 py-1.5 shadow-paper">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold">
+        <button
+          onClick={() => pushOverlay({ kind: "newgame", title: "宋 祚 · 主 策" })}
+          title="点击返回主菜单 / 开启新朝"
+          className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold transition hover:scale-105"
+        >
           <span className="font-kai text-[22px] font-bold leading-none text-[#f3e6c4]">宋</span>
-        </div>
+        </button>
         <span className="whitespace-nowrap font-kai text-[15px] font-bold tracking-wide text-ink">
-          {era || "—"}
+          {era || "建中靖国元年"}
         </span>
       </div>
 

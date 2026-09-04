@@ -43,13 +43,10 @@ export default function App() {
         }
         setBackend(url, true, null);
 
-        // 已有存档 → 直接载入；否则唤出开局面板
-        if (health.has_state) {
-          const res = await client.load(1);
-          if (!cancelled) setState(res.state);
-        } else if (!startShown.current) {
+        // 启动时必定呈现大宋游戏主菜单，由玩家选择承统开局或继续旧局
+        if (!startShown.current) {
           startShown.current = true;
-          pushOverlay({ kind: "newgame", title: "新 朝 开 局", dismissible: false });
+          pushOverlay({ kind: "newgame", title: "宋 祚 · 践 祚", dismissible: false });
         }
       } catch (e) {
         console.error("[init] 后端连接失败", e);
