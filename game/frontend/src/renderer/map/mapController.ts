@@ -133,7 +133,7 @@ export class MapController {
           if (typeof c[0] === "number") coords.push(c as number[]);
           else c.forEach((cc: any) => collect(cc));
         };
-        collect(geom.coordinates);
+        collect((geom as GeoJSON.Point | GeoJSON.MultiPoint | GeoJSON.LineString | GeoJSON.MultiLineString | GeoJSON.Polygon | GeoJSON.MultiPolygon).coordinates);
         const lons = coords.map((c) => c[0]);
         const lats = coords.map((c) => c[1]);
         const inBox = lng >= Math.min(...lons) && lng <= Math.max(...lons)
