@@ -1,6 +1,5 @@
 node_modules/
 out/
 dist/
-public/map/
 *.log
 .DS_Store
