@@ -176,10 +176,19 @@ export class ApiClient {
   }
 
   async fetchModels(api_key: string, base_url: string): Promise<{ ok: boolean; models: string[]; error?: string }> {
-    return this.request("/api/fetch_models", {
-      method: "POST",
-      body: JSON.stringify({ api_key, base_url })
-    });
+    try {
+      return await this.request("/api/fetch_models", {
+        method: "POST",
+        body: JSON.stringify({ api_key, base_url })
+      });
+    } catch (e) {
+      console.warn("[fetchModels] 接口探测异常，降级返回常用列表:", e);
+      return {
+        ok: false,
+        models: ["deepseek-chat", "deepseek-reasoner", "gpt-4o", "gpt-4o-mini", "qwen-plus", "qwen-turbo"],
+        error: e instanceof Error ? e.message : String(e)
+      };
+    }
   }
 }
 
