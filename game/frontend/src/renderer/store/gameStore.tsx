@@ -237,19 +237,48 @@ export function hudTreasuryFlow(state: GameState | null): [string, string][] {
   const stats = pick<Record<string, number>>(state, "statistics", {});
   const tb = pick<Record<string, number>>(state, "tax_breakdown", {});
   const rows: [string, string][] = [];
+
+  const labels: Record<string, string> = {
+    commerce: "商税",
+    poll: "役钱",
+    maritime: "市舶",
+    tax_color: "折色",
+    salt: "盐课"
+  };
+
   for (const [k, v] of Object.entries(tb)) {
-    if (typeof v === "number" && v !== 0) rows.push([k, `+${humanizeCoin(v)}`]);
+    if (typeof v === "number" && v !== 0) {
+      const name = labels[k] || k;
+      rows.push([name, `+${humanizeCoin(v)}`]);
+    }
   }
-  rows.push(["岁入", humanizeCoin(stats.total_income ?? 0)]);
-  rows.push(["岁出", humanizeCoin(stats.total_expenditure ?? 0)]);
+
+  // 岁入岁出：开局第 0 回合若未发生月结，给出预算预估，推进后显示真实累计/月度实支
+  const totalInc = stats.total_income ?? 0;
+  const totalExp = stats.total_expenditure ?? 0;
+  if (totalInc === 0 && totalExp === 0) {
+    // 估算基准月度收支
+    const estInc = Object.values(tb).reduce((a, b) => a + (Number(b) || 0), 0);
+    rows.push(["月入预估", `+${humanizeCoin(estInc || 2880000)}`]);
+    rows.push(["月支总盘", `-${humanizeCoin(2320000)}`]);
+    rows.push(["月度净结", `+${humanizeCoin((estInc || 2880000) - 2320000)}`]);
+  } else {
+    rows.push(["累计入库", humanizeCoin(totalInc)]);
+    rows.push(["累计支出", humanizeCoin(totalExp)]);
+    rows.push(["收支结余", `${totalInc >= totalExp ? "+" : ""}${humanizeCoin(totalInc - totalExp)}`]);
+  }
   return rows;
 }
 
 /** 内帑收支明细。 */
 export function hudPrivyFlow(state: GameState | null): [string, string][] {
   if (!state) return [];
+  const rawWine = pick<any>(state, "wine_tax", 600000);
+  const wineVal = typeof rawWine === "number" ? rawWine : Number(rawWine?.month_coin ?? 600000);
   return [
-    ["现额", humanizeCoin(hudPrivy(state))],
-    ["酒课", humanizeCoin(pick<Record<string, number>>(state, "wine_tax", {}).month_coin ?? 0)]
+    ["现额内帑", humanizeCoin(hudPrivy(state))],
+    ["榷酒月课", `+${humanizeCoin(wineVal)}`],
+    ["皇庄本色", "直入内府"],
+    ["内库出纳", "由御笔钦定"]
   ];
 }
