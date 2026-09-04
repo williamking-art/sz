@@ -249,7 +249,13 @@ class GameState(GameStateEconMixin):
         # 默认 0.15（抽一成五）：对 calc_commerce() 年工商产出征 15%。
         # 玩家经诏令/滑动条调整；调高增收但增民怨/商旅怨，调低减收但惠商。
         self.commerce_tax_rate: float = COMMERCE_TAX_RATE_DEFAULT
-        self.tax_breakdown: dict = {"commerce": 0, "poll": 0}  # 本月货币税分项（会计录展示用）
+        # 开局预估月度税基（供第 0 回合 HUD 与悬浮明细展示，避免开局全 0）
+        self.tax_breakdown: dict = {
+            "commerce": 1130940,
+            "poll": 389015,
+            "tax_color": 864322,
+            "salt": 498151
+        }
         # 变法节流（省浮费/裁汰冗员）：隐性三冗不可见不可直裁，只能经长期变法逐月挤出水分。
         #   {"active": bool, "kind": "curtail_waste|reduce_office", "savings": 月省贯,
         #    "target": 目标月省贯, "months_left": 剩余月数, "progress": 0~100}
