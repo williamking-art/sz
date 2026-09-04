@@ -120,6 +120,10 @@ class AiConfigReq(BaseModel):
     base_url: str = ""
     model: str = ""
 
+class FetchModelsReq(BaseModel):
+    api_key: str = ""
+    base_url: str = ""
+
 
 @app.get("/health")
 def health():
@@ -272,17 +276,55 @@ def api_ai_config_get():
         return {"configured": False, "api_key_masked": "", "base_url": "", "model": ""}
 
 
+@app.post("/api/fetch_models")
+def api_fetch_models(req: FetchModelsReq):
+    """根据输入的 Key 与 Base URL，智能探测并拉取远程支持的模型列表。"""
+    try:
+        from ai.client import AIClient
+        key = req.api_key.strip()
+        # 若未填 key，尝试读已有配置
+        if not key:
+            try:
+                with open(_ai_config_path(), "r", encoding="utf-8") as f:
+                    key = str(json.load(f).get("api_key", "") or "").strip()
+            except Exception: pass
+        client = AIClient(api_key=key, base_url=req.base_url)
+        models = client.fetch_available_models()
+        return {"ok": True, "models": models}
+    except Exception as e:
+        return {"ok": False, "models": ["deepseek-chat", "gpt-4o", "gpt-4o-mini", "qwen-plus"], "error": str(e)}
+
+
 @app.post("/api/ai_config")
 def api_ai_config_set(req: AiConfigReq):
     """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。"""
     global _ai
     with _lock:
-        cfg = {"api_key": req.api_key, "base_url": req.base_url, "model": req.model}
+        old_cfg = {}
+        try:
+            with open(_ai_config_path(), "r", encoding="utf-8") as f:
+                old_cfg = json.load(f)
+        except Exception: pass
+        
+        # 若传入 key 为空但已有 key，保持已有 key 不被洗掉
+        key_to_save = req.api_key.strip() or str(old_cfg.get("api_key", "") or "")
+        cfg = {"api_key": key_to_save, "base_url": req.base_url.strip(), "model": req.model.strip()}
         with open(_ai_config_path(), "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
-        _ai = None  # 下次 _get_ai() 重建
+        _ai = None  # 重建客户端
         client = _get_ai()
-        return {"ok": True, "available": bool(getattr(client, "available", False))}
+        # 强制做一次在线真实探测
+        ok, msg = False, "未配置"
+        if client:
+            ok, msg = client.probe(force=True)
+        return {
+            "ok": True,
+            "available": ok,
+            "message": msg,
+            "has_key": bool(key_to_save),
+            "base_url": cfg["base_url"],
+            "model": cfg["model"]
+        }
 
 
 def main() -> None:

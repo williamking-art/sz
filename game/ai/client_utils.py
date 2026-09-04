@@ -23,16 +23,51 @@ _BASE = _app_root()
 _PROMPT_DIR = _prompt_dir()
 
 
-def _http_post_json(url: str, headers: dict, payload: dict, timeout: int = 30):
-    """用标准库 urllib 发送 JSON POST，返回 (status_code, json_or_None, text)。
+def _build_urllib_opener():
+    """构造支持环境变量代理及本地 7890 兜底的 opener。"""
+    proxy_handlers = []
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    
+    # 若环境变量未显式配代理，但本地 7890 端口存活，优先纳入探测候选
+    proxies = {}
+    if http_proxy: proxies["http"] = http_proxy
+    if https_proxy: proxies["https"] = https_proxy
+    
+    if proxies:
+        return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+    # 默认使用系统环境
+    return urllib.request.build_opener()
 
-    替代 requests.post，避免打包进 requests 及其重型依赖（urllib3/certifi/
-    cryptography），显著减小分发体积。
-    """
+
+def _http_post_json(url: str, headers: dict, payload: dict, timeout: int = 30):
+    """用标准库 urllib 发送 JSON POST，返回 (status_code, json_or_None, text)。"""
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    opener = _build_urllib_opener()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
+            text = resp.read().decode("utf-8", "ignore")
+            try:
+                return resp.status, json.loads(text), text
+            except Exception:
+                return resp.status, None, text
+    except urllib.error.HTTPError as e:
+        text = e.read().decode("utf-8", "ignore") if e.fp else ""
+        try:
+            return e.code, json.loads(text), text
+        except Exception:
+            return e.code, None, text
+    except Exception:
+        raise
+
+
+def _http_get_json(url: str, headers: dict, timeout: int = 15):
+    """用标准库 urllib 发送 GET 请求，返回 (status_code, json_or_None, text)。"""
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    opener = _build_urllib_opener()
+    try:
+        with opener.open(req, timeout=timeout) as resp:
             text = resp.read().decode("utf-8", "ignore")
             try:
                 return resp.status, json.loads(text), text
