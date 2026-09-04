@@ -24,6 +24,7 @@ import CodexPanel from "./CodexPanel";
 import FocusPanel from "./FocusPanel";
 import DiplomacyPanel from "./DiplomacyPanel";
 import PopPanel from "./PopPanel";
+import PlaceholderPanel from "./PlaceholderPanel";
 
 // 浮层栈：宣纸奏章卡片叠于舆图之上，Esc 逐层关闭（对齐 panels_core.py::_overlay_stack）
 export default function OverlayStack() {
