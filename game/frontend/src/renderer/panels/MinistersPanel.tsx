@@ -183,10 +183,10 @@ export default function MinistersPanel() {
 
                 <div className="mt-2 pt-2 border-t border-border/40 flex justify-end">
                   <button
-                    onClick={() => setDialogue({ minister: m.name, role })}
-                    className="flex items-center gap-1 rounded bg-red/90 px-3 py-1 font-kai text-xs tracking-wider text-paper transition hover:bg-red-dark"
+                    onClick={() => openAudience(m.name, role)}
+                    className="flex items-center gap-1 rounded bg-red/90 px-3 py-1 font-kai text-xs font-bold tracking-wider text-paper transition hover:bg-red-dark"
                   >
-                    <User size={12} /> 召见问策
+                    <User size={12} /> 御前召对
                   </button>
                 </div>
               </div>

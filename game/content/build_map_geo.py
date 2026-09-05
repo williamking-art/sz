@@ -244,8 +244,15 @@ def regime_part_features() -> list[dict[str, object]]:
 
 
 def build_regime_borders() -> dict[str, object]:
-    """辽五京道、西夏各道的省道界线层(kind=regime_border),与宋路界线同级细描边。"""
-    from shapely.geometry import mapping, shape
+    """辽五京道、西夏各道的省道界线层(kind=regime_border)。
+
+    只保留政权**内部**的省道界线：
+    1. 先拼合整个政权的全境外轮廓（total_union）；
+    2. 各道边界 = 该道轮廓 ∩ 全政权轮廓并集的非共享段 —— 即从各道 boundary 中
+       剔除落在政权总外轮廓 boundary（≈国界/与其他政权交界）附近的部分，
+       剩下的才是真正的"省内界线"（消除与国界重描的残余）。
+    """
+    from shapely.geometry import mapping, shape, MultiLineString
     from shapely.ops import linemerge, unary_union
 
     raw_dir = os.path.join(MAP_DIR, "raw")
@@ -253,33 +260,61 @@ def build_regime_borders() -> dict[str, object]:
     with open(prov_path, encoding="utf-8") as f:
         by_name = {p["properties"]["name"]: p for p in json.load(f)["features"]}
 
+    def _road_geom(rspec: dict) -> object | None:
+        geoms = []
+        for prov, cities in rspec.get("prefectures", {}).items():
+            adcode = by_name[prov]["properties"]["adcode"]
+            fn = os.path.join(raw_dir, f"datav_{adcode}_full.json")
+            with open(fn, encoding="utf-8") as fh:
+                city_feats = json.load(fh)["features"]
+            for c in city_feats:
+                cnm = str(c["properties"]["name"])
+                if cities == "*" or cnm in cities:
+                    geoms.append(shape(c["geometry"]).buffer(0))
+        if not geoms:
+            return None
+        return unary_union(geoms).buffer(0.0015).buffer(-0.0015)
+
     features: list[dict[str, object]] = []
     for key, spec in REGIME_PARTS.items():
         if not spec.get("borders"):
             continue
         sub_roads = spec.get("sub_roads")
-        if sub_roads:
-            for rname, rspec in sub_roads.items():
-                geoms = []
-                for prov, cities in rspec.get("prefectures", {}).items():
-                    adcode = by_name[prov]["properties"]["adcode"]
-                    fn = os.path.join(raw_dir, f"datav_{adcode}_full.json")
-                    with open(fn, encoding="utf-8") as fh:
-                        city_feats = json.load(fh)["features"]
-                    for c in city_feats:
-                        cnm = str(c["properties"]["name"])
-                        if cities == "*" or cnm in cities:
-                            geoms.append(shape(c["geometry"]).buffer(0))
-                if geoms:
-                    u = unary_union(geoms).buffer(0.0015).buffer(-0.0015)
-                    b = u.boundary
-                    if b.geom_type == "MultiLineString":
-                        b = linemerge(b)
-                    features.append({
-                        "type": "Feature",
-                        "geometry": mapping(b),
-                        "properties": {"kind": "regime_border", "name": key, "province": rname},
-                    })
+        if not sub_roads:
+            continue
+
+        # 1) 全政权总轮廓（用于识别"国界段"）
+        road_geoms = []
+        road_geoms_raw = []
+        for rname, rspec in sub_roads.items():
+            g = _road_geom(rspec)
+            if g is not None:
+                road_geoms.append((rname, g))
+                road_geoms_raw.append(g)
+        if not road_geoms:
+            continue
+        total_union = unary_union(road_geoms_raw).buffer(0)
+        # 国界缓冲带：落在政权外轮廓附近的线段 = 与他政权/宋接壤段，剔除
+        outer_band = total_union.boundary.buffer(0.02)
+
+        # 2) 各道 boundary 减去国界段 → 只剩省内界线
+        for rname, g in road_geoms:
+            b = g.boundary
+            if b.geom_type == "MultiLineString":
+                b = linemerge(b)
+            # difference 剔除国界附近段（国内省界保留）
+            inner = b.difference(outer_band)
+            if inner.is_empty:
+                continue
+            if inner.geom_type == "MultiLineString":
+                inner = linemerge(inner)
+            if inner.geom_type not in ("LineString", "MultiLineString"):
+                continue
+            features.append({
+                "type": "Feature",
+                "geometry": mapping(inner),
+                "properties": {"kind": "regime_border", "name": key, "province": rname},
+            })
     return {"type": "FeatureCollection", "features": features}
 
 
