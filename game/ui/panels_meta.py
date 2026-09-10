@@ -15,7 +15,8 @@ import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
-    _bar, _format_effects, _judge_effects)
+    _format_effects, _judge_effects,
+    humanize_coin)
 
 
 class PanelsMetaMixin:
@@ -40,27 +41,27 @@ class PanelsMetaMixin:
         def do_save():
             sel = lb.curselection()
             if not sel:
-                self.self.messagebox.showinfo("提示", "请选择槽位。")
+                self.messagebox.showinfo("提示", "请选择槽位。")
                 return
             slot = slots[sel[0]]["slot"]
             if self.backend.save(self.state, slot):
-                self.self.messagebox.showinfo("完成", f"已保存至槽位 {slot}。")
+                self.messagebox.showinfo("完成", f"已保存至槽位 {slot}。")
                 self._switch_panel(self._panel_overview, "朝堂一览")
             else:
-                self.self.messagebox.showerror("失败", "存档失败。")
+                self.messagebox.showerror("失败", "存档失败。")
 
         def do_load():
             sel = lb.curselection()
             if not sel:
-                self.self.messagebox.showinfo("提示", "请选择槽位。")
+                self.messagebox.showinfo("提示", "请选择槽位。")
                 return
             slot = slots[sel[0]]
             if slot.get("empty"):
-                self.self.messagebox.showinfo("提示", "该槽位为空。")
+                self.messagebox.showinfo("提示", "该槽位为空。")
                 return
             loaded = self.backend.load(slot["slot"])
             if loaded is None:
-                self.self.messagebox.showerror("失败", "读档失败，存档可能已损坏。")
+                self.messagebox.showerror("失败", "读档失败，存档可能已损坏。")
                 return
             self.state = loaded
             self._pending_logs = []
@@ -374,7 +375,7 @@ class PanelsMetaMixin:
             if not api_key:
                 self.ai_client = None
                 AIClient().save_config()  # 离线：清空已保存配置
-                self.self.messagebox.showinfo("完成", "已关闭 AI 叙事（叙事由错误提示替代），已清除已保存配置。")
+                self.messagebox.showinfo("完成", "已关闭 AI 叙事（叙事由错误提示替代），已清除已保存配置。")
             else:
                 self.ai_client = AIClient(api_key, base_url, model, enable_tools=enable_tools)
                 ok = self.ai_client.save_config()
@@ -382,7 +383,7 @@ class PanelsMetaMixin:
                     # 保存后做连通性自检（强制联网，不受缓存影响）
                     good, msg = self.ai_client.probe(force=True)
                     if good:
-                        self.self.messagebox.showinfo("完成", f"AI 叙事已启用，配置已保存。\n模型自检通过：{msg}")
+                        self.messagebox.showinfo("完成", f"AI 叙事已启用，配置已保存。\n模型自检通过：{msg}")
                     else:
                         self.messagebox.showwarning(
                             "配置已保存但模型不可用",
@@ -600,48 +601,90 @@ class PanelsMetaMixin:
         btn.pack(side="left", padx=8)
         btn.configure(state="disabled")
 
-        idx = {"i": 0}
+        idx = {"i": 0, "done": False}
+        _after = {"id": None}
 
-        def fmt_delta(v0, v1, div=1.0):
-            d = (v1 - v0) / div
-            return d
+        def _fmt_coin(d):
+            """钱粮增减换算为「万贯」口径，与全局数值展示一致。"""
+            return humanize_coin(abs(d))
+
+        def _fmt_plain(d):
+            return f"{abs(d):.0f}"
+
+        def _render_line(ln):
+            fg = INK
+            if ln.startswith("  +"):
+                fg = theme.DX_GOOD
+            elif ln.startswith("  -"):
+                fg = theme.DX_URGENT
+            self._label(log_inner, ln, fg=fg, bg=PAPER,
+                        font=self._font(SANS, 11), anchor="w").pack(anchor="w", pady=1)
+
+        def _render_delta():
+            """数值涨跌小结（钱粮走万贯口径，避免 2450000 这类原始大数直陈）。"""
+            s = self.state
+            deltas = [
+                ("国库", snap["treasury"], s.treasury, _fmt_coin),
+                ("内帑", snap["imperial_treasury"], s.imperial_treasury, _fmt_coin),
+                ("民心", snap["population_satisfaction"], s.population_satisfaction, _fmt_plain),
+                ("皇威", snap["imperial_prestige"], s.prestige, _fmt_plain),
+            ]
+            self._label(log_inner, "── 本月损益 ──", fg=RED_D, bg=PAPER,
+                        font=self._font(KAI, 12, "bold")).pack(anchor="w", pady=(8, 2))
+            for nm, a, b, fmt in deltas:
+                d = b - a
+                if abs(d) < 0.5:
+                    txt, fg = f"{nm}：持平", theme.DX_NORMAL
+                elif d > 0:
+                    txt, fg = f"{nm}：▲ +{fmt(d)}", theme.DX_GOOD
+                else:
+                    txt, fg = f"{nm}：▼ -{fmt(d)}", theme.DX_URGENT
+                self._label(log_inner, "  " + txt, fg=fg, bg=PAPER,
+                            font=self._font(SANS, 11, "bold")).pack(anchor="w", pady=1)
+            log_cv.yview_moveto(1.0)
+
+        def _finish():
+            """收尾：渲染损益小结并放行「继续」（幂等，跳过与自然播完共用同一出口）。"""
+            if idx["done"]:
+                return
+            idx["done"] = True
+            if _after["id"] is not None:
+                try:
+                    body.after_cancel(_after["id"])
+                except Exception:
+                    pass
+                _after["id"] = None
+            _render_delta()
+            try:
+                skip_btn.configure(state="disabled")
+            except Exception:
+                pass
+            btn.configure(state="normal")
 
         def reveal():
             if idx["i"] < len(lines):
-                ln = lines[idx["i"]]
-                fg = INK
-                if ln.startswith("  +"):
-                    fg = theme.DX_GOOD
-                elif ln.startswith("  -"):
-                    fg = theme.DX_URGENT
-                self._label(log_inner, ln, fg=fg, bg=PAPER,
-                            font=self._font(SANS, 11), anchor="w").pack(anchor="w", pady=1)
+                _render_line(lines[idx["i"]])
                 log_cv.yview_moveto(1.0)
                 idx["i"] += 1
-                body.after(220, reveal)
+                _after["id"] = body.after(220, reveal)
             else:
-                # 数值涨跌小结
-                s = self.state
-                deltas = [
-                    ("国库", snap["treasury"], s.treasury, 1.0, "贯"),
-                    ("内帑", snap["imperial_treasury"], s.imperial_treasury, 1.0, "贯"),
-                    ("民心", snap["population_satisfaction"], s.population_satisfaction, 1.0, ""),
-                    ("皇威", snap["imperial_prestige"], s.prestige, 1.0, ""),
-                ]
-                self._label(log_inner, "── 本月损益 ──", fg=RED_D, bg=PAPER,
-                            font=self._font(KAI, 12, "bold")).pack(anchor="w", pady=(8, 2))
-                for nm, a, b, div, unit in deltas:
-                    d = fmt_delta(a, b, div)
-                    if abs(d) < 0.5:
-                        txt, fg = f"{nm}：持平", theme.DX_NORMAL
-                    elif d > 0:
-                        txt, fg = f"{nm}：▲ +{d:.0f}{unit}", theme.DX_GOOD
-                    else:
-                        txt, fg = f"{nm}：▼ {d:.0f}{unit}", theme.DX_URGENT
-                    self._label(log_inner, "  " + txt, fg=fg, bg=PAPER,
-                                font=self._font(SANS, 11, "bold")).pack(anchor="w", pady=1)
-                log_cv.yview_moveto(1.0)
-                btn.configure(state="normal")
+                _finish()
+
+        def skip(_e=None):
+            """跳过逐行演出：立即补齐剩余行并收尾，玩家不再被迫干等。"""
+            if idx["done"]:
+                return
+            while idx["i"] < len(lines):
+                _render_line(lines[idx["i"]])
+                idx["i"] += 1
+            log_cv.yview_moveto(1.0)
+            _finish()
+
+        skip_btn = self._btn(bar, "跳过演出", skip, width=12, ghost=True)
+        skip_btn.pack(side="left", padx=8)
+        # 点击日志区或按空格亦可跳过（重复推进回合时省去每次强制等待）
+        log_cv.bind("<Button-1>", skip)
+        tl.bind("<space>", skip)
 
         def cont():
             tl.destroy()
@@ -748,12 +791,12 @@ class PanelsMetaMixin:
         def do():
             ci = choice_var.get()
             if ci < 0:
-                self.self.messagebox.showinfo("提示", "请选择一个选项。")
+                self.messagebox.showinfo("提示", "请选择一个选项。")
                 return
             try:
                 res, self.state = self.backend.resolve_event(self.state, event, ci, self.ai_client)
             except _AIRuntimeError as e:
-                self.self.messagebox.showerror("AI 叙事中断", str(e))
+                self.messagebox.showerror("AI 叙事中断", str(e))
                 return
             self._pending_logs.append(f"事件《{event.get('title','')}》抉择：{choices[ci].get('text','')}")
             for line in res.split("\n"):

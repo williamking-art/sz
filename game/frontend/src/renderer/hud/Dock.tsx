@@ -30,7 +30,7 @@ export default function Dock() {
       // 推演为全游戏级强制 AI（core/commands.py::settle_turn 拒绝式），
       // 后端未配 AI 时抛 500，此处转为可读提示而非静默失败。
       const raw = e instanceof Error ? e.message : String(e);
-      const hint = /^(HTTP 500|Internal Server Error)$/i.test(raw.trim())
+      const hint = /HTTP 500|Internal Server Error/i.test(raw)
         ? "推演需接入 AI：请配置 AI 设置（OpenAI 兼容 API）后重试。"
         : raw;
       pushOverlay({ kind: "advance", title: "推演未成", props: { error: hint } });

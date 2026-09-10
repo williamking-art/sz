@@ -721,6 +721,7 @@
       refreshRegimeLabels();
     }
     if (Array.isArray(state.markers)) applyMarkers(state.markers);
+    if (Array.isArray(state.externalProvinces)) applyExternalProvinces(state.externalProvinces);
     if (state.focus) applyFocus(state.focus);
     if (state.select === null) clearSelected();
     else if (state.select && state.select.kind && state.select.name) {
@@ -741,6 +742,53 @@
       var mk = new maplibregl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([m.lng, m.lat]).addTo(S.map);
       S.customMarkers.push(mk);
+    });
+  }
+
+  // 外邦省信息图层（审查 2026-09）：每省一个可点 Marker，点击弹信息卡（人口/军队/建筑）
+  var S_EXTPROV_CARD = null;
+  function showExternalProvinceCard(p) {
+    if (S_EXTPROV_CARD) { S_EXTPROV_CARD.remove(); S_EXTPROV_CARD = null; }
+    var bld = [];
+    for (var k in (p.buildings || {})) if (p.buildings.hasOwnProperty(k)) bld.push(k + "×" + p.buildings[k]);
+    var armyHtml = "";
+    (p.army || []).forEach(function (a) {
+      armyHtml += '<div>　' + (a.name || "") + "：员 " + (a.troops || 0).toLocaleString() +
+        "　气 " + (a.morale || 0) + "　训 " + (a.training || 0) + "</div>";
+    });
+    var att = p.attitude >= 70 ? "友善" : (p.attitude >= 40 ? "一般" : (p.attitude >= 20 ? "敌视" : "仇敌"));
+    var c = document.createElement("div");
+    c.style.cssText = "position:fixed;right:16px;top:16px;width:280px;background:#f7f0e1;" +
+      "border:1px solid #8a6f3f;color:#2b2116;padding:10px 12px;z-index:999;font-family:serif;" +
+      "box-shadow:0 2px 8px rgba(0,0,0,.35);line-height:1.5";
+    c.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #c8b48c;padding-bottom:4px;margin-bottom:6px">' +
+        '<b>' + (p.regime_name || "") + " · " + (p.name || "") + "</b>" +
+        '<span style="cursor:pointer" id="prov-card-x">✕</span></div>' +
+      '<div>态度：' + att + "　在籍：" + (p.population || 0).toLocaleString() + "口　兵：" + (p.troops || 0).toLocaleString() + "</div>" +
+      (bld.length ? '<div>建筑：' + bld.join("　") + "</div>" : '<div>建筑：未见城郭营造</div>') +
+      '<div style="margin-top:6px;border-top:1px solid #c8b48c;padding-top:4px">军 伍</div>' +
+      (armyHtml || '<div>　尚无常备军</div>');
+    document.body.appendChild(c);
+    S_EXTPROV_CARD = c;
+    var x = c.querySelector("#prov-card-x");
+    if (x) x.onclick = function () { c.remove(); S_EXTPROV_CARD = null; };
+  }
+
+  function applyExternalProvinces(provs) {
+    (S.customExtMarkers || []).forEach(function (m) { m.remove(); });
+    S.customExtMarkers = [];
+    (provs || []).forEach(function (p) {
+      if (!p || !isFinite(p.lon) || !isFinite(p.lat)) return;
+      var el = document.createElement("div");
+      el.className = "seal-mk";
+      el.innerHTML = '<div class="sq"></div><div class="tx"></div>';
+      el.querySelector(".tx").textContent = (p.name || "").slice(0, 4);
+      el.title = (p.regime_name || "") + " · " + (p.name || "");
+      var mk = new maplibregl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([p.lon, p.lat]).addTo(S.map);
+      el.addEventListener("click", function (e) { e.stopPropagation(); showExternalProvinceCard(p); });
+      S.customExtMarkers.push(mk);
     });
   }
 

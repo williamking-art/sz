@@ -5,6 +5,8 @@
 - 常项（月度科目）：
   · 国库收入 = tax_breakdown（工商税/役钱/市舶税，结算 Step4 权威分项）；
   · 国库收支总结 = 本月 [财政] 日志（货币月入/科目/月支/结余或亏空）；
+    无该日志时（开局首月/未结算）回退 state.finance_readout() 预估
+    （口径同 _settle_finance，科目文字标「未结算·按当前税制预估」）；
   · 内帑收入 = 酒课（wine_tax）+ 国库净结余抽成（calc_imperial_treasury，按本月净结余）；
 - 一次性收支：从本月结算日志提取带金额的关键条目（皇帝行止/岁币/征发军资/铸钱/交子/
   田赋折银/内帑等），按行内「内帑」字样归内帑、其余归国库；
@@ -39,7 +41,12 @@ def _this_month_log(state):
 
 
 def _parse_finance_line(state):
-    """从本月 [财政] 日志解析 (月入, 科目文字, 月支, 净结余|None)。"""
+    """从本月 [财政] 日志解析 (月入, 科目文字, 月支, 净结余|None)。
+
+    无本月 [财政] 日志时（开局首月 / 尚未结算）回退 `state.finance_readout()`
+    的权威预估——与 `_settle_finance` 同源的真实计算，故月支不再恒显 0；
+    此为「按当前税制预估」而非伪造，科目文字处明确标注以免与实结算混淆。
+    """
     for line in reversed(_this_month_log(state)):
         m = _FINANCE_LOG_RE.search(str(line))
         if m:
@@ -49,7 +56,14 @@ def _parse_finance_line(state):
             elif m.group(5) is not None:
                 net = float(m.group(5))       # 结余
             return float(m.group(1)), m.group(2), float(m.group(3)), net
-    return None, "", None, None
+
+    # 兜底：本月尚无结算日志 → 用后端权威预估（口径同 _settle_finance）
+    try:
+        fin = state.finance_readout()
+        return (float(fin["monthly_in"]), "（未结算·按当前税制预估）",
+                float(fin["total_out"]), float(fin["net"]))
+    except Exception:
+        return None, "", None, None
 
 
 def _extract_one_off(state, max_items=6):

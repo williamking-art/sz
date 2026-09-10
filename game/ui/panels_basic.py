@@ -10,7 +10,7 @@ import tkinter as tk
 import ui.theme as theme
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
-    _bar, _format_effects, _judge_effects)
+    _format_effects, _judge_effects)
 from ui.theme import GOLD_LIGHT, round_rect
 from ui.dialog import MsgProxy
 
@@ -203,29 +203,65 @@ class PanelsBasicMixin:
                      highlightbackground=BORDER, highlightthickness=1)
         return f
 
-    def _meter(self, parent, value, maxv=100, width=160, height=12, label=None):
-        """可视化圆角进度条（仿仪表面板），返回 canvas 供刷新。
-        进度条随父容器宽度伸缩（响应式）。"""
+    def _meter(self, parent, value, maxv=100, width=160, height=12, label=None,
+               fmt=None):
+        """数值行（纯数字，无进度条）：「现值 / 上限（占比%）」+ 右侧标签。
+
+        原为 canvas 进度条，现按需求去掉可视化、只保留数字。
+
+        fmt：可选数值格式化函数（如 humanize_grain / humanize_coin）。用于
+        粮/钱等大数场景把原始值换算成「万石/万贯」再显示；缺省按整数显示，
+        适用于 0-100 的效率/态度/影响力等百分比量。
+        width/height 仅为兼容既有调用点保留，不再参与布局。
+        """
         row = tk.Frame(parent, bg=CARD)
         row.pack(fill="x", padx=14, pady=3)
-        cv = tk.Canvas(row, width=width, height=height, bg=CARD,
-                       highlightthickness=0)
-        cv.pack(side="left", fill="x", expand=True)
-        txt = self._label(row, "", fg=INK, bg=CARD, font=self._font(SANS, 11))
+        ratio = max(0, min(100, value / maxv * 100)) if maxv else 0
+        if fmt is not None:
+            vs, ms = fmt(value), fmt(maxv)
+        else:
+            vs, ms = f"{int(value)}", f"{int(maxv)}"
+        txt = self._label(row, f"{vs} / {ms}（{int(ratio)}%）",
+                          fg=INK, bg=CARD, font=self._font(SANS, 11, "bold"))
         txt.pack(side="left", padx=8)
         if label is not None:
-            self._label(row, label, fg=DIM, bg=CARD, font=self._font(SANS, 11)).pack(side="right", padx=8)
-        ratio = max(0, min(100, value / maxv * 100)) if maxv else 0
-        txt.configure(text=f"{int(value)} / {int(maxv)}  ({int(ratio)}%)")
+            self._label(row, label, fg=DIM, bg=CARD,
+                        font=self._font(SANS, 11)).pack(side="right", padx=8)
+        return txt
 
-        def _draw(ev=None):
-            w = cv.winfo_width() or width
-            cv.delete("all")
-            theme.progress_bar(cv, 0, 0, w, height, value, maxv)
+    def _table(self, parent, headers, rows, widths=None, zebra=True):
+        """轻量表格（网格 Label）：朱红表头 + 斑马纹数据行，用于收支等明细。
 
-        cv.bind("<Configure>", _draw)
-        _draw()
-        return cv
+        headers: [列名, ...]
+        rows:    [[单元格文本, ...], ...]
+        widths:  [列宽（字符数）, ...]，可选，缺省 14
+        首列左对齐、其余右对齐；以 +/- 开头的金额自动着吉色/朱红。
+        返回表格外框 Frame（便于外部 pack 配置边距）。
+        """
+        wrap = tk.Frame(parent, bg=BORDER, relief="ridge", bd=1,
+                        highlightbackground=BORDER, highlightthickness=1)
+        for c, h in enumerate(headers):
+            w = widths[c] if widths and c < len(widths) else 14
+            tk.Label(wrap, text=h, fg="#f3e6c4", bg=RED_D,
+                     font=self._font(KAI, 11, "bold"), anchor="center",
+                     padx=6, pady=4, width=w).grid(
+                row=0, column=c, sticky="nsew", padx=1, pady=(0, 1))
+        for r, cells in enumerate(rows, start=1):
+            bg = CARD if (not zebra or r % 2) else PAPER2
+            for c, val in enumerate(cells):
+                w = widths[c] if widths and c < len(widths) else 14
+                txt = "" if val is None else str(val)
+                fg = INK
+                if txt.startswith("+"):
+                    fg = GREEN
+                elif txt.startswith("-"):
+                    fg = RED
+                tk.Label(wrap, text=txt, fg=fg, bg=bg,
+                         font=self._font(SANS, 10),
+                         anchor="w" if c == 0 else "e",
+                         padx=6, pady=3, width=w).grid(
+                    row=r, column=c, sticky="nsew", padx=1, pady=1)
+        return wrap
 
     def _card_title(self, card, text):
         """卡片标题 + 下划金线（装饰）。"""

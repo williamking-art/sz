@@ -31,6 +31,18 @@ export interface ConcludeResult {
   ai_eval: unknown;
 }
 
+/** /api/council_review：三省会签推演（票拟批红用） */
+export interface CouncilReviewResult {
+  review: {
+    memo: string;
+    objections: string;
+    executions: string;
+    verdict: string;
+    revised_effects?: unknown[];
+  };
+  cached: boolean;
+}
+
 /** /api/readouts：只读派生读数（军政/会计/仓廪面板用） */
 export interface ArmyUnitReadout {
   unit_id: string;
@@ -98,21 +110,57 @@ export class ApiClient {
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${this.base}${path}`, {
-      headers: { "Content-Type": "application/json" },
-      ...init
-    });
-    if (!res.ok) {
-      let detail = `HTTP ${res.status}`;
+    // 可靠性策略：单次请求 30s 超时（AbortController）；服务端 5xx（含 503）退避重试
+    // （≈1s/2s/4s，最多 3 次）；超时/网络失败/终态错误一律抛带中文详情的 Error。
+    const TIMEOUT_MS = 30_000;
+    const MAX_ATTEMPTS = 4; // 首次请求 + 最多 3 次 5xx 重试
+    const BACKOFF_MS = [1_000, 2_000, 4_000];
+    let lastErr: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
       try {
-        const body = await res.json();
-        if (body && typeof body.detail === "string") detail = body.detail;
-      } catch {
-        /* ignore */
+        const res = await fetch(`${this.base}${path}`, {
+          headers: { "Content-Type": "application/json" },
+          ...init,
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const body = await res.json();
+            if (body && typeof body.detail === "string") detail = body.detail;
+          } catch {
+            /* ignore */
+          }
+          const msg =
+            res.status >= 500
+              ? `服务端错误（HTTP ${res.status}）：${detail}`
+              : `请求失败（HTTP ${res.status}）：${detail}`;
+          // 5xx（含 503 服务暂不可用）→ 退避后重试；其余（4xx 等）终态错误直接抛
+          if (res.status >= 500 && res.status < 600 && attempt < MAX_ATTEMPTS) {
+            lastErr = new Error(msg);
+            await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt - 1] ?? 4_000));
+            continue;
+          }
+          throw new Error(msg);
+        }
+        return (await res.json()) as T;
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") {
+          throw new Error(`请求超时（${TIMEOUT_MS / 1000} 秒）：${path}`);
+        }
+        // fetch 网络层失败（后端未就绪/断连），保留原生原因并附中文上下文
+        if (e instanceof TypeError) {
+          throw new Error(`网络请求失败：${path}（${e.message}）`);
+        }
+        throw e;
+      } finally {
+        window.clearTimeout(timer);
       }
-      throw new Error(detail);
     }
-    return (await res.json()) as T;
+    throw lastErr ?? new Error(`请求失败（已重试 ${MAX_ATTEMPTS - 1} 次仍无果）：${path}`);
   }
 
   async health(): Promise<{ ok: boolean; backend: string; has_state: boolean }> {
@@ -168,6 +216,13 @@ export class ApiClient {
 
   async readouts(): Promise<ReadoutsResult> {
     return this.request("/api/readouts");
+  }
+
+  async councilReview(draftId: string): Promise<CouncilReviewResult> {
+    return this.request("/api/council_review", {
+      method: "POST",
+      body: JSON.stringify({ draft_id: draftId })
+    });
   }
 
   async getAiConfig(): Promise<AiConfigResult> {

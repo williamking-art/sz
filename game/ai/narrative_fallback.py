@@ -183,6 +183,47 @@ def _recent_facts(state, limit=2) -> list:
     return facts
 
 
+def fallback_memorials(state=None, turn=0) -> dict:
+    """奏折模板兜底：按当前局势离线拟 1~3 道。
+
+    只上折不落地；_fallback 标记供前端提示"AI 未接入，此折为程式所拟"。
+    """
+    memos = []
+    if state is not None:
+        post = getattr(state, "posture", "")
+    else:
+        post = ""
+    year = getattr(state, "year", 0) or 0
+    n_todo = max(0, len(getattr(state, "longterm_public", []) or []))
+    # 按局势挑选：财政吃紧/国库低 → 理财折；有在办 → 施政折；否则献新制折
+    memos.append({
+        "kind": "governance",
+        "title": f"《请整饬{year or ''}年诸路政务疏》",
+        "body": "臣闻为政之要，在察吏安民。今各路簿籍或有壅滞，请择清强官分巡勾校，"
+                "厘积案、核逋赋，以肃纲纪。伏惟圣裁。",
+        "_fallback": True,
+    })
+    if n_todo > 0:
+        memos.append({
+            "kind": "finance",
+            "title": "《请核度支出入疏》",
+            "body": "臣掌度支，见在办政务所费颇钜。请命户部勾讦出入实数，"
+                    "量入为出，节浮冗以固邦本。伏惟圣裁。",
+            "_fallback": True,
+        })
+    memos.append({
+        "kind": "invention",
+        "title": "《请试用龙骨翻车改良疏》",
+        "body": "臣观诸路灌田，旧车效率颇下。营作匠人进一法，可增水田之利，"
+                "愿请小试于京畿一两县，验其功再行推广。",
+        "name": "龙骨翻车改良",
+        "effect_dim": "canal_efficiency",
+        "effect_tier": "小",
+        "_fallback": True,
+    })
+    return {"memorials": memos[:3], "_fallback": True}
+
+
 # 兼容入口：client.py 转发用（保留既有 kind 语义）
 def template_for(kind, minister_name="", turn=0, state=None, **kw):
     """按 kind 返回模板对象；未知 kind 返回 None（调用方走拒绝式标记）。"""
@@ -199,4 +240,6 @@ def template_for(kind, minister_name="", turn=0, state=None, **kw):
         return fallback_eval(turn)
     if kind == "narrative":
         return fallback_narrative(kw.get("tag", ""), turn)
+    if kind == "memorial":
+        return fallback_memorials(state=state, turn=kw.get("turn", turn))
     return None

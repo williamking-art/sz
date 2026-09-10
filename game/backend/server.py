@@ -89,12 +89,38 @@ def _json_safe(v):
         return str(v)
 
 
+def _loyalty_band_word(v) -> str:
+    if v >= 85: return "死忠"
+    if v >= 70: return "忠顺"
+    if v >= 55: return "恭谨"
+    if v >= 40: return "敷衍"
+    if v >= 25: return "离心"
+    return "怨望"
+
+
+def _corruption_band_word(v) -> str:
+    if v >= 0.85: return "巨贪"
+    if v >= 0.65: return "贪墨"
+    if v >= 0.45: return "平庸"
+    if v >= 0.25: return "尚廉"
+    if v >= 0.10: return "清廉"
+    return "廉洁"
+
+
 def _state_to_dict(s) -> dict:
-    """GameState → JSON 快照（与 HttpBackend._to_state 对称）。"""
+    """GameState → JSON 快照（与 HttpBackend._to_state 对称）。
+
+    审查 P1：忠诚/贪腐是隐藏维度（铁律 6——只给姿态词，数值绝不外泄），
+    快照下发前转为档位词，防真值直送客户端面板。
+    """
     out = {}
     for k, v in vars(s).items():
         if k.startswith("_"):
             continue  # 私有/缓存字段不外发
+        if k in ("loyalty", "corruption") and isinstance(v, dict):
+            out[k] = {str(n): (_loyalty_band_word(x) if k == "loyalty" else _corruption_band_word(x))
+                      for n, x in v.items()}
+            continue
         try:
             json.dumps(v, ensure_ascii=False)
             out[k] = _json_safe(v)
@@ -124,6 +150,10 @@ class ResolveReq(BaseModel):
 
 class SlotReq(BaseModel):
     slot: int = 1
+
+
+class CouncilReviewReq(BaseModel):
+    draft_id: str
 
 
 class AiConfigReq(BaseModel):
@@ -264,6 +294,36 @@ def api_conclude():
     with _lock:
         eval_result, ai_eval = _backend.conclude(_state, _get_ai())
         return {"eval": _json_safe(eval_result), "ai_eval": ai_eval}
+
+
+@app.post("/api/council_review")
+def api_council_review(req: CouncilReviewReq):
+    """三省会签推演（票拟批红用）。
+
+    薄壳纪律：只调 AIClient.council_review 并序列化，零业务逻辑复制。
+    先查 council_reviews 缓存（随存档持久化），命中即复用，避免重复推演耗 token。
+    AI 不可用 → 返回规则兜底（明确标注，不伪造 AI 文本），与旧版 Tk 行为一致。
+    """
+    _require_state()
+    with _lock:
+        draft = _state.get_edict_draft(req.draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="诏草已不存在。")
+        cached = getattr(_state, "council_reviews", {}).get(req.draft_id)
+        if cached:
+            return {"review": _json_safe(cached), "cached": True}
+        ai = _get_ai()
+        rev = None
+        if ai and getattr(ai, "available", False):
+            try:
+                rev = ai.council_review(draft, _state.get_state_summary(), state=_state)
+            except Exception:
+                rev = None
+        if not rev:
+            rev = {"memo": "（会签不可用）", "objections": "（门下省未见条目）",
+                   "executions": "（六部俟旨）", "verdict": "可准", "revised_effects": []}
+        _state.store_council_review(req.draft_id, rev)
+        return {"review": _json_safe(rev), "cached": False}
 
 
 def _ai_config_path() -> str:

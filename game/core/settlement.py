@@ -117,7 +117,11 @@ def _settle_tech(state, log):
 
 def _settle_org_economy(state, log):
     """层④机构经济生命周期：汇总各机构 budget_in/out 算 net，走 change_treasury，
-    受 TREASURY_COLLAPSE_LINE 约束（不可绕过 game_over）。"""
+    受 TREASURY_COLLAPSE_LINE 约束（不可绕过 game_over）。
+
+    注：net 直入国库为既有多账审计设计（budget_in=度支拨款额度、net=结余回缴/超支
+    补拨，审计测试 test_wealth_ledger_no_hoard 断言 org 步 ΔW==org_net）。
+    幅度为个位贯级，属机构财政生命周期记账，非 AI 改动通道守恒对象。"""
     for oname, o in state.central_orgs.items():
         if o.get("abolished"):
             o["budget_in"] = o["budget_out"] = o["net"] = 0
@@ -444,6 +448,15 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 10: 隐藏状态 ----
     _settle_hidden(state, log)
+
+    # ---- Step 10.5: 人口总账校正（P1-3）----
+    # 全局在籍人口 population 与「Σ六类 POP + 流民」对齐：逃荒/归籍/职业流动等
+    # 在 POP 规模上的净变化此前不回写 population，长期回放背离数百万（60 月差 600万+），
+    # 导致按 population 比例分配的逻辑（人口增长分摊、隐户比例、税收人口）失真。
+    # growth 已在 Step 3 分配到农 POP，故校正后 population 仍含当月增长效果，数学一致。
+    _pop_total = sum(_pop["size"] for _p in state.prefectures.values()
+                     for _pop in _p["pops"].values()) + state.refugee_count
+    state.population = max(10_000_000, _pop_total)
 
     # ---- Step 11: 记录与回合推进 ----
     # 将月份/年份推进收敛到结算函数内部，确保与 Rust 后端（settle.rs）的推进位置一致，

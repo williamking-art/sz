@@ -26,6 +26,7 @@ _DEMO_STATE = {
 def main(argv: list[str]) -> int:
     force_browser = "--browser" in argv
     demo = "--demo" in argv
+    external = "--external" in argv
     port = 0
     if "--port" in argv:
         i = argv.index("--port")
@@ -34,13 +35,33 @@ def main(argv: list[str]) -> int:
                 port = int(argv[i + 1])
             except ValueError:
                 port = 0
+    # --external：建默认开局，把外邦省（人口/军队/建筑）以军镇点下发到 Web 舆图
+    _EXT_PROVS = None
+    if external:
+        try:
+            from core.game_state import GameState
+            from ui.map_web import external_provinces_from_state
+            _EXT_PROVS = external_provinces_from_state(GameState("史实"))
+        except Exception as e:  # noqa: BLE001
+            print("[宋祚] 外邦省数据组装失败：", e)
+            _EXT_PROVS = None
     print("[宋祚] 正在启动舆图服务……")
     ctl = WebMapController(
         title="宋祚 · 舆图预览",
         port=port,
-        # pywebview 模式页面加载完成后补推演示状态（浏览器模式靠 /state 轮询兜底）
-        on_ready=(lambda info: ctl.push_state(_DEMO_STATE)) if demo else None,
+        # pywebview 模式页面加载完成后补推演示状态/外邦省（浏览器模式靠 /state 轮询兜底）
+        on_ready=(lambda info: ctl.push_state(_DEMO_STATE) if demo else None),
     )
+    if external and _EXT_PROVS:
+        ctl.set_external_provinces(_EXT_PROVS)   # 开局先入状态盒：浏览器首轮轮询即可见
+        # 页面 ready 后补推合并演示态（若同时 --demo）
+        if demo:
+            _prev_ready = ctl._on_ready
+            def _ready_merge(info):
+                ctl.set_external_provinces(_EXT_PROVS)
+                if _prev_ready:
+                    _prev_ready(info)
+            ctl._on_ready = _ready_merge
     if demo:
         ctl.push_state(_DEMO_STATE)  # 开局先入状态盒：浏览器首轮轮询即可见
     if "--serve" in argv:
@@ -49,6 +70,8 @@ def main(argv: list[str]) -> int:
         print(f"[宋祚] 舆图地址：{ctl.url}（serve-only，不开浏览器）")
         if demo:
             print("[宋祚] 演示：南京道/西京道 → 宋（虚线内界、腹里色），辽其余诸道仍辽")
+        if external:
+            print(f"[宋祚] 外邦省军镇点：{len(_EXT_PROVS) or 0} 个已下发")
         print("[宋祚] 关闭本窗口或按 Ctrl+C 退出。")
         try:
             while True:
@@ -61,6 +84,8 @@ def main(argv: list[str]) -> int:
     print(f"[宋祚] 舆图地址：{ctl.url}（模式：{mode}）")
     if demo:
         print("[宋祚] 演示：南京道/西京道 → 宋（虚线内界、腹里色），辽其余诸道仍辽")
+    if external:
+        print(f"[宋祚] 外邦省军镇点：{len(_EXT_PROVS) or 0} 个（点击省点查看 人口/军队/建筑）")
     if mode == "browser":
         print("[宋祚] 浏览器模式：关闭本窗口或按 Ctrl+C 退出。")
         try:

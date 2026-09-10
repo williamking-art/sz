@@ -263,9 +263,3 @@ def run_settlement_ai(client, posture, state, woken, ui, on_success, on_error):
     future = _EXECUTOR.submit(_worker)
     _schedule_poll(future, ui, on_success, on_error)
     return future
-
-
-def _settle_guarded(client, worker):
-    """结算推演族同样按 client 串行化（防与其它 AI 调用并发改同一 client 内部缓存）。"""
-    with _client_lock(client):
-        return worker()

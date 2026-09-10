@@ -106,6 +106,7 @@ def save_game(state, slot: int = 1) -> bool:
         "active_decrees": state.active_decrees,
         "edict_drafts": getattr(state, "edict_drafts", []),
         "council_reviews": getattr(state, "council_reviews", {}),
+        "memorials": getattr(state, "memorials", []),
         "dialogue_history": getattr(state, "dialogue_history", []),
         "last_audience": getattr(state, "last_audience", ""),
 
@@ -319,6 +320,16 @@ def load_game(slot: int = 1):
                     _units.append(ArmyUnit(**nd))
             else:
                 _units.append(ArmyUnit(**d))
+        # 审查 P0-3：旧档站名迁移（20 路重构前 ARMY_UNIT_INIT 用旧经济单位名，
+        # 与 prefectures 键失配 → 兵 POP/军粮漏算）。站名统一到 PREFECTURE_LIST 键。
+        _STATION_RENAME = {
+            "东京开封府": "京畿路",
+            "河东": "河东路",
+        }
+        for _u in _units:
+            _old = getattr(_u, "station", "")
+            if _old in _STATION_RENAME:
+                _u.station = _STATION_RENAME[_old]
         state.army_units = _units
         _stock = data.get("central_arsenal", {}).get("stock", {})
         state.central_arsenal = CentralArsenal(stock=_stock) if _stock else CentralArsenal()
@@ -333,6 +344,7 @@ def load_game(slot: int = 1):
     state.active_decrees = data.get("active_decrees", [])
     state.edict_drafts = data.get("edict_drafts", getattr(state, "edict_drafts", []))
     state.council_reviews = data.get("council_reviews", getattr(state, "council_reviews", {}))
+    state.memorials = data.get("memorials", getattr(state, "memorials", []))
     state.dialogue_history = data.get("dialogue_history", getattr(state, "dialogue_history", []))
     state.last_audience = data.get("last_audience", getattr(state, "last_audience", ""))
 

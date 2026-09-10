@@ -1,0 +1,167 @@
+E html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <title>明末力挽狂澜</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0; padding: 0; height: 100%; width: 100%;
+      background: #160f0a; color: #e8d8c0;
+      font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
+      overflow: hidden;
+      -webkit-user-select: none; user-select: none;
+    }
+    .wrap {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 28px; padding: 40px; box-sizing: border-box;
+    }
+    .title {
+      font-size: 40px; letter-spacing: 12px;
+      color: #d8b878; text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+    }
+    .sub { font-size: 14px; letter-spacing: 4px; color: #a08a68; }
+    .bar-outer {
+      width: 320px; height: 6px; border-radius: 3px;
+      background: rgba(216,184,120,0.15); overflow: hidden;
+    }
+    .bar-inner {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #a8792e, #d8b878);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+    /* 未知时长时用一段来回滑动的“不确定”动画 */
+    .bar-inner.indeterminate {
+      width: 35% !important;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0%   { margin-left: -35%; }
+      100% { margin-left: 100%; }
+    }
+    .status { font-size: 14px; letter-spacing: 2px; color: #b8a582; min-height: 20px; }
+    .hint { font-size: 12px; color: #6f5f4a; letter-spacing: 1px; }
+    .error-box {
+      display: none; max-width: 640px; max-height: 46vh; overflow: auto; text-align: left;
+      background: rgba(120,40,30,0.18); border: 1px solid rgba(200,90,70,0.4);
+      border-radius: 8px; padding: 16px 20px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+      color: #e6b8a8; line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+    }
+    .error-title { font-size: 15px; color: #e88; letter-spacing: 2px; margin-bottom: 8px; font-family: serif; }
+    .error-actions {
+      display: flex; align-items: center; gap: 12px; margin-top: 16px;
+      white-space: normal; font-family: serif;
+    }
+    .copy-button {
+      border: 1px solid rgba(216,184,120,0.65); border-radius: 5px;
+      background: rgba(168,121,46,0.2); color: #e8d8c0;
+      padding: 8px 16px; font: inherit; letter-spacing: 1px; cursor: pointer;
+    }
+    .copy-button:hover { background: rgba(168,121,46,0.35); }
+    .copy-button:disabled { opacity: 0.55; cursor: default; }
+    .copy-status { color: #b8a582; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">明末力挽狂澜</div>
+    <div class="sub">正在开局</div>
+
+    <div class="bar-outer"><div id="bar" class="bar-inner indeterminate"></div></div>
+    <div id="status" class="status">正在唤醒后端服务…</div>
+    <div class="hint">首次启动需解压运行库，冷启动稍慢，请稍候</div>
+
+    <div id="errorBox" class="error-box">
+      <div class="error-title">启动失败</div>
+      <div id="errorMsg"></div>
+      <div class="error-actions">
+        <button id="copyDiagnostics" class="copy-button" type="button">复制诊断日志</button>
+        <span id="copyStatus" class="copy-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const barEl = document.getElementById("bar");
+    const statusEl = document.getElementById("status");
+    const errorBox = document.getElementById("errorBox");
+    const errorMsg = document.getElementById("errorMsg");
+    const copyDiagnosticsEl = document.getElementById("copyDiagnostics");
+    const copyStatusEl = document.getElementById("copyStatus");
+
+    copyDiagnosticsEl.addEventListener("click", async () => {
+      copyDiagnosticsEl.disabled = true;
+      copyStatusEl.textContent = "正在整理…";
+      try {
+        const result = await window.bootstrap.copyDiagnostics();
+        if (!result || !result.ok) throw new Error(result && result.error ? result.error : "复制失败");
+        copyStatusEl.textContent = "已复制，请粘贴发送给作者";
+        copyDiagnosticsEl.textContent = "已复制";
+      } catch (error) {
+        copyStatusEl.textContent = "复制失败：" + (error && error.message ? error.message : String(error));
+        copyDiagnosticsEl.disabled = false;
+      }
+    });
+
+    const PHASE_TEXT = {
+      spawning: "正在唤醒后端服务…",
+      waiting:  "后端启动中，正在等待就绪…",
+      steam:    "正在连接 Steam 与网络服务…",
+      ready:    "就绪，进入游戏…",
+    };
+
+    let done = false;
+
+    async function poll() {
+      if (done) return;
+      let st = null;
+      try {
+        st = window.bootstrap && (await window.bootstrap.getStatus());
+      } catch (_) { /* preload 尚未就绪，下轮再试 */ }
+
+      if (st) {
+        // 有 elapsed/timeout 就画确定进度，否则保持不确定动画
+        if (typeof st.elapsedMs === "number" && typeof st.timeoutMs === "number" && st.timeoutMs > 0) {
+          const pct = Math.min(95, Math.round((st.elapsedMs / st.timeoutMs) * 100));
+          barEl.classList.remove("indeterminate");
+          barEl.style.width = pct + "%";
+        }
+
+        if (st.phase && PHASE_TEXT[st.phase]) {
+          statusEl.textContent = PHASE_TEXT[st.phase];
+        }
+
+        if (st.phase === "ready" && st.url) {
+          done = true;
+          barEl.classList.remove("indeterminate");
+          barEl.style.width = "100%";
+          statusEl.textContent = "就绪（端口 " + (st.port || "?") + "），进入游戏…";
+          setTimeout(() => { window.location.replace(st.url); }, 350);
+          return;
+        }
+
+        if (st.phase === "error") {
+          done = true;
+          barEl.style.display = "none";
+          statusEl.textContent = "";
+          errorBox.style.display = "block";
+          errorMsg.textContent =
+            (st.error || "未知错误") +
+            (st.detail ? "\n\n后端最后输出：\n" + st.detail : "") +
+            "\n\n诊断日志：\n" + (st.logPath || "(见 electron.log)") +
+            "\n\n请点击下方按钮复制诊断日志，并粘贴发送给作者。";
+          return;
+        }
+      }
+      setTimeout(poll, 300);
+    }
+    poll();
+  </script>
+</body>
+</html>
+const ST
