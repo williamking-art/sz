@@ -5,7 +5,8 @@
 game/saves/*
 !game/saves/.gitkeep
 
-# --- 临时归档与构建产物 (_scratch/) ---
+# --- 临时归档与构建产物 (_scratch/：任意层级均不入库) ---
+_scratch/
 game/_scratch/
 _dev_tools/songzuo-game-studio/_scratch/
 
