@@ -262,8 +262,18 @@ def issue_drafted_decree(state: GameState, minister_advice: str, player_intent: 
 
 
 def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
-    """下达一份普通诏令 / 御笔直发。decree 需含 title/category。
-    targets 为受影响派系列表。返回消息。"""
+    """下达一份普通诏令 / 御笔直发 / 密谕。decree 需含 title/category。
+    targets 为受影响派系列表。返回消息。
+
+    审查 P1 契约对齐：前端 DecreePanel 发 {text,title,minister,is_secret}——
+    is_secret=True 转密旨通道（text/title 为密旨内容、minister 为目标）；
+    text 落 desc（正文随诏存档/叙事显示），不再静默丢弃玩家正文。
+    """
+    # 密谕分支（前端密谕勾选：is_secret=True → 走密旨通道，上限 3 道）
+    if decree.get("is_secret"):
+        target = str(decree.get("target") or decree.get("minister") or "有司")
+        content = str(decree.get("text") or decree.get("desc") or decree.get("title") or "密谕")
+        return issue_secret_decree(state, target, content)
     if direct:
         if state.direct_decree_used >= 2:
             return "本月御笔已用尽。"
@@ -314,7 +324,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         "effects": decree.get("effects") if isinstance(decree.get("effects"), dict) else _generate_decree_effects(cat, idx),
         "duration": 1,
         "targets": decree.get("targets", []),
-        "desc": decree.get("desc", ""),
+        "desc": decree.get("desc") or decree.get("text", ""),   # 正文随诏落档（审查 P1）
     }
     state.pending_decrees.append(decree_full)
     state.statistics["total_decrees"] += 1

@@ -7,6 +7,8 @@ import { humanizeCoin } from "../utils/format";
 export default function TopBar() {
   const state = useGameStore((s) => s.state);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
+  // /api/readouts 派生读数（store 随 state 变更自动刷新）：未取到时悬浮卡显示占位
+  const readouts = useGameStore((s) => s.readouts);
   const [activeCapsule, setActiveCapsule] = useState<"treasury" | "privy" | null>(null);
   const [pinned, setPinned] = useState(false);
 
@@ -16,6 +18,9 @@ export default function TopBar() {
   const treasury = hudTreasury(state);
   const privy = hudPrivy(state);
   const token = hudToken(state);
+
+  // 悬浮卡数据统一读 readouts.finance 对应键（国库=monthly_in/out 各分项，内帑=wine_coin）
+  const finance = readouts ? (readouts.finance ?? null) : null;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
@@ -57,7 +62,7 @@ export default function TopBar() {
               setPinned(true);
             }
           }}
-          data={getTreasuryDetail(state)}
+          data={getTreasuryDetail(state, finance)}
         />
         <HoverDetailCapsule
           typeKey="privy"
@@ -79,7 +84,7 @@ export default function TopBar() {
               setPinned(true);
             }
           }}
-          data={getPrivyDetail(state)}
+          data={getPrivyDetail(state, finance)}
         />
         {token !== null && (
           <span className="whitespace-nowrap px-1 text-[12px] font-bold text-dim">
@@ -118,6 +123,16 @@ function HoverDetailCapsule({
   data: BudgetFlowData;
 }) {
   const closeTimerRef = useRef<number | null>(null);
+
+  // 数值展示统一走 utils/format（万贯）；读数未取到（null）→ 占位 "—"，不显示伪造数字
+  const inLbl = data.totalIn === null ? "—" : `+${humanizeCoin(data.totalIn)}`;
+  const outLbl = data.totalOut === null ? "—" : `-${humanizeCoin(data.totalOut)}`;
+  const netLbl =
+    data.net === null
+      ? "—"
+      : data.net >= 0
+        ? `+${humanizeCoin(data.net)}`
+        : `-${humanizeCoin(Math.abs(data.net))}`;
 
   function handleMouseEnter() {
     if (closeTimerRef.current) {
@@ -194,20 +209,26 @@ function HoverDetailCapsule({
             <div className="my-2.5 grid grid-cols-3 divide-x divide-gold/30 rounded border border-gold/40 bg-card py-2 text-center shadow-inner">
               <div className="px-1">
                 <div className="text-[11px] text-dim">月入总盘</div>
-                <div className="text-[14px] font-bold text-emerald-800 mt-0.5">
-                  +{humanizeCoin(data.totalIn)}
+                <div className={`text-[14px] font-bold mt-0.5 ${data.totalIn === null ? "text-dim" : "text-emerald-800"}`}>
+                  {inLbl}
                 </div>
               </div>
               <div className="px-1">
                 <div className="text-[11px] text-dim">月支刚性</div>
-                <div className="text-[14px] font-bold text-red-dark mt-0.5">
-                  -{humanizeCoin(data.totalOut)}
+                <div className={`text-[14px] font-bold mt-0.5 ${data.totalOut === null ? "text-dim" : "text-red-dark"}`}>
+                  {outLbl}
                 </div>
               </div>
               <div className="px-1">
                 <div className="text-[11px] text-dim">净结余</div>
-                <div className={`text-[14px] font-bold mt-0.5 ${data.net >= 0 ? "text-emerald-800 font-extrabold" : "text-red-dark font-extrabold"}`}>
-                  {data.net >= 0 ? `+${humanizeCoin(data.net)}` : `-${humanizeCoin(Math.abs(data.net))}`}
+                <div className={`text-[14px] font-bold mt-0.5 ${
+                  data.net === null
+                    ? "text-dim"
+                    : data.net >= 0
+                      ? "text-emerald-800 font-extrabold"
+                      : "text-red-dark font-extrabold"
+                }`}>
+                  {netLbl}
                 </div>
               </div>
             </div>
@@ -224,56 +245,68 @@ function HoverDetailCapsule({
               <div>
                 <div className="flex items-center justify-between border-b border-gold/30 pb-0.5 mb-1.5">
                   <span className="text-[13px] font-bold text-emerald-800">固定收入明细</span>
-                  <span className="text-[11px] font-bold text-emerald-800">+{humanizeCoin(data.totalIn)}</span>
+                  <span className="text-[11px] font-bold text-emerald-800">{inLbl}</span>
                 </div>
-                <div className="space-y-1.5">
-                  {data.incomes.map((item) => (
-                    <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
-                      <div className="flex items-center justify-between text-[12.5px]">
-                        <span className="font-bold text-ink">{item.name}</span>
-                        <span className="font-bold text-emerald-800">+{humanizeCoin(item.amount)}</span>
+                {data.incomes.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {data.incomes.map((item) => (
+                      <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
+                        <div className="flex items-center justify-between text-[12.5px]">
+                          <span className="font-bold text-ink">{item.name}</span>
+                          <span className="font-bold text-emerald-800">+{humanizeCoin(item.amount)}</span>
+                        </div>
+                        {item.formula && (
+                          <div className="mt-1 text-[10.5px] text-dim leading-snug">
+                            税基：{item.formula}
+                          </div>
+                        )}
+                        {item.desc && (
+                          <div className="mt-0.5 text-[10.5px] text-ink-light leading-snug">
+                            {item.desc}
+                          </div>
+                        )}
                       </div>
-                      {item.formula && (
-                        <div className="mt-1 text-[10.5px] text-dim leading-snug">
-                          税基：{item.formula}
-                        </div>
-                      )}
-                      {item.desc && (
-                        <div className="mt-0.5 text-[10.5px] text-ink-light leading-snug">
-                          {item.desc}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-dim leading-relaxed">
+                    （暂无收入明细读数——账册未至或本月无该科目实收。）
+                  </p>
+                )}
               </div>
 
               {/* 固定支出区块（支：红） */}
               <div>
                 <div className="flex items-center justify-between border-b border-gold/30 pb-0.5 mb-1.5">
                   <span className="text-[13px] font-bold text-red-dark">固定支出明细</span>
-                  <span className="text-[11px] font-bold text-red-dark">-{humanizeCoin(data.totalOut)}</span>
+                  <span className="text-[11px] font-bold text-red-dark">{outLbl}</span>
                 </div>
-                <div className="space-y-1.5">
-                  {data.expenses.map((item) => (
-                    <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
-                      <div className="flex items-center justify-between text-[12.5px]">
-                        <span className="font-bold text-ink">{item.name}</span>
-                        <span className="font-bold text-red-dark">-{humanizeCoin(item.amount)}</span>
+                {data.expenses.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {data.expenses.map((item) => (
+                      <div key={item.name} className="rounded border border-gold/25 bg-paper/70 p-2 shadow-sm">
+                        <div className="flex items-center justify-between text-[12.5px]">
+                          <span className="font-bold text-ink">{item.name}</span>
+                          <span className="font-bold text-red-dark">-{humanizeCoin(item.amount)}</span>
+                        </div>
+                        {item.formula && (
+                          <div className="mt-1 text-[10.5px] text-dim leading-snug">
+                            规制：{item.formula}
+                          </div>
+                        )}
+                        {item.desc && (
+                          <div className="mt-0.5 text-[10.5px] text-ink-light leading-snug">
+                            {item.desc}
+                          </div>
+                        )}
                       </div>
-                      {item.formula && (
-                        <div className="mt-1 text-[10.5px] text-dim leading-snug">
-                          规制：{item.formula}
-                        </div>
-                      )}
-                      {item.desc && (
-                        <div className="mt-0.5 text-[10.5px] text-ink-light leading-snug">
-                          {item.desc}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-dim leading-relaxed">
+                    （暂无支出明细读数——账册未至，或该支度不列外朝会计。）
+                  </p>
+                )}
               </div>
             </div>
           </div>

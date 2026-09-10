@@ -15,7 +15,7 @@ import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
-    _bar, _format_effects, _judge_effects)
+    _format_effects, _judge_effects)
 from ui.gui_common import (humanize_grain_price, humanize_grain,
                              humanize_coin, humanize_households, humanize_land)
 from ui.panels_military import _fmt_count, EQUIP_KEYS
@@ -110,7 +110,7 @@ class PanelsEconomyMixin:
         def select():
             sel = lb.curselection()
             if not sel:
-                self.self.messagebox.showinfo("提示", "请选择一路。")
+                self.messagebox.showinfo("提示", "请选择一路。")
                 return
             self._panel_prefecture(PREFECTURE_LIST[sel[0]])
 
@@ -132,9 +132,9 @@ class PanelsEconomyMixin:
         _fiscal = int(p.get("fiscal", 50))
         _ctrl = p.get("controlled_by", "宋")
         self._label(card, (f"户数：{humanize_households(p['households'])}\n垦田：{humanize_land(p['land'])}\n粮产：{humanize_grain(p['grain'])}\n"
-                           f"民情：{_bar(int(p['mood']),20)} {p['mood']}\n治理：{_bar(int(p['govern']),20)} {p['govern']}\n"
-                           f"民心：{_bar(_support,20)} {_support}\n士绅抵抗：{_bar(_gentry,20)} {_gentry}\n"
-                           f"城防：{_bar(_defense,20)} {_defense}\n财政：{_bar(_fiscal,20)} {_fiscal}\n"
+                           f"民情：{p['mood']}\n治理：{p['govern']}\n"
+                           f"民心：{_support}\n士绅抵抗：{_gentry}\n"
+                           f"城防：{_defense}\n财政：{_fiscal}\n"
                            f"控制势力：{_ctrl}"),
                     fg=INK, bg=CARD, font=self._font(SANS, 11), anchor="w").pack(anchor="w", padx=16, pady=12)
         self._label(inner, "地方之政（劝农、赈灾、平盗、减税等）请经「拟旨」系统拟诏施行，效果由中枢推演落地。",
@@ -751,11 +751,11 @@ class PanelsEconomyMixin:
         lines.append("")
         lines.append("【防线】")
         for ln, l in s.defense_lines.items():
-            lines.append(f"  {ln}: 驻防{_bar(int(l['garrison']/10),10)} {l['garrison']}  城防{l['fortification']}")
+            lines.append(f"  {ln}: 驻防{l['garrison']}  城防{l['fortification']}")
         lines.append("")
         lines.append("【密探渗透】")
         for name, level in s.spy_network.items():
-            lines.append(f"  {name}: {_bar(int(level*100),15)} {level:.0%}")
+            lines.append(f"  {name}: {level:.0%}")
         lines.append("")
         if s.settlement_log:
             lines.append("【近期大事】")
@@ -998,7 +998,7 @@ class PanelsEconomyMixin:
                     {"node_id": node_id, "silver": 0, "fund": "treasury",
                      "source": "panel", "signoff": True}, self.ai_client)
             except _AIRuntimeError as e:
-                self.self.messagebox.showerror("AI 叙事中断", str(e))
+                self.messagebox.showerror("AI 叙事中断", str(e))
                 return
             self._log(msg)
             self._refresh_hud()
@@ -1046,7 +1046,7 @@ class PanelsEconomyMixin:
             def _summon():
                 who = summon_var.get()
                 if not who or who == "（请选）":
-                    self.self.messagebox.showinfo("提示", "请先钦点一位大臣入对。")
+                    self.messagebox.showinfo("提示", "请先钦点一位大臣入对。")
                     return
                 self._close_overlay()        # 暂收会签层
                 self._open_overlay(
@@ -1123,7 +1123,7 @@ class PanelsEconomyMixin:
                         {"node_id": node_id, "silver": silver, "fund": "treasury",
                          "source": "panel", "signoff": True}, self.ai_client)
                 except _AIRuntimeError as e:
-                    self.self.messagebox.showerror("AI 叙事中断", str(e))
+                    self.messagebox.showerror("AI 叙事中断", str(e))
                     return
                 self._pending_logs.append(f"会签准奏·研「{name}」：{msg}")
                 self._log(f"〔会签·准奏〕研「{name}」：{msg}")
@@ -1131,12 +1131,12 @@ class PanelsEconomyMixin:
                 self._close_overlay()        # 关闭会签层
                 self._close_overlay()        # 关闭科技详情层
                 self._switch_panel(self._panel_tech, "科技树")
-                self.self.messagebox.showinfo("已立项", f"陛下准奏，{msg}")
+                self.messagebox.showinfo("已立项", f"陛下准奏，{msg}")
 
             def _reject():
                 self._pending_logs.append(f"会签打回·研「{name}」")
                 self._close_overlay()        # 关闭会签层，返回科技详情
-                self.self.messagebox.showinfo("打回", f"「{name}」之请，已打回工部另议，未动帑藏。")
+                self.messagebox.showinfo("打回", f"「{name}」之请，已打回工部另议，未动帑藏。")
 
             self._seal_btn(bb, "准 奏 拨 帑", _approve, big=True).pack(side="left", padx=8)
             self._btn(bb, "打 回 重 议", _reject, width=12, ghost=True).pack(side="left", padx=8)
@@ -1293,6 +1293,64 @@ class PanelsEconomyMixin:
                     f"钱荒：{fin['shortage_desc']}",
                     fg=DIM, bg=CARD, font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=14, pady=2)
 
+        # 国库 / 内帑 收支明细表
+        self._panel_fund_flow_tables(inner)
+
+    def _panel_fund_flow_tables(self, inner):
+        """国库 / 内帑收支表格（数据源 core.flow_summary，与 HUD 悬浮栏同源）。
+
+        两张表：国库「科目/收入/支出」三列、内帑「科目/金额」两列。
+        金额一律 humanize_coin（万贯口径），与全局数值展示一致。
+        注：支出无分项数据（flow_summary 仅给月支总额），故支出列只呈月支合计数。
+        """
+        from core.flow_summary import build_flow_summary
+        try:
+            fs = build_flow_summary(self.state)
+        except Exception:
+            return
+        t = fs["treasury"]
+        im = fs["imperial"]
+
+        # —— 国库 ——
+        tc = self._card(inner)
+        tc.pack(fill="x", padx=10, pady=4)
+        self._card_title(tc, "国 库 收 支")
+        rows = []
+        for lab, v in t["regular_in"]:
+            rows.append([lab, f"+{humanize_coin(v)}", ""])
+        for lab, v, fund in t["one_off"]:
+            if fund != "treasury":
+                continue
+            rows.append([lab,
+                         f"+{humanize_coin(v)}" if v >= 0 else "",
+                         f"-{humanize_coin(abs(v))}" if v < 0 else ""])
+        if not rows:
+            rows.append(["（本月无分项收支）", "", ""])
+        rows.append(["本月合计", f"+{humanize_coin(t['month_in'])}",
+                     f"-{humanize_coin(t['month_out'])}"])
+        self._table(tc, ["科目", "收入", "支出"], rows,
+                    widths=[18, 14, 14]).pack(fill="x", padx=14, pady=(4, 6))
+        self._label(tc,
+                    f"累计：入 {humanize_coin(t['total_in'])}　出 {humanize_coin(t['total_out'])}",
+                    fg=DIM, bg=CARD, font=self._font(SANS, 9),
+                    anchor="w").pack(anchor="w", padx=14, pady=(0, 6))
+
+        # —— 内帑 ——
+        ic = self._card(inner)
+        ic.pack(fill="x", padx=10, pady=4)
+        self._card_title(ic, "内 帑 收 支")
+        irows = []
+        for lab, v in im["regular_in"]:
+            irows.append([lab, f"+{humanize_coin(v)}"])
+        for lab, v, _fund in im["one_off"]:
+            irows.append([lab, f"+{humanize_coin(v)}" if v >= 0
+                          else f"-{humanize_coin(abs(v))}"])
+        if not irows:
+            irows.append(["（本月无常项）", ""])
+        irows.append(["内帑现存", humanize_coin(im["balance"])])
+        self._table(ic, ["科目", "金额"], irows,
+                    widths=[18, 16]).pack(fill="x", padx=14, pady=(4, 6))
+
     def _format_rate(self, rate):
         """征率 0~1 小数 → 中文/百分比展示。"""
         r = round(rate, 2)
@@ -1315,7 +1373,8 @@ class PanelsEconomyMixin:
         self._card_title(card, "太 仓 虚 实")
         util = s.granary_capacity_used()
         self._meter(card, s.granary, max(s.granary_cap, 1), width=260,
-                    label=f"太仓存粮 {humanize_grain(s.granary)} / {humanize_grain(s.granary_cap)}")
+                    label=f"太仓存粮 {humanize_grain(s.granary)} / {humanize_grain(s.granary_cap)}",
+                    fmt=humanize_grain)
         # 太仓净储（月入=田赋本色，月出=军粮+官禄+吏禄×pay_ratio+雀鼠耗+贪腐损耗）
         grain_in_total, _ = s.calc_monthly_grain()
         army_g, _ = s.calc_army_grain()
@@ -1323,7 +1382,8 @@ class PanelsEconomyMixin:
         clerk_g, _ = s.calc_clerk_grain()
         self._label(card,
                     f"太仓月入（田赋本色）：{humanize_grain(grain_in_total)}　"
-                    f"月出（军粮{army_g:.0f}+官禄{off_g:.0f}+吏禄{clerk_g:.0f}+雀鼠耗+贪腐损耗）",
+                    f"月出（军粮{humanize_grain(army_g)}+官禄{humanize_grain(off_g)}"
+                    f"+吏禄{humanize_grain(clerk_g)}+雀鼠耗+贪腐损耗）",
                     fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="w").pack(anchor="w", padx=14, pady=(2, 4))
         # 趋势读数：走后端 finance_readout 的 price_trend（基于认知层，消除前端自比真实层的口径漂移与信息泄漏）
         fin = s.finance_readout()

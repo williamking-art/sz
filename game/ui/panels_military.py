@@ -61,6 +61,37 @@ class ArmyUnit:
         """兵额唯一真账 = Σ兵种人数（兼容旧 u.troops 引用）。"""
         return sum(self.branches.values())
 
+    def add_troops(self, delta: int) -> None:
+        """增减兵额（审查 P0：troops 是只读 property，直接 u.troops ±= 会 AttributeError）。
+
+        兵额真账 = Σbranches，故增/减落在具体兵种分支上：
+        - 增募（delta>0）：落主兵种（人数最多分支），人口守恒由调用方保证；
+        - 减员（delta<0）：按现有人数从大到小分摊扣除（保 Σbranches 为真账，
+          不把某分支扣成负数）。空军队增募落「轻步兵」。
+        """
+        if delta == 0:
+            return
+        if not self.branches:
+            if delta > 0:
+                self.branches["轻步兵"] = delta
+            return
+        total = sum(self.branches.values())
+        if total <= 0:
+            if delta > 0:
+                self.branches[max(self.branches, key=lambda k: self.branches[k])] = delta
+            return
+        if delta > 0:
+            key = max(self.branches, key=lambda k: self.branches[k])
+            self.branches[key] = self.branches[key] + delta
+            return
+        need = -delta
+        for key in sorted(self.branches, key=lambda k: -self.branches[k]):
+            if need <= 0:
+                break
+            take = min(need, self.branches[key])
+            self.branches[key] = self.branches[key] - take
+            need -= take
+
     def _split_key(self, key: str):
         """branches 键 → (军籍, 兵种)：新模型键为兵种名（军籍由 tier 定）；
         兼容旧「军籍:兵种」复合键（存档迁移期）。"""
@@ -138,20 +169,20 @@ class CentralArsenal:
 # ============================================================
 # 构建 / 派生
 # ============================================================
-# 防线归属：军籍 × 驻地 → 防区（与旧 _derive_defense_lines 口径一致）
+# 防线归属：军籍 × 驻地 → 防区（与旧 _derive_defense_lines 口径一致；站名用 20 路名）
 _DEFENSE_LINE_OF = {
     ("河北路",): "北线_太原真定",
-    ("河东",): "北线_太原真定",
+    ("河东路",): "北线_太原真定",
     ("陕西路",): "北线_陕西",
     ("京西路",): "中线_黄河渡口",
-    ("东京开封府",): "中线_黄河渡口",   # 东京厢军入中线；禁军余部入内线，见下
+    ("京畿路",): "中线_黄河渡口",   # 京畿厢军入中线；禁军余部入内线，见下
 }
 
 
 def _defense_line_for(station: str, tier: str) -> str:
     """某驻地某军籍实体归属的防线（与旧聚合口径对齐）。"""
-    if station == "东京开封府":
-        # 东京禁军余部归内线_东京城防；厢军随中线
+    if station == "京畿路":
+        # 京畿禁军余部归内线_东京城防；厢军随中线
         return "内线_东京城防" if tier == "禁军" else "中线_黄河渡口"
     if station == "京西路":
         return "中线_黄河渡口" if tier in ("禁军", "厢军") else "内线_东京城防"

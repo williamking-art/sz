@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, PenLine, Scroll, Send, Sparkles } from "lucide-react";
+import { Loader2, Merge, PenLine, Scroll, Send, Sparkles, Stamp } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 
@@ -58,7 +58,7 @@ const PROCEDURES: ProcDef[] = [
 ];
 
 export default function DecreePanel() {
-  const [mode, setMode] = useState<"free" | "fixed">("free");
+  const [mode, setMode] = useState<"free" | "fixed" | "review">("free");
   // 自由拟旨输入
   const [freeText, setFreeText] = useState("");
   const [title, setTitle] = useState("");
@@ -68,6 +68,14 @@ export default function DecreePanel() {
   // 固定政务输入
   const [cat, setCat] = useState(PROCEDURES[0].key);
   const [fixedValues, setFixedValues] = useState<Record<string, string>>({});
+
+  // 票拟批红（诏草审批）
+  const state = useGameStore((s) => s.state);
+  const [draftSel, setDraftSel] = useState<Set<string>>(new Set());
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [review, setReview] = useState<Record<string, unknown> | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [revBusy, setRevBusy] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -150,6 +158,91 @@ export default function DecreePanel() {
     }
   }
 
+  // ---- 票拟批红：和解锁 / 会签 / 审批 ----
+  const drafts: Record<string, unknown>[] = Array.isArray(state?.edict_drafts)
+    ? (state!.edict_drafts as Record<string, unknown>[])
+    : [];
+  const detailDraft = drafts.find((d) => d.id === detailId) ?? null;
+
+  function toggleDraft(id: string) {
+    setDraftSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function openDetail(id: string) {
+    if (revBusy) return;
+    setDetailId(id);
+    setReview(null);
+    setReviewing(true);
+    getApiClient()
+      .councilReview(id)
+      .then((res) => setReview(res.review as Record<string, unknown>))
+      .catch((e) => {
+        console.error("[council_review]", e);
+        setReview({
+          memo: "（会签失败）", objections: "（门下省未见条目）",
+          executions: "（六部俟旨）", verdict: "—"
+        });
+      })
+      .finally(() => setReviewing(false));
+  }
+
+  async function reviewAction(decision: "approve" | "force") {
+    if (revBusy || !detailId) return;
+    setRevBusy(true);
+    setResult(null);
+    try {
+      const res = await getApiClient().action("issue_edict_from_review", { draft_id: detailId, decision });
+      if (res.state) setState(res.state);
+      setResult(res.message || "诏令已下。");
+      setDetailId(null); setReview(null);
+      setDraftSel((prev) => { const n = new Set(prev); n.delete(detailId!); return n; });
+    } catch (e) {
+      setResult("批红失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setRevBusy(false);
+    }
+  }
+
+  async function rejectDraft() {
+    if (revBusy || !detailId) return;
+    setRevBusy(true);
+    setResult(null);
+    try {
+      const res = await getApiClient().action("reject_edict_draft", { draft_id: detailId });
+      if (res.state) setState(res.state);
+      setResult(res.message || "已打回诏草。");
+      setDetailId(null); setReview(null);
+      setDraftSel((prev) => { const n = new Set(prev); n.delete(detailId!); return n; });
+    } catch (e) {
+      setResult("打回失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setRevBusy(false);
+    }
+  }
+
+  async function mergeDrafts() {
+    if (revBusy || draftSel.size < 2) return;
+    setRevBusy(true);
+    setResult(null);
+    try {
+      const res = await getApiClient().action("merge_drafts", { draft_ids: [...draftSel] });
+      if (res.state) setState(res.state);
+      setResult(res.message || "诏书已成。");
+      setDraftSel(new Set()); setDetailId(null); setReview(null);
+    } catch (e) {
+      setResult("汇成失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setRevBusy(false);
+    }
+  }
+
+  const rev = (k: string) => (review ? String(review[k] ?? "") : "");
+
   return (
     <div className="space-y-4">
       {/* 模式切换：亲笔拟旨 / 常设政务 */}
@@ -175,9 +268,24 @@ export default function DecreePanel() {
           >
             <Scroll size={14} /> 常设政务
           </button>
+          <button
+            onClick={() => setMode("review")}
+            className={`flex items-center gap-1.5 rounded px-3 py-1 font-kai text-sm transition ${
+              mode === "review"
+                ? "bg-red text-paper shadow-sm"
+                : "bg-paper/70 text-ink hover:bg-gold-light/40"
+            }`}
+          >
+            <Stamp size={14} /> 票拟批红
+            {drafts.length > 0 && (
+              <span className="ml-0.5 rounded-full bg-goldDark/20 px-1.5 text-[10px] leading-4 text-ink-light">
+                {drafts.length}
+              </span>
+            )}
+          </button>
         </div>
         <span className="font-kai text-xs text-dim">
-          {mode === "free" ? "乾纲独断 · 言出法随" : "例行公文 · 规制常设"}
+          {mode === "free" ? "乾纲独断 · 言出法随" : mode === "fixed" ? "例行公文 · 规制常设" : "会签批红 · 政令所出"}
         </span>
       </div>
 
@@ -265,7 +373,7 @@ export default function DecreePanel() {
             </button>
           </div>
         </div>
-      ) : (
+      ) : mode === "fixed" ? (
         /* ==== 常规政务模式 ==== */
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1.5">
@@ -306,6 +414,94 @@ export default function DecreePanel() {
               {busy ? "移交有司…" : "登记施行政务"}
             </button>
           </div>
+        </div>
+      ) : (
+        /* ==== 票拟批红模式 ==== */
+        <div className="space-y-3">
+          {drafts.length === 0 ? (
+            <p className="py-6 text-center text-dim">
+              三省尚无待批诏草。可召大臣入对拟诏，或于门下省立案。
+            </p>
+          ) : (
+            <>
+              <div className="max-h-[210px] space-y-1 overflow-y-auto rounded-lg border border-gold/40 bg-paper/60 p-2.5">
+                {drafts.map((d) => {
+                  const id = String(d.id ?? "");
+                  const sel = draftSel.has(id);
+                  const src = String(d.proposer ?? d.source_minister ?? "陛下亲拟");
+                  const org = String(d.org_hint ?? "政府");
+                  return (
+                    <label
+                      key={id}
+                      className="flex cursor-pointer items-center gap-2 rounded border border-transparent px-2 py-1.5 transition hover:border-gold/40 hover:bg-gold-light/20"
+                    >
+                      <input type="checkbox" checked={sel} onChange={() => toggleDraft(id)} className="accent-red" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-kai text-sm text-ink">{String(d.title ?? "未名诏草")}</span>
+                        <span className="block text-[11px] text-dim">拟稿：{src} · 承办：{org}</span>
+                      </span>
+                      <button
+                        onClick={(e) => { e.preventDefault(); openDetail(id); }}
+                        className="shrink-0 rounded border border-gold/50 bg-card px-2 py-0.5 text-[11px] text-ink transition hover:bg-gold-light"
+                      >
+                        会签
+                      </button>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {detailDraft && (
+                <div className="rounded-lg border-2 border-gold bg-card p-3.5">
+                  <p className="font-kai text-base font-bold text-red">〔{String(detailDraft.title ?? "诏草")}〕</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                    {String(detailDraft.body ?? "（正文缺）")}
+                  </p>
+                  <div className="mt-2 border-t border-gold/20 pt-2 text-xs text-dim">
+                    <p className="font-kai">【中书省拟稿】{reviewing ? "（廷议推演中…）" : rev("memo") || "（无）"}</p>
+                    <p className="mt-1 font-kai">【门下省封驳】{reviewing ? "（核议中…）" : rev("objections") || "（无）"}</p>
+                    <p className="mt-1 font-kai">【尚书省六部】{reviewing ? "（承旨待办中…）" : rev("executions") || "（无）"}</p>
+                    <p className="mt-1 font-kai">【会签结论】{reviewing ? "—" : rev("verdict") || "可准"}</p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <button
+                      onClick={() => reviewAction("approve")}
+                      disabled={revBusy}
+                      className="rounded-lg bg-red px-5 py-1.5 font-kai text-sm tracking-widest text-paper transition hover:bg-red-dark disabled:opacity-60"
+                    >
+                      准奏
+                    </button>
+                    <button
+                      onClick={rejectDraft}
+                      disabled={revBusy}
+                      className="rounded-lg bg-paper/60 px-5 py-1.5 font-kai text-sm text-ink transition hover:bg-gold-light disabled:opacity-60"
+                    >
+                      打回
+                    </button>
+                    <button
+                      onClick={() => reviewAction("force")}
+                      disabled={revBusy}
+                      title="绕会签，转中旨；屡次直发恐损公信（狼来了）。"
+                      className="rounded-lg border border-gold bg-card px-5 py-1.5 font-kai text-sm text-red transition hover:bg-gold-light disabled:opacity-60"
+                    >
+                      御笔直发
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-dim">已勾选 {draftSel.size} 道诏草</span>
+                <button
+                  onClick={mergeDrafts}
+                  disabled={revBusy || draftSel.size < 2}
+                  className="flex items-center gap-1.5 rounded-lg bg-paper/60 px-4 py-1.5 font-kai text-sm text-ink transition hover:bg-gold-light disabled:opacity-50"
+                >
+                  <Merge size={15} /> 汇成诏书（≥2 道）
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

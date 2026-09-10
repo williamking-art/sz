@@ -208,10 +208,24 @@ def _validate_mechanisms(text, state):
                     unlocked_focus.add(node.get("name", ""))
     except Exception:
         pass
-    # 检查叙事中是否出现"修正/国策"相关表述但对应机制未生效
-    for name in active_legacy | unlocked_focus:
-        if name and name in text:
-            continue
+    # 审查 P2：原 212-214 为空转死循环（for name... continue 无动作）。
+    # 改为真正校验：叙事提及「已知机制名（legacy/focus）」但该机制**未生效** → 编造标记。
+    _known_inactive = set()
+    try:
+        for e in state.legacies.values():
+            _nm = str(e.get("name", "") or "")
+            if _nm and not e.get("active"):
+                _known_inactive.add(_nm)
+        for branch, bspec in (state.focus_tree or {}).items():
+            for nk, node in (bspec.get("nodes", {}) or {}).items():
+                _nm = str(node.get("name", "") or "")
+                if _nm and not node.get("unlocked"):
+                    _known_inactive.add(_nm)
+    except Exception:
+        _known_inactive = set()
+    for _name in sorted(_known_inactive):
+        if len(_name) >= 2 and _name in text:
+            return True, [f"{_name}(未生效)"]
     # 反向：叙事提到机制名但不在生效集内（编造）
     for kw in ("新党专权", "冗官冗费", "隐田蔽课", "辽夏边患", "花石纲民怨",
                "中央集权", "官制改革", "裁汰冗费", "整军经武", "修城固垒",

@@ -97,22 +97,24 @@ def _build_pops(info: dict, p_type: str) -> dict:
 
 def _init_local_refugees(info: dict) -> int:
     """按路本地流民开局基数：边镇/高动乱路略高，腹里近 0，体现北宋常态流徙而非开局危机。"""
+    from content.data import PREFECTURE_TYPE_FRONTIER, PREFECTURE_TYPE_CAPITAL
     p_type = info.get("type", "腹里州路")
     unrest = info.get("unrest", 15)
-    base = 800 if p_type in ("边镇路", "沿边路") else 200
+    base = 800 if p_type in PREFECTURE_TYPE_FRONTIER else 200
     base += int(unrest * 30)            # 动乱越高，常态流民越多
-    if info.get("is_capital"):
+    if info.get("is_capital") or p_type == PREFECTURE_TYPE_CAPITAL:
         base = max(0, base - 300)        # 京畿吸纳力强，基数更低
     return max(0, base)
 
 
 def _init_city_defense(p_type: str) -> int:
-    """按路类型初始化城防（0~100）：边镇/沿边高，腹里低，京畿最高。"""
-    if p_type in ("京畿路", "京畿"):
+    """按路类型初始化城防（0~100）：边镇高，腹里低，京畿最高。"""
+    from content.data import PREFECTURE_TYPE_FRONTIER, PREFECTURE_TYPE_COASTAL, PREFECTURE_TYPE_CAPITAL
+    if p_type == PREFECTURE_TYPE_CAPITAL:
         return 80
-    if p_type in ("边镇路", "沿边路"):
+    if p_type in PREFECTURE_TYPE_FRONTIER:
         return 65
-    if p_type in ("沿江路", "沿海路"):
+    if p_type in PREFECTURE_TYPE_COASTAL:
         return 50
     return 40
 
@@ -129,6 +131,33 @@ def _garrison_by_tier(state, road: str) -> dict:
         if u.station == road and u.troops > 0:
             out[u.tier] = out.get(u.tier, 0) + u.troops
     return out
+
+
+def _external_province_lonlats(regime_key: str, provs_src: list):
+    """外邦省真实经纬（Web 舆图用）：取 geo_admin.REGIME_GEO[regime] 多边形 bbox，
+    按省序横向分布为中纬。无该政权的几何则返回 None（Web 舆图端跳过显示）。
+    惰性导入 geo_admin，避免顶层循环依赖。"""
+    try:
+        from content.geo_admin import REGIME_GEO as _RGE
+        _geo = _RGE.get(regime_key) or {}
+        _poly = _geo.get("polygon") or []
+    except Exception:
+        _poly = []
+    if not _poly or not provs_src:
+        return None
+    _lons = [p[0] for p in _poly]
+    _lats = [p[1] for p in _poly]
+    if not _lons:
+        return None
+    _minlon, _maxlon = min(_lons), max(_lons)
+    _minlat, _maxlat = min(_lats), max(_lats)
+    _n = len(provs_src)
+    _out = []
+    for _i in range(_n):
+        _lon = _minlon + (_maxlon - _minlon) * (_i + 1) / (_n + 1)
+        _lat = (_minlat + _maxlat) / 2
+        _out.append([round(_lon, 3), round(_lat, 3)])
+    return _out
 
 
 class GameState(GameStateEconMixin):
@@ -342,6 +371,7 @@ class GameState(GameStateEconMixin):
         self.active_decrees: list = []  # 持续效力的政令
         self.edict_drafts: list = []    # 待会签诏草（诏令会签页）
         self.council_reviews: dict = {}  # draft_id -> 会签意见
+        self.memorials: list = []  # 待审奏折（每回合开始按局势自动上折，君主批红）
 
         # ---- 施政 ----
         self.personal_action: str = ""   # 旧单值个人行动（兼容旧档；新通道走 imperial_action）
@@ -514,12 +544,84 @@ class GameState(GameStateEconMixin):
         # 防区派生：此时 prefectures 已就绪（fortification 由 DEFENSE_LINES 初值，garrison 由各路聚合）
         self._derive_defense_lines()
 
-        # ---- 外部政权（31 个，完整数据 + 简单模拟） ----
+        # ---- 外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）----
+        # 审查 2026-09：为每政权派生六阶 POP（_ext_pop）、省份运行态（provinces，
+        # 独立人口/兵力）与**实体军队**（armies，每省 1 支，仿宋 ArmyUnit）。原
+        # EXTERNAL_REGIMES/_PROVINCES 结构保留。
+        from content.data import _ext_pop, external_provinces_of, external_army_spec, \
+            external_province_buildings
         self.external_regimes: dict = {}
         for key, info in EXTERNAL_REGIMES.items():
             item = {k: v for k, v in info.items() if k != "hotspot"}
             item["growth_curve"] = dict(info["growth_curve"])
             item["rename_log"] = []
+            population_wan = int(item.get("population", 0))
+            regime_type = str(info.get("type", ""))
+            power_val = int(item.get("power", 0))
+            _hot = info.get("hotspot", (0.05, 0.05, 0.9, 0.9))
+            _hx, _hy, _hw, _hh = float(_hot[0]), float(_hot[1]), float(_hot[2]), float(_hot[3])
+            # 六阶 POP（口）——由总人口(万)与政权 type 派生
+            item["pop"] = _ext_pop(regime_type, population_wan)
+            # 省份独立运行态：每省带 人口(口)/兵力(人)/权重 + 中心坐标 + 默认建筑 + 归省军队
+            _troops_total = int(item["pop"].get("兵", {}).get("size", 0))
+            _provinces = []
+            _provs_src = external_provinces_of(key)
+            _n = max(1, len(_provs_src))
+            # 外邦省真实经纬（Web 舆图用）：取 REGIME_GEO 该政权多边形 bbox，按省序横向分布
+            _lonlats = _external_province_lonlats(key, _provs_src)
+            for _idx, (pn, pw) in enumerate(_provs_src):
+                _prov_pop = int(population_wan * 10000 * pw)
+                _prov_troops = int(_troops_total * pw)
+                # 省内坐标：在政权 hotspot 内按省序横向分布（展示/点击用，非精确史址）
+                _cx = _hx + _hw * (_idx + 1) / (_n + 1)
+                _cy = _hy + _hh * 0.5
+                _provinces.append({
+                    "name": pn, "weight": round(float(pw), 4),
+                    "population": _prov_pop, "troops": _prov_troops,
+                    "center": [round(_cx, 4), round(_cy, 4)],
+                    "center_lonlat": _lonlats[_idx] if _lonlats else None,
+                    "buildings": external_province_buildings(regime_type),
+                    "armies": [],
+                })
+            item["provinces"] = _provinces
+            # 兵 POP 对齐 Σ省兵力（int 权重分摊截断差归零，三元严格一致：兵POP==Σ省==Σ军队）
+            item["pop"]["兵"]["size"] = sum(int(p["troops"]) for p in _provinces)
+            # 军队实体化：每省 1 支军队，兵额=该省 troops，branches 按 type 拆兵种
+            _core, _split, _tr_base, _mo_base = external_army_spec(regime_type)
+            _training = max(20, min(90, _tr_base + min(25, power_val // 4)))
+            _morale = max(30, min(90, _mo_base + min(20, power_val // 5)))
+            _armies = []
+            _seq = 0
+            for _p in _provinces:
+                _t = int(_p["troops"])
+                if _t <= 0:
+                    continue
+                _seq += 1
+                _branches = {}
+                _rem = _t
+                _keys = list(_split.keys())
+                for _i, _bk in enumerate(_keys):
+                    _n = int(_t * _split[_bk]) if _i < len(_keys) - 1 else _rem
+                    if _n > 0:
+                        _branches[_bk] = _n
+                        _rem -= _n
+                if not _branches:
+                    continue
+                _army = {
+                    "uid": f"{key}_a{_seq:02d}",
+                    "name": f"{_p['name']}·{_core}",
+                    "tier": _core,
+                    "branches": _branches,
+                    "troops": sum(_branches.values()),
+                    "morale": _morale,
+                    "training": _training,
+                    "equip": {},
+                    "station": _p["name"],
+                    "regime": key,
+                }
+                _armies.append(_army)
+                _p["armies"].append(_army)   # 军队归入省份信息
+            item["armies"] = _armies
             self.external_regimes[key] = item
 
         # ---- 田亩户籍 ----

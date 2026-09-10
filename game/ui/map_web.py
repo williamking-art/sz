@@ -145,6 +145,42 @@ class _StateBox:
 # ---------------------------------------------------------------------------
 # pywebview js_api 对象（JS: window.pywebview.api.xxx(payload)）
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 外邦省信息 → Web 舆图 applyState 载荷（审查 2026-09）
+# ---------------------------------------------------------------------------
+def external_provinces_from_state(state, regimes=None) -> list:
+    """从 GameState 组装外邦省信息，供 Web 舆图显示/点击。
+
+    每省一项：{regime, regime_name, name, lon, lat, population, troops,
+    buildings, army(摘要列表), attitude}。仅含无经纬（center_lonlat 缺失，
+    即该政权在 geo_admin.REGIME_GEO 无几何）的省被跳过。
+    """
+    _rs = regimes if regimes is not None else getattr(state, "external_regimes", None)
+    out = []
+    for rk, ex in (_rs or {}).items():
+        for _p in (ex.get("provinces") or []):
+            _ll = _p.get("center_lonlat")
+            if not isinstance(_ll, (list, tuple)) or len(_ll) < 2:
+                continue
+            _army = [
+                {"name": a.get("name"), "troops": a.get("troops"),
+                 "morale": a.get("morale"), "training": a.get("training")}
+                for a in (_p.get("armies") or [])
+            ]
+            out.append({
+                "regime": rk,
+                "regime_name": ex.get("name", rk),
+                "name": _p.get("name"),
+                "lon": float(_ll[0]), "lat": float(_ll[1]),
+                "population": int(_p.get("population", 0) or 0),
+                "troops": int(_p.get("troops", 0) or 0),
+                "buildings": dict(_p.get("buildings") or {}),
+                "army": _army,
+                "attitude": int(ex.get("attitude", 50) or 50),
+            })
+    return out
+
+
 class MapBridgeApi:
     def __init__(self, hub: _BridgeHub):
         self._hub = hub
@@ -535,6 +571,19 @@ class WebMapController:
     def set_markers(self, markers) -> bool:
         """自定义朱印标注：[{lng, lat, label, kind}]，kind='warn' 用暗金。"""
         return self.push_state({"markers": list(markers or [])})
+
+    def set_external_provinces(self, provs) -> bool:
+        """下发外邦省图层（审查 2026-09）：applyState 的 externalProvinces。
+        provs 由 external_provinces_from_state(state) 组装。"""
+        return self.push_state({"externalProvinces": list(provs or [])})
+
+    def refresh_external_provinces(self, state) -> bool:
+        """便捷：从 GameState 组装外邦省并下发。"""
+        try:
+            _provs = external_provinces_from_state(state)
+        except Exception:
+            return False
+        return self.set_external_provinces(_provs) if _provs else False
 
     # ---- 关闭 ----
     def close(self, wait_timeout: float = 3.0) -> None:

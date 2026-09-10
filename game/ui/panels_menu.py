@@ -11,7 +11,7 @@ import ui.theme as theme
 from ai.client import AIClient, _org_by_affiliation
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
-    _bar, _format_effects, _judge_effects)
+    _format_effects, _judge_effects)
 
 
 class PanelsMenuMixin:
@@ -231,7 +231,7 @@ class PanelsMenuMixin:
         card.pack(fill="both", expand=True, padx=12, pady=8)
         lines = ["【七维评价】"]
         for k, v in eval_result["scores"].items():
-            lines.append(f"  {k:10s}: {_bar(int(v),20)} {v:.0f}")
+            lines.append(f"  {k:10s}: {v:.0f}")
         lines.append(f"  加权总分: {eval_result['total']:.1f}  —  {eval_result['outcome']}")
         lines.append("")
         lines.append(eval_result["description"])

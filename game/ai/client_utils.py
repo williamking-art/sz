@@ -127,8 +127,9 @@ def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
     tier = normalize_tier(tier)
     if dim == "commerce_tax":
         # 工商征率是"设定值"而非增量：tier 档位直接映射税率（玩家诏"征几成"由 AI 归档）。
-        _COMMERCE_TAX_TIER = {"无": 0.05, "微": 0.10, "小": 0.15, "中": 0.20, "大": 0.25, "巨": 0.30, "极": 0.35}
-        return _COMMERCE_TAX_TIER.get(tier, 0.15)
+        # 审查 P1：单一权威源收敛——表定义于 content/data.py COMMERCE_TAX_RATE_BY_TIER
+        from content.data import COMMERCE_TAX_RATE_BY_TIER, COMMERCE_TAX_RATE_MIN
+        return COMMERCE_TAX_RATE_BY_TIER.get(tier, COMMERCE_TAX_RATE_MIN)
     base_v = _TIER_BASE.get(dim, 0)
     mult = TIER_RANGE.get(tier, 0.0)
     cap = _TIER_CAP.get(dim, 0)
@@ -147,11 +148,19 @@ def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
 
 
 def _safety_lexicon_path() -> str:
+    """敏感词库路径：frozen 时打包在 _MEIPASS/ai（与提示词一致），
+    否则源码 ai/ 目录。审查 P1：原用 _app_root()（frozen=exe 同级）致打包版
+    必然找不到词库 → 输出过滤静默失效（fail-open）。"""
+    if getattr(sys, "frozen", False):
+        return os.path.join(getattr(sys, "_MEIPASS", ""), "ai", "safety_lexicon.json")
     return os.path.join(_app_root(), "ai", "safety_lexicon.json")
 
 
 def load_safety_lexicon() -> list:
-    """载入开源 MIT 敏感词库（含 6 类：政治违禁/辱骂/色情/暴力/自伤/赌博）。"""
+    """载入开源 MIT 敏感词库（含 6 类：政治违禁/辱骂/色情/暴力/自伤/赌博）。
+
+    审查 P1：词库缺失/损坏不再静默放行——记明显告警（便于打包联调发现），
+    空词库时 _safety_filter 全放行仅在显式 _LEXICON_FAILED 告警下发生。"""
     path = _safety_lexicon_path()
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -165,6 +174,9 @@ def load_safety_lexicon() -> list:
             words = [str(w) for w in data if w]
         return words
     except (OSError, json.JSONDecodeError, ValueError):
+        import logging
+        logging.getLogger("client_utils").warning(
+            "敏感词库加载失败：%s —— 输出安全过滤失效（请检查打包资源/文件编码）", path)
         return []
 
 
@@ -516,29 +528,42 @@ SIMPLE_TOOL_SCHEMAS = [
 
 
 def _resolve_query_target(state, target: str, name: str = "") -> str:
-    """本地读精准值（不耗 AI 推理；数值直接来自 GameState，防推演漂移）。"""
+    """本地读值（不耗 AI 推理；数值来自 GameState，防推演漂移）。
+
+    审查 P1 修复：财政/兵力读数一律**区间脱敏**（含认知层滞后），与召对脱敏
+    口径一致——大臣可见量级（"约X至Y万"）而非精确实数；精确亲勾走
+    check_treasury（耗圣旨带宽）。杜绝 query_state 免带宽精确读值绕过查账代价。
+    """
     tgt = str(target or "")
     try:
+        from ai.desensitize import desensitize_band
+        from content.data import (desensitize_treasury, desensitize_satisfaction,
+                                  desensitize_tech, desensitize_talent, desensitize_prestige)
+        _lag = getattr(state, "economy_knowledge", None)
+        def _band(v, unit="", lag_key=None):
+            lag = (_lag or {}).get(lag_key) if lag_key else None
+            return desensitize_band(float(v), unit, width_pct=0.15, jitter_pct=0.0,
+                                    lag_value=lag)
         if tgt == "treasury":
-            return f"国库{int(getattr(state, 'treasury', 0)):,}贯"
+            return f"国库{_band(getattr(state, 'treasury', 0), '缗', 'treasury')}（{desensitize_treasury(getattr(state, 'treasury', 0))}）"
         if tgt == "imperial_treasury":
-            return f"内帑{int(getattr(state, 'imperial_treasury', 0)):,}贯"
+            return f"内帑{_band(getattr(state, 'imperial_treasury', 0), '缗', 'imperial_treasury')}"
         if tgt == "granary":
-            return f"太仓{int(getattr(state, 'granary', 0)):,}石"
+            return f"太仓{_band(getattr(state, 'granary', 0), '石', 'granary')}"
         if tgt == "army_grain":
             try:
                 g, _ = state.calc_army_grain(for_issue=True)
-                return f"军粮实发约{int(g):,}石/月"
+                return f"军粮实发约{_band(g, '石/月')}"
             except Exception:
                 return "军粮数暂缺"
         if tgt == "army_pay":
             try:
                 c, _ = state.calc_army_cash(for_issue=True)
-                return f"军饷实发约{int(c):,}贯/月"
+                return f"军饷实发约{_band(c, '贯/月')}"
             except Exception:
                 return "军饷数暂缺"
         if tgt == "people_mood":
-            return f"民情{int(getattr(state, 'population_satisfaction', 50))}"
+            return f"民情{desensitize_satisfaction(getattr(state, 'population_satisfaction', 50))}"
         if tgt == "road_mood":
             p = state.prefectures.get(name)
             if p:
@@ -547,23 +572,58 @@ def _resolve_query_target(state, target: str, name: str = "") -> str:
         if tgt == "faction":
             f = state.factions.get(name)
             if f:
-                return f"{name}满意度{f.get('satisfaction', 50)}影响力{f.get('influence', 50)}"
+                sat = desensitize_satisfaction(f.get("satisfaction", 50))
+                inf = _band(f.get("influence", 50), "", None)
+                return f"{name}满意度{sat}影响力{inf}"
             return f"无{name}派系"
         if tgt == "grain_price":
-            return f"粮价{float(getattr(state, 'grain_price', 1.0)):.2f}贯/石"
+            gr = getattr(state, "granary_ext", {}) or {}
+            return f"粮价{gr.get('price', '适中')}"
         if tgt == "transport":
-            return f"漕运{int(getattr(state, 'transport', 0)):,}石/月"
+            return f"漕运约{_band(getattr(state, 'transport', 0), '石/月')}"
         if tgt == "tech_level":
-            return f"科技{int(getattr(state, 'tech', {}).get('level', 50))}"
+            return f"科技{desensitize_tech(getattr(state, 'tech', {}).get('level', 50))}"
         if tgt == "talent_pool":
-            return f"人才池{int(getattr(state, 'exam', {}).get('talent_pool', 0))}"
+            return f"人才池{desensitize_talent(getattr(state, 'exam', {}).get('talent_pool', 0))}"
         if tgt == "jiaozi_issue":
-            return f"交子发行{int(getattr(state, 'jiaozi', {}).get('issued', 0)):,}贯"
+            return f"交子发行约{_band(getattr(state, 'jiaozi', {}).get('issued', 0), '贯')}"
         if tgt == "prestige":
-            return f"皇威{int(getattr(state, 'prestige', 50))}"
+            pi = state.get_prestige_info() if hasattr(state, "get_prestige_info") else {}
+            return f"皇威{pi.get('description', desensitize_prestige(getattr(state, 'prestige', 50)))}"
     except Exception:
         pass
     return f"查「{tgt}」暂不可用"
+
+
+def _resolve_region(state, region) -> str | None:
+    """赈济/查报地域俗名 → prefectures 稳定键（20 路）；未识别返回 None。
+
+    规则：全等键 > 路内 name 全等 > 键/名互含 > 常见别名表。绝不兜底到固定路
+    （兜底会把钱粮写进错误路径，造成凭空造灭——见审查 P0-4）。
+    """
+    if not region:
+        return None
+    r = str(region).strip()
+    if r in state.prefectures:
+        return r
+    _alias = {
+        "畿内": "京畿路", "京畿": "京畿路", "东京": "京畿路", "开封": "京畿路",
+        "河北": "河北路", "河东": "河东路", "陕西": "陕西路", "京西": "京西路",
+        "京东": "京东东路", "两浙": "两浙路", "江南": "江南东路",
+        "淮南": "淮南东路", "荆湖": "荆湖南路", "荆南": "荆湖南路",
+        "川峡": "成都府路", "四川": "成都府路", "广南": "广南东路",
+    }
+    for _k, _v in _alias.items():
+        if _k == r:
+            return _v
+    for key, p in state.prefectures.items():
+        if p.get("name") == r:
+            return key
+    for key, p in state.prefectures.items():
+        _n = p.get("name", key)
+        if r in key or r in _n or key in r:
+            return key
+    return None
 
 
 def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
@@ -586,10 +646,25 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
             args = {}
         call_id = tc.get("id", name)
         try:
-            if name == "register_draft":
+            # 审查 P1（parse_tool_calls 容错把坏参转 {}，缺参绝不默认落地——拒绝式）：
+            # 各工具必填缺失 → 明确报错回给 AI，不立案/不建默认对象。
+            _REQUIRED = {
+                "register_draft": ("title", "summary"),
+                "secret_order": ("title", "summary"),
+                "propose_governance": ("title", "summary"),
+                "personnel_nominate": ("name", "post"),
+                "relief_grant": ("region",),
+                "military_dispatch": ("army", "action"),
+            }
+            _missing = [k for k in _REQUIRED.get(name, ())
+                        if not str(args.get(k, "")).strip()]
+            if _missing:
+                res = f"办差缺参被拒：{name} 需提供 {('、'.join(_missing))}（缺参不默认落地）。"
+                mem.setdefault(minister_name, []).append(f"{name} 缺参被拒")
+            elif name == "register_draft":
                 draft = {
-                    "title": str(args.get("title", "未名诏草")),
-                    "summary": str(args.get("summary", "")),
+                    "title": str(args.get("title", "")).strip(),
+                    "summary": str(args.get("summary", "")).strip(),
                     "effects": args.get("effects", {}),
                     "secret": bool(args.get("secret", False)),
                 }
@@ -600,8 +675,8 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
 
             elif name == "secret_order":
                 item = {
-                    "title": str(args.get("title", "未名密令")),
-                    "summary": str(args.get("summary", "")),
+                    "title": str(args.get("title", "")).strip(),
+                    "summary": str(args.get("summary", "")).strip(),
                     "longterm": bool(args.get("longterm", False)),
                 }
                 if item["longterm"]:
@@ -619,7 +694,7 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                     t = getattr(state, "treasury", 0)
                     inc = state.statistics.get("total_income", 0) if isinstance(state.statistics, dict) else 0
                     exp = state.statistics.get("total_expenditure", 0) if isinstance(state.statistics, dict) else 0
-                    res = f"陛下亲勾度支（耗圣旨额度{_bw_cost}）：府库约 {t:,} 缗；本月入 {inc:,}、出 {exp:,}。"
+                    res = f"陛下亲勾度支（耗圣旨额度{_bw_cost}）：府库约 {t:,} 缗；累计入 {inc:,}、出 {exp:,}。"
                     mem.setdefault(minister_name, []).append("奉命勾校度支（亲勾实数）")
                 else:
                     # 带宽不足：只给定性，模拟"无暇细查"
@@ -686,7 +761,10 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                         _total_taken = 0
                         for u in units:
                             _N = scale * 2000
-                            _station = getattr(u, "station", "") if getattr(u, "station", "") in state.prefectures else "东京开封府"
+                            # 站名须为 20 路稳定键；未知驻地不强行落京畿（防错位造币/人口漂移）
+                            _station = getattr(u, "station", "")
+                            if _station not in state.prefectures:
+                                continue
                             _p = state.prefectures[_station]
                             _taken = 0
                             if u.tier == "厢军":          # 流民 → 厢军（史实优先）
@@ -728,43 +806,60 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 mem.setdefault(minister_name, []).append(f"请调 {tier}{act}")
 
             elif name == "relief_grant":
-                region = str(args.get("region", "畿内"))
+                region = str(args.get("region", ""))
                 grain = max(1, min(5, int(args.get("grain", 3) or 3)))
                 silver = max(0, min(5, int(args.get("silver", 0) or 0)))
                 cost = grain * 200000 + silver * 100000
-                if region not in getattr(state, "prefectures", {}):
-                    region = "东京开封府"
-                # 代码审理（旧机制融入新机制）：改状态经 engine/state_applier（验证/守恒）——
-                # 修复旧直写派生字段 state.refugee_count（与 prefectures 不一致 → 凭空造灭）
-                # 审查 P2-7 澄清：此处 reason=「赈济发帑」= 出钱购粮赈济（钱从 treasury 出，
-                # 粮从市场买），非「开仓发粟」直扣 granary。钱组守恒已闭合（treasury -cost
-                # → 农/工匠 +cost）。若改语义为开仓发粟，须另走 granary 扣减 + 粮组守恒。
-                try:
-                    from engine.state_applier import applier_pipeline
-                    _r = applier_pipeline(state, [("relief_grant", [
-                        {"path": "treasury", "op": "add", "value": -cost, "reason": "赈济发帑"},
-                        {"path": f"prefectures.{region}.pops.农.wealth", "op": "add",
-                         "value": int(cost * 0.6), "reason": "赈济购粮（农）"},
-                        {"path": f"prefectures.{region}.pops.工匠.wealth", "op": "add",
-                         "value": int(cost * 0.4), "reason": "赈济工赈（工匠）"},
-                        {"path": f"prefectures.{region}.refugees", "op": "add",
-                         "value": -grain * 5000, "reason": "赈济安置流民"},
-                    ])])
-                    if _r.get("conservation_failed"):
-                        res = "赈济未能落地（守恒校验失败：钱粮来源不足）"
-                    else:
-                        state.population_satisfaction = max(0, min(100,
-                            state.population_satisfaction + grain * 2))
-                        res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
-                               f"发帑约 {cost:,} 缗，民心稍纾。")
-                except Exception:
-                    # 兜底（state_applier 不可用）：旧逻辑但**不再直写派生字段 refugee_count**
-                    state.treasury = max(0, getattr(state, "treasury", 0) - cost)
-                    state.population_satisfaction = max(0, min(100,
-                        state.population_satisfaction + grain * 2))
-                    res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
-                           f"发帑约 {cost:,} 缗，民心稍纾。")
-                mem.setdefault(minister_name, []).append(f"赈 {region}")
+                region_key = _resolve_region(state, region)
+                if region_key is None:
+                    # 拒绝式：地域无法落 20 路 → 不落地（防凭空造灭/钱粮错位），
+                    # 并把合法取值回给 AI（AI 缺失/失败 → 不执行 + 明确报错，铁律 4）。
+                    res = ("赈济未录：地域「%s」无法对应诸路。请指定一路，如：京畿路/两浙路/河北路/"
+                           "淮南东路/荆湖南路 等（PREFECTURE_LIST）。" % (region or "空"))
+                    mem.setdefault(minister_name, []).append("请赈被拒（地域无效）")
+                else:
+                    region = region_key
+                    # 代码审理（旧机制融入新机制）：改状态经 engine/state_applier（验证/守恒）——
+                    # 修复旧直写派生字段 state.refugee_count（与 prefectures 不一致 → 凭空造灭）
+                    # 审查 P2-7 澄清：此处 reason=「赈济发帑」= 出钱购粮赈济（钱从 treasury 出，
+                    # 粮从市场买），非「开仓发粟」直扣 granary。钱组守恒已闭合（treasury -cost
+                    # → 农/工匠 +cost）。若改语义为开仓发粟，须另走 granary 扣减 + 粮组守恒。
+                    try:
+                        from engine.state_applier import applier_pipeline
+                        _r = applier_pipeline(state, [("relief_grant", [
+                            {"path": "treasury", "op": "add", "value": -cost, "reason": "赈济发帑"},
+                            {"path": f"prefectures.{region}.pops.农.wealth", "op": "add",
+                             "value": int(cost * 0.6), "reason": "赈济购粮（农）"},
+                            {"path": f"prefectures.{region}.pops.工匠.wealth", "op": "add",
+                             "value": int(cost * 0.4), "reason": "赈济工赈（工匠）"},
+                            {"path": f"prefectures.{region}.refugees", "op": "add",
+                             "value": -grain * 5000, "reason": "赈济安置流民"},
+                        ])])
+                        if _r.get("conservation_failed"):
+                            res = "赈济未能落地（守恒校验失败：钱粮来源不足）"
+                        else:
+                            state.population_satisfaction = max(0, min(100,
+                                state.population_satisfaction + grain * 2))
+                            res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
+                                   f"发帑约 {cost:,} 缗，民心稍纾。")
+                    except Exception:
+                        # 兜底（applier_pipeline 意外失败）：守恒等效实现（国库 -cost
+                        # → 农/工匠 +cost），不直烧国库（防凭空灭钱），不直写派生字段。
+                        _t0 = getattr(state, "treasury", 0)
+                        if _t0 >= cost:
+                            state.treasury = _t0 - cost
+                            _pops = state.prefectures.get(region, {}).get("pops", {})
+                            for _bk, _share in (("农", 0.6), ("工匠", 0.4)):
+                                _pp = _pops.get(_bk)
+                                if isinstance(_pp, dict):
+                                    _pp["wealth"] = _pp.get("wealth", 0) + int(cost * _share)
+                            state.population_satisfaction = max(0, min(100,
+                                state.population_satisfaction + grain * 2))
+                            res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
+                                   f"发帑约 {cost:,} 缗，民心稍纾。")
+                        else:
+                            res = "赈济未能落地：国库不足。"
+                    mem.setdefault(minister_name, []).append(f"赈 {region}")
 
             elif name == "offer_blueprint":
                 kind = str(args.get("kind", "科技"))

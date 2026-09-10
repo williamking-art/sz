@@ -82,8 +82,12 @@ export default function TechPanel() {
   const [detail, setDetail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [invBusy, setInvBusy] = useState<number | null>(null);
 
   const tech = asDict(pick(state, "tech", {}));
+  const inventions = Array.isArray(tech.pending_inventions)
+    ? (tech.pending_inventions as unknown as Dict[])
+    : [];
   const year = pick<number>(state, "year", 1101);
   const curEra = currentEra(year);
 
@@ -129,11 +133,97 @@ export default function TechPanel() {
     }
   }
 
+  // ---- 工部献策审批（pending_inventions，按索引操作） ----
+  async function approveInv(i: number, fund: "treasury" | "inner") {
+    if (invBusy !== null) return;
+    setInvBusy(i);
+    setResult(null);
+    try {
+      const res = await getApiClient().action("approve_invention", {
+        index: i,
+        fund,
+        signoff: fund === "treasury" ? true : undefined
+      });
+      if (res.state) setState(res.state);
+      setResult(res.message || "已嘉纳工部献策，转将有司立项。");
+    } catch (e) {
+      console.error("[approve_invention]", e);
+      setResult("嘉纳失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setInvBusy(null);
+    }
+  }
+
+  async function rejectInv(i: number) {
+    if (invBusy !== null) return;
+    setInvBusy(i);
+    setResult(null);
+    try {
+      const res = await getApiClient().action("reject_invention", { index: i });
+      if (res.state) setState(res.state);
+      setResult(res.message || "已驳回此献。");
+    } catch (e) {
+      console.error("[reject_invention]", e);
+      setResult("驳回失败：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setInvBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <p className="px-1 text-sm leading-relaxed text-dim">
         天下技艺积累，皆聚于此。新制兴工：国库拨银须经廷议，内帑乾纲独断则免。
       </p>
+
+      {/* 工部献策：大臣召对中诉献之新制，待陛下嘉纳/驳回 */}
+      {inventions.length > 0 && (
+        <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
+          <SectionTitle text="工 部 献 策" />
+          <div className="mt-2 space-y-2">
+            {inventions.map((inv, i) => (
+              <div key={i} className="rounded border border-gold/30 bg-card/70 p-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-kai text-sm font-bold text-ink">
+                    {asStr(inv.kind, "新制")} · {asStr(inv.name, "未名之制")}
+                  </p>
+                  <span className="shrink-0 text-[11px] text-dim">
+                    献策：{asStr(inv.minister, "工部")}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-ink">{asStr(inv.desc, "（无详述）")}</p>
+                <p className="mt-1 text-[11px] text-dim">
+                  {asStr(inv.effect_dim, "成效")}：{asStr(inv.effect_tier, "中")}
+                  {asStr(inv.prereq_hint, "") ? ` · 依托：${asStr(inv.prereq_hint, "")}` : ""}
+                </p>
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    onClick={() => approveInv(i, "treasury")}
+                    disabled={invBusy !== null}
+                    className="rounded bg-red px-3 py-1 text-xs font-kai text-paper transition hover:bg-red-dark disabled:opacity-50"
+                  >
+                    嘉纳·国库（会签）
+                  </button>
+                  <button
+                    onClick={() => approveInv(i, "inner")}
+                    disabled={invBusy !== null}
+                    className="rounded bg-paper/70 px-3 py-1 text-xs font-kai text-ink transition hover:bg-gold-light disabled:opacity-50"
+                  >
+                    嘉纳·内帑
+                  </button>
+                  <button
+                    onClick={() => rejectInv(i)}
+                    disabled={invBusy !== null}
+                    className="rounded border border-gold/50 px-3 py-1 text-xs font-kai text-ink-light transition hover:bg-gold-light/40 disabled:opacity-50"
+                  >
+                    驳回
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 科技树谱：6 列 × era 行 */}
       <div className="overflow-x-auto rounded-lg border border-gold/40 bg-paper/60 p-3">

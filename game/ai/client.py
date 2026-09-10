@@ -37,6 +37,46 @@ from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构�
 _TIERS7 = ("无", "微", "小", "中", "大", "巨", "极")
 
 
+def _summary_text(state_summary) -> str:
+    """朝局摘要入参归一（审查 P0-1/P0-2 修复）：
+
+    - str：原样（调用方已脱敏，如 state.posture / desensitize_for_ai 文本）；
+    - dict（get_state_summary 全量，含国库/派系/兵力精确真值）：先经
+      desensitize_state 区间化+定性化，再序列化——杜绝把精确真值直拼进 prompt
+      造成脱敏四层失效，同时消灭 'dict' 拼接崩溃；
+    - None/未知：返回空串。
+    """
+    if isinstance(state_summary, str):
+        return state_summary
+    if state_summary is None:
+        return ""
+    if isinstance(state_summary, dict):
+        try:
+            from ai.desensitize import desensitize_state
+            ds = desensitize_state(state_summary)
+            return json.dumps(ds, ensure_ascii=False, indent=1)
+        except Exception:
+            pass
+    try:
+        return json.dumps(state_summary, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        return str(state_summary)
+
+
+def _decide_state_text(state) -> str:
+    """任一 *_decide 的 state 直读注入统一改经此脱敏（审查 P0-2）：
+
+    只把 GameState 变成「区间/滞后/定性」文本，绝不写精确国库/太仓/派系/流民。
+    """
+    if state is None:
+        return ""
+    try:
+        from ai.desensitize import desensitize_for_ai
+        return desensitize_for_ai(state)
+    except Exception:
+        return _summary_text(getattr(state, "get_state_summary", lambda: {})())
+
+
 def _narrative_fallback(kind, minister_name=""):
     """AI 失败分级降级（落地改进 4 + T8 完整模板库）：**叙事类**失败 → 本地模板兜底
     （本地组装，非 AI 伪造，明确标注由程序代拟）；**推演类**（economy/military/
@@ -536,9 +576,18 @@ class AIClient(ClientNarrativeMixin):
         self._cache_misses: int = 0
 
     @staticmethod
-    def _state_hash(state_summary: str) -> str:
-        """朝局摘要 hash；朝局变动则失效（同一朝局可命中）。"""
+    def _state_hash(state_summary) -> str:
+        """朝局摘要 hash；朝局变动则失效（同一朝局可命中）。
+
+        审查 P0-1 修复：dict/None 入参先归一为文本再 hash，
+        杜绝 'dict' object has no attribute 'encode' 崩溃。
+        """
         import hashlib
+        if not isinstance(state_summary, str):
+            try:
+                state_summary = json.dumps(state_summary, ensure_ascii=False, sort_keys=True)
+            except Exception:
+                state_summary = str(state_summary)
         h = hashlib.md5(state_summary.encode("utf-8", "ignore")).hexdigest()[:16]
         return h
 
@@ -953,8 +1002,17 @@ class AIClient(ClientNarrativeMixin):
                 return None
             return o
 
-        raw = self._cached_call("draft", state_summary, sys_p,
-                                f"【朝局】{state_summary}", 0.3, 700,
+        # 审查 P0-1/P0-2：有 state 走 desensitize_for_ai（区间/滞后/定性），
+        # 否则 dict 摘要经 _summary_text 区间化——防 'dict'.encode 崩溃 + 防精确真值泄漏
+        _ctx = _summary_text(state_summary)
+        if state is not None:
+            try:
+                from ai.desensitize import desensitize_for_ai
+                _ctx = desensitize_for_ai(state)
+            except Exception:
+                pass
+        raw = self._cached_call("draft", _ctx, sys_p,
+                                f"【朝局】{_ctx}", 0.3, 700,
                                 json_mode=True,
                                 input_key=f"{player_intent or ''}|{getattr(state, 'turn', 0) if state is not None else ''}")
         return self._postprocess(raw, validate,
@@ -995,13 +1053,15 @@ class AIClient(ClientNarrativeMixin):
                 return None
             return o
 
+        # 审查 P0-1/P0-2：摘要归一（dict → 区间脱敏文本），防拼接崩溃 + 防真值泄漏
+        _ctx = _summary_text(state_summary)
         user_p = (
             "【陛下亲述诏意】\n" + (raw_intent or "") + "\n"
-            "【朝局】" + state_summary + "\n"
+            "【朝局】" + _ctx + "\n"
             "请依知制诰之职，将陛下诏意润为正式诏书，并据施政主体判定机构归属（org_hint）。"
         )
         # 结构调用：低温 0.3 + json_mode，保证契约稳定（本接口无 state 入参，不走工具往返）
-        raw = self._cached_call("polish", state_summary, sys_p, user_p,
+        raw = self._cached_call("polish", _ctx, sys_p, user_p,
                                 0.3, 700, json_mode=True, input_key=raw_intent or "")
         res = self._postprocess(raw, validate,
                                 lambda: _ai_unavailable("draft_decree"))
@@ -1044,6 +1104,14 @@ class AIClient(ClientNarrativeMixin):
                     related_line = f"【依职权相关大臣】{att}\n"
             except Exception:
                 related_line = ""
+        # 审查 P0-2：有 state 时用脱敏文本（区间/滞后/定性），无 state 时 dict 摘要归一
+        _ctx = _summary_text(state_summary)
+        if state is not None:
+            try:
+                from ai.desensitize import desensitize_for_ai
+                _ctx = desensitize_for_ai(state)
+            except Exception:
+                pass
         user_p = (
             "【待会签诏草】\n"
             f"题名：{draft.get('title','')}\n"
@@ -1051,7 +1119,7 @@ class AIClient(ClientNarrativeMixin):
             f"拟施影响：{json.dumps(draft.get('effects',[]), ensure_ascii=False)}\n"
             f"机构归属：{draft.get('org_hint','政府')}\n"
             f"{related_line}"
-            f"【朝局】{state_summary}\n"
+            f"【朝局】{_ctx}\n"
             "请依三省六部之职，给出会签意见。"
         )
         raw = None
@@ -1157,15 +1225,17 @@ class AIClient(ClientNarrativeMixin):
             o["narrative"] = _clean_text(str(o.get("narrative", "")))[:200]
             return o
 
+        # 审查 P0-1/P0-2：摘要经 _summary_text 归一（dict 先区间脱敏再文本），防崩溃+防真值泄漏
+        _ctx = _summary_text(state_summary)
         user_p = (
             "【陛下亲拟诏意】\n" + (text or "") + "\n"
-            "【朝局】" + (state_summary or "") + "\n"
+            "【朝局】" + _ctx + "\n"
             "请严格按 JSON 契约判定类别与执行时机，并拟出正式诏书。"
         )
         # 结构调用：低温 0.3 保证契约稳定；json_mode 附加 response_format；
         # 校验失败时回喂修复补调一次，仍失败才走程序兜底（拟旨模板，不代拟效果）。
         from ai.narrative_fallback import fallback_decree
-        raw = self._cached_call("parse", state_summary, sys_p, user_p,
+        raw = self._cached_call("parse", _ctx, sys_p, user_p,
                                 0.3, 900, json_mode=True, input_key=text or "")
         return self._postprocess(raw, validate,
                                  lambda: fallback_decree(text, is_secret),
@@ -1251,6 +1321,43 @@ class AIClient(ClientNarrativeMixin):
             return o if o["advice"] else None
         raw = self._call(sys_p, "", temperature=0.9, max_tokens=200)
         return self._postprocess(raw, validate, lambda: _narrative_fallback("advice"))
+
+    def generate_memorials(self, posture, state=None, count=3):
+        """每回合开始按当下局势拟 1~count 道奏折（无 AI → 模板兜底，标注 _fallback）。
+
+        返回 {"memorials": [{kind, title, body, name?, effect_dim?, effect_tier?}], ...}。
+        kinds：invention/governance/military/personnel/finance。
+        只上折不落地——落地由 review_memorial（批准时）决定。
+        """
+        from ai.narrative_fallback import fallback_memorials
+        era_name = str(getattr(state, "era_name", "") or "")
+        sys_p = _load_prompt("memorial", posture=posture, era_name=era_name)
+
+        def validate(o):
+            if not isinstance(o, dict) or not isinstance(o.get("memorials"), list):
+                return None
+            out = []
+            for m in o["memorials"]:
+                if not isinstance(m, dict):
+                    continue
+                kind = m.get("kind", "")
+                if kind not in ("invention", "governance", "military", "personnel", "finance"):
+                    continue
+                title = _clean_text(str(m.get("title", "")) or "")
+                body = _clean_text(str(m.get("body", "")) or "")
+                if not title or not body:
+                    continue
+                rec = {"kind": kind, "title": title, "body": body}
+                if kind == "invention":
+                    rec["name"] = _clean_text(str(m.get("name", "")) or "") or title
+                    rec["effect_dim"] = _clean_text(str(m.get("effect_dim", "")) or "") or "production"
+                    tier = _clean_text(str(m.get("effect_tier", "")) or "") or "中"
+                    rec["effect_tier"] = tier if tier in ("无", "微", "小", "中", "大") else "中"
+                out.append(rec)
+            return {"memorials": out[:count]} if out else None
+
+        raw = self._call(sys_p, "", temperature=0.9, max_tokens=700)
+        return self._postprocess(raw, validate, lambda: fallback_memorials(state=state, turn=getattr(state, "turn", 0)))
 
     def economy_decide(self, posture, state=None):
         """AI 推演本月全国经济动态（全系统强制 AI，拒绝式）+ 金融 5 字段（蔡权衡定稿）。
@@ -1667,14 +1774,20 @@ class AIClient(ClientNarrativeMixin):
             try:
                 factions = getattr(state, "factions", {})
                 if factions:
+                    # 审查 P0-2：满意度/影响力用区间脱敏，皇威用等级描述——不泄精确值
+                    from ai.desensitize import desensitize_band
                     lines = []
                     for name, f in factions.items():
                         sat = f.get("satisfaction", 50)
                         inf = f.get("influence", 50)
-                        lines.append(f"{name}: 满意度{sat} 影响力{inf}")
+                        lines.append(f"{name}: 满意度{desensitize_band(sat, '', 0.18, 0.03)}"
+                                     f" 影响力{desensitize_band(inf, '', 0.18, 0.03)}")
                     inj += f"\n【当前派系】{'; '.join(lines)}"
-                prestige = getattr(state, "prestige", 50)
-                inj += f"\n【皇威】{prestige}"
+                try:
+                    pi = state.get_prestige_info()
+                    inj += f"\n【皇威】{pi.get('description', '平平')}"
+                except Exception:
+                    inj += "\n【皇威】平平"
             except Exception:
                 pass
         sys_p += inj
@@ -1740,16 +1853,13 @@ class AIClient(ClientNarrativeMixin):
             try:
                 prefs = getattr(state, "prefectures", {})
                 if prefs:
+                    # 审查 P0-2：户数/田亩为精确真值，不外泄——只给路名+定性民情
                     lines = []
                     for name, p in list(prefs.items())[:8]:
-                        households = p.get("households", 0)
-                        land = p.get("land", 0)
                         mood = p.get("mood", "中")
-                        lines.append(f"{name}: {households}万户 {land}万亩 民情{mood}")
+                        lines.append(f"{name}: 民情{mood}")
                     inj += f"\n【诸路概况】{'; '.join(lines)}"
-                cultivated = getattr(state, "cultivated_land", 0)
-                wasteland = getattr(state, "wasteland", 0)
-                inj += f"\n【全国垦田】{cultivated}万亩 【荒田】{wasteland}万亩"
+                inj += "（田亩隐漏难测，以清丈/劝垦档位推演为准，不必外引精确亩数。）"
             except Exception:
                 pass
         sys_p += inj
@@ -1798,12 +1908,9 @@ class AIClient(ClientNarrativeMixin):
         inj = ""
         if state is not None:
             try:
-                granary = getattr(state, "granary", 0)
-                transport = getattr(state, "transport", 0)
-                grain_price = getattr(state, "grain_price", 1.0)
-                army_units = getattr(state, "army_units", [])
-                army_count = len(army_units)
-                inj += f"\n【太仓】{granary:,}石 【漕运】{transport:,}石/月 【粮价】{grain_price:.2f}贯/石 【军团】{army_count}支"
+                # 审查 P0-2：仓漕读数改走区间/滞后（_decide_state_text），
+                # 杜绝精确太仓/漕运/粮价进 prompt。
+                inj = "\n【仓部奏报】\n" + _decide_state_text(state)
             except Exception:
                 pass
         sys_p += inj
@@ -1868,12 +1975,9 @@ class AIClient(ClientNarrativeMixin):
         inj = ""
         if state is not None:
             try:
-                treasury = getattr(state, "treasury", 0)
-                imperial = getattr(state, "imperial_treasury", 0)
-                stats = getattr(state, "statistics", {})
-                income = stats.get("total_income", 0) if isinstance(stats, dict) else 0
-                exp = stats.get("total_expenditure", 0) if isinstance(stats, dict) else 0
-                inj += f"\n【国库】{treasury:,}贯 【内帑】{imperial:,}贯 【本月入】{income:,} 【本月出】{exp:,}"
+                # 审查 P0-2：只注入区间/滞后/定性文本（_decide_state_text），
+                # 杜绝把精确国库/内帑/收支写进 prompt（脱敏四层失效）。
+                inj = "\n【三司奏报】\n" + _decide_state_text(state)
             except Exception:
                 pass
         sys_p += inj
@@ -1931,10 +2035,14 @@ class AIClient(ClientNarrativeMixin):
                     inj += (f"\n【陛下本月已定行止】{act.get('location', '')}·"
                             f"{act.get('mode', '')}·{act.get('action', '')}"
                             f"（契约 action 须与此一致）")
-                prestige = getattr(state, "prestige", 50)
-                mood_val = getattr(state, "population_satisfaction", 50)
-                year = getattr(state, "year", 1)
-                inj += f"\n【皇威】{prestige} 【民心】{mood_val} 【年份】{year}年"
+                try:
+                    from content.data import desensitize_satisfaction
+                    pi = state.get_prestige_info()
+                    inj += (f"\n【皇威】{pi.get('description', '平平')} "
+                            f"【民心】{desensitize_satisfaction(getattr(state, 'population_satisfaction', 50))} "
+                            f"【年份】{getattr(state, 'year', 1)}年")
+                except Exception:
+                    inj += f"\n【年份】{getattr(state, 'year', 1)}年"
             except Exception:
                 pass
         sys_p += inj
@@ -2000,12 +2108,18 @@ class AIClient(ClientNarrativeMixin):
         inj = ""
         if state is not None:
             try:
-                ext_jin = getattr(state, "external_jin", 50)
-                ext_liao = getattr(state, "external_liao", 50)
-                ext_xixia = getattr(state, "external_xixia", 50)
-                factions = getattr(state, "factions", {})
+                # 审查 P0-2：外邦态度给定性、流民给区间（滞后）——不泄精确 attitude/流民数
+                ext = getattr(state, "external", {}) or {}
+                _rel = lambda a: "友善" if a >= 70 else ("一般" if a >= 40 else ("敌视" if a >= 20 else "仇敌"))
+                _parts = [f"{k}:{_rel((v or {}).get('attitude', 50))}"
+                          for k, v in ext.items() if isinstance(v, dict)]
+                from ai.desensitize import desensitize_band
+                _ek = getattr(state, "economy_knowledge", None)
+                _lag = _ek.get("refugee_count") if isinstance(_ek, dict) else None
                 refugee = getattr(state, "refugee_count", 0)
-                inj += f"\n【外邦】金{ext_jin} 辽{ext_liao} 西夏{ext_xixia} 【流民】{refugee:,}"
+                _rb = desensitize_band(refugee, "口", 0.20, 0.05, lag_value=_lag) if refugee else "无"
+                inj += f"\n【外邦】{('；'.join(_parts)) if _parts else '未详'} 【流民】{_rb}"
+                factions = getattr(state, "factions", {})
                 if factions:
                     for name, f in factions.items():
                         sat = f.get("satisfaction", 50)

@@ -15,7 +15,7 @@ import ai.client as ai_decree
 from core.commands import AIRuntimeError as _AIRuntimeError
 from ui.gui_common import (PAPER, PAPER2, CARD, INK, DIM, RED, RED_D, GOLD, GREEN,
     BORDER, SEAL_BG, KAI, SANS, DECREE_CATEGORIES,
-    _bar, _format_effects, _judge_effects)
+    _format_effects, _judge_effects)
 
 
 class PanelsGovernMixin:
@@ -183,7 +183,7 @@ class PanelsGovernMixin:
         def do_audience():
             sel = lb.curselection()
             if not sel:
-                self.self.messagebox.showinfo("提示", "请先选择一位臣工。")
+                self.messagebox.showinfo("提示", "请先选择一位臣工。")
                 return
             pers, role, kind, leader = current["rows"][sel[0]]
             tl.destroy()
@@ -804,7 +804,7 @@ class PanelsGovernMixin:
         # 草稿操作
         def _open_draft_editor(idx):
             if idx is None:
-                self.self.messagebox.showinfo("提示", "请先在左侧选择一道诏草。")
+                self.messagebox.showinfo("提示", "请先在左侧选择一道诏草。")
                 return
             if idx >= len(self.state.edict_drafts):
                 return
@@ -870,7 +870,7 @@ class PanelsGovernMixin:
 
         def _discard(idx):
             if idx is None:
-                self.self.messagebox.showinfo("提示", "请先在左侧选择一道诏草。")
+                self.messagebox.showinfo("提示", "请先在左侧选择一道诏草。")
                 return
             if idx >= len(self.state.edict_drafts):
                 return
@@ -883,7 +883,7 @@ class PanelsGovernMixin:
             # 若未选，则把当前润色草稿先入待签
             if idx is None:
                 if not current_draft:
-                    self.self.messagebox.showinfo("提示", "请先在右侧润色出诏草，或左侧选一道待签诏草。")
+                    self.messagebox.showinfo("提示", "请先在右侧润色出诏草，或左侧选一道待签诏草。")
                     return
                 did = self.state.add_edict_draft(dict(current_draft))
                 idx = len(self.state.edict_drafts) - 1
@@ -927,7 +927,7 @@ class PanelsGovernMixin:
             def _summon():
                 who = summon_var.get()
                 if not who or who == "（请选）":
-                    self.self.messagebox.showinfo("提示", "请先钦点一位大臣入对。")
+                    self.messagebox.showinfo("提示", "请先钦点一位大臣入对。")
                     return
                 tl.destroy()
                 self._open_overlay(lambda: self._panel_dialogue(who, role=f"廷前入对·{d.get('title','')}"),
@@ -996,21 +996,21 @@ class PanelsGovernMixin:
                     self.state, "issue_edict_from_review", {"draft_id": did, "decision": "approve"})
                 self._pending_logs.append(msg)
                 _refresh_list(); _render_other_tabs(); tl.destroy()
-                self.self.messagebox.showinfo("已准奏", msg)
+                self.messagebox.showinfo("已准奏", msg)
 
             def _reject():
                 msg, self.state = self.backend.action(
                     self.state, "reject_edict_draft", {"draft_id": did})
                 self._pending_logs.append(msg)
                 _refresh_list(); _render_other_tabs(); tl.destroy()
-                self.self.messagebox.showinfo("已打回", msg)
+                self.messagebox.showinfo("已打回", msg)
 
             def _force():
                 msg, self.state = self.backend.action(
                     self.state, "issue_edict_from_review", {"draft_id": did, "decision": "force"})
                 self._pending_logs.append(msg)
                 _refresh_list(); _render_other_tabs(); tl.destroy()
-                self.self.messagebox.showinfo("御笔直发", msg)
+                self.messagebox.showinfo("御笔直发", msg)
 
             self._seal_btn(bb, "准 奏", _approve, big=True).pack(side="left", padx=6)
             self._btn(bb, "打 回", _reject, width=12).pack(side="left", padx=6)
@@ -1138,7 +1138,7 @@ class PanelsGovernMixin:
         def do():
             sel = lb.curselection()
             if not sel:
-                self.self.messagebox.showinfo("提示", "请选择目标派系。")
+                self.messagebox.showinfo("提示", "请选择目标派系。")
                 return
             target = FACTION_NAMES[sel[0]]
             msg, self.state = self.backend.action(
@@ -1292,14 +1292,16 @@ class PanelsGovernMixin:
         for c in range(3):
             parent.grid_columnconfigure(c, weight=1)
 
-    # 外交势力区域分组（与 content/data.py EXTERNAL_REGIMES 注释分区对齐，单一映射源）
+    # 外交势力区域分组（与 content/data.py EXTERNAL_REGIMES 全 41 政权一一对应，
+    # 单一映射源；审查 P0-7：补身毒/蒲甘/大越/占婆/吴哥/罗斛/澜沧/三佛齐/塞尔柱/喀喇汗）
     _DIPLO_GROUPS = (
         ("北方与西北", ("辽", "西夏", "吐蕃", "喀尔喀蒙古", "漠南蒙古", "科尔沁",
                      "察哈尔", "海西", "建州", "东海")),
         ("东 方", ("高丽", "日本", "琉球")),
-        ("西南与南方", ("大理", "安南", "占城", "真腊", "暹罗", "缅甸", "喜马拉雅山南诸国")),
-        ("中亚南亚", ("注辇", "西辽", "高昌回鹘", "汪古部")),
-        ("南 洋", ("吕宋", "柔佛", "苏门答剌", "婆罗", "爪哇", "美洛居", "渤泥")),
+        ("西南与南方", ("大理", "安南", "大越", "占城", "占婆", "真腊", "吴哥",
+                      "暹罗", "罗斛", "澜沧", "缅甸", "蒲甘", "喜马拉雅山南诸国")),
+        ("中亚南亚", ("注辇", "身毒", "西辽", "高昌回鹘", "塞尔柱", "喀喇汗", "汪古部")),
+        ("南 洋", ("三佛齐", "吕宋", "柔佛", "苏门答剌", "婆罗", "爪哇", "美洛居", "渤泥")),
     )
 
     def _panel_diplomacy(self):
@@ -1310,7 +1312,7 @@ class PanelsGovernMixin:
         （diplomacy_dialogue）与条约（treaties）由谷承构落地后自动接入。
         """
         from content.data import EXTERNAL_PROVINCES
-        from ui.format_units import humanize_coin
+        from ui.gui_common import humanize_coin  # 审查 P0-7：format_units 已并入 gui_common
         inner = self._panel_shell("外 交")
         self._label(inner, "四夷八荒，邦交纵横。择一国主，面议和战盟约；凡条约之成，皆载史册。",
                     fg=DIM, bg=PAPER, font=self._font(SANS, 11), anchor="w").pack(padx=12, pady=(2, 8))
@@ -1352,31 +1354,84 @@ class PanelsGovernMixin:
             r = regimes.get(key) or {}
             for w in right.winfo_children():
                 w.destroy()
-            # 头部：势力名 + 国力/态度/人口/月税
+            # 头部：势力名 + 国力/态度/人口/兵额/月税
             head = tk.Frame(right, bg=PAPER)
             head.pack(fill="x")
             self._title(head, key, fg=RED, bg=PAPER, font=self._font(KAI, 16, "bold"),
                         anchor="w").pack(side="left")
+            _epop = r.get("pop") or {}
+            _army_total = int(_epop.get("兵", {}).get("size", 0) if isinstance(_epop, dict) else 0)
             self._label(head,
                         f"力 {r.get('power', 0)}　态 {int(r.get('attitude', 50) or 50)}　"
-                        f"口 {int(r.get('population', 0) or 0)} 万　"
+                        f"口 {int(r.get('population', 0) or 0)} 万　兵 {_army_total:,} 人　"
                         f"月税 {humanize_coin(int(r.get('monthly_tax', 0) or 0))}",
                         fg=DIM, bg=PAPER, font=self._font(SANS, 10), anchor="e").pack(side="right")
-            # 省份卡
+            # 省份卡（运行态 provinces：每省独立人口/兵力）
             self._card_title2(right, "诸 省 分 野")
             pcard = self._card(right)
             pcard.pack(fill="x", padx=2, pady=4)
-            provs = EXTERNAL_PROVINCES.get(key, [("本部", 1.0)])
-            pop = int(r.get("population", 0) or 0)
-            tax = int(r.get("monthly_tax", 0) or 0)
-            for pname, weight in provs:
-                row = tk.Frame(pcard, bg=CARD)
-                row.pack(fill="x", padx=12, pady=2)
-                self._label(row, f"　{pname}", fg=INK, bg=CARD,
-                            font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
-                self._label(row,
-                            f"{int(weight * 100)}%　口 {int(pop * weight)} 万　税 {humanize_coin(int(tax * weight))}",
-                            fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+            provs = r.get("provinces")
+            if isinstance(provs, list) and provs:
+                for _p in provs:
+                    row = tk.Frame(pcard, bg=CARD)
+                    row.pack(fill="x", padx=12, pady=2)
+                    self._label(row, f"　{_p.get('name', '本部')}", fg=INK, bg=CARD,
+                                font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
+                    self._label(row,
+                                f"口 {int(_p.get('population', 0) or 0):,} 人　兵 {int(_p.get('troops', 0) or 0):,} 人",
+                                fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+            else:
+                # 兜底（旧运行态无 provinces）：静态权重派生
+                pop = int(r.get("population", 0) or 0)
+                tax = int(r.get("monthly_tax", 0) or 0)
+                for pname, weight in EXTERNAL_PROVINCES.get(key, [("本部", 1.0)]):
+                    row = tk.Frame(pcard, bg=CARD)
+                    row.pack(fill="x", padx=12, pady=2)
+                    self._label(row, f"　{pname}", fg=INK, bg=CARD,
+                                font=self._font(KAI, 11, "bold"), anchor="w").pack(side="left")
+                    self._label(row,
+                                f"{int(weight * 100)}%　口 {int(pop * weight)} 万　税 {humanize_coin(int(tax * weight))}",
+                                fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+            # 六阶 POP 民籍卡
+            self._card_title2(right, "民 籍 与 户 口")
+            ccard = self._card(right)
+            ccard.pack(fill="x", padx=2, pady=4)
+            _cls_label = {"农": "农人/牧民", "士绅": "豪绅", "工匠": "工匠", "商人": "商人",
+                          "官僚": "官吏", "兵": "军伍"}
+            if isinstance(_epop, dict) and _epop:
+                for _kl in ("农", "士绅", "工匠", "商人", "官僚", "兵"):
+                    _seg = _epop.get(_kl) or {}
+                    _sz = int(_seg.get("size", 0) or 0)
+                    if _sz <= 0:
+                        continue
+                    row = tk.Frame(ccard, bg=CARD)
+                    row.pack(fill="x", padx=12, pady=1)
+                    self._label(row, f"　{_cls_label.get(_kl, _kl)}", fg=INK, bg=CARD,
+                                font=self._font(KAI, 11), anchor="w").pack(side="left")
+                    self._label(row,
+                                f"{_sz:,} 口　持钱 {humanize_coin(_seg.get('wealth', 0))}　存粮 {int(_seg.get('grain', 0) or 0):,} 石",
+                                fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+            # 军伍卡（实体军队：每省一军，番号/兵额/士气/训练）
+            self._card_title2(right, "军 伍 堪 舆")
+            acard = self._card(right)
+            acard.pack(fill="x", padx=2, pady=4)
+            _armies = r.get("armies")
+            if isinstance(_armies, list) and _armies:
+                for _a in _armies:
+                    row = tk.Frame(acard, bg=CARD)
+                    row.pack(fill="x", padx=12, pady=1)
+                    self._label(row, f"　{_a.get('name','')}（{_a.get('station','')}）", fg=INK,
+                                bg=CARD, font=self._font(KAI, 11), anchor="w").pack(side="left")
+                    _ab = _a.get("branches") or {}
+                    _btxt = "、".join(f"{k}{v:,}" for k, v in _ab.items())
+                    self._label(row,
+                                f"员 {int(_a.get('troops',0) or 0):,}　气 {_a.get('morale',0)}　训 {_a.get('training',0)}",
+                                fg=DIM, bg=CARD, font=self._font(SANS, 9), anchor="e").pack(side="right")
+                    self._label(acard, f"　  {_btxt}", fg=DIM, bg=CARD,
+                                font=self._font(SANS, 9), anchor="w").pack(fill="x", padx=(16, 8))
+            else:
+                self._label(acard, "　（外邦军伍尚未成制，仅存常备）", fg=DIM, bg=CARD,
+                            font=self._font(SANS, 9), anchor="w").pack(anchor="w", padx=12, pady=6)
             # 当前关系卡
             self._card_title2(right, "当 前 关 系")
             rcard = self._card(right)
@@ -1569,11 +1624,69 @@ class PanelsGovernMixin:
             name = s.prefectures.get(key, {}).get("name", key)
             self._open_overlay(lambda: self._panel_prefecture(key),
                                f"{name}·地方政令")
+        elif "|" in key:
+            # 外邦省份（舆图点击外邦省点）：省信息 = 人口 / 军队 / 建筑
+            _rk, _pn = key.split("|", 1)
+            _ex = s.external_regimes.get(_rk, {})
+            ename = _ex.get("name", _rk)
+            self._open_overlay(lambda: self._panel_external_province(_rk, _pn),
+                               f"{ename}·{_pn}")
         else:
             ex = s.external_regimes.get(key, {})
             ename = ex.get("name", key)
             # 外交类施政统一走拟旨（圣旨推演）
             self._open_overlay(self._panel_decree_entry, f"{ename}·外交纵横")
+
+    def _panel_external_province(self, regime_key, prov_name):
+        """外邦省份详情浮层：仅 人口 / 军队 / 建筑 三块（与宋内部省完整详情区分）。"""
+        inner = self._panel_shell(prov_name, back_cmd=lambda: self._close_overlay())
+        s = self.state
+        ex = s.external_regimes.get(regime_key, {})
+        prov = None
+        for _p in (ex.get("provinces") or []):
+            if _p.get("name") == prov_name:
+                prov = _p
+                break
+        if prov is None:
+            self._label(inner, "该省信息暂缺。", fg=DIM, bg=PAPER,
+                        font=self._font(SANS, 10), anchor="w").pack(padx=12, pady=10)
+            return inner
+        # —— 人口 ——
+        self._card_title2(inner, "人 口")
+        c1 = self._card(inner); c1.pack(fill="x", padx=2, pady=4)
+        self._label(c1,
+                    f"在籍 {int(prov.get('population', 0) or 0):,} 口　"
+                    f"占国 {int((prov.get('weight') or 0) * 100)}%",
+                    fg=INK, bg=CARD, font=self._font(SANS, 11), anchor="w").pack(
+            anchor="w", padx=16, pady=10)
+        # —— 军队 ——
+        self._card_title2(inner, "军 队")
+        c2 = self._card(inner); c2.pack(fill="x", padx=2, pady=4)
+        _armies = prov.get("armies") or []
+        if _armies:
+            for _a in _armies:
+                _btxt = "、".join(f"{k}{v:,}" for k, v in (_a.get("branches") or {}).items())
+                self._label(c2,
+                            f"{_a.get('name','')}　员 {_a.get('troops',0):,}　气 {_a.get('morale',0)}　训 {_a.get('training',0)}",
+                            fg=INK, bg=CARD, font=self._font(SANS, 10), anchor="w").pack(
+                    anchor="w", padx=16, pady=(6, 0))
+                self._label(c2, f"　　{_btxt}", fg=DIM, bg=CARD,
+                            font=self._font(SANS, 9), anchor="w").pack(fill="x", padx=(20, 8))
+        else:
+            self._label(c2, "　尚无常备军。", fg=DIM, bg=CARD,
+                        font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=16, pady=8)
+        # —— 建筑 ——
+        self._card_title2(inner, "建 筑")
+        c3 = self._card(inner); c3.pack(fill="x", padx=2, pady=4)
+        _bld = prov.get("buildings") or {}
+        if _bld:
+            _btxt = "　".join(f"{k}×{v}" for k, v in _bld.items())
+            self._label(c3, "　" + _btxt, fg=INK, bg=CARD,
+                        font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=16, pady=8)
+        else:
+            self._label(c3, "　（未见城郭营造，或为穹庐部落）", fg=DIM, bg=CARD,
+                        font=self._font(SANS, 10), anchor="w").pack(anchor="w", padx=16, pady=8)
+        return inner
 
     def _ext_att(self, key):
         """安全读取外部政权态度。"""

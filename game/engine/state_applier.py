@@ -314,11 +314,9 @@ GRAIN_PATHS = [
     "prefectures.*.grain", "prefectures.*.storage",
     "prefectures.*.pops.农.grain", "prefectures.*.pops.士绅.grain",
 ]
-# 豁免字段（状态类，无守恒约束，只 clamp/非负）
-NO_CONSERVATION_PATHS = [
-    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
-    "prestige", "era_state.", "art_mastery", "population_satisfaction",
-]
+# 豁免字段（状态类，无守恒约束，只 clamp/非负）——保留作文档说明：
+# _group_of 未命中 MONEY/GRAIN_PATHS 的路径即豁免，不再引用本常量（审查 P2：死代码消除）。
+NO_CONSERVATION_PATHS = None
 
 
 def _match_pattern(path: str, pattern: str) -> bool:
@@ -557,6 +555,32 @@ def _apply_op(state, path: str, op: str, value) -> Any:
     return cur
 
 
+def _simulate_underflow(state, merged: List[dict]) -> List[str]:
+    """穿底预检（审查 P0-6）：非负守恒路径的 add 若令终值 < 0，clamp 会截断实际增量，
+    造成「配对方照常落地 + 本方被截」→ 净造币。写入前模拟终值，穿底即整单拒绝
+    （返回错误清单；空 = 通过）。set 负值已在验证层拒绝；mul/remove 在守恒路径被禁。"""
+    errs: List[str] = []
+    net: Dict[str, float] = {}
+    for ch in merged:
+        path = ch.get("path", "")
+        op = ch.get("op")
+        if op != "add" or not _is_non_neg(path):
+            continue
+        cur = net.get(path, 0.0)
+        if cur == 0.0:
+            base = _resolve_path_value(state, path)
+            if base is None:
+                continue
+            net[path] = float(base)
+        net[path] = net[path] + float(ch.get("value", 0))
+    for path, val in sorted(net.items()):
+        if val < 0:
+            errs.append(
+                f"余额不足：{path} 变更后将穿底（{val:.0f} < 0）——"
+                f"请提供足额来源（守恒拒绝，防 clamp 截断净造币）")
+    return errs
+
+
 def apply_to_state(state, final_changes: List[dict]) -> List[dict]:
     """原子写入：逐条应用 op（先 set 后 add 的顺序已在合并时保证），
     记录变更日志（path, old, new, reason, source_agent）。返回应用记录。"""
@@ -568,6 +592,9 @@ def apply_to_state(state, final_changes: List[dict]) -> List[dict]:
         if _is_clamp01(path):
             new = max(0.0, min(1.0, float(new)))
         if _is_non_neg(path) and isinstance(new, (int, float)) and new < 0:
+            # 审查 P0-6：正常路径已由 _simulate_underflow 前置拒绝；此处仅防御。
+            # 若仍触发说明有漏网穿底，记日志以便审计（不静默造币）。
+            log.warning("apply_to_state 非负截断：%s %s→0（old=%r）", path, op, old)
             new = 0
         _set_path(state, path, new)
         record = {
@@ -576,6 +603,10 @@ def apply_to_state(state, final_changes: List[dict]) -> List[dict]:
         }
         CHANGE_LOG.append(record)
         applied.append(record)
+    # 审查 P2：CHANGE_LOG 是模块级全局，逐条追加不清理会无限膨胀（长局内存泄漏）。
+    # 只保留最近 5000 条（审计用），旧的丢弃。
+    if len(CHANGE_LOG) > 5000:
+        del CHANGE_LOG[: len(CHANGE_LOG) - 5000]
     return applied
 
 
@@ -643,6 +674,19 @@ def applier_pipeline(state, all_agent_changes: List[Tuple[str, List[dict]]],
                 "errors": errors,
                 "conservation_failed": True,
             }
+
+    # 3.5b) 穿底预检（审查 P0-6）：add 后非负路径终值为负 → clamp 截断会净造币，
+    # 故在写入前整单拒绝（守恒不闭合时同样硬拒绝，语义一致）。
+    under = _simulate_underflow(state, merged)
+    if under:
+        errors.extend(under)
+        return {
+            "applied": [],
+            "rejected": errors,
+            "narrative_hint": "",
+            "errors": errors,
+            "conservation_failed": True,
+        }
 
     # 4) 原子写入 + 变更日志
     applied = apply_to_state(state, merged)
