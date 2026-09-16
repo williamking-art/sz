@@ -45,8 +45,9 @@ class AudioSlot:
     ready: bool = False     # 资源是否已生成并落位
 
 
-# 初始槽位：与 ui/panels_meta.py 事件插图四档朱批色（灾/战=急、祥瑞=吉、常=褐）
-# 共用 EVENT_AUDIO_CLASS 单一权威源，分类口径严格对齐。
+# 初始槽位：与前端事件面板（EventPanel 插图 / 朱批色：灾/战=急、祥瑞=吉、常=褐）
+# 共用 EVENT_AUDIO_CLASS 单一权威源，分类口径严格对齐
+# （Tk 时代该分类由 ui/panels_meta.py 消费，随 Tk 废弃改由 Web 前端消费）。
 AUDIO_SLOTS: list = [
     AudioSlot("bgm_court", "bgm", loop=True, trigger="主界面/朝堂常驻", volume_bias=0.6),
     AudioSlot("bgm_battle", "bgm", loop=True, trigger="军事/战争事件", volume_bias=0.7),

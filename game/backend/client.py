@@ -46,7 +46,13 @@ class BackendClient:
     def action(self, state, action, params, ai_client=None):
         raise NotImplementedError
 
-    def resolve_event(self, state, event_title, choice_idx, ai_client=None):
+    def resolve_event(self, state, event: dict, choice_idx: int, ai_client=None):
+        """事件抉择：event 为**完整事件对象**（dict，含 title/desc/choices），非标题字符串。
+
+        审查 P1-12 修复：原抽象层参数名 event_title 使 HttpBackend/服务端按字符串收发，
+        而 UI 实际传 dict（resolve 内部 event.get/apply_event_choice 均要求 dict）
+        → 远程模式事件抉择 100% 失败。现三层契约统一为 event: dict。
+        """
         raise NotImplementedError
 
     def save(self, state, slot=1):
@@ -79,19 +85,36 @@ def _app_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _read_config_token() -> str:
+    """从 backend_config.json 读取可选鉴权 token（与 _read_config_url 同源文件）。"""
+    try:
+        path = os.path.join(_app_root(), "backend_config.json")
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        return str(cfg.get("token", "") or "").strip()
+    except Exception:
+        return ""
+
+
 def _read_config_url() -> str:
     """从 backend_config.json 读取远程后端地址；返回空串表示走本地。
 
-    文件格式：
-        {"backend": "remote", "url": "https://..."}  -> 远程后端
-        {"backend": "local"} 或文件缺失/损坏        -> 本地
+    统一 schema（与 Electron frontend/src/main/index.ts 对齐）：
+        {"backend": "remote", "url": "https://..."}  -> 远程
+        仅有 "url" 无 backend                          -> 也视为 remote（兼容旧档）
+        {"backend": "local"} 或文件缺失/损坏            -> 本地
     """
     try:
         path = os.path.join(_app_root(), "backend_config.json")
         with open(path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
-        if cfg.get("backend") == "remote":
-            return str(cfg.get("url", "")).strip()
+        url = str(cfg.get("url", "") or "").strip()
+        backend = str(cfg.get("backend", "") or "").strip().lower()
+        if backend == "remote" and url:
+            return url
+        if not backend and url:
+            # 兼容 Electron 旧档：有 url 即远程
+            return url
     except FileNotFoundError:
         pass
     except Exception:
@@ -166,6 +189,18 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: self._start_focus_action(s, p),
             "cancel_focus":
                 lambda s, p, ai: self._cancel_focus_action(s, p),
+            "approve_ai_action":
+                lambda s, p, ai: (cmd.approve_ai_action(s, p.get("action_id", "")), s),
+            "reject_ai_action":
+                lambda s, p, ai: (cmd.reject_ai_action(s, p.get("action_id", "")), s),
+            "issue_kouyu":
+                lambda s, p, ai: (cmd.issue_kouyu(s, p), s),
+            "propose_inner_transfer":
+                lambda s, p, ai: (cmd.propose_inner_transfer(s, p.get("amount", 0)), s),
+            "confirm_inner_transfer":
+                lambda s, p, ai: (cmd.confirm_inner_transfer(s), s),
+            "cancel_inner_transfer":
+                lambda s, p, ai: (cmd.cancel_inner_transfer(s), s),
         }
         handler = handlers.get(action)
         if handler is None:
@@ -223,8 +258,8 @@ class LocalBackend(BackendClient):
             msg = reject_invention(state, params.get("index", 0))
         return msg, state
 
-    def resolve_event(self, state, event_title, choice_idx, ai_client=None):
-        return cmd.resolve_event(state, event_title, choice_idx, ai_client), state
+    def resolve_event(self, state, event: dict, choice_idx, ai_client=None):
+        return cmd.resolve_event(state, event, choice_idx, ai_client), state
 
     def save(self, state, slot=1):
         return cmd.save(state, slot)
@@ -248,18 +283,34 @@ class HttpBackend(BackendClient):
 
     def __init__(self, base_url):
         self.base = base_url
+        self._token = ""
+
+    def _headers(self) -> dict:
+        """请求头（含可选 Bearer 鉴权；token 来自环境变量或 backend_config.json）。"""
+        h = {"Content-Type": "application/json"}
+        if not self._token:
+            self._token = (os.environ.get("SONGZUO_SERVER_TOKEN", "") or _read_config_token()).strip()
+        if self._token:
+            h["Authorization"] = f"Bearer {self._token}"
+        return h
 
     def _post(self, path, payload=None, _attempt=0):
         body = json.dumps(payload if payload is not None else {}).encode("utf-8")
-        req = urllib.request.Request(
-            self.base + path, data=body, headers={"Content-Type": "application/json"}
-        )
+        req = urllib.request.Request(self.base + path, data=body, headers=self._headers())
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            # 审查 P1-13：鉴权失败给出明确指引（服务端配置 token 后所有 /api/* 强制校验）
+            if e.code in (401, 403):
+                raise RuntimeError(
+                    "后端未授权（HTTP %d）：请配置环境变量 SONGZUO_SERVER_TOKEN "
+                    "或 backend_config.json 的 token 字段" % e.code)
             # 5xx（含云托管缩容到 0 后的 503）一般可重试：实例正在冷启动
             if 500 <= e.code < 600 and _attempt < self._max_retry:
+                # 审查 P3：5xx 重试补退避（原实现立即连打，冷启动窗口内无意义）
+                import time
+                time.sleep(self._retry_backoff * (2 ** _attempt))
                 return self._post(path, payload, _attempt + 1)
             raise RuntimeError(f"后端错误 {e.code}: {e.read().decode('utf-8', 'ignore')}")
         except Exception as e:
@@ -304,8 +355,11 @@ class HttpBackend(BackendClient):
         r = self._post("/api/action", {"action": action, "params": params})
         return r.get("message", ""), self._to_state(r["state"])
 
-    def resolve_event(self, state, event_title, choice_idx, ai_client=None):
-        r = self._post("/api/resolve_event", {"title": event_title, "choice": choice_idx})
+    def resolve_event(self, state, event: dict, choice_idx, ai_client=None):
+        # 审查 P1-12：服务端（与 Electron 前端同源）契约是 {title, choice}，
+        # 此处从事件对象取 title 发送；服务端再按 title 反查完整事件（含 choices）。
+        _title = event.get("title", "") if isinstance(event, dict) else str(event)
+        r = self._post("/api/resolve_event", {"title": _title, "choice": choice_idx})
         return r.get("message", ""), self._to_state(r["state"])
 
     def save(self, state, slot=1):

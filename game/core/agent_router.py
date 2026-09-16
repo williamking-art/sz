@@ -39,6 +39,8 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["treasury", "tax_breakdown.", "prefectures.*.tax"],
         "domain_fields": ["treasury", "imperial_treasury", "tax_breakdown",
                           "commerce_tax_rate"],
+        # 审查 P2-36（登记，未停用）：结算侧暂无消费者（_settle_finance 不读 _finance_ai）
+        # → 唤醒结果会被丢弃（白烧 token）。接线需先设计消费语义，见 PENDING_CONTRACTS。
     },
     "military": {
         "order": 3,
@@ -100,10 +102,67 @@ AGENT_DEFS: Dict[str, dict] = {
         "always": True,   # 始终唤醒，但 token 预算极低（只填模板，不调 AI 或极短）
         "low_token": True,
     },
+    # ---- 审查 P2-35 接线：以下契约**结算侧已消费**（settlement_steps/settlement 读取槽位），
+    #      但原先无生产者（getattr 恒 None → 永久走本地兜底）。接入后按需唤醒——
+    #      平时零 token，命中条件才推演并注入，两侧一致。----
+    "decree_execute": {
+        "order": 7,
+        "method": "decree_execute_decide",
+        "settle_attr": "_decree_execute_ai",
+        "wake_keywords": ["诏", "旨", "敕", "令", "推行", "申饬"],
+        "wake_state": [("pending_decrees", lambda v: isinstance(v, list) and bool(v))],
+        "wake_diff_paths": ["pending_decrees.", "active_decrees."],
+        "domain_fields": ["decree_execution", "implementation"],
+    },
+    "survey": {
+        "order": 8,
+        "method": "survey_settle",
+        "settle_attr": "_survey_ai",
+        "wake_keywords": ["清丈", "田亩", "隐田", "隐户", "括田"],
+        "wake_state": [],
+        "wake_diff_paths": ["land."],
+        "domain_fields": ["land_survey", "hidden_land"],
+    },
+    "faction": {
+        "order": 9,
+        "method": "faction_decide",
+        "settle_attr": "_faction_ai",
+        "wake_keywords": ["党", "派系", "党争", "元祐", "新党", "旧党"],
+        "wake_state": [("factions", lambda v: isinstance(v, dict) and any(
+            int((f or {}).get("satisfaction", 50)) < 40 for f in v.values()))],
+        "wake_diff_paths": ["factions."],
+        "domain_fields": ["faction_stances", "party_strife"],
+    },
+    "land_local": {
+        "order": 10,
+        "method": "land_local_decide",
+        "settle_attr": "_land_local_ai",
+        "wake_keywords": ["田", "州县", "赋役", "劝农", "垦"],
+        "wake_state": [],
+        "wake_diff_paths": ["land.", "prefectures."],
+        "domain_fields": ["land", "local_governance"],
+    },
+    "granary": {
+        "order": 11,
+        "method": "granary_decide",
+        "settle_attr": "_granary_ai",
+        "wake_keywords": ["仓", "漕运", "常平", "粮", "太仓", "转般"],
+        "wake_state": [],
+        "wake_diff_paths": ["granary", "granary_stats."],
+        "domain_fields": ["granary", "canal"],
+    },
 }
 
-_state_of = None  # 模块级引用（状态触发用），避免在默认参数里引用
-
+#: 结算侧已预留、但**契约方法尚不存在**的 AI 槽位（审查 P2-35 登记）：
+#: 接线步骤 = 补 AIClient 契约方法 → 从本表移除 → 加进 AGENT_DEFS（wired 默认 True）。
+#: 接线前对应 getattr 分支恒走本地兜底（等价扩展挂点，非缺陷）。
+PENDING_CONTRACTS = (
+    ("_reform_ai", "reform_decide", "core/settlement.py::_apply_reform"),
+    # 反向不一致（有生产者无消费者）：唤醒会消耗 token 但结果被丢弃；接线需先设计消费语义
+    ("_finance_ai", "finance_decide", "core/settlement_steps.py::_settle_finance（未消费）"),
+    # 半接线：结算侧已有消费者（settle_investments），但落地入口 invest() 无生产调用方
+    ("_invest_ai", "invest_decide", "core/estate_mechanic.py::invest（无调用方）"),
+)
 
 def _wake_by_keywords(agent_def: dict, player_input: str) -> bool:
     kws = agent_def.get("wake_keywords", [])
@@ -123,6 +182,28 @@ def _wake_by_state(agent_def: dict, state) -> bool:
     return False
 
 
+def _path_matches(path: str, pattern: str) -> bool:
+    """diff 路径与唤醒模式匹配（审查 P2-37：支持段级 * 通配 + 前缀）。
+
+    - `external.` / `army_units.` 等尾点模式 → 前缀匹配；
+    - `prefectures.*.tax` 等含 * 模式 → 逐段匹配（path 允许更长，如
+      `prefectures.两浙路.tax` 命中，`prefectures.两浙路.pops.农.wealth` 不命中）；
+    - 无通配无尾点 → 前缀匹配。
+    """
+    if not path or not pattern:
+        return False
+    if pattern == path:
+        return True
+    if pattern.endswith("."):
+        return path.startswith(pattern)
+    if "*" not in pattern:
+        return path.startswith(pattern)
+    p_parts, w_parts = path.split("."), pattern.split(".")
+    if len(p_parts) < len(w_parts):
+        return False
+    return all(w == "*" or w == p for w, p in zip(w_parts, p_parts))
+
+
 def _wake_by_diff(agent_def: dict, last_diff: Optional[dict]) -> bool:
     if not last_diff:
         return False
@@ -132,7 +213,7 @@ def _wake_by_diff(agent_def: dict, last_diff: Optional[dict]) -> bool:
         return False
     for d in diffs:
         p = d.get("path", "") if isinstance(d, dict) else str(d)
-        if any(p.startswith(prefix) for prefix in paths):
+        if any(_path_matches(p, pattern) for pattern in paths):
             return True
     return False
 
@@ -146,10 +227,10 @@ def route_agents(player_input: str = "", state=None,
     - 上一轮 diff 包含该 Agent 关注的路径
     - always=True 始终唤醒（economy 核心 / narrative 低 token）
     """
-    global _state_of
-    _state_of = state
     woken = []
     for aid, adef in sorted(AGENT_DEFS.items(), key=lambda kv: kv[1]["order"]):
+        if adef.get("wired") is False:
+            continue  # 审查 P2-36：契约未接线（结算侧不消费）→ 不唤醒，避免白烧 token
         if adef.get("always"):
             woken.append(aid)
             continue
@@ -187,14 +268,23 @@ def inject_woken_agents(state, ai_client, woken: List[str]) -> List[str]:
         state._ai_failures = failures
     for aid in woken:
         adef = AGENT_DEFS.get(aid)
-        if not adef:
+        if not adef or adef.get("wired") is False:
             continue
         method = adef.get("method")
         attr = adef.get("settle_attr")
         if not method or not attr:
             continue  # narrative 无 settle_attr，跳过（月报另行）
+        # 审查 P1-11 修复：economy 由调用方强制前置推演并写入 _economy_ai
+        # （同步 _ai_prelude / 异步 run_settlement_ai 已注入），此处跳过，
+        # 否则同回合 economy_decide 被调用两次、后一次结果覆盖前一次（双倍 token + 不确定）。
+        if attr == "_economy_ai" and getattr(state, "_economy_ai", None):
+            continue
         try:
-            r = getattr(ai_client, method)(state.posture, state=state)
+            try:
+                r = getattr(ai_client, method)(state.posture, state=state)
+            except TypeError:
+                # 兼容旧签名契约（如 survey_settle(posture) 无 state 形参）
+                r = getattr(ai_client, method)(state.posture)
             if isinstance(r, dict) and not r.get("_error"):
                 setattr(state, attr, r)
                 injected.append(aid)

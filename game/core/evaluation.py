@@ -2,6 +2,11 @@
 """宋祚 · 结算评价系统"""
 from content.data import EVAL_WEIGHTS, EVAL_OUTCOMES, END_YEAR
 
+# 防线驻军评分基准（人）：4 条防线合计约 75 万 → 均值 ~18.75 万 ≈ 满档。
+# 审查 P1-7 修复：garrison 为真实兵额（数万级），原实现直接 `(avg_def - 50) * 0.3`
+# 使「武功」项恒被 clamp 到 100（评价/结局系统性抬高）。此处先归一到 0~100 再计分。
+_DEF_GARRISON_SCORE_BASE = 200_000
+
 
 def evaluate_game(state) -> dict:
     """七维评价，返回评价结果"""
@@ -23,18 +28,22 @@ def evaluate_game(state) -> dict:
     if state.statistics["total_wars"] == 0:
         wu -= 10  # 毫无战事也算不上武功
     # 军队综合强度：以实体层 army_units 的单兵战力均值折算为 0~100 强度百分
-    from ui.panels_military import _army_power
+    from core.army_models import _army_power
     gun = state.tech.get("gunpowder", 20)
     powers = [_army_power(u, gun) for u in state.army_units] if state.army_units else [0]
     avg_army = sum(powers) / len(powers) if powers else 0
     avg_army = max(0, min(100, avg_army / 1000.0))
     wu += (avg_army - 50) * 0.5
-    avg_def = sum(d["garrison"] for d in state.defense_lines.values()) / len(state.defense_lines)
-    wu += (avg_def - 50) * 0.3
+    # 防线驻军均值：garrison 为真实兵额，先归一到 0~100 百分（审查 P1-7；
+    # 同时 max(1, …) 防 defense_lines 为空时 ZeroDivisionError）
+    _def_vals = [float(d.get("garrison", 0)) for d in state.defense_lines.values()]
+    avg_def = sum(_def_vals) / max(1, len(_def_vals))
+    avg_def_pct = max(0.0, min(100.0, 100.0 * avg_def / _DEF_GARRISON_SCORE_BASE))
+    wu += (avg_def_pct - 50) * 0.3
     wu = max(0, min(100, wu))
 
     # 民生
-    minsheng = state.population_satisfaction
+    minsheng = max(0, min(100, state.population_satisfaction))
 
     # 财政
     caizheng = 50
@@ -50,10 +59,11 @@ def evaluate_game(state) -> dict:
         caizheng = 10
 
     # 艺术造诣
-    yishu = state.art_mastery
+    yishu = max(0, min(100, state.art_mastery))
 
-    # 声望 (皇威 + 综合影响力)
+    # 声望 (皇威 + 综合影响力)——审查 P3：各维统一钳制 0~100，避免越界值直出 UI/简报
     shengwang = state.prestige * 0.6 + (sum(f["influence"] for f in state.factions.values()) / n_factions if n_factions else 0) * 0.4
+    shengwang = max(0, min(100, shengwang))
 
     # 百姓口碑：流民率（refugee/population，通常落在 0~0.1 区间）越高口碑越低，量纲平滑
     refugee_rate = state.refugee_count / max(state.population, 1)

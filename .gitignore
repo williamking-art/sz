@@ -177,3 +177,6 @@ game/content/ministers/portraits/_composed/
 # --- 本地压缩包（不入库） ---
 game.zip
 
+# --- 资产替换前的本地原始备份（非源码，勿入库） ---
+game/assets/_backup_original/
+

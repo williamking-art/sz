@@ -201,36 +201,12 @@ def settle_reform(state, decree: dict) -> dict:
     authority_brief = state.authority_brief_for_ai(target_org=target, target_ministers=related)
     reform_text = decree.get("body") or decree.get("text") or decree.get("title", "")
 
-    client = AIClient.load_saved()
-    if client is None:
+    # 优先用结算前注入的 _reform_ai 槽位；无则本地兜底（禁止结算路径同步 HTTP）
+    res = getattr(state, "_reform_ai", None)
+    if isinstance(res, dict) and not res.get("_error"):
+        res = res.get("result") if isinstance(res.get("result"), dict) else res
+    else:
         res = _fallback_reform(state, reform, related)
-        _apply_reform_result(state, decree, reform, res, related)
-        return res
-
-    sys_p = _load_prompt("reform_settle",
-                         reform_text=reform_text[:600],
-                         is_zhongzhi="是（御笔中旨强推）" if decree.get("is_zhongzhi") else "否（明发诏书）",
-                         authority_brief=authority_brief,
-                         faction_stance=faction_text)
-
-    def validate(o):
-        if not isinstance(o, dict) or "outcome" not in o:
-            return None
-        o["outcome"] = o.get("outcome", "smooth")
-        o["court_report"] = _clean_text(str(o.get("court_report", "")))[:300]
-        o["gazette"] = _clean_text(str(o.get("gazette", "")))[:160]
-        o["loyalty_delta"] = o.get("loyalty_delta", {}) if isinstance(o.get("loyalty_delta"), dict) else {}
-        o["corruption_delta"] = o.get("corruption_delta", {}) if isinstance(o.get("corruption_delta"), dict) else {}
-        o["org_effects"] = o.get("org_effects", {}) if isinstance(o.get("org_effects"), dict) else {}
-        o["faction_effects"] = o.get("faction_effects", {}) if isinstance(o.get("faction_effects"), dict) else {}
-        return o
-
-    user_p = "请依契约推演上述机构改制的落地后果。"
-    raw = client._call(sys_p, user_p, temperature=0.9, max_tokens=800)
-    res = client._postprocess(raw, validate, lambda: _fallback_reform(state, reform, related))
-    if res is None:
-        res = _fallback_reform(state, reform, related)
-
     _apply_reform_result(state, decree, reform, res, related)
     return res
 

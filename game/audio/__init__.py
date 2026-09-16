@@ -5,8 +5,9 @@
 不引用任何尚未生成的音频文件——所有加载/播放在资源缺失时静默降级。
 
 纪律（见 README 三层隔离与单一权威源）：
-- 音量权威源为 ui_config.json 的 "volume" 键（0-100，默认 60），由 ui/panels_meta.py
-  的 _misc_get/_misc_set 读写；本包只读取，不重复定义。
-- 资源根目录复用 ui/assets.py 的 _asset_root() 约定（sys._MEIPASS 兼容）。
+- 音量权威源在**前端设置**（Web 设置面板，localStorage 持久化）；本包只提供音频能力，
+  自身不重复定义音量（Tk 时代由 ui_config.json 承载，随 Tk 废弃已移除）。
+- 资源根目录按 `sys._MEIPASS`（打包）/ 项目根（开发）自解析
+  （原复用 ui/assets.py 的 `_asset_root()`；Tk 废弃后本包自持，无 ui 依赖）。
 - 游戏本体不得 import dev/ 或 _scratch/。
 """

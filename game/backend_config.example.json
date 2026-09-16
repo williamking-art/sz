@@ -1,0 +1,7 @@
+{
+  "backend": "local",
+  "url": "",
+  "spawn": false,
+  "cwd": "",
+  "command": ""
+}

@@ -169,13 +169,19 @@ def spec_tier_index(tier: str) -> float:
 
 
 def _pay_of(base_branch: str, spec: dict) -> float:
-    """派生粮饷倍率 = base 粮饷 × 特化系数（封顶 2.0，双方向）。"""
+    """派生粮饷倍率 = base 粮饷 × 特化系数（封顶 2.0，双方向）。
+
+    审查 P2-26 修复：原实现 `for dim in ("equip","train","mobility")` 内条件只在
+    `dim == "equip"` 成立，后两轮恒为死代码 → training/mobility 特化兵种粮饷倍率
+    恒为 1.0（与「特化系数」设计不符）。现按 SPECIALIZATION_TIERS[specialize]["dims"]
+    逐维累乘（与派生的战力口径一致）。
+    """
     t = spec_tier_index(spec.get("tier", "中"))
+    _st = SPECIALIZATION_TIERS.get(str(spec.get("specialize", "balanced"))) or {}
+    _dims = _st.get("dims") or ("equip",)
     mult = 1.0
-    for dim in ("equip", "train", "mobility"):
-        if dim == "equip" and spec.get("specialize", "equipment") in (
-                "equipment", "equipment_training", "equipment_mobility", "balanced"):
-            mult *= 1 + 0.05 * t
+    for _dim in _dims:
+        mult *= 1 + 0.05 * t
     return min(BRANCH_PAY_CAP, max(1.0 / BRANCH_PAY_CAP, mult))
 
 

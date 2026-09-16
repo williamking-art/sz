@@ -79,13 +79,13 @@ def build_opening_gazette() -> dict:
         "era": GAZETTE_ERA,
         "body": GAZETTE_BODY,
         "tasks": [dict(t) for t in OPENING_TASKS],
-        "footer": OPENING_HINT,
+        "footer": GAZETTE_SIGN,
         "hint": OPENING_HINT,
         "shown": False,
     }
 
 
 __all__ = [
-    "GAZETTE_HEADER", "GAZETTE_ERA", "GAZETTE_BODY",
-    "OPEN_TASKS", "OPENING_HINT", "build_opening_gazette",
+    "GAZETTE_HEADER", "GAZETTE_ERA", "GAZETTE_BODY", "GAZETTE_SIGN",
+    "OPENING_TASKS", "OPENING_HINT", "build_opening_gazette",
 ]

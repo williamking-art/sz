@@ -25,7 +25,7 @@ import os
 import sys
 import threading
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from ai.client import AIClient
@@ -35,10 +35,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Songzuo Reference Backend", version="1.0")
 
-# 配置全放行跨域中间件 (彻底解决 OPTIONS 405 Method Not Allowed 与 Failed to fetch)
+# 配置：默认仅本机；跨源需显式白名单（审查 P2：禁止裸 * + credentials）
+_DEFAULT_ORIGINS = [
+    "http://127.0.0.1:8080", "http://localhost:8080",
+    "http://127.0.0.1:5173", "http://localhost:5173",
+]
+_allowed = os.environ.get("SONGZUO_CORS_ORIGINS", "")
+_origins = [o.strip() for o in _allowed.split(",") if o.strip()] or _DEFAULT_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,6 +55,19 @@ _lock = threading.Lock()
 _backend = LocalBackend()
 _state = None          # 当前 GameState（服务端持有）
 _ai = None             # 服务端 AIClient（可禁用）
+
+#: 可选鉴权 token（环境变量）；仅本机回环且未设 token 时放行（兼容单机联调）
+_AUTH_TOKEN = (os.environ.get("SONGZUO_SERVER_TOKEN") or "").strip()
+
+
+def _require_auth(request) -> None:
+    """非本机或已配置 token 时强制校验 Authorization: Bearer。"""
+    if not _AUTH_TOKEN:
+        return
+    auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    if auth == f"Bearer {_AUTH_TOKEN}":
+        return
+    raise HTTPException(status_code=401, detail="未授权：需要 SONGZUO_SERVER_TOKEN")
 
 
 def _build_ai() -> AIClient:
@@ -60,6 +80,8 @@ def _build_ai() -> AIClient:
             api_key=str(cfg.get("api_key", "") or ""),
             base_url=str(cfg.get("base_url", "") or ""),
             model=str(cfg.get("model", "") or ""),
+            # 迁移补齐：办差工具三档（缺省 auto=按端点探测）
+            enable_tools=str(cfg.get("enable_tools", "") or "auto"),
         )
     except Exception:
         return AIClient()  # available=False → 叙事走本地降级
@@ -107,11 +129,22 @@ def _corruption_band_word(v) -> str:
     return "廉洁"
 
 
+def _estate_band_word(e) -> str:
+    """大臣家产 → 档位词（铁律 6：真值不外泄，只见档位）。"""
+    try:
+        from core.estate_mechanic import estate_tier
+        return estate_tier(int((e or {}).get("wealth", 0)) if isinstance(e, dict) else 0)
+    except Exception:
+        return "清贫"
+
+
 def _state_to_dict(s) -> dict:
     """GameState → JSON 快照（与 HttpBackend._to_state 对称）。
 
     审查 P1：忠诚/贪腐是隐藏维度（铁律 6——只给姿态词，数值绝不外泄），
     快照下发前转为档位词，防真值直送客户端面板。
+    审查 P2：minister_estate（家产精确财富/田亩）与 pending_secret_decrees
+    （密令秘密忠诚）同属隐藏数值，一并档位化/剔除。
     """
     out = {}
     for k, v in vars(s).items():
@@ -120,6 +153,15 @@ def _state_to_dict(s) -> dict:
         if k in ("loyalty", "corruption") and isinstance(v, dict):
             out[k] = {str(n): (_loyalty_band_word(x) if k == "loyalty" else _corruption_band_word(x))
                       for n, x in v.items()}
+            continue
+        if k == "minister_estate" and isinstance(v, dict):
+            # 家产真值不外泄：只给档位词
+            out[k] = {str(n): _estate_band_word(e) for n, e in v.items()}
+            continue
+        if k == "pending_secret_decrees" and isinstance(v, list):
+            # 密令中的 secret_loyalty 为隐藏数值，剔除后下发
+            out[k] = [{kk: vv for kk, vv in (d or {}).items() if kk != "secret_loyalty"}
+                      for d in v]
             continue
         try:
             json.dumps(v, ensure_ascii=False)
@@ -134,6 +176,26 @@ def _require_state():
         raise HTTPException(status_code=409, detail="尚未开局：请先 POST /api/new_game")
 
 
+def _find_frontend_event(s, title: str):
+    """按 title 反查完整事件对象（含 choices）。
+
+    审查 P1-12 修复：前端 resolveEvent 只发送 {title, choice}，而 core.resolve_event 需要
+    完整事件对象（读取 choices）。原服务端把 title 字符串直接转给 core → AttributeError
+    （远程模式事件抉择 100% 失败）。现按 title 从本回合缓存（/api/advance 写入）反查，
+    再兜底扫描在场事件；都取不到则返回 None（由端点给出明确 404，而非崩溃）。
+    """
+    if not title:
+        return None
+    cache = getattr(s, "_frontend_events", None) or {}
+    ev = cache.get(title)
+    if isinstance(ev, dict) and ev.get("choices"):
+        return ev
+    for e in (getattr(s, "active_events", None) or []):
+        if isinstance(e, dict) and e.get("title") == title and e.get("choices"):
+            return e
+    return ev if isinstance(ev, dict) else None
+
+
 class NewGameReq(BaseModel):
     difficulty: str = "史实"
 
@@ -144,12 +206,31 @@ class ActionReq(BaseModel):
 
 
 class ResolveReq(BaseModel):
-    title: str
-    choice: int
+    # 前端（Electron）契约：{title, choice}；同时兼容直接传完整事件对象 {event, choice}
+    title: str = ""
+    event: dict = {}
+    choice: int = 0
 
 
 class SlotReq(BaseModel):
     slot: int = 1
+
+
+class DecreePolishReq(BaseModel):
+    """圣旨润色 / 批改诏草（迁移补齐：原 Tk `_panel_decree_entry`）。"""
+    raw_intent: str = ""
+    draft_id: str = ""          # 非空 = 批改已有诏草（回写正文/题名/效果）
+    org_hint: str = "政府"
+    source_minister: str = ""
+
+
+class DecreeDraftReq(BaseModel):
+    """润色稿入待签队列（供三省会签）。"""
+    draft: dict = {}
+
+
+class DecreeDiscardReq(BaseModel):
+    draft_id: str = ""
 
 
 class CouncilReviewReq(BaseModel):
@@ -160,6 +241,8 @@ class AiConfigReq(BaseModel):
     api_key: str = ""
     base_url: str = ""
     model: str = ""
+    # 迁移补齐：大臣办差工具（function calling）三档（auto/on/off），对齐 Tk 设置面板
+    enable_tools: str = ""
 
 class FetchModelsReq(BaseModel):
     api_key: str = ""
@@ -172,26 +255,36 @@ def health():
 
 
 @app.post("/api/new_game")
-def api_new_game(req: NewGameReq):
+def api_new_game(req: NewGameReq, request: Request):
     global _state
+    _require_auth(request)
     with _lock:
         _state = _backend.new_game(req.difficulty, _get_ai())
         return {"state": _state_to_dict(_state)}
 
 
 @app.post("/api/advance")
-def api_advance():
+def api_advance(request: Request):
     global _state
+    _require_auth(request)
     _require_state()
     with _lock:
         events, log, report, _state = _backend.advance(_state, _get_ai())
+        # 审查 P1-12：缓存本回合完整事件对象（含 choices），供 /api/resolve_event 按 title
+        # 反查（前端契约只传 title）。下划线前缀字段由 _state_to_dict 过滤，不下发。
+        try:
+            _state._frontend_events = {
+                str(e.get("title", "")): e for e in (events or []) if isinstance(e, dict)}
+        except Exception:
+            pass
         return {"events": _json_safe(events), "log": _json_safe(log),
                 "report": report, "state": _state_to_dict(_state)}
 
 
 @app.post("/api/action")
-def api_action(req: ActionReq):
+def api_action(req: ActionReq, request: Request):
     global _state
+    _require_auth(request)
     _require_state()
     with _lock:
         try:
@@ -202,17 +295,24 @@ def api_action(req: ActionReq):
 
 
 @app.post("/api/resolve_event")
-def api_resolve_event(req: ResolveReq):
+def api_resolve_event(req: ResolveReq, request: Request):
     global _state
+    _require_auth(request)
     _require_state()
     with _lock:
+        ev = req.event or _find_frontend_event(_state, req.title)
+        if not isinstance(ev, dict) or not ev:
+            raise HTTPException(
+                status_code=404,
+                detail=f"事件「{req.title}」不在场或已处置（无法取得选项）")
         message, _state = _backend.resolve_event(
-            _state, req.title, req.choice, _get_ai())
+            _state, ev, req.choice, _get_ai())
         return {"message": message, "state": _state_to_dict(_state)}
 
 
 @app.post("/api/save")
-def api_save(req: SlotReq):
+def api_save(req: SlotReq, request: Request):
+    _require_auth(request)
     _require_state()
     with _lock:
         _backend.save(_state, req.slot)
@@ -220,15 +320,18 @@ def api_save(req: SlotReq):
 
 
 @app.post("/api/load")
-def api_load(req: SlotReq):
+def api_load(req: SlotReq, request: Request):
     global _state
+    _require_auth(request)
     with _lock:
         _state = _backend.load(req.slot)
         return {"state": _state_to_dict(_state)}
 
 
 @app.get("/api/save_slots")
-def api_save_slots():
+def api_save_slots(request: Request):
+    # 审查 P3：补鉴权（原缺 _require_auth，配置 token 后仍可未授权读盘面）
+    _require_auth(request)
     with _lock:
         return {"slots": _json_safe(_backend.save_slots())}
 
@@ -270,6 +373,11 @@ def api_readouts():
         except Exception:
             finance = {}
         try:
+            from core.flow_summary import build_flow_summary
+            flow = _json_safe(build_flow_summary(s))
+        except Exception:
+            flow = {}
+        try:
             granary = {
                 "monthly": s.calc_monthly_grain()[0],
                 "army": s.calc_army_grain()[0],
@@ -279,17 +387,79 @@ def api_readouts():
             }
         except Exception:
             granary = {}
+        # 迁移补齐（原 Tk panels_govern `_render_briefing`）：朝局简报可行动项
+        # （纯程序派生、零 AI、只读；Web 端据此渲染「前往」跳转）
+        try:
+            from core.briefing import build_briefing_actions
+            briefing = _json_safe(build_briefing_actions(s))
+        except Exception:
+            briefing = []
+        # 迁移补齐（原 Tk 大臣卡片信息密度）：群臣档案（年龄/职衔/派系/性格一句话/生平）
+        # —— 单一权威源 core/minister_profile.py（Tk 废弃后由面板与后端内联下沉而来）
+        try:
+            from core.minister_profile import build_minister_profiles
+            ministers = build_minister_profiles(s)
+        except Exception:
+            ministers = {}
         return {
             "army": army,
             "arsenal": arsenal,
             "finance": finance,
+            "flow": flow,
             "granary": granary,
+            "briefing": briefing,
+            "ministers": ministers,
             "defense_lines": _json_safe(s.defense_lines),
         }
 
 
+@app.get("/api/meter")
+def api_meter(request: Request):
+    """Token 计量表（迁移补齐：原 Tk panels_meta `_panel_token_meter`）。
+
+    数据源：服务端 AIClient.meter_summary()（按契约方法分桶）+ state._dialogue_stats
+    （召对预过滤/缓存命中与 AI 调用次数）+ state.ai_token_log（历史回合用量）。
+    分组映射由 ai/token_meter.grouped_meter_rows 提供（单一权威源，Tk/Web 共用）。
+    """
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        from ai.token_meter import grouped_meter_rows
+        ai = _get_ai()
+        rows = grouped_meter_rows(ai, getattr(_state, "_dialogue_stats", None))
+        total = {}
+        try:
+            total = (ai.meter_summary() or {}).get("total", {}) if ai is not None else {}
+        except Exception:
+            total = {}
+        return {
+            "rows": _json_safe(rows),
+            "total": _json_safe(total),
+            "token_log": _json_safe(getattr(_state, "ai_token_log", []) or []),
+        }
+
+
+@app.post("/api/meter/reset")
+def api_meter_reset(request: Request):
+    """清零 Token 计量（客户端分桶 + 召对命中统计）。"""
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        ai = _get_ai()
+        try:
+            if ai is not None and hasattr(ai, "reset_meter"):
+                ai.reset_meter()
+        except Exception:
+            pass
+        st = getattr(_state, "_dialogue_stats", None)
+        if isinstance(st, dict):
+            st.update({"prefilter_hits": 0, "cache_hits": 0, "ai_calls": 0})
+        return {"ok": True}
+
+
 @app.post("/api/conclude")
-def api_conclude():
+def api_conclude(request: Request):
+    _require_auth(request)
     _require_state()
     with _lock:
         eval_result, ai_eval = _backend.conclude(_state, _get_ai())
@@ -297,13 +467,14 @@ def api_conclude():
 
 
 @app.post("/api/council_review")
-def api_council_review(req: CouncilReviewReq):
+def api_council_review(req: CouncilReviewReq, request: Request):
     """三省会签推演（票拟批红用）。
 
     薄壳纪律：只调 AIClient.council_review 并序列化，零业务逻辑复制。
     先查 council_reviews 缓存（随存档持久化），命中即复用，避免重复推演耗 token。
     AI 不可用 → 返回规则兜底（明确标注，不伪造 AI 文本），与旧版 Tk 行为一致。
     """
+    _require_auth(request)
     _require_state()
     with _lock:
         draft = _state.get_edict_draft(req.draft_id)
@@ -326,13 +497,104 @@ def api_council_review(req: CouncilReviewReq):
         return {"review": _json_safe(rev), "cached": False}
 
 
+@app.post("/api/decree/polish")
+def api_decree_polish(req: DecreePolishReq, request: Request):
+    """圣旨润色 / 批改诏草（迁移补齐：原 Tk `_panel_decree_entry` 的润色与诏草批改）。
+
+    薄壳：AI 润色走 AIClient.polish_decree（严格契约 + 兜底），零业务逻辑复制；
+    draft_id 非空时把结果回写该诏草并清会签缓存（重入待签）。AI 未接入 → 明确 409。
+    """
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        ai = _get_ai()
+        if ai is None or not getattr(ai, "available", False):
+            raise HTTPException(status_code=409, detail="AI 未接入：请先在设置中配置 OpenAI 兼容 API")
+        text = (req.raw_intent or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="诏意不可为空")
+        summary = _state.get_state_summary()
+        try:
+            out = ai.polish_decree(text, summary)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"AI 叙事中断：{type(e).__name__}: {e}")
+        if not isinstance(out, dict) or out.get("_error"):
+            raise HTTPException(status_code=502, detail="润色未通过契约校验（可重试）")
+        out["org_hint"] = req.org_hint or out.get("org_hint") or "政府"
+        if req.source_minister:
+            out["source_minister"] = req.source_minister
+        if req.draft_id:
+            d = _state.get_edict_draft(req.draft_id)
+            if d is None:
+                raise HTTPException(status_code=404, detail="诏草已不存在")
+            for k in ("title", "effects", "org_hint", "source_minister"):
+                if out.get(k) is not None:
+                    d[k] = out[k]
+            if out.get("body"):
+                d["body"] = out["body"]
+            try:
+                _state.store_council_review(req.draft_id, {})   # 清缓存：批改后重入待签
+            except Exception:
+                pass
+            return {"draft": _json_safe(d), "state": _state_to_dict(_state)}
+        return {"draft": _json_safe(out)}
+
+
+@app.post("/api/decree/draft")
+def api_decree_draft(req: DecreeDraftReq, request: Request):
+    """润色稿入待签队列（迁移补齐：Tk「入待签」→ GameState.add_edict_draft）。"""
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        if not isinstance(req.draft, dict) or not req.draft:
+            raise HTTPException(status_code=400, detail="诏草不可为空")
+        did = _state.add_edict_draft(dict(req.draft))
+        return {"draft_id": did, "draft": _json_safe(_state.get_edict_draft(did) or {}),
+                "state": _state_to_dict(_state)}
+
+
+@app.post("/api/decree/discard")
+def api_decree_discard(req: DecreeDiscardReq, request: Request):
+    """弃删诏草（迁移补齐：Tk「弃删」→ GameState.remove_edict_draft）。"""
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        d = _state.get_edict_draft(req.draft_id)
+        if d is None:
+            raise HTTPException(status_code=404, detail="诏草已不存在")
+        _state.remove_edict_draft(req.draft_id)
+        return {"ok": True, "title": str(d.get("title", "")),
+                "state": _state_to_dict(_state)}
+
+
+@app.post("/api/monthly_report")
+def api_monthly_report(request: Request):
+    """月折（奏报摘要，迁移补齐：Tk「奏报摘要」tab）。
+
+    AI 失败/未接入 → 本地模板 + 结构化真值兜底（与 /api/advance 的 report 同源，不伪造）。
+    """
+    _require_auth(request)
+    _require_state()
+    with _lock:
+        from core.commands import _monthly_report_text
+        try:
+            text = _monthly_report_text(_state, _get_ai())
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"月折生成失败：{type(e).__name__}: {e}")
+        return {"report": text}
+
+
 def _ai_config_path() -> str:
     return os.path.join(_app_root(), "ai_config.json")
 
 
 @app.get("/api/ai_config")
-def api_ai_config_get():
-    """读 AI 配置（设置面板预填；不回传完整 key，只回是否已配）。"""
+def api_ai_config_get(request: Request):
+    """读 AI 配置（设置面板预填；不回传完整 key，只回是否已配）。
+
+    审查 P3：补鉴权（原缺 _require_auth，配置 token 后仍可未授权读取 base_url/model）。
+    """
+    _require_auth(request)
     try:
         with open(_ai_config_path(), "r", encoding="utf-8") as f:
             cfg = json.load(f)
@@ -342,14 +604,17 @@ def api_ai_config_get():
             "api_key_masked": (key[:4] + "…" + key[-4:]) if len(key) > 8 else "",
             "base_url": str(cfg.get("base_url", "") or ""),
             "model": str(cfg.get("model", "") or ""),
+            "enable_tools": str(cfg.get("enable_tools", "") or "auto"),
         }
     except Exception:
-        return {"configured": False, "api_key_masked": "", "base_url": "", "model": ""}
+        return {"configured": False, "api_key_masked": "", "base_url": "",
+                "model": "", "enable_tools": "auto"}
 
 
 @app.post("/api/fetch_models")
-def api_fetch_models(req: FetchModelsReq):
+def api_fetch_models(req: FetchModelsReq, request: Request):
     """根据输入的 Key 与 Base URL，智能探测并拉取远程支持的模型列表。"""
+    _require_auth(request)
     try:
         from ai.client import AIClient
         key = req.api_key.strip()
@@ -362,14 +627,16 @@ def api_fetch_models(req: FetchModelsReq):
         client = AIClient(api_key=key, base_url=req.base_url)
         models = client.fetch_available_models()
         return {"ok": True, "models": models}
-    except Exception as e:
-        return {"ok": False, "models": ["deepseek-chat", "gpt-4o", "gpt-4o-mini", "qwen-plus"], "error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        # 不回传完整异常栈/URL 细节给客户端
+        return {"ok": False, "models": [], "error": type(e).__name__}
 
 
 @app.post("/api/ai_config")
-def api_ai_config_set(req: AiConfigReq):
+def api_ai_config_set(req: AiConfigReq, request: Request):
     """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。"""
     global _ai
+    _require_auth(request)
     with _lock:
         old_cfg = {}
         try:
@@ -379,7 +646,10 @@ def api_ai_config_set(req: AiConfigReq):
         
         # 若传入 key 为空但已有 key，保持已有 key 不被洗掉
         key_to_save = req.api_key.strip() or str(old_cfg.get("api_key", "") or "")
-        cfg = {"api_key": key_to_save, "base_url": req.base_url.strip(), "model": req.model.strip()}
+        cfg = {"api_key": key_to_save, "base_url": req.base_url.strip(), "model": req.model.strip(),
+               # 迁移补齐：办差工具三档（未传则沿用旧值/auto）
+               "enable_tools": (req.enable_tools.strip()
+                                or str(old_cfg.get("enable_tools", "") or "auto"))}
         with open(_ai_config_path(), "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
         _ai = None  # 重建客户端
@@ -401,6 +671,11 @@ def api_ai_config_set(req: AiConfigReq):
 def main() -> None:
     host = os.environ.get("SONGZUO_SERVER_HOST", "127.0.0.1")
     port = int(os.environ.get("SONGZUO_SERVER_PORT", "8080"))
+    # 审查 P0：禁止无 token 时绑非本机地址（防局域网/公网裸奔）
+    if host not in ("127.0.0.1", "localhost", "::1") and not _AUTH_TOKEN:
+        raise SystemExit(
+            f"拒绝启动：host={host} 非本机回环，必须设置环境变量 SONGZUO_SERVER_TOKEN"
+        )
     import uvicorn
     uvicorn.run(app, host=host, port=port)
 

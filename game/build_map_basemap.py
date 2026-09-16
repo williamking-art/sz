@@ -12,9 +12,13 @@
     lakes.geojson             湖泊（视野裁剪）
     circuits.geojson          宋路实界：地级政区按质心归属并入各路（属性兼容旧路层）
     circuit_borders.geojson   路级外框（并集边界线，含 label_at）
+    prefectures.geojson       州/府级实界：同一归属再按治所切一刀，州/府独立成块
+                              （可单独选中、可由圣旨改名；并集恒等于所在路）
+    prefecture_borders.geojson 州/府级外框（并集边界线，含 label_at）
 
 归属算法：地级政区质心 → 最近治所（CIRCUIT_INFO members 的经纬度，游戏
-真值）所在路；距离 > SEED_CAP 视为游戏未建模区域（如京东东路）不归属。
+真值）所在路与治所；距离 > SEED_CAP 视为游戏未建模区域（如京东东路）不归属。
+路级与州/府级共用同一次判定，故两级边界天然自洽（无缝隙、无重叠）。
 CIRCUIT_BOUNDS 示意界不再参与生成，渲染的是真政区合并结果。
 
 用法：python build_map_basemap.py
@@ -26,7 +30,7 @@ import math
 import os
 import sys
 
-from shapely.geometry import box, mapping, shape
+from shapely.geometry import Point, box, mapping, shape
 from shapely.ops import linemerge, unary_union
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -59,7 +63,24 @@ FORCE_CIRCUIT: dict = {
     "榆林市": "陕西路",
     # 淮东/京东零星
     "宿州市": "淮南东路", "青岛市": "京东东路", "威海市": "京东东路",
+    # 贵州全省归宋（用户指示：贵州划给宋；史实宋代贵州主体为夔州路羁縻州，
+    # 非大理版图——原 REGIME_PARTS 把「贵州省」整块划给大理，此处改归宋）。
+    # 又按用户指示：贵州单独成省 → 归新设「黔中路」（不并入夔州路）。
+    "贵阳市": "黔中路", "六盘水市": "黔中路", "遵义市": "黔中路",
+    "安顺市": "黔中路", "毕节市": "黔中路", "铜仁市": "黔中路",
+    "黔西南布依族苗族自治州": "黔中路", "黔东南苗族侗族自治州": "黔中路",
+    "黔南布依族苗族自治州": "黔中路",
 }
+
+# 路-省白名单：受限路只收本省地级（省级 adcode 前两位）。黔中路的种子位于贵州，
+# 若无限制会吸走邻省地级（泸州→应属成都府路、昭通/曲靖→应属大理）。
+CIRCUIT_PROV_LIMIT: dict[str, set] = {"黔中路": {"52"}}
+
+# 省级整体直挂：无 DataV 地级数据、或按用户指示不再细切州府的省级整体
+#   {省级名: (路名, 州/府名, 标签位[经,纬])}
+#   台湾岛整体作为福建路下的「台湾府」（宋代台湾不入版籍，游戏抽象；
+#   不走"地级质心→最近治所"归属，避免台湾成为种子吸走福建沿海地级）。
+PROVINCE_WHOLE_SEAT: dict = {"台湾省": ("福建路", "台湾府", [121.0, 23.6])}
 
 # DataV 地级政区省级文件（710000 台湾无地级数据，宋亦无台湾建制，跳过）
 PROVINCES = [
@@ -143,22 +164,26 @@ def build_lakes() -> None:
 
 
 def _seat_index():
-    """[(经度, 纬度, 路名)] — 116 治所作为归属种子。"""
+    """[(经度, 纬度, 路名, 治所名)] — 治所作为归属种子（路/州府两级同源）。"""
     pts = []
     for cname, info in CIRCUIT_INFO.items():
         for m in info.get("members", []):
-            pts.append((m[2], m[3], cname))
+            pts.append((m[2], m[3], cname, m[0]))
     return pts
 
 
-def _nearest_circuit(c, seeds):
-    """质心 → 最近治所所在路；超 SEED_CAP 返回 None。"""
-    best, bd = None, SEED_CAP
+def _nearest_seat(c, seeds, cap=None):
+    """质心 → 最近治所 (路名, 治所名)；cap 非空时超距返回 None。
+
+    路级与州/府级共用同一归属判定：地级政区整块归其最近治所，
+    故州/府级碎块并集恒等于同路板块（无缝隙、无重叠）。
+    """
+    best, bd = None, (math.inf if cap is None else cap)
     kx = math.cos(math.radians(c.y))
-    for lon, lat, cname in seeds:
+    for lon, lat, cname, sname in seeds:
         d = math.hypot((lon - c.x) * kx, lat - c.y)
         if d < bd:
-            bd, best = d, cname
+            bd, best = d, (cname, sname)
     return best
 
 
@@ -180,34 +205,88 @@ def build_circuits() -> None:
                 south_parts = [poly for poly in g.geoms if poly.centroid.y <= 39.62]
                 if south_parts:
                     g = south_parts[0] if len(south_parts) == 1 else MultiPolygon(south_parts)
-            hit = _nearest_circuit(g.centroid, seeds)
-            if hit is None:
-                hit = FORCE_CIRCUIT.get(f["properties"].get("name", ""))
-            if hit is None:
-                continue
-            info = CIRCUIT_INFO.get(hit, {})
+            hit = _nearest_seat(g.centroid, seeds, SEED_CAP)
+            # 路-省白名单：受限路只收本省地级（如黔中路仅贵州 52），避免新设路的
+            # 种子把邻省地级吸走（泸州→成都府路、昭通/曲靖→大理），越界即视为未命中。
+            if hit is not None:
+                lim = CIRCUIT_PROV_LIMIT.get(hit[0])
+                if lim and str(f["properties"].get("adcode", ""))[:2] not in lim:
+                    hit = None
+            if hit is None:   # 超种子半径：FORCE_CIRCUIT 兜底，再取该路内最近治所
+                forced = FORCE_CIRCUIT.get(f["properties"].get("name", ""))
+                if forced is None:
+                    continue
+                back = _nearest_seat(g.centroid, [s for s in seeds if s[2] == forced])
+                hit = (forced, back[1] if back else "")
+            cname, sname = hit
+            info = CIRCUIT_INFO.get(cname, {})
             feats.append({
                 "type": "Feature",
                 "properties": {
                     "kind": "circuit",
-                    "name": hit,
+                    "name": cname,
                     "type": info.get("type", ""),
-                    "seat": info.get("seat", ""),
+                    "seat": info.get("seat", ""),     # 路治所（路级语义，勿改）
+                    "unit_seat": sname,               # 本块地级所隶治所（州/府级归属）
                     "game_unit": info.get("game_unit"),
                     "member_count": len(info.get("members", [])),
                     "prefecture": f["properties"].get("name", ""),
                 },
                 "geometry": mapping(g),
             })
+    # 省级整体直挂（台湾省→福建路·台湾府等）：直接补入清单，随下游
+    # by(路级)/by_seat(州府级) 聚合，不参与种子归属判定。
+    if PROVINCE_WHOLE_SEAT:
+        for pf in _load_raw("datav_100000_full.json")["features"]:
+            tgt = PROVINCE_WHOLE_SEAT.get(pf["properties"].get("name", ""))
+            if not tgt:
+                continue
+            cname, sname = tgt[0], tgt[1]
+            g = shape(pf["geometry"]).buffer(0)
+            if g.is_empty:
+                continue
+            info = CIRCUIT_INFO.get(cname, {})
+            feats.append({
+                "type": "Feature",
+                "properties": {
+                    "kind": "circuit",
+                    "name": cname,
+                    "type": info.get("type", ""),
+                    "seat": info.get("seat", ""),
+                    "unit_seat": sname,
+                    "game_unit": info.get("game_unit"),
+                    "member_count": len(info.get("members", [])),
+                    "prefecture": pf["properties"].get("name", ""),
+                },
+                "geometry": mapping(g),
+            })
+
     # 将同一路下的所有地级碎片合并为完整大省板块(消除地级碎缝与锯齿台阶)
     by = {}
     by_info = {}
     by_prefectures = {}
+    # 州/府级：同一次归属按治所再切一刀（(路名, 治所名) → 地级几何）
+    by_seat = {}
+    by_seat_prefs = {}
     for f in feats:
-        name = f["properties"]["name"]
-        by.setdefault(name, []).append(shape(f["geometry"]).buffer(0))
-        by_info[name] = f["properties"]
-        by_prefectures.setdefault(name, []).append(f["properties"].get("prefecture", ""))
+        p = f["properties"]
+        name = p["name"]
+        geom = shape(f["geometry"]).buffer(0)
+        by.setdefault(name, []).append(geom)
+        by_info[name] = p
+        by_prefectures.setdefault(name, []).append(p.get("prefecture", ""))
+        skey = (name, p.get("unit_seat") or p.get("seat") or name)
+        by_seat.setdefault(skey, []).append(geom)
+        by_seat_prefs.setdefault(skey, []).append(p.get("prefecture", ""))
+
+    # 治所权威坐标（CIRCUIT_INFO.members）→ 州/府标签点位
+    seat_at = {}
+    for cname, info in CIRCUIT_INFO.items():
+        for m in info.get("members", []):
+            seat_at.setdefault((cname, m[0]), [m[2], m[3]])
+    # 省级整体直挂块无 members 种子：用表内显式标签位（如台湾府）
+    for _pname, _t in PROVINCE_WHOLE_SEAT.items():
+        seat_at.setdefault((_t[0], _t[1]), list(_t[2]))
 
     road_features = []
     border_features = []
@@ -254,6 +333,68 @@ def build_circuits() -> None:
               {"type": "FeatureCollection", "features": road_features})
     _save_web("circuit_borders.geojson",
               {"type": "FeatureCollection", "features": border_features})
+
+    # 3. 州/府级（prefectures.geojson / prefecture_borders.geojson）
+    #    同一归属切到治所粒度：每治所一块，州/府可单独选中、单独改名。
+    seat_units: list[tuple[str, str, object, list[float]]] = []
+    seat_border_features = []
+    for (cname, sname), geoms in by_seat.items():
+        u = unary_union(geoms).buffer(0)
+        u = u.buffer(0.0015).buffer(-0.0015)
+        at = seat_at.get((cname, sname))
+        if at is None or not u.contains(Point(at[0], at[1])):
+            rp = u.representative_point()
+            at = [round(rp.x, 4), round(rp.y, 4)]
+        seat_units.append((cname, sname, u, [round(at[0], 4), round(at[1], 4)]))
+
+    # 人口经济摊派：路级总量(PREFECTURE_INFO) × 州府块面积占比 × 史实锚点
+    # → 拆到每一治所（Σ守恒；尾差并入最大块）。构建期注入属性，运行时不依赖 raw。
+    from content.demography import split_circuit_demog
+    circ_areas: dict[str, dict[str, float]] = {}
+    for cname, sname, u, _at in seat_units:
+        circ_areas.setdefault(cname, {})[sname] = u.area
+    demog_by = {cname: split_circuit_demog(cname, amap)
+                for cname, amap in circ_areas.items()}
+
+    seat_features = []
+    for cname, sname, u, at in seat_units:
+        props: dict[str, object] = {
+            "kind": "prefecture",
+            "name": sname,
+            "circuit": cname,
+            "type": CIRCUIT_INFO.get(cname, {}).get("type", ""),
+            "label_at": at,
+            "member_count": len(by_seat[(cname, sname)]),
+            "prefecture": "、".join(
+                x for x in by_seat_prefs.get((cname, sname), []) if x),
+        }
+        d = demog_by.get(cname, {}).get(sname)
+        if d:
+            for k, v in d.items():
+                if k not in ("name", "circuit"):
+                    props[k] = v
+        seat_features.append({
+            "type": "Feature",
+            "properties": props,
+            "geometry": mapping(u),
+        })
+        sb = u.boundary
+        if sb.geom_type == "MultiLineString":
+            sb = linemerge(sb)
+        seat_border_features.append({
+            "type": "Feature",
+            "properties": {
+                "kind": "prefecture_border",
+                "name": sname,
+                "circuit": cname,
+                "label_at": [round(at[0], 4), round(at[1], 4)],
+            },
+            "geometry": mapping(sb),
+        })
+    _save_web("prefectures.geojson",
+              {"type": "FeatureCollection", "features": seat_features})
+    _save_web("prefecture_borders.geojson",
+              {"type": "FeatureCollection", "features": seat_border_features})
 
 
 def main() -> int:

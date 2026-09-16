@@ -32,6 +32,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from content.data import EXTERNAL_ALWAYS_SHOW, MAP_DIR
+from content.demography import split_regime_prefecture_demog
 from content.geo_admin import (
     CIRCUIT_INFO,
     HISTORICAL_RIVERS,
@@ -40,6 +41,7 @@ from content.geo_admin import (
     REGIME_COLORS,
     REGIME_GEO,
     REGIME_PARTS,
+    REGIME_PREFECTURES,
     active_regimes,
     all_city_points,
     validate_geo,
@@ -240,7 +242,27 @@ def regime_part_features() -> list[dict[str, object]]:
                 cname = str(c["properties"]["name"])
                 if wanted == "*" or cname in wanted:
                     emit(c, cname)
-    return features
+
+    # ---- 后处理：剪除与宋路重叠的省界浮点带；同政权内道/司按序去重叠 ----
+    # 同一地级只归宋或政权一方，重叠仅来自跨省 datav 文件边界浮点；宋路优先。
+    from shapely.geometry import mapping, shape
+    kept: dict[str, list[object]] = {}
+    out: list[dict[str, object]] = []
+    for f in features:
+        g = _clip_song(shape(f["geometry"]).buffer(0))
+        key = str(f["properties"].get("name", ""))
+        if key:                       # 中性块(name="")不去重，仅剪宋路
+            for prev in kept.get(key, []):
+                if g.is_empty:
+                    break
+                g = g.difference(prev)
+        if g.is_empty:
+            continue
+        if key:
+            kept.setdefault(key, []).append(g)
+        f["geometry"] = mapping(g)
+        out.append(f)
+    return out
 
 
 def build_regime_borders() -> dict[str, object]:
@@ -316,6 +338,239 @@ def build_regime_borders() -> dict[str, object]:
                 "properties": {"kind": "regime_border", "name": key, "province": rname},
             })
     return {"type": "FeatureCollection", "features": features}
+
+
+# ============================================================
+# 辽/西夏州/府级切分（REGIME_PREFECTURES，仅此两政权；其余政权不下沉）
+#   州府块并集恒等于所在道/司（与宋路/州府两级同源语义），生成即面积复核，
+#   不满足(重叠/缝隙/越界)抛异常拒绝写盘，绝不静默产出坏数据。
+# ============================================================
+_SONG_LAND: object | None = None
+_SONG_LAND_LOADED = False
+
+
+def _song_land() -> object | None:
+    """宋路并集（circuits.geojson，由 build_map_basemap 先产出）。
+
+    同一地级只归宋或政权一方，剪裁只消省界浮点叠带；文件缺失时返回 None
+    （纯校验环境不阻断）。结果驻留内存，避免逐要素重解析。
+    """
+    global _SONG_LAND, _SONG_LAND_LOADED
+    if _SONG_LAND_LOADED:
+        return _SONG_LAND
+    _SONG_LAND_LOADED = True
+    fn = os.path.join(OUT_DIR, "circuits.geojson")
+    if not os.path.exists(fn):
+        return None
+    try:
+        from shapely.geometry import shape
+        from shapely.ops import unary_union
+        with open(fn, encoding="utf-8") as fh:
+            feats = json.load(fh).get("features", [])
+        geoms = [shape(f["geometry"]).buffer(0) for f in feats if f.get("geometry")]
+        _SONG_LAND = unary_union(geoms).buffer(0) if geoms else None
+    except Exception:                       # noqa: BLE001 构建期容错
+        _SONG_LAND = None
+    return _SONG_LAND
+
+
+def _clip_song(g: object) -> object:
+    """剪除与宋路重叠的省界浮点带（宋路优先：同一地级只属一方）。"""
+    land = _song_land()
+    if land is None or g is None or g.is_empty:
+        return g
+    out = g.difference(land)
+    return out if not out.is_empty else g.buffer(0)
+
+
+def _prov_raw(by_name: dict, raw_dir: str, prov: str) -> list[dict[str, object]]:
+    """省级名 → 该省 DataV 地级 feature 列表。"""
+    if prov not in by_name:
+        raise ValueError(f"REGIME_PREFECTURES 未知省级政区: {prov}")
+    adcode = by_name[prov]["properties"]["adcode"]
+    with open(os.path.join(raw_dir, f"datav_{adcode}_full.json"),
+              encoding="utf-8") as fh:
+        return json.load(fh)["features"]
+
+
+def _prefecture_geoms(prov_parts: dict, by_name: dict,
+                      raw_dir: str) -> list[object]:
+    """州府 parts {省: [地级]|"*"} → 地级政区几何集合（空省跳过）。"""
+    from shapely.geometry import shape
+    geoms = []
+    for prov, cities in prov_parts.items():
+        for c in _prov_raw(by_name, raw_dir, prov):
+            cnm = str(c["properties"]["name"])
+            if cities == "*" or cnm in cities:
+                geoms.append(shape(c["geometry"]).buffer(0))
+    return geoms
+
+
+def _langfang_north(raw_dir: str) -> list[object]:
+    """廊坊北三县（北纬 > 39.62°，京津之间辽南京道腹心）→ 带走几何。"""
+    from shapely.geometry import shape
+    with open(os.path.join(raw_dir, "datav_130000_full.json"),
+              encoding="utf-8") as fh:
+        hbf = json.load(fh)["features"]
+    out = []
+    for c in hbf:
+        if c["properties"].get("name") != "廊坊市":
+            continue
+        cg = shape(c["geometry"])
+        if cg.geom_type == "MultiPolygon":
+            for poly in cg.geoms:
+                if poly.centroid.y > 39.62:
+                    out.append(poly.buffer(0))
+    return out
+
+
+def _regime_prefecture_blocks(reg_key: str, by_name: dict,
+                              raw_dir: str) -> list[tuple[str, str, object]]:
+    """政权州府块（去重叠）[(州府名, 道/司名, 几何)]，顺序 = 表序。
+
+    跨省共边（不同 datav 文件）存在浮点级重叠：按表序后块让位先块
+    （difference 已保留区），保证块间零重叠且并集不变（先算并集与道/司
+    并集恒等，再切）。fill 与 borders 两层共用本函数，几何单一来源。
+    """
+    from shapely.geometry import shape
+    from shapely.ops import unary_union
+    out: list[tuple[str, str, object]] = []
+    kept: list[object] = []
+    for rname, prefs in REGIME_PREFECTURES.get(reg_key, {}).items():
+        for pname, pspec in prefs.items():
+            geoms = _prefecture_geoms(pspec.get("parts", {}), by_name, raw_dir)
+            if rname == "南京道" and pname == "析津府":
+                geoms += _langfang_north(raw_dir)
+            if not geoms:
+                continue
+            u = _clip_song(unary_union(geoms).buffer(0))
+            if kept:
+                u = u.difference(unary_union(kept))
+            if u.is_empty:
+                continue
+            out.append((pname, rname, u))
+            kept.append(u)
+    return out
+
+
+def build_regime_prefectures() -> dict[str, object]:
+    """辽/西夏州/府级实界块层（kind="regime_prefecture"）。
+
+    每州府一块：properties 含 regime/sub_road/seat/label_at/active/owner，
+    供前端在道/司之下再下一级选中、改名（宋州/府级同构）。
+    """
+    from shapely.geometry import mapping, shape
+    from shapely.ops import unary_union
+
+    raw_dir = os.path.join(MAP_DIR, "raw")
+    with open(os.path.join(raw_dir, "datav_100000_full.json"),
+              encoding="utf-8") as f:
+        by_name = {p["properties"]["name"]: p for p in json.load(f)["features"]}
+
+    features: list[dict[str, object]] = []
+    for reg_key, sub_roads in REGIME_PREFECTURES.items():
+        geo = REGIME_GEO.get(reg_key, {})
+        blocks = _regime_prefecture_blocks(reg_key, by_name, raw_dir)
+        # 人口经济摊派：道/司级总量(REGIME_DEMOG) × 州府块面积占比 × 史实锚点
+        # → 拆到每一州府（Σ守恒；尾差并入最大块）。构建期注入属性。
+        area_map = {pname: u.area for pname, _r, u in blocks}
+        demog_map = split_regime_prefecture_demog(reg_key, area_map)
+        for pname, rname, u in blocks:
+            geoms_n = len(_prefecture_geoms(
+                sub_roads[rname][pname].get("parts", {}), by_name, raw_dir))
+            pspec = sub_roads[rname][pname]
+            seat_at = pspec.get("seat_at")
+            if seat_at and not u.contains(shape(
+                    {"type": "Point",
+                     "coordinates": [seat_at[0], seat_at[1]]})):
+                seat_at = None     # 治所溢出块外时退回代表点（防标签飘走）
+            if not seat_at:
+                rp = u.representative_point()
+                seat_at = [round(rp.x, 4), round(rp.y, 4)]
+            props: dict[str, object] = {
+                "kind": "regime_prefecture",
+                "name": pname,
+                "display_name": pname,
+                "regime": reg_key,
+                "sub_road": rname,
+                "seat": pname,
+                "owner": geo.get("owner", reg_key),
+                "active": bool(geo.get("active")),
+                "tint": "on" if geo.get("active") else "off",
+                "label_at": seat_at,
+                "member_count": geoms_n,
+            }
+            d = demog_map.get(pname)
+            if d:
+                for k, v in d.items():
+                    if k not in ("name", "regime", "sub_road"):
+                        props[k] = v
+            features.append({
+                "type": "Feature",
+                "geometry": mapping(u),
+                "properties": props,
+            })
+        if not blocks:
+            continue
+        # ---- 面积复核 ----
+        # a) sub_roads 式（辽/西夏）：州府并集 == 道/司并集（同构重建，理论零差），
+        #    symdiff 超限视为归属遗漏/重叠，拒绝写盘；
+        # b) 单层式（州府直接挂政权，如吐蕃·河湟）：州府是政权内局部细化，
+        #    只查"无越界"（州府并集 ⊆ 政权领土），不查全覆盖。
+        total = unary_union([g for _, _, g in blocks])
+        ref = _regime_sub_union(reg_key, by_name, raw_dir)
+        ref_area = max(ref.area, 1e-9)
+        if all(rn == reg_key for _pn, rn, _g in blocks):
+            leak = total.difference(ref)
+            if leak.area > 0.05 and leak.area / ref_area > 0.002:
+                raise ValueError(
+                    f"州府并集越出政权领土 "
+                    f"(leak={leak.area:.4f} 度²/政权 {ref_area:.1f} 度², "
+                    f"diff bounds={leak.bounds}): {reg_key}")
+        else:
+            sym = total.symmetric_difference(ref)
+            sym_area = sym.area
+            if sym_area > 0.05 and sym_area / ref_area > 0.002:
+                raise ValueError(
+                    f"州府并集与道/司并集偏差过大 "
+                    f"(symdiff={sym_area:.4f} 度²/政权 {ref_area:.1f} 度², "
+                    f"diff bounds={sym.bounds}): {reg_key}")
+    return {"type": "FeatureCollection", "features": features}
+
+
+def _regime_sub_union(reg_key: str, by_name: dict, raw_dir: str) -> object:
+    """按 REGIME_PARTS.sub_roads 重建政权道/司并集（与 regime_part_features
+    同构：逐道 union + buffer(0)，含南京道北三县特判；不另做自愈）。"""
+    from shapely.geometry import shape
+    from shapely.ops import unary_union
+    spec = REGIME_PARTS.get(reg_key)
+    sub = spec.get("sub_roads") if spec else None
+    if not sub:
+        # 单层模式（如吐蕃·河湟）：无道/司中间级，重建用 provinces+prefectures
+        # 全集（provinces 为省级整块，prefectures 为地级；两者并集=政权领土）。
+        if spec and (spec.get("provinces") or spec.get("prefectures")):
+            sub = {reg_key: {"provinces": spec.get("provinces", []),
+                             "prefectures": spec.get("prefectures", {})}}
+        else:
+            return shape({"type": "GeometryCollection", "geometries": []})
+    parts = []
+    for rname, rspec in sub.items():
+        geoms = []
+        for prov in rspec.get("provinces", []):
+            if prov in by_name:
+                geoms.append(shape(by_name[prov]["geometry"]).buffer(0))
+        for prov, cities in rspec.get("prefectures", {}).items():
+            for c in _prov_raw(by_name, raw_dir, prov):
+                cnm = str(c["properties"]["name"])
+                if cities == "*" or cnm in cities:
+                    geoms.append(shape(c["geometry"]).buffer(0))
+        if rname == "南京道":
+            geoms += _langfang_north(raw_dir)
+        if geoms:
+            parts.append(_clip_song(unary_union(geoms).buffer(0)))
+    if not parts:
+        return shape({"type": "GeometryCollection", "geometries": []})
+    return _clip_song(unary_union([p for p in parts if not p.is_empty]).buffer(0))
 
 
 def build_cities() -> dict[str, object]:
@@ -413,12 +668,18 @@ def generate_all(out_dir: str = OUT_DIR) -> int:
         return 2
 
     os.makedirs(out_dir, exist_ok=True)
-    outputs: dict[str, dict[str, object]] = {
-        "regimes.geojson": build_regimes(),
-        "regime_borders.geojson": build_regime_borders(),
-        "cities.geojson": build_cities(),
-        "view.json": build_view(),
-    }
+    try:
+        outputs: dict[str, dict[str, object]] = {
+            "regimes.geojson": build_regimes(),
+            "regime_borders.geojson": build_regime_borders(),
+            "regime_prefectures.geojson": build_regime_prefectures(),
+            "cities.geojson": build_cities(),
+            "view.json": build_view(),
+        }
+    except ValueError as exc:
+        print(f"[build_map_geo] 州/府级数据校验未通过，拒绝生成：{exc}",
+              file=sys.stderr)
+        return 2
     counts: dict[str, tuple[str, int]] = {}
     for fname, obj in outputs.items():
         status = _write_if_changed(os.path.join(out_dir, fname), _dump_bytes(obj))

@@ -26,6 +26,7 @@ from core.errors import AIRuntimeError
 
 from core.commands_decree import (
     _apply_rename, _draft_to_effects_dict, _enqueue, _generate_decree_effects, _random_faction_stances, _rule_draft, _run_fixed, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_edict_from_review, issue_free_decree, issue_kouyu, issue_secret_decree, merge_drafts, preview_draft, reject_edict_draft,
+    propose_inner_transfer, confirm_inner_transfer, cancel_inner_transfer,
 )
 
 
@@ -76,16 +77,43 @@ def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
 # ============================================================
 def audience_minister(state: GameState, leader: str, action: str = "安抚", ai_client=None) -> str:
     """召见大臣并施行一项行动，返回叙述文本"""
-    faction = [n for n, f in state.factions.items() if f["leader"] == leader][0]
+    # 审查 P1-6 修复：原实现 `[n for n,f in state.factions.items() if f["leader"]==leader][0]`
+    # 对非派系领袖的大臣直接 IndexError 崩溃。改为：命中派系领袖优先；否则按大臣档案
+    # 反查其所属派系（仍属某派系则按该派系生效）；两者皆无则明确拒绝。
+    faction = next((n for n, f in state.factions.items()
+                    if f.get("leader") == leader), None)
+    if faction is None:
+        try:
+            from content.ministers.data import MINISTERS
+            _fac = (MINISTERS.get(leader) or {}).get("faction", "")
+            if _fac in state.factions:
+                faction = _fac
+        except Exception:
+            faction = None
+    if faction is None:
+        return f"{leader}未领一派、亦无所属派系，无从以派系之名行事。"
     f = state.factions[faction]
     # 行动效果
     if action == "安抚":
         f["satisfaction"] = max(0, min(100, f["satisfaction"] + 4))
         msg = f"{leader}心甚慰，对陛下更忠恳了。"
     elif action == "施恩":
+        cost = 200_000
+        if state.treasury < cost:
+            msg = f"欲厚赏 {leader}，然国库不足二十万贯，赏赉未行。"
+            return msg
         f["satisfaction"] = max(0, min(100, f["satisfaction"] + 7))
         f["influence"] = max(0, min(100, f["influence"] + 2))
-        state.treasury -= 200000
+        # 守恒：国库 → 该派系领袖对应官僚 POP（有则转入，无则按各路官僚池摊）
+        moved = 0
+        for road, p in state.prefectures.items():
+            guan = (p.get("pops") or {}).get("官僚")
+            if isinstance(guan, dict) and guan.get("size", 0) > 0:
+                moved = state.transfer_money("treasury", f"pop:{road}:官僚", cost)
+                if moved > 0:
+                    break
+        if moved <= 0:
+            moved = state.transfer_money("treasury", "imperial_treasury", cost)
         msg = f"厚赏之下，{leader}感念隆恩，然国库耗银二十万贯。"
     elif action == "试探":
         f["satisfaction"] = max(0, min(100, f["satisfaction"] - 2))
@@ -176,23 +204,30 @@ def advance_month(state: GameState) -> list:
     月份与回合推进统一在 settle_turn 的月度结算之后完成，避免一回合重复计数。
     """
     # 事件触发随机纳入确定性种子（与 run_monthly_settlement 同源），使同回合可复现，
-    # 便于 dev/replay 回放与平衡 A/B 对比；不污染全局 random 后续调用。
+    # 便于 dev/replay 回放与平衡 A/B 对比。
     # 注意：不可用 hash()（Python 哈希随机化导致跨进程不一致），改用确定性多项式。
+    # 审查 P3 修复：_rnd 即全局 random 模块本体，原 `_rnd.seed(_seed)` 会改写全局
+    # 随机状态（注释所称「不污染」不成立）。现改为「暂存 → 定种子取事件 → 恢复」，
+    # 既保留可复现性，又不影响后续全局随机调用。
     import random as _rnd
     _seed = (state.year * 1000003 + state.month * 10007 + state.turn * 131) & 0xFFFFFFFF
-    _rnd.seed(_seed)
-    # 触发事件优先级：
-    #   1) 待确认改写位奏章（战略决策点·朱批）——最高优先，让玩家主动拍板改写历史
-    #   2) 已确认改写位的分支事件
-    #   3) 史实事件
-    #   4) 随机事件
-    ev = get_pending_break_event(state)
-    if not ev:
-        ev = get_strategic_branch(state)
-    if not ev:
-        ev = get_historical_event(state.year, state.month)
-    if not ev:
-        ev = get_random_event()
+    _stash = _rnd.getstate()
+    try:
+        _rnd.seed(_seed)
+        # 触发事件优先级：
+        #   1) 待确认改写位奏章（战略决策点·朱批）——最高优先，让玩家主动拍板改写历史
+        #   2) 已确认改写位的分支事件
+        #   3) 史实事件
+        #   4) 随机事件
+        ev = get_pending_break_event(state)
+        if not ev:
+            ev = get_strategic_branch(state)
+        if not ev:
+            ev = get_historical_event(state.year, state.month)
+        if not ev:
+            ev = get_random_event()
+    finally:
+        _rnd.setstate(_stash)
     events = []
     if ev:
         events.append(ev)
@@ -228,8 +263,50 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
     except Exception:
         from ai.narrative_fallback import fallback_report
         report = str(fallback_report(state=state).get("report") or "")
+    # 审查 2026-09：把本回合 AI 用量（玩家操作+推演）落成一行附表（calls/tokens/时间）后清零，
+    # 供前端「治务 · AI计量」表格展示。放在 finish_turn 前，label 用本回合年月。
+    _flush_ai_token(state, ai_client)
     finish_turn(state)
     return log, report
+
+
+def _flush_ai_token(state: GameState, ai_client) -> None:
+    """把 AIClient 本回合累计的 token 用量写进 state.ai_token_log（一行），然后重置计量。
+
+    计量含本回合内玩家操作（拟旨/召对）与推演族的全部 AI 调用；回合推进时成行入账。
+    失败静默（计量绝不影响结算）。
+    """
+    try:
+        u = getattr(ai_client, "token_usage", None)
+        if not u or int(u.get("calls", 0) or 0) <= 0:
+            return
+        _calls = int(u.get("calls", 0) or 0)
+        _p = int(u.get("prompt", 0) or 0)
+        _c = int(u.get("completion", 0) or 0)
+        try:
+            from datetime import datetime
+            _ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            _ts = f"{state.year}年{state.month}月"
+        log = getattr(state, "ai_token_log", None)
+        if not isinstance(log, list):
+            log = []
+            state.ai_token_log = log
+        log.append({
+            "turn": state.turn,
+            "label": f"{getattr(state, 'era_name', '')}{state.year}年{state.month}月",
+            "calls": _calls,
+            "prompt_tokens": _p,
+            "completion_tokens": _c,
+            "total_tokens": _p + _c,
+            "ts": _ts,
+        })
+        if len(log) > 500:
+            del log[: len(log) - 500]
+        if hasattr(ai_client, "reset_meter"):
+            ai_client.reset_meter()
+    except Exception:
+        pass
 
 
 def _ai_prelude(state, ai_client):
@@ -285,13 +362,47 @@ def _ai_prelude(state, ai_client):
         pass
 
 
+def _snapshot_state(state) -> dict:
+    """结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。"""
+    import copy
+    snap: dict = {}
+    for k, v in list(getattr(state, "__dict__", {}).items()):
+        try:
+            snap[k] = copy.deepcopy(v)
+        except Exception:  # noqa: BLE001
+            continue  # 不可深拷贝（连接/锁等）→ 保持原引用，回滚时不动该字段
+    return snap
+
+
+def _restore_state(state, snap: dict) -> None:
+    """把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。"""
+    for k, v in snap.items():
+        try:
+            setattr(state, k, v)
+        except Exception:  # noqa: BLE001
+            continue
+
+
 def settle_local(state) -> list:
     """本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
 
     不含终局判定/自动存档（由 finish_turn 统一收尾），供同步 settle_turn 与
     T6 异步拆分（后台 AI 推演族 → 主线程本函数 → 叙事后补）共用。
+
+    审查 P1-3 修复（半结算脏状态）：结算内含守恒断言（太仓恒等/财政恒等），一旦触发
+    会从本函数抛出，而此前步骤的税收/扣款/POP/军队变更均已就地生效且无回滚，
+    state.turn 也未推进 → 下次结算在脏状态上重复计征，长期系统性偏差。
+    现于结算前快照状态，异常时回滚后再抛出（记忆库等不可拷贝对象保持原引用）。
     """
-    return run_monthly_settlement(state)
+    import logging as _lg
+    snap = _snapshot_state(state)
+    try:
+        return run_monthly_settlement(state)
+    except Exception as e:  # noqa: BLE001
+        _restore_state(state, snap)
+        _lg.getLogger("settle_local").error(
+            "月度结算异常，已回滚状态快照（回合未推进，可安全重试）：%s", e)
+        raise
 
 
 def finish_turn(state) -> None:
@@ -397,7 +508,13 @@ def _monthly_report_text(state, ai_client) -> str:
 # 拟旨·会签：诏草 → 会签 → 下发
 # ============================================================
 def resolve_event(state: GameState, event: dict, choice_idx: int, ai_client=None) -> str:
-    """处理玩家对某事件的选择，返回效果叙述。"""
+    """处理玩家对某事件的选择，返回效果叙述。
+
+    审查 P1-12：event 须为**完整事件对象**（含 choices）。传入标题字符串等非法值时
+    明确拒绝（原实现会在 apply_event_choice 内抛 AttributeError 崩溃）。
+    """
+    if not isinstance(event, dict):
+        return "事件抉择失败：缺少完整事件对象（无法取得选项）。"
     log = apply_event_choice(state, event, choice_idx)
     narr = ""
     if ai_client and ai_client.available:
@@ -409,9 +526,12 @@ def resolve_event(state: GameState, event: dict, choice_idx: int, ai_client=None
             from ai.narrative_fallback import fallback_event
             _sev = "重" if ("灾" in str(event.get("category", "")) or "战" in str(event.get("category", ""))) else "中"
             narr = str(fallback_event(event.get("title", ""), _sev).get("narrative") or "")
-    # 清除该事件在场标记
+    # 清除该事件在场标记（审查 P2：title 为空时 `"" not in msg` 恒 False 会清空全部在场事件，
+    # 故空标题直接跳过清理）
     title = event.get("title", "")
-    state.active_events = [e for e in state.active_events if title not in e.get("message", "")]
+    if title:
+        state.active_events = [e for e in state.active_events
+                               if title not in e.get("message", "")]
     if check_game_over(state):
         state.game_over = True
     return "\n".join(log) + (("\n〔朝堂〕" + narr) if narr else "")
@@ -451,6 +571,143 @@ def conclude(state: GameState, ai_client=None) -> tuple:
     return eval_result, ai_eval
 
 
+# ============================================================
+# AI 待批行动：批红 / 驳回（严格模式落地通道）
+# ============================================================
+def approve_ai_action(state: GameState, action_id: str) -> str:
+    """批红一条 AI 待批行动；按 kind 落地。返回叙述。"""
+    item = state.pop_ai_pending(action_id)
+    if not item or item.get("status") != "pending":
+        return "无此待批条目（或已处置）。"
+    kind = item.get("kind", "")
+    payload = item.get("payload") or {}
+    title = item.get("title", "无题")
+
+    try:
+        if kind == "secret_order":
+            if payload.get("longterm"):
+                state.longterm_secret.append({
+                    "title": title, "summary": item.get("summary", ""),
+                    "task_name": title, "months": 12, "progress": 0,
+                })
+            else:
+                state.pending_secret_decrees.append({
+                    "title": title, "summary": item.get("summary", ""),
+                    "is_secret": True, "secret_loyalty": 0.6,
+                    "effects": {}, "duration": 1,
+                    "faction_stances": _random_faction_stances(state),
+                })
+            state.set_ai_pending_status(action_id, "approved")
+            return f"批红：密令「{title}」奉行。"
+
+        if kind == "propose_governance":
+            state.longterm_public.append({
+                "title": title, "summary": item.get("summary", ""),
+                "effects": payload.get("effects") or {},
+                "task_name": title, "months": 18, "progress": 0,
+            })
+            state.set_ai_pending_status(action_id, "approved")
+            return f"批红：施政「{title}」立案在办。"
+
+        if kind == "military_dispatch":
+            return _apply_military_dispatch(state, action_id, payload, title)
+
+        state.set_ai_pending_status(action_id, "rejected")
+        return f"未知待批类型：{kind}，已驳回。"
+    except Exception as e:  # noqa: BLE001
+        state.set_ai_pending_status(action_id, "rejected")
+        return f"批红失败：{title}（{type(e).__name__}）"
+
+
+def reject_ai_action(state: GameState, action_id: str) -> str:
+    item = state.pop_ai_pending(action_id)
+    if not item or item.get("status") != "pending":
+        return "无此待批条目（或已处置）。"
+    state.set_ai_pending_status(action_id, "rejected")
+    return f"已驳回：「{item.get('title', '')}」。"
+
+
+def _apply_military_dispatch(state, action_id, payload, title) -> str:
+    """批红军令：先校验钱粮，增募钱不够则整单拒绝。"""
+    tier = str(payload.get("army", "禁军"))
+    act = str(payload.get("action", "整编"))
+    tgt = str(payload.get("target", "") or "")
+    scale = max(1, min(5, int(payload.get("scale", 3) or 3)))
+    if tier in ("西军", "北军"):
+        tier = "禁军"
+    units = [u for u in state.army_units if u.tier == tier]
+    if not units:
+        state.set_ai_pending_status(action_id, "rejected")
+        return f"批红驳回：无此军籍 {tier}。"
+
+    if act in ("操练", "整编"):
+        for u in units:
+            u.training = max(0, min(100, u.training + scale * 2))
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{tier} {act}（档 {scale}）已饬行。"
+
+    if act == "增募":
+        _N = scale * 2000
+        planned = []  # (unit, road, taken)
+        total = 0
+        for u in units:
+            station = getattr(u, "station", "")
+            if station not in state.prefectures:
+                continue
+            p = state.prefectures[station]
+            want = _N
+            taken = 0
+            t = 0
+            if u.tier == "厢军":
+                ref = int(p.get("refugees", 0))
+                t = min(want, ref)
+                taken += t
+            farm = int(p["pops"]["农"]["size"])
+            t2 = min(want - taken, max(0, farm - farm // 2))
+            taken += t2
+            if taken > 0:
+                planned.append((u, station, taken, t, t2))
+                total += taken
+        cost = total * 5
+        if total <= 0:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：无可募之丁。"
+        if state.treasury < cost:
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：增募需 {cost} 贯，国库不足，整单不行（人口未扣）。"
+        # 先扣人口再扣款（钱不够已在上方拒绝）
+        for u, station, taken, from_ref, from_farm in planned:
+            p = state.prefectures[station]
+            if from_ref:
+                p["refugees"] = max(0, int(p.get("refugees", 0)) - from_ref)
+            if from_farm:
+                p["pops"]["农"]["size"] = max(0, int(p["pops"]["农"]["size"]) - from_farm)
+            if u.branches:
+                bk = next(iter(u.branches))
+                u.branches[bk] = u.branches.get(bk, 0) + taken
+            else:
+                u.branches["轻步兵"] = taken
+            p["pops"]["兵"]["size"] = p["pops"]["兵"].get("size", 0) + taken
+            u.training = max(0, min(100, u.training + scale))
+        # 守恒：国库 → 兵 wealth
+        paid = 0
+        for road in state.prefectures:
+            if paid >= cost:
+                break
+            paid += state.transfer_money("treasury", f"pop:{road}:兵", cost - paid)
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{tier} 增募 {total} 人，縻饷 {paid} 贯。"
+
+    if act == "调赴" and tgt:
+        for u in units:
+            u.station = tgt
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{tier} 调赴 {tgt}。"
+
+    state.set_ai_pending_status(action_id, "rejected")
+    return f"批红驳回：未识军令动作「{act}」。"
+
+
 __all__ = [
     "new_game", "audience_minister", "issue_decree", "issue_secret_decree",
     "do_personal_action", "choose_imperial_action", "choose_major_policy", "advance_month", "settle_turn",
@@ -458,6 +715,7 @@ __all__ = [
     "resolve_event", "save", "load", "save_slots", "conclude",
     "audience_dialogue", "audience_dialogue_prepare", "audience_dialogue_apply",
     "issue_drafted_decree", "preview_draft",
+    "approve_ai_action", "reject_ai_action",
 ]
 
 

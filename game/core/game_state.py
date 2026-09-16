@@ -119,9 +119,9 @@ def _init_city_defense(p_type: str) -> int:
     return 40
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    """把数值钳制到 [lo, hi] 闭区间（供各粮价/物价计算复用，消除重复 max/min）。"""
-    return max(lo, min(hi, value))
+# 审查 P3 修复：_clamp 统一由 content.data.clamp 提供（单一权威源；
+# 原 game_state / game_state_econ（模块级 + mixin 方法）共三份重复实现）
+from content.data import clamp as _clamp  # noqa: E402,F401
 
 
 def _garrison_by_tier(state, road: str) -> dict:
@@ -349,7 +349,7 @@ class GameState(GameStateEconMixin):
         # 旧 self.armies（质量参数 dict）已废弃：质量并入 UNIT_TIER，战力由 _army_power 派生。
         # 旧各路 prefectures[路]["garrisons"] 已删除：兵额改由各路 army_units.troops 求和派生。
         # 延迟导入：core 不得顶层依赖 ui（避免潜伏环），见 TEAM.md 工程约束
-        from ui.panels_military import build_army_units, CentralArsenal
+        from core.army_models import build_army_units, CentralArsenal
         self.army_units: list = build_army_units(self)
         # 中央武库
         self.central_arsenal: CentralArsenal = CentralArsenal()
@@ -372,6 +372,8 @@ class GameState(GameStateEconMixin):
         self.edict_drafts: list = []    # 待会签诏草（诏令会签页）
         self.council_reviews: dict = {}  # draft_id -> 会签意见
         self.memorials: list = []  # 待审奏折（每回合开始按局势自动上折，君主批红）
+        # AI 工具严格待批队列（审查 P0：AI 只有提议权，批红前不落地）
+        self.ai_pending_actions: list = []
 
         # ---- 施政 ----
         self.personal_action: str = ""   # 旧单值个人行动（兼容旧档；新通道走 imperial_action）
@@ -725,12 +727,82 @@ class GameState(GameStateEconMixin):
     # 国库工具
     # ================================================================
     def change_treasury(self, delta: int):
-        """修改国库"""
-        self.treasury += delta
+        """修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）"""
+        self.treasury = max(0, self.treasury + int(delta))
 
     def change_imperial_treasury(self, delta: int):
-        """修改内帑（皇帝私库，与国库分理）"""
-        self.imperial_treasury += delta
+        """修改内帑（皇帝私库，与国库分理；禁止穿底）"""
+        self.imperial_treasury = max(0, self.imperial_treasury + int(delta))
+
+    def transfer_money(self, src: str, dst: str, amount: int) -> int:
+        """钱组守恒划转：src → dst，返回实际划转额（不足则按 src 可付截断）。
+
+        src/dst 取值：
+          - "treasury" / "imperial_treasury"
+          - "pop:<路>:<阶层>"  如 "pop:两浙路:农"
+        """
+        amount = int(amount)
+        if amount <= 0:
+            return 0
+
+        def _read(key):
+            if key in ("treasury", "imperial_treasury"):
+                return int(getattr(self, key, 0))
+            if key.startswith("pop:"):
+                _, road, pop = key.split(":", 2)
+                p = self.prefectures.get(road)
+                if not isinstance(p, dict):
+                    return 0
+                pp = (p.get("pops") or {}).get(pop)
+                if not isinstance(pp, dict):
+                    return 0
+                return int(pp.get("wealth", 0))
+            return 0
+
+        def _write(key, val):
+            if key in ("treasury", "imperial_treasury"):
+                setattr(self, key, max(0, int(val)))
+                return
+            if key.startswith("pop:"):
+                _, road, pop = key.split(":", 2)
+                p = self.prefectures.get(road)
+                if not isinstance(p, dict):
+                    return
+                pp = (p.get("pops") or {}).get(pop)
+                if isinstance(pp, dict):
+                    pp["wealth"] = max(0, int(val))
+
+        have = _read(src)
+        moved = min(have, amount)
+        if moved <= 0:
+            return 0
+        _write(src, have - moved)
+        _write(dst, _read(dst) + moved)
+        return moved
+
+    def drain_pop_wealth(self, pop_name: str, amount: int) -> int:
+        """从各路同阶层 POP wealth 按池比例扣款，返回实扣额（守恒来源用）。"""
+        amount = int(amount)
+        if amount <= 0:
+            return 0
+        pools = []
+        total = 0
+        for road, p in (self.prefectures or {}).items():
+            pp = (p.get("pops") if isinstance(p, dict) else None) or {}
+            slot = pp.get(pop_name)
+            if isinstance(slot, dict):
+                w = int(slot.get("wealth", 0))
+                if w > 0:
+                    pools.append((slot, w))
+                    total += w
+        if total <= 0:
+            return 0
+        taken = 0
+        for slot, w in pools:
+            take = min(int(amount * w / total), int(slot.get("wealth", 0)))
+            slot["wealth"] = int(slot.get("wealth", 0)) - take
+            taken += take
+        return taken
 
     def change_granary(self, delta: int):
         """修改中央粮仓存粮（石），自动封顶于容量。"""
@@ -790,7 +862,8 @@ class GameState(GameStateEconMixin):
         else:
             s = 0.45 + net_support * 0.08
             if is_direct:
-                s += (0.10 if self.wolf_count < 3 else -0.15)
+                # 狼来了机制已取消（审查 2026-09）：御笔直发恒有 +0.10 加成
+                s += 0.10
             else:
                 # 经会签的正式诏：门下封驳已消化的部分冲突，执行率略稳
                 pass
@@ -845,6 +918,34 @@ class GameState(GameStateEconMixin):
 
     def store_council_review(self, draft_id: str, review: dict):
         self.council_reviews[draft_id] = review
+
+    def enqueue_ai_action(self, kind: str, title: str, summary: str,
+                          payload: dict, proposer: str = "") -> str:
+        import uuid
+        aid = "ap" + uuid.uuid4().hex[:8]
+        self.ai_pending_actions.append({
+            "id": aid, "kind": kind, "title": title, "summary": summary,
+            "payload": dict(payload or {}), "proposer": proposer,
+            "turn": self.turn, "status": "pending",
+        })
+        return aid
+
+    def get_ai_pending(self, status: str = "pending") -> list:
+        return [a for a in (self.ai_pending_actions or [])
+                if status == "*" or a.get("status") == status]
+
+    def pop_ai_pending(self, action_id: str):
+        for a in self.ai_pending_actions or []:
+            if a.get("id") == action_id:
+                return a
+        return None
+
+    def set_ai_pending_status(self, action_id: str, status: str) -> bool:
+        for a in self.ai_pending_actions or []:
+            if a.get("id") == action_id:
+                a["status"] = status
+                return True
+        return False
 
     # ================================================================
     # 年号管理

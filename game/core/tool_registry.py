@@ -51,7 +51,17 @@ def register_tool(state, tool: dict, created_by: str = "") -> dict:
     mult = soft_cost_mult(len(reg))
     cost = tool.get("cost") or {}
     if isinstance(cost, dict):
-        cost = {k: int(float(v) * mult) for k, v in cost.items() if v}
+        # 审查 P3 修复：逐项容错。原 `int(float(v) * mult)` 对非数值 v 直接抛
+        # ValueError 冒泡（本函数其余分支均为拒绝式返回），且 L65-66 存在重复键。
+        _cost = {}
+        for k, v in cost.items():
+            if not v:
+                continue
+            try:
+                _cost[k] = int(float(v) * mult)
+            except (TypeError, ValueError):
+                return {"ok": False, "tool_id": "", "msg": f"成本项「{k}」须为数值：{v!r}"}
+        cost = _cost
         if cost.get("treasury", 0) > int(getattr(state, "treasury", 0)):
             return {"ok": False, "tool_id": "", "msg": "工具成本（含软约束倍率）超出当前国库"}
         if cost.get("granary", 0) > int(getattr(state, "granary", 0)):
@@ -62,7 +72,6 @@ def register_tool(state, tool: dict, created_by: str = "") -> dict:
         "tool_id": tool_id, "name": name,
         "parameters": dict(params),
         "effect_template": eff_norm,
-        "cost": dict(cost) if isinstance(cost, dict) else {},
         "cost": dict(cost) if isinstance(cost, dict) else {},
         "created_by": created_by or "",
         "usage": 0, "active": True,

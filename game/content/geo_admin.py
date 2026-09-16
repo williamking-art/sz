@@ -204,6 +204,26 @@ CIRCUIT_INFO: dict = {
                             ("万州", "州", 108.41, 30.81), ("达州", "州", 107.47, 31.21),
                             ("涪州", "州", 107.39, 29.70), ("黔州", "州", 108.17, 29.29),
                             ("施州", "州", 109.49, 30.27)]},
+    # 黔中路：今贵州省，游戏抽象独立成省（原贵州九地级强制归夔州路，现分出）。
+    #   宋代贵州主体为夔州路羁縻州/部族（矩州、播州、思州、罗氏鬼国、自杞等），
+    #   不入版籍；今按"玩家自行划分省级"需要单列。
+    #   game_unit=None：非 20 个经济/军事单位之一——不进 state.prefectures、
+    #   不开局生成作坊（避免改动经济平衡），人口经济走
+    #   content.demography.EXTRA_CIRCUIT_DEMOG，仅供舆图州府层与划省使用。
+    "黔中路": {
+        "type": "沿边", "seat": "矩州", "game_unit": None,
+        "members": [
+            ("矩州", "州", 106.63, 26.65),      # 今贵阳
+            ("播州", "州", 106.93, 27.73),      # 今遵义
+            ("思州", "州", 109.19, 27.73),      # 今铜仁
+            ("普宁州", "州", 105.93, 26.25),    # 今安顺
+            ("罗氏鬼国", "部", 105.30, 27.30),  # 今毕节
+            ("汤望州", "州", 104.83, 26.59),    # 今六盘水
+            ("都云", "部", 107.52, 26.26),      # 今黔南（都匀）
+            ("古州", "州", 107.98, 26.58),      # 今黔东南
+            ("自杞国", "部", 104.90, 25.09),    # 今黔西南
+        ],
+    },
     "京东东路": {
         "type": "腹里", "seat": "青州", "game_unit": "京东东路",
         "members": [
@@ -252,6 +272,7 @@ CIRCUIT_BOUNDS: dict = {
     "广南西路": [[104.8, 24.6], [107.5, 25.7], [110.6, 25.4], [111.4, 23.4], [109.0, 20.7], [106.0, 21.5], [104.6, 22.8]],
     "利州路":   [[103.8, 32.6], [105.8, 32.5], [106.9, 32.4], [106.0, 31.0], [104.5, 31.2], [103.6, 31.8]],
     "夔州路":   [[106.9, 32.4], [110.3, 32.2], [110.5, 29.9], [108.2, 28.1], [106.0, 28.3], [106.8, 30.6]],
+    "黔中路":   [[103.6, 29.3], [109.6, 29.3], [109.6, 24.6], [103.6, 24.6]],
 }
 
 # ============================================================
@@ -282,6 +303,7 @@ REGIME_GEO: dict = {
                           [93.5, 34.5], [96.5, 33.5], [97.5, 31.5], [95.0, 29.0],
                           [91.0, 27.8], [86.0, 28.2], [81.0, 29.5], [78.0, 31.5],
                           [77.5, 33.5], [78.5, 35.5]]},
+    
     "大理": {"name": "大理", "active": True, "owner": "大理", "label_at": [101.0, 25.0],
              "use_parts": True,
              "polygon": [[98.5, 28.0], [103.5, 28.0], [106.0, 25.5], [105.5, 22.5],
@@ -324,8 +346,12 @@ REGIME_GEO: dict = {
                           [142.5, 43.5], [144.0, 44.2], [145.5, 43.5], [143.5, 42.0],
                           [141.0, 40.0], [139.5, 37.5], [137.0, 36.0], [134.5, 34.0],
                           [132.0, 32.8], [130.5, 31.0], [129.5, 31.2]]},
-    "琉球": {"name": "琉球", "active": True, "owner": "琉球", "label_at": [121.0, 23.7],
-             "use_parts": True},  # 版图=台湾岛(游戏设定)
+    # 琉球＝琉球群岛(今冲绳一带)，非台湾岛；台湾岛已划归宋福建路(台湾府)。
+    # NE Admin-1 无冲绳县级面数据，故用手工近似矩形（冲绳本岛及周边）。
+    "琉球": {"name": "琉球", "active": True, "owner": "琉球", "label_at": [127.68, 26.21],
+             "use_parts": False,
+             "polygon": [[126.9, 26.0], [128.6, 26.0], [128.6, 27.2], [126.9, 27.2],
+                         [126.9, 26.0]]},
     "喀喇汗": {"name": "喀喇汗", "active": True, "owner": "喀喇汗", "label_at": [79.5, 39.3],
              "use_parts": True,
              "note": "西域大部；政区归属玩法抽象，史实边界待考"},
@@ -449,29 +475,39 @@ REGIME_PARTS: dict = {
     "西夏": {
         "sub_roads": {
             "兴庆府直辖": {
+                # 宁夏不再通配"*"：固原市(镇戎军/原州)史属宋泾原路，宋路侧已按种子
+                # 归属收走，此处只列西夏实控的宁夏北部四市，避免西夏与陕西路重叠。
+                # 会州(白银市，1101 属西夏)并入直辖：白银-中卫相邻，消除旧"河南地"
+                # 会的州↔宥州相隔~1.9 度的飞地。
                 "seat": "兴庆府", "seat_at": [106.3, 38.5], "label_at": [104.2, 39.5],
                 "prefectures": {
-                    "宁夏回族自治区": "*",
+                    "宁夏回族自治区": ["银川市", "石嘴山市", "吴忠市", "中卫市"],
                     "内蒙古自治区": ["乌海市", "阿拉善盟"],
+                    "甘肃省": ["白银市"],
                 },
             },
             "河西走廊": {
-                "seat": "西凉府", "seat_at": [102.6, 37.9], "label_at": [100.2, 39.8],
+                "seat": "西凉府", "seat_at": [102.6, 37.9], "label_at": [97.0, 39.7],
                 "prefectures": {
                     "甘肃省": ["武威市", "金昌市", "张掖市", "酒泉市", "嘉峪关市"],
                     "内蒙古自治区": ["巴彦淖尔市"],
                 },
             },
-            "河南地": {
-                "seat": "西平府", "seat_at": [106.3, 38.1], "label_at": [107.5, 37.5],
+            "河套南": {
+                # 史称"河南地"（黄河河曲以南），游戏中更名"河套南"以免与河南混淆。
+                # 宥州=鄂尔多斯高原草原牧区+盐池盐利（《宋史·夏国传》"河南地皆
+                # 属夏国"即此）；会州(白银市)已移入兴庆府直辖（白银-中卫相邻），
+                # 原"河南地"会州↔宥州相隔~1.9 度属飞地，故拆。
+                "seat": "宥州", "seat_at": [109.78, 39.62], "label_at": [109.3, 39.6],
                 "prefectures": {
-                    "甘肃省": ["白银市", "兰州市", "定西市", "平凉市", "庆阳市", "陇南市", "天水市", "临夏回族自治州"],
                     "内蒙古自治区": ["鄂尔多斯市"],
                 },
             },
         },
         "borders": True,
     },
+    # 吐蕃诸部（含河湟）：不另立政权——河湟四州府以单层州府表挂在本政权下，
+    # 「复河湟·熙河开边」开边归宋即把吐蕃名下河湟州府划给宋。
     "吐蕃": {
         "provinces": ["青海省", "西藏自治区"],
         "prefectures": {
@@ -482,7 +518,9 @@ REGIME_PARTS: dict = {
         "merge": False,  # 保留省份拼合
     },
     "大理": {
-        "provinces": ["云南省", "贵州省"],
+        # 贵州划归宋（用户指示；宋代贵州主体为夔州路羁縻州）——大理只保留云南；
+        # 贵州地级在 build_map_basemap.FORCE_CIRCUIT 中归入夔州路。
+        "provinces": ["云南省"],
         "prefectures": {"四川省": ["凉山彝族自治州", "攀枝花市"]},
     },
     # 境外一体块:NE Admin-1 按国家过滤后 union 出精确国界轮廓
@@ -540,9 +578,7 @@ REGIME_PARTS: dict = {
             "哈密市", "吐鲁番市", "乌鲁木齐市", "昌吉回族自治州",
         ]},
     },
-    "琉球": {
-        "provinces": ["台湾省"],
-    },
+    # "琉球" 不再 use_parts：版图为琉球群岛(手工近似)，台湾省已归宋福建路台湾府。
     "身毒": {
         "union_external": {"file": "ne_admin1_ext.json", "target_regime": "身毒"},
         "merge": True,
@@ -595,6 +631,234 @@ REGIME_PARTS: dict = {
     "大洋洲_澳洲大陆": {
         "union_external": {"file": "ne_admin1_ext.json", "target_regime": "大洋洲_澳洲大陆"},
         "merge": True, "fill": "#d8cfbe", "neutral": True, "display_name": "",
+    },
+}
+
+# ============================================================
+# 三·四·b·β 辽/西夏州/府级切分表（州/府级数据补充；仅此两政权，其余不下沉）
+#    在 REGIME_PARTS 道/司（sub_roads）之下再切一级：州/府 → {省: [地级政区]}。
+#    语义同宋路/州府两级同源：州府并集恒等于所在道/司，无重叠（build_map_geo
+#    生成时面积复核，不一致即拒绝写盘）。seat_at 缺省时取块内代表点做标签位。
+# ============================================================
+REGIME_PREFECTURES: dict = {
+    # ---- 辽：五京道内再分州府（玩法分组示意，史实边界待考） ----
+    "辽": {
+        "南京道": {
+            "析津府": {"seat_at": [116.4, 39.9],
+                       "parts": {"北京市": "*", "天津市": "*"}},
+            "平州":   {"parts": {"河北省": ["秦皇岛市"]}},
+            "滦州":   {"parts": {"河北省": ["唐山市"]}},
+        },
+        "西京道": {
+            "大同府": {"seat_at": [113.3, 40.1],
+                       "parts": {"山西省": ["大同市", "朔州市"]}},
+            "归化州": {"parts": {"河北省": ["张家口市"]}},
+            "丰州":   {"parts": {"内蒙古自治区": ["呼和浩特市", "乌兰察布市"]}},
+            "云内州": {"parts": {"内蒙古自治区": ["包头市"]}},
+        },
+        "中京道": {
+            "大定府": {"seat_at": [120.2, 41.6],
+                       "parts": {"河北省": ["承德市"],
+                                 "内蒙古自治区": ["赤峰市", "锡林郭勒盟"]}},
+            "兴中府": {"parts": {"辽宁省": ["朝阳市", "阜新市"]}},
+        },
+        "东京道": {
+            "辽阳府": {"seat_at": [123.2, 41.3],
+                       "parts": {"辽宁省": ["沈阳市", "辽阳市", "鞍山市", "抚顺市",
+                                            "本溪市", "铁岭市"]}},
+            "显州":   {"parts": {"辽宁省": ["锦州市", "盘锦市", "葫芦岛市", "营口市"]}},
+            "辰州":   {"parts": {"辽宁省": ["丹东市"]}},
+            "苏州":   {"parts": {"辽宁省": ["大连市"]}},
+            "黄龙府": {"parts": {"吉林省": ["通化市", "白山市", "延边朝鲜族自治州"]}},
+        },
+        "上京道": {
+            "临潢府": {"seat_at": [119.4, 43.9],
+                       "parts": {"内蒙古自治区": ["通辽市", "兴安盟"]}},
+            "泰州":   {"parts": {"吉林省": ["白城市", "松原市"]}},
+            "长春州": {"parts": {"吉林省": ["长春市", "四平市", "辽源市", "吉林市"]}},
+            "上京北": {"parts": {"黑龙江省": "*", "内蒙古自治区": ["呼伦贝尔市"]}},
+        },
+    },
+    # ---- 西夏：监军司道内再分州府 ----
+    "西夏": {
+        "兴庆府直辖": {
+            "兴庆府": {"seat_at": [106.3, 38.5],
+                       "parts": {"宁夏回族自治区": ["银川市", "石嘴山市"]}},
+            # 乌海(河套西北)移入白马强镇：避免西平府被兴庆府(银川/石嘴山)隔成两片
+            "西平府": {"seat_at": [106.3, 38.1],
+                       "parts": {"宁夏回族自治区": ["吴忠市", "中卫市"]}},
+            # 会州（白银市）：原挂"河南地"（现河套南）与其宥州隔~1.9 度成飞地，
+            # 移入直辖后与西平府(中卫-白银相邻)连片；史实会州 1101 属西夏。
+            "会州":   {"seat_at": [104.3, 36.54],
+                       "parts": {"甘肃省": ["白银市"]}},
+            "白马强镇": {"parts": {"内蒙古自治区": ["阿拉善盟", "乌海市"]}},
+        },
+        "河西走廊": {
+            "西凉府": {"seat_at": [102.6, 37.9],
+                       "parts": {"甘肃省": ["武威市", "金昌市"]}},
+            "甘州":   {"seat_at": [100.4, 38.9], "parts": {"甘肃省": ["张掖市"]}},
+            "肃州":   {"seat_at": [98.5, 39.7],
+                       "parts": {"甘肃省": ["酒泉市", "嘉峪关市"]}},
+            "黑山威福军": {"parts": {"内蒙古自治区": ["巴彦淖尔市"]}},
+        },
+        "河套南": {
+            "宥州": {"parts": {"内蒙古自治区": ["鄂尔多斯市"]}},
+        },
+    },
+    # 吐蕃·河湟分州（湟水谷地农业区 + 青海湖牧场）——挂在吐蕃政权名下，
+    #    单层模式（无政权内道/司）：组名=政权名，州府直接挂政权。
+    #    西宁州——鄯州故地（青唐城所在，后改西宁州）；湟州——湟水下游/黄河谷地；
+    #    廓州——黄河九曲上游（今黄南）；青海湖诸部——环湖牧场（海北）。
+    #    河湟以外（西藏/川西/甘南/青西）不下沉州府；开边归宋即把吐蕃四州划给宋。
+    "吐蕃": {
+        "吐蕃": {
+            "西宁州": {"seat_at": [101.8, 36.62],
+                       "parts": {"青海省": ["西宁市", "海东市"]}},
+            "湟州":   {"seat_at": [101.0, 36.25],
+                       "parts": {"青海省": ["海南藏族自治州"]}},
+            "廓州":   {"seat_at": [102.03, 36.03],
+                       "parts": {"青海省": ["黄南藏族自治州"]}},
+            "青海湖诸部": {"seat_at": [100.62, 37.0],
+                       "parts": {"青海省": ["海北藏族自治州"]}},
+        },
+    },
+    # 大理：单层模式（组名=政权名），按大理国"府/郡/镇"切分云南全境 + 川西南
+    #    （凉山=建昌府、攀枝花=会川府）；1101 年段正淳/段正严时期八府四郡简化为 12 块。
+    "大理": {
+        "大理": {
+            # 首都畿（羊苴咩城/大理）+ 谋统府(鹤庆、丽江)
+            "大理府": {"seat_at": [100.23, 25.60],
+                       "parts": {"云南省": ["大理白族自治州", "丽江市"]}},
+            # 东京善阐(拓东/鄯阐，今昆明) + 玉溪
+            "善阐府": {"seat_at": [102.71, 25.04],
+                       "parts": {"云南省": ["昆明市", "玉溪市"]}},
+            "威楚府": {"seat_at": [101.53, 25.05],
+                       "parts": {"云南省": ["楚雄彝族自治州"]}},
+            "石城郡": {"seat_at": [103.80, 25.50],
+                       "parts": {"云南省": ["曲靖市"]}},
+            # 秀山郡(通海)与最宁镇(建水)合：今红河、文山
+            "秀山郡": {"seat_at": [103.37, 23.37],
+                       "parts": {"云南省": ["红河哈尼族彝族自治州",
+                                            "文山壮族苗族自治州"]}},
+            "永昌府": {"seat_at": [99.17, 25.11],
+                       "parts": {"云南省": ["保山市"]}},
+            # 金齿(德宏，金齿百夷)
+            "金齿镇": {"seat_at": [98.58, 24.44],
+                       "parts": {"云南省": ["德宏傣族景颇族自治州"]}},
+            # 银生节度：普洱、临沧、西双版纳（南部羁縻）
+            "银生府": {"seat_at": [100.97, 22.79],
+                       "parts": {"云南省": ["普洱市", "临沧市",
+                                            "西双版纳傣族自治州"]}},
+            # 铁桥节度：怒江、迪庆（西北，吐蕃势力边缘、地广人稀）
+            "铁桥节度": {"seat_at": [99.70, 27.82],
+                       "parts": {"云南省": ["怒江傈僳族自治州",
+                                            "迪庆藏族自治州"]}},
+            "东川郡": {"seat_at": [103.72, 27.34],
+                       "parts": {"云南省": ["昭通市"]}},
+            "建昌府": {"seat_at": [102.26, 27.89],
+                       "parts": {"四川省": ["凉山彝族自治州"]}},
+            "会川府": {"seat_at": [101.72, 26.58],
+                       "parts": {"四川省": ["攀枝花市"]}},
+        },
+    },
+}
+
+# ============================================================
+# 三·四·b·γ 辽/西夏 道/司级人口经济总量与州府史实锚点
+#    口径：面积拆分 + 史实锚点（1101 年附近合理估量，非档案级精确值）。
+#    district_base ：道/司级总量（population 口 / households 户 / land 亩 /
+#                    grain 石·年 / tax 贯·年 / yields 物产，键对齐
+#                    PREFECTURE_INFO.yields，单位同宋）。
+#    demog_mult    ：州府史实/区位锚点系数（默认 1.0；析津府、兴庆府等重镇 >1）。
+#    拆分恒等式：Σ州府 == 道/司总量 —— build_map_geo 生成时断言（拾整尾差并入最大块）。
+# ============================================================
+REGIME_DEMOG: dict = {
+    "辽": {
+        "district_base": {
+            # 南京道：燕云十六州核心，析津府(幽州)为头号都会，户口冠五京
+            "南京道": {"population": 1300000, "households": 250000, "land": 9000000,
+                       "grain": 15000000, "tax": 1200000,
+                       "yields": {"salt": 20000000, "silk": 3000000,
+                                  "hemp": 2000000, "iron": 500000,
+                                  "fruit": 600000, "timber": 300000}},
+            # 西京道：大同盆地农牧交错，云中富庶
+            "西京道": {"population": 800000, "households": 150000, "land": 5000000,
+                       "grain": 8000000, "tax": 700000,
+                       "yields": {"silk": 1500000, "hemp": 1500000, "iron": 600000,
+                                  "fruit": 400000, "timber": 400000}},
+            # 中京道：契丹腹地，大定府都会
+            "中京道": {"population": 1000000, "households": 200000, "land": 6000000,
+                       "grain": 9000000, "tax": 700000,
+                       "yields": {"hemp": 1200000, "iron": 800000,
+                                  "timber": 500000, "fruit": 300000}},
+            # 东京道：渤海故地，辽阳府重镇，辽东盐铁
+            "东京道": {"population": 1200000, "households": 250000, "land": 7000000,
+                       "grain": 10000000, "tax": 900000,
+                       "yields": {"salt": 50000000, "silk": 1000000, "hemp": 1200000,
+                                  "iron": 1200000, "timber": 600000, "fruit": 400000}},
+            # 上京道：草原疏阔，牧场为主，产铁毛衣褐
+            "上京道": {"population": 700000, "households": 150000, "land": 3000000,
+                       "grain": 4000000, "tax": 500000,
+                       "yields": {"salt": 10000000, "hemp": 800000,
+                                  "iron": 900000, "timber": 700000}},
+        },
+        "demog_mult": {
+            "析津府": 1.5, "大同府": 1.3, "辽阳府": 1.25, "临潢府": 1.3,
+            "大定府": 1.15, "显州": 1.1, "苏州": 0.9, "长春州": 1.1,
+        },
+    },
+    "西夏": {
+        "district_base": {
+            # 兴庆府直辖：河套引黄灌溉，西夏最富庶的农业区
+            "兴庆府直辖": {"population": 600000, "households": 120000, "land": 5000000,
+                           "grain": 7000000, "tax": 600000,
+                           "yields": {"salt": 15000000, "hemp": 900000,
+                                      "fruit": 300000, "timber": 200000}},
+            # 河西走廊：绿洲农牧丝路商道
+            "河西走廊": {"population": 500000, "households": 100000, "land": 4000000,
+                         "grain": 6000000, "tax": 400000,
+                         "yields": {"salt": 8000000, "silk": 800000, "hemp": 800000,
+                                    "fruit": 300000}},
+            # 河套南（史称"河南地"）：鄂尔多斯高原，盐州盐池为要利源；会州已移直辖
+            "河套南": {"population": 400000, "households": 80000, "land": 3000000,
+                       "grain": 3000000, "tax": 300000,
+                       "yields": {"salt": 30000000, "hemp": 400000,
+                                  "iron": 300000, "timber": 200000}},
+        },
+        "demog_mult": {
+            "兴庆府": 1.6, "西平府": 1.3, "西凉府": 1.2, "甘州": 1.2,
+            "肃州": 0.9, "黑山威福军": 0.7,
+        },
+    },
+    # 吐蕃·河湟（1101 唃厮啰）：湟水谷地青稞农业 + 环湖牧区，约 20 万口。
+    # 史实锚点：青唐城(西宁)为都会，人口最盛；廓州居黄河谷地农牧相兼。
+    # 仅河湟四州有州府切分（单层模式：district_base 一组=政权名）；
+    # 吐蕃本部人口经济沿用 EXTERNAL_REGIMES 总量，不下沉。
+    "吐蕃": {
+        "district_base": {
+            "吐蕃": {"population": 200000, "households": 40000, "land": 5700000,
+                     "grain": 4700000, "tax": 240000,
+                     "yields": {"silk": 200000, "hemp": 900000,
+                                "fruit": 500000, "timber": 1100000}},
+        },
+        "demog_mult": {"西宁州": 1.4, "廓州": 1.1},
+    },
+    # 大理国（1101）：云南高原 + 川西南，总口约 90 万（对齐 EXTERNAL_REGIMES 人口）。
+    # 山多田少、茶盐与林木为利；首都大理府与东京善阐府人口最盛，
+    # 南部银生、西北铁桥为羁縻边地，地广人稀。
+    "大理": {
+        "district_base": {
+            "大理": {"population": 900000, "households": 180000, "land": 8000000,
+                     "grain": 12000000, "tax": 600000,
+                     "yields": {"tea": 3000000, "silk": 200000, "hemp": 300000,
+                                "cane": 200000, "fruit": 300000, "timber": 2500000,
+                                "stone": 600000, "iron": 800000, "salt": 6000000}},
+        },
+        "demog_mult": {
+            "大理府": 1.4, "善阐府": 1.3, "威楚府": 1.1, "石城郡": 1.1,
+            "秀山郡": 1.0, "永昌府": 1.0, "东川郡": 0.9,
+            "金齿镇": 0.8, "银生府": 0.8, "铁桥节度": 0.7,
+        },
     },
 }
 
@@ -686,8 +950,10 @@ REGIME_SUBDIVISIONS: dict[str, list[dict[str, object]]] = {
          "polygon": [[102.8, 38.0], [103.0, 40.5], [104.8, 40.6],
                       [105.8, 38.8], [105.8, 37.2], [103.5, 36.2],
                       [102.8, 38.0]]},
-        {"name": "河南地", "owner": "西夏", "seat": "韦州", "seat_at": [106.0, 37.2],
-         "label_at": [105.3, 37.1],
+        # 退役手工几何（name 与 REGIME_PARTS.sub_roads 同步：河南地→河套南，
+        # 会州已并入兴庆府直辖）。polygon 仅为旧表残留，已不再参与生成。
+        {"name": "河套南", "owner": "西夏", "seat": "宥州", "seat_at": [109.78, 39.62],
+         "label_at": [109.3, 39.6],
          "polygon": [[105.8, 37.2], [106.4, 38.6], [106.4, 36.3],
                       [105.3, 36.0], [103.5, 36.2], [105.8, 37.2]]},
     ],
@@ -916,5 +1182,103 @@ def validate_geo() -> list[str]:
             owner = sub.get("owner")
             if not isinstance(owner, str) or not _owner_known(owner):
                 problems.append(f"分路 owner 须为宋或已注册政权: {tag} owner={owner}")
+
+    # 6) REGIME_PREFECTURES（辽/西夏州府级 + 吐蕃·河湟单层细化）：
+    #    政权须按 sub_roads 或 provinces/prefectures 拼合；两式州府切分：
+    #    a) sub_roads 式（辽/西夏）：州府挂道/司，道/司内地级恰被一个州府覆盖；
+    #    b) 单层式（组名=政权名，如吐蕃·河湟）：州府直接挂政权，parts 省须在
+    #       政权领土内，可局部细化（不强制全覆盖，面积复核兜底无越界/重叠）。
+    for reg_key, subs in REGIME_PREFECTURES.items():
+        rp = REGIME_PARTS.get(reg_key)
+        if not rp:
+            problems.append(f"州府表政权缺 REGIME_PARTS: {reg_key}")
+            continue
+        if rp.get("sub_roads"):
+            road_specs = rp["sub_roads"]
+        elif rp.get("provinces") or rp.get("prefectures"):
+            road_specs = {reg_key: {"prefectures": rp["prefectures"]}}
+        else:
+            problems.append(f"州府表政权未按 sub_roads/provinces/prefectures 拼合: {reg_key}")
+            continue
+        for rname, prefs in subs.items():
+            single = rname == reg_key          # 单层模式：州府直接挂政权
+            if rname not in road_specs:
+                problems.append(f"州府表道/司未在 REGIME_PARTS.sub_roads 注册: "
+                                f"{reg_key}/{rname}")
+                continue
+            road_prefs = road_specs[rname].get("prefectures", {})
+            if single:
+                # 单层模式：州府 parts 省 ⊆ 政权领土（provinces ∪ prefectures）；
+                # 层内州府互不重叠/不越界由 build_map_geo 面积复核兜底。
+                allowed = set(rp.get("provinces", [])) | set(road_prefs)
+                for pname, pspec in prefs.items():
+                    parts = pspec.get("parts", {})
+                    if not isinstance(parts, dict) or not parts:
+                        problems.append(f"州府缺 parts: {reg_key}/{rname}/{pname}")
+                        continue
+                    for prov, _cities in parts.items():
+                        if prov not in allowed:
+                            problems.append(f"州府省不在政权领土: "
+                                            f"{reg_key}/{rname}/{pname}/{prov}")
+                continue
+            covered: dict[str, set[str]] = {}
+            for pname, pspec in prefs.items():
+                parts = pspec.get("parts", {})
+                if not isinstance(parts, dict) or not parts:
+                    problems.append(f"州府缺 parts: {reg_key}/{rname}/{pname}")
+                    continue
+                for prov, cities in parts.items():
+                    if prov not in road_prefs:
+                        problems.append(f"州府省不在道/司 prefectures: "
+                                        f"{reg_key}/{rname}/{pname}/{prov}")
+                        continue
+                    want = road_prefs[prov]
+                    if want == "*":
+                        continue          # 通配无法键级校验，面积复核兜底
+                    if cities == "*":
+                        continue
+                    for c in cities:
+                        if c not in want:
+                            problems.append(f"州府地级不在道/司 prefectures: "
+                                            f"{reg_key}/{rname}/{pname}/{c}")
+                        else:
+                            covered.setdefault(prov, set()).add(c)
+            for prov, want in road_prefs.items():
+                if want == "*":
+                    continue
+                miss = [c for c in want if c not in covered.get(prov, set())]
+                if miss:
+                    problems.append(f"道/司地级未被任何州府覆盖: {reg_key}/{rname}/{prov}{miss}")
+
+    # 7) REGIME_DEMOG（辽/西夏州府人口经济底盘）：
+    #    政权须有 REGIME_PREFECTURES；道/司键须命中 REGIME_PARTS.sub_roads；
+    #    population/households 须为正（land/grain/tax 允许缺省，但不应为负）；
+    #    demog_mult 的州府必须真实存在于该政权州府表（防锚点悬空）。
+    for reg_key, demog in REGIME_DEMOG.items():
+        prefs_tab = REGIME_PREFECTURES.get(reg_key, {})
+        if not prefs_tab:
+            problems.append(f"人口经济表政权缺州府切分表: {reg_key}")
+            continue
+        rp = REGIME_PARTS.get(reg_key, {})
+        roads = (rp.get("sub_roads")
+                 or {reg_key: {"prefectures": rp.get("prefectures", {})}})
+        for rname, base in demog.get("district_base", {}).items():
+            if rname not in roads:
+                problems.append(f"人口经济道/司未在 REGIME_PARTS.sub_roads: "
+                                f"{reg_key}/{rname}")
+            if not isinstance(base.get("population"), (int, float)) or base["population"] <= 0:
+                problems.append(f"道/司人口须为正: {reg_key}/{rname}")
+            if not isinstance(base.get("households"), (int, float)) or base["households"] <= 0:
+                problems.append(f"道/司户数须为正: {reg_key}/{rname}")
+            for dim in ("land", "grain", "tax"):
+                v = base.get(dim)
+                if v is not None and (not isinstance(v, (int, float)) or v < 0):
+                    problems.append(f"道/司 {dim} 不应为负: {reg_key}/{rname}")
+        for pname, mult in demog.get("demog_mult", {}).items():
+            if not isinstance(mult, (int, float)) or mult <= 0:
+                problems.append(f"州府锚点系数须为正: {reg_key}/{pname}")
+            found = any(pname in prefs for prefs in prefs_tab.values())
+            if not found:
+                problems.append(f"州府锚点未在州府表注册: {reg_key}/{pname}")
 
     return problems

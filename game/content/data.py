@@ -47,6 +47,10 @@ EXTERNAL_ALWAYS_SHOW = {
 
 
 def desk_bg_path() -> str:
+    # 优先压缩版 JPEG；缺失时回退 PNG（旧资源）
+    jpg = os.path.join(MAP_DIR, "desk_bg.jpg")
+    if os.path.exists(jpg):
+        return jpg
     return os.path.join(MAP_DIR, "desk_bg.png")
 
 # ============================================================
@@ -102,7 +106,7 @@ DECREE_MAX_BANDWIDTH = 10      # 圣旨上限
 SECRET_DECREE_MIN = 2          # 密旨最低
 SECRET_DECREE_MAX = 3          # 密旨最高
 DIRECT_DECREE_MAX = 2          # 御笔直发上限
-WOLF_THRESHOLD = 3             # 狼来了阈值
+WOLF_THRESHOLD = 3             # 已停用：狼来了机制取消（审查 2026-09），保留常量仅存档/引用兼容
 
 # 诏意机构归属（拟旨润色时由 AI 建议，会签与执行共用）
 # 归属类别：内廷（直属皇帝，无条件执行）/ 政府（三省六部，走会签）/ 地方（州县，可能抗旨）
@@ -131,7 +135,7 @@ S_CONFLICT_WEIGHT = 0.15       # 党争修正权重
 S_SECRET_BASE = 0.30           # 密旨基础成功率
 S_SECRET_LOYALTY_WEIGHT = 0.7  # 密旨忠诚度权重
 S_DIRECT_BONUS = 0.10          # 御笔加成
-S_DIRECT_PENALTY = -0.15       # 狼来了惩罚
+S_DIRECT_PENALTY = 0.0         # 已停用：狼来了惩罚取消（原 -0.15，现 0）
 E_MIN = 0.05
 E_MAX = 0.95
 
@@ -385,11 +389,13 @@ EXTERNAL_FORCES = {
 # 旧 ARMY_INIT 的质量参数经此并入 UNIT_TIER；strength（锐气）字段已废弃，
 # 战力改由 _army_power(unit, gunpowder) 统一派生（见 ui/panels_military.py）。
 #
-# 各路兵额唯一源头改为 ARMY_UNIT_INIT（单位：人，真实整数），
-# 由各路 PREFECTURE_INFO.garrisons 直接载入（已是真实人数），
-# 陕西"西军 20万"归入"禁军 200000"，数字原样、仅改归类。
+# 各路兵额唯一源头为 ARMY_UNIT_INIT（单位：人，真实整数，表内 12 路）。
+# （审查 P2-58 注释校正：原注释称「由各路 PREFECTURE_INFO.garrisons 直接载入」——
+#  PREFECTURE_INFO 无 garrisons 字段；各路 garrison 由 GameState 聚合 army_units 派生，
+#  见 game_state._derive_defense_lines / defense_lines_view。）
+# 陕西"西军 20 万"并入禁军——该路禁军实为 220000（旧注释误写 200000），数字以本表为准、仅改归类。
 ARMY_UNIT_INIT = {
-    # 军籍键仅 禁军/厢军/乡兵；站名与 PREFECTURE_LIST（20 路）一致
+    # 军籍键仅 禁军/厢军/乡兵；路名取自 PREFECTURE_LIST（20 路），本表只列驻军 12 路
     "京畿路":     {"禁军": 60000,  "厢军": 20000,  "乡兵": 0},
     "京西路":     {"禁军": 10000,  "厢军": 10000,  "乡兵": 10000},
     "河北路":     {"禁军": 30000,  "厢军": 20000,  "乡兵": 30000},
@@ -620,7 +626,7 @@ PERSONAL_ACTIONS = {
         "taoism_gain": 4,
         "treasury_cost": 50000,
         "clergy_satisfaction": 5,
-        "desc": "设醮祈福、召见方士，增僧道满意度但耗财"
+        "desc": "设醮祈福、召见方士，提升道门好感，但耗费国帑"
     },
     "享乐宴游": {
         "health_cost": 5,
@@ -667,7 +673,7 @@ IMPERIAL_ACTION_MATRIX = {
                 "base_effects": {"art_mastery": 3, "prestige": 1},
             },
             "崇道修醮": {
-                "label": "史实", "desc": "设醮祈福、召见方士，增道门与皇威",
+                "label": "史实", "desc": "设醮祈福、召见方士，提升道门好感与皇威",
                 "base_cost": 50000, "fund": "treasury", "risk": "低", "era_gate": None,
                 "base_effects": {"taoism_leaning": 4, "faction_change": {"新党": 3}},
             },
@@ -692,7 +698,7 @@ IMPERIAL_ACTION_MATRIX = {
                 "base_effects": {"pleasure_leaning": 2, "art_mastery": 1},
             },
             "上清宝箓宫": {
-                "label": "史实", "desc": "幸上清宝箓宫，会道士二千余人（政和七年）",
+                "label": "史实", "desc": "驾临上清宝箓宫，会道士二千余人（政和七年）",
                 "base_cost": 100000, "fund": "treasury", "risk": "低", "era_gate": 1117,
                 "base_effects": {"taoism_leaning": 3, "prestige": 1},
             },
@@ -704,7 +710,7 @@ IMPERIAL_ACTION_MATRIX = {
                 "micro_once": True, "base_effects": {"prestige": -1},
             },
             "微行大臣府第": {
-                "label": "史实", "desc": "微服过近臣第宅（《宋史·王黼传》载微行过其家）",
+                "label": "史实", "desc": "微服造访近臣宅第（《宋史·王黼传》载微行过其家）",
                 "base_cost": 10000, "fund": "imperial_treasury", "risk": "中", "era_gate": None,
                 "micro_once": True, "base_effects": {"prestige": 1},
             },
@@ -800,6 +806,64 @@ MAJOR_POLICIES = [
     "治河工程",   # 黄河治理专项
 ]
 
+# 科技效果键 → 中文标签（迁移补齐：原 ui/panels_economy.py 模块级常量；
+# Tk 废弃后归位权威常量源，供 content/codex_data 图鉴与前端导出共用）
+TECH_EFFECT_LABELS = {
+    "production": "产能",
+    "yield_bonus": "田产加成",
+    "mining_income": "矿冶收入",
+    "build_cost": "营造成本",
+    "canal_efficiency": "漕运效率",
+    "army_power": "军力",
+    "training": "操练",
+    "equipment": "武备",
+    "morale": "士气",
+    "epidemic_risk": "疫病风险",
+    "prestige": "皇威",
+    "prestige_gain": "皇威增益",
+    "exam_talent": "科举才俊",
+    "granary_cap": "扩仓容",
+    "workshop_output": "增作坊产出",
+    "trade_income": "贸易收入",
+    "build_speed": "建造速度",
+    "decree_speed": "政令速率",
+    "bandwidth_bonus": "圣裁带宽",
+    "treasury": "国库",
+    "tax": "税入",
+    "grain": "粮储",
+    "unrest": "民乱",
+    "loyalty": "忠诚",
+    "satisfaction": "满意度",
+    "influence": "势力",
+    "power": "实力",
+    "population": "人口",
+    "trade_income": "市舶收入",
+    "ship_capacity": "舟运运力",
+    "naval_power": "水师",
+    "firepower": "火力",
+    "fortification": "城防",
+    "garrison": "驻军",
+    "art_gain": "艺术造诣",
+    "health_cost": "健康消耗",
+    "taoism_gain": "道术造诣",
+    "pleasure_gain": "逸乐",
+    "clergy_satisfaction": "僧道满意度",
+}
+
+
+# ============================================================
+# 数值工具（单一权威源）
+# ============================================================
+def clamp(value: float, lo: float, hi: float) -> float:
+    """把数值钳制到 [lo, hi] 闭区间（**单一权威源**）。
+
+    审查 P3 修复：`_clamp` 原在 core/game_state.py（模块级）与 core/game_state_econ.py
+    （模块级 + mixin 方法）各写一份、共三处重复；现统一由本函数提供，
+    各模块 `from content.data import clamp as _clamp`（保留既有调用点写法）。
+    """
+    return max(lo, min(hi, value))
+
+
 # ============================================================
 # 脱敏词映射
 # ============================================================
@@ -848,9 +912,9 @@ YAMEN_INFO = {
     "吏部": {"duty": "铨选官吏、考核黜陟", "faction": "旧党", "acts": ["整饬吏治", "裁汰冗员", "兴办科举"]},
     "户部": {"duty": "户口田赋、度支钱粮", "faction": "新党", "acts": ["清丈田亩", "减免田赋", "常平仓赈济"]},
     "礼部": {"duty": "礼仪祭祀、科举学校", "faction": "旧党", "acts": ["重开贡举", "兴修礼乐", "褒崇道教"]},
-    "兵部": {"duty": "武官选授、舆图军籍", "faction": "西军", "acts": ["整练新军", "缮修兵甲", "置将练兵"]},
-    "刑部": {"duty": "律令刑名、刑狱冤滞", "faction": "枢密", "acts": ["宽刑省狱", "修订刑统", "平反冤案"]},
-    "工部": {"duty": "山泽沟洫、营造工役", "faction": "宦官", "acts": ["兴修水利", "营缮宫观", "开矿铸钱"]},
+    "兵部": {"duty": "武官选授、舆图军籍", "faction": "西军集团", "acts": ["整练新军", "缮修兵甲", "置将练兵"]},
+    "刑部": {"duty": "律令刑名、刑狱冤滞", "faction": "清流言官", "acts": ["宽刑省狱", "修订刑统", "平反冤案"]},
+    "工部": {"duty": "山泽沟洫、营造工役", "faction": "宦官集团", "acts": ["兴修水利", "营缮宫观", "开矿铸钱"]},
 }
 
 
@@ -1113,6 +1177,10 @@ _EXTERNAL_POP_SHARE_BY_TYPE = {
     "南洋岛国":       {"农": 0.52, "士绅": 0.03, "工匠": 0.10, "商人": 0.16, "官僚": 0.05, "兵": 0.14},
     "婆罗洲岛国":     {"农": 0.52, "士绅": 0.03, "工匠": 0.10, "商人": 0.16, "官僚": 0.05, "兵": 0.14},
     "香料群岛":       {"农": 0.48, "士绅": 0.03, "工匠": 0.12, "商人": 0.20, "官僚": 0.05, "兵": 0.12},
+    # 审查 P2-54 修复（type 未注册 → 静默走农耕默认）：
+    #   三佛齐(type=南海大国)、琉球(type=海岛番社) 补水军/海商向占比（工匠/商人偏重，Σ=1）。
+    "南海大国":       {"农": 0.46, "士绅": 0.03, "工匠": 0.10, "商人": 0.20, "官僚": 0.05, "兵": 0.16},
+    "海岛番社":       {"农": 0.50, "士绅": 0.02, "工匠": 0.11, "商人": 0.18, "官僚": 0.04, "兵": 0.15},
     # 东方/海东/属国：农主、兵中
     "东方藩属":       {"农": 0.58, "士绅": 0.05, "工匠": 0.07, "商人": 0.08, "官僚": 0.06, "兵": 0.16},
     "海东岛国":       {"农": 0.55, "士绅": 0.06, "工匠": 0.09, "商人": 0.10, "官僚": 0.08, "兵": 0.12},
@@ -1229,6 +1297,8 @@ _EXTERNAL_ARM_SPEC = {
     # 水军为主（洋/岛）
     "南洋岛国": (_EXTERNAL_ARM_WATER, 45, 55), "婆罗洲岛国": (_EXTERNAL_ARM_WATER, 44, 54),
     "香料群岛": (_EXTERNAL_ARM_WATER, 46, 56), "海东岛国": (_EXTERNAL_ARM_WATER, 48, 58),
+    # 审查 P2-54 修复：南海大国/海岛番社 原未注册 → 静默走步兵默认；补水军向
+    "南海大国": (_EXTERNAL_ARM_WATER, 47, 57), "海岛番社": (_EXTERNAL_ARM_WATER, 43, 53),
     # 山地/部族（步弓为主）
     "高原诸部": (_EXTERNAL_ARM_HILL, 50, 55), "山南列邦": (_EXTERNAL_ARM_HILL, 46, 50),
     "中南部族": (_EXTERNAL_ARM_HILL, 48, 52), "西南邻国": (_EXTERNAL_ARM_HILL, 50, 54),
@@ -1252,7 +1322,8 @@ def external_province_buildings(pop_type: str) -> dict[str, int]:
     if pop_type in ("游牧帝国", "漠北游牧", "漠南游牧", "蒙古本部", "东蒙部族",
                     "女真诸部", "喀喇契丹", "漠北部族", "党项蕃国"):
         return {"牧场": 2, "牙帐": 1, "兵寨": 1}
-    if pop_type in ("南洋岛国", "婆罗洲岛国", "香料群岛", "海东岛国"):
+    if pop_type in ("南洋岛国", "婆罗洲岛国", "香料群岛", "海东岛国",
+                    "南海大国", "海岛番社"):   # 审查 P2-54 修复：补两 type（原走农耕默认）
         return {"商埠": 2, "船坞": 1, "港寨": 1}
     if pop_type in ("高原诸部", "山南列邦", "中南部族"):
         return {"寨堡": 2, "梯田": 1}
@@ -1381,7 +1452,7 @@ AI_ERROR_CODES = {
 # ============================================================
 LAND_INFO = {
     "cultivated": 460_000_000,       # 垦田（亩）
-    "households": 20_000_000,        # 在籍明户（户）——12 路 PREFECTURE_INFO.households 合计即此值
+    "households": 20_000_000,        # 在籍明户（户）——20 路 PREFECTURE_INFO.households 合计即此值
     "hidden_households": 5_000_000,  # 隐户（户，不在籍，UI 不显示；设计锚：总户 2500 万 = 明 2000 万 + 隐 500 万，总口 1 亿）
     "hidden_rate": 0.35,             # 田赋隐漏率（税收口径，与隐户人口锚不同维）
     "wasteland": 80_000_000,         # 荒田（亩）
@@ -1424,14 +1495,20 @@ MELT_RATE = 0.001         # 民间铜钱熔化率（/月，wealth 0.1% 扣减，
 # economy_decide 扩展 5 金融字段：AI 只给三态词（增/稳/跌、缓/平/加剧、兴/平/衰、
 # 扩/稳/损、通胀/平/通缩），数值由程序按此基准换算并 CAP 封顶。
 FINANCE_DECIDE_BASE = {
-    "jiaozi_trust": {"cap": 5},          # 交子信任 增/跌 → trust ±5
-    "jiaozi_issued": {"cap": 1_000_000}, # 交子发行 增 → issued +100万（≤可发额度，超发触发既有崩溃）
-    "shortage": {"cap": 0.05},           # 钱荒 缓/加剧 → shortage ±0.05（clamp [0.05,0.95]）
-    "tariff": {"cap": 0.02},             # 市舶 兴/衰 → tariff ±0.02（clamp [0.05,0.20]）
-    "silver_in": {"cap": 10},            # 市舶白银 silver_in ±10（clamp [10,60] 万两/年）
-    "bank_capital": {"cap": 0.20},       # 银行 扩/损 → capital ±20%（仅 established）
-    "bank_reserve": {"cap": 500_000},    # 银行 reserve +50万
-    "price_mult": {"cap": 0.05},         # 价格系数 ±5%（挂 calc_price_level ×mult，clamp [0.5,3.0]）
+    # 审查 P2-53 修复（死数据 → 单一权威源）：本表为金融调制的**唯一权威源**——
+    # core/settlement_steps._settle_extensions 原另行硬编码同一组数值（±5/100万/0.05/0.02/10/
+    # ×1.20/×0.80/50万/×1.05 及各自 clamp），两处各自维护；现结算侧一律读本表。
+    #   cap     = 每次调制幅度；min/max = 该字段值域钳制（与结算侧原 clamp 逐值一致）
+    #   up/down = 乘数式调制的精确倍率（保留字面量，避免 1.0+cap 引入 1ulp 浮点差）
+    "jiaozi_trust": {"cap": 5, "min": 0, "max": 100},        # 交子信任 增/跌 → trust ±5
+    "jiaozi_issued": {"cap": 1_000_000},                     # 交子发行 增 → +100万（≤可发额度）
+    "shortage": {"cap": 0.05, "min": 0.05, "max": 0.95},     # 钱荒 缓/加剧 → shortage ±0.05
+    "tariff": {"cap": 0.02, "min": 0.05, "max": 0.20},       # 市舶 兴/衰 → tariff ±0.02
+    "silver_in": {"cap": 10, "min": 10, "max": 60},          # 市舶白银 silver_in ±10 万两/年
+    "bank_capital": {"cap": 0.20, "up": 1.20, "down": 0.80}, # 银行 扩/损 → capital ×1.20/×0.80
+    "bank_reserve": {"cap": 500_000, "min": 0},              # 银行 reserve ±50万（floor 0）
+    "price_mult": {"cap": 0.05, "up": 1.05, "down": 0.95,
+                   "min": 0.5, "max": 3.0},                  # 价格系数 ±5%（clamp [0.5,3.0]）
 }
 # 三态词白名单（金融字段）
 FINANCE_STATES = {
@@ -1594,9 +1671,12 @@ MONEY_SUPPLY_START = 200_000_000  # 货币有效供给初值（贯）：铜钱+�
 ERA_DIMENSIONS = ("economy_center", "culture", "commerce", "military", "urban")
 ERA_TREND_SHIFT = {"兴": 10, "平": 0, "衰": -10}    # 每档迁移幅度（0-100 刻度，程序定幅）
 ERA_BUILDING_LINK = {          # 下行联动：建筑 → era 维度（乘数走既有公式，累积到 era）
+    # 审查 P2-55 修复（死键）：原表 市舶/码头/城防 不对应任何真实建筑类型（联动永不命中）。
+    # 对齐真实建筑闭集：BUILDING_STD(水利/常平仓/官营作坊/官署/军营/学校)
+    # + POP_BUILDING_TYPES(农田/工坊/商铺/庄园) + TECH_BUILDING_MAP(市舶司/火器作坊/铁作)。
     "水利": "economy_center", "常平仓": "economy_center",
-    "学校": "culture", "市舶": "commerce", "码头": "commerce",
-    "军营": "military", "城防": "military", "官营作坊": "commerce",
+    "学校": "culture", "市舶司": "commerce", "工坊": "commerce",
+    "军营": "military", "官营作坊": "commerce",
     "农田": "economy_center", "商铺": "commerce", "庄园": "economy_center",
 }
 ERA_UP_LINK = {                # 上行调制：国库/景气 → 建造速度/解锁
@@ -1673,7 +1753,10 @@ BOOM_MULT = {"无": 0.0, "微": 0.4, "小": 0.7, "中": 1.0, "大": 1.4, "巨": 
 # 补无/巨/极 3 档，7 档闭合——原缺此 3 档时 AI 出「巨」被 .get(默认1.0) 静默降级为中性。
 FARMER_SELL_FLOOR = 0.5            # 农最低供给份额：粮市撮合中农卖方权重保底（防农被挤出粮市）
 POP_FLOW_RATE = {"城市化": 0.0008, "回乡": 0.0008, "科举": 0.0001}  # POP 流动基准（/月）
-EXAM_HARD_POOR_SHARE = {"无": 0.0, "微": 0.3, "小": 0.5, "中": 0.7, "大": 0.9}  # 科举寒门（农）入仕占比
+EXAM_HARD_POOR_SHARE = {"无": 0.0, "微": 0.3, "小": 0.5, "中": 0.7, "大": 0.9,
+                        "巨": 0.9, "极": 0.9}  # 科举寒门（农）入仕占比
+# 审查 P2-52 修复（档位不全）：原表只 5 档 → AI 出「巨/极」（7 档合法词）时被 .get(tier, 0.0)
+# 静默归零（寒门入仕份额消失）。补 巨/极 闭合 7 档（同 BOOM_MULT 写法），按份额上限 0.9 收敛。
 URBAN_SPLIT = {"工匠": 0.6, "商人": 0.4}  # 城市化净流入在工匠/商人间的分配
 
 # ---- 俸禄指数化（T9 定稿·Step 4）：粮价 > 1.5 时俸禄 ×(1+0.1×超额) ----
@@ -1852,8 +1935,8 @@ TECH_NODES: list[TechNode] = [
     ("M8_ice",      "机械动力", 6, "内燃机",     "油气入炉，机转如雷", ["M6_loco","E4_oil"], 90, [("west",3)], {"silver":2000000,"months":30,"masters":10}, {"production":0.25}),
     ("M9_power",    "机械动力", 6, "电力传输",   "电枢旋转，千里动力一脉", ["M8_ice","M7_elecbasis"], 95, [("west",4)], {"silver":3000000,"months":32,"masters":12}, {"production":0.30}),
     # ---- 能源与材料 ----
-    ("E0_firewood", "能源与材料", 0, "柴薪取火",  "薪樵为燃，窑冶之基", [], 0, [], {"silver":0,"months":0,"masters":0}, {"build_speed":0.05}),
-    ("E1_coal",     "能源与材料", 0, "煤炭开采",  "山石可燃，代薪为薪", [], 0, [], {"silver":0,"months":0,"masters":0}, {"production":0.08}),
+    ("E0_firewood", "能源与材料", 0, "柴薪取火",  "柴薪为燃，窑冶之基", [], 0, [], {"silver":0,"months":0,"masters":0}, {"build_speed":0.05}),
+    ("E1_coal",     "能源与材料", 0, "煤炭开采",  "山石可燃，可代柴薪", [], 0, [], {"silver":0,"months":0,"masters":0}, {"production":0.08}),
     ("E2_coke",     "能源与材料", 2, "焦炭冶铁",  "煤炼成焦，火猛而无硫", ["E1_coal","M4_furnace"], 72, [("iron",60)], {"silver":300000,"months":18,"masters":6}, {"build_cost":-0.18}),
     ("E3_steel",    "能源与材料", 4, "钢铁精炼",  "百炼成钢，器用坚利", ["E2_coke"], 82, [("west",1)], {"silver":800000,"months":22,"masters":7}, {"army_power":0.20}),
     ("E4_oil",      "能源与材料", 5, "石油提炼",  "井中黑金，炼为灯油沥青", ["E3_steel"], 88, [("west",2)], {"silver":1500000,"months":26,"masters":8}, {"mining_income":0.25}),
@@ -1861,7 +1944,7 @@ TECH_NODES: list[TechNode] = [
     ("E6_elecsteel","能源与材料", 6, "电工钢",    "硅钢导磁，电机之骨", ["E5_alloy","M9_power"], 97, [("west",4)], {"silver":3500000,"months":34,"masters":12}, {"production":0.35}),
     # ---- 化学化工 ----
     ("C0_alchemy",  "化学化工", 0, "炼丹术",     "炉鼎丹砂，化玄为妙", [], 0, [], {"silver":0,"months":0,"masters":0}, {"build_speed":0.05}),
-    ("C1_gunpowder","化学化工", 0, "火药成熟",   "硝硫木炭，一硝二磺三木", ["C0_alchemy"], 20, [("gunpowder",30)], {"silver":30000,"months":5,"masters":2}, {"army_power":0.10}),
+    ("C1_gunpowder","化学化工", 0, "火药成熟",   "硝硫木炭，一硝二磺三木炭", ["C0_alchemy"], 20, [("gunpowder",30)], {"silver":30000,"months":5,"masters":2}, {"army_power":0.10}),
     ("C1b_huochong","化学化工", 1, "火铳",       "铜铁为管，火药推送子丸", ["C1_gunpowder"], 40, [("gunpowder",45)], {"silver":120000,"months":8,"masters":3}, {"army_power":0.12}),
     ("C1c_huoqiang","化学化工", 2, "火枪",       "更制枪铳，演为列阵之器", ["C1b_huochong"], 65, [("gunpowder",65)], {"silver":300000,"months":14,"masters":5}, {"army_power":0.15}),
     ("C1d_suifa",  "化学化工", 4, "燧发枪",     "燧石击发，机巧胜于人力", ["C1c_huoqiang"], 85, [("gunpowder",85),("west",2)], {"silver":800000,"months":20,"masters":7}, {"army_power":0.20}),
@@ -1877,7 +1960,7 @@ TECH_NODES: list[TechNode] = [
     ("I3_post",     "信息通讯", 2, "邮政驿站",   "驿路烽烟，传檄四方", ["I2_metaltype"], 65, [], {"silver":150000,"months":10,"masters":4}, {"decree_speed":-2}),
     ("I4_telegraph","信息通讯", 5, "电报",       "铜线千里，电传讯息", ["I3_post","M7_elecbasis"], 85, [("west",2)], {"silver":1200000,"months":24,"masters":8}, {"decree_speed":-4}),
     ("I5_phone",    "信息通讯", 5, "电话",       "声波化电，隔空传语", ["I4_telegraph"], 90, [("west",3)], {"silver":2000000,"months":26,"masters":9}, {"decree_speed":-5}),
-    ("I6_radio",    "信息通讯", 6, "无线电",     "电波无远弗届，千里同声", ["I5_phone"], 95, [("west",4)], {"silver":3000000,"months":30,"masters":11}, {"decree_speed":-6}),
+    ("I6_radio",    "信息通讯", 6, "无线电",     "电波无远不至，千里同声", ["I5_phone"], 95, [("west",4)], {"silver":3000000,"months":30,"masters":11}, {"decree_speed":-6}),
     # ---- 生命医学 ----
     ("H0_herbal",   "生命医学", 0, "本草医方",   "尝百草辨药性，济世活人", [], 0, [], {"silver":0,"months":0,"masters":0}, {"epidemic_risk":-0.10}),
     ("H1_forensic", "生命医学", 1, "法医检勘",   "验尸断狱，洗冤录成", ["H0_herbal"], 50, [], {"silver":40000,"months":6,"masters":2}, {"epidemic_risk":-0.10}),
@@ -1885,7 +1968,7 @@ TECH_NODES: list[TechNode] = [
     ("H3_anatomy",  "生命医学", 3, "人体解剖",   "剖尸明理，血脉经络", ["H2_variola"], 75, [("west",1)], {"silver":400000,"months":14,"masters":5}, {"epidemic_risk":-0.20}),
     ("H4_bacteria", "生命医学", 4, "细菌学说",   "微虫致病，灭之可防", ["H3_anatomy"], 82, [("west",2)], {"silver":800000,"months":20,"masters":6}, {"epidemic_risk":-0.40}),
     ("H5_anesthesia","生命医学", 5, "外科麻醉",   "麻沸汤药，剖腹不痛", ["H4_bacteria"], 88, [("west",2)], {"silver":1500000,"months":24,"masters":8}, {"epidemic_risk":-0.30,"production":0.05}),
-    ("H6_vaccine",  "生命医学", 6, "疫苗学",     "减毒作苗，疫疠可御", ["H5_anesthesia"], 93, [("west",3)], {"silver":2200000,"months":28,"masters":9}, {"epidemic_risk":-0.50}),
+    ("H6_vaccine",  "生命医学", 6, "疫苗学",     "减毒作苗，疫病可御", ["H5_anesthesia"], 93, [("west",3)], {"silver":2200000,"months":28,"masters":9}, {"epidemic_risk":-0.50}),
     # ---- 观念与制度（idea 类：穿越者观念启发，近零成本，靠推行）----
     ("X0_assembly", "观念与制度", 1, "流水线",   "工序拆解，流水作业，百器速成", ["M2_spindle"], 60, [], {"silver":0,"months":6,"masters":0,"idea":True}, {"production":0.15}),
     ("X1_standard", "观念与制度", 2, "标准化",   "模件互换，尺寸划一，营造尤便", ["X0_assembly"], 65, [], {"silver":0,"months":8,"masters":0,"idea":True}, {"build_cost":-0.12}),
@@ -1963,37 +2046,36 @@ REFORM_ACTS = ["更役法", "行方田均税", "整顿吏治", "抑兼并", "宽
 # ============================================================
 # 金融/科举/科技/军/外交/改革 → 脱敏描述辅助（原 data_desensitize.py 内联）
 # ============================================================
+def _desensitize_from_map(field: str, value) -> str:
+    """按 DESENSITIZE_MAP 阈值升序取档（单一权威源；超上界收敛到最高档）。
+
+    审查 P2-61 修复：原四个 desensitize_* 函数各自硬编码同一组阈值/文案（与
+    DESENSITIZE_MAP 双份定义、修改需两处同步），现统一查表（对外行为逐值等价）。
+    """
+    tiers = DESENSITIZE_MAP.get(field) or {}
+    if not tiers:
+        return ""
+    for th in sorted(tiers):
+        if value <= th:
+            return tiers[th]
+    return tiers[max(tiers)]
+
+
 def desensitize_prestige(value: int) -> str:
-    """皇威数值→脱敏描述"""
-    if value <= 25: return "皇威扫地"
-    if value <= 40: return "皇威不振"
-    if value <= 60: return "皇威平平"
-    if value <= 80: return "皇威尚隆"
-    return "皇威鼎盛"
+    """皇威数值→脱敏描述（阈值/文案取自 DESENSITIZE_MAP）"""
+    return _desensitize_from_map("prestige", value)
 
 def desensitize_arrival(rate: float) -> str:
     """到账率→脱敏描述"""
-    if rate <= 0.2: return "十不存二"
-    if rate <= 0.4: return "不足五成"
-    if rate <= 0.6: return "六成上下"
-    if rate <= 0.8: return "十之七八"
-    return "几近全数"
+    return _desensitize_from_map("arrival", rate)
 
 def desensitize_satisfaction(value: int) -> str:
     """满意度→脱敏描述"""
-    if value <= 20: return "怨声载道"
-    if value <= 40: return "颇有微词"
-    if value <= 60: return "大体认可"
-    if value <= 80: return "心悦诚服"
-    return "感恩戴德"
+    return _desensitize_from_map("satisfaction", value)
 
 def desensitize_treasury(amount: int) -> str:
     """国库→脱敏描述"""
-    if amount <= 0: return "库空如洗"
-    if amount <= 2000000: return "入不敷出"
-    if amount <= 5000000: return "略有结余"
-    if amount <= 10000000: return "国库充盈"
-    return "富甲天下"
+    return _desensitize_from_map("treasury", amount)
 
 def desensitize_trust(value: int) -> str:
     if value <= 20: return "交子几不可信"
