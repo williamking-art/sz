@@ -5,10 +5,10 @@
 - 本地 HTTP 服务：以 127.0.0.1 随机端口伺服 assets/map/web/（禁 file:// 直开，
   规避 WebView2 对 file:// 下 fetch 的 CORS 限制），MIME 含 .geojson。
 - 桥接枢纽：JS→Python（pywebview js_api / POST /bridge 双通道）统一入
-  _BridgeHub；附带 Tk root 时经 root.after(0, ...) 回主线程，禁止跨线程直改控件。
+  _BridgeHub；附带 GUI 宿主时经 root.after(0, ...) 回主线程，禁止跨线程直改控件。
 - Python→JS：push_state 合并状态并经 window.evaluate_js 下发
   （window.SongZuoMap.applyState）；浏览器降级模式由页面轮询 GET /state。
-- 生命周期：WebMapController.open() 在守护线程拉起 pywebview（Tk 共存），
+- 生命周期：WebMapController.open() 在守护线程拉起 pywebview（宿主共存），
   无 pywebview 时自动降级 webbrowser 打开，全功能保留。
 
 用法（面板层示例）：
@@ -70,14 +70,14 @@ _MIME = {
 
 
 # ---------------------------------------------------------------------------
-# 桥接枢纽：JS → Python（统一入口，Tk 安全回主线程）
+# 桥接枢纽：JS → Python（统一入口，宿主安全回主线程）
 # ---------------------------------------------------------------------------
 class _BridgeHub:
     """收集 JS 侧事件并分发到 Python 回调。
 
-    - 附带 Tk root：回调经 root.after(0, ...) 投递到主线程执行；
+    - 附带 GUI 宿主：回调经 root.after(0, ...) 投递到主线程执行；
     - 无 root（独立启动器/测试）：当前线程直接调用。
-    所有回调异常被捕获记入日志，绝不反冲 webview/Tk 线程。
+    所有回调异常被捕获记入日志，绝不反冲 webview/宿主线程。
     """
 
     def __init__(self, root=None):
@@ -306,7 +306,7 @@ class WebMapController:
     """Web 舆图生命周期与桥接控制。
 
     线程模型：
-    - Tk 共存模式（root 不为 None）：webview.start() 跑在守护线程，
+    - 宿主共存模式（root 不为 None）：webview.start() 跑在守护线程，
       JS 事件经 _BridgeHub → root.after 回主线程；push_state 可在任意线程调用。
     - 独立模式（root 为 None）：open(run_in_thread=False) 时阻塞当前线程，
       回调直接在 webview 线程执行（调用方自行保证线程安全）。
@@ -431,7 +431,7 @@ class WebMapController:
                 self._on_window_closed()
 
     def _run_webview_threaded(self):
-        """Tk 共存模式：守护线程运行 webview 循环。"""
+        """宿主共存模式：守护线程运行 webview 循环。"""
         self._wv_thread = threading.Thread(
             target=self._run_webview_blocking,
             daemon=True, name="songzuo-map-webview")
@@ -454,7 +454,7 @@ class WebMapController:
             or (self._mode == "browser" and self._server is not None)
 
     def wait_ready(self, timeout: float = 8.0) -> bool:
-        """等待页面 map_ready。注意：Tk 共存模式下勿在主线程调用
+        """等待页面 map_ready。注意：宿主共存模式下勿在主线程调用
         （回调经 root.after 投递，主线程阻塞会互等）；仅供独立启动器/测试用。"""
         return self._loaded.wait(timeout)
 
@@ -463,7 +463,7 @@ class WebMapController:
         """启动舆图窗口。返回实际模式：'pywebview' | 'browser'。
 
         mode: 'auto'（优先 pywebview，缺失降级浏览器）/ 'browser'（强制浏览器）。
-        run_in_thread: None 时自动——有 Tk root 则线程化，否则阻塞当前线程。
+        run_in_thread: None 时自动——有 GUI 宿主（root）则线程化，否则阻塞当前线程。
         """
         if self._window is not None or self._mode is not None:
             return self._mode  # 重入防护：已打开过则直接返回当前模式
