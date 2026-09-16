@@ -120,6 +120,11 @@ def stance_evolution(state, name: str, turn: int = 0) -> dict:
     """
     # 只对在朝大臣生效（史实修复：司马光/王安石 1086 年已卒，不在 MINISTERS 在朝——
     # persona 保留为史实参考，但**不参与运行时演化/产业调制**）
+    # 审查 P2-59 修复（守卫失效）：minister_status 对未登记名字返回默认 "active"（不区分存亡），
+    # 故史实参考人物（章惇/司马光/王安石，仅存于 PERSONA）仍被演化。先按 MINISTERS 名单拦截。
+    if name not in MINISTERS:
+        return {"score": 50, "stance": "观望", "factors": [],
+                "posture": "恭顺奉行"}
     try:
         if state.minister_status(name) != "active":
             return {"score": 50, "stance": "观望", "factors": [],
@@ -166,8 +171,10 @@ def stance_evolution(state, name: str, turn: int = 0) -> dict:
     disk = 0.0
     disk += (prestige - 50) * _WEIGHTS["皇威"]
     disk += (getattr(state, "population_satisfaction", 50) - 50) * _WEIGHTS["民心"]
-    disk += (getattr(state, "national_mood", 50) - 50) * _WEIGHTS["国运"] \
-        if hasattr(state, "national_mood") else 0.0
+    # 审查 P2-60 修复（国运项恒 0）：原读 national_mood（全库无此属性）→ hasattr 恒 False，
+    # 国运项从不生效、六项权重实际只有 0.90。改用真实存在的等价维度 population_satisfaction
+    # （全局民情读数），六项权重和保持 1.0、项项落地。
+    disk += (getattr(state, "population_satisfaction", 50) - 50) * _WEIGHTS["国运"]
     score += disk
     if abs(disk) > 0.5:
         factors.append("盘" + ("+" if disk > 0 else "") + str(int(disk)))

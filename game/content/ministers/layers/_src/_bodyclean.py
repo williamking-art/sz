@@ -1,0 +1,45 @@
+import os, numpy as np
+from PIL import Image, ImageFilter
+L=r"g:\sz\game\content\ministers\layers"
+PO=["zheng","gongshou","chihu","longxiu"]
+TI=["zi","fei","lv","qing","shi","qinwang"]
+H,W=1080,810
+TOL=26.0
+def clean(im):
+    a=im.astype(np.float32)
+    js=np.concatenate([a[:30,:30].reshape(-1,3),a[:30,-30:].reshape(-1,3),
+                       a[-30:,:30].reshape(-1,3),a[-30:,-30:].reshape(-1,3)])
+    bgc=np.median(js,0)
+    d=np.sqrt(((a-bgc)**2).sum(2))
+    y=np.arange(H)[:,None]
+    x=np.arange(W)[None,:]
+    sat=a.max(2)-a.min(2); lum=a.mean(2)
+    fg=(d>=TOL)
+    up=fg&(y<int(0.36*H))
+    low=fg&(y>=int(0.36*H))&(y<int(0.45*H))&(x>=int(0.22*W))&(x<=int(0.78*W))
+    m=(up|low).astype(np.float32)
+    m=np.array(Image.fromarray((m*255).astype("uint8")).filter(
+        ImageFilter.MaxFilter(25)).filter(ImageFilter.GaussianBlur(9)),dtype=np.float32)/255.0
+    l=a[:,2:8].mean(1); r=a[:,W-8:W-2].mean(1)
+    xs=np.linspace(0,1,W)[None,:,None]
+    base=l[:,None,:]*(1-xs)+r[:,None,:]*xs
+    fill=a.copy()
+    for yy in range(H):
+        rm=m[yy]>0.02
+        if not rm.any(): continue
+        idx=np.nonzero(rm)[0]; xa,xb=int(idx[0]),int(idx[-1])
+        if xa<2 or xb>W-3: continue
+        n=xb-xa+1
+        lsq=a[yy,np.clip(np.arange(xa-1,xa-1-n,-1),0,W-1)]
+        rsq=a[yy,np.clip(np.arange(xb+1,xb+1+n),0,W-1)][::-1]
+        w=np.linspace(0,1,n)[:,None]
+        fill[yy,xa:xb+1]=lsq*(1-w)+rsq*w
+    out=a*(1-m[...,None])+fill*m[...,None]
+    return out
+if __name__=="__main__":
+    for p in PO:
+        for t in TI:
+            f=f"{L}\\body_{p}_{t}.png"
+            im=np.array(Image.open(f).convert("RGB"))
+            Image.fromarray(np.clip(clean(im),0,255).astype("uint8"),"RGB").save(f)
+            print(p,t,flush=True)

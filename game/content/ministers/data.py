@@ -180,7 +180,7 @@ MINISTERS = {
     "杨戬":   {"born": 1058, "role": "在野(后措置房)", "faction": "宦官集团", "traits": "搜括/营田/聚敛",
                "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.74, "corruption": 0.70, "trait_ids": ["聚敛"]},
-    "高俅":   {"born": 1068, "role": "殿前都指挥使", "faction": "宦官集团", "traits": "蹴鞠/典禁军/怙宠",
+    "高俅":   {"born": 1068, "role": "殿前都指挥使", "faction": "无", "traits": "蹴鞠/典禁军/怙宠",
                "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.55, "trait_ids": ["才艺"]},
     "侯蒙":   {"born": 1054, "role": "在野(后户部尚书)", "faction": "清流言官", "traits": "通达/敢言/识人才",
@@ -436,16 +436,124 @@ def _minister_kind(name: str) -> str:
     return _FACTION_KIND.get(fig.get("faction", ""), _KIND_DEFAULT)
 
 
-def get_portrait_path(name: str, kind: str = None):
-    """返回大臣立绘绝对路径；接口已预留分类回退，资源未到位时回退 None。
+# ============================================================
+# 分层立绘（官服按品级 + 头部专属，合成后可随官级变化换官服）
+#   layers/body_{tier}.png  官服身体层（上半透明+羽化，tier=服色档）
+#   layers/head_{name}.png  头部层（脸+须+冠，下半透明+羽化）
+#   合成：同源母版统一构图 ⇒ 颈肩/衣领处羽化融合，有机结合无拼接
+#   生成规范 / 新增大臣 SOP / 生图提示词模板：见同目录 PORTRAIT_PIPELINE.md
+#   一键复现：python content/ministers/layers/_lay2.py（生成→测偏移→净身→抠头）
+# ============================================================
+LAYER_DIR = os.path.join(_BASE, "layers")
+COMPOSE_DIR = os.path.join(PORTRAIT_DIR, "_composed")
+
+# 宋代服色：一至四品紫、五至六品绯、七至八品绿、九品青；在野士人、宗室亲王另设
+_RANK_TIERS = (("紫", ("一品", "二品", "三品", "四品")),
+               ("绯", ("五品", "六品")),
+               ("绿", ("七品", "八品")),
+               ("青", ("九品",)),
+               ("紫", ("正", "从")))          # 兜底：仅"正/从"无品数字者按紫
+_TIER_KEYS = {"紫": "zi", "绯": "fei", "绿": "lv", "青": "qing",
+              "士人": "shi", "亲王": "qinwang"}
+
+
+def rank_tier(rank: str) -> str:
+    """品级字符串 → 服色档键（zi/fei/lv/qing）；空品级 → 在野士人 shi。"""
+    if not rank:
+        return "shi"
+    for color, marks in _RANK_TIERS:
+        if any(m in rank for m in marks):
+            return _TIER_KEYS[color]
+    return "shi"
+
+
+def minister_tier(name: str) -> str:
+    """大臣当前应着服色档：宗室→亲王；否则按档案品级（在野→士人）。"""
+    if _minister_kind(name) == "royal":
+        return _TIER_KEYS["亲王"]
+    return rank_tier(MINISTERS.get(name, {}).get("rank") or "")
+
+
+# 姿态枚举（官服层 body_{pose}_{tier}.png；头部位置差异由 _offsets.json 对位修正）
+POSES = ("zheng", "gongshou", "chihu", "longxiu")   # 正立/拱手/持笏/拢袖
+_OFFSETS_CACHE = None
+
+
+def _pose_offsets() -> dict:
+    """各姿态头部质心相对正立版的偏移（生成期测量，见 layers/_offsets.json）。"""
+    global _OFFSETS_CACHE
+    if _OFFSETS_CACHE is None:
+        import json
+        try:
+            with open(os.path.join(LAYER_DIR, "_offsets.json"), encoding="utf-8") as f:
+                _OFFSETS_CACHE = json.load(f)
+        except Exception:
+            _OFFSETS_CACHE = {}
+    return _OFFSETS_CACHE
+
+
+def minister_pose(name: str) -> str:
+    """按派系/年龄指派姿态（确定性；组合更多、更生动）。"""
+    fig = MINISTERS.get(name, {}) or {}
+    fac = str(fig.get("faction", "") or "")
+    if fac in ("西军集团", "宦官集团"):
+        return "chihu"                      # 军将与近臣：持笏
+    born = fig.get("born")
+    if isinstance(born, int) and 1101 - born >= 58:
+        return "longxiu"                    # 老臣：拢袖
+    if fac == "清流言官":
+        return "gongshou"                   # 言官：拱手
+    return "zheng" if sum(ord(c) for c in name) % 2 == 0 else "gongshou"
+
+
+def compose_portrait(name: str, tier: str, pose: str = "zheng"):
+    """头部层 + 官服层(姿态×品级) → 合成立绘（缓存 portraits/_composed）。
+
+    头部位置：按姿态偏移（layers/_offsets.json）平移头部层对齐，再羽化融合。
+    素材缺失返回 None（上层回退完整立绘/分类默认图）。返回绝对路径。
+    """
+    head_p = os.path.join(LAYER_DIR, f"head_{name}.png")
+    body_p = os.path.join(LAYER_DIR, f"body_{pose}_{tier}.png")
+    if not (os.path.isfile(head_p) and os.path.isfile(body_p)):
+        return None
+    os.makedirs(COMPOSE_DIR, exist_ok=True)
+    out = os.path.join(COMPOSE_DIR, f"{name}_{tier}_{pose}.png")
+    if (not os.path.isfile(out)
+            or os.path.getmtime(out) < max(os.path.getmtime(head_p),
+                                           os.path.getmtime(body_p))):
+        from PIL import Image
+        head = Image.open(head_p).convert("RGBA")
+        dx, dy = _pose_offsets().get(pose, [0, 0])
+        if dx or dy:
+            # 平移留白保持透明：由官服层自身绢底透出（不可用异色实底，否则边缘留条带）
+            shifted = Image.new("RGBA", head.size, (0, 0, 0, 0))
+            shifted.paste(head, (int(round(dx)), int(round(dy))))
+            head = shifted
+        img = Image.alpha_composite(Image.open(body_p).convert("RGBA"), head)
+        bg = Image.new("RGB", img.size, (196, 168, 119))   # 实测绢底（兜底）
+        bg.paste(img, (0, 0), img)
+        bg.save(out)
+    return out
+
+
+def get_portrait_path(name: str, kind: str = None, rank: str = None,
+                      pose: str = None):
+    """返回大臣立绘绝对路径；资源未到位时回退 None。
 
     查找优先级：
+      0. 分层合成：头部层 + 官服层（位姿 pose × 服色 tier）
+         - rank 显式传入 = 当前官职品级（官级变化即换官服，头部不变）；
+           缺省取档案品级；宗室→亲王服，在野/空品级→士人襕衫
+         - pose 缺省按派系/年龄指派（minister_pose：正立/拱手/持笏/拢袖）
       1. 大臣档案显式 ``portrait`` 文件名（如有且存在）
-      2. 个人立绘 ``portraits/{name}.png``（未来放入即可启用）
+      2. 个人立绘 ``portraits/{name}.png``
       3. 分类默认图 ``portraits/{kind}.png``（kind 缺省按派系/role 自动推断：
-         civil / military / eunuch / royal）——放入即自动启用
-    任一命中即返回路径；全缺返回 None，由上层按 UI 默认处理。
+         civil / military / eunuch / royal）
     """
+    tier = rank_tier(rank) if rank else minister_tier(name)
+    composed = compose_portrait(name, tier, pose or minister_pose(name))
+    if composed:
+        return composed
     fig = MINISTERS.get(name, {})
     candidates = []
     if fig.get("portrait"):
@@ -493,7 +601,7 @@ TRAITS = {
     "忠勇": {"kind": "military", "desc": "忠义敢战、临难不避",
              "effects": {"战事_army士气": "小", "敌军压境_不降": "叙事"},
              "note": "代表：李纲、宗泽、张叔夜、韩世忠"},
-    "怯懦": {"kind": "military", "desc": "临战畏葸、避战保全",
+    "怯懦": {"kind": "military", "desc": "临战胆怯、避战自保",
              "effects": {"军事事件_army": "-小", "兵临城下_乞和": "叙事"},
              "note": "代表：刘延庆"},
     "阿附": {"kind": "political", "desc": "逢迎圣意、揣摩上心",
