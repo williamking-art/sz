@@ -63,10 +63,12 @@ deepseek-harness-master/
 node_modules/
 tools/
 
-# --- Electron 前端构建产物 / 客户端工作区数据 ---
-game/frontend/out/
-game/frontend/dist/
-game/frontend/release/
+# --- Electron 前端（工程在 _dev_tools/frontend，不进 game/） ---
+_dev_tools/frontend/node_modules/
+_dev_tools/frontend/out/
+_dev_tools/frontend/dist/
+_dev_tools/frontend/release/
+_dev_tools/frontend_node_modules/
 *.tsbuildinfo
 .zcode/
 
@@ -168,3 +170,10 @@ _schedule_restart.mjs
 
 # --- NE Admin-1 全量原始文件过大不入库,仅入库裁剪后的 kr_jp 子集 ---
 game/assets/map/raw/ne_10m_admin_1.geojson
+
+# --- 立绘合成缓存（compose_portrait 按需自动再生，不入库） ---
+game/content/ministers/portraits/_composed/
+
+# --- 本地压缩包（不入库） ---
+game.zip
+

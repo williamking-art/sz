@@ -18,6 +18,9 @@ from .data import (
     AUTHORITY_MATTERS,
     REFORM_TYPES,
     get_portrait_path,
+    compose_portrait,
+    rank_tier,
+    minister_tier,
     org_lead,
 )
 
@@ -27,5 +30,6 @@ HISTORICAL_FIGURES = MINISTERS
 __all__ = [
     "MINISTERS", "HISTORICAL_FIGURES", "loyalty_init", "corruption_init",
     "CENTRAL_ORG_INFO", "AUTHORITY_MATTERS", "REFORM_TYPES",
-    "get_portrait_path", "org_lead",
+    "get_portrait_path", "compose_portrait", "rank_tier", "minister_tier",
+    "org_lead",
 ]
