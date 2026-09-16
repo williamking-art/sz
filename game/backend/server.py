@@ -67,7 +67,7 @@ def _require_auth(request) -> None:
     auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
     if auth == f"Bearer {_AUTH_TOKEN}":
         return
-    raise HTTPException(status_code=401, detail="未授权：需要 SONGZUO_SERVER_TOKEN")
+    raise HTTPException(status_code=401, detail="令符不合，未获授权。")
 
 
 def _build_ai() -> AIClient:
@@ -173,7 +173,7 @@ def _state_to_dict(s) -> dict:
 
 def _require_state():
     if _state is None:
-        raise HTTPException(status_code=409, detail="尚未开局：请先 POST /api/new_game")
+        raise HTTPException(status_code=409, detail="尚未开局，请先行开新局。")
 
 
 def _find_frontend_event(s, title: str):
@@ -517,7 +517,9 @@ def api_decree_polish(req: DecreePolishReq, request: Request):
         try:
             out = ai.polish_decree(text, summary)
         except Exception as e:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"AI 叙事中断：{type(e).__name__}: {e}")
+            # 异常类名/原文只入服务端日志，不下发界面（界面一律中文）
+            print(f"[server] 诏书润色中断: {e!r}", flush=True)
+            raise HTTPException(status_code=502, detail="AI 词臣一时未有回音，请稍后再试。")
         if not isinstance(out, dict) or out.get("_error"):
             raise HTTPException(status_code=502, detail="润色未通过契约校验（可重试）")
         out["org_hint"] = req.org_hint or out.get("org_hint") or "政府"
@@ -580,7 +582,8 @@ def api_monthly_report(request: Request):
         try:
             text = _monthly_report_text(_state, _get_ai())
         except Exception as e:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"月折生成失败：{type(e).__name__}: {e}")
+            print(f"[server] 月折生成失败: {e!r}", flush=True)
+            raise HTTPException(status_code=502, detail="月折未能草就，请稍后再试。")
         return {"report": text}
 
 
