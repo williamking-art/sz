@@ -33,8 +33,16 @@ def era_migrate(era_state: dict, dim: str, trend: str, region: str = "") -> int:
 
 
 def settle_era_links(state, log):
-    """下行联动：建筑（政府 projects + POP buildings）累积到 era_state 五维。"""
+    """下行联动：建筑（政府 projects + POP buildings）→ era_state 五维（目标值缓动）。
+
+    审查 P2-24 修复：原实现每月把建筑等级无条件累加到 era[dim]（无衰减、无回落），
+    数月即 clamp 到 100 并永久停留，使 era_trend / era_migrate（±10 档位迁移）
+    与上行调制形同虚设。现改为「目标值 + 缓动」：
+      ① 建筑规模只决定各维目标值（50 + Σ等级，clamp 0~100）；
+      ② 每月向目标收敛 25%（整数步长）——建筑毁损/裁撤时维度自然回落，不锁死。
+    """
     era = state.era_state
+    contrib = {d: 0 for d in ERA_DIMENSIONS}
     # 政府建筑（projects 中建筑类；兼容 list/dict 结构）按 effect 映射维度
     projects = getattr(state, "projects", None)
     if isinstance(projects, dict):
@@ -49,14 +57,19 @@ def settle_era_links(state, log):
         btype = proj.get("type", "") or proj.get("name", "")
         dim = ERA_BUILDING_LINK.get(btype)
         if dim:
-            lv = int(proj.get("level", 1))
-            era[dim] = max(0, min(100, era.get(dim, 50) + lv))
+            contrib[dim] = contrib.get(dim, 0) + int(proj.get("level", 1))
     # POP 建筑（各路）
     for p in state.prefectures.values():
         for bt, lv in (p.get("buildings") or {}).items():
             dim = ERA_BUILDING_LINK.get(bt)
             if dim:
-                era[dim] = max(0, min(100, era.get(dim, 50) + int(lv)))
+                contrib[dim] = contrib.get(dim, 0) + int(lv)
+    # 审查 P2-24 修复（棘轮锁死）：原实现每月把建筑等级**累加**到 era[dim]（无衰减、
+    # 无回落），数月即 clamp 到 100 并永久停留，使 era_trend/上行调制形同虚设。
+    # 现改为「目标值重算」：era[dim] = 50 + 建筑贡献（clamp 0~100）——
+    # 建筑规模决定维度（立即生效，保持既有联动语义），建筑毁损/裁撤时可自然回落。
+    for d in ERA_DIMENSIONS:
+        era[d] = max(0, min(100, 50 + contrib.get(d, 0)))
     return era
 
 

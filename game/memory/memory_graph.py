@@ -43,7 +43,11 @@ import re
 import sqlite3
 from datetime import datetime
 
+import logging
+
 from content.data import SAVE_DIR, MEMORY_RELATION_DECAY, MEMORY_ARCHIVE_WEIGHT
+
+log = logging.getLogger("memory_graph")
 
 # 实体类型（业务 7 类 + 压缩产物 2 类）
 ENTITY_TYPES = ("minister", "event", "decision", "task", "org", "institution", "external_power")
@@ -459,7 +463,11 @@ class MemoryGraph:
         period = max(0, turn // _COMPRESS_INTERVAL)
         start = max(0, turn - _COMPRESS_INTERVAL)
         eid = f"summary_{period}"
-        top = self._aggregate_relations(_COMPRESS_INTERVAL, 8, slot)
+        # 审查 P2-49 修复（相邻概要重叠）：query_sql 的 time_window 是**左闭**区间
+        # [turn-window, turn]，用 window=interval 会让边界回合（如 turn=6）同时落入
+        # 第 1/2 期概要。改为 window=interval-1 → [turn-interval+1, turn]，即左开右闭
+        # (turn-interval, turn]，与 start_turn（左开边界）元数据口径一致、相邻期不重叠。
+        top = self._aggregate_relations(max(1, _COMPRESS_INTERVAL - 1), 8, slot)
         attrs = {
             "period": period, "start_turn": start, "end_turn": turn,
             "relation_count": len(top), "top_relations": top,
@@ -508,7 +516,9 @@ class MemoryGraph:
         ministers = sorted({e["name"] for e in self.entities.values()
                             if e["type"] == "minister"
                             and start < e.get("created_turn", 0) <= turn})
-        top = self._aggregate_relations(_PERIOD_INTERVAL, 8, slot)
+        # 审查 P2-49：同 compress——窗口取 interval-1，使关系聚合区间与上方实体过滤
+        # 的 (start, turn] 左开右闭区间一致，相邻周期不共享边界回合。
+        top = self._aggregate_relations(max(1, _PERIOD_INTERVAL - 1), 8, slot)
         attrs = {
             "period": period, "start_turn": start, "end_turn": turn,
             "decision_count": len(decisions), "event_count": len(events),
@@ -549,11 +559,27 @@ class MemoryGraph:
     # ============================================================
     @staticmethod
     def _connect(slot: int) -> sqlite3.Connection:
-        """打开（必要时创建）槽位记忆库，建表 + busy 超时。"""
+        """打开（必要时创建）槽位记忆库：按需建表 + WAL + busy 超时。
+
+        审查 P2-47 修复：原实现每次连接都 executescript(_SCHEMA_SQL)（DDL 会触发写事务/
+        隐式提交），只读查询也因此反复建表，并发下更易 database is locked；且未启用 WAL
+        （dialogue_memory 已启用，二者不一致）。
+        现改为「探测 entities 表是否存在」按需建表（一次 sqlite_master 查询，开销极低）；
+        不使用进程内缓存——库文件可能被外部删除/替换（测试、多存档目录切换），
+        按路径缓存会漏建表。
+        """
         os.makedirs(SAVE_DIR, exist_ok=True)
         conn = sqlite3.connect(_db_path(slot), timeout=5)
         conn.execute("PRAGMA busy_timeout = 3000")
-        conn.executescript(_SCHEMA_SQL)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.Error:
+            pass
+        _has = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entities'").fetchone()
+        if not _has:
+            conn.executescript(_SCHEMA_SQL)
+            conn.commit()
         return conn
 
     def save(self, slot: int) -> bool:
@@ -576,11 +602,19 @@ class MemoryGraph:
                              ("turn", str(self.turn)))
                 conn.execute("INSERT OR REPLACE INTO state(key, value) VALUES(?,?)",
                              ("archived", str(self.archived)))
+                # 审查 P2-48 修复（快照语义）：先清主表再全量重写。原实现只 INSERT OR REPLACE
+                # 不删除，内存里已删除的实体/关系会在 DB 永久残留（与「快照」语义不符）。
+                conn.execute("DELETE FROM entities")
+                conn.execute("DELETE FROM relations")
                 for e in self.entities.values():
                     if not isinstance(e, dict):
                         continue
                     if e.get("type") in SUMMARY_TYPES:
                         continue      # summary 实体走 summaries 表
+                    if not str(e.get("eid", "")).strip():
+                        # 审查 P2-48：空 eid 会在主键 '' 上互相 REPLACE（丢数据），跳过
+                        log.warning("memory.save: 跳过无 eid 实体：%r", e.get("name", ""))
+                        continue
                     try:
                         attrs_json = json.dumps(e.get("attrs") or {}, ensure_ascii=False)
                     except (TypeError, ValueError):

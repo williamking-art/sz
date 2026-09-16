@@ -134,11 +134,10 @@ def issue_edict_from_review(state: GameState, draft_id: str,
             "desc": draft.get("body", ""),
         }
         state.pending_secret_decrees.append(decree_full)
-        state.wolf_count += 1
         state.statistics["total_decrees"] += 1
         state.remove_edict_draft(draft_id)
-        warn = "（狼来了！中旨公信力下降。）" if state.wolf_count >= 3 else ""
-        return f"御笔直发（中旨）：「{decree_full['title']}」已下{warn}"
+        # 狼来了已取消（审查 2026-09）：不再累计 wolf_count / 提示公信下降
+        return f"御笔直发（中旨）：「{decree_full['title']}」已下"
     else:
         # 准奏：经会签生效，入待下诏令
         if len(state.pending_decrees) >= state.decree_bandwidth:
@@ -290,7 +289,6 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         }
         state.pending_decrees.append(decree_full)
         state.direct_decree_used += 1
-        state.wolf_count += 1
         state.statistics["total_decrees"] += 1
         # 两层记忆（Phase 3b）：短期行为日志（全量保留、不注入 AI）+ 短期喂长期（决策实体 + produces）
         try:
@@ -304,8 +302,8 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
             state.memory.save(state.memory_slot)
         except Exception:
             pass
-        warn = "（警告：狼来了！密旨公信力下降。）" if state.wolf_count >= 3 else ""
-        return f"御笔直发：「{decree_full['title']}」{warn}"
+        # 狼来了已取消：不再提示中旨公信力下降
+        return f"御笔直发：「{decree_full['title']}」"
     # 普通诏令
     if len(state.pending_decrees) >= state.decree_bandwidth:
         return "诏令带宽已满！"
@@ -313,7 +311,8 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     # 计算效果序号：用 targets 不强求，这里直接生成默认效果
     idx = 0
     if "effects" in decree and isinstance(decree["effects"], int):
-        idx = decree["effects"]
+        # 审查 P3：非负校验（负 idx 会在 _generate_decree_effects 里取到列表末端错误项）
+        idx = max(0, int(decree["effects"]))
     decree_full = {
         "title": decree.get("title", "诏令"),
         "category": cat,
@@ -634,14 +633,29 @@ def propose_inner_transfer(state: GameState, amount) -> str:
 
 
 def confirm_inner_transfer(state: GameState) -> str:
-    """准：守恒移库（国库 +amount、内帑 -amount），清除 pending。"""
+    """准：守恒移库（国库 +amount、内帑 -amount），清除 pending。
+
+    审查 P1-2 修复（造钱漏洞）：提议时校验过内帑余额，但确认时可能已被其它结算
+    消耗。原实现直接按原额划拨：国库 +amt，而 change_imperial_treasury 内部
+    max(0,…) 会把内帑截断（少扣），差额凭空产生。现执行前按当前内帑余额复检，
+    不足则作罢（不划账、清 pending 并提示重新商议）。
+    """
     p = getattr(state, "pending_inner_transfer", None)
     if not p:
         return "无待准之内帑调拨"
-    amt = int(p["amount"])
+    try:
+        amt = int(p.get("amount", 0))
+    except (TypeError, ValueError):
+        amt = 0
+    state.pending_inner_transfer = None
+    if amt <= 0:
+        return "调拨额非法，已作罢"
+    avail = int(getattr(state, "imperial_treasury", 0) or 0)
+    if avail < amt:
+        return (f"内帑现存仅 {avail} 贯，不足原议 {amt} 贯，调拨未行（已作罢）。"
+                f"可重新商议额度。")
     state.change_treasury(amt)
     state.change_imperial_treasury(-amt)
-    state.pending_inner_transfer = None
     return f"准：内帑 {amt} 贯入国库"
 
 
@@ -651,5 +665,51 @@ def cancel_inner_transfer(state: GameState) -> str:
         state.pending_inner_transfer = None
         return "罢：不动内帑"
     return "无待准之内帑调拨"
+
+
+# ============================================================
+# 对话口谕内帑调拨：金额解析（迁移补齐：原 ui/panels_govern.py 模块级函数，
+# Tk 废弃后随内帑调拨逻辑归位本模块）
+# ============================================================
+_CN_NUM = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6,
+           "七": 7, "八": 8, "九": 9, "十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def _cn_amount(s: str):
+    """中文数字 → int（五十万=500000、十二万=120000、三千=3000）。"""
+    total, num = 0, 0
+    for ch in s:
+        v = _CN_NUM.get(ch)
+        if v is None:
+            return None
+        if v == 10000:
+            total = (total + num if (total or num) else 1) * 10000
+            num = 0
+        elif v >= 10:
+            total += (num if num else 1) * v
+            num = 0
+        else:
+            num = v
+    return total + num
+
+
+def parse_inner_amount(text: str):
+    """从召对输入提取内帑调拨金额（贯）；支持 500000 / 50万 / 五十万；失败返回 None。"""
+    t = str(text).replace(",", "").replace("，", "")
+    import re
+    m = re.search(r"(\d+)\s*万", t)
+    if m:
+        return int(m.group(1)) * 10000
+    m = re.search(r"\d+", t)
+    if m:
+        return int(m.group(0))
+    m = re.search(r"[零一二两三四五六七八九十百千万]+", t)
+    if m:
+        return _cn_amount(m.group(0))
+    return None
+
+
+# 兼容旧名（Tk 面板曾用 _parse_inner_amount）
+_parse_inner_amount = parse_inner_amount
 
 

@@ -195,7 +195,11 @@ HISTORICAL_EVENTS = [
         "category": "西线军事",
         "effects": {},
         "desc": "崇宁二年六月，王厚、童贯统兵出熙河，克湟州；三年四月复鄯州、廓州，河湟故地重归版图，熙河开边再起，西蕃震慑。",
-        "notes": "素材 E3：克湟州、复鄯廓=史实；选项与档位=玩法抽象；「还地于蕃」=合理推演。素材「army」档位归一到既有 army_strength 语义（各军训练/士气）；「西军集团」为既有派系。",
+        "notes": "素材 E3：克湟州、复鄯廓=史实；选项与档位=玩法抽象；「还地于蕃」=合理推演。素材「army」档位归一到既有 army_strength 语义（各军训练/士气）；「西军集团」为既有派系。"
+               " 开边封地联动（河湟州府挂在吐蕃政权名下，不另立政权）：选首项（进讨）后"
+               " 以 REGIME_PREFECTURES['吐蕃'] 的河湟四州（西宁州/湟州/廓州/青海湖诸部）为对象，"
+               " 归属改写为宋（P1 语义逐个 set_subdivision_owner 模拟克湟州→复鄯廓推进），"
+               " 舆图河湟即归宋；「还地于蕃」路径则吐蕃归属不变。",
         "choices": [
             {"text": "命王厚统兵进讨，童贯监军", "effects": {
                 "prestige": "中",
@@ -550,7 +554,8 @@ def _resolve_effects(effects: dict) -> dict:
 def apply_event_choice(state, event: dict, choice_idx: int) -> list:
     """执行事件选择，返回效果日志"""
     choices = event.get("choices", [])
-    if choice_idx >= len(choices):
+    # 审查 P3 修复：原仅拦 idx >= len，负索引会静默取 choices[-1]（选中非预期分支）。
+    if not isinstance(choice_idx, int) or not (0 <= choice_idx < len(choices)):
         return ["选择无效"]
 
     choice = choices[choice_idx]

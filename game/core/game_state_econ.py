@@ -34,9 +34,9 @@ from content.data import (
 )
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    """把数值钳制到 [lo, hi] 闭区间（供各粮价/物价计算复用）。"""
-    return max(lo, min(hi, value))
+# 审查 P3 修复：_clamp 统一由 content.data.clamp 提供（单一权威源，原此处与
+# game_state.py、本文件 mixin 方法共三份重复）
+from content.data import clamp as _clamp  # noqa: E402
 
 
 
@@ -320,9 +320,6 @@ class GameStateEconMixin:
     # ================================================================
     # 经济全浮动重构：派生函数族（纯函数风格，返回 (total, by_route) 或 float）
     # ================================================================
-    def _clamp(self, v, lo, hi):
-        return max(lo, min(hi, v))
-
     # ---- 二税折色（全进国库，钱）----
     # POP 化：二税折色 = 田赋本色（税粮）× 折色率 × 粮价（替代凭空 monthly_tax 锚）
     # 折色率 = TAX_COLOR_RATE（田赋中折银的比例），本色折银互为消长
@@ -448,7 +445,7 @@ class GameStateEconMixin:
         else:
             share = 0.0
         financed = local + self.payraise_budget * share
-        return self._clamp(financed / due, 0.0, 1.0)
+        return _clamp(financed / due, 0.0, 1.0)   # 审查 P3：改用单一权威源 clamp
 
     def calc_clerk_grain(self):
         total = 0.0

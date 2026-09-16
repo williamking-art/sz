@@ -17,8 +17,31 @@ faction, status}}）；`_validate_characters` 叙事具名人物查表，命中�
 """
 import re
 
-# 数字+单位正则（支持「三百万石」= 300×万×石）
-_NUM_RE = re.compile(r"(\d+)(万)?(贯|石|口|户|缗|里|人)")
+# 数字+单位正则（支持「300万石」= 300×万×石；审查 P2-42 修复：原只匹配阿拉伯数字，
+# 「三百万石」等中文数字表述全部绕过数值区间校验 —— 现同时匹配中文数字，由 _cn_to_int 解析）
+_NUM_RE = re.compile(r"(\d+|[零一二两三四五六七八九十百千万]+)(万)?(贯|石|口|户|缗|里|人)")
+
+_CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+              "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNITS = {"十": 10, "百": 100, "千": 1000}
+
+
+def _cn_to_int(text: str) -> int:
+    """中文数字 → 整数（支持 十/百/千/万 组合，如「三百万」「一百二十」）；无法解析返回 0。"""
+    total, section, num = 0, 0, 0
+    for ch in text:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+        elif ch in _CN_UNITS:
+            section += (num or 1) * _CN_UNITS[ch]
+            num = 0
+        elif ch == "万":
+            section = (section + num) * 10000
+            total += section
+            section, num = 0, 0
+        else:
+            return 0
+    return total + section + num
 
 # 单位 → 定性词档位（区间内按位置）
 _UNIT_QUALIFIERS = {
@@ -41,7 +64,9 @@ def _validate_narrative_numbers(text, ranges=None):
 
     def _repl(m):
         nonlocal flagged
-        num = int(m.group(1)) * (10000 if m.group(2) else 1)
+        _tok = m.group(1)
+        _base = int(_tok) if _tok.isdigit() else _cn_to_int(_tok)
+        num = _base * (10000 if m.group(2) else 1)
         unit = m.group(3)
         key = unit
         if key in ranges:
@@ -118,7 +143,11 @@ def build_character_statuses(state):
     out = {}
     for name in MINISTERS:
         fig = MINISTERS[name]
-        st = state.minister_status(name)
+        # 审查 P3 修复：就地 try 保护（原依赖调用方外层 try，新调用方漏包即崩）
+        try:
+            st = state.minister_status(name)
+        except Exception:
+            st = "active"
         post = ""
         try:
             post = state.ministers.get(name, {}).get("post", "") or fig.get("role", "")

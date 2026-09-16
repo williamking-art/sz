@@ -18,11 +18,14 @@ ThreadPoolExecutor 固定 ≤2 worker（守护线程，Python 3.9+ 不阻塞解�
   ② 主线程 on_success 落地（写 state 槽位 → run_monthly_settlement 本地 12 步结算）；
   ③ 月报叙事由调用方经 run_ai_call 后补（不阻塞结算完成）。
 """
+import logging
 import threading
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 
 __all__ = ["run_ai_call", "run_settlement_ai", "shutdown"]
+
+log = logging.getLogger("async_ai")
 
 #: 后台线程池上限（固定 ≤2，防止并发 AI 请求过多）
 _MAX_WORKERS = 2
@@ -90,13 +93,26 @@ def _call_guarded(method, args, kwargs, lock):
 
 
 def _schedule_poll(future, ui, on_success, on_error):
-    """after(100ms) 轮询 future；完成后在主线程触发回调。"""
+    """after(100ms) 轮询 future；完成后在主线程触发回调。
+
+    审查 P2-51 修复（静默失败）：原实现 ui.after 抛异常（宿主销毁/销毁中）时静默 return，
+    使 on_success / on_error 均不触发 —— 对 run_settlement_ai（economy 拒绝式）意味着
+    结算既不进行也不报错，UI 的 _settling 标志永久残留、后续回合被静默拒绝。
+    现改为：调度失败时记日志并转 on_error 路径（尽力复位；宿主已销毁时内部兜底不抛）。
+    """
+    if ui is None:
+        return  # 无宿主：不轮询（与 run_ai_call 的 ui=None 语义一致）
+
+    def _abort(exc):
+        log.warning("AI 轮询调度失败，转为错误回调：%s", exc)
+        _fail(ui, on_error, exc)
+
     def _poll():
         if not future.done():
             try:
                 ui.after(_POLL_MS, _poll)
-            except Exception:
-                pass  # 宿主已销毁：放弃轮询
+            except Exception as e:  # noqa: BLE001
+                _abort(e)
             return
         try:
             result = future.result()
@@ -106,8 +122,8 @@ def _schedule_poll(future, ui, on_success, on_error):
         _call_cb(ui, on_success, result)
     try:
         ui.after(_POLL_MS, _poll)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        _abort(e)
 
 
 def _call_cb(ui, cb, value):
@@ -135,9 +151,9 @@ def _show_error(ui, title, exc):
         if hasattr(ui, "messagebox"):
             ui.messagebox.showerror(title, msg)
         else:
-            from ui.dialog import show_error as _dlg_error
-            parent = getattr(ui, "root", None) or ui
-            _dlg_error(parent, title, msg)
+            # Tk 废弃（迁移补齐）：原降级走 ui.dialog.show_error（Tk 弹窗）。
+            # Web（Electron）场景下错误经 HTTP 回执与面板内提示呈现，此处仅记日志。
+            log.warning("%s：%s", title, msg)
     except Exception:
         pass
 
@@ -184,78 +200,59 @@ def run_settlement_ai(client, posture, state, woken, ui, on_success, on_error):
     返回：concurrent.futures.Future。
     """
     def _worker():
-        from concurrent.futures import as_completed
         results = {}
-        jobs = {}
+        failures = []
         lock = _client_lock(client)
 
         # 落地改进 6（并行上下文共享）：注入其他 Agent 上轮结果摘要（cumulative_diff，
         # 认知层档位词，保上下文连贯；并行无需顺序依赖）
         _diff_hint = _cumulative_diff(state)
 
-        # economy 强制推演（拒绝式，**与其余 Agent 并行**）：失败/非法 → 整单拒绝，不伪造
-        def _run_eco():
+        # 审查 P0：禁止在本 worker 内再 submit 到同一 _EXECUTOR（max_workers=2 时嵌套等待会死锁）。
+        # 同一 client 实例本就有互斥锁串行化，改为锁内顺序调用，语义不变、无死锁。
+        with lock:
+            # economy 强制推演（拒绝式）：失败/非法 → 整单拒绝，不伪造
+            # 注：不传 state=——worker 线程不得读（非线程安全的）GameState；
+            # posture/_diff_hint 已在主线程取好，推演所需的上下文均已包含。
             eco = client.economy_decide(posture + _diff_hint)
             if not isinstance(eco, dict) or eco.get("_error"):
                 from core.errors import AIRuntimeError
                 from content.data import AI_ERROR_CODES
                 raise AIRuntimeError(
                     AI_ERROR_CODES.get("AI_CONTRACT_FAILED", "AI 输出不满足契约"))
-            return eco
+            results["_economy_ai"] = eco
 
-        fut_eco = _EXECUTOR.submit(_call_guarded, _run_eco, (), {}, lock)
-        jobs[fut_eco] = "_economy_ai"
+            if woken is None:
+                # 路由失败退化：P1 三契约保底注入（与 settle_turn 同步路径一致）
+                tasks = (("_diplomacy_ai", "diplomacy_decide"),
+                         ("_military_ai", "military_decide"),
+                         ("_relief_ai", "relief_decide"))
+            else:
+                try:
+                    from core.agent_router import AGENT_DEFS
+                except Exception:
+                    AGENT_DEFS = {}
+                tasks = []
+                for aid in woken:
+                    adef = AGENT_DEFS.get(aid) or {}
+                    method = adef.get("method")
+                    attr = adef.get("settle_attr")
+                    if not method or not attr or attr == "_economy_ai":
+                        continue  # narrative 无槽位 / economy 已强制注入
+                    tasks.append((attr, method))
 
-        # 其余唤醒 Agent → 线程池并行（同一 client 实例锁内串行化，安全优先）
-        if woken is None:
-            # 路由失败退化：P1 三契约保底注入（与 settle_turn 同步路径一致）
-            tasks = (("_diplomacy_ai", "diplomacy_decide"),
-                     ("_military_ai", "military_decide"),
-                     ("_relief_ai", "relief_decide"))
-        else:
-            try:
-                from core.agent_router import AGENT_DEFS
-            except Exception:
-                AGENT_DEFS = {}
-            tasks = []
-            for aid in woken:
-                adef = AGENT_DEFS.get(aid) or {}
-                method = adef.get("method")
-                attr = adef.get("settle_attr")
-                if not method or not attr or attr == "_economy_ai":
-                    continue  # narrative 无槽位 / economy 已强制注入
-                tasks.append((attr, method))
+            for attr, method in tasks:
+                try:
+                    r = getattr(client, method)(posture + _diff_hint, state=state)
+                except Exception as e:  # noqa: BLE001
+                    failures.append({"agent": attr, "error": f"{type(e).__name__}: {e}"})
+                    continue
+                if isinstance(r, dict) and not r.get("_error"):
+                    results[attr] = r
+                else:
+                    failures.append({"agent": attr, "method": method,
+                                     "error": "contract_failed"})
 
-        def _run_agent(attr, method):
-            r = getattr(client, method)(posture + _diff_hint, state=state)
-            if isinstance(r, dict) and not r.get("_error"):
-                return (attr, r)
-            return ("_contract_failed", {"agent": attr, "method": method,
-                                         "error": "contract_failed"})
-
-        for attr, method in tasks:
-            fut = _EXECUTOR.submit(_call_guarded, _run_agent, (attr, method), {}, lock)
-            jobs[fut] = attr
-
-        # 统一收集：economy 失败 → 拒绝式 raise；非 economy 失败 → 收集失败信号
-        # （T8 推演分级：不静默、不伪造；主线程 on_success 落地 _ai_failures）
-        failures = []
-        for fut in as_completed(jobs):
-            attr = jobs[fut]
-            try:
-                val = fut.result()
-            except Exception as e:
-                if attr == "_economy_ai":
-                    raise   # economy 拒绝式：结算不进行
-                failures.append({"agent": attr, "error": f"{type(e).__name__}: {e}"})
-                continue
-            if attr == "_economy_ai":
-                results["_economy_ai"] = val
-            elif isinstance(val, tuple) and val and val[0] == "_contract_failed":
-                failures.append(val[1])
-            elif val is not None:
-                _a, _r = val      # _run_agent 返回 (attr, result)
-                results[_a] = _r
         if failures:
             results["_ai_failures"] = failures
         return results

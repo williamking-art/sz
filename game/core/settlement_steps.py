@@ -18,6 +18,8 @@ from content.data import (
     GRAIN_CONSUME_PER_CAPITA, HIDDEN_CONSUME_PER_CAPITA, GOODS_CONSUME_RATE,
     FARMER_SELL_FLOOR, POP_FLOW_RATE, EXAM_HARD_POOR_SHARE, URBAN_SPLIT,
     BOOM_MULT, TIER_RANGE,
+    # 金融推演调制基准（审查 P2-53：幅度/值域唯一权威源，消除 _settle_extensions 内硬编码副本）
+    FINANCE_DECIDE_BASE,
     # 加消耗方案（生产过剩吸收，完整定案修正：加工型消耗依托建筑）
     SEED_GRAIN_PER_MU, FARMER_STORE_CAP, FARMER_SPOIL_RATE,
     MEAT_PRICE,
@@ -215,9 +217,31 @@ def _apply_decree_effect(state, decree, log):
     if "prestige" in effects:
         state.change_prestige(effects["prestige"], decree.get("title", ""))
     if "treasury" in effects:
-        state.change_treasury(effects["treasury"])
+        _dt = int(effects["treasury"])
+        if _dt > 0:
+            got = state.drain_pop_wealth("商人", int(_dt * 0.7)) + \
+                  state.drain_pop_wealth("农", _dt - int(_dt * 0.7))
+            if got < _dt:
+                log.append(f"[诏令·守恒] 国库增收应 {_dt}，民间可征仅 {got}，按实入账")
+            state.change_treasury(got)
+        elif _dt < 0:
+            need = abs(_dt)
+            paid = 0
+            for _road in state.prefectures:
+                if paid >= need:
+                    break
+                paid += state.transfer_money("treasury", f"pop:{_road}:官僚", need - paid)
+            if paid < need:
+                state.change_treasury(-(need - paid))
     if "imperial_treasury" in effects:
-        state.change_imperial_treasury(int(effects["imperial_treasury"]))
+        _it = int(effects["imperial_treasury"])
+        if _it > 0:
+            got = state.drain_pop_wealth("商人", _it)
+            state.change_imperial_treasury(got if got > 0 else 0)
+            if got < _it:
+                log.append(f"[诏令·守恒] 内帑增收应 {_it}，实征 {got}")
+        elif _it < 0:
+            state.change_imperial_treasury(_it)
     if "population_satisfaction" in effects:
         state.population_satisfaction = max(0, min(100,
             state.population_satisfaction + effects["population_satisfaction"]))
@@ -309,20 +333,14 @@ def _apply_decree_effect(state, decree, log):
     if "land_survey" in effects:
         state.land["hidden_rate"] = max(0.0, state.land["hidden_rate"] - float(effects["land_survey"]))
         # 政策 → 田亩归属/POP：清丈隐田转正 + 抑兼并退田 + 士绅吐粮（钱粮守恒）
-        # 效果由 AI 推演评估（据隐田规模/士绅阻力/皇威推演清多少、退多少），无 AI 按档位兜底
+        # 效果优先用结算前注入的 _survey_ai 槽位；无则本地档位兜底（禁止结算路径同步 HTTP）
         from content.data import TIER_RANGE
         _hidden_mult = TIER_RANGE.get("小", 0.5) * 0.10   # 兜底：清隐田 5%
         _gentry_mult = TIER_RANGE.get("小", 0.5) * 0.10   # 兜底：退地主田 5%
-        try:
-            from ai.client import AIClient
-            _client = AIClient.load_saved()
-            if _client is not None:
-                _res = _client.survey_settle(state.posture)
-                if _res:
-                    _hidden_mult = TIER_RANGE.get(_res.get("hidden_cleared"), 0.5) * 0.10
-                    _gentry_mult = TIER_RANGE.get(_res.get("gentry_returned"), 0.5) * 0.10
-        except Exception:
-            pass
+        _res = getattr(state, "_survey_ai", None)
+        if isinstance(_res, dict) and not _res.get("_error"):
+            _hidden_mult = TIER_RANGE.get(_res.get("hidden_cleared"), 0.5) * 0.10
+            _gentry_mult = TIER_RANGE.get(_res.get("gentry_returned"), 0.5) * 0.10
         for _p in state.prefectures.values():
             # 清丈隐田：隐田转正为在册田（士绅隐漏被查出）
             _hidden_reduce = int(_p.get("hidden_land", 0) * _hidden_mult)
@@ -663,10 +681,20 @@ def _settle_land_local(state, log):
         if tax_fair_boost > 1.0:
             _st = int(_st * (1.0 - min(0.2, tax_fair_boost * 0.05)))
             _gt = int(_gt * (1.0 - min(0.2, tax_fair_boost * 0.05)))
-        _nong["grain"] = max(0, _nong["grain"] - _st); _shen["grain"] = max(0, _shen["grain"] - _gt)
         if state.single_whip:
-            state.treasury += int((_st + _gt) * state.grain_price)
+            # 一条鞭：田赋折银——粮留给民间，从农/士绅 wealth 按税粮比例征银入国库（守恒）
+            price = max(float(state.grain_price), 0.1)
+            silver_nong = int(_st * price)
+            silver_shen = int(_gt * price)
+            got_nong = state.transfer_money(f"pop:{name}:农", "treasury", silver_nong) if silver_nong else 0
+            got_shen = state.transfer_money(f"pop:{name}:士绅", "treasury", silver_shen) if silver_shen else 0
+            short = (silver_nong + silver_shen) - (got_nong + got_shen)
+            if short > 0:
+                _nong["欠税"] = int(_nong.get("欠税", 0)) + (silver_nong - got_nong)
+                _shen["欠税"] = int(_shen.get("欠税", 0)) + (silver_shen - got_shen)
         else:
+            _nong["grain"] = max(0, _nong["grain"] - _st)
+            _shen["grain"] = max(0, _shen["grain"] - _gt)
             p["storage"] = p.get("storage", 0) + _st + _gt
         # 种粮（加消耗完整定案）：播种预留 = 耕地亩 × SEED_GRAIN_PER_MU / 12（石/月，约250万石/月），
         # 从农存粮扣（农户备种，真实粮耗不造币；口粮已改「纯口粮」口径防双计）
@@ -674,13 +702,14 @@ def _settle_land_local(state, log):
         if _seed > 0:
             _nong["grain"] = max(0, _nong["grain"] - _seed)
             state.granary_stats["seed_grain"] = state.granary_stats.get("seed_grain", 0) + _seed
-    state.granary_stats["tax"] += land_grain
-    if land_grain > 0:
-        if state.single_whip:
+    if state.single_whip:
+        if land_grain > 0:
             silver_total = int(land_grain * state.grain_price)
             state.statistics["total_income"] += silver_total
-            log.append(f"[田赋·一条鞭] 两税折银征 {silver_total}贯入国库（本色 {land_grain}石改折银）")
-        else:
+            log.append(f"[田赋·一条鞭] 两税折银（税粮当量 {land_grain}石）按 wealth 实征入国库，不足记欠税")
+    else:
+        state.granary_stats["tax"] += land_grain
+        if land_grain > 0:
             log.append(f"[田赋] 两税本色征收粮 {land_grain}石，分储诸路仓廪（三运期各征 1/3 年产）")
 
     state.price_level = state.calc_price_level()
@@ -766,18 +795,20 @@ def _settle_extensions(state, log):
     _bank_on = getattr(state, "bank", {}).get("established", False) \
         if isinstance(getattr(state, "bank", None), dict) else False
 
+    _fdb = FINANCE_DECIDE_BASE   # 审查 P2-53：金融调制幅度/值域唯一权威源
     if state.jiaozi["issued"] > 0:
         _ceiling = state._jiaozi_ceiling()                    # 可发额度 = 准备金 × 准备金率（皇威放宽）
         over = max(0, state.jiaozi["issued"] - _ceiling)
         # 金融调制（交子信任/发行——三态词，CAP ±5 / +100万）
+        _jt_cfg = _fdb["jiaozi_trust"]
         _jt = _fin.get("jiaozi_trust", "稳")
         if _jt == "增":
-            state.jiaozi["trust"] = min(100, state.jiaozi["trust"] + 5)
+            state.jiaozi["trust"] = min(_jt_cfg["max"], state.jiaozi["trust"] + _jt_cfg["cap"])
         elif _jt == "跌":
-            state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - 5)
+            state.jiaozi["trust"] = max(_jt_cfg["min"], state.jiaozi["trust"] - _jt_cfg["cap"])
         if _fin.get("jiaozi_issued") == "增" and over <= 0:
             # 增发须 ≤ 可发额度（超发由下方既有超发逻辑触发崩溃）
-            _add = min(1_000_000, max(0, _ceiling - state.jiaozi["issued"]))
+            _add = min(_fdb["jiaozi_issued"]["cap"], max(0, _ceiling - state.jiaozi["issued"]))
             if _add > 0:
                 state.jiaozi["issued"] += _add
         over = max(0, state.jiaozi["issued"] - _ceiling)
@@ -790,22 +821,28 @@ def _settle_extensions(state, log):
             # 适量发钞→缓解钱荒（纸币替代铜钱，铜钱流通压力减）
             state.coin["shortage"] = max(0.1, state.coin.get("shortage", 0.3) - 0.005)
     # 钱荒调制（缓/加剧 ±0.05，clamp [0.05,0.95]；联动 tax_coeff 由 finance 既有公式）
+    _sh_cfg = _fdb["shortage"]
     _sh = _fin.get("shortage", "平")
     if _sh == "缓":
-        state.coin["shortage"] = max(0.05, state.coin.get("shortage", 0.3) - 0.05)
+        state.coin["shortage"] = max(_sh_cfg["min"], state.coin.get("shortage", 0.3) - _sh_cfg["cap"])
     elif _sh == "加剧":
-        state.coin["shortage"] = min(0.95, state.coin.get("shortage", 0.3) + 0.05)
+        state.coin["shortage"] = min(_sh_cfg["max"], state.coin.get("shortage", 0.3) + _sh_cfg["cap"])
     if state.maritime["open"]:
         # 市舶外贸：关税抽解入国库 + 商人 POP 得外贸利润（白银流入民间）
         _trade_month = state.calc_maritime_trade() / 12.0                     # 月贸易额（贯）
         # 市舶调制（兴/衰：tariff ±0.02 clamp [0.05,0.20]、silver_in ±10 clamp [10,60]）
+        _tf_cfg, _sv_cfg = _fdb["tariff"], _fdb["silver_in"]
         _mt = _fin.get("maritime", "平")
         if _mt == "兴":
-            state.maritime["tariff"] = max(0.05, min(0.20, state.maritime.get("tariff", 0.10) + 0.02))
-            state.maritime["silver_in"] = max(10, min(60, state.maritime.get("silver_in", 30) + 10))
+            state.maritime["tariff"] = max(_tf_cfg["min"], min(
+                _tf_cfg["max"], state.maritime.get("tariff", 0.10) + _tf_cfg["cap"]))
+            state.maritime["silver_in"] = max(_sv_cfg["min"], min(
+                _sv_cfg["max"], state.maritime.get("silver_in", 30) + _sv_cfg["cap"]))
         elif _mt == "衰":
-            state.maritime["tariff"] = max(0.05, min(0.20, state.maritime.get("tariff", 0.10) - 0.02))
-            state.maritime["silver_in"] = max(10, min(60, state.maritime.get("silver_in", 30) - 10))
+            state.maritime["tariff"] = max(_tf_cfg["min"], min(
+                _tf_cfg["max"], state.maritime.get("tariff", 0.10) - _tf_cfg["cap"]))
+            state.maritime["silver_in"] = max(_sv_cfg["min"], min(
+                _sv_cfg["max"], state.maritime.get("silver_in", 30) - _sv_cfg["cap"]))
         _tariff_rate = state.maritime.get("tariff", 0.10)
         state.treasury += int(_trade_month * _tariff_rate)                    # 关税抽解
         _merchant_profit = int(_trade_month * (1 - _tariff_rate) * 0.3)       # 商人毛利 30%
@@ -816,21 +853,23 @@ def _settle_extensions(state, log):
         state.coin["shortage"] = max(0.0, state.coin["shortage"] - 0.01)      # 白银流入缓解钱荒
     # 银行调制（扩/损——仅 established；capital ±20%、reserve +50万）
     if _bank_on:
+        _bk_cfg, _br_cfg = _fdb["bank_capital"], _fdb["bank_reserve"]
         _bk = _fin.get("bank", "稳")
         if _bk == "扩":
-            state.bank["capital"] = state.bank.get("capital", 1.0) * 1.20
-            state.bank["reserve"] = state.bank.get("reserve", 0) + 500_000
+            state.bank["capital"] = state.bank.get("capital", 1.0) * _bk_cfg["up"]
+            state.bank["reserve"] = state.bank.get("reserve", 0) + _br_cfg["cap"]
         elif _bk == "损":
-            state.bank["capital"] = state.bank.get("capital", 1.0) * 0.80
-            state.bank["reserve"] = max(0, state.bank.get("reserve", 0) - 500_000)
+            state.bank["capital"] = state.bank.get("capital", 1.0) * _bk_cfg["down"]
+            state.bank["reserve"] = max(_br_cfg["min"], state.bank.get("reserve", 0) - _br_cfg["cap"])
     state.jiaozi["trust"] = min(100, state.jiaozi["trust"] + 1)
     # 价格系数调制（通胀/通缩 ±5%，挂 calc_price_level ×mult，clamp [0.5,3.0]；月度重置不落档）
+    _pm_cfg = _fdb["price_mult"]
     _pt = _fin.get("price_trend", "平")
     _pm = getattr(state, "_price_mult", 1.0)
     if _pt == "通胀":
-        _pm = max(0.5, min(3.0, _pm * 1.05))
+        _pm = max(_pm_cfg["min"], min(_pm_cfg["max"], _pm * _pm_cfg["up"]))
     elif _pt == "通缩":
-        _pm = max(0.5, min(3.0, _pm * 0.95))
+        _pm = max(_pm_cfg["min"], min(_pm_cfg["max"], _pm * _pm_cfg["down"]))
     state._price_mult = _pm
     # 大臣家产月度循环（奢侈消费/收租/聚敛窖藏/物议——守恒转移）
     try:
@@ -866,7 +905,14 @@ def _settle_extensions(state, log):
         from core.era_mechanic import tech_build_bonus
         _tb = tech_build_bonus(state)
         if _tb > 0:
-            state.tech["level"] = max(0, min(100, state.tech["level"] + int(_tb)))
+            # 审查 P2-25 修复：tech_build_bonus 返回浮点（Σ学校等级×0.05），原 `int(_tb)`
+            # 把 <1 的加成恒截断为 0（5 所学校 Lv1 → 0.25 → 0，学校加成基本永不生效）。
+            # 现累积到小数池，满 1 兑现 1 点科技等级（无截断浪费）。
+            _pool = float(state.tech.get("_build_bonus_pool", 0.0) or 0.0) + _tb
+            _gain = int(_pool)
+            state.tech["_build_bonus_pool"] = round(_pool - _gain, 4)
+            if _gain > 0:
+                state.tech["level"] = max(0, min(100, state.tech["level"] + _gain))
     except Exception:
         pass
     state.tech["gunpowder"] = max(0, min(100, state.tech["gunpowder"] + random.randint(-1, 1)))
@@ -1649,24 +1695,33 @@ def _sell_to_buyers(p, seller, qty, price, copper_share=1.0):
         return 0
     cost = int(sold * price)
     short_total = sum(b[1] for b in buyers)
+    aff_total = sum(b[2] for b in buyers) or 1
     paid = 0
     grain_given = 0
-    for i, (pop_name, short, _aff) in enumerate(buyers):
-        share = int(cost * short / short_total)
-        grain_share = int(sold * short / short_total)
-        if i == len(buyers) - 1:            # 尾差归末位：扣款合计 == cost、得粮合计 == sold
+    _n = len(buyers)
+    for i, (pop_name, short, aff) in enumerate(buyers):
+        # 审查 P2-17 修复：扣款按「可支付力 afford」加权分摊。原按缺口 short 分摊，
+        # 缺口大但 wealth 少的买方会被分摊超额款项（wealth 可被扣穿甚至为负）；
+        # 粮仍按缺口 short 分配（谁缺得多谁得粮）。
+        if i == _n - 1:                     # 尾差归末位：得粮合计 == sold
             share = cost - paid
             grain_share = sold - grain_given
+        else:
+            share = int(cost * aff / aff_total)
+            grain_share = int(sold * short / short_total)
         pop = p["pops"][pop_name]
+        # 逐户封顶：绝不扣穿当前 wealth（实收不足部分由卖方按实收记账，钱不进不出）
+        share = max(0, min(share, int(pop.get("wealth", 0))))
         pop["wealth"] -= share              # 钱出
         pop["grain"] = pop.get("grain", 0) + grain_share   # 粮进（缺口被填补）
         paid += share
         grain_given += grain_share
-    copper = int(cost * max(0.0, min(1.0, copper_share)))   # 铜钱部分
-    jiaozi_part = cost - copper                              # 交子部分（不窖藏，全进流通）
+    copper = int(paid * max(0.0, min(1.0, copper_share)))   # 铜钱部分
+    jiaozi_part = paid - copper                              # 交子部分（不窖藏，全进流通）
     # 用户关键修正：**窖银只囤银**——铜钱/交子（钞）均不入窖，全部进 wealth（流通）；
     # 窖银（白银）由 _settle_civilian_hoard 从市舶 silver 池分配（银硬通货可窖、钞不可窖）
-    seller["wealth"] += cost
+    # 审查 P2-17：卖方按「实收 paid」入账（与买方实扣合计一致，钱粮双向守恒）
+    seller["wealth"] += paid
     return sold
 
 
@@ -1733,12 +1788,23 @@ def _settle_civilian_hoard(state, log):
         _hard_cap = int(_soft_cap * 1.5)
         if act == "囤":
             buy = int(p.get("grain", 0) / 12.0 * mult)      # 月产 × 档位
-            afford = genty["wealth"] // max(int(price * 1000), 1)  # 资金能买多少石（文级精度）
+            price_wen = max(int(price * 1000), 1)           # 文级单价（与 _sell_to_buyers 同口径）
+            afford = genty["wealth"] // price_wen           # 资金能买多少石（文级精度）
             room = max(0, _soft_cap - genty["grain"])       # 囤粮余量（软上限约束）
-            buy = min(buy, afford, room)
+            src = max(0, int(p.get("grain", 0) / 12.0))     # 粮源上限：本路在库粮的月产部分
+            buy = min(buy, afford, room, src)
             if buy > 0:
-                genty["wealth"] -= int(buy * price * 1000) / 1000.0
+                # 审查 P2-16 修复（钱粮双破守恒）：原实现士绅 wealth 减少无对手方、
+                # grain 增加无来源，且 `int(...)/1000.0` 使 wealth 变 float。
+                # 现改为成对划转：钱 士绅→本路农户 wealth；粮 本路在库粮→士绅囤粮。
+                cost = int(buy * price)                     # 贯（整数）
+                farmers = (p.get("pops") or {}).get("农")
+                if isinstance(farmers, dict):
+                    genty["wealth"] -= cost
+                    farmers["wealth"] = farmers.get("wealth", 0) + cost
+                # 无农户接收方时不划钱（宁可不流转，也不凭空灭币）
                 genty["grain"] += buy
+                p["grain"] = max(0, int(p.get("grain", 0)) - buy)
         elif act == "抛":
             sell = int(genty["grain"] * mult)
             if sell > 0:
@@ -1803,7 +1869,7 @@ def _settle_projects(state, log):
             if "granary_cap_add" in out:
                 state.change_granary_cap(int(out["granary_cap_add"]))
             if "defense_add" in out:
-                from ui.panels_military import ArmyUnit, EQUIP_STD, _defense_line_for
+                from core.army_models import ArmyUnit, EQUIP_STD, _defense_line_for
                 add = int(out["defense_add"])
                 for route in out.get("defense_routes", []):
                     if route not in state.prefectures or add <= 0:
@@ -1897,7 +1963,10 @@ def _settle_hidden_pop(state, log):
     if total_in_reg <= 0:
         return
     # 1) 逃户压力（在籍→隐户）：税率高 + 灾荒 + 民怨
-    _tax_pressure = min(0.010, max(0.0, (getattr(state, "commerce_tax", 0.05) - 0.05) * 1.0))
+    # 审查 P2-20 修复：原读 `commerce_tax`（不存在，getattr 恒返回默认 0.05）→ 压力恒 0，
+    # 「税重→逃户」永不触发。改为真实字段 commerce_tax_rate，基准取默认税率 0.15
+    # （超过常规税率才产生逃户压力，默认配置下不改变既有平衡）。
+    _tax_pressure = min(0.010, max(0.0, (getattr(state, "commerce_tax_rate", 0.15) - 0.15) * 1.0))
     _sat_pressure = max(0.0, (50 - getattr(state, "population_satisfaction", 50)) / 50.0) * 0.004
     _disaster = 0.0
     for _p in state.prefectures.values():
@@ -1953,8 +2022,12 @@ def _settle_hidden_pop(state, log):
 
 
 def _settle_treasury(state, log):
-    """国库结算"""
-    pass  # Step 4 已经结算
+    """国库结算——**占位（无操作）**：国库收支已在 Step 4（_settle_finance）完成。
+
+    保留空实现仅为维持 settlement 主流程的步骤编号（Step 5）与导入稳定性；
+    此处不得再写任何财政逻辑（避免与 Step 4 重复计征）。
+    """
+    return None
 
 
 # ------------------------------------------------------------
@@ -1975,7 +2048,7 @@ def _evaluate_timeline_breaks(state, log):
         pb["liao_ally"] = {"year": state.year, "label": "辽主示好，可许盟南北夹击"}
         log.append("[军机] 辽主亲善，枢密院已具密奏，候陛下朱批定夺")
 
-    from ui.panels_military import _army_power_total
+    from core.army_models import _army_power_total
     army_str = int(_army_power_total(state.army_units, state.tech.get("gunpowder", 20)) / 1000.0)
     if ("no_jingkang" not in tl and "no_jingkang" not in pb
             and "jin_crushed" not in tl and "jin_crushed" not in pb
@@ -2041,13 +2114,19 @@ def _settle_military_diplomacy(state, log):
         xixia["attitude"] = max(10, min(90, xixia["attitude"] + random.randint(-10, 10)))
 
     # 军事契约（power%/兵额/训练士气/征发——训练士气与兵额调整程序换算，cost 由守恒步扣）
+    # 审查 P1：无论有无 AI，一律叠加月度衰减基线（防只增不减导致士气/训练长期膨胀）
+    for u in state.army_units:
+        if random.random() < 0.15:
+            u.training = max(10, u.training - random.randint(1, 2))
+        if random.random() < 0.10:
+            u.morale = max(10, u.morale - 1)
     if isinstance(_mil, dict) and not _mil.get("_error"):
         for u in state.army_units:
             u.training = max(10, min(100, u.training + _P1_TRAIN_DELTA.get(_mil.get("training", "微"), 2)))
             u.morale = max(10, min(100, u.morale + _P1_TRAIN_DELTA.get(_mil.get("morale", "微"), 2)))
-        # 兵额 ±（CAP 5万）：主军籍军队主兵种调整
-        d_arm = _P1_ARM_DELTA.get(_mil.get("army", "微"), 10000)
-        if state.army_units:
+        # 兵额调整：AI 只可减员（裁汰）；增募必须走批红军令通道（防 AI 直接铸兵）
+        d_arm = _P1_ARM_DELTA.get(_mil.get("army", "微"), 0)
+        if d_arm < 0 and state.army_units:
             u = max(state.army_units, key=lambda x: x.troops)
             main_b = max(u.branches, key=lambda b: u.branches[b]) if u.branches else None
             if main_b:
@@ -2056,10 +2135,6 @@ def _settle_military_diplomacy(state, log):
         if getattr(state, "treasury", 0) >= levy:
             state.change_treasury(-levy)     # 征发 cost 守恒扣款（程序，非 agent 直写）
             log.append(f"[枢密] 征发军资 {levy} 贯")
-    else:
-        for u in state.army_units:
-            if random.random() < 0.05:
-                u.training = max(10, u.training - random.randint(1, 3))
 
 
 # ------------------------------------------------------------
@@ -2368,13 +2443,14 @@ def _settle_hidden(state, log):
         pass
     if state.population_satisfaction < 30:
         if random.random() < 0.15:
-            state.population_satisfaction -= 1
+            # 审查 P2-21：补下限钳制（其余结算处均已 max(0,…)，此处漏）
+            state.population_satisfaction = max(0, state.population_satisfaction - 1)
             log.append("[激变] 民怨沸腾，偶有骚乱")
 
     jin = state.external["金"]
     if jin.get("invasion_will", 0) >= 90 and state.year >= 1122:
         if random.random() < 0.08:
-            from ui.panels_military import _army_power, _army_power_total, _resolve_battle
+            from core.army_models import _army_power, _army_power_total, _resolve_battle
             jin["invasion_will"] = 80
             gunpowder = state.tech.get("gunpowder", 20)
             front_routes = ("河北路", "河东路", "陕西路")
@@ -2659,16 +2735,20 @@ def _settle_finance(state, log):
                 _take = min(_take, int(_mer["wealth"] * 0.10))
                 _mer["wealth"] = max(0, _mer["wealth"] - _take)
                 _wine_left -= _take
+        # 实征入账（审查 P0：禁止全额入内帑造币）——短征不记入内帑
+        _wine_tax_cash = max(0, _wine_tax_cash - max(0, _wine_left))
     # 国库保持整数贯：actual_net 为 float（各 calc_* 乘积），入账前截断
-    # 用户确认最终版：**内帑黑洞不修（游戏设计保留）**——酒课全额入内帑、无自动回流
-    state.treasury += int(actual_net) - int(imp_share)
-    state.imperial_treasury += int(imp_share) + _wine_tax_cash
+    state.treasury = max(0, state.treasury + int(actual_net) - int(imp_share))
+    state.imperial_treasury = max(0, state.imperial_treasury + int(imp_share) + int(_wine_tax_cash))
     state.statistics["total_income"] += int(actual_tax)
     state.statistics["total_expenditure"] += total_out
 
-    assert abs((state.treasury - treasury_before)
-               - (actual_net - int(imp_share))) < 1, \
-        f"财政恒等断裂：Δtreasury={state.treasury-treasury_before} actual_net={actual_net} imp={int(imp_share)}"
+    # 恒等式：未穿底时 Δtreasury == actual_net - imp；穿底钳到 0 时 Δ == -treasury_before
+    _delta = state.treasury - treasury_before
+    _expect = actual_net - int(imp_share)
+    _floored = state.treasury == 0 and (treasury_before + _expect) < 0
+    assert _floored or abs(_delta - _expect) < 1, \
+        f"财政恒等断裂：Δtreasury={_delta} actual_net={actual_net} imp={int(imp_share)}"
 
     inc_parts = f"工商{commerce_tax:.0f}+役钱{poll_tax:.0f}+二税折色{tax_color_total:.0f}+盐课{salt_coin:.0f}"
     if maritime_tax > 0:

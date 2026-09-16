@@ -122,7 +122,16 @@ class DialogueMemory:
                 "VALUES(?,?,?,?,?,?) "
                 "ON CONFLICT DO NOTHING",
                 (period, g["minister"], start, end, content[:400], ref_ids))
-            # 标记旧对话已总结
+            if cur.rowcount <= 0:
+                # 审查 P2-46 修复（静默丢数据）：已存在同 (period,minister) 概要（reload/
+                # re-settle 重跑）时，原实现仍无条件把对话标记 summarized=1 —— 这批对话
+                # 既不进 summaries 也不再参与后续总结（永久丢失）。现改为合并追加进概要，
+                # 数据不丢（content 截断上限 600 字防膨胀）。
+                self._conn.execute(
+                    "UPDATE summaries SET content=substr(content || ?, 1, 600) "
+                    "WHERE period=? AND minister=?",
+                    ("；" + content[:200], period, g["minister"]))
+            # 标记旧对话已总结（合并路径同样标记，因内容已并入概要）
             self._conn.executemany(
                 "UPDATE dialogues SET summarized=1 WHERE id=?", [(i,) for i in g["ids"]])
             out.append({"period": period, "minister": g["minister"],

@@ -107,6 +107,7 @@ def save_game(state, slot: int = 1) -> bool:
         "edict_drafts": getattr(state, "edict_drafts", []),
         "council_reviews": getattr(state, "council_reviews", {}),
         "memorials": getattr(state, "memorials", []),
+        "ai_pending_actions": getattr(state, "ai_pending_actions", []),
         "dialogue_history": getattr(state, "dialogue_history", []),
         "last_audience": getattr(state, "last_audience", ""),
 
@@ -178,8 +179,21 @@ def save_game(state, slot: int = 1) -> bool:
     }
 
     path = _slot_path(slot)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    # 审查 P1-8 修复（原子写）：先写 .tmp 再 os.replace 原子替换。
+    # 原实现直接以 "w" 打开目标文件写 JSON，写盘中断/崩溃会把存档（尤其唯一自动槽
+    # slot_0，每年正月与终局都覆盖它）截断成半截 JSON → 丢档。
+    tmp = f"{path}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return True
 
 
@@ -201,13 +215,37 @@ def _merge_regions(target: dict, saved) -> None:
 
 
 def load_game(slot: int = 1):
-    """从指定槽位读取存档，返回 GameState 或 None"""
+    """从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）"""
     path = _slot_path(slot)
     if not os.path.exists(path):
         return None
 
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # 审查 P1-9 修复（损坏恢复）：原实现裸 json.load，损坏档抛 JSONDecodeError 穿到
+    # UI 造成崩溃式失败。现捕获解析/IO 异常，备份损坏档（便于事后排查）后返回 None，
+    # 调用方（UI/后端）可按「读档失败，存档可能已损坏」正常提示。
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:  # JSONDecodeError ⊂ ValueError；UnicodeDecodeError 亦然
+        import logging as _lg
+        _lg.getLogger("save_load").error(
+            "存档损坏，无法读取（slot=%s）：%s；已备份为 %s.corrupt", slot, e, path)
+        try:
+            os.replace(path, path + ".corrupt")
+        except OSError:
+            pass
+        return None
+    if not isinstance(data, dict):
+        import logging as _lg
+        _lg.getLogger("save_load").error("存档结构非法（slot=%s）：顶层非对象", slot)
+        return None
+
+    _ver = int(data.get("schema_version", 1) or 1)
+    if _ver > 2:
+        import logging
+        logging.getLogger("save_load").error(
+            "存档 schema_version=%s 高于本程序支持的 2，拒绝加载", _ver)
+        return None
 
     # 延迟导入避免循环
     from core.game_state import GameState
@@ -289,7 +327,7 @@ def load_game(slot: int = 1):
                 state.factions[fn] = fdata
     state.external = data.get("external", state.external)
     # 军队真账：兵额已迁移到 army_units（list[ArmyUnit]），central_arsenal 为央级实物库
-    from ui.panels_military import build_army_units, ArmyUnit, CentralArsenal  # 延迟导入，避免顶层互引
+    from core.army_models import build_army_units, ArmyUnit, CentralArsenal  # 延迟导入，避免顶层互引
     if "army_units" not in data:
         # 旧档兼容：无 army_units 字段，从 state 重建
         state.army_units = build_army_units(state)
@@ -345,6 +383,7 @@ def load_game(slot: int = 1):
     state.edict_drafts = data.get("edict_drafts", getattr(state, "edict_drafts", []))
     state.council_reviews = data.get("council_reviews", getattr(state, "council_reviews", {}))
     state.memorials = data.get("memorials", getattr(state, "memorials", []))
+    state.ai_pending_actions = data.get("ai_pending_actions", getattr(state, "ai_pending_actions", []))
     state.dialogue_history = data.get("dialogue_history", getattr(state, "dialogue_history", []))
     state.last_audience = data.get("last_audience", getattr(state, "last_audience", ""))
 
@@ -560,8 +599,13 @@ def get_save_slots() -> list:
                     "era": d.get("era_name", ""),
                     "turn": d.get("turn", 0),
                 })
-            except:
-                pass
+            except (OSError, ValueError) as e:
+                # 审查 P3：裸 except 会吞掉一切且静默丢槽。改为具名异常 + 记日志 +
+                # 显式标记损坏槽（UI 显示「存档损坏」而非误报空槽/槽位消失）。
+                import logging as _lg
+                _lg.getLogger("save_load").warning("存档槽 %s 读取失败：%s", i, e)
+                slots.append({"slot": i, "corrupt": True, "time": "存档损坏",
+                              "year": 0, "month": 1, "era": "", "turn": 0})
         else:
             slots.append({"slot": i, "empty": True})
     return slots

@@ -375,7 +375,9 @@ class AIClient(ClientNarrativeMixin):
                     models = [i.get("id") for i in data if isinstance(i, dict) and i.get("id")]
                     if models: return sorted(models)
         except Exception as e:
-            print(f"[AIClient] 获取模型列表异常: {e}")
+            # 审查 P3 修复：改用 logging（GUI 程序 stdout 不宜输出诊断信息）
+            import logging as _lg
+            _lg.getLogger("ai.client").info("获取模型列表异常：%s", type(e).__name__)
         # 默认推荐清单
         return ["deepseek-chat", "deepseek-reasoner", "gpt-4o", "gpt-4o-mini", "qwen-plus", "qwen-turbo"]
 
@@ -604,15 +606,19 @@ class AIClient(ClientNarrativeMixin):
         key = f"{cache_key}:{input_key}:{self._state_hash(state_summary)}"
         if key in self._cache:
             self._cache_hits += 1
-            return self._cache[key]
+            # 审查 P3 修复（LRU）：命中后重插到队尾（dict 保持插入序）→ 最少使用先淘汰
+            val = self._cache.pop(key)
+            self._cache[key] = val
+            return val
         self._cache_misses += 1
         raw = self._call(system_prompt, user_prompt, temperature=temperature,
                         max_tokens=max_tokens, json_mode=json_mode)
         if raw is not None:
             self._cache[key] = raw
-            # 限制缓存规模（最多 64 条），超出则清空（朝局已大变）
-            if len(self._cache) > 64:
-                self._cache.clear()
+            # 审查 P3 修复（缓存淘汰）：原「超 64 条整体 clear」在朝局抖动时收益不稳；
+            # 改为逐条淘汰最久未用（配合上方命中重插 = LRU），保留热点条目。
+            while len(self._cache) > 64:
+                self._cache.pop(next(iter(self._cache)), None)
         return raw
 
     def cache_stats(self) -> dict:
@@ -626,6 +632,28 @@ class AIClient(ClientNarrativeMixin):
         }
 
     # ---------- 底层调用 ----------
+    _NET_RETRY = 2        # 瞬时网络错误重试次数（审查 P2-45）
+    _NET_BACKOFF = 0.8    # 退避基数（秒）：0.8s / 1.6s
+
+    def _post_with_retry(self, payload, timeout: float = 30):
+        """HTTP POST + 瞬时网络错误退避重试（审查 P2-45 修复）。
+
+        仅对网络层异常（超时/连接失败/DNS 抖动）做有限次退避重试；HTTP 4xx/5xx
+        仍由 `_call` 按契约降级处理（json_mode / tool_choice 回退），此处不重试。
+        """
+        import time as _t
+        _last = None
+        for _i in range(self._NET_RETRY + 1):
+            try:
+                return _http_post_json(self.chat_url, self._auth_headers(), payload,
+                                       timeout=timeout)
+            except urllib.error.URLError as e:
+                _last = e
+                if _i >= self._NET_RETRY:
+                    raise
+                _t.sleep(self._NET_BACKOFF * (2 ** _i))
+        raise _last  # pragma: no cover
+
     def _call(self, system_prompt: str, user_prompt: str = "",
               history=None, temperature: float = 0.8, max_tokens: int = 800,
               tools=None, messages=None, json_mode: bool = False,
@@ -675,13 +703,15 @@ class AIClient(ClientNarrativeMixin):
             payload["response_format"] = {"type": "json_object"}
         for attempt in (0, 1):
             try:
-                headers = self._auth_headers()
-                status, data, _ = _http_post_json(self.chat_url, headers, payload, timeout=30)
+                # 审查 P2-45：网络层瞬时错误退避重试（原 URLError 直接抛出，无重试）
+                status, data, _ = self._post_with_retry(payload, timeout=30)
             except urllib.error.URLError as e:
                 from core.errors import AIRuntimeError as _AIRE
                 reason = getattr(e, "reason", e)
                 if isinstance(reason, TimeoutError):
-                    raise _AIRE("AI 服务连接超时（限时 30s）：请检查网络或 base_url 后重试。") from e
+                    # 审查 P2-43：超时码具备真实生产者（原 AI_TIMEOUT 仅定义、无产出）
+                    raise _AIRE("AI 服务连接超时（限时 30s）：请检查网络或 base_url 后重试。",
+                                code="AI_TIMEOUT") from e
                 raise _AIRE(f"AI 服务连接失败：{reason}") from e
             except Exception as e:  # noqa: BLE001
                 from core.errors import AIRuntimeError as _AIRE
@@ -704,6 +734,10 @@ class AIClient(ClientNarrativeMixin):
                 payload["tool_choice"] = "auto"
                 continue
             from core.errors import AIRuntimeError as _AIRE
+            # 审查 P2-43：鉴权失败给明确错误码（原仅把状态码拼进文本，无法诊断）
+            if status in (401, 403):
+                raise _AIRE(f"AI 鉴权失败（HTTP {status}）：请检查 api_key 与 base_url。",
+                            code="AI_AUTH_FAILED") from None
             raise _AIRE(f"AI 服务返回错误（HTTP {status}）：{err}") from None
         try:
             msg = data["choices"][0]["message"]
@@ -812,8 +846,10 @@ class AIClient(ClientNarrativeMixin):
                     obj2 = validator(obj2) if obj2 is not None else None
                     if obj2 is not None:
                         obj = obj2
-                except Exception:
+                except Exception as _re:  # noqa: BLE001
                     obj = None
+                    # 审查 P2-43：保留底层错误码（AI_TIMEOUT / AI_AUTH_FAILED 等）供 fallback 携带
+                    _fail_code = getattr(_re, "code", "") or _fail_code
             if obj is None:
                 fb = fallback()
                 # 审查 P2-5：用阶段失败码覆盖 fallback 默认 AI_NOT_CONFIGURED
@@ -911,8 +947,14 @@ class AIClient(ClientNarrativeMixin):
                 {"role": "system", "content": sys_p},
                 {"role": "user", "content": user_p},
             ]
-            raw = self._call(sys_p, messages=messages, history=history, temperature=0.9,
-                            tools=_TOOL_SCHEMAS)
+            try:
+                raw = self._call(sys_p, messages=messages, history=history, temperature=0.9,
+                                 tools=_TOOL_SCHEMAS)
+            except Exception:
+                # 审查 P1-40 修复（降级不完整）：端点拒绝 tools（4xx → AIRuntimeError）
+                # 原会直接抛穿整个召对；按设计应标记不支持 tools 并降级为纯文本对话。
+                self.tools_supported = False
+                raw = None
             if isinstance(raw, dict) and raw.get("tool_calls"):
                 # 首次带工具的调用成功 → 标记端点支持 tools
                 self.tools_supported = True
@@ -937,6 +979,16 @@ class AIClient(ClientNarrativeMixin):
                     if isinstance(raw2, dict):
                         raw2["tool_results"] = [r for _, r in results]
                     return raw2
+            elif raw:
+                # 审查 P1-40 修复（重复计费）：带 tools 的调用已返回文本（dict.content 或
+                # 纯文本 str）→ 直接走校验/兜底。原实现丢弃该结果并再次发起同内容请求
+                # （双倍网络/双倍计费/双倍延迟）。
+                _txt = str(raw.get("content") or "") if isinstance(raw, dict) else str(raw)
+                _txt, hit = _safety_filter(_txt)
+                if hit:
+                    return _ai_unavailable("dialogue")
+                return self._postprocess(_txt, validate,
+                                         lambda: _narrative_fallback("dialogue", minister_name))
             elif raw is None:
                 # 带 tools 请求失败（端点不支持）→ 标记并降级纯文本
                 self.tools_supported = False

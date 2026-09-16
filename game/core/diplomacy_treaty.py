@@ -51,6 +51,9 @@ def apply_treaty(state, target: str, type_: str, terms: dict = None,
                     _fallback = (_t, _v)
             if _fallback:
                 tier, dowry = _fallback
+                # 审查 P2-29 修复：降档后须同步写回 terms["tier"]，否则末尾 _att_delta
+                # 仍按原（高档）档位算关系变化 —— 花小钱拿高档态度收益。
+                terms["tier"] = tier
                 extra.append(f"嫁妆降档至{tier}（内帑不足）")
             else:
                 return {"ok": False, "msg": "内帑不足以支和亲嫁妆", "attitude_delta": 0, "cost": 0}
@@ -74,7 +77,9 @@ def apply_treaty(state, target: str, type_: str, terms: dict = None,
             state._trade_income.pop(target, None)
         else:
             income = TRADE_INCOME.get({"开": "小", "扩": "中"}.get(tier, "小"), TRADE_INCOME["小"])
-            state.treasury += income
+            # 审查 P2-23 修复：改走 change_treasury（统一记账口径/非负保护/统计），
+            # 原 `state.treasury += income` 绕过统一通道。
+            state.change_treasury(income)
             state._trade_income[target] = income
         cost = -income   # 负 = 收入
         state.treaties.setdefault(target, []).append(
@@ -90,7 +95,10 @@ def apply_treaty(state, target: str, type_: str, terms: dict = None,
     elif type_ == "战争":
         state._at_war[target] = 1
         _reg = (getattr(state, "external", None) or {}).get(target) or {}
-        _reg["invasion_will"] = int(_reg.get("invasion_will", 0) or 0) + 10   # 边患载体提升（消费 WAR_RISK_BOOST）
+        # 审查 P2-30 修复：原硬编码 +10 与 WAR_RISK_BOOST 脱钩（注释自称消费该常量），
+        # 现按常量换算（0.10 → +10 点入侵意愿）。
+        _boost = int(round(float(WAR_RISK_BOOST) * 100)) or 10
+        _reg["invasion_will"] = int(_reg.get("invasion_will", 0) or 0) + _boost
         state.treaties.setdefault(target, []).append(
             {"type": "战争", "terms": {"tier": str(terms.get("tier", "中"))},
              "turn": getattr(state, "turn", 0), "year": year, "month": month})

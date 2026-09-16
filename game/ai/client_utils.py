@@ -679,12 +679,12 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                     "summary": str(args.get("summary", "")).strip(),
                     "longterm": bool(args.get("longterm", False)),
                 }
-                if item["longterm"]:
-                    state.longterm_secret.append(item)
-                else:
-                    state.pending_secret_decrees.append(item)
-                res = f"密令已藏袖中奉行：「{item['title']}」"
-                mem.setdefault(minister_name, []).append(f"降密令：{item['title']}")
+                # 严格待批：AI 只入队，批红后才写入 pending/longterm
+                aid = state.enqueue_ai_action(
+                    "secret_order", item["title"], item["summary"],
+                    {"longterm": item["longterm"]}, proposer=minister_name)
+                res = f"密令已拟「{item['title']}」，入待批队列（{aid}），俟陛下批红奉行。"
+                mem.setdefault(minister_name, []).append(f"拟密令待批：{item['title']}")
 
             elif name == "check_treasury":
                 # 勾校度支消耗诏令带宽（模拟皇帝亲勾精力成本），带宽不足则只给定性
@@ -708,19 +708,26 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                     "summary": str(args.get("summary", "")),
                     "effects": args.get("effects", {}),
                 }
-                state.longterm_public.append(item)
-                res = f"施政已立案俟批：「{item['title']}」"
-                mem.setdefault(minister_name, []).append(f"提施政：{item['title']}")
+                aid = state.enqueue_ai_action(
+                    "propose_governance", item["title"], item["summary"],
+                    {"effects": item["effects"]}, proposer=minister_name)
+                res = f"施政条陈已拟「{item['title']}」，入待批队列（{aid}），俟批红立案。"
+                mem.setdefault(minister_name, []).append(f"提施政待批：{item['title']}")
 
             elif name == "query_state":
                 # 省 token（用户定稿）：按需查询——问到才查本地精准值，同回合缓存
                 tgt = str(args.get("target", ""))
                 oname = str(args.get("name", ""))
-                key = f"{tgt}:{oname}"
+                # 审查 P2-38 修复：缓存 key 原为 target:name，且全库无清理点 →
+                # 跨回合命中旧值（AI 查到的是历史数）。现把回合号纳入 key，
+                # 并对缓存容量设上限（长局 key 不断新增，防无限累积）。
+                key = f"{tgt}:{oname}@{getattr(state, 'turn', 0)}"
                 cache = getattr(state, "_query_state_cache", None)
                 if cache is None:
                     cache = {}
                     state._query_state_cache = cache
+                if len(cache) > 200:
+                    cache.clear()
                 if key in cache:
                     res = f"{tgt}（本回合已查）{cache[key]}"
                 else:
@@ -745,65 +752,15 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 act = str(args.get("action", "整编"))
                 tgt = str(args.get("target", ""))
                 scale = max(1, min(5, int(args.get("scale", 3) or 3)))
-                if tier in ("西军", "北军"):
-                    tier = "禁军"
-                units = [u for u in state.army_units if u.tier == tier]
-                if units:
-                    # 档位 scale 1~5 → 直接数值增减并封顶 0~100（勿套 tier 换算，那是档位词专用）
-                    if act in ("操练", "整编"):
-                        for u in units:
-                            u.training = max(0, min(100, u.training + scale * 2))
-                    elif act == "增募":
-                        # 征兵转换（用户指示：POP 转换非凭空加兵额——人口守恒）：
-                        #   流民 → 厢军（史实优先：征流民为厢军，防乱+充实军力）；
-                        #   农 → 兵（流民不足时从该路农 POP size 扣，募农为兵；
-                        #            农最多募一半——保农生存，农富时难募）。
-                        _total_taken = 0
-                        for u in units:
-                            _N = scale * 2000
-                            # 站名须为 20 路稳定键；未知驻地不强行落京畿（防错位造币/人口漂移）
-                            _station = getattr(u, "station", "")
-                            if _station not in state.prefectures:
-                                continue
-                            _p = state.prefectures[_station]
-                            _taken = 0
-                            if u.tier == "厢军":          # 流民 → 厢军（史实优先）
-                                _ref = int(_p.get("refugees", 0))
-                                _t = min(_N, _ref)
-                                if _t > 0:
-                                    _p["refugees"] = _ref - _t
-                                    _taken += _t
-                            if _taken < _N:               # 农 → 兵（流民不足；农最多募一半）
-                                _farm = int(_p["pops"]["农"]["size"])
-                                _t2 = min(_N - _taken, max(0, _farm - int(_farm * 0.5)))
-                                _p["pops"]["农"]["size"] = _farm - _t2
-                                _taken += _t2
-                            # 兵额真账 = Σbranches（troops property 只读）——增募入兵种人数
-                            if u.branches:
-                                _bk = next(iter(u.branches))
-                                u.branches[_bk] = u.branches.get(_bk, 0) + _taken
-                            else:
-                                u.branches["轻步兵"] = _taken
-                            # 即时回填兵 POP size（兵额 == 兵 POP 一致；settle 会再聚合）
-                            _p["pops"]["兵"]["size"] = _p["pops"]["兵"].get("size", 0) + _taken
-                            _total_taken += _taken
-                            u.training = max(0, min(100, u.training + scale))
-                        # 征发 cost（守恒扣款）：征兵费 = 实募人数 × 5 贯，
-                        # 国库出 → 兵 POP 安家费入（ΣΔ==0，不凭空）
-                        if _total_taken > 0 and getattr(state, "treasury", 0) >= _total_taken * 5:
-                            _cost = _total_taken * 5
-                            state.treasury -= _cost
-                            _sold = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
-                            for _p in state.prefectures.values():
-                                _p["pops"]["兵"]["wealth"] = _p["pops"]["兵"].get("wealth", 0) + int(_cost * _p["pops"]["兵"]["size"] / max(_sold, 1))
-                    if act == "调赴" and tgt:
-                        for u in units:
-                            u.station = tgt   # ArmyUnit 无 deployed_to，用 station 表达调赴
-                if units:
-                    res = f"军令已录：{tier} {act}{('赴' + tgt) if tgt else ''}（档 {scale}）。"
-                else:
-                    res = f"无此军籍：{tier}，军令未录。"
-                mem.setdefault(minister_name, []).append(f"请调 {tier}{act}")
+                # 严格待批：军令只入队，批红时再校验钱粮并落地
+                aid = state.enqueue_ai_action(
+                    "military_dispatch", f"{tier}·{act}",
+                    f"军籍 {tier}，动作 {act}，档 {scale}"
+                    + (f"，赴 {tgt}" if tgt else ""),
+                    {"army": tier, "action": act, "target": tgt, "scale": scale},
+                    proposer=minister_name)
+                res = f"军令已拟：{tier} {act}（档 {scale}），入待批队列（{aid}），俟批红施行。"
+                mem.setdefault(minister_name, []).append(f"请调待批 {tier}{act}")
 
             elif name == "relief_grant":
                 region = str(args.get("region", ""))
@@ -843,22 +800,8 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                             res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
                                    f"发帑约 {cost:,} 缗，民心稍纾。")
                     except Exception:
-                        # 兜底（applier_pipeline 意外失败）：守恒等效实现（国库 -cost
-                        # → 农/工匠 +cost），不直烧国库（防凭空灭钱），不直写派生字段。
-                        _t0 = getattr(state, "treasury", 0)
-                        if _t0 >= cost:
-                            state.treasury = _t0 - cost
-                            _pops = state.prefectures.get(region, {}).get("pops", {})
-                            for _bk, _share in (("农", 0.6), ("工匠", 0.4)):
-                                _pp = _pops.get(_bk)
-                                if isinstance(_pp, dict):
-                                    _pp["wealth"] = _pp.get("wealth", 0) + int(cost * _share)
-                            state.population_satisfaction = max(0, min(100,
-                                state.population_satisfaction + grain * 2))
-                            res = (f"已发 {region} 仓廪赈济（粟档 {grain}，银档 {silver}），"
-                                   f"发帑约 {cost:,} 缗，民心稍纾。")
-                        else:
-                            res = "赈济未能落地：国库不足。"
+                        # 兜底禁止直写（审查 P0）：applier 失败即整单不落地，守恒不旁路
+                        res = "赈济未能落地（状态应用层异常，已拒绝）"
                     mem.setdefault(minister_name, []).append(f"赈 {region}")
 
             elif name == "offer_blueprint":
@@ -1056,6 +999,11 @@ def _normalize_effects(raw_effects) -> list:
     draft_decree / polish_decree / council_review 共用，消除三份重复。
     """
     from content.data import normalize_tier
+    # 审查 P2-41 修复：validate 只检查 "effects" 键存在、未查类型；模型给出 null/dict/str
+    # 时原 raw_effects[:4] 抛 TypeError，穿透成笼统 AIRuntimeError（绕过 _ai_unavailable
+    # 与错误码诊断）。此处归一为非 list → 空列表（下游按"无效果"处理）。
+    if not isinstance(raw_effects, (list, tuple)):
+        return []
     effs = []
     for e in raw_effects[:4]:
         if not isinstance(e, dict):

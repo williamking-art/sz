@@ -325,7 +325,9 @@ def _settle_free_effects(state, log) -> None:
         effects = item.get("effects", {})
         cost = item.get("cost", {})
         # 审查 P0-5：成本承受 + 国库/民间资财可行性（money 效果成对划转）
-        if _cost_affordable(state, cost) and _money_effects_feasible(state, effects, cost):
+        applied = bool(_cost_affordable(state, cost)
+                       and _money_effects_feasible(state, effects, cost))
+        if applied:
             log += _apply_effect_to_state(state, effects)
             _pay_cost(state, cost, log)
             log.append(f"[制度] {item.get('name', '')} 本月生效")
@@ -334,11 +336,15 @@ def _settle_free_effects(state, log) -> None:
         dur = int(item.get("duration", 0))
         if dur == 0:
             keep.append(item)            # 0 = 永久
-        else:
+        elif applied:
+            # 审查 P3 修复：仅在「真正生效」的月份递减 duration。原实现暂缓月也照常
+            # 递减寿命，长期制度在未足额生效的月份被消耗、提前核销。
             dur -= 1
             if dur > 0:
                 item["duration"] = dur
                 keep.append(item)
             else:
                 log.append(f"[制度] {item.get('name', '')} 到期核销")
+        else:
+            keep.append(item)            # 本月暂缓：保留原 duration，下月继续尝试
     state.longterm_effects = keep

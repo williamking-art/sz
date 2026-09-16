@@ -1,7 +1,12 @@
 @echo off
 rem ============================================================
 rem Songzuo (Song Dynasty Sim) - Universal Smart Launcher
-rem Auto-detects / auto-downloads Node, or falls back to Python.
+rem Launches the Electron client; the client auto-spawns the
+rem Python backend at 127.0.0.1:8080 (see frontend/src/main/index.ts).
+rem This script:
+rem   0) clears CodeBuddy shim env vars (they break the Python child)
+rem   1) self-checks runtime deps (pip install -r requirements.txt if missing)
+rem   2) detects Node (portable download fallback), then starts Electron
 rem Flat goto architecture - no nested parenthesis.
 rem ============================================================
 setlocal enabledelayedexpansion
@@ -12,12 +17,64 @@ set "NODE_DIR=%~dp0tools\nodejs"
 set "NODE_ZIP=%~dp0tools\node-v20.19.5-win-x64.zip"
 set "NODE_URL=https://registry.npmmirror.com/-/binary/node/v20.19.5/node-v20.19.5-win-x64.zip"
 
-rem ---- Step 1: Detect Node ----
-if exist "%NODE_DIR%\node.exe" goto FoundNode
+rem ---- Step 0: clear CodeBuddy shim env (PYTHONPATH shim breaks backend) ----
+set "PYTHONPATH="
+set "CODEBUDDY_TOOL_CALL_ID="
+set "CODEBUDDY_SAFE_DELETE_BULK_STATE_DIR="
+set "PYTHONIOENCODING=utf-8"
 
+rem Electron binary mirror (npmmirror) - used by @electron/get on (re)install.
+rem Without it, npm install may skip the ~100MB binary and electron-vite
+rem then fails with: Error: Electron uninstall
+set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
+
+rem ---- Step 0b: resolve python interpreter (venv preferred) ----
+set "PY_CMD=python"
+if exist "%VENV_PY%" set "PY_CMD=%VENV_PY%"
+
+rem ---- Step 1: runtime deps self-check (fastapi/uvicorn/shapely needed) ----
+%PY_CMD% -c "import fastapi, uvicorn, requests, rich, shapely" >nul 2>nul
+if errorlevel 1 goto InstallDeps
+goto RebuildMap
+
+:InstallDeps
+echo [Songzuo] Installing runtime deps from game\requirements.txt ...
+%PY_CMD% -m pip install -r "%~dp0game\requirements.txt"
+if errorlevel 1 goto DepsFail
+echo [Songzuo] Runtime deps installed.
+goto RebuildMap
+
+rem ---- Step 1b: rebuild single-source map data ----
+:RebuildMap
+echo [Songzuo] Rebuilding map data (basemap + regime layers) ...
+cd /d "%~dp0game"
+%PY_CMD% build_map_basemap.py
+if errorlevel 1 goto RebuildFail
+%PY_CMD% -m content.build_map_geo
+if errorlevel 1 goto RebuildFail
+cd /d "%~dp0"
+goto CheckNode
+
+:RebuildFail
+echo.
+echo [Songzuo] ERROR: map data rebuild FAILED - the map may show stale data.
+echo            Run rebuild_map.bat to see the full error output.
+pause
+cd /d "%~dp0"
+goto CheckNode
+
+:DepsFail
+echo.
+echo [Songzuo] Dependency install failed (network or proxy?). Install manually:
+echo     %PY_CMD% -m pip install -r game\requirements.txt
+pause
+goto Finished
+
+rem ---- Step 2: Detect Node ----
+:CheckNode
+if exist "%NODE_DIR%\node.exe" goto FoundNode
 where node >nul 2>nul
 if not errorlevel 1 goto FoundSystemNode
-
 goto AskDownload
 
 :FoundNode
@@ -28,7 +85,7 @@ goto LaunchElectron
 set "PATH=%~dp0game\.venv\Scripts;%PATH%"
 goto LaunchElectron
 
-rem ---- Step 2: Ask user about auto-download ----
+rem ---- Step 3: Ask user about auto-download ----
 :AskDownload
 echo ============================================================
 echo   Songzuo - Universal Smart Launcher
@@ -47,8 +104,9 @@ set /p CHOICE="Enter choice [1, 2, 3] (default 1): "
 
 if "%CHOICE%"=="2" goto LaunchBackend
 if "%CHOICE%"=="3" goto Finished
+goto DownloadNode
 
-rem ---- Step 3: Auto-download Node ----
+rem ---- Step 4: Auto-download Node ----
 :DownloadNode
 echo.
 echo [Songzuo] Creating tools directory...
@@ -80,17 +138,21 @@ echo [Songzuo] Auto-download failed. Please install Node 20+ manually.
 echo [Songzuo] Falling back to Python Backend Server...
 goto LaunchBackend
 
-rem ---- Step 4: Launch Electron with dependencies check ----
+rem ---- Step 5: Launch Electron (backend auto-spawned by the client) ----
 :LaunchElectron
-cd /d "%~dp0game\frontend"
+cd /d "%~dp0_dev_tools\frontend"
 if exist "node_modules\.bin\electron-vite.cmd" goto RunDev
 
-echo [Songzuo] Installing frontend dependencies, please wait...
+echo [Songzuo] Installing frontend deps (first run, about 3-5 min) ...
 call npm install --no-audit --no-fund
 if errorlevel 1 goto NpmFail
 
 :RunDev
-echo [Songzuo] Launching Songzuo Electron Client...
+echo.
+echo [Songzuo] Launching Electron client.
+echo          Python backend will be spawned automatically at
+echo          http://127.0.0.1:8080  (health check: /health)
+echo          Keep this window open while playing.
 call npm run dev
 if errorlevel 1 goto ElectronFail
 goto Finished
@@ -107,16 +169,13 @@ echo [Songzuo] Electron exited with error.
 pause
 goto Finished
 
-rem ---- Step 5: Python backend only ----
+rem ---- Step 6: Python backend only ----
 :LaunchBackend
 echo.
-echo [Songzuo] Launching Python Backend Server on 127.0.0.1:8080...
+echo [Songzuo] Launching Python Backend Server on 127.0.0.1:8080 ...
+echo          Health check: http://127.0.0.1:8080/health
 cd /d "%~dp0game"
-if exist "%VENV_PY%" (
-    "%VENV_PY%" -m backend.server
-) else (
-    python -m backend.server
-)
+%PY_CMD% -m backend.server
 if errorlevel 1 pause
 goto Finished
 

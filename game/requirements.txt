@@ -1,3 +1,8 @@
 requests>=2.28.0
 rich>=13.0.0
 Pillow>=10.0.0
+# 舆图数据构建（build_map_basemap / build_map_geo 面积复核与合成）
+shapely>=2.0.0
+# Electron / 参考后端联调（backend.server）；未装则本地单机仍可跑
+fastapi>=0.110.0
+uvicorn>=0.27.0

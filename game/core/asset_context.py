@@ -78,8 +78,7 @@ def era_switch(state):
 # ============================================================
 # 攻关 / 点亮
 # ============================================================
-_SIGNOFF_MSG = "AWAIT_SIGNOFF"
-
+# 历史：国库拨银曾强制会签（AWAIT_SIGNOFF）。设计定稿：有钱即可研，门槛已移除。
 
 def _research_guard(state, node_id: str):
     """统一研发前置校验（prepare/start 共用）：查无此制/已得/前置未备/已在攻关。
@@ -141,11 +140,10 @@ def start_research(state, node_id: str, silver_in: int = 0,
                    signoff: bool = False) -> str:
     """统一研发立项端口（面板直点 / 圣旨推演 / 对话献策 三入口共用）。
 
-    - fund: "treasury" 国库拨银（走会签）/ "inner" 内帑乾纲独断（免会签担风险）
+    - fund: "treasury" 国库拨银 / "inner" 内帑独断
     - source: "panel" 面板直点 / "decree" 圣旨推演 / "council" 对话献策嘉纳
-    - signoff: 是否已通过会签。国库拨银立项默认须先会签（signoff=True 才扣钱），
-      否则返回 _SIGNOFF_MSG 标记等待 GUI 弹会签；内帑免会签、观念类免会签。
-    观念类节点（idea=True）不花钱、不走会签，直接"颁布推行"（source 不影响其立项）。
+    - signoff: 历史参数，保留兼容；**不再作为立项门槛**（设计定稿：有钱即可研，
+      会签仅作叙事/日志可选）。观念类（idea）仍不花钱直接颁布。
     """
     node, tech, err = _research_guard(state, node_id)
     if err:
@@ -155,7 +153,7 @@ def start_research(state, node_id: str, silver_in: int = 0,
     is_idea = cost.get("idea")
 
     if is_idea:
-        # 观念革新：不花钱、不走会签，直接颁布推行（只需国库不为负即可）
+        # 观念革新：不花钱、直接颁布推行
         state.change_treasury(0)
         tech.setdefault("researching", {})[node_id] = {
             "progress": 0.0, "silver_in": 0,
@@ -167,16 +165,12 @@ def start_research(state, node_id: str, silver_in: int = 0,
         silver_in = cost["silver"]
 
     if fund == "inner":
-        # 内帑乾纲独断：免会签，但花皇帝私库、担研发失败/效果打折风险
+        # 内帑：花皇帝私库
         if getattr(state, "imperial_treasury", 0) < silver_in:
             return "内帑不足，难拨此费。"
         state.change_imperial_treasury(-silver_in)
     else:
-        # 国库拨银乃朝廷公帑，须经会签（圣旨推演已走诏令会签，此处视为已会签）。
-        # 未会签时仅返回等待标记，绝不扣钱。
-        if source in ("panel", "council") and not signoff:
-            if node_id not in tech.get("signoffs", {}):
-                return _SIGNOFF_MSG
+        # 国库：有钱即可研（不再强制会签门槛）
         if getattr(state, "treasury", 0) < silver_in:
             return "国库不足，难拨此费。"
         state.change_treasury(-silver_in)
@@ -203,10 +197,8 @@ def approve_invention(state, index: int, fund: str = "treasury",
                       signoff: bool = False) -> str:
     """嘉纳工部献策：把 pending_inventions 中第 index 条转为研究立项。
 
-    若献策指向已有节点（name 命中节点名/id 或 prereq_hint 命中），直接立项该节点；
-    若是全新发明，则生成一个新节点（generated）入库并立项。
-    国库拨银立项默认须会签：未会签时返回 _SIGNOFF_MSG 待会签标记（不扣钱），
-    并保留生成节点，供会签准奏后以 signoff=True 再次调用立项。
+    若献策指向已有节点，直接立项；全新发明则注册 generated 节点再立项。
+    国库有钱即可立（不再强制会签）；signoff 参数保留兼容。
     """
     inv = _pop_invention(state, index)
     if inv is None:
@@ -214,10 +206,8 @@ def approve_invention(state, index: int, fund: str = "treasury",
     name = inv.get("name", "")
     node_id = _match_node_by_hint(inv)
     if node_id:
-        # 该献策指向既有科技：直接立项（观念类不花钱，工程类按资金通道）
         return start_research(state, node_id, fund=fund, source="council",
                               signoff=signoff)
-    # 全新发明：生成节点入库（未会签也先登记节点，准奏后再立项）
     gid = _register_generated_node(state, inv)
     return start_research(state, gid, fund=fund, source="council",
                           signoff=signoff)

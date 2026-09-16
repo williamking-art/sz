@@ -51,11 +51,20 @@ def settle_minister_estate(state, log):
         land = int(e.get("land", 0))
         # 膨胀（史翰青 1101 基线 → 靖康籍没锚点）：家产随年按 corruption 膨胀
         # 月膨胀 = 家产×(俸禄基准 + 贪腐×系数)，封顶巨富档上限
+        # 守恒（审查 P0）：增长来源 = 各路官僚 POP wealth 池；池不足则按实扣额入账，禁止凭空铸币
         growth = 0
         try:
             corruption = MINISTERS.get(name, {}).get("corruption", 0.3)
-            growth = we * (ESTATE_GROWTH_BASE + corruption * ESTATE_GROWTH_CORRUPT)
-            e["wealth"] = min(ESTATE_WEALTH_CAP, e["wealth"] + int(growth))
+            want = int(we * (ESTATE_GROWTH_BASE + corruption * ESTATE_GROWTH_CORRUPT))
+            # 审查 P2-18 修复（凭空销币）：先按封顶剩余空间限幅 want，只申请「真正能入账」
+            # 的额度。原实现先全额 drain_pop_wealth（已从官僚 POP 扣钱），再用 min(CAP,…)
+            # 截断入账 → 差额既不在 POP 也不在家产，凭空销毁。
+            room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0)))
+            if want > 0:
+                want = min(want, room)
+            actual = state.drain_pop_wealth("官僚", want) if want > 0 else 0
+            growth = actual
+            e["wealth"] = min(ESTATE_WEALTH_CAP, e["wealth"] + growth)
             we = int(e["wealth"])
         except Exception:
             pass
@@ -106,16 +115,35 @@ def _hoard_leaning(state, name):
 
 
 def _distribute_luxury(state, amount):
-    """奢侈消费 → 工匠/商人 POP（按路分，守恒转移）。"""
+    """奢侈消费 → 工匠/商人 POP（按路分，守恒转移）。
+
+    审查 P2-22 修复（奇数丢币）：原对每路 share 分别给工匠/商人 share//2，share 为奇数时
+    每路丢 1 贯（Σ分发 < amount）；且 POP 缺失时该份额凭空消失。现改为余数补给商人；
+    接收方缺失时退回国库（不凭空灭币）。
+    """
     _paths = list(state.prefectures.keys())
     per = amount // max(1, len(_paths))
     rem = amount - per * len(_paths)
     for i, name in enumerate(_paths):
         p = state.prefectures[name]
         share = per + (1 if i < rem else 0)
-        for pop in ("工匠", "商人"):
-            if pop in p["pops"]:
-                p["pops"][pop]["wealth"] = p["pops"][pop].get("wealth", 0) + share // 2
+        pops = p.get("pops") or {}
+        _targets = [t for t in ("工匠", "商人") if t in pops]
+        if not _targets:
+            # 无人承接 → 退回国库（钱不凭空消失）
+            state.change_treasury(share)
+            continue
+        _half = share // 2
+        _plan = [("工匠", _half), ("商人", share - _half)]
+        _paid = 0
+        for pop, got in _plan:
+            if pop in pops and got > 0:
+                pops[pop]["wealth"] = pops[pop].get("wealth", 0) + got
+                _paid += got
+        if _paid < share:
+            # 缺一个接收方时，剩余份额给存在的那个（不丢币）
+            _fallback = _targets[0]
+            pops[_fallback]["wealth"] = pops[_fallback].get("wealth", 0) + (share - _paid)
 
 
 def estate_persona_mod(state, name):
@@ -180,6 +208,17 @@ def invest(state, field: str, amount: int, fund: str = "treasury",
     if fund not in ("treasury", "imperial_treasury"):
         return {"ok": False, "msg": "资金来源须为 国库/内帑"}
     amount = max(0, int(amount))
+    if amount <= 0:
+        return {"ok": False, "msg": "投资额须为正整数"}
+    # 审查 P2-19 修复：months 原无校验，可放大回报（months=1200 → 回报≈本金×8，
+    # 且回报无条件 change_treasury 入账 → 凭空铸币）。与 AI 契约口径（3~60 月）对齐。
+    # 注：本函数当前尚无生产调用方（invest_decide 契约未接线），接线前须一并落实
+    # 「回报来源守恒」（回报应来自产出端，而非国库→国库自增）。
+    try:
+        months = int(months)
+    except (TypeError, ValueError):
+        months = 12
+    months = max(3, min(60, months))
     if fund == "treasury":
         if state.treasury < amount:
             return {"ok": False, "msg": "国库不足"}
@@ -225,10 +264,20 @@ def settle_investments(state, log):
         per = inv["return_total"] if inv["months_left"] <= 1 else inv["return_total"] // inv["months"]
         if per <= 0:
             continue
+        # 审查 P2-19 标注：投资回报属**外部经营收益**（与市舶关税 / 榷场月入同源的
+        # 「外部钱入」），非国库→国库自增；此处按外部来源记账（statistics.invest_return）
+        # 以便审计。⚠️ 接线前置条件：`invest()` 目前无生产调用方（见
+        # core.agent_router.PENDING_CONTRACTS「_invest_ai」），接线前须先落实
+        # 「回报来源上限」或明确外部收益口径。
         if inv["fund"] == "treasury":
             state.change_treasury(per)
         else:
             state.change_imperial_treasury(per)
+        try:
+            state.statistics["invest_return"] = int(
+                state.statistics.get("invest_return", 0) or 0) + int(per)
+        except Exception:
+            pass
         inv["return_total"] -= per
         inv["months_left"] -= 1
         if inv["months_left"] <= 0 or inv["return_total"] <= 0:

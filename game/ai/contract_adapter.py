@@ -44,6 +44,17 @@ _NARRATIVE_KEYS = frozenset(
      "memo", "body", "scenes", "court_report", "gazette", "title", "desc"}
 )
 
+# 记录/意图/控制字段（非状态变更）：**fallback 分支**亦须排除。
+# 审查 P2-39 修复（fallback 误判）：未列契约走通用 fallback 时，tone/risk_hint/prepared/
+# location/mode/node 等会被当作 changes 透传（如 prepared=True → delta_tier="True"），
+# 使「统一视图」失真；显式映射（CONTRACT_FIELD_MAP）不受本表影响。
+_NON_STATE_KEYS = frozenset(
+    {"tone", "risk_hint", "prepared", "location", "mode", "node", "kind",
+     "intent", "intent_hint", "topic", "stance", "style", "note", "reason",
+     "source", "target", "options", "choices", "id", "name", "summary",
+     "task_name", "outcome"}
+)
+
 # 叙事类/含叙事契约 → narrative 取值字段（按优先级取首个非空字符串）
 NARRATIVE_FIELD_MAP = {
     "monthly_report": ("report", "narrative"),
@@ -77,8 +88,11 @@ def to_changes(contract_name: str, result) -> list:
         return []
     fields = CONTRACT_FIELD_MAP.get(contract_name)
     if fields is None:
+        # 审查 P2-39 修复：排除叙事字段 + 记录/意图/控制字段 + 布尔（非档位语义）
         fields = tuple(k for k, v in result.items()
-                       if not isinstance(v, (dict, list)) and k not in _NARRATIVE_KEYS)
+                       if not isinstance(v, (dict, list, bool))
+                       and k not in _NARRATIVE_KEYS
+                       and k not in _NON_STATE_KEYS)
     changes = []
     for f in fields:
         if f in result and not isinstance(result[f], (dict, list)) and f not in _NARRATIVE_KEYS:

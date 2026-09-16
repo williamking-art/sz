@@ -1975,6 +1975,159 @@
   {
    "geometry": {
     "coordinates": [
+     106.63,
+     26.65
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": true,
+    "level": "州",
+    "name": "矩州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     106.93,
+     27.73
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "播州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     109.19,
+     27.73
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "思州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     105.93,
+     26.25
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "普宁州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     105.3,
+     27.3
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "部",
+    "name": "罗氏鬼国"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     104.83,
+     26.59
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "汤望州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     107.52,
+     26.26
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "部",
+    "name": "都云"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     107.98,
+     26.58
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "州",
+    "name": "古州"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     104.9,
+     25.09
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "circuit": "黔中路",
+    "game_unit": null,
+    "is_seat": false,
+    "level": "部",
+    "name": "自杞国"
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
      118.48,
      36.68
     ],

@@ -6,6 +6,13 @@ AI（多 Agent）返回的结构化 changes 在此统一处理：
 
 铁律：AI 只通过 changes 改状态；本模块是唯一写状态的应用层入口之一；
       叙事文本（narrative）不产生任何状态变化。
+
+通道边界（审查 P2-34 文档化）：受控写状态通道共两条，各自校验、互不调用——
+  ① 本模块（applier_pipeline）：AI 契约 changes → 路径白名单 + ΣΔ 守恒 + 原子写库 + 回滚；
+  ② core/free_effect.py：free_effect 契约（mode/effects/cost）与大臣自设工具
+     （core/tool_registry.execute_tool）→ 字段白名单 + FREE_EFFECT_CAP + 成本成对划转。
+**新增写状态能力必须二选一并复用其校验**，不得绕开另起第三套
+（历史教训：平行白名单/守恒规则长期必然漂移）。
 """
 from __future__ import annotations
 
@@ -45,18 +52,40 @@ VALID_PATHS: List[str] = [
 # 原 CLAMP_01 把它们 clamp 到 1 会毁掉守恒——清空（真 0-1 字段如有再加）。
 CLAMP_01_FIELDS: List[str] = []
 
+# 0-100 百分制字段（修改后 clamp [0,100]，set 负值直接拒绝）
+# 审查 P1-4 修复：原实现仅校验「是数值」，AI 可 set population_satisfaction=-50 / 9999，
+# 越界值直接进入状态并污染评价/结算。此处恢复区间校验（字段范围与 game_state 一致）。
+RANGE_100_FIELDS: List[str] = [
+    "prestige", "population_satisfaction", "art_mastery",
+    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
+    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
+    "prefectures.*.city_defense",
+    "factions.*.satisfaction", "factions.*.influence",
+]
+
 # 非负字段（数值不能为负数）
 NON_NEG_PREFIXES: List[str] = [
     "treasury", "imperial_treasury", "granary", "prefectures.*.grain",
     "prefectures.*.storage", "prefectures.*.pops.*.wealth",
     "prefectures.*.pops.*.grain",
+    # 审查 P1-4：百分制 / 规模 / 进度类字段同样非负（防 AI 写负数）
+    "prestige", "population_satisfaction", "art_mastery",
+    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
+    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
+    "prefectures.*.city_defense", "prefectures.*.refugees",
+    "factions.*.satisfaction", "factions.*.influence",
+    "defense_lines.*.garrison",
+    "land.hidden_households",
+    "waste_reform.savings",
+    "legacies.*.progress", "focus.*.power_level",
 ]
 
 # 支持的操作
 OPS = ("set", "add", "mul", "remove", "push")
 
-# 0-1 字段集合（用于 clamp）
+# 0-1 / 0-100 字段集合（用于 clamp）
 _CLAMP_01_SET = set(CLAMP_01_FIELDS)
+_RANGE_100_SET = set(RANGE_100_FIELDS)
 
 
 def _path_ok(path: str) -> bool:
@@ -80,6 +109,18 @@ def _path_ok(path: str) -> bool:
 
 def _is_clamp01(path: str) -> bool:
     for pat in _CLAMP_01_SET:
+        if pat == path:
+            return True
+        p_parts, w_parts = path.split("."), pat.split(".")
+        if len(p_parts) == len(w_parts) and all(
+            w == "*" or w == p for w, p in zip(w_parts, p_parts)):
+            return True
+    return False
+
+
+def _is_range100(path: str) -> bool:
+    """path 是否 0-100 百分制字段（clamp 上限 100）。"""
+    for pat in _RANGE_100_SET:
         if pat == path:
             return True
         p_parts, w_parts = path.split("."), pat.split(".")
@@ -136,6 +177,9 @@ def validate_changes(changes: List[dict]) -> Tuple[List[dict], List[str]]:
                 continue
             if _is_clamp01(path):
                 value = max(0.0, min(1.0, float(value)))
+            elif _is_range100(path):
+                # 审查 P1-4：百分制字段越界钳制（保持原 int/float 类型）
+                value = max(0, min(100, value))
             ch = dict(ch)
             ch["value"] = value
         elif op == "remove" and value is not None:
@@ -481,28 +525,63 @@ def apply_conservation_fix(changes: List[dict], state=None) -> List[dict]:
     审查 P1-1 修复：fix 的 path 含 `*` 通配时，按 state 展开数（路数/派系数）预分摊 value，
     使 fix 总额 = 原单边变更金额（守恒闭合）。原实现 fix 用全额 value 但展开成 N 路，
     导致总额放大 N 倍、钱凭空消失 (N-1)×单笔。
+
+    审查 P1-5 修复（重复补记）：原实现对「每一条命中关键词的 change」逐条生成反向 fix，
+    当同批存在互为配对但金额不等的多条 change（或共享同一 reason 关键词）时，会重复补记、
+    抹平本意净变动 / 放大来源。现改为：
+      ① 按守恒组计算净缺口 ΣΔ（仅缺口组才补）；
+      ② 取组内 |Δ| 最大的一条作「代表」，用其 reason 关键词选择补记路径；
+      ③ 补记金额强制 = -ΣΔ（精确闭合，不再复用单条 change.value 或模板系数），
+         通配路径按 state 展开数分摊，保证二次校验 ΣΔ==0。
     """
     extra: List[dict] = []
-    for ch in changes:
-        reason = str(ch.get("reason", ""))
-        if not reason:
+    for grp in ("money", "grain"):
+        members = [ch for ch in changes if _group_of(ch.get("path", "")) == grp]
+        if not members:
             continue
-        for kw, fix_fn in CASCADE_REASON_FIX:
-            if kw in reason:
-                fix = fix_fn(ch)
-                # 审查 P1-1 修复：通配 fix 按 state 展开数预分摊 value（守恒闭合）
-                if state is not None and "*" in str(fix.get("path", "")):
-                    _parts = fix["path"].split(".")
-                    if _parts[0] == "prefectures":
-                        _n = max(1, len(getattr(state, "prefectures", {}) or {}))
-                    elif _parts[0] == "factions":
-                        _n = max(1, len(getattr(state, "factions", {}) or {}))
-                    else:
-                        _n = 1
-                    if _n > 1 and isinstance(fix.get("value"), (int, float)):
-                        fix = dict(fix, value=round(fix["value"] / _n, 4))
-                extra.append(fix)
-                break
+        total = sum(_delta_of(c) for c in members)
+        if abs(total) <= 1:
+            continue  # 已闭合
+        # 配对识别：金额互为相反数（容差 ±1）的两条视为已配对 → 跳过补记。
+        # 配对项自身对 Σ 贡献为 0，跳过不影响闭合；未配对项各补 -Δ 后 Σ 精确归零。
+        paired = set()
+        for i in range(len(members)):
+            if i in paired:
+                continue
+            for j in range(i + 1, len(members)):
+                if j in paired:
+                    continue
+                if abs(_delta_of(members[i]) + _delta_of(members[j])) <= 1:
+                    paired.add(i)
+                    paired.add(j)
+                    break
+        for idx, ch in enumerate(members):
+            if idx in paired:
+                continue  # 已配对的不再二次反向补记（审查 P1-5）
+            reason = str(ch.get("reason", ""))
+            if not reason:
+                continue
+            fix = None
+            for kw, fix_fn in CASCADE_REASON_FIX:
+                if kw in reason:
+                    fix = fix_fn({"value": ch.get("value", 0), "reason": reason})
+                    break
+            if not isinstance(fix, dict) or not fix.get("path"):
+                continue
+            # 金额精确 = -该条 Δ（忽略模板系数，保证二次校验 ΣΔ==0）
+            fix = dict(fix, value=round(-_delta_of(ch), 4))
+            # 通配 fix 按 state 展开数预分摊 value（展开为 N 条后总额仍 = -Δ）
+            if state is not None and "*" in str(fix.get("path", "")):
+                _parts = fix["path"].split(".")
+                if _parts[0] == "prefectures":
+                    _n = max(1, len(getattr(state, "prefectures", {}) or {}))
+                elif _parts[0] == "factions":
+                    _n = max(1, len(getattr(state, "factions", {}) or {}))
+                else:
+                    _n = 1
+                if _n > 1:
+                    fix = dict(fix, value=round(fix["value"] / _n, 4))
+            extra.append(fix)
     return extra
 
 
@@ -512,42 +591,61 @@ def apply_conservation_fix(changes: List[dict], state=None) -> List[dict]:
 CHANGE_LOG: List[dict] = []  # 变更日志（path, old, new, reason, source_agent）
 
 
-def _set_path(state, path: str, value) -> None:
+def _locate_path(state, path: str):
+    """定位 path 的最终写入容器与键。
+
+    返回 (container, key, existed, old)：
+      - 路径可写：container 为 dict 或对象，key 为键/属性名，existed 表示键是否已存在；
+      - 中间层缺失（不可写）：(None, None, False, None)。
+
+    审查 P2-6 修复：原 _set_path 对不存在的路/派系会拿一次性临时 dict 写入
+    （值被丢弃却记为「已应用」）→ 审计与实态不一致。现改为显式判定不可写，
+    由 apply_to_state 整批回滚并报错。
+    """
     if "." not in path:
-        setattr(state, path, value)
-        return
+        return state, path, hasattr(state, path), getattr(state, path, None)
     parts = path.split(".")
     cur = state
     for seg in parts[:-1]:
-        if seg == "prefectures":
-            cur = state.prefectures
-        elif seg == "factions":
-            cur = state.factions
-        elif isinstance(cur, dict):
+        if isinstance(cur, dict):
             nxt = cur.get(seg)
-            if isinstance(nxt, dict):
-                cur = nxt
-            else:
-                # 路级：prefectures[路]
-                cur = state.prefectures.get(seg, {})
         else:
-            cur = getattr(cur, seg, {})
+            nxt = getattr(cur, seg, None)
+        if nxt is None:
+            return None, None, False, None
+        cur = nxt
     last = parts[-1]
     if isinstance(cur, dict):
-        cur[last] = value
+        return cur, last, last in cur, cur.get(last)
+    return cur, last, hasattr(cur, last), getattr(cur, last, None)
+
+
+def _set_path(state, path: str, value) -> None:
+    """按 path 写入值；路径不可写时抛 KeyError（由 apply_to_state 整批回滚）。"""
+    container, key, _existed, _old = _locate_path(state, path)
+    if container is None:
+        raise KeyError(f"状态路径不可写（中间层缺失）: {path}")
+    if isinstance(container, dict):
+        container[key] = value
     else:
-        setattr(cur, last, value)
+        setattr(container, key, value)
 
 
-def _apply_op(state, path: str, op: str, value) -> Any:
-    """执行单个 op，返回新值。"""
-    cur = _resolve_path_value(state, path)
+_UNSET = object()
+
+
+def _apply_op(state, path: str, op: str, value, cur=_UNSET) -> Any:
+    """执行单个 op，返回新值。cur 可由调用方预先定位传入（避免重复解析）。"""
+    if cur is _UNSET:
+        cur = _resolve_path_value(state, path)
     if op == "set":
         return value
     if op == "add":
         return (cur or 0) + value
     if op == "mul":
-        return (cur or 1) * value
+        # 审查 P2-7：区分 None（无现值 → 乘法单位元 1）与 0（0×x == 0），
+        # 原 `(cur or 1)` 把 0 当 1 造成错误放大。
+        return (1.0 if cur is None else float(cur)) * value
     if op == "remove":
         return 0
     if op == "push":
@@ -564,10 +662,14 @@ def _simulate_underflow(state, merged: List[dict]) -> List[str]:
     for ch in merged:
         path = ch.get("path", "")
         op = ch.get("op")
-        if op != "add" or not _is_non_neg(path):
+        # 审查修正：穿底拒绝只适用于**守恒组内**路径（钱/粮）——它们成对落地，
+        # clamp 截断会使配对方净造币。非守恒字段（refugees/progress/mood 等）
+        # 减少到 0 只是数值钳制，不破坏守恒，不应整单拒绝（否则赈济安置流民等被误杀）。
+        if op != "add" or not _is_non_neg(path) or _group_of(path) is None:
             continue
-        cur = net.get(path, 0.0)
-        if cur == 0.0:
+        # 审查 P3-19：用 path in net 判定是否已初始化（原 `cur == 0.0` 在累计恰为 0 时
+        # 会重复解析 base 并覆盖已有累计）。
+        if path not in net:
             base = _resolve_path_value(state, path)
             if base is None:
                 continue
@@ -583,27 +685,63 @@ def _simulate_underflow(state, merged: List[dict]) -> List[str]:
 
 def apply_to_state(state, final_changes: List[dict]) -> List[dict]:
     """原子写入：逐条应用 op（先 set 后 add 的顺序已在合并时保证），
-    记录变更日志（path, old, new, reason, source_agent）。返回应用记录。"""
+    记录变更日志（path, old, new, reason, source_agent）。返回应用记录。
+
+    审查 P0-1 修复（原子性/回滚）：写入前记录每条 change 的回滚点
+    （container/key/旧值/键是否原存），任一条失败（路径不可写、类型异常等）
+    → 逆序回滚本批已写入的全部变更后再抛出，保证「要么全落地、要么全不落地」，
+    杜绝半批写入造成净造币/净造粮（守恒校验通过后写入期仍可能失败）。
+    """
     applied: List[dict] = []
-    for ch in final_changes:
-        path, op = ch["path"], ch["op"]
-        old = _resolve_path_value(state, path)
-        new = _apply_op(state, path, op, ch.get("value"))
-        if _is_clamp01(path):
-            new = max(0.0, min(1.0, float(new)))
-        if _is_non_neg(path) and isinstance(new, (int, float)) and new < 0:
-            # 审查 P0-6：正常路径已由 _simulate_underflow 前置拒绝；此处仅防御。
-            # 若仍触发说明有漏网穿底，记日志以便审计（不静默造币）。
-            log.warning("apply_to_state 非负截断：%s %s→0（old=%r）", path, op, old)
-            new = 0
-        _set_path(state, path, new)
-        record = {
-            "path": path, "old": old, "new": new,
-            "reason": ch.get("reason", ""), "source_agent": ch.get("source_agent", ""),
-        }
-        CHANGE_LOG.append(record)
-        applied.append(record)
-    # 审查 P2：CHANGE_LOG 是模块级全局，逐条追加不清理会无限膨胀（长局内存泄漏）。
+    undo: List[Tuple[Any, str, bool, Any]] = []
+    try:
+        for ch in final_changes:
+            path, op = ch["path"], ch["op"]
+            container, key, existed, old = _locate_path(state, path)
+            if container is None:
+                raise KeyError(f"状态路径不可写（中间层缺失）: {path}")
+            new = _apply_op(state, path, op, ch.get("value"), old)
+            if _is_clamp01(path):
+                new = max(0.0, min(1.0, float(new)))
+            elif _is_range100(path) and isinstance(new, (int, float)):
+                new = max(0, min(100, new))
+            if _is_non_neg(path) and isinstance(new, (int, float)) and new < 0:
+                # 审查 P0-6：正常路径已由 _simulate_underflow 前置拒绝；此处仅防御。
+                # 若仍触发说明有漏网穿底，记日志以便审计（不静默造币）。
+                log.warning("apply_to_state 非负截断：%s %s→0（old=%r）", path, op, old)
+                new = 0
+            # 记录回滚点后写入（dict 容器写键；对象写属性）
+            undo.append((container, key, existed, old))
+            if isinstance(container, dict):
+                container[key] = new
+            else:
+                setattr(container, key, new)
+            applied.append({
+                "path": path, "old": old, "new": new,
+                "reason": ch.get("reason", ""), "source_agent": ch.get("source_agent", ""),
+            })
+    except Exception as e:  # noqa: BLE001
+        for container, key, existed, old in reversed(undo):
+            try:
+                if existed:
+                    if isinstance(container, dict):
+                        container[key] = old
+                    else:
+                        setattr(container, key, old)
+                elif isinstance(container, dict):
+                    container.pop(key, None)
+                else:
+                    try:
+                        delattr(container, key)
+                    except AttributeError:
+                        pass
+            except Exception as re:  # noqa: BLE001
+                log.error("回滚失败（需人工检查）：%s.%s: %s", type(container).__name__, key, re)
+        log.error("apply_to_state 写入失败，已回滚 %d 条变更：%s", len(undo), e)
+        raise
+    # 全部成功后才写入审计日志（避免半批记录）
+    CHANGE_LOG.extend(applied)
+    # 审查 P2：CHANGE_LOG 是模块级全局，无限追加会膨胀（长局内存泄漏）。
     # 只保留最近 5000 条（审计用），旧的丢弃。
     if len(CHANGE_LOG) > 5000:
         del CHANGE_LOG[: len(CHANGE_LOG) - 5000]
@@ -690,6 +828,14 @@ def applier_pipeline(state, all_agent_changes: List[Tuple[str, List[dict]]],
 
     # 4) 原子写入 + 变更日志
     applied = apply_to_state(state, merged)
+
+    # 审查 P2-37 修复（diff 唤醒接线）：把本轮实际落地的变更写回 state，
+    # 供下一回合 agent_router._wake_by_diff 按路径唤醒 —— 原实现只读不写
+    # （_last_agent_diff 全库无写入点），导致 diff 唤醒整链失效。
+    try:
+        state._last_agent_diff = applied
+    except Exception:  # noqa: BLE001
+        pass
 
     # 5) 返回叙事层素材
     hint = "；".join(h for h in (narrative_hints or []) if h)

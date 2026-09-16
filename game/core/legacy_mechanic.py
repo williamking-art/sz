@@ -132,7 +132,7 @@ LEGACY_DEFS = {
     "hidden_land": {
         "key": "hidden_land",
         "name": "隐田蔽课",
-        "desc": "豪强隐田，赋税隐匿，国课有亏。",
+        "desc": "豪强隐田，赋税隐匿，国税有亏。",
         "effect": _eff_hidden_land,
         "clear_cond": _clear_hidden_land,
         "clear_desc": "清丈田亩，检括隐田（施行 land_survey）。",
@@ -140,7 +140,7 @@ LEGACY_DEFS = {
     "liao_xia_border": {
         "key": "liao_xia_border",
         "name": "辽夏边患",
-        "desc": "北有契丹，西有夏贼，边烽有警，军费劲繁。",
+        "desc": "北有契丹，西有夏贼，边烽有警，军费浩繁。",
         "effect": _eff_liao_xia_border,
         "clear_cond": _clear_liao_xia_border,
         "clear_desc": "整军经武（border_garrison）或与辽夏和议（peace_treaty）。",
