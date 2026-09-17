@@ -4,8 +4,9 @@ from PIL import Image, ImageFilter
 from scipy import ndimage
 
 H, W = 1080, 810
-PD = r"g:\sz\game\content\ministers\portraits"
-D = r"g:\sz\game\content\ministers\layers"
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...）
+D = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .../layers
+PD = os.path.join(os.path.dirname(D), "portraits")                # .../ministers/portraits
 CUT, FE = 0.62, 0.18
 TOL = 28.0
 

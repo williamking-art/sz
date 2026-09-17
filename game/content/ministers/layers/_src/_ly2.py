@@ -4,8 +4,9 @@ from PIL import Image
 
 H, W = 1080, 810
 CUT, FE = 0.40, 0.06
-PD = r"g:\sz\game\content\ministers\portraits"
-D = r"g:\sz\game\content\ministers\layers"
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...）
+D = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .../layers
+PD = os.path.join(os.path.dirname(D), "portraits")                # .../ministers/portraits
 y = np.arange(H)[:, None]
 A = np.repeat(np.clip((y - (CUT - FE) * H) / (FE * H), 0, 1), W, axis=1)
 B8 = ((1 - A) * 255).astype("uint8")
