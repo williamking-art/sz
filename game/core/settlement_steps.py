@@ -295,6 +295,56 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag):
     return total, money
 
 
+def _levy_men(state, road: str, need: int) -> int:
+    """自本路农户、其次流民中征补兵员（人守恒：农/流民 → 兵）。
+
+    审查配套：诏令/事件的整军增兵若只 add_troops，则在 _settle_finance 以
+    Σbranches 重聚合兵 POP、并把 ΣPOP 写回 population 之后，会表现为「凭空
+    产生人口」（实测量级可达数万）。故增兵须有来源，且不足时按实有截断
+    —— 宁少征，不造人。返回实际征得人数。
+    """
+    if need <= 0:
+        return 0
+    p = getattr(state, "prefectures", {}).get(road)
+    if not isinstance(p, dict):
+        return 0
+    got = 0
+    pops = p.get("pops") or {}
+    farmer = pops.get("农") if isinstance(pops, dict) else None
+    if isinstance(farmer, dict):
+        take = min(need, int(farmer.get("size", 0) or 0))
+        if take > 0:
+            farmer["size"] = int(farmer.get("size", 0) or 0) - take
+            got += take
+    if got < need:                                   # 农户不足 → 再征流民
+        ref = int(p.get("refugees", 0) or 0)
+        take = min(need - got, ref)
+        if take > 0:
+            p["refugees"] = ref - take
+            got += take
+    return got
+
+
+def _return_men(state, road: str, n: int) -> int:
+    """裁汰兵力回流本路农户（人守恒：兵 → 农）；无农户时归流民池。
+
+    与 _levy_men 对称：凡减少兵额（裁汰/整编）都应把人丁送回民户，
+    否则 _settle_finance 以 Σbranches 重聚合兵 POP 时表现为人口凭空消失。
+    """
+    if n <= 0:
+        return 0
+    p = getattr(state, "prefectures", {}).get(road)
+    if not isinstance(p, dict):
+        return 0
+    pops = p.get("pops") or {}
+    farmer = pops.get("农") if isinstance(pops, dict) else None
+    if isinstance(farmer, dict):
+        farmer["size"] = int(farmer.get("size", 0) or 0) + n
+    else:
+        p["refugees"] = int(p.get("refugees", 0) or 0) + n
+    return n
+
+
 def _apply_decree_effect(state, decree, log):
     """应用诏令效果"""
     effects = decree.get("effects", {})
@@ -502,14 +552,32 @@ def _apply_decree_effect(state, decree, log):
 
     # 文档第八节白名单所列、此前在 _apply_decree_effect 中缺失的键：补齐以免 AI 拟诏被静默丢弃
     if "army_strength" in effects:
-        # 全军战力增益：按各军现有兵力比例分摊（训练/整编加成）
+        # 全军员额增益：按各军现有兵力比例分摊（整训/整编）
         # 审查修复：u.troops 为只读 property（真账=Σbranches），须经 add_troops 落分支
+        # —— 这一点原已修；但增兵**无人口来源**（此前不计来源直接加人），而本步之后
+        # _settle_finance 会以 Σbranches 重聚合兵 POP、并把 ΣPOP 写回 population
+        # → 诏令一句即凭空产生数万「人」（最多可为每军 +50% 员额）。
+        # 现改为自本路农户／流民成对征补（_levy_men），不足则少增，不造人。
         bonus = int(effects["army_strength"])
         total_troops = sum(u.troops for u in state.army_units) or 1
+        _want = max(0, bonus)
+        _recruited = 0
         for u in state.army_units:
-            u.add_troops(min(int(u.troops * 1.5), u.troops + int(bonus * u.troops / total_troops)) - u.troops)
-        if state.army_units:
-            log.append(f"[整军] 诏令整训，诸军战力益壮（增兵约{bonus}）")
+            if _want <= 0:
+                break
+            _ask = (min(int(u.troops * 1.5), u.troops + int(bonus * u.troops / total_troops))
+                    - u.troops)
+            if _ask <= 0:
+                continue
+            _got = _levy_men(state, u.station, min(_ask, _want))
+            if _got > 0:
+                u.add_troops(_got)
+                _recruited += _got
+                _want -= _got
+        if _recruited > 0:
+            log.append(f"[整军] 诏令整训，自民户征补 {_recruited} 人，诸军战力益壮")
+        elif state.army_units:
+            log.append("[整军] 诏令整训，然民户无余丁可征，员额未增")
     if "factions_prestige" in effects:
         delta = int(effects["factions_prestige"])
         for fn, f in state.factions.items():
@@ -2251,12 +2319,21 @@ def _settle_military_diplomacy(state, log):
             u.training = max(10, min(100, u.training + _P1_TRAIN_DELTA.get(_mil.get("training", "微"), 2)))
             u.morale = max(10, min(100, u.morale + _P1_TRAIN_DELTA.get(_mil.get("morale", "微"), 2)))
         # 兵额调整：AI 只可减员（裁汰）；增募必须走批红军令通道（防 AI 直接铸兵）
-        d_arm = _P1_ARM_DELTA.get(_mil.get("army", "微"), 0)
-        if d_arm < 0 and state.army_units:
+        # 审查修复三处：
+        #  (1) 原判 d_arm < 0，而 _P1_ARM_DELTA 全为正值（1万~5万）→ 本分支实为死码；
+        #      语义应为「该档位即裁汰额上限」，故改判 _cut > 0；
+        #  (2) 原直接改 branches 字典，绕开 add_troops（真账=Σbranches，余数归主兵种）；
+        #      改用 add_troops(-_cut)；
+        #  (3) 裁下的人丁原凭空消失，现经 _return_men 回流本路农户（人守恒）。
+        # 另：默认档由「微」改「无(=0)」——缺 army 键时不应凭空裁汰一万人。
+        _cut = _P1_ARM_DELTA.get(_mil.get("army", "无"), 0)
+        if _cut > 0 and state.army_units:
             u = max(state.army_units, key=lambda x: x.troops)
-            main_b = max(u.branches, key=lambda b: u.branches[b]) if u.branches else None
-            if main_b:
-                u.branches[main_b] = max(0, u.branches[main_b] + d_arm)
+            _cut = min(_cut, u.troops)
+            if _cut > 0:
+                u.add_troops(-_cut)
+                _return_men(state, u.station, _cut)
+                log.append(f"[枢密] 裁汰冗兵 {_cut} 人（人丁还民）")
         levy = _P1_LEVY_COST.get(_mil.get("levy", "微"), 100000)
         if getattr(state, "treasury", 0) >= levy:
             state.change_treasury(-levy)     # 征发 cost 守恒扣款（程序，非 agent 直写）
