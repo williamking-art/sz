@@ -192,3 +192,29 @@ def test_changping_trade_conserves_grain_and_money():
     g2, m2 = _books()
     assert g2 == g1, "平籴：粮总量须守恒（原实现凭空产生）"
     assert m2 == m1, "平籴：钱总量须守恒（原实现灭失）"
+
+
+def test_levy_and_return_men_conserves_population():
+    """整军征补/裁汰的人丁守恒：兵额增减必与民户（农/流民）成对划转。
+
+    回归：原诏令整军只 add_troops（增兵无人口来源），而 _settle_finance 随后
+    以 Σbranches 重聚合兵 POP、并把 ΣPOP 写回 population → 一句诏令凭空
+    产生数万「人」（每军最多 +50% 员额）。
+    """
+    from core.settlement_steps import _levy_men, _return_men
+    s = _state()
+    road = next(iter(s.prefectures))
+    p = s.prefectures[road]
+
+    def _total():
+        return (sum(int(pp.get("size", 0) or 0) for pp in p["pops"].values())
+                + int(p.get("refugees", 0) or 0))
+
+    t0 = _total()
+    got = _levy_men(s, road, 5_000)
+    assert got > 0, "农户/流民充足时应能征补"
+    # 民户（农户 + 流民）减少恰为征得人数；这 got 人转入兵额（真账由 Σbranches 承载）
+    assert _total() == t0 - got, "征补：民户应等量减少（人守恒）"
+
+    _return_men(s, road, got)
+    assert _total() == t0, "裁汰：人丁还民后民户总数应复原"
