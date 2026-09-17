@@ -90,10 +90,15 @@ export default function CourtPanel() {
   const effs = Object.values(yamen).map((y) => asNum(asDict(y).efficiency));
   const effY = effs.length ? effs.reduce((a, b) => a + b, 0) / effs.length : 0;
 
-  // ---- 外患态度（对齐 Tk _ext_att：external_regimes.attitude，缺省 50） ----
+  // ---- 外患态度（真值在 state.external；external_regimes 仅静态兜底）----
+  // 审查修复：原只读 external_regimes.attitude，而全部玩法写入（诏令效果
+  // external_jin/liao/xixia、事件、岁币结算、金入侵）都落在 state.external →
+  // 玩家下诏改态度后本仪表数字不变（external_regimes 只做 ±2 月随机游走）。
+  const extLive = asDict(pick(state, "external", {}));
   const extRegimes = asDict(pick(state, "external_regimes", {}));
   const extAtt = (key: string): number =>
-    Math.round(asNum(asDict(extRegimes[key]).attitude, 50));
+    Math.round(asNum(
+      asDict(extLive[key]).attitude ?? asDict(extRegimes[key]).attitude, 50));
 
   // ---- 派系 ----
   const factions = asDict(pick(state, "factions", {}));
@@ -110,6 +115,23 @@ export default function CourtPanel() {
   const alliance = Boolean(pick<boolean>(state, "alliance_jin_liao", false));
   const bw = asNum(pick(state, "decree_bandwidth", 0));
   const pending = pick<unknown[]>(state, "pending_decrees", []).length;
+
+  // 岁币口径（审查修复）：treaties 形状为 {势力: [{type, terms, turn, year, month}]}，
+  // 原读 treaties.岁币（该键不存在）→ 恒显示 0，与国库实际岁币支出相矛盾。
+  // 现按 type=="岁币" 条目取其 terms.tier（增/减/停）；无此类条约即"未纳"。
+  // 注：实际支出金额见户部会计（/api/readouts::finance.sui_gong，AccountingPanel 已用）。
+  const suiGongText = (() => {
+    const parts: string[] = [];
+    for (const [regime, list] of Object.entries(asDict(pick(state, "treaties", {})))) {
+      for (const t of (Array.isArray(list) ? list : [])) {
+        const d = asDict(t);
+        if (asStr(d.type) === "岁币") {
+          parts.push(`${regime}${asStr(asDict(d.terms).tier, "已立")}`);
+        }
+      }
+    }
+    return parts.length ? parts.join("、") : "未纳";
+  })();
 
   const cells: [string, string[]][] = [
     ["田亩户籍", [
@@ -135,7 +157,7 @@ export default function CourtPanel() {
     ["外交", [
       `辽 ${extAtt("辽")} · 夏 ${extAtt("西夏")}`,
       alliance ? "海上之盟：缔结" : "海上之盟：未缔",
-      `岁币 ${humanizeCoin(asNum(asDict(pick(state, "treaties", {})).岁币))}`
+      `岁币 ${suiGongText}`
     ]],
     ["龙体·皇威", [
       `御体 ${Math.round(health)}`,

@@ -65,11 +65,15 @@ export default function DiplomacyPanel() {
   const allKeys = groups.flatMap((g) => g.keys);
   const currentKey = allKeys.includes(selectedKey) ? selectedKey : (allKeys[0] ?? "");
   const currentInfo = currentKey ? (externalRegimes[currentKey] || {}) : {};
+  // 玩法真值在 state.external（诏令 external_* 效果、事件、岁币、金入侵均写此处）；
+  // external_regimes 为静态底数 + 月度 ±2 随机游走。故真值优先、静态兜底。
+  const externalLive = (pick<Record<string, any>>(state, "external", {}) || {}) as Record<string, any>;
+  const currentLive = currentKey ? (externalLive[currentKey] || {}) : {};
 
-  const att = Number(currentInfo.attitude ?? 50);
+  const att = Number(currentLive.attitude ?? currentInfo.attitude ?? 50);
   const attInfo = attitudeText(att);
-  const power = Number(currentInfo.power ?? 50);
-  const pressure = Number(currentInfo.internal_pressure ?? 20);
+  const power = Number(currentLive.power ?? currentInfo.power ?? 50);
+  const pressure = Number(currentLive.internal_pressure ?? currentInfo.internal_pressure ?? 20);
 
   async function handleSendEnvoy() {
     if (busy || !diplomaticText.trim()) return;
