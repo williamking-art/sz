@@ -319,7 +319,9 @@ def _ai_prelude(state, ai_client):
     try:
         eco = ai_client.economy_decide(state.posture)
     except Exception as e:
-        raise AIRuntimeError(f"经济推演失败（{type(e).__name__}）：请检查 AI 配置或网络后重试。") from e
+        # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
+        print(f"[settle] 经济推演失败: {e!r}", flush=True)
+        raise AIRuntimeError("经济推演失败：请检查 AI 配置或网络后重试。") from e
     if not isinstance(eco, dict) or eco.get("_error"):
         raise AIRuntimeError(AI_ERROR_CODES.get("AI_CONTRACT_FAILED", "AI 输出不满足契约"))
     state._economy_ai = eco
@@ -616,7 +618,9 @@ def approve_ai_action(state: GameState, action_id: str) -> str:
         return f"未知待批类型：{kind}，已驳回。"
     except Exception as e:  # noqa: BLE001
         state.set_ai_pending_status(action_id, "rejected")
-        return f"批红失败：{title}（{type(e).__name__}）"
+        # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
+        print(f"[approve_ai_action] 落地失败: {e!r}", flush=True)
+        return f"批红未成：{title}（该条已驳回）。"
 
 
 def reject_ai_action(state: GameState, action_id: str) -> str:

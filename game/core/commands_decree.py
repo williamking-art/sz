@@ -393,7 +393,14 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
     parse_result: ai.decree.parse_decree 返回结构。
     返回简短日志文本。
     """
-    cat = parse_result.get("category", "free_edcree")
+    cat = parse_result.get("category", "free_edict")
+    # 审查修复：未知 category 原会一路走到底、**无 return**（返回 None）→ 诏令被
+    # 静默丢弃，而调用方拿到 None 后往往仍提示成功。前端降级路径正是传 "custom"。
+    # 另原默认值拼写为 "free_edcree"（少一个 t），缺 category 时同样落入未知分支。
+    # 现统一将未登记类别按「自由诏」落地，不再静默丢失。
+    if cat not in ("fixed_tech", "fixed_finance", "fixed_army", "fixed_construction",
+                   "reform_org", "free_edict"):
+        cat = "free_edict"
     mode = parse_result.get("exec_mode", "longterm")
     params = parse_result.get("params", {}) or {}
     rename = parse_result.get("rename")
@@ -520,8 +527,14 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
             except Exception:
                 pass
             return f"〔{parse_result.get('title', '诏')}〕" + "；".join(eff_log)
-        err = contract.get("_error", "AI_CONTRACT_FAILED") if isinstance(contract, dict) else "AI_CONTRACT_FAILED"
-        return f"〔{parse_result.get('title', '诏')}〕AI 推演失败（{err}），诏令未落地。"
+        # 审查修复：玩家文案不得直出英文错误码（原样输出 AI_CONTRACT_FAILED 等）。
+        # 现把码映射为中文，原始码只入服务端日志。
+        from content.data import AI_ERROR_CODES
+        _raw = contract.get("_error", "") if isinstance(contract, dict) else ""
+        if _raw:
+            print(f"[decree] 契约失败: {_raw!r}", flush=True)
+        return (f"〔{parse_result.get('title', '诏')}〕AI 推演未成"
+                f"（{AI_ERROR_CODES.get(_raw, '诏意未能落地')}），诏令未落地。")
 
 
 def confirm_timeline_break(state: GameState, break_id: str) -> str:
@@ -550,7 +563,8 @@ def preview_draft(state: GameState, minister_advice: str, player_intent: str,
             decree = ai_client.draft_decree(minister_advice, player_intent, state.get_state_summary(), state=state)
         except Exception as e:
             # 运行时故障：停下，不静默、不伪造
-            raise AIRuntimeError(f"拟诏时 AI 叙事中断（{type(e).__name__}）：请检查 AI 配置或网络后重试。") from e
+            print(f"[decree] 拟诏叙事中断: {e!r}", flush=True)
+            raise AIRuntimeError("拟诏时 AI 叙事中断：请检查 AI 配置或网络后重试。") from e
     else:
         # 未配置 AI：停下并提示配置
         raise AIRuntimeError(
