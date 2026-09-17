@@ -59,6 +59,19 @@ export default function GovernanceHub() {
   );
 }
 
+/** 内部键 → 中文（与 utils/effects.ts 同规：未登记键不得直出英文键名）。
+
+ * 未登记者以「其他」归并 —— 既不漏数据，也不把 snake_case 键名当文案显示。
+ */
+const ERA_LABELS: Record<string, string> = {
+  economy_center: "经济重心", culture: "文教", commerce: "商贸",
+  military: "军事", urban: "城市",
+};
+const GRANARY_LABELS: Record<string, string> = {
+  canal_in: "漕运入仓", military: "军需支拨", converted: "折色转换",
+  harvest: "田赋入仓", relief: "赈济出仓", seed: "留种",
+};
+
 function FundTab() {
   const state = useGameStore((s) => s.state);
   const tax = asDict(pick<Dict>(state, "tax_breakdown", {}));
@@ -85,7 +98,7 @@ function FundTab() {
           <p className="text-sm text-dim">— 暂无仓廪收支统计 —</p>
         ) : (
           Object.keys(gs).map((k) => (
-            <p key={k} className="text-sm text-ink-light">{k}　{wan(asNum(gs[k]))}</p>
+            <p key={k} className="text-sm text-ink-light">{GRANARY_LABELS[k] ?? "其他"}　{wan(asNum(gs[k]))}</p>
           ))
         )}
       </Section>
@@ -106,7 +119,7 @@ function CrisisTab() {
       <Section title="时 代 五 维">
         {Object.keys(era).map((k) => (
           <div key={k} className="mb-1 flex items-center gap-2">
-            <span className="w-28 font-kai text-[13px] text-ink-light">{k}</span>
+            <span className="w-28 font-kai text-[13px] text-ink-light">{ERA_LABELS[k] ?? "其他"}</span>
             <div className="flex-1 h-2.5 overflow-hidden rounded-full border border-gold/50 bg-[#e0d3b3]">
               <div className="h-full rounded-full bg-red" style={{ width: `${Math.round(Math.max(0, Math.min(100, asNum(era[k]))))}%` }} />
             </div>
@@ -143,7 +156,10 @@ function MechanismTab() {
   const mechs = asDict(pick<Dict>(state, "mechanisms", {}));
   const wr = asDict(pick<Dict>(state, "waste_reform", {}));
   const pay = asDict(pick<Dict>(state, "pay_system", {}));
-  const focus = asStr(pick<unknown>(state, "active_focus", ""), "");
+  // 审查修复：active_focus 是对象（{branch,node_key,name,status,progress,…}）或 null，
+  // completed_focuses 元素亦为对象；原按字符串 / 字符串数组读取 → 「施行」「已竟」
+  // 两项恒显示空白（asStr 对对象返回 ""、asStr(dict) 亦然）。
+  const focusObj = asDict(pick<Dict>(state, "active_focus", {}));
   const completed = asArr(pick<unknown[]>(state, "completed_focuses", []));
 
   return (
@@ -172,8 +188,21 @@ function MechanismTab() {
         </p>
       </Section>
       <Section title="国 策">
-        <p className="text-sm text-ink">施行：{focus || "—"}</p>
-        {completed.length > 0 && <p className="text-sm text-dim">已竟：{completed.map((v) => asStr(v)).join(" / ")}</p>}
+        <p className="text-sm text-ink">
+          施行：{asStr(focusObj.name) || asStr(focusObj.node_key, "—")}
+          {asStr(focusObj.status) && <span className="text-dim">（{asStr(focusObj.status)}）</span>}
+          {asNum(focusObj.progress) > 0 && (
+            <span className="text-dim">　进度 {Math.round(asNum(focusObj.progress))}%</span>
+          )}
+        </p>
+        {completed.length > 0 && (
+          <p className="text-sm text-dim">
+            已竟：{completed
+              .map((v) => asStr(asDict(v).name, asStr(asDict(v).node_key, "")))
+              .filter(Boolean)
+              .join(" / ") || "—"}
+          </p>
+        )}
       </Section>
     </div>
   );
