@@ -8,7 +8,7 @@ import {
 import { join, resolve } from "path";
 import { topology } from "topojson-server";
 
-// 目录结构现状：<repo>/_dev_tools/frontend/scripts → 资产在 <repo>/game/assets/map/web
+// 目录结构现状：<repo>/game/frontend/scripts → 资产在 <repo>/game/assets/map/web
 // （__dirname 上三级即仓库根；曾按 frontend 位于 game/ 下的旧结构写死，已按实际修正）
 const ROOT = resolve(__dirname, "..");
 const SRC = resolve(__dirname, "../../../game/assets/map/web");

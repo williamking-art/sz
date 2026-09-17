@@ -75,7 +75,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事；`settle_local` 结算异常**快照回滚**）+ `commands_decree.py`（拟旨族 + 内帑金额解析）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11，含财政/灾荒/士绅囤粮、金融调制读 `FINANCE_DECIDE_BASE` 单一源）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调；5 契约接线 + diff 唤醒；未接线登记 `PENDING_CONTRACTS`）、`async_ai.py`（后台 AI + 主线程回调；网络退避重试；失败不静默）、`free_effect.py`（契约落地，第二条受控通道）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维：目标值重算）、`minister_profile.py`（群臣档案：年龄/性情/生平，HTTP 与测试共用） |
 | `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层） |
 | `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离） |
-| `ui/` | **Web 舆图桥**（Tk 已废弃删除，界面为 `_dev_tools/frontend` Electron+React）：`map_web.py`（MapLibre 舆图控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 `assets/map/web`，pywebview/浏览器双模式） |
+| `ui/` | **Web 舆图桥**（Tk 已废弃删除，界面为 `frontend/` Electron+React）：`map_web.py`（MapLibre 舆图控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 `assets/map/web`，pywebview/浏览器双模式） |
 | `backend/` | AI 服务抽象：`client.py`（LocalBackend / HttpBackend 统一接口）、`server.py`（B3：FastAPI + Uvicorn 参考后端，薄壳复用 LocalBackend 零复制，供 HttpBackend 联调/回归/远程体验） |
 | `content/` | 数据（**单一权威源**）：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES / `clamp` / `TECH_EFFECT_LABELS` / `DESENSITIZE_MAP`）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化〔国运取 `population_satisfaction`；仅 MINISTERS 在册者演化〕+ 阳奉阴违）、`codex_data.py`（图鉴 8 类数据，自 Tk 面板迁出） |
 | `audio/` | 音频（已落地）：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）；音量由**前端设置面板**控制（localStorage），本包不自持音量定义 |
@@ -85,7 +85,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 ## 前端与 HTTP API 面
 
-**唯一前端**：`_dev_tools/frontend`（Electron + React + TypeScript + MapLibre）。
+**唯一前端**：`frontend/`（Electron + React + TypeScript + MapLibre）——随游戏本体入库，唯构建产物不入库。
 已迁移能力（2026-09）：存档·读档槽位入口 / 返回主菜单 / Token 计量表 / 外邦省份详情 /
 结算演出（本月损益 ▲▼ + 逐行揭示 + 跳过）/ 开局引子仪式 / 拟诏会签链（润色·批改·弃删）/
 奏报摘要（月折）/ 朝局简报（可行动项跳转）/ 群臣档案（年龄·性情·生平）/ 中枢卡片召对 /
@@ -145,10 +145,10 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
    - 专家团 / 工具产出的临时文件默认落 `_scratch/`，不污染游戏本体。
 
 5. **前端（Electron / React / TS）约定**
-   - **位置**：Electron 工程在仓库根 `_dev_tools/frontend/`（开发包，**不进 `game/`**）；经 HTTP 桥对接 Python 后端；Node 端不得直接读写游戏存档。
+   - **位置**：Electron 工程在 `game/frontend/`（与游戏本体同仓同库；`node_modules/`、`out/`、`dist/`、`release/` 等构建产物不入库）；经 HTTP 桥对接 Python 后端；Node 端不得直接读写游戏存档。
    - 进程边界：渲染进程（`renderer/`）只与 `main/` 主进程通过 `preload` 暴露的桥通信（contextIsolation 开启），禁止在渲染进程内 `require('node:fs')` 直连内核。
    - 舆图：前端舆图用 MapLibre 渲染，几何源由 `scripts/build-topo.ts` 生成的 topojson 提供；Python 侧 `ui/map_web.py` 负责同源数据下发与双向事件桥。
-   - 类型契约：前后端对齐 `_dev_tools/frontend/src/renderer/api/client.ts` 的类型定义；状态变更以结构化 changes 为准（`ai/STATE_TOOL_SCHEMAS` 为**预留契约**，见架构段说明）。
+   - 类型契约：前后端对齐 `frontend/src/renderer/api/client.ts` 的类型定义；状态变更以结构化 changes 为准（`ai/STATE_TOOL_SCHEMAS` 为**预留契约**，见架构段说明）。
 
 ---
 
@@ -165,7 +165,7 @@ python backend_server_entry.py
 ```
 
 > **Tk 界面已废弃删除**（原 `gui_main.py` / `宋祚.bat` / `ui/panels_*.py` 已移除）；
-> 玩家界面为 `_dev_tools/frontend`（Electron + React + MapLibre），经 HTTP 调用本后端。
+> 玩家界面为 `frontend/`（Electron + React + MapLibre），经 HTTP 调用本后端。
 >
 > 参考后端为 **FastAPI + Uvicorn 薄壳**（需 `requirements-extras.txt`），**100% 复用
 > `LocalBackend`（`core.commands`）零复制**——根治"远程后端常量漂移"质量债；
@@ -176,8 +176,8 @@ python backend_server_entry.py
 ### Web 前端（Electron / React）
 
 ```bash
-# 源码在 _dev_tools/frontend（开发工程，不进 game/）
-cd ../_dev_tools/frontend
+# Electron 工程在 game/frontend（随本体入库，构建产物不入库）
+cd frontend
 npm install
 npm run dev      # electron-vite 开发模式（热更新）
 npm run build    # 产出 out/（main + renderer）

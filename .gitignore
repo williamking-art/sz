@@ -63,12 +63,14 @@ deepseek-harness-master/
 node_modules/
 tools/
 
-# --- Electron 前端（工程在 _dev_tools/frontend，不进 game/） ---
-_dev_tools/frontend/node_modules/
-_dev_tools/frontend/out/
-_dev_tools/frontend/dist/
-_dev_tools/frontend/release/
-_dev_tools/frontend_node_modules/
+# --- Electron 前端（工程在 game/frontend，随游戏本体入库；唯构建产物不入库） ---
+game/frontend/node_modules/
+game/frontend/out/
+game/frontend/dist/
+game/frontend/release/
+# 游离产物：带时间戳的配置副本、文件备份
+game/frontend/electron.vite.config.*.mjs
+game/frontend/**/*.bak
 *.tsbuildinfo
 .zcode/
 
@@ -76,20 +78,6 @@ _dev_tools/frontend_node_modules/
 _dev_tools/*
 !_dev_tools/songzuo-game-studio/
 !_dev_tools/agnes_gen.py
-
-# --- Electron 前端工程源码入库 ---
-# 上面 _dev_tools/* 通配会把整个前端吞掉，而其构建产物在上方已单独忽略；
-# 前端是游戏的唯一界面（Tk 界面已移除），不入库则新克隆无界面可跑。
-!_dev_tools/frontend/
-!_dev_tools/frontend/**
-# 白名单之后的规则优先：以下仍不入库
-_dev_tools/frontend/node_modules/
-_dev_tools/frontend/out/
-_dev_tools/frontend/dist/
-_dev_tools/frontend/release/
-_dev_tools/frontend/*.tsbuildinfo
-_dev_tools/frontend/electron.vite.config.*.mjs
-_dev_tools/frontend/public/
 
 # --- 临时文件 / 本地辅助脚本 / 压缩包（不入库） ---
 *.tmpdir/

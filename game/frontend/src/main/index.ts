@@ -19,12 +19,12 @@ function resolveBackendConfig(): BackendConfig {
   if (envUrl) {
     return { url: envUrl, spawn: false };
   }
-  // 配置查找：frontend 工程根 + game/ 本体根（前端在 _dev_tools/frontend，不在 game/ 下）
-  // dev: __dirname ≈ _dev_tools/frontend/out/main
+  // 配置查找：前端工程根 + 游戏本体根（前端在 game/frontend/）
+  // dev: __dirname ≈ <repo>/game/frontend/out/main
+  //   上二级 = 前端工程根；上四级 = 仓库根 → 再进 game/（前端与 game/ 同为二级目录）
   const candidates = [
     join(__dirname, "../../backend_config.json"),
     join(__dirname, "../../../../game/backend_config.json"),
-    join(__dirname, "../../../backend_config.json"),
   ];
   for (const p of candidates) {
     if (existsSync(p)) {
@@ -93,8 +93,8 @@ function resolveBackendCommand(cwd: string): { command: string; args: string[] }
 function spawnBackend(cfg: BackendConfig): void {
   const isPackaged = app.isPackaged;
   // 打包后：server.exe 自含数据，cwd = resources 根；
-  // 开发：前端在 _dev_tools/frontend，Python 本体在 <repo>/game
-  //   __dirname ≈ _dev_tools/frontend/out/main → 上四级到 repo，再进 game/
+  // 开发：前端在 <repo>/game/frontend，Python 本体在 <repo>/game
+  //   __dirname ≈ <repo>/game/frontend/out/main → 上四级到仓库根，再进 game/
   const cwd =
     cfg.cwd ??
     (isPackaged ? process.resourcesPath : join(__dirname, "../../../../game"));
