@@ -211,6 +211,90 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
     return total, money_in
 
 
+def _changping_trade(pref, name, grain_amt, direction, price, log, tag):
+    """州县常平仓粜籴的守恒配对（与 _state_grain_trade 同构；钱腿为本路府库）。
+
+    审查修复背景：常平仓原实现只动 `changping_stock` / `local_treasury` 两个
+    政府侧账户 —— 平粜放出的粮无买家（粮凭空消失）、回收的钱无付款方（钱凭空
+    产生）；平籴买入的粮无卖家（粮凭空产生）、付出的钱无收款方（钱凭空消失）。
+    现改为与本路民间 POP 成对划转，两侧合计 ΣΔ==0：
+
+      direction='buy'（平籴·政府买粮入仓）：
+          常平仓 +grain、本路府库 -钱；存粮 POP 售粮得钱。
+          受「府库可付额」与「民间可售粮」双重封顶。
+      direction='sell'（平粜·政府卖粮收钱）：
+          常平仓 -grain、本路府库 +钱；有钱 POP 买粮付钱（按可支付力封顶）。
+
+    返回 (实际粮量, 实际钱额)；两者皆 0 表示本次未成交易（调用方不应记动作）。
+    """
+    pools = []
+    pops = pref.get("pops") if isinstance(pref, dict) else None
+    if isinstance(pops, dict):
+        for pk in ("农", "士绅", "工匠", "商人", "官僚", "兵"):
+            pp = pops.get(pk)
+            if isinstance(pp, dict):
+                pools.append(pp)
+    if not pools:
+        return 0, 0
+    _price = max(float(price), 0.1)
+
+    if direction == "buy":
+        _pay_cap = int(pref.get("local_treasury", 0) or 0)
+        total = 0
+        money = 0
+        remain = int(grain_amt)
+        for pp in sorted(pools, key=lambda x: -int(x.get("grain", 0) or 0)):
+            if remain <= 0 or money >= _pay_cap:
+                break
+            avail = int(pp.get("grain", 0) or 0)
+            take = min(remain, avail)
+            _pay = int(take * _price)
+            if _pay > _pay_cap - money:                     # 府库不足则少买
+                take = int((_pay_cap - money) / _price)
+                _pay = int(take * _price)
+            if take <= 0:
+                continue
+            pp["grain"] = avail - take
+            pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
+            remain -= take
+            total += take
+            money += _pay
+        if total <= 0:
+            return 0, 0
+        pref["changping_stock"] = int(pref.get("changping_stock", 0) or 0) + total
+        pref["local_treasury"] = _pay_cap - money
+        log.append(f"[{tag}] {name}平籴入常平 {total}石，散钱 {money}贯与民")
+        return total, money
+
+    total = 0
+    money = 0
+    want = int(grain_amt)
+    _buyers = [pp for pp in pools if int(pp.get("wealth", 0) or 0) > 0]
+    if not _buyers:
+        return 0, 0
+    _tw = sum(int(x.get("wealth", 0) or 0) for x in _buyers)
+    for pp in _buyers:
+        if want <= 0:
+            break
+        _share = min(1.0, int(pp.get("wealth", 0) or 0) / max(_tw, 1))
+        _alloc = min(want, int(grain_amt * _share))
+        _alloc = min(_alloc, int(int(pp.get("wealth", 0) or 0) // _price))   # 买得起才买
+        if _alloc <= 0:
+            continue
+        _cost = int(_alloc * _price)
+        pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
+        pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
+        total += _alloc
+        money += _cost
+        want -= _alloc
+    if total <= 0:
+        return 0, 0
+    pref["changping_stock"] = max(0, int(pref.get("changping_stock", 0) or 0) - total)
+    pref["local_treasury"] = int(pref.get("local_treasury", 0) or 0) + money
+    log.append(f"[{tag}] {name}常平粜粮 {total}石，回收 {money}贯入府库")
+    return total, money
+
+
 def _apply_decree_effect(state, decree, log):
     """应用诏令效果"""
     effects = decree.get("effects", {})
@@ -1400,20 +1484,21 @@ def _settle_granary(state, log):
         coffer = p.get("local_treasury", 0)
         if price > CHANGPING_HIGH and cp_stock > 0:
             # 平粜（高价抑价）：放常平仓粮入市，钱入地方府库（货币回收，不碰内帑）。
-            # 只动 changping_stock/local_treasury，不涉州仓 storage，故与漕运上供完全解耦；
             # 量随价格超幅线性放大：price 1.6→放 5% 常平储、2.5→放 60%（T9 扩容 45%→60%）
+            # 审查修复：原实现对手方未建模（粮凭空消失、钱凭空产生），
+            # 现经 _changping_trade 与本路民间 POP 成对划转（买不起则少卖）。
             ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5)
             sell = max(1, int(cp_stock * ratio))
             sell = min(sell, cp_stock)
-            _recycled = int(sell * price)        # 平粜回收额（钱入 local_treasury，退出流通）
-            p["changping_stock"] = cp_stock - sell
-            p["local_treasury"] = coffer + _recycled
-            _recycled_total += _recycled
-            # 对账统计：平粜回收（设计内货币退出——买家钱入地方府库）
-            state.statistics["changping_recycled"] = state.statistics.get("changping_recycled", 0) + _recycled
-            # 放粮入市 → 当地粮价回落（常平抑价的正确触发）
-            p["grain_price"] = _recalc_region_price(state, name, extra_supply=sell)
-            changping_acted = True
+            _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平")
+            if _g > 0:
+                _recycled_total += _recycled
+                # 对账统计：平粜回收（买家钱入地方府库）
+                state.statistics["changping_recycled"] = (
+                    state.statistics.get("changping_recycled", 0) + _recycled)
+                # 放粮入市 → 当地粮价回落（常平抑价的正确触发）
+                p["grain_price"] = _recalc_region_price(state, name, extra_supply=_g)
+                changping_acted = True
         elif price < CHANGPING_LOW and coffer > 0:
             # 平籴（低价托市）：动用地方府库 50% 预算买粮入常平仓（T9 扩容 30%→50%）。
             # 量不超过当地月供一半，且受常平仓容（月产 100%，T9 扩容 50%→100%）约束，防止无上限膨胀
@@ -1423,17 +1508,15 @@ def _settle_granary(state, log):
             room = max(0, int(cap - cp_stock))
             buy = min(int(budget / max(price, 0.4)), int(monthly_supply * 0.5), room)
             if buy > 0:
-                p["local_treasury"] = coffer - int(buy * price)
-                p["changping_stock"] = cp_stock + buy
-                # 收粮出市 → 当地粮价回升（常平托市的正确触发）
-                p["grain_price"] = _recalc_region_price(state, name, extra_supply=-buy)
-                changping_acted = True
-    if changping_acted:
-        state._stabilizer_recycled = _recycled_total
-        log.append("[常平] 州县常平仓平粜籴，物价稍纾")
-        _settle_stabilizer_recycle(state, log)
-
+                _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平")
+                if _g > 0:
+                    # 收粮出市 → 当地粮价回升（常平托市的正确触发）
+                    p["grain_price"] = _recalc_region_price(state, name, extra_supply=-_g)
+                    changping_acted = True
     # AI 契约：平抑物价（price_stabilize 档位调制常平仓操作强度）
+    # 注：本分支须排在「稳定器回收结算」之前，其回收额才会计入
+    # state._stabilizer_recycled（原顺序在后，致 AI 加强档的销币账漏记，
+    # 稳定器「目标 vs 实回收」读数系统性偏低）。
     if price_stabilize_mult > 1.0:
         for name, p in state.prefectures.items():
             price = p.get("grain_price", state.grain_price)
@@ -1444,9 +1527,13 @@ def _settle_granary(state, log):
                 ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
                 sell = max(1, int(cp_stock * ratio))
                 sell = min(sell, cp_stock)
-                p["changping_stock"] = cp_stock - sell
-                p["local_treasury"] = coffer + int(sell * price)
-                p["grain_price"] = _recalc_region_price(state, name, extra_supply=sell)
+                _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平·AI")
+                if _g > 0:
+                    _recycled_total += _recycled
+                    state.statistics["changping_recycled"] = (
+                        state.statistics.get("changping_recycled", 0) + _recycled)
+                    p["grain_price"] = _recalc_region_price(state, name, extra_supply=_g)
+                    changping_acted = True
             elif price < CHANGPING_LOW and coffer > 0:
                 # AI 加强平籴（T9 扩容：预算 50%、仓容月产 100%）
                 budget = int(coffer * CHANGPING_BUY_BUDGET_RATIO * price_stabilize_mult)
@@ -1455,9 +1542,15 @@ def _settle_granary(state, log):
                 room = max(0, int(cap - cp_stock))
                 buy = min(int(budget / max(price, 0.4)), int(monthly_supply * 0.5), room)
                 if buy > 0:
-                    p["local_treasury"] = coffer - int(buy * price)
-                    p["changping_stock"] = cp_stock + buy
-                    p["grain_price"] = _recalc_region_price(state, name, extra_supply=-buy)
+                    _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平·AI")
+                    if _g > 0:
+                        p["grain_price"] = _recalc_region_price(state, name, extra_supply=-_g)
+                        changping_acted = True
+
+    if changping_acted:
+        state._stabilizer_recycled = _recycled_total
+        log.append("[常平] 州县常平仓平粜籴，物价稍纾")
+        _settle_stabilizer_recycle(state, log)
 
     # ---- 商品交易（多商品）+ 粮市交易 + 各 POP 消费 ----
     # 工匠产不同商品、各 POP 按阶级买不同商品（钱→工匠/商人，钱守恒；新增商品经 register_finished_good 扩展）

@@ -158,3 +158,37 @@ def test_fixed_finance_relief_debits_treasury():
                  for p in s.prefectures.values())
     assert s.treasury == 70_000
     assert local1 - local0 == 30_000, "州郡府库应等额增收（守恒）"
+
+
+def test_changping_trade_conserves_grain_and_money():
+    """常平仓粜籴守恒：政府仓 ↔ 本路民间 POP 成对划转，粮/钱两账 ΣΔ==0。
+
+    回归：原实现只动 changping_stock / local_treasury（对手方未建模）→
+    平粜放出的粮凭空消失、回收的钱凭空产生；平籴反之（粮凭空产生、付钱灭失）。
+    """
+    from core.settlement_steps import _changping_trade
+    s = _state()
+    road = next(iter(s.prefectures))
+    p = s.prefectures[road]
+    p["changping_stock"] = 100_000
+    p["local_treasury"] = 100_000
+    _price = 2.0
+
+    def _books():
+        g = sum(int(pp.get("grain", 0) or 0) for pp in p["pops"].values())
+        m = sum(int(pp.get("wealth", 0) or 0) for pp in p["pops"].values())
+        return g + int(p["changping_stock"]), m + int(p["local_treasury"])
+
+    g0, m0 = _books()
+
+    _g, _m = _changping_trade(p, road, 30_000, "sell", _price, [], "t")
+    assert _g > 0 and _m > 0, "平粜应成交易"
+    g1, m1 = _books()
+    assert g1 == g0, "平粜：粮总量须守恒（原实现凭空消失）"
+    assert m1 == m0, "平粜：钱总量须守恒（原实现凭空产生）"
+
+    _g2, _m2 = _changping_trade(p, road, 20_000, "buy", _price, [], "t")
+    assert _g2 > 0 and _m2 > 0, "平籴应成交易"
+    g2, m2 = _books()
+    assert g2 == g1, "平籴：粮总量须守恒（原实现凭空产生）"
+    assert m2 == m1, "平籴：钱总量须守恒（原实现灭失）"
