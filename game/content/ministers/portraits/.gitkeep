@@ -1,3 +1,7 @@
 # 大臣个人立绘目录
 # 命名规则：人名.png（如 蔡京.png、童贯.png）
-# 程序按 get_portrait_path(人名) 查找；缺省时回退到 assets/portraits 的通用立绘
+# 程序按 get_portrait_path(人名) 查找；回退链见 content/ministers/data.py:
+#   分层合成 → portraits/{人名}.png → portraits/{kind}.png（civil/military/eunuch/royal）
+# 注意：{kind}.png 一级目前无文件（Python 侧返回 None），视觉兜底实际由前端承担
+#      （frontend/public/portraits/general.png、minister.png），故此处无需补占位图
+#      —— 补低清占位图反而会取代前端更完整的默认立绘。

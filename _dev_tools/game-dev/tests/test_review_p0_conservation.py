@@ -2,7 +2,7 @@
 """审查修复回归：钱守恒 / 家产来源 / 一条鞭 / AI 待批队列 / 异步无嵌套。"""
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "game"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "game"))
 
 
 def _state():
@@ -97,3 +97,64 @@ def test_async_settlement_no_nested_submit():
     src = inspect.getsource(m.run_settlement_ai)
     assert "_EXECUTOR.submit(_call_guarded" not in src
     assert "as_completed" not in src
+
+
+def test_paper_pay_no_copper_mint():
+    """一体发钞：俸禄以交子支付时兵 POP 铜钱不得增加。
+
+    回归：原实现同月既发行等额交子、又无条件给兵/官僚 POP 记铜钱，
+    且国库不支出（effective_cash_out=0）→ 一笔俸禄记两次且凭空造币。
+    """
+    from core.settlement_steps import _settle_finance
+    s = _state()
+    s.pay_system["mode"] = "一体发钞"
+    soldier0 = sum(p["pops"]["兵"]["wealth"] for p in s.prefectures.values())
+    jz0 = s.jiaozi["issued"]
+    _settle_finance(s, [])
+    soldier1 = sum(p["pops"]["兵"]["wealth"] for p in s.prefectures.values())
+    assert s.jiaozi["issued"] > jz0, "一体发钞应发行交子"
+    assert soldier1 == soldier0, "俸禄已付交子，兵 POP 铜钱不得再增（否则双发造币）"
+
+
+def test_cash_pay_credits_soldiers():
+    """对照：非一体发钞时兵 POP 铜钱应随俸禄增加（门控未误伤正常路径）。"""
+    from core.settlement_steps import _settle_finance
+    s = _state()
+    s.pay_system["mode"] = "钱粮并给"
+    soldier0 = sum(p["pops"]["兵"]["wealth"] for p in s.prefectures.values())
+    _settle_finance(s, [])
+    soldier1 = sum(p["pops"]["兵"]["wealth"] for p in s.prefectures.values())
+    assert soldier1 > soldier0
+
+
+def test_fixed_finance_transfer_no_mint():
+    """御笔直发「移库」：来源不足时按可付额截断，钱总量不得增加。
+
+    回归：原实现先给目标全额入账、再扣来源，而 change_* 内部 max(0, …)
+    会截断来源 → 差额凭空产生。
+    """
+    from core.commands_decree import _run_fixed
+    s = _state()
+    s.treasury = 1_000
+    s.imperial_treasury = 0
+    _run_fixed(s, "fixed_finance",
+               {"amount": 5_000, "target": "内藏", "source": "国库"})
+    assert s.treasury + s.imperial_treasury == 1_000, "移库总额须守恒"
+    assert s.imperial_treasury == 1_000, "内帑应按国库可付额入账"
+
+
+def test_fixed_finance_relief_debits_treasury():
+    """州郡赈济为「国库列支」：国库应减少，州郡府库等额增加（成对划转）。
+
+    回归：原实现写作 change_treasury(+amt)，赈济反给国库加钱（符号反）。
+    """
+    from core.commands_decree import _run_fixed
+    s = _state()
+    s.treasury = 100_000
+    local0 = sum(int(p.get("local_treasury", 0) or 0)
+                 for p in s.prefectures.values())
+    _run_fixed(s, "fixed_finance", {"amount": 30_000, "target": "州郡"})
+    local1 = sum(int(p.get("local_treasury", 0) or 0)
+                 for p in s.prefectures.values())
+    assert s.treasury == 70_000
+    assert local1 - local0 == 30_000, "州郡府库应等额增收（守恒）"
