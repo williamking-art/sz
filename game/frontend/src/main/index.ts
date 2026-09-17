@@ -77,12 +77,17 @@ function resolveBackendCommand(cwd: string): { command: string; args: string[] }
     // 必须用 process.resourcesPath（Electron 官方 resources 根绝对路径），
     // 不能用 __dirname 推导：asar 虚拟路径下 path.join("..") 会产生错误盘符路径
     const resourcesRoot = process.resourcesPath;
-    const bundledServer = join(resourcesRoot, "backend", "server.exe");
-    console.log(`[backend] probing bundled server: ${bundledServer}`);
-    if (existsSync(bundledServer)) {
-      return { command: bundledServer, args: [] };
+    // 随包后端为 PyInstaller one-dir（game/SongZuo.spec → name='SongZuo'），
+    // 可执行体名为 SongZuo.exe；旧代码只探 server.exe，与实际产物不符。
+    // 两者皆探，兼容既有分发习惯。
+    for (const exe of ["SongZuo.exe", "server.exe"]) {
+      const bundledServer = join(resourcesRoot, "backend", exe);
+      console.log(`[backend] probing bundled server: ${bundledServer}`);
+      if (existsSync(bundledServer)) {
+        return { command: bundledServer, args: [] };
+      }
     }
-    console.warn(`[backend] bundled server.exe not found at ${bundledServer}`);
+    console.warn(`[backend] bundled backend not found under ${join(resourcesRoot, "backend")}`);
   }
   // 开发环境：优先工程 venv，其次 PATH 上的 python
   const venvPython = join(cwd, ".venv", "Scripts", "python.exe");

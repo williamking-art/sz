@@ -6,8 +6,13 @@ directories:
 files:
   - out/**
   - package.json
+# Python 本体随包（审查修复）：原 from 指向 game/frontend/resources/backend，
+# 该目录不存在且与此前从未产出；Python 侧实际产物是 PyInstaller one-dir
+# （game/SongZuo.spec → COLLECT name='SongZuo' → game/dist/SongZuo/，内含
+# SongZuo.exe 与自含的 assets/ai/core/engine/ui/backend/content/audio/memory）。
+# 故打包前须先执行一次 PyInstaller（工作目录 game/：pyinstaller SongZuo.spec）。
 extraResources:
-  - from: resources/backend
+  - from: ../dist/SongZuo
     to: backend
 asar: true
 win:
@@ -15,7 +20,9 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: build/icon.ico
+  # 原写 build/icon.ico（frontend/build 不存在）。图标实体在 game/assets/icon.ico
+  # （SongZuo.spec 亦引用此处），故以 ../assets 相对本工程定位。
+  icon: ../assets/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
