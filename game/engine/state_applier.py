@@ -42,7 +42,13 @@ VALID_PATHS: List[str] = [
     "waste_reform.active", "waste_reform.savings",
     "defense_lines.*.fortification", "defense_lines.*.garrison",
     "legacies.*.active", "legacies.*.progress",
-    "focus.*.unlocked", "focus.*.power_level",
+    # 审查修复（移除死通道）：原写 "focus.*.unlocked" / "focus.*.power_level"，
+    # 但 GameState 并无 `focus` 字段 —— 国策树是 state.focus_tree（「分支 → nodes →
+    # 节点」嵌套，静态定义只有 power_level、无 unlocked），在办国策是
+    # state.active_focus（可为 None）。该两条路径 `_locate_path` 必然失败，而本模块
+    # 采用「整批回滚 + 抛异常」语义 → AI 一旦产出即连带同批合法变更一并作废。
+    # 此处不再宣告不存在的能力；国策进度的 AI 写入通道待与 focus_mechanic 一并设计
+    # （须先解决 active_focus 为 None 的寻址问题）。
     "prefectures.*.public_support", "prefectures.*.gentry_resistance",
     "prefectures.*.city_defense", "prefectures.*.controlled_by",
 ]
@@ -504,18 +510,25 @@ def _expand_wildcards(state, changes: List[dict]) -> List[dict]:
             out.append(ch)
             continue
         parts = path.split(".")
-        if parts[0] == "prefectures":
-            roads = list(getattr(state, "prefectures", {}).keys())
-            for road in roads:
-                np = ".".join(road if p == "*" else p for p in parts)
-                out.append(dict(ch, path=np, reason=f"{ch.get('reason','')}（{road}）"))
-        elif parts[0] == "factions":
-            facs = list(getattr(state, "factions", {}).keys())
-            for fac in facs:
-                np = ".".join(fac if p == "*" else p for p in parts)
-                out.append(dict(ch, path=np, reason=f"{ch.get('reason','')}（{fac}）"))
-        else:
-            out.append(ch)
+        # 审查修复：原只展开 prefectures.* / factions.*，而白名单里
+        # defense_lines.*.fortification|garrison、legacies.*.active|progress 同样带通配
+        # → 原样透传后 _locate_path 取不到字面键 "*" → 抛异常并**整批回滚**
+        # （同批合法变更一并作废）。现统一按「前缀容器 → 展开为每个具体键一条」。
+        _containers = {
+            "prefectures": getattr(state, "prefectures", None),
+            "factions": getattr(state, "factions", None),
+            "defense_lines": getattr(state, "defense_lines", None),
+            "legacies": getattr(state, "legacies", None),
+        }
+        _box = _containers.get(parts[0])
+        if not isinstance(_box, dict):
+            out.append(ch)          # 无可展开容器：原样透传，交由白名单/寻址层裁定
+            continue
+        for k in list(_box.keys()):
+            if k == "*":
+                continue
+            np = ".".join(k if p == "*" else p for p in parts)
+            out.append(dict(ch, path=np, reason=f"{ch.get('reason','')}（{k}）"))
     return out
 
 

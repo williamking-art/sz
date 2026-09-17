@@ -68,6 +68,14 @@ def settle_era_links(state, log):
     # 无回落），数月即 clamp 到 100 并永久停留，使 era_trend/上行调制形同虚设。
     # 现改为「目标值重算」：era[dim] = 50 + 建筑贡献（clamp 0~100）——
     # 建筑规模决定维度（立即生效，保持既有联动语义），建筑毁损/裁撤时可自然回落。
+    # 已知设计冲突（审查结论，未擅自改，待产品决策）：
+    #   本函数「每月把 era[d] 直接赋为 50 + 建筑贡献」是 P2-24 修复时**特意选定**
+    #   的语义（t 「立即生效」），tests/test_era_interaction.py:test_era_downlink_buildings
+    #   即锁定之；但该语义的副作用是：任何来自 era_migrate（±10 档位迁移）或
+    #   AI changes（白名单含 "era_state."）的时代修正都在当月被抹平，成死写入。
+    #   二者不可兼得，正确解法是把「建筑贡献」与「迁移/事件基线」分离
+    #   （era[d] = clamp(base_era[d] + 贡献)），需新增 state 字段与存档迁移，
+    #   属 schema 变更，故留待决策后实施。
     for d in ERA_DIMENSIONS:
         era[d] = max(0, min(100, 50 + contrib.get(d, 0)))
     return era
