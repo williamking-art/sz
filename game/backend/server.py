@@ -337,12 +337,15 @@ def api_save_slots(request: Request):
 
 
 @app.get("/api/readouts")
-def api_readouts():
+def api_readouts(request: Request):
     """只读派生读数（军政/会计/仓廪面板用）。
 
     薄壳纪律：仅调用 GameState 现有方法并序列化，零业务逻辑复制。
     army_units / central_arsenal 为对象，_state_to_dict 无法序列化，故在此展开。
     """
+    # 审查补齐：本端点原漏鉴权，在设 SONGZUO_SERVER_TOKEN（或非本机部署由
+    # main() 强制要求）时仍匿名可读军政/会计/群臣档案。此处与其他端点同规。
+    _require_auth(request)
     _require_state()
     with _lock:
         s = _state

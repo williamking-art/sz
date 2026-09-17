@@ -76,10 +76,12 @@ export interface ReadoutsResult {
       total_out?: number;
     };
     imperial?: {
+      // 后端 core/flow_summary.py 实际只下发 regular_in / one_off / balance
+      // （内帑收支不入 statistics，故无 month_in / total_in —— 原类型声明漂移，
+      //  面板据此读 im.total_in 恒为 0）
       regular_in?: [string, number][];
       one_off?: [string, number, string][];
-      month_in?: number;
-      total_in?: number;
+      balance?: number;
     };
   };
   granary: {

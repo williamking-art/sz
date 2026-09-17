@@ -96,7 +96,12 @@ export default function EngineeringPanel() {
   const opened: Dict[] = [];
   for (const grp of ["longterm_public", "longterm_secret"] as const) {
     for (const it of pick<Dict[]>(state, grp, [])) {
-      if (asStr(it.cat).includes("工程") || asStr(it.title).includes("工程")) {
+      // 审查修复：后端在办任务的键是 category（值域 fixed_tech / fixed_finance /
+      // fixed_army / fixed_construction）与 task_name / minister / progress，
+      // 并无 cat / title / owner。原判据 asStr(it.cat).includes("工程") 恒假
+      // → 本「已开工」列表在正常对局中永远为空。
+      if (asStr(it.category) === "fixed_construction"
+          || asStr(it.task_name).includes("工程")) {
         opened.push(it);
       }
     }
@@ -134,7 +139,7 @@ export default function EngineeringPanel() {
           {opened.length ? (
             opened.slice(0, 10).map((it, i) => (
               <p key={i} className="py-1 text-sm text-ink">
-                · {asStr(it.title, asStr(it.cat, "工程"))}：承办 {asStr(it.owner, "—")}　
+                · {asStr(it.task_name, asStr(it.title, "工程"))}：承办 {asStr(it.minister, "—")}　
                 进度 {Math.round(asNum(it.progress))}%
               </p>
             ))
