@@ -1167,7 +1167,24 @@ def _settle_coin_melt(state, log):
             if _res is None:
                 _res = {}
                 state.resources = _res
-            _res["铜"] = _res.get("铜", 0) + _overflow
+            # 审查修复（schema 破坏 + 口径断链）：原写 _res["铜"] = int，而
+            # state.resources 的 schema 是 {dim: {"stock","cap"}} → 引入非 dict 值，
+            # 任何 resources[x]["stock"] 形式的访问一旦命中即崩；且 "铜" 不在
+            # RESOURCE_DIMS、铸钱侧只认 COPPER_RESOURCE_DIM(=iron) → 该铜料
+            # 永不会被消耗。现并入铸钱所用铜料维（按 cap 截断，余量留池）。
+            _slot = _res.get(COPPER_RESOURCE_DIM)
+            if not isinstance(_slot, dict):
+                _slot = {"stock": 0, "cap": 0}
+                _res[COPPER_RESOURCE_DIM] = _slot
+            _cap = int(_slot.get("cap", 0) or 0)
+            _cur = int(_slot.get("stock", 0) or 0)
+            _room = max(0, _cap - _cur) if _cap > 0 else _overflow
+            _taken = min(_overflow, _room)
+            _slot["stock"] = _cur + _taken
+            # 未入仓者仍留熔铜池（不凭空消失）
+            state.coin["melted_pool"] = 100_000_000 + (_overflow - _taken)
+            state.statistics["copper_recycled"] = (
+                state.statistics.get("copper_recycled", 0) + _taken)
         log.append(f"[私铸] 民间铜钱熔化 {_melted}贯（铸器外流，入熔铜池）")
 
 

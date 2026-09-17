@@ -264,11 +264,17 @@ POP_SHARE = {                 # 开局各 POP 占在籍人口比例（官僚/兵
 RAW_UNITS = {"salt": "斤", "tea": "斤", "silk": "匹", "hemp": "匹", "cane": "斤",
              "fruit": "斤", "timber": "根", "stone": "方", "iron": "斤", "绸": "匹", "布": "匹"}
 
-def register_raw_material(dim, unit, price, default_yield=0):
+def register_raw_material(dim, unit, price, default_yield=0, state=None):
     """预留接口：注册新作物 / 新矿（AI 拟诏开发时调用）。
 
-    加入原料维度、价格表、单位表，并为各路补默认产量（开局 0，之后劝种/开矿/市舶演化）。
-    返回 dim，供注册方回填叙事。"""
+    加入原料维度、价格表、单位表；传入 state 时**同时为该维建好资源槽**
+    （state.resources[dim] = {"stock": 0, "cap": 0}）。
+    返回 dim，供注册方回填叙事。
+
+    审查修复：原实现只改模块级 RESOURCE_DIMS，不补 state.resources → 之后
+    工程/作坊读取该维时，`state.resources[dim]["stock"]` 直接 KeyError（中断整月
+    结算，由快照回滚兜底但该月白跑），或按缺料判定而永久停滞。调用方应传入 state。
+    """
     global RAW_DIMS, RESOURCE_DIMS
     if dim not in RAW_DIMS:
         RAW_DIMS.append(dim)
@@ -276,6 +282,10 @@ def register_raw_material(dim, unit, price, default_yield=0):
         RESOURCE_DIMS.append(dim)
     MATERIAL_PRICE_BASE[dim] = price
     RAW_UNITS[dim] = unit
+    if state is not None:
+        res = getattr(state, "resources", None)
+        if isinstance(res, dict):
+            res.setdefault(dim, {"stock": 0, "cap": 0})
     return dim
 
 
