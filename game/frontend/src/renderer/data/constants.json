@@ -147,6 +147,8 @@
    "name": "牛耕挽犁",
    "desc": "铁犁牛耕，九州之基",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -163,6 +165,8 @@
    "name": "水排筒车",
    "desc": "水激轮转，灌田碾谷",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -180,6 +184,13 @@
    "desc": "水转大纺，昼夜不息",
    "prereq": [
     "M1_noria"
+   ],
+   "need_level": 60,
+   "need_sub": [
+    [
+     "hydraulics",
+     50
+    ]
    ],
    "cost": {
     "silver": 120000,
@@ -199,6 +210,13 @@
    "prereq": [
     "M1_noria"
    ],
+   "need_level": 55,
+   "need_sub": [
+    [
+     "iron",
+     35
+    ]
+   ],
    "cost": {
     "silver": 80000,
     "months": 7,
@@ -217,6 +235,13 @@
    "prereq": [
     "M3_bellows"
    ],
+   "need_level": 72,
+   "need_sub": [
+    [
+     "iron",
+     55
+    ]
+   ],
    "cost": {
     "silver": 300000,
     "months": 18,
@@ -234,6 +259,13 @@
    "desc": "汽机汲水，矿穴乃通",
    "prereq": [
     "M4_furnace"
+   ],
+   "need_level": 80,
+   "need_sub": [
+    [
+     "west",
+     1
+    ]
    ],
    "cost": {
     "silver": 500000,
@@ -254,6 +286,13 @@
     "M5_steampump",
     "E3_steel"
    ],
+   "need_level": 85,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
+   ],
    "cost": {
     "silver": 1200000,
     "months": 28,
@@ -271,6 +310,13 @@
    "desc": "琥珀引电，磁石感线",
    "prereq": [
     "M6_loco"
+   ],
+   "need_level": 88,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
    ],
    "cost": {
     "silver": 1500000,
@@ -291,6 +337,13 @@
     "M6_loco",
     "E4_oil"
    ],
+   "need_level": 90,
+   "need_sub": [
+    [
+     "west",
+     3
+    ]
+   ],
    "cost": {
     "silver": 2000000,
     "months": 30,
@@ -310,6 +363,13 @@
     "M8_ice",
     "M7_elecbasis"
    ],
+   "need_level": 95,
+   "need_sub": [
+    [
+     "west",
+     4
+    ]
+   ],
    "cost": {
     "silver": 3000000,
     "months": 32,
@@ -326,6 +386,8 @@
    "name": "柴薪取火",
    "desc": "柴薪为燃，窑冶之基",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -342,6 +404,8 @@
    "name": "煤炭开采",
    "desc": "山石可燃，可代柴薪",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -361,6 +425,13 @@
     "E1_coal",
     "M4_furnace"
    ],
+   "need_level": 72,
+   "need_sub": [
+    [
+     "iron",
+     60
+    ]
+   ],
    "cost": {
     "silver": 300000,
     "months": 18,
@@ -378,6 +449,13 @@
    "desc": "百炼成钢，器用坚利",
    "prereq": [
     "E2_coke"
+   ],
+   "need_level": 82,
+   "need_sub": [
+    [
+     "west",
+     1
+    ]
    ],
    "cost": {
     "silver": 800000,
@@ -397,6 +475,13 @@
    "prereq": [
     "E3_steel"
    ],
+   "need_level": 88,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
+   ],
    "cost": {
     "silver": 1500000,
     "months": 26,
@@ -414,6 +499,13 @@
    "desc": "锰镍入钢，造轮船轨",
    "prereq": [
     "E4_oil"
+   ],
+   "need_level": 93,
+   "need_sub": [
+    [
+     "west",
+     3
+    ]
    ],
    "cost": {
     "silver": 2500000,
@@ -435,6 +527,13 @@
     "E5_alloy",
     "M9_power"
    ],
+   "need_level": 97,
+   "need_sub": [
+    [
+     "west",
+     4
+    ]
+   ],
    "cost": {
     "silver": 3500000,
     "months": 34,
@@ -451,6 +550,8 @@
    "name": "炼丹术",
    "desc": "炉鼎丹砂，化玄为妙",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -468,6 +569,13 @@
    "desc": "硝硫木炭，一硝二磺三木炭",
    "prereq": [
     "C0_alchemy"
+   ],
+   "need_level": 20,
+   "need_sub": [
+    [
+     "gunpowder",
+     30
+    ]
    ],
    "cost": {
     "silver": 30000,
@@ -487,6 +595,13 @@
    "prereq": [
     "C1_gunpowder"
    ],
+   "need_level": 40,
+   "need_sub": [
+    [
+     "gunpowder",
+     45
+    ]
+   ],
    "cost": {
     "silver": 120000,
     "months": 8,
@@ -504,6 +619,13 @@
    "desc": "更制枪铳，演为列阵之器",
    "prereq": [
     "C1b_huochong"
+   ],
+   "need_level": 65,
+   "need_sub": [
+    [
+     "gunpowder",
+     65
+    ]
    ],
    "cost": {
     "silver": 300000,
@@ -523,6 +645,17 @@
    "prereq": [
     "C1c_huoqiang"
    ],
+   "need_level": 85,
+   "need_sub": [
+    [
+     "gunpowder",
+     85
+    ],
+    [
+     "west",
+     2
+    ]
+   ],
    "cost": {
     "silver": 800000,
     "months": 20,
@@ -540,6 +673,13 @@
    "desc": "石胆绿矾，化水为强酸",
    "prereq": [
     "C1_gunpowder"
+   ],
+   "need_level": 70,
+   "need_sub": [
+    [
+     "iron",
+     45
+    ]
    ],
    "cost": {
     "silver": 250000,
@@ -559,6 +699,8 @@
    "prereq": [
     "C2_acid"
    ],
+   "need_level": 75,
+   "need_sub": [],
    "cost": {
     "silver": 400000,
     "months": 16,
@@ -577,6 +719,8 @@
    "prereq": [
     "C2_acid"
    ],
+   "need_level": 80,
+   "need_sub": [],
    "cost": {
     "silver": 600000,
     "months": 18,
@@ -596,6 +740,13 @@
     "C4_fertilizer",
     "E4_oil"
    ],
+   "need_level": 90,
+   "need_sub": [
+    [
+     "west",
+     3
+    ]
+   ],
    "cost": {
     "silver": 2000000,
     "months": 28,
@@ -614,6 +765,13 @@
    "prereq": [
     "C5_rubber"
    ],
+   "need_level": 95,
+   "need_sub": [
+    [
+     "west",
+     4
+    ]
+   ],
    "cost": {
     "silver": 3000000,
     "months": 30,
@@ -630,6 +788,8 @@
    "name": "雕版印刷",
    "desc": "雕木为版，刷印成书",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -648,6 +808,8 @@
    "prereq": [
     "I0_block"
    ],
+   "need_level": 15,
+   "need_sub": [],
    "cost": {
     "silver": 20000,
     "months": 4,
@@ -666,6 +828,8 @@
    "prereq": [
     "I1_movable"
    ],
+   "need_level": 58,
+   "need_sub": [],
    "cost": {
     "silver": 60000,
     "months": 8,
@@ -684,6 +848,8 @@
    "prereq": [
     "I2_metaltype"
    ],
+   "need_level": 65,
+   "need_sub": [],
    "cost": {
     "silver": 150000,
     "months": 10,
@@ -703,6 +869,13 @@
     "I3_post",
     "M7_elecbasis"
    ],
+   "need_level": 85,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
+   ],
    "cost": {
     "silver": 1200000,
     "months": 24,
@@ -720,6 +893,13 @@
    "desc": "声波化电，隔空传语",
    "prereq": [
     "I4_telegraph"
+   ],
+   "need_level": 90,
+   "need_sub": [
+    [
+     "west",
+     3
+    ]
    ],
    "cost": {
     "silver": 2000000,
@@ -739,6 +919,13 @@
    "prereq": [
     "I5_phone"
    ],
+   "need_level": 95,
+   "need_sub": [
+    [
+     "west",
+     4
+    ]
+   ],
    "cost": {
     "silver": 3000000,
     "months": 30,
@@ -755,6 +942,8 @@
    "name": "本草医方",
    "desc": "尝百草辨药性，济世活人",
    "prereq": [],
+   "need_level": 0,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 0,
@@ -773,6 +962,8 @@
    "prereq": [
     "H0_herbal"
    ],
+   "need_level": 50,
+   "need_sub": [],
    "cost": {
     "silver": 40000,
     "months": 6,
@@ -791,6 +982,8 @@
    "prereq": [
     "H1_forensic"
    ],
+   "need_level": 68,
+   "need_sub": [],
    "cost": {
     "silver": 200000,
     "months": 12,
@@ -808,6 +1001,13 @@
    "desc": "剖尸明理，血脉经络",
    "prereq": [
     "H2_variola"
+   ],
+   "need_level": 75,
+   "need_sub": [
+    [
+     "west",
+     1
+    ]
    ],
    "cost": {
     "silver": 400000,
@@ -827,6 +1027,13 @@
    "prereq": [
     "H3_anatomy"
    ],
+   "need_level": 82,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
+   ],
    "cost": {
     "silver": 800000,
     "months": 20,
@@ -844,6 +1051,13 @@
    "desc": "麻沸汤药，剖腹不痛",
    "prereq": [
     "H4_bacteria"
+   ],
+   "need_level": 88,
+   "need_sub": [
+    [
+     "west",
+     2
+    ]
    ],
    "cost": {
     "silver": 1500000,
@@ -864,6 +1078,13 @@
    "prereq": [
     "H5_anesthesia"
    ],
+   "need_level": 93,
+   "need_sub": [
+    [
+     "west",
+     3
+    ]
+   ],
    "cost": {
     "silver": 2200000,
     "months": 28,
@@ -882,6 +1103,8 @@
    "prereq": [
     "M2_spindle"
    ],
+   "need_level": 60,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 6,
@@ -901,6 +1124,8 @@
    "prereq": [
     "X0_assembly"
    ],
+   "need_level": 65,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 8,
@@ -920,6 +1145,8 @@
    "prereq": [
     "I3_post"
    ],
+   "need_level": 70,
+   "need_sub": [],
    "cost": {
     "silver": 0,
     "months": 10,
@@ -939,6 +1166,13 @@
    "prereq": [
     "X1_standard",
     "E3_steel"
+   ],
+   "need_level": 80,
+   "need_sub": [
+    [
+     "west",
+     1
+    ]
    ],
    "cost": {
     "silver": 0,
@@ -1123,6 +1357,7 @@
      "base_cost": 0,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1139,6 +1374,7 @@
      "base_cost": 0,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1154,6 +1390,7 @@
      "base_cost": 50000,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1171,6 +1408,7 @@
      "base_cost": 80000,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1191,6 +1429,7 @@
      "base_cost": 300000,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": 1117,
      "prep": 0,
      "distance": false,
@@ -1206,6 +1445,7 @@
      "base_cost": 150000,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": 1113,
      "prep": 0,
      "distance": false,
@@ -1221,6 +1461,7 @@
      "base_cost": 100000,
      "fund": "treasury",
      "risk": "低",
+     "bandwidth_cost": 0,
      "era_gate": 1117,
      "prep": 0,
      "distance": false,
@@ -1238,6 +1479,7 @@
      "base_cost": 20000,
      "fund": "imperial_treasury",
      "risk": "高",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1252,6 +1494,7 @@
      "base_cost": 10000,
      "fund": "imperial_treasury",
      "risk": "中",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": false,
@@ -1270,6 +1513,7 @@
      "base_cost": 500000,
      "fund": "treasury",
      "risk": "中",
+     "bandwidth_cost": 1,
      "era_gate": null,
      "prep": 2,
      "distance": false,
@@ -1285,6 +1529,7 @@
      "base_cost": 300000,
      "fund": "treasury",
      "risk": "高",
+     "bandwidth_cost": 1,
      "era_gate": 1126,
      "prep": 1,
      "distance": false,
@@ -1302,6 +1547,7 @@
      "base_cost": 50000,
      "fund": "imperial_treasury",
      "risk": "中",
+     "bandwidth_cost": 0,
      "era_gate": null,
      "prep": 0,
      "distance": true,

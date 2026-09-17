@@ -19,6 +19,10 @@ interface TechNode {
   name: string;
   desc: string;
   prereq: string[];
+  /** 总体 level 门槛（content/data.py 科技节点元组 n[6]；后端 asset_context 同源） */
+  need_level: number;
+  /** 副指标门槛 [(维度, 门槛)]（n[7]）；("west", N) 按承接模式跳过，不设硬门槛 */
+  need_sub: [string, number][];
   cost: { silver: number; months: number; masters: number; idea?: boolean };
   effect: Dict;
 }
@@ -55,13 +59,21 @@ function currentEra(year: number): number {
 }
 
 // 节点状态（core/asset_context.py::node_status 前端复刻）
+// 审查修复：原只校验 prereq，而后端 node_prereqs_met 还校验 tech.level（need_level）
+// 与副指标（need_sub）→ 面板显示「可研发」、点下去被后端拒（"前置未备，暂不可研"）。
+// 现与后端同口径；("west", N) 副指标按承接模式跳过（不设硬门槛）。
 function nodeStatus(tech: Dict, node: TechNode): "unlocked" | "researching" | "researchable" | "locked" {
   const unlocked = new Set((tech.unlocked as string[] | undefined) ?? []);
   const researching = asDict(tech.researching);
   if (unlocked.has(node.id)) return "unlocked";
   if (node.id in researching) return "researching";
-  if ((node.prereq ?? []).every((p) => unlocked.has(p))) return "researchable";
-  return "locked";
+  if (!(node.prereq ?? []).every((p) => unlocked.has(p))) return "locked";
+  if (asNum(tech.level) < asNum(node.need_level)) return "locked";
+  for (const [dim, need] of node.need_sub ?? []) {
+    if (dim === "west") continue;
+    if (asNum(tech[dim]) < asNum(need)) return "locked";
+  }
+  return "researchable";
 }
 
 // 跨时代成本（content/data.py::tech_cost_with_era 前端复刻）
