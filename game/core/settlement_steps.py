@@ -159,13 +159,21 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
         total = 0
         money_paid = 0
         remain = min(int(grain_amt), _room)
+        # 审查修复（潜伏造币）：原实现先给民间全额记账、再用 max(0, …) 截断国库
+        # → 一旦 caller 未保证 money_paid ≤ 国库（新增调用方或价格下限变动），
+        # 差额即凭空产生。此处把「国库可付额」提前作为钱腿硬上限，与 _changping_trade 同规。
+        _cash_cap = int(getattr(state, "treasury", 0) or 0)
         for pp in sorted(pools, key=lambda x: -int(x.get("grain", 0) or 0)):
-            if remain <= 0:
+            if remain <= 0 or money_paid >= _cash_cap:
                 break
             avail = int(pp.get("grain", 0) or 0)
             take = min(remain, avail)
             if take <= 0:
                 continue
+            if int(take * p) > _cash_cap - money_paid:      # 国库不足则少买
+                take = int((_cash_cap - money_paid) / p)
+                if take <= 0:
+                    break
             pp["grain"] = avail - take
             _pay = int(take * p)
             pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay

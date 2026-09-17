@@ -15,6 +15,10 @@ export default function LeftTodo() {
           <span className="font-kai text-[16px] font-bold tracking-[0.25em] text-ink">在 办 庶 务</span>
         </div>
         <ul className="px-2 py-1.5 space-y-1">
+          {/* 空状态：hudTodos 不再伪造占位事务，故此处显式提示 */}
+          {todos.length === 0 && (
+            <li className="px-2 py-1.5 text-[13px] text-dim">— 暂无在办之事 —</li>
+          )}
           {todos.map((t, i) => (
             <li key={i}>
               <button

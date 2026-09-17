@@ -158,7 +158,12 @@ class AIClient(ClientNarrativeMixin):
         self._cache_misses = 0
 
     # 内部辅助调用链（_meter_key_of 跳过，向上找真实契约方法名）
-    _METER_INTERNAL = {"_call", "_tool_roundtrip", "_cached_call", "_postprocess"}
+    _METER_INTERNAL = {"_call", "_tool_roundtrip", "_cached_call", "_postprocess",
+                   # 审查修复：漏登记 _narrative_call，致 9 类部门叙事（yamen/local/
+                   # land/finance/exam/science/military_expand/diplomacy/reform）
+                   # 的计量全部落进本桶（token_group_of 未命中 → MeterPanel 只显示
+                   # 「其它」，无法按月报叙事细分；总数不漏、分组失真）。
+                   "_narrative_call"}
 
     def _meter_key_of(self) -> str:
         """自动检测发起本次 _call 的契约方法名（按方法分桶，零侵入）。
