@@ -13,16 +13,20 @@ from __future__ import annotations
 
 
 def _sync_public(src_path: str) -> str:
-    """合成立绘同步到前端静态目录，返回前端相对 URL（portraits/ministers/x.png）。
+    """合成立绘同步到前端静态目录，返回前端相对 URL（ministers/x.png）。
 
-    同步失败（无前端目录）返回 ''，不影响档案取数。
+    前端在 `./portraits/` 下拼此相对路径（MinistersPanel / AudienceView），
+    故返回值不含 `portraits/` 前缀。同步失败（无前端目录）返回 ''。
+
+    注意：目标必须是**游戏本体内的**前端静态目录 `game/frontend/public/`；
+    不可写 `_dev_tools/`（游戏运行期不得写入开发目录，见 README 分层纪律）。
     """
     import os
     import shutil
     try:
         repo = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))            # game/core/.. → 仓库根
-        dst_dir = os.path.join(repo, "_dev_tools", "frontend", "public",
+        dst_dir = os.path.join(repo, "game", "frontend", "public",
                                "portraits", "ministers")
         os.makedirs(dst_dir, exist_ok=True)
         dst = os.path.join(dst_dir, os.path.basename(src_path))

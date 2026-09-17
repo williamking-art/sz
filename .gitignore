@@ -31,6 +31,8 @@ build/
 dist/
 *.exe
 *.spec
+# 例外：游戏本体 PyInstaller 规格（README 列为本体文件；通配 *.spec 会误伤）
+!game/SongZuo.spec
 game/build/
 game/dist/
 # PyInstaller 目录模式分发产物（含 _internal/ 系统 DLL，均不参与版本管理）
@@ -78,6 +80,16 @@ game/frontend/**/*.bak
 _dev_tools/*
 !_dev_tools/songzuo-game-studio/
 !_dev_tools/agnes_gen.py
+
+# --- 质量门禁：测试套件与测试依赖入库 ---
+# game-dev/ 下另有 skill/（约 1.7GB）等大目录与已过时脚本（build_exe.py、
+# 旧 SongZuo.spec、verify_refactor.py 均引用已删除的 ui.*/gui_main.py），
+# 故只放行 tests/ 与测试依赖清单；game/pytest.ini 的 testpaths 指向此目录。
+!_dev_tools/game-dev/
+_dev_tools/game-dev/*
+!_dev_tools/game-dev/tests/
+!_dev_tools/game-dev/tests/**
+!_dev_tools/game-dev/requirements-dev.txt
 
 # --- 临时文件 / 本地辅助脚本 / 压缩包（不入库） ---
 *.tmpdir/
