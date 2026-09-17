@@ -24,10 +24,16 @@ out = {
     "yamen_info": {k: dict(v) for k, v in YAMEN_INFO.items()},
     "prefecture_list": list(PREFECTURE_LIST),
     "tech_lines": list(TECH_LINES),
+    # 科技节点元组：(id, line, era, name, desc, prereq, need_level, need_sub, cost, effect)
+    # 审查修复：原导出漏掉 need_level / need_sub → 前端 nodeStatus() 只校验 prereq，
+    # 而后端 core/asset_context.node_prereqs_met() 还校验 level 与副指标 →
+    # 面板显示「可研发」、点下去被后端拒（"前置未备，暂不可研"）。
     "tech_nodes": [
         {
             "id": n[0], "line": n[1], "era": n[2], "name": n[3], "desc": n[4],
             "prereq": list(n[5]) if isinstance(n[5], (list, tuple)) else n[5],
+            "need_level": n[6],
+            "need_sub": [list(x) for x in (n[7] or [])],
             "cost": n[-2] if len(n) >= 2 else None,
             "effect": n[-1],
         }
@@ -46,6 +52,10 @@ out = {
                     "base_cost": cell.get("base_cost", 0),
                     "fund": cell.get("fund", "treasury"),
                     "risk": cell.get("risk", "低"),
+                    # 审查修复：漏导 bandwidth_cost → 前端拿不到该项，个人面板
+                    # 「圣旨额度 -1（大驾在途，远程批奏）」提示恒不显示（该次行动
+                    # 实际确会扣带宽）。
+                    "bandwidth_cost": cell.get("bandwidth_cost", 0),
                     "era_gate": cell.get("era_gate"),
                     "prep": cell.get("prep", 0),
                     "distance": cell.get("distance", False),
