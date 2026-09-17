@@ -3,8 +3,9 @@ import os
 import numpy as np
 from PIL import Image
 
-SRC = r"g:\sz\game\content\ministers\layers\_src"
-DST = r"g:\sz\game\content\ministers\layers"
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...，换机器/换盘符即失败且写错位置）
+SRC = os.path.dirname(os.path.abspath(__file__))          # .../layers/_src
+DST = os.path.dirname(SRC)                                # .../layers
 H, W = 1080, 810
 CUT, FE = 0.40, 0.06
 POSES = ["zheng", "gongshou", "chihu", "longxiu"]

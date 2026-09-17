@@ -1,6 +1,7 @@
 import os, numpy as np
 from PIL import Image, ImageFilter
-L=r"g:\sz\game\content\ministers\layers"
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...）
+L=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .../layers
 PO=["zheng","gongshou","chihu","longxiu"]
 TI=["zi","fei","lv","qing","shi","qinwang"]
 H,W=1080,810
