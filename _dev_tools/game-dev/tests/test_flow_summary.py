@@ -14,7 +14,7 @@ import pytest
 
 # game 根（测试已迁 _dev_tools/game-dev/tests；game 根 = G:\sz\game）
 _GAME_ROOT = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "game"))
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "game"))
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 

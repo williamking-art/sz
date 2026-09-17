@@ -64,18 +64,49 @@ def _run_fixed(state, cat, params):
             target = "国库"
         if not amt or not target:
             return
-        if target == "内藏":
-            state.change_imperial_treasury(amt)
-        elif target == "国库":
-            state.change_treasury(amt)
-        elif target == "州郡":
-            # 州郡赈济等仍走国库列支
-            state.change_treasury(amt)
-        # 若指定了来源（移库），从来源扣除
-        if src == "内藏":
-            state.change_imperial_treasury(-amt)
-        elif src == "国库":
-            state.change_treasury(-amt)
+        # 审查 P0 修复（造钱漏洞）：原实现「先给目标全额入账、再扣来源」，
+        # 而 change_* 内部 max(0, …) 会把来源截断 → 差额凭空产生；未指定来源时
+        # 目标更是直接凭空增账；且 target="州郡" 原写作 change_treasury(+amt)，
+        # 赈济反给国库加钱（符号反）。现统一为「按来源可付额先截断、下不足上不划」，
+        # 口径与 confirm_inner_transfer（同族已修）一致。
+        _SRC_DST = {"内藏": "imperial_treasury", "国库": "treasury"}
+
+        def _avail(key: str) -> int:
+            return int(getattr(state, key, 0) or 0)
+
+        if target == "州郡":
+            # 州郡赈济：国库 → 各州郡府库（成对划转，按路数均分，余数归首路）
+            payable = min(amt, _avail("treasury"))
+            if payable <= 0:
+                return "国库不足，州郡赈济未能拨付。"
+            state.change_treasury(-payable)
+            _prefs = list(state.prefectures.values())
+            if _prefs:
+                _each, _rem = divmod(payable, len(_prefs))
+                for _i, _p in enumerate(_prefs):
+                    _p["local_treasury"] = (int(_p.get("local_treasury", 0) or 0)
+                                            + _each + (_rem if _i == 0 else 0))
+            return f"〔拨付〕州郡赈济 {payable} 贯（自国库列支）。"
+
+        _dst = _SRC_DST.get(target)
+        if _dst is None:
+            return
+        # 未指定来源时按「国库列支」处理（避免凭空增账）；同库同名则无可划
+        _src = _SRC_DST.get(src, "treasury") if src else "treasury"
+        if _src == _dst:
+            return
+        payable = min(amt, _avail(_src))
+        if payable <= 0:
+            return f"{src or '国库'}不足 {amt} 贯，未予拨付。"
+        if _src == "treasury":
+            state.change_treasury(-payable)
+        else:
+            state.change_imperial_treasury(-payable)
+        if _dst == "treasury":
+            state.change_treasury(payable)
+        else:
+            state.change_imperial_treasury(payable)
+        return f"〔移库〕{src or '国库'} → {target}：{payable} 贯。"
     elif cat == "fixed_army":
         # 即时整训：小幅提升相关防线
         pass

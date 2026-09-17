@@ -2642,7 +2642,10 @@ def _settle_finance(state, log):
         personnel_cash = int(personnel_cash * _pay_index)
     army_pay = int(army_cash_total * _pay_index)
     official_pay = int((official_cash_total + clerk_cash_total) * _pay_index)
-    if state.pay_system.get("mode") == "一体发钞":
+    # 一体发钞：俸禄以交子支付（国库不出现金、POP 不增铜钱）。此标志在两处消费：
+    # 俸禄落账（下方 POP wealth）与支出计账（effective_cash_out），必须一致。
+    _paper_pay = state.pay_system.get("mode") == "一体发钞"
+    if _paper_pay:
         state.jiaozi["issued"] += personnel_cash          # 交子按真俸额发行（单发，替代固定 cash_pay）
         state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - 2)
         expenditure = MONTHLY_EXP_CIVIL_BASE - waste_savings
@@ -2672,11 +2675,15 @@ def _settle_finance(state, log):
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环，不凭空消失）
     _total_soldiers = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
     _total_guan = sum(p["pops"]["官僚"]["size"] for p in state.prefectures.values()) or 1
-    for _p in state.prefectures.values():
-        if _p["pops"]["兵"]["size"] > 0:
-            _p["pops"]["兵"]["wealth"] += int(army_pay * _p["pops"]["兵"]["size"] / _total_soldiers)
-        if _p["pops"]["官僚"]["size"] > 0:
-            _p["pops"]["官僚"]["wealth"] += int(official_pay * _p["pops"]["官僚"]["size"] / _total_guan)
+    # 守恒修复（一体发钞）：俸禄已以交子支付，POP 铜钱不得再增。
+    # 原实现无条件给 POP 记铜钱，而同月既发行等额交子、国库又不支出 →
+    # 一笔俸禄记两次且凭空造币（货币总账逐月污染）。此处以 _paper_pay 门控。
+    if not _paper_pay:
+        for _p in state.prefectures.values():
+            if _p["pops"]["兵"]["size"] > 0:
+                _p["pops"]["兵"]["wealth"] += int(army_pay * _p["pops"]["兵"]["size"] / _total_soldiers)
+            if _p["pops"]["官僚"]["size"] > 0:
+                _p["pops"]["官僚"]["wealth"] += int(official_pay * _p["pops"]["官僚"]["size"] / _total_guan)
     # 官户免役钱（史实免役法·调参定案）：官户纳助役钱 = 俸钱总额 × 0.05，
     # 从官僚 POP wealth 按 size 扣缴入国库（钱守恒：官僚交钱、国库收钱，不凭空生钱）
     # 审查 P0：wealth 不足时只按实收入账（_tax_left 反映欠缴，不再全额造币）
@@ -2702,7 +2709,7 @@ def _settle_finance(state, log):
         if _p["pops"]["官僚"]["size"] > 0:
             _p["pops"]["官僚"]["wealth"] += int(int(corruption_cash_ded) * _p["pops"]["官僚"]["size"] / _total_guan)
     # 一体发钞时俸禄由交子支付（国库不发现金）；否则按实际发放 personnel_cash 计出（不以 cash_out 上限蒸发）
-    if state.pay_system.get("mode") == "一体发钞":
+    if _paper_pay:
         effective_cash_out = 0
     else:
         effective_cash_out = personnel_cash
