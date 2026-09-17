@@ -250,7 +250,7 @@ export default function AccountingPanel() {
                 </tbody>
               </table>
               <p className="mt-1.5 text-[11px] text-dim">
-                累计入 {humanizeCoin(asNum(im.total_in))}　内廷支度不列外朝会计
+                现存 {humanizeCoin(asNum(im.balance))}　内廷支度不列外朝会计
               </p>
             </div>
           </div>
