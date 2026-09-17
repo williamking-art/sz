@@ -491,11 +491,20 @@ def api_council_review(req: CouncilReviewReq, request: Request):
         if ai and getattr(ai, "available", False):
             try:
                 rev = ai.council_review(draft, _state.get_state_summary(), state=_state)
-            except Exception:
+            except Exception as e:  # noqa: BLE001
+                print(f"[server] 会签推演失败: {e!r}", flush=True)
                 rev = None
-        if not rev:
-            rev = {"memo": "（会签不可用）", "objections": "（门下省未见条目）",
-                   "executions": "（六部俟旨）", "verdict": "可准", "revised_effects": []}
+        # 审查修复（伪结论 + 失败入档）：契约失败时 council_review 返回带 _error 的
+        # **非空** dict，原 `if not rev` 判空对其无效 → 错误对象被当作合法会签意见；
+        # 且无论成败都 store_council_review 落库，随存档长期复用（玩家会看到 AI
+        # 从未产出的"可准"，并因缓存命中而每次都是它）。
+        # 现改为：仅真正的会签结果才落库；失败明确回报「待议」且不缓存。
+        _ok = bool(isinstance(rev, dict) and rev and not rev.get("_error"))
+        if not _ok:
+            return {"review": {"memo": "（会签未成，未落档）", "objections": "",
+                               "executions": "", "verdict": "待议",
+                               "revised_effects": []},
+                    "cached": False, "unavailable": True}
         _state.store_council_review(req.draft_id, rev)
         return {"review": _json_safe(rev), "cached": False}
 

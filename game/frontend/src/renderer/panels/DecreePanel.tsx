@@ -124,10 +124,14 @@ export default function DecreePanel() {
           is_secret: secret
         });
         if (fallbackRes.state) setState(fallbackRes.state);
-        setResult(fallbackRes.message || "圣旨已下发中枢门下，候朝堂推演施行。");
+        // 审查修复：原在 message 为空时编造「圣旨已下发…候推演施行」的伪成功，
+        // 而后端未知 category 分支当时会静默丢弃诏令 → 玩家以为已生效。现如实报。
+        setResult(fallbackRes.message || "拟旨未成（后端未返回结果），请重试或改用「颁行政务」。");
         setFreeText("");
       } catch (err2) {
-        setResult("拟旨未成：" + (e instanceof Error ? e.message : String(e)));
+        const m1 = e instanceof Error ? e.message : String(e);
+        const m2 = err2 instanceof Error ? err2.message : String(err2);
+        setResult(`拟旨未成：${m2}（首试：${m1}）`);
       }
     } finally {
       setBusy(false);
@@ -640,7 +644,8 @@ export default function DecreePanel() {
                     <p className="font-kai">【中书省拟稿】{reviewing ? "（廷议推演中…）" : rev("memo") || "（无）"}</p>
                     <p className="mt-1 font-kai">【门下省封驳】{reviewing ? "（核议中…）" : rev("objections") || "（无）"}</p>
                     <p className="mt-1 font-kai">【尚书省六部】{reviewing ? "（承旨待办中…）" : rev("executions") || "（无）"}</p>
-                    <p className="mt-1 font-kai">【会签结论】{reviewing ? "—" : rev("verdict") || "可准"}</p>
+                    {/* 缺 verdict 时不得默认「可准」——那会伪造一个 AI 从未给出的结论 */}
+                    <p className="mt-1 font-kai">【会签结论】{reviewing ? "—" : rev("verdict") || "待议"}</p>
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <button
