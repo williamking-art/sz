@@ -827,8 +827,19 @@ def _settle_land_local(state, log):
             _gp = int(produce * p.get("gentry_land", 0) / _land)
             _nong["grain"] += _gp // 2; _shen["grain"] += _gp // 2                      # 地主田→佃户半+士绅半
             _op = int(produce * p.get("official_land", 0) / _land)
-            _nong["grain"] += _op // 2; state.change_granary(_op // 2)                   # 官田→佃户半+太仓
-            state.granary_stats["official"] = state.granary_stats.get("official", 0) + _op // 2
+            # 官田→佃户半 + 太仓半。
+            # 审查修复（静默丢粮）：change_granary 有 cap 封顶，原未先查余量
+            # → 满仓时该半份粮被 cap 吞掉且不留痕（漕运段已先算 room，此处对齐）。
+            # 现按余量截断，仓不容者归佃户，粮量不凭空消失；统计只记实际入仓数。
+            _op_half = _op // 2
+            _room = max(0, int(getattr(state, "granary_cap", 1 << 30))
+                        - int(getattr(state, "granary", 0) or 0))
+            _op_in = min(_op_half, _room)
+            _nong["grain"] += _op_half - _op_in
+            if _op_in > 0:
+                state.change_granary(_op_in)
+                state.granary_stats["official"] = (
+                    state.granary_stats.get("official", 0) + _op_in)
             _ip = int(produce * p.get("imperial_land", 0) / _land)
             _nong["grain"] += _ip // 2; state.imperial_granary += _ip // 2              # 皇庄→佃户半+内帑粮
             _shen["grain"] += int(produce * p.get("hidden_land", 0) / _land)            # 隐田→士绅(逃税)
