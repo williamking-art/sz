@@ -430,7 +430,9 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
         if dim and dim not in MATERIAL_PRICE_BASE:
             name = new_mat.get("name", dim)
             unit = new_mat.get("unit", "斤")
-            register_raw_material(dim, unit, 150)  # 新物资默认价 150 钱/单位
+            # 传入 state：同时为新区建好资源槽，否则后续工程/作坊读该维会
+            # KeyError（中断整月结算）或按缺料永久停滞（审查修复）
+            register_raw_material(dim, unit, 150, state=state)  # 新物资默认价 150 钱/单位
             log_new = f"[新物产] 诏引「{name}」（{dim}，{unit}），已入物资格局，各路可劝种/开矿增其产。"
             _enqueue(state, {"task_name": f"推广{name}", "months": 12, "category": "fixed_tech",
                              "params": params, "minister": minister, "progress": 0,
