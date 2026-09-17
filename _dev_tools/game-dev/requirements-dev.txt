@@ -1,0 +1,4 @@
+# 开发/测试依赖（运行游戏本身不需要）
+# 安装：pip install -r requirements-dev.txt
+pytest>=7.4.0
+pytest-cov>=4.1.0

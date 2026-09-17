@@ -140,7 +140,7 @@ goto LaunchBackend
 
 rem ---- Step 5: Launch Electron (backend auto-spawned by the client) ----
 :LaunchElectron
-cd /d "%~dp0_dev_tools\frontend"
+cd /d "%~dp0game\frontend"
 if exist "node_modules\.bin\electron-vite.cmd" goto RunDev
 
 echo [Songzuo] Installing frontend deps (first run, about 3-5 min) ...
