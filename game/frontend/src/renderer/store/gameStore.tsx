@@ -223,11 +223,18 @@ export function hudPrivy(state: GameState | null): number {
   return pick<number>(state, "imperial_treasury", 0);
 }
 
-/** 词元用量：后端快照可选携带 token_usage；缺失返回 null（顶栏不显示）。 */
+/** 词元用量（顶栏）：后端快照**从不**携带 token_usage（TopBar 注释亦承认），
+ *  故原实现恒返回 null、顶栏从不显示。改为汇总快照中真实存在的 ai_token_log
+ *  （与治务枢纽「AI 计量」页同源同口径），无记录时返回 null 由顶栏自行隐藏。 */
 export function hudToken(state: GameState | null): number | null {
-  const u = pick<Record<string, unknown> | null>(state, "token_usage", null);
-  if (!u) return null;
-  return Number(u.prompt ?? 0) + Number(u.completion ?? 0);
+  const rows = pick<unknown[]>(state, "ai_token_log", []);
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let total = 0;
+  for (const r of rows) {
+    const d = (r ?? {}) as Record<string, unknown>;
+    total += Number(d.prompt_tokens ?? 0) + Number(d.completion_tokens ?? 0);
+  }
+  return total > 0 ? total : null;
 }
 
 // 在办事由：active_focus(置顶国策) + longterm_public + longterm_secret（对齐 panels_core.py::_refresh_left_card）
@@ -256,11 +263,10 @@ export function hudTodos(state: GameState | null): TodoItem[] {
   const sec = pick<Array<Record<string, unknown>>>(state, "longterm_secret", []);
   const issues = [...pub, ...sec];
 
+  // 审查修复：原在无事可办时返回两条**带假进度**（20%/15%）的占位事务，
+  // 会让玩家以为有两件在办之事。改为返回空列表，由调用方显示自身的空状态。
   if (items.length === 0 && issues.length === 0) {
-    return [
-      { label: "暂无在办大事", progress: 20 },
-      { label: "江山初定，百废待兴", progress: 15 }
-    ];
+    return [];
   }
 
   for (const t of issues.slice(0, 7 - items.length)) {
