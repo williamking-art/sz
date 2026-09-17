@@ -170,7 +170,12 @@ function MechanismTab() {
         ) : (
           Object.keys(legacies).map((k) => {
             const L = asDict(legacies[k]);
-            return <p key={k} className="text-sm text-ink-light">{k}（{L.active ? "生效中" : "待触发"}）</p>;
+            // 键名为内部标识，须显示 name（同 CourtPanel 帝国修正的取法）
+            return (
+              <p key={k} className="text-sm text-ink-light">
+                {asStr(L.name, "帝国修正")}（{L.active ? "生效中" : "待触发"}）
+              </p>
+            );
           })
         )}
       </Section>
@@ -178,7 +183,12 @@ function MechanismTab() {
         {Object.keys(mechs).length === 0 ? (
           <p className="text-sm text-dim">— 未设机制 —</p>
         ) : (
-          Object.keys(mechs).map((k) => <p key={k} className="text-sm text-ink-light">{k}</p>)
+          // 同上：不得直出内部键名；有 name 用 name，无则以「已设机制」归并
+          Object.keys(mechs).map((k) => (
+            <p key={k} className="text-sm text-ink-light">
+              {asStr(asDict(mechs[k]).name, "已设机制")}
+            </p>
+          ))
         )}
       </Section>
       <Section title="宰 省 与 俸 禄">
