@@ -13,7 +13,7 @@ import pytest
 
 # 将 game 包根加入路径（脚本直接运行时）
 _GAME_ROOT = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "game"))
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "game"))
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 

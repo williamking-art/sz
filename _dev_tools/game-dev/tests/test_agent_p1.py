@@ -6,7 +6,7 @@ import sys
 import pytest
 
 _GAME_ROOT = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "game"))
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "game"))
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
@@ -27,10 +27,17 @@ def test_contract_validators_reject_bad():
     assert _P1_ATT_DELTA["大"] == 8          # attitude CAP 8
     assert _P1_ARM_DELTA["大"] == 50000      # 兵额 CAP 5万
     assert _P1_RELIEF["大"] == 500000        # 赈济 50万石
+    # 七档齐备（无/微/小/中/大/巨/极）：无=0 表示「明确不生效」，
+    # 不再靠 .get 默认值回落成微/小（否则"无"也会扣军资/开仓）。
+    # 巨/极受原有 CAP 钳制，不得因补档而越界。
+    _SEVEN = {"无", "微", "小", "中", "大", "巨", "极"}
+    for _tbl in (_P1_ATT_DELTA, _P1_ARM_DELTA, _P1_RELIEF):
+        assert set(_tbl) == _SEVEN
+        assert _tbl["无"] == 0
     for k, v in _P1_ATT_DELTA.items():
-        assert 3 <= v <= 8
+        assert 0 <= v <= 8, k
     for k, v in _P1_ARM_DELTA.items():
-        assert 10000 <= v <= 50000
+        assert 0 <= v <= 50000, k
 
 
 def test_diplomacy_contract_applies():

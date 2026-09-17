@@ -90,6 +90,8 @@ _dev_tools/game-dev/*
 !_dev_tools/game-dev/tests/
 !_dev_tools/game-dev/tests/**
 !_dev_tools/game-dev/requirements-dev.txt
+# 放行 tests/** 会连带纳入 __pycache__，须显式排除（每次跑测试都变）
+_dev_tools/game-dev/tests/__pycache__/
 
 # --- 临时文件 / 本地辅助脚本 / 压缩包（不入库） ---
 *.tmpdir/
