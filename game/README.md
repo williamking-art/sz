@@ -27,7 +27,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 │   ├── ui/                  # **Web 舆图桥**（Tk 已废弃删除）：仅 map_web.py（MapLibre 控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 assets/map/web）
 │   ├── backend/             # AI 服务抽象（LocalBackend / HttpBackend / FastAPI 参考 server）
 │   ├── content/             # 数据表（派系 / 军队 / 州县 / 六部 / 科技 / 财政 / 大臣 / ministers/persona.py 人格 / 建筑 / 家产基线 / codex_data.py 图鉴数据）
-│   ├── audio/               # 音频（manifest 清单 + tts 语音朗读，已落地）
+│   ├── audio/               # 音频骨架：manifest 槽位登记 + tts 朗读（**播放未接线**）
 │   ├── telemetry/           # 玩法遥测（store.py 指标落库，可选）
 │   ├── assets/              # 美术 / 舆图资源（map / 立绘 / 事件图 / 图标 / audio / models）
 │   ├── saves/               # 玩家存档（运行时生成）
@@ -71,14 +71,14 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 | 模块 | 职责 |
 |------|------|
-| `ai/` | AI 叙事管线：`client.py`（LLM 调用 + 契约 validate/回喂 + `AI_ERROR_CODES` 6 码全生产者〔超时/401/403 精确映射〕+ 角色 agent 契约 + function calling 三档）、`client_narrative.py`（叙事 agent 客户端）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图，**待接线**：有 T5 测试覆盖，尚无生产调用方）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验〔支持中文数字〕+ 来源闭集 + 人物校验表）、`narrative_fallback.py`（离线降级叙事模板）、`desensitize.py`（脱敏）、`schemas.py`（A1：JSON Schema 校验，可选）、`token_meter.py`（A3：token 计量 + **HTTP 计量表分组** `grouped_meter_rows`）、`semantic.py` + `vector_store.py`（B2：本地语义检索，可选）、`model_setup.py`（B2 模型下载入口）、`safety_lexicon.json`（安全词表）、`prompts/`（35+ 角色 prompt + decree_style_ref 拟旨文风） |
+| `ai/` | AI 叙事管线：`client.py`（LLM 调用 + 契约 validate/回喂 + `AI_ERROR_CODES` 6 码全生产者〔超时/401/403 精确映射〕+ 角色 agent 契约 + function calling 三档）、`client_narrative.py`（叙事 agent 客户端）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图，**待接线**：有 T5 测试覆盖，尚无生产调用方）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验〔支持中文数字〕+ 来源闭集 + 人物校验表）、`narrative_fallback.py`（离线降级叙事模板）、`desensitize.py`（脱敏）、`schemas.py`（A1：JSON Schema 校验，可选）、`token_meter.py`（A3：token 计量 + **HTTP 计量表分组** `grouped_meter_rows`）、`semantic.py` + `vector_store.py`（B2：本地语义检索，可选）、`model_setup.py`（B2 模型下载入口）、`safety_lexicon.json`（安全词表）、`prompts/`（23 个 .md：角色 prompt + decree_style_ref 拟旨文风） |
 | `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事；`settle_local` 结算异常**快照回滚**）+ `commands_decree.py`（拟旨族 + 内帑金额解析）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11，含财政/灾荒/士绅囤粮、金融调制读 `FINANCE_DECIDE_BASE` 单一源）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调；5 契约接线 + diff 唤醒；未接线登记 `PENDING_CONTRACTS`）、`async_ai.py`（后台 AI + 主线程回调；网络退避重试；失败不静默）、`free_effect.py`（契约落地，第二条受控通道）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维：目标值重算）、`minister_profile.py`（群臣档案：年龄/性情/生平，HTTP 与测试共用） |
 | `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层） |
 | `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离） |
 | `ui/` | **Web 舆图桥**（Tk 已废弃删除，界面为 `frontend/` Electron+React）：`map_web.py`（MapLibre 舆图控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 `assets/map/web`，pywebview/浏览器双模式） |
 | `backend/` | AI 服务抽象：`client.py`（LocalBackend / HttpBackend 统一接口）、`server.py`（B3：FastAPI + Uvicorn 参考后端，薄壳复用 LocalBackend 零复制，供 HttpBackend 联调/回归/远程体验） |
 | `content/` | 数据（**单一权威源**）：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES / `clamp` / `TECH_EFFECT_LABELS` / `DESENSITIZE_MAP`）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化〔国运取 `population_satisfaction`；仅 MINISTERS 在册者演化〕+ 阳奉阴违）、`codex_data.py`（图鉴 8 类数据，自 Tk 面板迁出） |
-| `audio/` | 音频（已落地）：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）；音量由**前端设置面板**控制（localStorage），本包不自持音量定义 |
+| `audio/` | 音频**骨架（播放未接线）**：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源；8 个槽位 `file` 均为空，其中 6 项待生成、2 项为运行时合成）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）。Tk 界面删除后播放路径随之消失，`assets/audio/` 目前仅 `.gitkeep`；前端设置面板的音量项亦只有本地 state（不写 localStorage、无播放对象）。即「清单已定、播放未接」，待接线后方可称落地 |
 | `telemetry/` | 玩法遥测：`store.py`（指标落库，可选，规划性增强中） |
 
 ---
