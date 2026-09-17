@@ -576,7 +576,12 @@ def _settle_economy(state, log):
             pops["农"]["size"] -= hard
             pops["士绅"]["size"] -= elite
             pops["官僚"]["size"] += hard + elite
-        # 4) 流民吸收
+        # 4) 流民吸收（跨路迁入，非本地农户流出）
+        # 语义澄清（审查复核结论，勿按「方向反了」误改）：absorb 为**流入率**——
+        # 治理良好（mood/govern 高、unrest 低）时吸引外来流民迁入本路，故写成
+        # local + delta；其 cap（本路人口 5%）也只对流入成立。
+        # 已知取舍：跨路迁入未与来源路配对（全局人口账因此非闭合），
+        # tests/test_pop_identity.py 已将此列为「设计内·非闭合」科目并断言其公式。
         local = p.get("refugees", 0)
         if local > 0 or p.get("unrest", 15) >= 20:
             mood = p.get("mood", 55)
@@ -1789,7 +1794,10 @@ def _settle_civilian_hoard(state, log):
         if act == "囤":
             buy = int(p.get("grain", 0) / 12.0 * mult)      # 月产 × 档位
             price_wen = max(int(price * 1000), 1)           # 文级单价（与 _sell_to_buyers 同口径）
-            afford = genty["wealth"] // price_wen           # 资金能买多少石（文级精度）
+            # 审查修复（量级错）：wealth 单位为贯、price_wen 为文/石，
+            # 原式 wealth // price_wen 少乘 1000 → 可购量被低估千倍，囤粮机制实质失效
+            # （例：26 万贯、1 贯/石 时只能买 260 石）。统一为贯→文换算。
+            afford = genty["wealth"] * 1000 // price_wen     # 资金能买多少石（文级精度）
             room = max(0, _soft_cap - genty["grain"])       # 囤粮余量（软上限约束）
             src = max(0, int(p.get("grain", 0) / 12.0))     # 粮源上限：本路在库粮的月产部分
             buy = min(buy, afford, room, src)
@@ -2062,12 +2070,37 @@ def _evaluate_timeline_breaks(state, log):
 # Step 6: 军事/外交结算
 # ------------------------------------------------------------
 # 12 步 agent 化 P1 换算表（程序 TIER_RANGE 同源原则：agent 只给档位词，数值程序换算封顶）
-_P1_ATT_DELTA = {"微": 3, "小": 5, "中": 6, "大": 8}         # 外交 attitude ±3~±8（CAP 8）
-_P1_ARM_DELTA = {"微": 10000, "小": 20000, "中": 35000, "大": 50000}   # 兵额 ±1万~±5万（CAP 5万）
-_P1_TRAIN_DELTA = {"微": 2, "小": 3, "中": 5, "大": 6}       # 训练/士气 ±2~±6
-_P1_LEVY_COST = {"微": 100000, "小": 200000, "中": 350000, "大": 500000}  # 征发 cost 10万~50万
-_P1_RELIEF = {"微": 100000, "小": 200000, "中": 350000, "大": 500000}     # 赈济 10万~50万石
-_P1_REFUGEE = {"微": 50000, "小": 120000, "中": 200000, "大": 300000}     # 流民 ±5万~±30万
+# 审查修复：契约 validate 允许的档位是七档（无/微/小/中/大/巨/极，见
+# ai/client_utils._TIERS7），而本表原只登记四档 → "无" 被 .get(默认值) 当成
+# 微/小执行（赈济仍开仓、征发仍扣 10 万贯），"巨/极" 反落到"大"之下（档位倒挂）。
+# 现补齐七档：无=0（明确不生效），巨/极按 content.data.TIER_RANGE 比例外推
+# （大:巨:极 = 1.5:2.0:2.5）。
+_TA = 5 / 3.0          # 大 → 巨 倍率（2.0/1.5）
+_TB = 5 / 2.0          # 大 → 极 倍率（2.5/1.5）
+
+
+def _tier7(v_tiny: int, v_small: int, v_mid: int, v_big: int,
+           cap: int = None) -> dict:
+    """构造七档换算表（无/微/小/中/大/巨/极）。
+
+    巨/极由大档按 content.data.TIER_RANGE 比例外推；若给出 cap，则一律受其钳制
+    （外交 attitude 原 CAP 8、兵额原 CAP 5 万不得因补档而被越过）。
+    """
+    big_j = int(v_big * _TA)
+    big_k = int(v_big * _TB)
+    if cap is not None:
+        big_j = min(big_j, cap)
+        big_k = min(big_k, cap)
+    return {"无": 0, "微": v_tiny, "小": v_small, "中": v_mid, "大": v_big,
+            "巨": big_j, "极": big_k}
+
+
+_P1_ATT_DELTA = _tier7(3, 5, 6, 8, cap=8)      # 外交 attitude ±3~±8（CAP 8）
+_P1_ARM_DELTA = _tier7(10000, 20000, 35000, 50000, cap=50000)   # 兵额 ±1万~±5万（CAP 5万）
+_P1_TRAIN_DELTA = _tier7(2, 3, 5, 6)           # 训练/士气 ±2~±6
+_P1_LEVY_COST = _tier7(100000, 200000, 350000, 500000)  # 征发 cost 10万~50万
+_P1_RELIEF = _tier7(100000, 200000, 350000, 500000)     # 赈济 10万~50万石
+_P1_REFUGEE = _tier7(50000, 120000, 200000, 300000)     # 流民 ±5万~±30万
 
 
 def _settle_military_diplomacy(state, log):
