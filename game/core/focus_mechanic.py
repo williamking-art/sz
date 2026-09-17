@@ -424,7 +424,7 @@ def settle_focus(state, log) -> None:
         # 扣除月度施行度支（若国库充足）
         if state.treasury >= cost:
             state.change_treasury(-cost)
-            state.statistics["total_expense"] = state.statistics.get("total_expense", 0) + cost
+            state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + cost
         else:
             log.append(f"[国策度支] 国库紧绌，推行【{active.get('name')}】经费有所掣肘")
 
@@ -456,8 +456,8 @@ def _apply_branch_effect(state, log, branch, eff, node) -> None:
     try:
         if branch == "govern":
             # 政务：裁汰冗费，财政减耗
-            state.statistics["total_expense"] = max(
-                0, state.statistics.get("total_expense", 0) - 5000)
+            state.statistics["total_expenditure"] = max(
+                0, state.statistics.get("total_expenditure", 0) - 5000)
         elif branch == "military":
             # 军事：军备增强（城防/军器）
             for line in state.defense_lines.values():

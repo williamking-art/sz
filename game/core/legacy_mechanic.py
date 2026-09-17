@@ -90,7 +90,7 @@ def _eff_new_fund(state, log):
 def _eff_redundant_officials(state, log):
     """冗官冗费：财政负担加重（俸给支出上浮）。"""
     # 通过 state 的财政字段施加（非守恒，走结算函数）
-    state.statistics["total_expense"] = state.statistics.get("total_expense", 0) + 20000
+    state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + 20000
     log.append("[修正] 冗官冗费：俸给浩繁，府库日耗")
 
 
@@ -102,7 +102,7 @@ def _eff_hidden_land(state, log):
 
 def _eff_liao_xia_border(state, log):
     """辽夏边患：军费压力，边境不安。"""
-    state.statistics["total_expense"] = state.statistics.get("total_expense", 0) + 30000
+    state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + 30000
     log.append("[修正] 辽夏边患：边烽有警，军费浩繁")
 
 
