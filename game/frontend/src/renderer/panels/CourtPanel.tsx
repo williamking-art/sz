@@ -364,8 +364,11 @@ export default function CourtPanel() {
                 <p className="text-xs leading-relaxed text-dim">
                   {active ? asStr(l.desc) : `已消除：${asStr(l.clear_desc)}`}
                 </p>
+                {/* 后端 legacies[*].progress 为 0~1 小数（core/legacy_mechanic.py），
+                    而 Meter 按 0~100 计比值 → 原样传入使进度条恒贴底（误导为"毫无进展"）。
+                    此处换算为百分数。 */}
                 {active && asNum(l.progress) > 0 && (
-                  <Meter value={asNum(l.progress)} label="消除进度" />
+                  <Meter value={asNum(l.progress) * 100} label="消除进度" />
                 )}
               </div>
             );
