@@ -48,11 +48,14 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     ? `./portraits/${pUrl}`
     : isMilitary ? "./portraits/general.png" : "./portraits/minister.png";
 
-  // 4. 六维属性与特质参数生成（稳定伪随机）
+  // 4. 属性与特质参数生成（稳定伪随机）
+  // 审查修复：原含 `loyalty: 75 + seed % 20` 一项，并显示于属性条与影响特质标签。
+  // 两处违规：(a) content/ministers/data.py 明写忠诚度「该数值不可见，绝不进入任何
+  // UI 文本」；(b) 该值纯前端伪造（与后端 state.loyalty 无关，后端口径为 0~1）。
+  // 现移除该维度；特质标签改按派系（公开档案信息）判定。
   let seed = 0;
   for (let i = 0; i < ministerName.length; i++) seed = (seed * 37 + ministerName.charCodeAt(i)) % 10007;
   const stats = {
-    loyalty: 75 + (seed % 20),
     reputation: 80 + ((seed * 3) % 18),
     courage: 70 + ((seed * 7) % 25),
     military: isMilitary ? 85 + ((seed * 11) % 12) : 50 + ((seed * 11) % 25),
@@ -64,7 +67,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   const traits = [
     ministerFaction,
     isMilitary ? "经略九边" : "深谋远虑",
-    stats.loyalty >= 85 ? "忠直刚方" : "顾全大局",
+    ministerFaction === "清流言官" ? "忠直刚方" : "顾全大局",
     stats.govern >= 90 ? "治国干城" : "老成持重"
   ];
 
@@ -511,11 +514,8 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
               {ministerRole}
             </p>
 
-            {/* 六维属性横排条 */}
+            {/* 属性横排条（不含忠诚——该维度为隐藏值，绝不进入任何 UI 文本） */}
             <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center text-[11px] font-sans">
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">忠诚</span> <strong className="text-red font-kai">{stats.loyalty}</strong>
-              </div>
               <div className="rounded border border-gold/30 bg-card py-1">
                 <span className="text-dim">清誉</span> <strong className="text-ink font-kai">{stats.reputation}</strong>
               </div>
