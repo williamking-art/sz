@@ -150,6 +150,12 @@ function HoverDetailCapsule({
 }) {
   const closeTimerRef = useRef<number | null>(null);
 
+  // D 修复（定时器泄漏）：悬浮卡卸载时清掉待触发的关闭定时器，
+  // 否则卸载后仍会调用 onClose（父级 setState）。
+  useEffect(() => () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+  }, []);
+
   // 数值展示统一走 utils/format（万贯）；读数未取到（null）→ 占位 "—"，不显示伪造数字
   const inLbl = data.totalIn === null ? "—" : `+${humanizeCoin(data.totalIn)}`;
   const outLbl = data.totalOut === null ? "—" : `-${humanizeCoin(data.totalOut)}`;

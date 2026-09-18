@@ -180,7 +180,8 @@ def _build_branch():
 
 
 def _build_region():
-    """区域：12 路（驻军依 ARMY_UNIT_INIT 静态）+ 外邦（EXTERNAL_FORCES 静态初值）。"""
+    """区域：各路（条目数随 PREFECTURE_LIST，当前 20 路；驻军依 ARMY_UNIT_INIT 静态）
+    + 外邦（EXTERNAL_FORCES 静态初值）。E 修复：原注释写死「12 路」，与 data.py 不符。"""
     from content.data import PREFECTURE_LIST, ARMY_UNIT_INIT, EXTERNAL_FORCES
     from content.codex_text import CODEX_REGION_NOTE, CODEX_EXTERNAL_DESC
     items = []

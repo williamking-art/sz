@@ -17,7 +17,6 @@ export default function App() {
   const inGame = useGameStore((s) => s.inGame);
   const state = useGameStore((s) => s.state);
   const overlays = useGameStore((s) => s.overlays);
-  const startShown = useRef(false);
   // 终局浮层守卫：game_over 置真后只自动弹一次；game_over 复位（新开局）后再遇终局可再弹
   const concludeShownRef = useRef(false);
 

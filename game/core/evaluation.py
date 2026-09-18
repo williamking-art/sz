@@ -45,18 +45,20 @@ def evaluate_game(state) -> dict:
     # 民生
     minsheng = max(0, min(100, state.population_satisfaction))
 
-    # 财政
-    caizheng = 50
-    if state.treasury > 10_000_000:
+    # 财政（B3：破产判据由「负国库」改为「累计亏空深度」——国库禁穿底，
+    # 原 `treasury > -2_000_000` 等负值分档不可达，财政分恒 ≥50。）
+    from content.data import TREASURY_CRISIS_LINE, TREASURY_COLLAPSE_LINE
+    _deficit = state.deficit_depth()
+    if _deficit > TREASURY_COLLAPSE_LINE:
+        caizheng = 10
+    elif _deficit > TREASURY_CRISIS_LINE:
+        caizheng = 30
+    elif state.treasury > 10_000_000:
         caizheng = 90
     elif state.treasury > 5_000_000:
         caizheng = 70
-    elif state.treasury > 0:
-        caizheng = 50
-    elif state.treasury > -2_000_000:
-        caizheng = 30
     else:
-        caizheng = 10
+        caizheng = 50
 
     # 艺术造诣
     yishu = max(0, min(100, state.art_mastery))
@@ -139,8 +141,9 @@ def check_abdication(state) -> tuple:
     # 民怨沸腾
     if state.population_satisfaction < 20:
         reasons.append("民怨沸腾")
-    # 国库亏空严重
-    if state.treasury < -5000000:
+    # 国库亏空严重（B3：国库禁穿底，改用累计亏空深度判定）
+    from content.data import TREASURY_CRISIS_LINE
+    if state.deficit_depth() > TREASURY_CRISIS_LINE:
         reasons.append("国库亏空")
     # 皇威扫地且健康差
     if state.prestige < 25 and state.emperor_health < 30:
@@ -168,9 +171,9 @@ def check_reach_end_year(state) -> tuple:
 
 def check_game_over(state):
     """综合检测游戏结束条件"""
-    # 国库崩坏（国用耗竭，天下鼎沸）
+    # 国库崩坏（国用耗竭，天下鼎沸）——B3：改判累计亏空深度
     from content.data import TREASURY_COLLAPSE_LINE
-    if state.treasury < TREASURY_COLLAPSE_LINE:
+    if state.deficit_depth() > TREASURY_COLLAPSE_LINE:
         state.game_over = True
         state.game_result = "国用耗竭，天下鼎沸——大宋府库空虚，纲纪尽弛"
         return True

@@ -39,14 +39,20 @@ export default function MainMenu() {
   }, [bgIndex]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    // D 修复（卸载后仍 setState）：内嵌 setTimeout 原先未随组件卸载清理 ——
+    // 卸载瞬间若正处于 1.5s 淡入窗口，回调仍会触发 bgIndex/bgFading 更新。
+    let inner: number | undefined;
+    const timer = window.setInterval(() => {
       setBgFading(true);
-      setTimeout(() => {
+      inner = window.setTimeout(() => {
         setBgIndex((i) => (i + 1) % BG_POOL.length);
         setBgFading(false);
       }, 1500);
     }, BG_SWITCH_MS);
-    return () => clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      if (inner !== undefined) window.clearTimeout(inner);
+    };
   }, []);
 
   const setState = useGameStore((s) => s.setState);
@@ -173,7 +179,7 @@ export default function MainMenu() {
               <MenuButton
                 icon={<BookOpen size={20} className="text-gold/80" />}
                 title="大 宋 典 制"
-                subtitle="一百八十七辞条国风图鉴"
+                subtitle="国风图鉴 · 典章制度"
                 onClick={() => pushOverlay({ kind: "codex", title: "大宋典制 · 图鉴" })}
               />
 

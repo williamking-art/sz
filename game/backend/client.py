@@ -284,10 +284,17 @@ class LocalBackend(BackendClient):
 
 
 class HttpBackend(BackendClient):
-    """远程后端（Rust 服务 songzuo_server）：前端只收发 JSON 快照。
+    """远程后端：前端只收发 JSON 快照。
 
     后端持有 GameState，前端本地持有一个 GameState 副本用于渲染。
     每次动作后后端返回完整状态 JSON，前端用 GameState 重建副本。
+
+    E 修复（文档前后矛盾）：模块头原写「原 Rust 方案未采」，本类却写「Rust 服务
+    songzuo_server」，两处冲突。据实：本类只依赖 `/api/*` 契约，**不绑定具体实现**——
+      ① `backend/server.py`（Python + FastAPI，薄壳复用 LocalBackend，端点最全，推荐）；
+      ② `songzuo_server`（Rust 简化版 MVP，仅核心端点；`save_slots`/`conclude`
+         等在下方有本地降级兜底，见 README「后端连接」段）。
+    选择顺序见 `BackendClient.create()`（SONGZUO_BACKEND > backend_config.json > 本地）。
     """
 
     def __init__(self, base_url):
@@ -315,16 +322,24 @@ class HttpBackend(BackendClient):
                 raise RuntimeError(
                     "后端未授权（HTTP %d）：请配置环境变量 SONGZUO_SERVER_TOKEN "
                     "或 backend_config.json 的 token 字段" % e.code)
-            # 5xx（含云托管缩容到 0 后的 503）一般可重试：实例正在冷启动
+            # 5xx（含云托管缩容到 0 后的 503）一般可重试：实例正在冷启动。
+            # C4 修复：但**非幂等端点**（advance/action/resolve_event/save/decree）
+            # 重试可能造成重复推演回合、重复下诏 → 一律不重试，如实上报。
             if 500 <= e.code < 600 and _attempt < self._max_retry:
+                if path.startswith(self._NON_IDEMPOTENT):
+                    raise RuntimeError(
+                        f"后端错误 {e.code}（{path} 为非幂等端点，不自动重试）: "
+                        f"{e.read().decode('utf-8', 'ignore')}")
                 # 审查 P3：5xx 重试补退避（原实现立即连打，冷启动窗口内无意义）
                 import time
                 time.sleep(self._retry_backoff * (2 ** _attempt))
                 return self._post(path, payload, _attempt + 1)
             raise RuntimeError(f"后端错误 {e.code}: {e.read().decode('utf-8', 'ignore')}")
         except Exception as e:
-            # 连接超时 / 连接拒绝等：云托管 MinNum=0 冷启动空窗，短退避重试
-            if _attempt < self._max_retry:
+            # C4 修复（重复计费/重复推演）：原实现**任何**异常都退避重发，含「读超时」
+            # —— 超时 ≠ 未执行，服务端可能已处理并提交。现仅在「请求确认未送达」
+            # （拒绝连接/DNS 失败等连接建立前错误）时重试；超时一律上抛。
+            if _attempt < self._max_retry and self._is_presend_error(e):
                 import time
                 time.sleep(self._retry_backoff * (2 ** _attempt))
                 return self._post(path, payload, _attempt + 1)
@@ -333,6 +348,25 @@ class HttpBackend(BackendClient):
     # 冷启动容错：云托管 MinNum=0 时首次请求可能 503/超时，重试可等实例唤醒
     _max_retry = 3
     _retry_backoff = 1.0
+    #: 非幂等端点前缀（重试会造成重复副作用）
+    _NON_IDEMPOTENT = ("/api/advance", "/api/action", "/api/resolve_event",
+                       "/api/save", "/api/decree/")
+
+    @staticmethod
+    def _is_presend_error(e) -> bool:
+        """是否为「请求发出前」失败（可安全重试，即使端点非幂等）。
+
+        读超时（socket.timeout/TimeoutError）明确排除：请求可能已被服务端受理。
+        """
+        import socket
+        reason = getattr(e, "reason", None)
+        if reason is None:
+            return False
+        if isinstance(reason, (socket.timeout, TimeoutError)):
+            return False
+        return isinstance(reason, (ConnectionRefusedError, socket.gaierror,
+                                   ConnectionResetError, ConnectionAbortedError,
+                                   ConnectionError))
 
     @staticmethod
     def _to_state(d):

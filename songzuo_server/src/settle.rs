@@ -237,7 +237,14 @@ fn settle_finance(state: &mut GameState, log: &mut Vec<String>) {
         + material_coin as f64;
 
     // ---- 变法节流（省浮费/裁汰冗员）：取 savings 冲减常项 ----
-    let waste_savings = state.waste_reform.get("savings").and_then(|v| v.as_i64()).unwrap_or(0);
+    // D 修复：savings 无上限时 `expenditure = BASE - savings` 可为负 → 支出为负、
+    // 国库反增。按「不超过经常性开支基数」封顶（与 Python 侧同口径）。
+    let waste_savings = state
+        .waste_reform
+        .get("savings")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0)
+        .clamp(0, MONTHLY_EXP_CIVIL_BASE);
 
     // ---- 折色俸禄兜底（旧口径兼容）----
     let pay_ratio = state.pay_system.get("cash_ratio").and_then(|v| v.as_f64()).unwrap_or(0.5);
@@ -474,9 +481,11 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
     let corruption_grain_loss = gap_total * CORRUPTION_MULT * 0.5 * (1.0 - oversight);
     let grain_out = army_grain + official_grain + clerk_grain + sparrow + corruption_grain_loss;
 
-    // 田赋本色入：settle_land_local 已将本色粮写入各路 storage（州仓），
-    // 太仓只通过下方漕运汇聚接收（对齐 Python L456→L628-646），绝不再二次加 grain_in。
-    let _grain_in = settle_land_local(state, log);
+    // 田赋本色入：settle_land_local 已在 settle_turn 的 Step 3.5 把本色粮写入
+    // 各路 storage（州仓），太仓只通过下方漕运汇聚接收（对齐 Python L456→L628-646）。
+    // B2 修复：原此处再次 `let _grain_in = settle_land_local(state, log);` —— 该
+    // 函数**带副作用**（会再向各路 storage 累加一次当月 inflow），而返回值本就
+    // 未被使用（`_grain_in`），导致本色粮单月被双计。故删除该调用（仅保留注释）。
 
     // ── 漕运汇聚（对齐 Python _settle_granary L628-646：州府 storage → 中央太仓）──
     // Rust 简化：固定 canal_eff=CANAL_MONTHLY_RATE（忽略随机 block 演化），

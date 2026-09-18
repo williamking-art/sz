@@ -1020,7 +1020,10 @@ def _settle_extensions(state, log):
             state.maritime["silver_in"] = max(_sv_cfg["min"], min(
                 _sv_cfg["max"], state.maritime.get("silver_in", 30) - _sv_cfg["cap"]))
         _tariff_rate = state.maritime.get("tariff", 0.10)
-        state.treasury += int(_trade_month * _tariff_rate)                    # 关税抽解
+        # B1 修复（市舶关税重复计账）：关税的**唯一**入账通道是 _settle_finance
+        # （从商人 POP wealth 征收并入 actual_tax → 国库，钱守恒）。此处原再
+        # `state.treasury += 关税` 属第二次全额入账且无对手账户（凭空增币），
+        # 使国库市舶收入被系统性放大近一倍。只保留商人外贸利润分配与白银流入。
         _merchant_profit = int(_trade_month * (1 - _tariff_rate) * 0.3)       # 商人毛利 30%
         _total_merchant = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
         for _p in state.prefectures.values():
@@ -1141,7 +1144,10 @@ def _settle_coin_melt(state, log):
     故真实退出流通；熔铜池供铸钱（_settle_mint 从池取料，闭环）。
     不碰国库/内帑（国家持币不熔化）。
     """
-    from content.data import MELT_RATE
+    # 审查修复（A1）：COPPER_RESOURCE_DIM 只在 _settle_mint 内局部导入，本函数
+    # 熔铜池溢出分支（下方 >1 亿贯）却直接使用该名 → 一旦触发即 NameError，
+    # 中断整月结算。此处与 _settle_mint 一致一并导入。
+    from content.data import MELT_RATE, COPPER_RESOURCE_DIM
     if MELT_RATE <= 0:
         return
     _melted = 0
@@ -2992,16 +2998,31 @@ def _settle_finance(state, log):
         # 实征入账（审查 P0：禁止全额入内帑造币）——短征不记入内帑
         _wine_tax_cash = max(0, _wine_tax_cash - max(0, _wine_left))
     # 国库保持整数贯：actual_net 为 float（各 calc_* 乘积），入账前截断
-    state.treasury = max(0, state.treasury + int(actual_net) - int(imp_share))
+    # B3 修复：国库禁止穿底，不足部分记入**累计亏空深度**（破产两档线的唯一判据），
+    # 有结余时优先冲抵历史亏空，余下才进国库。
+    _deficit_used = 0
+    _avail = state.treasury + int(actual_net) - int(imp_share)
+    _prior_deficit = int(getattr(state, "treasury_deficit", 0) or 0)
+    if _avail < 0:
+        state.treasury_deficit = _prior_deficit + (-_avail)
+        _avail = 0
+    elif _prior_deficit > 0:
+        _deficit_used = min(_prior_deficit, _avail)
+        state.treasury_deficit = _prior_deficit - _deficit_used
+        _avail -= _deficit_used
+    else:
+        state.treasury_deficit = 0
+    state.treasury = max(0, int(_avail))
     state.imperial_treasury = max(0, state.imperial_treasury + int(imp_share) + int(_wine_tax_cash))
     state.statistics["total_income"] += int(actual_tax)
     state.statistics["total_expenditure"] += total_out
 
-    # 恒等式：未穿底时 Δtreasury == actual_net - imp；穿底钳到 0 时 Δ == -treasury_before
+    # 恒等式：未穿底时 Δtreasury == actual_net − imp − 冲抵亏空额；
+    # 穿底钳到 0（差额已入 treasury_deficit）时 Δ == -treasury_before
     _delta = state.treasury - treasury_before
     _expect = actual_net - int(imp_share)
     _floored = state.treasury == 0 and (treasury_before + _expect) < 0
-    assert _floored or abs(_delta - _expect) < 1, \
+    assert _floored or abs(_delta - _expect + _deficit_used) < 1, \
         f"财政恒等断裂：Δtreasury={_delta} actual_net={actual_net} imp={int(imp_share)}"
 
     inc_parts = f"工商{commerce_tax:.0f}+役钱{poll_tax:.0f}+二税折色{tax_color_total:.0f}+盐课{salt_coin:.0f}"
@@ -3030,7 +3051,8 @@ def _settle_finance(state, log):
             })
 
     from content.data import TREASURY_CRISIS_LINE
-    if state.treasury < TREASURY_CRISIS_LINE:
+    # B3：判据由「负国库」改为「累计亏空深度」（国库禁穿底，负值不可达）。
+    if state.deficit_depth() > TREASURY_CRISIS_LINE:
         state.population_satisfaction = max(0, state.population_satisfaction - 2)
         log.append("[民生] 国库亏空严重，民怨渐起")
 

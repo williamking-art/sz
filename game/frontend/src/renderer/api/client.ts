@@ -160,6 +160,19 @@ export type ActionName =
   | "confirm_inner_transfer"
   | "cancel_inner_transfer";
 
+/**
+ * 非幂等端点前缀（安全审查 C4）：这些端点的 5xx/超时重试会造成重复副作用
+ * —— `/api/advance` 凭空多推演一回合、`issue_decree` 同一诏令发两道。
+ * 对它们一律不自动重试，如实上报，由玩家自行决定是否再下。
+ */
+const NON_IDEMPOTENT_PATHS = [
+  "/api/advance",
+  "/api/action",
+  "/api/resolve_event",
+  "/api/save",
+  "/api/decree/"
+];
+
 export class ApiClient {
   private base: string;
 
@@ -197,8 +210,12 @@ export class ApiClient {
             res.status >= 500
               ? `政务后端一时失序：${detail}`
               : `此令未获准：${detail}`;
-          // 5xx（含 503 服务暂不可用）→ 退避后重试；其余（4xx 等）终态错误直接抛
-          if (res.status >= 500 && res.status < 600 && attempt < MAX_ATTEMPTS) {
+          // 5xx（含 503 服务暂不可用）→ 退避后重试；其余（4xx 等）终态错误直接抛。
+          // C4 修复：非幂等端点不重试（5xx-after-commit / 读超时会造成重复副作用）。
+          const retryable =
+            res.status >= 500 && res.status < 600 && attempt < MAX_ATTEMPTS &&
+            !NON_IDEMPOTENT_PATHS.some((p) => path.startsWith(p));
+          if (retryable) {
             lastErr = new Error(msg);
             await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt - 1] ?? 4_000));
             continue;
@@ -216,6 +233,12 @@ export class ApiClient {
         if (e instanceof TypeError) {
           console.error("[api] 网络失败", path, e);
           throw new Error("未能接通本地政务后端（服务未就绪或已断开），请稍后再试。");
+        }
+        // D 修复：2xx 但响应体非 JSON 时 `res.json()` 抛 SyntaxError，原先直接
+        // `throw e` 会把原生英文错误漏到界面，违反「玩家可见文案一律中文」契约。
+        if (e instanceof SyntaxError) {
+          console.error("[api] 回文非 JSON", path, e);
+          throw new Error("政务后端回文失格（非 JSON），请稍后再试。");
         }
         throw e;
       } finally {
@@ -356,10 +379,12 @@ export class ApiClient {
         body: JSON.stringify({ api_key, base_url })
       });
     } catch (e) {
-      console.warn("[fetchModels] 接口探测异常，降级返回常用列表:", e);
+      // D 修复：原实现失败时「静默返回硬编码常用列表」，会引导玩家选中该端点
+      // 并不存在的模型（保存/调用时才报错，且来源难辨）。现如实返回空列表 + 错误。
+      console.warn("[fetchModels] 接口探测失败:", e);
       return {
         ok: false,
-        models: ["deepseek-chat", "deepseek-reasoner", "gpt-4o", "gpt-4o-mini", "qwen-plus", "qwen-turbo"],
+        models: [],
         error: e instanceof Error ? e.message : String(e)
       };
     }

@@ -195,6 +195,13 @@ class GameState(GameStateEconMixin):
 
         # ---- 国库 ----
         self.treasury: int = TREASURY_START
+        # 累计亏空深度（贯，B3 修复）：国库全程禁止穿底（见 change_treasury 的
+        # max(0,…) 纪律），因此**不存在负余额**；原破产两档线（-500万/-2000万）
+        # 针对「负国库」判定 → 永远不可达，game_over 与危机事件均成死分支。
+        # 现改以「累计亏空深度」度量真实财政恶化：当月资金不足以覆盖支出时，
+        # 差额累加于此；有结余时优先冲抵。content.data 的 TREASURY_CRISIS_LINE /
+        # TREASURY_COLLAPSE_LINE 即比对此值（单位：贯，正数）。
+        self.treasury_deficit: int = 0
 
         # ---- 内帑 / 内藏库（皇帝私库，与国库分理）----
         self.imperial_treasury: int = INNER_TREASURY_START
@@ -733,6 +740,14 @@ class GameState(GameStateEconMixin):
     def change_imperial_treasury(self, delta: int):
         """修改内帑（皇帝私库，与国库分理；禁止穿底）"""
         self.imperial_treasury = max(0, self.imperial_treasury + int(delta))
+
+    def deficit_depth(self) -> int:
+        """累计亏空深度（贯，B3）：破产/库藏空虚两档线的**唯一判据**。
+
+        国库不得为负，故以「累计未能支付的支出」等价表达财政恶化程度；
+        旧档无该字段时按 0 处理（兼容）。
+        """
+        return int(getattr(self, "treasury_deficit", 0) or 0)
 
     def transfer_money(self, src: str, dst: str, amount: int) -> int:
         """钱组守恒划转：src → dst，返回实际划转额（不足则按 src 可付截断）。

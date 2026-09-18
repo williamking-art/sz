@@ -78,24 +78,27 @@ def settle_minister_estate(state, log):
         if hoard > 0:
             e["wealth"] = max(0, e["wealth"] - hoard)
             hoard_total += hoard
-        # 田收租（并入 gentry_land，均分各路）
+        # 田收租（B4 修复）。原实现把**租金金额**并入各路 gentry_land（田亩），
+        # 有两处错：① 单位错（钱→亩）；② 无对手账户（凭空增长）→
+        # self_farm_land+gentry_land+official_land+imperial_land 会逐渐超过
+        # p["land"]，而 _settle_land_local 以田亩归属分配产粮/田赋 → 分成比例溢出。
+        # 现改为**守恒转移**：由农 POP wealth 缴纳，计入该大臣家产 wealth；
+        # 按家产封顶剩余空间限幅，收不足只计实收（不凭空生钱）。
         rent = int(land * EF["rent_rate"] / 12.0)
         if rent > 0:
-            rent_total += rent
+            _room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0)))
+            _want = min(rent, _room)
+            _got = state.drain_pop_wealth("农", _want) if _want > 0 else 0
+            if _got > 0:
+                e["wealth"] = min(ESTATE_WEALTH_CAP, e.get("wealth", 0) + _got)
+            rent_total += _got
     # 奢侈消费 → 工匠/商人（按路分，守恒）
     if lux_total > 0:
         _distribute_luxury(state, lux_total)
     # 聚敛窖藏 → 钱荒加剧（shortage 增，≤0.95）
     if hoard_total > 0:
         state.coin["shortage"] = min(0.95, state.coin.get("shortage", 0.3) + hoard_total / 100_000_000.0)
-    # 收租并入 gentry_land（均分各路，Σ 增 = rent_total）
-    if rent_total > 0:
-        _paths = list(state.prefectures.keys())
-        per = rent_total // max(1, len(_paths))
-        rem = rent_total - per * len(_paths)
-        for i, name in enumerate(_paths):
-            p = state.prefectures[name]
-            p["gentry_land"] = p.get("gentry_land", 0) + per + (1 if i < rem else 0)
+    # B4：租金不再并入 gentry_land（田亩），已在收租处守恒转入大臣家产 wealth。
     # 物议事件：聚敛超阈值（家产丰厚 + 聚敛倾向）
     for name, e in list(estate.items()):
         if e.get("wealth", 0) >= EF["persona_rich"] and _hoard_leaning(state, name):

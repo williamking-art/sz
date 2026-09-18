@@ -40,6 +40,7 @@ function attitudeText(att: number): { text: string; color: string } {
 
 export default function DiplomacyPanel() {
   const state = useGameStore((s) => s.state);
+  const setState = useGameStore((s) => s.setState);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
   const [selectedKey, setSelectedKey] = useState<string>("辽");
   const [diplomaticText, setDiplomaticText] = useState("");
@@ -89,6 +90,9 @@ export default function DiplomacyPanel() {
       });
       setReply(res.message || "国书已由鸿胪寺译进，外夷奉表以闻。");
       setDiplomaticText("");
+      // D 修复：遣使会改 external/treaties，原实现不回写快照 → 本页「态度/国力/条约」
+      // 不刷新（需等下一次别的 state 变更）。与其它面板统一：有 state 即回写。
+      if (res.state) setState(res.state);
     } catch (e) {
       setReply("遣使未达：" + (e instanceof Error ? e.message : String(e)));
     } finally {

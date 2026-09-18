@@ -12,6 +12,8 @@ import os
 import sys
 import json
 import re
+import socket
+import threading
 import urllib.request
 import urllib.error
 from difflib import SequenceMatcher
@@ -155,7 +157,12 @@ class AIClient(ClientNarrativeMixin):
         self.available = bool(self.api_key)
         self._prev_texts = []   # 复读检测历史
         # 工具开关：'auto'(探测)/'on'(强制开)/'off'(强制关)/'simple'(强制简化)
-        self.enable_tools = enable_tools if enable_tools in ("auto", "on", "off", "simple") else "auto"
+        # C1 修复：原属性名为 `enable_tools`，与下方同名方法 def enable_tools(mode) 冲突
+        # —— 实例属性优先于类方法，方法**不可达**（调用即 TypeError: 'str' object is
+        # not callable），使 capability_probe / _call_with_tools 的生产接线永远不可达。
+        # 属性改名 enable_tools_mode；方法保留并负责同步两套表示。
+        self.enable_tools_mode = (enable_tools if enable_tools in ("auto", "on", "off", "simple")
+                                  else "auto")
         self.tools_supported = None  # None=未探测; True/False=已探测
         self.json_mode = None        # response_format=json_object 支持度：None=未探测; True/False=已探测
         # 模型适配层（言枢密设计）：tool_mode 注册表 + 能力探测缓存
@@ -200,15 +207,21 @@ class AIClient(ClientNarrativeMixin):
         try:
             _p = int(usage.get("prompt_tokens", 0) or 0)
             _c = int(usage.get("completion_tokens", 0) or 0)
-            self.token_usage["prompt"] += _p
-            self.token_usage["completion"] += _c
-            self.token_usage["calls"] += 1
-            key = meter_key or self._meter_key_of()
-            b = self._meter.setdefault(key, {"calls": 0, "prompt": 0, "completion": 0})
-            b["calls"] += 1
-            b["prompt"] += _p
-            b["completion"] += _c
-            # A2：可选遥测落库（默认关；失败静默）
+            # C5 修复（计量丢数）：以下为读-改-写累加，异步/多线程路径并发调用同一
+            # client 时会丢数；归属推断 _meter_key_of（走栈帧）亦须在同一临界区内完成。
+            _lk = getattr(self, "_meter_lock", None)
+            if _lk is None:
+                _lk = self._meter_lock = threading.Lock()
+            with _lk:
+                self.token_usage["prompt"] += _p
+                self.token_usage["completion"] += _c
+                self.token_usage["calls"] += 1
+                key = meter_key or self._meter_key_of()
+                b = self._meter.setdefault(key, {"calls": 0, "prompt": 0, "completion": 0})
+                b["calls"] += 1
+                b["prompt"] += _p
+                b["completion"] += _c
+            # A2：可选遥测落库（默认关；失败静默）—— 移出临界区，避免持锁做 IO
             if os.environ.get("SONGZUO_TELEMETRY") == "1":
                 try:
                     from telemetry.store import get_store
@@ -241,9 +254,9 @@ class AIClient(ClientNarrativeMixin):
 
     def _tools_active(self) -> bool:
         """是否启用工具：依据开关与运行时探测结果。"""
-        if self.enable_tools == "off":
+        if self.enable_tools_mode == "off":
             return False
-        if self.enable_tools == "on":
+        if self.enable_tools_mode == "on":
             return True
         # auto：未探测时先尝试，首次失败后置 False
         if self.tools_supported is False:
@@ -311,7 +324,7 @@ class AIClient(ClientNarrativeMixin):
                     "api_key": self.api_key,
                     "base_url": self.base_url,
                     "model": self.model,
-                    "enable_tools": self.enable_tools,
+                    "enable_tools": self.enable_tools_mode,
                 }, f, ensure_ascii=False, indent=2)
             return True
         except OSError:
@@ -494,8 +507,16 @@ class AIClient(ClientNarrativeMixin):
             return False
 
     def enable_tools(self, mode: str) -> None:
-        """工具模式：auto（自动探测）/ on（强制工具）/ off（强制 JSON）/ simple（强制简化）。"""
+        """运行时切换工具模式：auto（自动探测）/ on（强制工具）/ off（强制 JSON）/ simple（强制简化）。
+
+        C1 修复：本方法与同名字符串属性 `enable_tools_mode` 成对使用 ——
+        方法负责切换 tool_mode，并**同步字符串开关**，避免两套表示各说各话
+        （_tools_active 读字符串，本方法改 tool_mode）。
+        """
         mode = str(mode).lower()
+        if mode not in ("auto", "on", "off", "simple"):
+            mode = "auto"
+        self.enable_tools_mode = mode
         if mode == "auto":
             cap = self.capability_probe(force=True)
             if not cap["ok"]:
@@ -665,6 +686,12 @@ class AIClient(ClientNarrativeMixin):
                                        timeout=timeout)
             except urllib.error.URLError as e:
                 _last = e
+                # C4 修复（重复计费）：读取超时意味着请求**可能已被服务端处理并计费**，
+                # 重发属非幂等重试。仅对「请求发出前」的连接类失败（DNS/拒绝连接/不可达）
+                # 退避重试；超时一律直接上抛，由调用方按契约降级。
+                _reason = getattr(e, "reason", None)
+                if isinstance(_reason, (socket.timeout, TimeoutError)):
+                    raise
                 if _i >= self._NET_RETRY:
                     raise
                 _t.sleep(self._NET_BACKOFF * (2 ** _i))
@@ -799,6 +826,12 @@ class AIClient(ClientNarrativeMixin):
                 return msg.get("content") or ""
             if status < 400:
                 try:
+                    # C5 修复（漏计费）：T1 重发（tool_choice=required 未返回工具时的
+                    # 补发）此前**未记账**——该响应同样被 provider 计费，导致 Token
+                    # 计量表与真实账单偏离。此处按与主路径同一口径补记 usage。
+                    _u2 = data.get("usage", {})
+                    if isinstance(_u2, dict) and _u2:
+                        self._add_usage(_u2)
                     msg2 = data["choices"][0]["message"]
                     if msg2.get("tool_calls"):
                         tcs = [{"id": tc.get("id", ""),
@@ -989,12 +1022,20 @@ class AIClient(ClientNarrativeMixin):
                 # 二次生成：让大臣基于办差结果回奏
                 raw2 = self._call(sys_p, messages=messages, temperature=0.9,
                                  tools=_TOOL_SCHEMAS)
-                if isinstance(raw2, dict):
-                    raw2 = self._postprocess(raw2.get("content") or "", validate,
-                                            lambda: _narrative_fallback("dialogue", minister_name))
-                    if isinstance(raw2, dict):
-                        raw2["tool_results"] = [r for _, r in results]
-                    return raw2
+                # C2 修复（三重调用 + 回奏丢弃）：`_call` 在「带 tools 且模型未返回
+                # tool_calls」时返回的是**纯文本 str**（dict/str 双形态，见 _call）。
+                # 原实现只处理 `isinstance(raw2, dict)`：str 情形不返回 → 穿透出整个
+                # if/elif 链 → 落到函数末尾再发第三次不带 tools 的请求（三倍网络/三倍
+                # 计费），且第二轮办差回奏被丢弃。此处与 `_tool_roundtrip` 对齐，
+                # 统一归一为文本后无条件返回。
+                _txt2 = (str(raw2.get("content") or "") if isinstance(raw2, dict)
+                         else str(raw2 or ""))
+                _out = self._postprocess(
+                    _txt2, validate,
+                    lambda: _narrative_fallback("dialogue", minister_name))
+                if isinstance(_out, dict):
+                    _out["tool_results"] = [r for _, r in results]
+                return _out
             elif raw:
                 # 审查 P1-40 修复（重复计费）：带 tools 的调用已返回文本（dict.content 或
                 # 纯文本 str）→ 直接走校验/兜底。原实现丢弃该结果并再次发起同内容请求
@@ -1377,7 +1418,25 @@ class AIClient(ClientNarrativeMixin):
             except Exception:
                 _ranges = None
         raw = self._cached_call("event", event_context, sys_p, "", 0.8, 700)
-        return self._postprocess(raw, validate, lambda: _narrative_fallback("event"), ranges=_ranges)
+        out = self._postprocess(raw, validate, lambda: _narrative_fallback("event"), ranges=_ranges)
+        # C6 修复（人物护栏空转）：validate 命中已故/已黜人物时只写 o["_char_violation"]，
+        # 而全库无任何读取方 → narrative_guard 文档所称「命中已故/已黜 → 标记回喂」
+        # 从未发生，AI 仍可让亡者出场。现按文档意图**回喂一次**：以订正要求重发；
+        # 改好则采用新稿，仍不合则保留原稿（叙事不丢，仅不再重复回喂）。
+        if isinstance(out, dict) and out.get("_char_violation"):
+            _names = out.pop("_char_violation", []) or []
+            _retry_sys = (sys_p + "\n\n【订正要求】上稿叙及已故或已去职之人："
+                          + "、".join(str(n) for n in _names)
+                          + "。请据实改写，勿使亡者/已黜者出场行事。")
+            try:
+                _raw2 = self._cached_call("event", event_context, _retry_sys, "",
+                                          0.8, 700, input_key="charfix")
+                _out2 = self._postprocess(_raw2, validate, lambda: out, ranges=_ranges)
+                if isinstance(_out2, dict) and not _out2.get("_char_violation"):
+                    return _out2
+            except Exception:
+                pass
+        return out
 
     def advice(self, posture, faction_hint=""):
         sys_p = _load_prompt("advice", posture=posture, faction_hint=faction_hint)

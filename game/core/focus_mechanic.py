@@ -291,12 +291,22 @@ def can_unlock(state, branch: str, node_key: str) -> tuple:
         pre = state.focus_tree.get(branch, {}).get("nodes", {}).get(prereq, {})
         if not pre.get("unlocked"):
             return False, f"需先功成「{FOCUS_TREE[branch]['nodes'][prereq]['name']}」"
-    # 互斥分支：若互斥分支已解锁同等级或更高，则不可解锁
+    # 互斥分支：若互斥分支已解锁**同等级或更高**（power_level）的节点，则不可解锁。
+    # B7 修复：原实现为「互斥分支任意节点解锁即整支锁死」，与注释不符，
+    # 且使政务/军事两分支一旦任一方成就即永久互斥（低阶节点也被误锁）。
     mutex = MUTUAL_EXCLUSIVE.get(branch)
     if mutex:
+        my_lv = int(node_spec.get("power_level", 0) or 0)
+        mutex_spec = FOCUS_TREE.get(mutex, {})
         mutex_nodes = state.focus_tree.get(mutex, {}).get("nodes", {})
-        if any(n.get("unlocked") for n in mutex_nodes.values()):
-            return False, f"与「{FOCUS_TREE[mutex]['name']}」分支互斥"
+        for _mnk, _mn in mutex_nodes.items():
+            if not _mn.get("unlocked"):
+                continue
+            _other_lv = int(
+                mutex_spec.get("nodes", {}).get(_mnk, {}).get("power_level", 0) or 0)
+            if _other_lv >= my_lv:
+                return False, (f"与「{mutex_spec.get('name', mutex)}」分支互斥"
+                               f"（已成就同级或更高大策）")
     return True, ""
 
 
@@ -422,22 +432,26 @@ def settle_focus(state, log) -> None:
         cost = active.get("cost_per_month", 10000)
 
         # 扣除月度施行度支（若国库充足）
-        if state.treasury >= cost:
+        _paid = state.treasury >= cost
+        if _paid:
             state.change_treasury(-cost)
             state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + cost
         else:
-            log.append(f"[国策度支] 国库紧绌，推行【{active.get('name')}】经费有所掣肘")
+            log.append(f"[国策度支] 国库紧绌，推行【{active.get('name')}】经费未拨，本月停摆")
 
-        active["elapsed_turns"] = active.get("elapsed_turns", 0) + 1
-        tot = max(1, active.get("total_turns", 3))
-        active["progress"] = min(100, int(active["elapsed_turns"] * 100 / tot))
+        # B7 修复（欠费免费推进）：原实现无论是否扣费都 elapsed_turns += 1 →
+        # 国策可在持续欠费下「免费」走完并解锁。现改为欠费月不推进进度。
+        if _paid:
+            active["elapsed_turns"] = active.get("elapsed_turns", 0) + 1
+            tot = max(1, active.get("total_turns", 3))
+            active["progress"] = min(100, int(active["elapsed_turns"] * 100 / tot))
 
-        if active["elapsed_turns"] >= tot:
-            # 功成圆满
-            _complete_focus(state, log, branch, node_key, node_spec)
-        else:
-            left = tot - active["elapsed_turns"]
-            log.append(f"[基本国策推进] 中枢推行【{active.get('name')}】进度已达 {active['progress']}%（尚余 {left} 月大成）")
+            if active["elapsed_turns"] >= tot:
+                # 功成圆满
+                _complete_focus(state, log, branch, node_key, node_spec)
+            else:
+                left = tot - active["elapsed_turns"]
+                log.append(f"[基本国策推进] 中枢推行【{active.get('name')}】进度已达 {active['progress']}%（尚余 {left} 月大成）")
 
     # 2. 已解锁大策长期效果结算
     if not state.focus_tree:
@@ -455,9 +469,14 @@ def _apply_branch_effect(state, log, branch, eff, node) -> None:
     """按分支施加长期效果（确定性修正，非守恒字段）。"""
     try:
         if branch == "govern":
-            # 政务：裁汰冗费，财政减耗
-            state.statistics["total_expenditure"] = max(
-                0, state.statistics.get("total_expenditure", 0) - 5000)
+            # 政务：裁汰冗费 → 提升**真实**月度节流额度
+            # B7 修复：原实现直接扣减 statistics["total_expenditure"] —— 那是**累计**
+            # 统计量而非月度流量，既不减少真实支出，也与 _settle_finance 的累加语义
+            # 冲突，属「假效果」。现改为提升 waste_reform.savings（_settle_finance
+            # 真实按此冲减经常性开支）。
+            wr = getattr(state, "waste_reform", None)
+            if isinstance(wr, dict):
+                wr["savings"] = int(wr.get("savings", 0) or 0) + 5000
         elif branch == "military":
             # 军事：军备增强（城防/军器）
             for line in state.defense_lines.values():
