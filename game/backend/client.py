@@ -130,8 +130,9 @@ class LocalBackend(BackendClient):
         return cmd.new_game(difficulty, ai_client)
 
     def advance(self, state, ai_client):
-        events = cmd.advance_month(state)
-        log, report = cmd.settle_turn(state, ai_client)
+        # 审查修复：改走原子封装，使 advance_month 写入的 active_events 也纳入
+        # 结算快照的回滚范围（原两步分开，结算失败回滚后事件仍留在场 → 幽灵事件）。
+        events, log, report = cmd.advance_and_settle(state, ai_client)
         # 与 HttpBackend 保持统一四元组签名 (events, log, report, new_state)
         return events, log, report, state
 
