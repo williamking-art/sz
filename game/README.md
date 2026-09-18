@@ -16,15 +16,12 @@
 game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 ├── 🎮 游戏本体（参与打包 / 运行所需）
 │   ├── backend_server_entry.py  # PyInstaller 后端入口（调 backend.server.main）
-│   ├── map_web_main.py          # Web 舆图独立启动器（MapLibre，开发/验收）
-│   ├── preview_map.py           # 舆图预览启动器（--demo/--serve/--browser）
 │   ├── fetch_basemap.py / fetch_hillshade.py / build_map_basemap.py  # 舆图底图抓取/构建
 │   ├── ai/                  # AI 叙事管线（见下方模块表）
 │   ├── core/                # 游戏核心（状态 / 结算 / 存档 / 事件 / 评估 / free_effect 契约 / registries 注册表（科技+兵种）/ estate_mechanic 家产投资 / agent_router 按需唤醒 / async_ai 异步化 / minister_profile 群臣档案）
 │   ├── engine/              # 应用层（state_applier：AI changes 验证/合并/守恒校验/cascade/原子写库+回滚；
 │   │                        #   与 core/free_effect.py 并列为两条受控写状态通道，见模块头「通道边界」）
 │   ├── memory/              # agent 记忆（memory_graph 图谱 SQLite 一轮一库 + dialogue_memory 对话记忆库，每 3 回合总结去重）
-│   ├── ui/                  # **Web 舆图桥**（Tk 已废弃删除）：仅 map_web.py（MapLibre 控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 assets/map/web）
 │   ├── backend/             # AI 服务抽象（LocalBackend / HttpBackend / FastAPI 参考 server）
 │   ├── content/             # 数据表（派系 / 军队 / 州县 / 六部 / 科技 / 财政 / 大臣 / ministers/persona.py 人格 / 建筑 / 家产基线 / codex_data.py 图鉴数据）
 │   ├── audio/               # 音频骨架：manifest 槽位登记 + tts 朗读（**播放未接线**）
@@ -75,7 +72,6 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事；`advance_and_settle` 事件+结算**原子封装**〔含按回合上折，AI 不可用时走模板兜底〕；`settle_local`/`advance_and_settle` 结算异常**快照回滚**，且回滚同时按水位截断记忆库〔A2〕；`envoy_diplomacy` 遣使缔约（经 `apply_treaty` 落地，D11）；`allocate_payraise` 拨帑入加俸预算〔D9〕）+ `commands_decree.py`（拟旨族 + 内帑金额解析）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11，含财政/灾荒/士绅囤粮、金融调制读 `FINANCE_DECIDE_BASE` 单一源）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调；5 契约接线 + diff 唤醒；未接线登记 `PENDING_CONTRACTS`）、`async_ai.py`（**未接线**〔审查 B7〕：契约以已移除的 Tkinter `ui.after` 轮询为前提，现 Web 架构的非阻塞由 FastAPI 线程池 + 前端 HTTP 异步承担；保留为参照实现，接线前不计已生效能力）、`free_effect.py`（契约落地，第二条受控通道）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维：目标值重算）、`minister_profile.py`（群臣档案：年龄/性情/生平，HTTP 与测试共用） |
 | `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层）；`CASCADE_REASON_FIX` 补来源支持按 `share` **拆分归属**（酒课 工匠60%/商人40%、田赋 农60%/士绅40%，末条吃尾差保 `ΣΔ==0` 精确，D10） |
 | `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离）。两库均有 `rollback_after(turn)`：结算失败时按水位截断，只删 `> turn`、不误删同回合合法写入（A2 —— 记忆库含 SQLite 连接不可深拷贝，故不能随 state 快照还原） |
-| `ui/` | **Web 舆图桥**（Tk 已废弃删除，界面为 `frontend/` Electron+React）：`map_web.py`（MapLibre 舆图控制器 + JS↔Python 双向桥 + 本地 HTTP 伺服 `assets/map/web`，pywebview/浏览器双模式） |
 | `backend/` | AI 服务抽象：`client.py`（LocalBackend / HttpBackend 统一接口）、`server.py`（B3：FastAPI + Uvicorn 参考后端，薄壳复用 LocalBackend 零复制，供 HttpBackend 联调/回归/远程体验） |
 | `content/` | 数据（**单一权威源**）：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES / `clamp` / `TECH_EFFECT_LABELS` / `DESENSITIZE_MAP`）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化〔国运取 `population_satisfaction`；仅 MINISTERS 在册者演化〕+ 阳奉阴违）、`codex_data.py`（图鉴 8 类数据，自 Tk 面板迁出） |
 | `audio/` | 音频**骨架（播放未接线）**：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源；8 个槽位 `file` 均为空，其中 6 项待生成、2 项为运行时合成）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）。Tk 界面删除后播放路径随之消失，`assets/audio/` 目前仅 `.gitkeep`；前端设置面板的音量项亦只有本地 state（不写 localStorage、无播放对象）。即「清单已定、播放未接」，待接线后方可称落地 |
@@ -121,7 +117,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | AI 管线 | 6 错误码全生产者（超时/401/403 精确映射）；网络层退避重试；dialogue 遇端点不支持工具正确降级 + 去重复计费；叙事护栏支持中文数字；缓存改 LRU |
 | 记忆库 | 对话总结冲突改**合并**（不再静默丢数据）；按需建表 + WAL；压缩/总结窗口不重叠 |
 | 接口一致性 | 5 个结算侧契约接入按需唤醒 + diff 唤醒接线（`_last_agent_diff`）；未接线契约登记 `PENDING_CONTRACTS`；新增 HTTP 端点（见上节） |
-| 前端 | Tk 界面废弃删除（`ui/` 仅留 Web 舆图桥）；Web 迁移补齐清单见上节 |
+| 前端 | Tk 界面与 Web 舆图桥均已删除（`ui/` 包**整体移除**）；界面全在 `frontend/`（Electron+React+MapLibre），游戏内舆图自带实现；Web 迁移补齐清单见上节 |
 
 细节见 `_dev_tools/game-docs/docs/游戏机制说明.md` 头部「2026-09 全量审计修复要点」。
 
@@ -147,7 +143,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 5. **前端（Electron / React / TS）约定**
    - **位置**：Electron 工程在 `game/frontend/`（与游戏本体同仓同库；`node_modules/`、`out/`、`dist/`、`release/` 等构建产物不入库）；经 HTTP 桥对接 Python 后端；Node 端不得直接读写游戏存档。
    - 进程边界：渲染进程（`renderer/`）只与 `main/` 主进程通过 `preload` 暴露的桥通信（contextIsolation 开启），禁止在渲染进程内 `require('node:fs')` 直连内核。
-   - 舆图：前端舆图用 MapLibre 渲染，几何源由 `scripts/build-topo.ts` 生成的 topojson 提供；Python 侧 `ui/map_web.py` 负责同源数据下发与双向事件桥。
+   - 舆图：前端舆图用 MapLibre 渲染，几何源由 `scripts/build-topo.ts` 生成的 topojson 提供，状态数据取快照的 `external_regimes`；**Python 侧无舆图桥**（`ui/map_web.py` 属独立预览链，已随预览一并删除）。
    - 类型契约：前后端对齐 `frontend/src/renderer/api/client.ts` 的类型定义；状态变更以结构化 changes 为准（`ai/STATE_TOOL_SCHEMAS` 为**预留契约**，见架构段说明）。
 
 ---
@@ -187,12 +183,17 @@ npm run typecheck
 
 前端经 HTTP 桥对接 Python 后端；舆图由 MapLibre 渲染，几何源经 `npm run build:topo` 生成。
 
-### Web 舆图独立预览（开发 / 验收）
+### 舆图
 
-```bash
-python preview_map.py --demo        # 演示分路易主（燕云十六州归宋）
-python map_web_main.py --browser    # 系统浏览器模式（HTTP 桥 + 轮询通道）
-```
+游戏内舆图**已完整**，位于前端 `game/frontend/src/renderer/map/`
+（`MapView.tsx` / `mapController.ts` / `layers.ts` / `markers.ts`，MapLibre），
+数据直接取状态快照的 `external_regimes`，不依赖任何 Python 侧舆图桥。
+
+因此独立预览链**已删除**：`preview_map.py`、`map_web_main.py`、`ui/map_web.py`
+（连带 `game/ui/` 包与根目录 `preview_map.bat`）。删除依据：后端与前端对
+`ui.map_web` / `WebMapController` / `external_provinces_from_state` 均**零引用**
+（实证），该链仅供独立预览；连带移除依赖它的用例 `test_external_provinces_for_web_map`，
+并从 `SongZuo.spec` 的 hiddenimports 摘除 `ui` / `ui.map_web`。
 
 > **文档**：完整机制见 `_dev_tools/game-docs/docs/游戏机制说明.md`（AI 驱动架构 / 月度结算 / 诏令 / 经济 / 军政 / persona / 记忆 / HTTP API 面）；
 > 另有本 README「模块职责」段 + 各模块文件头 docstring 作为速查；设计与重构分析见 `_dev_tools/game-docs/analysis/`。
@@ -204,7 +205,7 @@ python map_web_main.py --browser    # 系统浏览器模式（HTTP 桥 + 轮询�
 ```bash
 pip install -r requirements.txt              # 游戏本体运行依赖
 pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校验 / A3 token 计量 / B1 语音
-                                             # / B2 语义检索 / B3 参考后端（FastAPI+Uvicorn）/ Web 舆图（pywebview）
+                                             # / B2 语义检索 / B3 参考后端（FastAPI+Uvicorn）
 ```
 
 ### 后端连接（本地 / 云托管）

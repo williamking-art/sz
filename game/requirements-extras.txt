@@ -24,5 +24,8 @@ huggingface_hub>=0.23
 fastapi>=0.110
 uvicorn>=0.27
 
-# ---- Web 舆图（MapLibre/WebGL，ui/map_web.py；缺省自动降级浏览器模式）----
-pywebview>=5.0
+# ---- （已移除）Web 舆图独立预览依赖 ----
+# 原 pywebview>=5.0 仅供独立预览链（preview_map.py / map_web_main.py / ui/map_web.py）
+# 的窗口模式。该链已删除而游戏内舆图仍完整（前端 frontend/src/renderer/map/ 自带实现，
+# MapLibre 走前端依赖，不经 Python），故此处依赖一并移除。
+# 注：game/assets/map/web/ 仍需保留——前端构建期从那里平移舆图数据资产。
