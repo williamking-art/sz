@@ -91,7 +91,14 @@ def test_military_increase_rejected_without_money():
 
 
 def test_async_settlement_no_nested_submit():
-    """run_settlement_ai 的 worker 不得再 submit 到同一 _EXECUTOR（防死锁）。"""
+    """run_settlement_ai 的 worker 不得再 submit 到同一 _EXECUTOR（防死锁）。
+
+    ⚠️ **接线状态（2026-09-18 测试体检）**：`core/async_ai.py` **无生产调用方**（未接线），
+    且本用例断言的是**源码文本**——任何重命名/换行都会让它失败，而真正的死锁回归它抓不到。
+    保留理由：死锁是"只能靠实现约束防"的性质，且该模块是刻意保留的备用异步通路。
+    **建议**：模块接线时改为「跑一次真实路径 + 超时失败」的行为断言；否则可删。
+    接线状态由 `test_async_ai.py::test_async_module_is_not_wired_yet` 哨兵守护。
+    """
     import inspect
     import core.async_ai as m
     src = inspect.getsource(m.run_settlement_ai)

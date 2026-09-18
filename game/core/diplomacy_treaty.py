@@ -58,6 +58,14 @@ def apply_treaty(state, target: str, type_: str, terms: dict = None,
             else:
                 return {"ok": False, "msg": "内帑不足以支和亲嫁妆", "attitude_delta": 0, "cost": 0}
         state.imperial_treasury -= dowry
+        # 2026-09-18 测试体检修复（货币口径）：和亲嫁妆是**外流**（钱离开宋境到外邦），
+        # 属货币规范的"真实销毁"通道，必须 `register_flow(burn)` 登记 ——
+        # 否则月度对账会把它报成"未解释残差"（同 `_settle_finance` 里岁币的处理）。
+        try:
+            from core.money import register_flow as _reg_flow
+            _reg_flow(state, "burn", dowry, f"和亲嫁妆外流·{target}")
+        except Exception:  # noqa: BLE001 — 登记失败不得阻断外交结算
+            pass
         cost += dowry
         state.treaties.setdefault(target, []).append(
             {"type": "和亲", "terms": {"tier": tier}, "turn": getattr(state, "turn", 0),

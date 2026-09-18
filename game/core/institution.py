@@ -47,11 +47,19 @@ def all_params(state) -> Dict[str, float]:
 
 
 def get(state, key: str, fallback: float = 1.0) -> float:
-    """读单个参数（未知键返回 `fallback`，绝不抛——结算路径不应因参数缺失而中断）。"""
+    """读单个参数（未知键返回 `fallback`，**绝不抛**——结算路径不应因参数缺失而中断）。
+
+    2026-09-18 补测发现并修复：原实现用 `getattr(...) or {}` 兜底，**真值非 dict**
+    （如损坏/旧档里 `institution_params` 是字符串）会穿透到 `cur.get(...)` → `AttributeError`。
+    而本函数被官制（磨勘/祠禄/恩荫/定编）、吏制（吏薪）、维持费三处**每步结算**调用，
+    一旦破档就会让整个月度结算崩掉。现改为显式类型判定。
+    """
     spec = _SPEC.get(key)
     if spec is None:
         return float(fallback)
-    cur = getattr(state, "institution_params", None) or {}
+    cur = getattr(state, "institution_params", None)
+    if not isinstance(cur, dict):
+        return float(spec["default"])
     try:
         return float(cur.get(key, spec["default"]))
     except (TypeError, ValueError):

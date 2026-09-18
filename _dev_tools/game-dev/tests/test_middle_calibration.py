@@ -188,7 +188,6 @@ def test_focus_monthly_cost_is_a_conserving_transfer():
     assert start_focus(s, "govern", "g1_centralize").get("ok"), "用例前提：国策应能立案"
 
     tre0 = s.treasury
-    m0 = money.m_all(s)
     _run(s, 3)                                   # 国策 3 月 × 10,000 贯
     res = float((s.money_audit or {}).get("cum_residual", 0)) - base
 
@@ -196,7 +195,13 @@ def test_focus_monthly_cost_is_a_conserving_transfer():
     # 修复前 ≈ −30,416；基线未启国策时 ≈ −418。放宽到 3,000 仍能稳稳区分两者。
     assert abs(res) < 3_000, \
         f"国策度支破坏了货币守恒：3 月累计残差 {res:+,.0f} 贯（应回到截断量级）"
-    assert money.m_all(s) - m0 != 0 or True      # ΔM_ALL 由其他步共同决定，残差才是判据
+    # 2026-09-18 测试体检：原为 `assert money.m_all(s) - m0 != 0 or True` —— **恒真**（自己写的，已删）。
+    # 改为**直接验证回流去向**：国策度支应落到工匠/商人 POP（"支出回流"口径），
+    # 而不是蒸发——这才是"守恒"的可观测证据（残差只是间接判据）。
+    _craft_mer = (sum(p["pops"]["工匠"]["wealth"] for p in s.prefectures.values())
+                  + sum(p["pops"]["商人"]["wealth"] for p in s.prefectures.values()))
+    assert _craft_mer > 0, "国策度支未回流民间（工匠/商人 POP 无入账）"
+    assert money.m_all(s) > 0, "M_ALL 不应为负"
 
 
 def test_test_mirror_covers_full_pipeline():

@@ -2130,7 +2130,18 @@ def _settle_projects(state, log):
             _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
             _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - need)
         if coin_need > 0:
+            # 2026-09-18 测试体检修复（货币守恒）：原为裸 `state.treasury -= coin_need`
+            # —— 无对手方，钱凭空消失（实测：单项工程 500,000 贯 → ΔM_ALL = −500,000）。
+            # 工程款是**政府营造/购办支出**，按"支出回流"口径转入民间（工匠40%/商人60%）。
+            # 财政成本不变（国库照扣），货币总量守恒。
             state.treasury -= coin_need
+            try:
+                from content.data import GOV_SPEND_TO
+                _given = _distribute_cash(state, coin_need, GOV_SPEND_TO)
+                if _given != coin_need:      # 无接收方兜底：退回国库，不静默销毁
+                    state.treasury += coin_need - _given
+            except Exception:                # noqa: BLE001 — 回流失败不得阻断工程推进
+                state.treasury += coin_need
         proj["progress"] = min(100, proj.get("progress", 0) + int(proj.get("speed", 10)))
         if proj["progress"] >= 100:
             proj["done"] = True
@@ -2165,7 +2176,17 @@ def _settle_projects(state, log):
                         ))
                 state._derive_defense_lines()
             if "wine_coin_add" in out:
-                state.imperial_treasury += int(out["wine_coin_add"])
+                # 2026-09-18 测试体检修复（货币守恒）：原为裸
+                # `state.imperial_treasury += int(out["wine_coin_add"])` —— **无买方**，
+                # 与审查 A-4（畜栏产肉）同类：产物收益凭空造币。
+                # 现改为向民间**守恒征收**（实收才入账，不足则少收、不补差额）。
+                # 注：当前 content 里无工程使用该产出（属预留路径），但契约必须正确，
+                # 否则一旦有数据启用就会静默造币。
+                _want = int(out["wine_coin_add"])
+                _got = _collect_from_pops(state, _want)
+                state.imperial_treasury += _got
+                if _got < _want:
+                    log.append(f"[工程] 酒课增收应 {_want:,} 贯，民间可缴仅 {_got:,} 贯，按实入账")
             log.append(f"[工程] {proj.get('name','工程')} 告成，效益已落实")
 
 
@@ -2896,10 +2917,27 @@ def _apply_imperial_action(state, act, log):
         avail = state.treasury if fund == "treasury" else state.imperial_treasury
         paid = min(cost, max(0, int(avail)))
         short = cost - paid
-        if fund == "treasury":
-            state.change_treasury(-paid)
-        else:
-            state.imperial_treasury = max(0, state.imperial_treasury - paid)
+        # 2026-09-18 测试体检修复（货币守恒）：原为裸扣（`change_treasury(-paid)` /
+        # `imperial_treasury -= paid`）—— 无对手方，皇帝个人行动的度支凭空消失。
+        # 皇帝挥霍/兴造是**宫廷支出**，按"支出回流"口径转入民间（工匠40%/商人60%），
+        # 与 `_settle_finance` 常费、`_settle_upkeep` 维持费、国策度支同口径。
+        _given = 0
+        if paid > 0:
+            if fund == "treasury":
+                state.change_treasury(-paid)
+            else:
+                state.imperial_treasury = max(0, state.imperial_treasury - paid)
+            try:
+                from content.data import GOV_SPEND_TO
+                _given = _distribute_cash(state, paid, GOV_SPEND_TO)
+            except Exception:            # noqa: BLE001
+                _given = 0
+            if _given != paid:           # 无接收方兜底：退回国库/内帑，不静默销毁
+                _back = paid - _given
+                if fund == "treasury":
+                    state.change_treasury(_back)
+                else:
+                    state.imperial_treasury += _back
         _note = f"（府库不足，缺 {short:,} 贯）" if short else ""
         _src = "国库" if fund == "treasury" else "内帑"
         log.append(f"[皇帝] {_name}：{_src}支 {paid:,} 贯{_note}")

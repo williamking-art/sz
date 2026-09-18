@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""T5 契约统一测试：contract_adapter 映射表（推演类→changes / 叙事类→{changes,narrative}）。"""
+"""T5 契约统一测试：contract_adapter 映射表（推演类→changes / 叙事类→{changes,narrative}）。
+
+⚠️ **接线状态（2026-09-18 测试体检复核）**：`ai/contract_adapter.py` 在 `core/`、`ai/`、
+`engine/`、`backend/`、`content/` 中**没有任何生产调用方**（仅被本文件引用）——
+即本文件全部用例测的是**当前未接线的模块**。它们验证的是映射表本身的正确性，
+在接线前**不能**作为"AI 契约已在线上生效"的证据。
+若要让本文件成为线上行为验证，需先把 `to_unified` 接进 `agent_router` / `state_applier` 链路。
+"""
 from ai.contract_adapter import (
     CONTRACT_FIELD_MAP, NARRATIVE_FIELD_MAP, to_changes, to_unified,
 )

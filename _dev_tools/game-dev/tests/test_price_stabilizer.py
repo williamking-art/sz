@@ -80,7 +80,12 @@ def test_changping_sell_recycles_to_local_treasury():
 
 
 def test_changping_buy_ratio_cap():
-    """平籴：预算 50%、仓容月产 100% 约束生效。"""
+    """平籴：预算 50%、仓容月产 100% 约束生效；平籴是**守恒的钱粮互换**。
+
+    2026-09-18 测试体检：原用例注释写着「平籴支出 ≤ 府库 50%」「常平 ΣΔ==0（粮+钱守恒）：
+    仓增量×价 ≈ 府库减量」，但**两条都没断言** —— 唯一断言是 `local_treasury >= 0`（形同虚设）。
+    现按注释承诺补齐：① 支出不超府库 50% 预算；② 仓增量×价 ≈ 府库减量（守恒）。
+    """
     from core.settlement_steps import _settle_granary
     s = _new_state()
     for p in s.prefectures.values():
@@ -88,18 +93,26 @@ def test_changping_buy_ratio_cap():
         p["changping_stock"] = 0
         p["local_treasury"] = 10_000_000   # 富府库
     s.grain_price = 0.8
+    _lt0 = sum(p["local_treasury"] for p in s.prefectures.values())
+    _cp0 = sum(p["changping_stock"] for p in s.prefectures.values())
+    _price = 0.8
     _log = []
     _settle_granary(s, _log)
+    _lt1 = sum(p["local_treasury"] for p in s.prefectures.values())
+    _cp1 = sum(p["changping_stock"] for p in s.prefectures.values())
     for name, p in s.prefectures.items():
         # 仓容 ≤ 月产 100%
         _cap = max(p.get("grain", 0) / 12.0, 1.0)
         assert p["changping_stock"] <= _cap + 5, f"{name} 常平仓容超月产 100%"
-        # 平籴支出 ≤ 府库 50%（预算约束）
-        # （买粮后 local_treasury 减少，验证未超预算）
-
-    # 常平 ΣΔ==0（粮+钱守恒）：仓增量×价 ≈ 府库减量
-    _lt_total = sum(p["local_treasury"] for p in s.prefectures.values())
-    assert _lt_total >= 0, "府库不为负"
+        # 平籴支出 ≤ 该路府库 50%（预算约束）：府库不为负且未超半额支出
+        assert p["local_treasury"] >= 0, f"{name} 府库为负"
+    _spent = _lt0 - _lt1
+    assert _spent <= int(_lt0 * 0.5) + 1, f"平籴支出 {_spent:,} 超府库 50% 预算"
+    # ΣΔ==0（钱粮互换守恒）：仓增量 × 价格 ≈ 府库减量（允许各路价差与取整）
+    _cp_delta = _cp1 - _cp0
+    if _cp_delta > 0:
+        assert abs(_spent - _cp_delta * _price) <= max(1000, _spent * 0.05), \
+            f"平籴钱粮不守恒：府库减 {_spent:,} vs 仓增 {_cp_delta:,}石×{_price}={_cp_delta * _price:,.0f}"
 
 
 # ---------------------------------------------------------------
@@ -161,9 +174,14 @@ def test_coin_melt_monthly():
     _melted = int(_total * MELT_RATE)
     assert s.statistics.get("coin_melted", 0) >= _melted - 100, "熔化额 ≈ 总量×0.1%"
     # 逐月可重复（第二次再扣）
+    # 2026-09-18 测试体检：原断言 `s.statistics["coin_melted"] > s.statistics.get(...) - 1 or True`
+    # —— **恒真**（`or True` + 拿自己比自己减 1），永不失败。现改为真正的"第二次累计额应增加"。
+    _after_first = int(s.statistics.get("coin_melted", 0))
     _log2 = []
     _settle_coin_melt(s, _log2)
-    assert s.statistics["coin_melted"] > s.statistics.get("coin_melted", 0) - 1 or True
+    _after_second = int(s.statistics.get("coin_melted", 0))
+    assert _after_second > _after_first, \
+        f"第二次熔化未累计：{_after_first:,} → {_after_second:,}"
 
 
 # ---------------------------------------------------------------

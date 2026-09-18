@@ -79,11 +79,46 @@ def test_finance_conservation_no_magic():
     assert s.jiaozi["trust"] <= trust0 + 1  # 超发崩路径（+1 自然恢复被崩抵消或更低）
 
 
-def test_finance_reject_bad_states():
-    """economy_decide 金融字段拒绝式：缺失/非法 → None（不默认填充）。"""
+def test_finance_reject_bad_states(monkeypatch):
+    """economy_decide 金融字段**拒绝式**：缺失/非法 → 整单返回 None（不默认填充、不伪造）。
+
+    2026-09-18 测试体检：原用例名写着"拒绝式：缺失/非法 → None"，但**一行都没测拒绝路径**
+    （唯一断言是 `"非法" not in states` 与"值都是字符串"这类常量形状检查 —— 恒真且无用）。
+    现改为**真驱动** `economy_decide`：伪造 `_call` 返回非法/缺失金融字段的 JSON，
+    断言其返回 None（拒绝），并用合法载荷做**正向对照**（证明拒绝不是"永远返回 None"）。
+    """
+    import json
     from ai.client import AIClient
-    c = AIClient(api_key="x")
-    # validator 不可直达，验证 FINANCE_STATES 白名单拒绝语义（非法词不在表 → 拒绝）
-    for fk, states in FINANCE_STATES.items():
-        assert "非法" not in states
-        assert all(isinstance(v, str) for v in states)
+    from content.data import FINANCE_STATES
+
+    _VALID = {k: v[0] for k, v in FINANCE_STATES.items()}
+    _core = {"景气": "中", "士绅": "观望", "士绅力度": "中", "生产": "中",
+             "窖银": "小", "城市化": "中", "回乡": "无", "科举": "中"}
+
+    def _client(payload: dict):
+        c = AIClient.__new__(AIClient)
+        c.available = True
+        monkeypatch.setattr(c, "_call", lambda *a, **k: json.dumps(payload, ensure_ascii=False))
+        return c
+
+    # ① 正向对照：全部合法 → 返回 dict，且 5 个金融字段原样带回
+    ok = _client({**_core, **_VALID}).economy_decide("中")
+    assert isinstance(ok, dict), "合法载荷应通过（否则下面的「拒绝」断言没有意义）"
+    for fk in FINANCE_STATES:
+        assert ok.get(fk) == _VALID[fk], f"合法金融字段 {fk} 未被带回"
+
+    # ② 非法词 → 拒绝（返回 None，不落默认值）
+    for fk in FINANCE_STATES:
+        bad = {**_core, **_VALID, fk: "非法档位词"}
+        assert _client(bad).economy_decide("中") is None, f"{fk} 非法词未被拒绝"
+
+    # ③ 缺失 → 拒绝
+    for fk in FINANCE_STATES:
+        miss = {**_core, **_VALID}
+        miss.pop(fk)
+        assert _client(miss).economy_decide("中") is None, f"{fk} 缺失未被拒绝"
+
+    # ④ 非字符串（数字）→ 拒绝
+    for fk in FINANCE_STATES:
+        assert _client({**_core, **_VALID, fk: 1}).economy_decide("中") is None, \
+            f"{fk} 非字符串未被拒绝"
