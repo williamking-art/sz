@@ -41,6 +41,7 @@ from content.data import (  # noqa: E402
 # 与 run_monthly_settlement 完全一致的步骤序列（不含结尾 turn/month 推进）
 from core.settlement_steps import (  # noqa: E402
     _settle_decrees, _settle_factions, _settle_economy, _settle_land_local,
+    _settle_region_deepen, _settle_upkeep,
     _settle_extensions, _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_projects, _settle_workshops,
     _settle_treasury, _settle_military_diplomacy, _evaluate_timeline_breaks,
@@ -56,10 +57,12 @@ _STEPS = [
     ("factions", _settle_factions),
     ("economy", _settle_economy),
     ("land_local", _settle_land_local),
+    ("region_deepen", _settle_region_deepen),
     ("extensions", _settle_extensions),
     ("longterm", _settle_longterm_decrees),
     ("external", _simulate_external),
     ("granary", _settle_granary),
+    ("upkeep", _settle_upkeep),
     ("finance", _settle_finance),
     ("projects", _settle_projects),
     ("workshops", _settle_workshops),
@@ -355,13 +358,18 @@ def test_wealth_ledger_no_hoard(monkeypatch):
             assert abs(dW) <= 1, \
                 f"作坊步不应改变全局 W（肉钱为 POP→内帑 守恒转移）：ΔW={dW}"
         elif name == "granary":
-            # 常平钱粮互换（平粜收钱入府库 dW>0 / 平籴钱出府库 dW<0），W 含 local_treasury
-            # → 与 changping_stock 变化方向守恒：dW + Δchangping×价 ≈ 0（段价差容差内）。
-            # 其余为 int 截断残差（消费/奢侈/买粮舍入），只吞钱不造钱。
-            _cp_d = sum(p.get("changping_stock", 0) for p in s.prefectures.values()) - \
-                sum(p.get("changping_stock", 0) for p in _new_state().prefectures.values())
-            assert abs(dW + int(_cp_d * s.grain_price)) <= 3_000_000, \
-                f"granary 步 ΔW={dW} 与常平钱粮互换不守恒（Δchangping={_cp_d}）"
+            # 2026-09-18 收紧（原容差 3,000,000 比实测残差大 ~450×，形同虚设）。
+            #
+            # 常平「平粜 / 平籴」是 POP ↔ 地方府库 的**钱粮互换**，W 含 local_treasury，
+            # 故整步 ΔW 只应有各路 `int(石数 × 价)` 的截断残差。
+            #
+            # 旧断言用 `Δchangping_stock × s.grain_price` 作代理是**不成立的**：
+            # 同一步里多个路可分别执行平籴（府库出钱买粮，存粮↑、钱↓）与平粜（售粮收钱，
+            # 存粮↓、钱↑），且各路成交价不同、步后 `grain_price` 已被本步改写，
+            # 于是「存粮净变化 × 步后全国价」与「钱的净变化」没有守恒关系。
+            # 实测（40 个随机种子）：ΔW ∈ [-103, -101]，即仅截断量级。
+            assert abs(dW) <= 200, \
+                f"granary 步应为 POP↔地方府库 守恒互换（仅截断残差），ΔW={dW}"
         else:
             assert abs(dW) <= 1, f"步骤 {name} 钱账本凭空变化：ΔW={dW}"
 
@@ -467,27 +475,29 @@ def test_hoard_net_direction():
 
 
 def test_global_ledger_total(monkeypatch):
-    """整月总账（固定 seed 跑一月）：ΔW(无囤抛) == -(岁币+加俸)+机构预算（酒课为内部转移）；
+    """整月总账（固定 seed 跑一月）：ΔW(无囤抛) == -(岁币+加俸)+机构预算；
     ΔP == growth + 流民公式（±20）。无未解释残差。
 
-    T9 适配：常平平籴/平粜是**钱粮互换**（钱出粮入/粮出钱入，真实守恒但非纯钱账），
-    从钱账断言中剔除（常平粮储净变化×价 = 钱粮互换额）；其余步骤纯钱守恒。
+    2026-09-18 修正（B-2 收尾）——原式有两处**不成立**的调整项，容差被撑到 3,000,000：
+      1) `+ meat_revenue`：A-4 已把作坊产肉从「内帑凭空增收」改为「POP→内帑 守恒转移」，
+         该步 ΔW 现为 0，`meat_revenue` 只是**转移额记录**，不再计入 W 增量（见
+         `test_wealth_ledger_no_hoard` 的 workshops 分支）。保留此项即等于把已修好的
+         造币 bug 又当成预期加回去。
+      2) `- lt_delta`（常平府库净变化）：常平平粜/平籴是 POP ↔ 地方府库 的守恒互换，
+         在含 local_treasury 的 W 里**本来就净额为 0**，无需剔除；剔一次反而只减去钱的
+         一侧、不加回 POP 一侧，凭空造出 ~44 万贯的假残差。
+    实测（40 个随机种子）：ΔW ∈ [-103, -100]，与 org_net=39 / fin_exp=0 相符，
+    真实残差仅 ~140 贯（int 截断量级），故容差收紧到 200。
     """
     from core import settlement_steps as _m
     monkeypatch.setattr(_m, "_settle_civilian_hoard", _noop_hoard)
     s, rows, fin_exp, fin_wine, org_net = _audit(no_hoard=True)
     dW = sum(r[1] for r in rows)
     dP = sum(r[3] for r in rows)
-    # 加消耗修正：畜栏产肉折钱入内帑（meat_revenue，依托建筑；太仓粮耗不在 W 账）
-    expected = fin_exp + org_net + s.granary_stats.get("meat_revenue", 0)
-    # T9 剔除常平钱粮互换：用 local_treasury 变化精确观测（平粜收钱/平籴钱出），
-    # 优于 changping×基准价近似（段价差会造成数万至数十万残差）
-    _s0 = _new_state()
-    lt_delta = sum(p.get("local_treasury", 0) for p in s.prefectures.values()) - \
-        sum(p.get("local_treasury", 0) for p in _s0.prefectures.values())
-    dW_ex_cp = dW - lt_delta
-    assert abs(dW_ex_cp - expected) <= 3_000_000, \
-        f"整月钱账本残差过大：ΔW(排除常平)={dW_ex_cp} 科目净值={expected}（差 {dW_ex_cp-expected}）"
+    expected = fin_exp + org_net
+    residual = dW - expected
+    assert abs(residual) <= 200, \
+        f"整月钱账本残差过大：ΔW={dW} 科目净值={expected}（差 {residual}）"
     # 人口：growth + 流民公式 + 隐户动态净变化（隐户为设计内动态人口池——逃户/归籍转换，UI 不显示但真实变化）
     growth = s.population - 80_000_000
     delta_pre = _refugee_delta_formula(_new_state())
