@@ -99,13 +99,21 @@ def test_old_save_without_subpools_migrates_and_self_heals():
 
 # ---------------------------------------------------------------- C-2 计价
 def test_post_pay_units_weighting():
-    """付款权数：在岗 1.0、待阙 0.5、祠禄 0.5；官俸 == 权数 × 单价 × 磨勘指数。"""
+    """付款权数：在岗 1.0、待阙 `WAITING_PAY_RATIO`、祠禄 `SINECURE_PAY_RATIO`；
+    官俸 == 权数 × 单价 × 磨勘指数。
+
+    权数从常量读（不写死 0.5）——「待阙俸率」是**历史↔游戏性取中**的校准旋钮，
+    测试应锁**公式**而非某个取值，否则每次调参都要改测试。
+    """
+    from content.data import SINECURE_PAY_RATIO, WAITING_PAY_RATIO
     s = GameState("史实")
     p = s.prefectures["两浙路"]
     pop = p["pops"]["官僚"]
     off = int(pop["officials"])
     pop["on_post"], pop["waiting"], pop["sinecure"] = off // 2, off // 4, off - off // 2 - off // 4
-    assert abs(od.route_pay_units(p) - (off // 2 + 0.5 * (off // 4) + 0.5 * pop["sinecure"])) < 1e-9
+    expect = (off // 2 + WAITING_PAY_RATIO * (off // 4)
+              + SINECURE_PAY_RATIO * pop["sinecure"])
+    assert abs(od.route_pay_units(p) - expect) < 1e-9
     cash, by_route = s.calc_official_cash()
     from content.data import OFFICIAL_PAY_PER_MONTH
     assert abs(by_route["两浙路"]
