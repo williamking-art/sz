@@ -1437,6 +1437,10 @@ FREE_EFFECT_FIELD_WHITELIST = (
     "prestige", "treasury", "population_satisfaction", "faction_change",
     "external_jin", "external_liao", "external_xixia", "defense_bonus",
     "tech", "art_mastery", "army", "finance", "talent",
+    # 阶段 C-7：官制/吏制的**编制参数**可由AI 拟诏调整（§12.3 六杠杆 ＋ §17.4 参数清单）。
+    # 值为 {参数名: 档位词或数值}，与 faction_change 同为"字典型"字段。
+    # 决策 3（已拍板）：**不为公务员制做转轨系统**——玩家用政令把参数移到公务员制的取值即可。
+    "institution",
 )
 # free_effect 单字段封顶（CAP，防 AI 提议越权量级）：字段 → (上限值)（与 ai/client_utils._TIER_CAP 对齐并扩展）
 FREE_EFFECT_CAP = {
@@ -1444,6 +1448,34 @@ FREE_EFFECT_CAP = {
     "external_jin": 12, "external_liao": 12, "external_xixia": 12,
     "defense_bonus": 10, "tech": 10, "art_mastery": 10, "army": 10,
     "finance": 3_000_000, "talent": 10,
+    "institution": 1.0,          # 参数**增量**封顶（每个键各自还会按 SPEC 的值域再钳一次）
+}
+
+# ============================================================
+# 编制参数（阶段 C-7）：宋代官吏制 ＝ 这组参数的一组取值；公务员制 ＝ 另一组取值。
+# 决策 3 定案：不做转轨系统，只保证**这些参数可被政令修改**并被结算消费。
+# 全部为**乘数/比例**（倍率），默认 1.0（muster_share 例外，是比例），
+# 值域由 `INSTITUTION_PARAM_SPEC` 单点约束；`state.institution_params` 存**增量后的倍率**。
+# ============================================================
+INSTITUTION_PARAM_SPEC = {
+    # §12.3 杠杆 1：定编宽严 → 差遣定员（= 冗官的闸门）
+    "posts_quota_mult":    {"default": 1.0, "min": 0.4, "max": 1.6, "label": "定编宽严"},
+    # §17.4：吏职级薪基 → 吏禄充足度 → 陋规强度（"花钱买治理"的核心旋钮）
+    "clerk_pay_mult":      {"default": 1.0, "min": 0.0, "max": 5.0, "label": "吏职级薪基"},
+    # §12.3 杠杆 2：荫补之门 → 恩荫规模（**冗官主源**）
+    "yinben_mult":         {"default": 1.0, "min": 0.0, "max": 3.0, "label": "荫补之门"},
+    # §12.3 杠杆 3：磨勘年限（越大升迁越快→人均俸禄膨胀越快）
+    "rank_up_mult":        {"default": 1.0, "min": 0.0, "max": 3.0, "label": "磨勘年限"},
+    # §12.3 杠杆 4：祠禄比例 → 待阙转宫观闲职的阈值
+    "sinecure_mult":       {"default": 1.0, "min": 0.0, "max": 3.0, "label": "祠禄比例"},
+    # §12.3 杠杆 5/§17.4：世袭比例 → 把持度
+    "hereditary_mult":     {"default": 1.0, "min": 0.0, "max": 2.0, "label": "世袭比例"},
+    # §12.3 杠杆 5/§17.4：差役 ↔ 募吏结构（比例：募吏占比）
+    "muster_share":        {"default": 0.4, "min": 0.0, "max": 1.0, "label": "募吏比例"},
+    # §12.3 杠杆 6：考课黜落 → 每年在岗官退出率
+    "retire_mult":         {"default": 1.0, "min": 0.2, "max": 2.5, "label": "考课黜落"},
+    # 财力消耗设计 S-D6：玩家**主动降维持费**（裁汰冗费）
+    "asset_maintain_mult": {"default": 1.0, "min": 0.0, "max": 2.0, "label": "资产维持费"},
 }
 
 # ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与

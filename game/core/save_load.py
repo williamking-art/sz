@@ -87,6 +87,8 @@ def save_game(state, slot: int = 1) -> bool:
         "posts_quota": getattr(state, "posts_quota", 0),
         "official_rank_index": getattr(state, "official_rank_index", 1.0),
         "recruit_log": getattr(state, "recruit_log", {}),
+        # 编制参数（阶段 C-7）：只存改过的键；缺键 = content.data.INSTITUTION_PARAM_SPEC 默认值
+        "institution_params": getattr(state, "institution_params", {}),
         "price_level": getattr(state, "price_level", 1.0),
         "grain_price": getattr(state, "grain_price", 1.0),
         "canal_block": getattr(state, "canal_block", 10),
@@ -324,6 +326,8 @@ def load_game(slot: int = 1):
     state.official_rank_index = float(
         data.get("official_rank_index", getattr(state, "official_rank_index", 1.0)) or 1.0)
     state.recruit_log = data.get("recruit_log", getattr(state, "recruit_log", {})) or {}
+    state.institution_params = data.get(
+        "institution_params", getattr(state, "institution_params", {})) or {}
     state.price_level = data.get("price_level", getattr(state, "price_level", 1.0))
     state.grain_price = data.get("grain_price", getattr(state, "grain_price", 1.0))
     state.canal_block = data.get("canal_block", getattr(state, "canal_block", 10))

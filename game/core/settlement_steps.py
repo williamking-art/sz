@@ -2339,6 +2339,9 @@ def _settle_upkeep(state, log):
     from content.data import (BUILDING_STD, BUILDING_COST_GROWTH, WORKSHOP_VALUE,
                               EQUIP_UNIT_VALUE, FORT_VALUE, POP_BUILDING_VALUE,
                               ASSET_MAINTAIN_RATE, UPKEEP_PAY_TO)
+    # 编制参数（阶段 C-7 / 财力消耗设计 S-D6）：玩家可经政令**主动降维持费**（裁汰冗费）。
+    from core import institution as _inst
+    _maintain_rate = float(ASSET_MAINTAIN_RATE) * _inst.get(state, "asset_maintain_mult")
 
     def _lv_cost(std: dict, lv: int) -> float:
         return float(std["base_cost"]) * (BUILDING_COST_GROWTH ** (max(1, int(lv)) - 1))
@@ -2369,7 +2372,7 @@ def _settle_upkeep(state, log):
     asset_value += sum((l.get("fortification", 0) or 0)
                        for l in getattr(state, "defense_lines", {}).values()) * float(FORT_VALUE)
 
-    due = int(asset_value * float(ASSET_MAINTAIN_RATE))
+    due = int(asset_value * _maintain_rate)
     if due <= 0:
         return 0
 
@@ -2388,7 +2391,7 @@ def _settle_upkeep(state, log):
     if _given != paid:                      # 极端兜底：无工匠/商人池时余额退回国库
         state.change_treasury(paid - _given)
     log.append(f"[维持] 资产维持费 {paid:,} 贯（资产折算 {asset_value:,.0f} 贯 ×"
-               f" {ASSET_MAINTAIN_RATE:.1%}/月）")
+               f" {_maintain_rate:.1%}/月）")
     return paid
 
 
