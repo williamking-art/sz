@@ -477,10 +477,16 @@ CASCADE_REASON_FIX = [
         "path": "prefectures.*.pops.农.wealth", "op": "add",
         "value": -float(ch.get("value", 0)), "reason": "cascade: 役钱补来源（农）",
         "source_agent": "cascade"}),
-    ("田赋", lambda ch: {
-        "path": "prefectures.*.pops.农.wealth", "op": "add",
-        "value": -float(ch.get("value", 0)) * 0.6, "reason": "cascade: 田赋折色补来源（农）",
-        "source_agent": "cascade"}),
+    ("田赋", lambda ch: [
+        {"path": "prefectures.*.pops.农.wealth", "op": "add",
+         "value": -float(ch.get("value", 0)) * 0.6,
+         "reason": "cascade: 田赋折色补来源（农 60%）", "share": 0.6,
+         "source_agent": "cascade"},
+        {"path": "prefectures.*.pops.士绅.wealth", "op": "add",
+         "value": -float(ch.get("value", 0)) * 0.4,
+         "reason": "cascade: 田赋折色补来源（士绅 40%）", "share": 0.4,
+         "source_agent": "cascade"},
+    ]),
     ("俸禄", lambda ch: {
         "path": "prefectures.*.pops.官僚.wealth", "op": "add",
         "value": -float(ch.get("value", 0)), "reason": "cascade: 俸禄补来源（官僚）",
@@ -489,10 +495,16 @@ CASCADE_REASON_FIX = [
         "path": "prefectures.*.pops.兵.wealth", "op": "add",
         "value": -float(ch.get("value", 0)), "reason": "cascade: 俸给补来源（兵）",
         "source_agent": "cascade"}),
-    ("酒课", lambda ch: {
-        "path": "prefectures.*.pops.工匠.wealth", "op": "add",
-        "value": -float(ch.get("value", 0)) * 0.6, "reason": "cascade: 酒课补来源（工匠）",
-        "source_agent": "cascade"}),
+    ("酒课", lambda ch: [
+        {"path": "prefectures.*.pops.工匠.wealth", "op": "add",
+         "value": -float(ch.get("value", 0)) * 0.6,
+         "reason": "cascade: 酒课补来源（工匠 60%）", "share": 0.6,
+         "source_agent": "cascade"},
+        {"path": "prefectures.*.pops.商人.wealth", "op": "add",
+         "value": -float(ch.get("value", 0)) * 0.4,
+         "reason": "cascade: 酒课补来源（商人 40%）", "share": 0.4,
+         "source_agent": "cascade"},
+    ]),
     ("销币", lambda ch: {
         "path": "prefectures.*.pops.商人.wealth", "op": "add",
         "value": -float(ch.get("value", 0)), "reason": "cascade: 销币补来源（商人）",
@@ -574,27 +586,43 @@ def apply_conservation_fix(changes: List[dict], state=None) -> List[dict]:
             reason = str(ch.get("reason", ""))
             if not reason:
                 continue
-            fix = None
+            # 同 reason 可命中**组**规则（按 share 拆归属，如酒课 工匠60%/商人40%）
+            _fixes = []
             for kw, fix_fn in CASCADE_REASON_FIX:
                 if kw in reason:
-                    fix = fix_fn({"value": ch.get("value", 0), "reason": reason})
+                    _r = fix_fn({"value": ch.get("value", 0), "reason": reason})
+                    if isinstance(_r, dict):
+                        _fixes = [_r] if _r.get("path") else []
+                    elif isinstance(_r, list):
+                        _fixes = [f for f in _r if isinstance(f, dict) and f.get("path")]
                     break
-            if not isinstance(fix, dict) or not fix.get("path"):
+            if not _fixes:
                 continue
             # 金额精确 = -该条 Δ（忽略模板系数，保证二次校验 ΣΔ==0）
-            fix = dict(fix, value=round(-_delta_of(ch), 4))
-            # 通配 fix 按 state 展开数预分摊 value（展开为 N 条后总额仍 = -Δ）
-            if state is not None and "*" in str(fix.get("path", "")):
-                _parts = fix["path"].split(".")
-                if _parts[0] == "prefectures":
-                    _n = max(1, len(getattr(state, "prefectures", {}) or {}))
-                elif _parts[0] == "factions":
-                    _n = max(1, len(getattr(state, "factions", {}) or {}))
-                else:
-                    _n = 1
-                if _n > 1:
-                    fix = dict(fix, value=round(fix["value"] / _n, 4))
-            extra.append(fix)
+            _need = round(-_delta_of(ch), 4)
+            _shares = [max(0.0, float(f.get("share", 0) or 0)) for f in _fixes]
+            if len(_fixes) == 1 or sum(_shares) <= 0:
+                _amts = [_need]
+            else:
+                _tot = sum(_shares)
+                # 末条吃尾差 → 合计精确等于 -Δ（逐条取整也不破 ΣΔ==0）
+                _amts = [round(_need * _s / _tot, 4) for _s in _shares[:-1]]
+                _amts.append(round(_need - sum(_amts), 4))
+            for _f, _amt in zip(_fixes, _amts):
+                _f = {_k: _v for _k, _v in _f.items() if _k != "share"}
+                _f["value"] = _amt
+                # 通配 fix 按 state 展开数预分摊 value（展开为 N 条后总额仍 = -Δ）
+                if state is not None and "*" in str(_f.get("path", "")):
+                    _parts = _f["path"].split(".")
+                    if _parts[0] == "prefectures":
+                        _n = max(1, len(getattr(state, "prefectures", {}) or {}))
+                    elif _parts[0] == "factions":
+                        _n = max(1, len(getattr(state, "factions", {}) or {}))
+                    else:
+                        _n = 1
+                    if _n > 1:
+                        _f = dict(_f, value=round(_f["value"] / _n, 4))
+                extra.append(_f)
     return extra
 
 
