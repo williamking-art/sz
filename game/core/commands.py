@@ -385,6 +385,25 @@ def _restore_state(state, snap: dict) -> None:
             continue
 
 
+def advance_and_settle(state, ai_client=None) -> tuple:
+    """事件触发 + 月度结算的原子封装。返回 (events, log, report)。
+
+    审查修复（幽灵事件 / 半更新）：advance_month 会向 state.active_events 追加
+    当月事件、并可能置 game_over，而快照回滚只在 settle_local 内部建立
+    —— 晚于该写入。于是结算失败回滚后，事件仍留在场且已计一次：重试玩家会看到
+    重复/幽灵事件，README 所称「月度结算异常快照回滚」并未覆盖此路径。
+    本函数把「取事件」与「结算」纳入同一快照，异常时整体回滚后再抛出。
+    """
+    snap = _snapshot_state(state)
+    try:
+        events = advance_month(state)
+        log, report = settle_turn(state, ai_client)
+        return events, log, report
+    except Exception:  # noqa: BLE001
+        _restore_state(state, snap)
+        raise
+
+
 def settle_local(state) -> list:
     """本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
 

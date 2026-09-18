@@ -2064,7 +2064,10 @@ def _settle_projects(state, log):
             log.append(f"[工程] {proj.get('name','工程')} 缺料停滞（缺：{','.join(lack)}），待补给")
             continue
         for dim, need in (proj.get("cost_material") or {}).items():
-            state.resources[dim]["stock"] = max(0, state.resources[dim]["stock"] - need)
+            # 审查防御：资源维可能缺槽（新注册物资/旧存档），原为硬下标 → KeyError
+            # 会中断整月结算。统一 setdefault 建槽后再扣。
+            _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
+            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - need)
         if coin_need > 0:
             state.treasury -= coin_need
         proj["progress"] = min(100, proj.get("progress", 0) + int(proj.get("speed", 10)))
@@ -2134,7 +2137,8 @@ def _settle_workshops(state, log):
         for dim, need in recipe.items():
             if dim == "grain_feed":
                 continue  # 粮耗已单独从太仓扣，不作为资源维度
-            state.resources[dim]["stock"] = max(0, state.resources[dim]["stock"] - need)
+            _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
+            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - need)
         out_dim = ws.get("output_dim")
         yld = float(ws.get("yield", 0))
         if out_dim == "wine":
@@ -2145,8 +2149,12 @@ def _settle_workshops(state, log):
             state.imperial_treasury += int(yld * MEAT_PRICE)
             state.granary_stats["meat_revenue"] = state.granary_stats.get("meat_revenue", 0) + int(yld * MEAT_PRICE)
         elif out_dim in RESOURCE_DIMS:
-            cap = state.resources[out_dim]["cap"]
-            state.resources[out_dim]["stock"] = min(cap, state.resources[out_dim]["stock"] + yld)
+            # 审查防御：同上（缺槽即 KeyError）；且 cap<=0 时原式 min(0, …) 会把
+            # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。
+            _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
+            _cap = int(_slot.get("cap", 0) or 0)
+            _new = int(_slot.get("stock", 0) or 0) + yld
+            _slot["stock"] = min(_cap, _new) if _cap > 0 else _new
 
 
 # ------------------------------------------------------------
