@@ -1030,6 +1030,17 @@ def _settle_extensions(state, log):
             if _p["pops"]["商人"]["size"] > 0:
                 _p["pops"]["商人"]["wealth"] += int(_merchant_profit * _p["pops"]["商人"]["size"] / _total_merchant)
         state.coin["shortage"] = max(0.0, state.coin["shortage"] - 0.01)      # 白银流入缓解钱荒
+        # 白银**存量**累积（阶段 B-1）：silver_in 是「万两/年」的**流量**，此前只被
+        # calc_price_level 当作白银存量 ×10000 使用，**从未进入任何持有账户**——
+        # 既是"把流量当存量"的建模错误，也是货币对账里一笔无对手方的注入。
+        # 现按 1/12 月度份额累积进 `state.silver_stock`（外部注入的唯一合法入口，
+        # 供 core/money.py 对账时作为外部项扣除）。**不改动任何既有数值**：
+        # calc_price_level 仍读 silver_in，silver_stock 在阶段 B-1 只被 money.py 读取。
+        try:
+            _sv_annual = float(state.maritime.get("silver_in", 0) or 0) * 10000.0   # 万两/年 → 贯/年
+            state.silver_stock = int(getattr(state, "silver_stock", 0) or 0) + int(_sv_annual / 12.0)
+        except Exception:  # noqa: BLE001 — 对账辅助字段，失败不影响结算
+            pass
     # 银行调制（扩/损——仅 established；capital ±20%、reserve +50万）
     if _bank_on:
         _bk_cfg, _br_cfg = _fdb["bank_capital"], _fdb["bank_reserve"]
