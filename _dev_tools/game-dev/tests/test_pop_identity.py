@@ -50,6 +50,7 @@ from core.settlement_steps import (  # noqa: E402
 )
 from core.settlement import (  # noqa: E402
     _settle_mechanisms, _settle_tech, _settle_org_economy,
+    _settle_legacies, _settle_focus,
 )
 from core.settlement_steps import _settle_finance  # noqa: E402
 
@@ -76,6 +77,11 @@ _STEPS = [
     ("mechanisms", _settle_mechanisms),
     ("tech", _settle_tech),
     ("org_economy", _settle_org_economy),
+    # 2026-09-18 结算步专项检查：镜像原先**缺这两步** → 逐步账本审计对它们完全盲。
+    # `_settle_focus` 会在国策在办时产生国策度支，`_settle_legacies` 施加帝国修正；
+    # 账本测试必须覆盖完整管线，否则"新结算步偷偷漏钱"会绕过全部断言。
+    ("legacies", _settle_legacies),
+    ("focus", _settle_focus),
     ("events", _settle_events),
     ("disaster", _settle_disaster),
     ("emperor", _settle_emperor_personal),
