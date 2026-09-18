@@ -148,6 +148,7 @@ export type ActionName =
   | "do_personal_action"
   | "choose_imperial_action"
   | "audience_dialogue"
+  | "envoy_diplomacy"
   | "start_tech_research"
   | "approve_invention"
   | "reject_invention"

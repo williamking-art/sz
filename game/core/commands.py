@@ -756,6 +756,7 @@ __all__ = [
     "settle_local", "finish_turn", "monthly_report_args",
     "resolve_event", "save", "load", "save_slots", "conclude",
     "audience_dialogue", "audience_dialogue_prepare", "audience_dialogue_apply",
+    "envoy_diplomacy",
     "issue_drafted_decree", "preview_draft",
     "approve_ai_action", "reject_ai_action",
 ]
@@ -943,6 +944,63 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
         _dialogue_stats(state)["ai_calls"] += 1
         _dialogue_cache_store(state, minister_name, player_input, reply)
     return reply
+
+
+def envoy_diplomacy(state: GameState, target: str, speech: str, ai_client) -> str:
+    """遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
+
+    审查补齐（「条约」页恒空的根因）：`ai_client.diplomacy_dialogue` 与
+    `core.diplomacy_treaty.apply_treaty` 均已实现且带 T5 测试，却**全库无生产调用方**
+    —— 前端「遣使」原走 `audience_dialogue`（把外国君主当大臣召对），于是协议永不
+    落地、`state.treaties` 恒空。
+
+    拒绝式纪律（与召对同级）：AI 未接入或校验不过 → 不伪造国主应答与协议，只记外交
+    纪事；`apply_treaty` 自身校验对象/类型/内帑，不通过则如实回奏而不写 treaties。
+    """
+    from core.diplomacy_treaty import apply_treaty
+
+    target = str(target or "").strip()
+    speech = str(speech or "").strip()
+    if target not in ("辽", "金", "西夏"):
+        return "遣使须择辽、金、西夏之一。"
+    if not speech:
+        return "国书未具，遣使不行。"
+
+    _dlog = getattr(state, "diplomacy_log", None)
+    _y, _m = int(getattr(state, "year", 0) or 0), int(getattr(state, "month", 0) or 0)
+
+    def _note(text: str) -> None:
+        if isinstance(_dlog, list):
+            _dlog.append({"year": _y, "month": _m, "text": text})
+
+    if not (ai_client and getattr(ai_client, "available", False)):
+        _note(f"遣使{target}，国主未及接见（AI 未接入），和战未定")
+        return f"遣使{target}未达：国主未及接见，和战未定。"
+
+    try:
+        obj = ai_client.diplomacy_dialogue(speech, target, state=state)
+    except Exception as e:  # noqa: BLE001
+        print(f"[diplomacy] 遣使{target}失败: {e!r}", flush=True)
+        obj = None
+    if not isinstance(obj, dict):
+        _note(f"遣使{target}，国书往返而未成议")
+        return f"遣使{target}未成：国书往返，未达成协议。"
+
+    narrative = str(obj.get("narrative") or "").strip()
+    stance = str(obj.get("stance") or "")
+    agreement = str(obj.get("agreement") or "拒绝")
+
+    if agreement == "拒绝":
+        _note(f"遣使{target}，国主{stance}而不许：{narrative}")
+        return narrative or f"{target}国主不许所请。"
+
+    res = apply_treaty(state, target, agreement, obj.get("terms") or {},
+                       year=_y, month=_m)
+    if not res.get("ok"):
+        _note(f"遣使{target}议{agreement}未成：{res.get('msg')}")
+        return f"与{target}议{agreement}未成：{res.get('msg')}"
+    _note(f"与{target}定{agreement}：{res.get('msg')}（国主{stance}）")
+    return f"{narrative}\n\n{res.get('msg')}" if narrative else str(res.get("msg"))
 
 
 def audience_dialogue_prepare(state: GameState, minister_name: str,
