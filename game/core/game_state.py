@@ -89,6 +89,12 @@ def _build_pops(info: dict, p_type: str) -> dict:
         "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
         "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0},
         "官僚": {"size": sz_guan,
+                  # 身份子池（宋代官制设计 §13.3/§13.4）：官/吏分账，官再分在岗/待阙/祠禄。
+                  # 不变量：size == officials + clerks；officials == on_post + waiting + sinecure。
+                  # 权威源是这里的子池；`prefectures[].officials/clerks` 只是派生镜像
+                  # （唯一写入点 `core/officialdom.sync_legacy_mirror`，供 Rust 后端与旧档读取）。
+                  "officials": _off, "clerks": _off * 8,
+                  "on_post": _off, "waiting": 0, "sinecure": 0,
                   "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02), "goods": _g0(), "欠税": 0},
         # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
         "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0},  # 兵额由 army_units 聚合后回填

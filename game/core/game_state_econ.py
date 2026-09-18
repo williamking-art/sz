@@ -38,6 +38,9 @@ from content.data import (
 # game_state.py、本文件 mixin 方法共三份重复）
 from content.data import clamp as _clamp  # noqa: E402
 
+# 官制 × POP 的单一权威源（官额/吏额/子池付款权数一律经此读取，杜绝 officials 双账复活）
+from core import officialdom as _officialdom  # noqa: E402
+
 
 
 class GameStateEconMixin:
@@ -407,12 +410,15 @@ class GameStateEconMixin:
             total += c
         return total, by_route
 
-    # ---- 官俸（Σ官×人均）----
+    # ---- 官俸（Σ官×人均；官额与子池计价一律取自 POP，见 core/officialdom.py）----
+    # POP 挂载律：`p["officials"]` 只是派生镜像，**不得**作为俸禄依据（否则双账复活：
+    # 科举让官僚 POP 涨、镜像不涨 → "养更多官、一分钱不多花"，30 月实证 +23.1% vs +0.0%）。
     def calc_official_grain(self):
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
-            g = float(p.get("officials", 0)) * OFFICIAL_GRAIN_PER_MONTH  # 官×每官月禄(石)
+            # 在岗全禄、待阙半禄、祠禄折禄（§13.6）
+            g = _officialdom.route_pay_units(p) * OFFICIAL_GRAIN_PER_MONTH
             by_route[name] = g
             total += g
         return total, by_route
@@ -421,7 +427,7 @@ class GameStateEconMixin:
         total = 0.0
         by_route = {}
         for name, p in self.prefectures.items():
-            c = float(p.get("officials", 0)) * OFFICIAL_PAY_PER_MONTH
+            c = _officialdom.route_pay_units(p) * OFFICIAL_PAY_PER_MONTH
             by_route[name] = c
             total += c
         return total, by_route
@@ -433,8 +439,8 @@ class GameStateEconMixin:
         # 应得：官+吏的折色应发基准（官少吏多，吏按 CLERK_PAY_PER_MONTH）
         # 单位统一：officials/clerks 为真实人数，OFFICIAL/CLERK_PAY_PER_MONTH 为贯/人月，
         # due 直接为贯（不再 /10000，与 calc_clerk_gap 的 qdue 口径一致）。
-        officials = float(p.get("officials", 0))
-        clerks = float(p.get("clerks", 0))
+        officials = float(_officialdom.route_pay_units(p))
+        clerks = float(_officialdom.route_clerks(p))
         due = officials * OFFICIAL_PAY_PER_MONTH + clerks * CLERK_PAY_PER_MONTH
         if due <= 0:
             return 1.0
@@ -443,8 +449,8 @@ class GameStateEconMixin:
         due_total = 0.0
         gap_total = 0.0
         for q in self.prefectures.values():
-            qo = float(q.get("officials", 0))
-            qc = float(q.get("clerks", 0))
+            qo = float(_officialdom.route_pay_units(q))
+            qc = float(_officialdom.route_clerks(q))
             qdue = qo * OFFICIAL_PAY_PER_MONTH + qc * CLERK_PAY_PER_MONTH
             due_total += qdue
             gap_total += max(0.0, qdue - float(q.get("local_finance", 0)))
@@ -463,7 +469,7 @@ class GameStateEconMixin:
         by_route = {}
         for name, p in self.prefectures.items():
             pr = self.calc_pay_ratio(name)
-            g = float(p.get("clerks", 0)) * CLERK_GRAIN_PER_MONTH * pr  # 吏×每吏月禄(石)
+            g = float(_officialdom.route_clerks(p)) * CLERK_GRAIN_PER_MONTH * pr  # 吏×每吏月禄(石)
             by_route[name] = g
             total += g
         return total, by_route
@@ -473,7 +479,7 @@ class GameStateEconMixin:
         by_route = {}
         for name, p in self.prefectures.items():
             pr = self.calc_pay_ratio(name)
-            c = float(p.get("clerks", 0)) * CLERK_PAY_PER_MONTH * pr
+            c = float(_officialdom.route_clerks(p)) * CLERK_PAY_PER_MONTH * pr
             by_route[name] = c
             total += c
         return total, by_route
@@ -484,8 +490,8 @@ class GameStateEconMixin:
         by_route = {}
         for name, p in self.prefectures.items():
             pr = self.calc_pay_ratio(name)
-            clerks = float(p.get("clerks", 0))
-            officials = float(p.get("officials", 0))
+            clerks = float(_officialdom.route_clerks(p))
+            officials = float(_officialdom.route_pay_units(p))
             due = officials * OFFICIAL_PAY_PER_MONTH + clerks * CLERK_PAY_PER_MONTH
             gap = due * (1 - pr)
             by_route[name] = gap

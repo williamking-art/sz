@@ -41,7 +41,7 @@ from content.data import (  # noqa: E402
 # 与 run_monthly_settlement 完全一致的步骤序列（不含结尾 turn/month 推进）
 from core.settlement_steps import (  # noqa: E402
     _settle_decrees, _settle_factions, _settle_economy, _settle_land_local,
-    _settle_region_deepen, _settle_upkeep,
+    _settle_region_deepen, _settle_upkeep, _settle_officialdom,
     _settle_extensions, _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_projects, _settle_workshops,
     _settle_treasury, _settle_military_diplomacy, _evaluate_timeline_breaks,
@@ -63,6 +63,7 @@ _STEPS = [
     ("external", _simulate_external),
     ("granary", _settle_granary),
     ("upkeep", _settle_upkeep),
+    ("officialdom", _settle_officialdom),
     ("finance", _settle_finance),
     ("projects", _settle_projects),
     ("workshops", _settle_workshops),
@@ -398,8 +399,14 @@ def test_granary_ledger_no_hoard(monkeypatch):
     g1 = s.granary
     pop_g1 = sum(pop.get("grain", 0) for p in s.prefectures.values() for pop in p["pops"].values())
     storage1 = sum(p.get("storage", 0) for p in s.prefectures.values())
-    # 太仓净出 == 雀鼠耗 + 本色俸禄（military）+ 贪腐本色 + 作坊耗粮（酒坊/畜栏 grain_feed，加消耗修正）
-    out_ledger = (s.granary_stats["sparrow"] + s.granary_stats["military"] + corr_actual_pre
+    # 太仓净出 == 雀鼠耗 + 本色俸禄（military）+ 贪腐本色 + 作坊耗粮（酒坊/畜栏 grain_feed）
+    #
+    # 2026-09-18（阶段 C-1）：贪腐本色改用**台账记录的实扣额** `granary_stats["corruption_grain"]`，
+    # 不再在此处复算。原因：该量依赖 `calc_clerk_gap()` → 官/吏额，而官额在本月内会因**科举入仕**
+    # 变化（官制 × POP 接上之后）；在月首复算 vs 在 `_settle_granary` 内实算，会得到相差 42 石的结果。
+    # 「派生量不在别处重算」与 §五 D′ 类是同一教训：账本测试必须读台账。
+    corr_recorded = s.granary_stats.get("corruption_grain", corr_actual_pre)
+    out_ledger = (s.granary_stats["sparrow"] + s.granary_stats["military"] + corr_recorded
                   + s.granary_stats.get("workshop_feed", 0))
     assert abs((g0 - g1) - out_ledger) <= 2, \
         f"太仓净出账本断裂：Δgranary={g0-g1} 出库={out_ledger}"

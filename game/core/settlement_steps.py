@@ -35,6 +35,9 @@ from content.data import (
     HOARD_CAP_MULT, HOARD_COPPER_RATIO_BASE,
 )
 
+# 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）
+from core import officialdom as _officialdom
+
 
 # ------------------------------------------------------------
 # Step 1: 诏令执行
@@ -435,11 +438,13 @@ def _apply_decree_effect(state, decree, log):
         }
         state.change_prestige(-2, "省浮费/裁冗员阻力")
         # 政策 → POP：裁汰冗员裁减官僚 POP 人数（裁 5%，钱粮随之减少，体现三冗之减）
+        # 裁冗**先从冗处裁**：优先祠禄 → 待阙 → 在岗（见 core/officialdom.remove_officials）。
+        # 返乡去向：裁下的官重回士绅（ΣPOP 守恒，§13.5 出口轴）。
         if kind == "reduce_office":
             for _p in state.prefectures.values():
                 _guan = _p["pops"]["官僚"]
-                _cut = int(_guan["size"] * 0.05)
-                _guan["size"] = max(0, _guan["size"] - _cut)
+                _cut = _officialdom.remove_officials(_p, int(_guan["size"] * 0.05))
+                _p["pops"]["士绅"]["size"] += _cut
         log.append(f"[变法] 诏{ '裁汰冗员' if kind=='reduce_office' else '省浮费' }，期以{state.waste_reform['months_left']}月渐省浮费，然官僚梗阻、怨声渐起")
     # 粮量单位约定：decree effect 中的粮额（he_mi/military_supply/relief/grain_stabilize/granary_reform）
     # 语义为「万石」，转到后台「石」需 ×10000；日志仍按设计语义显示「万石」。
@@ -735,7 +740,9 @@ def _settle_economy(state, log):
             elite = min(quota - hard, pops["士绅"]["size"])
             pops["农"]["size"] -= hard
             pops["士绅"]["size"] -= elite
-            pops["官僚"]["size"] += hard + elite
+            # 入仕者优先落入**待阙**池（新科进士不会立刻有差遣，见 §13.5 / §15.7）——
+            # 这正是"冗官"的进水阀：人多而阙少 → 待阙堆积 → 半俸支出＋怨望。
+            _officialdom.add_officials(p, hard + elite, "waiting")
         # 4) 流民吸收（跨路迁入，非本地农户流出）
         # 语义澄清（审查复核结论，勿按「方向反了」误改）：absorb 为**流入率**——
         # 治理良好（mood/govern 高、unrest 低）时吸引外来流民迁入本路，故写成
@@ -1575,6 +1582,11 @@ def _settle_granary(state, log):
     # 先截断再出账，保证下方太仓恒等断言在枯竭时仍闭合（不因 clamp 断裂）。
     corr_actual = min(corr_grain, state.granary)
     state.change_granary(-corr_actual)
+    # 记录**实际**扣减额（供面板与账本测试读取）。此前测试改为"事后复算"同一条公式，
+    # 但复算点在月内的位置与这里不同（官额会因科举在月内变化）→ 会算出 42 石的假残差。
+    # 账本测试必须读**台账记录的实扣额**，而不是在别处重算派生量。
+    state.granary_stats["corruption_grain"] = \
+        state.granary_stats.get("corruption_grain", 0) + corr_actual
     state.granary_stats["military"] += given
     short = need - given
     if short > 0:
@@ -2178,6 +2190,16 @@ def _collect_from_pops(state, amount: int) -> int:
             taken += got
             remaining -= got
     return taken
+
+
+def _settle_officialdom(state, log):
+    """Step 3.95 官制结算（薄封装，实现在 `core/officialdom.py`——单一权威源）。
+
+    职责：旧档子池迁移修复 → 不变量校验（size == officials + clerks；
+    officials == on_post + waiting + sinecure）→ 派生镜像同步（`p["officials"]`/`["clerks"]`
+    的唯一写入点）→ 把冗官关键指标写进 `state.statistics` 供面板与审计读取。
+    """
+    return _officialdom.settle_officialdom(state, log)
 
 
 def _distribute_cash(state, amount: int, shares: dict) -> int:
