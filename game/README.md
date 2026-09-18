@@ -51,6 +51,44 @@
 
 ---
 
+## 前端构建 / 类型检查（无系统 Node 时的办法）
+
+本仓库**不要求系统安装 Node**：`game/frontend/node_modules/electron`（**Electron 33.0.0**）
+内置 **Node v20.18.0**，`ELECTRON_RUN_AS_NODE=1 electron.exe` 即等价于 `node`。
+前端工具链（typescript / vite / electron-vite / react / rollup / esbuild）已随 `node_modules` 就位。
+
+```powershell
+cd game\frontend
+$env:ELECTRON_RUN_AS_NODE = '1'
+$node = '.\node_modules\electron\dist\electron.exe'
+
+# 类型检查（两份配置都要过）
+& $node .\node_modules\typescript\bin\tsc --noEmit -p tsconfig.web.json
+& $node .\node_modules\typescript\bin\tsc --noEmit -p tsconfig.node.json
+
+# 构建产物 → out\main、out\preload、out\renderer（主进程 loadFile('../renderer/index.html')）
+& $node .\node_modules\electron-vite\bin\electron-vite.js build
+```
+
+| 事项 | 结论 |
+|---|---|
+| `tsc` 类型检查 | ✅ 可用（web/node 两配置） |
+| `electron-vite build`（vite/rollup/esbuild） | ✅ 可用 |
+| `electron-builder` **asar 打包** | ❌ **不可用**：写 `app.asar` 报 `Invalid package`（Electron 打过补丁的 `fs` 干扰 asar 写入）。打包需真正的 Node |
+| 打包前置 | 还需先产出 PyInstaller 本体（`electron-builder.yml` 的 `extraResources.from: ../dist/SongZuo`；`game/dist/` 当前不存在） |
+| 生效方式 | `out/` 变了之后**重启应用**（主进程产物也变了）才会加载新包 |
+
+> `out/`、`dist/`、`node_modules/` 均已在 `game/frontend/.gitignore` 中，构建不会污染版本库。
+>
+> **两条可选路径**（都不需要用户预装 Node）：
+> 1. **直接用 Electron 内置 Node**（上面这套，零下载）—— 适合类型检查与构建；
+> 2. **让 `start.bat` 自动下载便携 Node** —— 它已内置回退逻辑：探测 `tools\nodejs\node.exe` →
+>    `where node` → 都没有则提示并可**自动下载 Node 20.19.5**（npmmirror，约 30 MB）到 `tools\nodejs`，
+>    随后 `npm install` + `npm run dev` 启动 Electron（客户端自行拉起 Python 后端）。
+>    `tools\` 当前不存在 = 该回退尚未触发过，不是故障。
+
+---
+
 ## 目录分层规范
 
 项目严格按「游戏本体 / 开发工具 / 无关归档」三层隔离，保证游戏可单独分发、不被开发脚本与临时产物污染。
