@@ -25,6 +25,11 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+# 覆盖率数据（每次跑 coverage 都变，属产物不属源码）——2026-09-18 测试体检时发现曾被跟踪
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
 # --- 构建缓存 / 打包产物 ---
 build/
