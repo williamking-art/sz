@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { Scroll, Loader2, Play, FolderOpen, BookOpen, Settings, Crown } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import codexData from "../data/codex.json";
+
+// 图鉴辞条总数：由数据实时汇总（原硬编码「187 辞条」，而 codex.json 随
+// content/codex_data.py 演进已达 190 —— 硬编码必然过期，见 export_frontend_data.py）
+const CODEX_COUNT = Object.values(codexData as Record<string, unknown[]>)
+  .reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
 
 const DIFFICULTIES: { key: string; label: string; desc: string; tag: string }[] = [
   { key: "史实", label: "史实推演", tag: "标准", desc: "依徽宗建中靖国元年旧制，外患隐现，南北党争未定，人事如常。" },
@@ -143,7 +149,7 @@ export default function StartPanel() {
               <BookOpen size={16} className="text-goldDark" />
               <span className="font-kai text-sm tracking-wider text-ink">大宋典制（图鉴百览）</span>
             </div>
-            <span className="font-kai text-xs text-dim">187 辞条</span>
+            <span className="font-kai text-xs text-dim">{CODEX_COUNT} 辞条</span>
           </button>
 
           {/* 4. 机务设置 */}
