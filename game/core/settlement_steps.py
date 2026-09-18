@@ -63,6 +63,15 @@ def _settle_decrees(state, log):
     failed = 0
     longterm_this_turn = []
 
+    # 吏治把持度对本轮所有诏令的执行折扣（§16.4；只读派生，见 core/clerks.py）
+    try:
+        from core.clerks import decree_execution_mult as _dem
+        _grip_mult = _dem(state)
+    except Exception:  # noqa: BLE001 — 吏制不可用时不得阻断诏令结算
+        _grip_mult = 1.0
+    if _grip_mult < 0.98:
+        log.append(f"[吏治] 吏胥把持，政令执行率 ×{_grip_mult:.2f}")
+
     active_ids = {d.get("id") for d in state.active_decrees if d.get("id")}
 
     remaining = []
@@ -86,6 +95,11 @@ def _settle_decrees(state, log):
             is_zhongzhi=decree.get("is_zhongzhi", False),
             org_hint=org_hint,
         )
+        # §16.4 吏强官弱：实际执行率 = 官效率 × (1 − 把持度 × w)
+        # 官三年一任、回避本籍；吏世代本地、掌握簿书 → 政令必须经吏才能落地。
+        # 这是给审计 J-2「叙事说办了、数值没动」一个有原因、可诊断、可治理的载体：
+        # 回执仍是"已施行"，但效果打折，而原因可在面板查到吏治状态。
+        rate = rate * _grip_mult
         rate = min(0.95, rate + ai_boost)  # 封顶 95%
 
         if random.random() < rate:
@@ -118,6 +132,7 @@ def _settle_decrees(state, log):
             is_zhongzhi=decree.get("is_zhongzhi", False),
             org_hint=decree.get("org_hint", "政府"),
         )
+        rate = rate * _grip_mult          # 密旨亦须经吏手，同受把持度折扣
         if random.random() < rate:
             _apply_decree_effect(state, decree, log)
             log.append(f"[密旨] 「{decree.get('title','密令')}」暗中推行")
@@ -900,7 +915,24 @@ def _settle_land_local(state, log):
         p["grain"] = int(p["grain"] * 1.002)
 
     for yname, y in state.yamen.items():
-        y["backlog"] = max(0, y["backlog"] + random.randint(0, 3) - int(y["efficiency"] / 40))
+        # 政务积压增长（§11.6 第一行）：原为 `random.randint(0, 3)` —— 一个**无载体的随机**，
+        # 与"有司拖延"的成因完全脱钩。现改为 **净积压 = W − C_eff**：
+        #   W     = 本路政务量（案牍件/月，见 core/clerks.route_workload）
+        #   C_eff = 吏数 × (1 − 吏怨/100)，即"吏数够、但吏怨高 → 有效处理能力不足"
+        # 于是「冗吏」与「积压」可以并存（§16.6 的史实悖论），且玩家有明确杠杆
+        # （少下诏 / 裁并机构 / 增吏 / 治吏怨）。吏制不可用时退化为旧的随机项。
+        try:
+            from core.clerks import backlog_gain as _bg
+            # 六部 yamen 与路的对应：近似按 yamen 名匹配路（无匹配则取全国均值增量）
+            _route = yname if yname in state.prefectures else None
+            if _route:
+                _gain = _bg(state, _route)
+            else:
+                _gains = [_bg(state, r) for r in state.prefectures]
+                _gain = sum(_gains) / max(1, len(_gains))
+        except Exception:  # noqa: BLE001
+            _gain = float(random.randint(0, 3))
+        y["backlog"] = max(0, int(y["backlog"] + _gain - y["efficiency"] / 40))
         y["efficiency"] = max(20, min(100, y["efficiency"] + random.randint(-2, 1)))
 
 
@@ -2230,6 +2262,16 @@ def _settle_clan(state, log):
         state.imperial_treasury += paid - given
     log.append(f"[宗室] 赡宗室 {given:,} 贯（宗室 {total_clan:,} 口 × {CLAN_PAY_PER_MONTH:.0f} 贯，内帑出）")
     return given
+
+
+def _settle_clerks(state, log):
+    """Step 3.97 吏制结算（薄封装，实现在 `core/clerks.py`——单一权威源）。
+
+    吏额由**政务量**驱动（脱离「官 × 8」）、吏禄不足 → **陋规**（民间三池 → 官僚 POP 的
+    纯转移，零货币残差）、**把持度**与**吏怨**缓动，并导出「有效吏力」与吏治四档。
+    """
+    from core import clerks as _clerks
+    return _clerks.settle_clerks(state, log)
 
 
 def _settle_officialdom(state, log):

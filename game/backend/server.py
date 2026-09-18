@@ -522,6 +522,13 @@ def api_readouts(request: Request):
             tax_base = _json_safe(s.tax_base_summary())
         except Exception:
             tax_base = {}
+        # 吏制派生视图（阶段 C-5，§16）：吏额/冗吏率/吏禄充足/把持度/吏怨/有效吏力/定性四档。
+        # 吏不具名（§16.9）；面板据此渲染「吏治」一行与「该路吏胥把持」的诊断。
+        try:
+            from core.clerks import totals as _clerk_totals
+            clerks = _json_safe(_clerk_totals(s))
+        except Exception:
+            clerks = {}
         return {
             "army": army,
             "arsenal": arsenal,
@@ -531,6 +538,7 @@ def api_readouts(request: Request):
             "briefing": briefing,
             "ministers": ministers,
             "tax_base": tax_base,
+            "clerks": clerks,
             "defense_lines": _json_safe(s.defense_lines),
         }
 
