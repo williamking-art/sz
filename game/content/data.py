@@ -1645,6 +1645,18 @@ BUILDING_STD = {
 BUILDING_LEVEL_MULT = 1.5      # 每级效果 ×1.5
 BUILDING_COST_GROWTH = 1.8     # 建造成本 ×1.8^(Lv-1)
 BUILDING_EFFECT_CAP = 2.0      # 效果乘数封顶 ×2.0
+
+# ---- 资产维持费（L1 money sink，2026-09-18 阶段 B-3）----
+# 设计早已在 `BUILDING_STD[*]["maintain"]` 写明"维护 ×0.5%/月"，但**全库从未消费**
+# （实测：`maintain` 仅有定义、零引用）——正是审查 A-1/财力消耗设计 L1 要补的那一环。
+# 本组常量补齐**其余资产类型**的折算基准，使"玩家越扩张 → 固定支出越大"成立。
+# 计费口径：资产折算造价 × ASSET_MAINTAIN_RATE（月）→ 国库支出 → 支付给营造/修缮方（民间）。
+WORKSHOP_VALUE = 120_000        # 单座作坊折算造价（贯）
+EQUIP_UNIT_VALUE = 2.0          # 军械折价（贯/件）
+FORT_VALUE = 10_000             # 城防每点折算造价（贯）
+POP_BUILDING_VALUE = 100_000    # 非 BUILDING_STD 的 POP 建筑（农田/工坊/商铺/庄园）每级折算造价（贯）
+ASSET_MAINTAIN_RATE = 0.005     # 统一月维护率 0.5%/月（与 BUILDING_STD[*].maintain 一致）
+UPKEEP_PAY_TO = {"工匠": 0.4, "商人": 0.6}   # 维护支出支付对象（营造/修缮服务；和为 1）
 POP_BUILDING_TYPES = ("农田", "工坊", "商铺", "庄园")   # POP 建筑（阶层 wealth 出资，Lv1-5，×0.05/Lv）
 POP_BUILDING_EFFECT = 0.05     # 每级 ×0.05（封顶 ×2.0 由 BUILDING_EFFECT_CAP 统一）
 # 投资（invest_decide 复用 free_effect 载体；六领域基准年回报/风险）
