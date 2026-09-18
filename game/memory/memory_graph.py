@@ -397,7 +397,11 @@ class MemoryGraph:
                 return [tuple(row) for row in cur.fetchall()]
             finally:
                 conn.close()
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            # D 修复（静默降级）：SQL 用到 exp()，若运行环境 SQLite 未编译
+            # SQLITE_ENABLE_MATH_FUNCTIONS 则会抛错；原实现直接 return [] →
+            # 记忆检索/压缩/总结全部静默归零且无任何线索。此处记 warning 便于诊断。
+            log.warning("memory.query_sql 失败（降级为空）：%s", e)
             return []
 
     def query_summaries(self, period: int = None, stype: str = None,
@@ -651,6 +655,10 @@ class MemoryGraph:
                 # 不删除，内存里已删除的实体/关系会在 DB 永久残留（与「快照」语义不符）。
                 conn.execute("DELETE FROM entities")
                 conn.execute("DELETE FROM relations")
+                # D 修复（快照语义不完整）：summaries 原只 INSERT OR REPLACE，不从内存
+                # 移除的旧 summary 行会永久残留；而 rollback_after 却会按 created_turn
+                # 删 summaries（两处语义不一致）。此处与主表同规，先清后全量重写。
+                conn.execute("DELETE FROM summaries")
                 for e in self.entities.values():
                     if not isinstance(e, dict):
                         continue

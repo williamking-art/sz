@@ -262,17 +262,39 @@ def _cost_balanced(effects, cost) -> bool:
 
 
 def _money_effects_feasible(state, effects, cost) -> bool:
-    """前置可行性（审查 P0-5）：effects 的 treasury/finance 增减 + cost 出账，
-    民间总持钱/国库均须足额，任一不足 → 整单不执行（原子拒绝，不部分落地）。"""
+    """前置可行性（审查 P0-5 / B6 修复）：effects 的 treasury/finance 增减**与 cost 出账**
+    按**合计**校验，任一不足 → 整单不执行（原子拒绝，不部分落地）。
+
+    修复前（B6）：逐项各自判 `_money_feasible`，并单独判 `cost.treasury <= treasury`，
+    **从不校验「Σ出账 + cost ≤ 可用余额」**。当契约同时含多项出账（如
+    `treasury:-80` 与 `finance:-80`，或效果出账 + cost 出账）时预检全部通过，
+    而落地阶段第二个键因余额不足被静默 `continue` 跳过 → 契约**半落地**，
+    与模块文档「任一无足额 → 整单不执行」直接矛盾。
+
+    现口径（净额）：
+      - 国库净变动 = Σ(effects.treasury/finance) − cost.treasury；
+        净出账时要求 `treasury >= |净出账|`；
+      - 自民间征收合计（Σ 正项）须 ≤ 民间总持钱（征收先于 cost 的发放）；
+      - cost.granary 须 ≤ 太仓存粮。
+    """
     try:
-        for k, v in (effects or {}).items():
-            if k in ("treasury", "finance"):
-                d = int(_resolve_effect_value(k, v))
-                if not _money_feasible(state, d):
-                    return False
+        effects = effects or {}
         cost = cost or {}
-        if int(cost.get("treasury", 0) or 0) > getattr(state, "treasury", 0):
+        treasury_delta = 0
+        pop_demand = 0
+        for k, v in effects.items():
+            if k in ("treasury", "finance"):
+                d = int(round(_resolve_effect_value(k, v) or 0))
+                treasury_delta += d
+                if d > 0:
+                    pop_demand += d
+        treasury_delta -= int(cost.get("treasury", 0) or 0)
+        if treasury_delta < 0 and getattr(state, "treasury", 0) < -treasury_delta:
             return False
+        if pop_demand > 0:
+            pop_have = sum(int(pp.get("wealth", 0) or 0) for pp in _money_pools(state))
+            if pop_have < pop_demand:
+                return False
         if int(cost.get("granary", 0) or 0) > getattr(state, "granary", 0):
             return False
     except Exception:

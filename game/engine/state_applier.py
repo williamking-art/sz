@@ -56,6 +56,8 @@ VALID_PATHS: List[str] = [
 # 0-1 范围字段（修改后自动 clamp [0,1]）
 # T2 修复：wealth/satisfaction/influence 均非 0-1 比率（wealth 为贯、满意度 0-100），
 # 原 CLAMP_01 把它们 clamp 到 1 会毁掉守恒——清空（真 0-1 字段如有再加）。
+# D 说明：本表当前为空 → 对应的 clamp 分支为**有意保留的空通道**（非缺陷，
+# 亦非漏写）。真 0-1 字段（如 oversight）如需 AI 写入，在此登记即可自动生效。
 CLAMP_01_FIELDS: List[str] = []
 
 # 0-100 百分制字段（修改后 clamp [0,100]，set 负值直接拒绝）
@@ -83,7 +85,9 @@ NON_NEG_PREFIXES: List[str] = [
     "defense_lines.*.garrison",
     "land.hidden_households",
     "waste_reform.savings",
-    "legacies.*.progress", "focus.*.power_level",
+    "legacies.*.progress",
+    # D 修复：原含 "focus.*.power_level" —— focus 路径已从 VALID_PATHS 移除
+    # （GameState 无 focus 字段），该条永不命中，属失效配置。
 ]
 
 # 支持的操作
@@ -270,34 +274,22 @@ def cascade_rule(pattern: str):
     return deco
 
 
-@cascade_rule("factions.*.power")
-def _cascade_faction_power(state, ch):
-    """派系 power 变化 → 自动反向调整对立派系 power（此项目用 influence 近似）。"""
-    parts = ch["path"].split(".")
-    faction = parts[1]
-    delta = ch["value"] if ch["op"] == "add" else 0
-    if not delta:
-        return []
-    out = []
-    for other in getattr(state, "factions", {}):
-        if other != faction:
-            # 对立派系反向：delta * -0.3
-            out.append({
-                "path": f"factions.{other}.influence",
-                "op": "add", "value": round(-delta * 0.3, 4),
-                "reason": f"cascade: {faction} power 变化反作用于 {other}",
-                "source_agent": "cascade",
-            })
-    return out
-
-
 @cascade_rule("prefectures.*.pops.农.wealth")
 def _cascade_farmer_wealth(state, ch):
-    """农 wealth 变化 → 微调役钱可征（tax_compliance 近似：0-1 clamp）。"""
+    """农 wealth 变化 → 微调役钱可征（tax_compliance 近似：0-1 clamp）。
+
+    占位实现（有意返回空）：保留注册点以便后续扩展；空返回不影响任何行为。
+    """
     return []  # 占位：可扩展
 
 
-def _resolve_path_value(state, path: str):
+# D 修复（删除死规则）：原注册了 `@cascade_rule("factions.*.power")`，但
+#   ① `factions.*.power` 不在 VALID_PATHS（白名单只有 satisfaction/influence），
+#      validate_changes 会先拒绝该路径；
+#   ② FactionState 本身也没有 `power` 字段（只有 influence/satisfaction/cohesion…）。
+# 故 `apply_cascade` 永不匹配到该规则（合并后的 changes 里不可能出现 factions.X.power），
+# 属永不触发的死代码；且一旦被误配白名单会因寻址失败触发「整批回滚」。
+# 已整体移除。def _resolve_path_value(state, path: str):
     """按 path 解析状态中的当前值（* 通配返回 None 表示多目标）。"""
     if "." not in path:
         return getattr(state, path, None)

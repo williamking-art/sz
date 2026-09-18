@@ -145,6 +145,28 @@ async function ensureBackend(): Promise<string> {
 // ---------------- 窗口 ----------------
 let mainWindow: BrowserWindow | null = null;
 
+/**
+ * 安全审查 A6：外链白名单。
+ * 原实现把任意 URL 直接交给 shell.openExternal，`file:` / `smb:` / 自定义协议
+ * 可触达 OS 处理器（本地命令执行面）。此处仅放行 http/https。
+ */
+function isSafeExternalUrl(raw: string): boolean {
+  try {
+    const protocol = new URL(raw).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function openExternalIfSafe(raw: string): void {
+  if (isSafeExternalUrl(raw)) {
+    void shell.openExternal(raw);
+  } else {
+    console.warn(`[window] 已拦截非 http(s) 外链: ${raw}`);
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -158,15 +180,26 @@ function createWindow() {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      // 安全审查 A6：preload 仅用 contextBridge/ipcRenderer，完全兼容沙箱，
+      // 原显式关闭沙箱使 preload 持有完整 Node 权限，无必要。
+      sandbox: true
     }
   });
 
   mainWindow.on("ready-to-show", () => mainWindow?.show());
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalIfSafe(url);
     return { action: "deny" };
+  });
+
+  // 安全审查 A6：拦截页面内跳转（否则渲染层可导航到任意来源/协议）。
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const devUrl = process.env.ELECTRON_RENDERER_URL;
+    if (devUrl && url.startsWith(devUrl)) return;      // 开发模式热更新
+    if (url.startsWith("file://")) return;             // 本地打包页面
+    event.preventDefault();
+    openExternalIfSafe(url);
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {

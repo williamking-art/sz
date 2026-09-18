@@ -347,17 +347,27 @@ POP_GROWTH_JITTER = 5000        # 月度死亡/疫病/丰歉随机抖动（历�
 # 此前 ai/client_utils 硬编码同表造成双源。极=0.35 为既有保守口径
 # （低于玩家政策上限 COMMERCE_TAX_RATE_MAX=0.40——AI 征率留余量，不追满））
 COMMERCE_TAX_RATE_BY_TIER = {
+    # E 说明（消除"与 TIER_RANGE['无']=0.0 矛盾"的误读）：本表是**税率设定值**表，
+    # 不是增量倍率表 —— 工商征率是"设成几成"的绝对量，而非"加/减多少"。
+    # 故「无」在此语义为「不调整该税率」（落到政策下限 5%），而非「税率归零」；
+    # 且 _settle_finance / game_state_econ 对征率一律 clamp 到 [MIN, MAX]，
+    # 归零在现行口径下本就不可施行。真出现"零征率"需求时须先放开该 clamp。
     "无": COMMERCE_TAX_RATE_MIN,
     "微": 0.10, "小": 0.15, "中": 0.20,
     "大": 0.25, "巨": 0.30, "极": 0.35,
 }
 
-# 破产兜底：国库深度亏空的两档阈值（贯）
-#  - TREASURY_CRISIS_LINE：国库跌破此值触发"库藏空虚"危机事件，逼玩家表态
-#  - TREASURY_COLLAPSE_LINE：跌破此值强判 game_over（国用耗竭，天下鼎沸）
-# 用户确认最终版：内帑黑洞不修（设计保留），危机线恢复原 −500万
-TREASURY_CRISIS_LINE = -5_000_000
-TREASURY_COLLAPSE_LINE = -20_000_000
+# 破产兜底：**累计亏空深度**的两档阈值（贯，正数）
+#  - TREASURY_CRISIS_LINE：累计亏空超过此深度触发"库藏空虚"危机事件，逼玩家表态
+#  - TREASURY_COLLAPSE_LINE：超过此深度强判 game_over（国用耗竭，天下鼎沸）
+# B3 修复（原为负值 −500万 / −2000万）：国库写入全链路禁止穿底
+# （GameState.change_treasury 与 _settle_finance 均 max(0,…)），负余额永不存在，
+# 原阈值针对「state.treasury < 负数」判定 → 两条线与全部消费方均为死分支
+# （破产结局、「库藏空虚」危机、财政评价 30/10 档全部不可达）。
+# 现改判 GameState.deficit_depth()：当月资金不足以覆盖支出时，差额逐月累加，
+# 有结余时优先冲抵。语义等价，且真实可达。
+TREASURY_CRISIS_LINE = 5_000_000
+TREASURY_COLLAPSE_LINE = 20_000_000
 
 # ============================================================
 # 派系系统 (朝堂 6 派)

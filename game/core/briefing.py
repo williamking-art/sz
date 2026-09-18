@@ -73,8 +73,9 @@ def build_briefing_actions(state) -> List[Dict[str, Any]]:
 
     # —— 急务（红色高优）——
     try:
-        treasury = float(getattr(s, "treasury", 0) or 0)
-        if treasury < TREASURY_CRISIS_LINE:
+        # B3：破产判据为「累计亏空深度」（国库禁穿底，负余额不可达）
+        _deficit = int(getattr(s, "treasury_deficit", 0) or 0)
+        if _deficit > TREASURY_CRISIS_LINE:
             actions.append({
                 "key": "treasury_crisis", "title": "库藏告急",
                 "desc": "国库空虚，中外忧惧——宜开源节流，理盐铁、裁冗费。",

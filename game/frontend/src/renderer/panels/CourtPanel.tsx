@@ -114,7 +114,10 @@ export default function CourtPanel() {
   const tech = asDict(pick(state, "tech", {}));
   const alliance = Boolean(pick<boolean>(state, "alliance_jin_liao", false));
   const bw = asNum(pick(state, "decree_bandwidth", 0));
-  const pending = pick<unknown[]>(state, "pending_decrees", []).length;
+  // D 修复：pending_decrees 若为非数组（异常快照/旧档）时 `.length` 为 undefined，
+  // `bw - pending` 变 NaN。此处先做数组守卫。
+  const pendingRaw = pick<unknown>(state, "pending_decrees", []);
+  const pending = Array.isArray(pendingRaw) ? pendingRaw.length : 0;
 
   // 岁币口径（审查修复）：treaties 形状为 {势力: [{type, terms, turn, year, month}]}，
   // 原读 treaties.岁币（该键不存在）→ 恒显示 0，与国库实际岁币支出相矛盾。

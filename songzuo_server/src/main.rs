@@ -1,6 +1,6 @@
 //! 宋祚后端服务（Rust）
 //!
-//! 玩家运行前端客户端（tkinter / 将来 Web），游戏逻辑全部在此后端执行。
+//! 玩家运行前端客户端（Electron + React，工程在 game/frontend），游戏逻辑全部在此后端执行。
 //! 后端持有 GameState，通过 HTTP（axum）暴露命令接口，前端只收发 JSON 状态快照。
 //!
 //! **重要定位**：本 Rust 后端是**简化版 MVP**，数值口径与 Python 原型端（`game/`）

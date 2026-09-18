@@ -219,7 +219,9 @@ export default function MinistersPanel() {
         <SectionTitle text="宰 执" />
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {chancellorCards.map((c) => (
-            <MinisterCard key={c.name} card={c} gold onAudience={() => openAudience(c.name, c.role)} />
+            // D 修复：原 key={c.name} —— 两派系由同一人任领袖时 key 重复（React 警告
+            // 且可能错配子树）。改用稳定的「派系+姓名」组合键。
+            <MinisterCard key={`${c.faction}-${c.name}`} card={c} gold onAudience={() => openAudience(c.name, c.role)} />
           ))}
         </div>
       </div>
@@ -229,7 +231,8 @@ export default function MinistersPanel() {
         <SectionTitle text="派 系 领 袖" />
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {leaderCards.map((c) => (
-            <MinisterCard key={c.name} card={c} onAudience={() => openAudience(c.name, c.role)} />
+            // D 修复：同上，改用「派系+姓名」组合键，避免同人跨派系时 key 重复。
+            <MinisterCard key={`${c.faction}-${c.name}`} card={c} onAudience={() => openAudience(c.name, c.role)} />
           ))}
         </div>
       </div>

@@ -202,7 +202,10 @@ def _safety_filter(raw: str) -> str:
 # 大臣真 function calling（可选能力：端点支持 tools 则启用，否则降级纯文本）
 # 执行权在程序：模型只描述意图（tool_calls），由 _tool_dispatch 改 GameState。
 # ============================================================
-# 7 个工具的 JSON schema（OpenAI 兼容 tools 格式）
+# 9 个工具的 JSON schema（OpenAI 兼容 tools 格式）：register_draft / secret_order /
+# check_treasury / propose_governance / personnel_nominate / military_dispatch /
+# relief_grant / offer_blueprint / query_state
+# （E 修复：原注释写「7 个」，与实际条目数不符。）
 _TOOL_SCHEMAS = [
     {
         "type": "function",
@@ -662,10 +665,15 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 res = f"办差缺参被拒：{name} 需提供 {('、'.join(_missing))}（缺参不默认落地）。"
                 mem.setdefault(minister_name, []).append(f"{name} 缺参被拒")
             elif name == "register_draft":
+                # C3 修复：工具契约的 effects 是**对象** {dim: 档位}，而诏草全链路
+                # （会签/下发 _draft_to_effects_dict → effects_to_dict）消费的是
+                # [{dim,tier}] 列表。原样落库会让审批时对 dict 迭代 → AttributeError。
+                # 此处统一归一为列表形态（档位合法性交 _normalize_effects 拒绝式处理）。
                 draft = {
                     "title": str(args.get("title", "")).strip(),
                     "summary": str(args.get("summary", "")).strip(),
-                    "effects": args.get("effects", {}),
+                    "effects": _normalize_effects(
+                        _coerce_effects_to_list(args.get("effects", []))),
                     "secret": bool(args.get("secret", False)),
                 }
                 did = state.add_edict_draft(draft)
@@ -987,6 +995,33 @@ def _valid_tier(t: str) -> bool:
     return t in TIER_RANGE
 
 
+def _coerce_effects_to_list(raw_effects) -> list:
+    """把 effects 的两种形态统一为契约列表 [{dim,tier} | {dim,value}]。
+
+    C3 修复：本仓库存在两套 effects 约定——
+      · 拟旨/会签契约：列表 [{dim, tier}]（_normalize_effects / effects_to_dict 消费）；
+      · 办差工具 register_draft 契约：对象 {dim: 档位}（_TOOL_SCHEMAS 声明为 object）。
+    原 register_draft 直接把对象形态落库，下游 `_draft_to_effects_dict` →
+    `effects_to_dict` 按列表迭代 → 对 dict 迭代得到 str key → `e.get` AttributeError，
+    且会签审批路径无 try 包裹 → 直接崩溃。
+    此处仅做**形态**归一，档位合法性仍由 _normalize_effects 按既有「拒绝式」策略处理
+    （非法档位一律丢弃，不臆造数值映射）。
+    """
+    if isinstance(raw_effects, (list, tuple)):
+        return list(raw_effects)
+    if isinstance(raw_effects, dict):
+        out = []
+        for dim, val in raw_effects.items():
+            if dim == "faction_change" and isinstance(val, dict):
+                out.append({"dim": dim, "value": val})
+            elif dim == "commerce_tax":
+                out.append({"dim": dim, "value": val})
+            else:
+                out.append({"dim": dim, "tier": val})
+        return out
+    return []
+
+
 def _normalize_effects(raw_effects) -> list:
     """把模型给出的原始 effects 归一为契约内合法列表（单一权威校验）。
 
@@ -1077,9 +1112,16 @@ def _fallback_parse(text, is_secret):
 
 
 def effects_to_dict(effects_list, authority=1.0):
-    """[{dim,tier}|{dim:'faction_change',value:{f: tier}}] → 数值字典。"""
+    """[{dim,tier}|{dim:'faction_change',value:{f: tier}}] → 数值字典。
+
+    C3 防御：容忍 `{dim: 档位}` 对象形态（办差工具 register_draft 的契约为对象）。
+    原实现对 dict 迭代得到 str key → `e.get` AttributeError，会让会签审批崩溃。
+    """
+    effects_list = _coerce_effects_to_list(effects_list)
     out = {}
     for e in effects_list:
+        if not isinstance(e, dict):
+            continue
         dim = e.get("dim")
         if dim == "faction_change":
             fc = {}

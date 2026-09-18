@@ -269,13 +269,27 @@ def _pay_equip_and_grain(state, contract: dict, troops: int, cost: int) -> None:
     pay_base = BRANCH_BASE.get(base, BRANCH_BASE["轻步兵"])["pay"] * ARMY_RATE.get(tier, 1.0)
     pay_total = int(troops * pay_base * _pay_of(base, spec) * RECRUIT_MONTHS)
     eq_total = cost - pay_total
-    # 装备入军械库（中央武库 stock）——近似：入 state.central_arsenal.stock
+    # 装备入军械库（中央武库 stock）。
+    # B5 修复：CentralArsenal.stock 是**实物数量**（7 项实物，见 CENTRAL_ARSENAL_INIT），
+    # 原实现 `for k,per in EQUIP_STD[...]: cs.stock[k] += int(eq_total * 0.5)` 有两处错：
+    #   ① 单位错——把「金额」当「数量」记账；
+    #   ② 维度数为 N 时总增量为 N×0.5×eq_total，与「国库 -cost == 装备现值 + 粮饷」
+    #      的守恒声明不符。
+    # 现按 per 权重登记实物数量，并以「人均装备价值」把金额 eq_total 折算为数量，
+    # 使 Σ(数量×EQUIP_PRICE) ≈ eq_total（保留 cost_mult 等金额因子）。
+    eq_rate = EQUIP_RATE.get(tier, 1.0)
+    _spec_equip = EQUIP_STD.get(base, {})
+    _unit_val = sum(per * EQUIP_PRICE.get(k, 0)
+                    for k, per in _spec_equip.items() if per > 0) * eq_rate
+    _scale = (eq_total / (troops * _unit_val)) if (troops > 0 and _unit_val > 0 and eq_total > 0) else 0.0
     try:
         cs = getattr(state, "central_arsenal", None)
-        if cs is not None and hasattr(cs, "stock"):
-            for k, per in EQUIP_STD.get(base, {}).items():
-                if per > 0 and eq_total > 0:
-                    cs.stock[k] = cs.stock.get(k, 0) + int(eq_total * 0.5)
+        if cs is not None and hasattr(cs, "stock") and _scale > 0:
+            for k, per in _spec_equip.items():
+                if per > 0:
+                    _qty = int(round(troops * per * eq_rate * _scale))
+                    if _qty > 0:
+                        cs.stock[k] = cs.stock.get(k, 0) + _qty
     except Exception:
         pass
     # 粮饷入兵 POP（均分各路）

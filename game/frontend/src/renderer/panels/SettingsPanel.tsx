@@ -211,7 +211,15 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
       const res = await getApiClient().setAiConfig(
         apiKey.trim(), baseUrl.trim(), model.trim(), enableTools);
       if (res.ok) {
-        setCfg(res as any);
+        // D 修复：setAiConfig 的返回体不含 has_key/configured/api_key_masked，
+        // 原 `setCfg(res as any)` 整体覆盖 → 保存后界面会错误显示「（未配置）」，
+        // 直到重新拉取。现改为保存成功后回读权威配置（失败则保留旧值）。
+        try {
+          const fresh = await getApiClient().getAiConfig();
+          setCfg(fresh);
+        } catch (cfgErr) {
+          console.warn("[setAiConfig] 回读配置失败，沿用原配置：", cfgErr);
+        }
         if (res.available) {
           setMsg({ type: "success", text: `AI 接口连接成功！${res.message || `当前模型【${model}】在线自检通过。`}` });
         } else {

@@ -27,6 +27,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 │   ├── audio/               # 音频骨架：manifest 槽位登记 + tts 朗读（**播放未接线**）
 │   ├── telemetry/           # 玩法遥测（store.py 指标落库，可选）
 │   ├── assets/              # 美术 / 舆图资源（map / 立绘 / 事件图 / 图标 / audio / models）
+│   ├── frontend/            # **唯一前端**：Electron + React + TS + MapLibre（随本体入库；node_modules/out/dist/release 不入库）
 │   ├── saves/               # 玩家存档（运行时生成）
 │   ├── ai_config.json / ai_config.example.json  # 运行配置（api_key / base_url / model / enable_tools）
 │   ├── requirements.txt / requirements-extras.txt  # Python 依赖（本体 / 可选增强）
@@ -39,12 +40,12 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 │   └── build/               # PyInstaller 构建缓存
 │
 ├── 🛠️ 开发工具（仓库根 `_dev_tools/`，不打包，仅本地测试）
-│   ├── frontend/            # **唯一前端**：Electron + React + TS + MapLibre（node_modules 实体）
 │   ├── game-dev/tests/      # pytest 回归脚本（test_*.py；本机跑前先清 PYTHONPATH，见文末）
 │   ├── game-docs/           # 文档：docs/游戏机制说明.md + analysis/（重构/平衡分析）
 │   └── songzuo-game-studio/ # 专家团定义元文件
 │
-└── 🗄️ _scratch/             # 无关归档（不参与版本管理 / 打包）
+└── 🗄️ _dev_tools/_scratch/  # 无关归档（不参与版本管理 / 打包；E 修复：原文档误作仓库根 `_scratch/`）
+    ├── game-audit/          # 由 game/_scratch/ 迁入的开发/审计脚本（30 个，无运行时引用）
     ├── generated-images/    # AI 生成的未落地试验稿
     ├── generated-audio/     # AI/人工生成的未落地音频试验稿
     ├── build/               # PyInstaller 构建缓存
@@ -53,6 +54,10 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
     └── *.log                # 运行 / 诊断日志
 ```
 
+> **目录分层纪律（E 修复）**：`game/` 本体目录内**不得**存放开发/审计临时脚本；
+> 原先误置于 `game/_scratch/` 的 30 个 `_audit_*.py` / `_check_*.py` / `_fix_*.py`
+> 已迁至 `_dev_tools/_scratch/game-audit/`（经全库检索确认无任何运行时引用）。
+
 ### 各层职责
 
 | 层 | 是否打包 | 说明 |
@@ -60,7 +65,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | 游戏本体 | ✅ 是 | 运行所需全部代码、资源、配置（Electron 安装包由 `frontend/` 构建，与 Python 本体分发物组合） |
 | `构建/分发产物` | ❌ 否 | `SongZuo/`、`build/` 为构建输出，可随时重建 |
 | `_dev_tools/`（仓库根） | ❌ 否 | 开发期测试 / 分析脚本，路径引用以仓库根为基准 |
-| `_scratch/` | ❌ 否 | 临时产物 / 归档 / Electron 参考工程，可随时清理 |
+| `_dev_tools/_scratch/` | ❌ 否 | 临时产物 / 归档 / Electron 参考工程，可随时清理（**不在 `game/` 内**） |
 
 ---
 
@@ -110,6 +115,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 ## 近期质量修复（2026-09 全量审计）
 
+> **第二轮复审修复要点见本节末**（崩溃/安全/守恒/AI 管线；标注 `R2-*`）。
+
 | 类别 | 要点 |
 |------|------|
 | 守恒与原子性 | `state_applier` 写入**原子回滚**（失败整批不落地）；0-100 区间校验；守恒补记账只补未配对项；内帑调拨执行前复检余额；月度结算异常**快照回滚**；存档**原子写**（`.tmp` + `os.replace`）+ 损坏档备份 `.corrupt` |
@@ -118,6 +125,29 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | 记忆库 | 对话总结冲突改**合并**（不再静默丢数据）；按需建表 + WAL；压缩/总结窗口不重叠 |
 | 接口一致性 | 5 个结算侧契约接入按需唤醒 + diff 唤醒接线（`_last_agent_diff`）；未接线契约登记 `PENDING_CONTRACTS`；新增 HTTP 端点（见上节） |
 | 前端 | Tk 界面与 Web 舆图桥均已删除（`ui/` 包**整体移除**）；界面全在 `frontend/`（Electron+React+MapLibre），游戏内舆图自带实现；Web 迁移补齐清单见上节 |
+
+### 第二轮复审修复（2026-09，`R2-*`）
+
+| 编号 | 类别 | 要点 |
+|------|------|------|
+| R2-1 | 崩溃 | `settlement_steps._settle_coin_melt` 熔铜池溢出分支缺 `COPPER_RESOURCE_DIM` 导入 → NameError 中断整月结算（已补导入） |
+| R2-2 | 安全 | `/api/fetch_models` 原在未填 key 时回落服务端已存 Key 并以**客户端指定 base_url** 外联（凭据外泄 + SSRF）；现仅在「目标与已配置端点一致」时复用，且强制校验 http(s) |
+| R2-3 | 安全 | 鉴权绕过：Python 端「未配 token 即全放行」→ 改为「无 token 时仅放行回环来源」+ `hmac.compare_digest`；Rust 端原**完全无鉴权**且绑 `0.0.0.0` → 新增 `/api/*` 鉴权中间件（同构规则），CORS 可经 `SONGZUO_CORS_ORIGINS` 收紧 |
+| R2-4 | 安全 | Electron：`sandbox:false` → `true`；`shell.openExternal` 任意协议 → 仅 http(s)；补 `will-navigate` 白名单 |
+| R2-5 | 守恒 | 市舶关税在 `_settle_extensions` 与 `_settle_finance` 双通道入国库（重复计账、凭空增币）→ 删去前者，只保留「税从 POP 征」守恒通道 |
+| R2-6 | 守恒 | Rust `settle_granary` 二次调用带副作用的 `settle_land_local` → 本色粮单月双计（已删除该调用） |
+| R2-7 | 机制 | 破产两档线（原 −500万/−2000万）与国库 `max(0,…)` 纪律矛盾 → 永不可达；改为以 **累计亏空深度** `GameState.deficit_depth()` 为唯一判据（`TREASURY_CRISIS_LINE=500万` / `TREASURY_COLLAPSE_LINE=2000万`），并同步存档/评价/简报 |
+| R2-8 | 守恒 | 士绅「收租」原把**金额**并入田亩 `gentry_land`（单位错 + 无对手方）→ 改为由农 POP wealth 守恒转入大臣家产（封顶限幅） |
+| R2-9 | 守恒 | `registries._pay_equip_and_grain` 原把金额按「每维度各加 `eq_total*0.5`」写入**实物**军械库（单位错 + N× 超算）→ 按 per 权重登记实物数量，并以人均装备价值折算使 Σ(数量×价) ≈ eq_total |
+| R2-10 | 守恒 | `free_effect` 出账只逐项校验、不校验**合计** → 契约半落地；改为按净额合计校验（含 cost），任一不足整单拒绝 |
+| R2-11 | 机制 | `focus_mechanic`：欠费月仍推进国策进度（可免费完成）→ 改为停摆不推进；互斥分支「任意解锁即整支锁死」→ 改按 `power_level` 比较；「政务·财政减耗」原扣累计统计（假效果）→ 改提升真实 `waste_reform.savings` |
+| R2-12 | AI 管线 | `AIClient.enable_tools` 实例属性遮蔽同名方法（调用即 TypeError、`_call_with_tools` 永远不可达）→ 属性改名 `enable_tools_mode`，方法与属性双向同步 |
+| R2-13 | AI 管线 | 召对工具分支第二轮返回 str 时穿透，落到第三次不带 tools 的请求（三倍计费且回奏被丢弃）→ 统一归一为文本后无条件返回 |
+| R2-14 | AI 管线 | 办差工具 `register_draft` 的 `effects` 为对象契约，下游按列表迭代 → 会签审批 AttributeError → 新增 `_coerce_effects_to_list` 双向归一 + `effects_to_dict` 形态守卫 |
+| R2-15 | AI 管线 | 非幂等重试：AI 网络层对**读超时**重试、`HttpBackend`/前端对 5xx 重试非幂等端点 → 现仅对「请求未送达」重试，非幂等端点不自动重试；T1 重发补记 token 计量，计量累加加锁 |
+| R2-16 | AI 管线 | 叙事人物护栏只写 `_char_violation` 无读取方（空转）→ 按文档意图回喂一次订正要求 |
+| R2-17 | 并发/健壮 | `backend/server.py` 状态判空移入全局锁内；`/api/ai_config` 联网探测移出锁；Rust 存档改 `.tmp`+rename **原子写**、补 `/health` 别名、bind 失败不再 panic；记忆库 `save()` 补清 `summaries`、`query_sql` 降级记 warning |
+| R2-18 | 契约/文档 | 校正 `frontend/` 路径（在 `game/frontend/`）、`backend/client.py` 前后矛盾的后端定位、Rust 端过期 tkinter 注释/存档目录口径、工具数/路数注释等 |
 
 细节见 `_dev_tools/game-docs/docs/游戏机制说明.md` 头部「2026-09 全量审计修复要点」。
 
@@ -136,9 +166,9 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
    - 地图仅引用现存的 `assets/map/empire_bg.png` 与 `desk_bg.png`；文档字符串与代码保持一致，不得引用已删除的资源。
 
 4. **分层纪律**
-   - 游戏本体代码不得 `import _dev_tools/` 或 `_scratch/`。
-   - `_dev_tools/`（仓库根）、`_scratch/` 下的脚本仅供本地运行，不得作为游戏运行路径的一部分。
-   - 专家团 / 工具产出的临时文件默认落 `_scratch/`，不污染游戏本体。
+   - 游戏本体代码不得 `import _dev_tools/` 或其下的 `_scratch/`。
+   - `_dev_tools/`（仓库根）、`_dev_tools/_scratch/` 下的脚本仅供本地运行，不得作为游戏运行路径的一部分。
+   - 专家团 / 工具产出的临时文件默认落 `_dev_tools/_scratch/`，不污染 `game/` 本体。
 
 5. **前端（Electron / React / TS）约定**
    - **位置**：Electron 工程在 `game/frontend/`（与游戏本体同仓同库；`node_modules/`、`out/`、`dist/`、`release/` 等构建产物不入库）；经 HTTP 桥对接 Python 后端；Node 端不得直接读写游戏存档。
@@ -173,7 +203,7 @@ python backend_server_entry.py
 
 ```bash
 # Electron 工程在 game/frontend（随本体入库，构建产物不入库）
-cd frontend
+cd game/frontend
 npm install
 npm run dev      # electron-vite 开发模式（热更新）
 npm run build    # 产出 out/（main + renderer）

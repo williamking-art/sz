@@ -58,7 +58,9 @@ goto CheckNode
 :RebuildFail
 echo.
 echo [Songzuo] ERROR: map data rebuild FAILED - the map may show stale data.
-echo            Run rebuild_map.bat to see the full error output.
+echo            Re-run these two commands from the game\ directory to see the error:
+echo              python build_map_basemap.py
+echo              python -m content.build_map_geo
 pause
 cd /d "%~dp0"
 goto CheckNode

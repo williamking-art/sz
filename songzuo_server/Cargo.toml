@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 # 后端服务：持有游戏逻辑（GameState + 命令），通过 HTTP 暴露给前端客户端。
-# 玩家运行前端（tkinter），逻辑与结算全部在后端（本进程 / 将来部署到服务器）。
+# 前端为 game/frontend（Electron + React；Tk 界面已废弃删除），
+# 逻辑与结算全部在后端（本进程 / 部署到服务器）。
+# 说明：本 crate 为简化版 MVP，数值口径与 Python 本体（game/）不必一致，
+# 存档字段亦不互通；完整实现见 game/backend/server.py。
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
