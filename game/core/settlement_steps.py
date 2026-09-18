@@ -3021,12 +3021,24 @@ def _settle_finance(state, log):
     # 守恒修复（一体发钞）：俸禄已以交子支付，POP 铜钱不得再增。
     # 原实现无条件给 POP 记铜钱，而同月既发行等额交子、国库又不支出 →
     # 一笔俸禄记两次且凭空造币（货币总账逐月污染）。此处以 _paper_pay 门控。
-    if not _paper_pay:
-        for _p in state.prefectures.values():
-            if _p["pops"]["兵"]["size"] > 0:
-                _p["pops"]["兵"]["wealth"] += int(army_pay * _p["pops"]["兵"]["size"] / _total_soldiers)
-            if _p["pops"]["官僚"]["size"] > 0:
-                _p["pops"]["官僚"]["wealth"] += int(official_pay * _p["pops"]["官僚"]["size"] / _total_guan)
+    # ---- 阶段 B-3：按实付 ＋ 欠饷（修审查 A-2「穿底造币」）----
+    # 军俸提至史实水平后（1,349 万贯/年），国库常有力不能及之月。原实现是：
+    # POP **全额**收俸禄，而国库侧 `max(0, _avail)` 把差额钳掉、只记 `deficit_depth`
+    # → 等于**凭空造币**（月度对账实测残差 +894,491/月，game_over 提前触发）。
+    # 现先算支付能力，按比例实付，短付部分记「欠饷/欠俸」科目（与既有「欠税」科目对称）。
+    # 语义：宁可欠着（欠饷 → 军心/官僚怨望的后继机制），也绝不凭空造币。
+    _civil_back = max(0, expenditure)
+    _credits_due = (0 if _paper_pay else personnel_cash) + _civil_back + int(corruption_cash_ded)
+    _cash_available = max(0, int(state.treasury) + int(actual_tax) - int(sui_gong))
+    _pay_scale = 1.0 if _credits_due <= 0 else min(1.0, _cash_available / float(_credits_due))
+    _paid_personnel = int((0 if _paper_pay else personnel_cash) * _pay_scale)
+    _paid_civil = int(_civil_back * _pay_scale)
+    _paid_corruption = int(int(corruption_cash_ded) * _pay_scale)
+    _arrears = _credits_due - (_paid_personnel + _paid_civil + _paid_corruption)
+    if _arrears > 0:
+        state.statistics["pay_arrears"] = state.statistics.get("pay_arrears", 0) + _arrears
+        log.append(f"[财政] 帑藏不足：欠饷欠俸 {_arrears:,} 贯（本月实付率 {_pay_scale:.0%}）")
+
     # 官户免役钱（史实免役法·调参定案）：官户纳助役钱 = 俸钱总额 × 0.05，
     # 从官僚 POP wealth 按 size 扣缴入国库（钱守恒：官僚交钱、国库收钱，不凭空生钱）
     # 审查 P0：wealth 不足时只按实收入账（_tax_left 反映欠缴，不再全额造币）
@@ -3039,25 +3051,37 @@ def _settle_finance(state, log):
                 _p["pops"]["官僚"]["wealth"] = max(0, _p["pops"]["官僚"]["wealth"] - _take)
                 _tax_left -= _take
         actual_tax += official_service_tax - max(0, _tax_left)
+
+    # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环；金额取**实付额**，见上）
+    # 守恒修复（一体发钞）：俸禄已以交子支付，POP 铜钱不得再增（_paper_pay 门控）。
+    if not _paper_pay and _paid_personnel > 0:
+        _ratio_army = army_pay / max(army_pay + official_pay, 1.0)
+        _army_paid = int(_paid_personnel * _ratio_army)
+        _off_paid = _paid_personnel - _army_paid
+        for _p in state.prefectures.values():
+            if _p["pops"]["兵"]["size"] > 0:
+                _p["pops"]["兵"]["wealth"] += int(_army_paid * _p["pops"]["兵"]["size"] / _total_soldiers)
+            if _p["pops"]["官僚"]["size"] > 0:
+                _p["pops"]["官僚"]["wealth"] += int(_off_paid * _p["pops"]["官僚"]["size"] / _total_guan)
     # 支出回流（A1 定案·修货币漂移斜率 -13%→-3.5%）：常费不再纯蒸发 → 工匠 40% + 商人 60%（按 size 分摊，
     # 政府花钱买营造/服务/商品，钱进民间）；贪腐扣减 → 官僚 wealth（隐性聚敛，可抄没）；岁币保留销币（真实外流）。
-    _civil_back = max(0, expenditure)
+    # 以上三项同样按 **实付额** 落地（`_pay_scale`），保证"扣==收"。
     _total_artisan = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
     _total_merchant = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
     for _p in state.prefectures.values():
         if _p["pops"]["工匠"]["size"] > 0:
-            _p["pops"]["工匠"]["wealth"] += int(_civil_back * 0.4 * _p["pops"]["工匠"]["size"] / _total_artisan)
+            _p["pops"]["工匠"]["wealth"] += int(_paid_civil * 0.4 * _p["pops"]["工匠"]["size"] / _total_artisan)
         if _p["pops"]["商人"]["size"] > 0:
-            _p["pops"]["商人"]["wealth"] += int(_civil_back * 0.6 * _p["pops"]["商人"]["size"] / _total_merchant)
+            _p["pops"]["商人"]["wealth"] += int(_paid_civil * 0.6 * _p["pops"]["商人"]["size"] / _total_merchant)
         if _p["pops"]["官僚"]["size"] > 0:
-            _p["pops"]["官僚"]["wealth"] += int(int(corruption_cash_ded) * _p["pops"]["官僚"]["size"] / _total_guan)
-    # 一体发钞时俸禄由交子支付（国库不发现金）；否则按实际发放 personnel_cash 计出（不以 cash_out 上限蒸发）
+            _p["pops"]["官僚"]["wealth"] += int(_paid_corruption * _p["pops"]["官僚"]["size"] / _total_guan)
+    # 一体发钞时俸禄由交子支付（国库不发现金）；否则按**实付** personnel 计出
     if _paper_pay:
         effective_cash_out = 0
     else:
-        effective_cash_out = personnel_cash
-    total_out = (expenditure + effective_cash_out
-                 + int(corruption_cash_ded) + payraise_used + sui_gong)
+        effective_cash_out = _paid_personnel
+    total_out = (_paid_civil + effective_cash_out
+                 + _paid_corruption + payraise_used + sui_gong)
     net = monthly_tax_full - total_out
     # 实际到库净额：保底豁免的税不入国库（钱不凭空生），故用 actual_tax 替代目标 monthly_tax_full
     actual_net = actual_tax - total_out
