@@ -564,17 +564,21 @@ def preview_draft(state: GameState, minister_advice: str, player_intent: str,
         try:
             decree = ai_client.draft_decree(minister_advice, player_intent, state.get_state_summary(), state=state)
         except Exception as e:
-            # 运行时故障：停下，不静默、不伪造
+            # 运行时故障：停下，不静默、不伪造（2026-09-18：透传底层错误码）
             print(f"[decree] 拟诏叙事中断: {e!r}", flush=True)
-            raise AIRuntimeError("拟诏时 AI 叙事中断：请检查 AI 配置或网络后重试。") from e
+            raise AIRuntimeError(
+                "拟诏时 AI 叙事中断：请检查 AI 配置或网络后重试。",
+                code=getattr(e, "code", "") or "",
+            ) from e
     else:
-        # 未配置 AI：停下并提示配置
+        # 未配置 AI：停下并提示配置（2026-09-18：补 code，使 HTTP 层可回精确错误码）
         raise AIRuntimeError(
-            "AI 叙事不可用：拟诏需要 AI 起草。请在「游戏设置 → AI 配置」中完成配置后重试。"
+            "AI 叙事不可用：拟诏需要 AI 起草。请在「游戏设置 → AI 配置」中完成配置后重试。",
+            code="AI_NOT_CONFIGURED",
         )
     if not isinstance(decree, dict):
-        # 防御性：AI 返回非 dict，视为故障
-        raise AIRuntimeError("拟诏失败：AI 返回了非预期格式，请重试。")
+        # 防御性：AI 返回非 dict，视为故障（2026-09-18：补错误码）
+        raise AIRuntimeError("拟诏失败：AI 返回了非预期格式，请重试。", code="AI_INVALID_JSON")
     # 把档位 effects 换算为数值 dict
     eff = effects_to_dict(decree.get("effects", []),
                           authority=max(0.5, min(1.6, 0.5 + pi["authority_index"])))

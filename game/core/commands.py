@@ -256,7 +256,10 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
     from content.data import AI_ERROR_CODES
     # AI 经济推演（景气/士绅囤粮/生产）须在结算之前注入，本月生效（结算内读 _economy_ai）
     if not (ai_client and getattr(ai_client, "available", False)):
-        raise AIRuntimeError(AI_ERROR_CODES.get("AI_NOT_CONFIGURED", "AI 未接入"))
+        # 2026-09-18：补 code（原仅传消息，`AIRuntimeError.code` 恒为空，
+        # 使 /api/advance 无法回精确错误码 —— 见 backend/server.py 的 503 分支）
+        raise AIRuntimeError(AI_ERROR_CODES.get("AI_NOT_CONFIGURED", "AI 未接入"),
+                             code="AI_NOT_CONFIGURED")
     _ai_prelude(state, ai_client)
     log = settle_local(state)
     report = ""
@@ -325,9 +328,16 @@ def _ai_prelude(state, ai_client):
     except Exception as e:
         # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
         print(f"[settle] 经济推演失败: {e!r}", flush=True)
-        raise AIRuntimeError("经济推演失败：请检查 AI 配置或网络后重试。") from e
+        # 2026-09-18 修复：保留底层错误码——AIClient 已把 401/403 映射为 AI_AUTH_FAILED、
+        # 超时映射为 AI_TIMEOUT（R2 修复）；此处原样丢弃，导致 HTTP 层无法给出精确诊断
+        # （`AIRuntimeError` 的 `code` 字段形同虚设）。现透传，无码时留空由上层兜底。
+        raise AIRuntimeError(
+            "经济推演失败：请检查 AI 配置或网络后重试。",
+            code=getattr(e, "code", "") or "",
+        ) from e
     if not isinstance(eco, dict) or eco.get("_error"):
-        raise AIRuntimeError(AI_ERROR_CODES.get("AI_CONTRACT_FAILED", "AI 输出不满足契约"))
+        raise AIRuntimeError(AI_ERROR_CODES.get("AI_CONTRACT_FAILED", "AI 输出不满足契约"),
+                             code="AI_CONTRACT_FAILED")
     state._economy_ai = eco
     # 12 步 agent 化：按需唤醒注入（route_agents 结合关键词/状态触发/上轮 diff；
     # 未唤醒的 Agent 不消耗任何 token；economy 始终唤醒为核心推演）

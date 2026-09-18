@@ -10,8 +10,11 @@
   这正是"远程后端常量漂移"质量债（ANNUAL_TAX_BASE 曾差 8 倍）的根治方式：
   参考后端与本地后端共享同一份权威常量，漂移无处发生；
 - 单会话：全局一把锁（单机游戏语义），并发请求串行化；
-- AI 可选：服务端按 ai_config.json 构建 AIClient；无 key 时用禁用客户端，
-  叙事自动走本地降级模板（绝不伪造在线结果）；
+- AI 可选（**2026-09-18 勘误**）：服务端按 ai_config.json 构建 AIClient。**但回合推演
+  是全游戏级强制 AI**——未配置时 `core.commands` 按「拒绝式」抛 `AIRuntimeError`
+  （见 `core/commands.py:251-259`），本服务据此回 **503 ＋ 结构化错误码**
+  （`AI_ERROR_CODES` 6 码之一），**绝不伪造在线结果**；"本地降级模板"只适用于
+  **叙事文本**（`ai/narrative_fallback.py`），不适用于数值推演。
 - 状态快照：vars(state) 逐字段 JSON 安全过滤（不可序列化字段跳过，
   重建端以 GameState 构造默认值兜底——与 HttpBackend._to_state 对称）。
 
@@ -33,6 +36,7 @@ from pydantic import BaseModel
 
 from ai.client import AIClient
 from backend.client import LocalBackend, _app_root
+from core.errors import AIRuntimeError
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -333,7 +337,22 @@ def api_advance(request: Request):
     # 对旧 state 执行动作）。
     with _lock:
         _require_state()
-        events, log, report, _state = _backend.advance(_state, _get_ai())
+        try:
+            events, log, report, _state = _backend.advance(_state, _get_ai())
+        except AIRuntimeError as e:
+            # 审查 I-2 / E-2 修复（2026-09-18）：回合推演是「全游戏级强制 AI → 拒绝式」，
+            # 未配置或推演失败时 core 抛 AIRuntimeError（core/commands.py:251-259）。
+            # 原先此处无人接管 → FastAPI 回 500 裸 "Internal Server Error"：
+            #   ① 与模块 docstring 的「无 key 自动降级」相矛盾（已同步勘误）；
+            #   ② 前端拿不到错误码，无法区分「没配 AI」与「真崩了」。
+            # 现映射为 503 ＋ 结构化错误码（AI_ERROR_CODES 6 码之一）。
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error_code": getattr(e, "code", "") or "AI_RUNTIME_ERROR",
+                    "message": str(e) or "AI 推演失败：请检查 AI 配置或网络后重试。",
+                },
+            ) from e
         # 审查 P1-12：缓存本回合完整事件对象（含 choices），供 /api/resolve_event 按 title
         # 反查（前端契约只传 title）。下划线前缀字段由 _state_to_dict 过滤，不下发。
         try:
@@ -359,6 +378,15 @@ def api_action(req: ActionReq, request: Request):
             message, _state = _backend.action(_state, req.action, req.params, _get_ai())
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except AIRuntimeError as e:
+            # 同上（I-2 / E-2）：动作路径同样可能触发 AI 拒绝式失败（拟诏解析等）。
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error_code": getattr(e, "code", "") or "AI_RUNTIME_ERROR",
+                    "message": str(e) or "AI 推演失败：请检查 AI 配置或网络后重试。",
+                },
+            ) from e
         return {"message": message, "state": _state_to_dict(_state)}
 
 
