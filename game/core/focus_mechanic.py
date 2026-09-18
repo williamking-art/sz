@@ -431,10 +431,24 @@ def settle_focus(state, log) -> None:
         node_spec = FOCUS_TREE.get(branch, {}).get("nodes", {}).get(node_key, {})
         cost = active.get("cost_per_month", 10000)
 
-        # 扣除月度施行度支（若国库充足）
+        # 扣除月度施行度支（若国库充足）。
+        # 2026-09-18 结算步专项检查修复（货币守恒）：原为裸 `state.change_treasury(-cost)`
+        # —— **无对手方**，钱凭空消失且未登记 burn，`money.reconcile` 会报出等额残差
+        # （实测：国策 10,000 贯/月 × 3 月 → 累计残差 −30,416 贯，burned=0）。
+        # 这不是"真实销毁"而是**政府支出**：度支用于营造/购办 → 按"支出回流"口径
+        # 转入民间（工匠 40% / 商人 60%，与 `_settle_finance` 的常费回流同口径）。
+        # 财政成本不变（国库照扣），但货币总量守恒（ΔM_ALL == 0）。
         _paid = state.treasury >= cost
         if _paid:
             state.change_treasury(-cost)
+            try:
+                from core.settlement_steps import _distribute_cash
+                from content.data import GOV_SPEND_TO
+                _given = _distribute_cash(state, cost, GOV_SPEND_TO)
+                if _given != cost:            # 无接收方时的兜底：退回国库，不静默销毁
+                    state.change_treasury(cost - _given)
+            except Exception:                 # noqa: BLE001 — 回流失败不得阻断国策推进
+                state.change_treasury(cost)   # 退回，保证不产生无对手方的销毁
             state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + cost
         else:
             log.append(f"[国策度支] 国库紧绌，推行【{active.get('name')}】经费未拨，本月停摆")

@@ -81,6 +81,32 @@ def _clear_huashigang(state) -> bool:
 
 
 # 效果施加（确定性修正，非守恒字段）
+#
+# ⚠️ 2026-09-18 结算步专项检查修复（「假效果」清理）
+#
+# 下列三个修正原实现只改 **累计统计量**：
+#   `_eff_redundant_officials`  → statistics["total_expenditure"] += 20000
+#   `_eff_hidden_land`          → statistics["total_income"]      -= 15000
+#   `_eff_liao_xia_border`      → statistics["total_expenditure"] += 30000
+#
+# 这与项目自己在 `focus_mechanic.py` 的 **B7 修复**是同一类 bug，该处注释已写得很清楚：
+#   「原实现直接扣减 statistics["total_expenditure"] —— 那是**累计**统计量而非月度流量，
+#     既不减少真实支出，也与 _settle_finance 的累加语义冲突，属「假效果」。」
+# 危害有二：
+#   ① **数值上毫无作用**（国库/民间一分钱没动，三冗的历史包袱是空的）；
+#   ② **污染数据**：`flow_summary`（面板累计收支）与 `ai/client_utils`
+#      （AI 读财政状况做推演）拿到的都是被注水的数字 —— 凭空多出 2~3 万贯/月的
+#      支出、少掉 1.5 万贯/月的收入，而这些钱从未流动过。
+#
+# 现改为：这三个修正**只保留叙事与消除条件**，不再改任何数值。
+# 它们的**真实财政成本早已由子系统承担**，重复计一次即为双重计数：
+#   · 冗官冗费 → `pops["官僚"]` 官额/吏额膨胀带来的**真实官俸+吏俸**（C-1~C-7，Step 3.95/3.97）
+#   · 隐田蔽课 → `land["hidden_rate"]`（开局 0.35）对**二税折色**的真实减收（Step 4）
+#   · 辽夏边患 → **军俸**（1,349 万贯/年）与外部势力成长（Step 3.7/Step 6）
+#
+# 待用户定夺的设计项：这三个修正**消除后应给什么真实奖励**（目前消除只是移除标签）。
+
+
 def _eff_new_fund(state, log):
     """新党专权：士绅不满 +，朝局党争 +。"""
     state.population_satisfaction = max(0, state.population_satisfaction - 1)
@@ -88,22 +114,29 @@ def _eff_new_fund(state, log):
 
 
 def _eff_redundant_officials(state, log):
-    """冗官冗费：财政负担加重（俸给支出上浮）。"""
-    # 通过 state 的财政字段施加（非守恒，走结算函数）
-    state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + 20000
-    log.append("[修正] 冗官冗费：俸给浩繁，府库日耗")
+    """冗官冗费：财政负担加重。
+
+    真实成本由 `pops["官僚"]` 的官额/吏额膨胀承担（见本段上方说明），此处**不再改数值**，
+    以免与官俸/吏俸双重计数、并污染累计收支统计。
+    """
+    log.append("[修正] 冗官冗费：官冗于上、吏冗于下，俸给浩繁，府库日耗（成本计入官俸/吏俸）")
 
 
 def _eff_hidden_land(state, log):
-    """隐田蔽课：赋税流失，财政减收。"""
-    state.statistics["total_income"] = max(0, state.statistics.get("total_income", 0) - 15000)
-    log.append("[修正] 隐田蔽课：田赋隐匿，岁入有亏")
+    """隐田蔽课：赋税流失，财政减收。
+
+    真实减收由 `land["hidden_rate"]` 在二税折色公式中承担，此处**不再改数值**
+    （原实现扣减**累计**收入，既非当月流量、也从未真实减收）。
+    """
+    log.append("[修正] 隐田蔽课：豪强隐田，赋税隐匿，岁入有亏（减收计入二税折色）")
 
 
 def _eff_liao_xia_border(state, log):
-    """辽夏边患：军费压力，边境不安。"""
-    state.statistics["total_expenditure"] = state.statistics.get("total_expenditure", 0) + 30000
-    log.append("[修正] 辽夏边患：边烽有警，军费浩繁")
+    """辽夏边患：军费压力，边境不安。
+
+    真实成本由**军俸**与外部势力成长承担，此处**不再改数值**。
+    """
+    log.append("[修正] 辽夏边患：北有契丹、西有夏贼，边烽有警，军费浩繁（成本计入军俸）")
 
 
 def _eff_huashigang(state, log):

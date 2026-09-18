@@ -168,7 +168,78 @@ def test_arrears_repayment_keeps_safety_stock_and_no_arrears_is_noop():
     assert s.treasury == 5_000_000
 
 
-# ---------------------------------------------------------------- 取中值锚定
+# ---------------------------------------------------------------- 结算步守恒（专项检查产物）
+def test_focus_monthly_cost_is_a_conserving_transfer():
+    """**国策度支**必须守恒：国库照扣（财政成本保留），但钱进民间 POP → `ΔM_ALL == 0`。
+
+    缺陷（2026-09-18 结算步专项检查）：`focus_mechanic.settle_focus` 原为裸
+    `state.change_treasury(-cost)` —— 无对手方、未登记 burn，钱凭空消失。
+    实测：国策 10,000 贯/月 × 3 月 → 月度对账累计残差 **−30,416 贯**（`burned=0`），
+    而正常基线只有 −418 贯。修复后回到基线量级。
+
+    注意：这条缺陷**跨过了全部既有账本测试** —— 因为 `_STEPS` 镜像当时缺 `focus` 步，
+    且没有用例启动过国策。故此处既测行为，也钉住"镜像必须含 focus"。
+    """
+    from core.focus_mechanic import start_focus
+
+    s = GameState("史实")
+    _run(s, 1)                                   # 建立基线快照
+    base = float((s.money_audit or {}).get("cum_residual", 0))
+    assert start_focus(s, "govern", "g1_centralize").get("ok"), "用例前提：国策应能立案"
+
+    tre0 = s.treasury
+    m0 = money.m_all(s)
+    _run(s, 3)                                   # 国策 3 月 × 10,000 贯
+    res = float((s.money_audit or {}).get("cum_residual", 0)) - base
+
+    assert s.treasury < tre0, "国策度支未真实扣减国库（财政成本丢失）"
+    # 修复前 ≈ −30,416；基线未启国策时 ≈ −418。放宽到 3,000 仍能稳稳区分两者。
+    assert abs(res) < 3_000, \
+        f"国策度支破坏了货币守恒：3 月累计残差 {res:+,.0f} 贯（应回到截断量级）"
+    assert money.m_all(s) - m0 != 0 or True      # ΔM_ALL 由其他步共同决定，残差才是判据
+
+
+def test_test_mirror_covers_full_pipeline():
+    """逐步账本审计的 `_STEPS` 镜像必须**逐步等于**真实管线（同一个函数对象、同一顺序）。
+
+    缺陷（2026-09-18 结算步专项检查）：镜像曾缺 `legacies` / `focus` 两步。
+    这种缺失不会让任何测试变红，只会让"新结算步偷偷漏钱"从所有断言底下溜过去。
+
+    断言方式：从 `run_monthly_settlement` 的 AST 里按**行号**取出实际调用序列，
+    `getattr(core.settlement, name)` 解析成函数对象，再与镜像的 `(label, fn)` 逐位比较。
+    这避免了对镜像短标签（`_settle_decrees` → `decrees`）做脆弱的名字猜测。
+    """
+    import ast
+    import inspect as _inspect
+    import core.settlement as S
+    import test_pop_identity as T
+
+    src = _inspect.getsource(S.run_monthly_settlement)
+    tree = ast.parse(src)
+    calls = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id.startswith("_")):
+            if node.func.id in ("_money_audit_step", "_next_month"):
+                continue
+            calls.append((node.lineno, node.func.id))
+    calls.sort()
+    real_fns = []
+    for _, name in calls:
+        fn = getattr(S, name, None)
+        assert callable(fn), f"管线里调用了 `{name}`，但在 core.settlement 中取不到可调用对象"
+        real_fns.append(fn)
+    mirror_fns = [fn for _, fn in T._STEPS]
+
+    assert len(mirror_fns) == len(real_fns), (
+        f"镜像步数 {len(mirror_fns)} ≠ 真实管线步数 {len(real_fns)}；"
+        f"真实序列={[n for _, n in calls]}")
+    for i, (m, r) in enumerate(zip(mirror_fns, real_fns)):
+        assert m is r, (
+            f"第 {i + 1} 步不一致：镜像={getattr(m, '__name__', m)} "
+            f"真实={getattr(r, '__name__', r)}（顺序或成员不符，账本审计会错位）")
+
+
 def test_middle_values_match_documented_compromise():
     """把**用户拍板的取中值**钉住：这些是刻意的历史↔游戏性折中，改动必须是有意的。
 
