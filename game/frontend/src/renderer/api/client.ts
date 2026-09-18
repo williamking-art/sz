@@ -55,6 +55,10 @@ export interface ArmyUnitReadout {
   morale: number;
   training: number;
   equip_rate: number;
+  /** 装备实物明细（7 项：枪刀/弓弩/火器/战马/盔甲/舟船/器械）— 阶段 B-3 新增 */
+  equip?: Record<string, number>;
+  /** 该军**累计欠饷**（贯）— 阶段 B-3 新增；国库不足时按月分摊累加 */
+  arrears?: number;
   army_name: string;
   org_arm: string;
   scale: string;

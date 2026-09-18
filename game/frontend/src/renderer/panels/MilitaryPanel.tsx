@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { getApiClient, type ReadoutsResult } from "../api/client";
+import { getApiClient, type ReadoutsResult, type ArmyUnitReadout } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import { wan } from "../utils/format";
 
@@ -33,6 +33,8 @@ export default function MilitaryPanel() {
   const state = useGameStore((s) => s.state);
   const [ro, setRo] = useState<ReadoutsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 诸军明细窗（阶段 B-3：点开某军 → 人员/兵种/装备/士气/欠饷）
+  const [detail, setDetail] = useState<ArmyUnitReadout | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -110,15 +112,24 @@ export default function MilitaryPanel() {
                       .map(([b, n]) => `${b}${n}`)
                       .join("/");
                     return (
-                      <div key={u.unit_id} className="flex items-baseline justify-between gap-3 py-0.5 pl-4">
+                      <button
+                        key={u.unit_id}
+                        type="button"
+                        onClick={() => setDetail(u)}
+                        title="点开查看该军明细：人员 / 兵种 / 装备 / 士气 / 欠饷"
+                        className="flex w-full items-baseline justify-between gap-3 rounded py-0.5 pl-4 pr-1 text-left hover:bg-gold/10"
+                      >
                         <span className="min-w-0 truncate text-[13px] text-ink">
                           {u.name}（{brs}）
                         </span>
                         <span className="shrink-0 text-xs text-dim">
                           {wan(u.troops, "人")}　备{Math.round(asNum(u.equip_rate) * 100)}%　
                           气{Math.round(asNum(u.morale))}　训{Math.round(asNum(u.training))}　{u.defense_line}
+                          {asNum(u.arrears) > 0 && (
+                            <span className="ml-2 text-red">欠饷{wan(asNum(u.arrears), "贯")}</span>
+                          )}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -166,6 +177,82 @@ export default function MilitaryPanel() {
           <p className="mt-1.5 text-sm leading-relaxed text-ink">
             {EQUIP_KEYS.map(([k, unit]) => `${k}${wan(asNum(asDict(ro.arsenal)[k]), unit)}`).join("　")}
           </p>
+        </div>
+      )}
+
+      {/* 诸军明细窗（阶段 B-3：点开某军 → 人员 / 兵种 / 装备 / 士气 / 欠饷） */}
+      {detail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setDetail(null)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-lg overflow-auto rounded-lg border border-gold/60 bg-paper p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="font-kai text-base font-bold text-red">{detail.name}</p>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                className="shrink-0 rounded border border-gold/40 px-2 py-0.5 text-xs text-dim hover:bg-gold/10"
+              >
+                关闭
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-dim">
+              {detail.tier}　{detail.army_name || "—"}　{detail.org_arm || "—"}　
+              {detail.scale || "—"}{detail.serial ? `第${detail.serial}` : ""}
+            </p>
+
+            <dl className="mt-3 space-y-1.5 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="shrink-0 text-dim">驻地 / 防区</dt>
+                <dd className="text-right text-ink">{detail.station}　{detail.defense_line}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-dim">兵力</dt>
+                <dd className="text-ink">{wan(asNum(detail.troops), "人")}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-dim">士气 / 训练</dt>
+                <dd className="text-ink">气{Math.round(asNum(detail.morale))}　训{Math.round(asNum(detail.training))}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-dim">装备配给率</dt>
+                <dd className="text-ink">{Math.round(asNum(detail.equip_rate) * 100)}%</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="shrink-0 text-dim">累计欠饷</dt>
+                <dd className={asNum(detail.arrears) > 0 ? "font-bold text-red" : "text-ink"}>
+                  {wan(asNum(detail.arrears), "贯")}
+                </dd>
+              </div>
+            </dl>
+
+            <p className="mt-3 font-kai text-sm font-bold text-red">兵 种 构 成</p>
+            <ul className="mt-1 space-y-0.5 text-sm text-ink">
+              {Object.entries(asDict(detail.branches))
+                .filter(([, n]) => asNum(n) > 0)
+                .sort((a, b) => asNum(b[1]) - asNum(a[1]))
+                .map(([b, n]) => (
+                  <li key={b} className="flex justify-between gap-3">
+                    <span>{b}</span>
+                    <span>{asNum(n).toLocaleString()}人</span>
+                  </li>
+                ))}
+            </ul>
+
+            <p className="mt-3 font-kai text-sm font-bold text-red">装 备 明 细</p>
+            <ul className="mt-1 space-y-0.5 text-sm text-ink">
+              {EQUIP_KEYS.map(([k, unit]) => (
+                <li key={k} className="flex justify-between gap-3">
+                  <span>{k}</span>
+                  <span>{wan(asNum(asDict(detail.equip)[k]), unit)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </div>
