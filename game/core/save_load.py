@@ -81,6 +81,12 @@ def save_game(state, slot: int = 1) -> bool:
         # 货币口径（阶段 B-1）：白银存量 ＋ 月度对账记录（旧档缺省 → 0 / {}）
         "silver_stock": getattr(state, "silver_stock", 0),
         "money_audit": getattr(state, "money_audit", {}),
+        # 官制（阶段 C）：差遣定员、磨勘指数、入仕来源台账。
+        # 注意 posts_quota 是**岗位**数（唯一合法的非 POP 官制存量，见官制设计 §六②）；
+        # 官额/吏额一律从 pops["官僚"] 派生，**不得**在此另存。
+        "posts_quota": getattr(state, "posts_quota", 0),
+        "official_rank_index": getattr(state, "official_rank_index", 1.0),
+        "recruit_log": getattr(state, "recruit_log", {}),
         "price_level": getattr(state, "price_level", 1.0),
         "grain_price": getattr(state, "grain_price", 1.0),
         "canal_block": getattr(state, "canal_block", 10),
@@ -313,6 +319,11 @@ def load_game(slot: int = 1):
     # 货币口径（阶段 B-1）：旧档无此二字段时按 0 / {} 迁移，不破坏既有语义
     state.silver_stock = int(data.get("silver_stock", getattr(state, "silver_stock", 0)) or 0)
     state.money_audit = data.get("money_audit", getattr(state, "money_audit", {})) or {}
+    # 官制（阶段 C）：旧档缺省 0 → 由 officialdom 按「中央机构岗位 ＋ 路级定员」重算一次
+    state.posts_quota = int(data.get("posts_quota", getattr(state, "posts_quota", 0)) or 0)
+    state.official_rank_index = float(
+        data.get("official_rank_index", getattr(state, "official_rank_index", 1.0)) or 1.0)
+    state.recruit_log = data.get("recruit_log", getattr(state, "recruit_log", {})) or {}
     state.price_level = data.get("price_level", getattr(state, "price_level", 1.0))
     state.grain_price = data.get("grain_price", getattr(state, "grain_price", 1.0))
     state.canal_block = data.get("canal_block", getattr(state, "canal_block", 10))

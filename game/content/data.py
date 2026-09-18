@@ -191,6 +191,17 @@ CLERK_PER_OFFICIAL = 8           # 吏数 = 官数 × 8（旧档迁移基准；�
 WAITING_PAY_RATIO = 0.5          # 待阙（守选无差遣）半俸——冗官的"体感指标"也是财政负担
 SINECURE_PAY_RATIO = 0.5         # 祠禄（宫观官）折俸
 OFFICIAL_SUB_KEYS = ("officials", "clerks", "on_post", "waiting", "sinecure")
+# ---- 官制结算（阶段 C-3，见宋代官制设计 §七/§13.5）----
+ROUTE_POST_QUOTA = 1350          # 每路差遣定员（知州/通判/幕职/县令/监当等，含胥吏外之职官）
+WAITING_SINECURE_MULT = 0.5      # 待阙超过「定员 × 此倍数」→ 超额转祠禄（宫观官，仍食折俸）
+OFFICIAL_RETIRE_RATE_YEAR = 0.03  # 在岗官年退出率（致仕/死亡/罢黜合计）：退出者回**士绅**
+RANK_UP_PER_YEAR = 0.006         # 磨勘：品阶上浮带来的人均俸禄年增幅（每年正月一次）
+YINBEN_PER_JIAOSI = 0.004        # 恩荫：每 3 年郊祀荫补 = 士绅人口 × 此比例（随皇威缩放）
+YINBEN_PRESTIGE_REF = 55.0       # 恩荫的皇威基准（皇威越高，荫补越多）
+CLAN_OFFICE_RATIO = 0.02         # 宗室年入官比例（占宗室人口；随宗室复利增长）
+CLAN_GROWTH_ANNUAL = 0.03        # 宗室人口年复利（3%/年，L2c 的来源）
+CLAN_GRAIN_PER_MONTH = 8.0       # 宗室每人月禄米（石）
+CLAN_PAY_PER_MONTH = 30.0        # 宗室每人月俸折色（贯）——沿用官制设计 S-D3 的 30 贯/月
 CORRUPTION_MULT = 0.8             # 吏俸缺口→贪腐扣减放大系数
 BRIBE_FLOOR = 0.2                # 加俸无法消除的顽固贪腐下限（pay_ratio 折损下限 0.2）
 IMPERIAL_SHARE = 0.10            # 内帑抽成：结余为正时 max(0,净结余)×IMPERIAL_SHARE（plan L148/L207 定稿 0.1）

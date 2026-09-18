@@ -416,9 +416,10 @@ class GameStateEconMixin:
     def calc_official_grain(self):
         total = 0.0
         by_route = {}
+        _rank = float(getattr(self, "official_rank_index", 1.0) or 1.0)   # 磨勘：品阶上浮
         for name, p in self.prefectures.items():
-            # 在岗全禄、待阙半禄、祠禄折禄（§13.6）
-            g = _officialdom.route_pay_units(p) * OFFICIAL_GRAIN_PER_MONTH
+            # 在岗全禄、待阙半禄、祠禄折禄（§13.6）× 磨勘指数
+            g = _officialdom.route_pay_units(p) * OFFICIAL_GRAIN_PER_MONTH * _rank
             by_route[name] = g
             total += g
         return total, by_route
@@ -426,8 +427,9 @@ class GameStateEconMixin:
     def calc_official_cash(self):
         total = 0.0
         by_route = {}
+        _rank = float(getattr(self, "official_rank_index", 1.0) or 1.0)   # 磨勘：品阶上浮
         for name, p in self.prefectures.items():
-            c = _officialdom.route_pay_units(p) * OFFICIAL_PAY_PER_MONTH
+            c = _officialdom.route_pay_units(p) * OFFICIAL_PAY_PER_MONTH * _rank
             by_route[name] = c
             total += c
         return total, by_route
