@@ -97,12 +97,18 @@ def test_estate_persona_and_seize():
     assert mod_rich["danger_bonus"] == 0.15
     mod_poor = estate_persona_mod(s, "陈瓘")     # 5千 ≤ 5万 → 清贫敢谏
     assert mod_poor["brave_bonus"] == 0.15
-    t0, land0 = s.treasury, getattr(s, "official_land", 0)
+    # 田账真账在 prefectures[*].official_land；GameState 并无顶层 official_land
+    # （原断言写 getattr(s,"official_land",0)，等于把"写进不存在的属性"锁成了预期）
+    def _official_land() -> int:
+        return sum(int((p or {}).get("official_land", 0) or 0)
+                   for p in s.prefectures.values())
+
+    t0, land0 = s.treasury, _official_land()
     we0 = s.minister_estate["蔡京"]["wealth"]
     got = seize_estate(s, "蔡京")
     assert got[0] == we0                          # 全抄没
     assert s.treasury == t0 + we0                 # 钱→国库
-    assert getattr(s, "official_land", 0) == land0 + got[1]  # 田→官田
+    assert _official_land() == land0 + got[1]     # 田→官田（各路真账，守恒）
     assert s.minister_estate["蔡京"]["wealth"] == 0
 
 
