@@ -116,7 +116,7 @@ class TTSEngine:
         """后台线程合成；callback(path) 成功 / on_error(reason) 失败。
 
         线程安全：回调在**工作线程**触发——GUI 侧必须经 widget.after()
-        回主线程再碰控件（绝不跨线程直改 Tkinter）。
+        回主线程再碰界面控件（绝不跨线程直改 UI；原文写 Tkinter，Tk 界面已废弃）。
         """
         def _work():
             path = self.synthesize(text, voice)
