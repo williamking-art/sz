@@ -160,7 +160,9 @@ def save_game(state, slot: int = 1) -> bool:
         "resources": getattr(state, "resources", {}),
         "projects": getattr(state, "projects", {}),
         "workshops": getattr(state, "workshops", {}),
-        "defense_lines": getattr(state, "defense_lines", {}),
+        # 注（2026-09-18 全审 F601）：本键在 `:101` 已写过一次（`state.defense_lines`），
+        # 此处原为重复键（`getattr(state, "defense_lines", {})`，读同一属性，值等价），
+        # 属无声重复定义 —— 已删除。详见 review_2026-09-18.md 与 ruff `--select F601`。
 
         "land": state.land,
 

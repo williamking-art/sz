@@ -57,14 +57,22 @@ def test_farmer_grain_safety_cushion():
         f"农存粮被抽干至 {min_farmer_grain}（安全垫失效，将引发农逃荒→起义→崩盘）"
 
 
-def test_treasury_stays_above_crisis_line():
-    """P0：36 个月国库不触危机线（此前无 AI 回放国库持续亏损至 -1572 万）。"""
+def test_no_treasury_crisis_in_36_months():
+    """P0：36 个月内不得触发「库藏危机」（B3 判据：累计亏空深度）。
+
+    2026-09-18 整理：原断言为 `s.treasury > TREASURY_CRISIS_LINE`，但
+      ① B3 起危机判据是 `deficit_depth() > TREASURY_CRISIS_LINE`，与 `treasury` 不同量纲；
+      ② `TREASURY_START == TREASURY_CRISIS_LINE == 5,000,000`，`>` 断言在开局第 0 步即为假；
+      ③ 国库开局缓慢下滑属**游戏设定**（用户口径），不是缺陷。
+    故改为断言真实判据，并保留「国库禁穿底」不变量（`change_treasury` 的 max(0,…) 纪律）。
+    """
     s = GameState("史实")
     for _ in range(36):
         s._economy_ai = _ECO
         run_monthly_settlement(s, seed_offset=100)
-        assert s.treasury > TREASURY_CRISIS_LINE, \
-            f"国库触危机线：{s.treasury}"
+        assert s.deficit_depth() <= TREASURY_CRISIS_LINE, \
+            f"触发库藏危机：累计亏空 {s.deficit_depth():,}"
+        assert s.treasury >= 0, f"国库穿底：{s.treasury}"
 
 
 def test_population_ledger_aligned_every_month():

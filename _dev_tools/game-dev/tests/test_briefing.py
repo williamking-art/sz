@@ -35,11 +35,16 @@ def test_briefing_no_ai_dependency():
 
 
 def test_briefing_desensitized():
-    """脱敏：输出文本不含隐藏数值键（loyalty/corruption/精确国库额）。"""
+    """脱敏：输出文本不含隐藏数值键（loyalty/corruption/精确亏空额）。
+
+    2026-09-18 整理：库藏告急急务的判据是「累计亏空深度」
+    （`core/briefing.py:77` 读 `treasury_deficit`，B3 起国库禁穿底、负余额不可达），
+    故触发条件由 `treasury = -6e6` 改为 `treasury_deficit = 6e6`。
+    """
     from core.briefing import build_briefing_actions
     s = _new_state()
-    s.treasury = -6_000_000      # 触发库藏危机急务
-    s.disaster_severity = 3      # 触发赈灾急务
+    s.treasury_deficit = 6_000_000   # 触发库藏危机急务（B3 判据）
+    s.disaster_severity = 3          # 触发赈灾急务
     s.population_satisfaction = 30
     text = " ".join(a["title"] + a["desc"] for a in build_briefing_actions(s))
     assert "loyalty" not in text and "corruption" not in text
@@ -49,10 +54,13 @@ def test_briefing_desensitized():
 
 
 def test_briefing_urgent_flags():
-    """极端场景：国库危机/灾荒/民心低落 → urgent 急务项在前。"""
+    """极端场景：国库危机/灾荒/民心低落 → urgent 急务项在前。
+
+    2026-09-18 整理：国库危机触发条件改为累计亏空深度（B3 判据）。
+    """
     from core.briefing import build_briefing_actions
     s = _new_state()
-    s.treasury = -6_000_000
+    s.treasury_deficit = 6_000_000
     s.disaster_severity = 3
     s.disaster_region = "河北路"
     s.population_satisfaction = 30

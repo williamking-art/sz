@@ -289,7 +289,15 @@ def _cascade_farmer_wealth(state, ch):
 #   ② FactionState 本身也没有 `power` 字段（只有 influence/satisfaction/cohesion…）。
 # 故 `apply_cascade` 永不匹配到该规则（合并后的 changes 里不可能出现 factions.X.power），
 # 属永不触发的死代码；且一旦被误配白名单会因寻址失败触发「整批回滚」。
-# 已整体移除。def _resolve_path_value(state, path: str):
+# 已整体移除。
+# 修复（2026-09-18 全审 P0-1）：原第 292 行把 `def` 与注释挤在同一行
+# （`# 已整体移除。def _resolve_path_value(...)`），使 `def` 行被注释吞掉，
+# 下面 30 行函数体因缩进与 `_cascade_farmer_wealth` 的 `return []` 同层，
+# 被 Python 解析为**该函数体内 return 之后的不可达语句** —— 函数就此消失，
+# 而调用点 `_simulate_underflow`（:710）与 `_apply_op`（:677）仍在引用，
+# 于是任何钱/粮组 `add` 都抛 NameError（被 ai/client_utils.py 的裸 except 吞成
+# 「赈济未能落地」）。现把 `def` 顶格另起，恢复为模块级函数。
+def _resolve_path_value(state, path: str):
     """按 path 解析状态中的当前值（* 通配返回 None 表示多目标）。"""
     if "." not in path:
         return getattr(state, path, None)
