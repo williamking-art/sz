@@ -4,6 +4,11 @@
 > 方法：`pytest --collect-only` 全量清点 + 逐个失败项归因 + 按「是否对应**当前**游戏行为」分类。
 > 环境：`D:\codebuddy\.audit-venv\Scripts\python.exe`，前置 `PYTHONPATH=''`＋清 `CODEBUDDY_*`。
 > 基线：**47 文件 / 390 用例 / 11 失败**。
+>
+> **第二轮（2026-09-18 晚）**：用户再问「检查一遍测试项，看看哪些是没用的，哪些还没测」。
+> 方法升级为 **覆盖率驱动 + AST 结构扫描**（`coverage 7.16.1` 全量 + 逐函数缺口映射）。
+> 基线与结果见 [§九 第二轮体检](#九第二轮体检2026-09-18-晚覆盖率驱动)。**当轮又抓出 4 处货币守恒破坏**——
+> 全部躲过了既有账本测试（原因见 §9.4「镜像覆盖 ≠ 路径覆盖」）。
 
 ---
 
@@ -15,8 +20,10 @@
 | **B. 测试过期（红）** | **7** | 代码是对的，测试断言的是**旧语义** → **改测试** |
 | **C. 绿但无效** | **≈25 用例** | 测的是**无生产调用方**的模块 → 永远拦不住真实回归 |
 | **D. 弱断言** | **20 条** | 断言过宽（`>=0` / 恒真 / 断言源码文本）→ 抓不到缺陷 |
+| **E. 没覆盖的路径**（第二轮新增） | **关键函数大面积零覆盖** | 步骤被镜像覆盖，但**触发状态从未被造出** → 步骤内的钱路从未执行 |
 
 > **最危险的从来不是红测试，而是 C 类**：它们绿着，给人"这块有保护"的错觉，实际保护的是没人调用的代码。
+> **E 类更隐蔽**：步骤在镜像里、覆盖率也不是 0，但关键分支从未被走到（见 §9.4）。
 
 ---
 
@@ -213,3 +220,83 @@ def test_async_ai_is_still_unwired():
 - **顺序**：先整理测试（本轮）→ 再修 P0（阶段 1.1）→ 此时套件应**全绿**，才具备后续批次（货币口径 / 官制）的安全基线。
 - 之后每批仍按「验收三连」：`pytest` ＋ `ruff F821/F601` ＋ 60 月回放；阶段 B 起追加第四项：**货币对账残差**。
 - **阶段 B 已收口**（B-1 观测 → B-2 守恒 → B-2′ 军俸/欠饷 → B-3 L1 维持费），下一步进入 **阶段 C 官制**。第 6–9 项动作**已按原计划随功能批次完成**，未另开测试批。
+
+---
+
+## 九、第二轮体检（2026-09-18 晚，覆盖率驱动）
+
+> 用户再问：「检查一遍测试项，看看那些是没用的，那些还没测。」
+> 方法从"人工归类"升级为**工具驱动**：
+> ① `pytest --collect-only` 清点（52 文件 / 443 用例）；
+> ② `coverage 7.16.1` 全量跑（`--include` 限定 `game/` 生产目录）→ 逐 **函数** 映射缺口；
+> ③ AST 结构扫描：无断言用例 / 恒真断言 / 重复体 / 引用未接线模块的用例。
+
+### 9.1 「没用的」——逐条证据
+
+| # | 位置 | 问题 | 处置 |
+|---|---|---|---|
+| 1 | `test_async_ai.py:210` | `assert s.game_over in (True, False)` —— **布尔恒真** | ✅ 改为 `assert s.game_over is False`（开局一月不可能终局），并把被"不抛即可"注释掩盖的语义写回 |
+| 2 | `test_price_stabilizer.py:166` | `assert s.statistics["coin_melted"] > s.statistics.get(...) - 1 or True` —— `or True` + 自己比自己减 1，**恒真** | ✅ 改为真正的"第二次熔化累计额应增加"（先存 `_after_first` 再比） |
+| 3 | `test_middle_calibration.py:199` | `assert money.m_all(s) - m0 != 0 or True` —— **恒真**（**本轮我自己写的**，体检时被自己的扫描抓到） | ✅ 删除，改为**验证回流去向**（工匠/商人 POP 确有入账）——守恒的直接证据，而非间接残差 |
+| 4 | `test_price_stabilizer.py::test_changping_buy_ratio_cap` | 注释承诺「平籴支出 ≤ 府库 50%」「常平 ΣΔ==0：仓增量×价 ≈ 府库减量」，**两条都没断言**；唯一断言是 `local_treasury >= 0` | ✅ 按注释补齐两条真断言（预算上限 ＋ 钱粮守恒） |
+| 5 | `test_finance_decide.py::test_finance_reject_bad_states` | 用例名承诺"拒绝式：缺失/非法 → None"，**一行都没测拒绝路径**（只断言常量形状） | ✅ 改为**真驱动** `economy_decide`：正向对照 + 5 字段 × 3 种非法（非法词/缺失/非字符串）全部拒绝 |
+| 6 | `test_contract_adapter.py`（6 例） | `ai/contract_adapter.py` **无生产调用方**（AST 核实） | ⚠️ 加"接线状态"抬头（不删：映射表契约本身仍有价值，但不得当作线上验证） |
+| 7 | `test_async_ai.py`（12 例） | `core/async_ai.py` **无生产调用方** | ⚠️ 加抬头 ＋ 新增 **接线哨兵** `test_async_module_is_not_wired_yet`（AST 判定；接线即失败提醒复核）<br>· 实现细节：首版用文本扫描，被 `contract_adapter.py` 文档串里的"待接线"提及**误判**，改 AST 后通过 |
+| 8 | `test_review_p0_conservation.py::test_async_settlement_no_nested_submit` | 断言**源码文本**（`inspect.getsource`）＋ 测的是未接线模块 | ⚠️ 标注；**建议**：接线时改为"跑真实路径 + 超时失败"的行为断言，否则可删 |
+| 9 | 22 处 `assert x is not None` | 弱断言；多数是 `load_game` 守卫（失败后紧跟真断言，非无用） | ⏸️ 保留（弱但有用），仅记录 |
+
+> **A 类（无任何 assert 的用例）= 0**；**D 类（用例体完全重复）= 0** —— 这两项干净。
+
+### 9.2 「还没测的」——覆盖率地图
+
+**总体：65.45%（12,670 语句 / 未覆盖 4,377）；零覆盖函数 0 个**（每个函数都被碰到过），
+但**关键函数大面积零覆盖**：
+
+| 模块 | 覆盖率 | 最大缺口（体检前） |
+|---|---|---|
+| `content/geo_admin.py` | **18.2%** | `validate_geo` 缺 **147/148** |
+| `core/legacy_mechanic.py` | **23.8%** | `_estimate_progress` 缺 19/21、各效果/消除条件 |
+| `ai/client_narrative.py` | 26.7% | — |
+| `ai/client.py` | 29.1% | 缺 1,070 语句（AI 客户端，需 mock） |
+| `core/settlement.py` | **34.1%** | `_apply_reform_result` 缺 **58/60**、`settle_reform` 缺 27/29、`_fallback_reform` 缺 19/21 |
+| `core/settlement_steps.py` | 74.2% | `_state_grain_trade` 缺 **70/72**、`_settle_projects` 缺 **40/43** |
+| `core/commands_decree.py` | 40.8% | `merge_drafts` 17/19、`preview_draft` 13/15 |
+| `core/save_load.py` | 72.7% | `load_game` 缺 62/283（旧档迁移分支） |
+| `core/events.py` | 70.5% | `get_strategic_branch` 9/11、`get_pending_break_event` 8/10 |
+
+### 9.3 本轮补测与修复（体检直接产出）
+
+| # | 动作 | 结果 |
+|---|---|---|
+| 1 | 新增 `test_step_gap_fills.py`（15 例）：`legacy_mechanic` 标签型修正/消除条件、`focus_mechanic` 全生命周期/取消/锁定拒绝/分支效果、`institution.apply_reform` 逐项拒绝与损坏态回退、**工程款/皇帝行动/和亲嫁妆/政府粮食交易的守恒** | 套件 443 → **459** |
+| 2 | **补测当场抓出真 bug**：`core/institution.py::get` 文档承诺"绝不抛"，但 `institution_params` 为**真值非 dict**（损坏/旧档）时 `cur.get` 抛 `AttributeError` —— 而它被官制/吏制/维持费**每步结算**调用，破档即整月结算崩 | ✅ 改为显式类型判定 |
+| 3 | **覆盖率提升**：`legacy_mechanic` **23.8% → 76.2%**、`focus_mechanic` **69.5% → 83.1%**、`institution` **80.5% → 89.3%**、`settlement_steps` **74.2% → 77.3%**；总体 **65.45% → 66.73%** | — |
+
+### 9.4 方法论：**镜像覆盖 ≠ 路径覆盖**（本轮最大教训）
+
+补测工程款守恒时发现：`_settle_projects` **在 `_STEPS` 镜像里**（上一轮刚补全镜像一致性断言），
+但**回放与全部用例中 `state.projects` 恒为空** → 该步骤内的**钱路从未被执行**。
+于是同一个"无对手方销毁货币"缺陷在**四个地方**同时存活，且全部躲过账本测试：
+
+| 位置 | 症状 | 实测 | 修复 |
+|---|---|---|---|
+| `_settle_projects` `cost_coin` | 裸 `state.treasury -= coin_need` | 单项工程 500,000 贯 → **ΔM_ALL = −500,000** | ✅ 支出回流（国库 → 工匠40%/商人60% POP） |
+| `_settle_emperor_personal` `base_cost` | 裸 `change_treasury(-paid)` / `内帑 -= paid` | 皇帝行动 80,000 贯 → 无对手方 | ✅ 同上（宫廷支出口径） |
+| `_settle_projects` `wine_coin_add` | 裸 `内帑 += 收益`（**无买方**，同审查 A-4） | 属预留路径（当前无工程用），但契约错误 | ✅ 改为向民间守恒征收（实收才入账） |
+| `diplomacy_treaty` 和亲嫁妆 | `内帑 -= dowry` **未登记 burn** | 外流未登记 → 月度对账报"未解释残差" | ✅ `register_flow(state,"burn",…)` |
+
+> **结论**：账本测试的"镜像完整性"只保证**步骤被调用**，不保证**步骤内的分支被走到**。
+> 因此 §八 的新增纪律要再加一条：**账本镜像一致性是必要条件，不是充分条件**；
+> 对"只在特定状态下才动钱"的步骤（工程 / 皇帝行动 / 外交 / 研发），必须**造出触发状态**再断言守恒。
+
+### 9.5 仍未测的部分（诚实清单）
+
+| 项目 | 状态与理由 |
+|---|---|
+| `core/settlement.py` 的**机构改制**路径（`settle_reform` / `_apply_reform_result` / `_fallback_reform`，缺 58/60 等） | ⏳ **未补**：依赖 `AI 契约 + 机构改制状态机`，需较大 mock 工程量；属**下一步优先级最高**的缺口（改制直接影响官额/机构，是 C 批次的交互面） |
+| `ai/client.py`（缺 1,070 语句） | ⏳ 未补：需系统化 mock AI 响应；本轮只在 `test_finance_decide` 里打通了 `economy_decide` 一条真实路径（**该模式可复制推广**） |
+| `content/geo_admin.validate_geo`（缺 147/148） | ⏳ 未补：数据校验器，价值取决于舆图数据是否会被玩家/脚本改动 |
+| `core/commands_decree.py`（40.8%） | ⏳ 未补：拟旨/会签/密旨分支 |
+| `core/save_load.load_game` 旧档迁移分支（缺 62/283） | ⏳ 未补：**建议优先**——旧档兼容是发布风险点 |
+| C 类两文件（`async_ai` / `contract_adapter`）仍测未接线模块 | ⏳ 已标注接线状态哨兵；**是否接线由用户决定**（不接线 = 这些用例价值有限） |
+| `test_review_p0_conservation.py` 的源码文本断言 | ⏳ 已标注；建议随接线一并改造或删除 |

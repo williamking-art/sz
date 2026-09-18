@@ -6,6 +6,12 @@
 线程纪律断言：
 - 后台只做「AI 网络调用 + 纯函数校验」，不写 GameState（结果经 on_success 主线程落地）；
 - 异常统一经 on_error 回到主线程回调（AIRuntimeError 弹错语义）。
+
+⚠️ **接线状态（2026-09-18 测试体检复核）：`core/async_ai.py` 在 `core/`、`ai/`、`engine/`、
+`backend/`、`content/` 中**没有任何生产调用方**（仅被测试引用）—— 即下述"线程纪律"用例
+测的是**当前未接线的模块**。它们仍保留，因为该模块是被刻意保留下来的备用异步通路
+（AI 调用异常隔离），一旦接线即可用；但**不要把它们当作"线上行为已被验证"的证据**。
+本文件的 `test_async_module_is_not_wired_yet` 会在接线后失败，提醒复核这些用例的意义。
 """
 import os
 import sys
@@ -21,6 +27,49 @@ sys.path.insert(0, os.path.join(_GAME_ROOT, "tests"))
 
 from core.game_state import GameState  # noqa: E402
 from core.errors import AIRuntimeError  # noqa: E402
+
+
+def test_async_module_is_not_wired_yet():
+    """接线状态哨兵：`core/async_ai.py` 目前**无生产调用方**（本文件其余用例测的是未接线模块）。
+
+    用 **AST** 判定真实引用（import / 名字 / 字符串形式的动态导入），
+    不用文本扫描 —— 否则文档串里的"待接线"提及会被误判成调用方（实测已踩过）。
+    一旦有人把它接上线，这个用例会失败 → 提醒"这些线程纪律用例从此刻起才算线上行为验证"，
+    并应同步更新本文件抬头与 `test_triage_2026-09-18.md` 的 C 类清单。
+    """
+    import ast
+    game_root = _GAME_ROOT
+    prod_dirs = ("core", "ai", "engine", "backend", "content")
+    callers = []
+    for d in prod_dirs:
+        for cur, _dirs, fns in os.walk(os.path.join(game_root, d)):
+            for fn in fns:
+                if not fn.endswith(".py") or fn == "async_ai.py":
+                    continue
+                p = os.path.join(cur, fn)
+                try:
+                    tree = ast.parse(open(p, encoding="utf-8").read())
+                except (OSError, SyntaxError):
+                    continue
+                for node in ast.walk(tree):
+                    hit = False
+                    if isinstance(node, ast.Import):
+                        hit = any("async_ai" in a.name for a in node.names)
+                    elif isinstance(node, ast.ImportFrom):
+                        hit = "async_ai" in (node.module or "") or \
+                            any("async_ai" in a.name for a in node.names)
+                    elif isinstance(node, ast.Name):
+                        hit = node.id in ("async_ai", "AsyncAI")
+                    elif isinstance(node, ast.Attribute):
+                        hit = node.attr in ("async_ai", "AsyncAI")
+                    elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                        hit = "core.async_ai" in node.value or "core/async_ai" in node.value
+                    if hit:
+                        callers.append(f"{os.path.relpath(p, game_root)}:{node.lineno}")
+    assert not callers, (
+        "`async_ai` 已被接线（生产调用方：" + ", ".join(sorted(set(callers))[:5]) + "）；"
+        "请复核本文件用例是否已成为线上行为验证，并更新抬头与 C 类清单")
+
 
 
 class _FakeUI:
@@ -207,7 +256,9 @@ def test_settle_local_and_finish_turn():
     assert s.turn == t0 + 1, "settle_local 应推进回合（委托 run_monthly_settlement）"
     assert isinstance(log, list) and log
     finish_turn(s)  # 终局判定 + 自动存档（正月/终局）——不抛即可
-    assert s.game_over in (True, False)
+    # 2026-09-18 测试体检：原为 `assert s.game_over in (True, False)` —— **布尔恒真**，
+    # 永不失败。改为真断言：开局 1 个月不可能触发终局（check_game_over 的四类判据都达不到）。
+    assert s.game_over is False, "开局一个月不应触发终局判定"
 
 
 def test_monthly_report_args_shape():
