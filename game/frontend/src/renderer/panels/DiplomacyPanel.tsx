@@ -80,10 +80,12 @@ export default function DiplomacyPanel() {
     setBusy(true);
     setReply(null);
     try {
-      // 走自由口谕对话通道（对接大模型外邦使节口吻）
-      const res = await getApiClient().action("audience_dialogue", {
-        minister: `${currentKey}国主/正使`,
-        text: diplomaticText.trim(),
+      // 走外交专用通道（国主 persona + 协议落地）。
+      // 原走 audience_dialogue（把外国君主当大臣召对）→ 协议永不落地、
+      // state.treaties 恒空、本页「条约」栏永久无内容。
+      const res = await getApiClient().action("envoy_diplomacy", {
+        target: currentKey,
+        speech: diplomaticText.trim(),
       });
       setReply(res.message || "国书已由鸿胪寺译进，外夷奉表以闻。");
       setDiplomaticText("");

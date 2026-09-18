@@ -178,6 +178,9 @@ class LocalBackend(BackendClient):
                     p.get("target", ""), bool(p.get("prepared", False))), s),
             "audience_dialogue":
                 lambda s, p, ai: (cmd.audience_dialogue(s, p.get("minister", ""), p.get("text", ""), ai), s),
+            "envoy_diplomacy":
+                lambda s, p, ai: (cmd.envoy_diplomacy(
+                    s, p.get("target", ""), p.get("speech", ""), ai), s),
             "start_tech_research":
                 lambda s, p, ai: self._research_action(s, p),
             "approve_invention":
