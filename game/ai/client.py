@@ -26,7 +26,7 @@ from difflib import SequenceMatcher
 
 from ai.client_narrative import ClientNarrativeMixin
 from ai.client_utils import (
-    _ai_unavailable, _app_root, _build_offer_context, _clean_text, _extract_json, _fallback_parse, _http_post_json, _load_prompt, _normalize_decree_effects, _normalize_effects, _org_by_affiliation, _prompt_dir, _safety_filter, _safety_lexicon_path, _similar, _tool_dispatch, _TOOL_SCHEMAS, _valid_tier, effects_to_dict, load_safety_lexicon, tier_to_value,
+    _ai_unavailable, _app_root, _build_offer_context, _clean_text, _extract_json, _fallback_parse, _http_get_json, _http_post_json, _load_prompt, _normalize_decree_effects, _normalize_effects, _org_by_affiliation, _prompt_dir, _safety_filter, _safety_lexicon_path, _similar, _tool_dispatch, _TOOL_SCHEMAS, _valid_tier, effects_to_dict, load_safety_lexicon, tier_to_value,
 )
 from ai.narrative_guard import (
     _validate_narrative_numbers, _build_numeric_ranges, _build_source_closure,

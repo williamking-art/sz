@@ -857,7 +857,12 @@ TECH_EFFECT_LABELS = {
     "influence": "势力",
     "power": "实力",
     "population": "人口",
-    "trade_income": "市舶收入",
+    # 修正（2026-09-18 全审 F601 + G-16）：本行原为 `"trade_income": "市舶收入"`，
+    # 与 `:847` 的 `"trade_income": "贸易收入"` 构成**重复键**（后者覆盖前者，
+    # 使 `trade_income` 的标签被静默改写）。核对用法后确认本行本意是另一个维度：
+    # `("航海","贸易"): {"maritime_income": 0.20}`（`:1931`）用到 `maritime_income`
+    # 却一直没有标签 —— 属键名笔误。改正后同时消除重复键与一个缺失标签。
+    "maritime_income": "市舶收入",
     "ship_capacity": "舟运运力",
     "naval_power": "水师",
     "firepower": "火力",

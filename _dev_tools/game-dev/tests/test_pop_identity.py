@@ -569,8 +569,14 @@ def test_jiaozi_moderate_issue_relieves_shortage():
 
 
 def test_maritime_trade_ledger_closed(monkeypatch):
-    """市舶贸易钱账本闭口：关税抽解入国库 + 商人 POP 得外贸利润，
-    国库+商人所得 == 贸易额×(关税率 + (1-关税率)×0.3)（±12 路 int 分摊截断）。
+    """市舶贸易账本闭口（R2-5 去双计后修订）。
+
+    2026-09-18 整理：原断言「`_settle_extensions` 把关税入国库」，对应的是**已被删除的
+    重复计账通道**。R2-5 起关税的**唯一**入账通道是 `_settle_finance`（税从 POP 征 → 国库），
+    `_settle_extensions` 只保留「商人外贸利润 ＋ 白银流入」。故本用例改为验证：
+      ① 扩展步不再向国库入账（去双计）；
+      ② 商人仍得外贸利润；
+      ③ 关税确实进入财政税基（唯一通道生效）。
 
     注：禁用私铸熔化（T9 独立通道，另测），聚焦市舶交易账本本身。
     """
@@ -582,7 +588,6 @@ def test_maritime_trade_ledger_closed(monkeypatch):
     s.maritime["silver_in"] = 30
     random.seed(17)
     trade = s.calc_maritime_trade() / 12.0
-    tariff = int(trade * 0.10)
     profit = int(trade * (1 - 0.10) * 0.3)
     assert trade > 0, "市舶开启后贸易额应大于 0"
     t0 = s.treasury
@@ -590,11 +595,12 @@ def test_maritime_trade_ledger_closed(monkeypatch):
     _settle_extensions(s, [])
     dT = s.treasury - t0
     dW = sum(p["pops"]["商人"]["wealth"] for p in s.prefectures.values()) - w0
-    assert dT == tariff, f"关税抽解入国库不符：Δtreasury={dT} 预期={tariff}"
+    assert dT == 0, f"扩展步不应向国库入账（R2-5 去双计）：Δtreasury={dT}"
     assert 0 < dW <= profit, f"商人利润不符：ΔΣ商人wealth={dW} 预期∈(0,{profit}]"
-    # 闭口：国库+商人所得 == 贸易额×比例（分摊 int 截断 ≤ 12 路）
-    assert abs((dT + dW) - (tariff + profit)) <= 12, \
-        f"市舶账本未闭口：国库+商人={dT+dW} 预期={tariff+profit}"
+    # 唯一通道：财政步的市舶税基必须 > 0
+    _m._settle_finance(s, [])
+    assert s.tax_breakdown.get("maritime", 0) > 0, \
+        "市舶抽解应进入财政税基（唯一入账通道）"
 
 
 def test_maritime_silver_enters_money_supply():

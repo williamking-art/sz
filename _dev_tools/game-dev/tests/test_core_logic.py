@@ -23,7 +23,9 @@ from core.evaluation import (  # noqa: E402
     check_reach_end_year, check_game_over,
     evaluate_game,
 )
-from content.data import TREASURY_COLLAPSE_LINE, END_YEAR  # noqa: E402
+from content.data import (  # noqa: E402
+    TREASURY_COLLAPSE_LINE, TREASURY_CRISIS_LINE, END_YEAR,
+)
 
 
 def _new_state():
@@ -108,8 +110,15 @@ def test_no_reach_end_year_early():
 # check_game_over 四条（含收束年）结束判定
 # ------------------------------------------------------------
 def test_game_over_treasury_collapse():
+    """B3：破产判据为「累计亏空深度」> TREASURY_COLLAPSE_LINE。
+
+    2026-09-18 整理：原断言 `s.treasury = TREASURY_COLLAPSE_LINE - 1` 对应的是
+    旧的「负国库下界」语义（常量历史上为负值）。B3 起国库禁穿底、负余额不可达，
+    判据改为 `GameState.deficit_depth()`（见 content/data.py 常量注释与
+    core/evaluation.py:176）。
+    """
     s = _new_state()
-    s.treasury = TREASURY_COLLAPSE_LINE - 1
+    s.treasury_deficit = TREASURY_COLLAPSE_LINE + 1
     assert check_game_over(s) is True
     assert s.game_over is True
 
@@ -122,9 +131,13 @@ def test_game_over_not_on_zero_health_after_death_removed():
 
 
 def test_game_over_abdication():
+    """退位需 ≥2 条理由（`evaluation.check_abdication`：民怨沸腾 / 国库亏空 / 皇威扫地 / 边防空虚）。
+
+    2026-09-18 整理：国库亏空一条的判据是累计亏空超危机线（B3），不再是负国库。
+    """
     s = _new_state()
-    s.population_satisfaction = 10      # 民怨沸腾
-    s.treasury = -6_000_000            # 国库亏空严重
+    s.population_satisfaction = 10                    # 理由①：民怨沸腾
+    s.treasury_deficit = TREASURY_CRISIS_LINE + 1     # 理由②：国库亏空（B3 判据）
     assert check_game_over(s) is True
     assert s.is_abdicated is True
 

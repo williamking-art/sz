@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.game_state import GameState
 from engine.state_applier import (
-    validate_changes, merge_changes, apply_cascade, apply_to_state,
+    validate_changes, merge_changes, apply_to_state,
     applier_pipeline, CHANGE_LOG, validate_conservation, apply_conservation_fix,
 )
 
@@ -57,15 +57,12 @@ def test_validate_clamp01():
     assert valid[0]["value"] == 5   # satisfaction 0-100，不再 clamp 到 [0,1]
 
 
-def test_cascade_faction_power():
-    """cascade：派系 power 变化 → 对立派系反向调整。"""
-    s = _s()
-    s.factions["新党"]["power"] = 60
-    extra = apply_cascade(s, [
-        {"path": "factions.新党.power", "op": "add", "value": 10, "reason": "得势"},
-    ])
-    # 反向调整其他派系（用 influence 近似）
-    assert extra and all("influence" in e["path"] for e in extra)
+# 2026-09-18 整理（决策 1）：原 `test_cascade_faction_power` 已**删除**。
+# 它测的是 `factions.*.power` 的 cascade 规则，而该规则已正式废弃：
+#   ① `factions.*.power` 不在 VALID_PATHS 白名单（`validate_changes` 会先拒绝该路径）；
+#   ② `FactionState` 本身没有 `power` 字段（只有 influence/satisfaction/cohesion）。
+# 即该规则**永不触发**，用例却仍断言它存在 —— 属过期测试。
+# 白纸化决策记录见 `engine/state_applier.py:286-292`。
 
 
 def test_pipeline_apply_log():
