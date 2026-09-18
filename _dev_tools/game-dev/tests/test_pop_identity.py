@@ -42,6 +42,7 @@ from content.data import (  # noqa: E402
 from core.settlement_steps import (  # noqa: E402
     _settle_decrees, _settle_factions, _settle_economy, _settle_land_local,
     _settle_region_deepen, _settle_upkeep, _settle_officialdom, _settle_clan,
+    _settle_clerks,
     _settle_extensions, _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_projects, _settle_workshops,
     _settle_treasury, _settle_military_diplomacy, _evaluate_timeline_breaks,
@@ -65,6 +66,7 @@ _STEPS = [
     ("upkeep", _settle_upkeep),
     ("officialdom", _settle_officialdom),
     ("clan", _settle_clan),
+    ("clerks", _settle_clerks),
     ("finance", _settle_finance),
     ("projects", _settle_projects),
     ("workshops", _settle_workshops),
