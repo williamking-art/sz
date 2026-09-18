@@ -293,6 +293,15 @@ class GameState(GameStateEconMixin):
         #   不承载任何货币账户，权威源仍是 POP wealth 与国库/内帑。
         self.silver_stock: int = 0
         self.money_audit: dict = {}
+        # ---- 官制（阶段 C，见 core/officialdom.py 与宋代官制设计 §六②/§七）----
+        # posts_quota：差遣定员（**岗位**数，不是人）——这是唯一合法的非 POP 官制存量。
+        #   0 = 尚未初始化，由 officialdom.ensure_quota() 按「中央机构岗位 ＋ 路级定员」重算。
+        # official_rank_index：磨勘指数（品阶上浮 → 人均俸禄涨）。1.0 = 开局品阶结构。
+        # recruit_log：入仕来源台账 {科举, 恩荫, 宗室, 举荐, 致仕补}——记录**流向**，不改人。
+        # 官额/吏额/在岗/待阙/祠禄一律从 pops["官僚"] 派生，**此处不另存**（POP 挂载律）。
+        self.posts_quota: int = 0
+        self.official_rank_index: float = 1.0
+        self.recruit_log: dict = {}
         self.price_level: float = PRICE_LEVEL_BASE      # 物价水平（基准 1.0）
 
         # ---- 工商征率（玩家可调，对工商经济总量按"几成"征收）----

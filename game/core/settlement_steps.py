@@ -2192,6 +2192,54 @@ def _collect_from_pops(state, amount: int) -> int:
     return taken
 
 
+def _settle_clan(state, log):
+    """宗室俸禄（L2c money sink，宋代官制设计 §8.2 / 技术方案「宗室俸禄」行）。
+
+    口径：**内帑出账**（史实宗室赡养由内帑/宗正寺支给），全额转入 `士绅` POP 的 `wealth`。
+      `内帑 −paid`，`Σ士绅.wealth +paid` → **ΔM_ALL == 0**（纯转移，不造币）。
+    按实付：内帑不足时只支可支部分，缺口记 `statistics["clan_arrears"]`（与欠饷/欠费同构）。
+
+    为什么这是最有价值的一层 sink：宗室人口按 **3%/年复利** 膨胀，无需玩家做任何事，
+    时间本身就是支出增量；而砍宗室要付皇威代价 → 天然的艰难抉择。
+    """
+    from content.data import CLAN_PAY_PER_MONTH
+
+    _clan_by_route = []
+    total_clan = 0
+    for p in state.prefectures.values():
+        shen = (p.get("pops") or {}).get("士绅")
+        n = int((shen or {}).get("clan", 0) or 0) if isinstance(shen, dict) else 0
+        if n > 0:
+            _clan_by_route.append((p, n))
+            total_clan += n
+    if total_clan <= 0:
+        return 0
+
+    due = int(total_clan * CLAN_PAY_PER_MONTH)
+    available = max(0, int(getattr(state, "imperial_treasury", 0) or 0))
+    paid = min(due, available)
+    if paid < due:
+        state.statistics["clan_arrears"] = state.statistics.get("clan_arrears", 0) + (due - paid)
+        log.append(f"[宗室] 内帑不足以赡宗室，欠支 {due - paid:,} 贯"
+                   f"（应支 {due:,}，实支 {paid:,}）")
+    if paid <= 0:
+        return 0
+
+    state.imperial_treasury -= paid
+    # 按各宗室人口比例精确分配（末位吃尾差，保证 Σ入账 == paid）
+    given = 0
+    for i, (p, n) in enumerate(_clan_by_route):
+        shen = p["pops"]["士绅"]
+        g = (paid - given) if i == len(_clan_by_route) - 1 else int(paid * n / total_clan)
+        g = max(0, int(g))
+        shen["wealth"] = int(shen.get("wealth", 0) or 0) + g
+        given += g
+    if given != paid:                       # 极端兜底：分配残差退回内帑
+        state.imperial_treasury += paid - given
+    log.append(f"[宗室] 赡宗室 {given:,} 贯（宗室 {total_clan:,} 口 × {CLAN_PAY_PER_MONTH:.0f} 贯，内帑出）")
+    return given
+
+
 def _settle_officialdom(state, log):
     """Step 3.95 官制结算（薄封装，实现在 `core/officialdom.py`——单一权威源）。
 
