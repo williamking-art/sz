@@ -34,6 +34,11 @@ from content.data import (
     W_POP_BASE, W_LITIGATION_BASE, W_LITIGATION_UNREST_W, W_LAND_BASE, W_ORG_EACH,
     W_OFFICIAL_BASE, W_GARRISON_BASE,
 )
+from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+
+HEREDITARY_BASE = 0.4           # 世袭比例基准（`hereditary_mult` 作用于此）
+MUSTER_GRIP_W = 0.08            # 募吏占比对把持度的影响（募吏较专业、可裁，把持度略低）
+MUSTER_MOOD_W = 0.20            # 差役占比对民心的额外负担（差役扰民，§16.7）
 
 POP_CLASS = "官僚"
 GENTRY_CLASS = "士绅"
@@ -174,8 +179,10 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
     name = next((k for k, v in state.prefectures.items() if v is p), "")
     pr = float(state.calc_pay_ratio(name)) if name else 1.0
     grain_price = float(getattr(state, "grain_price", 1.0) or 1.0)
-    # 吏实得（折色等价，贯/人/月）：俸钱 + 本色禄米折钱，乘地方财力充足率
-    received = (CLERK_PAY_PER_MONTH + CLERK_GRAIN_PER_MONTH * grain_price) * pr
+    # 吏实得（折色等价，贯/人/月）：俸钱（**乘「吏职级薪基」参数**，§17.4）＋ 本色禄米折钱，
+    # 再乘地方财力充足率。玩家调高吏薪 → 缺口收窄 → 陋规与吏怨同时下降（"花钱买治理"）。
+    _pay_base = CLERK_PAY_PER_MONTH * _inst.get(state, "clerk_pay_mult")
+    received = (_pay_base + CLERK_GRAIN_PER_MONTH * grain_price) * pr
     # **制度性俸薄**才是主因（§16.2：官吏待遇比 15:1，吏所得仅及家庭口粮一半），
     # `pay_ratio` 只是第二重。故用"维持生计线"作缺口基准，而非"应发额"。
     gap_ratio = max(0.0, min(1.0, 1.0 - received / max(0.01, CLERK_SUBSISTENCE_CASH)))
@@ -209,9 +216,12 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
     coverage = given / max(1.0, desired)
     d["extortion"] = given
     d["grievance"] = _next_grievance(d, gap_ratio, coverage)
-    # 民心代价（真正的社会成本）：按陋规相对于本路人口的强度折算
+    # 民心代价（真正的社会成本）：按陋规相对于本路人口的强度折算；
+    # 差役占比越高，民户额外负担越重（§16.7「不花钱，但扰民」）。
     if given > 0:
+        _muster = _inst.get(state, "muster_share")
         pen = min(1.5, given / max(1.0, float(p.get("population", 0) or 0)) / EXACTION_MOOD_DIVISOR)
+        pen += max(0.0, (0.4 - _muster)) * MUSTER_MOOD_W
         p["mood"] = max(0.0, float(p.get("mood", 55) or 55) - pen)
     return {"desired": desired, "taken": float(given), "coverage": coverage,
             "gap_ratio": gap_ratio}
@@ -230,10 +240,16 @@ def _next_grievance(d: Dict[str, Any], gap_ratio: float, coverage: float) -> flo
 
 
 # ---------------------------------------------------------------- 把持度（吏强官弱，§16.4）
-def _next_grip(d: Dict[str, Any], coverage: float) -> float:
-    """把持度 0–1：由**世袭比例**（世代本地、掌握簿书）与**陋规补足率**（有动力把持）驱动。"""
-    hereditary = float(d.get("hereditary", 0.4) or 0.0)
-    target = GRIP_BASE + GRIP_HEREDITARY_W * hereditary + GRIP_COVERAGE_W * min(1.0, coverage)
+def _next_grip(d: Dict[str, Any], coverage: float, muster_share: float = 0.4) -> float:
+    """把持度 0–1：由**世袭比例**（世代本地、掌握簿书）与**陋规补足率**（有动力把持）驱动。
+
+    玩家杠杆：`hereditary_mult`（禁世袭 → 降把持度）与 `muster_share`（募吏较专业可裁，
+    把持度略低；差役世代相承，把持度更高。§16.7）。
+    """
+    hereditary = float(d.get("hereditary", HEREDITARY_BASE) or 0.0)
+    target = (GRIP_BASE + GRIP_HEREDITARY_W * hereditary
+              + GRIP_COVERAGE_W * min(1.0, coverage)
+              - MUSTER_GRIP_W * (muster_share - 0.4) * 2.0)
     target = max(0.0, min(GRIP_MAX, target))
     cur = float(d.get("grip", GRIP_BASE) or GRIP_BASE)
     return max(0.0, min(GRIP_MAX, cur + (target - cur) * GRIP_DECAY_TOWARD))
@@ -370,11 +386,17 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
     _adjust_staffing(state, log)
 
     # ---- ③④ 吏禄 → 陋规 → 民怨；把持度 ----
+    _muster = _inst.get(state, "muster_share")
+    _here = HEREDITARY_BASE * _inst.get(state, "hereditary_mult")
     nat_extort = 0.0
     for p in state.prefectures.values():
+        d = p["clerks_detail"]
+        # 来源结构与世袭比例由**编制参数**权威驱动（§16.7：差役 vs 募吏、是否限制世袭）
+        d["source_mix"] = {"差役": round(1.0 - _muster, 4), "募吏": round(_muster, 4)}
+        d["hereditary"] = max(0.0, min(1.0, _here))
         r = _extort(state, p, log)
         nat_extort += r["taken"]
-        p["clerks_detail"]["grip"] = _next_grip(p["clerks_detail"], r["coverage"])
+        d["grip"] = _next_grip(d, r["coverage"], _muster)
 
     t = totals(state)
     # 吏额在本步发生了变化 → 必须刷新**派生镜像**（`p["clerks"]` 的唯一写入点仍是

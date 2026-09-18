@@ -42,6 +42,7 @@ from content.data import (
     SINECURE_PAY_RATIO, WAITING_PAY_RATIO, WAITING_SINECURE_MULT,
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
+from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
 
 POP_CLASS = "官僚"
 GENTRY_CLASS = "士绅"
@@ -159,8 +160,10 @@ def ensure_quota(state) -> int:
     """初始化/修复 `state.posts_quota` —— **差遣定员（岗位数）**，官制里唯一合法的非 POP 存量。
 
     口径（§六②）：`Σ central_orgs[*].posts`（中央机构岗位，随"新建官职/裁撤机构"变法变动）
-                  ＋ `ROUTE_POST_QUOTA × 路数`（州/县/幕职/监当等路级定员）。
-    只在 `posts_quota <= 0`（旧档/新局）时重算，之后由机构变法增量维护。
+                  ＋ `ROUTE_POST_QUOTA × 路数`（州/县/幕职/监当等路级定员），
+                  再乘编制参数 `posts_quota_mult`（**定编宽严**，§12.3 杠杆 1）。
+    只在 `posts_quota <= 0`（旧档/新局）时重算，之后由机构变法增量维护；
+    参数改动时由 `rescale_quota()` 重算（玩家降定编 → 冗官立刻上升）。
     """
     cur = int(getattr(state, "posts_quota", 0) or 0)
     if cur > 0:
@@ -170,9 +173,25 @@ def ensure_quota(state) -> int:
         if o.get("abolished"):
             continue
         central += len(o.get("posts") or [])
-    quota = central + ROUTE_POST_QUOTA * len(state.prefectures)
-    state.posts_quota = int(quota)
+    base = central + ROUTE_POST_QUOTA * len(state.prefectures)
+    state.posts_quota = int(base * _inst.get(state, "posts_quota_mult"))
     return state.posts_quota
+
+
+def rescale_quota(state) -> int:
+    """按当前 `posts_quota_mult` 重算差遣定员（玩家改「定编宽严」后调用）。
+
+    定编是**闸门**：调低 → 冗官率立刻上升（"定编 vs 在册"的差额就是冗官，§12.8）。
+    """
+    central = 0
+    for o in (getattr(state, "central_orgs", {}) or {}).values():
+        if o.get("abolished"):
+            continue
+        central += len(o.get("posts") or [])
+    base = central + ROUTE_POST_QUOTA * len(state.prefectures)
+    new = int(base * _inst.get(state, "posts_quota_mult"))
+    old, state.posts_quota = int(getattr(state, "posts_quota", 0) or 0), new
+    return new - old
 
 
 # ---------------------------------------------------------------- 宗室（士绅子池，L2c）
@@ -360,13 +379,13 @@ def _fill_vacancies(state, log) -> int:
 
 
 def _overflow_to_sinecure(state, log) -> int:
-    """每月：待阙超过「定员 × WAITING_SINECURE_MULT」→ 超额转祠禄（宫观官，仍食折俸）。
+    """每月：待阙超过「定员 × WAITING_SINECURE_MULT × sinecure_mult」→ 超额转祠禄。
 
     这是宋代真实做法（祠禄宫观安置冗官），也把"待阙无限堆积"变成一个**有成本的状态**：
-    祠禄虽不占阙，仍要发折俸。返回转出数。
+    祠禄虽不占阙，仍要发折俸。玩家调「祠禄比例」即调这个阈值（§12.3 杠杆 4）。返回转出数。
     """
     quota = ensure_quota(state)
-    cap = int(quota * WAITING_SINECURE_MULT)
+    cap = int(quota * WAITING_SINECURE_MULT * _inst.get(state, "sinecure_mult"))
     waiting = sum(subpool(p, "waiting") for p in state.prefectures.values())
     if waiting <= cap:
         return 0
@@ -397,7 +416,8 @@ def _annual_retire(state, log) -> int:
         if not isinstance(pop, dict):
             continue
         ensure_subpools(p)
-        n = int(int(pop.get("on_post", 0)) * OFFICIAL_RETIRE_RATE_YEAR)
+        n = int(int(pop.get("on_post", 0)) * OFFICIAL_RETIRE_RATE_YEAR
+                * _inst.get(state, "retire_mult"))
         if n <= 0:
             continue
         n = min(n, int(pop["on_post"]))
@@ -415,9 +435,12 @@ def _annual_retire(state, log) -> int:
 
 
 def _annual_rank_up(state, log) -> None:
-    """每年正月：磨勘 —— 品阶结构上浮 → 人均俸禄涨（`official_rank_index`，封顶 1.5）。"""
+    """每年正月：磨勘 —— 品阶结构上浮 → 人均俸禄涨（`official_rank_index`，封顶 1.5）。
+
+    玩家调「磨勘年限」即调这个速度（§12.3 杠杆 3）。
+    """
     idx = float(getattr(state, "official_rank_index", 1.0) or 1.0)
-    new = min(RANK_INDEX_CAP, idx * (1.0 + RANK_UP_PER_YEAR))
+    new = min(RANK_INDEX_CAP, idx * (1.0 + RANK_UP_PER_YEAR * _inst.get(state, "rank_up_mult")))
     if new > idx:
         state.official_rank_index = new
         log.append(f"[磨勘] 品阶结构上浮，人均俸禄指数 → {new:.4f}")
@@ -542,7 +565,8 @@ def _triennial_yinben(state, log) -> int:
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if not isinstance(shen, dict):
             continue
-        n = int(int(shen.get("size", 0)) * YINBEN_PER_JIAOSI * scale)
+        n = int(int(shen.get("size", 0)) * YINBEN_PER_JIAOSI * scale
+                * _inst.get(state, "yinben_mult"))
         if n <= 0:
             continue
         n = min(n, int(shen.get("size", 0)))
@@ -583,6 +607,7 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
             state.statistics["officialdom_invariant_fail"] = bad2
 
     ensure_quota(state)
+    rescale_quota(state)        # 定编参数（posts_quota_mult）与机构变法每月重算定员
     ensure_clan(state)
 
     _fill_vacancies(state, log)

@@ -135,6 +135,14 @@ def validate_free_effect(contract) -> str:
         if k == "faction_change":
             if not isinstance(v, dict):
                 return "faction_change 须为 {派系: 档位/数值}"
+        elif k == "institution":
+            # 阶段 C-7：编制参数须为 {参数名: 档位/数值}；具体键由 core.institution 逐项校验
+            if not isinstance(v, dict) or not v:
+                return "institution 须为非空 {参数名: 档位/数值}"
+            from content.data import INSTITUTION_PARAM_SPEC
+            unknown = [kk for kk in v if kk not in INSTITUTION_PARAM_SPEC]
+            if unknown:
+                return f"institution 含未授权参数 {unknown}，整单拒绝"
         elif not isinstance(v, (int, float, str)):
             return f"effects[{k}] 值须为数字或档位词"
     cost = contract.get("cost") or {}
@@ -159,6 +167,12 @@ def _apply_effect_to_state(state, effects):
                     d = int(_resolve_effect_value("population_satisfaction", fv))
                     state.factions[fname]["satisfaction"] = max(0, min(100, state.factions[fname]["satisfaction"] + d))
                     log.append(f"派系{fname}{'+' if d >= 0 else ''}{d}")
+            continue
+        if k == "institution":
+            # 阶段 C-7：编制参数（§12.3 六杠杆 ＋ §17.4 参数清单 ＋ S-D6 维持费）。
+            # 值域由 INSTITUTION_PARAM_SPEC 单点约束；逐项钳制，未知键逐项拒绝。
+            from core import institution as _inst
+            log += _inst.apply_reform(state, v)
             continue
         if k == "prestige":
             d = _resolve_effect_value(k, v)

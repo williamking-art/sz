@@ -302,6 +302,10 @@ class GameState(GameStateEconMixin):
         self.posts_quota: int = 0
         self.official_rank_index: float = 1.0
         self.recruit_log: dict = {}
+        # ---- 编制参数（阶段 C-7，见 core/institution.py）----
+        # 只存**被政令改过的键**（缺键 = `INSTITUTION_PARAM_SPEC` 的默认值）→ 旧档天然兼容。
+        # 决策 3：不做转轨系统；玩家用政令把这组参数移到公务员制的取值即可。
+        self.institution_params: dict = {}
         self.price_level: float = PRICE_LEVEL_BASE      # 物价水平（基准 1.0）
 
         # ---- 工商征率（玩家可调，对工商经济总量按"几成"征收）----
