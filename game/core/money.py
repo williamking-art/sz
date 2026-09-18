@@ -50,25 +50,89 @@ __all__ = [
     "pop_money", "hoard_money", "local_treasury_total", "effective_jiaozi", "copper_share",
     "m0", "m1", "m2", "m3", "m_all",
     "snapshot", "reconcile", "audit_step", "describe_residual",
+    "register_flow", "take_flow",
 ]
 
 # 计入 M_ALL 的账户（顺序即展示顺序）
 ACCOUNTS: Tuple[str, ...] = (
     "pop_wealth",        # Σ 六类 POP wealth（民间持钱，含其持有的交子）
+    "estate_wealth",     # Σ 大臣家产 wealth（官僚私人持钱；**待迁移到 POP**，见下注）
     "treasury",          # 国库
     "imperial",          # 内帑
     "local_treasury",    # Σ 各路地方府库
+    "payraise_budget",   # 加俸预算池（由国库拨入、随后发放给官僚/吏）
+    "invest_principal",  # 未到期投资本金（由国库/内帑拨出、尚在"体外"）
     "hoard",             # Σ 士绅窖银（退出流通）
+    "estate_hoard",      # Σ 大臣家产窖藏（退出流通；修复 D-11 后新增）
     "melt_pool",         # 熔铜池（钱→铜料，退出流通）
     "bank_reserve",      # 银行准备金
     "silver_stock",      # 海外白银存量（外部注入的唯一合法入口）
 )
+
+# ⚠️ POP 挂载律违规记录（2026-09-18 阶段 B-2）
+# `estate_wealth` / `estate_hoard` 对应 `state.minister_estate[*]`，它是**与 POP 平行的
+# 独立钱账本**，违反 POP 挂载律律条 4（"禁止任何与 POP 平行的独立存量账本"）。
+# 正确归宿：挂到 `官僚`（及 `士绅`）POP 的子池上。
+# 现阶段先把它**纳入货币口径**（否则它一进一出都会污染对账残差），
+# 迁移到 POP 的工作排入批次 C（官制完善），届时本注与两个账户一并移除。
 
 # 真实销毁通道（真正让货币退出 M_ALL 的机制）
 SINK_ACCOUNTS: Tuple[str, ...] = ()   # step 1 暂空；换界销毁/铜料离库在 step 2 接入
 
 # 白银流入以外的外部注入通道（step 1 仅白银）
 EXTERNAL_ACCOUNTS: Tuple[str, ...] = ("silver_stock",)
+
+
+# --------------------------------------------------------------------------
+# 外部注入 / 真实销毁 台账（规范 §4.2 的"外部净注入"与"真实销毁"两项）
+# --------------------------------------------------------------------------
+# 说明：这是**流水台账**（记本月发生了多少外部注入/销毁），**不是货币账户**，
+# 因此不违反 POP 挂载律（律条禁的是与 POP 平行的"存量账本"）。
+# 用途：把**合法**的体外出入口从对账残差里扣除，使残差只剩下真正的漏洞。
+_FLOW_KEY = "_money_flow_month"
+
+
+def _flow(state) -> Dict[str, Any]:
+    f = getattr(state, _FLOW_KEY, None)
+    if not isinstance(f, dict):
+        f = {"external_in": 0, "burned": 0, "notes": []}
+        setattr(state, _FLOW_KEY, f)
+    return f
+
+
+def register_flow(state, kind: str, amount: int, reason: str = "") -> int:
+    """登记一笔**外部注入**（kind="external"）或**真实销毁**（kind="burn"）。
+
+    只登记台账，**不移动任何账户**——资金的实际移动由调用方完成（守恒仍由调用方保证）。
+    本函数的作用是告诉对账层："这笔 M_ALL 变化是体外进出，不算残差"。
+
+    仅用于**可验证**的体外通道，例如：
+      · external：存货外销变现（goods 出、外部钱入）、海外白银流入
+      · burn：岁币岁赐外流（钱付与辽/西夏）、交子换界销毁、铜料离库
+    """
+    amount = int(amount or 0)
+    if amount <= 0:
+        return 0
+    f = _flow(state)
+    if kind == "external":
+        f["external_in"] = int(f.get("external_in", 0)) + amount
+    elif kind == "burn":
+        f["burned"] = int(f.get("burned", 0)) + amount
+    else:
+        raise ValueError(f"register_flow: 未知 kind {kind!r}（应为 'external' 或 'burn'）")
+    if reason:
+        f.setdefault("notes", []).append(f"{reason}:{amount:+,}")
+    return amount
+
+
+def take_flow(state) -> Dict[str, Any]:
+    """读取并**清零**本月台账（由 `audit_step` 每月末调用一次）。"""
+    f = _flow(state)
+    out = {"external_in": int(f.get("external_in", 0)),
+           "burned": int(f.get("burned", 0)),
+           "notes": list(f.get("notes", []))}
+    setattr(state, _FLOW_KEY, {"external_in": 0, "burned": 0, "notes": []})
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -96,6 +160,41 @@ def local_treasury_total(state) -> float:
     """Σ 各路地方府库（贯）——能即付，计入 M1。"""
     return float(sum((p.get("local_treasury", 0) or 0)
                      for p in getattr(state, "prefectures", {}).values()))
+
+
+def estate_wealth(state) -> float:
+    """Σ 大臣家产 wealth（贯）。**待迁移到 POP**（POP 挂载律违规项，见 ACCOUNTS 注）。"""
+    me = getattr(state, "minister_estate", None)
+    if not isinstance(me, dict):
+        return 0.0
+    return float(sum(int((v or {}).get("wealth", 0) or 0)
+                     for v in me.values() if isinstance(v, dict)))
+
+
+def estate_hoard(state) -> float:
+    """Σ 大臣家产窖藏（贯）——退出流通，计入 M2 沉淀层（修复 D-11 后新增的对手账户）。"""
+    me = getattr(state, "minister_estate", None)
+    if not isinstance(me, dict):
+        return 0.0
+    return float(sum(int((v or {}).get("窖银", 0) or 0)
+                     for v in me.values() if isinstance(v, dict)))
+
+
+def payraise_budget_total(state) -> float:
+    """加俸预算池余额（贯）——国库已拨出、尚未发放，仍属政府持有（M1）。"""
+    return float(getattr(state, "payraise_budget", 0) or 0)
+
+
+def invest_principal_total(state) -> float:
+    """未到期投资本金（贯）——国库/内帑已拨出、尚在体外，故必须计账。"""
+    inv = getattr(state, "investments", None)
+    if not isinstance(inv, dict):
+        return 0.0
+    total = 0.0
+    for v in inv.values():
+        if isinstance(v, dict) and int(v.get("months_left", 0) or 0) > 0:
+            total += float(int(v.get("amount", 0) or 0))
+    return total
 
 
 def effective_jiaozi(state) -> float:
@@ -129,14 +228,15 @@ def _bank_capital_as_guan(state) -> float:
 # 分层
 # --------------------------------------------------------------------------
 def m0(state) -> float:
-    """流通中通货 = 民间铜钱 ＋ 有效交子。"""
-    return pop_money(state) * copper_share(state) + effective_jiaozi(state)
+    """流通中通货 = 民间铜钱（含大臣家产持钱）＋ 有效交子。"""
+    return (pop_money(state) + estate_wealth(state)) * copper_share(state) \
+        + effective_jiaozi(state)
 
 
 def m1(state, working_only: bool = False, months_of_base: float = 3.0) -> float:
-    """狭义货币 = M0 ＋ 政府即付资金。
+    """狭义货币 = M0 ＋ 政府即付资金（国库＋内帑＋地方府库＋加俸预算）。
 
-    working_only=True 时只计"周转金"（`months_of_base` × 月常费），
+    working_only=True 时国库/内帑只计"周转金"（`months_of_base` × 月常费），
     超出部分视为**封桩**（沉淀层，归 M2）——对应规范 §12.2 的仓鼠症处理。
     """
     g = m0(state)
@@ -147,15 +247,17 @@ def m1(state, working_only: bool = False, months_of_base: float = 3.0) -> float:
         cap = months_of_base * float(MONTHLY_EXP_CIVIL_BASE)
         base = min(base, cap)
         imp = min(imp, cap / 3.0)     # 内帑本职"死钱"，周转口径更紧（§12.2 建议 k_内≈1）
-    return g + base + imp + local_treasury_total(state)
+    return (g + base + imp + local_treasury_total(state)
+            + payraise_budget_total(state) + invest_principal_total(state))
 
 
 def m2(state, working_only: bool = False) -> float:
-    """广义货币 = M1 ＋ 沉淀层（士绅窖银 ＋ 熔铜池 ＋ 银行准备金）。"""
+    """广义货币 = M1 ＋ 沉淀层（士绅窖银 ＋ 大臣家产窖藏 ＋ 熔铜池 ＋ 银行准备金）。"""
     coin = getattr(state, "coin", {}) or {}
     bank = getattr(state, "bank", {}) or {}
     return (m1(state, working_only=working_only)
             + hoard_money(state)
+            + estate_hoard(state)
             + float(coin.get("melted_pool", 0) or 0)
             + float(bank.get("reserve", 0) or 0))
 
@@ -174,10 +276,14 @@ def m_all(state) -> float:
     coin = getattr(state, "coin", {}) or {}
     bank = getattr(state, "bank", {}) or {}
     return (pop_money(state)
+            + estate_wealth(state)
             + float(getattr(state, "treasury", 0) or 0)
             + float(getattr(state, "imperial_treasury", 0) or 0)
             + local_treasury_total(state)
+            + payraise_budget_total(state)
+            + invest_principal_total(state)
             + hoard_money(state)
+            + estate_hoard(state)
             + float(coin.get("melted_pool", 0) or 0)
             + float(bank.get("reserve", 0) or 0)
             + _silver_stock(state))
@@ -192,10 +298,14 @@ def snapshot(state) -> Dict[str, Any]:
     bank = getattr(state, "bank", {}) or {}
     accounts = {
         "pop_wealth": pop_money(state),
+        "estate_wealth": estate_wealth(state),
         "treasury": float(getattr(state, "treasury", 0) or 0),
         "imperial": float(getattr(state, "imperial_treasury", 0) or 0),
         "local_treasury": local_treasury_total(state),
+        "payraise_budget": payraise_budget_total(state),
+        "invest_principal": invest_principal_total(state),
         "hoard": hoard_money(state),
+        "estate_hoard": estate_hoard(state),
         "melt_pool": float(coin.get("melted_pool", 0) or 0),
         "bank_reserve": float(bank.get("reserve", 0) or 0),
         "silver_stock": _silver_stock(state),
@@ -211,12 +321,17 @@ def snapshot(state) -> Dict[str, Any]:
     return accounts
 
 
-def reconcile(prev: Dict[str, float], now: Dict[str, float]) -> Dict[str, Any]:
+def reconcile(prev: Dict[str, float], now: Dict[str, float],
+              external_in: float = 0.0, burned: float = 0.0) -> Dict[str, Any]:
     """对比两期账户快照，产出各账户 Δ 与对账残差。
 
-    残差 ＝ ΔM_ALL − Σ(外部净注入) ＋ Σ(真实销毁)
+    残差 ＝ ΔM_ALL − 外部净注入 ＋ 真实销毁
 
-    step 1 仅把 `silver_stock` 视为外部注入通道；其余任何净增/净减都会落到残差里，
+    外部净注入 =「存量式通道」Δsilver_stock ＋「流水式通道」`external_in`
+                （外销变现等，由 `register_flow` 登记）
+    真实销毁   = `burned`（岁币外流、交子销毁、铜料离库等）
+
+    只有**可验证的体外出入口**才应从残差中扣除；其余任何净增/净减都会落到残差里，
     从而把"无对手方的造币/销毁"显式暴露出来。
     """
     deltas: Dict[str, float] = {}
@@ -226,14 +341,16 @@ def reconcile(prev: Dict[str, float], now: Dict[str, float]) -> Dict[str, Any]:
             deltas[k] = d
 
     d_mall = float(now.get("M_ALL", 0.0)) - float(prev.get("M_ALL", 0.0))
-    external = sum(deltas.get(k, 0.0) for k in EXTERNAL_ACCOUNTS)
-    burned = -sum(deltas.get(k, 0.0) for k in SINK_ACCOUNTS)
-    residual = d_mall - external + burned
+    external = sum(deltas.get(k, 0.0) for k in EXTERNAL_ACCOUNTS) + float(external_in)
+    burned_total = -sum(deltas.get(k, 0.0) for k in SINK_ACCOUNTS) + float(burned)
+    residual = d_mall - external + burned_total
 
     return {
         "d_mall": d_mall,
         "external_in": external,
-        "burned": burned,
+        "external_flow": float(external_in),
+        "burned": burned_total,
+        "burn_flow": float(burned),
         "residual": residual,
         "deltas": deltas,
         "m0": now.get("m0", 0.0),
@@ -268,13 +385,17 @@ def audit_step(state) -> Dict[str, Any]:
 
     prev = audit.get("last")
     rec: Dict[str, Any] = {"turn": int(getattr(state, "turn", 0) or 0), "now": now}
+    flow = take_flow(state)          # 读取并清零本月外部/销毁台账
+    rec["external_notes"] = flow.get("notes", [])
     if isinstance(prev, dict):
-        r = reconcile(prev, now)
+        r = reconcile(prev, now,
+                      external_in=flow.get("external_in", 0),
+                      burned=flow.get("burned", 0))
         rec.update(r)
         audit["cum_residual"] = float(audit.get("cum_residual", 0.0)) + float(r["residual"])
     else:
-        rec.update({"d_mall": 0.0, "external_in": 0.0, "burned": 0.0,
-                    "residual": 0.0, "deltas": {}})
+        rec.update({"d_mall": 0.0, "external_in": 0.0, "external_flow": 0.0,
+                    "burned": 0.0, "burn_flow": 0.0, "residual": 0.0, "deltas": {}})
         audit["cum_residual"] = 0.0
         audit.setdefault("start", now)
 
