@@ -310,6 +310,53 @@ def test_tax_base_summary_is_read_only_view():
 
 
 
+# ---------------------------------------------------------------- C-6 科举离散科次
+def test_exam_is_discrete_cohort_not_monthly_drip():
+    """科举是**离散科次**（每 3 年一次、一次数百人），不是每月连续小额入仕。
+
+    科次月：官额 = −致仕 ＋ 取士（净增，且量级为数百）；
+    非科次的正月：官额只有致仕（净减）。
+    """
+    from content.data import EXAM_COHORT_SIZE
+
+    s = GameState("史实")
+    s._economy_ai = {"科举": "中"}
+    off0 = od.totals(s)["officials"]
+    _run(s, 1, seed=7)                       # 1101-01：科次年正月
+    off1 = od.totals(s)["officials"]
+    cohort = int((s.exam or {}).get("last_cohort", 0))
+    assert cohort > 0, "科次年正月未取士"
+    assert off1 > off0, f"科次月官额应净增：{off0} → {off1}"
+    assert abs(cohort - EXAM_COHORT_SIZE["中"]) <= EXAM_COHORT_SIZE["中"] * 0.35, \
+        f"一届取士额偏离设定量级：{cohort} vs 目标 {EXAM_COHORT_SIZE['中']}"
+    assert len(s.exam.get("cohorts", [])) == 1, "未记录科次台账（同年载体）"
+
+    # 非科次年（1102-01）只有致仕 → 官额净减
+    off_a = od.totals(s)["officials"]
+    _run(s, 12, seed=7)                      # 1102-01
+    off_b = od.totals(s)["officials"]
+    assert off_b < off_a, f"非科次年正月官额应只减（致仕）：{off_a} → {off_b}"
+    assert len(s.exam["cohorts"]) == 1, "非科次年不应产生新科次"
+
+
+def test_exam_cohort_conserves_pop_and_lands_in_waiting():
+    """科次取士是 农/士绅 → 官僚 的**转移**（ΣPOP 守恒），且落在**待阙**池。"""
+    from core.officialdom import _triennial_exam
+    s = GameState("史实")
+    s._economy_ai = {"科举": "中"}
+    p0 = _pop_total(s)
+    w0 = od.totals(s)["waiting"]
+    off0 = od.totals(s)["officials"]
+    n = _triennial_exam(s, [])
+    assert n > 0
+    t = od.totals(s)
+    assert t["officials"] == off0 + n
+    assert t["waiting"] == w0 + n, "新科进士应先待阙（不会立刻有差遣）"
+    assert _pop_total(s) == p0, f"科次破了 ΣPOP：{p0} → {_pop_total(s)}"
+    ok, bad = od.check_invariants(s)
+    assert ok, f"科次后子池不变量违约：{bad}"
+
+
 # ---------------------------------------------------------------- 长局综合
 def test_officialdom_240_month_trajectory():
     """240 月：官额与官俸显著增长、待阙有界、祠禄承接、人口账零偏差、子池不变量恒成立。

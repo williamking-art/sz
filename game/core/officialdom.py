@@ -37,8 +37,8 @@ Rust 并行后端（`songzuo_server/src/settle.rs`）与旧存档仍按**人头*
 from typing import Any, Dict, Optional, Tuple
 
 from content.data import (
-    CLAN_GROWTH_ANNUAL, CLAN_OFFICE_RATIO, CLERK_PER_OFFICIAL, OFFICIAL_SUB_KEYS,
-    OFFICIAL_RETIRE_RATE_YEAR, RANK_UP_PER_YEAR, ROUTE_POST_QUOTA,
+    CLAN_GROWTH_ANNUAL, CLAN_OFFICE_RATIO, CLERK_PER_OFFICIAL, EXAM_INTERVAL_YEARS,
+    OFFICIAL_SUB_KEYS, OFFICIAL_RETIRE_RATE_YEAR, RANK_UP_PER_YEAR, ROUTE_POST_QUOTA,
     SINECURE_PAY_RATIO, WAITING_PAY_RATIO, WAITING_SINECURE_MULT,
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
@@ -463,6 +463,72 @@ def _annual_clan(state, log) -> int:
     return births
 
 
+def _triennial_exam(state, log) -> int:
+    """每 `EXAM_INTERVAL_YEARS` 年（科次年正月）：**一次科次**取士，落**待阙**池。
+
+    形态修正（§15.2）：原实现是每月连续小额入仕（≈3,700 人/科次），现改为一次数百人。
+    入仕来源按 `EXAM_HARD_POOR_SHARE` 拆为**寒门（农）**与**士绅子弟**，两者都是
+    **POP 间转移**（ΣPOP 守恒），不是新增人口。
+
+    `state.exam` 记录科次台账：`last_cohort`（本届取士数）、`cohorts`（历届 {year, size}）——
+    这是「同年/座主」这类真实政治结构的载体（§15.4），后续可挂党争。
+    """
+    from content.data import EXAM_COHORT_SIZE, EXAM_HARD_POOR_SHARE
+
+    if not (state.exam or {}).get("open"):
+        log.append("[科举] 停科，本届不取士")
+        state.exam["last_cohort"] = 0
+        return 0
+
+    tier = "中"
+    try:
+        ai = getattr(state, "_economy_ai", None) or {}
+        if ai.get("科举"):
+            tier = ai["科举"]
+    except Exception:  # noqa: BLE001 — 档位缺失一律退化为"中"，不影响守恒
+        tier = "中"
+    target = int(EXAM_COHORT_SIZE.get(tier, EXAM_COHORT_SIZE["中"]))
+    if target <= 0:
+        state.exam["last_cohort"] = 0
+        return 0
+
+    rates = EXAM_HARD_POOR_SHARE.get(tier, 0.7)
+    taken = 0
+    hard_total = 0
+    for p in state.prefectures.values():
+        pops = p.get("pops") or {}
+        nong, shen = pops.get("农"), pops.get("士绅")
+        if not isinstance(nong, dict) or not isinstance(shen, dict):
+            continue
+        # 按各路人口占比分配取士额（京畿/膏腴路略多，这里用人口作代理）
+        share = int(p.get("population", 0) or 0)
+        if share <= 0:
+            continue
+        _all = sum(int(q.get("population", 0) or 0) for q in state.prefectures.values()) or 1
+        quota = int(target * share / _all)
+        if quota <= 0:
+            continue
+        hard = min(int(quota * rates), int(nong.get("size", 0)))
+        elite = min(quota - hard, int(shen.get("size", 0)))
+        if hard + elite <= 0:
+            continue
+        nong["size"] = int(nong["size"]) - hard          # 转移：农 → 官僚
+        shen["size"] = int(shen["size"]) - elite          # 转移：士绅 → 官僚
+        add_officials(p, hard + elite, "waiting")          # 新科进士先待阙（§13.5）
+        taken += hard + elite
+        hard_total += hard
+
+    state.exam["last_cohort"] = taken
+    if taken:
+        state.exam.setdefault("cohorts", [])
+        state.exam["cohorts"] = (list(state.exam["cohorts"]) + [
+            {"year": int(getattr(state, "year", 0) or 0), "size": taken}])[-12:]
+        state.recruit_log["科举"] = state.recruit_log.get("科举", 0) + taken
+        log.append(f"[科举] 科次取士 {taken} 人（档位「{tier}」，寒门 {hard_total}／"
+                   f"士绅子弟 {taken - hard_total}），皆入待阙")
+    return taken
+
+
 def _triennial_yinben(state, log) -> int:
     """每 3 年（郊祀之年正月）：恩荫 —— 士绅子弟荫补入官（**转移**，ΣPOP 守恒）。
 
@@ -528,7 +594,9 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
         _annual_retire(state, log)
         _annual_rank_up(state, log)
         _annual_clan(state, log)
-        if (year - 1101) % 3 == 0:            # 郊祀之年（开局年即为郊祀年）
+        if (year - 1101) % EXAM_INTERVAL_YEARS == 0:      # 科次年（每 3 年一次，§15）
+            _triennial_exam(state, log)
+        if (year - 1101) % 3 == 0:                        # 郊祀之年（恩荫，§七）
             _triennial_yinben(state, log)
 
     sync_legacy_mirror(state)
