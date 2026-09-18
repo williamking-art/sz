@@ -398,6 +398,25 @@ def advance_and_settle(state, ai_client=None) -> tuple:
     try:
         events = advance_month(state)
         log, report = settle_turn(state, ai_client)
+        # 审查补齐（奏折面板恒空的根因）：state.memorials 注释为「待审奏折（每回合
+        # 开始按局势自动上折，君主批红）」，但全库**无任何写入方**。而 AI 侧
+        # generate_memorials 与无 key 时的模板兜底 fallback_memorials 早已就绪，
+        # 只是从未被调用。现按回合生成：AI 可用走 AI，否则走模板兜底（皆真内容）。
+        # 本步在快照范围内，失败随结算一并回滚。
+        try:
+            _memos = None
+            if ai_client is not None and getattr(ai_client, "available", False):
+                _res = ai_client.generate_memorials(
+                    getattr(state, "posture", ""), state=state, count=3)
+                _memos = (_res or {}).get("memorials") if isinstance(_res, dict) else None
+            if not _memos:
+                from ai.narrative_fallback import fallback_memorials
+                _fb = fallback_memorials(state=state, turn=getattr(state, "turn", 0))
+                _memos = (_fb or {}).get("memorials") if isinstance(_fb, dict) else None
+            if _memos:
+                state.memorials = _memos
+        except Exception as _e:  # noqa: BLE001
+            print(f"[memorials] 上折未成: {_e!r}", flush=True)
         return events, log, report
     except Exception:  # noqa: BLE001
         _restore_state(state, snap)

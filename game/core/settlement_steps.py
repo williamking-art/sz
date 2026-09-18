@@ -3013,6 +3013,21 @@ def _settle_finance(state, log):
         log.append(f"[财政] 货币月入 {actual_tax:.0f}贯（{inc_parts}） 支 {total_out:.0f}贯 结余 {actual_net:.0f}贯")
     if sui_gong > 0:
         log.append(f"[岁币] 岁币岁赐 {sui_gong:.0f}贯，纳贡以安边")
+        # 审查补齐（外交纪事面板恒空的根因）：本项支付原先只入结算流水，不写
+        # state.diplomacy_log —— 而该字段在全库**再无任何写入方**，故面板永久空白
+        # （前端它处亦有"（纪事阙文）"兜底文案，正是为此）。
+        _dlog = getattr(state, "diplomacy_log", None)
+        if isinstance(_dlog, list):
+            _parts = []
+            if _mult.get("辽", 1.0):
+                _parts.append("辽")
+            if _mult.get("西夏", 1.0):
+                _parts.append("西夏")
+            _dlog.append({
+                "year": int(getattr(state, "year", 0) or 0),
+                "month": int(getattr(state, "month", 0) or 0),
+                "text": f"输岁币岁赐 {int(sui_gong)}贯（{'、'.join(_parts) or '北境'}），纳贡以安边",
+            })
 
     from content.data import TREASURY_CRISIS_LINE
     if state.treasury < TREASURY_CRISIS_LINE:
