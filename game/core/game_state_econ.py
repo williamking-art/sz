@@ -101,20 +101,31 @@ class GameStateEconMixin:
         # 货币有效供给 = Σ各 POP 财富（民间持钱）+ 国库/内帑（国家持钱）+ 有效交子 + 白银折钱。
         # 货币总量由 POP 经济自然派生（不再用 MONEY_SUPPLY_START 常量兜底），
         # 钱在 POP 间流转、税入国库、俸禄回民间，总量随经济涨落。
-        pop_wealth = 0.0
-        for p in self.prefectures.values():
-            for pop in p.get("pops", {}).values():
-                pop_wealth += float(pop.get("wealth", 0))
-        # 内帑口径留待蔡权衡定（含内帑 → 超时代通胀 2.5；不含 → 内帑抽流通通缩 0.45；
-        # 保持原状含内帑——未达 [0.8,1.2] 但未崩 <3.0）
-        copper_base = pop_wealth + max(0.0, self.treasury) + max(0.0, self.imperial_treasury)
-        # 有效交子 = 发行 × 接受度（trust×皇威；超发→信用崩→接受度降→贬值部分退出流通）
-        jiaozi_eff = self.jiaozi.get("issued", 0) * self._jiaozi_acceptance()
-        maritime = getattr(self, "maritime", {}) or {}
-        silver = maritime.get("silver_in", 0) * (1 if maritime.get("open") else 0) * 10000
-        money = copper_base + jiaozi_eff + silver
-        money *= (1 - self.coin.get("private_melt", 0.2))
-        self.money_supply = max(0, money)
+        # ---- 阶段 B-3 改造：改用货币口径 M1（见 core/money.py 与 货币口径规范 §三）----
+        # 三处修正：
+        #  ① **整体 private_melt 缩放 → 只作用铜钱**：原实现把
+        #     `(pop_wealth + 国库 + 内帑 + 交子 + 白银) × (1 − private_melt)` 一并缩水 10%，
+        #     而 `private_melt` 按定义是"铜钱私铸/外流比例"，作用于国库/内帑/交子/白银
+        #     属记账错误，且会掩盖其他科目的真实变化。
+        #  ② **白银流量当存量 → 退出物价口径**：原式用 `maritime.silver_in`（万两/**年**，
+        #     流量）直接 ×10000 当作白银存量。现白银走 `state.silver_stock` 存量，
+        #     且按规范 §三 只计入 M3、不驱动物价（待其实际分发入 POP wealth 后自然进入 M1）。
+        #  ③ **国库封桩分层**：物价 = M1(working)，即国库/内帑只按"周转金"计入
+        #     （3×月常费；内帑 1/3），超出部分视为封桩（M2 沉淀），
+        #     使"囤钱不流通的玩家不会凭空制造通胀"（规范 §12.2、§13.3）。
+        from core.money import (m1 as _m1_working, pop_money as _pop_money,
+                                estate_wealth as _estate_wealth,
+                                copper_share as _copper_share)
+        _cs = _copper_share(self)
+        _melt = float(self.coin.get("private_melt", 0.2) or 0)
+        _copper_amt = (_pop_money(self) + _estate_wealth(self)) * _cs
+        # 白银**存量**计入货币（规范 M-D6：白银由流量改存量，仍影响物价）。
+        # 修复前是把 `maritime.silver_in`（万两/年，流量）直接 ×10000 当存量用；
+        # 现用逐月累积的真实存量 `state.silver_stock`（见 _settle_extensions）。
+        _silver = float(getattr(self, "silver_stock", 0) or 0)
+        money = _m1_working(self, working_only=True) - _copper_amt * _melt + _silver
+        money = max(0.0, money)
+        self.money_supply = money
 
         # 实物经济总量 = 月粮产 × 粮价（石折贯）+ 工商产出（贯），避免石贯混加
         grain_prod = sum(p.get("grain", 0) for p in self.prefectures.values()) / 12.0

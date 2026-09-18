@@ -553,8 +553,15 @@ def test_jiaozi_overissue_money_supply_not_created(monkeypatch):
     d_eff = s.jiaozi["issued"] * (s._jiaozi_acceptance() - accept0)
     melt = s.coin.get("private_melt", 0.1)   # T9 定稿 0.2→0.1
     assert s.money_supply < ms0, "超发不应凭空增加货币供给"
-    assert abs(s.money_supply - (ms0 + d_eff * (1 - melt))) <= 1, \
-        f"货币供给变化未精确归因于有效交子：Δ={s.money_supply-ms0} 预期={d_eff*(1-melt)}"
+    # 2026-09-18 阶段 B-3 修正：`private_melt` 现只作用于**铜钱**（原实现把国库/内帑/
+    # 交子/白银一并缩水 10%，属记账错误），故货币供给不再带 (1−melt) 因子。
+    # 又因 `copper_share` 与有效交子**耦合**（share = 1 − jz_eff/…），精确归因
+    # Δ == d_eff 在数学上不成立，故改断言**有意义的界**：收缩幅度不得超过
+    # 有效交子的减少额（share 变化会部分缓冲其影响）。
+    # 副作用：`melt` 仅供 T9 通道参考，本用例不再直接使用。
+    _ = melt
+    assert s.money_supply - ms0 >= d_eff - 1, \
+        f"货币供给收缩超过有效交子减少额：Δ={s.money_supply-ms0} d_eff={d_eff}"
 
 
 def test_jiaozi_moderate_issue_relieves_shortage():
@@ -607,20 +614,37 @@ def test_maritime_trade_ledger_closed(monkeypatch):
         "市舶抽解应进入财政税基（唯一入账通道）"
 
 
-def test_maritime_silver_enters_money_supply():
-    """白银入货币：市舶开启时 silver_in 按 open 计入货币有效供给（×10000×开放标志）。"""
-    s_open = _new_state()
-    s_open.maritime["open"] = True
-    s_open.maritime["silver_in"] = 30
-    s_close = _new_state()
-    s_close.maritime["open"] = False
-    s_close.maritime["silver_in"] = 30
-    s_open.calc_price_level()
-    s_close.calc_price_level()
-    melt = s_open.coin.get("private_melt", 0.1)   # T9 定稿 0.2→0.1
-    silver = s_open.maritime["silver_in"] * 1 * 10000
-    assert abs((s_open.money_supply - s_close.money_supply) - silver * (1 - melt)) <= 1, \
-        "白银折钱未按 open×silver_in×10000 计入货币供给"
+def test_maritime_silver_enters_money_supply(monkeypatch):
+    """白银入货币（2026-09-18 阶段 B-3 修正）：白银由**流量**改为**存量**。
+
+    原断言直接把 `maritime.silver_in`（万两/**年**，流量）× 10000 当作白银存量计入货币
+    供给——那正是"把流量当存量"的建模错误（且该流量从未进入任何持有账户）。
+    现改为：市舶开启时每月按年流入的 1/12 累积进 `state.silver_stock`（真实存量），
+    再由 `calc_price_level` 计入货币有效供给（规范 M-D6：白银改存量，仍影响物价）。
+    """
+    from core import settlement_steps as _m
+    monkeypatch.setattr(_m, "_settle_coin_melt", lambda st, lg: None)
+    s = _new_state()
+    s.maritime["open"] = True
+    s.maritime["silver_in"] = 30
+    s.calc_price_level()
+    ms0 = s.money_supply
+    assert abs(float(getattr(s, "silver_stock", 0))) <= 1, "开局白银存量应为 0"
+    _settle_extensions(s, [])
+    s.calc_price_level()
+    silver = float(s.silver_stock)
+    assert silver > 0, "市舶开启后应累积白银存量"
+    assert abs(silver - 30 * 10000 / 12) <= 2, \
+        f"月累积应为年流入的 1/12：silver_stock={silver}"
+    # 隔离验证"存量被计入货币供给"：临时清零再比差（排除同月商人外贸利润等干扰）
+    _keep = s.silver_stock
+    s.silver_stock = 0
+    s.calc_price_level()
+    ms_without = s.money_supply
+    s.silver_stock = _keep
+    s.calc_price_level()
+    assert abs((s.money_supply - ms_without) - silver) <= 2, \
+        "白银存量应计入货币有效供给"
 
 
 if __name__ == "__main__":
