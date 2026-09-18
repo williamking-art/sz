@@ -895,6 +895,7 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
         obj = fallback_dialogue(minister_name, state.turn)
         reply = audience_dialogue_apply(state, minister_name, obj)
         return reply or "（大臣未及应诏。）"
+    _ai_ok = True       # AI 是否真正产出该回复（决定是否计 token / 写召对缓存）
     try:
         # 按位置传递（兼容真实 AIClient 与测试替身的参数名差异），state 走关键字
         obj = ai_client.dialogue(
@@ -905,17 +906,23 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
         )
     except Exception:
         # T8 分级降级：召对叙事失败 → 本地模板兜底（大臣未及具奏，不伪造政见）
+        _ai_ok = False
         from ai.narrative_fallback import fallback_dialogue
         obj = fallback_dialogue(kwargs["minister_name"], state.turn)
     reply = audience_dialogue_apply(state, minister_name, obj)
     if not reply:
         # T8 分级降级：AI 返回空 → 召对模板兜底（不报错阻断）
+        _ai_ok = False
         from ai.narrative_fallback import fallback_dialogue
         obj = fallback_dialogue(minister_name, state.turn)
         reply = audience_dialogue_apply(state, minister_name, obj) or "（大臣未及应诏。）"
-    # AI 调用成功：计数 + 写召对缓存（同话题近 N 回合复用，省 token）
-    _dialogue_stats(state)["ai_calls"] += 1
-    _dialogue_cache_store(state, minister_name, player_input, reply)
+    # 审查修复：仅在 AI 真正产出时计数并写召对缓存。
+    # 原实现无条件执行 → ①「召对·AI」次数虚增（该次 AI 其实未参与，计量与显示失真）；
+    # ② 模板兜底文本被当「大臣回复」写入缓存最多 8 回合 —— AI 配好后同话题也不再调用；
+    # ③ 对话记忆库混入占位文本。
+    if _ai_ok:
+        _dialogue_stats(state)["ai_calls"] += 1
+        _dialogue_cache_store(state, minister_name, player_input, reply)
     return reply
 
 
