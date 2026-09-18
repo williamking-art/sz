@@ -365,7 +365,11 @@ def _ai_prelude(state, ai_client):
 
 
 def _snapshot_state(state) -> dict:
-    """结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。"""
+    """结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。
+
+    另记录 `__mem_turn__` 记忆水位（审查 A2）：记忆库含 SQLite 连接，深拷贝必被
+    跳过，无法随字段一并还原，故单独记回合号，由 `_restore_state` 按水位截断。
+    """
     import copy
     snap: dict = {}
     for k, v in list(getattr(state, "__dict__", {}).items()):
@@ -373,16 +377,41 @@ def _snapshot_state(state) -> dict:
             snap[k] = copy.deepcopy(v)
         except Exception:  # noqa: BLE001
             continue  # 不可深拷贝（连接/锁等）→ 保持原引用，回滚时不动该字段
+    snap["__mem_turn__"] = int(getattr(state, "turn", 0) or 0)
     return snap
 
 
 def _restore_state(state, snap: dict) -> None:
-    """把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。"""
+    """把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。
+
+    审查 A2 补齐：还原 state 后按快照水位截断记忆库（主库 + 对话库）中**失败回合
+    已写入**的关系/召对/总结。缺此步则重试结算时同一事实被重复 upsert，关系权重
+    叠加（不可逆）；召对残留还会污染「卿前番之言」注入。记忆库不可深拷贝故不能
+    走字段还原，只能按水位截断（各库 `rollback_after`）。
+    """
     for k, v in snap.items():
+        if k.startswith("__"):
+            continue          # 内部水位标记不可 setattr 回 state
         try:
             setattr(state, k, v)
         except Exception:  # noqa: BLE001
             continue
+    _turn = snap.get("__mem_turn__")
+    if _turn is None:
+        return
+    _objs = [getattr(state, "memory", None)]
+    try:
+        from memory.dialogue_memory import get_dialogue_memory
+        _objs.append(get_dialogue_memory(state))
+    except Exception:  # noqa: BLE001
+        pass
+    for _obj in _objs:
+        _fn = getattr(_obj, "rollback_after", None)
+        if callable(_fn):
+            try:
+                _fn(int(_turn))
+            except Exception:  # noqa: BLE001
+                pass          # 记忆回滚失败不阻断状态回滚（已记录于自身日志）
 
 
 def advance_and_settle(state, ai_client=None) -> tuple:
