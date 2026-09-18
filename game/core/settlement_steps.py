@@ -2128,8 +2128,53 @@ def _settle_projects(state, log):
 # ------------------------------------------------------------
 # Step 4.5b: 制作/作坊系统
 # ------------------------------------------------------------
+def _collect_from_pops(state, amount: int) -> int:
+    """按人口比例向六类 POP 征收 `amount` 贯（买家支付），返回**实收**额。
+
+    用途：把"产出型/外部型入账"改为**守恒转移**——POP 挂载律要求"凡钱必须落在
+    POP wealth 或国库/内帑，且来源=去向"。用于修复审查 A-4（畜栏产肉原
+    `imperial_treasury += 收入` 无买方 → 凭空造币）。
+
+    语义：按 POP `size` 比例分摊；某池 wealth 不足时**按实收计，不补差额**——
+    宁可少收，也绝不凭空造币。两轮征收（第二轮补齐首轮 int 截断余额）以保证
+    在余额充足时能收满 `amount`，从而使"扣减额 == 入账额"精确成立。
+    """
+    amount = int(amount or 0)
+    if amount <= 0:
+        return 0
+    pools = [(pp, float(pp.get("size", 0) or 0))
+             for p in state.prefectures.values()
+             for pp in (p.get("pops") or {}).values()]
+    total_size = sum(sz for _, sz in pools) or 1.0
+    taken = 0
+    remaining = amount
+    for pp, size in pools:                      # 第一轮：按人口比例
+        if remaining <= 0:
+            break
+        if size <= 0:
+            continue
+        want = min(int(amount * size / total_size), remaining)
+        avail = int(pp.get("wealth", 0) or 0)
+        got = min(want, avail)
+        if got > 0:
+            pp["wealth"] = avail - got
+            taken += got
+            remaining -= got
+    for pp, _sz in pools:                       # 第二轮：补齐 int 截断余额
+        if remaining <= 0:
+            break
+        avail = int(pp.get("wealth", 0) or 0)
+        got = min(remaining, avail)
+        if got > 0:
+            pp["wealth"] = avail - got
+            taken += got
+            remaining -= got
+    return taken
+
+
 def _settle_workshops(state, log):
     """作坊月度推进：配方消耗 inputs（如粮→酒），产出 outputs 入 resources/内帑。"""
+    _wine_bonus = 0     # 本月酒课**加成**汇总；下方据此**重算** wine_tax（不做月度累加，见 A-5）
     for wid, ws in list(state.workshops.items()):
         if not ws.get("active"):
             continue
@@ -2159,12 +2204,27 @@ def _settle_workshops(state, log):
         out_dim = ws.get("output_dim")
         yld = float(ws.get("yield", 0))
         if out_dim == "wine":
-            # 酒坊产酒增加酒课（进内帑净入），酒课随酒坊建设累积；酒耗粮随酒课联动
-            state.wine_tax += int(yld * MATERIAL_PRICE_BASE.get("wine", 0) * 0.1)
+            # 酒坊产能 → 酒课**加成**（汇入下方重算，**不在此累加**）
+            # 审查 A-5 修复（2026-09-18 阶段 B-1 实测：内帑 +2.91M/月、民间 −2.28M/月、
+            # 残差 +0.93M/月 的主要来源）：`state.wine_tax` 是**月度收入率**
+            # （见 game_state_econ.py:520 与下方财政步 `_wine_tax_cash = int(wine_coin)`），
+            # 原实现在此 `+=` 每月再加一次常量 → 60 个月把月率抬高约 60 倍，
+            # 使财政步每月从工匠/商人 wealth **超额扣缴**进内帑，是"钱荒"的直接推手。
+            # 现改为按月**重算**：酒课 = 保底 WINE_COIN_BASE ＋ Σ各酒坊产能加成。
+            _wine_bonus += int(yld * MATERIAL_PRICE_BASE.get("wine", 0) * 0.1)
         elif out_dim == "meat":
-            # 畜栏产肉/畜产品折钱入内帑（加消耗修正·依托建筑；耗粮已在 grain_feed 从太仓扣）
-            state.imperial_treasury += int(yld * MEAT_PRICE)
-            state.granary_stats["meat_revenue"] = state.granary_stats.get("meat_revenue", 0) + int(yld * MEAT_PRICE)
+            # 畜栏产肉折钱入内帑（加消耗修正·依托建筑；耗粮已在 grain_feed 从太仓扣）
+            # 审查 A-4 修复（阶段 B-1 实测的残差主源）：原 `imperial_treasury += 收入`
+            # **无买方** → 凭空造币。肉是消费品，收入须由买家（民间 POP wealth）支付：
+            # 现按人口比例向六类 POP 征收，**只把实收额**入内帑（不足则按实收计）。
+            _meat_gain = int(yld * MEAT_PRICE)
+            _meat_taken = _collect_from_pops(state, _meat_gain)
+            if _meat_taken < _meat_gain:
+                log.append(f"[作坊] 畜栏产品滞销：应售 {_meat_gain:,} 贯，"
+                           f"民间仅能支付 {_meat_taken:,} 贯（民穷则肉卖不动）")
+            state.imperial_treasury += _meat_taken
+            state.granary_stats["meat_revenue"] = \
+                state.granary_stats.get("meat_revenue", 0) + _meat_taken
         elif out_dim in RESOURCE_DIMS:
             # 审查防御：同上（缺槽即 KeyError）；且 cap<=0 时原式 min(0, …) 会把
             # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。
@@ -2172,6 +2232,9 @@ def _settle_workshops(state, log):
             _cap = int(_slot.get("cap", 0) or 0)
             _new = int(_slot.get("stock", 0) or 0) + yld
             _slot["stock"] = min(_cap, _new) if _cap > 0 else _new
+    # 酒课按月**重算**（保底 ＋ Σ酒坊产能加成）——杜绝"月度率被逐月累加"（A-5）
+    from content.data import WINE_COIN_BASE
+    state.wine_tax = int(WINE_COIN_BASE) + int(_wine_bonus)
 
 
 # ------------------------------------------------------------

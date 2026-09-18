@@ -347,9 +347,13 @@ def test_wealth_ledger_no_hoard(monkeypatch):
         elif name == "org_economy":
             assert abs(dW - org_net) <= 1, f"机构预算未记账：ΔW={dW} org_net={org_net}"
         elif name == "workshops":
-            # 畜栏产肉折钱入内帑（加消耗修正·依托建筑；太仓粮耗不在 W 账）
-            assert abs(dW - s.granary_stats.get("meat_revenue", 0)) <= 1, \
-                f"作坊步肉钱未记账：ΔW={dW} meat={s.granary_stats.get('meat_revenue',0)}"
+            # 2026-09-18 修正（审查 A-4）：畜栏产肉原为 `imperial_treasury += 收入`
+            # **无买方** → 凭空造币，故旧断言写成 `ΔW == meat_revenue`（把 bug 当预期）。
+            # 现改为向本路 POP 征收的**守恒转移**（POP wealth −X、内帑 +X），
+            # 故本步 ΔW 应为 0 —— 与本用例总则"除 finance/org_economy 外各步 ΔW==0"一致。
+            # `meat_revenue` 保留为**转移额记录**（面板/统计用），不再是财富增量。
+            assert abs(dW) <= 1, \
+                f"作坊步不应改变全局 W（肉钱为 POP→内帑 守恒转移）：ΔW={dW}"
         elif name == "granary":
             # 常平钱粮互换（平粜收钱入府库 dW>0 / 平籴钱出府库 dW<0），W 含 local_treasury
             # → 与 changping_stock 变化方向守恒：dW + Δchangping×价 ≈ 0（段价差容差内）。
