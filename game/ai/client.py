@@ -34,6 +34,17 @@ from content.data import normalize_tier
 from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构层（可选，未装库自动跳过）
 
 # 档位白名单（7 档：无/微/小/中/大/巨/极）；validator 用 normalize_tier 归一丰富表达
+#
+# 【缺字段处置策略（审查 B6 考证，勿再误读为「白送收益」）】本层对「缺字段/非法值」
+# 分两类处理，规则一致、**从无例外**：
+#   ① 类型/枚举字段（etype、agreement、target、stance、node、lineage、fund、position…）
+#      → `return None` / `continue`，即**拒绝式**，整份契约作废或该项丢弃；
+#   ② 强度/档位字段（tier、effect_tier、sat、inf、priority、cost_tier、probability、
+#      inflow/outflow…、sui_gong/alliance）→ **向下降级**填默认值，取值一律 中/小/微
+#      或「不变」，**绝无一处落到 大/巨/极**（全库反查确认）。
+# 故缺字段只可能少拿、不可能多拿；且和亲/盟约/纳贡/战争等**高代价**协议在档位非法时
+# 直接 `return None`（见 diplomacy_dialogue.validate），因和亲出内帑嫁妆、战争抬入侵
+# 意愿，不容猜档。策略取向：宁可少给（不阻断整局），绝不因 AI 漏字段而多给。
 _TIERS7 = ("无", "微", "小", "中", "大", "巨", "极")
 
 
