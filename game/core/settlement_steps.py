@@ -3069,7 +3069,8 @@ def _settle_finance(state, log):
                        (state.maritime.get("tariff", 0.10) if state.maritime.get("open") else 0.0) *
                        arrival * tax_coeff)
     monthly_tax = commerce_tax + poll_tax + maritime_tax
-    state.tax_breakdown = {"commerce": commerce_tax, "poll": poll_tax, "maritime": maritime_tax}
+    state.tax_breakdown = {"commerce": commerce_tax, "poll": poll_tax, "maritime": maritime_tax,
+                           "official_service": 0}
 
     tax_color_total, tax_color_by = state.calc_monthly_tax_income(tax_coeff)
     salt_coin = state.calc_salt_coin(arrival)
@@ -3144,6 +3145,24 @@ def _settle_finance(state, log):
     # 官户免役钱（史实免役法·调参定案）：助役钱 = 俸钱总额 × OFFICIAL_SERVICE_TAX_RATIO
     # （基于名义俸禄，指数化前计算，扣缴见俸禄发放后）
     official_service_tax = int((official_cash_total + clerk_cash_total) * OFFICIAL_SERVICE_TAX_RATIO)
+    # ---- C-4 免役 → 税基口径（§13.6「冗官经 POP 侵蚀税基」这条链的显式化与可观测化）----
+    # 役钱只从 `农` POP 征（乡村主户服徭役）；`士绅`（形势户）、`官僚`（官户）、`兵` 免役。
+    # 官府并非全无所得：官户纳**助役钱**（上方 official_service_tax）。
+    # 冗官膨胀的两条财政后果因此同时在场：
+    #   ① 免除差役的人口↑ → **役钱税基萎缩**（科举寒门从农迁出，农 POP 直接变小）；
+    #   ② 助役钱随俸禄总额↑ → 部分**自我补偿**（但只有 5%，远不足以抵消俸禄本身）。
+    # 这里把两者记入 `tax_breakdown` / `statistics`，让玩家与 AI 都能看见"税基在缩"。
+    _exempt_gentry = sum(p["pops"]["士绅"]["size"] for p in state.prefectures.values())
+    _exempt_guan = sum(p["pops"]["官僚"]["size"] for p in state.prefectures.values())
+    _exempt_army = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values())
+    _exempt_pop = _exempt_gentry + _exempt_guan + _exempt_army
+    _taxable_pop = sum(p["pops"]["农"]["size"] for p in state.prefectures.values())
+    _all_pop = _taxable_pop + _exempt_pop + sum(
+        p["pops"]["工匠"]["size"] + p["pops"]["商人"]["size"] for p in state.prefectures.values())
+    state.statistics["poll_base_pop"] = _taxable_pop          # 役钱税基（人）
+    state.statistics["exempt_pop"] = _exempt_pop              # 免役人口（人）
+    state.statistics["exempt_share"] = round(_exempt_pop / max(1, _all_pop), 6)
+    state.statistics["poll_tax_nominal"] = poll_tax
     # T9 俸禄指数化（Step 4）：粮价 > PAY_INDEX_BASE 时俸禄 ×(1 + PAY_INDEX_STEP×超额)，
     # 抵补官吏/兵卒购买力（粮价通胀时俸禄随涨，防吏治崩坏）；超额 = 粮价 − 基准。
     # P1-1 守恒修复：发放给兵/官僚的俸禄与国库支出同源（同用指数化后金额），
@@ -3252,6 +3271,12 @@ def _settle_finance(state, log):
                 _p["pops"]["官僚"]["wealth"] = max(0, _p["pops"]["官僚"]["wealth"] - _take)
                 _tax_left -= _take
         actual_tax += official_service_tax - max(0, _tax_left)
+        # 助役钱实收额入账（原先只并入 actual_tax、无科目，玩家看不到"官户也在纳钱"）
+        _ost_actual = int(official_service_tax - max(0, _tax_left))
+        state.tax_breakdown["official_service"] = _ost_actual
+        state.statistics["official_service_tax"] = _ost_actual
+    else:
+        state.tax_breakdown["official_service"] = 0
 
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环；金额取**实付额**，见上）
     # 守恒修复（一体发钞）：俸禄已以交子支付，POP 铜钱不得再增（_paper_pay 门控）。

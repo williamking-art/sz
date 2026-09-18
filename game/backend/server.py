@@ -516,6 +516,12 @@ def api_readouts(request: Request):
             ministers = build_minister_profiles(s)
         except Exception:
             ministers = {}
+        # 税基 / 免役口径（阶段 C-4，§13.6）：让"冗官 → 免役 → 税基萎缩"这条链可见。
+        # 薄壳纪律：只调 GameState 的只读派生视图。
+        try:
+            tax_base = _json_safe(s.tax_base_summary())
+        except Exception:
+            tax_base = {}
         return {
             "army": army,
             "arsenal": arsenal,
@@ -524,6 +530,7 @@ def api_readouts(request: Request):
             "granary": granary,
             "briefing": briefing,
             "ministers": ministers,
+            "tax_base": tax_base,
             "defense_lines": _json_safe(s.defense_lines),
         }
 
