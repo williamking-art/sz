@@ -410,6 +410,40 @@ class GameStateEconMixin:
             total += c
         return total, by_route
 
+    # ---- 税基 / 免役口径（阶段 C-4，§13.6）----
+    def tax_base_summary(self) -> dict:
+        """税基与免役派生视图（**只读**，口径唯一权威源）。
+
+        「冗官 → 财政恶化」最史实的一条链是 **免役 → 税基萎缩**：
+        役钱只从 `农` POP 征；`士绅`（形势户）、`官僚`（官户）、`兵` 免役。
+        冗官膨胀（科举/恩荫/宗室入官）把人口从 `农` 抽走 → 纳税人口下降；
+        官户另行纳**助役钱**（俸禄总额 5%），但远不足以抵消其俸禄本身。
+
+        返回：纳税人口、免役人口与占比、役钱与助役钱实收、冗官数。
+        """
+        from core import officialdom as _od
+
+        pops = {}
+        for p in self.prefectures.values():
+            for k, v in (p.get("pops") or {}).items():
+                pops[k] = pops.get(k, 0) + int(v.get("size", 0) or 0)
+        taxable = pops.get("农", 0)
+        exempt = pops.get("士绅", 0) + pops.get("官僚", 0) + pops.get("兵", 0)
+        total = sum(pops.values()) or 1
+        _od.ensure_quota(self)      # 定员是惰性初始化的**岗位**存量（幂等），其余全为派生
+        t = _od.totals(self)
+        return {
+            "taxable_pop": taxable,
+            "exempt_pop": exempt,
+            "exempt_share": round(exempt / total, 6),
+            "poll_tax": int((self.tax_breakdown or {}).get("poll", 0)),
+            "official_service_tax": int((self.tax_breakdown or {}).get("official_service", 0)),
+            "taxable_share": round(taxable / total, 6),
+            "officials": t["officials"],
+            "redundant_officials": t["redundant"],
+            "awaiting_posts": t["waiting"],
+        }
+
     # ---- 官俸（Σ官×人均；官额与子池计价一律取自 POP，见 core/officialdom.py）----
     # POP 挂载律：`p["officials"]` 只是派生镜像，**不得**作为俸禄依据（否则双账复活：
     # 科举让官僚 POP 涨、镜像不涨 → "养更多官、一分钱不多花"，30 月实证 +23.1% vs +0.0%）。

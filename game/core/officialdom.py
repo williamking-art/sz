@@ -199,7 +199,11 @@ def clan_total(state) -> int:
 
 # ---------------------------------------------------------------- 全国派生视图
 def totals(state) -> Dict[str, int]:
-    """全国官制派生视图（面板/统计用，不落存量字段）。"""
+    """全国官制派生视图（面板/统计用，不落存量字段）。
+
+    `posts_quota` / `redundant` 也在内：定员是**岗位**数（唯一合法的非 POP 官制存量），
+    冗官 = 官额 − 定员（§13.5 的有机定义：再生产循环的产出 > 差遣岗位需求）。
+    """
     out = {"officials": 0, "clerks": 0, "on_post": 0, "waiting": 0, "sinecure": 0, "size": 0}
     for p in state.prefectures.values():
         out["officials"] += route_officials(p)
@@ -208,6 +212,8 @@ def totals(state) -> Dict[str, int]:
         out["waiting"] += subpool(p, "waiting")
         out["sinecure"] += subpool(p, "sinecure")
         out["size"] += int(((p.get("pops") or {}).get(POP_CLASS) or {}).get("size", 0) or 0)
+    out["posts_quota"] = int(getattr(state, "posts_quota", 0) or 0)
+    out["redundant"] = max(0, out["officials"] - out["posts_quota"])
     return out
 
 
@@ -528,10 +534,7 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
     sync_legacy_mirror(state)
     t = totals(state)
     t["clan"] = clan_total(state)
-    t["posts_quota"] = int(getattr(state, "posts_quota", 0) or 0)
     t["rank_index"] = float(getattr(state, "official_rank_index", 1.0) or 1.0)
-    # 冗官 = 再生产循环的产出 > 差遣岗位需求（§13.5 的有机定义，不是"官数减定员"）
-    t["redundant"] = max(0, t["officials"] - t["posts_quota"])
     state.statistics["rank_officials"] = t["officials"]
     state.statistics["clerks_total"] = t["clerks"]
     state.statistics["awaiting_posts"] = t["waiting"]

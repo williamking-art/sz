@@ -250,6 +250,66 @@ def test_reduce_office_returns_officials_to_gentry():
     assert ok, f"裁汰后子池不变量违约：{bad}"
 
 
+# ---------------------------------------------------------------- C-4 免役税基
+def test_poll_tax_base_is_farm_pop_only():
+    """役钱税基 = `农` POP（乡村主户）；`士绅`/`官僚`/`兵` 免役，不在税基内。"""
+    s = GameState("史实")
+    tb = s.tax_base_summary()
+    farm = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
+    exempt = sum(p["pops"][k]["size"] for p in s.prefectures.values()
+                 for k in ("士绅", "官僚", "兵"))
+    assert tb["taxable_pop"] == farm
+    assert tb["exempt_pop"] == exempt
+    total = sum(pop["size"] for p in s.prefectures.values() for pop in p["pops"].values())
+    assert abs(tb["taxable_share"] + tb["exempt_share"] - (farm + exempt) / total) < 1e-6
+
+
+def test_exempt_share_grows_poll_base_shrinks_over_time():
+    """§13.6「最有价值的一条」：冗官膨胀 → 免役人口↑ → **役钱税基萎缩**。
+
+    这条链此前完全不可观测（役钱只报一个数）。现在必须能同时看到：
+    免役占比上升、纳税（农）占比下降、役钱随税基下降。
+    """
+    s = GameState("史实")
+    tb0 = s.tax_base_summary()
+    _run(s, 240, seed=7)
+    tb1 = s.tax_base_summary()
+    assert tb1["exempt_share"] > tb0["exempt_share"], \
+        f"免役占比未上升：{tb0['exempt_share']} → {tb1['exempt_share']}"
+    assert tb1["taxable_share"] < tb0["taxable_share"], \
+        f"纳税占比未下降：{tb0['taxable_share']} → {tb1['taxable_share']}"
+    assert tb1["poll_tax"] < tb0["poll_tax"], \
+        f"役钱未随税基萎缩：{tb0['poll_tax']} → {tb1['poll_tax']}"
+    assert tb1["redundant_officials"] > 0
+
+
+def test_official_service_tax_recorded_and_conserving():
+    """官户助役钱：实收额入 `tax_breakdown["official_service"]`，且**只从官僚 POP wealth 扣**。
+
+    口径纪律：实收 ≤ 应纳，不得凭空生钱（`_tax_left` 反映欠缴）。
+    """
+    s = GameState("史实")
+    _run(s, 1, seed=7)
+    got = int((s.tax_breakdown or {}).get("official_service", -1))
+    assert got >= 0, "助役钱未入 tax_breakdown 科目（原先只有支出侧、玩家看不到）"
+    from content.data import OFFICIAL_SERVICE_TAX_RATIO
+    off_cash, _ = s.calc_official_cash()
+    clk_cash, _ = s.calc_clerk_cash()
+    nominal = int((off_cash + clk_cash) * OFFICIAL_SERVICE_TAX_RATIO)
+    assert 0 <= got <= nominal, f"助役钱实收越界：{got} 应纳上限 {nominal}"
+
+
+def test_tax_base_summary_is_read_only_view():
+    """派生视图必须与 POP 权威源一致（不得成为第二本账）。"""
+    s = _run(GameState("史实"), 12, seed=7)
+    tb = s.tax_base_summary()
+    t = od.totals(s)
+    assert tb["officials"] == t["officials"]
+    assert tb["awaiting_posts"] == t["waiting"]
+    assert tb["redundant_officials"] == max(0, t["officials"] - t["posts_quota"])
+
+
+
 # ---------------------------------------------------------------- 长局综合
 def test_officialdom_240_month_trajectory():
     """240 月：官额与官俸显著增长、待阙有界、祠禄承接、人口账零偏差、子池不变量恒成立。
@@ -268,7 +328,6 @@ def test_officialdom_240_month_trajectory():
         assert ok, f"月 {s.turn} 子池不变量违约：{bad[:2]}"
 
     t = od.totals(s)
-    t["redundant"] = max(0, t["officials"] - int(s.posts_quota))
     cash1, _ = s.calc_official_cash()
     assert t["officials"] > off0 * 1.5, f"冗官未膨胀：{off0} → {t['officials']}"
     assert t["redundant"] > 0, "冗官（产出超差遣需求）应 > 0"
