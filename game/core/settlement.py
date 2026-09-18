@@ -24,7 +24,7 @@ from core.settlement_steps import (
     _settle_economy, _settle_land_local, _settle_extensions,
     _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_region_deepen,
-    _settle_upkeep, _settle_officialdom, _settle_clan,
+    _settle_upkeep, _settle_officialdom, _settle_clan, _settle_clerks,
     _settle_finance,
     _settle_projects, _settle_workshops,
     _settle_treasury,
@@ -397,6 +397,10 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 3.96: 宗室俸禄（L2c sink，内帑 → 士绅 POP，零残差转移）----
     _settle_clan(state, log)
+
+    # ---- Step 3.97: 吏制（吏额由政务量驱动 / 吏禄→陋规 / 把持度 / 吏怨，§16）----
+    # 必须排在财政步之前：俸禄、贪腐、诏令执行都要读本月吏额与吏怨。
+    _settle_clerks(state, log)
 
     # ---- Step 4: 财政 ----
     _settle_finance(state, log)
