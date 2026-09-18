@@ -336,6 +336,8 @@ function TreatyTab() {
 function MeterTab() {
   const state = useGameStore((s) => s.state);
   const rows = asArr(pick<unknown[]>(state, "ai_token_log", []));
+  // 本月未成的推演 Agent（后端 _ai_failures 以公开名 ai_failures 下发，仅含 agent 名）
+  const aiFail = asArr(pick<unknown[]>(state, "ai_failures", [])).map((x) => String(x));
   const sum = rows.reduce(
     (a: { calls: number; p: number; cp: number }, r) => {
       const d = asDict(r);
@@ -351,6 +353,12 @@ function MeterTab() {
       <div className="mb-2 flex items-baseline justify-between">
         <p className="font-kai text-[14px] font-bold tracking-widest text-red">AI 词元用量（每回合格）</p>
         <p className="text-xs text-dim">累计 {sum.calls} 次　输入 {sum.p.toLocaleString()}　输出 {sum.cp.toLocaleString()}　合计 {(sum.p + sum.cp).toLocaleString()}</p>
+        {/* 审查补齐：AI 失败原对玩家完全静默（只写 _ai_failures，无消费方） */}
+        {aiFail.length > 0 && (
+          <p className="text-xs text-red-dark">
+            本月有 {aiFail.length} 项推演未成（{aiFail.join("、")}），相关事项已走本地兜底
+          </p>
+        )}
       </div>
       {rows.length === 0 ? (
         <p className="py-4 text-center font-kai text-sm text-dim">— 暂无用量记录（推演后生成）—</p>
