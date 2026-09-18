@@ -173,6 +173,50 @@ class MemoryGraph:
             "turn": turn, "weight": w, "note": note or "",
         })
 
+    def rollback_after(self, turn: int) -> dict:
+        """结算失败回滚：截断 turn 之后写入的记忆（关系/实体/总结/变更日志）。
+
+        审查 A2 补齐：`_snapshot_state` 深拷贝会跳过含 SQLite 连接的对象，故结算
+        异常回滚只还原 state 字段，**记忆库仍留着失败回合已写入的关系** —— 重试时
+        同一事实被再次 upsert，关系权重叠加（min(10.0, …) 且不可逆），盘面语义偏移。
+
+        只删「> turn」，不删「== turn」：同回合内失败前的合法写入可能是既有事实，
+        宁可少删不可误删。SQL 侧列名随 schema 版本而异，单表失败即跳过、不中断。
+        返回各表删除条数。
+        """
+        turn = int(turn)
+        removed = {"relations": 0, "entities": 0, "summaries": 0, "change_log": 0}
+        for r in list(self.relations):
+            if int(r.get("turn", 0) or 0) > turn:
+                self.relations.remove(r)
+                removed["relations"] += 1
+        for eid in [k for k, v in list(self.entities.items())
+                    if int(v.get("created_turn", 0) or 0) > turn]:
+            self.entities.pop(eid, None)
+            removed["entities"] += 1
+        if self._slot is not None:
+            try:
+                conn = self._connect(self._slot)
+            except Exception:  # noqa: BLE001
+                return removed
+            try:
+                for tbl, col in (("relations", "turn"), ("entities", "created_turn"),
+                                 ("summaries", "created_turn"), ("change_log", "turn")):
+                    try:
+                        cur = conn.execute(f"DELETE FROM {tbl} WHERE {col} > ?", (turn,))
+                        removed[tbl] += int(cur.rowcount or 0)
+                    except sqlite3.Error:
+                        continue      # 该表无此列（schema 版本差异）→ 跳过，不中断
+                conn.commit()
+            except sqlite3.Error:
+                pass
+            finally:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+        return removed
+
     def upsert_relation(self, src, dst, rtype, weight=1.0, turn=0, note="", boost=False):
         """同向关系覆盖权重（用于 stance/promises 的更新语义）。"""
         self.add_relation(src, dst, rtype, weight=weight, turn=turn, note=note, boost=boost)

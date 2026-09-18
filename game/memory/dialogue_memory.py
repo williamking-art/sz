@@ -82,6 +82,28 @@ class DialogueMemory:
         self._conn.commit()
         return cur.lastrowid
 
+    def rollback_after(self, turn: int) -> dict:
+        """结算失败回滚：删除 turn 之后写入的召对与总结。
+
+        对称 `MemoryGraph.rollback_after`（审查 A2 补齐）：对话记忆库同为 SQLite、
+        同被快照深拷贝跳过，故结算异常时失败回合的召对会留存 —— 而召对带缓存与
+        每 3 回合总结去重，残留会污染后续「卿前番之言」注入。只删「> turn」。
+        """
+        removed = {"dialogues": 0, "summaries": 0}
+        if self._conn is None:
+            return removed
+        for tbl, col in (("dialogues", "turn"), ("summaries", "end_turn")):
+            try:
+                cur = self._conn.execute(f"DELETE FROM {tbl} WHERE {col} > ?", (int(turn),))
+                removed[tbl] = int(cur.rowcount or 0)
+            except sqlite3.Error:
+                continue
+        try:
+            self._conn.commit()
+        except sqlite3.Error:
+            pass
+        return removed
+
     # ---- 每 3 回合总结去重 ----
     def summarize_dialogues(self, turn: int) -> List[dict]:
         """每 3 回合：对近 3 回合对话总结 + 去重。
