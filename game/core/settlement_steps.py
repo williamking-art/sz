@@ -16,7 +16,7 @@ from content.data import (
     GOODS_DEMAND,
     # 消费端校准 / POP 流动（Phase B 定稿）
     GRAIN_CONSUME_PER_CAPITA, HIDDEN_CONSUME_PER_CAPITA, GOODS_CONSUME_RATE,
-    FARMER_SELL_FLOOR, POP_FLOW_RATE, EXAM_HARD_POOR_SHARE, URBAN_SPLIT,
+    FARMER_SELL_FLOOR, POP_FLOW_RATE, URBAN_SPLIT,
     BOOM_MULT, TIER_RANGE,
     # 金融推演调制基准（审查 P2-53：幅度/值域唯一权威源，消除 _settle_extensions 内硬编码副本）
     FINANCE_DECIDE_BASE,
@@ -731,18 +731,10 @@ def _settle_economy(state, log):
             pops["工匠"]["size"] -= _art_out
             pops["商人"]["size"] -= _out - _art_out
             pops["农"]["size"] += _out
-        # 3) 科举入仕（AI 化·Phase B 定稿）：寒门（农）与士绅子弟按档位占比入仕，Σ守恒。
-        #    读 _economy_ai["科举"]；无 AI/缺键兜底：科举=中（exam.open）else 无（复现现状 0.01%/月）。
-        _tier_exam = _flow_tier("科举", "中" if _exam_open else "无")
-        if _tier_exam != "无" and _exam_open:
-            quota = int(pops["士绅"]["size"] * POP_FLOW_RATE["科举"] * TIER_RANGE.get(_tier_exam, 0.0))
-            hard = min(int(quota * EXAM_HARD_POOR_SHARE.get(_tier_exam, 0.0)), pops["农"]["size"])
-            elite = min(quota - hard, pops["士绅"]["size"])
-            pops["农"]["size"] -= hard
-            pops["士绅"]["size"] -= elite
-            # 入仕者优先落入**待阙**池（新科进士不会立刻有差遣，见 §13.5 / §15.7）——
-            # 这正是"冗官"的进水阀：人多而阙少 → 待阙堆积 → 半俸支出＋怨望。
-            _officialdom.add_officials(p, hard + elite, "waiting")
+        # 3) 科举入仕已改为**离散科次**（阶段 C-6，§15）：见 `core/officialdom._triennial_exam`
+        #    —— 每 EXAM_INTERVAL_YEARS 年一次，一次入仕一批（数百人），落在**待阙**池。
+        #    此处不再做每月连续小额入仕：那既不符合史实形态（一期数百进士），
+        #    也让"同年/座主"这类真实政治结构无从表达。
         # 4) 流民吸收（跨路迁入，非本地农户流出）
         # 语义澄清（审查复核结论，勿按「方向反了」误改）：absorb 为**流入率**——
         # 治理良好（mood/govern 高、unrest 低）时吸引外来流民迁入本路，故写成
