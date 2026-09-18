@@ -10,6 +10,9 @@ rem   2) detects Node (portable download fallback), then starts Electron
 rem Flat goto architecture - no nested parenthesis.
 rem ============================================================
 setlocal enabledelayedexpansion
+rem 控制台切 UTF-8：否则 Python 的中文输出/报错在 936 代码页下全乱码，
+rem 恰会毁掉 :RebuildFail / :DepsFail 引导玩家自查的那条路径（审查 I-5）。
+chcp 65001 >nul 2>nul
 cd /d "%~dp0"
 
 set "VENV_PY=%~dp0game\.venv\Scripts\python.exe"
@@ -28,9 +31,47 @@ rem Without it, npm install may skip the ~100MB binary and electron-vite
 rem then fails with: Error: Electron uninstall
 set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
 
-rem ---- Step 0b: resolve python interpreter (venv preferred) ----
-set "PY_CMD=python"
+rem ---- Step 0b: resolve python interpreter (venv > py launcher > python > python3) ----
+rem 审查 I-1（P0）：原实现只试 game\.venv\Scripts\python.exe，而该 venv 全库无人创建
+rem （且 .gitignore 忽略），于是回落到裸 python —— 干净机器上 PATH 无 python，
+rem 命令 9009，被误判成"依赖安装失败（网络或代理？）"，Electron 永不启动。
+rem 现按四级探测，并在全部失败时给出可操作的安装/建 venv 指引。
+set "PY_CMD="
 if exist "%VENV_PY%" set "PY_CMD=%VENV_PY%"
+if defined PY_CMD goto HavePython
+py -3 -c "import sys" >nul 2>nul
+if not errorlevel 1 set "PY_CMD=py -3"
+if defined PY_CMD goto HavePython
+python -c "import sys" >nul 2>nul
+if not errorlevel 1 set "PY_CMD=python"
+if defined PY_CMD goto HavePython
+python3 -c "import sys" >nul 2>nul
+if not errorlevel 1 set "PY_CMD=python3"
+if defined PY_CMD goto HavePython
+goto NoPython
+
+:NoPython
+echo.
+echo ============================================================
+echo   [Songzuo] ERROR: no Python interpreter found.
+echo ============================================================
+echo   Looked for, in order:
+echo     1) %VENV_PY%
+echo     2) py -3      (Windows Python launcher)
+echo     3) python     (on PATH)
+echo     4) python3    (on PATH)
+echo.
+echo   The game backend requires Python 3.9+ (3.12 recommended).
+echo   Install Python, or create the venv yourself:
+echo       python -m venv game\.venv
+echo       game\.venv\Scripts\python.exe -m pip install -r game\requirements.txt
+echo.
+echo   Then run start.bat again.
+echo ============================================================
+pause
+goto Finished
+
+:HavePython
 
 rem ---- Step 1: runtime deps self-check (fastapi/uvicorn/shapely needed) ----
 %PY_CMD% -c "import fastapi, uvicorn, requests, rich, shapely" >nul 2>nul
@@ -69,6 +110,8 @@ goto CheckNode
 echo.
 echo [Songzuo] Dependency install failed (network or proxy?). Install manually:
 echo     %PY_CMD% -m pip install -r game\requirements.txt
+echo     (interpreter in use: %PY_CMD%)
+echo   Tip: see the pip output above for the real cause.
 pause
 goto Finished
 
