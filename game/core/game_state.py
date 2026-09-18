@@ -279,6 +279,14 @@ class GameState(GameStateEconMixin):
 
         # ---- 通货 / 物价（货币经济学，钱/物之比）----
         self.money_supply: float = MONEY_SUPPLY_START   # 货币有效供给（贯）
+        # ---- 货币口径（M0/M1/M2/M3）与对账（2026-09-18 阶段 B-1，见 core/money.py）----
+        # silver_stock：海外白银**存量**（贯）。修复"把流量当存量"——原先
+        #   `maritime.silver_in`（万两/年，流量）被 calc_price_level 直接当存量 ×10000，
+        #   且从未进入任何持有账户。现按月经 `_settle_extensions` 累积入此存量。
+        # money_audit：月度对账记录（只读视图产物）：{start, last, recent[], cum_residual}。
+        #   不承载任何货币账户，权威源仍是 POP wealth 与国库/内帑。
+        self.silver_stock: int = 0
+        self.money_audit: dict = {}
         self.price_level: float = PRICE_LEVEL_BASE      # 物价水平（基准 1.0）
 
         # ---- 工商征率（玩家可调，对工商经济总量按"几成"征收）----

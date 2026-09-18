@@ -78,6 +78,9 @@ def save_game(state, slot: int = 1) -> bool:
         "granary_cap": getattr(state, "granary_cap", 1500),
         "granary_stats": getattr(state, "granary_stats", {}),
         "money_supply": getattr(state, "money_supply", 60000000),
+        # 货币口径（阶段 B-1）：白银存量 ＋ 月度对账记录（旧档缺省 → 0 / {}）
+        "silver_stock": getattr(state, "silver_stock", 0),
+        "money_audit": getattr(state, "money_audit", {}),
         "price_level": getattr(state, "price_level", 1.0),
         "grain_price": getattr(state, "grain_price", 1.0),
         "canal_block": getattr(state, "canal_block", 10),
@@ -307,6 +310,9 @@ def load_game(slot: int = 1):
     state.granary_cap = data.get("granary_cap", getattr(state, "granary_cap", 1500))
     state.granary_stats = data.get("granary_stats", getattr(state, "granary_stats", {}))
     state.money_supply = data.get("money_supply", getattr(state, "money_supply", 60000000))
+    # 货币口径（阶段 B-1）：旧档无此二字段时按 0 / {} 迁移，不破坏既有语义
+    state.silver_stock = int(data.get("silver_stock", getattr(state, "silver_stock", 0)) or 0)
+    state.money_audit = data.get("money_audit", getattr(state, "money_audit", {})) or {}
     state.price_level = data.get("price_level", getattr(state, "price_level", 1.0))
     state.grain_price = data.get("grain_price", getattr(state, "grain_price", 1.0))
     state.canal_block = data.get("canal_block", getattr(state, "canal_block", 10))

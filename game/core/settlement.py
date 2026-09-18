@@ -435,6 +435,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
                      for _pop in _p["pops"].values()) + state.refugee_count
     state.population = max(10_000_000, _pop_total)
 
+    # ---- Step 10.9: 货币口径对账（阶段 B-1；**只读视图**，不改任何货币账户）----
+    # 把本月各账户余额与上月末对比：`ΔM_ALL  = 外部净注入（白银流入）− 销毁 ＋ 残差`，
+    # 残差 ≠ 0 即表示存在**无对手方的造币/销毁**。这正是审查 A-2（穿底造币）、
+    # A-4（畜栏产肉无买方）、A-5（酒课无上限累加）、D-6（常费转负）长期存活的根因——
+    # 此前游戏没有货币总量口径，无处可查。见 core/money.py 与 货币口径规范_M0M1M2.md。
+    try:
+        from core.money import audit_step as _money_audit_step
+        _money_audit_step(state)
+    except Exception as _money_err:  # noqa: BLE001 — 对账失败不得影响结算主流程
+        log.append(f"[货币对账] 跳过（{_money_err!r}）")
+
     # ---- Step 11: 记录与回合推进 ----
     # 将月份/年份推进收敛到结算函数内部，确保与 Rust 后端（settle.rs）的推进位置一致，
     # 避免 commands 层再次推进导致双端月份各推一次的漂移。
