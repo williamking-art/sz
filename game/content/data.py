@@ -184,7 +184,13 @@ OFFICIAL_PAY_PER_MONTH = 30      # 每官月俸折色（贯）
 OFFICIAL_GRAIN_PER_MONTH = 15    # 每官月禄米（石）
 CLERK_PAY_PER_MONTH = 2.0        # 每吏月俸折色（贯）
 CLERK_GRAIN_PER_MONTH = 1.5      # 每吏月禄米（石）
-CLERK_PER_OFFICIAL = 8           # 吏数 = 官数 × 8
+CLERK_PER_OFFICIAL = 8           # 吏数 = 官数 × 8（旧档迁移基准；§16 吏制将改为编制驱动）
+# ---- 官僚 POP 身份子池（宋代官制设计 §13.3/§13.4）----
+# 官（officials）内部再分三池，俸禄按池计价；吏（clerks）单列，不参与子池。
+# 不变量：size == officials + clerks；officials == on_post + waiting + sinecure。
+WAITING_PAY_RATIO = 0.5          # 待阙（守选无差遣）半俸——冗官的"体感指标"也是财政负担
+SINECURE_PAY_RATIO = 0.5         # 祠禄（宫观官）折俸
+OFFICIAL_SUB_KEYS = ("officials", "clerks", "on_post", "waiting", "sinecure")
 CORRUPTION_MULT = 0.8             # 吏俸缺口→贪腐扣减放大系数
 BRIBE_FLOOR = 0.2                # 加俸无法消除的顽固贪腐下限（pay_ratio 折损下限 0.2）
 IMPERIAL_SHARE = 0.10            # 内帑抽成：结余为正时 max(0,净结余)×IMPERIAL_SHARE（plan L148/L207 定稿 0.1）

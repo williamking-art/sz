@@ -24,7 +24,7 @@ from core.settlement_steps import (
     _settle_economy, _settle_land_local, _settle_extensions,
     _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_region_deepen,
-    _settle_upkeep,
+    _settle_upkeep, _settle_officialdom,
     _settle_finance,
     _settle_projects, _settle_workshops,
     _settle_treasury,
@@ -390,6 +390,10 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 3.9: 资产维持费（L1 money sink，B-3）----
     _settle_upkeep(state, log)
+
+    # ---- Step 3.95: 官制（消灭 officials/POP 双账 + 子池一致性 + 镜像同步）----
+    # 必须排在财政步之前：`calc_official_*` / `calc_clerk_*` 读的就是这里刷新后的官额与子池。
+    _settle_officialdom(state, log)
 
     # ---- Step 4: 财政 ----
     _settle_finance(state, log)
