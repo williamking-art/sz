@@ -126,7 +126,8 @@ class MemoryGraph:
 
     接口兼容 Phase 3a：add_entity/add_relation/upsert_relation/query/keyword_search/
     summarize/record_decision/record_event/to_dict/from_dict/save/load/archive 签名不变；
-    新增：compress/summarize_period/query_sql/query_summaries/retrieve_hierarchical/migrate_json。
+    新增：compress/summarize_period/query_sql/query_summaries/retrieve_hierarchical/migrate_json、
+    rollback_after（结算失败按水位截断关系/实体/总结/变更日志，A2；内存镜像 + SQLite 双侧）。
     """
 
     def __init__(self, schema_version: int = _SCHEMA_VERSION):

@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 前端后端客户端抽象层
 
-前后端分离的核心抽象：前端（tkinter）只通过这个 BackendClient 与游戏逻辑交互，
-不直接 import / 调用 core.commands。这样：
+前后端分离的核心抽象：前端（Electron + React，工程在 `game/frontend/`）只通过这个
+BackendClient 与游戏逻辑交互，不直接 import / 调用 core.commands。这样：
   - LocalBackend  ：逻辑在本进程内执行（开发 / 单机离线，等同改造前行为）
-  - HttpBackend   ：逻辑在远程 Rust 后端（songzuo_server）执行，前端只收发 JSON 快照
+  - HttpBackend   ：逻辑在远程后端进程执行，前端只收发 JSON 快照
 两者对前端暴露完全相同的接口。
+
+（据实更新：原文写「前端（tkinter）」「远程 Rust 后端（songzuo_server）」——Tkinter
+前端已废弃删除，实际后端为 `backend/server.py`（Python + FastAPI）；原 Rust 方案未采。）
 
 后端选择顺序：
   1. 环境变量 SONGZUO_BACKEND（如 http://服务器:8080）—— 命令行/启动脚本最直接

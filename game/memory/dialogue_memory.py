@@ -10,6 +10,9 @@
 核心：每 3 回合 summarize_dialogues(turn) 对近 3 回合对话【总结 + 去重】
   ——同 minister 同主题重复表态合并（去重，防记忆漂移/膨胀），压缩成概要（不动旧数据）。
 精确调动：query_for_dialogue 先查 summaries 概要 → 需要细节下钻 dialogues（防调用过多不相干）。
+结算失败回滚（A2）：rollback_after(turn) 删 `> turn` 的 dialogues / summaries
+  ——本库持有 sqlite 连接、不可深拷贝，故无法随 state 快照还原，只能按水位截断；
+  只删 `> turn` 是为不误删同回合内失败前的合法写入。
 """
 from __future__ import annotations
 
