@@ -470,6 +470,10 @@ def api_readouts(request: Request):
                     "station": u.station, "defense_line": u.defense_line,
                     "morale": u.morale, "training": u.training,
                     "equip_rate": round(u.equip_rate(), 3),
+                    # 阶段 B-3：装备**实物明细**（7 项）＋ 该军累计**欠饷**（贯），
+                    # 供前端"点开某军 → 明细窗"显示人员/兵种/装备/士气/欠饷。
+                    "equip": dict(getattr(u, "equip", {}) or {}),
+                    "arrears": int(getattr(u, "arrears", 0) or 0),
                     "army_name": u.army_name, "org_arm": u.org_arm,
                     "scale": u.scale, "serial": u.serial,
                 })

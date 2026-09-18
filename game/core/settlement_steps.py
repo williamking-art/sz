@@ -3039,6 +3039,29 @@ def _settle_finance(state, log):
         state.statistics["pay_arrears"] = state.statistics.get("pay_arrears", 0) + _arrears
         log.append(f"[财政] 帑藏不足：欠饷欠俸 {_arrears:,} 贯（本月实付率 {_pay_scale:.0%}）")
 
+    # ---- 欠饷落到**各军**（阶段 B-3，用户要求）----
+    # 把「军队部分的短付额」按各军本月应发军饷比例分摊，累加到 `ArmyUnit.arrears`。
+    # 这样玩家点开任一军，都能看到该军被欠了多少（欠饷 → 军心/士气的后继机制挂点）。
+    # 守恒无关（只是把已经发生的短付**记录**到编制单位，不再移动任何钱）。
+    if not _paper_pay and _pay_scale < 1.0 and army_pay > 0:
+        from content.data import branch_std as _bstd
+        _unit_due = {}
+        for _u in state.army_units:
+            if _u.tier == "乡兵":          # 乡兵无饷（自备），不参与欠饷分摊
+                continue
+            _due = 0.0
+            for _b, _n in (_u.branches or {}).items():
+                _due += _n * _bstd(_u.tier, _b)["pay"]
+            if _due > 0:
+                _unit_due[_u.unit_id] = _due
+        _due_total = sum(_unit_due.values()) or 1.0
+        _army_due = float(army_pay)
+        _army_paid = _army_due - _army_due * _pay_scale
+        for _u in state.army_units:
+            _due = _unit_due.get(_u.unit_id, 0.0)
+            if _due > 0:
+                _u.arrears = int(getattr(_u, "arrears", 0)) + int(_army_paid * _due / _due_total)
+
     # 官户免役钱（史实免役法·调参定案）：官户纳助役钱 = 俸钱总额 × 0.05，
     # 从官僚 POP wealth 按 size 扣缴入国库（钱守恒：官僚交钱、国库收钱，不凭空生钱）
     # 审查 P0：wealth 不足时只按实收入账（_tax_left 反映欠缴，不再全额造币）
