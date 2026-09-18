@@ -3082,6 +3082,167 @@ def _recalc_region_price(state, name: str, extra_supply: float = 0.0) -> float:
 # ------------------------------------------------------------
 # Step 4: 财政结算
 # ------------------------------------------------------------
+def _settle_tax_grain_sale(state, p, need: int) -> int:
+    """农户「粜粮完税」：现金不足时向本路 `士绅`/`商人` 卖粮换钱，用于缴纳当期税。
+
+    ## 为什么需要它（历史↔游戏性取中）
+
+    实证：农户 POP 现金恒低于「1 月口粮折价 × 保底系数」，于是**役钱与自耕田折色
+    全部记为欠税且永不回收**（60 月累计农欠税 4,399 万贯）——农税通道整体是死账。
+    这既不史实（免役钱、二税折色本是**现钱**之征，农户卖粮完税是常态），
+    也不好玩（"三冗 → 加征 → 民怨"这条链在农户一侧根本传导不到）。
+
+    ## 守恒（两条同时成立）
+
+    - **钱**：`士绅/商人.wealth → 农.wealth`，Σ钱 不变，`ΔM_ALL == 0`（不造币）；
+    - **粮**：`农.grain → 士绅/商人.grain`，Σ粮 不变（不凭空生粮）。
+
+    买主是**豪强/粮商**（史实如此），不是朝廷——所以它不是"国库自己给自己付钱"的循环。
+
+    ## 约束
+
+    - 仅在**现金不足**时触发，且只补当期缺口；
+    - 卖后须留 `FARMER_TAX_GRAIN_KEEP_MONTHS` 个月口粮；
+    - 单月最多卖农存粮的 `TAX_GRAIN_SALE_MAX_SHARE`。
+
+    返回实际换得、可用于缴税的现钱（贯）。
+    """
+    from content.data import (FARMER_TAX_GRAIN_KEEP_MONTHS, PER_CAPITA_MONTH_GRAIN,
+                              TAX_GRAIN_SALE_ENABLED, TAX_GRAIN_SALE_MAX_SHARE)
+
+    if not TAX_GRAIN_SALE_ENABLED or need <= 0:
+        return 0
+    pops = p.get("pops") or {}
+    farm = pops.get("农")
+    if not isinstance(farm, dict):
+        return 0
+    price = float(getattr(state, "grain_price", 1.0) or 1.0)
+    if price <= 0:
+        return 0
+
+    keep = int(int(farm.get("size", 0) or 0) * PER_CAPITA_MONTH_GRAIN
+               * FARMER_TAX_GRAIN_KEEP_MONTHS)
+    cap_month = int(int(farm.get("grain", 0) or 0) * TAX_GRAIN_SALE_MAX_SHARE)
+    sellable = max(0, min(int(farm.get("grain", 0) or 0) - keep, cap_month))
+    if sellable <= 0:
+        return 0
+
+    # 卖多少粮够补缺口
+    want_grain = int(need / price) + 1
+    grain = min(sellable, want_grain)
+    if grain <= 0:
+        return 0
+
+    # 买方：本路 士绅 ＋ 商人，按持钱比例（买不起则按实际成交）
+    buyers = [(k, pops.get(k)) for k in ("士绅", "商人")]
+    buyers = [(k, b) for k, b in buyers if isinstance(b, dict) and int(b.get("wealth", 0) or 0) > 0]
+    if not buyers:
+        return 0
+    avail = sum(int(b.get("wealth", 0) or 0) for _, b in buyers)
+    cost = min(int(grain * price), avail)
+    grain = min(grain, int(cost / price))
+    if grain <= 0 or cost <= 0:
+        return 0
+
+    # 分钱（末位吃尾差，Σ付出 == cost）；分粮（末位吃尾差，Σ得粮 == grain）
+    paid = 0
+    gave = 0
+    n = len(buyers)
+    for i, (_k, b) in enumerate(buyers):
+        pay = (cost - paid) if i == n - 1 else int(cost * int(b.get("wealth", 0) or 0) / max(1, avail))
+        pay = max(0, min(pay, int(b.get("wealth", 0) or 0)))
+        g = (grain - gave) if i == n - 1 else int(grain * int(b.get("wealth", 0) or 0) / max(1, avail))
+        g = max(0, g)
+        b["wealth"] = int(b.get("wealth", 0) or 0) - pay
+        b["grain"] = int(b.get("grain", 0) or 0) + g
+        paid += pay
+        gave += g
+
+    # 若因逐户封顶导致实际成交少于计划：以实际为准（粮随钱走，双向精确守恒）
+    if gave > grain:
+        gave = grain
+    farm["grain"] = int(farm.get("grain", 0) or 0) - gave
+    farm["wealth"] = int(farm.get("wealth", 0) or 0) + paid
+    state.statistics["tax_grain_sale"] = state.statistics.get("tax_grain_sale", 0) + paid
+    state.granary_stats["tax_grain_sold"] = \
+        state.granary_stats.get("tax_grain_sold", 0) + gave
+    return paid
+
+
+def _settle_arrears_repayment(state, log):
+    """结余**补发积欠**（史实：丰年补发积欠俸饷）。
+
+    为什么需要：取中校准后国帑在长局中转为丰裕（240 月 4,682 万贯），而
+    `statistics["pay_arrears"]`（按实付产生的欠饷欠俸）仍在**单向累积** ——
+    「国库满、军队欠饷」是玩家一眼能看出的自相矛盾。史实上朝廷在宽裕时确实补发积欠。
+
+    守恒：**国库 → 兵/官僚 POP `wealth`**，纯转移（`ΔM_ALL == 0`），不造币；
+    同时按同一比例冲减各军 `ArmyUnit.arrears`，保持「Σ各军欠饷 ↔ `pay_arrears`」同源。
+
+    仅动用**超出应急安全库存**的结余，且单月只补 `ARREARS_REPAY_SHARE`——
+    避免"一丰就花光"，也避免把它变成自动清零欠饷的假机制。
+    """
+    from content.data import ARREARS_KEEP_TREASURY, ARREARS_REPAY_SHARE
+
+    arrears = int(state.statistics.get("pay_arrears", 0) or 0)
+    if arrears <= 0:
+        return 0
+    usable = max(0, int(state.treasury or 0) - int(ARREARS_KEEP_TREASURY))
+    amount = int(min(usable * ARREARS_REPAY_SHARE, arrears))
+    if amount <= 0:
+        return 0
+
+    state.change_treasury(-amount)
+
+    _total_army = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values())
+    _total_guan = sum(p["pops"]["官僚"]["size"] for p in state.prefectures.values())
+    _scale = _total_army + _total_guan
+    if _scale <= 0:                      # 无接收方：退回国库，不静默销毁
+        state.change_treasury(amount)
+        return 0
+    _army_amt = int(amount * _total_army / _scale)
+    _guan_amt = amount - _army_amt
+    # 分配给兵/官僚 POP。权重把"兵总额/官僚总额"的分配与"按 size 摊到各路"**合成一次**，
+    # 末位吃尾差 → `Σ入账 == amount` 精确成立（不再有分配残差需要退回国库）。
+    _receivers = []
+    for _p in state.prefectures.values():
+        _b, _g = _p["pops"]["兵"], _p["pops"]["官僚"]
+        if _total_army > 0 and int(_b.get("size", 0) or 0) > 0:
+            _receivers.append((_b, int(_b["size"]) * _army_amt / _total_army))
+        if _total_guan > 0 and int(_g.get("size", 0) or 0) > 0:
+            _receivers.append((_g, int(_g["size"]) * _guan_amt / _total_guan))
+    _tot_w = sum(_w for _, _w in _receivers)
+    if _tot_w <= 0:                      # 无接收方：退回国库，不静默销毁
+        state.change_treasury(amount)
+        return 0
+    _given = 0
+    for _i, (_pop, _w) in enumerate(_receivers):
+        _gv = (amount - _given) if _i == len(_receivers) - 1 else int(amount * _w / _tot_w)
+        _gv = max(0, _gv)
+        _pop["wealth"] = int(_pop.get("wealth", 0) or 0) + _gv
+        _given += _gv
+
+    # 冲减各军欠饷（同源同减；军饷欠额大，按剩余欠饷比例摊还）
+    _unit_due = {}
+    for _u in state.army_units:
+        _d = float(getattr(_u, "arrears", 0) or 0)
+        if _d > 0:
+            _unit_due[_u.unit_id or id(_u)] = _d
+    _due_total = sum(_unit_due.values())
+    if _due_total > 0:
+        for _u in state.army_units:
+            _k = _u.unit_id or id(_u)
+            if _k in _unit_due:
+                _u.arrears = max(0, int(getattr(_u, "arrears", 0))
+                                 - int(_army_amt * _unit_due[_k] / _due_total))
+
+    state.statistics["pay_arrears"] = max(0, arrears - amount)
+    state.statistics["arrears_repaid"] = state.statistics.get("arrears_repaid", 0) + amount
+    log.append(f"[补发] 帑藏稍丰，补发积欠 {amount:,} 贯"
+               f"（欠饷余额 {state.statistics['pay_arrears']:,}）")
+    return amount
+
+
 def _settle_finance(state, log):
     """月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
     田赋本色为实物入粮仓。支出含折色俸禄（随 pay_system）与岁币岁赐。"""
@@ -3140,6 +3301,13 @@ def _settle_finance(state, log):
             from content.data import MIN_WEALTH_FLOOR_RATIO
             _min_wealth = int(_min_wealth * MIN_WEALTH_FLOOR_RATIO)
             _paid = min(_deduct, max(0, _pop["wealth"] - _min_wealth))
+            # ---- 农「粜粮完税」（历史↔游戏性取中）----
+            # 农户现金不足时卖粮给本路士绅/商人换钱完税（钱粮双向守恒）。
+            # 原实现只把缺口记成欠税，而农户现金恒在保底线之下 → 欠税永不回收、
+            # 农税通道整体死掉（60 月累计 4,399 万贯）。
+            if _agent == "农" and _deduct - _paid > 0:
+                _sold = _settle_tax_grain_sale(state, _p, _deduct - _paid)
+                _paid += _sold
             _short = _deduct - _paid
             if _short > 0:
                 # A1：缺口记入欠税科目（替代原直接蒸发），后续逐月追缴；存档兼容见 save_load 迁移
@@ -3401,6 +3569,9 @@ def _settle_finance(state, log):
     _floored = state.treasury == 0 and (treasury_before + _expect) < 0
     assert _floored or abs(_delta - _expect + _deficit_used) < 1, \
         f"财政恒等断裂：Δtreasury={_delta} actual_net={actual_net} imp={int(imp_share)}"
+
+    # 结余补发积欠（在恒等式校验**之后**执行：它是独立的一笔守恒转移，不改财政恒等）
+    _settle_arrears_repayment(state, log)
 
     inc_parts = f"工商{commerce_tax:.0f}+役钱{poll_tax:.0f}+二税折色{tax_color_total:.0f}+盐课{salt_coin:.0f}"
     if maritime_tax > 0:
