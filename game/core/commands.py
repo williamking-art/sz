@@ -975,6 +975,32 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
     return reply
 
 
+def allocate_payraise(state: GameState, amount) -> str:
+    """拨国帑入加俸预算（厚禄养廉）。
+
+    审查 D9 补齐：`state.payraise_budget` 初始 0 且**只减不增**——`_settle_finance`
+    与 `game_state_econ` 的月用度均只做 `payraise_budget - payraise_used`，全库无任何
+    写入方 → 恒为 0 →「厚禄养廉」整条是死路（会计面板那行永不出现，诸路俸给亦永无
+    补足，`financed = local + payraise_budget * share` 中的第二项恒 0）。
+
+    现补玩家明拨入口：国帑出、入加俸预算（外流记账，非凭空生钱）。拒绝式：
+    数额非正 / 超国库 / 不可解析为整数一律不受，且不动国帑。
+    """
+    try:
+        amt = int(amount or 0)
+    except (TypeError, ValueError):
+        return "拨帑数额须为整数。"
+    if amt <= 0:
+        return "拨帑数额须为正数。"
+    _tre = int(getattr(state, "treasury", 0) or 0)
+    if amt > _tre:
+        return f"国帑不足：现有 {_tre:,} 贯，不能拨 {amt:,} 贯入加俸预算。"
+    state.change_treasury(-amt)
+    state.payraise_budget = int(getattr(state, "payraise_budget", 0) or 0) + amt
+    return (f"已拨国帑 {amt:,} 贯入加俸预算（厚禄养廉），"
+            f"逐月摊还以足诸路俸给；预算现余 {state.payraise_budget:,} 贯。")
+
+
 def envoy_diplomacy(state: GameState, target: str, speech: str, ai_client) -> str:
     """遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
 

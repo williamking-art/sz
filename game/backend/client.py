@@ -178,6 +178,8 @@ class LocalBackend(BackendClient):
                     p.get("target", ""), bool(p.get("prepared", False))), s),
             "audience_dialogue":
                 lambda s, p, ai: (cmd.audience_dialogue(s, p.get("minister", ""), p.get("text", ""), ai), s),
+            "allocate_payraise":
+                lambda s, p, ai: (cmd.allocate_payraise(s, p.get("amount", 0)), s),
             "envoy_diplomacy":
                 lambda s, p, ai: (cmd.envoy_diplomacy(
                     s, p.get("target", ""), p.get("speech", ""), ai), s),

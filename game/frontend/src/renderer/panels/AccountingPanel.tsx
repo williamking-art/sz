@@ -52,6 +52,14 @@ export default function AccountingPanel() {
     return () => { alive = false; };
   }, []);
 
+  // D9：加俸预算（厚禄养廉）明拨入口。该预算此前只减不增、恒为 0
+  // （_settle_finance 只做 payraise_budget - payraise_used），故会计录那行
+  // 永不出现、诸路俸给永无补足；现由本面板拨国帑入预算。
+  const setState = useGameStore((s) => s.setState);
+  const [prAmount, setPrAmount] = useState("");
+  const [prMsg, setPrMsg] = useState<string | null>(null);
+  const [prBusy, setPrBusy] = useState(false);
+
   if (!state) {
     return <p className="py-10 text-center text-dim">尚未开局，无会计可览。</p>;
   }
@@ -63,6 +71,24 @@ export default function AccountingPanel() {
   const priceLevel = pick<number>(state, "price_level", 1);
   const payraiseBudget = pick<number>(state, "payraise_budget", 0);
   const wasteReform = asDict(pick(state, "waste_reform", {}));
+
+  async function handleAllocatePayraise() {
+    if (prBusy) return;
+    setPrBusy(true);
+    setPrMsg(null);
+    try {
+      const res = await getApiClient().action("allocate_payraise", {
+        amount: Number(prAmount.replace(/[^0-9]/g, "")) || 0,
+      });
+      if (res.state) setState(res.state);
+      setPrMsg(res.message || "已拨帑入加俸预算。");
+      setPrAmount("");
+    } catch (e) {
+      setPrMsg("拨帑未成：" + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setPrBusy(false);
+    }
+  }
 
   if (!fin) {
     return (
@@ -139,11 +165,30 @@ export default function AccountingPanel() {
         <p className="mt-1.5 text-sm text-ink">
           月用度：{humanizeCoin(totalOut)}/月　（{outParts.join(" + ")}）
         </p>
-        {payraiseBudget > 0 && (
-          <p className="mt-1 text-xs text-dim">
-            厚禄养廉：加俸预算尚余 {humanizeCoin(payraiseBudget)}，逐月摊还驱动诸路俸给充足。
+        <div className="mt-1.5 space-y-1">
+          <p className="text-xs text-dim">
+            {payraiseBudget > 0
+              ? `厚禄养廉：加俸预算尚余 ${humanizeCoin(payraiseBudget)}，逐月摊还驱动诸路俸给充足。`
+              : "厚禄养廉未行：加俸预算空（此预算只减不增，须由陛下拨帑以充）。"}
           </p>
-        )}
+          <div className="flex items-center gap-2">
+            <input
+              value={prAmount}
+              onChange={(e) => setPrAmount(e.target.value)}
+              placeholder="拨帑数额（贯）"
+              inputMode="numeric"
+              className="w-36 rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+            />
+            <button
+              onClick={handleAllocatePayraise}
+              disabled={prBusy || !prAmount.trim()}
+              className="rounded border border-red/40 bg-red/10 px-2 py-1 font-kai text-xs text-red-dark disabled:opacity-40"
+            >
+              拨入加俸预算
+            </button>
+          </div>
+          {prMsg && <p className="text-xs leading-relaxed text-ink-light">{prMsg}</p>}
+        </div>
         {wasteReform.active === true && (
           <p className="mt-1 text-xs text-dim">
             变法{wasteReform.kind === "reduce_office" ? "裁汰冗员" : "省浮费"}推进中：
