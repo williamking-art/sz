@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
 """宋祚 · AI 异步调用层（T6 异步化核心，改造计划 H 节落地）
 
+【当前状态：未接线（审查 B7）】本模块无任何生产调用方——全库仅 `SongZuo.spec`
+hiddenimports 与 README 提及。其「主线程纪律」以 `ui.after(ms, fn)` 轮询 future
+为前提，而该宿主属**已移除的 Tkinter GUI**（`game/ui/panels_*`、`gui_main.py`）。
+现架构为 Electron + FastAPI：`backend/server.py` 的同步 `def` 端点由 FastAPI
+自动置于线程池执行（不阻塞事件循环），前端经 HTTP 异步等待 —— 非阻塞已由该层
+提供，无需本模块的轮询包装。实际被沿用下来的是本模块的「拆分」思想：
+`audience_dialogue_prepare`/`_apply`、`advance_month`/`settle_local`（先取值、
+后台只算、主线程落地）。故本模块保留为「日后若需服务端后台推演」的参照实现，
+**在接线之前不得视为已生效能力**。
+
 线程纪律（Tkinter 与 GameState 均非线程安全）：
 - 后台 worker 只做「AI 网络调用 + 契约纯函数校验」——即 ai/client.py 各契约方法
   内部的网络请求、validate / 安全过滤 / 复读检测（这些都不写 GameState）；
