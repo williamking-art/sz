@@ -35,12 +35,16 @@ function resolveRoadKey(name?: string | null): string | null {
   const clean = name.replace(/路|府$/g, "");
   const fuzzy = PREFECTURE_LIST.find((k) => k.includes(clean) || clean.includes(k.replace(/路|府$/g, "")));
   if (fuzzy) return fuzzy;
-  if (name.includes("京畿") || name.includes("开封")) return "东京开封府";
-  if (name.includes("河东")) return "河东";
-  if (name.includes("淮南")) return "江南东路"; // 淮南随邻近江南东路账册
-  if (name.includes("广南西")) return "广南东路"; // 广南西随广南东路
-  if (name.includes("利州") || name.includes("夔州")) return "成都府路"; // 川峡随成都府
-  if (name.includes("京东")) return "京西路"; // 京东随京西
+  // 审查修复：原硬编码返回「东京开封府」，该键**不在** PREFECTURE_LIST（20 路）
+  // → 一旦走到此分支，整页按缺省值渲染（户/田/粮全 0）。现改为在既有清单中按
+  // 关键字定位，找不到即返回 null，由调用方按缺省处理，绝不返回不存在的键。
+  const byKw = (kw: string) => PREFECTURE_LIST.find((k) => k.includes(kw)) ?? null;
+  if (name.includes("京畿") || name.includes("开封")) return byKw("京畿");
+  if (name.includes("河东")) return byKw("河东");
+  if (name.includes("淮南")) return byKw("江南东");   // 淮南随邻近江南东路账册
+  if (name.includes("广南西")) return byKw("广南东"); // 广南西随广南东路
+  if (name.includes("利州") || name.includes("夔州")) return byKw("成都"); // 川峡随成都府
+  if (name.includes("京东")) return byKw("京西");     // 京东随京西
   return null;
 }
 

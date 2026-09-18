@@ -168,7 +168,23 @@ def seize_estate(state, name, ratio=1.0):
     e["wealth"] = max(0, e["wealth"] - we)
     e["land"] = max(0, e["land"] - land)
     state.change_treasury(we)
-    state.official_land = getattr(state, "official_land", 0) + land
+    # 审查修复（田账消失）：原写 state.official_land —— GameState 并无该属性，
+    # 等于凭空造一个**顶层私有属性**（存档不落、也无任何消费方读取），抄没的田
+    # 就此蒸发。真账在 prefectures[*].official_land（见 settlement 官田分成读取处）。
+    # 因家产不记籍贯，此处按「现有官田最多之路」入账（无官田则入首路），使田可被
+    # 继续耕作、参与分成；并记统计备审计。
+    if land > 0:
+        prefs = getattr(state, "prefectures", {}) or {}
+        if prefs:
+            _home = max(prefs.items(),
+                        key=lambda kv: int((kv[1] or {}).get("official_land", 0) or 0))[0]
+            prefs[_home]["official_land"] = (
+                int(prefs[_home].get("official_land", 0) or 0) + land)
+            try:
+                state.statistics["seized_land"] = int(
+                    state.statistics.get("seized_land", 0) or 0) + int(land)
+            except Exception:
+                pass
     return (we, land)
 
 
@@ -262,7 +278,19 @@ def settle_investments(state, log):
     """投资分期回报（每月按 1/months 进产出 → 国库/内帑，守恒回流；最后月付清余款）。"""
     for iid, inv in list(getattr(state, "investments", {}).items()):
         per = inv["return_total"] if inv["months_left"] <= 1 else inv["return_total"] // inv["months"]
+        # 审查修复（永久滞留）：return_total 小于期数时整数除得 0，原 `continue`
+        # 使该条目既不递减期数也不核销 → 永久留在 state.investments。
+        # 现：末期一次付清余款；非末期按 0 计但仍递减期数，期满核销（余款不足
+        # 一贯者明确记账丢弃，不静默留存）。
+        if per <= 0 and inv["months_left"] <= 1:
+            per = int(inv["return_total"])
         if per <= 0:
+            inv["months_left"] -= 1
+            if inv["months_left"] <= 0:
+                _left = int(inv.get("return_total", 0) or 0)
+                del state.investments[iid]
+                log.append(f"[投资] {inv['field']} 期满核销"
+                           + (f"（余款不足一贯，未付 {_left}）" if _left else ""))
             continue
         # 审查 P2-19 标注：投资回报属**外部经营收益**（与市舶关税 / 榷场月入同源的
         # 「外部钱入」），非国库→国库自增；此处按外部来源记账（statistics.invest_return）
