@@ -8,7 +8,10 @@
  *   cities.geojson    116 治所 Point   {name,level,circuit,is_seat,game_unit}
  *   view.json         fitBounds 四至
  *
- * 桥接协议（与 ui/map_web.py 对应）：
+ * 桥接协议（**Python 侧已移除**）：原对应 ui/map_web.py，该桥随独立预览链一并删除。
+ *   游戏内舆图为前端 frontend/src/renderer/map/ 自带实现；本目录仍是**数据资产与
+ *   图层方案参照**（见 mapController.ts「构建期从 game/assets/map/web/ 平移」），
+ *   故文件保留。下列协议说明仅供追溯：
  *   JS→Python  window.pywebview.api.map_ready/feature_click/map_event(payload)
  *              浏览器降级：POST /bridge {method,payload}
  *   Python→JS  window.SongZuoMap.applyState(state)

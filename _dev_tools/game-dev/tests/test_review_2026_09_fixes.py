@@ -165,27 +165,6 @@ def test_external_regime_army_entities():
             assert sum(a["branches"].values()) == a["troops"], f"{key} {a['name']} Σbranches≠troops"
 
 
-def test_external_provinces_for_web_map():
-    """审查 2026-09：外邦省信息供 MapLibre Web 舆图。
-
-    external_provinces_from_state 组装出带经纬/人口/军队/建筑的省列表，
-    且仅在 REGIME_GEO 有几何的政权出产经纬（可被 Web 舆图显示）。
-    """
-    from ui.map_web import external_provinces_from_state
-
-    s = _new_state()
-    provs = external_provinces_from_state(s)
-    assert provs, "应有外邦省供 Web 舆图显示"
-    for p in provs:
-        assert "lon" in p and "lat" in p and "buildings" in p and "army" in p
-        assert isinstance(p["regime"], str) and p["name"]
-    # 空政权集 → 空
-    assert external_provinces_from_state(s, regimes={}) == []
-    # 有几何的政权应出现（如 辽）
-    _with_geo = {p["regime"] for p in provs}
-    assert "辽" in _with_geo
-
-
 def test_external_province_info():
     """审查 2026-09：外邦省信息（人口/军队/建筑/经纬）落运行态。
 
