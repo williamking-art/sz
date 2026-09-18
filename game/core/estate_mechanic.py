@@ -77,6 +77,12 @@ def settle_minister_estate(state, log):
         hoard = int(growth * EF["hoard_rate"]) if _hoard_leaning(state, name) else 0
         if hoard > 0:
             e["wealth"] = max(0, e["wealth"] - hoard)
+            # D-11 修复（2026-09-18 阶段 B-2）：原实现只从家产 wealth 扣减、只把
+            # hoard_total 累加到 `coin["shortage"]`，**没有任何对手账户** ——
+            # 货币月度对账实测此处每月凭空销毁约 5,300 贯（行级追踪定位）。
+            # 现转入家产内的「窖银」子池（与士绅 POP 的 `窖银` 同构：退出流通但仍在账上，
+            # 计入 M2 沉淀层），使该腿闭合、可被 `core/money.py` 对账。
+            e["窖银"] = int(e.get("窖银", 0) or 0) + hoard
             hoard_total += hoard
         # 田收租（B4 修复）。原实现把**租金金额**并入各路 gentry_land（田亩），
         # 有两处错：① 单位错（钱→亩）；② 无对手账户（凭空增长）→

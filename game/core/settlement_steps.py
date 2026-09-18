@@ -1721,6 +1721,14 @@ def _settle_granary(state, log):
                         _income = int(_export * _gprice)
                         artisan["wealth"] += _income
                         state.statistics["export_income"] = state.statistics.get("export_income", 0) + _income
+                        # 阶段 B-2：外销变现是**真实体外注入**（goods 出、外部钱入），
+                        # 登记入货币台账，使对账残差不再把它误算成"凭空造币"。
+                        # 见 core/money.py 的 register_flow 与 货币口径规范 §4.2。
+                        try:
+                            from core.money import register_flow as _reg_flow
+                            _reg_flow(state, "external", _income, f"外销变现·{_gdim}")
+                        except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
+                            pass
         except Exception:
             pass
         # 4) 士绅奢侈消费（蓄养奴婢/园林/宴饮/香火/收藏），消耗财富、钱流向工匠商人（服务），体现"富而奢"
@@ -2992,6 +3000,14 @@ def _settle_finance(state, log):
         sui_gong += int(SUI_GONG_ANNUAL * 0.6 / 12 * _mult.get("辽", 1.0))   # 岁币倍率（外交协议）
     if state.external.get("西夏", {}).get("attitude", 50) >= 60:
         sui_gong += int(SUI_GONG_ANNUAL * 0.4 / 12 * _mult.get("西夏", 1.0))
+    # 阶段 B-2：岁币岁赐是**真实外流**（钱付与辽/西夏，退出本经济体），
+    # 登记为销毁通道，使对账残差不再把它误算成"凭空销毁"。
+    if sui_gong > 0:
+        try:
+            from core.money import register_flow as _reg_flow
+            _reg_flow(state, "burn", int(sui_gong), "岁币岁赐外流")
+        except Exception:  # noqa: BLE001
+            pass
 
     # 兵 POP size 重聚合（兵额唯一真账 = army_units.troops 求和，避免增募/伤亡后 POP 漂移）
     for _p in state.prefectures.values():
