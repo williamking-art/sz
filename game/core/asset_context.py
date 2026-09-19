@@ -176,24 +176,30 @@ def start_research(state, node_id: str, silver_in: int = 0,
     from content.data import TECH_RESEARCH_PAY_TO
     from core.settlement_steps import transfer_public_funds_to_pops
     _acct = "imperial_treasury" if fund == "inner" else "treasury"
-    if int(getattr(state, _acct, 0) or 0) < silver_in:
-        return "内帑不足，难拨此费。" if fund == "inner" else "国库不足，难拨此费。"
-    _paid = transfer_public_funds_to_pops(
-        state, silver_in, TECH_RESEARCH_PAY_TO,
-        f"研发立项：{node[3]}", source_account=_acct)
-    if _paid <= 0:
-        return "帑藏不足，研发经费未能拨付，立项中止。"
-
+    # 立项**不以"钱够"为前提**（2026-09-19 用户定稿："**研究只卡前置**"）：
+    # 钱与人才只影响**速率**；经费不足 → 立案但本月缓行（保留进度，见 _settle_tech_research），
+    # 绝不因缺钱而拒绝立项。
+    _avail = max(0, int(getattr(state, _acct, 0) or 0))
+    _paid = 0
+    if _avail > 0:
+        _paid = transfer_public_funds_to_pops(
+            state, min(silver_in, _avail), TECH_RESEARCH_PAY_TO,
+            f"研发立项：{node[3]}", source_account=_acct)
     tech.setdefault("researching", {})[node_id] = {
         "progress": 0.0, "silver_in": _paid,
-        # 月度研发经费（整改④.2）：researching 每月消耗预算与人才时间，中断保留进度。
-        "monthly_cost": max(1, int(_paid * TECH_RESEARCH_BUDGET_RATIO)),
+        # 月度研发经费按**应有**额计：缺钱 → 研究中止并保留进度（而非不许立项）
+        "monthly_cost": max(1, int(silver_in * TECH_RESEARCH_BUDGET_RATIO)),
         "months": cost["months"], "masters": cost["masters"],
         "idea": False, "source": source, "fund": fund,
-        "idle_months": 0,
+        "idle_months": 0 if _paid >= silver_in else 1,
     }
     src_note = {"panel": "陛下亲定", "decree": "圣旨推演", "council": "大臣献策嘉纳"}.get(source, "朝议")
-    return f"已拨帑 {silver_in:.0f}贯（{src_note}），立「{node[3]}」之研。"
+    if _paid <= 0:
+        return f"「{node[3]}」已立项（前置已备）；然帑藏空虚，本月经费未拨，研究暂缓。"
+    if _paid < silver_in:
+        return (f"「{node[3]}」已立项（{src_note}）；帑藏不敷，实拨 {_paid:.0f} 贯"
+                f"（应 {silver_in:.0f} 贯），经费未足则研究缓行。")
+    return f"已拨帑 {_paid:.0f} 贯（{src_note}），立「{node[3]}」之研。"
 
 
 def _pop_invention(state, index: int):
