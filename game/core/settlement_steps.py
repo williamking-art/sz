@@ -2631,6 +2631,27 @@ def _settle_projects(state, log):
                 state.imperial_treasury += _got
                 if _got < _want:
                     log.append(f"[工程] 酒课增收应 {_want:,} 贯，民间可缴仅 {_got:,} 贯，按实入账")
+            # 落成登记（2026-09-19 闭环）：营建类工程完工 → 写 prefectures[route]["buildings"]，
+            # 此后科技 adoption 覆盖率与资产维持费才真正生效（此前 buildings 无写入点）。
+            _bkey = proj.get("blueprint_key")
+            _broute = proj.get("route") or proj.get("prefecture")
+            if _bkey and _broute in (getattr(state, "prefectures", {}) or {}):
+                try:
+                    from content.data import BUILDING_BLUEPRINTS, BUILDING_STD
+                    _bp = BUILDING_BLUEPRINTS.get(_bkey)
+                    if _bp:
+                        _bname = _bp.get("name")
+                    else:
+                        # BUILDING_STD 政府建筑：其键即中文名（水利/常平仓/官营作坊/官署/军营/学校）
+                        _bname = _bkey if _bkey in BUILDING_STD else None
+                    if _bname:
+                        _b = state.prefectures[_broute].setdefault("buildings", {})
+                        _lv = max(1, int(proj.get("levels", 1) or 1))
+                        _b[_bname] = int(_b.get(_bname, 0) or 0) + _lv
+                        log.append(f"[工程] {name} 落成：{_broute}·{_bname} Lv{_b[_bname]}"
+                                   f"（部署 adoption 与资产维持费自此生效）")
+                except Exception as e:  # noqa: BLE001
+                    log.append(f"[工程] {name} 落成登记失败：{type(e).__name__}")
             log.append(f"[工程] {name} 告成，转入运行（产能 {proj['capacity']:.0%}）")
 
 def _collect_from_pops(state, amount: int) -> int:

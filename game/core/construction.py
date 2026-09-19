@@ -26,7 +26,7 @@ from core.numeric import parse_number as _num
 
 log = logging.getLogger("construction")
 
-__all__ = ["resolve_blueprint", "blueprint_cost", "can_build"]
+__all__ = ["resolve_blueprint", "blueprint_cost", "can_build", "propose_project"]
 
 
 def resolve_blueprint(name: str, key: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -94,3 +94,45 @@ def can_build(state, route: str, name: str,
     if cost > 0 and int(getattr(state, "treasury", 0) or 0) < cost:
         errs.append(f"国库不足：需 {cost:,} 贯")
     return (not errs), errs
+
+
+def propose_project(state, route: str, name: str, key: Optional[str] = None,
+                    levels: int = 1) -> Dict[str, Any]:
+    """**营建立项**：把蓝图转成 `state.projects` 条目（`status="proposed"`），
+    交由既有工程系统（`_settle_projects` 五态状态机）逐月推进——**本函数不落建筑**，
+    完工落成由 `_settle_projects` 在 `progress>=100` 时写入 `prefectures[route]["buildings"]`。
+
+    校验复用 `can_build`（蓝图登记 / 科技前置 / **地利前置** / 国库）；
+    失败**拒绝式**：不立项、不改状态，返回可读原因。
+
+    返回 `{"ok", "pid", "months", "cost"}` 或 `{"ok": False, "errors": [...]}`。
+    """
+    ok, errs = can_build(state, route, name, key)
+    if not ok:
+        return {"ok": False, "errors": errs}
+    bp = resolve_blueprint(name, key)
+    lv = max(1, int(levels or 1))
+    cost = blueprint_cost(bp, lv)
+    months = int((bp.get("cost") or {}).get("months") or 6)
+    bname = str(bp.get("_name") or name)
+    projs = getattr(state, "projects", None)
+    if not isinstance(projs, dict):
+        projs = {}
+        state.projects = projs
+    pid = f"bp:{route}:{bp.get('_key')}"
+    for p2 in projs.values():                       # 去重：同路同名在办/拟议不重复立项
+        if (isinstance(p2, dict) and str(p2.get("name")) == bname
+                and str(p2.get("route") or p2.get("prefecture")) == str(route)
+                and p2.get("status") not in ("abandoned",)):
+            return {"ok": False, "errors": [f"{route} 已有「{bname}」工程在案（{p2.get('status')}）"]}
+    projs[pid] = {
+        "name": bname, "type": bname, "status": "proposed",
+        "route": route, "blueprint_key": bp.get("_key"), "levels": lv,
+        "fund_cost": cost, "cost_coin": cost,
+        "cost_material": {}, "craft_hours": 0.0,
+        "speed": max(1, int(round(100.0 / max(1, months)))),   # 工期 = 蓝图 months（1-6）
+        "progress": 0, "proposed_months": 0,
+        # 完工效果留空：蓝图 effect 由科技 adoption 承担，避免与部署效果重复计入
+        "output": {},
+    }
+    return {"ok": True, "pid": pid, "months": months, "cost": cost, "name": bname}
