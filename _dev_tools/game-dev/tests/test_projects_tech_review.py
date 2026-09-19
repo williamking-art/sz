@@ -335,3 +335,52 @@ def test_west_requires_concrete_sources_and_is_not_universal():
 
     # 对研发的加速有封顶，不作万能加速器
     assert TECH_WEST_ACCEL_CAP <= 1.25
+
+
+def test_blueprint_building_is_already_charged_by_upkeep():
+    """核实结论：不在 `BUILDING_STD` 的建筑（含科技部署的火药局/发电厂等）**已被** `_settle_upkeep`
+    的 `else` 分支按 `POP_BUILDING_VALUE` 计费 —— "蓝图建筑完全没收费"的说法不成立。
+
+    本用例把这条事实钉住：加一级部署建筑 → 当月维持费按 POP_BUILDING_VALUE × 维持率上升。
+    """
+    from content.data import (ASSET_MAINTAIN_RATE, BUILDING_STD,
+                              POP_BUILDING_VALUE, TECH_NODE_DEPLOY)
+    from core import institution as _inst
+    from core.game_state import GameState
+    from core.settlement_steps import _settle_upkeep
+
+    s = GameState("史实")
+    route = next(iter(s.prefectures))
+    deploy_name = next(iter(TECH_NODE_DEPLOY.values()))
+    assert deploy_name not in BUILDING_STD, "本用例针对「不在 BUILDING_STD」的蓝图建筑"
+
+    mult = float(_inst.get(s, "asset_maintain_mult"))
+    rate = float(ASSET_MAINTAIN_RATE) * mult
+
+    s.prefectures[route]["buildings"] = {}
+    s.treasury = 10 ** 12
+    paid0 = _settle_upkeep(s, [])
+
+    s.prefectures[route]["buildings"] = {deploy_name: 1}
+    s.treasury = 10 ** 12
+    paid1 = _settle_upkeep(s, [])
+
+    expect = int(float(POP_BUILDING_VALUE) * 1 * rate)
+    assert expect > 0
+    assert paid1 - paid0 >= int(expect * 0.9), (
+        f"新增 1 级蓝图建筑应使维持费上升 ≈{expect}，实测 {paid1 - paid0}")
+
+
+def test_upkeep_payment_is_conserving_to_pops():
+    """维持费是"国库 → 民间 POP"的守恒转移（ΔM_ALL == 0），不是蒸发。"""
+    from core import money
+    from core.game_state import GameState
+    from core.settlement_steps import _settle_upkeep
+
+    s = GameState("史实")
+    s.treasury = 10 ** 12
+    before = money.m_all(s)
+    paid = _settle_upkeep(s, [])
+    after = money.m_all(s)
+    assert paid > 0
+    assert abs(after - before) < 1.0, f"维持费不得凭空造灭货币：ΔM_ALL={after - before}"
