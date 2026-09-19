@@ -7,6 +7,7 @@ import {
   type MemoryDialogueRow
 } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
+import { portraitSrc } from "../utils/portrait";
 import ministersDict from "../data/ministers_dict.json";
 import MemoryDrawer, { type MemoryTab } from "./MemoryDrawer";
 import { SessionGuard, isAbortError, classifySessionView, type SessionPhase } from "./sessionGuard";
@@ -139,7 +140,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   // ---- 立绘（无专属立绘时按文武分档兜底）----
   function portraitOf(name: string): string {
     const p = ro?.ministers?.[name]?.portrait;
-    if (p) return `./portraits/${p}`;
+    if (p) return portraitSrc(p);
     const r = dict[name]?.role || roleOf(name);
     return /军|枢密|将|节度/.test(r) ? "./portraits/general.png" : "./portraits/minister.png";
   }

@@ -536,7 +536,7 @@ def compose_portrait(name: str, tier: str, pose: str = "zheng"):
 
 
 def get_portrait_path(name: str, kind: str = None, rank: str = None,
-                      pose: str = None):
+                      pose: str = None, tier: str = None):
     """返回大臣立绘绝对路径；资源未到位时回退 None。
 
     查找优先级：
@@ -549,7 +549,9 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
       3. 分类默认图 ``portraits/{kind}.png``（kind 缺省按派系/role 自动推断：
          civil / military / eunuch / royal）
     """
-    tier = rank_tier(rank) if rank else minister_tier(name)
+    # tier 显式指定时优先（供"在任状态"驱动的服色：罢黜/致仕/身故 → 士人 shi），
+    # 否则按显式 rank（运行态官品）→ 档案品级。
+    tier = tier or (rank_tier(rank) if rank else minister_tier(name))
     composed = compose_portrait(name, tier, pose or minister_pose(name))
     if composed:
         return composed
