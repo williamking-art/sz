@@ -1748,6 +1748,16 @@ INSTITUTION_PARAM_SPEC = {
     "retire_mult":         {"default": 1.0, "min": 0.2, "max": 2.5, "label": "考课黜落"},
     # 财力消耗设计 S-D6：玩家**主动降维持费**（裁汰冗费）
     "asset_maintain_mult": {"default": 1.0, "min": 0.0, "max": 2.0, "label": "资产维持费"},
+    # ---- 金融：抵当所旋钮（第二节§3；史实为「抵当所」，宋无银行）----
+    # **权限归属**：这些不是"定义"，而是**户部（部门）+ 抵当所提举（官职）的权限**；
+    # 调整须经圣旨、由掌「官营放贷」事权者执行（人是载体，换人不换权）。
+    # 设计：**参数不删、只给旋钮** —— 玩家经诏令 `effects: {"institution": {...}}` 调，
+    # AI 同经 free_effect 提案；值域由本表单点约束（未知键整单/逐项拒绝）。
+    "didang_reserve_ratio": {"default": 0.20, "min": 0.05, "max": 0.60, "label": "抵当所准备金率"},
+    "didang_loan_rate":     {"default": 0.01, "min": 0.0,  "max": 0.05, "label": "抵当所月息"},
+    "didang_loan_share":    {"default": 0.10, "min": 0.0,  "max": 0.50, "label": "抵当所放贷力度"},
+    "didang_deposit_share": {"default": 0.05, "min": 0.0,  "max": 0.20, "label": "抵当所吸储力度"},
+    "didang_deposit_cap":   {"default": 0.30, "min": 0.05, "max": 0.80, "label": "抵当所存款上限"},
 }
 
 # ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与
