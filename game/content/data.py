@@ -421,7 +421,10 @@ FACTION_NAMES = [
     "宦官集团",   # 童贯等
     "西军集团",   # 边防将领
     "东南士人",   # 东南科举士绅
-    "清流言官",   # 台谏系统
+    # 注（2026-09-19 用户定稿）：**台谏（御史台/谏院）是「官职」，不是利益集团**——
+    # 台谏官各有人事派系（新党/旧党/中立…），故按**个人立场**归入相应集团，
+    # 不设"台谏集团"，也**不并入皇党**（皇党＝内侍/内廷势力，与台谏无关）。
+    # 详见 content/ministers/data.py 中各台谏官的 faction 归属。
 ]
 
 FACTION_INIT = {
@@ -430,7 +433,6 @@ FACTION_INIT = {
     "宦官集团":  {"influence": 70, "satisfaction": 80, "cohesion": 65, "leader": "童贯"},
     "西军集团":  {"influence": 60, "satisfaction": 70, "cohesion": 75, "leader": "种师道"},
     "东南士人":  {"influence": 50, "satisfaction": 55, "cohesion": 50, "leader": "曾布"},
-    "清流言官":  {"influence": 40, "satisfaction": 40, "cohesion": 55, "leader": "陈瓘"},
 }
 
 # ------------------------------------------------------------
@@ -447,39 +449,164 @@ FACTION_INIT = {
 #   （`national`＝全国整个阶级；`pool`＝只取该阶级的某个子池；`route`＝只取若干路的该阶级；
 #     `pool+route`＝两者的交）。展示时必须写成「占母集 X%」的**子集**，不得与 POP 并列。
 POP_POOLS_VALID = ("officials", "clerks", "clan")   # POP 的合法子池（官僚官/吏、士绅宗室）
+# 集团类型（kind）：说明这是“什么性质的政治网络”（与用于判重叠与关系图），
+# 与 POP 基本盘正交：kind 讲政治联结方式，pop_basis 讲势力来源（人口与财赋）。
+FACTION_KINDS = (
+    "policy_network",            # 政策网络（同一套变法主张）
+    "institution_network",       # 制度网络（台谏/铨选等制度职位）
+    "court_network",             # 内廷网络（近侍、入内、供奉）
+    "military_command",          # 军镇网络（边地军镇与将校）
+    "gentry_alliance",           # 士绅联盟（田产与旧法既得）
+    "gentry_merchant_alliance",  # 士商联盟（市舶/行会/形势户）
+    "agrarian_movement",         # 农户运动（税负/灾荒/欠粮暴露催生）
+    "artisan_guild",             # 工匠行会（军器/官营作坊与持续订单）
+    "merchant_network",          # 全国商人网络（市舶/盐茶/行会跨路线暴露）
+)
+
+# 推荐显示名（历史化命名，2026-09-19）：前端/AI 文案一律取此表，不硬编码中文旧名。
+# **口径（用户定稿 2026-09-19）：集团名取「总集」**（能涵盖其下多支的政治集团整体），
+# 而具体地域/群体（西军、东南士人…）是它的**子集**，下沉到 `subchannels`，不得当集团名。
+# 故「西军集团」→「西北武人集团」、「东南士人」→「东南士商集团」。
+FACTION_DISPLAY_NAMES = {
+    "新党": "新法系",
+    "旧党": "元祐旧臣与保守士绅",
+    "宦官集团": "皇党集团",
+    "西军集团": "军功集团",
+    "东南士人": "中立派",
+}
+
+# ------------------------------------------------------------
+# 利益集团 ↔ POP 归属（POP 挂载律：集团**不新开账本**），含集团模型元数据
+# ------------------------------------------------------------
+# 元数据字段（均为“偏好/关系”而非资源存量：
+#   kind         集团类型（FACTION_KINDS）；
+#   aliases      显示名 / 旧名 / 内部 ID 候选，由 resolve_faction_key 归一；
+#   interests    诉求：[{pop_class, topic, direction(+1 支持 / −1 反对)}]；
+#   red_lines    不可让步的政线（触发公开反对的条件）；
+#   subchannels  子通道（把本集团基本盘拆成多个诉求口径，含 pop_class）；
+#   overlaps     可重叠的其他集团（重叠**只影响政治读数**，不重复扣 POP）；
+#   thresholds   活跃/维持门槛（population_share 占母集比 / cohesion / exposure_months）。
+# 主键仍为**中文**（存档/结算/AI/前端现有键不动）；英文 ID 先作 alias 铺路，
+# 待方案第 4 步统一迁移时再切主键（见 analysis/faction_pop_optimization_plan_2026-09-19.md）。
+# ------------------------------------------------------------
+# 利益集团的「立场占比」（2026-09-19 用户定稿）—— 给 POP 加政治派系标签
+# ------------------------------------------------------------
+# 口径：**立场跟派系，不跟地域**（地域只是官僚的出身）。故占比是**类级**（不按路分）；
+# 各路差异由"处境"体现（进入满意度/声量），**不进入立场基数**。
+# 它是**比率**（Σ=1），不是人口账本：
+#     集团人数 = Σ_路 Σ_类 (基数人数 × split[集团])
+# 农 / 工匠**无集团** —— 沉默的多数，只经"民心"这一弱通道表达（故无占比项）。
+FACTION_SPLIT_INIT = {
+    "官僚": {"新党": 0.45, "旧党": 0.25, "宦官集团": 0.05,
+             "西军集团": 0.10, "东南士人": 0.15},
+    "士绅": {"旧党": 0.55, "东南士人": 0.45},
+    "商人": {"东南士人": 1.00},
+    "兵":   {"西军集团": 1.00},
+}
+
 FACTION_POP_BASIS = {
     "新党": {
         "pop_classes": ["官僚"], "pool": "officials", "routes": None,
-        "subset_of": ["官僚"], "subset_kind": "pool",
-        "desc": "变法受益的在朝官（新法财利、差遣与恩泽）——**官僚 POP 在岗官子池的子集**",
+        "subset_of": ["官僚"], "subset_kind": "faction",
+        "desc": "变法受益的在朝官——**官僚 POP 在岗官子池中持新法立场的那一部分**"
+                "（立场按派系而非地域切；地域只是出身）",
+        "kind": "policy_network",
+        "aliases": ["新法系", "绍述派", "new_law_network"],
+        "interests": [
+            {"pop_class": "官僚", "topic": "新法财利与差遣恩泽", "direction": 1},
+            {"pop_class": "士绅", "topic": "新法政策暴露", "direction": 1},
+        ],
+        "red_lines": ["废署新法", "追夺绍述之政"],
+        "subchannels": [],
+        "overlaps": ["宦官集团"],
+        "thresholds": {"population_share": 0.05, "cohesion": 30, "exposure_months": 6},
     },
     "旧党": {
-        "pop_classes": ["士绅"], "pool": None, "routes": None,
-        "subset_of": ["士绅"], "subset_kind": "national",
-        "desc": "官户/形势户（隐田与旧法既得）——士绅 POP 中的旧法一派",
+        "pop_classes": ["士绅", "官僚"], "pool": None, "routes": None,
+        "subset_of": ["士绅", "官僚"], "subset_kind": "faction",
+        "desc": "持旧法立场的士绅与在朝官——**士绅/官僚 POP 中反对绍述的那一部分**"
+                "（按立场切，不与任何地域绑定）",
+        "kind": "gentry_alliance",
+        "aliases": ["旧法系", "元祐旧臣", "元祐党人", "yuanyou_old_officials"],
+        "interests": [
+            {"pop_class": "士绅", "topic": "田税与隐田", "direction": 1},
+            {"pop_class": "士绅", "topic": "科举取士", "direction": 1},
+            {"pop_class": "官僚", "topic": "元祐旧制与差遣", "direction": 1},
+        ],
+        "red_lines": ["恢复新法", "绍述绍圣之政"],
+        "subchannels": [],
+        "overlaps": ["东南士人"],   # 均含士绅，可重叠（只影响读数，不重复扣 POP）
+        "thresholds": {"population_share": 0.05, "cohesion": 25, "exposure_months": 6},
     },
     "宦官集团": {
-        "pop_classes": ["官僚"], "pool": "officials", "routes": ["京畿路"],
-        "subset_of": ["官僚"], "subset_kind": "pool+route",
-        "desc": "内廷与入内内侍省——官僚 POP 在岗官子池中**京畿**一隅的子集",
+        "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "faction",
+        "desc": "内廷与入内内侍省及依附内廷者——**官僚 POP 在岗官子池中依附皇权的那一部分**"
+                "（按立场切，不绑定京畿）",
+        "kind": "court_network",
+        "aliases": ["皇党集团", "内侍与内廷势力", "内廷",
+                    "inner_court"],
+        "interests": [
+            {"pop_class": "官僚", "topic": "入内供奉与内库", "direction": 1},
+            {"pop_class": "官僚", "topic": "御笔与中旨", "direction": 1},
+        ],
+        "red_lines": ["裁押内侍", "罢内库供奉"],
+        "subchannels": [
+            {"name": "入内内侍省", "pop_class": "官僚"},
+            {"name": "内廷供奉官", "pop_class": "官僚"},
+            {"name": "依附内廷的官僚", "pop_class": "官僚"},
+        ],
+        "overlaps": ["新党"],
+        "thresholds": {"population_share": 0.02, "cohesion": 40, "exposure_months": 3},
     },
     "西军集团": {
-        "pop_classes": ["兵"], "pool": None,
-        "routes": ["陕西路", "河东路", "河北路"],
-        "subset_of": ["兵"], "subset_kind": "route",
-        "desc": "边地禁军将校——**兵 POP 的路域子集**（「西军」非独立军籍＝驻陕西边地的禁军）",
+        "pop_classes": ["兵", "官僚"], "pool": None, "routes": None,
+        "subset_of": ["兵", "官僚"], "subset_kind": "faction",
+        "desc": "以军功晋身的武臣与文官——**兵/官僚 POP 中持军功立场的那一部分**"
+                "（经略安抚、军前参议、军功补官者皆入此网络；兵系仍只来自兵 POP）",
+        "kind": "military_command",
+        "aliases": ["军功集团", "西北武人集团", "陕西边将与西军", "西军",
+                    "northwest_frontier_command"],
+        "interests": [
+            {"pop_class": "兵", "topic": "军饷与编制", "direction": 1},
+            {"pop_class": "兵", "topic": "军功与迁补", "direction": 1},
+            {"pop_class": "官僚", "topic": "军前差遣与边帅除授", "direction": 1},
+            {"pop_class": "官僚", "topic": "军功补官与武臣转文", "direction": 1},
+        ],
+        "red_lines": ["裁撤边军", "夺边将兵柄", "废军功补官"],
+        "subchannels": [
+            {"name": "陕西边将", "pop_class": "兵"},
+            {"name": "西军", "pop_class": "兵"},
+            {"name": "军户", "pop_class": "兵"},
+            {"name": "边地军民", "pop_class": "兵"},
+            {"name": "边帅与军前文官", "pop_class": "官僚"},
+        ],
+        "overlaps": ["宦官集团"],
+        "thresholds": {"population_share": 0.05, "cohesion": 45, "exposure_months": 3},
     },
     "东南士人": {
-        "pop_classes": ["士绅", "商人"], "pool": None,
-        "routes": ["两浙路", "江南东路", "江南西路", "福建路",
-                   "淮南东路", "淮南西路", "广南东路", "广南西路"],
-        "subset_of": ["士绅", "商人"], "subset_kind": "route",
-        "desc": "东南形势户与市舶商人——士绅/商人 POP 的**东南路域子集**",
-    },
-    "清流言官": {
-        "pop_classes": ["官僚"], "pool": "officials", "routes": None,
-        "subset_of": ["官僚"], "subset_kind": "pool",
-        "desc": "台谏清议——官僚 POP 在岗官子池中的清流一脉",
+        "pop_classes": ["士绅", "商人"], "pool": None, "routes": None,
+        "subset_of": ["士绅", "商人"], "subset_kind": "faction",
+        "desc": "**党争之外的第三方**（不结党的士商力量）——**士绅/商人 POP 中不结党的那一部分**"
+                "：以保境安民、通商与科举为诉求，不卷入新旧党争（按立场切，不绑定东南）",
+        "kind": "gentry_merchant_alliance",
+        "aliases": ["中立派", "东南士商集团", "东南形势户与市舶商人",
+                    "southeast_gentry_merchants"],
+        "interests": [
+            {"pop_class": "士绅", "topic": "不结党与保境安民", "direction": 1},
+            {"pop_class": "士绅", "topic": "科举取士与地方秩序", "direction": 1},
+            {"pop_class": "商人", "topic": "通商与市舶", "direction": 1},
+            {"pop_class": "商人", "topic": "货币与盐茶", "direction": 1},
+        ],
+        "red_lines": ["党争倾轧", "禁海", "抑商与榷禁过苛"],
+        "subchannels": [
+            {"name": "东南士人", "pop_class": "士绅"},
+            {"name": "形势户", "pop_class": "士绅"},
+            {"name": "市舶商人", "pop_class": "商人"},
+            {"name": "城市商人", "pop_class": "商人"},
+        ],
+        "overlaps": [],
+        "thresholds": {"population_share": 0.05, "cohesion": 30, "exposure_months": 6},
     },
 }
 
@@ -1114,7 +1241,7 @@ YAMEN_INFO = {
     "户部": {"duty": "户口田赋、度支钱粮", "faction": "新党", "acts": ["清丈田亩", "减免田赋", "常平仓赈济"]},
     "礼部": {"duty": "礼仪祭祀、科举学校", "faction": "旧党", "acts": ["重开贡举", "兴修礼乐", "褒崇道教"]},
     "兵部": {"duty": "武官选授、舆图军籍", "faction": "西军集团", "acts": ["整练新军", "缮修兵甲", "置将练兵"]},
-    "刑部": {"duty": "律令刑名、刑狱冤滞", "faction": "清流言官", "acts": ["宽刑省狱", "修订刑统", "平反冤案"]},
+    "刑部": {"duty": "律令刑名、刑狱冤滞", "faction": "旧党", "acts": ["宽刑省狱", "修订刑统", "平反冤案"]},
     "工部": {"duty": "山泽沟洫、营造工役", "faction": "宦官集团", "acts": ["兴修水利", "营缮宫观", "开矿铸钱"]},
 }
 
@@ -1697,9 +1824,19 @@ LAND_INFO = {
 # 金融 / 货币 / 市舶 / 交子 / 官营机构（扩展维度）
 # ============================================================
 JIAOZI_INFO = {
-    "issued": 0,          # 已发交子（贯）
-    "trust": 60,          # 纸币信用（0~100）
-    "reserve": 2_000_000, # 本钱准备（贯）
+    "issued": 0,          # 发行额/发行面额（贯）——存量券面，**不等于**流通额
+    "trust": 60,          # 纸币信用（0~100）→ 派生信用上限与折价
+    "reserve": 2_000_000, # 准备金/本钱准备（贯）——**不计入**流通货币供给
+    # ---- 数据契约（第二节§2）：区分 发行额 / 流通额 / 准备金 / 兑付率 / 界期 ----
+    # `circulating` / `redeem_rate` 为**派生读数缓存**：由 core.money 依
+    # 发行额×接受度(trust/100) 与 准备金÷流通额 逐月刷新（_settle_extensions），
+    # 只作对账/展示，不参与货币守恒运算（避免双权威源）。
+    "circulating": 0,        # 流通额（贯，派生缓存：issued×trust/100）
+    "redeem_rate": 1.0,      # 兑付率（准备金÷流通额；流通为 0 时记足额 1.0）
+    "discount": 0.0,         # 折价率（0~1；信用下降派生，损失落到持券者）
+    "run_pressure": 0.0,     # 挤兑压力（0~1；兑付率/信用跌破线派生）
+    "tax_acceptance": 0.80,  # 税收接受度（0~1）：官府课税接受交子的比例（发行上限约束）
+    "credit_ceiling": 1.0,   # 信用上限系数（0~1，= trust/100；发行上限约束）
     # ---- 界制（T9 物价方案定稿·蔡权衡）：交子一界 36 回合，换界 5% 工墨费销毁 ----
     "term": 36,           # 一界回合数（JIAOZI_TERM）
     "cycle": 0,           # 当前界数（每换一界 +1）
@@ -1753,14 +1890,63 @@ FINANCE_STATES = {
 }
 BANK_INFO = {
     "established": False, # 是否设立官营银行（如检校库/交子务升级）
-    "capital": 0,         # 官营资本（万贯）
+    "capital": 0,         # 官营资本（⚠单位=万贯，legacy；换算见 core.money._bank_capital_as_guan）
+    "reserve": 0,         # 准备金/库存现金（贯；money.ACCOUNTS 认可账户，勿与 capital 混单位）
+    "deposits": 0,        # 吸收存款（贯，银行负债 memo；钱在 reserve，不重复计入货币供给）
+    "loans": 0,           # 放出贷款（贯，银行债权 memo；对应借款方 POP wealth 资产）
+    "reserve_ratio": 0.20,  # 准备金率（0~1，法定最低；放贷上限约束）
+    "overdue_rate": 0.0,  # 逾期率（0~1；违约派生 → 信用下降/坏账）
+    "run_pressure": 0.0,  # 挤兑压力（0~1；存款人集中提现，抑制放贷）
+    "branches": 0,        # 网点数（家）
+    "target": "",         # 放贷对象（"农"/"工匠"/"商人"/"士绅"；空=未定）
 }
 STANDARD_INFO = {
     # 金银铜三品本位：铜钱基准，银一两≈铜钱一贯，金一两≈铜钱十贯（示意）
+    # 第二节§5：**记账汇率（book）与市场汇率（market）分离**——
+    #   记账汇率 = 官府账册/税赋折算口径；市场汇率 = 民间兑换实际行市。
+    #   两者之差 + fee_rate（手续费）+ mint_loss（铸币/熔铸损耗）构成兑换记录。
+    "book_silver_per_copper": 1.0,     # 记账：银一两合铜钱（贯）
+    "book_gold_per_copper": 10.0,      # 记账：金一两合铜钱（贯）
+    "market_silver_per_copper": 1.0,   # 市场：银一两合铜钱（贯）
+    "market_gold_per_copper": 10.0,    # 市场：金一两合铜钱（贯）
+    "fee_rate": 0.01,                  # 兑换手续费率（0~1，付给兑换机构）
+    "mint_loss": 0.02,                 # 铸币/熔铸损耗率（0~1，真实退出流通、须记 burn）
+    # ---- 向后兼容别名（legacy；= 记账汇率）----
     "silver_per_copper": 1.0,   # 银一两合铜钱（贯）
     "gold_per_copper": 10.0,    # 金一两合铜钱（贯）
 }
 FINANCE_ACTS = ["行交子", "榷货市舶", "设银行", "定金银铜三品本位", "平抑物价", "铸铁钱"]
+
+# ---- 金融数据契约（第六节）：schema version + 单位 + 守恒/上限约束 ----
+# 单位契约：金额一律「贯」(MONEY_UNIT)，粮一律「石」(GRAIN_UNIT)；只有以 won 计
+# （万贯）的 legacy 字段才用 WON_PER_GUAN 换算。**禁止贯与万贯混用**——
+# BANK_INFO.capital 是已知 legacy「万贯」字段，读取必须走 core.money.BankCapital。
+FINANCE_SCHEMA_VERSION = 1
+MONEY_UNIT = "贯"
+GRAIN_UNIT = "石"
+WON_PER_GUAN = 10_000
+
+FINANCE_UNITS = {
+    "money": MONEY_UNIT,          # 铜钱/交子/国库/内帑/府库/银折钱 …
+    "grain": GRAIN_UNIT,          # 太仓/州仓/POP 粮 …
+    "silver": "两",               # 白银原始计量；折钱用 STANDARD_INFO 汇率
+    "material": "单位",           # 材料走 RESOURCE_DIMS[*]["stock"] 的抽象单位
+    "bank_capital": "万贯",       # ⚠ legacy：仅 BANK_INFO.capital；换算 WON_PER_GUAN
+    "bank_reserve": MONEY_UNIT,   # 银行准备金/存款/贷款一律贯（与 capital 区分）
+}
+
+# 交子约束（第二节§2）：发行上限 = 准备金×皇威 × 税收接受度 × 信用上限
+JIAOZI_TAX_ACCEPTANCE = 0.80    # 税收接受度默认值（0~1）
+JIAOZI_CREDIT_FLOOR = 0.50      # 信用上限系数下限（trust=0 时保留的发行能力）
+JIAOZI_RUN_TRUST_LINE = 40      # 信用跌破此线 → 折价/挤兑派生
+JIAOZI_RUN_RESERVE_LINE = 0.50  # 兑付率低于此线 → 挤兑压力上升
+
+# 银行信贷（第二节§3）：月息/准备金率/放贷与存款月度份额/坏账基准
+BANK_LOAN_RATE = 0.01            # 贷款月息（1%/月）；利息归银行留存，**不入国库**
+BANK_DEPOSIT_RATE = 0.003        # 存款月息（0.3%/月）
+BANK_RESERVE_RATIO_MIN = 0.10    # 准备金率下限
+BANK_LOAN_MONTH_SHARE = 0.10     # 每月放贷 ≤ 可用准备金 × 此比例
+BANK_DEPOSIT_MONTH_SHARE = 0.05  # 每月吸储 ≤ 目标 POP wealth × 此比例
 
 # ============================================================
 # 仓廪漕运（实物粮最小单位：石，已去「万」）——「仓廪虚实，系乎国运」
@@ -1853,6 +2039,25 @@ ASSET_MAINTAIN_RATE = 0.005     # 统一月维护率 0.5%/月（与 BUILDING_STD
 UPKEEP_PAY_TO = {"工匠": 0.4, "商人": 0.6}   # 维护支出支付对象（营造/修缮服务；和为 1）
 POP_BUILDING_TYPES = ("农田", "工坊", "商铺", "庄园")   # POP 建筑（阶层 wealth 出资，Lv1-5，×0.05/Lv）
 POP_BUILDING_EFFECT = 0.05     # 每级 ×0.05（封顶 ×2.0 由 BUILDING_EFFECT_CAP 统一）
+
+# ---- 工程状态机 / 工匠工时 / 运维折旧（整改③，2026-09-19）----
+# 项目状态机：proposed → funded → building → operating → degraded / abandoned。
+# 资金、材料、灾害或治安不足 → 延期或降效，**绝不静默完工**（源：整改意见 §三.1）。
+PROJECT_STATUS_FLOW = ("proposed", "funded", "building", "operating",
+                       "degraded", "abandoned")
+PROJECT_STATUS_LABELS = {
+    "proposed": "拟议", "funded": "已拨款", "building": "营建中",
+    "operating": "运行", "degraded": "降效", "abandoned": "废弃",
+}
+PROJECT_LABOR_RATIO = 0.25          # 工程就地征用工匠 POP 的上限比例（可用工时口径）
+PROJECT_UNDERSTAFF_MIN = 0.34       # 工匠工时到位率下限：低于此值延期（不推进）
+PROJECT_SECURITY_UNREST = 60        # 治安口径：本地动乱 > 此值 → 工程降效
+PROJECT_SECURITY_MIN_FACTOR = 0.35  # 降效下限（进度不足额推进，但仍向前）
+PROJECT_DEPRECIATION_RATE = 0.02    # 运行资产月折旧率（产能 → capacity）
+PROJECT_MAINTENANCE_RECOVER = 0.05  # 维持到位时月修复率（折旧可逆）
+PROJECT_DEGRADED_LINE = 0.60        # 产能低于此线 → degraded（降效）
+PROJECT_PROPOSED_TIMEOUT = 6        # 拟议逾 6 月未获拨款 → abandoned
+
 # 投资（invest_decide 复用 free_effect 载体；六领域基准年回报/风险）
 # 对齐（复用原有机制）：+科技领域（研发投入走既有投资通道，落地进 tech researching 加速）
 INVEST_BASE = {
@@ -2022,6 +2227,15 @@ CHANGPING_PRICE_TARGET_HIGH = 2.5  # 稳定器目标价上限（PRICE_TARGET_SUP
 PRICE_TARGET_SUPER = (1.2, 2.5)
 PRICE_FLOOR_HARD = 0.8          # 断言下界（物价 ≥ 0.8）
 PRICE_CEIL_HARD = 2.8           # 断言上界（物价 ≤ 2.8，防触 3.0 恶性通胀）
+# ---- 物价月度上限 + 路线粮价派生（整改①三、①五联动）----
+# 粮价优先由产量/粮仓/漕运派生，且有**月度上限**（单月涨跌幅硬钳），
+# 防止灾荒/AI 推演造成的单月价格跳变传导到全部下游计算。
+GRAIN_PRICE_MONTHLY_CAP = 0.15   # 粮价（全国/路线）单月最大涨跌幅（±15%）
+PRICE_LEVEL_MONTHLY_CAP = 0.20   # 全国物价指数单月最大涨跌幅
+# 路线物价由供给/需求/库存/运输/货币有效供给派生（全国 PRICE_LEVEL 只是加权读数）
+TRANSPORT_PRICE_WEIGHT = 0.20    # 漕运阻塞 0~100 → 路线粮价最多 +20%（运输成本）
+STOCK_PRICE_RELIEF_MAX = 0.15    # 本地库存（太仓+常平）充足时最多抑价 15%
+MONEY_SUPPLY_PRICE_WEIGHT = 0.10 # 货币有效供给偏离基准 ±100% → 路线粮价浮动 ±10%
 # ---- 稳定器净回收公式（T9 定稿）：月销币目标 = money × (price−1.2)/price × 0.5 ----
 STABILIZER_RECYCLE_RATE = 0.5   # 净回收系数（0.5）
 # ---- 铸钱受控（T9 定稿）：铜资源约束 + 熔耗 20% 净增 80% + 物价>2.0 禁止 ----
@@ -2085,6 +2299,14 @@ EXAM_COHORT_SIZE = {          # 每科次取士额（人），随 AI 科举档�
     "无": 0, "微": 180, "小": 320, "中": 520, "大": 820,
 }
 EXAM_TAKER_MULT = 0.0         # 预留：落第者规模 = 取士额 × 此系数（§15.6 两端代价，暂不做）
+
+# ---- 科举「座主门生」与人员进出口的派系流动（利益集团二期，2026-09-19）----
+# 座主（知贡举）派系解析顺序：显式指派（state.exam["examiner"]/["examiner_faction"]）
+#   → 礼部在任者 → 朝堂声量最大的派系（声量由官职权限派生，见 core/faction_voice.py）。
+# 本榜进士（同年）随座主入派；恩荫随父辈（士绅立场分布）；致仕带本派立场回士绅。
+# **只改立场占比（Σ=1），不新增人口账本**：人仍在同一 POP 的 size 里。
+EXAM_EXAMINER_ORG = "礼部"          # 知贡举所在机构（取其在任者派系；空则回落声量最大者）
+FACTION_SINECURE_EXIT_TILT = 0.5    # 祠禄安置的「失势派系」倾斜：月转出中归最低满意度派系的比例
 
 # ---- 吏制（阶段 C-5，宋代官制设计 §16）----
 # 吏 = 「不可见的执行层」。官三年一任、回避本籍；吏世代本地、掌握簿书 → 吏强官弱。
@@ -2260,6 +2482,10 @@ TECH_NODES: list[TechNode] = [
     ("X1_standard", "观念与制度", 2, "标准化",   "模件互换，尺寸划一，营造尤便", ["X0_assembly"], 65, [], {"silver":0,"months":8,"masters":0,"idea":True}, {"build_cost":-0.12}),
     ("X2_bookkeeping","观念与制度", 3, "复式记账", "出入分账，盈亏立见，财政为之一明", ["I3_post"], 70, [], {"silver":0,"months":10,"masters":0,"idea":True}, {"mining_income":0.10}),
     ("X3_regulation","观念与制度", 4, "制式化军械", "枪械划一，零件可换，士卒易用", ["X1_standard","E3_steel"], 80, [("west",1)], {"silver":0,"months":12,"masters":0,"idea":True}, {"army_power":0.15}),
+    # ---- 能力域补全（整改④.1）：历法 / 航海 ----
+    ("A0_calendar", "观念与制度", 1, "历法修订", "观测星度，校正岁差，颁历授时", ["I0_block"], 50, [("calendar",60)], {"silver":60000,"months":8,"masters":3}, {"calendar":4,"calendar_bonus":5}),
+    ("N0_compass",  "机械动力", 1, "航海罗盘", "水浮磁针，辨向通洋", ["M1_noria"], 50, [("hydraulics",40)], {"silver":90000,"months":9,"masters":3}, {"maritime_income":0.15,"trade_income":0.10}),
+
 ]
 
 
@@ -2281,10 +2507,61 @@ BUILDING_BLUEPRINTS = {
 }
 
 
+
+# ------------------------------------------------------------
+# 科技「能力域」索引（整改④.1）：TECH_INFO.level 只作综合读数；
+# 真正可用能力拆入 火药/冶金/水利/历法/航海/财政/医学农学 七域，每域至少一个可研节点。
+# ------------------------------------------------------------
+TECH_DOMAIN_NODES: dict[str, tuple[str, ...]] = {
+    "火药": ("C1_gunpowder", "C1b_huochong", "C1c_huoqiang", "C1d_suifa"),
+    "冶金": ("M3_bellows", "M4_furnace", "E2_coke", "E3_steel"),
+    "水利": ("M1_noria", "M5_steampump"),
+    "历法": ("A0_calendar",),
+    "航海": ("N0_compass",),
+    "财政": ("X2_bookkeeping",),
+    "医学农学": ("H0_herbal", "H1_forensic", "H2_variola", "C4_fertilizer"),
+}
+
+# 节点「部署 + 维护」声明（整改④.3）：解锁 ≠ 全国生效，须建筑/作坊/军队部署，
+# 以 adoption 覆盖率产生效果。部署建筑 = 蓝图建筑名（缺失视为无独立部署路径，coverage 取默认值）；
+# 维护费率 = 该建筑 BUILDING_STD[*]["maintain"]（并入 _settle_upkeep 的资产维持口径，不另设账本）。
+TECH_NODE_DEPLOY: dict[str, str] = {
+    nid: bp["name"] for nid, bp in BUILDING_BLUEPRINTS.items()
+}
+# 维护费率：部署建筑按统一月维护率（0.5%/月，与 ASSET_MAINTAIN_RATE 同源）。
+# >0 表示该节点须持续维护，否则 adoption 覆盖率按月折损（维护 → 折旧，§三.3）。
+TECH_NODE_MAINTENANCE: dict[str, float] = {
+    nid: float(ASSET_MAINTAIN_RATE) for nid in BUILDING_BLUEPRINTS
+}
+
+# ---- 科技研发预算 + adoption + 西学来源（整改④，2026-09-19）----
+TECH_ADOPTION_DEFAULT = 1.0        # 无部署建筑的节点：技艺已内化于现有作坊/衙署
+TECH_ADOPTION_MAX = 1.0
+TECH_ADOPTION_PER_LEVEL = 0.25     # 每级部署建筑提升 25% 覆盖率（4 级 → 全国生效）
+TECH_ADOPTION_DECAY = 0.05         # 维持费欠缴时月覆盖率折损（维护 → 折旧）
+TECH_RESEARCH_BUDGET_RATIO = 0.25  # 立项银 × 比例 → 月度研发经费（国库 → 学者/工匠 POP）
+TECH_RESEARCH_PAY_TO = {"士绅": 0.5, "工匠": 0.5}
+TECH_RESEARCH_LITERACY_W = 0.30    # 识字率（0-100）对研发速率的最大加成
+TECH_RESEARCH_SCHOOL_CAP = 0.30    # 学校/书院（tech_build_bonus）对研发速率的最大加成
+TECH_RESEARCH_MATERIAL_FLOOR = 0.50  # 材料不足时研发速率下限（降效不归零）
+TECH_RESEARCH_RATE_CAP = 2.0       # 研发速率总加成封顶
+TECH_WEST_SOURCES = {"trade": 0.004, "mission": 0.02, "books": 0.015,
+                     "artisan": 0.02, "war": 0.01}   # west 只来自具体来源（§四.4）
+TECH_WEST_MAX = 5.0
+TECH_WEST_ACCEL_PER_POINT = 0.04   # west → 研发加速（1 + west×0.04）
+TECH_WEST_ACCEL_CAP = 1.25         # west 加速封顶（≤1.25×，非万能加速器）
+
+
 # ------------------------------------------------------------
 # 科技树查询工具（供命令 / 结算 / UI 共用）
 # ------------------------------------------------------------
 _TECH_NODE_MAP: dict[str, TechNode] = {t[0]: t for t in TECH_NODES}
+
+# 能力域索引自检（整改④.1）：域内节点必须真实存在——防声明与节点表漂移。
+_missing_domain_nodes = [nid for _ids in TECH_DOMAIN_NODES.values()
+                         for nid in _ids if nid not in _TECH_NODE_MAP]
+if _missing_domain_nodes:
+    raise ValueError(f"TECH_DOMAIN_NODES 指向不存在节点：{_missing_domain_nodes}")
 
 
 def get_tech_node(node_id: str) -> TechNode | None:

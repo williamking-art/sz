@@ -16,16 +16,34 @@
 结算失败回滚（A2）：rollback_after(turn) 删 `> turn` 的 dialogues / summaries
   ——本库持有 sqlite 连接、不可深拷贝，故无法随 state 快照还原，只能按水位截断；
   只删 `> turn` 是为不误删同回合内失败前的合法写入。
+
+并发与损坏安全（审查 P2-12 / P2-13 修复）：
+  - P2-12：连接以 `check_same_thread=False` 建立（FastAPI 同步端点跑在线程池，句柄可能
+    跨线程使用），但**所有**类方法经实例 `threading.RLock` 串行化，写操作有明确事务边界
+    （`with conn:` 提交/回滚），并加 `busy_timeout` 抗跨进程并发；锁外不再触碰连接。
+  - P2-13：损坏库**不再**「关闭 → 重建空库 → 返回 False」式静默变空。改为隔离原文件
+    （`<path>.corrupt`，连同 -wal/-shm 边车），记录 `self.load_error`，返回 False；
+    一旦进入损坏态，`add_dialogue` 等写操作拒绝惰性重建新库（返回 -1），
+    杜绝「数据没了还看不出来」。
 """
 from __future__ import annotations
 
+import functools
 import json
+import logging
 import os
 import sqlite3
+import threading
+import time
 from typing import List, Optional
+
+log = logging.getLogger("dialogue_memory")
 
 _SCHEMA_VERSION = 1
 _DIALOGUE_PERIOD = 3  # 每 3 回合总结去重
+
+#: 现有对话库必须齐全的表（缺失 → 视为损坏/他库，隔离而非当空库用）
+_REQUIRED_TABLES = ("dialogues", "summaries", "meta")
 
 
 def _dialogue_path(slot: int) -> str:
@@ -33,21 +51,76 @@ def _dialogue_path(slot: int) -> str:
     return os.path.join(SAVE_DIR, f"slot_{slot}_dialogue.db")
 
 
+def _quarantine_file(path: str) -> str:
+    """把损坏文件改名为 `<path>.corrupt`；备份已存在则加纳秒后缀，绝不覆盖既有现场。
+
+    返回备份路径；文件不存在 / 改名失败返回 ""（调用方据此记录诊断信息，不当成功）。
+    """
+    if not path or not os.path.exists(path):
+        return ""
+    backup = path + ".corrupt"
+    if os.path.exists(backup):
+        backup = f"{path}.corrupt.{time.time_ns()}"
+    try:
+        os.replace(path, backup)
+        return backup
+    except OSError as e:
+        log.error("隔离损坏文件失败（%s）：%s", path, e)
+        return ""
+
+
+def _quarantine_paths(path: str) -> str:
+    """隔离主库及其 -wal/-shm 边车，返回主库备份路径（或 ""）。"""
+    backup = _quarantine_file(path)
+    for suffix in ("-wal", "-shm"):
+        if os.path.exists(path + suffix):
+            _quarantine_file(path + suffix)
+    return backup
+
+
+def _synchronized(method):
+    """P2-12：所有 DB 访问经实例 RLock 串行化（RLock 允许同类方法内部互调）。"""
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
 class DialogueMemory:
     def __init__(self, slot: Optional[int] = None):
         self.slot = slot
         self.turn = 0
         self._conn: Optional[sqlite3.Connection] = None
+        self._lock = threading.RLock()
+        #: 损坏诊断（None=正常；非空=已隔离损坏库，禁止再伪装成空库）
+        self.load_error = None
         if slot is not None:
             self._open(slot)
 
-    def _open(self, slot: int) -> None:
-        self.slot = slot
-        path = _dialogue_path(slot)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        self._conn = sqlite3.connect(path)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.executescript(
+    # ---- 连接 / schema（P2-12 线程安全，P2-13 损坏隔离） ----
+    @staticmethod
+    def _connect(path: str) -> sqlite3.Connection:
+        """建连：跨线程可用 + busy 超时（并发写由类方法锁串行化）。"""
+        conn = sqlite3.connect(path, timeout=5, check_same_thread=False)
+        # P2-13：建连中途失败必须关句柄，否则损坏库被占用导致隔离 rename 失败。
+        try:
+            conn.execute("PRAGMA busy_timeout = 3000")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error:
+                pass
+            return conn
+        except sqlite3.Error:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+            raise
+
+    @staticmethod
+    def _init_schema(conn: sqlite3.Connection) -> None:
+        conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS dialogues(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,23 +144,128 @@ class DialogueMemory:
             );
             """
         )
-        self._conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema_version',?)",
-                           (str(_SCHEMA_VERSION),))
-        self._conn.commit()
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema_version',?)",
+                     (str(_SCHEMA_VERSION),))
+        conn.commit()
+
+    @staticmethod
+    def _verify_existing(conn: sqlite3.Connection) -> None:
+        """校验既有库：物理完整性 + 必备表齐全。不合格即抛 sqlite3.DatabaseError。"""
+        rows = conn.execute("PRAGMA integrity_check").fetchall()
+        if not rows or str(rows[0][0]).strip().lower() != "ok":
+            raise sqlite3.DatabaseError("integrity_check 未通过（文件非 SQLite 或已损坏）")
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        missing = [t for t in _REQUIRED_TABLES if t not in tables]
+        if missing:
+            raise sqlite3.DatabaseError(f"缺少对话库表：{missing}（疑似他库/半写）")
+
+    def _open(self, slot: int) -> bool:
+        """打开槽位库：存在则校验、缺失（或 0 字节）则建库。
+
+        损坏 → 隔离为 `.corrupt`、置 `load_error`、`_conn=None`，返回 False；
+        **绝不**在损坏文件上重建空库冒充正常。
+        """
+        path = _dialogue_path(slot)
+        self.slot = slot
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        existed = os.path.exists(path) and os.path.getsize(path) > 0
+        conn = None
+        try:
+            conn = self._connect(path)
+            if existed:
+                self._verify_existing(conn)
+                conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('schema_version',?)",
+                             (str(_SCHEMA_VERSION),))
+                conn.commit()
+            else:
+                self._init_schema(conn)
+            with self._lock:
+                old = self._conn
+                self._conn = conn
+                self.load_error = None
+            if old is not None and old is not conn:
+                try:
+                    old.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            return True
+        except sqlite3.OperationalError as e:
+            # 例如 database is locked：仅暂时不可用，保留原文件（不得冒充损坏）
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            with self._lock:
+                self._conn = None
+            self.load_error = f"对话记忆库暂时不可用（未隔离，slot={slot}）：{e}"
+            log.error(self.load_error)
+            return False
+        except (sqlite3.DatabaseError, OSError) as e:
+            # file is not a database / 物理损坏 / 结构不符 → 隔离（保留备份）
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            with self._lock:
+                self._conn = None
+            backup = _quarantine_paths(path)
+            self.load_error = (f"对话记忆库损坏（slot={slot}）：{e}；"
+                               f"已隔离为 {backup or (path + '.corrupt')}")
+            log.error(self.load_error)
+            return False
+        except sqlite3.Error as e:
+            # 兜底（其它 sqlite3 错误）：按暂时不可用处理，保留原文件
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            with self._lock:
+                self._conn = None
+            self.load_error = f"对话记忆库暂时不可用（未隔离，slot={slot}）：{e}"
+            log.error(self.load_error)
+            return False
+
+    def _ensure_conn(self, slot: Optional[int] = None) -> bool:
+        """惰性建连；一旦检出损坏（load_error 非空），拒绝重建新库冒充空库。"""
+        if self._conn is not None:
+            return True
+        if self.load_error:
+            return False
+        target = slot if slot is not None else (self.slot if self.slot is not None else 0)
+        return self._open(target)
+
+    def _close_locked(self) -> None:
+        conn = self._conn
+        self._conn = None
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     # ---- 写入 ----
+    @_synchronized
     def add_dialogue(self, minister: str, turn: int, speaker: str, text: str,
                      intent: str = "", stance: str = "", topic: str = "") -> int:
-        """追加一条召对对话。"""
-        if self._conn is None:
-            self._open(self.slot or 0)
-        cur = self._conn.execute(
-            "INSERT INTO dialogues(minister,turn,speaker,text,intent,stance,topic) "
-            "VALUES(?,?,?,?,?,?,?)",
-            (minister, turn, speaker, text[:500], intent[:50], stance[:20], topic[:50]))
-        self._conn.commit()
-        return cur.lastrowid
+        """追加一条召对对话；成功返回新行 id，库损坏/写入失败返回 -1（不抛、不建空库）。"""
+        if not self._ensure_conn():
+            return -1
+        try:
+            with self._conn:  # 显式事务边界：成功提交、异常回滚
+                cur = self._conn.execute(
+                    "INSERT INTO dialogues(minister,turn,speaker,text,intent,stance,topic) "
+                    "VALUES(?,?,?,?,?,?,?)",
+                    (minister, turn, speaker, text[:500], intent[:50], stance[:20], topic[:50]))
+            return int(cur.lastrowid or 0)
+        except sqlite3.Error as e:
+            log.warning("add_dialogue 写入失败（不阻断召对）：%s", e)
+            return -1
 
+    @_synchronized
     def rollback_after(self, turn: int) -> dict:
         """结算失败回滚：删除 turn 之后写入的召对与总结。
 
@@ -111,6 +289,7 @@ class DialogueMemory:
         return removed
 
     # ---- 每 3 回合总结去重 ----
+    @_synchronized
     def summarize_dialogues(self, turn: int) -> List[dict]:
         """每 3 回合：对未总结的对话总结 + 去重（含历史遗留的过期窗口）。
 
@@ -186,14 +365,17 @@ class DialogueMemory:
         return out
 
     # ---- 精确调动（后续对话）----
+    @_synchronized
     def fetch_dialogues_by_ids(self, ids, top_k: int = 8) -> List[dict]:
         """按 id 取召对原文（「细节按需下钻」、审计与记忆库面板共用）。
 
         原实现 summaries.ref_ids 只写不读 —— 已总结对话的原文再也取不回。
         ids 为空 / 未连接 → 空列表；按 turn 倒序、限量返回。
         """
+        if self._conn is None:
+            return []
         ids = [int(i) for i in (ids or [])]
-        if not ids or self._conn is None:
+        if not ids:
             return []
         qmarks = ",".join("?" for _ in ids)
         rows = self._conn.execute(
@@ -204,6 +386,7 @@ class DialogueMemory:
                  "text": r[4], "intent": r[5], "stance": r[6], "topic": r[7]}
                 for r in rows]
 
+    @_synchronized
     def summary_refs(self, minister: str = None, period: int = None,
                      top_k: int = 5) -> List[int]:
         """展开概要的 ref_ids → 对话 id 列表（最近 period 优先）。"""
@@ -227,6 +410,7 @@ class DialogueMemory:
                 continue
         return out
 
+    @_synchronized
     def list_summaries(self, minister: str = None, limit: int = 20) -> List[dict]:
         """列出对话概要以供审计/记忆库面板展示（只读）。"""
         if self._conn is None:
@@ -249,6 +433,7 @@ class DialogueMemory:
                         "content": content, "ref_count": n})
         return out
 
+    @_synchronized
     def list_dialogues(self, minister: str = None, limit: int = 60,
                        ascending: bool = True) -> List[dict]:
         """列出召对原文（只读）—— 「社交式」召对面板的会话回放数据源。
@@ -277,6 +462,7 @@ class DialogueMemory:
             out.reverse()
         return out
 
+    @_synchronized
     def list_sessions(self, limit: int = 200) -> List[dict]:
         """每个大臣一条会话摘要（只读）：末条发言预览 + 条数 + 末次回合。
 
@@ -296,6 +482,7 @@ class DialogueMemory:
                  "last_text": str(r[3] or "")[:60], "last_speaker": str(r[4] or "")}
                 for r in rows]
 
+    @_synchronized
     def query_for_dialogue(self, minister: str, turn: int,
                            top_k: int = 3, drill_down: bool = True) -> dict:
         """召对注入：先查 summaries 概要（近 3 期），细节按需下钻 dialogues。
@@ -335,44 +522,66 @@ class DialogueMemory:
                 "source": "db"}
 
     # ---- 存档 ----
+    @_synchronized
     def save(self, slot: int) -> bool:
         if self._conn is None:
             return False
-        self._conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('turn',?)",
-                           (str(self.turn),))
-        self._conn.commit()
-        return True
-
-    def load(self, slot: int) -> bool:
-        if self._conn is not None:
-            try:
-                self._conn.close()
-            except Exception:
-                pass
         try:
-            self._open(slot)
-            row = self._conn.execute("SELECT v FROM meta WHERE k='turn'").fetchone()
-            self.turn = int(row[0]) if row else 0
+            with self._conn:
+                self._conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('turn',?)",
+                                   (str(self.turn),))
             return True
-        except Exception:
-            # 损坏 → 重建空库（不阻断）
-            try:
-                if self._conn:
-                    self._conn.close()
-            except Exception:
-                pass
-            self._conn = None
-            self._open(slot)
+        except sqlite3.Error as e:
+            log.warning("对话记忆库写盘失败（slot=%s）：%s", slot, e)
+            return False
+
+    @_synchronized
+    def load(self, slot: int) -> bool:
+        """按槽位加载对话库。
+
+        P2-13：损坏 → 隔离 `.corrupt`、置 `load_error`、返回 False；**绝不**重建空库
+        冒充正常空库。库不存在属正常新局，会建空库并返回 True。
+        """
+        self.slot = int(slot)
+        self._close_locked()
+        self.turn = 0
+        self.load_error = None
+        if not self._open(self.slot):
+            self.turn = 0
+            return False
+        try:
+            row = self._conn.execute("SELECT v FROM meta WHERE k='turn'").fetchone()
+            raw = row[0] if row else None
+            self.turn = 0 if raw in (None, "") else int(raw)
+            return True
+        except sqlite3.OperationalError as e:
+            # 例如 database is locked：暂时不可用，保留原文件
+            self._close_locked()
+            self.load_error = f"对话记忆库暂时不可用（未隔离，slot={self.slot}）：{e}"
+            log.error(self.load_error)
+            self.turn = 0
+            return False
+        except (sqlite3.DatabaseError, TypeError, ValueError) as e:
+            # meta.turn 被写坏 / 表结构异常 → 同按损坏处理（隔离，不静默变空）
+            self._close_locked()
+            path = _dialogue_path(self.slot)
+            backup = _quarantine_paths(path)
+            self.load_error = (f"对话记忆库元数据损坏（slot={self.slot}）：{e}；"
+                               f"已隔离为 {backup or (path + '.corrupt')}")
+            log.error(self.load_error)
+            self.turn = 0
+            return False
+        except sqlite3.Error as e:
+            # 兜底（其它 sqlite3 错误）：暂时不可用，保留原文件
+            self._close_locked()
+            self.load_error = f"对话记忆库暂时不可用（未隔离，slot={self.slot}）：{e}"
+            log.error(self.load_error)
             self.turn = 0
             return False
 
+    @_synchronized
     def close(self) -> None:
-        if self._conn is not None:
-            try:
-                self._conn.close()
-            except Exception:
-                pass
-            self._conn = None
+        self._close_locked()
 
 
 # 模块级便捷函数（挂 state）

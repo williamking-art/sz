@@ -363,15 +363,20 @@ def test_missing_pop_basis_is_rejected():
     assert not validate_faction_basis("西军", ok)
 
 
-def test_xijun_is_subset_of_soldier_pop():
-    """西军集团 = 兵 POP 的路域**子集**：必须给出母集占比，不得并列展示。"""
+def test_jungong_is_subset_of_soldier_and_official_pop():
+    """军功集团 = 兵与官僚 POP 的边域**子集**（含以军功晋身的文官）。
+
+    2026-09-19 口径调整（用户定稿）：「西军集团」更名「军功集团」，基盘由
+    纯兵 POP 扩为 **兵 + 边路官僚**——军功补官、军前参议、经略安抚等文官因此可入；
+    兵系仍只来自兵 POP（不得因此新开兵额账本）。展示仍须给母集占比，不得并列。
+    """
     from core.faction_basis import build_faction_channels
     s = _state()
     fc = build_faction_channels(s)
     assert fc["declared"], fc["basis_errors"]
     xijun = fc["factions"]["西军集团"]
     b = xijun["basis_readout"]
-    assert b["subset_of"] == ["兵"] and b["subset_kind"] == "route"
+    assert b["subset_of"] == ["兵", "官僚"] and b["subset_kind"] == "faction"
     assert b["troops"] > 0
     assert b["parent_pop_size"] > b["pop_size"], "西军只是兵 POP 的一部分"
     assert 0 < b["share"] < 1

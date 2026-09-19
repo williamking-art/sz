@@ -1304,7 +1304,7 @@ def apply_minister_departure(state: GameState, name: str, reason: str) -> list:
     for spec in rule.get("specials", []):
         when = spec.get("when", "")
         hit = {
-            "清流言官": _fac == "清流言官",
+            "东南士人": _fac == "东南士人",
             "权臣": _corr >= 0.6,
             "老臣": (state.year - _fig.get("born", 1100)) >= 60,
             "名将": _has_war,

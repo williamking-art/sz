@@ -218,28 +218,47 @@ pub async fn serve(addr: &str) {
     }
 }
 
+/// 取游戏状态锁：**中毒不 panic**（审查 P3-18）。
+///
+/// `Mutex::lock()` 在前次持锁线程 panic 后会返回 `Err(PoisonError)`；原实现
+/// `lock().unwrap()` 会把它变成**级联 panic**，令整个后端无诊断信息地不可用。
+/// 这里改为返回可读 500，锁定失败也只影响本次请求。
+fn lock_game(
+    st: &AppState,
+) -> Result<std::sync::MutexGuard<'_, Option<GameState>>, (StatusCode, String)> {
+    st.game.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "游戏状态锁已中毒（此前请求发生 panic），请重启后端进程。".to_string(),
+        )
+    })
+}
+
 async fn new_game_handler(
     State(st): State<AppState>,
     Json(req): Json<NewGameReq>,
-) -> Json<ActionResult> {
-    let mut g = st.game.lock().unwrap();
+) -> Result<Json<ActionResult>, (StatusCode, String)> {
+    // 缩短锁范围：新局构造在锁外，锁内只做一次指针替换。
     let gs = new_game(&req.difficulty);
     let snapshot = gs.clone();
-    *g = Some(gs);
-    Json(ActionResult {
+    {
+        let mut g = lock_game(&st)?;
+        *g = Some(gs);
+    }
+    Ok(Json(ActionResult {
         state: snapshot,
         message: "新朝开局。".into(),
         log: vec![],
         report: String::new(),
         events: vec![],
-    })
+    }))
 }
 
 async fn action_handler(
     State(st): State<AppState>,
     Json(req): Json<ActionReq>,
 ) -> Result<Json<ActionResult>, (StatusCode, String)> {
-    let mut g = st.game.lock().unwrap();
+    let mut g = lock_game(&st)?;
     let gs = g.as_mut().ok_or((StatusCode::BAD_REQUEST, "尚未开局".into()))?;
     let msg = match req.action.as_str() {
         "issue_decree" => {
@@ -263,6 +282,7 @@ async fn action_handler(
         other => return Err((StatusCode::BAD_REQUEST, format!("未知动作: {}", other))),
     };
     let snapshot = gs.clone();
+    drop(g); // 缩短锁范围：快照已取，JSON 序列化在锁外
     Ok(Json(ActionResult {
         state: snapshot,
         message: msg,
@@ -275,13 +295,14 @@ async fn action_handler(
 async fn advance_handler(
     State(st): State<AppState>,
 ) -> Result<Json<ActionResult>, (StatusCode, String)> {
-    let mut g = st.game.lock().unwrap();
+    let mut g = lock_game(&st)?;
     let gs = g.as_mut().ok_or((StatusCode::BAD_REQUEST, "尚未开局".into()))?;
     let events = advance_month(gs);
     let log = settle::settle_turn(gs);
     // AI 模块已移除（纯占位，后端未接 LLM，前端不直调后端 AI）；report 留空对齐简化版
     let report = String::new();
     let snapshot = gs.clone();
+    drop(g); // 缩短锁范围：快照已取，JSON 序列化在锁外
     Ok(Json(ActionResult {
         state: snapshot,
         message: "回合推演完成。".into(),
@@ -295,10 +316,11 @@ async fn resolve_event_handler(
     State(st): State<AppState>,
     Json(req): Json<ResolveEventReq>,
 ) -> Result<Json<ActionResult>, (StatusCode, String)> {
-    let mut g = st.game.lock().unwrap();
+    let mut g = lock_game(&st)?;
     let gs = g.as_mut().ok_or((StatusCode::BAD_REQUEST, "尚未开局".into()))?;
     let msg = resolve_event(gs, &req.title, req.choice);
     let snapshot = gs.clone();
+    drop(g); // 缩短锁范围：快照已取，JSON 序列化在锁外
     Ok(Json(ActionResult {
         state: snapshot,
         message: msg,
@@ -312,7 +334,7 @@ async fn save_handler(
     State(st): State<AppState>,
     Json(req): Json<SlotReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let g = st.game.lock().unwrap();
+    let g = lock_game(&st)?;
     match g.as_ref() {
         Some(gs) => {
             match save_game(gs, req.slot) {
@@ -331,7 +353,10 @@ async fn load_handler(
     match load_game(req.slot) {
         Ok(gs) => {
             let snapshot = gs.clone();
-            *st.game.lock().unwrap() = Some(gs);
+            {
+                let mut g = lock_game(&st)?;
+                *g = Some(gs);
+            }
             Ok(Json(ActionResult {
                 state: snapshot,
                 message: "读档成功。".into(),

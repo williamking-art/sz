@@ -22,9 +22,9 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.situations import (
-    GRADE_DELTA, MAX_INTENTS_PER_TURN, advance_bar, effects_to_changes, evaluate,
-    is_terminal, next_status, pick_intents, used_metrics, validate_intent,
-    validate_situation_effects,
+    GRADE_DELTA, MAX_INTENTS_PER_TURN, advance_bar, deadline_reached,
+    effects_to_changes, evaluate, is_terminal, next_status, pick_intents,
+    used_metrics, validate_intent, validate_situation_effects,
 )
 
 log = logging.getLogger("situation_settle")
@@ -156,7 +156,8 @@ def settle_situations(state, log_lines: Optional[list] = None,
     `journal_base` = 本回合开始时 `state_applier.CHANGE_LOG` 的长度（由管线传入），
     用于切出**本回合**事务记录供 intent 校验（§5.2）。
     """
-    out = {"settled": 0, "resolved": 0, "failed": 0, "deferred": 0, "errors": []}
+    out = {"settled": 0, "resolved": 0, "failed": 0, "deferred": 0,
+           "effect_pending": 0, "stalled": 0, "errors": []}
     logs = log_lines if isinstance(log_lines, list) else []
     records = getattr(state, "situations", None)
     if records is None:
@@ -237,8 +238,32 @@ def settle_situations(state, log_lines: Optional[list] = None,
                 _push_timeline(rec, {"turn": turn, "kind": "报",
                                      "text": "吏治读数缺失，本月按无折扣推进（系数未定义）",
                                      "source": "program"})
-            new_bar = advance_bar(old_bar, grade, inertia=rec.get("inertia", 0) or 0,
-                                  intent_bonus=bonus, execution_mult=exec_mult)
+            candidate_bar = advance_bar(old_bar, grade, inertia=rec.get("inertia", 0) or 0,
+                                        intent_bonus=bonus, execution_mult=exec_mult)
+
+            # ---- ②' 推进费用（progress_cost）：**只有扣费成功才能推进 bar**（审查 P1-6）----
+            # 语义区分（单点定义）：
+            #   · `ongoing_cost` = 每月**持续代价**（上一步；扣不起 → 整月 deferred，不推进）；
+            #   · `progress_cost` = **推进费用**，只在"本月确有 Δbar"时收取；扣费走同一批量
+            #     事务 API（成对划转 + 守恒 + 穿底预检 + 原子回滚）。
+            # 纪律：**绝不先推进后扣费**，也绝不"资源不足仍推进"；失败则本月进度停滞
+            # （bar 保持旧值）并留 timeline/日志证据。收费失败**不算** deferred。
+            progressed = (candidate_bar != old_bar)
+            if progressed:
+                pcost = rec.get("progress_cost")
+                if pcost:
+                    ok, errs = _apply(
+                        state, effects_to_changes(pcost, "局势代价", "situations_progress"),
+                        "situations_progress")
+                    if not ok:
+                        progressed = False
+                        out["stalled"] += 1
+                        _push_timeline(rec, {"turn": turn, "kind": "报",
+                                             "text": f"推进资费不足，本月进度停滞"
+                                                     f"（{'; '.join(errs[:2])}）",
+                                             "source": "program"})
+                        logs.append(f"[局势] {rec.get('title')}：推进资费不足，进度停滞")
+            new_bar = candidate_bar if progressed else old_bar
             rec["bar_value"] = new_bar
             if grade is None:
                 _push_timeline(rec, {"turn": turn, "kind": "推进",
@@ -257,7 +282,7 @@ def settle_situations(state, log_lines: Optional[list] = None,
                                              f"（执行度 ×{exec_mult:.2f}）",
                                      "source": "program"})
 
-            # ---- ③ 终态判定（fail 优先；同回合双命中 → failed + 冲突）----
+            # ---- ③ 终态判定（fail > resolve > deadline；deadline 仅在仍 active 时生效）----
             snap = _snapshot_for(state, rec)
             fc, rc = rec.get("fail_condition"), rec.get("resolve_condition")
             fail_hit = bool(evaluate(fc, snap)) if fc else False
@@ -269,24 +294,54 @@ def settle_situations(state, log_lines: Optional[list] = None,
                 _push_timeline(rec, {"turn": turn, "kind": "冲突",
                                      "text": "本月达成与失败条件同时命中，按 failed 处置",
                                      "source": "program"})
-            if verdict["status"] != "active":
-                rec["status"] = verdict["status"]
-                kind = "终止"
-                if verdict["status"] == "resolved":
-                    out["resolved"] += 1
-                    payload = rec.get("effect_on_resolve")
-                else:
-                    out["failed"] += 1
-                    payload = rec.get("effect_on_fail")
-                if payload:
-                    ok, errs = _apply(state, effects_to_changes(payload, "局势效果", "situations"),
-                                      "situations")
-                    if not ok:
-                        out["errors"].append(f"{rid}: 终态效果未落地（{'; '.join(errs[:2])}）")
-                _push_timeline(rec, {"turn": turn, "kind": kind,
-                                     "text": f"局势{'达成' if verdict['status'] == 'resolved' else '失败'}",
+            terminal = verdict["status"]
+            deadline_tripped = False
+            if terminal == "active" and deadline_reached(rec, turn):
+                # 逾期失败：fail/resolve 都没命中（或未达 streak），而最后期限已到。
+                terminal = "failed"
+                deadline_tripped = True
+                _push_timeline(rec, {"turn": turn, "kind": "冲突",
+                                     "text": f"已届最后期限（deadline={rec.get('deadline')}）"
+                                             f"仍未达成，判失败",
                                      "source": "program"})
-                logs.append(f"[局势] {rec.get('title')}：{verdict['status']}")
+
+            if terminal == "active":
+                rec["pending_terminal"] = None      # 本月重算未达终态 → 清掉旧的重试意图
+            else:
+                # ---- ④ 终态效果**原子提交**（审查 P1-5）：先落地效果，成功后才写终态 ----
+                # 失败时保留 active + pending_terminal（下月可重试），**不得**出现
+                # "status=resolved/failed 但钱粮/威望/民心未落地"的假完成。
+                payload = (rec.get("effect_on_resolve") if terminal == "resolved"
+                           else rec.get("effect_on_fail"))
+                ok, errs = True, []
+                if payload:
+                    ok, errs = _apply(state,
+                                      effects_to_changes(payload, "局势效果", "situations"),
+                                      "situations")
+                if not ok:
+                    rec["pending_terminal"] = terminal
+                    out["effect_pending"] += 1
+                    out["errors"].append(
+                        f"{rid}: 终态效果未落地（{'; '.join(errs[:2])}），保留 active 待重试")
+                    _push_timeline(rec, {"turn": turn, "kind": "报",
+                                         "text": f"已届{'达成' if terminal == 'resolved' else '失败'}，"
+                                                 f"但效果未落地，保留 active 待重试"
+                                                 f"（{'; '.join(errs[:2])}）",
+                                         "source": "program"})
+                    logs.append(f"[局势] {rec.get('title')}：终态效果未落地，待重试")
+                else:
+                    rec["status"] = terminal
+                    rec["pending_terminal"] = None
+                    if terminal == "resolved":
+                        out["resolved"] += 1
+                    else:
+                        out["failed"] += 1
+                    _push_timeline(rec, {"turn": turn, "kind": "终止",
+                                         "text": ("逾期未成，判失败" if deadline_tripped
+                                                  else f"局势{'达成' if terminal == 'resolved' else '失败'}"),
+                                         "source": "program"})
+                    logs.append(f"[局势] {rec.get('title')}："
+                                f"{'逾期未成' if deadline_tripped else terminal}")
 
         rec["last_settled_turn"] = turn
         out["settled"] += 1

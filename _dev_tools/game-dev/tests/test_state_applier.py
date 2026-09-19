@@ -270,3 +270,40 @@ if __name__ == "__main__":
             obj()
             print(f"PASS {name}")
     print("全部通过")
+
+def test_range100_add_delta_not_clamped_but_result_is():
+    """审查修复（2026-09-19 · 连带 P1-5）：0-100 字段的 add/mul **不得在验证层钳「增量」**。
+
+    原实现无条件 `value = max(0, min(100, value))`，对 add 而言那是增量：
+    `add -3` 被钳成 `add 0`，导致**威望/民心/满意度等所有负向效果静默失效**
+    （applier 仍报 applied → "假落地"）。结果值钳制由 apply_to_state 负责。
+    """
+    s = _s()
+    s.prestige = 55
+
+    # ① 验证层：add 的增量必须原样保留（-3 不得变 0）
+    valid, errs = validate_changes([
+        {"path": "prestige", "op": "add", "value": -3, "reason": "失德"},
+    ])
+    assert not errs and valid[0]["value"] == -3, "add 的增量不得被钳制"
+
+    # ② 写入端：按结果值钳制 → 55 - 3 = 52
+    r = applier_pipeline(s, [("x", [
+        {"path": "prestige", "op": "add", "value": -3, "reason": "失德"}])])
+    assert s.prestige == 52 and r["applied"][0]["new"] == 52
+
+    # ③ 越界结果被钳到 100（旧行为会算出 152 越界值）
+    r2 = applier_pipeline(s, [("x", [
+        {"path": "prestige", "op": "add", "value": 200, "reason": "大功"}])])
+    assert s.prestige == 100 and r2["applied"][0]["new"] == 100
+
+    # ④ set 的越界钳制仍然生效
+    valid3, _ = validate_changes([
+        {"path": "prestige", "op": "set", "value": 999, "reason": "设基准"}])
+    assert valid3[0]["value"] == 100
+
+    # ⑤ 负向 add 可穿透到 0（非负钳制，不越界为负）
+    s.prestige = 2
+    applier_pipeline(s, [("x", [
+        {"path": "prestige", "op": "add", "value": -9, "reason": "大失德"}])])
+    assert s.prestige == 0

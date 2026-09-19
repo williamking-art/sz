@@ -4,8 +4,7 @@
   "旧党",
   "宦官集团",
   "西军集团",
-  "东南士人",
-  "清流言官"
+  "东南士人"
  ],
  "faction_init": {
   "新党": {
@@ -37,12 +36,6 @@
    "satisfaction": 55,
    "cohesion": 50,
    "leader": "曾布"
-  },
-  "清流言官": {
-   "influence": 40,
-   "satisfaction": 40,
-   "cohesion": 55,
-   "leader": "陈瓘"
   }
  },
  "yamen_list": [
@@ -92,7 +85,7 @@
   },
   "刑部": {
    "duty": "律令刑名、刑狱冤滞",
-   "faction": "清流言官",
+   "faction": "旧党",
    "acts": [
     "宽刑省狱",
     "修订刑统",
@@ -1182,6 +1175,58 @@
    },
    "effect": {
     "army_power": 0.15
+   }
+  },
+  {
+   "id": "A0_calendar",
+   "line": "观念与制度",
+   "era": 1,
+   "name": "历法修订",
+   "desc": "观测星度，校正岁差，颁历授时",
+   "prereq": [
+    "I0_block"
+   ],
+   "need_level": 50,
+   "need_sub": [
+    [
+     "calendar",
+     60
+    ]
+   ],
+   "cost": {
+    "silver": 60000,
+    "months": 8,
+    "masters": 3
+   },
+   "effect": {
+    "calendar": 4,
+    "calendar_bonus": 5
+   }
+  },
+  {
+   "id": "N0_compass",
+   "line": "机械动力",
+   "era": 1,
+   "name": "航海罗盘",
+   "desc": "水浮磁针，辨向通洋",
+   "prereq": [
+    "M1_noria"
+   ],
+   "need_level": 50,
+   "need_sub": [
+    [
+     "hydraulics",
+     40
+    ]
+   ],
+   "cost": {
+    "silver": 90000,
+    "months": 9,
+    "masters": 3
+   },
+   "effect": {
+    "maritime_income": 0.15,
+    "trade_income": 0.1
    }
   }
  ],

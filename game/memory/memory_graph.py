@@ -41,6 +41,7 @@ import os
 import json
 import re
 import sqlite3
+import time
 from datetime import datetime
 
 import logging
@@ -72,6 +73,54 @@ def _memory_path(slot: int, archive: bool = False) -> str:
 def _db_path(slot: int) -> str:
     """T7 SQLite 记忆库路径（一轮一库，与主存档 slot_{slot}.json 平级分离）。"""
     return os.path.join(SAVE_DIR, f"slot_{slot}.db")
+
+
+def _quarantine_file(path: str) -> str:
+    """把损坏文件改名为 `<path>.corrupt`；同名已存在则加纳秒后缀，绝不覆盖既有现场。
+
+    返回备份路径；文件不存在 / 改名失败返回 ""。
+    """
+    if not path or not os.path.exists(path):
+        return ""
+    backup = path + ".corrupt"
+    if os.path.exists(backup):
+        backup = f"{path}.corrupt.{time.time_ns()}"
+    try:
+        os.replace(path, backup)
+        return backup
+    except OSError as e:
+        log.error("隔离损坏文件失败（%s）：%s", path, e)
+        return ""
+
+
+def _quarantine_db(slot: int) -> str:
+    """隔离损坏的记忆库主库及 -wal/-shm 边车，返回主库备份路径（或 ""）。"""
+    db = _db_path(slot)
+    backup = _quarantine_file(db)
+    for suffix in ("-wal", "-shm"):
+        if os.path.exists(db + suffix):
+            _quarantine_file(db + suffix)
+    return backup
+
+
+def _backup_corrupt_copy(path: str) -> str:
+    """为损坏的迁移源（旧 JSON）**另存** `<path>.corrupt` 备份。
+
+    与 db 的隔离不同：旧 JSON 是人工诊断现场，项目既有回归（test_memory_graph::
+    test_corrupt_rebuild）明确要求**保留原文件**，故此处只复制不移动；返回备份路径。
+    """
+    if not path or not os.path.exists(path):
+        return ""
+    backup = path + ".corrupt"
+    if os.path.exists(backup):
+        backup = f"{path}.corrupt.{time.time_ns()}"
+    try:
+        with open(path, "rb") as src, open(backup, "wb") as dst:
+            dst.write(src.read())
+        return backup
+    except OSError as e:
+        log.error("备份损坏 JSON 失败（%s）：%s", path, e)
+        return ""
 
 
 _SCHEMA_SQL = """
@@ -139,6 +188,10 @@ class MemoryGraph:
         self.archived = 0         # 归档关系计数
         self._slot = None         # 最近 save/load 的槽位（None=未落盘，SQL 查询一律回退内存，绝不碰真实槽位）
         self._migrated = False    # 本次 load 是否发生过旧 JSON 迁移
+        #: 损坏诊断（None=正常；非空=已隔离损坏库/损坏迁移源）
+        self.load_error = None
+        #: 最近一次 _load_from_db 失败分类（"corrupt" | "unavailable"）
+        self.load_failure = None
 
     # ---------------- 基础写入（内存镜像，语义与 Phase 3a 一致） ----------------
     def add_entity(self, eid: str, etype: str, name: str = "", attrs=None, turn: int = 0) -> str:
@@ -694,17 +747,26 @@ class MemoryGraph:
         """
         os.makedirs(SAVE_DIR, exist_ok=True)
         conn = sqlite3.connect(_db_path(slot), timeout=5)
-        conn.execute("PRAGMA busy_timeout = 3000")
+        # P2-13：建连/建表中途失败必须关掉句柄再抛 —— 否则损坏库被占用，
+        # Windows 无法 os.replace 隔离（WinError 32），quarantine 静默失败。
         try:
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout = 3000")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error:
+                pass
+            _has = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entities'").fetchone()
+            if not _has:
+                conn.executescript(_SCHEMA_SQL)
+                conn.commit()
+            return conn
         except sqlite3.Error:
-            pass
-        _has = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entities'").fetchone()
-        if not _has:
-            conn.executescript(_SCHEMA_SQL)
-            conn.commit()
-        return conn
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+            raise
 
     def save(self, slot: int) -> bool:
         """回合末原子写盘：单事务快照内存镜像 → SQLite（INSERT OR REPLACE 幂等去重）。
@@ -789,7 +851,14 @@ class MemoryGraph:
         """从 SQLite 读回内存镜像（含 summaries 实体并入 .entities）。"""
         try:
             conn = self._connect(slot)
-        except sqlite3.Error:
+        except sqlite3.OperationalError as e:
+            self.load_failure = ("unavailable", e)  # 例如 database is locked（非损坏）
+            return False
+        except sqlite3.DatabaseError as e:
+            self.load_failure = ("corrupt", e)      # file is not a database / 物理损坏
+            return False
+        except (sqlite3.Error, OSError) as e:
+            self.load_failure = ("unavailable", e)  # 权限 / 其它不可用
             return False
         try:
             self.schema_version = int(self._state_get(conn, "schema_version") or _SCHEMA_VERSION)
@@ -820,7 +889,18 @@ class MemoryGraph:
             self.entities = ents
             self.relations = rels
             return True
-        except sqlite3.Error:
+        except sqlite3.OperationalError as e:
+            self.load_failure = ("unavailable", e)
+            self.entities = {}
+            self.relations = []
+            return False
+        except (sqlite3.DatabaseError, TypeError, ValueError) as e:
+            self.load_failure = ("corrupt", e)
+            self.entities = {}
+            self.relations = []
+            return False
+        except sqlite3.Error as e:
+            self.load_failure = ("unavailable", e)
             self.entities = {}
             self.relations = []
             return False
@@ -833,44 +913,86 @@ class MemoryGraph:
         return row[0] if row else ""
 
     def load(self, slot: int) -> bool:
-        """按槽位加载记忆库（SQLite 权威）；无 db 时尝试旧 JSON 迁移或重建空图（不阻断游戏）。"""
+        """按槽位加载记忆库（SQLite 权威）；无 db 时尝试旧 JSON 迁移，否则建空图。
+
+        审查 P2-13 修复：损坏库 / 损坏迁移源**不再静默变空**——
+          - 迁移源损坏：保留原 JSON 现场并另存 `<path>.corrupt`，记录 `self.load_error`；
+          - 库损坏 / 结构异常：隔离为 `<db>.corrupt`（含 -wal/-shm），记录 `self.load_error`；
+          - 仅「无库且无迁移源」的**新局**才返回正常空图（`load_error` 保持 None）。
+        返回 False 均可在 `self.load_error` 取到可诊断原因；返回 True 才是正常加载。
+        """
         slot = int(slot)
         self._slot = slot
         self._migrated = False
+        self.load_error = None
+        self.load_failure = None
         db = _db_path(slot)
         if not os.path.exists(db):
-            # 旧 Phase 3a JSON 迁移（成功则继续从 db 读；失败/缺失 → 空图）
             if os.path.exists(_memory_path(slot)):
+                # 旧 Phase 3a JSON 迁移（migrate_json 内部区分「损坏」与「写库失败」）
                 if not self.migrate_json(slot):
                     self.entities = {}
                     self.relations = []
                     return False
             else:
+                # 全新开局：无库无迁移源 → 正常空图（非损坏，load_error 保持 None）
                 self.entities = {}
                 self.relations = []
                 return False
         ok = self._load_from_db(slot)
         if not ok:
+            kind, err = getattr(self, "load_failure", None) or ("corrupt", None)
             self.entities = {}
             self.relations = []
+            if kind == "corrupt":
+                backup = _quarantine_db(slot)
+                self.load_error = (f"记忆库损坏 / 无法解析，已隔离为 "
+                                   f"{backup or (_db_path(slot) + '.corrupt')}（slot={slot}）：{err}")
+            else:
+                # 仅暂时不可用（如 database is locked）：保留原文件，绝不冒充损坏
+                self.load_error = (f"记忆库暂时不可用（未隔离，非损坏判定；slot={slot}）：{err}")
+            log.error(self.load_error)
         return ok
 
     def migrate_json(self, slot: int) -> bool:
-        """旧 JSON 记忆文件 → SQLite 迁移（迁移后旧 JSON 保留，不删除；可安全回退）。"""
+        """旧 JSON 记忆文件 → SQLite 迁移（迁移后旧 JSON 保留，不删除；可安全回退）。
+
+        P2-13：损坏 JSON / 顶层非对象 / 结构非法 → 另存 `.corrupt` 备份 + 记录
+        `self.load_error` + 返回 False，**不再**让上层把「迁移失败」当「空图」静默吞掉。
+        """
         jpath = _memory_path(slot)
         if not os.path.exists(jpath):
             return False
         try:
             with open(jpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except (OSError, ValueError, json.JSONDecodeError):
-            return False          # 损坏 JSON：迁移失败 → 上层重建空图（不阻断游戏）
-        if not isinstance(data, dict):
+        except (OSError, ValueError, json.JSONDecodeError) as e:
+            backup = _backup_corrupt_copy(jpath)
+            self.load_error = (f"旧记忆 JSON 损坏，无法迁移（slot={slot}）：{e}；"
+                               f"备份={backup or (jpath + '.corrupt')}")
+            log.error(self.load_error)
             return False
-        self.from_dict(data)      # 旧 schema（v1）兼容加载
+        if not isinstance(data, dict):
+            backup = _backup_corrupt_copy(jpath)
+            self.load_error = (f"旧记忆 JSON 顶层非对象（slot={slot}）："
+                               f"{type(data).__name__}；备份={backup or (jpath + '.corrupt')}")
+            log.error(self.load_error)
+            return False
+        try:
+            self.from_dict(data)      # 旧 schema（v1）兼容加载
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            backup = _backup_corrupt_copy(jpath)
+            self.load_error = (f"旧记忆 JSON 结构非法（slot={slot}）：{e}；"
+                               f"备份={backup or (jpath + '.corrupt')}")
+            log.error(self.load_error)
+            return False
         self._migrated = True
         # 迁移后写 SQLite；archive JSON（若有）并入 archived 标记
         ok = self.save(slot)
+        if not ok:
+            self.load_error = f"旧记忆 JSON 合法，但迁移写库失败（slot={slot}）"
+            log.error(self.load_error)
+            return False
         if ok:
             try:
                 apath = _memory_path(slot, archive=True)

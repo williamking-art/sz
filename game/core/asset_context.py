@@ -11,6 +11,10 @@
 from content.data import (
     TECH_NODES, TECH_ERAS, TECH_LINES, CAPABILITY_EFFECTS,
     get_tech_node, tech_cost_with_era, DEFAULT_UNLOCKED,
+    TECH_DOMAIN_NODES, TECH_NODE_DEPLOY, TECH_NODE_MAINTENANCE,
+    TECH_ADOPTION_DEFAULT, TECH_ADOPTION_MAX, TECH_ADOPTION_PER_LEVEL,
+    TECH_ADOPTION_DECAY, TECH_WEST_SOURCES, TECH_WEST_MAX,
+    TECH_RESEARCH_BUDGET_RATIO,
 )
 
 
@@ -40,8 +44,8 @@ def node_prereqs_met(state, node) -> bool:
     for pre in node[5]:
         if pre not in tech.get("unlocked", []):
             return False
-    if int(tech.get("level", 0)) < node[6]:
-        return False
+    # 整改④.1：总体 level 只作综合读数，不再充当能力关卡；
+    # 能力由前置节点链 + 副指标（火药/冶金/水利/历法/航海/财政/医学农学…）判定。
     for dim, need in node[7]:
         if dim == "west":
             continue   # 去 west 硬门槛（承接模式）
@@ -170,21 +174,26 @@ def start_research(state, node_id: str, silver_in: int = 0,
     if silver_in <= 0:
         silver_in = cost["silver"]
 
-    if fund == "inner":
-        # 内帑：花皇帝私库
-        if getattr(state, "imperial_treasury", 0) < silver_in:
-            return "内帑不足，难拨此费。"
-        state.change_imperial_treasury(-silver_in)
-    else:
-        # 国库：有钱即可研（不再强制会签门槛）
-        if getattr(state, "treasury", 0) < silver_in:
-            return "国库不足，难拨此费。"
-        state.change_treasury(-silver_in)
+    # 立项首月经费：**守恒转移**（国库/内帑 → 学者·工匠 POP wealth），
+    # 不再是无对手方的 `change_treasury(-silver)` 销毁（整改④.2 / POP 挂载律）。
+    from content.data import TECH_RESEARCH_PAY_TO
+    from core.settlement_steps import transfer_public_funds_to_pops
+    _acct = "imperial_treasury" if fund == "inner" else "treasury"
+    if int(getattr(state, _acct, 0) or 0) < silver_in:
+        return "内帑不足，难拨此费。" if fund == "inner" else "国库不足，难拨此费。"
+    _paid = transfer_public_funds_to_pops(
+        state, silver_in, TECH_RESEARCH_PAY_TO,
+        f"研发立项：{node[3]}", source_account=_acct)
+    if _paid <= 0:
+        return "帑藏不足，研发经费未能拨付，立项中止。"
 
     tech.setdefault("researching", {})[node_id] = {
-        "progress": 0.0, "silver_in": silver_in,
+        "progress": 0.0, "silver_in": _paid,
+        # 月度研发经费（整改④.2）：researching 每月消耗预算与人才时间，中断保留进度。
+        "monthly_cost": max(1, int(_paid * TECH_RESEARCH_BUDGET_RATIO)),
         "months": cost["months"], "masters": cost["masters"],
         "idea": False, "source": source, "fund": fund,
+        "idle_months": 0,
     }
     src_note = {"panel": "陛下亲定", "decree": "圣旨推演", "council": "大臣献策嘉纳"}.get(source, "朝议")
     return f"已拨帑 {silver_in:.0f}贯（{src_note}），立「{node[3]}」之研。"
@@ -280,20 +289,156 @@ def _register_generated_node_global(gid: str, node: tuple) -> None:
         pass
 
 
-def _apply_node_effect(state, node) -> None:
-    """把节点 effect 的实际增益回写全局数值（数值钩子）。"""
+def _apply_effect_delta(state, node, delta: float) -> None:
+    """把节点 effect 按 **adoption 覆盖率增量** 回写全局数值（数值钩子）。
+
+    delta = 新覆盖率 − 旧覆盖率：解锁/部署推进时 delta>0，维护欠费折损时 delta<0。
+    同一节点反复结算只累加增量，不重复全额计账（收益有容量、折旧可逆）。
+    """
+    if not delta:
+        return
     effect = node[9] or {}
     tech = _tech(state)
     land = getattr(state, "land", {})
     if isinstance(land, dict):
         if effect.get("yield_bonus"):
-            land["yield"] = min(2.5, land.get("yield", 1.0) + effect["yield_bonus"])
+            _yv = float(land.get("yield", 1.0) or 1.0) + float(effect["yield_bonus"]) * delta
+            land["yield"] = max(0.5, min(2.5, _yv))
         if effect.get("build_cost"):
             pass  # build_cost 由工程结算统一读取资产汇总
     # 各维度增益落到 tech 副指标（供 calc_commerce / calc_maritime_trade 等读取）
     for k, v in effect.items():
-        if k in tech and isinstance(v, (int, float)):
-            tech[k] = max(0, min(100, int(tech[k]) + v))
+        if k in tech and isinstance(v, (int, float)) and not isinstance(v, bool):
+            tech[k] = max(0, min(100, int(tech[k]) + v * delta))
+
+
+def _apply_node_effect(state, node) -> None:
+    """兼容旧签名：一次性施加全额效果（adoption = 1.0）。"""
+    _apply_effect_delta(state, node, 1.0)
+
+
+def node_adoption_coverage(state, node_id: str) -> float:
+    """节点「全国部署覆盖率」（0~1，整改④.3）。
+
+    解锁 ≠ 全国生效：声明了部署建筑的节点，须该建筑/作坊/军队**建成运行**方可覆盖。
+    覆盖率 = min(1.0, Σ(部署建筑等级) × TECH_ADOPTION_PER_LEVEL)；
+    未声明部署路径的节点视为技艺已内化于现有作坊/衙署（coverage = 默认值）。
+    """
+    deploy = TECH_NODE_DEPLOY.get(node_id)
+    if not deploy:
+        return TECH_ADOPTION_DEFAULT
+    lv = 0
+    projects = getattr(state, "projects", None)
+    if isinstance(projects, dict):
+        _projs = list(projects.values())
+    elif isinstance(projects, list):
+        _projs = list(projects)
+    else:
+        _projs = []
+    for pj in _projs:
+        if not isinstance(pj, dict):
+            continue
+        name = str(pj.get("name") or pj.get("type") or "")
+        if name != deploy:
+            continue
+        if pj.get("abandoned") or pj.get("status") == "abandoned":
+            continue
+        if pj.get("status") in ("operating", "degraded") or pj.get("done"):
+            lv += max(1, int(pj.get("level", 1) or 1))
+    prefs = getattr(state, "prefectures", None)
+    if isinstance(prefs, dict):
+        for p in prefs.values():
+            if not isinstance(p, dict):
+                continue
+            b = p.get("buildings") or {}
+            if isinstance(b, dict):
+                lv += max(0, int(b.get(deploy, 0) or 0))
+    return min(TECH_ADOPTION_MAX, lv * TECH_ADOPTION_PER_LEVEL)
+
+
+def settle_adoption(state, log=None) -> dict:
+    """月度结算：按部署建筑重算各已解锁节点的 adoption 覆盖率并施加增量效果。
+
+    维护 → 折旧：维持费欠缴（_settle_upkeep 的 arrears 增长）时，有维护声明的节点
+    覆盖率按月折损 TECH_ADOPTION_DECAY；恢复全额维持后按建筑存量回升。
+    返回 {"changed": n, "degraded": n}，供日志/审计（失败不静默）。
+    """
+    tech = _tech(state)
+    assets = tech.get("assets", {})
+    if not isinstance(assets, dict) or not assets:
+        return {"changed": 0, "degraded": 0}
+    stats = getattr(state, "statistics", None)
+    arrears = int(stats.get("upkeep_arrears", 0) or 0) if isinstance(stats, dict) else 0
+    prev = tech.get("_adoption_arrears_seen")
+    if prev is None:
+        tech["_adoption_arrears_seen"] = arrears
+        prev = arrears
+    else:
+        tech["_adoption_arrears_seen"] = arrears
+    maintained = arrears <= int(prev)
+    changed = degraded = 0
+    for nid, a in list(assets.items()):
+        if not isinstance(a, dict):
+            continue
+        node = get_tech_node(nid)
+        if node is None:
+            try:
+                from core.registries import node_entry
+                node = node_entry(state, nid)
+            except Exception:
+                node = None
+        if not node:
+            continue
+        cov = node_adoption_coverage(state, nid)
+        if (not maintained) and TECH_NODE_MAINTENANCE.get(nid, 0.0) > 0:
+            cov = max(0.0, cov - TECH_ADOPTION_DECAY)   # 维护欠费 → 折旧
+            degraded += 1
+        old_cov = float(a.get("adoption", 0.0) or 0.0)
+        if abs(cov - old_cov) > 1e-9:
+            _apply_effect_delta(state, node, cov - old_cov)
+            a["adoption"] = round(cov, 4)
+            changed += 1
+    if changed and isinstance(log, list):
+        log.append(f"[科技] 部署覆盖率更新 {changed} 项（维护{'到位' if maintained else '欠费'}）")
+    return {"changed": changed, "degraded": degraded}
+
+
+def accrue_west(state, log=None) -> float:
+    """西学（west）来源制（整改④.4）：只从贸易/使团/书籍/工匠/战争累积。
+
+    贸易来源：海路既开且确有贸易额；其余四类由事件/AI 显式登记
+    `tech["west_sources"][kind]`（未登记则不计）。west 不再每月凭空 +0.01，
+    也不再是万能加速器（对研发仅 ×≤TECH_WEST_ACCEL_CAP）。
+    """
+    tech = _tech(state)
+    # 本月**活跃来源**（不复用上月）：有来源才计入，无来源则 west 不增长。
+    src = {}
+    mari = getattr(state, "maritime", None)
+    if isinstance(mari, dict) and mari.get("open"):
+        try:
+            trade = float(state.calc_maritime_trade())
+        except Exception:
+            trade = 0.0
+        if trade > 0:
+            src["trade"] = 1
+    # 使团/书籍/工匠/战争：由事件/AI 显式登记的一次性来源（west_pending_sources）
+    pending = tech.pop("west_pending_sources", None)
+    if isinstance(pending, dict):
+        for kind in TECH_WEST_SOURCES:
+            if pending.get(kind):
+                src[kind] = 1
+    elif isinstance(pending, (list, tuple, set)):
+        for kind in pending:
+            if kind in TECH_WEST_SOURCES:
+                src[kind] = 1
+    tech["west_sources"] = src
+    gain = sum(float(rate) for kind, rate in TECH_WEST_SOURCES.items() if src.get(kind))
+    if gain <= 0:
+        return 0.0
+    old = float(tech.get("west", 0) or 0)
+    nw = round(min(TECH_WEST_MAX, old + gain), 4)
+    tech["west"] = nw
+    return round(nw - old, 4)
 
 
 def unlock_node(state, node_id: str, narrative: str = "") -> str:
@@ -319,12 +464,17 @@ def unlock_node(state, node_id: str, narrative: str = "") -> str:
         "name": node[3],
         "narrative": narrative or f"{node[3]}告成",
     }
-    _apply_node_effect(state, node)
-    # 资产登记：科技节点入库（带能力标签推导）
+    # 资产登记：科技节点入库（能力标签 + 部署/维护声明）
+    _cov = node_adoption_coverage(state, node_id)
     tech.setdefault("assets", {})[node_id] = {
         "kind": "科技", "name": node[3], "desc": node[4],
         "era": node[2], "capabilities": _derive_capabilities(node),
+        "deploy": TECH_NODE_DEPLOY.get(node_id, ""),
+        "maintain": TECH_NODE_MAINTENANCE.get(node_id, 0.0),
+        "adoption": round(_cov, 4),
     }
+    # 解锁 ≠ 全国生效：只对已部署（coverage>0）的部分施加效果（整改④.3）。
+    _apply_effect_delta(state, node, _cov)
     return f"「{node[3]}」已成，技进于器。"
 
 

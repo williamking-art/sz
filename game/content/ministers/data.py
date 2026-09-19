@@ -62,13 +62,13 @@ MINISTERS = {
                "portrait": "", "in_office": True, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["权谋", "变法"]},
 
     # ===================== 台谏（1101 在任，弹蔡京） =====================
-    "陈瓘":   {"born": 1057, "role": "右司谏", "faction": "清流言官", "traits": "刚直/弹蔡京/谪贬",
+    "陈瓘":   {"born": 1057, "role": "右司谏", "faction": "旧党", "traits": "刚直/弹蔡京/谪贬",
                "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.46, "corruption": 0.12, "trait_ids": ["刚直"]},
-    "陈师锡": {"born": 1057, "role": "殿中侍御史", "faction": "清流言官", "traits": "清正/论事切直",
+    "陈师锡": {"born": 1057, "role": "殿中侍御史", "faction": "旧党", "traits": "清正/论事切直",
                "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.14, "trait_ids": ["清正"]},
-    "丰稷":   {"born": 1033, "role": "殿中侍御史(1101被黜改任)", "faction": "清流言官", "traits": "鲠亮/极论蔡京",
+    "丰稷":   {"born": 1033, "role": "殿中侍御史(1101被黜改任)", "faction": "旧党", "traits": "鲠亮/极论蔡京",
                "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.10, "trait_ids": ["刚直", "清正"]},
 
@@ -92,13 +92,13 @@ MINISTERS = {
                "portrait": "", "in_office": True, "loyalty": 0.70, "corruption": 0.28, "trait_ids": ["军略"]},
 
     # ===================== 主战/忠义（1101 在，未显） =====================
-    "李纲":   {"born": 1083, "role": "太学/主战派", "faction": "清流言官", "traits": "刚直/主战/抗金",
+    "李纲":   {"born": 1083, "role": "太学/主战派", "faction": "西军集团", "traits": "刚直/主战/抗金",
                "nobility": "", "rank": "从八品",
                "portrait": "", "in_office": True, "loyalty": 0.58, "corruption": 0.15, "trait_ids": ["忠勇"]},
-    "宗泽":   {"born": 1060, "role": "地方官/后抗金", "faction": "清流言官", "traits": "忠勇/抗金",
+    "宗泽":   {"born": 1060, "role": "地方官/后抗金", "faction": "西军集团", "traits": "忠勇/抗金",
                "nobility": "", "rank": "从六品",
                "portrait": "", "in_office": True, "loyalty": 0.62, "corruption": 0.18, "trait_ids": ["忠勇"]},
-    "张叔夜": {"born": 1065, "role": "知海州(1101降地方官,非开封府尹)", "faction": "清流言官", "traits": "忠义/守城",
+    "张叔夜": {"born": 1065, "role": "知海州(1101降地方官,非开封府尹)", "faction": "西军集团", "traits": "忠义/守城",
                "nobility": "", "rank": "从六品",
                "portrait": "", "in_office": True, "loyalty": 0.64, "corruption": 0.22, "trait_ids": ["忠勇"]},
     "韩世忠": {"born": 1089, "role": "低级军官", "faction": "西军集团", "traits": "悍勇/水战",
@@ -133,10 +133,10 @@ MINISTERS = {
     "王古":   {"born": 1040, "role": "户部尚书", "faction": "东南士人", "traits": "理财/慎密/循良",
                "nobility": "", "rank": "正二品",
                "portrait": "", "in_office": True, "loyalty": 0.55, "corruption": 0.28, "trait_ids": ["理财"]},
-    "江公望": {"born": 1055, "role": "右司谏", "faction": "清流言官", "traits": "敢言/讽谏/守正",
+    "江公望": {"born": 1055, "role": "右司谏", "faction": "旧党", "traits": "敢言/讽谏/守正",
                "nobility": "", "rank": "从四品",
                "portrait": "", "in_office": True, "loyalty": 0.50, "corruption": 0.12, "trait_ids": ["刚直"]},
-    "陈次升": {"born": 1044, "role": "左谏议大夫", "faction": "清流言官", "traits": "鲠直/弹劾/论蔡京",
+    "陈次升": {"born": 1044, "role": "左谏议大夫", "faction": "旧党", "traits": "鲠直/弹劾/论蔡京",
                "nobility": "", "rank": "正三品",
                "portrait": "", "in_office": True, "loyalty": 0.48, "corruption": 0.12, "trait_ids": ["刚直"]},
 
@@ -183,7 +183,7 @@ MINISTERS = {
     "高俅":   {"born": 1068, "role": "殿前都指挥使", "faction": "无", "traits": "蹴鞠/典禁军/怙宠",
                "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.72, "corruption": 0.55, "trait_ids": ["才艺"]},
-    "侯蒙":   {"born": 1054, "role": "在野(后户部尚书)", "faction": "清流言官", "traits": "通达/敢言/识人才",
+    "侯蒙":   {"born": 1054, "role": "在野(后户部尚书)", "faction": "东南士人", "traits": "通达/敢言/识人才",
                "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.18, "trait_ids": ["清正"]},
 
@@ -206,7 +206,6 @@ FACTION_PROFILES = {
     "西军集团": {"loyalty": 0.70, "corruption": 0.35, "kind": "military"},
     "旧党":     {"loyalty": 0.28, "corruption": 0.30, "kind": "civil"},
     "东南士人": {"loyalty": 0.52, "corruption": 0.45, "kind": "civil"},
-    "清流言官": {"loyalty": 0.40, "corruption": 0.18, "kind": "civil"},
 }
 
 # 只读派生别名（保持既有引用与数值不变，新增派系只需改 FACTION_PROFILES 一处）
@@ -501,8 +500,8 @@ def minister_pose(name: str) -> str:
     born = fig.get("born")
     if isinstance(born, int) and 1101 - born >= 58:
         return "longxiu"                    # 老臣：拢袖
-    if fac == "清流言官":
-        return "gongshou"                   # 言官：拱手
+    if fac == "东南士人":
+        return "gongshou"                   # 清议/中立：拱手
     return "zheng" if sum(ord(c) for c in name) % 2 == 0 else "gongshou"
 
 
@@ -646,7 +645,7 @@ DEPARTURE_RULES = {
     "贬黜": {"prestige": "-微", "treasury": "无", "faction_satisfaction": "-小",
              "handle": "清岗，依官制补缺",
              "specials": [
-                 {"when": "清流言官", "effects": {"清流言官": "-大"}},
+                 {"when": "东南士人", "effects": {"东南士人": "-大"}},
                  {"when": "权臣", "effects": {"新党": "-中"}},
              ]},
     "致仕": {"prestige": "-微", "treasury": "-微", "faction_satisfaction": "-微",
@@ -660,8 +659,8 @@ DEPARTURE_RULES = {
     "处死": {"prestige": "无", "treasury": "无", "faction_satisfaction": "-中",
              "handle": "清岗，补缺 + 派系失衡风险",
              "specials": [
-                 {"when": "惩贪", "effects": {"清流言官": "微", "corruption": "-微"}},
-                 {"when": "冤杀", "effects": {"清流言官": "-大"}},
+                 {"when": "惩贪", "effects": {"东南士人": "微", "corruption": "-微"}},
+                 {"when": "冤杀", "effects": {"东南士人": "-大"}},
              ]},
     "乞休": {"prestige": "无", "treasury": "无", "faction_satisfaction": "-微",
              "handle": "清岗，补缺", "specials": []},

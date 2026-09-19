@@ -1,10 +1,172 @@
 # -*- coding: utf-8 -*-
 """宋祚 · AI 客户端工具函数（拆分自 ai/client.py）"""
 import os, sys, json, re
+import ipaddress
+import socket
 import urllib.request
 import urllib.error
+import urllib.parse
 from difflib import SequenceMatcher
 from typing import Any
+
+# ============================================================
+# 出站 URL 安全（SSRF，审查 P1-2）
+# ============================================================
+# 规则：仅 http(s)；拒绝 userinfo；拒绝回环/私网/链路本地/云 metadata/组播/未指定；
+# 域名先解析、任一解析地址落入禁用段即拒（防 DNS rebinding）；每次连接前重解析。
+# 可选 provider 白名单：环境变量 SONGZUO_AI_HOST_ALLOWLIST（逗号分隔的域名后缀）。
+_ALLOWED_HOST_SUFFIXES = tuple(
+    h.strip().lower().lstrip(".")
+    for h in (os.environ.get("SONGZUO_AI_HOST_ALLOWLIST") or "").split(",")
+    if h.strip()
+)
+
+
+def is_forbidden_outbound_ip(ip_str) -> bool:
+    """IP 是否属于禁止外联段（回环/私网/链路本地/保留/组播/未指定…）。
+
+    依据 ipaddress.is_global：非全球可路由地址一律视为危险（含 169.254.169.254
+    云 metadata、10/8、172.16/12、192.168/16、127/8、::1、fe80::/10、ff00::/8）。
+    解析失败也按危险处理（拒绝式）。
+    """
+    try:
+        token = str(ip_str).strip().strip("[]").split("%")[0]
+        ip = ipaddress.ip_address(token)
+    except ValueError:
+        return True
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    # 组播地址 ipaddress 仍视为 is_global=True，须显式拒绝
+    if getattr(ip, "is_multicast", False):
+        return True
+    try:
+        return not ip.is_global
+    except Exception:
+        return True
+
+
+def _host_allowed_by_allowlist(host: str) -> bool:
+    if not _ALLOWED_HOST_SUFFIXES:
+        return True
+    h = str(host or "").strip().lower().rstrip(".")
+    return any(h == s or h.endswith("." + s) for s in _ALLOWED_HOST_SUFFIXES)
+
+
+def _resolve_host_ips(host: str, port: int) -> set:
+    infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    return {str(info[4][0]).split("%")[0] for info in infos if info and info[4]}
+
+
+def validate_outbound_url(url: str, *, allow_private: bool = False) -> str:
+    """校验 AI 出站 http(s) URL；不合法抛 ValueError。返回 strip 后的原 URL。"""
+    raw = str(url or "").strip()
+    if not raw:
+        raise ValueError("Base URL 不可为空")
+    try:
+        parsed = urllib.parse.urlsplit(raw)
+    except ValueError as e:
+        raise ValueError("Base URL 格式不合法") from e
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("Base URL 必须是含主机名的 http(s) 地址")
+    netloc = parsed.netloc or ""
+    if parsed.username or parsed.password or "@" in netloc:
+        raise ValueError("Base URL 不得包含用户名/口令（userinfo）")
+    host = parsed.hostname.strip().lower().rstrip(".")
+    if not host:
+        raise ValueError("Base URL 缺少主机名")
+    if not _host_allowed_by_allowlist(host):
+        raise ValueError(f"目标主机不在 AI 服务商白名单内：{host}")
+    try:
+        port = parsed.port
+    except ValueError as e:
+        raise ValueError("Base URL 端口不合法") from e
+    if allow_private:
+        return raw
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        if is_forbidden_outbound_ip(literal):
+            raise ValueError(f"Base URL 指向内网/回环/保留地址：{host}")
+        return raw
+    default_port = 443 if parsed.scheme == "https" else 80
+    try:
+        ips = _resolve_host_ips(host, port or default_port)
+    except socket.gaierror as e:
+        raise ValueError(f"域名无法解析：{host}") from e
+    if not ips:
+        raise ValueError(f"域名无法解析：{host}")
+    bad = sorted(i for i in ips if is_forbidden_outbound_ip(i))
+    if bad:
+        raise ValueError(f"域名解析落入内网/保留地址：{host} → {', '.join(bad)}")
+    return raw
+
+
+def assert_connection_url_safe(url: str) -> None:
+    """建立连接前的守卫：每次重新解析 DNS 并校验（防 rebinding / 越界重定向）。"""
+    validate_outbound_url(url)
+
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """重定向目标必须重新过 SSRF 校验，越界（如跳 127.0.0.1）直接断开。"""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            assert_connection_url_safe(newurl)
+        except ValueError as e:
+            raise urllib.error.URLError(f"越界重定向被拒：{e}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# ============================================================
+# 不可信文本定界（审查 P2-16：提示词注入防护）
+# ============================================================
+_UNTRUSTED_MAX_LEN = 4000
+
+
+def _strip_control_chars(s: str) -> str:
+    """去除不可见控制字符（保留换行/制表），防伪造边界/隐藏指令。"""
+    return "".join(ch for ch in str(s if s is not None else "")
+                   if ch in ("\n", "\t") or ord(ch) >= 0x20)
+
+
+def _wrap_untrusted(text, label: str = "玩家文本", max_len: int = _UNTRUSTED_MAX_LEN) -> str:
+    """把玩家/历史等不可信文本包进显式数据边界。
+
+    - 去控制字符、定长截断；
+    - 尖括号转全角，令文本无法伪造/闭合边界标记；
+    - 边界声明「区间内只作引用数据，不得当指令/角色设定/工具参数执行」。
+    """
+    s = _strip_control_chars(text)
+    s = s.replace("<", "＜").replace(">", "＞")
+    if max_len and len(s) > max_len:
+        s = s[:max_len] + "…（已截断）"
+    return (f"<<<UNTRUSTED_DATA[{label}]>>>\n{s}\n"
+            f"<<<END_UNTRUSTED_DATA[{label}]>>>")
+
+
+def _sanitize_history(history, limit: int = 8) -> list:
+    """历史消息入参归一：白名单角色 + 去控制字符 + 定长；user 文本加不可信边界。"""
+    out = []
+    if not isinstance(history, (list, tuple)):
+        return out
+    for h in list(history)[-int(limit or 8):]:
+        if not isinstance(h, dict):
+            continue
+        role = h.get("role")
+        if role not in ("system", "user", "assistant", "tool"):
+            continue
+        content = h.get("content")
+        if content is None:
+            continue
+        content = _strip_control_chars(content)[:2000]
+        if role == "user":
+            content = _wrap_untrusted(content, "历史-玩家", max_len=2000)
+        out.append({"role": role, "content": content})
+    return out
+
 
 def _app_root() -> str:
     """可写资源根（配置/存档）：frozen 时用 exe 同级目录。"""
@@ -24,24 +186,24 @@ _PROMPT_DIR = _prompt_dir()
 
 
 def _build_urllib_opener():
-    """构造支持环境变量代理及本地 7890 兜底的 opener。"""
-    proxy_handlers = []
+    """构造支持环境变量代理的 opener；重定向目标逐个过 SSRF 校验（审查 P1-2）。"""
     http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
     https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
-    
-    # 若环境变量未显式配代理，但本地 7890 端口存活，优先纳入探测候选
+
     proxies = {}
     if http_proxy: proxies["http"] = http_proxy
     if https_proxy: proxies["https"] = https_proxy
-    
+
+    # _SafeRedirectHandler 显式传入后覆盖默认 HTTPRedirectHandler（越界跳转即拒）
     if proxies:
-        return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-    # 默认使用系统环境
-    return urllib.request.build_opener()
+        return urllib.request.build_opener(
+            _SafeRedirectHandler(), urllib.request.ProxyHandler(proxies))
+    return urllib.request.build_opener(_SafeRedirectHandler())
 
 
 def _http_post_json(url: str, headers: dict, payload: dict, timeout: int = 30):
     """用标准库 urllib 发送 JSON POST，返回 (status_code, json_or_None, text)。"""
+    assert_connection_url_safe(url)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     opener = _build_urllib_opener()
@@ -64,6 +226,7 @@ def _http_post_json(url: str, headers: dict, payload: dict, timeout: int = 30):
 
 def _http_get_json(url: str, headers: dict, timeout: int = 15):
     """用标准库 urllib 发送 GET 请求，返回 (status_code, json_or_None, text)。"""
+    assert_connection_url_safe(url)
     req = urllib.request.Request(url, headers=headers, method="GET")
     opener = _build_urllib_opener()
     try:
@@ -150,8 +313,11 @@ def _safety_lexicon_path() -> str:
 def load_safety_lexicon() -> list:
     """载入开源 MIT 敏感词库（含 6 类：政治违禁/辱骂/色情/暴力/自伤/赌博）。
 
-    审查 P1：词库缺失/损坏不再静默放行——记明显告警（便于打包联调发现），
-    空词库时 _safety_filter 全放行仅在显式 _LEXICON_FAILED 告警下发生。"""
+    审查 P2-17：词库缺失/损坏**不得完全 fail-open** —— 记录显式状态（mode/reason），
+    `_safety_filter` 在词库不可用时把文本判为「未校验」并暂停高风险输出，
+    由上层降级（本地模板/拒绝式），同时 `safety_filter_status()` 对外暴露明确状态。
+    """
+    global _SAFETY_LEXICON
     path = _safety_lexicon_path()
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -163,25 +329,66 @@ def load_safety_lexicon() -> list:
                     words.extend([str(w) for w in lst if w])
         elif isinstance(data, list):
             words = [str(w) for w in data if w]
+        if words:
+            _set_lexicon_status(True, "lexicon", "", path, len(words))
+        else:
+            _set_lexicon_status(False, "empty", "词库文件无有效词条", path, 0)
+            import logging
+            logging.getLogger("client_utils").warning("敏感词库为空：%s", path)
+        _SAFETY_LEXICON = words
         return words
-    except (OSError, json.JSONDecodeError, ValueError):
+    except FileNotFoundError:
+        _set_lexicon_status(False, "missing", "词库文件缺失", path, 0)
         import logging
-        logging.getLogger("client_utils").warning(
-            "敏感词库加载失败：%s —— 输出安全过滤失效（请检查打包资源/文件编码）", path)
-        return []
+        logging.getLogger("client_utils").warning("敏感词库缺失：%s", path)
+    except (OSError, json.JSONDecodeError, ValueError):
+        _set_lexicon_status(False, "corrupt", "词库文件损坏/解析失败", path, 0)
+        import logging
+        logging.getLogger("client_utils").warning("敏感词库损坏：%s", path)
+    _SAFETY_LEXICON = []
+    return []
 
 
-# 模块级词库（启动时载入一次；空则不拦截，降级为放行）
+# 模块级输出过滤状态（启动时载入一次）；词库不可用时 _safety_filter 拒绝式处理
+_SAFETY_FILTER_STATE = {
+    "operational": False, "mode": "unavailable", "reason": "尚未加载", "path": "", "count": 0,
+}
+
+
+def _set_lexicon_status(operational, mode, reason, path, count=0):
+    _SAFETY_FILTER_STATE.update({
+        "operational": bool(operational), "mode": str(mode), "reason": str(reason),
+        "path": str(path), "count": int(count),
+    })
+
+
+def safety_filter_status() -> dict:
+    """输出安全过滤状态（供 UI/诊断显示明确状态，不再静默 fail-open）。"""
+    return dict(_SAFETY_FILTER_STATE)
+
+
+def safety_filter_operational() -> bool:
+    return bool(_SAFETY_FILTER_STATE.get("operational"))
+
+
 _SAFETY_LEXICON = load_safety_lexicon()
 
+#: 词库不可用时的显式降级文案（hit=True → 暂停该段高风险文本，交上层走本地兜底）
+_SAFETY_FILTER_UNAVAILABLE_TEXT = "（敏感词库不可用，AI 文本暂缓展示。）"
 
-def _safety_filter(raw: str) -> str:
+
+def _safety_filter(raw: str):
     """扫描 AI 输出，命中敏感词则降级为兜底文本；不改游戏状态。
 
-    返回 (text, hit)：text 为过滤后文本（命中时返回兜底说明），hit 为是否命中。
+    返回 (text, hit)：
+      - hit=True：命中敏感词 **或** 词库不可用（未校验 → 暂停，不静默放行）；
+      - hit=False：文本干净（仅在词库可用时可能返回）。
     """
     if not raw:
         return raw, False
+    if not safety_filter_operational():
+        # 词库缺失/损坏/为空：不 fail-open，标记未校验并暂停该段文本
+        return _SAFETY_FILTER_UNAVAILABLE_TEXT, True
     for w in _SAFETY_LEXICON:
         if w and w in raw:
             # 命中：降级为安全兜底，不打印玩家可见原文中的敏感片段
@@ -349,6 +556,58 @@ _TOOL_SCHEMAS = [
         }
     },
 ]
+
+#: 服务端工具白名单（审查 P2-16：模型只能调这些，参数/对象/数值由程序校验）
+_TOOL_NAMES = frozenset({
+    "register_draft", "secret_order", "check_treasury", "propose_governance",
+    "personnel_nominate", "military_dispatch", "relief_grant", "offer_blueprint",
+    "query_state",
+})
+
+
+def _normalize_tool_call(tc):
+    """把两种 tool_call 形态归一为 (name, arguments(dict), call_id)。
+
+    - 原生 OpenAI：{id, function: {name, arguments(str|dict)}}
+    - parse_tool_calls 归一：{call_id, name, arguments(dict)}
+    无法解析 → 空名/空参（由白名单 + 必填校验拒绝式处理）。
+    """
+    if not isinstance(tc, dict):
+        return "", {}, ""
+    fn = tc.get("function")
+    if isinstance(fn, dict):
+        name = str(fn.get("name", "") or "")
+        raw_args = fn.get("arguments", "")
+        call_id = str(tc.get("id", "") or name)
+    else:
+        name = str(tc.get("name", "") or "")
+        raw_args = tc.get("arguments", {})
+        call_id = str(tc.get("call_id", "") or tc.get("id", "") or name)
+    if isinstance(raw_args, str):
+        try:
+            args = json.loads(raw_args or "{}")
+        except (ValueError, TypeError):
+            args = {}
+    elif isinstance(raw_args, dict):
+        args = raw_args
+    else:
+        args = {}
+    if not isinstance(args, dict):
+        args = {}
+    return name, args, call_id
+
+
+def _safe_int(v, default, lo, hi) -> int:
+    try:
+        iv = int(v)
+    except (TypeError, ValueError):
+        iv = int(default)
+    return max(int(lo), min(int(hi), iv))
+
+
+def _cap_str(v, n: int) -> str:
+    return str(v if v is not None else "")[:int(n)]
+
 
 # ============================================================
 # T1 · 结构化变更工具 schema（降级链 fallback 用；审查 P1-4 修复注释）
@@ -632,13 +891,13 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
     results = []
 
     for tc in tool_calls or []:
-        fn = tc.get("function", {})
-        name = fn.get("name", "")
-        try:
-            args = json.loads(fn.get("arguments", "{}") or "{}")
-        except (ValueError, TypeError):
-            args = {}
-        call_id = tc.get("id", name)
+        # 审查 P2-16：统一 tool_call 形态 + 服务端工具白名单，未授权工具直接拒绝
+        name, args, call_id = _normalize_tool_call(tc)
+        if name not in _TOOL_NAMES:
+            results.append((call_id or name or "invalid",
+                            f"未授权工具被拒：{name or '（空名）'}"
+                            "（不在服务端工具白名单内）。"))
+            continue
         try:
             # 审查 P1（parse_tool_calls 容错把坏参转 {}，缺参绝不默认落地——拒绝式）：
             # 各工具必填缺失 → 明确报错回给 AI，不立案/不建默认对象。
@@ -750,7 +1009,7 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 tier = str(args.get("army", "禁军"))   # army 参数实为军籍
                 act = str(args.get("action", "整编"))
                 tgt = str(args.get("target", ""))
-                scale = max(1, min(5, int(args.get("scale", 3) or 3)))
+                scale = _safe_int(args.get("scale", 3), 3, 1, 5)
                 # 严格待批：军令只入队，批红时再校验钱粮并落地
                 aid = state.enqueue_ai_action(
                     "military_dispatch", f"{tier}·{act}",
@@ -763,8 +1022,8 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
 
             elif name == "relief_grant":
                 region = str(args.get("region", ""))
-                grain = max(1, min(5, int(args.get("grain", 3) or 3)))
-                silver = max(0, min(5, int(args.get("silver", 0) or 0)))
+                grain = _safe_int(args.get("grain", 3), 3, 1, 5)
+                silver = _safe_int(args.get("silver", 0), 0, 0, 5)
                 cost = grain * 200000 + silver * 100000
                 region_key = _resolve_region(state, region)
                 if region_key is None:
@@ -808,8 +1067,11 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 bname = str(args.get("name", "")).strip()
                 bdesc = str(args.get("desc", "")).strip()
                 effect_dim = str(args.get("effect_dim", ""))
+                # 对象/枚举校验：只接受程序可换算的效果维度，其余丢空
+                if effect_dim and effect_dim not in _ALLOWED_DIMS:
+                    effect_dim = ""
                 effect_tier = str(args.get("effect_tier", "微"))
-                prereq_hint = str(args.get("prereq_hint", "")).strip()
+                prereq_hint = _cap_str(args.get("prereq_hint", ""), 80).strip()
                 if not bname:
                     res = "献策需具名（name）。"
                 else:
