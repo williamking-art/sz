@@ -134,21 +134,28 @@ def embed(texts) -> list:
 
 
 def cosine(a, b) -> float:
-    """余弦相似度（numpy 优先，纯 Python 兜底）。"""
+    """余弦相似度（numpy 优先，纯 Python 兜底）。
+
+    非有限输入（NaN/Inf）或维度不符等脏数据 → **返回 0.0 而非 NaN**：NaN 参与
+    `cos > threshold` 恒为 False，会让复读检测**静默漏检**（2026-09-19 测试项审查补）。
+    """
+    import math as _math
     try:
         import numpy as np
         va, vb = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
         na, nb = float((va * va).sum() ** 0.5), float((vb * vb).sum() ** 0.5)
         if na == 0 or nb == 0:
             return 0.0
-        return float((va * vb).sum() / (na * nb))
+        val = float((va * vb).sum() / (na * nb))
+        return val if _math.isfinite(val) else 0.0
     except Exception:
         try:
             na = sum(x * x for x in a) ** 0.5
             nb = sum(x * x for x in b) ** 0.5
             if na == 0 or nb == 0:
                 return 0.0
-            return sum(x * y for x, y in zip(a, b)) / (na * nb)
+            val = sum(x * y for x, y in zip(a, b)) / (na * nb)
+            return val if _math.isfinite(val) else 0.0
         except Exception:
             return 0.0
 

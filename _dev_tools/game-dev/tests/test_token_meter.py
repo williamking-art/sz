@@ -89,12 +89,7 @@ def test_token_groups_cover_client_methods():
             "召对·AI", "拟旨", "会签", "推演", "月报叙事"), f"方法 {m} 未入任何分组"
 
 
-def test_hud_no_hitrate_inline():
-    """回归（Tk 废弃后迁移至 Web）：顶栏不内嵌「召对省 N 次(Y%)」（命中率在 Token 明细表）。"""
-    _fe = os.path.join(_GAME_ROOT, "..", "game", "frontend",
-                       "src", "renderer", "hud", "TopBar.tsx")
-    if not os.path.exists(_fe):
-        return  # 前端工程不在本机（可选目录）→ 跳过
-    with open(_fe, encoding="utf-8") as f:
-        src = f.read()
-    assert "召对省" not in src, "HUD 顶栏不应再显示召对命中率"
+# 注（2026-09-19 测试项审查）：原 `test_hud_no_hitrate_inline`（断言 TopBar.tsx 源码
+# 不含字面量「召对省」）已删除——它是"前端文案负向断言"：改文案即失败，而真正的信息
+# 分层退化未必被它捕获。呈现层由 `tsc --noEmit` + UI 验收负责；Token 分组的**数据层**
+# 断言（`test_token_groups_cover_client_methods`）保留，那才是能发现真缺陷的部分。

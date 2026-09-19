@@ -200,10 +200,6 @@ def unit_tier_of(unit: ArmyUnit) -> str:
     return unit.tier
 
 
-def _branch_name_cn(branch: str) -> str:
-    return branch
-
-
 def build_army_units(state) -> list[ArmyUnit]:
     """由 ARMY_UNIT_INIT × ARMY_UNIT_SPLIT × branch_std 生成实体。
 
@@ -354,6 +350,8 @@ def _resolve_battle(defender_power: float, attacker_power: float):
 # ============================================================
 # 整编（厢军 → 禁军）：策略层决策动作
 # ============================================================
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：整编厢军入禁军：玩家功能位，待接到诏令/军政面板
 def reorganize_xiang_to_jin(state, road: str, ratio: float = 1.0) -> dict:
     """该路厢军军队整编入禁军军队（决策动作，非自动；每路禁/厢/乡各一支模型）。
 
@@ -398,19 +396,113 @@ def reorganize_xiang_to_jin(state, road: str, ratio: float = 1.0) -> dict:
 # ============================================================
 # 武库链路（工坊注入 / 诏令拨发）
 # ============================================================
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：工坊产出入中央武库：待接 settlement 工坊步
 def deposit_workshop(state, items: dict) -> None:
     """工坊月度产出入中央武库（非直接发军队）。"""
     state.central_arsenal.deposit(items)
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：武库按缺口实拨：待接批红军令通道
 def distribute_arsenal(state, unit: ArmyUnit, items: Optional[dict] = None) -> dict:
     """玩家诏令：按缺口从中央武库实拨到某支军队装备。"""
     return state.central_arsenal.distribute(unit, items)
 
 
 # ============================================================
-# 自适应显示
+# 督行政令系数（POP 的非经济维度 → 执行度）
 # ============================================================
-def _fmt_count(n: float, unit: str) -> str:
-    """直接显示真实数+千分位，无万进位。"""
-    return f"{int(round(n)):,}{unit}"
+# 三条口径（用户定稿 2026-09）：
+#   ① POP 给游戏带来的是**多维模拟**，不只是经济数据：兵 POP 的「军心/训练/装备/欠饷」、
+#      官僚 POP 的「吏怨/把持度」、官员与士绅的「派系满意度」，都是**同一本 POP 账**的读数；
+#   ② 政令并非只靠文官系统执行：边事、弹压、戍守、护运必须**经军队**才能落地，
+#      故「执行度」必须有军队这一通道（文官会签 × 吏治把持 × 军队督行）；
+#   ③ AI 的作用是**权衡这些变数**（给档位与叙事），数值一律由程序按本节公式算。
+#
+# 本函数是**唯一权威**：v2 结算须调用同一函数，禁止在 settlement / 面板各写一份。
+ENFORCE_MORALE_W = 0.50       # 军心在督行系数中的权重（余下给训练+装备）
+ENFORCE_BASE = 0.35           # 系数下限基（军心全崩亦非零：军令仍在行）
+ENFORCE_ARREARS_W = 0.15      # 欠饷达「一个月军饷」时的最大折扣
+ENFORCE_FLOOR = 0.35          # 绝对下限
+
+
+def unit_monthly_pay(unit: ArmyUnit) -> float:
+    """该军**应发月饷**（贯）：Σ 兵种人数 × `branch_std(军籍,兵种).pay`。
+
+    与 `game_state_econ.calc_army_cash` 同一权威表（`BRANCH_BASE × ARMY_RATE`），
+    此处只是按军取明细，供「欠饷 / 月饷」之比作分母——不另设军费口径。
+    """
+    total = 0.0
+    for key, n in (unit.branches or {}).items():
+        tier, branch = unit._split_key(key)
+        try:
+            total += float(n) * float(branch_std(tier, branch).get("pay", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def unit_enforcement_mult(unit: ArmyUnit) -> float:
+    """该军**督行政令系数**（`ENFORCE_FLOOR`–1.0），只读派生，不写任何字段。
+
+        base      = 0.5×军心 + 0.5×(0.5×训练 + 0.5×装备配给率)
+        arrears_p = min(1, 累计欠饷 / 应发月饷) × ENFORCE_ARREARS_W
+        mult      = clamp(ENFORCE_BASE + (1−ENFORCE_BASE)×base − arrears_p, FLOOR, 1.0)
+
+    语义：**「文书到了、兵不动」**——军心/训练/装备越差、欠饷越久，同一道诏令
+    在该地得到的实际动作越少。乡兵无饷（月饷 0）→ 不背欠饷折扣。
+    """
+    troops = float(unit.troops or 0)
+    if troops <= 0:
+        return 0.0
+    morale = max(0.0, min(100.0, float(unit.morale or 0))) / 100.0
+    training = max(0.0, min(100.0, float(unit.training or 0))) / 100.0
+    equip = max(0.0, min(1.0, float(unit.equip_rate() or 0.0)))
+    base = ENFORCE_MORALE_W * morale + (1.0 - ENFORCE_MORALE_W) * (0.5 * training + 0.5 * equip)
+    pay = unit_monthly_pay(unit)
+    arrears_p = 0.0
+    if pay > 0:
+        arrears_p = min(1.0, max(0.0, float(getattr(unit, "arrears", 0) or 0)) / pay) * ENFORCE_ARREARS_W
+    mult = ENFORCE_BASE + (1.0 - ENFORCE_BASE) * base - arrears_p
+    return round(max(ENFORCE_FLOOR, min(1.0, mult)), 4)
+
+
+def _troops_weighted(units, value_of) -> Optional[float]:
+    """兵额加权均值（无兵则该值为 None——**不**回落 0，缺失即缺失）。"""
+    num = den = 0.0
+    for u in units:
+        t = float(getattr(u, "troops", 0) or 0)
+        if t <= 0:
+            continue
+        num += float(value_of(u)) * t
+        den += t
+    return None if den <= 0 else num / den
+
+
+def military_channels(state, route: Optional[str] = None) -> Optional[dict]:
+    """军队督行通道读数（只读）：某路驻军（`route=None` → 全国）。
+
+    返回 `{route, units, troops, morale, training, equip_rate, arrears, monthly_pay,
+    enforcement_mult}`；无驻军 → `None`（由调用方按缺失处理，**不编造**）。
+    """
+    units = [u for u in (getattr(state, "army_units", None) or [])
+             if route is None or getattr(u, "station", None) == route]
+    if not units:
+        return None
+    troops = sum(int(getattr(u, "troops", 0) or 0) for u in units)
+    if troops <= 0:
+        return None
+    return {
+        "route": route,
+        "units": len(units),
+        "troops": troops,
+        "morale": round(_troops_weighted(units, lambda u: u.morale) or 0.0, 2),
+        "training": round(_troops_weighted(units, lambda u: u.training) or 0.0, 2),
+        "equip_rate": round(_troops_weighted(units, lambda u: u.equip_rate()) or 0.0, 4),
+        "arrears": int(sum(int(getattr(u, "arrears", 0) or 0) for u in units)),
+        "monthly_pay": round(sum(unit_monthly_pay(u) for u in units), 2),
+        "enforcement_mult": round(_troops_weighted(units, unit_enforcement_mult) or 0.0, 4),
+    }
+
+

@@ -50,7 +50,7 @@ from core.settlement_steps import (  # noqa: E402
 )
 from core.settlement import (  # noqa: E402
     _settle_mechanisms, _settle_tech, _settle_org_economy,
-    _settle_legacies, _settle_focus,
+    _settle_legacies, _settle_focus, _settle_situations, _settle_literacy,
 )
 from core.settlement_steps import _settle_finance  # noqa: E402
 
@@ -60,6 +60,8 @@ _STEPS = [
     ("economy", _settle_economy),
     ("land_local", _settle_land_local),
     ("region_deepen", _settle_region_deepen),
+    # 2026-09-19 识字率设定：教育慢变量，作为诏令效果的**弱关联项**（Step 3.5.6）
+    ("literacy", _settle_literacy),
     ("extensions", _settle_extensions),
     ("longterm", _settle_longterm_decrees),
     ("external", _simulate_external),
@@ -84,6 +86,9 @@ _STEPS = [
     ("focus", _settle_focus),
     ("events", _settle_events),
     ("disaster", _settle_disaster),
+    # 2026-09-19 局势系统 v2：Step 8.5（灾荒之后、皇帝个人之前）——唯一写 state.situations 的步。
+    # 镜像漏它 → "局势扣费/终态效果偷偷漏钱"会从所有账本断言底下溜过去。
+    ("situations", _settle_situations),
     ("emperor", _settle_emperor_personal),
     ("hidden", _settle_hidden),
 ]

@@ -10,6 +10,8 @@ class ClientNarrativeMixin:
     # ============================================================
     # 六部施政叙事
     # ============================================================
+    # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+    # 接线位置：衙门治理叙事：待接六部衙门面板
     def govern_yamen(self, yamen_name, yamen_duty, yamen_faction, act, state_summary):
         sys_p = _load_prompt("yamen_govern", yamen_name=yamen_name, yamen_duty=yamen_duty,
                              yamen_faction=yamen_faction, act=act)

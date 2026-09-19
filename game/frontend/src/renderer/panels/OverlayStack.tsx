@@ -32,6 +32,8 @@ import GovernanceHub from "./GovernanceHub";
 import AudienceView from "./AudienceView";
 import PendingActionsPanel from "./PendingActionsPanel";
 import MeterPanel from "./MeterPanel";
+import MemoryPanel from "./MemoryPanel";
+import SituationPanel from "./SituationPanel";
 import IntroPanel from "./IntroPanel";
 import PlaceholderPanel from "./PlaceholderPanel";
 
@@ -178,6 +180,10 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
       return <PendingActionsPanel />;
     case "meter":
       return <MeterPanel />;
+    case "memory":
+      return <MemoryPanel />;
+    case "situation":
+      return <SituationPanel props={props as any} />;
     case "intro":
       return <IntroPanel />;
     default:

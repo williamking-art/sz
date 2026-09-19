@@ -95,6 +95,8 @@ class TelemetryStore:
         except Exception:
             return False
 
+    # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+    # 接线位置：逐月遥测落库：待接结算步（可选功能）
     def record_monthly(self, turn: int, metrics: dict) -> bool:
         """记录月度快照（键值自由：国库/仓廪/口碑/派系满意度等）。"""
         if self._conn is None:
@@ -151,6 +153,8 @@ class TelemetryStore:
         except Exception:
             return {}
 
+    # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+    # 接线位置：遥测时间序列读取：待接计量面板
     def monthly_series(self) -> list:
         """按回合升序导出月度快照（平衡分析/回放用）。"""
         if self._conn is None:

@@ -7,6 +7,9 @@
 
 from content.data import (
     ANNUAL_TAX_BASE, TAX_POLL_RATIO, MONTHLY_EXP_CIVIL_BASE,
+    # 到账率公式常量（2026-09-19 质量全检回收：此前 `calc_arrival_rate` 内硬编码同值）
+    ARRIVAL_AUDIT_WEIGHT, ARRIVAL_AUTHORITY_WEIGHT, ARRIVAL_DIVERSION_WEIGHT,
+    ARRIVAL_MIN, ARRIVAL_MAX,
     PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
     SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
@@ -325,11 +328,11 @@ class GameStateEconMixin:
         _, _, authority = get_prestige_level(self.prestige)
         rate = (
             self.arrival_rate_base
-            + audit_effort * 0.30
-            + authority * 0.15
-            - diversion * 0.25
+            + audit_effort * ARRIVAL_AUDIT_WEIGHT
+            + authority * ARRIVAL_AUTHORITY_WEIGHT
+            - diversion * ARRIVAL_DIVERSION_WEIGHT
         )
-        return max(0.05, min(0.95, rate))
+        return max(ARRIVAL_MIN, min(ARRIVAL_MAX, rate))
 
     # ================================================================
     # 经济全浮动重构：派生函数族（纯函数风格，返回 (total, by_route) 或 float）

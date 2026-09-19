@@ -7,6 +7,12 @@ from datetime import datetime
 
 from content.data import (
     START_YEAR, START_MONTH, ERA_NAME_START, PRESTIGE_START,
+    # 皇威/诏令执行率公式常量（2026-09-19 质量全检回收：此前实现里硬编码同值，
+    # 常量定义了却无人引用 → 改常量不生效）
+    PRESTIGE_MAX, PRESTIGE_MIN, PRESTIGE_MONTHLY_CAP, PRESTIGE_MAJOR_EVENT_CAP,
+    S_BASE, S_SUPPORT_WEIGHT, S_CONFLICT_WEIGHT, S_SECRET_BASE,
+    S_SECRET_LOYALTY_WEIGHT, S_DIRECT_BONUS, S_ZHONGZHI_SUPPORT_WEIGHT,
+    E_MIN, E_MAX,
     TREASURY_START, INNER_TREASURY_START, ARRIVAL_BASE, EMPEROR_HEALTH_START,
     EMPEROR_ART_START, EMPEROR_TAOISM_START, EMPEROR_PLEASURE_START,
     FACTION_INIT, FACTION_NAMES, EXTERNAL_FORCES,
@@ -474,6 +480,18 @@ class GameState(GameStateEconMixin):
         # 已施行完成的大策历史纪要：[{branch, node_key, name, power_level, year, month, turn, narrative_memory}]
         self.completed_focuses: list = []
 
+        # ---- 局势（SituationRecord，规范 §1.2）----
+        # **唯一落库的长期目标**：仅 `origin_kind == "event_pool"`；`legacy`/`focus`/`free_effect`
+        # 只生成只读 Readout（`core/situations.py`），绝不在此双写。
+        # 运行时态（**不落档**）：AI 档位 `_situation_grades`、本回合诏令携带的
+        # `_situation_intents_this_turn`。
+        self.situations: list = []
+        self._situation_grades: dict = {}
+        self._situation_intents_this_turn: list = []
+        # 识字率（2026-09-19 新增设定，core/literacy.py）：全国 POP 加权派生值；
+        # 逐路值 `prefectures[路]["literacy"]` 在州县/POP 建成后初始化（见下）
+        self.literacy: float = 0.0
+
         # ---- 六部衙门 ----
         self.yamen: dict = {}
         for name in YAMEN_LIST:
@@ -565,6 +583,14 @@ class GameState(GameStateEconMixin):
         for u in self.army_units:
             if u.station in self.prefectures and u.troops > 0:
                 self.prefectures[u.station]["pops"]["兵"]["size"] += u.troops
+
+        # 识字率（2026-09-19 新增）：**必须在 POP 建成、兵额回填之后**——
+        # 目标值由 POP 结构（士绅+官僚占比、工匠+商人占比）派生，逐路各不相同。
+        try:
+            from core.literacy import init_literacy
+            init_literacy(self)
+        except Exception:  # noqa: BLE001  识字率初始化失败不得阻断开局
+            pass
 
         # 开局货币校准（A1 定稿）：修复 F1（士绅卖粮造币）后补开局货币，防跌回通缩地板。
         # 注入民间 wealth（按各 POP 财富比例分配），不注入国库——物价由民间购买力驱动。
@@ -751,10 +777,15 @@ class GameState(GameStateEconMixin):
         }
 
     def change_prestige(self, delta: int, reason: str = "", is_major: bool = False):
-        """修改皇威，自动做上限截断"""
-        cap = 15 if is_major else 8
+        """修改皇威，自动做上限截断。
+
+        **单点回收（2026-09-19 代码质量全检）**：月变上限/事件上限/上下界一律引用
+        `content/data.py` 常量——此前 15/8/0/100 在此硬编码，使 `PRESTIGE_MONTHLY_CAP`
+        等常量定义了却无人引用（改常量不生效）。
+        """
+        cap = PRESTIGE_MAJOR_EVENT_CAP if is_major else PRESTIGE_MONTHLY_CAP
         delta = max(-cap, min(cap, delta))
-        self.prestige = max(0, min(100, self.prestige + delta))
+        self.prestige = max(PRESTIGE_MIN, min(PRESTIGE_MAX, self.prestige + delta))
         self._prestige_history.append((self.turn, delta, reason, self.prestige))
 
     # ================================================================
@@ -896,24 +927,23 @@ class GameState(GameStateEconMixin):
                 faction_conflict += inf
 
         if is_secret:
-            s = 0.30 + secret_loyalty * 0.7
+            s = S_SECRET_BASE + secret_loyalty * S_SECRET_LOYALTY_WEIGHT
         elif is_zhongzhi:
             # 中旨绕过会签，执行率主要由机构归属决定
             base = ZHONGZHI_AFFILIATION_RATE.get(org_hint, 0.85)
-            s = base + net_support * 0.04
+            s = base + net_support * S_ZHONGZHI_SUPPORT_WEIGHT
         else:
-            s = 0.45 + net_support * 0.08
+            s = S_BASE + net_support * S_SUPPORT_WEIGHT
             if is_direct:
                 # 狼来了机制已取消（审查 2026-09）：御笔直发恒有 +0.10 加成
-                s += 0.10
+                s += S_DIRECT_BONUS
             else:
                 # 经会签的正式诏：门下封驳已消化的部分冲突，执行率略稳
                 pass
 
-        s -= faction_conflict * 0.15
+        s -= faction_conflict * S_CONFLICT_WEIGHT
 
-        e = max(0.05, min(0.95, w * s))
-        return e
+        return max(E_MIN, min(E_MAX, w * s))
 
     # ================================================================
     # 诏草与会签（拟旨·会签）

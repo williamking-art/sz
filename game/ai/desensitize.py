@@ -231,21 +231,6 @@ def desensitize_state(state_summary: dict, org_name: str = "") -> dict:
     return sensitive
 
 
-def _desensitize_influence(influence: int) -> str:
-    """影响力脱敏"""
-    if influence >= 90:
-        return "权倾朝野"
-    elif influence >= 70:
-        return "势力强劲"
-    elif influence >= 50:
-        return "中流砥柱"
-    elif influence >= 30:
-        return "势单力薄"
-    elif influence >= 10:
-        return "苟延残喘"
-    return "几近消亡"
-
-
 def _desensitize_grain_trend(price: float, prev) -> str:
     """米价趋势脱敏：仅给定性涨跌档位，不暴露精确价格。
 

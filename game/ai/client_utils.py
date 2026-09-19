@@ -112,15 +112,6 @@ from content.data import TIER_VALUE_BASE as _TIER_BASE, TIER_VALUE_CAP as _TIER_
 # _TIER_BASE/_TIER_CAP 已是 content.data.TIER_VALUE_BASE/TIER_VALUE_CAP 的引用
 
 
-def _ensure_tier_tables():
-    """兼容占位：_TIER_BASE/_TIER_CAP 已在顶层填充，此函数保留供旧调用路径无副作用调用。"""
-    pass
-
-
-def _load_tier_tables():
-    return _TIER_BASE, _TIER_CAP
-
-
 def tier_to_value(dim: str, tier: str, authority: float = 1.0) -> float:
     """档位 → 数值。dim 不在表内返回 0。tier 经 normalize_tier 归一（丰富表达→标准档）。"""
     from content.data import normalize_tier

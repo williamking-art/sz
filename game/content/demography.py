@@ -159,6 +159,8 @@ def split_regime_prefecture_demog(
 # ============================================================
 # 顶层只读 API（供 UI/AI/生成器统一取数；不写存档、不落库）
 # ============================================================
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：逐路人口结构派生：待接州县面板
 def prefecture_demog() -> dict[str, dict[str, object]]:
     """宋：全部州/府级人口经济（治所名 → demog）。
 
@@ -178,6 +180,8 @@ def _circuit_members() -> dict[str, list[tuple[str, object, object, object]]]:
             for c, v in CIRCUIT_INFO.items()}
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：外邦省级人口派生：待接邦交面板
 def regime_prefecture_demog(reg_key: str | None = None) -> dict[str, dict[str, object]]:
     """辽/西夏：州/府级人口经济（州府名 → demog）。
 

@@ -22,6 +22,7 @@ from core.settlement_steps import (
     _settle_decrees, _apply_decree_effect,
     _settle_factions,
     _settle_economy, _settle_land_local, _settle_extensions,
+    _settle_literacy,
     _settle_longterm_decrees, _simulate_external,
     _settle_granary, _settle_region_deepen,
     _settle_upkeep, _settle_officialdom, _settle_clan, _settle_clerks,
@@ -35,6 +36,9 @@ from core.settlement_steps import (
     _settle_emperor_personal,
     _settle_hidden,
 )
+# 局势结算步（规范 §4）：实现于 core/situation_settle.py，此处**以私有名导入**，
+# 使其与其它 `_settle_*` 步同形——`test_pop_identity.py::_STEPS` 镜像据此逐步比对。
+from core.situation_settle import settle_situations as _settle_situations  # noqa: E402
 
 # 兼容旧调用方可能直接引用这些符号
 __all__ = [
@@ -332,6 +336,14 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     random.seed(state.turn * 1000003 + seed_offset)
     log = []
 
+    # 局势 intent 校验用：本回合 `state_applier` 事务记录的起始游标（§5.2）。
+    # 必须在这里取——Step 1 诏令执行起就会向 CHANGE_LOG 追加本回合变更。
+    try:
+        from engine.state_applier import CHANGE_LOG as _CHANGE_LOG
+        _situation_journal_base = len(_CHANGE_LOG)
+    except Exception:  # noqa: BLE001
+        _situation_journal_base = 0
+
     # 更新年号
     state.update_era_name()
     from core.asset_context import era_switch
@@ -377,6 +389,9 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
     _settle_region_deepen(state, log)
+
+    # ---- Step 3.5.6: 识字率缓动（2026-09-19 新增；教育慢变量，诏令效果的弱关联项）----
+    _settle_literacy(state, log)
 
     # ---- Step 3.6: 扩展维度自然演进（金融/科举/科技/外交） ----
     _settle_extensions(state, log)
@@ -438,6 +453,11 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 8: 灾荒 ----
     _settle_disaster(state, log)
+
+    # ---- Step 8.5: 局势结算（规范 §4.1：灾荒之后、皇帝个人之前）----
+    # 唯一写 `state.situations` 的地方；扣费/效果走 state_applier 同一批量事务 API，
+    # intent 只按本回合事务记录校验（`_situation_journal_base` 游标）。
+    _settle_situations(state, log, _situation_journal_base)
 
     # ---- Step 9: 皇帝个人 ----
     _settle_emperor_personal(state, log)

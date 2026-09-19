@@ -157,7 +157,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | `ai/` | AI 叙事管线：`client.py`（LLM 调用 + 契约 validate/回喂 + `AI_ERROR_CODES` 6 码全生产者〔超时/401/403 精确映射〕+ 角色 agent 契约 + function calling 三档）、`client_narrative.py`（叙事 agent 客户端）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图，**待接线**：有 T5 测试覆盖，尚无生产调用方）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验〔支持中文数字〕+ 来源闭集 + 人物校验表）。契约缺字段处置策略（B6 考证）：**类型/枚举字段 → 拒绝式**（`return None`），**强度/档位字段 → 向下降级**（一律 中/小/微/不变，全库反查无一处落到 大/巨/极）；高代价协议（和亲/盟约/纳贡/战争）档位非法时直接拒绝——宁可少给，绝不因 AI 漏字段而多给、`narrative_fallback.py`（离线降级叙事模板）、`desensitize.py`（脱敏）、`schemas.py`（A1：JSON Schema 校验，可选）、`token_meter.py`（A3：token 计量 + **HTTP 计量表分组** `grouped_meter_rows`）、`semantic.py` + `vector_store.py`（B2：本地语义检索，可选）、`model_setup.py`（B2 模型下载入口）、`safety_lexicon.json`（安全词表）、`prompts/`（23 个 .md：角色 prompt + decree_style_ref 拟旨文风） |
 | `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事；`advance_and_settle` 事件+结算**原子封装**〔含按回合上折，AI 不可用时走模板兜底〕；`settle_local`/`advance_and_settle` 结算异常**快照回滚**，且回滚同时按水位截断记忆库〔A2〕；`envoy_diplomacy` 遣使缔约（经 `apply_treaty` 落地，D11）；`allocate_payraise` 拨帑入加俸预算〔D9〕）+ `commands_decree.py`（拟旨族 + 内帑金额解析）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11，含财政/灾荒/士绅囤粮、金融调制读 `FINANCE_DECIDE_BASE` 单一源）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调；5 契约接线 + diff 唤醒；未接线登记 `PENDING_CONTRACTS`）、`async_ai.py`（**未接线**〔审查 B7〕：契约以已移除的 Tkinter `ui.after` 轮询为前提，现 Web 架构的非阻塞由 FastAPI 线程池 + 前端 HTTP 异步承担；保留为参照实现，接线前不计已生效能力）、`free_effect.py`（契约落地，第二条受控通道）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维：目标值重算）、`minister_profile.py`（群臣档案：年龄/性情/生平，HTTP 与测试共用） |
 | `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层）；`CASCADE_REASON_FIX` 补来源支持按 `share` **拆分归属**（酒课 工匠60%/商人40%、田赋 农60%/士绅40%，末条吃尾差保 `ΣΔ==0` 精确，D10） |
-| `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离）。两库均有 `rollback_after(turn)`：结算失败时按水位截断，只删 `> turn`、不误删同回合合法写入（A2 —— 记忆库含 SQLite 连接不可深拷贝，故不能随 state 快照还原） |
+| `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离）。两库均有 `rollback_after(turn)`：结算失败时按水位截断，只删 `> turn`、不误删同回合合法写入（A2 —— 记忆库含 SQLite 连接不可深拷贝，故不能随 state 快照还原）。**检索与容量完善（2026-09-18）**：`keyword_search` 中文改 2-gram 切分（原「连续中文整段」取词 → 玩家自然语言查询恒 0 命中，拟旨「既往同类诏令」注入长期空转）；内存 `query`/`keyword_search` 补 `turn <= self.turn` 封顶并与 `query_sql` 同口径，`load_game` 读档后按主存档水位重新对齐 `memory.turn`（审查 B-1/J-10「读旧档记得未来」）；`archive()` 由 `finish_turn` 每 12 回合接线（容量治理：低权重旧史打 archived 标记、不物理删除）；补审计读接口 `query_change_log` 与对话库 `ref_ids` 下钻（`fetch_dialogues_by_ids`/`summary_refs`/`list_summaries`）；对话总结改为回补全部未总结窗口；槽位 db 缺失（新开局/换档）时 SQL 路径回退内存镜像 |
 | `backend/` | AI 服务抽象：`client.py`（LocalBackend / HttpBackend 统一接口）、`server.py`（B3：FastAPI + Uvicorn 参考后端，薄壳复用 LocalBackend 零复制，供 HttpBackend 联调/回归/远程体验） |
 | `content/` | 数据（**单一权威源**）：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES / `clamp` / `TECH_EFFECT_LABELS` / `DESENSITIZE_MAP`）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化〔国运取 `population_satisfaction`；仅 MINISTERS 在册者演化〕+ 阳奉阴违）、`codex_data.py`（图鉴 8 类数据，自 Tk 面板迁出） |
 | `audio/` | 音频**骨架（播放未接线）**：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源；8 个槽位 `file` 均为空，其中 6 项待生成、2 项为运行时合成）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）。Tk 界面删除后播放路径随之消失，`assets/audio/` 目前仅 `.gitkeep`；前端设置面板的音量项亦只有本地 state（不写 localStorage、无播放对象）。即「清单已定、播放未接」，待接线后方可称落地 |
@@ -171,7 +171,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 已迁移能力（2026-09）：存档·读档槽位入口 / 返回主菜单 / Token 计量表 / 外邦省份详情 /
 结算演出（本月损益 ▲▼ + 逐行揭示 + 跳过）/ 开局引子仪式 / 拟诏会签链（润色·批改·弃删）/
 奏报摘要（月折）/ 朝局简报（可行动项跳转）/ 群臣档案（年龄·性情·生平）/ 中枢卡片召对 /
-外交名录动态派生 / 右侧栏民生·群臣 / 界面字体族 / 办差工具三档 / 即时回执（朝报「近日机务回执」）。
+外交名录动态派生 / 右侧栏民生·群臣 / 界面字体族 / 办差工具三档 / 即时回执（朝报「近日机务回执」）/
+记忆库面板（「记忆」：史略·概要·近关系·召对纪要·审计留痕，数据源 `GET /api/memory`）。
 
 **后端端点**（`backend/server.py`，前端直连；完整说明见机制文档 §八）：
 
@@ -183,6 +184,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | `POST /api/decree/polish` · `/decree/draft` · `/decree/discard` | 诏书润色·批改 / 入待签 / 弃删 |
 | `POST /api/monthly_report` · `/api/council_review` | 月折 / 三省会签（带缓存复用） |
 | `GET /api/readouts` | 派生读数：army / arsenal / finance / flow / granary / `briefing` / `ministers` / defense_lines |
+| `GET /api/memory` | 记忆库只读视图（玩家可见「AI 记住了什么」）：实体计数 / 概要与史略 / 近 24 回合关系 / 召对纪要 / 变更留痕 |
 | `GET /api/meter` · `POST /api/meter/reset` | Token 计量表（分桶 + 召对命中率 + 历史）与清零 |
 | `POST /api/save` · `/api/load` · `GET /api/save_slots` | 存档 / 读档 / 槽位列表（含损坏标记） |
 | `POST /api/conclude` | 结局评估（规则七维 + AI 史评） |
