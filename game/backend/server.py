@@ -1034,6 +1034,44 @@ def _ai_config_path() -> str:
     return os.path.join(_app_root(), "ai_config.json")
 
 
+@app.get("/api/portrait/{fname}")
+def api_portrait(fname: str, request: Request):
+    """立绘受控路由：从后端缓存目录取合成图（**不写源码/安装目录**）。
+
+    2026-09-19 整改（`analysis/portrait_system_design.md` §七）：
+    运行期不得写 `frontend/public` 或安装目录；合成图留在 `_composed/`（按需再生、不入库），
+    由本路由提供。仅允许**纯文件名**（防路径穿越），且必须是已合成产物。
+    """
+    _require_auth(request)
+    import os as _os
+    from fastapi.responses import FileResponse
+    name = _os.path.basename(str(fname or ""))
+    if not name or name != str(fname) or ".." in name:
+        raise HTTPException(status_code=400, detail="立绘文件名不合法")
+    if not name.lower().endswith((".png", ".webp")):
+        raise HTTPException(status_code=400, detail="立绘格式不支持")
+    try:
+        from content.ministers.data import COMPOSE_DIR
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail="立绘缓存目录不可用")
+    path = _os.path.join(COMPOSE_DIR, name)
+    if not _os.path.isfile(path):
+        # 兼容：按 `名_档_姿.png` 反解并即时合成（可用则返回，否则 404）
+        try:
+            from content.ministers.data import compose_portrait
+            stem = name.rsplit(".", 1)[0]
+            parts = stem.split("_")
+            if len(parts) >= 3:
+                p = compose_portrait("_".join(parts[:-2]), parts[-2], parts[-1])
+                if p and _os.path.isfile(p):
+                    path = p
+        except Exception:  # noqa: BLE001
+            pass
+    if not _os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="立绘未生成")
+    return FileResponse(path, media_type="image/png")
+
+
 @app.get("/api/ai_config")
 def api_ai_config_get(request: Request):
     """读 AI 配置（设置面板预填；不回传完整 key 或片段）。

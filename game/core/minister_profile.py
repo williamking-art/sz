@@ -12,28 +12,23 @@
 from __future__ import annotations
 
 
-def _sync_public(src_path: str) -> str:
-    """合成立绘同步到前端静态目录，返回前端相对 URL（ministers/x.png）。
+def _portrait_url(src_path: str) -> str:
+    """合成立绘 → 前端可用 URL（**不写任何源码/public 目录**）。
 
-    前端在 `./portraits/` 下拼此相对路径（MinistersPanel / AudienceView），
-    故返回值不含 `portraits/` 前缀。同步失败（无前端目录）返回 ''。
+    2026-09-19 整改（依据 `analysis/portrait_system_design.md` §一.3）：
+    原 `_sync_public` 把合成图**复制进 `game/frontend/public/`** —— 运行期写安装目录，
+    打包后只读会失败，并发生成还会争用；且产物落到入库目录需靠 .gitignore 兜底。
+    现改为：合成图留在后端缓存目录（`content/ministers/portraits/_composed/`，
+    按需再生、不入库），前端走受控路由 `GET /api/portrait/<file>` 取图。
 
-    注意：目标必须是**游戏本体内的**前端静态目录 `game/frontend/public/`；
-    不可写 `_dev_tools/`（游戏运行期不得写入开发目录，见 README 分层纪律）。
-    """
-    import os
-    import shutil
+    返回以 `/` 开头的**绝对路径 URL**（前端不得再拼 `./portraits/` 前缀）。
+    无前端需求/参数异常时返回 ""。"""
     try:
-        repo = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))            # game/core/.. → 仓库根
-        dst_dir = os.path.join(repo, "game", "frontend", "public",
-                               "portraits", "ministers")
-        os.makedirs(dst_dir, exist_ok=True)
-        dst = os.path.join(dst_dir, os.path.basename(src_path))
-        if (not os.path.exists(dst)
-                or os.path.getmtime(dst) < os.path.getmtime(src_path)):
-            shutil.copy2(src_path, dst)
-        return "ministers/" + os.path.basename(src_path)
+        import os
+        fname = os.path.basename(str(src_path or ""))
+        if not fname or "/" in fname or "\\" in fname:
+            return ""
+        return "/api/portrait/" + fname
     except Exception:
         return ""
 
@@ -68,9 +63,17 @@ def build_minister_profiles(state) -> dict:
         try:
             from content.ministers.data import get_portrait_path, minister_tier
             tier = minister_tier(name)
-            p = get_portrait_path(name)
+            # 立绘服色随**运行态身份**（文档 §五：服饰优先级含"是否在任"）：
+            # 已罢黜/已身故 → 士人襕衫（shi）；在任 → 按档案品级（宗室→亲王服）。
+            try:
+                _st = state.minister_status(name)
+            except Exception:  # noqa: BLE001
+                _st = "active"
+            if _st in ("dismissed", "dead"):
+                tier = "shi"
+            p = get_portrait_path(name, tier=tier)
             if p:
-                portrait = _sync_public(p)
+                portrait = _portrait_url(p)
         except Exception:
             portrait = ""
         out[name] = {

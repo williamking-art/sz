@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2, User, Swords } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
+import { portraitSrc } from "../utils/portrait";
 import constants from "../data/constants.json";
 import codexData from "../data/codex.json";
 
@@ -153,7 +154,7 @@ export default function MinistersPanel() {
                 <div className="flex gap-2.5">
                   {minProf[m.name]?.portrait && (
                     <img
-                      src={`./portraits/${minProf[m.name].portrait}`}
+                      src={portraitSrc(minProf[m.name].portrait)}
                       alt={m.name}
                       className="h-[74px] w-14 shrink-0 rounded border border-gold/50 bg-paper/60 object-cover object-top"
                     />
@@ -280,7 +281,7 @@ function MinisterCard({
           <img
             src={
               typeof profile?.portrait === "string" && profile.portrait
-                ? `./portraits/${profile.portrait}`
+                ? portraitSrc(profile.portrait)
                 : card.kind === "military"
                   ? "./portraits/general.png"
                   : "./portraits/minister.png"
