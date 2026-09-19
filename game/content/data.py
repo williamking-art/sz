@@ -2494,17 +2494,99 @@ TECH_NODES: list[TechNode] = [
 #   key 为关联科技节点 id；cost 沿用固定工程字段 {silver, months}
 # ------------------------------------------------------------
 BUILDING_BLUEPRINTS = {
-    "M2_spindle":    {"name": "大纺务",   "kind": "纺织", "cost": {"silver":80000,"months":12}, "effect": {"trade_income":0.15}, "need_node": "M2_spindle"},
-    "M4_furnace":    {"name": "铁冶务",   "kind": "冶金", "cost": {"silver":200000,"months":16}, "effect": {"build_cost":-0.10}, "need_node": "M4_furnace"},
-    "C1_gunpowder":  {"name": "火药局",   "kind": "军工", "cost": {"silver":60000,"months":8},   "effect": {"army_power":0.10}, "need_node": "C1_gunpowder"},
-    "I0_block":      {"name": "国子监印书局", "kind": "文化", "cost": {"silver":50000,"months":8}, "effect": {"exam_talent":3}, "need_node": "I0_block"},
-    "I4_telegraph":  {"name": "电报局",   "kind": "通讯", "cost": {"silver":600000,"months":18}, "effect": {"decree_speed":-3}, "need_node": "I4_telegraph"},
-    "H2_variola":    {"name": "痘苗局",   "kind": "医学", "cost": {"silver":80000,"months":10}, "effect": {"epidemic_risk":-0.30}, "need_node": "H2_variola"},
-    "C4_fertilizer": {"name": "肥料局",   "kind": "农业", "cost": {"silver":150000,"months":12}, "effect": {"yield_bonus":0.15}, "need_node": "C4_fertilizer"},
-    "M5_steampump":  {"name": "蒸汽矿场", "kind": "矿业", "cost": {"silver":300000,"months":16}, "effect": {"mining_income":0.10}, "need_node": "M5_steampump"},
-    "M6_loco":       {"name": "机器局·铁路", "kind": "交通", "cost": {"silver":800000,"months":20}, "effect": {"canal_efficiency":0.30}, "need_node": "M6_loco"},
-    "M9_power":      {"name": "发电厂",   "kind": "能源", "cost": {"silver":2000000,"months":24}, "effect": {"production":0.15}, "need_node": "M9_power"},
+    # 蓝图字段（2026-09-19 仿明末模式调整）：
+    #   name/kind      —— 中文名 / 细分类型（沿用）
+    #   category       —— **上位分类**（财政/军事/民生/科技/交通/内廷），供图鉴与关系图分组
+    #   branch         —— 科技树分线（军工/文教/财计/农医/工巧）
+    #   requires_region—— **地利前置**（宋祚路型元组，满足其一即可；空 = 何地皆可）
+    #   cost           —— {silver: 造价(贯), months: 工期(月)}；工期按明末档压到 **1-6 月**
+    #   outputs        —— **产出词条**（结构化声明，与 effect 同源，供面板/AI 阅读）
+    #   effect         —— 既有结算维度（保留，结算仍读它）
+    #   need_node      —— 前置科技节点
+    "M2_spindle": {
+        "name": "大纺务", "kind": "纺织", "category": "民生", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 80000, "months": 3},
+        "outputs": [{"kind": "贸易收入", "amount": 0.15, "unit": "比例"}],
+        "effect": {"trade_income": 0.15}, "need_node": "M2_spindle"},
+    "M4_furnace": {
+        "name": "铁冶务", "kind": "冶金", "category": "民生", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 200000, "months": 4},
+        "outputs": [{"kind": "营建成本", "amount": -0.10, "unit": "比例"}],
+        "effect": {"build_cost": -0.10}, "need_node": "M4_furnace"},
+    "C1_gunpowder": {
+        "name": "火药局", "kind": "军工", "category": "军事", "branch": "军工",
+        "requires_region": (),
+        "cost": {"silver": 60000, "months": 2},
+        "outputs": [{"kind": "军备库", "amount": 400, "item": "火铳", "unit": "件/月"}],
+        "effect": {"army_power": 0.10}, "need_node": "C1_gunpowder"},
+    "I0_block": {
+        "name": "国子监印书局", "kind": "文化", "category": "科技", "branch": "文教",
+        "requires_region": ("京畿要地",),
+        "cost": {"silver": 50000, "months": 2},
+        "outputs": [{"kind": "科研速度", "amount": 10, "unit": "%"},
+                    {"kind": "科举得才", "amount": 3}],
+        "effect": {"exam_talent": 3}, "need_node": "I0_block"},
+    "I4_telegraph": {
+        "name": "电报局", "kind": "通讯", "category": "交通", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 600000, "months": 5},
+        "outputs": [{"kind": "建造速度", "amount": 15, "unit": "%"}],
+        "effect": {"decree_speed": -3}, "need_node": "I4_telegraph"},
+    "H2_variola": {
+        "name": "痘苗局", "kind": "医学", "category": "民生", "branch": "农医",
+        "requires_region": (),
+        "cost": {"silver": 80000, "months": 3},
+        "outputs": [{"kind": "瘟疫抵抗", "amount": 30, "unit": "%"}],
+        "effect": {"epidemic_risk": -0.30}, "need_node": "H2_variola"},
+    "C4_fertilizer": {
+        "name": "肥料局", "kind": "农业", "category": "民生", "branch": "农医",
+        "requires_region": (),
+        "cost": {"silver": 150000, "months": 3},
+        "outputs": [{"kind": "粮食产量", "amount": 15, "unit": "%"}],
+        "effect": {"yield_bonus": 0.15}, "need_node": "C4_fertilizer"},
+    "M5_steampump": {
+        "name": "蒸汽矿场", "kind": "矿业", "category": "民生", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 300000, "months": 4},
+        "outputs": [{"kind": "矿产收入", "amount": 0.10, "unit": "比例"}],
+        "effect": {"mining_income": 0.10}, "need_node": "M5_steampump"},
+    "M6_loco": {
+        "name": "机器局·铁路", "kind": "交通", "category": "交通", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 800000, "months": 6},
+        "outputs": [{"kind": "漕运效率", "amount": 0.30, "unit": "比例"}],
+        "effect": {"canal_efficiency": 0.30}, "need_node": "M6_loco"},
+    "M9_power": {
+        "name": "发电厂", "kind": "能源", "category": "科技", "branch": "工巧",
+        "requires_region": (),
+        "cost": {"silver": 2000000, "months": 6},
+        "outputs": [{"kind": "建筑产出", "amount": 15, "unit": "%"}],
+        "effect": {"production": 0.15}, "need_node": "M9_power"},
 }
+
+# 蓝图分类/分线的合法枚举（供图鉴与校验用；仿明末模式）
+BLUEPRINT_CATEGORIES = ("财政", "军事", "民生", "科技", "交通", "内廷")
+BLUEPRINT_BRANCHES = ("军工", "文教", "财计", "农医", "工巧")
+#: 蓝图工期档（月）：仿明末——小型 1-2、中型 3-4、大型/超前 5-6
+BLUEPRINT_MONTHS_MIN, BLUEPRINT_MONTHS_MAX = 1, 6
+
+
+def blueprint_region_ok(route_type, blueprint_key) -> bool:
+    """蓝图**地利前置**校验：该路的路型是否满足该蓝图要求（空要求 → 处处可建）。
+
+    `route_type` 取 `prefectures[路]["type"]`（京畿要地/沿海/缘边…），
+    `blueprint_key` 取 `BUILDING_BLUEPRINTS` 的键。仿明末「requires_region_tags」。
+    """
+    bp = BUILDING_BLUEPRINTS.get(str(blueprint_key))
+    if not isinstance(bp, dict):
+        return False
+    need = bp.get("requires_region") or ()
+    if not need:
+        return True
+    t = str(route_type or "")
+    return any(str(n) in t for n in need)
 
 
 
