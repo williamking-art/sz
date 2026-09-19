@@ -34,7 +34,9 @@ export type PanelKind =
   | "centralorg"
   | "governance"
   | "meter"
+  | "memory"
   | "intro"
+  | "situation"
   | "pending";
 
 export interface OverlayEntry {

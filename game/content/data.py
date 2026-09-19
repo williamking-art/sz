@@ -135,6 +135,7 @@ S_CONFLICT_WEIGHT = 0.15       # 党争修正权重
 S_SECRET_BASE = 0.30           # 密旨基础成功率
 S_SECRET_LOYALTY_WEIGHT = 0.7  # 密旨忠诚度权重
 S_DIRECT_BONUS = 0.10          # 御笔加成
+S_ZHONGZHI_SUPPORT_WEIGHT = 0.04  # 中旨：净支持对执行率的影响权重（2026-09-19 由实现里的硬编码单点化）
 S_DIRECT_PENALTY = 0.0         # 已停用：狼来了惩罚取消（原 -0.15，现 0）
 E_MIN = 0.05
 E_MAX = 0.95
@@ -430,6 +431,125 @@ FACTION_INIT = {
     "西军集团":  {"influence": 60, "satisfaction": 70, "cohesion": 75, "leader": "种师道"},
     "东南士人":  {"influence": 50, "satisfaction": 55, "cohesion": 50, "leader": "曾布"},
     "清流言官":  {"influence": 40, "satisfaction": 40, "cohesion": 55, "leader": "陈瓘"},
+}
+
+# ------------------------------------------------------------
+# 利益集团 ↔ POP 归属（POP 挂载律：集团**不新开账本**）
+# ------------------------------------------------------------
+# 规则（用户定稿 2026-09）：
+#   ① 每个集团必须声明其 **POP 基本盘**（哪些 POP 类、哪些路、哪个子池）——势力的来源
+#      是人口与财赋，不是无源的影响力数字；
+#   ② 影响力的增减由**基本盘 POP 的相对得失**派生（v2 结算），禁止凭空加减；
+#   ③ 玩家改革会改变 POP 结构与规模 → 既会改变既有集团的满意度/影响力，
+#      也可能**催生新集团**；新集团同样必须先声明 `pop_basis` 才能登记（见 REFORM_POP_BASIS）。
+# `routes=None` 表示全国；`pool` 取值 `officials|clerks|clan|None`（POP 子池）。
+# **集团 ⊆ 阶级**：`subset_of` 声明母集 POP 类，`subset_kind` 说明取子集的方式
+#   （`national`＝全国整个阶级；`pool`＝只取该阶级的某个子池；`route`＝只取若干路的该阶级；
+#     `pool+route`＝两者的交）。展示时必须写成「占母集 X%」的**子集**，不得与 POP 并列。
+POP_POOLS_VALID = ("officials", "clerks", "clan")   # POP 的合法子池（官僚官/吏、士绅宗室）
+FACTION_POP_BASIS = {
+    "新党": {
+        "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "变法受益的在朝官（新法财利、差遣与恩泽）——**官僚 POP 在岗官子池的子集**",
+    },
+    "旧党": {
+        "pop_classes": ["士绅"], "pool": None, "routes": None,
+        "subset_of": ["士绅"], "subset_kind": "national",
+        "desc": "官户/形势户（隐田与旧法既得）——士绅 POP 中的旧法一派",
+    },
+    "宦官集团": {
+        "pop_classes": ["官僚"], "pool": "officials", "routes": ["京畿路"],
+        "subset_of": ["官僚"], "subset_kind": "pool+route",
+        "desc": "内廷与入内内侍省——官僚 POP 在岗官子池中**京畿**一隅的子集",
+    },
+    "西军集团": {
+        "pop_classes": ["兵"], "pool": None,
+        "routes": ["陕西路", "河东路", "河北路"],
+        "subset_of": ["兵"], "subset_kind": "route",
+        "desc": "边地禁军将校——**兵 POP 的路域子集**（「西军」非独立军籍＝驻陕西边地的禁军）",
+    },
+    "东南士人": {
+        "pop_classes": ["士绅", "商人"], "pool": None,
+        "routes": ["两浙路", "江南东路", "江南西路", "福建路",
+                   "淮南东路", "淮南西路", "广南东路", "广南西路"],
+        "subset_of": ["士绅", "商人"], "subset_kind": "route",
+        "desc": "东南形势户与市舶商人——士绅/商人 POP 的**东南路域子集**",
+    },
+    "清流言官": {
+        "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "台谏清议——官僚 POP 在岗官子池中的清流一脉",
+    },
+}
+
+# ------------------------------------------------------------
+# 改革 → POP 得失 → 集团变动（键为**已实现**的改革标识：诏令效果键或国策 node_key）
+# ------------------------------------------------------------
+# 语义：`gain`/`lose` 列出该改革**直接改变的 POP 类**（v2 据此派生各集团满意度增量：
+# 基本盘 POP 受益则满意度升、受损则降）；`emergent` 是因该项改革而**新获财利/新成群**的
+# 集团，必须带 `pop_basis`（POP 归属声明）——没有 POP 基本盘的集团不予登记。
+_REFORM_LAND_SURVEY = {
+    "label": "方田均税（清丈隐田）",
+    "gain": [{"class": "农", "why": "隐田出税、赋役均平"}],
+    "lose": [{"class": "士绅", "why": "隐田蔽课被括、形势户受损"}],
+    "emergent": [{
+        "name": "括田新贵", "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "奉行清丈的提举官与手实推排之吏，因新法财利而结党",
+    }],
+}
+_REFORM_CURTAIL_WASTE = {
+    "label": "裁汰冗费（省浮节流）",
+    "gain": [{"class": "农", "why": "减浮费、宽民力"}],
+    "lose": [{"class": "官僚", "pool": "officials", "why": "裁冗官闲曹、夺其廪禄"}],
+    "emergent": [{
+        "name": "理财新进", "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "以勾稽财计、厘定省费令而进用的三司与户部属官",
+    }],
+}
+_REFORM_REDUCE_OFFICE = {
+    "label": "省官并职（裁并机构）",
+    "gain": [{"class": "农", "why": "省冗禄以宽民"}],
+    "lose": [{"class": "官僚", "pool": "officials", "why": "并职失位、待阙更众"}],
+    "emergent": [{
+        "name": "铨选清流", "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "主持铨选澄汰、以守正自居的郎官与台谏",
+    }],
+}
+_REFORM_REFORM = {
+    "label": "更张法度（官制改革）",
+    "gain": [{"class": "官僚", "pool": "officials", "why": "新制授职、升擢有门"}],
+    "lose": [{"class": "士绅", "why": "旧法既得与恩荫受损"}],
+    "emergent": [{
+        "name": "新制官僚", "pop_classes": ["官僚"], "pool": "officials", "routes": None,
+        "subset_of": ["官僚"], "subset_kind": "pool",
+        "desc": "依新官制进用的在朝官，以新典为进身之阶",
+    }],
+}
+_REFORM_MILITARY = {
+    "label": "整军经武（边备与军器）",
+    "gain": [{"class": "兵", "why": "增饷、补械、军功有赏"}],
+    "lose": [{"class": "农", "why": "加赋供军、力役加派"}],
+    "emergent": [{
+        "name": "新军将校", "pop_classes": ["兵"], "routes": None,
+        "subset_of": ["兵"], "subset_kind": "national",
+        "desc": "整编厢军入禁军后以新军功进身的将校",
+    }],
+}
+REFORM_POP_BASIS = {
+    "land_survey": _REFORM_LAND_SURVEY,
+    "t1_land_survey": _REFORM_LAND_SURVEY,     # 国策「方田均税」
+    "curtail_waste": _REFORM_CURTAIL_WASTE,
+    "g3_curtail": _REFORM_CURTAIL_WASTE,       # 国策「裁汰冗费」
+    "reduce_office": _REFORM_REDUCE_OFFICE,
+    "hoard": _REFORM_REDUCE_OFFICE,            # 括籴/括藏：动的是形势户之藏
+    "reform": _REFORM_REFORM,
+    "g2_reform": _REFORM_REFORM,               # 国策「官制改革」
+    "m1_garrison": _REFORM_MILITARY,
+    "m3_war_machine": _REFORM_MILITARY,        # 国策「军备军器」
 }
 
 # ============================================================

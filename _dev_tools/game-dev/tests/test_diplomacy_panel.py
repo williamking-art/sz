@@ -61,12 +61,8 @@ def test_external_regimes_runtime_fields():
     assert regimes["辽"]["monthly_tax"] > 0
 
 
-def test_dock_has_diplomacy():
-    """底部 dock 含「邦交」入口（Web Dock.tsx；Tk 已废弃）。"""
-    _fe = os.path.join(_GAME_ROOT, "..", "game", "frontend", "src",
-                       "renderer", "hud", "Dock.tsx")
-    if not os.path.exists(_fe):
-        return  # 前端工程不在本机 → 跳过
-    with open(_fe, encoding="utf-8") as f:
-        src = f.read()
-    assert 'key: "diplomacy"' in src, "底部 dock 应含邦交入口"
+# 注（2026-09-19 测试项审查）：原 `test_dock_has_diplomacy`（断言 Dock.tsx 源码里
+# 存在 `key: "diplomacy"` 字面量）已删除——它属"前端源码文本断言"：改文案/重构即失败，
+# 而真实退化（面板失联）未必被它捕获。该保障已由 **`test_frontend_registry.py`** 以
+# 类型契约方式更强地覆盖：Dock 的每个命令键必须 ∈ `gameStore.PanelKind`，且每个
+# PanelKind 成员必须在 OverlayStack 中有实现分支（含 `situation`/`diplomacy`）。

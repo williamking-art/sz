@@ -60,6 +60,7 @@ _SCHEMA_VERSION = 2          # T7：SQLite 后端（v1 为 Phase 3a JSON 格式�
 _JSON_SCHEMA_VERSION = 1     # 旧 JSON 格式版本（迁移判定用）
 _COMPRESS_INTERVAL = 6       # 每 6 回合压缩一次
 _PERIOD_INTERVAL = 12        # 每 12 回合周期总结一次
+_ARCHIVE_INTERVAL = 12       # 每 12 回合归档低权重旧史（容量治理；只打标记、不物理删除）
 
 
 def _memory_path(slot: int, archive: bool = False) -> str:
@@ -253,6 +254,11 @@ class MemoryGraph:
                 for r in self.relations:
                     if r.get("archived"):
                         continue
+                    if int(r.get("turn", 0) or 0) > cur_turn:
+                        # 审查 B-1/J-10 同源修复：内存检索须与 query_sql 的 `r.turn <= cur_turn`
+                        # 同口径——读旧档后记忆库里仍留「未来回合」关系，原实现不过滤会把
+                        # 未发生之事当既成事实注入（AI「记得未来」）。
+                        continue
                     if r["src"] == eid and r["dst"] not in seen_eids:
                         hit = r["dst"]
                     elif r["dst"] == eid and r["src"] not in seen_eids:
@@ -281,23 +287,56 @@ class MemoryGraph:
                 return eid
         return None
 
-    def keyword_search(self, text: str, top_k: int = 12):
-        """按文本关键词（实体名/关系 note）检索相关关系（内存实现）。"""
+    @staticmethod
+    def _query_tokens(text: str) -> set:
+        """查询分词：中文 2-gram + 西文/数字词（关键词检索共用）。
+
+        缺陷修复（中文检索失效）：原实现用「连续中文/字母数字 ≥2 字」的贪婪正则取词，
+        对中文是**整段一个 token**——如「赈济京畿灾民如何施行」只切出该 11 字串本身，
+        `token in blob` 需整段子串精确命中，于是玩家自然语言检索恒 0 命中，
+        `ai/client.py` 拟旨注入的「既往同类诏令」长期空转（静默失效）。
+        改为中文 2-gram + 西文词：任一片段命中即计分，命中片段多者优先。
+        """
         if not text:
+            return set()
+        toks = set()
+        for run in re.findall(r"[\u4e00-\u9fa5]+", text):
+            if len(run) == 1:
+                toks.add(run)
+            else:
+                toks.update(run[i:i + 2] for i in range(len(run) - 1))
+        for word in re.findall(r"[A-Za-z0-9]+", text):
+            if len(word) >= 2:
+                toks.add(word.lower())
+        return toks
+
+    def keyword_search(self, text: str, top_k: int = 12):
+        """按文本关键词（实体名/关系 note）检索相关关系（内存实现）。
+
+        命中打分 = 命中的查询 token 数（中文 2-gram / 西文词），先按命中数、再按
+        w_eff 排序；且不检索「未来回合」关系（与 query_sql 的 `r.turn <= cur_turn`
+        同口径，见 query() 注释）。
+        """
+        toks = self._query_tokens(text)
+        if not toks:
             return []
         hits = []
         cur_turn = self.turn
         for r in self.relations:
             if r.get("archived"):
                 continue
+            if int(r.get("turn", 0) or 0) > cur_turn:
+                continue
             s = self.entities.get(r["src"], {}).get("name", r["src"])
             d = self.entities.get(r["dst"], {}).get("name", r["dst"])
-            blob = f"{s}{d}{r.get('note','')}"
-            if any(k in blob for k in re.findall(r"[\u4e00-\u9fa5A-Za-z0-9]{2,}", text)):
-                w = self._eff_weight(r, cur_turn)
-                hits.append((s, d, r["rtype"], w, r.get("note", "")))
-        hits.sort(key=lambda x: -x[3])
-        return hits[:top_k]
+            blob = f"{s}{d}{r.get('note','')}".lower()
+            score = sum(1 for t in toks if t in blob)
+            if not score:
+                continue
+            w = self._eff_weight(r, cur_turn)
+            hits.append((s, d, r["rtype"], w, r.get("note", ""), score))
+        hits.sort(key=lambda x: (-x[5], -x[3]))
+        return [(h[0], h[1], h[2], h[3], h[4]) for h in hits[:top_k]]
 
     # ---------------- 摘要 ----------------
     def summarize(self, rows, max_chars: int = 160) -> str:
@@ -344,7 +383,10 @@ class MemoryGraph:
         rtypes = set(rtypes) if rtypes else set(RELATION_TYPES)
         cur_turn = self.turn
         slot = slot if slot is not None else self._slot
-        if slot is None:
+        # 未落盘，或该槽位 db 文件尚不存在（新开局 / 刚换档 / 首次调用）→ 内存等价实现。
+        # 原实现只在 slot is None 时回退，db 缺失一律 return [] —— 记忆明明在内存镜像里
+        # 却「查无此事」（记忆库面板与压缩聚合会显示为空）。
+        if slot is None or not os.path.exists(_db_path(slot)):
             # 未落盘（纯内存测试/运行早期）→ 内存等价实现，保证接口一致
             out = []
             for r in self.relations:
@@ -412,7 +454,8 @@ class MemoryGraph:
         period 给定 → 精确命中；stype 过滤 summary/period_summary。
         """
         slot = slot if slot is not None else self._slot
-        if slot is None:
+        # 与 query_sql 同规：未落盘或槽位 db 缺失 → 从内存镜像过滤 summary 类实体
+        if slot is None or not os.path.exists(_db_path(slot)):
             # 未落盘：从内存 entities 过滤 summary 类实体
             rows = []
             for e in self.entities.values():
@@ -456,6 +499,38 @@ class MemoryGraph:
             finally:
                 conn.close()
         except sqlite3.Error:
+            return []
+
+    def query_change_log(self, limit: int = 50, action: str = None,
+                         slot: int = None) -> list:
+        """读 change_log 表（审计/回放用）。
+
+        该表自 T7 起每次写盘/压缩/总结/归档都追加留痕，却**没有任何读取入口**（只写不读，
+        审计能力空置）。此处补上只读查询：
+        - action 可选过滤（save_snapshot / compress / summarize_period / archive）；
+        - 按 id 倒序（最新在前）；库不存在/未落盘/读失败 → 空列表（不抛，记 warning）。
+        返回 [{id, turn, action, detail, ts}]。
+        """
+        slot = slot if slot is not None else self._slot
+        if slot is None or not os.path.exists(_db_path(slot)):
+            return []
+        sql = "SELECT id, turn, action, detail, ts FROM change_log "
+        params = []
+        if action:
+            sql += "WHERE action = ? "
+            params.append(action)
+        sql += "ORDER BY id DESC LIMIT ?"
+        params.append(int(limit))
+        try:
+            conn = self._connect(slot)
+            try:
+                return [{"id": r[0], "turn": r[1], "action": r[2],
+                         "detail": r[3], "ts": r[4]}
+                        for r in conn.execute(sql, params)]
+            finally:
+                conn.close()
+        except sqlite3.Error as e:
+            log.warning("memory.query_change_log 读取失败（降级为空）：%s", e)
             return []
 
     def retrieve_hierarchical(self, subject: str = "", period: int = None,
@@ -817,12 +892,18 @@ class MemoryGraph:
         """归档低权重旧史（w_eff < 阈值）：SQLite relations.archived 标记，不物理删除。
 
         与 Phase 3a 差异：不再写 memory_archive.json，改 db 内 archived 列（仍可查证历史）。
+        - 幂等：已归档的行不再计数（重复调用返回 0）。
+        - 生产接线：`finish_turn` 每 `_ARCHIVE_INTERVAL` 回合调用一次（原实现零调用方，
+          关系/实体只增不减 —— 每回合全量重写 save() 的 IO 随历史线性放大）。
+        - 只写本轮**新归档**的行（原实现每轮 UPDATE 全部 archived 行，代价随历史累加）。
         """
         moved = 0
         cur_turn = self.turn
+        newly = []
         for r in self.relations:
             if not r.get("archived") and self._eff_weight(r, cur_turn) < weight_below:
                 r["archived"] = True
+                newly.append(r)
                 moved += 1
         if not moved:
             return 0
@@ -834,12 +915,11 @@ class MemoryGraph:
             conn = self._connect(slot)
             try:
                 with conn:
-                    for r in self.relations:
-                        if r.get("archived"):
-                            conn.execute(
-                                "UPDATE relations SET archived = 1 "
-                                "WHERE src = ? AND dst = ? AND rtype = ?",
-                                (r["src"], r["dst"], r["rtype"]))
+                    for r in newly:
+                        conn.execute(
+                            "UPDATE relations SET archived = 1 "
+                            "WHERE src = ? AND dst = ? AND rtype = ?",
+                            (r["src"], r["dst"], r["rtype"]))
                     conn.execute(
                         "INSERT INTO change_log(slot, turn, action, detail, ts) VALUES(?,?,?,?,?)",
                         (slot, cur_turn, "archive", f"moved={moved}", _now_str()))
@@ -893,12 +973,16 @@ class MemoryGraph:
 
 
 # 全局便捷函数（供业务点延迟导入调用）
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：记忆读取便利入口：被 query/query_sql 取代，可评估删除
 def get_memory(slot: int) -> MemoryGraph:
     g = MemoryGraph()
     g.load(slot)
     return g
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：记忆写入便利入口：被 save 取代，可评估删除
 def save_memory(slot: int, graph: MemoryGraph) -> bool:
     return graph.save(slot)
 

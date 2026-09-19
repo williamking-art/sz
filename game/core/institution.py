@@ -33,10 +33,6 @@ TIER_STEP = {"无": 0.0, "微": 0.05, "小": 0.12, "中": 0.25, "大": 0.40,
              "极小": 0.02, "极大": 0.60}
 
 
-def defaults() -> Dict[str, float]:
-    return {k: float(v["default"]) for k, v in _SPEC.items()}
-
-
 def all_params(state) -> Dict[str, float]:
     """当前全部参数的有效值（缺键补默认）。"""
     cur = getattr(state, "institution_params", None)

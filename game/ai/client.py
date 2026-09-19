@@ -35,6 +35,9 @@ from ai.narrative_guard import (
 from content.data import normalize_tier
 from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构层（可选，未装库自动跳过）
 
+import logging as _logging
+log = _logging.getLogger("ai.client")   # provider 回退/空响应自愈等需要留痕的路径
+
 # 档位白名单（7 档：无/微/小/中/大/巨/极）；validator 用 normalize_tier 归一丰富表达
 #
 # 【缺字段处置策略（审查 B6 考证，勿再误读为「白送收益」）】本层对「缺字段/非法值」
@@ -147,13 +150,38 @@ def normalize_endpoint(base_url: str) -> tuple[str, str, str]:
 class AIClient(ClientNarrativeMixin):
     """封装在线大模型调用；AI 不可用时返回错误标记（不伪造文本）。"""
 
-    def __init__(self, api_key="", base_url="", model="", enable_tools="auto"):
+    def __init__(self, api_key="", base_url="", model="", enable_tools="auto",
+                 settle_api_key="", settle_base_url="", settle_model="",
+                 fallback_api_key="", fallback_base_url="", fallback_model=""):
         self.api_key = (api_key or "").strip()
         clean_base, chat_url, models_url = normalize_endpoint(base_url)
         self.base_url = clean_base
         self.chat_url = chat_url
         self.models_url = models_url
         self.model = (model or "deepseek-chat").strip()
+        # ---- 兜底 provider（用户定稿 2026-09-19：「各种需要 API 的地方先用 Agnes 的，
+        #      无法完成再用 a6api」）----
+        # 主 provider 失败（HTTP/超时/空正文）或**契约拿不到可解析内容**时，
+        # `_call` 自动切到兜底 provider 重发同一请求一次；三者皆空则行为与从前一致。
+        self.fallback_api_key = (fallback_api_key or "").strip()
+        _fb, _fc, _fm = normalize_endpoint(fallback_base_url or base_url)
+        self.fallback_base_url = _fb if fallback_base_url else ""
+        self.fallback_chat_url = _fc if fallback_base_url else ""
+        self.fallback_models_url = _fm
+        self.fallback_model = (fallback_model or "").strip()
+        self._in_fallback = False
+        self.fallback_hits = 0
+        # ---- 回合结算专用 provider（用户定稿 2026-09-19）----
+        # 「当宋祚需要过回合结算时，调用 agnes-2.5-flash 来执行」：结算期间
+        # （`settle_turn` 的 prelude + 12 步推演 + 月报）整体切到该 provider/模型，
+        # 其余契约（召对/拟旨/会签）仍用主配置。三者皆空时行为与从前完全一致。
+        self.settle_api_key = (settle_api_key or "").strip()
+        _sb, _sc, _sm = normalize_endpoint(settle_base_url or base_url)
+        self.settle_base_url = _sb if settle_base_url else ""
+        self.settle_chat_url = _sc if settle_base_url else ""
+        self.settle_models_url = _sm
+        self.settle_model = (settle_model or "").strip()
+        self._settle_depth = 0
         self.available = bool(self.api_key)
         self._prev_texts = []   # 复读检测历史
         # 工具开关：'auto'(探测)/'on'(强制开)/'off'(强制关)/'simple'(强制简化)
@@ -176,7 +204,7 @@ class AIClient(ClientNarrativeMixin):
         self._cache_misses = 0
 
     # 内部辅助调用链（_meter_key_of 跳过，向上找真实契约方法名）
-    _METER_INTERNAL = {"_call", "_tool_roundtrip", "_cached_call", "_postprocess",
+    _METER_INTERNAL = {"_call", "_call_impl", "_tool_roundtrip", "_cached_call", "_postprocess",
                    # 审查修复：漏登记 _narrative_call，致 9 类部门叙事（yamen/local/
                    # land/finance/exam/science/military_expand/diplomacy/reform）
                    # 的计量全部落进本桶（token_group_of 未命中 → MeterPanel 只显示
@@ -244,6 +272,84 @@ class AIClient(ClientNarrativeMixin):
         """清零 token 计量（含总桶与分桶；召对统计在 GameState，另清）。"""
         self.token_usage = {"prompt": 0, "completion": 0, "calls": 0}
         self._meter = {}
+
+    # ---------- 兜底 provider（Agnes 优先，a6api 兜底）----------
+    def _has_fallback(self) -> bool:
+        """是否配置了兜底 provider（三者需 model；key/base 缺省沿用主配置）。"""
+        return bool(self.fallback_model) and not self._in_fallback
+
+    def _provider_scope(self, which: str):
+        """上下文管理器：临时切到兜底 provider（`which="fallback"`）或主 provider。"""
+        import contextlib
+
+        @contextlib.contextmanager
+        def _cm():
+            saved = (self.api_key, self.base_url, self.chat_url, self.models_url, self.model)
+            if which == "fallback":
+                if self.fallback_api_key:
+                    self.api_key = self.fallback_api_key
+                if self.fallback_base_url:
+                    self.base_url = self.fallback_base_url
+                if self.fallback_chat_url:
+                    self.chat_url = self.fallback_chat_url
+                if self.fallback_models_url:
+                    self.models_url = self.fallback_models_url
+                self.model = self.fallback_model
+            try:
+                yield
+            finally:
+                (self.api_key, self.base_url, self.chat_url,
+                 self.models_url, self.model) = saved
+        return _cm()
+
+    @staticmethod
+    def _usable_raw(raw, json_mode: bool = False) -> bool:
+        """本次调用是否**拿到了可用产出**（空正文 / 非法 JSON 均视为"无法完成"）。"""
+        if raw is None:
+            return False
+        if isinstance(raw, dict):
+            return bool(raw.get("tool_calls") or str(raw.get("content") or "").strip())
+        s = str(raw).strip()
+        if not s:
+            return False
+        if json_mode:
+            return _extract_json(s) is not None
+        return True
+
+    def settlement_mode(self):
+        """上下文管理器：**回合结算期间**切到结算专用 provider/模型（缺省为空=不切）。
+
+        用法（`core/commands.settle_turn`）：
+            with ai_client.settlement_mode():
+                _ai_prelude(...); settle_local(...); 月报
+        期间 `_call` 读到的 `api_key/chat_url/model` 均为结算配置，退出时严格还原——
+        故召对/拟旨等其它契约不受影响。
+        """
+        import contextlib
+
+        @contextlib.contextmanager
+        def _cm():
+            if not self.settle_model:
+                yield False
+                return
+            saved = (self.api_key, self.base_url, self.chat_url, self.models_url, self.model)
+            if self.settle_api_key:
+                self.api_key = self.settle_api_key
+            if self.settle_base_url:
+                self.base_url = self.settle_base_url
+            if self.settle_chat_url:
+                self.chat_url = self.settle_chat_url
+            if self.settle_models_url:
+                self.models_url = self.settle_models_url
+            self.model = self.settle_model
+            self._settle_depth += 1
+            try:
+                yield True
+            finally:
+                self._settle_depth = max(0, self._settle_depth - 1)
+                (self.api_key, self.base_url, self.chat_url,
+                 self.models_url, self.model) = saved
+        return _cm()
 
     def _auth_headers(self) -> dict:
         """构造请求认证头（probe/_call 共用，api_key 仅内部使用，绝不外泄）。"""
@@ -325,6 +431,14 @@ class AIClient(ClientNarrativeMixin):
                     "base_url": self.base_url,
                     "model": self.model,
                     "enable_tools": self.enable_tools_mode,
+                    # 结算专用 provider（可选；空则不写，保持配置最小）
+                    **({"settle_api_key": self.settle_api_key} if self.settle_api_key else {}),
+                    **({"settle_base_url": self.settle_base_url} if self.settle_base_url else {}),
+                    **({"settle_model": self.settle_model} if self.settle_model else {}),
+                    # 兜底 provider（Agnes 优先，a6api 兜底）
+                    **({"fallback_api_key": self.fallback_api_key} if self.fallback_api_key else {}),
+                    **({"fallback_base_url": self.fallback_base_url} if self.fallback_base_url else {}),
+                    **({"fallback_model": self.fallback_model} if self.fallback_model else {}),
                 }, f, ensure_ascii=False, indent=2)
             return True
         except OSError:
@@ -601,7 +715,13 @@ class AIClient(ClientNarrativeMixin):
             if not api_key:
                 return None
             return cls(api_key, cfg.get("base_url", ""), cfg.get("model", ""),
-                       cfg.get("enable_tools", "auto"))
+                       cfg.get("enable_tools", "auto"),
+                       settle_api_key=cfg.get("settle_api_key", ""),
+                       settle_base_url=cfg.get("settle_base_url", ""),
+                       settle_model=cfg.get("settle_model", ""),
+                       fallback_api_key=cfg.get("fallback_api_key", ""),
+                       fallback_base_url=cfg.get("fallback_base_url", ""),
+                       fallback_model=cfg.get("fallback_model", ""))
         except (OSError, json.JSONDecodeError, ValueError):
             return None
 
@@ -697,10 +817,48 @@ class AIClient(ClientNarrativeMixin):
                 _t.sleep(self._NET_BACKOFF * (2 ** _i))
         raise _last  # pragma: no cover
 
-    def _call(self, system_prompt: str, user_prompt: str = "",
-              history=None, temperature: float = 0.8, max_tokens: int = 800,
-              tools=None, messages=None, json_mode: bool = False,
-              tool_choice=None):
+    def _call(self, *args, **kwargs):
+        """**统一入口**：先主 provider（默认 Agnes），未能完成再回退到兜底 provider（a6api）。
+
+        "未能完成"包括：抛异常（连接失败/超时）、空正文、以及 `json_mode=True` 时
+        **拿不到可解析 JSON**（契约注定失败的情形）。回退只做一次，且不在回退内部再回退。
+        用户定稿（2026-09-19）：**各种需要 API 的地方先用 Agnes，无法完成再用 a6api**。
+        """
+        json_mode = bool(kwargs.get("json_mode"))
+        err = None
+        raw = None
+        try:
+            raw = self._call_impl(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001  主 provider 失败不立即抛出，先试兜底
+            err = e
+        if self._usable_raw(raw, json_mode):
+            return raw
+        if not self._has_fallback():
+            if err is not None:
+                raise err
+            return raw
+        log.warning("主 provider（%s）未完成，回退兜底（%s）", self.model, self.fallback_model)
+        with self._provider_scope("fallback"):
+            self._in_fallback = True
+            try:
+                raw2 = self._call_impl(*args, **kwargs)
+            except Exception as e2:  # noqa: BLE001  兜底也失败 → 抛出主因（更贴近玩家配置）
+                log.warning("兜底 provider 亦失败：%s", e2)
+                raise (err if err is not None else e2)
+            finally:
+                self._in_fallback = False
+        if self._usable_raw(raw2, json_mode):
+            self.fallback_hits += 1
+            log.warning("已由兜底 provider 完成（累计 %d 次）", self.fallback_hits)
+            return raw2
+        if err is not None:
+            raise err
+        return raw2 if raw2 is not None else raw
+
+    def _call_impl(self, system_prompt: str, user_prompt: str = "",
+                   history=None, temperature: float = 0.8, max_tokens: int = 800,
+                   tools=None, messages=None, json_mode: bool = False,
+                   tool_choice=None):
         """底层调用。若传 tools 且端点支持，返回 dict 含 tool_calls；否则返回文本。
 
         返回：
@@ -729,6 +887,21 @@ class AIClient(ClientNarrativeMixin):
                         messages.append({"role": h["role"], "content": str(h["content"])})
             if user_prompt:
                 messages.append({"role": "user", "content": user_prompt})
+            else:
+                # 兼容性修复（2026-09-19，实测）：部分 OpenAI 兼容网关**要求 messages 必须含
+                # user 角色**，只发 system 会被直接拒绝——
+                #   Agnes：HTTP 400 `No user query found in messages.`
+                #   a6api/gemini：表现为契约失败（模型拿不到"待办"而乱答）
+                # 补一条中性占位 user（不改任务语义：任务本身在 system 规程里），
+                # 使 AI 可选/可换供应商，不因网关差异整体失败。
+                messages.append({"role": "user", "content": "（请依上开规程作答。）"})
+        # Agnes 网关防护（实测 2026-09-19）：
+        #   ① 上限：其网关对 max_tokens 有硬上限（65536，超出直接 400 invalid_request）；
+        #   ② **下限**：`agnes-2.5-flash` 是**思考型**模型，reasoning 先吃掉预算——实测把
+        #      max_tokens 设成契约所需的 300 会返回**半截 JSON**（甚至 content=""），
+        #      使整个回合以 AI_CONTRACT_FAILED 失败。故结算走 Agnes 时预算至少 8192。
+        if "agnes" in (self.chat_url or "").lower():
+            max_tokens = max(8192, min(int(max_tokens or 0), 32000))
         payload = {
             "model": self.model,
             "messages": messages,
@@ -841,7 +1014,28 @@ class AIClient(ClientNarrativeMixin):
                         return {"content": msg2.get("content") or "", "tool_calls": tcs}
                 except (KeyError, TypeError, IndexError):
                     pass
-        return msg.get("content") or ""
+        content = msg.get("content") or ""
+        if not content and not msg.get("tool_calls") and max_tokens < 4096:
+            # 空响应自愈（2026-09-19 实测）：**思考型模型**在 max_tokens 偏小时会把预算
+            # 全部用在 reasoning 上，`content` 为空字符串（Agnes `agnes-2.5-flash`：
+            # max_tokens=300 → content=""，而 usage 有 completion token）。
+            # 结算契约拿到空串即整体失败（AI_CONTRACT_FAILED），故此处加倍预算**重发一次**；
+            # 仍为空才按失败返回（不伪造内容）。
+            payload["max_tokens"] = max(8192, max_tokens * 8)
+            log.warning("AI 返回空正文（max_tokens=%s）→ 以 %s 重发一次",
+                        max_tokens, payload["max_tokens"])
+            try:
+                status, data, _ = self._post_with_retry(payload, timeout=30)
+                if status < 400:
+                    _u3 = data.get("usage", {})
+                    if isinstance(_u3, dict) and _u3:
+                        self._add_usage(_u3)          # 重发同样计费，不得漏记
+                    _m3 = data["choices"][0]["message"]
+                    if _m3.get("content"):
+                        return _m3["content"]
+            except Exception as e:  # noqa: BLE001  自愈失败仍返回空串，由上层判契约失败
+                log.warning("空响应重发失败：%s", e)
+        return content
 
     def _postprocess(self, raw, validator, fallback, retry_prompt=None,
                      retry_user=None, retry_temp: float = 0.3, ranges=None):
@@ -1849,6 +2043,12 @@ class AIClient(ClientNarrativeMixin):
                 active_orgs = [k for k, v in orgs.items() if isinstance(v, dict) and not v.get("abolished") and (v.get("lead") or v.get("holders"))]
                 if active_orgs:
                     inj += f"\n【在朝机构】{', '.join(active_orgs[:12])}"
+                # POP 的非经济维度 → 执行度：**这正是 AI 要权衡的变数**
+                # （吏治折扣 / 军队督行 / 派系满意度 / 冗官待阙；数值由 core 既有公式算，AI 只给档位与叙事）
+                from core.briefing import build_weighing_note
+                note = build_weighing_note(state)
+                if note:
+                    inj += "\n" + note
             except Exception:
                 pass
         sys_p += inj
@@ -1880,6 +2080,87 @@ class AIClient(ClientNarrativeMixin):
 
         raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=400, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_execute"))
+
+    def situations_grade_decide(self, state=None, max_items=8):
+        """局势推进档位契约（规范 §7）：**只给档位与叙事，数值由程序算**。
+
+        输入（§7.1）：标题 / 进度档位 / **成败条件文本（含阈值）** / 最近 3 条 timeline /
+        玩家 intent 文本。**禁止注入当前真实盘面读数**（阈值是规则，不是读数）；
+        按"迫近者先评"排序（`deadline` 升序、次级 `id`），最多 `max_items` 条。
+        输出（§7.2）：`{"grades": [{"situation_id", "grade", "narrative"}]}`，
+        `grade ∈ verybad|bad|normal|good|verygood`，`narrative` 可为 null。
+        非法档位 / 缺字段 / 重复 id / 未知 id / 越权字段 → **该条丢弃**（不改任何状态）；
+        结果只写入 `state._situation_grades`（临时变量），由 Step 8.5 结算步消费。
+        """
+        from core.situations import GRADE_DELTA, describe_condition
+
+        recs = [r for r in (getattr(state, "situations", None) or [])
+                if isinstance(r, dict) and r.get("status") == "active"] if state is not None else []
+        if not recs:
+            return {"grades": []}
+        recs = sorted(recs, key=lambda r: (r.get("deadline") if isinstance(r.get("deadline"), int)
+                                           else 10 ** 9, str(r.get("id") or "")))
+        recs = recs[:max_items]
+        known = {str(r.get("id")) for r in recs}
+        intents = {str(i.get("situation_id")): i
+                   for i in (getattr(state, "_situation_intents_this_turn", None) or [])
+                   if isinstance(i, dict)}
+
+        def _band(v):
+            """0–100 → 档位词（只给档位，不给读数）。"""
+            try:
+                x = float(v)
+            except (TypeError, ValueError):
+                return "未知"
+            return "极低" if x < 20 else "低" if x < 40 else "中" if x < 60 else "高" if x < 80 else "极高"
+
+        lines = []
+        for r in recs:
+            tl = [str(t.get("text")) for t in (r.get("timeline") or [])[-3:] if isinstance(t, dict)]
+            it = intents.get(str(r.get("id")))
+            lines.append(
+                f"- id={r.get('id')}｜{r.get('title')}｜进度档位={_band(r.get('bar_value'))}"
+                f"｜达成={describe_condition(r.get('resolve_condition'))}"
+                f"｜失败={describe_condition(r.get('fail_condition'))}"
+                f"｜连成={r.get('streak_ok')}/连败={r.get('streak_fail')}"
+                + (f"｜本月圣意：{it.get('kind')}（{it.get('note') or ''}）" if it else "")
+                + (f"｜近事：{' / '.join(tl)}" if tl else ""))
+        sys_p = (
+            "你是北宋史官兼枢密院检详，按月评定国事进展。\n"
+            "输入：每条局势的标题、进度档位、达成/失败条件（阈值）、连续月数、最近三条月报线索、本月圣意。\n"
+            "输出契约（严格 JSON）：\n"
+            '{"grades": [{"situation_id": "上述 id 原样", "grade": "verybad|bad|normal|good|verygood",'
+            ' "narrative": "本月该局势的一句史笔（≤60字，可 null）"}]}\n'
+            "- 档位语义：verygood=大进、good=有进、normal=止步、bad=倒退、verybad=崩坏。\n"
+            "- **只给档位与叙事，不得给出任何数字**；不得新增 id、不得改动条件、不得评价未列出的局势。"
+        )
+        user_p = "【本月经略】\n" + "\n".join(lines)
+
+        def validate(o):
+            if not isinstance(o, dict) or "grades" not in o:
+                return None
+            from core.situations import filter_grade_payload
+            filtered = filter_grade_payload(o, known)      # 白名单过滤在 core 单点实现
+            for g in filtered:
+                if g.get("narrative") is not None:
+                    g["narrative"] = _clean_text(str(g["narrative"]))[:60]
+            o["grades"] = filtered
+            return o
+
+        raw = self._call(sys_p, user_p, temperature=0.3, max_tokens=900, json_mode=True)
+        res = self._postprocess(raw, validate,
+                                lambda: _ai_unavailable("situations_grade"))
+        # 写入**临时变量**（不落档）：Step 8.5 消费后清空；AI 缺失 → 空表 → 程序按 inertia 推进
+        grades = {}
+        for g in (res.get("grades") if isinstance(res, dict) else []) or []:
+            grades[str(g["situation_id"])] = {"grade": g.get("grade"),
+                                              "narrative": g.get("narrative")}
+        if state is not None:
+            try:
+                state._situation_grades = grades
+            except Exception:
+                pass
+        return {"grades": list(grades.values())}
 
     def faction_decide(self, posture, state=None):
         """派系结算契约（党争推演）：推演各派系满意度/影响力变动、党争事件触发。
@@ -1915,6 +2196,35 @@ class AIClient(ClientNarrativeMixin):
                     inj += f"\n【皇威】{pi.get('description', '平平')}"
                 except Exception:
                     inj += "\n【皇威】平平"
+                # 集团 ⊆ POP：每派的**人口/财赋基本盘**（势力有源，不是无源影响力）
+                # 以及在场的改革使哪些 POP 受益/受损 —— AI 据此推演满意度与影响力档位，
+                # 数值仍由程序算（POP 挂载律；`core/faction_basis.py` 为唯一权威）。
+                try:
+                    from core.faction_basis import build_faction_channels
+                    fc = build_faction_channels(state)
+                    bases = []
+                    for name, row in (fc.get("factions") or {}).items():
+                        b = row.get("basis_readout") or {}
+                        if b:
+                            bases.append(f"{name}={b.get('subset_note', '')}"
+                                         f"（人口 {int(b.get('pop_size') or 0):,}）")
+                    if bases:
+                        inj += "\n【集团基本盘（⊆POP阶级）】" + "；".join(bases)
+                    for item in (fc.get("emerging") or []):
+                        gain = "、".join(f"{g.get('class')}（{g.get('why')}）"
+                                        for g in item.get("gain") or [])
+                        lose = "、".join(f"{l.get('class')}（{l.get('why')}）"
+                                         for l in item.get("lose") or [])
+                        inj += (f"\n【在场改革·{item.get('label')}】受益 POP：{gain or '—'}；"
+                                f"受损 POP：{lose or '—'}")
+                        for f in item.get("emergent") or []:
+                            inj += (f"；或催生新集团「{f.get('name')}」"
+                                    f"（基本盘 {f.get('pop_basis', {}).get('subset_of')}"
+                                    f"／{'/'.join(f.get('pop_basis', {}).get('pop_classes') or [])}）")
+                    inj += ("\n- 请按上述 POP 得失推演各派满意度/影响力档位（受益者升、受损者降）；"
+                            "未声明 POP 基本盘的集团不得凭空出现。")
+                except Exception:
+                    pass
             except Exception:
                 pass
         sys_p += inj

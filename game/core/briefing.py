@@ -181,4 +181,54 @@ def build_briefing_actions(state) -> List[Dict[str, Any]]:
     return actions
 
 
-__all__ = ["build_briefing_actions", "DECREE", "AUDIENCE", "TECH", "ARMY", "TODO"]
+def build_weighing_note(state) -> str:
+    """**AI 权衡用的一句话**：诏令实际效果的三通道（口径单点在 `core/decree_effect.py`）。
+
+    用户定稿（2026-09-19）：
+      · **吏治是唯一强关联**（会签执行率本身即吏治的表达 ＋ 吏胥折扣）；
+      · 民心 / 文书到账效率是**弱关联**（幅度小）；
+      · **军队是条件加成而非必须**——只有军政/边事类诏令才吃军队督行，民政诏令与之无关。
+    AI 只据此给档位与叙事，数值一律由程序算；无可用读数时对应项缺席（**不编造**）。
+    """
+    bits: List[str] = []
+    try:
+        from core.decree_effect import effect_channels
+        ch = effect_channels(state)
+        c = ch.get("clerks") or {}
+        if ch.get("clerks_mult") is not None:
+            bits.append(f"吏治（**强关联**）折扣 ×{ch['clerks_mult']:.2f}"
+                        f"（吏怨 {float(c.get('grievance') or 0):.0f}、把持度 {float(c.get('grip') or 0):.2f}）")
+        sup = ch.get("official_support") or {}
+        if sup.get("weighted") is not None:
+            bits.append(f"官场配合度代理（满意度加权 {sup['weighted']:.0f}，最低 {sup['min']:.0f}"
+                        f"·{sup.get('min_faction')}）——代理，不是执行率")
+        if ch.get("civil_mult") is not None:
+            bits.append(f"民心/文书（弱关联）×{ch['civil_mult']:.2f}")
+        mil = ch.get("military") or {}
+        if mil.get("applies"):
+            bits.append(f"军队督行（**仅军政/边事类**加成）×{float(mil.get('mult') or 1):.2f}"
+                        if mil.get("mult") is not None else "军队督行：无驻军读数（未计入）")
+        else:
+            bits.append("军队不参与（民政诏令）")
+    except Exception as e:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger("briefing").warning("build_weighing_note 取效果通道失败：%s", e)
+    try:
+        from core.officialdom import totals as _off_totals
+        o = _off_totals(state) or {}
+        pool = int(o.get("officials", 0) or 0)
+        quota = int(o.get("posts_quota", 0) or 0)
+        if pool > 0 and quota > 0:
+            bits.append(f"冗官率 {max(0, pool - quota) / pool:.0%}"
+                        f"、待阙率 {int(o.get('waiting', 0) or 0) / pool:.0%} → 事权落地")
+    except Exception:  # noqa: BLE001
+        pass
+    if not bits:
+        return ""
+    return ("【权衡变数（下诏≠办事；吏治为强关联，军队仅对军政边事类加成）】"
+            + "；".join(bits)
+            + "。注意：若吏治折扣低，正是该项事务本月办不动的**理由**，请写进叙事，勿谎报已办。")
+
+
+__all__ = ["build_briefing_actions", "build_weighing_note",
+           "DECREE", "AUDIENCE", "TECH", "ARMY", "TODO"]

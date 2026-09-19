@@ -87,12 +87,6 @@ def test_army_pop_backfilled():
     assert pop_soldiers == total_troops
 
 
-def test_right_strip_has_minsheng():
-    """右侧竖排栏含「民生」入口（Web RightStrip.tsx，开 POP 面板）。"""
-    _fe = os.path.join(_GAME_ROOT, "..", "game", "frontend", "src",
-                       "renderer", "hud", "RightStrip.tsx")
-    if not os.path.exists(_fe):
-        return  # 前端工程不在本机 → 跳过
-    with open(_fe, encoding="utf-8") as f:
-        src = f.read()
-    assert '"pop"' in src, "右侧栏应含民生（POP）入口"
+# 注（2026-09-19 测试项审查）：原 `test_right_strip_has_minsheng`（断言 RightStrip.tsx
+# 源码里出现字面量 `"pop"`）已删除——脆弱的前端文本断言；入口存在性改由
+# `test_frontend_registry.py` 的类型契约（Dock 键 ⊆ PanelKind ⊆ OverlayStack 分支）覆盖。

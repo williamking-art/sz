@@ -1,4 +1,4 @@
-import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2, Lock, Trees, FileText, Building2, ClipboardList, Stamp } from "lucide-react";
+import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2, Lock, Trees, FileText, Building2, ClipboardList, Stamp, BookOpen, Flame } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { getApiClient } from "../api/client";
 
@@ -14,6 +14,8 @@ const COMMANDS: { key: string; label: string; icon: React.ReactNode }[] = [
   { key: "pending", label: "批红", icon: <Stamp size={20} /> },
   { key: "land", label: "田亩", icon: <Trees size={20} /> },
   { key: "dailylog", label: "日志", icon: <FileText size={20} /> },
+  { key: "memory", label: "记忆", icon: <BookOpen size={20} /> },
+  { key: "situation", label: "局势", icon: <Flame size={20} /> },
   { key: "centralorg", label: "机枢", icon: <Building2 size={20} /> },
   { key: "governance", label: "治务", icon: <ClipboardList size={20} /> }
 ];

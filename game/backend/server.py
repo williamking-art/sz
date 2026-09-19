@@ -536,6 +536,23 @@ def api_readouts(request: Request):
             institution = _json_safe(_inst_describe(s))
         except Exception:
             institution = {}
+        # 州路简报（只读派生，core/region_brief.py 为单一权威源）：民生/粮储/到账月税/
+        # 驻军月饷/风险分一体下发，供前端「州县」面板排序与"为何危险"的可解释展示。
+        # 薄壳纪律：只调 core 的只读派生函数，算法不在此复制。
+        try:
+            from core.region_brief import build_region_brief
+            regions = _json_safe(build_region_brief(s))
+        except Exception:
+            regions = {}
+        # 局势投影（只读，core/situations.py 单一权威源）：把既有长期项
+        # （帝修/国策/长期诏/活跃事件）聚合成统一局势视图；缺失维度下发 None（前端示"未定义"）。
+        # 薄壳纪律：只调 core 只读投影，不在此复制映射规则。
+        try:
+            from core.situations import build_situation_readout
+            situations = _json_safe(build_situation_readout(s))
+        except Exception:
+            situations = {"items": [], "by_status": {}, "readout_status": "partial",
+                          "readout_errors": ["situations: 投影失败"]}
         return {
             "army": army,
             "arsenal": arsenal,
@@ -547,7 +564,126 @@ def api_readouts(request: Request):
             "tax_base": tax_base,
             "clerks": clerks,
             "institution": institution,
+            "regions": regions,
+            "situations": situations,
             "defense_lines": _json_safe(s.defense_lines),
+        }
+
+
+@app.get("/api/memory")
+def api_memory(request: Request, minister: str = "", limit: int = 60):
+    """记忆库只读视图 —— 玩家可见「AI 到底记住了什么」。
+
+    数据源：GameState.memory（MemoryGraph，SQLite 一轮一库）+ 对话记忆库
+    （DialogueMemory，slot_{slot}_dialogue.db）。
+    薄壳纪律：只调两库既有**只读**接口（query_summaries/query_sql/query_change_log/
+    list_summaries/list_sessions/list_dialogues），零写操作、零业务逻辑复制。
+    脱敏与截断：记忆库只存语义实体（人/事/机构/关系），不含经济真值；此处再对
+    note/概要/日志做长度截断，防超长文本灌入前端。
+
+    `minister` 非空时为**会话视图**（召对面板内嵌记忆库侧栏用）：额外返回该大臣的
+    完整会话流（`dialogues`，含 `speaker="朕"` 的陛下之言）与其按期纪要
+    （`dialogue_summaries` 收窄到该人）、涉该人的近关系（`minister_relations`）；
+    不给 `minister` 即全局视图（独立记忆库面板用），契约不变。
+    """
+    _require_auth(request)
+    minister = (minister or "").strip()
+    limit = max(1, min(200, int(limit or 60)))
+    with _lock:
+        _require_state()
+        s = _state
+        mg = getattr(s, "memory", None)
+        if mg is None:
+            return {"turn": 0, "state_turn": int(getattr(s, "turn", 0) or 0),
+                    "entity_counts": {}, "relation_total": 0, "relation_archived": 0,
+                    "summaries": [], "recent": [], "dialogue_summaries": [],
+                    "change_log": [], "minister": minister, "sessions": [],
+                    "dialogues": [], "minister_relations": []}
+        slot = getattr(mg, "_slot", None)
+        if slot is None:
+            slot = getattr(s, "memory_slot", None)
+        counts: dict = {}
+        for e in (mg.entities or {}).values():
+            if not isinstance(e, dict):
+                continue
+            key = str(e.get("type", "?"))
+            counts[key] = counts.get(key, 0) + 1
+        # 概要层（compress/summarize_period 产物）
+        summaries = []
+        try:
+            for row in mg.query_summaries(top_k=8, slot=slot) or []:
+                attrs = row.get("attrs") or {}
+                top = attrs.get("top_relations") or []
+                summaries.append({
+                    "eid": str(row.get("eid", "")),
+                    "kind": str(row.get("stype", "")),
+                    "period": row.get("period"),
+                    "name": str(row.get("name", "")),
+                    "turn": int(row.get("created_turn", 0) or 0),
+                    "relation_count": int(attrs.get("relation_count", 0) or 0),
+                    "decision_count": int(attrs.get("decision_count", 0) or 0),
+                    "event_count": int(attrs.get("event_count", 0) or 0),
+                    "highlights": [str(x)[:60] for x in top[:5]],
+                })
+        except Exception:
+            summaries = []
+        # 细节层：近 24 回合关系（query_sql 自身跳过 archived）
+        names = {eid: str(e.get("name", eid))
+                 for eid, e in (mg.entities or {}).items() if isinstance(e, dict)}
+        recent = []
+        try:
+            for src, dst, rtype, w, note in (mg.query_sql(time_window=24, top_k=12,
+                                                           slot=slot) or []):
+                recent.append({
+                    "src": names.get(src, src), "dst": names.get(dst, dst),
+                    "rtype": str(rtype), "weight": round(float(w), 3),
+                    "note": str(note or "")[:60],
+                })
+        except Exception:
+            recent = []
+        # 对话记忆库概要（召对：人 + 立场/主题）；minister 非空时收窄到该大臣
+        dialogue = []
+        sessions = []
+        dialogues: list = []
+        try:
+            from memory.dialogue_memory import get_dialogue_memory
+            dm = get_dialogue_memory(s)
+            sessions = _json_safe(dm.list_sessions())
+            if minister:
+                dialogue = _json_safe(dm.list_summaries(minister=minister, limit=12))
+                dialogues = _json_safe(dm.list_dialogues(minister=minister, limit=limit))
+            else:
+                dialogue = _json_safe(dm.list_summaries(limit=12))
+        except Exception:
+            dialogue, sessions, dialogues = [], [], []
+        # 变更日志（审计/回放）
+        try:
+            change_log = mg.query_change_log(limit=20, slot=slot) or []
+        except Exception:
+            change_log = []
+        # 涉该大臣的近关系（会话视图：侧栏「相关关系」；按实体名精确匹配，非模糊）
+        minister_relations = []
+        if minister:
+            for r in recent:
+                if r["src"] == minister or r["dst"] == minister or minister in r["note"]:
+                    minister_relations.append(r)
+        return {
+            "turn": int(getattr(mg, "turn", 0) or 0),
+            "state_turn": int(getattr(s, "turn", 0) or 0),
+            "entity_counts": counts,
+            "relation_total": len(mg.relations or []),
+            "relation_archived": sum(1 for r in (mg.relations or [])
+                                     if isinstance(r, dict) and r.get("archived")),
+            "summaries": summaries,
+            "recent": recent,
+            "dialogue_summaries": dialogue,
+            "change_log": [{"turn": r.get("turn"), "action": r.get("action"),
+                            "detail": str(r.get("detail", ""))[:80],
+                            "ts": r.get("ts")} for r in change_log],
+            "minister": minister,
+            "sessions": sessions,
+            "dialogues": dialogues,
+            "minister_relations": minister_relations,
         }
 
 

@@ -76,6 +76,16 @@ def _settle_decrees(state, log):
 
     remaining = []
     for decree in state.pending_decrees[:]:
+        # 局势意图（规范 §5.2）：诏令可选携带 `situation_intent`；无则该诏行为不变。
+        # 此处**只登记**（运行时态，不落档），校验与消费由 Step 8.5 局势结算负责——
+        # 校验依据是**本回合 state_applier 事务记录**，不得由最终 state 反推。
+        _si = decree.get("situation_intent")
+        if isinstance(_si, dict):
+            _sits = getattr(state, "_situation_intents_this_turn", None)
+            if not isinstance(_sits, list):
+                _sits = []
+                state._situation_intents_this_turn = _sits
+            _sits.append(dict(_si))
         # AI 契约加成：若有对应机构的高优先级任务，提升执行率
         org_hint = decree.get("org_hint", "政府")
         ai_boost = 0.0
@@ -934,6 +944,22 @@ def _settle_land_local(state, log):
             _gain = float(random.randint(0, 3))
         y["backlog"] = max(0, int(y["backlog"] + _gain - y["efficiency"] / 40))
         y["efficiency"] = max(20, min(100, y["efficiency"] + random.randint(-2, 1)))
+
+
+def _settle_literacy(state, log=None):
+    """识字率结算步（2026-09-19 新增设定）——薄壳，口径单点在 `core/literacy.py`。
+
+    教育是慢变量：每月只走 6% 的差距（缓动），故太平与文教投入**长期**抬高识字率，
+    而识字率又是**诏令实际效果的弱关联项**（强关联只有吏治，见 `core/decree_effect.py`）。
+    零守恒风险：只写 `prefectures[路]["literacy"]` 与派生值 `state.literacy`，不碰钱粮人口。
+    """
+    try:
+        from core.literacy import settle_literacy as _impl
+        return _impl(state, log)
+    except Exception as e:  # noqa: BLE001  文教步失败不得影响结算主流程
+        if isinstance(log, list):
+            log.append(f"[文教] 识字率结算跳过（{type(e).__name__}）")
+        return {"routes": 0, "national": None, "changed": 0, "error": type(e).__name__}
 
 
 def _settle_region_deepen(state, log):

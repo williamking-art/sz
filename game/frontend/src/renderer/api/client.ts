@@ -109,7 +109,207 @@ export interface ReadoutsResult {
     /** 服色档：zi/fei/lv/qing/shi/qinwang */
     tier?: string;
   }>;
+  /** 州路简报（core/region_brief.py，**只读派生**）：民生/粮储/到账月税/驻军月饷/风险分 */
+  regions?: RegionBriefResult;
+  /** 局势投影（core/situations.py，**只读派生**）：进度/达成条件/执行三通道/六类 POP 心气/集团⊆POP */
+  situations?: SituationReadoutResult;
   defense_lines: Record<string, { fortification: number; garrison: number }>;
+}
+
+/** 诏令实际效果通道（口径单点 core/decree_effect.py）。
+ *
+ *  吏治 = **唯一强关联**（会签执行率本身即吏治的表达 × 吏胥折扣）；
+ *  民心/文书 = 弱关联（0.85–1.0）；
+ *  军队 = **条件加成，不是必须**——仅军政/边事类诏令参与（military_applies）。
+ */
+export interface ExecutionChannels {
+  /** 唯一强关联通道（恒为 "clerks"） */
+  strong: string;
+  /** 吏治折扣（core/clerks.decree_execution_mult） */
+  clerks_mult: number | null;
+  clerks_grievance: number | null;
+  clerks_grip: number | null;
+  clerks_quality: string | null;
+  /** 官场配合度**代理**（会签执行率的盘面近似；proxy=true 表示非执行率本体） */
+  official_support: {
+    proxy: boolean;
+    weighted: number | null;
+    min: number | null;
+    min_faction: string | null;
+  } | null;
+  /** 民心 / 识字率（弱关联；识字率由该路各地 POP 自有值按人口加权派生） */
+  civil_mult: number | null;
+  literacy: number | null;
+  /** 诏令类别：军政吃军队督行，民政与之无关 */
+  kind: "军政" | "民政";
+  military_mult: number | null;
+  military_applies: boolean;
+  military_route: string | null;
+  military_reason: string | null;
+  /** 实际效果系数（吏治 × 民事；军政类再叠军队） */
+  combined_mult: number | null;
+  faction_min: number | null;
+  faction_min_name: string | null;
+  note: string;
+}
+
+export interface SituationItem {
+  id: string;
+  title: string;
+  source: "legacy" | "focus" | "free_effect" | "event";
+  status: "active" | "resolved" | "failed" | "cancelled";
+  /** 0–100；无进度来源为 null（前端显示"未定义"，不得当 0） */
+  bar_value: number | null;
+  resolve_condition_text: string | null;
+  fail_condition_text: string | null;
+  ongoing_text: string | null;
+  progress_text: string | null;
+  severity: number;
+  phase: "起" | "中" | "终前" | null;
+  region_hint: string | null;
+  faction_hint: string | null;
+  /** 经济维度：该路最窘/最丰阶级 */
+  pop_highlights: string[] | null;
+  /** 非经济维度：吏怨/军心/士绅抵抗 */
+  channel_highlights: string[] | null;
+  execution_channels: ExecutionChannels | null;
+  timeline: { turn: number; kind: string; text: string; source: string }[];
+}
+
+/** 六类 POP 的非经济通道（含"吏"子池，单列不另设第 7 类 POP） */
+export interface PopSentimentChannel {
+  label: string;
+  primary: string;
+  secondary?: string;
+  source: string;
+}
+
+export interface PopChannels {
+  channels: Record<string, PopSentimentChannel>;
+  nation: Record<string, Record<string, number | null | { 最低: number; 均: number }>>;
+  by_route: Record<string, Record<string, number | null>>;
+}
+
+/** 利益集团 ⊆ POP 阶级（不是与 POP 并列的实体） */
+export interface FactionBasisRow {
+  influence: number | null;
+  satisfaction: number | null;
+  cohesion: number | null;
+  leader: string | null;
+  pop_basis: {
+    pop_classes: string[];
+    subset_of: string[];
+    subset_kind: "national" | "pool" | "route" | "pool+route";
+    pool: string | null;
+    routes: string[] | null;
+    desc: string;
+  } | null;
+  basis_readout: {
+    subset_note: string;
+    share: number | null;
+    pop_size: number;
+    parent_pop_size: number;
+    pool_size: number;
+    parent_total: number;
+    routes: string[] | null;
+    troops: number;
+    morale: number | null;
+    public_support_avg: number | null;
+    gentry_resistance_avg: number | null;
+  } | null;
+  basis_errors: string[];
+}
+
+export interface FactionChannels {
+  factions: Record<string, FactionBasisRow>;
+  emerging: {
+    reform: string;
+    label: string;
+    gain: { class: string; why: string; pool?: string }[];
+    lose: { class: string; why: string; pool?: string }[];
+    emergent: {
+      name: string | null;
+      desc: string | null;
+      pop_basis: Record<string, unknown>;
+      basis_errors: string[];
+    }[];
+  }[];
+  declared: boolean;
+  basis_errors: string[];
+}
+
+export interface SituationReadoutResult {
+  items: SituationItem[];
+  by_status: Record<string, number>;
+  pop_channels?: PopChannels;
+  faction_channels?: FactionChannels;
+  readout_status?: "ok" | "partial";
+  readout_errors?: string[];
+}
+
+/** 州路简报单条（对齐 core/region_brief.py::build_region_brief） */
+export interface RegionRoute {
+  name: string;
+  display_name: string;
+  controlled_by: string;
+  households: number;
+  population: number;
+  land: number;
+  hidden_land: number;
+  mood: number;
+  govern: number;
+  public_support: number;
+  gentry_resistance: number;
+  city_defense: number;
+  unrest: number;
+  fiscal: number;
+  /** 识字率（该路各地 POP 自有值按人口加权派生；未初始化时 null） */
+  literacy: number | null;
+  grain_year: number;
+  grain_stock: number;
+  /** 粮储安全垫（月）；无口粮需求时为 null */
+  grain_months: number | null;
+  /** 本路到账后月税（贯/月，二税折色实收口径） */
+  tax_month: number;
+  /** 占全国月税比 0~1 */
+  tax_share: number;
+  /** 驻军月饷（贯/月） */
+  army_cash_month: number;
+  /** 驻军月粮（石/月） */
+  army_grain_month: number;
+  risk_score: number;
+  risk_label: "安" | "警" | "危";
+  risk_hints: string[];
+}
+
+export interface RegionBriefResult {
+  routes: RegionRoute[];
+  top_risk: RegionRoute[];
+  nation: {
+    routes: number;
+    /** 宋控路数（内政预警与全国加权只统计本方，避免敌占区失真） */
+    routes_mine: number;
+    /** 非宋控路数 */
+    routes_foreign: number;
+    population: number;
+    households: number;
+    land: number;
+    grain_stock: number;
+    /** 全国税额（核心派生值，权威） */
+    tax_month: number;
+    /** 逐路展示值之和（诊断用，与上一项可能存在舍入差） */
+    tax_month_routes_sum: number;
+    army_cash_month: number;
+    army_cash_routes_sum: number;
+    army_grain_month: number;
+    army_grain_routes_sum: number;
+    /** 全国民心＝宋控路按人口加权（与 metrics 口径一致） */
+    public_support_weighted: number;
+    risk_counts: { 安: number; 警: number; 危: number };
+  };
+  /** ok=读数完整；partial=某个核心派生失败（面板应提示"读数不完整"，切勿当作 0 解读） */
+  readout_status?: "ok" | "partial";
+  readout_errors?: string[];
 }
 
 /** /api/meter：Token 计量表（含召对命中与合计行） */
@@ -125,6 +325,85 @@ export interface MeterResult {
   rows: MeterRow[];
   total: { calls?: number; prompt?: number; completion?: number };
   token_log?: unknown[];
+}
+
+/** /api/memory：记忆库只读视图（玩家可见「AI 记住了什么」） */
+export interface MemorySummary {
+  eid: string;
+  kind: string;
+  period: number | null;
+  name: string;
+  turn: number;
+  relation_count: number;
+  decision_count: number;
+  event_count: number;
+  highlights: string[];
+}
+
+export interface MemoryRelation {
+  src: string;
+  dst: string;
+  rtype: string;
+  weight: number;
+  note: string;
+}
+
+export interface MemoryDialogueSummary {
+  period: number;
+  minister: string;
+  start_turn: number;
+  end_turn: number;
+  content: string;
+  ref_count: number;
+}
+
+export interface MemoryChangeLogRow {
+  turn: number | null;
+  action: string | null;
+  detail: string;
+  ts: string | null;
+}
+
+/** 召对会话流单条（含两侧：speaker="朕" 为陛下之言，其余为大臣回奏） */
+export interface MemoryDialogueRow {
+  id: number;
+  minister: string;
+  turn: number;
+  speaker: string;
+  text: string;
+  intent: string;
+  stance: string;
+  topic: string;
+  summarized: boolean;
+}
+
+/** 会话列表一条（每个大臣）：末条预览 + 条数 + 末次回合 */
+export interface MemorySession {
+  minister: string;
+  count: number;
+  last_turn: number;
+  last_text: string;
+  last_speaker: string;
+}
+
+export interface MemoryResult {
+  turn: number;
+  state_turn: number;
+  entity_counts: Record<string, number>;
+  relation_total: number;
+  relation_archived: number;
+  summaries: MemorySummary[];
+  recent: MemoryRelation[];
+  dialogue_summaries: MemoryDialogueSummary[];
+  change_log: MemoryChangeLogRow[];
+  /** 会话视图回显（未指定 minister 时为空串） */
+  minister?: string;
+  /** 每个大臣的会话摘要（用于召对面板左侧会话列表） */
+  sessions?: MemorySession[];
+  /** 该大臣的完整会话流（仅 minister 非空时返回；含陛下之言） */
+  dialogues?: MemoryDialogueRow[];
+  /** 涉该大臣的近关系（仅 minister 非空时返回） */
+  minister_relations?: MemoryRelation[];
 }
 
 export interface AiConfigResult {
@@ -311,6 +590,15 @@ export class ApiClient {
   /** Token 计量表（迁移补齐：对齐 Tk panels_meta `_panel_token_meter`） */
   async meter(): Promise<MeterResult> {
     return this.request("/api/meter");
+  }
+
+  /** 记忆库只读视图：主库概要/近期关系 + 对话概要 + 变更日志。
+   *  传 minister 则取「会话视图」：该大臣完整会话流 + 其按期纪要 + 涉其近关系。 */
+  async memory(minister?: string): Promise<MemoryResult> {
+    const name = (minister || "").trim();
+    return this.request(
+      name ? `/api/memory?minister=${encodeURIComponent(name)}` : "/api/memory"
+    );
   }
 
   async resetMeter(): Promise<{ ok: boolean }> {

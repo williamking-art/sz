@@ -50,6 +50,8 @@ def node_prereqs_met(state, node) -> bool:
     return True
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：资产节点状态：待接科技/资产面板
 def node_status(state, node_id: str) -> str:
     """节点状态：unlocked(已点亮) / researchable(可研究) / researching(攻关中) / locked(未达前置)。"""
     tech = _tech(state)
@@ -98,6 +100,8 @@ def _research_guard(state, node_id: str):
     return node, tech, None
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：研究预备：待接科技结算步
 def prepare_research(state, node_id: str, silver_in: int = 0,
                      fund: str = "treasury", source: str = "panel") -> dict:
     """国库拨银研发的会签前置查询：校验可行性并算出费用，**不扣钱**。
@@ -125,6 +129,8 @@ def prepare_research(state, node_id: str, silver_in: int = 0,
             "idea": False, "fund": fund, "cost_orig": cost["silver"]}
 
 
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：研究签核留痕：待接科技结算步
 def record_research_signoff(state, node_id: str, review: dict) -> None:
     """记录一次研发会签结论（供 GUI 准奏后登记，避免重复会签）。"""
     tech = _tech(state)
@@ -358,6 +364,8 @@ def _derive_capabilities(node) -> list:
 # ============================================================
 # 三级结算：预置标签 → 动态标签 → 档位换算
 # ============================================================
+# 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
+# 接线位置：资产效果落地：待接资产结算步
 def resolve_asset_effect(state, capabilities: list, domain: str) -> dict:
     """AI 引用某资产能力用于某领域 → 结算增益字典（clamp 封顶）。
 

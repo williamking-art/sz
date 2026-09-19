@@ -30,7 +30,7 @@ def save_game(state, slot: int = 1) -> bool:
 
     data = {
         "version": "0.1.0",
-        "schema_version": 2,  # 经济全浮动重构 v2
+        "schema_version": 3,  # v3：局势系统（state.situations / SituationRecord，规范 §9）
         "save_time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "slot": slot,
 
@@ -50,6 +50,8 @@ def save_game(state, slot: int = 1) -> bool:
         "pleasure_leaning": state.pleasure_leaning,
 
         "prestige": state.prestige,
+        # 识字率（2026-09-19 新增设定）：全国 POP 加权派生值；逐路值随 prefectures 往返
+        "literacy": getattr(state, "literacy", 0.0),
         "arrival_rate_base": state.arrival_rate_base,
         "treasury": state.treasury,
         # 累计亏空深度（B3）：破产两档线判据，须随档持久化
@@ -110,6 +112,9 @@ def save_game(state, slot: int = 1) -> bool:
         "army_units": [vars(u) for u in state.army_units],
         "central_arsenal": {"stock": state.central_arsenal.stock},
         "defense_lines": state.defense_lines,
+        # 局势（SituationRecord，schema 3 起；旧档缺该键 → 载入为 []，见 load）
+        "situations": [dict(r) for r in getattr(state, "situations", []) or []
+                       if isinstance(r, dict)],
 
         "decree_bandwidth": state.decree_bandwidth,
         "direct_decree_used": state.direct_decree_used,
@@ -229,6 +234,30 @@ def _merge_regions(target: dict, saved) -> None:
             target[key] = val
 
 
+def _load_situations(raw) -> tuple:
+    """载入校验（规范 §9）：返回 `(kept, bad)`。
+
+    - `raw` 非 list → 视为空表（旧档 schema 2 → 3 的迁移路径，**不伪造**任何长期目标）；
+    - 每条先补默认（`normalize_record`）再校验（`validate_record`）；
+    - **非法条目隔离并记 warning，不拒档**；未知键保留、不参与判定。
+    """
+    from core.situations import normalize_record, validate_record
+    if not isinstance(raw, list):
+        return [], [(0, f"非 list（{type(raw).__name__}）")]
+    kept, bad = [], []
+    for i, r in enumerate(raw):
+        if not isinstance(r, dict):
+            bad.append((i, "非 dict"))
+            continue
+        norm = normalize_record(r)
+        errs = validate_record(norm)
+        if errs:
+            bad.append((i, "；".join(errs[:3])))
+            continue
+        kept.append(norm)
+    return kept, bad
+
+
 def load_game(slot: int = 1):
     """从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）"""
     path = _slot_path(slot)
@@ -256,10 +285,10 @@ def load_game(slot: int = 1):
         return None
 
     _ver = int(data.get("schema_version", 1) or 1)
-    if _ver > 2:
+    if _ver > 3:
         import logging
         logging.getLogger("save_load").error(
-            "存档 schema_version=%s 高于本程序支持的 2，拒绝加载", _ver)
+            "存档 schema_version=%s 高于本程序支持的 3，拒绝加载", _ver)
         return None
 
     # 延迟导入避免循环
@@ -271,6 +300,11 @@ def load_game(slot: int = 1):
     state.memory_slot = slot
     state.memory.turn = data.get("turn", 0)
     state.memory.load(slot)
+    # 审查 B-1/J-10 修复（读档「记得未来」）：记忆库每回合落盘，而主存档只在手动/正月
+    # 更新，故 db 内的 turn 可能远大于本档 turn；`load()` 会用它覆盖上面按存档对齐的水位
+    # （实测 state.turn=0 / memory.turn=20）→ 检索把未发生的回合当既成事实注入。
+    # 以主存档 turn 为准重新对齐（检索侧另有 turn 封顶，见 memory_graph.query/query_sql）。
+    state.memory.turn = int(data.get("turn", 0) or 0)
 
     # 恢复基础时间
     state.year = data.get("year", 1101)
@@ -400,6 +434,26 @@ def load_game(slot: int = 1):
         state.central_arsenal = CentralArsenal(stock=_stock) if _stock else CentralArsenal()
     state.defense_lines = data.get("defense_lines", state.defense_lines)
 
+    # ---- 局势（规范 §9：schema 2 → 3 迁移）----
+    # 旧档无 `situations` 键 → 迁移为空表（**不伪造**任何长期目标）；
+    # 载入校验：必填键 / 类型 / 枚举 / 条件结构；**非法条目隔离并记 warning**（不拒档），
+    # 未知键保留、不参与判定。
+    try:
+        import logging as _lg2
+        _kept, _bad = _load_situations(data.get("situations", []))
+        state.situations = _kept
+        if _bad:
+            _lg2.getLogger("save_load").warning(
+                "存档有 %d 条局势非法，已隔离（不参与结算）：%s", len(_bad), _bad[:5])
+            try:
+                state.situations_load_errors = [f"#{i}: {m}" for i, m in _bad]
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception as e:  # noqa: BLE001  局势载入失败不得阻断读档
+        import logging as _lg3
+        _lg3.getLogger("save_load").warning("存档 situations 载入异常，按空表继续：%s", e)
+        state.situations = []
+
     # 恢复诏令
     state.decree_bandwidth = data.get("decree_bandwidth", 6)
     state.direct_decree_used = data.get("direct_decree_used", 0)
@@ -455,6 +509,19 @@ def load_game(slot: int = 1):
     # 恢复扩展维度
     state.yamen = data.get("yamen", state.yamen)
     _merge_regions(state.prefectures, data.get("prefectures"))
+    # 识字率（2026-09-19 新增设定）：旧档无 `literacy` 键 → 幂等补齐逐路（按 POP 结构派生）；
+    # 存档有全国值则以存档为权威，否则由逐路 POP 加权派生（不落独立账本）。
+    try:
+        from core.literacy import init_literacy as _init_lit
+        from core.literacy import national_literacy as _nat_lit
+        _init_lit(state)
+        if data.get("literacy") is not None:
+            state.literacy = float(data.get("literacy") or 0)
+        else:
+            state.literacy = _nat_lit(state)
+    except Exception as e:  # noqa: BLE001  识字率载入失败不得阻断读档
+        import logging as _lg4
+        _lg4.getLogger("save_load").warning("识字率载入异常：%s", e)
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])

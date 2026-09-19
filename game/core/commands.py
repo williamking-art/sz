@@ -260,16 +260,22 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
         # 使 /api/advance 无法回精确错误码 —— 见 backend/server.py 的 503 分支）
         raise AIRuntimeError(AI_ERROR_CODES.get("AI_NOT_CONFIGURED", "AI 未接入"),
                              code="AI_NOT_CONFIGURED")
-    _ai_prelude(state, ai_client)
-    log = settle_local(state)
-    report = ""
-    # 月报为装饰性 AI 文本：失败 → 本地模板兜底（T8 分级降级，体验韧性；
-    # 模板只影响叙事呈现，结算已就地发生，勿误判"未推进"而重复结算）
-    try:
-        report = _monthly_report_text(state, ai_client)
-    except Exception:
-        from ai.narrative_fallback import fallback_report
-        report = str(fallback_report(state=state).get("report") or "")
+    # **回合结算专用 provider**（用户定稿 2026-09-19：过回合结算时调用 agnes-2.5-flash）：
+    # prelude + 12 步推演 + 月报整体在 `settlement_mode()` 内执行；未配置 settle_model 时
+    # 该上下文不切换（等价于原行为），测试替身没有该方法也不受影响。
+    import contextlib as _ctx
+    _mode = getattr(ai_client, "settlement_mode", None)
+    with (_mode() if callable(_mode) else _ctx.nullcontext(False)):
+        _ai_prelude(state, ai_client)
+        log = settle_local(state)
+        report = ""
+        # 月报为装饰性 AI 文本：失败 → 本地模板兜底（T8 分级降级，体验韧性；
+        # 模板只影响叙事呈现，结算已就地发生，勿误判"未推进"而重复结算）
+        try:
+            report = _monthly_report_text(state, ai_client)
+        except Exception:
+            from ai.narrative_fallback import fallback_report
+            report = str(fallback_report(state=state).get("report") or "")
     # 审查 2026-09：把本回合 AI 用量（玩家操作+推演）落成一行附表（calls/tokens/时间）后清零，
     # 供前端「治务 · AI计量」表格展示。放在 finish_turn 前，label 用本回合年月。
     _flush_ai_token(state, ai_client)
@@ -502,6 +508,15 @@ def finish_turn(state) -> None:
             mg.compress(state.turn)
         if state.turn > 0 and state.turn % 12 == 0:
             mg.summarize_period(state.turn)
+            # 容量治理（补接线 memory_graph._ARCHIVE_INTERVAL=12）：归档 w_eff 低于阈值的
+            # 旧史——只打 archived 标记、不物理删除，检索不再注入陈旧关系。原实现 archive()
+            # 零调用方 → 关系/实体只增不减，而 save() 每回合 DELETE 后全量重写，IO 随历史
+            # 线性放大。顺序：先总结（概要已覆盖本轮）再降权。
+            _aslot = getattr(mg, "_slot", None)
+            if _aslot is None:
+                _aslot = getattr(state, "memory_slot", None)
+            if _aslot is not None:
+                mg.archive(_aslot)
     except Exception as e:  # noqa: BLE001
         _flog.warning("记忆库压缩/总结失败（不阻断结算）：%s", e)
     # 对话记忆库：每 3 回合总结去重（防记忆漂移/膨胀；不动旧数据）
@@ -927,6 +942,25 @@ def _dialogue_cache_hit(state, minister_name: str, player_input: str):
     except Exception:
         pass
     return None
+def _record_dialogue_row(state, minister_name: str, speaker: str, text: str,
+                         topic: str = "", intent: str = "",
+                         stance: str = "") -> None:
+    """把单条召对发言写入对话记忆库（失败不阻断，兼容层 dialogue_history 仍在）。
+
+    统一写入口径：`audience_dialogue_prepare`（朕言）/ `_apply`（回奏）与两个短路
+    路径（本地预过滤模板、召对缓存复用）都经此落库 —— 否则短路回合在记忆库与召对
+    面板里整轮消失（回看只见空缺）；`topic` 同源 `_topic_key` 使问答两侧同组。
+    """
+    try:
+        from memory.dialogue_memory import get_dialogue_memory
+        dm = get_dialogue_memory(state)
+        dm.turn = state.turn
+        dm.add_dialogue(minister_name, state.turn, speaker, text,
+                        intent=intent[:50], stance=stance[:20], topic=topic)
+    except Exception:
+        pass
+
+
 def audience_dialogue(state: GameState, minister_name: str, player_input: str,
                       ai_client) -> str:
     """与大臣奏对一轮。返回大臣的奏对文本，并把对话记入 state.dialogue_history。
@@ -942,11 +976,19 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
         hint = _prefilter_intent_hint(player_input)
         if hint:
             state._last_intent_hint = hint
+        _record_dialogue_row(state, minister_name, "朕", player_input,
+                             _topic_key(player_input))
+        _record_dialogue_row(state, minister_name, minister_name, pref,
+                             _topic_key(player_input))
         state.dialogue_history.append((minister_name, pref))
         return pref
     # 召对缓存：同话题近 N 回合结果复用（结构化键 + 相似度 fallback）
     cached = _dialogue_cache_hit(state, minister_name, player_input)
     if cached:
+        _record_dialogue_row(state, minister_name, "朕", player_input,
+                             _topic_key(player_input))
+        _record_dialogue_row(state, minister_name, minister_name, cached,
+                             _topic_key(player_input))
         state.dialogue_history.append((minister_name, cached))
         return cached
     kwargs, note = audience_dialogue_prepare(state, minister_name, player_input)
@@ -1101,6 +1143,11 @@ def audience_dialogue_prepare(state: GameState, minister_name: str,
         return None, f"{minister_name}{note}"
     state.last_audience = minister_name
     state.dialogue_history.append(("朕", player_input))
+    # 会话流两侧对称入库：`dialogue_history` 存了「朕言」而对话库只存大臣回奏，导致
+    # 记忆库/召对面板回看时只剩单边对白（「对话没展示出来」）。此处补写陛下之言，
+    # topic 与 `_topic_key` 同源 —— 使 (minister, topic) 下两侧同组，概要可还原问答。
+    _record_dialogue_row(state, minister_name, "朕", player_input,
+                         topic=_topic_key(player_input))
     try:
         state.short_term_log.append(
             {"turn": state.turn, "kind": "edict", "title": player_input[:40],
@@ -1168,16 +1215,12 @@ def audience_dialogue_apply(state: GameState, minister_name: str, obj) -> str:
     if intent_hint:
         state._last_intent_hint = intent_hint
     state.dialogue_history.append((minister_name, reply))
-    # 对话记忆库（SQLite，单独存对话）：召对记录入库（量大高频，与圣旨/口谕主库分离）
-    try:
-        from memory.dialogue_memory import get_dialogue_memory
-        dm = get_dialogue_memory(state)
-        dm.turn = state.turn
-        stance = str(obj.get("intent_hint", "") if isinstance(obj, dict) else "")
-        dm.add_dialogue(minister_name, state.turn, minister_name, reply,
-                        intent=intent_hint, stance=stance[:20])
-    except Exception:
-        pass  # 对话库失败不阻断召对（兼容层 dialogue_history 保留）
+    # 对话记忆库（SQLite，单独存对话）：召对记录入库（量大高频，与圣旨/口谕主库分离）。
+    # topic 取紧邻的上一条「朕」之言（prepare 刚写入）→ 与设问同组，概要可还原问答成对。
+    prev = state.dialogue_history[-2] if len(state.dialogue_history) >= 2 else None
+    topic = _topic_key(str(prev[1])) if prev and prev[0] == "朕" else ""
+    _record_dialogue_row(state, minister_name, minister_name, reply, topic=topic,
+                         intent=intent_hint, stance=str(intent_hint))
     return reply
 
 

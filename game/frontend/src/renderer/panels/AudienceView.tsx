@@ -1,9 +1,22 @@
 import { useState, useRef, useEffect } from "react";
-import { Loader2, X, Send, Heart, Coffee, ThumbsUp, AlertTriangle } from "lucide-react";
-import { getApiClient } from "../api/client";
+import { Loader2, X, Send, BookOpen } from "lucide-react";
+import {
+  getApiClient,
+  type MemoryResult,
+  type MemorySession,
+  type MemoryDialogueRow
+} from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import ministersDict from "../data/ministers_dict.json";
+import MemoryDrawer, { type MemoryTab } from "./MemoryDrawer";
 
+// 御前召对 —— 社交式会话面板（对齐用户定稿口径）：
+//   · 左栏＝召对名录（会话列表：在朝大臣 + 派系领袖 + 有留档者），末条预览 + 条数；
+//   · 中栏＝会话正文（消息流左右分栏、底部圣意亲裁与传谕输入框）；
+//   · 右栏＝记忆库抽屉（面板顶栏「记忆库」按键开合）：会话原文/召对纪要/相关关系/
+//     史略概要/变更留痕，数据源 /api/memory?minister= （只读薄壳）。
+// 会话流以对话记忆库（slot_N_dialogue.db）为准：关面板再开仍能回看旧话；
+// 本面板只做「读 + 触发召对」，不改动记忆库内容（无同步、无本地伪造史）。
 interface DialogueTurn {
   id: string;
   speaker: string;
@@ -11,6 +24,8 @@ interface DialogueTurn {
   timeLabel: string;
   actionNote?: string;
   content: string;
+  /** 来自对话记忆库的留档消息（区别于本回合新产生的即时消息） */
+  persisted?: boolean;
 }
 
 interface MinisterMeta {
@@ -22,39 +37,115 @@ interface MinisterMeta {
   in_office: boolean;
 }
 
+interface RosterEntry {
+  name: string;
+  role: string;
+  faction: string;
+}
+
+type Dict = Record<string, unknown>;
+
+function asDict(v: unknown): Dict {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
+}
+function asStr(v: unknown, def = ""): string {
+  return typeof v === "string" ? v : def;
+}
+
 export default function AudienceView({ props }: { props?: Record<string, unknown> }) {
   const popOverlay = useGameStore((s) => s.popOverlay);
   const state = useGameStore((s) => s.state);
   const setState = useGameStore((s) => s.setState);
+  const ro = useGameStore((s) => s.readouts);
 
-  const ministerName = String(props?.minister || "韩忠彦");
+  const dict = ministersDict as Record<string, MinisterMeta>;
+  const [current, setCurrent] = useState(String(props?.minister || "韩忠彦"));
+  const currentRef = useRef(current);
+  currentRef.current = current;
 
-  // 1. 优先从权威字典查询该大臣史实职衔与派系，彻底杜绝从列表传进来的泛化“堂官/领袖”字符串
-  const dictInfo = ((ministersDict as Record<string, MinisterMeta>)[ministerName]) || null;
-  const ministerRole = dictInfo?.role || String(props?.role || "执政大臣");
-  const ministerFaction = dictInfo?.faction || "清流正论";
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 2. 官品与爵位双轨呈现（依据宋代官制铁律）：
-  //    - 官品（rank）= 职事官阶，仅在朝为官者具备；在野/贬谪者官品空缺，绝不臆造；
-  //    - 爵位（nobility）= 身分性荣誉，虽贬谪在野仍保留（如国公/郡王/县公）。
+  // 记忆库（会话视角）：/api/memory?minister= 的只读快照 + 会话列表
+  const [mem, setMem] = useState<MemoryResult | null>(null);
+  const [sessions, setSessions] = useState<MemorySession[]>([]);
+  const [memBusy, setMemBusy] = useState(false);
+  const [memMsg, setMemMsg] = useState<string | null>(null);
+  const [memOpen, setMemOpen] = useState(false);
+  const [memTab, setMemTab] = useState<MemoryTab>("digest");
+
+  const era = state
+    ? `${pick<string>(state, "era_name", "建中靖国")}${pick<number>(state, "year", 1101)}年${pick<number>(state, "month", 1)}月`
+    : "建中靖国元年正月";
+  const stateTurn = state ? pick<number>(state, "turn", 0) : 0;
+
+  // ---- 当前大臣的史实职衔/派系（以权威字典为准，不从列表泛化字符串推断）----
+  const dictInfo = dict[current] || null;
+  const currentFaction = dictInfo?.faction || "清流正论";
   const officialRank = dictInfo?.rank || "";
   const nobleTitle = dictInfo?.nobility || "";
+  const isMilitary =
+    /军|枢密|将|节度/.test(dictInfo?.role || "") ||
+    ["西军集团", "宦官集团"].includes(currentFaction);
 
-  // 3. 大臣立绘推导
-  const isMilitary = ministerRole.includes("军") || ministerRole.includes("枢密") || ministerRole.includes("将") || ministerRole.includes("节度");
-  const ro = useGameStore((s) => s.readouts);
-  const pUrl = ro?.ministers?.[ministerName]?.portrait;
-  const portraitUrl = pUrl
-    ? `./portraits/${pUrl}`
-    : isMilitary ? "./portraits/general.png" : "./portraits/minister.png";
+  function roleOf(name: string): string {
+    const d = dict[name];
+    if (d?.role) return d.role;
+    const centralOrgs = asDict(pick(state, "central_orgs", {}));
+    for (const org of Object.values(centralOrgs)) {
+      const holders = asDict(asDict(org).holders);
+      for (const [title, holder] of Object.entries(holders)) {
+        if (asStr(holder) === name && title) return title;
+      }
+    }
+    return String(props?.role || "朝中大臣");
+  }
 
-  // 4. 属性与特质参数生成（稳定伪随机）
-  // 审查修复：原含 `loyalty: 75 + seed % 20` 一项，并显示于属性条与影响特质标签。
-  // 两处违规：(a) content/ministers/data.py 明写忠诚度「该数值不可见，绝不进入任何
-  // UI 文本」；(b) 该值纯前端伪造（与后端 state.loyalty 无关，后端口径为 0~1）。
-  // 现移除该维度；特质标签改按派系（公开档案信息）判定。
+  const currentRole = roleOf(current);
+
+  // ---- 会话名录：现任职事官 → 派系领袖 → 有留档者 → 当前会话（保底）----
+  function buildRoster(): RosterEntry[] {
+    const out: RosterEntry[] = [];
+    const seen = new Set<string>();
+    const push = (raw: string, role: string, faction: string) => {
+      const n = (raw || "").trim();
+      if (!n || seen.has(n)) return;
+      seen.add(n);
+      const d = dict[n];
+      out.push({
+        name: n,
+        role: d?.role || role || "朝中大臣",
+        faction: d?.faction || faction || "中枢"
+      });
+    };
+    const centralOrgs = asDict(pick(state, "central_orgs", {}));
+    for (const org of Object.values(centralOrgs)) {
+      const holders = asDict(asDict(org).holders);
+      for (const [title, holder] of Object.entries(holders)) push(asStr(holder), title, "中枢");
+    }
+    const factions = asDict(pick(state, "factions", {}));
+    for (const [fn, f] of Object.entries(factions)) {
+      push(asStr(asDict(f).leader), `${fn}·领袖`, fn);
+    }
+    for (const s of sessions) push(s.minister, "旧档在册", "在野");
+    push(current, roleOf(current), currentFaction);
+    return out;
+  }
+  const roster = buildRoster();
+  const sessionMap = new Map(sessions.map((s) => [s.minister, s]));
+
+  // ---- 立绘（无专属立绘时按文武分档兜底）----
+  function portraitOf(name: string): string {
+    const p = ro?.ministers?.[name]?.portrait;
+    if (p) return `./portraits/${p}`;
+    const r = dict[name]?.role || roleOf(name);
+    return /军|枢密|将|节度/.test(r) ? "./portraits/general.png" : "./portraits/minister.png";
+  }
+
+  // ---- 属性与特质（稳定伪随机；不含忠诚——该维度为隐藏值，绝不进入 UI 文本）----
   let seed = 0;
-  for (let i = 0; i < ministerName.length; i++) seed = (seed * 37 + ministerName.charCodeAt(i)) % 10007;
+  for (let i = 0; i < current.length; i++) seed = (seed * 37 + current.charCodeAt(i)) % 10007;
   const stats = {
     reputation: 80 + ((seed * 3) % 18),
     courage: 70 + ((seed * 7) % 25),
@@ -63,49 +154,81 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     scholar: isMilitary ? 65 + ((seed * 17) % 20) : 88 + ((seed * 17) % 11)
   };
 
-  // 特质标签（纯正中文标签，完全剥离前置 # 符号，对齐古代书契印鉴风格）
-  const traits = [
-    ministerFaction,
-    isMilitary ? "经略九边" : "深谋远虑",
-    ministerFaction === "清流言官" ? "忠直刚方" : "顾全大局",
-    stats.govern >= 90 ? "治国干城" : "老成持重"
-  ];
+  const [turns, setTurns] = useState<DialogueTurn[]>([]);
+  const [loadingSession, setLoadingSession] = useState(true);
 
-  // 历史对白记录流
-  const era = state ? `${pick<string>(state, "era_name", "建中靖国")}${pick<number>(state, "year", 1101)}年${pick<number>(state, "month", 1)}月` : "建中靖国元年正月";
-  
-  const [turns, setTurns] = useState<DialogueTurn[]>([
-    {
-      id: "init-1",
-      speaker: ministerName,
+  function greeting(name: string): DialogueTurn {
+    return {
+      id: `greet-${name}`,
+      speaker: name,
       isEmperor: false,
-      timeLabel: `${ministerName} · ${era}`,
+      timeLabel: `${name} · ${era}`,
       actionNote: "（肃立御案前，展角幞头微垂，拱手端肃而立，目光恭慎而沉毅）",
-      content: `臣【${ministerName}】蒙陛下召对垂询，敢不竭愚竭虑，上裨圣明。今朝廷纲维初定，四方政务繁剧，陛下有何谕示，臣敬聆圣裁。`
-    }
-  ]);
+      content: `臣【${name}】蒙陛下召对垂询，敢不竭愚竭虑，上裨圣明。今朝廷纲维初定，四方政务繁剧，陛下有何谕示，臣敬聆圣裁。`
+    };
+  }
 
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingTransfer = state
-    ? (pick<Record<string, unknown> | null>(state, "pending_inner_transfer", null) as
-        | Record<string, unknown>
-        | null)
-    : null;
+  /** 记忆库留档行 → 会话气泡（含「朕」之言的左侧/右侧判定） */
+  function rowToTurn(r: MemoryDialogueRow): DialogueTurn {
+    const isEmperor = r.speaker === "朕";
+    const when = r.turn === stateTurn ? era : `第${r.turn}回合`;
+    return {
+      id: `db-${r.id}`,
+      speaker: isEmperor ? "皇帝陛下" : r.speaker,
+      isEmperor,
+      timeLabel: isEmperor ? `御批天谕 · ${when}` : `${r.speaker} · ${when}`,
+      actionNote: r.stance ? `（立场：${r.stance}）` : undefined,
+      content: r.text,
+      persisted: true
+    };
+  }
+
+  /** 拉取记忆库：resetTurns 时以留档会话流重建消息列（无留档则回落开场白） */
+  async function pullMemory(name: string, resetTurns: boolean) {
+    setMemBusy(true);
+    setMemMsg(null);
+    if (resetTurns) setLoadingSession(true);
+    try {
+      const res = await getApiClient().memory(name);
+      setMem(res);
+      setSessions(res.sessions ?? []);
+      if (resetTurns) {
+        const rows = res.dialogues ?? [];
+        setTurns(rows.length ? rows.map(rowToTurn) : [greeting(name)]);
+      }
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      setMemMsg(`记忆库读取失败：${m}`);
+      if (resetTurns) setTurns([greeting(name)]);
+    } finally {
+      setMemBusy(false);
+      setLoadingSession(false);
+    }
+  }
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [turns, busy]);
+    void pullMemory(current, true);
+    // 仅在会话对象变更时重载；state/era 只影响文案标签
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [turns, busy, loadingSession]);
+
+  function switchTo(name: string) {
+    if (name === current) return;
+    setTurns([]);
+    setLoadingSession(true);
+    setCurrent(name);
+  }
 
   /** 解析「发内帑 50 万 / 500000 / 五十万」→ 贯整数；失败 null。 */
   function parseInnerAmount(text: string): number | null {
     const t = text.replace(/[，,。、\s]/g, "");
     const cn: Record<string, number> = {
       零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5,
-      六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
+      六: 6, 七: 7, 八: 8, 九: 9, 十: 10
     };
     const m = t.match(/(\d+(?:\.\d+)?)万/);
     if (m) return Math.round(parseFloat(m[1]) * 10000);
@@ -126,13 +249,19 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     return null;
   }
 
+  const pendingTransfer = state
+    ? (pick<Record<string, unknown> | null>(state, "pending_inner_transfer", null) as
+        | Record<string, unknown>
+        | null)
+    : null;
+
   async function handleTransfer(approve: boolean) {
     if (busy) return;
     setBusy(true);
     try {
       const res = await getApiClient().action(
         approve ? "confirm_inner_transfer" : "cancel_inner_transfer",
-        {},
+        {}
       );
       if (res.state) setState(res.state);
       setTurns((prev) => [
@@ -142,19 +271,19 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           speaker: "朱批",
           isEmperor: true,
           timeLabel: `内帑调拨 · ${era}`,
-          content: res.message || (approve ? "准，移库。" : "罢，勿庸。"),
-        },
+          content: res.message || (approve ? "准，移库。" : "罢，勿庸。")
+        }
       ]);
     } catch (e) {
       setTurns((prev) => [
         ...prev,
         {
           id: `tr-err-${Date.now()}`,
-          speaker: ministerName,
+          speaker: current,
           isEmperor: false,
-          timeLabel: `${ministerName} · 回奏`,
-          content: `调拨受阻：${e instanceof Error ? e.message : String(e)}`,
-        },
+          timeLabel: `${current} · 回奏`,
+          content: `调拨受阻：${e instanceof Error ? e.message : String(e)}`
+        }
       ]);
     } finally {
       setBusy(false);
@@ -164,6 +293,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   async function handleSend(textToSend?: string) {
     const text = (textToSend || input).trim();
     if (busy || !text) return;
+    const target = current; // 冻结本次召对对象：中途切换会话不得把回奏串到别人名下
 
     // 内帑调拨：商量确认式，不走 AI 召对（对齐 panels_govern.py）
     if (/内帑/.test(text)) {
@@ -177,8 +307,8 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
             isEmperor: false,
             timeLabel: `内帑调拨 · ${era}`,
             actionNote: "（未识金额）",
-            content: "未识别金额，请注明如「发内帑 50 万入国库」。",
-          },
+            content: "未识别金额，请注明如「发内帑 50 万入国库」。"
+          }
         ]);
         if (!textToSend) setInput("");
         return;
@@ -190,84 +320,97 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           speaker: "皇帝陛下",
           isEmperor: true,
           timeLabel: `御批天谕 · ${era}`,
-          content: text,
-        },
+          content: text
+        }
       ]);
       if (!textToSend) setInput("");
       setBusy(true);
       try {
-        const res = await getApiClient().action("propose_inner_transfer", {
-          amount: amt,
-        });
+        const res = await getApiClient().action("propose_inner_transfer", { amount: amt });
         if (res.state) setState(res.state);
-        setTurns((prev) => [
-          ...prev,
-          {
-            id: `m-${Date.now()}`,
-            speaker: ministerName,
-            isEmperor: false,
-            timeLabel: `${ministerName} · ${era}`,
-            actionNote: "（躬身回奏，候陛下朱批）",
-            content: res.message || `已谕发内帑 ${amt.toLocaleString()} 贯入国库，伏候圣裁。`,
-          },
-        ]);
+        if (currentRef.current === target) {
+          setTurns((prev) => [
+            ...prev,
+            {
+              id: `m-${Date.now()}`,
+              speaker: target,
+              isEmperor: false,
+              timeLabel: `${target} · ${era}`,
+              actionNote: "（躬身回奏，候陛下朱批）",
+              content: res.message || `已谕发内帑 ${amt.toLocaleString()} 贯入国库，伏候圣裁。`
+            }
+          ]);
+        }
       } catch (e) {
-        setTurns((prev) => [
-          ...prev,
-          {
-            id: `err-${Date.now()}`,
-            speaker: ministerName,
-            isEmperor: false,
-            timeLabel: `${ministerName} · 调拨受阻`,
-            content: `调拨受阻：${e instanceof Error ? e.message : String(e)}`,
-          },
-        ]);
+        if (currentRef.current === target) {
+          setTurns((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              speaker: target,
+              isEmperor: false,
+              timeLabel: `${target} · 调拨受阻`,
+              content: `调拨受阻：${e instanceof Error ? e.message : String(e)}`
+            }
+          ]);
+        }
       } finally {
         setBusy(false);
       }
       return;
     }
 
-    const userTurn: DialogueTurn = {
-      id: `u-${Date.now()}`,
-      speaker: "皇帝陛下",
-      isEmperor: true,
-      timeLabel: `御批天谕 · ${era}`,
-      content: text
-    };
-    setTurns((prev) => [...prev, userTurn]);
+    setTurns((prev) => [
+      ...prev,
+      {
+        id: `u-${Date.now()}`,
+        speaker: "皇帝陛下",
+        isEmperor: true,
+        timeLabel: `御批天谕 · ${era}`,
+        content: text
+      }
+    ]);
     if (!textToSend) setInput("");
     setBusy(true);
 
     try {
       const res = await getApiClient().action("audience_dialogue", {
-        minister: ministerName,
+        minister: target,
         text
       });
       if (res.state) setState(res.state);
-
       const aiReply = res.message || "臣敬遵温谕，必体察上意，恭谨奉行。";
-      const replyTurn: DialogueTurn = {
-        id: `m-${Date.now()}`,
-        speaker: ministerName,
-        isEmperor: false,
-        timeLabel: `${ministerName} · ${era}`,
-        actionNote: "（闻天语温切，躬身再拜，肃容敬答）",
-        content: aiReply
-      };
-      setTurns((prev) => [...prev, replyTurn]);
+      if (currentRef.current === target) {
+        setTurns((prev) => [
+          ...prev,
+          {
+            id: `m-${Date.now()}`,
+            speaker: target,
+            isEmperor: false,
+            timeLabel: `${target} · ${era}`,
+            actionNote: "（闻天语温切，躬身再拜，肃容敬答）",
+            content: aiReply
+          }
+        ]);
+      }
     } catch (e) {
-      const errTurn: DialogueTurn = {
-        id: `err-${Date.now()}`,
-        speaker: ministerName,
-        isEmperor: false,
-        timeLabel: `${ministerName} · 传谕受阻`,
-        actionNote: "（有司飞报，奏对有碍）",
-        content: `奏对有阻：${e instanceof Error ? e.message : String(e)}`
-      };
-      setTurns((prev) => [...prev, errTurn]);
+      if (currentRef.current === target) {
+        setTurns((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            speaker: target,
+            isEmperor: false,
+            timeLabel: `${target} · 传谕受阻`,
+            actionNote: "（有司飞报，奏对有碍）",
+            content: `奏对有阻：${e instanceof Error ? e.message : String(e)}`
+          }
+        ]);
+      }
     } finally {
       setBusy(false);
+      // 刷新侧栏与名录末条预览（不动即时消息列，避免抹掉未落库的内帑/异常提示）
+      void pullMemory(target, false);
     }
   }
 
@@ -298,8 +441,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     });
 
     // 2. 根据大臣真实职权精确分类派生专业选项
-    if (isMilitary || ministerRole.includes("枢密") || ministerRole.includes("边") || ministerRole.includes("帅")) {
-      // 军事/边防枢臣
+    if (isMilitary || /枢密|边|帅/.test(currentRole)) {
       if (liaoAtt < 40 || xixiaAtt < 40) {
         opts.push({
           label: "九边饬备",
@@ -317,14 +459,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         badge: "互市",
         text: "辽夏近来边贸互市虚实如何？铁货茶引走私有无边吏私纵情弊？"
       });
-    } else if (
-      ministerRole.includes("相") ||
-      ministerRole.includes("仆射") ||
-      ministerRole.includes("侍郎") ||
-      ministerRole.includes("门下") ||
-      ministerRole.includes("中书")
-    ) {
-      // 宰相/三省宰执
+    } else if (/相|仆射|侍郎|门下|中书/.test(currentRole)) {
       opts.push({
         label: "调停党争",
         badge: "朝局",
@@ -348,8 +483,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         badge: "大政",
         text: "考课之法久废，请卿会同吏部严核中外荐举，务求公允。"
       });
-    } else if (ministerRole.includes("户部") || ministerRole.includes("转运") || ministerRole.includes("理财")) {
-      // 户部/财税重臣
+    } else if (/户部|转运|理财/.test(currentRole)) {
       opts.push({
         label: "核查两税",
         badge: "赋税",
@@ -360,14 +494,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         badge: "仓庾",
         text: "常平太仓粮储与各路仓窖积粟足支几何？米价平籴平粜之政宜早为计。"
       });
-    } else if (
-      ministerRole.includes("御史") ||
-      ministerRole.includes("司谏") ||
-      ministerRole.includes("正言") ||
-      ministerRole.includes("台") ||
-      ministerRole.includes("谏")
-    ) {
-      // 言官台谏清流
+    } else if (/御史|司谏|正言|台|谏/.test(currentRole)) {
       opts.push({
         label: "弹劾贪墨",
         badge: "风宪",
@@ -378,15 +505,13 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         badge: "谏议",
         text: "台谏论事当秉公体国，切不可借言事攻讦异己，陷入朋党倾轧之弊。"
       });
-    } else if (ministerRole.includes("工部") || ministerRole.includes("营造") || ministerRole.includes("修内司")) {
-      // 工部营造
+    } else if (/工部|营造|修内司/.test(currentRole)) {
       opts.push({
         label: "督办营造",
         badge: "工役",
         text: "京畿修缮水利与军器修造工费度支如何？务使工物精纯，毋劳民伤财。"
       });
     } else {
-      // 通用卿僚
       opts.push({
         label: "勤修厥职",
         badge: "勤政",
@@ -433,6 +558,8 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   }
 
   const dynamicOptions = getDynamicOptions();
+  const digestCount = mem?.dialogue_summaries?.length ?? 0;
+  const streamCount = mem?.dialogues?.length ?? 0;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-text font-kai overflow-hidden">
@@ -460,114 +587,180 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           </div>
         </div>
 
-        <button
-          onClick={() => popOverlay()}
-          className="flex items-center gap-1.5 rounded border border-gold/40 bg-card/10 px-3.5 py-1 text-xs font-bold text-paper transition hover:border-gold hover:bg-gold/20 hover:text-white"
-        >
-          <X size={15} /> 退出召对
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 记忆库入口：开合右侧记忆抽屉（会话原文/纪要/关系/史略/留痕） */}
+          <button
+            onClick={() => setMemOpen((v) => !v)}
+            title={`记忆库 · ${current}（会话原文 ${streamCount} 条 · 纪要 ${digestCount} 篇）`}
+            className={`flex items-center gap-1.5 rounded border px-3.5 py-1 text-xs font-bold transition ${
+              memOpen
+                ? "border-gold bg-gold/25 text-white"
+                : "border-gold/40 bg-card/10 text-paper hover:border-gold hover:bg-gold/20 hover:text-white"
+            }`}
+          >
+            <BookOpen size={15} /> 记忆库
+            <span className="rounded bg-black/25 px-1 text-[10px] font-normal text-gold-light">
+              {streamCount}
+            </span>
+          </button>
+          <button
+            onClick={() => popOverlay()}
+            className="flex items-center gap-1.5 rounded border border-gold/40 bg-card/10 px-3.5 py-1 text-xs font-bold text-paper transition hover:border-gold hover:bg-gold/20 hover:text-white"
+          >
+            <X size={15} /> 退出召对
+          </button>
+        </div>
       </div>
 
-      {/* 3. 核心双栏主舞台（左立绘顶天立地，右长卷对白） */}
-      <div className="relative z-10 flex flex-1 overflow-hidden px-6 pt-2 pb-4 gap-6">
-        {/* 左侧：大臣立绘顶头全幅展现 + 宣纸属性面板 (~32%) */}
-        <div className="flex w-[340px] shrink-0 flex-col justify-between h-full">
-          {/* 大臣大立绘展示位：立绘顶头全高展示，无多余顶部留白 */}
-          <div className="relative flex flex-1 items-end justify-center overflow-hidden rounded-t-[4px] border-t border-x border-gold/50 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
+      {/* 3. 三栏主舞台：会话名录（左）· 会话正文（中）· 记忆库抽屉（右，可开合） */}
+      <div className="relative z-10 flex flex-1 overflow-hidden gap-3.5 px-4 pt-2.5 pb-3.5">
+        {/* 左栏：召对名录（会话列表）+ 当前大臣名片 */}
+        <div className="flex w-[272px] shrink-0 flex-col overflow-hidden rounded-[4px] border border-gold/50 bg-black/45 backdrop-blur-sm shadow-xl">
+          {/* 当前大臣名片（立绘小像 + 官品/爵位双轨） */}
+          <div className="flex items-center gap-2.5 border-b border-gold/40 px-3 py-2.5">
             <img
-              src={portraitUrl}
-              alt={ministerName}
-              className="h-full max-h-none w-auto object-cover object-top filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] scale-105 transform origin-top"
+              src={portraitOf(current)}
+              alt={current}
+              className="h-14 w-14 shrink-0 rounded border border-gold/50 bg-black/40 object-cover object-top"
             />
-            {/* 顶部官阶/爵位标签：官品标官职之侧（在朝），爵位独立尊显（在野保留爵、白身示「布衣」） */}
-            <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
-              {officialRank && (
-                <div className="rounded border border-gold/60 bg-black/80 px-2.5 py-1 text-[11.5px] font-bold text-gold tracking-widest backdrop-blur-sm shadow-md">
-                  {officialRank}
-                </div>
-              )}
-              {nobleTitle && (
-                <div className="rounded border border-red/60 bg-red-950/70 px-2.5 py-1 text-[11.5px] font-bold text-[#f2d3a0] tracking-widest backdrop-blur-sm shadow-md">
-                  {nobleTitle}
-                </div>
-              )}
-              {!officialRank && !nobleTitle && (
-                <div className="rounded border border-border/60 bg-black/60 px-2.5 py-1 text-[11.5px] font-bold text-[#c9bda0] tracking-widest backdrop-blur-sm">
-                  白身布衣
-                </div>
-              )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-kai text-[16px] font-bold tracking-widest text-[#f5ebd3]">
+                {current}
+              </p>
+              <p className="truncate text-[11px] text-gold/80">{currentRole}</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {officialRank && (
+                  <span className="rounded border border-gold/60 bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-gold">
+                    {officialRank}
+                  </span>
+                )}
+                {nobleTitle && (
+                  <span className="rounded border border-red/60 bg-red-950/70 px-1.5 py-0.5 text-[10px] font-bold text-[#f2d3a0]">
+                    {nobleTitle}
+                  </span>
+                )}
+                {!officialRank && !nobleTitle && (
+                  <span className="rounded border border-border/60 bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-[#c9bda0]">
+                    白身布衣
+                  </span>
+                )}
+                <span className="rounded border border-gold/40 bg-black/50 px-1.5 py-0.5 text-[10px] text-[#c9bda0]">
+                  {currentFaction}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* 下方宣纸质感身份与属性面板 */}
-          <div className="rounded-b-[4px] border border-gold/60 bg-[#fbf7ed] p-3.5 shadow-2xl text-ink">
-            {/* 姓名与派系标签 */}
-            <div className="flex items-baseline justify-between border-b border-gold/40 pb-2">
-              <span className="font-kai text-[20px] font-bold text-ink tracking-widest">
-                {ministerName}
-              </span>
-              <span className="rounded bg-red/10 border border-red/30 px-2 py-0.5 text-[11.5px] font-bold text-red">
-                {ministerFaction}
-              </span>
-            </div>
-            <p className="mt-1 text-[12px] font-bold text-goldDark truncate">
-              {ministerRole}
-            </p>
+          {/* 五维属性（不含忠诚——隐藏值不进 UI） */}
+          <div className="grid grid-cols-5 gap-1 border-b border-gold/40 px-2.5 py-1.5 text-center">
+            {[
+              ["清誉", stats.reputation],
+              ["胆识", stats.courage],
+              ["武略", stats.military],
+              ["理政", stats.govern],
+              ["学识", stats.scholar]
+            ].map(([k, v]) => (
+              <div key={String(k)} className="rounded border border-gold/25 bg-black/30 py-0.5">
+                <p className="text-[9.5px] text-gold/60">{k}</p>
+                <p className="font-kai text-[12.5px] font-bold text-[#f5ebd3]">{v}</p>
+              </div>
+            ))}
+          </div>
 
-            {/* 属性横排条（不含忠诚——该维度为隐藏值，绝不进入任何 UI 文本） */}
-            <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center text-[11px] font-sans">
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">清誉</span> <strong className="text-ink font-kai">{stats.reputation}</strong>
-              </div>
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">胆识</span> <strong className="text-ink font-kai">{stats.courage}</strong>
-              </div>
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">武略</span> <strong className="text-ink font-kai">{stats.military}</strong>
-              </div>
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">理政</span> <strong className="text-ink font-kai">{stats.govern}</strong>
-              </div>
-              <div className="rounded border border-gold/30 bg-card py-1">
-                <span className="text-dim">学识</span> <strong className="text-ink font-kai">{stats.scholar}</strong>
-              </div>
-            </div>
-
-            {/* 大臣特质词卡：完全去除 # 符号，采用古雅方印徽标签 */}
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {traits.map((tr) => (
-                <span key={tr} className="rounded bg-paper px-2 py-0.5 text-[11px] font-kai font-medium text-dim border border-gold/30 shadow-xs">
-                  {tr}
-                </span>
-              ))}
-            </div>
+          {/* 会话列表 */}
+          <div className="flex items-center justify-between px-3 pt-2 pb-1">
+            <span className="text-[10.5px] tracking-widest text-gold/70">召 对 名 录</span>
+            <span className="text-[10px] text-gold/50">{roster.length} 位</span>
+          </div>
+          <div className="flex-1 overflow-y-auto pb-2">
+            {roster.map((r) => {
+              const active = r.name === current;
+              const s = sessionMap.get(r.name);
+              return (
+                <button
+                  key={r.name}
+                  onClick={() => switchTo(r.name)}
+                  disabled={busy}
+                  className={`flex w-full items-start gap-2.5 border-l-2 px-3 py-2 text-left transition disabled:opacity-60 ${
+                    active
+                      ? "border-gold bg-gold/20"
+                      : "border-transparent hover:bg-white/5"
+                  }`}
+                >
+                  <img
+                    src={portraitOf(r.name)}
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded border border-gold/40 bg-black/40 object-cover object-top"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-bold text-[#f5ebd3]">
+                        {r.name}
+                      </span>
+                      {s && (
+                        <span className="shrink-0 text-[9.5px] text-gold/70">
+                          第{s.last_turn}回合 · {s.count}条
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[10.5px] text-gold/70">{r.role}</p>
+                    <p className="truncate text-[10.5px] text-[#c9bda0]">
+                      {s ? `${s.last_speaker === "朕" ? "朕" : s.last_speaker}：${s.last_text}` : "尚无召对留档"}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 右侧：长卷对白对话流 (~68%) */}
-        <div className="flex flex-1 flex-col rounded-[4px] border border-gold/60 bg-[#f9f5ea]/95 shadow-2xl overflow-hidden h-full">
-          {/* 对白卷轴流主体 */}
+        {/* 中栏：会话正文 */}
+        <div className="flex min-w-0 flex-1 flex-col rounded-[4px] border border-gold/60 bg-[#f9f5ea]/95 shadow-2xl overflow-hidden h-full">
+          {/* 会话题头 */}
+          <div className="flex items-center justify-between border-b border-gold/40 bg-[#f4ebd6] px-4 py-2">
+            <div className="min-w-0">
+              <p className="truncate font-kai text-[15px] font-bold tracking-widest text-ink">
+                垂拱殿召对 · {current}
+              </p>
+              <p className="truncate text-[11px] text-dim">
+                {currentRole} · {currentFaction} · {era}
+              </p>
+            </div>
+            <span className="shrink-0 text-[11px] text-dim">
+              留档 {turns.filter((t) => t.persisted).length} 条
+            </span>
+          </div>
+
+          {/* 消息流 */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+            {loadingSession && turns.length === 0 && (
+              <div className="flex items-center gap-2 py-2 text-xs text-dim">
+                <Loader2 size={14} className="animate-spin text-goldDark" />
+                <span>正在调阅 {current} 的旧档…</span>
+              </div>
+            )}
+
             {turns.map((t) => (
               <div
                 key={t.id}
-                className={`flex flex-col animate-card-in ${
-                  t.isEmperor ? "items-end" : "items-start"
-                }`}
+                className={`flex flex-col animate-card-in ${t.isEmperor ? "items-end" : "items-start"}`}
               >
                 {/* 说话人与时节 */}
                 <div className="flex items-center gap-2 mb-1 text-[11.5px] text-dim px-1">
                   <span className="font-bold">{t.timeLabel}</span>
+                  {t.persisted && (
+                    <span className="rounded bg-gold/15 px-1 text-[9.5px] text-goldDark">留档</span>
+                  )}
                 </div>
 
-                {/* 动作细节描写（灰色宋体斜体，参考图核心神韵） */}
+                {/* 动作细节描写（灰色宋体斜体） */}
                 {t.actionNote && (
                   <div className="max-w-[85%] text-[12px] italic text-dim/90 mb-1.5 px-2 leading-relaxed">
                     {t.actionNote}
                   </div>
                 )}
 
-                {/* 对话正文长卷 */}
+                {/* 对话正文 */}
                 <div
                   className={`relative max-w-[88%] rounded-lg p-3.5 shadow-sm text-[14.5px] leading-relaxed border ${
                     t.isEmperor
@@ -583,7 +776,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
             {busy && (
               <div className="flex items-center gap-2 text-dim text-xs py-2 px-1">
                 <Loader2 size={14} className="animate-spin text-goldDark" />
-                <span>大臣深思谋定，正拟奏对草疏中…</span>
+                <span>{current} 深思谋定，正拟奏对草疏中…</span>
               </div>
             )}
           </div>
@@ -605,7 +798,11 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                       : "border border-gold/60 bg-paper text-ink hover:bg-gold-light hover:border-gold hover:text-red"
                   }`}
                 >
-                  <span className={`text-[9.5px] px-1 py-0.2 rounded font-sans ${opt.isPrimary ? "bg-black/20 text-gold-light" : "bg-gold/15 text-goldDark"}`}>
+                  <span
+                    className={`text-[9.5px] px-1 py-0.2 rounded font-sans ${
+                      opt.isPrimary ? "bg-black/20 text-gold-light" : "bg-gold/15 text-goldDark"
+                    }`}
+                  >
                     {opt.badge}
                   </span>
                   <span>{opt.label}</span>
@@ -649,7 +846,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                   }
                 }}
                 disabled={busy}
-                placeholder={`向 ${ministerName} 传达圣意口谕（例：卿身为朝廷柱石，有何经略之策？直接敲 Enter 发送）`}
+                placeholder={`向 ${current} 传达圣意口谕（例：卿身为朝廷柱石，有何经略之策？直接敲 Enter 发送）`}
                 className="flex-1 rounded border border-gold/60 bg-card px-3.5 py-2 text-[14px] text-ink outline-none focus:border-red shadow-inner placeholder:text-dim/60"
               />
               <button
@@ -663,6 +860,20 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
             </div>
           </div>
         </div>
+
+        {/* 右栏：记忆库（嵌入本面板的功能，顶栏按键开合） */}
+        {memOpen && (
+          <MemoryDrawer
+            minister={current}
+            data={mem}
+            busy={memBusy}
+            msg={memMsg}
+            tab={memTab}
+            onTab={setMemTab}
+            onClose={() => setMemOpen(false)}
+            onRefresh={() => void pullMemory(current, false)}
+          />
+        )}
       </div>
     </div>
   );
