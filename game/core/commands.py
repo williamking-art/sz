@@ -1298,6 +1298,19 @@ def apply_minister_departure(state: GameState, name: str, reason: str) -> list:
         state.factions[_fac]["satisfaction"] = max(0, min(100, state.factions[_fac]["satisfaction"] + _f))
         log.append(f"[派系] {_fac}满意度 {'+' if _f >= 0 else ''}{_f}")
 
+    # ④ 派系离散（2026-09-19 三期接口接线）：非正常离任（贬黜/处死/战殁）→
+    # 该派系在**官僚**政治盘上小幅退出（党羽离散，其余派系按剩余量归一吸收）。
+    # 只改「立场占比」，**不动 POP size**（人头侧由官制步负责），Σ 占比仍为 1。
+    if _fac and reason in ("贬黜", "处死", "战殁"):
+        try:
+            from core.faction_split import exit_faction_members, split_of
+            cur = split_of(state, "官僚")
+            if _fac in cur and cur[_fac] > 0:
+                exit_faction_members(state, "官僚", _fac, cur[_fac] * 0.05)
+                log.append(f"[派系] {_fac} 失重臣（{name}·{reason}），其党羽稍散")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"[派系] {_fac} 离散结算异常：{type(e).__name__}")
+
     # 特殊修饰（条件式判定，写死可审查；数值仍走档位换算）
     _corr = state.corruption.get(name, 0.0)
     _has_war = bool(set(traits_of(name)) & {"军略", "忠勇"})

@@ -731,6 +731,15 @@ def load_game(slot: int = 1):
     # 五层③：研发管线 projects 旧档兼容
     if not isinstance(state.tech.get("projects"), dict):
         state.tech["projects"] = {}
+
+    # 金融契约迁移（2026-09-19 金融整改）：旧档补齐 jiaozi/bank/standard 新字段
+    # （发行/流通/准备金/兑付率/界期、存款/贷款/准备金率/逾期率/挤兑、记账与市场汇率）。
+    # 幂等：`ensure_finance_fields` 不覆盖存档已有值，缺什么补什么。
+    try:
+        state.ensure_finance_fields()
+    except Exception as e:  # noqa: BLE001  金融字段迁移失败不得阻断读档（core.money 有防御式兜底）
+        import logging as _lg6
+        _lg6.getLogger("save_load").warning("金融字段迁移异常：%s", e)
     # B1 持久化：重建「聊出来的发明」节点表
     # 生成节点随存档保存（generated_nodes[*]["node"] 为完整元组），
     # 读档时重新注册进 content.data 全局表，保证 get_tech_node 能查到。
