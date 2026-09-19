@@ -2581,7 +2581,8 @@ def blueprint_region_ok(route_type, blueprint_key) -> bool:
     """
     bp = BUILDING_BLUEPRINTS.get(str(blueprint_key))
     if not isinstance(bp, dict):
-        return False
+        # 非科技蓝图（如 BUILDING_STD 的政府建筑）：未声明地利前置 → 处处可建
+        return True
     need = bp.get("requires_region") or ()
     if not need:
         return True

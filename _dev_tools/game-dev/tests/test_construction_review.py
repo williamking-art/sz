@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-"""营建入口（core/construction.py）回归 —— 蓝图仿明末模式的功能闭环。
-
-背景：`prefectures[*]["buildings"]` 此前只有初始化、**没有营建入口**，
-导致 `_settle_upkeep` 的建筑维持费与科技 `adoption` 覆盖率事实上恒为空。
-本文件锁定新入口：蓝图解析 / 科技前置 / **地利前置** / 造价守恒 / 等级累加 /
-落成后维持费与 adoption 真正生效。
-"""
+"""营建闭环回归（立项 -> 工程推进 -> 完工落成 -> adoption/维持费生效）。"""
 import os
 import sys
 
@@ -14,11 +8,10 @@ _GAME_ROOT = os.path.normpath(os.path.join(
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
-from content.data import TECH_ADOPTION_DEFAULT, TECH_ADOPTION_PER_LEVEL  # noqa: E402
-from core import money  # noqa: E402
-from core.construction import can_build, resolve_blueprint  # noqa: E402
+from core.asset_context import node_adoption_coverage  # noqa: E402
+from core.construction import can_build, propose_project, resolve_blueprint  # noqa: E402
 from core.game_state import GameState  # noqa: E402
-from core.settlement_steps import _settle_upkeep  # noqa: E402
+from core.settlement_steps import _settle_projects, _settle_upkeep  # noqa: E402
 
 
 def _s():
@@ -27,54 +20,90 @@ def _s():
     return s
 
 
-def _route_with(tag: str, s):
-    for r, p in s.prefectures.items():
-        if tag in str(p.get("type")):
-            return r
-    return None
-
-
-def _route_without(tag: str, s):
-    for r, p in s.prefectures.items():
-        if tag not in str(p.get("type")):
-            return r
+def _run_to_operating(s, pid, limit=20):
+    for m in range(limit):
+        _settle_projects(s, [])
+        if s.projects[pid].get("status") == "operating":
+            return m + 1
     return None
 
 
 def test_resolve_blueprint_by_key_and_name():
     bp = resolve_blueprint("", key="C1_gunpowder")
     assert bp and bp["_name"] == "火药局"
-    bp2 = resolve_blueprint("火药局")
-    assert bp2 and bp2["_key"] == "C1_gunpowder"
+    assert resolve_blueprint("火药局")["_key"] == "C1_gunpowder"
     assert resolve_blueprint("根本不存在的建筑") is None
 
 
 def test_region_prerequisite_blocks_wrong_route():
-    """地利前置（仿明末 requires_region_tags）：京畿要地专属蓝图不得建于他路。"""
     s = _s()
-    key, name = "I0_block", "国子监印书局"
-    cap = _route_with("京畿", s)
-    other = _route_without("京畿", s)
+    cap = next((x for x, p in s.prefectures.items() if "京畿" in str(p.get("type"))), None)
+    other = next((x for x, p in s.prefectures.items() if "京畿" not in str(p.get("type"))), None)
     assert cap and other
-    ok_cap, errs_cap = can_build(s, cap, name, key)
-    ok_other, errs_other = can_build(s, other, name, key)
+    ok_cap, errs_cap = can_build(s, cap, "国子监印书局", "I0_block")
+    ok_other, errs_other = can_build(s, other, "国子监印书局", "I0_block")
     assert ok_cap, errs_cap
-    assert not ok_other and any("地利" in e for e in errs_other), errs_other
-    # 只读校验：不得改动任何状态
-    t0 = s.treasury
-    b0 = dict(s.prefectures[other].get("buildings") or {})
-    can_build(s, other, name, key)
+    assert not ok_other and any("地利" in e for e in errs_other)
+    t0, b0 = s.treasury, dict(s.prefectures[other].get("buildings") or {})
+    can_build(s, other, "国子监印书局", "I0_block")
     assert s.treasury == t0 and (s.prefectures[other].get("buildings") or {}) == b0
 
 
-def test_tech_prerequisite_blocks_unresearched_blueprint():
+def test_unknown_blueprint_refused():
     s = _s()
     r = next(iter(s.prefectures))
-    s.tech["unlocked"] = []                       # 清空已解锁节点
-    ok, errs = can_build(s, r, "火药局", "C1_gunpowder")
-    assert not ok and any("科技前置" in e for e in errs), errs
-    s.tech["unlocked"] = ["C1_gunpowder"]         # 解锁后可建
-    ok2, _ = can_build(s, r, "火药局", "C1_gunpowder")
-    assert ok2
+    res = propose_project(s, r, "根本没有这座建筑")
+    assert res["ok"] is False and res["errors"]
 
 
+def test_propose_project_creates_proposed_entry():
+    s = _s()
+    r = next(iter(s.prefectures))
+    res = propose_project(s, r, "水利")
+    assert res["ok"], res["errors"]
+    p = s.projects[res["pid"]]
+    assert p["status"] == "proposed" and p["fund_cost"] == res["cost"] > 0
+    assert 1 <= res["months"] <= 6
+    assert p["speed"] == max(1, int(round(100.0 / res["months"])))
+
+
+def test_propose_refuses_duplicate_and_bad_tech_treasury():
+    s = _s()
+    r = next(iter(s.prefectures))
+    assert propose_project(s, r, "水利")["ok"]
+    dup = propose_project(s, r, "水利")
+    assert dup["ok"] is False and any("已有" in e for e in dup["errors"])
+    s.tech["unlocked"] = []
+    bad = propose_project(s, r, "火药局", "C1_gunpowder")
+    assert bad["ok"] is False and any("科技前置" in e for e in bad["errors"])
+    s2 = _s()
+    s2.treasury = 1
+    bad2 = propose_project(s2, next(iter(s2.prefectures)), "水利")
+    assert bad2["ok"] is False and any("国库不足" in e for e in bad2["errors"])
+    assert not any(str(p.get("name")) == "水利" for p in s2.projects.values())
+
+
+def test_completion_lands_building_into_prefecture():
+    s = _s()
+    r = next(iter(s.prefectures))
+    res = propose_project(s, r, "水利", levels=1)
+    assert res["ok"], res["errors"]
+    assert (s.prefectures[r].get("buildings") or {}) == {}
+    assert _run_to_operating(s, res["pid"]) is not None
+    assert s.prefectures[r]["buildings"]["水利"] == 1
+
+
+def test_completion_enables_upkeep_and_adoption():
+    s = _s()
+    r = next(iter(s.prefectures))
+    s.tech["unlocked"] = list(s.tech.get("unlocked") or []) + ["C1_gunpowder"]
+    cov0 = round(node_adoption_coverage(s, "C1_gunpowder"), 6)
+    s.treasury = 10 ** 9
+    paid0 = _settle_upkeep(s, [])
+    res = propose_project(s, r, "火药局", "C1_gunpowder", levels=4)
+    assert res["ok"], res["errors"]
+    assert _run_to_operating(s, res["pid"]) is not None
+    assert s.prefectures[r]["buildings"]["火药局"] == 4
+    s.treasury = 10 ** 9
+    assert _settle_upkeep(s, []) > paid0
+    assert round(node_adoption_coverage(s, "C1_gunpowder"), 6) > cov0
