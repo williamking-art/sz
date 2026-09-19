@@ -200,6 +200,12 @@ game/assets/map/raw/ne_10m_admin_1.geojson
 
 # --- 立绘合成缓存（compose_portrait 按需自动再生，不入库） ---
 game/content/ministers/portraits/_composed/
+# --- 前端立绘（运行时合成产物：compose_portrait 按需生成后导出到前端 public） ---
+# 背景：2026-09-19 发现该目录不断出现未跟踪 PNG（唐恪_zi_gongshou.png / 252_*.png 等），
+# 根因见 _dev_tools/game-docs/analysis/portrait_system_design.md §一.3：
+# 「请求期间写 frontend/public，打包后可能只读，并发生成可能争用」。
+# 既有已跟踪的 42 张历史文件不受本规则影响；新产物不再入库（如需入库请 git add -f）。
+game/frontend/public/portraits/ministers/*.png
 
 # --- 本地压缩包（不入库） ---
 game.zip
