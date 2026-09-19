@@ -1299,9 +1299,16 @@ def _settle_bank_credit(state, log):
 
     from core.money import m_all as _m_all
     from core.money import register_flow as _reg_flow
+    from core import institution as _inst
     b = state.bank
     if not bool(b.get("established", False)):
         return {"ok": True, "skipped": "银行未设"}
+    # 五个旋钮经既有「编制改革接口」取值（玩家诏令 / AI 提案可改；缺省回退常量）
+    RATIO = _inst.get(state, "didang_reserve_ratio", BANK_RESERVE_RATIO_MIN)
+    RATE = _inst.get(state, "didang_loan_rate", BANK_LOAN_RATE)
+    LEND = _inst.get(state, "didang_loan_share", BANK_LOAN_MONTH_SHARE)
+    DEP = _inst.get(state, "didang_deposit_share", BANK_DEPOSIT_MONTH_SHARE)
+    CAP = _inst.get(state, "didang_deposit_cap", 0.30)
     mall0 = _m_all(state)
     # 信用信心：交子挤兑压力越大，信贷越收缩、违约越多（§4 传导链）
     trust_conf = 1.0
@@ -1341,7 +1348,11 @@ def _settle_bank_credit(state, log):
                 total_w += w
 
     # ---- 2) 吸储（POP wealth → 准备金；存款为银行负债 memo）----
-    deposit = int(min(total_w, total_w * BANK_DEPOSIT_MONTH_SHARE)) if total_w > 0 else 0
+    # 饱和上限（2026-09-19 压力测试修复）：原按月 5% **无上限**，240 月复利后把民间
+    # wealth 抽走 1.46 亿贯（货币退出流通、放贷萎缩）。现按"存款 ≤ 目标阶层财富 × CAP"封顶。
+    _cap_total = int(total_w * CAP) if total_w > 0 else 0
+    _room = max(0, _cap_total - int(b.get("deposits", 0) or 0))
+    deposit = int(min(total_w * DEP, _room)) if total_w > 0 else 0
     if deposit > 0:
         _taken = 0
         for slot in pools:
@@ -1357,12 +1368,11 @@ def _settle_bank_credit(state, log):
 
     # ---- 3) 放贷（准备金 → 借款方资产；同时记债权；比例/准备金率/信心三重约束）----
     loan = 0
-    req = int(int(b.get("deposits", 0) or 0)
-              * max(BANK_RESERVE_RATIO_MIN, float(b.get("reserve_ratio", 0.20) or 0.20)))
+    req = int(int(b.get("deposits", 0) or 0) * max(BANK_RESERVE_RATIO_MIN, RATIO))
     lendable = max(0, reserve - req)
     if lendable > 0 and pools:
         _pool_now = sum(int(s.get("wealth", 0) or 0) for s in pools)
-        _want = int(min(lendable, int(reserve * BANK_LOAN_MONTH_SHARE * trust_conf)))
+        _want = int(min(lendable, int(reserve * LEND * trust_conf)))
         if _want > 0 and _pool_now > 0:
             _lent = 0
             for slot in pools:
@@ -1382,7 +1392,7 @@ def _settle_bank_credit(state, log):
     _loans_now = int(b.get("loans", 0) or 0)
     if _loans_now > 0 and pools:
         _pool_now = sum(int(s.get("wealth", 0) or 0) for s in pools)
-        _want = min(int(_loans_now * BANK_LOAN_RATE), _pool_now)
+        _want = min(int(_loans_now * RATE), _pool_now)
         if _want > 0 and _pool_now > 0:
             for slot in pools:
                 w = int(slot.get("wealth", 0) or 0)
