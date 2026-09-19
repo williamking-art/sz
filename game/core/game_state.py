@@ -589,7 +589,11 @@ class GameState(GameStateEconMixin):
         try:
             from core.literacy import init_literacy
             init_literacy(self)
-        except Exception:  # noqa: BLE001  识字率初始化失败不得阻断开局
+            # 利益集团「立场占比」（给 POP 加政治派系标签；比率，非人口账本）——
+            # 与识字率同批初始化：皆由 POP 结构派生，失败不得阻断开局。
+            from core.faction_split import ensure_faction_split
+            ensure_faction_split(self)
+        except Exception:  # noqa: BLE001  识字率/立场占比初始化失败不得阻断开局
             pass
 
         # 开局货币校准（A1 定稿）：修复 F1（士绅卖粮造币）后补开局货币，防跌回通缩地板。
@@ -887,6 +891,88 @@ class GameState(GameStateEconMixin):
     def change_granary_cap(self, delta: int):
         """新建仓储：扩建中央仓容量（石）。"""
         self.granary_cap = max(0, min(GRANARY_CAP_SOFT, self.granary_cap + delta))
+
+    # ================================================================
+    # 金融数据契约（第二节§2/§3；第六节）——只读上限 + 幂等迁移 + 守恒开户
+    # ================================================================
+    def jiaozi_issue_limit(self) -> int:
+        """交子可发行上限（第二节§2）：取「准备金 / 税收接受度 / 信用上限」三者最紧。
+
+        准备金约束 = `_jiaozi_ceiling()`（准备金 × 皇威放宽系数，既有口径）；
+        税收接受度 = jiaozi["tax_acceptance"]（0~1，官府课税接受交子的比例）；
+        信用上限   = JIAOZI_CREDIT_FLOOR + (1−floor)×trust/100（0~1）。
+        三者相乘向下取整。**只读**，不改任何账户（发行落地仍走既有发行路径）。
+        """
+        base = int(self._jiaozi_ceiling())
+        jz = self.jiaozi if isinstance(getattr(self, "jiaozi", None), dict) else {}
+        try:
+            from content.data import JIAOZI_CREDIT_FLOOR, JIAOZI_TAX_ACCEPTANCE
+        except Exception:  # noqa: BLE001 — 常量导入失败时退回契约默认值
+            JIAOZI_TAX_ACCEPTANCE, JIAOZI_CREDIT_FLOOR = 0.80, 0.50
+        try:
+            tax_acc = max(0.0, min(1.0, float(jz.get("tax_acceptance", JIAOZI_TAX_ACCEPTANCE))))
+        except (TypeError, ValueError):
+            tax_acc = float(JIAOZI_TAX_ACCEPTANCE)
+        try:
+            trust = max(0.0, min(100.0, float(jz.get("trust", 0) or 0)))
+        except (TypeError, ValueError):
+            trust = 0.0
+        floor = max(0.0, min(1.0, float(JIAOZI_CREDIT_FLOOR)))
+        credit = floor + (1.0 - floor) * (trust / 100.0)
+        return int(base * tax_acc * credit)
+
+    def ensure_finance_fields(self) -> dict:
+        """旧存档迁移：补齐 JIAOZI/BANK/STANDARD 新数据契约字段（幂等；**不改既有数值**）。
+
+        返回 {空间: [新增键, ...]}。调用方为 save_load 读档迁移段（不在本任务写域；
+        core.money 的防御式读取已能兜底缺键，故旧档不会崩，仅缺新字段展示）。
+        """
+        from content.data import BANK_INFO, JIAOZI_INFO, STANDARD_INFO
+        added: dict = {}
+        for name, defaults in (("jiaozi", JIAOZI_INFO), ("bank", BANK_INFO),
+                               ("standard", STANDARD_INFO)):
+            cur = getattr(self, name, None)
+            if not isinstance(cur, dict):
+                cur = dict(defaults)
+                setattr(self, name, cur)
+            miss = [k for k in defaults if k not in cur]
+            for k in miss:
+                cur[k] = defaults[k]
+            if miss:
+                added[name] = miss
+        return added
+
+    def establish_bank(self, reserve_guan: int, source: str = "treasury") -> dict:
+        """设立官营银行（第二节§3）：准备金自国库/内帑**守恒划入**，不凭空造钱。
+
+        `reserve_guan`（贯）从 source 划入 bank["reserve"]；bank["capital"] 维持
+        legacy「万贯」口径，按 WON_PER_GUAN 折算（唯一换算入口 core.money）。
+        返回 {ok, error, reserve, source_moved}；失败返回 ok=False + error（不静默成功）。
+        """
+        from content.data import WON_PER_GUAN
+        amt = int(reserve_guan or 0)
+        if amt <= 0:
+            return {"ok": False, "error": "准备金须为正", "reserve": 0, "source_moved": 0}
+        if source not in ("treasury", "imperial_treasury"):
+            return {"ok": False, "error": f"非法来源 {source!r}", "reserve": 0, "source_moved": 0}
+        avail = int(getattr(self, source, 0) or 0)
+        moved = min(amt, avail)
+        if moved <= 0:
+            return {"ok": False, "error": "来源库藏不足", "reserve": 0, "source_moved": 0}
+        # 守恒转移：source（M_ALL 账户）→ bank.reserve（M_ALL 账户），ΔM_ALL == 0
+        setattr(self, source, avail - moved)
+        b = self.bank
+        b["reserve"] = int(b.get("reserve", 0) or 0) + moved
+        b["capital"] = round((float(b.get("capital", 0) or 0) * WON_PER_GUAN + moved) / WON_PER_GUAN, 6)
+        b["established"] = True
+        b.setdefault("reserve_ratio", 0.20)
+        b.setdefault("deposits", 0)
+        b.setdefault("loans", 0)
+        b.setdefault("overdue_rate", 0.0)
+        b.setdefault("run_pressure", 0.0)
+        b.setdefault("branches", 0)
+        b.setdefault("target", "")
+        return {"ok": True, "error": "", "reserve": int(b["reserve"]), "source_moved": moved}
 
     # 经济计算族见 core/game_state_econ.GameStateEconMixin（mixin 继承）
     def _derive_defense_lines(self):

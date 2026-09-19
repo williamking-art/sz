@@ -21,8 +21,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from content.data import (
-    FACTION_POP_BASIS, FACTION_NAMES, GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST,
-    POP_POOLS_VALID, REFORM_POP_BASIS,
+    FACTION_DISPLAY_NAMES, FACTION_KINDS, FACTION_NAMES, FACTION_POP_BASIS,
+    GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST, POP_POOLS_VALID, REFORM_POP_BASIS,
 )
 from core.numeric import parse_number as _num
 
@@ -30,12 +30,14 @@ log = logging.getLogger("faction_basis")
 
 __all__ = [
     "POP_POOLS", "POP_CLASS_NAMES", "SUBSET_KINDS", "validate_faction_basis",
+    "validate_faction_table", "resolve_faction_key", "faction_display_name",
     "basis_routes", "basis_readout", "build_faction_channels", "emerging_from_reforms",
+    "FACTION_KINDS", "FACTION_DISPLAY_NAMES",
 ]
 
 POP_POOLS = POP_POOLS_VALID
 POP_CLASS_NAMES = tuple(GRAIN_CONSUME_PER_CAPITA)      # 6 类 POP 的权威来源
-SUBSET_KINDS = ("national", "pool", "route", "pool+route")
+SUBSET_KINDS = ("national", "pool", "route", "pool+route", "faction")
 
 
 def _prefs(state) -> Dict[str, Any]:
@@ -91,13 +93,165 @@ def validate_faction_basis(name: str, spec: Any) -> List[str]:
         # 它究竟取了哪一部分，等于把"子集"退化回"整个阶级"（也就是本次要修的旧毛病）。
         has_pool = bool(pool)
         has_routes = bool(routes)
-        want = {"national": (False, False), "pool": (True, False),
-                "route": (False, True), "pool+route": (True, True)}[kind]
-        if (has_pool, has_routes) != want:
-            errs.append(
-                f"{name}: subset_kind={kind!r} 要求 pool={want[0]} / routes={want[1]}，"
-                f"实际 pool={has_pool} / routes={has_routes}")
+        if kind == "faction":
+            # 立场切片：不得再按地域（routes 必须为 None）。
+            # 注意：**不得提前 return** —— 后面还有元数据校验（kind/aliases/…）要跑。
+            if has_routes:
+                errs.append(f"{name}: subset_kind='faction' 不得再按地域切（routes 必须为 None）")
+        else:
+            want = {"national": (False, False), "pool": (True, False),
+                    "route": (False, True), "pool+route": (True, True)}[kind]
+            if (has_pool, has_routes) != want:
+                errs.append(
+                    f"{name}: subset_kind={kind!r} 要求 pool={want[0]} / routes={want[1]}，"
+                    f"实际 pool={has_pool} / routes={has_routes}")
+    # ---- 集团模型元数据（2026-09-19 方案第 1 步）----
+    # 均为**可选**：提供则强校验，缺失不报错——以保证既有集团与改革催生集团的
+    # 登记行为不变（本步只加元数据与校验，不改任何结算读写）。
+    kind = spec.get("kind")
+    if kind is not None and kind not in FACTION_KINDS:
+        errs.append(f"{name}: 非法 kind {kind!r}（应为 {FACTION_KINDS}）")
+    aliases = spec.get("aliases")
+    if aliases is not None:
+        if not isinstance(aliases, list) or not aliases:
+            errs.append(f"{name}: aliases 应为非空字符串列表")
+        else:
+            seen_alias = set()
+            for a in aliases:
+                if not isinstance(a, str) or not a.strip():
+                    errs.append(f"{name}: alias 必须是非空字符串，得到 {a!r}")
+                elif a in seen_alias:
+                    errs.append(f"{name}: alias 重复 {a!r}")
+                else:
+                    seen_alias.add(a)
+    interests = spec.get("interests")
+    if interests is not None:
+        if not isinstance(interests, list):
+            errs.append(f"{name}: interests 应为列表")
+        else:
+            for i, it in enumerate(interests):
+                if not isinstance(it, dict):
+                    errs.append(f"{name}: interests[{i}] 必须是 dict")
+                    continue
+                if it.get("pop_class") not in POP_CLASS_NAMES:
+                    errs.append(f"{name}: interests[{i}] 非法 pop_class "
+                                f"{it.get('pop_class')!r}")
+                if not str(it.get("topic") or "").strip():
+                    errs.append(f"{name}: interests[{i}] 缺 topic")
+                d = it.get("direction")
+                if isinstance(d, bool) or not isinstance(d, (int, float)) or d == 0:
+                    errs.append(f"{name}: interests[{i}] direction 应为非零数值"
+                                f"（+1 支持 / −1 反对），得到 {d!r}")
+    red_lines = spec.get("red_lines")
+    if red_lines is not None and (not isinstance(red_lines, list) or any(
+            not isinstance(x, str) or not x.strip() for x in red_lines)):
+        errs.append(f"{name}: red_lines 应为字符串列表（允许空列表）")
+    subs = spec.get("subchannels")
+    if subs is not None:
+        if not isinstance(subs, list):
+            errs.append(f"{name}: subchannels 应为列表")
+        else:
+            for i, sc in enumerate(subs):
+                if not isinstance(sc, dict):
+                    errs.append(f"{name}: subchannels[{i}] 必须是 dict")
+                    continue
+                if not str(sc.get("name") or "").strip():
+                    errs.append(f"{name}: subchannels[{i}] 缺 name")
+                pc = sc.get("pop_class")
+                if pc not in POP_CLASS_NAMES:
+                    errs.append(f"{name}: subchannels[{i}] 非法 pop_class {pc!r}")
+                elif isinstance(classes, list) and pc not in classes:
+                    errs.append(f"{name}: subchannels[{i}] 的 pop_class {pc!r} "
+                                f"不在 pop_classes 内（子通道必须落在本集团基本盘）")
+    th = spec.get("thresholds")
+    if th is not None:
+        if not isinstance(th, dict):
+            errs.append(f"{name}: thresholds 应为 dict")
+        else:
+            share = th.get("population_share")
+            if share is not None and (isinstance(share, bool)
+                                      or not isinstance(share, (int, float))
+                                      or not (0 <= share <= 1)):
+                errs.append(f"{name}: thresholds.population_share 应为 0–1 数值")
+            for k in ("cohesion", "exposure_months"):
+                v = th.get(k)
+                if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))
+                                      or v < 0):
+                    errs.append(f"{name}: thresholds.{k} 应为非负数值")
+    overlaps = spec.get("overlaps")
+    if overlaps is not None and (not isinstance(overlaps, list) or any(
+            not isinstance(x, str) or not x.strip() for x in overlaps)):
+        errs.append(f"{name}: overlaps 应为字符串列表（允许空列表）")
+
     return errs
+
+
+def validate_faction_table(table: Any = None) -> List[str]:
+    """**全局**校验集团表：逐条 pop_basis + 别名唯一 + 重叠指向存在。
+
+    `validate_faction_basis` 只能看**单条**，发现不了“两个集团抢同一个别名”与
+    “overlaps 指向未登记集团”这类**跨条**错误；而它们会让 `resolve_faction_key` 归一出错、
+    关系图画出悬空边，故单列此全局校验（只读，不写状态）。
+    """
+    tbl = FACTION_POP_BASIS if table is None else table
+    errs: List[str] = []
+    if not isinstance(tbl, dict):
+        return ["集团表必须是 dict"]
+    keys = [k for k in tbl if isinstance(k, str)]
+    key_set = set(keys)
+    owner: Dict[str, str] = {}
+    for name in keys:
+        spec = tbl.get(name)
+        errs.extend(validate_faction_basis(name, spec))
+        if not isinstance(spec, dict):
+            continue
+        for alias in (spec.get("aliases") or []):
+            if not isinstance(alias, str):
+                continue
+            if alias in key_set:
+                errs.append(f"{name}: alias {alias!r} 与已登记的集团键冲突")
+            elif alias in owner and owner[alias] != name:
+                errs.append(f"{name}: alias {alias!r} 与 {owner[alias]!r} 的别名冲突")
+            else:
+                owner[alias] = name
+    for name in keys:
+        spec = tbl.get(name)
+        if not isinstance(spec, dict):
+            continue
+        for other in (spec.get("overlaps") or []):
+            if other == name:
+                errs.append(f"{name}: overlaps 不得自指")
+            elif other not in key_set:
+                errs.append(f"{name}: overlaps 指向未登记的集团 {other!r}")
+    return errs
+
+
+def resolve_faction_key(name: Any, table: Any = None) -> Optional[str]:
+    """把 **权威键 / 显示名 / 旧名 / 内部 ID** 归一到权威键；未登记返回 None。
+
+    用途（方案第 4 步铺路）：AI/前端/存档迁移把任意历史写法解析到同一集团，
+    避免“两个名字两个集团”的静默分叉。**只读**，不写任何状态。
+    """
+    tbl = FACTION_POP_BASIS if table is None else table
+    if not isinstance(tbl, dict) or not isinstance(name, str):
+        return None
+    if name in tbl:
+        return name
+    for key, spec in tbl.items():
+        if isinstance(spec, dict) and name in (spec.get("aliases") or []):
+            return key
+    for key, disp in FACTION_DISPLAY_NAMES.items():   # 推荐显示名也可解析
+        if disp == name:
+            return key
+    return None
+
+
+def faction_display_name(name: Any) -> str:
+    """权威键 → 推荐显示名（未登记时原样返回，绝不编造）。"""
+    key = resolve_faction_key(name)
+    if key is None:
+        return str(name or "")
+    return FACTION_DISPLAY_NAMES.get(key, key)
 
 
 def basis_routes(spec: Dict[str, Any]) -> List[str]:
@@ -141,6 +295,14 @@ def basis_readout(state: Dict[str, Any], spec: Dict[str, Any],
 
     pop_size = _sum(routes, classes, None)
     pool_size = _sum(routes, classes, pool) if pool else pop_size
+    # 立场切片（subset_kind="faction"）：人数由**立场占比**算，
+    # 委托给单一权威 `core.faction_metrics.faction_slice`（不另写一套算法）。
+    if str((spec or {}).get("subset_kind")) == "faction":
+        try:
+            from core.faction_metrics import faction_slice as _fslice
+            pop_size = pool_size = _fslice(state, spec, name or "")["population"]
+        except Exception as e:  # noqa: BLE001
+            log.warning("basis_readout 立场切片失败：%s", e)
     # 母集（该集团所归属的 POP 阶级 / 子池）在全国的规模
     parent_pop = _sum(list(PREFECTURE_LIST), subset_of, None)
     parent_total = _sum(list(PREFECTURE_LIST), subset_of, pool) if pool else parent_pop
@@ -253,6 +415,11 @@ def build_faction_channels(state) -> Dict[str, Any]:
     """
     factions = getattr(state, "factions", None) or {}
     basis_errors: List[str] = []
+    # 全局校验（别名唯一 / 重叠指向）并入可见错误——“无源势力”与“悬空关系”都不得静默
+    try:
+        basis_errors.extend(validate_faction_table())
+    except Exception as e:  # noqa: BLE001
+        basis_errors.append(f"faction_table: {type(e).__name__}")
     rows: Dict[str, Any] = {}
     for name in list(FACTION_NAMES) + [n for n in factions if n not in FACTION_NAMES]:
         spec = FACTION_POP_BASIS.get(name)
@@ -268,6 +435,15 @@ def build_faction_channels(state) -> Dict[str, Any]:
             "pop_basis": spec,
             "basis_readout": basis_readout(state, spec, name) if spec else None,
             "basis_errors": errs,
+            # 方案第 1 步：下发历史化显示名与模型元数据（供面板/关系图消费）
+            "display_name": faction_display_name(name),
+            "kind": (spec or {}).get("kind") if isinstance(spec, dict) else None,
+            "aliases": list((spec or {}).get("aliases") or []) if isinstance(spec, dict) else [],
+            "interests": list((spec or {}).get("interests") or []) if isinstance(spec, dict) else [],
+            "red_lines": list((spec or {}).get("red_lines") or []) if isinstance(spec, dict) else [],
+            "subchannels": list((spec or {}).get("subchannels") or []) if isinstance(spec, dict) else [],
+            "overlaps": list((spec or {}).get("overlaps") or []) if isinstance(spec, dict) else [],
+            "thresholds": dict((spec or {}).get("thresholds") or {}) if isinstance(spec, dict) else {},
         }
     try:
         emerging = emerging_from_reforms(state)
@@ -278,6 +454,7 @@ def build_faction_channels(state) -> Dict[str, Any]:
         "factions": rows,
         "emerging": emerging,
         "basis_table": FACTION_POP_BASIS,
+        "display_names": FACTION_DISPLAY_NAMES,
         "basis_errors": basis_errors,
         "declared": not basis_errors,
     }

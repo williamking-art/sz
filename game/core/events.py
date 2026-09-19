@@ -116,7 +116,7 @@ HISTORICAL_EVENTS = [
         "choices": [
             {"text": "大加宣扬，祀天告庙", "effects": {"prestige": 3, "treasury": -200000}},
             {"text": "淡然处之", "effects": {"prestige": 0}},
-            {"text": "斥为妄言", "effects": {"prestige": 1, "factions_prestige": {"清流言官": 5}}},
+            {"text": "斥为妄言", "effects": {"prestige": 1, "factions_prestige": {"旧党": 5}}},
         ],
     },
     {
@@ -150,15 +150,15 @@ HISTORICAL_EVENTS = [
         "choices": [
             {"text": "颁行党籍，追贬元祐诸臣", "effects": {
                 "prestige": "微",
-                "faction_change": {"新党": "中", "旧党": "-大", "清流言官": "-小", "东南士人": "-微"},
+                "faction_change": {"新党": "中", "旧党": "-大", "东南士人": "-微"},
             }},
             {"text": "轻其籍，仅夺职罢归，不立碑", "effects": {
                 "prestige": "微",
-                "faction_change": {"新党": "小", "旧党": "-小", "清流言官": "-微"},
+                "faction_change": {"新党": "小", "旧党": "-小"},
             }},
             {"text": "止立碑，戒敕两党各安其位", "effects": {
                 "prestige": "中",
-                "faction_change": {"新党": "-小", "旧党": "微", "清流言官": "小"},
+                "faction_change": {"新党": "-小", "旧党": "微"},
             }},
         ],
     },
@@ -286,8 +286,8 @@ RANDOM_EVENTS = [
         "prob": 0.05,
         "desc": "某御史直言进谏，言辞激烈",
         "choices": [
-            {"text": "嘉纳", "effects": {"prestige": 2, "faction_change": {"清流言官": 5}}},
-            {"text": "贬斥", "effects": {"prestige": -1, "faction_change": {"清流言官": -10}}},
+            {"text": "嘉纳", "effects": {"prestige": 2, "faction_change": {"旧党": 5}}},
+            {"text": "贬斥", "effects": {"prestige": -1, "faction_change": {"旧党": -10}}},
         ],
     },
     {
@@ -323,7 +323,7 @@ RANDOM_EVENTS = [
         "desc": "查出宫中太监贪墨御用钱粮",
         "choices": [
             {"text": "严惩不贷", "effects": {"prestige": 3, "faction_change": {"宦官集团": -5}}},
-            {"text": "从轻发落", "effects": {"faction_change": {"宦官集团": 5, "清流言官": -5}}},
+            {"text": "从轻发落", "effects": {"faction_change": {"宦官集团": 5, "旧党": -5}}},
         ],
     },
     {

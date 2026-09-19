@@ -630,7 +630,16 @@ def _apply_decree_effect(state, decree, log):
 # Step 2: 派系结算
 # ------------------------------------------------------------
 def _settle_factions(state, log):
-    """派系内部结算（12 步 agent 化 P2+：派系结算契约接线）"""
+    """派系**冲击**结算（Step 2）：只读 AI 契约 → 记事件叙事与 `_event_delta` 冲击。
+
+    2026-09-19 方案第 3 步（faction_pop_optimization_plan）：本步**不再随机游走、
+    不再直接改 influence/satisfaction/cohesion** —— 那三个读数改由 Step 5 之后的
+    `_settle_faction_metrics`（core/faction_settle.py，**唯一写入点**）由 POP 派生。
+    纪律（政策传导顺序）：**禁止先改 faction 数值再假设 POP 受益**；本步只把
+    “本月发生的事”（党争/联姻/分裂/和解/清算、AI 契约档位）记成 `_event_delta`，
+    由派生步在读完 POP 之后一次性消化。
+    """
+    from core.numeric import parse_number as _num
     # 12 步 agent 化 P2+：读取派系 AI 契约
     _faction_ai = getattr(state, "_faction_ai", None)
     ai_factions = {}
@@ -641,42 +650,19 @@ def _settle_factions(state, log):
         if _faction_ai.get("narrative"):
             log.append(f"[党争] {_faction_ai['narrative']}")
 
-    # 派系满意度/影响力/立场自然演进 + AI 契约调制
+    # AI 契约档位 + 立场 → `_event_delta`（冲击；不直接落 satisfaction/influence）
+    sat_map = {"微": 1.0, "小": 2.0, "中": 4.0, "大": 6.0}
     for name, f in state.factions.items():
-        cohesion_delta = random.randint(-2, 2)
-        f["cohesion"] = max(10, min(100, f["cohesion"] + cohesion_delta))
-
-        # 基础满意度回归
-        if f["satisfaction"] > 55:
-            f["satisfaction"] = max(50, f["satisfaction"] - random.randint(0, 2))
-        elif f["satisfaction"] < 45:
-            f["satisfaction"] = min(50, f["satisfaction"] + random.randint(0, 1))
-
-        inf_delta = random.randint(-1, 1)
-        f["influence"] = max(5, min(100, f["influence"] + inf_delta))
-
-        # AI 契约调制：按档位微调
-        if name in ai_factions:
-            ai_f = ai_factions[name]
-            sat_tier = ai_f.get("satisfaction", "小")
-            inf_tier = ai_f.get("influence", "小")
-            stance = ai_f.get("stance", "观望")
-
-            # 满意度档位映射
-            sat_map = {"微": 1, "小": 2, "中": 4, "大": 6}
-            inf_map = {"微": 1, "小": 2, "中": 3, "大": 5}
-
-            sat_delta = sat_map.get(sat_tier, 2)
-            inf_delta = inf_map.get(inf_tier, 2)
-
-            # 立场决定方向
-            if stance == "进取":
-                f["satisfaction"] = min(100, f["satisfaction"] + sat_delta)
-                f["influence"] = min(100, f["influence"] + inf_delta)
-            elif stance == "守成":
-                f["satisfaction"] = max(0, f["satisfaction"] - sat_delta)
-                f["influence"] = max(0, f["influence"] - inf_delta)
-            # 观望：不额外调整
+        if not isinstance(f, dict) or name not in ai_factions:
+            continue
+        ai_f = ai_factions[name] if isinstance(ai_factions[name], dict) else {}
+        stance = str(ai_f.get("stance", "观望"))
+        sign = {"进取": 1.0, "守成": -1.0}.get(stance, 0.0)
+        if sign == 0.0:
+            continue
+        d = sign * sat_map.get(str(ai_f.get("satisfaction", "小")), 2.0)
+        f["_event_delta"] = max(-12.0, min(12.0,
+                                          _num(f.get("_event_delta"), 0.0) + d))
 
     # AI 契约事件
     for event in ai_events:
@@ -710,6 +696,14 @@ def _settle_factions(state, log):
 # ------------------------------------------------------------
 def _settle_economy(state, log):
     """经济基础结算"""
+    # 整改①-3：记录**月初**物价，供物价相位（`_settle_econ_prices`）做单月涨跌上限。
+    # 本步是月度第一个经济相位，必须在任何改价之前取。
+    state._price_month_open = {
+        "level": float(getattr(state, "price_level", 1.0) or 1.0),
+        "grain": float(getattr(state, "grain_price", 1.0) or 1.0),
+        "route": {n: float(p.get("grain_price", 0) or 0)
+                  for n, p in state.prefectures.items()},
+    }
     # 人口自然净增长（审查 2026-09 调参）：按在籍人口月化比率 + 死亡/疫病随机抖动，
     # 使长局人口稳中有升（原固定 randint(-5000,15000) 期望 +0.5 万/月，年化仅 0.075%）
     from content.data import POP_GROWTH_RATE, POP_GROWTH_JITTER
@@ -912,10 +906,22 @@ def _settle_land_local(state, log):
         if land_grain > 0:
             log.append(f"[田赋] 两税本色征收粮 {land_grain}石，分储诸路仓廪（三运期各征 1/3 年产）")
 
-    state.price_level = state.calc_price_level()
-    state.grain_price = state.calc_grain_price()
+    # 整改①-3（物价）：权威物价相位在**货币信用之后**（`_settle_econ_prices`）；
+    # 此处先按当期供需试算一次，供粮食市场（常平籴粜）与财政（俸禄指数化/粜粮完税）当月使用。
+    # 单月涨跌一律受月度上限约束（挂月初价），避免灾荒/AI 造成的价格跳变向下游传导。
+    from core.game_state_econ import cap_monthly_price as _cap_price
+    from content.data import PRICE_LEVEL_MONTHLY_CAP, GRAIN_PRICE_MONTHLY_CAP
+    _open = getattr(state, "_price_month_open", None) or {}
+    _prev_level = float(_open.get("level", state.price_level) or state.price_level)
+    _prev_grain = float(_open.get("grain", state.grain_price) or state.grain_price)
+    state.price_level = _cap_price(_prev_level, state.calc_price_level(),
+                                   PRICE_LEVEL_MONTHLY_CAP)
+    state.grain_price = _cap_price(_prev_grain, state.calc_grain_price(),
+                                   GRAIN_PRICE_MONTHLY_CAP)
     for name, p in state.prefectures.items():
-        p["grain_price"] = state.calc_region_grain_price(name)
+        _prev_route = float((_open.get("route") or {}).get(name, _prev_grain) or _prev_grain)
+        p["grain_price"] = _cap_price(_prev_route, state.calc_region_grain_price(name),
+                                      GRAIN_PRICE_MONTHLY_CAP)
         target = state.population_satisfaction
         if p["mood"] > target:
             p["mood"] = max(target, p["mood"] - 1)
@@ -944,6 +950,43 @@ def _settle_land_local(state, log):
             _gain = float(random.randint(0, 3))
         y["backlog"] = max(0, int(y["backlog"] + _gain - y["efficiency"] / 40))
         y["efficiency"] = max(20, min(100, y["efficiency"] + random.randint(-2, 1)))
+
+
+def _settle_econ_prices(state, log=None):
+    """物价相位（整改①-1 / ①-3）：在**货币信用**（`_settle_extensions`）之后重算物价。
+
+    固定相位顺序：生产→工程投入→POP收入消费→粮食商品市场→税收转移→货币信用→**物价**→集团读数→提交。
+    本步是月度**权威**物价读数（只写价格字段，**不碰钱粮账户**，无守恒影响）：
+      - 全国 PRICE_LEVEL = 货币有效供给/实物产出（M1 口径，`calc_price_level`），单月涨跌受上限；
+      - 全国粮价 = 物价 × 季节 × 丰歉 × 灾级，单月涨跌受上限；
+      - 路线粮价 = 供给/需求/库存/运输/货币有效供给派生（`calc_region_grain_price`），同受上限。
+    全国 PRICE_LEVEL 只是**加权读数**（`state.grain_price_readout`），不反向驱动路线价。
+    """
+    from core.game_state_econ import cap_monthly_price as _cap_price
+    from content.data import PRICE_LEVEL_MONTHLY_CAP, GRAIN_PRICE_MONTHLY_CAP
+    _open = getattr(state, "_price_month_open", None) or {}
+    _prev_level = float(_open.get("level", state.price_level) or state.price_level)
+    _prev_grain = float(_open.get("grain", state.grain_price) or state.grain_price)
+    state.price_level = _cap_price(_prev_level, state.calc_price_level(),
+                                   PRICE_LEVEL_MONTHLY_CAP)
+    state.grain_price = _cap_price(_prev_grain, state.calc_grain_price(),
+                                   GRAIN_PRICE_MONTHLY_CAP)
+    _reads = []
+    for name, p in state.prefectures.items():
+        _prev_route = float((_open.get("route") or {}).get(name, _prev_grain) or _prev_grain)
+        p["grain_price"] = _cap_price(_prev_route, state.calc_region_grain_price(name),
+                                      GRAIN_PRICE_MONTHLY_CAP)
+        _reads.append(p["grain_price"])
+    # 全国加权读数（只读派生，不反向驱动路线价）
+    _tot = sum(p.get("population", 0) for p in state.prefectures.values())
+    if _tot > 0:
+        _w = sum(float(p.get("grain_price", state.grain_price) or 0)
+                 * p.get("population", 0) for p in state.prefectures.values())
+        state.grain_price_readout = round(_w / _tot, 4)
+    if log is not None and _reads:
+        log.append(f"[物价] 全国物价指数 {state.price_level:.3f}，"
+                   f"粮价读数 {state.grain_price:.3f}"
+                   f"（路线价 {min(_reads):.3f}~{max(_reads):.3f}贯/石）")
 
 
 def _settle_literacy(state, log=None):
@@ -1040,8 +1083,11 @@ def _settle_extensions(state, log):
         elif _jt == "跌":
             state.jiaozi["trust"] = max(_jt_cfg["min"], state.jiaozi["trust"] - _jt_cfg["cap"])
         if _fin.get("jiaozi_issued") == "增" and over <= 0:
-            # 增发须 ≤ 可发额度（超发由下方既有超发逻辑触发崩溃）
-            _add = min(_fdb["jiaozi_issued"]["cap"], max(0, _ceiling - state.jiaozi["issued"]))
+            # 增发须 ≤ 可发额度（超发由下方既有超发逻辑触发崩溃）。
+            # 第二节§2：发行额除准备金（皇威放宽）外，还受**税收接受度**与**信用上限**约束
+            # ——三者为独立闸门，取最紧（`state.jiaozi_issue_limit()`，只读）。
+            _issue_limit = max(0, min(int(_ceiling), int(state.jiaozi_issue_limit())))
+            _add = min(_fdb["jiaozi_issued"]["cap"], max(0, _issue_limit - state.jiaozi["issued"]))
             if _add > 0:
                 state.jiaozi["issued"] += _add
         over = max(0, state.jiaozi["issued"] - _ceiling)
@@ -1053,6 +1099,9 @@ def _settle_extensions(state, log):
         else:
             # 适量发钞→缓解钱荒（纸币替代铜钱，铜钱流通压力减）
             state.coin["shortage"] = max(0.1, state.coin.get("shortage", 0.3) - 0.005)
+    # ---- 第二节§2：刷新交子数据契约读数（流通额/兑付率/折价/挤兑压力）----
+    # 只写派生读数、不动钱粮（ΔW == ΔM_ALL == 0）；银行信贷随后读该挤兑压力做信贷收缩。
+    _refresh_jiaozi_credit(state, log)
     # 钱荒调制（缓/加剧 ±0.05，clamp [0.05,0.95]；联动 tax_coeff 由 finance 既有公式）
     _sh_cfg = _fdb["shortage"]
     _sh = _fin.get("shortage", "平")
@@ -1098,16 +1147,27 @@ def _settle_extensions(state, log):
             state.silver_stock = int(getattr(state, "silver_stock", 0) or 0) + int(_sv_annual / 12.0)
         except Exception:  # noqa: BLE001 — 对账辅助字段，失败不影响结算
             pass
-    # 银行调制（扩/损——仅 established；capital ±20%、reserve +50万）
+    # 银行调制（扩/损——仅 established；capital ±20%、准备金 ±50万）
+    # 第二节§3 修复：原 `reserve += 50万` 无对手方 = 凭空造币（污染货币对账残差）；
+    # 现改为守恒口径——扩 → 国库划入准备金（不足不划）；损 → 准备金核销并记 burn。
     if _bank_on:
         _bk_cfg, _br_cfg = _fdb["bank_capital"], _fdb["bank_reserve"]
         _bk = _fin.get("bank", "稳")
         if _bk == "扩":
             state.bank["capital"] = state.bank.get("capital", 1.0) * _bk_cfg["up"]
-            state.bank["reserve"] = state.bank.get("reserve", 0) + _br_cfg["cap"]
+            _inj = min(int(_br_cfg["cap"]), int(state.treasury))
+            if _inj > 0:
+                state.treasury = int(state.treasury) - _inj
+                state.bank["reserve"] = int(state.bank.get("reserve", 0) or 0) + _inj
         elif _bk == "损":
             state.bank["capital"] = state.bank.get("capital", 1.0) * _bk_cfg["down"]
-            state.bank["reserve"] = max(_br_cfg["min"], state.bank.get("reserve", 0) - _br_cfg["cap"])
+            _wdown = min(int(_br_cfg["cap"]), int(state.bank.get("reserve", 0) or 0))
+            if _wdown > 0:
+                state.bank["reserve"] = int(state.bank.get("reserve", 0) or 0) - _wdown
+                from core.money import register_flow as _reg_flow
+                _reg_flow(state, "burn", _wdown, "银行减资核销准备金")
+        # ---- 第二节§3：存款 / 放贷 / 收息 / 坏账月度结算（全部守恒转移）----
+        _settle_bank_credit(state, log)
     state.jiaozi["trust"] = min(100, state.jiaozi["trust"] + 1)
     # 价格系数调制（通胀/通缩 ±5%，挂 calc_price_level ×mult，clamp [0.5,3.0]；月度重置不落档）
     _pm_cfg = _fdb["price_mult"]
@@ -1164,8 +1224,12 @@ def _settle_extensions(state, log):
         pass
     state.tech["gunpowder"] = max(0, min(100, state.tech["gunpowder"] + random.randint(-1, 1)))
     state.tech["iron"] = max(0, min(100, state.tech["iron"] + random.randint(0, 1)))
-    if getattr(state, "maritime", {}).get("open"):
-        state.tech["west"] = max(0, min(5, state.tech["west"] + 0.01))
+    # west 来源制（整改④.4）：只从贸易/使团/书籍/工匠/战争累积，不再每月凭空 +0.01。
+    try:
+        from core.asset_context import accrue_west
+        accrue_west(state)
+    except Exception:
+        pass
     _settle_tech_research(state, log)
 
     # ---- T9 物价方案：交子界制销币（Step 3.6 扩展）----
@@ -1178,6 +1242,174 @@ def _settle_extensions(state, log):
     # 民间铜钱逐月真实熔化：各 POP wealth 按 MELT_RATE=0.1%/月扣减退出流通
     # （非一次性 private_melt 系数，真实逐月衰减；private_melt 已 0.2→0.1 用于物价公式）。
     _settle_coin_melt(state, log)
+
+
+def _refresh_jiaozi_credit(state, log):
+    """刷新交子数据契约读数（第二节§2）：流通额 / 兑付率 / 折价 / 挤兑压力。
+
+    **守恒**：本函数不移动任何 POP/国库/内帑/银行账户 —— ΔW == ΔM_ALL == 0，
+    只把「发行额 × 接受度」的既有派生量显式落为 `jiaozi["circulating"]`，使**发行额**
+    与**流通额**在数据层可区分；折价/挤兑由「兑付率不足 × 信用不足」派生，损失由持券者
+    承担（有效交子余额按 trust 缩水，货币供给实际收缩，不凭空补足）。
+    """
+    from content.data import JIAOZI_RUN_RESERVE_LINE, JIAOZI_RUN_TRUST_LINE
+    jz = state.jiaozi
+    issued = float(jz.get("issued", 0) or 0)
+    trust = max(0.0, min(100.0, float(jz.get("trust", 0) or 0)))
+    circulating = int(issued * trust / 100.0)          # 流通额 = 发行额 × 接受度
+    reserve = float(jz.get("reserve", 0) or 0)
+    redeem_rate = (reserve / circulating) if circulating > 0 else 1.0
+    discount = 0.0
+    run_pressure = 0.0
+    if issued > 0:
+        discount = max(0.0, min(1.0, (1.0 - min(1.0, redeem_rate)) * (1.0 - trust / 100.0)))
+        run_pressure = max(0.0, min(1.0,
+            (1.0 if redeem_rate < JIAOZI_RUN_RESERVE_LINE else 0.0) * 0.5
+            + max(0.0, JIAOZI_RUN_TRUST_LINE - trust) / max(JIAOZI_RUN_TRUST_LINE, 1e-9) * 0.5))
+    jz["circulating"] = circulating
+    jz["redeem_rate"] = round(redeem_rate, 6)
+    jz["discount"] = round(discount, 6)
+    jz["run_pressure"] = round(run_pressure, 6)
+    jz["credit_ceiling"] = round(trust / 100.0, 6)
+    if discount > 0 or run_pressure > 0:
+        log.append(f"[交子] 流通 {circulating:,}贯 兑付率 {redeem_rate:.2f} "
+                   f"折价 {discount:.0%} 挤兑压力 {run_pressure:.0%}")
+    return {"circulating": circulating, "redeem_rate": redeem_rate,
+            "discount": discount, "run_pressure": run_pressure}
+
+
+def _settle_bank_credit(state, log):
+    """银行信贷月度结算（第二节§3）：吸储 / 放贷 / 收息 / 坏账，**全部守恒转移**。
+
+    守恒（函数内自断言，失败抛错 → 由上层事务回滚，绝不静默成功）：
+      - 吸储：POP wealth −= D，bank.reserve += D          ⇒ ΔM_ALL == 0
+      - 放贷：POP wealth += L，bank.reserve −= L          ⇒ ΔM_ALL == 0
+              （贷款同时形成**债权** loans 与**借款方资产** POP wealth）
+      - 收息：POP wealth −= I，bank.reserve += I          ⇒ ΔM_ALL == 0
+              （利息归**银行留存**，明确不入国库、不作财政收入）
+      - 坏账：bank.reserve −= W + register_flow(burn)      ⇒ ΔM_ALL == −W（去向明确）
+    信用传导（第二节§4）：交子挤兑压力↑ → 逾期率↑ → 可贷额↓（信贷收缩）。
+    """
+    from content.data import (
+        BANK_DEPOSIT_MONTH_SHARE,
+        BANK_LOAN_MONTH_SHARE,
+        BANK_LOAN_RATE,
+        BANK_RESERVE_RATIO_MIN,
+    )
+
+    from core.money import m_all as _m_all
+    from core.money import register_flow as _reg_flow
+    b = state.bank
+    if not bool(b.get("established", False)):
+        return {"ok": True, "skipped": "银行未设"}
+    mall0 = _m_all(state)
+    # 信用信心：交子挤兑压力越大，信贷越收缩、违约越多（§4 传导链）
+    trust_conf = 1.0
+    try:
+        from core.money import jiaozi_run_pressure as _jz_run
+        trust_conf = 1.0 - max(0.0, min(1.0, float(_jz_run(state))))
+    except Exception:  # noqa: BLE001 — 只读派生失败不阻断结算
+        trust_conf = 1.0
+    target = str(b.get("target") or "")
+    pop_name = target if target in ("农", "士绅", "工匠", "商人", "官僚", "兵") else "商人"
+
+    # ---- 1) 坏账核销（先于放贷，防坏账继续计息）----
+    bad_debt = 0
+    loans0 = int(b.get("loans", 0) or 0)
+    overdue = max(0.0, min(1.0, float(b.get("overdue_rate", 0) or 0) * 0.5
+                            + 0.005 + 0.30 * (1.0 - trust_conf)))
+    b["overdue_rate"] = round(overdue, 6)
+    reserve = int(b.get("reserve", 0) or 0)
+    if loans0 > 0 and overdue > 0:
+        bad_debt = int(min(loans0, int(loans0 * overdue), reserve))
+        if bad_debt > 0:
+            b["loans"] = loans0 - bad_debt
+            reserve -= bad_debt
+            b["reserve"] = reserve
+            _reg_flow(state, "burn", bad_debt, "银行贷款坏账核销")
+            state.statistics["bank_bad_debt"] = state.statistics.get("bank_bad_debt", 0) + bad_debt
+            log.append(f"[银行] 坏账核销 {bad_debt:,}贯（准备金承担，不入国库）")
+
+    # ---- 目标阶层 POP 池 ----
+    pools, total_w = [], 0
+    for _p in state.prefectures.values():
+        slot = (_p.get("pops") or {}).get(pop_name)
+        if isinstance(slot, dict):
+            w = int(slot.get("wealth", 0) or 0)
+            if w > 0:
+                pools.append(slot)
+                total_w += w
+
+    # ---- 2) 吸储（POP wealth → 准备金；存款为银行负债 memo）----
+    deposit = int(min(total_w, total_w * BANK_DEPOSIT_MONTH_SHARE)) if total_w > 0 else 0
+    if deposit > 0:
+        _taken = 0
+        for slot in pools:
+            w = int(slot.get("wealth", 0) or 0)
+            take = min(int(deposit * w / max(total_w, 1)), w)
+            slot["wealth"] = w - take
+            _taken += take
+        if _taken > 0:
+            reserve += _taken
+            b["reserve"] = reserve
+            b["deposits"] = int(b.get("deposits", 0) or 0) + _taken
+            log.append(f"[银行] 吸收{pop_name}存款 {_taken:,}贯（入准备金，非铸币）")
+
+    # ---- 3) 放贷（准备金 → 借款方资产；同时记债权；比例/准备金率/信心三重约束）----
+    loan = 0
+    req = int(int(b.get("deposits", 0) or 0)
+              * max(BANK_RESERVE_RATIO_MIN, float(b.get("reserve_ratio", 0.20) or 0.20)))
+    lendable = max(0, reserve - req)
+    if lendable > 0 and pools:
+        _pool_now = sum(int(s.get("wealth", 0) or 0) for s in pools)
+        _want = int(min(lendable, int(reserve * BANK_LOAN_MONTH_SHARE * trust_conf)))
+        if _want > 0 and _pool_now > 0:
+            _lent = 0
+            for slot in pools:
+                w = int(slot.get("wealth", 0) or 0)
+                add = int(_want * w / _pool_now)
+                slot["wealth"] = w + add
+                _lent += add
+            if _lent > 0:
+                loan = _lent
+                reserve -= _lent
+                b["reserve"] = reserve
+                b["loans"] = int(b.get("loans", 0) or 0) + _lent
+                log.append(f"[银行] 放贷 {_lent:,}贯与{pop_name}（债权=借款方资产）")
+
+    # ---- 4) 收息（借款方财富 → 准备金；归银行留存，不入国库）----
+    interest = 0
+    _loans_now = int(b.get("loans", 0) or 0)
+    if _loans_now > 0 and pools:
+        _pool_now = sum(int(s.get("wealth", 0) or 0) for s in pools)
+        _want = min(int(_loans_now * BANK_LOAN_RATE), _pool_now)
+        if _want > 0 and _pool_now > 0:
+            for slot in pools:
+                w = int(slot.get("wealth", 0) or 0)
+                take = min(int(_want * w / _pool_now), w)
+                slot["wealth"] = w - take
+                interest += take
+            if interest > 0:
+                reserve += interest
+                b["reserve"] = reserve
+                state.statistics["bank_interest_income"] = (
+                    state.statistics.get("bank_interest_income", 0) + interest)
+                log.append(f"[银行] 收息 {interest:,}贯（归银行留存，不作财政收入）")
+
+    # ---- 5) 挤兑压力（准备金不足兑付存款 + 信用不足 → 压力）----
+    req_all = int(int(b.get("deposits", 0) or 0) * BANK_RESERVE_RATIO_MIN)
+    b["run_pressure"] = round(max(0.0, min(1.0,
+        (1.0 - trust_conf) * 0.5
+        + (1.0 if int(b.get("reserve", 0) or 0) < req_all else 0.0) * 0.5)), 6)
+
+    # ---- 守恒断言（失败不得静默；抛错由上层原子回滚）----
+    mall1 = _m_all(state)
+    if abs((mall1 - mall0) + bad_debt) > 1:
+        raise AssertionError(
+            f"银行信贷货币账本断裂：ΔM_ALL={mall1 - mall0:+,.0f}"
+            f"（应等于 −坏账 {-bad_debt:+,.0f}）")
+    return {"ok": True, "deposit": deposit, "loan": loan,
+            "interest": interest, "bad_debt": bad_debt}
 
 
 def _settle_jiaozi_term(state, log):
@@ -1337,13 +1569,72 @@ def _settle_mint(state, log, amount: int = 0):
     return True, f"铸钱 {_net}贯入市（熔耗 {amount - _net}贯）"
 
 
+def _research_rate_mult(state, node, r) -> float:
+    """研发速率乘数（整改④.2）：受学校/书院、识字率、材料、总体 level 影响。
+
+    总体 level 只作**软因子**（不再是能力关卡）；材料不足只降效（不归零）。
+    """
+    from content.data import (TECH_RESEARCH_LITERACY_W, TECH_RESEARCH_SCHOOL_CAP,
+                              TECH_RESEARCH_MATERIAL_FLOOR, TECH_RESEARCH_RATE_CAP)
+    mult = 1.0
+    try:
+        from core.era_mechanic import tech_build_bonus
+        mult += min(TECH_RESEARCH_SCHOOL_CAP, max(0.0, float(tech_build_bonus(state))))
+    except Exception:
+        pass
+    try:
+        _lit = max(0.0, min(100.0, float(getattr(state, "literacy", 0.0) or 0.0)))
+        mult += (_lit / 100.0) * TECH_RESEARCH_LITERACY_W
+    except Exception:
+        pass
+    # 总体 level 只作综合读数：作为软因子影响速率，不作硬门槛（§四.1）
+    need_lv = max(1, int(node[6] or 0))
+    lv = max(0, min(100, int((state.tech or {}).get("level", 0) or 0)))
+    mult *= 0.85 + 0.15 * min(1.0, lv / need_lv)
+    # 材料（缺料降效不归零）：r["materials"] 或节点 cost 声明
+    need = dict(r.get("materials") or {})
+    if not need:
+        _c = node[8] or {}
+        if isinstance(_c, dict):
+            need = dict(_c.get("materials") or {})
+    if need:
+        cover = 1.0
+        _res = getattr(state, "resources", {}) or {}
+        for dim, q in need.items():
+            try:
+                q = float(q or 0)
+            except (TypeError, ValueError):
+                continue
+            if q <= 0:
+                continue
+            stock = float((_res.get(dim) or {}).get("stock", 0) or 0)
+            cover = min(cover, stock / q)
+        cover = max(0.0, min(1.0, cover))
+        mult *= TECH_RESEARCH_MATERIAL_FLOOR + (1 - TECH_RESEARCH_MATERIAL_FLOOR) * cover
+    return max(0.1, min(TECH_RESEARCH_RATE_CAP, mult))
+
+
 def _settle_tech_research(state, log):
-    """按月推进所有攻关中科技节点，满进度点亮并入资产。"""
-    from core.asset_context import unlock_node, tech_cost_with_era, get_tech_node
+    """按月推进攻关节点（整改④）：消耗预算与人才时间 / 中断保留进度 / 部署覆盖率结算。
+
+    纪律：
+      · researching 每月消耗**月预算**（国库 → 学者·工匠 POP，守恒转移）与人才时间；
+        经费不继 → 中断（progress 保留，记 idle_months，属机会成本），**不静默完成**；
+      · 速率受学校/书院、识字率、材料、总体 level（只作软因子）影响；
+      · west 仅作受来源约束的加速因子（≤TECH_WEST_ACCEL_CAP），非万能加速器；
+      · 解锁 ≠ 全国生效：月末按部署建筑结算 adoption 覆盖率（settle_adoption）。
+    """
+    from core.asset_context import (unlock_node, tech_cost_with_era, get_tech_node,
+                                    settle_adoption)
+    from content.data import (TECH_RESEARCH_BUDGET_RATIO, TECH_RESEARCH_PAY_TO,
+                              TECH_WEST_ACCEL_PER_POINT, TECH_WEST_ACCEL_CAP)
     tech = state.tech
     researching = tech.get("researching", {})
+    # 部署覆盖率月度结算：解锁 ≠ 全国生效（维护欠费 → 覆盖率折旧）
+    settle_adoption(state, log)
     if not researching:
         return
+    _stats = state.statistics if isinstance(getattr(state, "statistics", None), dict) else {}
     for node_id, r in list(researching.items()):
         node = get_tech_node(node_id)
         if node is None:
@@ -1374,18 +1665,33 @@ def _settle_tech_research(state, log):
             if abs(state.factions.get("新党", {}).get("influence", 50) -
                    state.factions.get("旧党", {}).get("influence", 50)) > 40:
                 push *= 0.85
-            rate = (100.0 / months) * push
+            rate = (100.0 / months) * push * _research_rate_mult(state, node, r)
             r["progress"] = min(100.0, r.get("progress", 0) + rate)
         else:
+            # 月度预算消耗（整改④.2）：不济 → 中断并保留进度（机会成本可诊断）
+            monthly = int(r.get("monthly_cost", 0) or 0)
+            if monthly > 0:
+                paid = transfer_public_funds_to_pops(
+                    state, monthly, TECH_RESEARCH_PAY_TO,
+                    f"研发月费：{node[3]}")
+                if paid < monthly:
+                    r["idle_months"] = int(r.get("idle_months", 0) or 0) + 1
+                    _stats["research_idle_months"] =                         int(_stats.get("research_idle_months", 0) or 0) + 1
+                    log.append(f"[科技] 新制「{node[3]}」经费不继（需 {monthly:,} 贯/月，"
+                               f"实拨 {paid:,}），进度保留 {float(r.get('progress', 0) or 0):.0f}")
+                    continue
             masters = max(1, r.get("masters", cost["masters"]))
             rate = (100.0 / months) * (0.8 + 0.15 * masters)
-            # 承接模式：玩家投入（invest_silver/grain）加速推进 + west 跨时代加速因子
+            rate *= _research_rate_mult(state, node, r)
+            # 承接模式：玩家投入（invest_silver/grain）加速推进
             _invest = max(0, float(r.get("invest_silver", 0)))
             if _invest > 0:
                 rate *= 1 + min(2.0, _invest / 1_000_000.0)
-            _west = int(tech.get("west", 0))
-            if _west > 0:
-                rate *= 1 + _west * 0.10   # west 保留为跨时代加速因子（×1+west×0.1）
+            # west 加速：受来源约束，封顶 ≤TECH_WEST_ACCEL_CAP（非万能加速器，§四.4）
+            _west = max(0.0, float(tech.get("west", 0) or 0))
+            _wmult = min(TECH_WEST_ACCEL_CAP,
+                         1.0 + _west * TECH_WEST_ACCEL_PER_POINT)
+            rate *= _wmult
             r["progress"] = min(100.0, r.get("progress", 0) + rate)
         if r["progress"] >= 100:
             researching.pop(node_id, None)
@@ -1405,9 +1711,6 @@ def _settle_tech_research(state, log):
         state.external[k]["attitude"] = max(0, min(100, cur + int((base_k - cur) * 0.05)))
 
 
-# ------------------------------------------------------------
-# Step 3.7a: 长期拟旨推进（公开事务 / 密令）
-# ------------------------------------------------------------
 def _settle_longterm_decrees(state, log):
     """按月推进所有长期政务（公开事务 + 密令），满进度核销。"""
     presets = state.difficulty_presets.get(state.difficulty, {})
@@ -2136,41 +2439,162 @@ def _settle_civilian_hoard(state, log):
 # Step 4.5a: 工程系统
 # ------------------------------------------------------------
 def _settle_projects(state, log):
-    """工程月度推进：扣 BOM（七维物资 + 钱），推进 progress，完工结算产出。"""
+    """工程月度推进（整改③）：状态机 + 工匠工时 + 运维折旧。
+
+    状态机：proposed → funded → building → operating → degraded/abandoned。
+    纪律（源：整改意见 §三）：
+      · 资金/材料/工匠工时/治安不足 → 延期或降效并记日志，绝不静默完工；
+      · 就地消耗工匠 POP 可用工时（工役），营造款守恒转移入工匠/商人 POP wealth；
+        时间损失只记 statistics["project_corvee_time_loss"] 审计读数，不新增工程人口；
+      · 完工 → operating（capacity=1.0）；运行按月折旧，维持欠费 → degraded，可恢复。
+    """
+    from content.data import (
+        GOV_SPEND_TO, PROJECT_STATUS_FLOW, PROJECT_LABOR_RATIO,
+        PROJECT_UNDERSTAFF_MIN, PROJECT_SECURITY_UNREST,
+        PROJECT_SECURITY_MIN_FACTOR, PROJECT_DEPRECIATION_RATE,
+        PROJECT_MAINTENANCE_RECOVER, PROJECT_DEGRADED_LINE,
+        PROJECT_PROPOSED_TIMEOUT,
+    )
+    stats = state.statistics if isinstance(getattr(state, "statistics", None), dict) else {}
     for pid, proj in list(state.projects.items()):
-        if proj.get("done"):
+        if not isinstance(proj, dict):
             continue
-        lack = []
-        for dim, need in (proj.get("cost_material") or {}).items():
-            if state.resources.get(dim, {}).get("stock", 0) < need:
-                lack.append(dim)
-        coin_need = int(proj.get("cost_coin", 0))
-        if state.treasury < coin_need:
-            lack.append("钱")
-        if lack:
-            log.append(f"[工程] {proj.get('name','工程')} 缺料停滞（缺：{','.join(lack)}），待补给")
+        name = proj.get("name") or proj.get("type") or "工程"
+        status = proj.get("status")
+        if status is None:
+            # 旧档兼容：已完工按 operating，否则按 building
+            status = "operating" if proj.get("done") else "building"
+            proj["status"] = status
+        if status not in PROJECT_STATUS_FLOW:
+            log.append(f"[工程] {name} 状态「{status}」非法，按 building 处理（可诊断）")
+            status = proj["status"] = "building"
+        # ---- 运行 / 降效：容量折旧与维持（维护 → 折旧，收益有容量） ----
+        if status in ("operating", "degraded"):
+            _arr = int(stats.get("upkeep_arrears", 0) or 0)
+            _seen = proj.get("_upkeep_arrears_seen")
+            if _seen is None:
+                proj["_upkeep_arrears_seen"] = _arr
+                _seen = _arr
+            maintained = _arr <= int(_seen)
+            proj["_upkeep_arrears_seen"] = _arr
+            cap = float(proj.get("capacity", 1.0) or 0.0)
+            if maintained:
+                cap = min(1.0, cap + PROJECT_MAINTENANCE_RECOVER)
+            else:
+                _dep = float(proj.get("depreciation") or PROJECT_DEPRECIATION_RATE)
+                cap = max(0.0, cap - _dep)
+            proj["capacity"] = round(cap, 4)
+            new_status = "operating" if cap >= PROJECT_DEGRADED_LINE else "degraded"
+            if new_status != status:
+                proj["status"] = new_status
+                log.append(f"[工程] {name} 产能 {cap:.0%} → "
+                           f"{'降效' if new_status == 'degraded' else '恢复运行'}"
+                           f"（维持{'到位' if maintained else '欠费'}）")
             continue
+        # ---- 拟议（proposed）→ 拨款（funded）：无款不开工，超期作罢 ----
+        if status == "proposed":
+            proj["proposed_months"] = int(proj.get("proposed_months", 0) or 0) + 1
+            fund_need = int(proj.get("fund_cost", proj.get("cost_coin", 0)) or 0)
+            if fund_need > 0 and int(getattr(state, "treasury", 0) or 0) < fund_need:
+                if proj["proposed_months"] >= PROJECT_PROPOSED_TIMEOUT:
+                    proj["status"] = "abandoned"
+                    log.append(f"[工程] {name} 拟议逾 {PROJECT_PROPOSED_TIMEOUT} 月未得拨款，作罢")
+                else:
+                    stats["project_delay_months"] = int(stats.get("project_delay_months", 0) or 0) + 1
+                    log.append(f"[工程] {name} 拟议待款（需 {fund_need:,} 贯，国库不足），暂缓")
+                continue
+            proj["status"] = "funded"
+            log.append(f"[工程] {name} 已获拨款立项")
+            status = "funded"
+
+        # ---- 拨款 → 开工 ----
+        if proj.get("status") == "funded":
+            proj["status"] = "building"
+            status = "building"
+            log.append(f"[工程] {name} 开工营建")
+        # ---- 营建（building）：供给率降效 + 工匠工时 + 治安 ----
+        # 整改③：材料/钱不足按最短板同比例消耗与推进（逐步降效），不静默停滞/完工。
+        from core.game_state_econ import project_supply_ratio, project_declaration_gaps
+        _gaps = project_declaration_gaps(proj)
+        if _gaps and not proj.get("_declared_warned"):
+            proj["_declared_warned"] = True
+            log.append(f"[工程] {name} 声明不全（缺：{','.join(_gaps)}），按实际供给降效推进")
+        ratio = float(project_supply_ratio(
+            proj, getattr(state, "resources", {}) or {},
+            getattr(state, "treasury", 0) or 0))
+        if ratio <= 0:
+            _short = [dim for dim, need in (proj.get("cost_material") or {}).items()
+                      if float((state.resources.get(dim, {}) or {}).get("stock", 0) or 0)
+                      < float(need or 0)]
+            if int(proj.get("cost_coin", 0) or 0) > 0 and \
+                    int(getattr(state, "treasury", 0) or 0) < int(proj.get("cost_coin", 0) or 0):
+                _short.append("钱")
+            stats["project_delay_months"] = int(stats.get("project_delay_months", 0) or 0) + 1
+            log.append(f"[工程] {name} 缺料停滞（供给率 0%，缺：{','.join(_short) or '资源'}），待补给")
+            continue
+
+        # 工匠工时（工役）：就地征用本路工匠 POP 可用工时；不足降效，无工匠停滞；
+        # 工役时间损失只记 statistics 审计读数，不新增工程人口、不建平行账本。
+        route = proj.get("route") or proj.get("prefecture")
+        labor_need = float(proj.get("craft_hours", proj.get("labor_need", 0)) or 0)
+        labor_cover = 1.0
+        if labor_need > 0:
+            prefs = getattr(state, "prefectures", {}) or {}
+            if route in prefs:
+                pools = [(prefs[route].get("pops") or {}).get("工匠")]
+            else:
+                pools = [(p.get("pops") or {}).get("工匠") for p in prefs.values()]
+            avail = sum(float(x.get("size", 0) or 0)
+                        for x in pools if isinstance(x, dict)) * PROJECT_LABOR_RATIO
+            if avail <= 0:
+                stats["project_delay_months"] = int(stats.get("project_delay_months", 0) or 0) + 1
+                log.append(f"[工程] {name} 工匠工时不足（无可用工匠），停滞")
+                continue
+            labor_cover = min(1.0, avail / labor_need)
+            if labor_cover < PROJECT_UNDERSTAFF_MIN:
+                log.append(f"[工程] {name} 工匠工时严重不足（到位 {labor_cover:.0%}），降效")
+            _workers = min(labor_need, avail)
+            stats["project_corvee_worker_months"] = \
+                float(stats.get("project_corvee_worker_months", 0) or 0) + _workers
+            stats["project_corvee_time_loss"] = \
+                float(stats.get("project_corvee_time_loss", 0) or 0) + _workers
+        # 材料：按供给率同比例消耗（逐步降效，不一次性抽干）
         for dim, need in (proj.get("cost_material") or {}).items():
-            # 审查防御：资源维可能缺槽（新注册物资/旧存档），原为硬下标 → KeyError
-            # 会中断整月结算。统一 setdefault 建槽后再扣。
+            take = int(round(float(need or 0) * ratio))
+            if take <= 0:
+                continue
             _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
-            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - need)
+            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - take)
+        # 工程款：按供给率同比例，守恒转移入民间（工匠 40% / 商人 60%），原子回滚
+        coin_need = int(proj.get("cost_coin", 0) or 0)
         if coin_need > 0:
-            # 2026-09-18 测试体检修复（货币守恒）：原为裸 `state.treasury -= coin_need`
-            # —— 无对手方，钱凭空消失（实测：单项工程 500,000 贯 → ΔM_ALL = −500,000）。
-            # 工程款是**政府营造/购办支出**，按"支出回流"口径转入民间（工匠40%/商人60%）。
-            # 财政成本不变（国库照扣），货币总量守恒。
-            state.treasury -= coin_need
-            try:
-                from content.data import GOV_SPEND_TO
-                _given = _distribute_cash(state, coin_need, GOV_SPEND_TO)
-                if _given != coin_need:      # 无接收方兜底：退回国库，不静默销毁
-                    state.treasury += coin_need - _given
-            except Exception:                # noqa: BLE001 — 回流失败不得阻断工程推进
-                state.treasury += coin_need
-        proj["progress"] = min(100, proj.get("progress", 0) + int(proj.get("speed", 10)))
+            pay = int(round(coin_need * ratio))
+            if pay > 0:
+                _given = transfer_public_funds_to_pops(
+                    state, pay, GOV_SPEND_TO, f"工程营造款：{name}")
+                if _given < pay:
+                    log.append(f"[工程] {name} 营造款仅拨付 {_given:,}/{pay:,} 贯，按实记账")
+
+        # 治安降效：本地动乱过高则进度折减（仍向前，不静默完工）
+        speed = int(proj.get("speed", 10) or 0)
+        sec_factor = 1.0
+        prefs = getattr(state, "prefectures", {}) or {}
+        if route in prefs:
+            _unrest = int(prefs[route].get("unrest", 0) or 0)
+            if _unrest > PROJECT_SECURITY_UNREST:
+                sec_factor = max(PROJECT_SECURITY_MIN_FACTOR,
+                                 1.0 - (_unrest - PROJECT_SECURITY_UNREST) / 100.0)
+                log.append(f"[工程] {name} 在地动乱 {_unrest}，营建降效（×{sec_factor:.0%}）")
+        gain = int(round(speed * ratio * labor_cover * sec_factor))
+        proj["progress"] = min(100, int(proj.get("progress", 0) or 0) + max(0, gain))
+        if ratio < 1.0:
+            stats["project_delay_months"] = int(stats.get("project_delay_months", 0) or 0) + 1
+            log.append(f"[工程] {name} 供给仅 {ratio:.0%}，本月降效推进（进度 +{gain}）")
         if proj["progress"] >= 100:
             proj["done"] = True
+            proj["status"] = "operating"
+            proj["capacity"] = float(proj.get("capacity", 1.0) or 1.0)
+            proj["_upkeep_arrears_seen"] = int(stats.get("upkeep_arrears", 0) or 0)
             out = proj.get("output") or {}
             if "granary_cap_add" in out:
                 state.change_granary_cap(int(out["granary_cap_add"]))
@@ -2183,7 +2607,6 @@ def _settle_projects(state, log):
                     xiang = [u for u in state.army_units
                              if u.station == route and u.tier == "厢军"]
                     if xiang:
-                        # 归入该路厢军军队的轻步兵兵种（装备不随增）
                         main = max(xiang, key=lambda u: u.troops)
                         main.branches["轻步兵"] = main.branches.get("轻步兵", 0) + add
                     else:
@@ -2202,23 +2625,14 @@ def _settle_projects(state, log):
                         ))
                 state._derive_defense_lines()
             if "wine_coin_add" in out:
-                # 2026-09-18 测试体检修复（货币守恒）：原为裸
-                # `state.imperial_treasury += int(out["wine_coin_add"])` —— **无买方**，
-                # 与审查 A-4（畜栏产肉）同类：产物收益凭空造币。
-                # 现改为向民间**守恒征收**（实收才入账，不足则少收、不补差额）。
-                # 注：当前 content 里无工程使用该产出（属预留路径），但契约必须正确，
-                # 否则一旦有数据启用就会静默造币。
+                # 货币守恒：向民间守恒征收（实收才入账，不足则少收、不补差额）
                 _want = int(out["wine_coin_add"])
                 _got = _collect_from_pops(state, _want)
                 state.imperial_treasury += _got
                 if _got < _want:
                     log.append(f"[工程] 酒课增收应 {_want:,} 贯，民间可缴仅 {_got:,} 贯，按实入账")
-            log.append(f"[工程] {proj.get('name','工程')} 告成，效益已落实")
+            log.append(f"[工程] {name} 告成，转入运行（产能 {proj['capacity']:.0%}）")
 
-
-# ------------------------------------------------------------
-# Step 4.5b: 制作/作坊系统
-# ------------------------------------------------------------
 def _collect_from_pops(state, amount: int) -> int:
     """按人口比例向六类 POP 征收 `amount` 贯（买家支付），返回**实收**额。
 
@@ -2362,6 +2776,64 @@ def _distribute_cash(state, amount: int, shares: dict) -> int:
             given += g
         paid += given
     return paid
+
+
+def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
+                                  source_account: str = "treasury") -> int:
+    """公共资金（国库/内帑）→ 民间 POP wealth 的**守恒转移**（走 applier_pipeline）。
+
+    用于研发经费、工程款等**新增支出通道**：批量事务 + 路径白名单 + ΣΔ==0 + 原子回滚，
+    绝不绕开另起第三套写状态通道（engine/state_applier 铁律）。
+
+    口径：
+      · 国库/内帑不足 → 按实付（返回 < amount，调用方须据实记录，不得静默成功）；
+      · 接收方池缺失 → 余额退回，仅划转实到部分；
+      · 守恒/穿底/落点非法 → applier 整批拒绝 → 返回 0（可诊断，不假装已付）。
+    """
+    amount = int(amount or 0)
+    avail = max(0, int(getattr(state, source_account, 0) or 0))
+    amount = min(amount, avail)
+    if amount <= 0:
+        return 0
+    prefs = getattr(state, "prefectures", None)
+    if not isinstance(prefs, dict) or not prefs:
+        return 0
+    roads = [r for r, p in prefs.items() if isinstance(p, dict)]
+    if not roads:
+        return 0
+    changes = [{"path": source_account, "op": "add", "value": -amount,
+                "reason": reason, "source_agent": "settlement"}]
+    items = [(c, float(s)) for c, s in (shares or {}).items() if float(s) > 0]
+    allocated = 0
+    for i, (cls, share) in enumerate(items):
+        want = (amount - allocated) if i == len(items) - 1 else int(amount * share)
+        if want <= 0:
+            continue
+        pools = [r for r in roads
+                 if isinstance((prefs[r].get("pops") or {}).get(cls), dict)]
+        if not pools:
+            continue
+        given = 0
+        for j, r in enumerate(pools):
+            v = (want - given) if j == len(pools) - 1 else int(want / len(pools))
+            if v <= 0:
+                continue
+            changes.append({"path": f"prefectures.{r}.pops.{cls}.wealth",
+                            "op": "add", "value": v,
+                            "reason": reason, "source_agent": "settlement"})
+            given += v
+        allocated += given
+    if allocated <= 0:
+        return 0
+    changes[0]["value"] = -allocated
+    try:
+        from engine.state_applier import applier_pipeline
+    except Exception:
+        return 0
+    res = applier_pipeline(state, [("settlement", changes)])
+    if not (res.get("applied") or []):
+        return 0
+    return allocated
 
 
 def _settle_upkeep(state, log):

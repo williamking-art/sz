@@ -38,15 +38,166 @@ from typing import Any, Dict, Optional, Tuple
 
 from content.data import (
     CLAN_GROWTH_ANNUAL, CLAN_OFFICE_RATIO, CLERK_PER_OFFICIAL, EXAM_INTERVAL_YEARS,
+    EXAM_EXAMINER_ORG, FACTION_SINECURE_EXIT_TILT,
     OFFICIAL_SUB_KEYS, OFFICIAL_RETIRE_RATE_YEAR, RANK_UP_PER_YEAR, ROUTE_POST_QUOTA,
     SINECURE_PAY_RATIO, WAITING_PAY_RATIO, WAITING_SINECURE_MULT,
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+# 利益集团二期：人员进出口只改 `state.faction_split` 占比（唯一写入点 set_split），
+# 人仍在同一 POP 的 size 里 —— 不新开人口账本。
+from core.faction_split import blend_entrants, exit_faction_members, split_of
 
 POP_CLASS = "官僚"
 GENTRY_CLASS = "士绅"
 RANK_INDEX_CAP = 1.5             # 磨勘指数上限（防 200 年后俸禄爆炸；对应品阶结构上浮 50%）
+
+
+# ---------------------------------------------------------------- 派系流动（利益集团二期）
+def _officials_total(state) -> float:
+    """全国官（officials 子池）现有人数——派系占比基数，从 POP 现读，**不另立账本**。"""
+    return float(sum(route_officials(p) for p in state.prefectures.values()))
+
+
+def _gentry_total(state) -> float:
+    """全国士绅 POP 现有人数——派系占比基数（从 POP 现读）。"""
+    return float(sum(max(0, int(((p.get("pops") or {}).get(GENTRY_CLASS) or {})
+                               .get("size", 0) or 0))
+                     for p in state.prefectures.values()))
+
+
+def _minister_faction(name: Any) -> Optional[str]:
+    """人名 → 派系主键（查 MINISTERS；查不到/无派系 → None，不编造）。"""
+    if not name:
+        return None
+    try:
+        from content.ministers.data import MINISTERS
+        fig = MINISTERS.get(str(name)) or {}
+        fac = fig.get("faction")
+        if not fac or str(fac) in ("无", "未知"):
+            return None
+        from core.faction_basis import resolve_faction_key
+        return resolve_faction_key(fac)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _examiner_faction(state) -> Optional[str]:
+    """座主（知贡举）所在派系主键——「门生随座主入派」的锚点（二期）。
+
+    解析顺序（单一权威、不新造账本）：
+      ① `state.exam["examiner_faction"]` 显式指派（事件/玩家/测试）；
+      ② `state.exam["examiner"]`（人名）→ MINISTERS 派系；
+      ③ `礼部` 在任者（holders）派系；
+      ④ **朝堂声量最大的派系**（声量由官职权限派生，见 core/faction_voice.py；
+         同声量比官僚立场占比，再同按 FACTION_NAMES 顺序）——知贡举由当权者举荐。
+    取不到 → None（宁可不动，也不编造）。
+    """
+    ex = getattr(state, "exam", None)
+    if not isinstance(ex, dict):
+        return None
+    explicit = ex.get("examiner_faction")
+    if explicit:
+        from core.faction_basis import resolve_faction_key
+        key = resolve_faction_key(explicit)
+        if key:
+            return key
+    key = _minister_faction(ex.get("examiner"))
+    if key:
+        return key
+    org = (getattr(state, "central_orgs", None) or {}).get(EXAM_EXAMINER_ORG)
+    if isinstance(org, dict):
+        holders = org.get("holders")
+        if isinstance(holders, dict):
+            for _title, holder in holders.items():
+                key = _minister_faction(holder)
+                if key:
+                    return key
+    cur = split_of(state, POP_CLASS)
+    if not cur:
+        return None
+    try:
+        from core.faction_voice import voice_seats
+        seats = voice_seats(state)
+    except Exception:  # noqa: BLE001 — 声量不可得时退化为纯占比
+        seats = {}
+    if not isinstance(seats, dict):
+        seats = {}
+    from content.data import FACTION_NAMES
+    order = {f: i for i, f in enumerate(FACTION_NAMES)}
+    return max(cur, key=lambda f: (float(seats.get(f, 0.0) or 0.0),
+                                   float(cur.get(f, 0.0)),
+                                   -order.get(f, 99)))
+
+
+def _blend_faction_inflow(state, pop_class: str, base: float, total: int,
+                          shares: Dict[str, float]) -> None:
+    """按 `shares` 分布把 `total` 名新成员并入 `pop_class` 立场盘（只改占比）。"""
+    if total <= 0 or not shares:
+        return
+    blend_entrants(state, pop_class, base,
+                   {f: float(s) * total for f, s in shares.items()})
+
+
+def _apply_sinecure_faction_exit(state, n: int) -> None:
+    """祠禄安置的政治含义：被挤入宫观者多属当朝**失势**派系（宋代安置政敌的常规手段）。
+
+    以「满意度最低的官僚派系」为受挤压方，令其在官僚立场盘中**定向退出**：
+    退出量 = 该派现占比 × (n / 官额) × FACTION_SINECURE_EXIT_TILT，
+    且单月不超过其现占比的一半（防归零）。只改占比（Σ=1）；人头侧已由
+    「待阙 → 祠禄」子池转移承担，**不另立账本**。
+    """
+    if n <= 0:
+        return
+    base = _officials_total(state)
+    cur = split_of(state, POP_CLASS)
+    facs = getattr(state, "factions", None)
+    if base <= 0 or not cur or not isinstance(facs, dict):
+        return
+    cands = [f for f in cur if f in facs]
+    if len(cands) < 2:
+        return
+
+    def _sat(f: str) -> float:
+        v = facs.get(f)
+        try:
+            return float(v.get("satisfaction", 50.0)) if isinstance(v, dict) else 50.0
+        except (TypeError, ValueError):
+            return 50.0
+
+    weakest = min(cands, key=_sat)
+    amt = min(cur[weakest] * 0.5,
+              cur[weakest] * (float(n) / base) * float(FACTION_SINECURE_EXIT_TILT))
+    if amt > 0:
+        exit_faction_members(state, POP_CLASS, weakest, amt)
+
+
+def recruit_by_recommendation(state, pref: Dict[str, Any], n: int, patron: Any,
+                              log: Optional[list] = None) -> int:
+    """入口·荐举（二期接口，**暂未接月度结算**）：受荐者随**举主**派系入官僚待阙。
+
+    「谁荐谁、岁举限额、避亲」等成本高的部分留给事件/诏令层；本函数只提供与
+    科举/恩荫**同一套守恒通道**的落地：士绅 → 官僚 的 POP 间转移（ΣPOP 守恒），
+    并按举主派系并入立场占比（只改比率、Σ=1，人仍在同一 POP 的 size 里）。
+    `patron` 为人名时查 MINISTERS 派系；查不到则回落座主解析。返回实际入仕数。
+    """
+    shen = ((pref or {}).get("pops") or {}).get(GENTRY_CLASS)
+    if not isinstance(shen, dict):
+        return 0
+    take = max(0, min(int(n or 0), int(shen.get("size", 0) or 0)))
+    if take <= 0:
+        return 0
+    fac = _minister_faction(patron) or _examiner_faction(state)
+    base = _officials_total(state)
+    shen["size"] = int(shen.get("size", 0)) - take
+    add_officials(pref, take, "waiting")
+    if fac:
+        blend_entrants(state, POP_CLASS, base, {fac: take})
+    state.recruit_log["举荐"] = state.recruit_log.get("举荐", 0) + take
+    if isinstance(log, list):
+        log.append(f"[荐举] {take} 人受荐入仕（士绅 → 官僚待阙"
+                   + (f"，随举主「{fac}」" if fac else "") + "）")
+    return take
 
 
 # ---------------------------------------------------------------- 初始化 / 修复
@@ -400,6 +551,9 @@ def _overflow_to_sinecure(state, log) -> int:
         done += to_sinecure(p, take)
     if done:
         log.append(f"[祠禄] 待阙壅积（{waiting} 超限 {cap}），{done} 人改授宫观祠禄（折俸）")
+        # 出口轴（二期）：祠禄安置多挤占失势派系 → 只改官僚立场占比（Σ=1），
+        # 人数侧上面的「待阙 → 祠禄」子池转移已承担，不另立人口账本。
+        _apply_sinecure_faction_exit(state, done)
     return done
 
 
@@ -411,6 +565,8 @@ def _annual_retire(state, log) -> int:
     士绅子弟再考科举 → 又变官。
     """
     total = 0
+    shen_base = _gentry_total(state)          # 士绅立场占比基数（回调前现读）
+    carry = split_of(state, POP_CLASS)        # 出口者的派系结构 ≈ 官僚立场分布
     for p in state.prefectures.values():
         pop = (p.get("pops") or {}).get(POP_CLASS)
         if not isinstance(pop, dict):
@@ -429,7 +585,10 @@ def _annual_retire(state, log) -> int:
             shen["size"] = int(shen.get("size", 0)) + n
         total += n
     if total:
-        log.append(f"[致仕] {total} 员解职归乡（在岗 → 士绅，循环闭合）")
+        # 退出轴（二期）：致仕者**带本派立场回士绅** → 只改士绅立场占比，Σ=1；
+        # 官僚侧按比例退出，占比不变（比例式天然守恒）；人数侧上面已转移，不另账。
+        _blend_faction_inflow(state, GENTRY_CLASS, shen_base, total, carry)
+        log.append(f"[致仕] {total} 员解职归乡（在岗 → 士绅，带本派立场入乡）")
         state.recruit_log["致仕"] = state.recruit_log.get("致仕", 0) + total
     return total
 
@@ -453,6 +612,8 @@ def _annual_clan(state, log) -> int:
     """
     births = 0
     entered = 0
+    off_base = _officials_total(state)        # 官僚立场占比基数（入官前现读）
+    inherit = split_of(state, GENTRY_CLASS)   # 宗室 ⊆ 士绅，入官随士绅派系结构
     for p in state.prefectures.values():
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if not isinstance(shen, dict):
@@ -481,7 +642,8 @@ def _annual_clan(state, log) -> int:
     if births:
         log.append(f"[宗室] 宗室人口自然增长 {births} 人（复利 {CLAN_GROWTH_ANNUAL:.0%}/年）")
     if entered:
-        log.append(f"[宗室] 宗室入官 {entered} 人（士绅 → 官僚，待阙）")
+        _blend_faction_inflow(state, POP_CLASS, off_base, entered, inherit)
+        log.append(f"[宗室] 宗室入官 {entered} 人（士绅 → 官僚，待阙，随士绅派系）")
         state.recruit_log["宗室"] = state.recruit_log.get("宗室", 0) + entered
     return births
 
@@ -518,6 +680,8 @@ def _triennial_exam(state, log) -> int:
     rates = EXAM_HARD_POOR_SHARE.get(tier, 0.7)
     taken = 0
     hard_total = 0
+    off_base = _officials_total(state)        # 官僚立场占比基数（取士前现读）
+    examiner = _examiner_faction(state)       # 座主（知贡举）所在派系
     for p in state.prefectures.values():
         pops = p.get("pops") or {}
         nong, shen = pops.get("农"), pops.get("士绅")
@@ -545,10 +709,16 @@ def _triennial_exam(state, log) -> int:
     if taken:
         state.exam.setdefault("cohorts", [])
         state.exam["cohorts"] = (list(state.exam["cohorts"]) + [
-            {"year": int(getattr(state, "year", 0) or 0), "size": taken}])[-12:]
+            {"year": int(getattr(state, "year", 0) or 0), "size": taken,
+             "examiner_faction": examiner}])[-12:]
         state.recruit_log["科举"] = state.recruit_log.get("科举", 0) + taken
+        if examiner:
+            # 入口轴（二期）：本榜进士（同年）随座主入派 —— 只改占比，Σ=1。
+            state.exam["last_examiner_faction"] = examiner
+            _blend_faction_inflow(state, POP_CLASS, off_base, taken, {examiner: 1.0})
         log.append(f"[科举] 科次取士 {taken} 人（档位「{tier}」，寒门 {hard_total}／"
-                   f"士绅子弟 {taken - hard_total}），皆入待阙")
+                   f"士绅子弟 {taken - hard_total}）"
+                   + (f"，座主「{examiner}」门下皆入待阙" if examiner else "，皆入待阙"))
     return taken
 
 
@@ -561,6 +731,8 @@ def _triennial_yinben(state, log) -> int:
     prestige = float(getattr(state, "prestige", 50) or 50)
     scale = max(0.2, min(3.0, prestige / YINBEN_PRESTIGE_REF))
     total = 0
+    off_base = _officials_total(state)        # 官僚立场占比基数（荫补前现读）
+    father = split_of(state, GENTRY_CLASS)    # 父辈派系结构 = 士绅立场分布
     for p in state.prefectures.values():
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if not isinstance(shen, dict):
@@ -574,7 +746,10 @@ def _triennial_yinben(state, log) -> int:
         add_officials(p, n, "waiting")
         total += n
     if total:
-        log.append(f"[恩荫] 郊祀荫补 {total} 人入仕（士绅 → 官僚，随皇威 {prestige:.0f} 缩放）")
+        # 入口轴（二期）：荫补者随**父辈派系**（士绅立场分布）入官僚 —— 只改占比，Σ=1。
+        _blend_faction_inflow(state, POP_CLASS, off_base, total, father)
+        log.append(f"[恩荫] 郊祀荫补 {total} 人入仕（士绅 → 官僚，随皇威 {prestige:.0f} 缩放，"
+                   f"承父辈派系）")
         state.recruit_log["恩荫"] = state.recruit_log.get("恩荫", 0) + total
     return total
 

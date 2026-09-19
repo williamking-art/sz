@@ -408,7 +408,8 @@ export interface MemoryResult {
 
 export interface AiConfigResult {
   configured: boolean;
-  api_key_masked: string;
+  /** 服务端生成的稳定 Key 指纹（sha256 前 8 位）；**不含任何 Key 片段**（审查 P2-15）。 */
+  key_id: string;
   base_url: string;
   model: string;
   has_key?: boolean;
@@ -456,6 +457,13 @@ const NON_IDEMPOTENT_PATHS = [
   "/api/decree/"
 ];
 
+/** 构造「调用方主动取消」错误（name=AbortError），供调用方识别并静默丢弃回执。 */
+function abortRequestError(): Error {
+  const err = new Error("请求已取消");
+  err.name = "AbortError";
+  return err;
+}
+
 export class ApiClient {
   private base: string;
 
@@ -470,10 +478,20 @@ export class ApiClient {
     const MAX_ATTEMPTS = 4; // 首次请求 + 最多 3 次 5xx 重试
     const BACKOFF_MS = [1_000, 2_000, 4_000];
     let lastErr: Error | null = null;
+    // 调用方外部取消信号（如切换召对会话时 abort 在途记忆库请求）。
+    // 未传 signal 的旧调用完全保持原有行为。
+    const externalSignal = init?.signal ?? null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (externalSignal?.aborted) throw abortRequestError();
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
+      // 外部取消 → 联动内部超时控制器；网络层只认内部 controller.signal
+      const onExternalAbort = () => controller.abort();
+      if (externalSignal) {
+        if (externalSignal.aborted) controller.abort();
+        else externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+      }
       try {
         const res = await fetch(`${this.base}${path}`, {
           headers: { "Content-Type": "application/json" },
@@ -510,6 +528,9 @@ export class ApiClient {
         // 技术细节（接口路径、原生英文报错）只进控制台，玩家可见文案一律中文、
         // 不含路径/状态机内部信息。
         if (e instanceof Error && e.name === "AbortError") {
+          // 调用方主动取消（如切换召对会话）：原样上抛 AbortError 由调用方静默丢弃；
+          // 仅内部超时才译成玩家可见的中文提示。
+          if (externalSignal?.aborted) throw abortRequestError();
           console.error("[api] 超时", path, e);
           throw new Error(`驿传迟滞：逾 ${TIMEOUT_MS / 1000} 息未得回音，请稍后再试。`);
         }
@@ -526,6 +547,7 @@ export class ApiClient {
         throw e;
       } finally {
         window.clearTimeout(timer);
+        externalSignal?.removeEventListener("abort", onExternalAbort);
       }
     }
     console.error("[api] 重试耗尽", path, lastErr);
@@ -594,10 +616,14 @@ export class ApiClient {
 
   /** 记忆库只读视图：主库概要/近期关系 + 对话概要 + 变更日志。
    *  传 minister 则取「会话视图」：该大臣完整会话流 + 其按期纪要 + 涉其近关系。 */
-  async memory(minister?: string): Promise<MemoryResult> {
+  async memory(
+    minister?: string,
+    init: { signal?: AbortSignal } = {}
+  ): Promise<MemoryResult> {
     const name = (minister || "").trim();
     return this.request(
-      name ? `/api/memory?minister=${encodeURIComponent(name)}` : "/api/memory"
+      name ? `/api/memory?minister=${encodeURIComponent(name)}` : "/api/memory",
+      init
     );
   }
 

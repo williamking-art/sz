@@ -185,11 +185,16 @@ def validate_changes(changes: List[dict]) -> Tuple[List[dict], List[str]]:
             if _is_non_neg(path) and op == "set" and value < 0:
                 errors.append(f"change[{i}] {path} 不能为负: {value}")
                 continue
-            if _is_clamp01(path):
-                value = max(0.0, min(1.0, float(value)))
-            elif _is_range100(path):
-                # 审查 P1-4：百分制字段越界钳制（保持原 int/float 类型）
-                value = max(0, min(100, value))
+            # 审查修复（2026-09-19 · 连带 P1-5）：0-1 / 0-100 字段的越界钳制**只对 set 生效**，
+            # 且必须在写入端按**结果值**钳（见 apply_to_state）。原实现无条件钳 `value`，对 add/mul
+            # 而言那是「增量」——`add -3` 被钳成 `add 0`，导致威望/民心/满意度等所有
+            # **负向效果静默失效**（applier 仍报 applied → 假落地。P1-5 点名的「威望、民心」正是此类）。
+            if op == "set":
+                if _is_clamp01(path):
+                    value = max(0.0, min(1.0, float(value)))
+                elif _is_range100(path):
+                    # 审查 P1-4：百分制字段越界钳制（保持原 int/float 类型）
+                    value = max(0, min(100, value))
             ch = dict(ch)
             ch["value"] = value
         elif op == "remove" and value is not None:

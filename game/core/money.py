@@ -46,11 +46,19 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple
 
 __all__ = [
-    "ACCOUNTS", "SINK_ACCOUNTS",
+    "ACCOUNTS", "SINK_ACCOUNTS", "EXTERNAL_ACCOUNTS",
     "pop_money", "hoard_money", "local_treasury_total", "effective_jiaozi", "copper_share",
     "m0", "m1", "m2", "m3", "m_all",
     "snapshot", "reconcile", "audit_step", "describe_residual",
     "register_flow", "take_flow",
+    # ---- 金融口径只读视图（第二节§1/§2/§3/§5；第六节数据契约）----
+    "jiaozi_issued", "jiaozi_circulating", "jiaozi_reserve", "jiaozi_redeem_rate",
+    "jiaozi_discount", "jiaozi_run_pressure", "jiaozi_view",
+    "bank_view", "bank_capital_as_guan",
+    "standard_rates", "exchange_quote",
+    "circulating_copper", "circulating_jiaozi", "circulating_silver",
+    "effective_money_supply", "supply_breakdown", "assert_supply_no_double_count",
+    "finance_report",
 ]
 
 # 计入 M_ALL 的账户（顺序即展示顺序）
@@ -402,3 +410,302 @@ def audit_step(state) -> Dict[str, Any]:
     audit["last"] = now
     audit["recent"] = (list(audit.get("recent", [])) + [rec])[-24:]   # 只留近 24 月
     return rec
+
+
+# ==========================================================================
+# 金融口径只读视图（第二节§1/§2/§3/§5；第六节数据契约）
+# --------------------------------------------------------------------------
+# 铁律：本段全部为**只读派生视图**，绝不写任何账户、绝不做守恒运算的输入权威。
+# 货币守恒权威仍是 POP/国库/内帑/银行准备金等真实余额；本段只把它们**读**成
+# 「发行额/流通额/兑付率/折价/存款/贷款/汇率」等口径，供面板、存档对账与 API。
+# ==========================================================================
+def _num(v, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _clamp01(v) -> float:
+    return max(0.0, min(1.0, _num(v)))
+
+
+def bank_capital_as_guan(state) -> float:
+    """银行资本「万贯 → 贯」的唯一换算入口（第六节：禁止贯与万贯混用）。"""
+    return _bank_capital_as_guan(state)
+
+
+def jiaozi_issued(state) -> float:
+    """交子**发行额**（贯）：存量券面；不等于流通额。"""
+    return max(0.0, _num((getattr(state, "jiaozi", {}) or {}).get("issued")))
+
+
+def jiaozi_circulating(state) -> float:
+    """交子**流通额**（贯）。
+
+    唯一权威公式 = 发行额 × 接受度(trust/100)（即 `effective_jiaozi`）；
+    `jiaozi["circulating"]` 只是结算步逐月刷新的**派生缓存/展示字段**，
+    不作为权威读取——避免「缓存陈旧 → 流通额失真」的双权威问题。
+    """
+    return effective_jiaozi(state)
+
+
+def jiaozi_reserve(state) -> float:
+    """交子**准备金**（贯）：不得计入流通货币供给（仅供兑付）。"""
+    return max(0.0, _num((getattr(state, "jiaozi", {}) or {}).get("reserve")))
+
+
+def jiaozi_redeem_rate(state) -> float:
+    """交子**兑付率** = 准备金 ÷ 流通额（流通为 0 时记足额 1.0）。"""
+    c = jiaozi_circulating(state)
+    if c <= 0:
+        return 1.0
+    return jiaozi_reserve(state) / c
+
+
+def _derived_jiaozi_discount(state) -> float:
+    """折价率（0~1）派生：兑付不足 × 信用不足。损失由持券者承担。"""
+    r = min(1.0, jiaozi_redeem_rate(state))
+    trust = _clamp01(_num((getattr(state, "jiaozi", {}) or {}).get("trust", 0)) / 100.0)
+    if jiaozi_issued(state) <= 0:
+        return 0.0
+    return _clamp01((1.0 - r) * (1.0 - trust))
+
+
+def jiaozi_discount(state) -> float:
+    """交子折价率（0~1）：唯一权威 = 兑付率不足 × 信用不足（公式派生）。
+
+    `jiaozi["discount"]` 只是结算步逐月刷新的派生缓存/展示字段，不作权威读取。
+    """
+    return _derived_jiaozi_discount(state)
+
+
+def _derived_jiaozi_run(state) -> float:
+    """挤兑压力（0~1）派生：信用跌破线 / 兑付率不足 → 持券人集中兑现。"""
+    from content.data import JIAOZI_RUN_RESERVE_LINE, JIAOZI_RUN_TRUST_LINE
+    if jiaozi_issued(state) <= 0:
+        return 0.0
+    trust = _num((getattr(state, "jiaozi", {}) or {}).get("trust", 0))
+    r = jiaozi_redeem_rate(state)
+    return _clamp01((r < JIAOZI_RUN_RESERVE_LINE) * 0.5
+                    + max(0.0, JIAOZI_RUN_TRUST_LINE - trust) / max(JIAOZI_RUN_TRUST_LINE, 1e-9) * 0.5)
+
+
+def jiaozi_run_pressure(state) -> float:
+    """挤兑压力（0~1）：唯一权威 = 信用/兑付率派生（公式）。
+
+    `jiaozi["run_pressure"]` 只是结算步逐月刷新的派生缓存/展示字段，不作权威读取。
+    """
+    return _derived_jiaozi_run(state)
+
+
+def jiaozi_view(state) -> dict:
+    """交子只读口径：发行额/流通额/准备金/兑付率/折价/挤兑/界期。"""
+    jz = getattr(state, "jiaozi", {}) or {}
+    term = int(_num(jz.get("term", 36), 36))
+    age = int(_num(jz.get("age", 0)))
+    return {
+        "issued": jiaozi_issued(state),
+        "circulating": jiaozi_circulating(state),
+        "reserve": jiaozi_reserve(state),
+        "redeem_rate": jiaozi_redeem_rate(state),
+        "discount": jiaozi_discount(state),
+        "run_pressure": jiaozi_run_pressure(state),
+        "trust": _num(jz.get("trust", 0)),
+        "tax_acceptance": _clamp01(jz.get("tax_acceptance", 1.0)),
+        "term": term,
+        "cycle": int(_num(jz.get("cycle", 0))),
+        "age": age,
+        "cycle_progress": (age / term) if term > 0 else 0.0,
+        "redeemed_total": _num(jz.get("redeemed_total", 0)),
+    }
+
+
+def bank_view(state) -> dict:
+    """银行只读口径：存款/贷款/准备金率/逾期率/挤兑压力/网点/对象/资本（贯）。"""
+    b = getattr(state, "bank", {}) or {}
+    reserve = _num(b.get("reserve"))
+    deposits = _num(b.get("deposits"))
+    loans = _num(b.get("loans"))
+    return {
+        "established": bool(b.get("established", False)),
+        "capital_guan": bank_capital_as_guan(state),   # 万贯 → 贯（唯一换算入口）
+        "capital_won": _num(b.get("capital")),
+        "reserve": reserve,
+        "deposits": deposits,
+        "loans": loans,
+        "reserve_ratio": _clamp01(b.get("reserve_ratio", 0.0)),
+        "overdue_rate": _clamp01(b.get("overdue_rate", 0.0)),
+        "run_pressure": _clamp01(b.get("run_pressure", 0.0)),
+        "branches": int(_num(b.get("branches", 0))),
+        "target": str(b.get("target", "") or ""),
+        "loan_to_deposit": (loans / deposits) if deposits > 0 else 0.0,
+    }
+
+
+def standard_rates(state, market: bool = False) -> dict:
+    """本位只读汇率：market=False 取**记账汇率**，True 取**市场汇率**（旧档回退 legacy）。"""
+    s = getattr(state, "standard", {}) or {}
+    if market:
+        silver = s.get("market_silver_per_copper", s.get("silver_per_copper", 1.0))
+        gold = s.get("market_gold_per_copper", s.get("gold_per_copper", 10.0))
+    else:
+        silver = s.get("book_silver_per_copper", s.get("silver_per_copper", 1.0))
+        gold = s.get("book_gold_per_copper", s.get("gold_per_copper", 10.0))
+    silver = max(1e-9, _num(silver, 1.0))
+    gold = max(1e-9, _num(gold, 10.0))
+    return {"silver_per_copper": silver, "gold_per_copper": gold,
+            "rate_basis": "market" if market else "book"}
+
+
+def _unit_per_copper(rate: dict, unit: str) -> float:
+    """1 贯铜钱折合多少 <unit>。"""
+    u = str(unit or "copper")
+    if u in ("copper", "铜", "贯", "铜钱"):
+        return 1.0
+    if u in ("silver", "银", "两", "白银"):
+        return 1.0 / rate["silver_per_copper"]
+    if u in ("gold", "金", "黄金"):
+        return 1.0 / rate["gold_per_copper"]
+    raise ValueError(f"未知币种单位：{unit!r}")
+
+
+def exchange_quote(state, amount, *, from_unit: str = "copper",
+                   to_unit: str = "silver", market: bool = True) -> dict:
+    """兑换**只读报价**（第二节§5）：返回手续费、铸币损耗与**双方资产变化**。
+
+    本函数不写任何状态；调用方落地时必须：
+      ① 用 `transfer_money` 在双方账户间成对划转净额；
+      ② 手续费/铸币损耗用 `register_flow(kind="burn")` 登记（真实退出流通）。
+    失败（非法单位/非正金额）返回 ok=False + error，**不得静默成功**。
+    """
+    amt = _num(amount)
+    if amt <= 0:
+        return {"ok": False, "error": "兑换额须为正", "amount": amt}
+    s = getattr(state, "standard", {}) or {}
+    fee_rate = _clamp01(s.get("fee_rate", 0.01))
+    mint_loss = _clamp01(s.get("mint_loss", 0.02))
+    book = standard_rates(state, market=False)
+    mkt = standard_rates(state, market=True)
+    rate = mkt if market else book
+    try:
+        copper = amt / _unit_per_copper(rate, from_unit)   # 付出方价值（铜钱/贯口径）
+        out = copper * _unit_per_copper(rate, to_unit)     # 收方毛额（to_unit）
+    except ValueError as e:
+        return {"ok": False, "error": str(e), "amount": amt}
+    # 口径统一到铜钱（贯）做守恒：付出 copper、收方净得、手续费、熔铸损耗
+    fee_copper = copper * fee_rate
+    loss_copper = copper * mint_loss
+    net_copper = copper - fee_copper - loss_copper
+    # 收方按 to_unit 计的明细（内部与 copper 口径一致，仅做单位换算）
+    fee = out * fee_rate
+    loss = out * mint_loss
+    net = out - fee - loss
+    return {
+        "ok": True, "error": "",
+        "from_unit": str(from_unit), "to_unit": str(to_unit), "market": bool(market),
+        "amount": amt, "copper_value": copper,
+        "book_rate": book, "market_rate": mkt,
+        "gross": out, "fee": fee, "mint_loss": loss, "net": net,
+        # 铜钱口径守恒项：payer_copper + net_copper + fee + burn == 0
+        "payer_copper": -copper, "receiver_copper": net_copper,
+        "fee_copper": fee_copper, "burn_copper": loss_copper,
+        # 双方资产变化（各自计量单位）：付方 -amt，收方 +net，手续费归兑换机构，损耗退出流通
+        "payer_delta": -amt, "receiver_delta": net,
+        "fee_sink": fee, "burn": loss,
+    }
+
+
+def circulating_copper(state) -> float:
+    """流通铜钱（贯）= 民间持钱 × 铜钱占比（窖藏银/准备金/仓粮不计）。"""
+    return max(0.0, (pop_money(state) + estate_wealth(state)) * copper_share(state))
+
+
+def circulating_jiaozi(state) -> float:
+    """有效交子余额（贯，流通额）：= 发行额 × 接受度。"""
+    return jiaozi_circulating(state)
+
+
+def circulating_silver(state) -> float:
+    """实际流通白银折钱（贯）：`state.silver_stock`（窖银另计、不重复）。"""
+    return max(0.0, _silver_stock(state))
+
+
+def effective_money_supply(state) -> float:
+    """统一**有效货币供给**口径（第二节§1）：
+
+        流通铜钱 + 有效交子余额 + 实际流通白银折钱
+
+    **不重复计入**：窖藏（hoard/estate_hoard/窖银）、准备金（bank reserve /
+    jiaozi reserve）、熔铜池（退出流通的铜料）、仓粮（非货币）。
+    """
+    return circulating_copper(state) + circulating_jiaozi(state) + circulating_silver(state)
+
+
+def supply_breakdown(state) -> dict:
+    """有效货币供给拆解 + 明确排除项（供对账/面板/API）。"""
+    coin = getattr(state, "coin", {}) or {}
+    excluded = {
+        "hoard": hoard_money(state),                 # 士绅窖银（窖藏，退出流通）
+        "estate_hoard": estate_hoard(state),         # 大贾窖藏
+        "bank_reserve": _num((getattr(state, "bank", {}) or {}).get("reserve")),
+        "jiaozi_reserve": jiaozi_reserve(state),
+        "melt_pool": _num(coin.get("melted_pool")),  # 钱→铜料，退出流通
+        "grain": 0.0,                                # 仓粮（石）非货币，恒不计
+    }
+    copper = circulating_copper(state)
+    jz = circulating_jiaozi(state)
+    silver = circulating_silver(state)
+    return {
+        "copper": copper, "jiaozi": jz, "silver": silver,
+        "effective": copper + jz + silver,
+        "excluded": excluded,
+        "excluded_total": sum(excluded.values()),
+    }
+
+
+def assert_supply_no_double_count(state, tol: float = 1.0) -> dict:
+    """守恒断言：有效货币供给恰为「M0 口径 + 流通白银」，且三项均非负。
+
+    口径恒等式（第二节§1）：有效货币供给 == (流通铜钱 + 有效交子) + 流通白银折钱
+                                       == `m0(state)` + `circulating_silver(state)`。
+    窖藏 / 银行准备金 / 交子准备金 / 熔铜池 / 仓粮**不在**上式，故不重复计入。
+    违反则抛 AssertionError（失败不得静默）。
+    """
+    bd = supply_breakdown(state)
+    expect = m0(state) + circulating_silver(state)
+    if abs(bd["effective"] - expect) > tol:
+        raise AssertionError(
+            f"有效货币供给口径不一致：{bd['effective']:.0f} != m0+白银 {expect:.0f}")
+    if min(bd["copper"], bd["jiaozi"], bd["silver"]) < -tol:
+        raise AssertionError(f"有效货币供给出现负项：{bd}")
+    return bd
+
+
+def finance_report(state) -> dict:
+    """金融 API**只读**汇总（第六节：返回来源、去向、状态、错误）。
+
+    不写任何状态；status != "ok" 时 error 给出显式原因（不静默成功）。
+    """
+    from content.data import FINANCE_SCHEMA_VERSION, GRAIN_UNIT, MONEY_UNIT
+    audit = getattr(state, "money_audit", {}) or {}
+    recent = audit.get("recent", []) or []
+    rec = recent[-1] if recent else {}
+    residual = float(rec.get("residual", 0.0))
+    ok = abs(residual) <= 1.0
+    return {
+        "schema_version": FINANCE_SCHEMA_VERSION,
+        "units": {"money": MONEY_UNIT, "grain": GRAIN_UNIT},
+        "source": "core.money 只读口径（权威源：POP wealth/grain、国库、内帑、银行准备金）",
+        "status": "ok" if ok else "mismatch",
+        "error": "" if ok else f"月度货币对账残差 {residual:+,.0f} 贯（存在无对手方的造币/销毁）",
+        "residual": residual,
+        "cum_residual": float(audit.get("cum_residual", 0.0)),
+        "sinks": list(SINK_ACCOUNTS),
+        "exclude_accounts": list(EXTERNAL_ACCOUNTS),
+        "supply": supply_breakdown(state),
+        "jiaozi": jiaozi_view(state),
+        "bank": bank_view(state),
+        "standard_book": standard_rates(state, market=False),
+        "standard_market": standard_rates(state, market=True),
+    }

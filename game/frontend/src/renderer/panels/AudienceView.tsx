@@ -9,6 +9,7 @@ import {
 import { useGameStore, pick } from "../store/gameStore";
 import ministersDict from "../data/ministers_dict.json";
 import MemoryDrawer, { type MemoryTab } from "./MemoryDrawer";
+import { SessionGuard, isAbortError, classifySessionView, type SessionPhase } from "./sessionGuard";
 
 // 御前召对 —— 社交式会话面板（对齐用户定稿口径）：
 //   · 左栏＝召对名录（会话列表：在朝大臣 + 派系领袖 + 有留档者），末条预览 + 条数；
@@ -155,7 +156,18 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   };
 
   const [turns, setTurns] = useState<DialogueTurn[]>([]);
-  const [loadingSession, setLoadingSession] = useState(true);
+  /** 会话加载三态：loading / ready / error（替代单一 loading 布尔，区分空档与读取失败） */
+  const [sessionPhase, setSessionPhase] = useState<SessionPhase>("loading");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  // ---- 会话隔离守卫：请求序号 + 大臣 ID + 会话纪元（纯逻辑见 sessionGuard.ts）----
+  const guardRef = useRef<SessionGuard | null>(null);
+  const guard = guardRef.current ?? (guardRef.current = new SessionGuard());
+  /** 在途「拉取记忆库」请求的取消句柄，按用途分开：会话重载 / 侧栏刷新 */
+  const pullAbortRef = useRef<Record<"session" | "sidebar", AbortController | null>>({
+    session: null,
+    sidebar: null
+  });
 
   function greeting(name: string): DialogueTurn {
     return {
@@ -183,26 +195,46 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     };
   }
 
-  /** 拉取记忆库：resetTurns 时以留档会话流重建消息列（无留档则回落开场白） */
+  /** 拉取记忆库：resetTurns 时以留档会话流重建消息列（无留档则回落开场白）。
+   *  返回时三重校验（对象 / 会话纪元 / 通道序号），过期回执一律丢弃，绝不串台。 */
   async function pullMemory(name: string, resetTurns: boolean) {
+    const purpose: "session" | "sidebar" = resetTurns ? "session" : "sidebar";
+    const ticket = guard.issue(name, purpose);
+    const ctrl = new AbortController();
+    const prev = pullAbortRef.current[purpose];
+    pullAbortRef.current[purpose] = ctrl;
+    if (prev && prev !== ctrl) prev.abort();
+
     setMemBusy(true);
     setMemMsg(null);
-    if (resetTurns) setLoadingSession(true);
+    if (resetTurns) {
+      setSessionPhase("loading");
+      setSessionError(null);
+    }
     try {
-      const res = await getApiClient().memory(name);
+      const res = await getApiClient().memory(name, { signal: ctrl.signal });
+      if (ctrl.signal.aborted || !guard.isFresh(ticket, currentRef.current)) return;
       setMem(res);
       setSessions(res.sessions ?? []);
       if (resetTurns) {
         const rows = res.dialogues ?? [];
         setTurns(rows.length ? rows.map(rowToTurn) : [greeting(name)]);
+        setSessionPhase("ready");
       }
     } catch (e) {
+      // 主动取消（切换会话）或过期回执：静默丢弃，不得写入当前会话
+      if (ctrl.signal.aborted || isAbortError(e) || !guard.isFresh(ticket, currentRef.current)) return;
       const m = e instanceof Error ? e.message : String(e);
       setMemMsg(`记忆库读取失败：${m}`);
-      if (resetTurns) setTurns([greeting(name)]);
+      if (resetTurns) {
+        setTurns([greeting(name)]);
+        setSessionPhase("error");
+        setSessionError(m);
+      }
     } finally {
-      setMemBusy(false);
-      setLoadingSession(false);
+      if (pullAbortRef.current[purpose] === ctrl) pullAbortRef.current[purpose] = null;
+      // 仅当本次仍是最新请求时才解除忙碌，避免旧请求清掉新请求的 loading
+      if (guard.isFresh(ticket, currentRef.current)) setMemBusy(false);
     }
   }
 
@@ -214,12 +246,34 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [turns, busy, loadingSession]);
+  }, [turns, busy, sessionPhase]);
 
+  // 卸载时取消在途拉取，避免向已卸载组件写状态
+  useEffect(() => {
+    const refs = pullAbortRef.current;
+    return () => {
+      refs.session?.abort();
+      refs.sidebar?.abort();
+      refs.session = null;
+      refs.sidebar = null;
+    };
+  }, []);
+
+  /** 切换召对对象：作废旧会话在途请求 + 清空旧私有数据（消息列 / 记忆库 / 名录） */
   function switchTo(name: string) {
-    if (name === current) return;
+    if (name === currentRef.current) return;
+    guard.invalidate(currentRef.current); // 离开的会话：在途请求即刻失效
+    guard.invalidate(name); // 进入的会话：保证全新纪元（含 A→B→A）
+    pullAbortRef.current.session?.abort();
+    pullAbortRef.current.sidebar?.abort();
+    pullAbortRef.current.session = null;
+    pullAbortRef.current.sidebar = null;
     setTurns([]);
-    setLoadingSession(true);
+    setMem(null);
+    setSessions([]);
+    setMemMsg(null);
+    setSessionPhase("loading");
+    setSessionError(null);
     setCurrent(name);
   }
 
@@ -257,13 +311,22 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
 
   async function handleTransfer(approve: boolean) {
     if (busy) return;
+    // 冻结本次调拨的并发上下文：返回时对象/会话已变则丢弃回执，不写入他人消息列
+    const ticket = guard.issue(currentRef.current, "transfer");
+    const target = ticket.minister;
     setBusy(true);
     try {
       const res = await getApiClient().action(
         approve ? "confirm_inner_transfer" : "cancel_inner_transfer",
         {}
       );
+      // 调拨已在服务端生效：游戏状态必须对齐（全局状态，不属会话私有数据）
       if (res.state) setState(res.state);
+      if (!guard.isFresh(ticket, currentRef.current)) {
+        // 期间切了大臣：朱批/回奏只属于原会话；这里选择丢弃（不写回他人消息列）
+        console.warn(`[audience] 调拨回执因会话切换被丢弃：minister=${target}`);
+        return;
+      }
       setTurns((prev) => [
         ...prev,
         {
@@ -275,13 +338,14 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         }
       ]);
     } catch (e) {
+      if (!guard.isFresh(ticket, currentRef.current)) return;
       setTurns((prev) => [
         ...prev,
         {
           id: `tr-err-${Date.now()}`,
-          speaker: current,
+          speaker: target,
           isEmperor: false,
-          timeLabel: `${current} · 回奏`,
+          timeLabel: `${target} · 回奏`,
           content: `调拨受阻：${e instanceof Error ? e.message : String(e)}`
         }
       ]);
@@ -293,7 +357,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   async function handleSend(textToSend?: string) {
     const text = (textToSend || input).trim();
     if (busy || !text) return;
-    const target = current; // 冻结本次召对对象：中途切换会话不得把回奏串到别人名下
+    const target = currentRef.current; // 冻结本次召对对象：中途切换会话不得把回奏串到别人名下
 
     // 内帑调拨：商量确认式，不走 AI 召对（对齐 panels_govern.py）
     if (/内帑/.test(text)) {
@@ -325,10 +389,11 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       ]);
       if (!textToSend) setInput("");
       setBusy(true);
+      const ticket = guard.issue(target, "transfer");
       try {
         const res = await getApiClient().action("propose_inner_transfer", { amount: amt });
         if (res.state) setState(res.state);
-        if (currentRef.current === target) {
+        if (guard.isFresh(ticket, currentRef.current)) {
           setTurns((prev) => [
             ...prev,
             {
@@ -342,7 +407,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           ]);
         }
       } catch (e) {
-        if (currentRef.current === target) {
+        if (guard.isFresh(ticket, currentRef.current)) {
           setTurns((prev) => [
             ...prev,
             {
@@ -372,6 +437,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     ]);
     if (!textToSend) setInput("");
     setBusy(true);
+    const ticket = guard.issue(target, "dialogue");
 
     try {
       const res = await getApiClient().action("audience_dialogue", {
@@ -380,7 +446,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
       });
       if (res.state) setState(res.state);
       const aiReply = res.message || "臣敬遵温谕，必体察上意，恭谨奉行。";
-      if (currentRef.current === target) {
+      if (guard.isFresh(ticket, currentRef.current)) {
         setTurns((prev) => [
           ...prev,
           {
@@ -394,7 +460,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         ]);
       }
     } catch (e) {
-      if (currentRef.current === target) {
+      if (guard.isFresh(ticket, currentRef.current)) {
         setTurns((prev) => [
           ...prev,
           {
@@ -410,7 +476,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     } finally {
       setBusy(false);
       // 刷新侧栏与名录末条预览（不动即时消息列，避免抹掉未落库的内帑/异常提示）
-      void pullMemory(target, false);
+      if (guard.isFresh(ticket, currentRef.current)) void pullMemory(target, false);
     }
   }
 
@@ -560,6 +626,9 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   const dynamicOptions = getDynamicOptions();
   const digestCount = mem?.dialogue_summaries?.length ?? 0;
   const streamCount = mem?.dialogues?.length ?? 0;
+  /** 消息列展示态：loading / error / empty 三态与就绪态分开展示，不再混用一个布尔量 */
+  const archivedCount = turns.filter((t) => t.persisted).length;
+  const sessionView = classifySessionView({ phase: sessionPhase, archivedCount });
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-text font-kai overflow-hidden">
@@ -733,11 +802,28 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
 
           {/* 消息流 */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
-            {loadingSession && turns.length === 0 && (
+            {sessionView === "loading" && (
               <div className="flex items-center gap-2 py-2 text-xs text-dim">
                 <Loader2 size={14} className="animate-spin text-goldDark" />
                 <span>正在调阅 {current} 的旧档…</span>
               </div>
+            )}
+
+            {sessionView === "error" && (
+              <div className="rounded border border-red/40 bg-red/10 px-3 py-2 text-xs text-red-dark">
+                <p className="font-bold">旧档调阅受阻</p>
+                <p className="mt-0.5">{sessionError || "记忆库读取失败"}</p>
+                <button
+                  onClick={() => void pullMemory(currentRef.current, true)}
+                  className="mt-1.5 rounded border border-red/50 bg-paper px-2 py-0.5 text-[11px] font-bold text-red-dark hover:bg-red/10"
+                >
+                  重新调阅
+                </button>
+              </div>
+            )}
+
+            {sessionView === "empty" && turns.length <= 1 && (
+              <div className="py-2 text-xs text-dim">本会话尚无留档，以下为开场白。</div>
             )}
 
             {turns.map((t) => (

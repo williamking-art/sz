@@ -44,13 +44,14 @@ from core.settlement_steps import (  # noqa: E402
     _settle_region_deepen, _settle_upkeep, _settle_officialdom, _settle_clan,
     _settle_clerks,
     _settle_extensions, _settle_longterm_decrees, _simulate_external,
-    _settle_granary, _settle_projects, _settle_workshops,
+    _settle_granary, _settle_projects, _settle_workshops, _settle_econ_prices,
     _settle_treasury, _settle_military_diplomacy, _evaluate_timeline_breaks,
     _settle_events, _settle_disaster, _settle_emperor_personal, _settle_hidden,
 )
 from core.settlement import (  # noqa: E402
     _settle_mechanisms, _settle_tech, _settle_org_economy,
     _settle_legacies, _settle_focus, _settle_situations, _settle_literacy,
+    _settle_faction_metrics,
 )
 from core.settlement_steps import _settle_finance  # noqa: E402
 
@@ -62,18 +63,24 @@ _STEPS = [
     ("region_deepen", _settle_region_deepen),
     # 2026-09-19 识字率设定：教育慢变量，作为诏令效果的**弱关联项**（Step 3.5.6）
     ("literacy", _settle_literacy),
-    ("extensions", _settle_extensions),
+    # 2026-09-19 整改①-1 固定经济相位顺序：
+    #   生产 → 工程投入 → POP收入消费 → 粮食商品市场
+    #   → 税收转移 → 货币信用 → 物价 → 集团读数
     ("longterm", _settle_longterm_decrees),
     ("external", _simulate_external),
-    ("granary", _settle_granary),
+    ("projects", _settle_projects),
+    ("workshops", _settle_workshops),
     ("upkeep", _settle_upkeep),
+    ("granary", _settle_granary),
     ("officialdom", _settle_officialdom),
     ("clan", _settle_clan),
     ("clerks", _settle_clerks),
     ("finance", _settle_finance),
-    ("projects", _settle_projects),
-    ("workshops", _settle_workshops),
+    ("extensions", _settle_extensions),
+    ("econ_prices", _settle_econ_prices),
     ("treasury", _settle_treasury),
+    # 2026-09-19 方案第 3 步：利益集团指标由 POP 派生（Step 5.5）
+    ("faction_metrics", _settle_faction_metrics),
     ("military", _settle_military_diplomacy),
     ("timeline", _evaluate_timeline_breaks),
     ("mechanisms", _settle_mechanisms),

@@ -30,6 +30,11 @@ from content.data import (
     MARITIME_TRADE_BASE,
 )
 from content.data import (
+    GRAIN_PRICE_MONTHLY_CAP, PRICE_LEVEL_MONTHLY_CAP,
+    TRANSPORT_PRICE_WEIGHT, STOCK_PRICE_RELIEF_MAX,
+    MONEY_SUPPLY_PRICE_WEIGHT,
+)
+from content.data import (
     desensitize_shortage, desensitize_price,
 )
 from content.data import (
@@ -44,6 +49,76 @@ from content.data import clamp as _clamp  # noqa: E402
 # 官制 × POP 的单一权威源（官额/吏额/子池付款权数一律经此读取，杜绝 officials 双账复活）
 from core import officialdom as _officialdom  # noqa: E402
 
+
+
+# ============================================================
+# 整改①-2 / ①-3：价格月度上限 + 生产/工程声明契约
+# ============================================================
+def cap_monthly_price(prev: float, target: float, cap: float) -> float:
+    """把 target 钳制到相对 prev 的单月变动上限内（整改①-3「价格有月度上限」）。
+
+    纯函数（不碰状态），供 `_settle_land_local` / `_settle_econ_prices`
+    以及测试共用；prev<=0（缺省/损坏存档）时不设限。
+    """
+    try:
+        prev = float(prev)
+        target = float(target)
+        cap = float(cap)
+    except (TypeError, ValueError) as exc:  # 不得静默成功
+        raise ValueError(f"cap_monthly_price 需要数值（got {prev!r},{target!r},{cap!r}）") from exc
+    if prev <= 0 or cap < 0:
+        return target
+    return max(prev * (1.0 - cap), min(prev * (1.0 + cap), target))
+
+
+# 生产/工程项目必须声明的九项（整改①-2）：
+#   原料、钱粮、工匠工时、产出、施工期、维护、折旧、路线、POP受益者。
+# 字段可用别名（兼容现有 cost_material/cost_coin/speed 写法）；
+# 缺声明不静默、不拒绝，但会转为可诊断的缺口清单（见 project_declaration_gaps）。
+PROJECT_DECLARATION_FIELDS = (
+    ("materials", ("cost_material", "materials"), "原料"),
+    ("money", ("cost_coin", "money"), "钱粮"),
+    ("craft_hours", ("craft_hours", "labor_hours", "工匠工时"), "工匠工时"),
+    ("output", ("output", "outputs"), "产出"),
+    ("duration", ("duration", "months", "speed", "工期"), "施工期"),
+    ("upkeep", ("upkeep", "upkeep_per_month", "维护"), "维护"),
+    ("depreciation", ("depreciation", "depreciation_rate", "折旧"), "折旧"),
+    ("route", ("route", "routes", "路线"), "路线"),
+    ("beneficiaries", ("beneficiaries", "pop_beneficiaries", "受益者"), "POP受益者"),
+)
+
+
+def project_declaration_gaps(proj) -> list:
+    """返回工程声明的**缺失字段**（中文名列表）。非 dict 视为全缺。"""
+    if not isinstance(proj, dict):
+        return [label for _, _, label in PROJECT_DECLARATION_FIELDS]
+    gaps = []
+    for _canon, aliases, label in PROJECT_DECLARATION_FIELDS:
+        # 字段在与否为准：显式声明 0（如「无需钱粮」）也算已声明；
+        # 仅空值/None/空容器视为未声明。
+        if not any(a in proj and proj.get(a) not in (None, "", {}, []) for a in aliases):
+            gaps.append(label)
+    return gaps
+
+
+def project_supply_ratio(proj, resources, treasury) -> float:
+    """工程当月**供给满足率** ∈ [0,1]：材料/钱的**最短板**。
+
+    整改①-2「材料不足逐步降效」：调用方据此按比例推进进度并同比例消耗，
+    而非“不足则格式化停滞”。纯函数，不写状态。
+    """
+    ratios = []
+    if isinstance(proj, dict):
+        for _dim, need in (proj.get("cost_material") or {}).items():
+            need = float(need or 0)
+            if need <= 0:
+                continue
+            have = float((resources.get(_dim) or {}).get("stock", 0) or 0)
+            ratios.append(max(0.0, min(1.0, have / need)))
+        coin_need = float(proj.get("cost_coin", 0) or 0)
+        if coin_need > 0:
+            ratios.append(max(0.0, min(1.0, float(treasury or 0) / coin_need)))
+    return min(ratios) if ratios else 1.0
 
 
 class GameStateEconMixin:
@@ -102,6 +177,15 @@ class GameStateEconMixin:
         prestige_ratio = 2.0 + (self.prestige - 50) / 50.0   # 皇威 50→2倍, 100→3倍, 0→1倍
         return int(self.jiaozi.get("reserve", 0) * max(1.0, prestige_ratio))
 
+    def _real_output_monthly(self) -> float:
+        """月度实物经济总量（贯）= 月粮产 × 粮价 + 工商产出。
+
+        单一公式源：calc_price_level（全国物价指数）与路线粮价的货币项共用，
+        避免“同一比率两处各算一遍”的口径漂移。
+        """
+        grain_prod = sum(p.get("grain", 0) for p in self.prefectures.values()) / 12.0
+        return grain_prod * self.grain_price + self.calc_commerce()
+
     def calc_price_level(self) -> float:
         """物价水平 = 货币有效供给 / 实物经济总量（钱/物之比）。"""
         # 货币有效供给 = Σ各 POP 财富（民间持钱）+ 国库/内帑（国家持钱）+ 有效交子 + 白银折钱。
@@ -133,9 +217,8 @@ class GameStateEconMixin:
         money = max(0.0, money)
         self.money_supply = money
 
-        # 实物经济总量 = 月粮产 × 粮价（石折贯）+ 工商产出（贯），避免石贯混加
-        grain_prod = sum(p.get("grain", 0) for p in self.prefectures.values()) / 12.0
-        real_output = grain_prod * self.grain_price + self.calc_commerce()
+        # 实物经济总量（单一公式 _real_output_monthly）
+        real_output = self._real_output_monthly()
 
         pl = PRICE_LEVEL_BASE * (money * PRICE_VELOCITY / max(real_output, 1))
         # 金融推演价格系数（通胀/通缩 ±5%，clamp [0.5,3.0]；月度重置不落档——运行时态）
@@ -161,35 +244,67 @@ class GameStateEconMixin:
         return _clamp(price, GRAIN_PRICE_MIN, GRAIN_PRICE_MAX)
 
     def calc_region_grain_price(self, name: str) -> float:
-        """某州府区域粮价（贯/石）：基准粮价 × 本地供需比。
+        """某州府区域粮价（贯/石）：由本地供需 + 库存 + 运输 + 货币有效供给派生。
 
-        市场供给 = 本地年成月均（grain/12）**含隐田产**：隐田不征田赋，但其产粮
-        仍入市场供给（供人食用、平抑粮价）。隐田产按该路隐田/在册比例折算：
-        供给 = grain × (1 + hidden_land/land) / 12。storage 是政府仓（非市场供给），
-        不计入供需比；常平粜籴的粮流由 _settle_granary 显式作用于当月当地价。
+        整改①-3（路线物价）：全国 PRICE_LEVEL 只是**加权读数**，路线价才是权威
+        派生入口（`_settle_econ_prices` 每月调用）。因子：
+          - 供需：需求 = 在籍口 × 人均月耗 × 隐户系数 + 酒耗；供给 = 田产月均 +
+            POP 存粮释放 − 士绅囤积挤压；
+          - 库存：本路太仓（按人口摊）+常平存粮充足时抑价；
+          - 运输：漕运阻塞越高，外粮难入 → 加价；
+          - 货币有效供给：M1/实物产出偏离基准 → 加价。
         """
         p = self.prefectures.get(name)
         if not p:
             return self.grain_price
-        # 隐户 2000 万口也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求：
-        # 隐户系数 = 总口/在籍 = (population + hidden_households×4) / population
+        # 隐户 2000 万口也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求
         total_pop = self.population + self.land.get("hidden_households", 0) * 4
         factor = total_pop / max(self.population, 1)
         # 酒耗粮：酿酒消耗粮食（总酒课 × WINE_GRAIN_PER_GUAN），按该路在籍人口比例摊入当地需求
-        from content.data import WINE_COIN_BASE, WINE_TAX_SHARE, WINE_GRAIN_PER_GUAN
-        wine_grain_monthly = self.wine_tax / WINE_TAX_SHARE * WINE_GRAIN_PER_GUAN  # 随酒课（酒产量）动态
+        from content.data import WINE_TAX_SHARE, WINE_GRAIN_PER_GUAN
+        wine_grain_monthly = self.wine_tax / WINE_TAX_SHARE * WINE_GRAIN_PER_GUAN
         wine_share = wine_grain_monthly * (p.get("population", 0) / max(self.population, 1))
-        need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN * factor + wine_share   # 月需求（石，含隐户+酒耗）
-        grain = float(p.get("grain", 0))                                # 在册年总产（石/年）
-        # 市场供给 = 在册田产月均 + POP 存粮 2%/月释放（囤积真实入市、谷贱伤农）
+        need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN * factor + wine_share   # 月需求（石）
+        grain = float(p.get("grain", 0))
         total_grain = grain
         from content.data import HOARD_SUPPLY_SQUEEZE
         hoard = float(p.get("pops", {}).get("士绅", {}).get("grain", 0))
         _pop_release = sum(pop.get("grain", 0) for pop in p.get("pops", {}).values()) * 0.02
-        supply = max(total_grain / 12.0 + _pop_release - hoard * HOARD_SUPPLY_SQUEEZE, 0.01)  # 月供应（石）
+        supply = max(total_grain / 12.0 + _pop_release - hoard * HOARD_SUPPLY_SQUEEZE, 0.01)
         ratio = max(0.5, min(2.0, need / max(supply, 0.01)))
         price = self.grain_price * ratio
+        # 库存抑价：本路太仓（按人口摊）+常平存粮相对月需求越充足，价越低
+        _gran_share = float(getattr(self, "granary", 0) or 0) * (
+            p.get("population", 0) / max(self.population, 1))
+        stock = (float(p.get("changping_stock", 0) or 0)
+                 + float(p.get("storage", 0) or 0) + _gran_share)
+        _months = stock / max(need, 1.0)
+        relief = min(STOCK_PRICE_RELIEF_MAX,
+                     max(0.0, (_months - 1.0) / 11.0) * STOCK_PRICE_RELIEF_MAX)
+        price *= (1.0 - relief)
+        # 运输加价：漕运阻塞 0~100 → 最多 +加权
+        _block = max(0.0, min(1.0, float(getattr(self, "canal_block", 0) or 0) / 100.0))
+        price *= 1.0 + _block * TRANSPORT_PRICE_WEIGHT
+        # 货币有效供给：M1 与实物产出之比偏离基准 → 加/减价
+        _money = float(getattr(self, "money_supply", 0) or 0)
+        _real = self._real_output_monthly()
+        if _real > 0 and _money > 0:
+            _dev = max(-0.5, min(0.5, (_money * PRICE_VELOCITY / _real) - PRICE_LEVEL_BASE))
+            price *= 1.0 + _dev * MONEY_SUPPLY_PRICE_WEIGHT
         return _clamp(price, GRAIN_PRICE_MIN, GRAIN_PRICE_MAX)
+
+    def national_grain_price_weighted(self) -> float:
+        """全国粮价**加权读数**：按各路在籍人口加权平均路线粮价。
+
+        整改①-3：路线价由供需/库存/运输/货币派生，全国值只是读数（不反向驱动路线价）。
+        仅供面板/审计读取，不作为任何算式的输入（避免循环）。
+        """
+        _tot = sum(p.get("population", 0) for p in self.prefectures.values())
+        if _tot <= 0:
+            return self.grain_price
+        _w = sum(float(p.get("grain_price", self.grain_price) or self.grain_price)
+                 * p.get("population", 0) for p in self.prefectures.values())
+        return _w / _tot
 
     # ================================================================
     # 财政读数（会计录）— 只读估算，与 _settle_finance 口径一致

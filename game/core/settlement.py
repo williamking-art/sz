@@ -27,7 +27,7 @@ from core.settlement_steps import (
     _settle_granary, _settle_region_deepen,
     _settle_upkeep, _settle_officialdom, _settle_clan, _settle_clerks,
     _settle_finance,
-    _settle_projects, _settle_workshops,
+    _settle_projects, _settle_workshops, _settle_econ_prices,
     _settle_treasury,
     _evaluate_timeline_breaks,
     _settle_military_diplomacy,
@@ -39,6 +39,10 @@ from core.settlement_steps import (
 # 局势结算步（规范 §4）：实现于 core/situation_settle.py，此处**以私有名导入**，
 # 使其与其它 `_settle_*` 步同形——`test_pop_identity.py::_STEPS` 镜像据此逐步比对。
 from core.situation_settle import settle_situations as _settle_situations  # noqa: E402
+
+# 利益集团派生结算（方案第 3 步）：实现于 core/faction_settle.py，此处**以私有名导入**，
+# 使其与其它 `_settle_*` 步同形——`test_pop_identity.py::_STEPS` 镜像据此逐步比对。
+from core.faction_settle import settle_factions_from_pop as _settle_faction_metrics  # noqa: E402
 
 # 兼容旧调用方可能直接引用这些符号
 __all__ = [
@@ -104,8 +108,13 @@ def _settle_tech(state, log):
         monthly = proj.get("monthly_cost", 0)
         if monthly <= 0:
             continue
-        if state.treasury >= monthly:
-            state.change_treasury(-int(monthly))
+        # 研发月费：国库 → 学者/工匠 POP 的**守恒转移**（整改④.2；不得无对手方销毁）
+        from content.data import TECH_RESEARCH_PAY_TO
+        from core.settlement_steps import transfer_public_funds_to_pops
+        _need = int(monthly or 0)
+        _paid = transfer_public_funds_to_pops(
+            state, _need, TECH_RESEARCH_PAY_TO, f"研发月费：{pname}")
+        if _paid >= _need:
             talent = 1.0 + min(masters, 20) * 0.1
             proj["progress"] = proj.get("progress", 0) + int(50 * talent)
             if proj["progress"] >= 1000:
@@ -117,7 +126,7 @@ def _settle_tech(state, log):
                 if pname not in state.tech["unlocked"]:
                     state.tech["unlocked"].append(pname)
         else:
-            log.append(f"[研发] {pname} 月费不济（需 {monthly}贯），进度停滞")
+            log.append(f"[研发] {pname} 月费不济（需 {monthly}贯，实拨 {_paid}贯），进度停滞")
 
 
 def _settle_org_economy(state, log):
@@ -381,30 +390,44 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- Step 2: 派系结算 ----
     _settle_factions(state, log)
 
-    # ---- Step 3: 经济（人口→田土→工商） ----
+    # ============================================================
+    # 经济相位（整改①-1 固定回合顺序）：
+    #   生产 → 工程投入 → POP收入消费 → 粮食商品市场 → 税收转移
+    #   → 货币信用 → 物价 → 集团读数 → 提交
+    # 说明：现行步骤是单函数多相位（如 `_settle_granary` 含「POP 消费 + 粮食市场」、
+    # `_settle_finance` 含「俸禄入 POP + 税收转移」），故按**相对顺序**落实，不拆函数：
+    # 生产段 → 工程段 → 市场段 → 税收段 → 货币信用段 → 物价段 → 集团读数段。
+    # 失败整月回滚：异常由 `core/commands.settle_local` / `advance_and_settle`
+    # 在本函数外包裹快照，抛出时整月回滚、回合不推进。
+    # ============================================================
+
+    # ---- [生产] Step 3: 经济（人口→田土→工商） ----
     _settle_economy(state, log)
 
-    # ---- Step 3.5: 田亩与地方州县 ----
+    # ---- [生产] Step 3.5: 田亩与地方州县 ----
     _settle_land_local(state, log)
 
-    # ---- Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
+    # ---- [生产] Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
     _settle_region_deepen(state, log)
 
-    # ---- Step 3.5.6: 识字率缓动（2026-09-19 新增；教育慢变量，诏令效果的弱关联项）----
+    # ---- [生产] Step 3.5.6: 识字率缓动（2026-09-19 新增；教育慢变量，诏令效果弱关联项）----
     _settle_literacy(state, log)
-
-    # ---- Step 3.6: 扩展维度自然演进（金融/科举/科技/外交） ----
-    _settle_extensions(state, log)
 
     # ---- Step 3.7: 长期拟旨（公开 / 密令）推进与外部政权简单模拟 ----
     _settle_longterm_decrees(state, log)
     _simulate_external(state, log)
 
-    # ---- Step 3.8: 仓廪漕运 ----
-    _settle_granary(state, log)
+    # ---- [工程投入] Step 4.5: 工程 / 制作系统 ----
+    # 顺序修正（整改①-1）：工程投入必须排在粮食市场与税收之前——工程量在当月
+    # 形成产能/耗料/占款，才能被当月市场与财政读到。
+    _settle_projects(state, log)
+    _settle_workshops(state, log)
 
-    # ---- Step 3.9: 资产维持费（L1 money sink，B-3）----
+    # ---- [工程运行维护] Step 3.9: 资产维持费（L1 money sink，B-3）----
     _settle_upkeep(state, log)
+
+    # ---- [粮食商品市场 + POP消费] Step 3.8: 仓廪漕运 / 常平籴粜 / 粮市 / 各POP消费 ----
+    _settle_granary(state, log)
 
     # ---- Step 3.95: 官制（消灭 officials/POP 双账 + 子池一致性 + 镜像同步）----
     # 必须排在财政步之前：`calc_official_*` / `calc_clerk_*` 读的就是这里刷新后的官额与子池。
@@ -421,15 +444,30 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # "诏令执行也要读本月吏额与吏怨"与实现不符，已更正。
     _settle_clerks(state, log)
 
-    # ---- Step 4: 财政 ----
+    # ---- [税收转移 + POP收入] Step 4: 财政 ----
+    # 税从 POP wealth/grain 征（先改 POP、再入国库）；俸禄按实付回流兵/官僚 POP；
+    # 禁止直接给集团发钱（集团读数由下方 Step 5.5 从 POP 实际变化派生）。
     _settle_finance(state, log)
 
-    # ---- Step 4.5: 工程 / 制作系统 ----
-    _settle_projects(state, log)
-    _settle_workshops(state, log)
+    # ---- [货币信用] Step 4.2: 扩展维度自然演进（交子/铸币/熔化/金融/科举/科技/外交）----
+    # 顺序修正（整改①-1）：货币信用排在税收之后——税率/税额先落账，货币发行与
+    # 信用变化再影响物价（由下方物价相位读取），避免“先通胀再收税”的次序倒置。
+    _settle_extensions(state, log)
+
+    # ---- [物价] Step 4.3: 物价相位（整改①-3）----
+    # 由货币有效供给/供需/库存/运输派生路线粮价；全国 PRICE_LEVEL 仅加权读数，月度上限。
+    _settle_econ_prices(state, log)
 
     # ---- Step 5: 国库 ----
     _settle_treasury(state, log)
+
+    # ---- [集团读数] Step 5.5: 利益集团指标由 POP 派生（方案第 3 步）----
+    # 位置：生产/工程/市场/税收/货币信用/物价**之后**——文档要求
+    # “满意度在 POP、财政、制度结算后计算”，且“最终利益集团只读取 POP 实际变化”。
+    # `state.factions` 的**唯一写入点**；本步之前任何对满意度的直写（事件/诏令/AI 契约）
+    # 只作为即时冲击，在此被消化（实际满意度以本步算出的存量为准）。构造性滞后 1 月：
+    # 灾荒（Step 8）等在本步之后的 POP 变化，从下月的派生中体现。
+    _settle_faction_metrics(state, log)
 
     # ---- Step 6: 军事/外交 ----
     _settle_military_diplomacy(state, log)

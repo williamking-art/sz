@@ -1,10 +1,49 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 存档系统"""
-import os
 import json
+import math
+import os
 from datetime import datetime
 
 from content.data import SAVE_DIR
+
+
+def _safe_int(value, default=None):
+    """宽松取整：空值 / 布尔 / 数字串可转则转；非法字符串、容器、NaN/inf → `default`。
+
+    审查 P2-10：存档字段被写坏成对象/列表/乱码字符串时，`int()` 会抛未处理异常
+    （经 UI/后端 → 500）。统一走此入口，把「档损坏」交给既有损坏档路径，
+    而不是让异常冒泡。
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if value is None or isinstance(value, (dict, list, tuple, set, bytes, bytearray)):
+        return default
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return default
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _safe_float(value, default=None):
+    """宽松取浮点：语义同 `_safe_int`，并剔除 NaN / ±inf。"""
+    if isinstance(value, bool):
+        return float(value)
+    if value is None or isinstance(value, (dict, list, tuple, set, bytes, bytearray)):
+        return default
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return default
+    try:
+        f = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return f if math.isfinite(f) else default
 
 
 def _slot_path(slot: int) -> str:
@@ -282,9 +321,25 @@ def load_game(slot: int = 1):
     if not isinstance(data, dict):
         import logging as _lg
         _lg.getLogger("save_load").error("存档结构非法（slot=%s）：顶层非对象", slot)
+        try:
+            os.replace(path, path + ".corrupt")
+        except OSError:
+            pass
         return None
 
-    _ver = int(data.get("schema_version", 1) or 1)
+    # P2-10：schema_version 不得因非法类型抛异常 —— 安全解析失败即走损坏档路径
+    # （日志 + .corrupt 备份 + None），由调用方按「读档失败/存档可能已损坏」处理。
+    _ver_raw = data.get("schema_version", 1)
+    _ver = _safe_int(_ver_raw, default=None)
+    if _ver is None:
+        import logging as _lgv
+        _lgv.getLogger("save_load").error(
+            "存档 schema_version 非法（slot=%s，值=%r），按损坏档处理", slot, _ver_raw)
+        try:
+            os.replace(path, path + ".corrupt")
+        except OSError:
+            pass
+        return None
     if _ver > 3:
         import logging
         logging.getLogger("save_load").error(
@@ -296,20 +351,23 @@ def load_game(slot: int = 1):
 
     state = GameState(data.get("difficulty", "史实"))
 
+    # P2-10：turn 等数值字段安全解析（被写坏成字符串/容器时不得抛未捕获异常）
+    _saved_turn = _safe_int(data.get("turn", 0), 0)
+
     # 记忆知识库（Phase 3a）：按槽位加载（损坏 → 重建空图，不阻断游戏）
     state.memory_slot = slot
-    state.memory.turn = data.get("turn", 0)
+    state.memory.turn = _saved_turn
     state.memory.load(slot)
     # 审查 B-1/J-10 修复（读档「记得未来」）：记忆库每回合落盘，而主存档只在手动/正月
     # 更新，故 db 内的 turn 可能远大于本档 turn；`load()` 会用它覆盖上面按存档对齐的水位
     # （实测 state.turn=0 / memory.turn=20）→ 检索把未发生的回合当既成事实注入。
     # 以主存档 turn 为准重新对齐（检索侧另有 turn 封顶，见 memory_graph.query/query_sql）。
-    state.memory.turn = int(data.get("turn", 0) or 0)
+    state.memory.turn = _saved_turn
 
     # 恢复基础时间
     state.year = data.get("year", 1101)
     state.month = data.get("month", 1)
-    state.turn = data.get("turn", 0)
+    state.turn = _saved_turn
     state.era_name = data.get("era_name", "建中靖国")
 
     # 恢复皇帝
@@ -327,7 +385,7 @@ def load_game(slot: int = 1):
     state.arrival_rate_base = data.get("arrival_rate_base", 0.45)
     state.treasury = data.get("treasury", 5000000)
     # 累计亏空深度（B3）：旧档缺省为 0（兼容）
-    state.treasury_deficit = int(data.get("treasury_deficit", 0) or 0)
+    state.treasury_deficit = _safe_int(data.get("treasury_deficit", 0), 0)
     state.imperial_treasury = data.get("imperial_treasury", 1000000)
     state.pending_inner_transfer = data.get("pending_inner_transfer")
     state.longterm_effects = data.get("longterm_effects", []) or []
@@ -353,12 +411,12 @@ def load_game(slot: int = 1):
     state.granary_stats = data.get("granary_stats", getattr(state, "granary_stats", {}))
     state.money_supply = data.get("money_supply", getattr(state, "money_supply", 60000000))
     # 货币口径（阶段 B-1）：旧档无此二字段时按 0 / {} 迁移，不破坏既有语义
-    state.silver_stock = int(data.get("silver_stock", getattr(state, "silver_stock", 0)) or 0)
+    state.silver_stock = _safe_int(data.get("silver_stock", getattr(state, "silver_stock", 0)), 0)
     state.money_audit = data.get("money_audit", getattr(state, "money_audit", {})) or {}
     # 官制（阶段 C）：旧档缺省 0 → 由 officialdom 按「中央机构岗位 ＋ 路级定员」重算一次
-    state.posts_quota = int(data.get("posts_quota", getattr(state, "posts_quota", 0)) or 0)
-    state.official_rank_index = float(
-        data.get("official_rank_index", getattr(state, "official_rank_index", 1.0)) or 1.0)
+    state.posts_quota = _safe_int(data.get("posts_quota", getattr(state, "posts_quota", 0)), 0)
+    state.official_rank_index = _safe_float(
+        data.get("official_rank_index", getattr(state, "official_rank_index", 1.0)), 1.0)
     state.recruit_log = data.get("recruit_log", getattr(state, "recruit_log", {})) or {}
     state.institution_params = data.get(
         "institution_params", getattr(state, "institution_params", {})) or {}
@@ -403,7 +461,8 @@ def load_game(slot: int = 1):
                 continue
             d = dict(d)
             if "branches" not in d and "branch" in d:
-                d["branches"] = {f"{d.get('tier', '禁军')}:{d.pop('branch', '轻步兵')}": int(d.pop("troops", 0))}
+                d["branches"] = {f"{d.get('tier', '禁军')}:{d.pop('branch', '轻步兵')}":
+                                 _safe_int(d.pop("troops", 0), 0)}
             brs = d.get("branches") or {}
             if any(":" in k for k in brs):
                 # 复合键拆分：按军籍分组建（合并同军籍兵种），每支军队单一军籍
@@ -479,7 +538,7 @@ def load_game(slot: int = 1):
             ia = {"location": "宫里", "mode": "公开", "action": _legacy,
                   "prepared": False, "pending_months": 0, "target": ""}
     state.imperial_action = ia
-    state.imperial_micro_count = int(data.get("imperial_micro_count", 0) or 0)
+    state.imperial_micro_count = _safe_int(data.get("imperial_micro_count", 0), 0)
     # pending_imperial_trip = 准备中的 imperial_action（同一 dict 指针，不落档）
     state.pending_imperial_trip = state.imperial_action if state.imperial_action.get("pending_months", 0) > 0 else None
     state._emperor_ai = None   # 契约槽位为回合内瞬态，不落档
@@ -509,19 +568,36 @@ def load_game(slot: int = 1):
     # 恢复扩展维度
     state.yamen = data.get("yamen", state.yamen)
     _merge_regions(state.prefectures, data.get("prefectures"))
-    # 识字率（2026-09-19 新增设定）：旧档无 `literacy` 键 → 幂等补齐逐路（按 POP 结构派生）；
-    # 存档有全国值则以存档为权威，否则由逐路 POP 加权派生（不落独立账本）。
+    # 识字率（2026-09-19 新增设定；P2-11 修复）：遵守 POP 挂载律——全国识字率是
+    # **POP 派生视图**，唯一权威是 `prefectures[路].pops[阶层].literacy`。载入后**始终**
+    # 由逐路 POP 加权重算（core.literacy.national_literacy）；存档顶层 `literacy` 字段
+    # 仅作**迁移诊断**，不得覆盖派生值。旧档缺逐路值 → init_literacy 幂等补齐（保留兼容），
+    # 仅补齐 POP 读数，不新增任何独立账本。
     try:
         from core.literacy import init_literacy as _init_lit
         from core.literacy import national_literacy as _nat_lit
         _init_lit(state)
-        if data.get("literacy") is not None:
-            state.literacy = float(data.get("literacy") or 0)
-        else:
-            state.literacy = _nat_lit(state)
+        _derived_lit = _nat_lit(state)
+        if _derived_lit is not None:
+            state.literacy = _derived_lit
+        _saved_lit = _safe_float(data.get("literacy"), default=None)
+        if _saved_lit is not None and _derived_lit is not None \
+                and abs(_saved_lit - _derived_lit) > 0.01:
+            import logging as _lg_lit
+            _lg_lit.getLogger("save_load").warning(
+                "存档顶层 literacy=%.2f 与 POP 派生值 %.2f 不一致；以 POP 派生值为权威"
+                "（顶层仅作迁移诊断）", _saved_lit, _derived_lit)
     except Exception as e:  # noqa: BLE001  识字率载入失败不得阻断读档
         import logging as _lg4
         _lg4.getLogger("save_load").warning("识字率载入异常：%s", e)
+    # 利益集团「立场占比」：旧档无 → 幂等补齐开局锚点；坏值 → 归一 Σ=1
+    try:
+        state.faction_split = data.get("faction_split") or getattr(state, "faction_split", None)
+        from core.faction_split import ensure_faction_split
+        ensure_faction_split(state)
+    except Exception as e:  # noqa: BLE001
+        import logging as _lg5
+        _lg5.getLogger("save_load").warning("立场占比载入异常：%s", e)
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])

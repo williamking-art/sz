@@ -844,6 +844,9 @@ RECORD_DEFAULTS: Dict[str, Any] = {
     "fail_condition": None,
     "ongoing_cost": None,
     "progress_cost": None,
+    # 终态效果未落地时的"待落地终态"（审查 P1-5）：**不算终态**、不触发终态跳过，
+    # 下月可重试；仅取 None/"resolved"/"failed"，避免新增 status 污染面板与幂等逻辑。
+    "pending_terminal": None,
     "effect_on_resolve": None,
     "effect_on_fail": None,
     "assignee": None,
@@ -909,7 +912,8 @@ def validate_record(rec: Any) -> List[str]:
         errs.append(f"status 非法：{rec.get('status')!r}")
     if rec.get("progress_mode") not in PROGRESS_MODES:
         errs.append(f"progress_mode 非法：{rec.get('progress_mode')!r}")
-    for k in ("origin_turn", "last_settled_turn", "streak_ok", "streak_fail", "inertia"):
+    for k in ("origin_turn", "last_settled_turn", "streak_ok", "streak_fail",
+              "inertia", "deadline"):
         v = rec.get(k)
         if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))
                               or (isinstance(v, float) and not math.isfinite(v))):
@@ -932,6 +936,9 @@ def validate_record(rec: Any) -> List[str]:
         v = rec.get(k)
         if v is not None:
             errs.extend(f"{k}: {e}" for e in validate_situation_effects(v))
+    pt = rec.get("pending_terminal")
+    if pt not in (None, "resolved", "failed"):
+        errs.append(f"pending_terminal 只能是 None/resolved/failed，得到 {pt!r}")
     tl = rec.get("timeline")
     if tl is not None and not isinstance(tl, list):
         errs.append("timeline 必须是 list")
@@ -961,6 +968,33 @@ def find_duplicate(records, origin_kind: str, origin_ref: str) -> Optional[dict]
         if isinstance(rec, dict) and rec.get("id") == target:
             return rec
     return None
+
+
+PENDING_TERMINALS: tuple = ("resolved", "failed")
+
+
+def deadline_reached(rec: Any, turn: Any) -> bool:
+    """`deadline` 语义（**单点定义**，审查 P1-7）。
+
+    - `deadline is None` → 无期限，永不逾期；
+    - `deadline` 为回合计：`turn >= deadline` 即"最后期限已到/已过"。
+      结算在 fail/resolve **之后**判定此条，优先级固定为
+      `fail_condition > resolve_condition > deadline`；故 `turn == deadline`
+      是"最后机会"回合——本回合仍可 resolve，同回合未 resolve 则判 failed
+      并应用 `effect_on_fail`（逾期失败）；
+    - 非法值（非有限数值）按**未定义**处理返回 False：此处不抛异常，避免坏档在
+      结算期炸；结构非法的 deadline 由 `validate_record` 拒绝。
+    """
+    d = rec.get("deadline") if isinstance(rec, dict) else None
+    if d is None or isinstance(d, bool):
+        return False
+    try:
+        dv, tv = float(d), float(turn)
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(dv) or not math.isfinite(tv):
+        return False
+    return tv >= dv
 
 
 def next_status(rec: dict, fail_hit: bool, resolve_hit: bool) -> Dict[str, Any]:
@@ -1134,7 +1168,10 @@ def validate_intent(intent: Any, journal) -> bool:
     amount = _finite(intent.get("amount"), 0.0)
     if amount < 0:
         return False
-    rows = [c for c in (journal or []) if isinstance(c, dict)]
+    # 只认**非结算期**的划转：结算步（工程款/研发月费/维持费等）也会经 applier 落台账，
+    # 若不排除，同月的「拨帑/赈济」intent 会被这些自动转账"背书"而误判通过。
+    rows = [c for c in (journal or []) if isinstance(c, dict)
+            and str(c.get("source_agent") or "") != "settlement"]
     kind = intent["kind"]
 
     def _outflow(prefixes) -> float:
