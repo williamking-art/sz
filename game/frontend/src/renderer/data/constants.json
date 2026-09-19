@@ -1266,10 +1266,20 @@
   "M2_spindle": {
    "name": "大纺务",
    "kind": "纺织",
+   "category": "民生",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 80000,
-    "months": 12
+    "months": 3
    },
+   "outputs": [
+    {
+     "kind": "贸易收入",
+     "amount": 0.15,
+     "unit": "比例"
+    }
+   ],
    "effect": {
     "trade_income": 0.15
    },
@@ -1278,10 +1288,20 @@
   "M4_furnace": {
    "name": "铁冶务",
    "kind": "冶金",
+   "category": "民生",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 200000,
-    "months": 16
+    "months": 4
    },
+   "outputs": [
+    {
+     "kind": "营建成本",
+     "amount": -0.1,
+     "unit": "比例"
+    }
+   ],
    "effect": {
     "build_cost": -0.1
    },
@@ -1290,10 +1310,21 @@
   "C1_gunpowder": {
    "name": "火药局",
    "kind": "军工",
+   "category": "军事",
+   "branch": "军工",
+   "requires_region": [],
    "cost": {
     "silver": 60000,
-    "months": 8
+    "months": 2
    },
+   "outputs": [
+    {
+     "kind": "军备库",
+     "amount": 400,
+     "item": "火铳",
+     "unit": "件/月"
+    }
+   ],
    "effect": {
     "army_power": 0.1
    },
@@ -1302,10 +1333,26 @@
   "I0_block": {
    "name": "国子监印书局",
    "kind": "文化",
+   "category": "科技",
+   "branch": "文教",
+   "requires_region": [
+    "京畿要地"
+   ],
    "cost": {
     "silver": 50000,
-    "months": 8
+    "months": 2
    },
+   "outputs": [
+    {
+     "kind": "科研速度",
+     "amount": 10,
+     "unit": "%"
+    },
+    {
+     "kind": "科举得才",
+     "amount": 3
+    }
+   ],
    "effect": {
     "exam_talent": 3
    },
@@ -1314,10 +1361,20 @@
   "I4_telegraph": {
    "name": "电报局",
    "kind": "通讯",
+   "category": "交通",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 600000,
-    "months": 18
+    "months": 5
    },
+   "outputs": [
+    {
+     "kind": "建造速度",
+     "amount": 15,
+     "unit": "%"
+    }
+   ],
    "effect": {
     "decree_speed": -3
    },
@@ -1326,10 +1383,20 @@
   "H2_variola": {
    "name": "痘苗局",
    "kind": "医学",
+   "category": "民生",
+   "branch": "农医",
+   "requires_region": [],
    "cost": {
     "silver": 80000,
-    "months": 10
+    "months": 3
    },
+   "outputs": [
+    {
+     "kind": "瘟疫抵抗",
+     "amount": 30,
+     "unit": "%"
+    }
+   ],
    "effect": {
     "epidemic_risk": -0.3
    },
@@ -1338,10 +1405,20 @@
   "C4_fertilizer": {
    "name": "肥料局",
    "kind": "农业",
+   "category": "民生",
+   "branch": "农医",
+   "requires_region": [],
    "cost": {
     "silver": 150000,
-    "months": 12
+    "months": 3
    },
+   "outputs": [
+    {
+     "kind": "粮食产量",
+     "amount": 15,
+     "unit": "%"
+    }
+   ],
    "effect": {
     "yield_bonus": 0.15
    },
@@ -1350,10 +1427,20 @@
   "M5_steampump": {
    "name": "蒸汽矿场",
    "kind": "矿业",
+   "category": "民生",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 300000,
-    "months": 16
+    "months": 4
    },
+   "outputs": [
+    {
+     "kind": "矿产收入",
+     "amount": 0.1,
+     "unit": "比例"
+    }
+   ],
    "effect": {
     "mining_income": 0.1
    },
@@ -1362,10 +1449,20 @@
   "M6_loco": {
    "name": "机器局·铁路",
    "kind": "交通",
+   "category": "交通",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 800000,
-    "months": 20
+    "months": 6
    },
+   "outputs": [
+    {
+     "kind": "漕运效率",
+     "amount": 0.3,
+     "unit": "比例"
+    }
+   ],
    "effect": {
     "canal_efficiency": 0.3
    },
@@ -1374,10 +1471,20 @@
   "M9_power": {
    "name": "发电厂",
    "kind": "能源",
+   "category": "科技",
+   "branch": "工巧",
+   "requires_region": [],
    "cost": {
     "silver": 2000000,
-    "months": 24
+    "months": 6
    },
+   "outputs": [
+    {
+     "kind": "建筑产出",
+     "amount": 15,
+     "unit": "%"
+    }
+   ],
    "effect": {
     "production": 0.15
    },
