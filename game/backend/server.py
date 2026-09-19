@@ -461,6 +461,37 @@ def api_advance(request: Request):
                 "report": report, "state": _state_to_dict(_state)}
 
 
+class ProposeProjectReq(BaseModel):
+    route: str
+    name: str = ""
+    key: str = ""
+    levels: int = 1
+
+
+@app.post("/api/project/propose")
+def api_project_propose(req: ProposeProjectReq, request: Request):
+    """营建立项（工程系统）：蓝图/政府建筑 → `state.projects`（status=proposed）。
+
+    校验（蓝图登记 / 科技前置 / **地利前置** / 国库）失败 → 400 + 可读原因（拒绝式，不立项）。
+    立项后由 `_settle_projects` 五态状态机逐月推进，完工时落成 `prefectures[route]["buildings"]`。
+    """
+    global _state
+    _require_auth(request)
+    with _lock:
+        s0 = _require_state()
+        from core.construction import propose_project
+        res = propose_project(s0, req.route, req.name, req.key or None, req.levels)
+        if not res.get("ok"):
+            raise HTTPException(status_code=400,
+                                detail="；".join(res.get("errors") or ["立项被拒"]))
+        return {
+            "message": f"{res.get('name') or req.name} 已立项（工期 {res.get('months')} 月，"
+                       f"需 {int(res.get('cost') or 0):,} 贯）",
+            "project_id": res.get("pid"),
+            "state": _state_to_dict(s0),
+        }
+
+
 @app.post("/api/action")
 def api_action(req: ActionReq, request: Request):
     global _state

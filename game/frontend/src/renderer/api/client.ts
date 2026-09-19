@@ -583,6 +583,19 @@ export class ApiClient {
     });
   }
 
+  /** 营建立项（工程面板）：蓝图/政府建筑 → state.projects；失败抛带中文原因的 Error。 */
+  async proposeProject(
+    route: string,
+    name: string,
+    key = "",
+    levels = 1
+  ): Promise<{ message: string; project_id?: string; state?: GameState }> {
+    return this.request("/api/project/propose", {
+      method: "POST",
+      body: JSON.stringify({ route, name, key, levels })
+    });
+  }
+
   async save(slot = 1): Promise<{ ok: boolean; slot: number }> {
     return this.request("/api/save", {
       method: "POST",
