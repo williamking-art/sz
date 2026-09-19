@@ -197,22 +197,27 @@ def test_tech_node_declarations_complete():
             assert TECH_NODE_MAINTENANCE.get(nid, 0) > 0, f"{nid} 有部署但无维护声明"
 
 
-def test_tech_level_is_readout_not_hard_gate():
-    """总体 level 只作综合读数：能力由前置节点 + 副指标判定。"""
+def test_tech_only_gates_on_prerequisites():
+    """科技**只卡前置节点**（2026-09-19 用户定稿）：`level` 与副指标都不构成门槛。
+
+    口径：前置到、有钱，就能研；钱/人才/识字率/材料只影响**速率**（`_settle_tech_research`），
+    不决定"能不能研"。
+    """
     s = _new_state()
     e3 = get_tech_node("E3_steel")
-    # 前置齐 + west 副指标跳过 → level=0 仍可研（level 不再是关卡）
-    s.tech["unlocked"] = ["E2_coke"]
+    s.tech["unlocked"] = ["E2_coke"]      # 前置齐
     s.tech["level"] = 0
     s.tech["west"] = 0
     assert node_prereqs_met(s, e3) is True, "level 仍在充当硬门槛"
 
-    # 副指标（calendar）不足 → 即便 level=100 也不可研（真正的能力门槛是域节点/副指标）
     a0 = get_tech_node("A0_calendar")
-    s.tech["unlocked"] = ["I0_block"]
-    s.tech["level"] = 100
-    s.tech["calendar"] = 10
-    assert node_prereqs_met(s, a0) is False, "副指标未满足却放行"
+    s.tech["unlocked"] = ["I0_block"]     # 前置齐
+    s.tech["level"] = 0
+    s.tech["calendar"] = 0                # 副指标为 0 也不卡
+    assert node_prereqs_met(s, a0) is True, "副指标不应构成研究门槛（只卡前置）"
+
+    s.tech["unlocked"] = []              # 前置缺失才卡
+    assert node_prereqs_met(s, a0) is False, "前置节点缺失必须卡"
 
 
 # ================================================================
