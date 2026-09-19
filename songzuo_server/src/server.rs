@@ -368,3 +368,45 @@ async fn load_handler(
         Err(e) => Err((StatusCode::NOT_FOUND, e)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_time_eq_matches_and_differs() {
+        // 鉴权比较：等值真、异值假、长度不等假（常量时间，不走短路）
+        assert!(constant_time_eq(b"Bearer token", b"Bearer token"));
+        assert!(!constant_time_eq(b"Bearer token", b"Bearer tokeX"));
+        assert!(!constant_time_eq(b"Bearer token", b"Bearer"));
+        assert!(constant_time_eq(b"", b""));
+    }
+
+    #[test]
+    fn poisoned_lock_returns_error_instead_of_panicking() {
+        // 审查 P3-18：锁中毒（前次持锁 panic）必须返回可读 500，而不是 unwrap 级联 panic。
+        let st = AppState {
+            game: Arc::new(Mutex::new(None)),
+        };
+        let g = st.game.clone();
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _guard = g.lock().unwrap();
+            panic!("simulate poisoned mutex");
+        }));
+        assert!(res.is_err(), "构造 poison 失败");
+        let r = lock_game(&st);
+        assert!(r.is_err(), "锁中毒时 lock_game 必须返回 Err");
+        let (code, msg) = r.err().unwrap();
+        assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(msg.contains("中毒"), "错误信息应可读: {}", msg);
+    }
+
+    #[test]
+    fn healthy_lock_still_works() {
+        let st = AppState {
+            game: Arc::new(Mutex::new(None)),
+        };
+        let guard = lock_game(&st).expect("健康锁应可获取");
+        assert!(guard.is_none());
+    }
+}
