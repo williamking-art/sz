@@ -34,22 +34,19 @@ def current_era(state) -> int:
 
 
 def node_prereqs_met(state, node) -> bool:
-    """前置节点 + 总体 level + 副指标 是否满足。
+    """前置是否满足（**只卡前置节点**，2026-09-19 用户定稿）。
 
-    承接模式（言枢密设计）：**去 west 硬门槛**——("west",N) 副指标跳过（玩家可承接
-    天马行空研发）；west 保留为跨时代加速因子（_settle_tech_research rate × (1+west×系数)）。
+    - 前置节点（`node[5]`）必须**全部已解锁**——这是**唯一**门槛；
+    - 不再校验总体 `level`，也**不再校验"副指标"**（火药/冶金/水利/历法/航海/财政/
+      医学农学 等阈值）：它们只作综合读数与研发**速率**参考，**不充当能力关卡**；
+    - `west` 同样不作硬门槛（跨时代承接，仅作加速因子）。
+
+    → "有钱、前置到、想研就能研"；钱/人才只影响**速率**（见 `_settle_tech_research`），
+      不构成"能不能研"的门槛。
     """
-    tid = node[0]
     tech = _tech(state)
     for pre in node[5]:
         if pre not in tech.get("unlocked", []):
-            return False
-    # 整改④.1：总体 level 只作综合读数，不再充当能力关卡；
-    # 能力由前置节点链 + 副指标（火药/冶金/水利/历法/航海/财政/医学农学…）判定。
-    for dim, need in node[7]:
-        if dim == "west":
-            continue   # 去 west 硬门槛（承接模式）
-        if int(tech.get(dim, 0)) < need:
             return False
     return True
 
