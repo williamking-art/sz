@@ -69,11 +69,6 @@ assets/map/web/tiles/
 # 它绑定的是本机环境、属机器配置而非源码，故不入库。
 .cloudbase/
 
-# --- 开发辅助分析产物（可再生，不入库） ---
-# 由 _dev_tools/game-docs/analysis/econ_pg_export.py 生成；数据已落在
-# CloudBase PG 的 dev_econ_monthly 表（见文档 §8.9），产物本身不必入库。
-_dev_tools/game-docs/analysis/econ_monthly.json
-
 # --- 操作系统 / 编辑器 ---
 .DS_Store
 Thumbs.db
@@ -108,6 +103,9 @@ _dev_tools/*
 !_dev_tools/game-docs/
 !_dev_tools/game-docs/**
 _dev_tools/game-docs/**/__pycache__/
+# 再排除可再生的分析产物（脚本见 analysis/econ_pg_export.py，数据已落 CloudBase PG，见文档 §8.9）。
+# 注意：必须放在上面 `!_dev_tools/game-docs/**` 之后 —— git 以最后匹配的规则为准。
+_dev_tools/game-docs/analysis/econ_monthly.json
 
 # --- 质量门禁：测试套件与测试依赖入库 ---
 # game-dev/ 下另有 skill/（约 1.7GB）等大目录与已过时脚本（build_exe.py、
