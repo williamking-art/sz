@@ -1,16 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../store/gameStore";
+import { getApiClient } from "../api/client";
 import { humanizeCoin } from "../utils/format";
 
 // 回合推演结果面板：本月损益（▲▼）+ 叙事报告 + 事件 + 朝报（逐行揭示，可跳过）
 // 迁移补齐：对齐 Tk game/ui/panels_meta.py::_settle_show——
 //   ① 结算前后关键指标快照对比（本 Tk 三件套之一）；
 //   ② 朝报 220ms 逐行揭示；③ 「跳过演出」/空格键立即全显。
+// 两段式（2026-09-21「民间情况先行」）：首段 report 即民间情况的程序真值文本
+//   —— 立即可读；AI 富月报在 round2 后台，ready 后**就地替换**富有段（阅读不中断）。
 export default function AdvancePanel({ props }: { props?: Record<string, unknown> }) {
-  const report = typeof props?.report === "string" ? props.report : "";
+  const baseReport = typeof props?.report === "string" ? props.report : "";
+  const stage = typeof props?.stage === "string" ? props.stage : "legacy";  // civilian/final/legacy
+  const richCiv = typeof props?.rich_civilian === "string" ? props.rich_civilian : "";
   const events = Array.isArray(props?.events) ? props.events : [];
   const log = Array.isArray(props?.log) ? (props.log as string[]) : [];
   const error = typeof props?.error === "string" ? props.error : "";
+  const richPending = props?.rich_pending === true && stage === "civilian";
+  const [rich, setRich] = useState<string>("");
+
+  // round2 民间反应 AI 版轮询（仅第一弹窗；ready 后就地替换民间反应富文本）
+  useEffect(() => {
+    if (!richPending) return;
+    let cancelled = false;
+    const t = window.setInterval(async () => {
+      try {
+        const r = await getApiClient().pollRich();
+        if (cancelled) return;
+        if (r.ready) {
+          window.clearInterval(t);
+          // S-1（2026-09-21 重审）：推演未成时富化字段已被后端清空，但仍先判
+          // settle_error —— 绝不把任何非本回合文本替换进民间段。
+          if (r.settle_error) return;
+          if (r.rich_civilian) setRich(r.rich_civilian);
+        }
+      } catch {
+        /* 轮询失败静默——民间情况文本已在读 */
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [richPending]);
+
+  /** stage="civilian"（民间情况，第一弹）→ **民间反应**（程序真值/AI 富版）；
+   *  stage="final"（回合报告，第二弹）→ **官方月报**（结算后的官方总结）。 */
+  const report = (stage === "final" ? baseReport : (rich || baseReport));
+  const showRichNotice = richPending && !rich;
   const pushOverlay = useGameStore((s) => s.pushOverlay);
 
   const before = (props?.before ?? null) as Record<string, number> | null;
@@ -48,8 +85,10 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
     );
   }
 
+  // 本月损益：**民间情况弹窗（stage="civilian"）以文本为主**，不显示数值 grid；
+  // 回合报告（stage="final"）才展示结算后 before/after 差值。
   const deltas =
-    before && after
+    stage !== "civilian" && before && after
       ? [
           { label: "国库", v: (after.treasury ?? 0) - (before.treasury ?? 0), coin: true },
           { label: "内帑", v: (after.imperial_treasury ?? 0) - (before.imperial_treasury ?? 0), coin: true },
@@ -85,6 +124,11 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
       {report && (
         <div className="rounded-lg border border-gold/40 bg-paper/60 p-4">
           <p className="whitespace-pre-wrap font-kai text-[15px] leading-relaxed text-ink">{report}</p>
+          {showRichNotice && (
+            <p className="mt-2 border-t border-gold/20 pt-2 text-xs text-dim">
+              朝情补录中…（民间情况已可读；AI 富文本完成后将就地更新此段）
+            </p>
+          )}
         </div>
       )}
 

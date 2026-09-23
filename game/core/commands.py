@@ -8,6 +8,47 @@
 Electron 前端经 HTTP 调用）与测试。**Tkinter GUI 已废弃删除**——原文「供 GUI 版
 (ui/gui.py)使用」所述消费方已不存在，此处据实更新。
 """
+
+# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
+#      37    def  new_game   —— 创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。
+#      82    def  audience_minister   —— 召见大臣并施行一项行动，返回叙述文本
+#     146    def  choose_imperial_action   —— 皇帝个人行动矩阵（契约 v2）：按 location×mode 限定 action 白名单（跨格子非法），
+#     184    def  do_personal_action   —— 旧单值个人行动通道（UI/后端兼容）：映射到 宫里·公开 矩阵行动。
+#     195    def  choose_major_policy   
+#     205    def  advance_month   —— 触发当月事件。返回本回合需要玩家处理的事件列表。
+#     247    def  settle_turn   —— 执行月度结算，返回 (log, ai_report)。行为与拆分前完全一致：
+#     286    def  _flush_ai_token   —— 把 AIClient 本回合累计的 token 用量写进 state.ai_token_log（一行），然后重置
+#     325    def  _ai_prelude   —— 结算前 AI 推演族（同步版）：economy 强制推演 + 按需唤醒注入，写 state 槽位。
+#     387    def  _snapshot_state   —— 结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。
+#     404    def  _restore_state   —— 把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。
+#     437    def  advance_and_settle   —— 事件触发 + 月度结算的原子封装。返回 (events, log, report)。
+#     475    def  settle_local   —— 本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
+#     497    def  finish_turn   —— 结算收尾（主线程）：终局判定 + 记忆库压缩/总结/落盘 + 对话记忆库每 3 回合总结去重。
+#     550    def  monthly_report_args   —— 构建月报调用入参（主线程快照）：(year, month, era_name, posture_with_mem
+#     582    def  _monthly_report_text   —— 生成月报文本（装饰性 AI 文本）。
+#     608    def  resolve_event   —— 处理玩家对某事件的选择，返回效果叙述。
+#     641    def  save   
+#     645    def  load   
+#     649    def  save_slots   
+#     656    def  conclude   —— 生成结局评定，返回 (eval_result, ai_eval_text)。
+#     675    def  approve_ai_action   —— 批红一条 AI 待批行动；按 kind 落地。返回叙述。
+#     722    def  reject_ai_action   
+#     730    def  _apply_military_dispatch   —— 批红军令：先校验钱粮，增募钱不够则整单拒绝。
+#     832    def  _prefilter_rules   —— 预过滤规则：(关键词组, 模板, 意图词)。模板用 {m} 占位大臣名。
+#     853    def  _prefilter_intent_hint   —— 预过滤命中后的意图词（供后续拟诏 AI 上下文，降低模板与 AI 割裂）。
+#     862    def  _prefilter_dialogue   —— 召对 token 优化：本地规则匹配常用诏令 → 本地模板回复（AI 只处理非常规）。
+#     879    def  _dialogue_stats   —— 召对 token 统计（省 token 可量化；动态字段不序列化）：预过滤命中/缓存命中/AI 调用。
+#     896    def  _topic_key   —— 召对意图主题词（缓存键组成部分）：命中主题词取主题词（同话题不同措辞命中），
+#     906    def  _dialogue_cache_store   —— AI 成功回复后写召对缓存（结构化键：minister+topic+意图摘要；近 N 回合复用）。
+#     917    def  _dialogue_cache_hit   —— 召对缓存：同大臣同话题近 N 回合的召对结果复用（省 token，命中不调 AI）。
+#     945    def  _record_dialogue_row   —— 把单条召对发言写入对话记忆库（失败不阻断，兼容层 dialogue_history 仍在）。
+#     964    def  audience_dialogue   —— 与大臣奏对一轮。返回大臣的奏对文本，并把对话记入 state.dialogue_history。
+#    1034    def  allocate_payraise   —— 拨国帑入加俸预算（厚禄养廉）。
+#    1060    def  envoy_diplomacy   —— 遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
+#    1117    def  audience_dialogue_prepare   —— 召对前奏（主线程）：身份/状态校验 + 入史（朕言/短期日志）+ 构建 AI 入参。
+#    1205    def  audience_dialogue_apply   —— 召对落定（主线程）：解出回奏并写入史册/意向，返回回奏文本。
+#    1239    def  apply_minister_departure   —— 执行大臣离任（贬黜/致仕/病故/战殁/处死/乞休），返回日志列表。
+# ══ 目录结束 ══
 import random
 
 from content.data import (
@@ -470,6 +511,151 @@ def advance_and_settle(state, ai_client=None) -> tuple:
     except Exception:  # noqa: BLE001
         _restore_state(state, snap)
         raise
+
+
+def _rich_narrative(state, ai_client) -> None:
+    """**AI 三路富化**（`_async_settle` 尾段）：AI 民间反应 / AI 奏章 / AI 官方月报。
+
+    分层（2026-09-21 用户定稿）：
+      · 民间情况（首段弹，玩家立读）—— **程序真值民间反应**先行（`civilian_situation`），
+        AI 版就位后写 `state.rich_civilian`（前端就地替换民间段）；
+      · 回合报告（第二弹，结算后）—— AI 官方月报（`_monthly_report_text`）或本地模板
+        兜底（`fallback_report`）→ `state.rich_report`；
+      · AI 奏章 → `state.memorials`（原文案路径搬入）。
+    装饰层失败**全兜底**（失败路 → 不写字段，程序版仍可用），绝不把结算拉回；
+    `rich_ready` 无条件置 True（前端停轮询）；`_flush_ai_token` 落附表附表一行。
+    """
+    try:
+        if ai_client is not None and getattr(ai_client, "available", False):
+            # ① AI 民间反应（rich_civilian；失败保程序版即 UI 已有）
+            try:
+                if hasattr(ai_client, "civilian_situation"):
+                    _res = ai_client.civilian_situation(state=state)
+                    _civ = (_res or {}).get("text") if isinstance(_res, dict) else None
+                    if _civ:
+                        state.rich_civilian = str(_civ)
+            except Exception as _e:  # noqa: BLE001
+                print(f"[rich_civilian] 民间反应富化未成: {_e!r}", flush=True)
+            # ② AI 奏章（memorials）
+            try:
+                _res = ai_client.generate_memorials(
+                    getattr(state, "posture", ""), state=state, count=3)
+                _memos = (_res or {}).get("memorials") if isinstance(_res, dict) else None
+                if _memos:
+                    state.memorials = _memos
+            except Exception as _e:  # noqa: BLE001
+                print(f"[memorials] round2 上折未成: {_e!r}", flush=True)
+            # ③ AI 官方月报（结算后的官方总结；失败走本地模板 → 不写 rich_report）
+            try:
+                rich = _monthly_report_text(state, ai_client)
+                if isinstance(rich, str) and rich:
+                    state.rich_report = rich
+            except Exception as _e:  # noqa: BLE001
+                print(f"[rich_report] 回合报告富化未成: {_e!r}", flush=True)
+            _flush_ai_token(state, ai_client)
+    finally:
+        state.rich_ready = True
+
+
+def _async_settle(state, ai_client=None, snap=None) -> None:
+    """**后台段**（daemon）：数值结算链 + AI 三路富化，完成后写 `rich_ready` / `settle_error`。
+
+    语义分层（用户定稿 2026-09-21）：
+      · **民间情况**（点过回合立刻弹）＝ 民间小故事串（平民/市井/士绅视角）——程序版
+        真值先行，AI 版跑完写 `state.rich_civilian`（前端就地替换民间段）；
+      · **回合报告**＝ **结算后官方总结**（数值变化/政务/人事），程序真值月报先落
+        `state.rich_report`（fallback 版），AI 版再就地替换；前端第二次弹窗。
+
+    **失败链（AI 拒绝式）**：`economy_decide` 失败 → **回滚快照**（active_events 一并消失，
+    防幽灵事件）+ `state.settle_error`（前端弹"推演失败"）+ `rich_ready=True`（前端停轮询）。
+    """
+
+    try:
+        # —— settlement_mode + 数值链（economy / agents / 程序结算）——
+        import contextlib as _ctx
+        _mode = getattr(ai_client, "settlement_mode", None)
+        with (_mode() if callable(_mode) else _ctx.nullcontext(False)):
+            _ai_prelude(state, ai_client)
+            log = settle_local(state)
+        if snap is not None:
+            state._last_settle_log = log        # 后台结算的朝报（log 行暂存，前端弹窗用）
+            state.settle_error = ""
+        _flush_ai_token(state, ai_client)
+        finish_turn(state)
+    except Exception as e:  # noqa: BLE001
+        # 数值结算失败：快照回滚（events 一并回滚防幽灵事件）+ 状态落账错误。
+        # S-1（2026-09-21 重审）：富化字段不随快照折回（advance_two_phase 已从 snap
+        # 剔除），此处再显式清空并**最后**置 ready —— 保证失败期间任何一次 round2
+        # 轮询都不会读到「ready + 无错误 + 上月富文本」组合（Dock 单次触发轮询命中
+        # 即弹上月「回合报告」并吞掉「推演未成」，`turn` 守卫因回滚未推进而拦不住）。
+        _restore_state(state, snap)
+        state.rich_report = ""
+        state.rich_civilian = ""
+        state._last_settle_log = []
+        state.settle_error = (str(getattr(e, "code", "")) or "RUNTIME") + ":" + type(e).__name__
+        state.rich_ready = True                # 前端停止轮询（错误路径）
+        return
+    # —— AI 三路富化（装饰性；AI 缺失/失败 → 字段留空，程序版文本已在 UI 端）——
+    _rich_narrative(state, ai_client)
+
+
+def advance_two_phase(state, ai_client=None) -> tuple:
+    """三段式回合推进（2026-09-21 **「点过回合 即弹民间情况」**用户定稿）。返回 (events, log, civilian)。
+
+    **三段**（先快出后结算，用户语义：民间情况 **点了过回合立即可读、文本小故事串**；
+    **回合报告＝结算后官方总结**，重数值/政务/人事）：
+      ① **首段（同步 <100ms）**：`advance_month`（当月事件已触发）+ **民间反应文本**
+         （`civilian_situation(state)` 程序真值模板 —— 引用本回合圣旨 / 局势，自拟
+         小故事式反应）→ **立刻返回**。在此期间 **economy / agent / 数值结算尚未跑**。
+      ② **后台段（daemon）**：`_async_settle` —— economy+agent 注入 → `settle_local`
+         → `_flush_ai_token` → `finish_turn`；然后 `_rich_narrative`（AI 民间反应版
+         `rich_civilian` / AI 官方月报 `rich_report` / AI 奏章 `memorials`）。
+      ③ **前端（第二弹）**：`rich_ready=true` 且富文本就位 → 弹**回合报告**（官方月报）
+         —— 玩家的阅读窗口在后台完成富化，**体验完全两码事**。
+
+    **预检（M-1，2026-09-21 重审）**：AI 缺失/未配置 → **立即拒绝式**（与 `settle_turn`
+    同形抛 `AIRuntimeError(code="AI_NOT_CONFIGURED")`）——恢复「点过回合立即 503 ＋ 精确
+    错误码」，**不 spawn daemon、不弹会被回滚的民间故事**。修复前：首段照常返回、后台段
+    才失败，且未配置被误报为 `AI_CONTRACT_FAILED`（`AIClient().economy_decide` 未配置时
+    静默返回 `None`，经 `_ai_prelude` 落错码）。
+    **回滚**：后台段失败（AI 拒绝式）→ `_restore_state(snap)` 整体回滚（防幽灵事件），
+    `state.settle_error` + `rich_ready=True` —— 前端弹"回合结算失败"而不是等待。
+    **富化字段不随快照折回（S-1）**：`rich_ready/rich_report/rich_civilian/settle_error/
+    _last_settle_log` 在快照后复位、失败后由 `_async_settle` 显式落账——若随快照还原，
+    失败回合会带回**上一回合**的 `rich_ready=True` 与富文本（前端可能弹上月「回合报告」）。
+    **并发风险**（接受并留档）：后台段与玩家轮询的 action 写入在 server 层 `_lock`
+    下互斥，但 core 不知 server 锁 —— 玩家在读民间情况（加强了阈值不动锁），
+    实际并发窗口 ~ 40 ms（数值段），概率低。后期 Hardening（若需要）走 server `_lock`。
+    """
+    from content.data import AI_ERROR_CODES
+    # —— M-1 预检：数值结算链依赖 economy 强制推演（拒绝式），AI 缺失直接拒绝 ——
+    if not (ai_client and getattr(ai_client, "available", False)):
+        raise AIRuntimeError(AI_ERROR_CODES.get("AI_NOT_CONFIGURED", "AI 未接入"),
+                             code="AI_NOT_CONFIGURED")
+    snap = _snapshot_state(state)
+    # S-1：富化链字段不参与快照回滚（快照早于下方复位；若随快照还原，失败回合会
+    # 折回上一回合的 ready=True 与富文本）。失败后的落账统一在 `_async_settle`。
+    for _rk in ("rich_ready", "rich_report", "rich_civilian",
+                "settle_error", "_last_settle_log"):
+        snap.pop(_rk, None)
+    # 本回合富化链先复位（round2 尚未开始）
+    state.rich_ready = False
+    state.rich_report = ""
+    state.rich_civilian = ""
+    state.settle_error = ""
+    try:
+        events = advance_month(state)
+    except Exception:  # noqa: BLE001
+        _restore_state(state, snap)
+        raise
+    # —— 民间反应（程序真值，不等 economy / agent / 结算）——
+    from ai.narrative_fallback import civilian_situation as _civ_prog
+    civilian = str(_civ_prog(state) or "")
+    # —— 数值结算与 AI 三路富化 押后台（daemon）——
+    _th = __import__("threading")
+    _th.Thread(target=_async_settle, args=(state, ai_client, snap),
+               daemon=True, name=f"settle-{state.turn}").start()
+    return events, [], civilian
 
 
 def settle_local(state) -> list:
@@ -1317,7 +1503,7 @@ def apply_minister_departure(state: GameState, name: str, reason: str) -> list:
     for spec in rule.get("specials", []):
         when = spec.get("when", "")
         hit = {
-            "东南士人": _fac == "东南士人",
+            "中立派": _fac == "中立派",
             "权臣": _corr >= 0.6,
             "老臣": (state.year - _fig.get("born", 1100)) >= 60,
             "名将": _has_war,

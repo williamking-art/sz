@@ -91,7 +91,7 @@
 - `advice.md` 占位符 `{era_name}` 残留（`client.py:815` 未传该参数）；`local_policy` 传原始数值（AI 收到「户数约 8300000 万」的荒谬单位）；`final_eval` 起止年相同；`api_key` 明文落盘 `ai_config.json`；`HttpBackend.conclude` 未实现且 `panels_menu.py:200` 只捕获 AIRuntimeError → HTTP 模式结局界面必崩；`issue_free_decree` 默认类别拼写 `"free_edcree"`；`_fallback_parse._error=True` 与 `_ai_unavailable._error="AI_UNAVAILABLE"` 类型不统一。
 
 ### UI / 杂项
-- `_panel_map` 调用不存在的 `MapCanvas.refresh()`（死代码潜伏）；`_tech_detail` 读 `state.era` 而非 `state.tech["era"]`（成本预览恒按 era=0，偏贵 20%+）；仓廪面板输入框无单位标注（默认 100 实际 = 100 万石/万亩）；「平盗」预览写「军事开支 -8万贯」但实际不扣钱；立绘分类用旧派系名（`阉党/西军` vs `宦官集团/西军集团`）；`dock_menu.png` 缺失、`theme.remove_white_bg` 不存在、字体注册传参错误（均静默降级）；开局 AI 探测在主线程同步阻塞 8s；`_anim` 动画注册表无清理（长期会话内存增长）；暗角合成首开面板卡顿。
+- `_panel_map` 调用不存在的 `MapCanvas.refresh()`（死代码潜伏）；`_tech_detail` 读 `state.era` 而非 `state.tech["era"]`（成本预览恒按 era=0，偏贵 20%+）；仓廪面板输入框无单位标注（默认 100 实际 = 100 万石/万亩）；「平盗」预览写「军事开支 -8万贯」但实际不扣钱；立绘分类用旧派系名（`阉党/西军` vs `皇党集团/军功集团`）；`dock_menu.png` 缺失、`theme.remove_white_bg` 不存在、字体注册传参错误（均静默降级）；开局 AI 探测在主线程同步阻塞 8s；`_anim` 动画注册表无清理（长期会话内存增长）；暗角合成首开面板卡顿。
 
 ---
 

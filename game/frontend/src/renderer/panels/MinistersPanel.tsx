@@ -21,7 +21,7 @@ function asStr(v: unknown, def = ""): string {
 }
 
 // 武臣派系（对齐 _minister_kind：FACTION_PROFILES.kind == military）
-const MILITARY_FACTIONS = new Set(["西军集团", "宦官集团"]);
+const MILITARY_FACTIONS = new Set(["军功集团", "皇党集团"]);
 
 interface CardInfo {
   name: string;

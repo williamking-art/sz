@@ -53,7 +53,8 @@ from core.settlement import (  # noqa: E402
     _settle_legacies, _settle_focus, _settle_situations, _settle_literacy,
     _settle_faction_metrics,
 )
-from core.settlement_steps import _settle_finance  # noqa: E402
+from core.settlement_steps import (
+    _settle_finance, _settle_bank_stock, _settle_external_economy)  # noqa: E402
 
 _STEPS = [
     ("decrees", _settle_decrees),
@@ -76,6 +77,7 @@ _STEPS = [
     ("clan", _settle_clan),
     ("clerks", _settle_clerks),
     ("finance", _settle_finance),
+    ("external_economy", _settle_external_economy),   # 2026-09-19 辽/夏经济（Song 总账零变化）
     ("extensions", _settle_extensions),
     ("econ_prices", _settle_econ_prices),
     ("treasury", _settle_treasury),
@@ -98,6 +100,9 @@ _STEPS = [
     ("situations", _settle_situations),
     ("emperor", _settle_emperor_personal),
     ("hidden", _settle_hidden),
+    # 2026-09-19 抵当所修复：存款**存量**月末硬收敛（Step 10.6，银行步之后）。
+    # 镜像漏它 → "月末存款超上限"（民间被抽干）会从所有账本断言底下溜过去。
+    ("bank_stock", _settle_bank_stock),
 ]
 
 

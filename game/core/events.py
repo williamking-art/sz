@@ -146,11 +146,11 @@ HISTORICAL_EVENTS = [
         "category": "党争",
         "effects": {},
         "desc": "崇宁元年九月，蔡京籍元祐、元符末司马光、苏轼等百二十人列「奸党」，御书刻石端礼门；三年复定三百有九人，立碑州县，元祐学术并禁，仕进之路一绝。",
-        "notes": "素材 E1：党籍立碑=史实；选项三分与档位=玩法抽象；「止立碑」路径=合理推演（史实未行）。素材「科举/士林」档位映射到既有派系「东南士人」（东南科举士绅）。",
+        "notes": "素材 E1：党籍立碑=史实；选项三分与档位=玩法抽象；「止立碑」路径=合理推演（史实未行）。素材「科举/士林」档位映射到既有派系「中立派」（东南科举士绅）。",
         "choices": [
             {"text": "颁行党籍，追贬元祐诸臣", "effects": {
                 "prestige": "微",
-                "faction_change": {"新党": "中", "旧党": "-大", "东南士人": "-微"},
+                "faction_change": {"新党": "中", "旧党": "-大", "中立派": "-微"},
             }},
             {"text": "轻其籍，仅夺职罢归，不立碑", "effects": {
                 "prestige": "微",
@@ -170,11 +170,11 @@ HISTORICAL_EVENTS = [
         "category": "制度",
         "effects": {},
         "desc": "崇宁元年八月诏天下兴学贡士，广建州县学；三年十一月罢科举，士由州县学升太学，积学分出官，三舍升贡之制遂行，士风为之一变。",
-        "notes": "素材 E2：兴学贡士、罢科举=史实；选项与档位=玩法抽象；「并行/罢新法」路径=合理推演。素材「士林」档位映射到既有派系「东南士人」；tech 落到 state.tech['level']（0~100）。",
+        "notes": "素材 E2：兴学贡士、罢科举=史实；选项与档位=玩法抽象；「并行/罢新法」路径=合理推演。素材「士林」档位映射到既有派系「中立派」；tech 落到 state.tech['level']（0~100）。",
         "choices": [
             {"text": "行三舍升贡，广建州县学", "effects": {
                 "tech": "中",
-                "faction_change": {"新党": "中", "旧党": "-大", "东南士人": "中"},
+                "faction_change": {"新党": "中", "旧党": "-大", "中立派": "中"},
                 "treasury": "-小",
             }},
             {"text": "科举三舍并行，徐徐图之", "effects": {
@@ -183,7 +183,7 @@ HISTORICAL_EVENTS = [
                 "treasury": "-微",
             }},
             {"text": "罢新法，仍以科举取士", "effects": {
-                "faction_change": {"旧党": "中", "新党": "-大", "东南士人": "-微"},
+                "faction_change": {"旧党": "中", "新党": "-大", "中立派": "-微"},
             }},
         ],
     },
@@ -195,7 +195,7 @@ HISTORICAL_EVENTS = [
         "category": "西线军事",
         "effects": {},
         "desc": "崇宁二年六月，王厚、童贯统兵出熙河，克湟州；三年四月复鄯州、廓州，河湟故地重归版图，熙河开边再起，西蕃震慑。",
-        "notes": "素材 E3：克湟州、复鄯廓=史实；选项与档位=玩法抽象；「还地于蕃」=合理推演。素材「army」档位归一到既有 army_strength 语义（各军训练/士气）；「西军集团」为既有派系。"
+        "notes": "素材 E3：克湟州、复鄯廓=史实；选项与档位=玩法抽象；「还地于蕃」=合理推演。素材「army」档位归一到既有 army_strength 语义（各军训练/士气）；「军功集团」为既有派系。"
                " 开边封地联动（河湟州府挂在吐蕃政权名下，不另立政权）：选首项（进讨）后"
                " 以 REGIME_PREFECTURES['吐蕃'] 的河湟四州（西宁州/湟州/廓州/青海湖诸部）为对象，"
                " 归属改写为宋（P1 语义逐个 set_subdivision_owner 模拟克湟州→复鄯廓推进），"
@@ -206,7 +206,7 @@ HISTORICAL_EVENTS = [
                 "treasury": "-中",
                 "army": "小",
                 "external_xixia": "-小",
-                "faction_change": {"西军集团": "中"},
+                "faction_change": {"军功集团": "中"},
             }},
             {"text": "厚赏边功，按兵自固", "effects": {
                 "prestige": "微",
@@ -216,7 +216,7 @@ HISTORICAL_EVENTS = [
             {"text": "罢兵息民，还地于蕃", "effects": {
                 "population_satisfaction": "小",
                 "prestige": "-小",
-                "faction_change": {"西军集团": "-中"},
+                "faction_change": {"军功集团": "-中"},
                 "external_xixia": "中",
             }},
         ],
@@ -256,22 +256,22 @@ HISTORICAL_EVENTS = [
         "category": "财政",
         "effects": {},
         "desc": "崇宁三年复行方田均税，丈量田亩、重定赋税，本意均平；然猾胥上下其手，豪右规避，小民反受其累，东南一路怨声渐起。",
-        "notes": "素材 E5：复行方田均税=史实；「东南怨声」细节=合理推演；选项与档位=玩法抽象。素材「corruption」档位暂不支持（同 E4），已省略；「东南士人」为既有派系。",
+        "notes": "素材 E5：复行方田均税=史实；「东南怨声」细节=合理推演；选项与档位=玩法抽象。素材「corruption」档位暂不支持（同 E4），已省略；「中立派」为既有派系。",
         "choices": [
             {"text": "厉行方田，务求均税", "effects": {
                 "treasury": "中",
                 "population_satisfaction": "-小",
-                "faction_change": {"东南士人": "-中"},
+                "faction_change": {"中立派": "-中"},
             }},
             {"text": "择廉吏分路措置，缓图之", "effects": {
                 "treasury": "小",
                 "population_satisfaction": "微",
-                "faction_change": {"东南士人": "-小"},
+                "faction_change": {"中立派": "-小"},
             }},
             {"text": "罢方田，抚定人心", "effects": {
                 "treasury": "-小",
                 "population_satisfaction": "中",
-                "faction_change": {"东南士人": "中", "新党": "-小"},
+                "faction_change": {"中立派": "中", "新党": "-小"},
             }},
         ],
     },
@@ -322,8 +322,8 @@ RANDOM_EVENTS = [
         "prob": 0.03,
         "desc": "查出宫中太监贪墨御用钱粮",
         "choices": [
-            {"text": "严惩不贷", "effects": {"prestige": 3, "faction_change": {"宦官集团": -5}}},
-            {"text": "从轻发落", "effects": {"faction_change": {"宦官集团": 5, "旧党": -5}}},
+            {"text": "严惩不贷", "effects": {"prestige": 3, "faction_change": {"皇党集团": -5}}},
+            {"text": "从轻发落", "effects": {"faction_change": {"皇党集团": 5, "旧党": -5}}},
         ],
     },
     {

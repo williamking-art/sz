@@ -95,14 +95,14 @@ def test_power_components_in_range():
 def test_influence_is_derived_from_pop_not_old_field():
     """改 POP 存量（而非改旧 influence）必须改变派生值——"指标只能由 POP 派生"。"""
     s = _s()
-    base = faction_power(s, "西军集团")["influence"]
-    s.factions["西军集团"]["influence"] = 99      # 改旧字段 → 不得影响派生
-    assert faction_power(s, "西军集团")["influence"] == base
+    base = faction_power(s, "军功集团")["influence"]
+    s.factions["军功集团"]["influence"] = 99      # 改旧字段 → 不得影响派生
+    assert faction_power(s, "军功集团")["influence"] == base
     for r in ("陕西路", "河东路", "河北路"):
         p = s.prefectures.get(r)
         if p:
             p["pops"]["兵"]["size"] = float(p["pops"]["兵"]["size"]) * 3   # 改 POP → 必变
-    assert faction_power(s, "西军集团")["influence"] != base
+    assert faction_power(s, "军功集团")["influence"] != base
 
 
 def test_fallback_to_old_influence_when_basis_empty():

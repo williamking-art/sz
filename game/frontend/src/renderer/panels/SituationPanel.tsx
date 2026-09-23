@@ -356,7 +356,7 @@ export default function SituationPanel({ props }: { props?: { tab?: "items" | "p
         <div className="space-y-2">
           <p className="px-1 text-xs leading-relaxed text-dim">
             集团<b>不是与 POP 并列的实体</b>，而是某阶级（某子池、某路域）的<b>子集</b>——
-            如西军集团 ⊆ 兵 POP 的路域子集。势力源于人口与财赋；改革会改变 POP 得失，也可能催生新集团。
+            如军功集团 ⊆ 兵 POP 的路域子集。势力源于人口与财赋；改革会改变 POP 得失，也可能催生新集团。
           </p>
           {data?.faction_channels && !data.faction_channels.declared && (
             <p className="rounded border border-red/50 bg-red/5 px-2 py-1 text-xs text-red">

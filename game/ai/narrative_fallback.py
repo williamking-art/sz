@@ -97,6 +97,97 @@ def fallback_report(year=0, month=0, era_name="", state=None) -> dict:
     return {"report": txt, "_fallback": True}
 
 
+# 民间反应句式库（「民间情况」= 局势 + 本回合圣旨 → 民间 怎么看；真值驱动）。
+# 分层：**新令 / 钱粮 / 灾荒流民 / 党争 / 平靖** —— 由 state 真值选档，不伪造数字/口吻。
+_CIV_DECREES_TEMPLATES = (
+    "朝廷新下诏令（{titles}），市井消息走快——",
+    "本朝谕旨（{titles}）甫出，街面已有人转述——",
+)
+_CIV_TAIL_POS = (
+    "平民多以本朝政令为可期，市井上下如同寻常；士绅们底层压着争论，也多半静观其变。",
+    "民间无所惊扰，农工商谷各安其业；市面偶有评论，终究归于平静。",
+)
+_CIV_TAIL_NEU = (
+    "市井对朝局多存观望——新政之效尚需时日方见分晓。",
+    "人心大体安稳，然议论者有之，观望者亦众。",
+)
+_CIV_TAIL_NEG = (
+    "民间难免啧啧私议，忧其扰民；士绅亦有所保留，恐其施政愈急、摊派愈重。",
+    "市井传言纷纷，微辞渐起；商户观望，农人疑其新法。",
+)
+_CIV_ECON_NEG = (
+    "粮价腾贵，小民艰食，市中怨声渐起。",
+    "米价昂贵，小民叫苦；米行囤待价，路人多叹。",
+)
+_CIV_ECON_POS = (
+    "米价平抑，民生稍宽，市面平和。",
+    "仓廪稍充，物价回落，小民生计略宽。",
+)
+_CIV_DISASTER = (
+    "流民四就食于近郊，给产给粮之声日繁；官府须早为安顿。",
+    "灾情渐重，道路流民日多，若不早赈恐滋事端。",
+)
+_CIV_FACTION_NEG = (
+    "朝野议论，党争之声日高；士人各以其说相质，民间观望。"
+)
+
+
+def civilian_situation(state=None) -> str:
+    """**民间情况**（过回合阅读 · 程序即得版）。
+
+    语义（用户定稿 2026-09-21）：**根据游戏当前局势 + 本回合落的圣旨来模拟民间反应**
+    —— 与"月报"（结算后的**官方总结**：数值变化/政务进度/人事变动）**完全不同源**。
+    故此文本：
+      · **不等结算**（无 AI 档位依赖，不依赖本月损益；引用的是当前局势真值）；
+      · **程序真值驱动**（粮价/民情/灾荒/流民 各取 state 值，分层用词；不伪造数字）；
+      · AI 反应版走 round2 富化（`state.rich_civilian` 等）—— 就位后前端就地替换此段。
+    """
+    if state is None:
+        return "（民间情况暂由有司简报，稍后同月报同呈。）"
+    try:
+        lines: list = []
+        # ---- 本回合落的圣旨 → 民间反应（title 真值；无 → 不提）----
+        decs = list(getattr(state, "pending_decrees", None) or [])
+        titles = [str(d.get("title", "")) for d in decs[-3:] if isinstance(d, dict) and d.get("title")]
+        if titles:
+            lines.append(_pick(_CIV_DECREES_TEMPLATES, f"civilian:{titles[0]}").format(titles="、".join(titles)))
+        # ---- 民生真值 → 经济反应层 ----
+        prefs = getattr(state, "prefectures", {}) or {}
+        prices = [float(p.get("grain_price", 1.0) or 1.0) for p in prefs.values()] if prefs else []
+        moods = [int(p.get("mood", 50) or 50) for p in prefs.values()] if prefs else []
+        avg_price = (sum(prices) / len(prices)) if prices else 1.0
+        avg_mood = (sum(moods) / len(moods)) if moods else 50
+        if avg_price >= 1.4:
+            lines.append(_pick(_CIV_ECON_NEG, f"econ:{int(avg_price * 10)}"))
+        elif avg_price <= 0.9:
+            lines.append(_pick(_CIV_ECON_POS, f"econ:{int(avg_price * 100)}"))
+        # ---- 灾荒/流民 ----
+        if int(getattr(state, "disaster_severity", 0) or 0) > 0:
+            lines.append(_pick(_CIV_DISASTER, f"disaster:{getattr(state, 'year', 0)}"))
+        # ---- 集团满意度真值（分层用词；不外漏数值）----
+        facs = getattr(state, "factions", None)
+        try:
+            neg_count = sum(
+                1 for f in (facs or {}).values()
+                if isinstance(f, dict) and int(f.get("satisfaction", 50) or 50) < 40)
+        except Exception:
+            neg_count = 0
+        if neg_count >= 2:
+            lines.append(_pick(_CIV_FACTION_NEG, f"faction:{getattr(state, 'year', 0)}"))
+        # ---- 总评（按民心分档）----
+        if avg_mood < 45:
+            tail = _pick(_CIV_TAIL_NEG, f"tail:{int(avg_mood)}")
+        elif avg_mood >= 62 or (not neg_count and avg_price < 1.2):
+            tail = _pick(_CIV_TAIL_POS, f"tail:{int(avg_mood)}")
+        else:
+            tail = _pick(_CIV_TAIL_NEU, f"tail:{int(avg_mood)}")
+        if lines:
+            return "\n".join(lines) + "\n" + tail
+        return tail
+    except Exception:
+        return "（民间情况暂由有司简报，稍后同月报同呈。）"
+
+
 def fallback_event(event_title="", severity="中", state=None) -> dict:
     """事件叙事模板兜底：按 severity 分档（轻/中/重），多句式轮换。"""
     sev = severity if severity in ("轻", "中", "重") else "中"

@@ -69,12 +69,12 @@ def test_apply_minister_departure_basic():
 def test_apply_minister_departure_war_death_special():
     from core.commands import apply_minister_departure
     s = _new_state()
-    # 战殁种师道（西军集团·军略名将）：西军满意度 大降 + 边境士气 小降
-    xj0 = s.factions["西军集团"]["satisfaction"]
+    # 战殁种师道（军功集团·军略名将）：西军满意度 大降 + 边境士气 小降
+    xj0 = s.factions["军功集团"]["satisfaction"]
     line = next(iter(s.defense_lines.values()))
     fort0 = line["fortification"]
     log = apply_minister_departure(s, "种师道", "战殁")
     assert s.minister_status("种师道") == "dead"
-    assert s.factions["西军集团"]["satisfaction"] < xj0  # 派系 大降（基础 + 名将修饰）
+    assert s.factions["军功集团"]["satisfaction"] < xj0  # 派系 大降（基础 + 名将修饰）
     assert line["fortification"] < fort0                  # 边境士气 小降（defense_bonus）
     assert any("边境士气" in l for l in log)

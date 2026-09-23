@@ -62,17 +62,80 @@ export default function Dock() {
           `〔推演〕${String(st?.era_name ?? "")}${String(st?.year ?? "")}年${String(st?.month ?? "")}月 回合结算完成`
         );
       }
+      // 两段式（2026-09-21「民间情况先行」+ 前后两次弹窗分工）：
+      //  ① 首段 overlay＝**民间情况**（程序真值民间反应，立即可读；数值结算已完成）；
+      //  ② round2 富化就位（rich_ready=true）后再弹**回合报告**（官方月报富版/奏章）。
+      // 两次用同一 kind="advance"、不同 title/props.stage 区分；第二弹仅当回合未推进
+      // （用户仍在读民间情况）。若玩家已推进下一回合，富文本由侧栏面板自然可见，不再弹。
+      const stNow = res.state as Record<string, unknown> | undefined;
       pushOverlay({
         kind: "advance",
-        title: "回合推演",
+        title: "民间情况",
         props: {
+          stage: "civilian",
           events: res.events,
           log: res.log,
           report: res.report,
+          rich_pending: (stNow as Record<string, unknown> | undefined)?.rich_ready === false,
           before,
           after: snapshotHud(res.state)
         }
       });
+      // round2 富化轮询（两侧：AI 民间反应版 + 官方月报；就位后弹「回合报告」）
+      // S-1（2026-09-21 重审）：① settle_error 优先判；② 富文本未就位**不清 interval**
+      // 继续等（原实现 `if (r.ready) { clearInterval }` 单次触发，命中后台回滚的
+      // 「ready + 无错误 + 上月富文本」窗口会弹**上月**报告并吞掉「推演未成」）；
+      // ③ ready 且两路皆空（三路 AI 全失败且本地兜底也未产出的极端态）→ 静默收尾。
+      (async () => {
+        let cancelled = false;
+        const _t = window.setInterval(async () => {
+          try {
+            const r = await getApiClient().pollRich();
+            if (cancelled || !r.ready) return;          // 未就绪：下轮再查
+            window.clearInterval(_t);
+            cancelled = true;
+            // 后台结算失败（AI 拒绝式）→ 弹"推演未成"（原因 code），不走富化弹。
+            if (r.settle_error) {
+              if (useGameStore((s) => s.state)?.turn === stNow?.turn) {
+                pushOverlay({
+                  kind: "advance",
+                  title: "推演未成",
+                  props: {
+                    error:
+                      `回合结算未成：${r.settle_error}（可重试；民间情况文本仍在上方）`
+                  }
+                });
+              }
+              return;
+            }
+            // 富化已收尾但两路皆空 → 无第二轮可弹，静默收尾（民间情况仍在首段弹窗）。
+            if (!r.rich_report && !r.rich_civilian) return;
+            if (useGameStore((s) => s.state)?.turn === stNow?.turn) {
+              pushOverlay({
+                kind: "advance",
+                title: "回合报告",
+                props: {
+                  stage: "final",
+                  report: r.rich_report,          // 官方月报（结算后的官方总结）
+                  rich_civilian: r.rich_civilian, // AI 民间反应富版（与首段同源不同时）
+                  events: res.events,
+                  log: Array.isArray(r.log) ? r.log : res.log,  // 朝报（后台结算产出，随 round2 到位）
+                  before,
+                  after: r.state
+                      ? snapshotHud(r.state)        // 结算后快照（round2 带），差异正确
+                      : snapshotHud(res.state)
+                }
+              });
+            }
+          } catch {
+            /* 轮询失败静默——民间情况文本已在读 */
+          }
+        }, 4000);
+        window.setTimeout(() => {
+          window.clearInterval(_t);
+          cancelled = true;
+        }, 180_000);   // 装饰层失败也不无限轮询（3 分钟上限）
+      })();
     } catch (e) {
       console.error("[advance]", e);
       // 推演为全游戏级强制 AI（core/commands.py::settle_turn 拒绝式），

@@ -7,6 +7,7 @@ from core.settlement import run_monthly_settlement, settle_reform, _apply_decree
 from core.errors import AIRuntimeError
 from content.data import (
     ZHONGZHI_AFFILIATION_RATE,
+    DIRECT_DECREE_MAX,
     FACTION_NAMES,
     get_prestige_level,
 )
@@ -305,7 +306,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         content = str(decree.get("text") or decree.get("desc") or decree.get("title") or "密谕")
         return issue_secret_decree(state, target, content)
     if direct:
-        if state.direct_decree_used >= 2:
+        if state.direct_decree_used >= DIRECT_DECREE_MAX:
             return "本月御笔已用尽。"
         decree_full = {
             "title": decree.get("title", "御笔诏令"),

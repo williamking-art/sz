@@ -4,6 +4,66 @@
 本模块承载 run_monthly_settlement 流水线中除"主流程/机构改制/五层承接层"之外的
 全部 Step 函数。拆分自原 settlement.py，主流程见 core/settlement.py。
 """
+
+# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
+#      45    def  _settle_decrees   —— 执行本月诏令（12 步 agent 化 P2+：诏令执行契约接线）
+#     160    def  _state_grain_trade   —— 政府粮食交易的守恒配对（审查 P0：杜绝「国库灭钱/太仓凭空得粮」幻影对手）。
+#     250    def  _changping_trade   —— 州县常平仓粜籴的守恒配对（与 _state_grain_trade 同构；钱腿为本路府库）。
+#     334    def  _levy_men   —— 自本路农户、其次流民中征补兵员（人守恒：农/流民 → 兵）。
+#     364    def  _return_men   —— 裁汰兵力回流本路农户（人守恒：兵 → 农）；无农户时归流民池。
+#     384    def  _apply_decree_effect   —— 应用诏令效果
+#     632    def  _settle_factions   —— 派系**冲击**结算（Step 2）：只读 AI 契约 → 记事件叙事与 `_event_delta` 冲击。
+#     697    def  _settle_economy   —— 经济基础结算
+#     776    def  _settle_land_local   —— 田亩户籍与地方州县自然演进；田赋以实物粮（本色）征收入各州府储粮，
+#     955    def  _settle_econ_prices   —— 物价相位（整改①-1 / ①-3）：在**货币信用**（`_settle_extensions`）之后重算物价。
+#     992    def  _settle_literacy   —— 识字率结算步（2026-09-19 新增设定）——薄壳，口径单点在 `core/literacy.py`。
+#    1008    def  _settle_region_deepen   —— 地区模型深化月度结算（参考《明末：捞金模拟器》）。
+#    1063    def  _settle_extensions   —— 金融/科举/科技/外交 等扩展维度的自然演进。
+#    1247    def  _refresh_jiaozi_credit   —— 刷新交子数据契约读数（第二节§2）：流通额 / 兑付率 / 折价 / 挤兑压力。
+#    1281    def  _settle_bank_credit   —— 银行信贷月度结算（第二节§3）：吸储 / 放贷 / 收息 / 坏账，**全部守恒转移**。
+#    1425    def  _settle_jiaozi_term   —— 交子界制：满一界换发新钞（5% 工墨费销毁）+ 超界作废（销币，抑通胀）。
+#    1448    def  _settle_coin_melt   —— 私铸熔化真实化：民间铜钱逐月真实熔化扣减（退出流通，抑通胀）。
+#    1512    def  _settle_stabilizer_recycle   —— 稳定器净回收公式（T9 定稿·蔡权衡）：月销币目标 = money × (price−1.2)/price × 
+#    1541    def  _settle_mint   —— 铸钱受控（T9 定稿）：铜资源约束 + 熔耗 20% 净增 80% + 物价>2.0 禁止。
+#    1582    def  _research_rate_mult   —— 研发速率乘数（整改④.2）：受学校/书院、识字率、材料、总体 level 影响。
+#    1627    def  _settle_tech_research   —— 按月推进攻关节点（整改④）：消耗预算与人才时间 / 中断保留进度 / 部署覆盖率结算。
+#    1724    def  _settle_longterm_decrees   —— 按月推进所有长期政务（公开事务 + 密令），满进度核销。
+#    1759    def  _simulate_external   
+#    1847    def  _settle_granary   —— 仓廪系统月度结算：漕运汇聚 + 雀鼠耗 + 本色支取 + 常平仓 + 认知层。
+#    2254    def  _buyer_pool   —— 该路缺粮 POP 的可支付财富池（A1/B1 抛粮买方化）。
+#    2279    def  _sell_to_buyers   —— 把 qty 石粮卖给该路缺粮 POP 买方池，返回实售石数（A1/B1）。
+#    2330    def  _settle_civilian_hoard   —— 士绅囤粮操作（钱粮守恒）：AI 推演档位优先，无 AI 时按粮价方向兜底。
+#    2451    def  _settle_projects   —— 工程月度推进（整改③）：状态机 + 工匠工时 + 运维折旧。
+#    2667    def  _collect_from_pops   —— 按人口比例向六类 POP 征收 `amount` 贯（买家支付），返回**实收**额。
+#    2711    def  _settle_clan   —— 宗室俸禄（L2c money sink，宋代官制设计 §8.2 / 技术方案「宗室俸禄」行）。
+#    2759    def  _settle_clerks   —— Step 3.97 吏制结算（薄封装，实现在 `core/clerks.py`——单一权威源）。
+#    2769    def  _settle_officialdom   —— Step 3.95 官制结算（薄封装，实现在 `core/officialdom.py`——单一权威源）。
+#    2779    def  _distribute_cash   —— 把 `amount` 贯按 `shares` {阶层: 占比} 精确分发给各路该阶层 POP wealth。
+#    2812    def  transfer_public_funds_to_pops   —— 公共资金（国库/内帑）→ 民间 POP wealth 的**守恒转移**（走 applier_pipeline）
+#    2870    def  _settle_upkeep   —— 资产维持费（L1 money sink，阶段 B-3）：建筑/工程/作坊/军械/城防 按月计维护费。
+#    2948    def  _settle_workshops   —— 作坊月度推进：配方消耗 inputs（如粮→酒），产出 outputs 入 resources/内帑。
+#    3016    def  _settle_hidden_pop   —— 隐户动态（月度，人口守恒——隐户是第 7 类动态人口池，与六类 POP 转换）：
+#    3090    def  _settle_treasury   —— 国库结算——**占位（无操作）**：国库收支已在 Step 4（_settle_finance）完成。
+#    3102    def  _evaluate_timeline_breaks   —— 检测玩家成效是否达成改写史实的条件（不直接改写历史）。
+#    3140    def  _tier7   —— 构造七档换算表（无/微/小/中/大/巨/极）。
+#    3164    def  _settle_military_diplomacy   —— 军事与外部势力推进（12 步 agent 化 P1：外交/军事契约接线，守恒铁律——
+#    3243    def  _settle_events   —— 事件压力推进与触发
+#    3309    def  _trigger_event   —— 触发事件
+#    3336    def  _settle_emperor_personal   —— 皇帝个人行动结算（行动矩阵契约 v2）。
+#    3402    def  _imp_split_tier   —— 皇帝行动效果档位拆解：'±档位词' → (档位词, 方向 ±1)；数字原样 (值, +1)。
+#    3416    def  _imp_tier_delta   —— 档位词 → 数值：prestige/民心走 ai.client_utils 既有换算；
+#    3430    def  _apply_imperial_action   —— 落地皇帝个人行动：程序基础开销（守恒）→ 效果（AI 档位/矩阵兜底）→ 风险事件。
+#    3513    def  _apply_imperial_effects   —— 效果落地（state_applier 白名单 path：prestige/population_satisfac
+#    3554    def  _settle_hidden   —— 隐藏状态结算（灾害、政令累积效果等）
+#    3620    def  _avg_corruption   —— 全国理财主官平均贪腐度（后台隐藏，仅影响数值，绝不进 UI 文本）。
+#    3633    def  _recalc_region_price   —— 按当月供需（年成月均 + 常平净粮流）重算当地粮价（贯/石）。
+#    3652    def  _settle_tax_grain_sale   —— 农户「粜粮完税」：现金不足时向本路 `士绅`/`商人` 卖粮换钱，用于缴纳当期税。
+#    3739    def  _settle_arrears_repayment   —— 结余**补发积欠**（史实：丰年补发积欠俸饷）。
+#    3813    def  _settle_finance   —— 月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
+#    4190    def  _normalize_disaster_region   —— 把灾荒 region 俗名归一到 prefectures 稳定键。
+#    4206    def  _settle_disaster   —— 天灾结算。灾荒时开仓赈济，耗太仓存粮；有粮则安民，无粮则民怨更重。
+#    4282    def  _settle_bank_stock   —— **Step 10.6**：银行（抵当所）存款**存量**月末硬收敛（2026-09-19 修复）。
+# ══ 目录结束 ══
 import random
 
 from content.data import (
@@ -531,7 +591,7 @@ def _apply_decree_effect(state, decree, log):
             _confiscate = int(_genty.get("窖银", 0) * _hidden_mult)
             _genty["窖银"] = _genty.get("窖银", 0) - _confiscate
             state.treasury += _confiscate
-        for fn in ("旧党", "东南士人"):
+        for fn in ("旧党", "中立派"):
             if fn in state.factions:
                 state.factions[fn]["satisfaction"] = max(0,
                     state.factions[fn]["satisfaction"] - 5)
@@ -808,8 +868,8 @@ def _settle_land_local(state, log):
         _transfer = int(p.get("self_farm_land", 0) * 0.001)
         p["self_farm_land"] = max(0, p.get("self_farm_land", 0) - _transfer)
         p["gentry_land"] = p.get("gentry_land", 0) + _transfer
-        # 诡名寄产/诡名子户：士绅把地主田藏到别人名下逃税（地主田→隐田，随东南士人势力增减）
-        _gentry_power = state.factions.get("东南士人", {}).get("influence", 50) / 100.0
+        # 诡名寄产/诡名子户：士绅把地主田藏到别人名下逃税（地主田→隐田，随中立派势力增减）
+        _gentry_power = state.factions.get("中立派", {}).get("influence", 50) / 100.0
         _conceal = int(p.get("gentry_land", 0) * 0.001 * (0.5 + _gentry_power))
         p["gentry_land"] = max(0, p.get("gentry_land", 0) - _conceal)
         p["hidden_land"] = p.get("hidden_land", 0) + _conceal
@@ -1030,7 +1090,7 @@ def _settle_region_deepen(state, log):
         gentry = p.get("gentry_resistance", 30)
         gentry_power = 0.0
         try:
-            gentry_power = state.factions.get("东南士人", {}).get("influence", 50) / 100.0
+            gentry_power = state.factions.get("中立派", {}).get("influence", 50) / 100.0
         except Exception:
             pass
         # 清丈（land_survey 施行）则士绅抵抗上升；治理高则下降
@@ -1132,15 +1192,34 @@ def _settle_extensions(state, log):
         # 使国库市舶收入被系统性放大近一倍。只保留商人外贸利润分配与白银流入。
         _merchant_profit = int(_trade_month * (1 - _tariff_rate) * 0.3)       # 商人毛利 30%
         _total_merchant = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
-        for _p in state.prefectures.values():
-            if _p["pops"]["商人"]["size"] > 0:
-                _p["pops"]["商人"]["wealth"] += int(_merchant_profit * _p["pops"]["商人"]["size"] / _total_merchant)
+        # 残差修正（两点）：①外贸毛利是**真实体外注入**（货出、外银入），须登记
+        # register_flow("external")（同外销变现，货币口径规范 §4.2），否则 marine 开启后
+        # 每月凭空造币；②逐府 int() 分摊截断使 Σcredit < 登记额 → 尾差归最大府守恒。
+        if _merchant_profit > 0 and _total_merchant > 1:
+            _mp_shares = {}
+            _mp_big, _mp_big_sz = None, -1
+            for _rk, _p in state.prefectures.items():
+                _sz = _p["pops"]["商人"]["size"]
+                if _sz > 0:
+                    _mp_shares[_rk] = int(_merchant_profit * _sz / _total_merchant)
+                    if _sz > _mp_big_sz:
+                        _mp_big, _mp_big_sz = _rk, _sz
+            _mp_shares[_mp_big] += _merchant_profit - sum(_mp_shares.values())
+            for _rk, _c in _mp_shares.items():
+                state.prefectures[_rk]["pops"]["商人"]["wealth"] += _c
+            try:
+                from core.money import register_flow as _reg_flow
+                _reg_flow(state, "external", _merchant_profit, "外贸商人毛利")
+            except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
+                pass
         state.coin["shortage"] = max(0.0, state.coin["shortage"] - 0.01)      # 白银流入缓解钱荒
         # 白银**存量**累积（阶段 B-1）：silver_in 是「万两/年」的**流量**，此前只被
         # calc_price_level 当作白银存量 ×10000 使用，**从未进入任何持有账户**——
         # 既是"把流量当存量"的建模错误，也是货币对账里一笔无对手方的注入。
         # 现按 1/12 月度份额累积进 `state.silver_stock`（外部注入的唯一合法入口，
-        # 供 core/money.py 对账时作为外部项扣除）。**不改动任何既有数值**：
+        # 供 core/money.py 对账时作为外部项扣除——EXTERNAL_ACCOUNTS 已含
+        # silver_stock，reconcile 自动把 Δsilver_stock 计为外部项，**勿再**登记
+        # register_flow，否则双重扣除）。**不改动任何既有数值**：
         # calc_price_level 仍读 silver_in，silver_stock 在阶段 B-1 只被 money.py 读取。
         try:
             _sv_annual = float(state.maritime.get("silver_in", 0) or 0) * 10000.0   # 万两/年 → 贯/年
@@ -1422,6 +1501,30 @@ def _settle_bank_credit(state, log):
             "interest": interest, "bad_debt": bad_debt}
 
 
+def _distribute_pop_wealth(state, lump, cls, total):
+    """把 lump 贯按各府 cls POP 的 size 比例分摊入 wealth，**尾差归最大府**。
+
+    守恒修正：逐府 `int(lump * size / total)` 截断使 Σcredit < lump，差额成为
+    无对手方的货币销毁（对账残差漂移源，实测 ~50 贯/月）。分摊后 Σcredit == lump。
+    """
+    if lump <= 0 or total <= 0:
+        return 0
+    shares = {}
+    big_key, big_sz = None, -1
+    for rk, p in state.prefectures.items():
+        sz = p["pops"][cls]["size"]
+        if sz > 0:
+            shares[rk] = int(lump * sz / total)
+            if sz > big_sz:
+                big_key, big_sz = rk, sz
+    if big_key is None:
+        return 0
+    shares[big_key] += lump - sum(shares.values())
+    for rk, c in shares.items():
+        state.prefectures[rk]["pops"][cls]["wealth"] += c
+    return lump
+
+
 def _settle_jiaozi_term(state, log):
     """交子界制：满一界换发新钞（5% 工墨费销毁）+ 超界作废（销币，抑通胀）。
 
@@ -1442,6 +1545,8 @@ def _settle_jiaozi_term(state, log):
     jz["age"] = 0
     jz["redeemed_total"] = jz.get("redeemed_total", jz.get("burned_total", 0)) + _burn
     state.statistics["jiaozi_redeemed"] = state.statistics.get("jiaozi_redeemed", 0) + _burn
+    # 注：jiaozi["issued"] 是**负债科目、不在 ACCOUNTS**，销毁不改变 M_ALL——
+    # 故此处**不登记** register_flow（登记会在每界凭空制造 +burn 正残差）。
     log.append(f"[交子] 第{jz['cycle']}界届满，换发新钞，工墨费销毁 {_burn}贯（销币抑价）")
 
 
@@ -1471,6 +1576,9 @@ def _settle_coin_melt(state, log):
                     _melted += _take
     if _melted > 0:
         # 熔铜池：钱变铜料（守恒），不在 money 公式（退出流通）
+        # 注：此为 M_ALL 内部转移（POP wealth 减少 = melted_pool 增加，ΔM_ALL == 0），
+        # **不是真实销毁**，故不登记 register_flow。真实销毁只在铜料真正离库时发生
+        # （_settle_mint 消耗 resources["铜"] 或建筑消耗），届时由调用方登记。
         state.coin["melted_pool"] = state.coin.get("melted_pool", 0) + _melted
         state.statistics["coin_melted"] = state.statistics.get("coin_melted", 0) + _melted
         # 熔铜池出口（备选·蔡权衡）：池 > 阈值（1 亿贯）→ 自动入 resources["铜"]
@@ -1810,10 +1918,22 @@ def _simulate_external(state, log):
                     _w = float(_p.get("weight", 0)) / _tot_w
                     _p["population"] = int(_total * _w)
                     _p["troops"] = int(_troops_total * _w)
-                # 兵 POP 对齐 Σ省兵力（int 截断差归零，三元一致）
-                _eb = ex.setdefault("pop", {}).get("兵")
-                if isinstance(_eb, dict):
-                    _eb["size"] = sum(int(p.get("troops", 0) or 0) for p in provinces)
+                    # 2026-09-22：三政权省域 POP 同步重派生（size 按该省**精确人口**
+                    # × type 份额，wealth/grain 保持演化值不动——只对齐 size）
+                    _ppops = _p.get("pops")
+                    if isinstance(_ppops, dict):
+                        for _kl, _share in _sh.items():
+                            _psz = int(_p.get("population", 0) * _share)
+                            _slot = _ppops.setdefault(_kl, {"size": 0, "wealth": 0, "grain": 0})
+                            _slot["size"] = _psz
+                        # 省内兵 size 对齐该省 troops（三元一致：兵==省兵力==军队）
+                        _pbs = _ppops.get("兵")
+                        if isinstance(_pbs, dict):
+                            _pbs["size"] = int(_p.get("troops", 0) or 0)
+            # 兵 POP 对齐 Σ省兵力（int 截断差归零，三元一致）
+            _eb = ex.setdefault("pop", {}).get("兵")
+            if isinstance(_eb, dict):
+                _eb["size"] = sum(int(p.get("troops", 0) or 0) for p in provinces)
             # 军队实体化同步：每支军队按其驻地省份 troops 重算 branches/兵额，
             # 与省兵力、兵 POP 三元一致（损耗/扩张后同步）。
             _armies = ex.get("armies")
@@ -1839,6 +1959,588 @@ def _simulate_external(state, log):
                     _a["troops"] = sum(_nb.values())
         except Exception:
             pass
+
+
+# ------------------------------------------------------------
+# Step 4.1: 外邦经济月度结算（2026-09-19 辽/西夏先行 → 2026-09-22 省域化：
+# 辽/西夏/大理经济拆到州/府一级，其余 38 政权维持简单模拟）
+# ------------------------------------------------------------
+def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype=""):
+    """省域/政权级通用经济相位 A-E（生产→商品市场→粮市→口粮→灾害/阶层流动→税/饷计算）。
+
+    钱粮守恒：商市/粮市/税全部整数精确转移；**不碰 treasury**——税从各阶层
+    wealth 扣走、饷需求按 type 费率算出，中央库藏记账由调用侧完成（省域
+    共享中央 treasury 串行记账）。阶层流动只走 size 迁移（ΣPOP 守恒），
+    灾害逃散记为自然减员（unrest 由调用侧加）。`rtype` 为政权 type（特产/
+    消费率表按 type 取）。返回统计 dict（含新粮价）。
+    `dz_hit` 为调用侧判定的本月灾害命中（减产系数已折进传入的 gy）。
+    """
+    produced = 0
+    eaten = 0
+    # ---- Phase A 生产：农产粮 / 工匠产布+绸（goods 惰性补齐）----
+    _nong = pop.get("农")
+    if isinstance(_nong, dict) and int(_nong.get("size", 0) or 0) > 0:
+        _g = int(int(_nong["size"]) * gy)
+        _nong["grain"] = int(_nong.get("grain", 0) or 0) + _g
+        produced += _g
+    _art = pop.get("工匠")
+    if isinstance(_art, dict):
+        _ag = _art.setdefault("goods", {})
+        _ag["布"] = int(_ag.get("布", 0) or 0) + int(
+            int(_art.get("size", 0) or 0) * cfg["goods_yield"])
+        # 绸（2026-09-22）：高附加值织物，士绅/官僚消费
+        _ag["绸"] = int(_ag.get("绸", 0) or 0) + int(
+            int(_art.get("size", 0) or 0) * float(cfg["silk_yield"]))
+        # 皮毛/药材（2026-09-22 多商品补维）：按政权 type 特产产出
+        _fur_y = float(cfg.get("fur_yield", {}).get(rtype, 0.0))
+        if _fur_y > 0:
+            _ag["皮毛"] = int(_ag.get("皮毛", 0) or 0) + int(
+                int(_art.get("size", 0) or 0) * _fur_y)
+        _herb_y = float(cfg.get("herb_yield", {}).get(rtype, 0.0))
+        if _herb_y > 0:
+            _ag["药材"] = int(_ag.get("药材", 0) or 0) + int(
+                int(_art.get("size", 0) or 0) * _herb_y)
+    # ---- Phase B 商品市场：布/绸/皮毛/药材 按 wealth 比例消费，货出工匠、
+    # 钱 7/3 分（尾差归商人）。各商品独立消费率表，逐件撮合（付实购额 ≤ 预算）----
+    _mer = pop.get("商人")
+    _fur_rates = cfg.get("fur_consume_rate", {}).get(rtype, {})
+    _herb_rates = cfg.get("herb_consume_rate", {}).get(rtype, {})
+    for kl, slot in pop.items():
+        if kl == "工匠" or not isinstance(slot, dict) or not isinstance(_art, dict):
+            continue
+        _ag = _art.setdefault("goods", {})
+        slot.setdefault("goods", {})
+        # 布（日用，全阶层）
+        _spend = int(int(slot.get("wealth", 0) or 0)
+                     * float(cfg["goods_consume_rate"].get(kl, 0.005)))
+        _gpool = int(_ag.get("布", 0) or 0)
+        if _spend > 0 and _gpool > 0:
+            _buy = min(_gpool, int(_spend / float(cfg["goods_price"])))
+            if _buy > 0:
+                _pay = int(_buy * float(cfg["goods_price"]))
+                slot["wealth"] = int(slot.get("wealth", 0) or 0) - _pay
+                slot["goods"]["布"] = int(slot["goods"].get("布", 0) or 0) + _buy
+                _ag["布"] = int(_ag.get("布", 0) or 0) - _buy
+                _art_share = int(_pay * 0.7)
+                _art["wealth"] = int(_art.get("wealth", 0) or 0) + _art_share
+                if isinstance(_mer, dict):
+                    _mer["wealth"] = int(_mer.get("wealth", 0) or 0) + (_pay - _art_share)
+        # 绸（富阶层；silk_consume_rate）
+        _sr = float(cfg.get("silk_consume_rate", {}).get(kl, 0.0))
+        _sspend = int(int(slot.get("wealth", 0) or 0) * _sr)
+        _spool = int(_ag.get("绸", 0) or 0)
+        if _sspend > 0 and _spool > 0:
+            _sbuy = min(_spool, int(_sspend / float(cfg["silk_price"])))
+            if _sbuy > 0:
+                _spay = int(_sbuy * float(cfg["silk_price"]))
+                slot["wealth"] = int(slot.get("wealth", 0) or 0) - _spay
+                slot["goods"]["绸"] = int(slot["goods"].get("绸", 0) or 0) + _sbuy
+                _ag["绸"] = int(_ag.get("绸", 0) or 0) - _sbuy
+                _sart = int(_spay * 0.7)
+                _art["wealth"] = int(_art.get("wealth", 0) or 0) + _sart
+                if isinstance(_mer, dict):
+                    _mer["wealth"] = int(_mer.get("wealth", 0) or 0) + (_spay - _sart)
+        # 皮毛（按 type 消费率表；游牧全阶层日用、党项仅富阶层）
+        _fr = float(_fur_rates.get(kl, 0.0))
+        _fpool = int(_ag.get("皮毛", 0) or 0)
+        if _fr > 0 and _fpool > 0:
+            _fexp = int(int(slot.get("wealth", 0) or 0) * _fr)
+            if _fexp > 0:
+                _fbuy = min(_fpool, int(_fexp / float(cfg.get("fur_price", 4.0))))
+                if _fbuy > 0:
+                    _fpay = int(_fbuy * float(cfg.get("fur_price", 4.0)))
+                    slot["wealth"] = int(slot.get("wealth", 0) or 0) - _fpay
+                    slot["goods"]["皮毛"] = int(slot["goods"].get("皮毛", 0) or 0) + _fbuy
+                    _ag["皮毛"] = int(_ag.get("皮毛", 0) or 0) - _fbuy
+                    _fart = int(_fpay * 0.7)
+                    _art["wealth"] = int(_art.get("wealth", 0) or 0) + _fart
+                    if isinstance(_mer, dict):
+                        _mer["wealth"] = int(_mer.get("wealth", 0) or 0) + (_fpay - _fart)
+        # 药材（大理型全阶层小比例自用）
+        _hr = float(_herb_rates.get(kl, 0.0))
+        _hpool = int(_ag.get("药材", 0) or 0)
+        if _hr > 0 and _hpool > 0:
+            _hexp = int(int(slot.get("wealth", 0) or 0) * _hr)
+            if _hexp > 0:
+                _hbuy = min(_hpool, int(_hexp / float(cfg.get("herb_price", 5.0))))
+                if _hbuy > 0:
+                    _hpay = int(_hbuy * float(cfg.get("herb_price", 5.0)))
+                    slot["wealth"] = int(slot.get("wealth", 0) or 0) - _hpay
+                    slot["goods"]["药材"] = int(slot["goods"].get("药材", 0) or 0) + _hbuy
+                    _ag["药材"] = int(_ag.get("药材", 0) or 0) - _hbuy
+                    _hart = int(_hpay * 0.7)
+                    _art["wealth"] = int(_art.get("wealth", 0) or 0) + _hart
+                    if isinstance(_mer, dict):
+                        _mer["wealth"] = int(_mer.get("wealth", 0) or 0) + (_hpay - _hart)
+    # 工匠余货月折旧（同宋 5%；布/绸/皮毛/药材均折旧）
+    if isinstance(_art, dict):
+        _ag = _art.setdefault("goods", {})
+        for _gd in ("布", "绸", "皮毛", "药材"):
+            if _ag.get(_gd):
+                _ag[_gd] = int(_ag[_gd] * cfg["goods_decay"])
+    # ---- Phase C 粮市撮合（净头寸；卖方分得同一笔实付额，尾差归最大卖/买方）----
+    need_of = {kl: int(int(v.get("size", 0) or 0)
+                       * float(GRAIN_CONSUME_PER_CAPITA.get(kl, 0.5)) * cmul)
+               for kl, v in pop.items() if isinstance(v, dict)}
+    sellers = []
+    for kl, v in pop.items():
+        if not isinstance(v, dict):
+            continue
+        surplus = max(0, int(v.get("grain", 0) or 0) - need_of.get(kl, 0))
+        if kl == "农":
+            surplus = max(0, surplus - need_of.get(kl, 0))   # 农保底：留 1 月口粮（同宋 P0-①）
+        if surplus > 0:
+            sellers.append((kl, surplus))
+    buyers = []
+    buyer_pool = 0
+    price_wen = max(int(price * 1000), 1)
+    for kl, v in pop.items():
+        if not isinstance(v, dict):
+            continue
+        short = max(0, need_of.get(kl, 0) - int(v.get("grain", 0) or 0))
+        if short <= 0:
+            continue
+        can_buy = min(short, (max(0, int(v.get("wealth", 0) or 0)) * 1000) // price_wen)
+        if can_buy > 0:
+            buyers.append((kl, can_buy))
+            buyer_pool += can_buy
+    famine_units = 0
+    sell_total = sum(s for _, s in sellers)
+    if sell_total > 0 and buyers:
+        trade = min(buyer_pool, sell_total)
+        # 卖方分配：按盈余占比（无宋制 FLOOR 抬权——floor 会越权卖出超额存粮）
+        _sell_q = {kl: int(trade * s / sell_total) for kl, s in sellers}
+        _deficit = trade - sum(_sell_q.values())
+        if _deficit and _sell_q:
+            _sk = max(_sell_q, key=lambda k: dict(sellers)[k])
+            _sell_q[_sk] += _deficit
+        # 买方分配：按可购占比，尾差归最大可购方（付得起的兜余款）
+        _can = dict(buyers)
+        _buy_q = {kl: int(trade * c / buyer_pool) for kl, c in buyers}
+        _deficit = trade - sum(_buy_q.values())
+        if _deficit and _buy_q:
+            _bk = max(_buy_q, key=lambda k: _can[k])
+            _buy_q[_bk] += _deficit
+        # 落地：买方粮+钱−（实付求和）；卖方粮−、分得**同一笔实付额**（尾差归末位）
+        _paid_total = 0
+        for kl, q in _buy_q.items():
+            if q > 0:
+                pop[kl]["grain"] = int(pop[kl].get("grain", 0) or 0) + q
+                _c = int(q * price)
+                pop[kl]["wealth"] = int(pop[kl].get("wealth", 0) or 0) - _c
+                _paid_total += _c
+        _items = [(kl, q) for kl, q in _sell_q.items() if q > 0]
+        _qtot = sum(q for _, q in _items) or 1
+        _left = _paid_total
+        for j, (kl, q) in enumerate(_items):
+            pop[kl]["grain"] = int(pop[kl].get("grain", 0) or 0) - q
+            if j == len(_items) - 1:
+                _c = _left
+            else:
+                _c = int(_paid_total * q / _qtot)
+                _left -= _c
+            pop[kl]["wealth"] = int(pop[kl].get("wealth", 0) or 0) + _c
+    # ---- 口粮消费（按职业×type 乘数；不足记饥荒）----
+    for kl, v in pop.items():
+        if not isinstance(v, dict):
+            continue
+        need = need_of.get(kl, 0)
+        _gr = int(v.get("grain", 0) or 0)
+        if _gr >= need:
+            v["grain"] = _gr - need
+            eaten += need
+        else:
+            eaten += _gr
+            famine_units += need - _gr
+            v["grain"] = 0
+    # ---- Phase C2 省域随机灾害（2026-09-22，镜像宋 Step 8 天灾相位）----
+    # 本月若受灾：产粮已按减产系数打过折（调用侧传入 gy 已折），粮价上浮（粮需比
+    # 失衡触发），unrest + 逃散（农 size 小比例流失，ΣPOP 守恒记为自然减员）。
+    # 无流民通道（外邦 POP 无 refugees），逃散即该省农 POP 直接减少。
+    disaster_loss = 0
+    _dz_cfg = cfg.get("disaster", {})
+    if dz_hit:
+        _flee = int(int(_nong.get("size", 0) or 0) * float(_dz_cfg.get("flee_rate", 0.01)))
+        if _flee > 0:
+            _nong["size"] = int(_nong.get("size", 0) or 0) - _flee
+            disaster_loss = _flee
+    # ---- Phase C3 省域阶层自然流动（2026-09-22，镜像宋阶层通道；走 size 迁移，ΣPOP 守恒）----
+    # 择优就业：农 wealth 人均低于工匠/商人 人均 wealth 时，部分农转工匠/商人；反之回流。
+    # 比例小（rate），月内单方向，保证 size 迁移 Σ 守恒（迁移者 size 原样搬，不增不减）。
+    class_migrated = 0
+    _cf_cfg = cfg.get("class_flow", {})
+    _cf_rate = float(_cf_cfg.get("rate", 0.001))
+    _cf_thr = float(_cf_cfg.get("threshold", 0.8))
+    if _cf_rate > 0 and isinstance(_art, dict):
+        _nong_sz = int(_nong.get("size", 0) or 0) if isinstance(_nong, dict) else 0
+        _art_sz = int(_art.get("size", 0) or 0)
+        _mer_sz = int(_mer.get("size", 0) or 0) if isinstance(_mer, dict) else 0
+        # 人均 wealth 比较：农 vs 工匠（择优就业：农穷而工匠富 → 农转工匠）
+        _nong_pc = int(_nong.get("wealth", 0) or 0) / _nong_sz if _nong_sz > 0 else 0.0
+        _art_pc = int(_art.get("wealth", 0) or 0) / _art_sz if _art_sz > 0 else 0.0
+        _target = max(_art_sz, _mer_sz)   # 流向富的（工匠或商人，取额大者）
+        _rich = _art if _art_sz >= _mer_sz else _mer
+        _rich_sz = int(_rich.get("size", 0) or 0)
+        if _rich_sz > 0:
+            _rich_pc = int(_rich.get("wealth", 0) or 0) / _rich_sz
+            if _nong_sz > 0 and _nong_pc < _rich_pc * _cf_thr:
+                _move = int(_nong_sz * _cf_rate)
+                if _move > 0:
+                    _nong["size"] = _nong_sz - _move
+                    _rich["size"] = _rich_sz + _move
+                    class_migrated = _move
+    # ---- Phase D 税/饷**计算**（wealth 扣税；饷需求算出，treasury 记账在调用侧）----
+    tax_total = 0
+    for kl, rate in cfg["tax_rate"].items():
+        slot = pop.get(kl)
+        if isinstance(slot, dict) and float(rate) > 0:
+            _t = int(int(slot.get("wealth", 0) or 0) * float(rate))
+            if _t > 0:
+                slot["wealth"] = int(slot.get("wealth", 0) or 0) - _t
+                tax_total += _t
+    _bs = pop.get("兵")
+    _os = pop.get("官僚")
+    _troops = int(_bs.get("size", 0) or 0) if isinstance(_bs, dict) else 0
+    _offs = int(_os.get("size", 0) or 0) if isinstance(_os, dict) else 0
+    _need_army = int(_troops * float(pay_cfg["soldier"]))
+    _need_off = int(_offs * float(pay_cfg["official"]))
+    # ---- Phase F 物价缓动：粮需比驱动 ±5%（钳位 [floor, cap]）----
+    _grain_all = sum(int(v.get("grain", 0) or 0) for v in pop.values() if isinstance(v, dict))
+    _need_g = sum(need_of.values())
+    if _need_g > 0:
+        if _grain_all < _need_g:
+            price = min(float(cfg["price_cap"]), price * 1.05)
+        elif _grain_all > _need_g * 2:
+            price = max(float(cfg["price_floor"]), price * 0.95)
+    return {"produced": produced, "eaten": eaten, "tax": tax_total,
+            "need_army": _need_army, "need_off": _need_off,
+            "famine": famine_units, "price": price,
+            "disaster_loss": disaster_loss, "class_migrated": class_migrated}
+
+
+def _settle_external_economy(state, log):
+    """外邦经济月度结算（2026-09-19 同构循环 → 2026-09-22 省域化）。
+
+    三政权（EXTERNAL_ECONOMY_REGIMES：辽/西夏/大理）：经济拆到**州/府一级**——
+    每省独立六类 POP（size 按省人口 × type 份额，权威经济账）+ 省域粮价，
+    逐省跑 生产→商品市场→省域粮市→口粮→税/饷；中央 treasury 共享（税汇总入
+    藏、饷按省序实付），省域 econ_audit 零残差断言，政权级 econ_audit = Σ省。
+    其余 38 政权：维持简单模拟（政权级聚合账单市场，同 2026-09-19 版）。
+
+    守恒（§13.10/§13.11）：外邦账户**不在宋 ACCOUNTS**——宋 M_ALL 对账不受
+    影响（岁币仍为 burn）；政权内 ΣPOP wealth + treasury 只因跨境流（岁币入账）
+    变化，省域 audit 公式：money_residual == Δ省wealth −(饷入账 − 税)，
+    grain_residual == Δ省grain −(产 − 食)，恒 0（回归 test_external_economy.py）。
+    旧档缺省域 pops 时按省人口幂等重建（setdefault 语义）。
+    """
+    from content.data import (GRAIN_CONSUME_PER_CAPITA, EXTERNAL_ECONOMY_REGIMES,
+                              EXTERNAL_ECON, _ext_pop_by_heads)
+    regimes = getattr(state, "external_regimes", None)
+    if not isinstance(regimes, dict):
+        return
+    for rk in EXTERNAL_ECONOMY_REGIMES:
+        ex = regimes.get(rk)
+        if not isinstance(ex, dict):
+            continue
+        cfg = EXTERNAL_ECON
+        rtype = str(ex.get("type", ""))
+        gy = float(cfg["grain_yield"].get(rtype, cfg["grain_yield"]["default"]))
+        cmul = float(cfg["consume_mult"].get(rtype, cfg["consume_mult"]["default"]))
+        pay_cfg = cfg["pay"].get(rtype, cfg["pay"]["default"])
+        treasury = int(ex.setdefault("treasury", 0) or 0)
+        provinces = ex.get("provinces") or []
+        provinces = [p for p in provinces if isinstance(p, dict)]
+        # ---- 省域路径：任一省带 pops 即省域化（三政权；旧档按省人口重建缺失）----
+        _prov_econ = False
+        for _p in provinces:
+            if not isinstance(_p.get("pops"), dict):
+                # 旧档兜底：按该省**精确人口**重建省域 POP（setdefault 幂等）
+                _p["pops"] = _ext_pop_by_heads(rtype, int(_p.get("population", 0) or 0))
+                _p["pops"].setdefault("兵", {"size": 0, "wealth": 0, "grain": 0})
+                _p["pops"]["兵"]["size"] = int(_p.get("troops", 0) or 0)
+            _prov_econ = True
+        if not provinces:
+            _prov_econ = False
+        # 省域粮价初值（setdefault 幂等；旧档兜底）
+        _p0 = float(cfg["grain_price0"].get(rtype, cfg["grain_price0"]["default"]))
+        for _p in provinces:
+            _p.setdefault("grain_price", _p0)
+        if _prov_econ:
+            agg = {"produced": 0, "eaten": 0, "tax": 0, "famine": 0,
+                   "paid_army": 0, "paid_off": 0, "arrears": 0,
+                   "disaster_loss": 0, "class_migrated": 0,
+                   "money_residual": 0, "grain_residual": 0}
+            for _p in provinces:
+                ppop = _p["pops"]
+                pprice = max(float(cfg["price_floor"]),
+                             min(float(cfg["price_cap"]),
+                                 float(_p.get("grain_price", 0) or 0) or _p0))
+                # 省域随机灾害（镜像宋 Step 8）：本月命中则产粮打折（折进 gy）+ 粮价上浮
+                _dz = cfg.get("disaster", {})
+                _dz_hit = random.random() < float(_dz.get("prob", 0.04))
+                _dz_gy = gy
+                if _dz_hit:
+                    _dz_gy = gy * random.uniform(float(_dz.get("min_yield", 0.5)),
+                                                 float(_dz.get("max_yield", 0.8)))
+                # 省域审计窗口起点（省 POP wealth/grain；中央 treasury 不在窗口）
+                _pm0 = sum(int(v.get("wealth", 0) or 0) for v in ppop.values() if isinstance(v, dict))
+                _pg0 = sum(int(v.get("grain", 0) or 0) for v in ppop.values() if isinstance(v, dict))
+                st = _ext_econ_phases(ppop, cfg, _dz_gy, cmul, pprice, pay_cfg, dz_hit=_dz_hit, rtype=rtype)
+                # 灾害 unrest 记账（逃散已在相位内折进 size；unrest 由调用侧加）
+                if _dz_hit:
+                    ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
+                    log.append(f"[外邦经济·{rk}·{_p.get('name')}] ⚠ 省域灾害：产粮打折、粮价上浮、unrest+1")
+                # 中央 treasury 串行记账：税入藏 → 饷按省序实付（共享库藏、先省先得）
+                treasury += int(st["tax"])
+                _need_all = int(st["need_army"]) + int(st["need_off"])
+                _scale = 1.0 if _need_all <= 0 else min(1.0, treasury / _need_all)
+                _pa = int(st["need_army"] * _scale)
+                _po = int(st["need_off"] * _scale)
+                treasury -= _pa + _po
+                _bs = ppop.get("兵")
+                if isinstance(_bs, dict) and _pa > 0:
+                    _bs["wealth"] = int(_bs.get("wealth", 0) or 0) + _pa
+                _os = ppop.get("官僚")
+                if isinstance(_os, dict) and _po > 0:
+                    _os["wealth"] = int(_os.get("wealth", 0) or 0) + _po
+                _arrears = _need_all - _pa - _po
+                if _arrears > 0:
+                    ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
+                if int(st["famine"]) > 0:
+                    ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
+                # 省域守恒审计：money_residual == Δ省wealth −(饷 − 税)；grain == Δ−(产−食)
+                _pm1 = sum(int(v.get("wealth", 0) or 0) for v in ppop.values() if isinstance(v, dict))
+                _pg1 = sum(int(v.get("grain", 0) or 0) for v in ppop.values() if isinstance(v, dict))
+                pa = _p.setdefault("econ_audit", {})
+                pa["money_residual"] = (_pm1 - _pm0) - (_pa + _po - int(st["tax"]))
+                pa["grain_residual"] = (_pg1 - _pg0) - (int(st["produced"]) - int(st["eaten"]))
+                pa.update({"produced": int(st["produced"]), "eaten": int(st["eaten"]),
+                           "tax": int(st["tax"]), "paid_army": _pa, "paid_off": _po,
+                           "arrears": max(0, _arrears), "famine": int(st["famine"]),
+                           "disaster_loss": int(st.get("disaster_loss", 0)),
+                           "class_migrated": int(st.get("class_migrated", 0))})
+                _p["grain_price"] = round(float(st["price"]), 3)
+                agg["produced"] += int(st["produced"]); agg["eaten"] += int(st["eaten"])
+                agg["tax"] += int(st["tax"]); agg["famine"] += int(st["famine"])
+                agg["paid_army"] += _pa; agg["paid_off"] += _po
+                agg["arrears"] += max(0, _arrears)
+                agg["disaster_loss"] += int(st.get("disaster_loss", 0))
+                agg["class_migrated"] += int(st.get("class_migrated", 0))
+                agg["money_residual"] += int(pa.get("money_residual", 0))
+                agg["grain_residual"] += int(pa.get("grain_residual", 0))
+                if int(pa.get("money_residual", 0)) != 0 or int(pa.get("grain_residual", 0)) != 0:
+                    log.append(f"[外邦经济·{rk}·{_p.get('name')}] ⚠ 省域守恒断裂 "
+                               f"money={pa['money_residual']:+d} grain={pa['grain_residual']:+d}")
+            # ---- Phase F 产业链（14 维原料，**产出挂州/府一级** + 省域自产自用闭环）----
+            # 每州/府（省）独立产出 14 维原料 → 入本省域 `resources`（州/府级库存）
+            # → 本省域作坊**优先领本省料**（最短板降效）→ 成品入省域 goods 池；
+            # 省域溢出（库存 > 月产×N 月）→ 入**政权仓**（resources_regime，跨省调剂枢纽）
+            # → 雀鼠耗（省域 stock + 政权仓 stock，非金属 1.2%/月、金属 0.5%/月）；
+            # 缺口省份从政权仓领料（跨州/府调拨，模拟边贸/漕运），政权仓余料回补省域。
+            # 资源守恒：省域 Δstock == 省产 − 省域领料 − 溢出入仓 + 政权仓调入 − 雀鼠耗（省域部分），
+            # 政权仓 Δstock == Σ省域溢出 − Σ省域调入 − 雀鼠耗（政权仓部分）；
+            # 两者合计恒 0（resource_residual 审计）；成品总存量 ≤ 当月配方产量（不凭空造货）。
+            _raw_dims = list(cfg.get("RAW_DIMS", []))
+            if _raw_dims:
+                _res_regime = ex.get("resources_regime")
+                if not isinstance(_res_regime, dict):
+                    _res_regime = ex.setdefault("resources_regime", {rd: 0 for rd in _raw_dims})
+                _metal = set(cfg.get("RAW_METAL_DIMS", []))
+                _spoil_rate = float(cfg.get("REGIME_RES_SPOIL", 0.012))
+                _spoil_metal = float(cfg.get("REGIME_RES_SPOIL_METAL", 0.005))
+                _overflow_months = float(cfg.get("RAW_OVERFLOW_MONTHS", 3.0))
+                _recipes = cfg.get("WORKSHOP_RECIPES_EXT", {}).get(rtype, [])
+                res_produced = 0
+                res_drawn = 0
+                res_spoiled = 0
+                res_overflow = 0
+                res_inflow = 0
+                # ---- F1 省域原料产出（按 type 系数 × 省人口，入**本省域** resources——州/府级库存）----
+                for _p in provinces:
+                    _pr = _p.get("resources")
+                    if not isinstance(_pr, dict):
+                        _p["resources"] = _pr = {rd: 0 for rd in _raw_dims}
+                    _py = _p.get("yields")
+                    if not isinstance(_py, dict):
+                        continue
+                    _p_month_prod = {}
+                    for rd in _raw_dims:
+                        _prod = int(int(_py.get(rd, 0) or 0))
+                        if _prod > 0:
+                            _pr[rd] = int(_pr.get(rd, 0) or 0) + _prod
+                            _p_month_prod[rd] = _prod
+                            res_produced += _prod
+                    _p["month_prod"] = _p_month_prod   # 记本月省域月产（供溢出上限判定）
+                # ---- F2 省域作坊**优先领本省料**（州/府自产自用闭环；最短板降效）----
+                for _p in provinces:
+                    _ppops = _p.get("pops") or {}
+                    _art = _ppops.get("工匠")
+                    if not isinstance(_art, dict):
+                        continue
+                    _art_sz = int(_art.get("size", 0) or 0)
+                    if _art_sz <= 0:
+                        continue
+                    _ag = _art.setdefault("goods", {})
+                    _pr = _p.get("resources") or {}
+                    for (_raw, _units, _fgood) in _recipes:
+                        _need = int(_art_sz * float(_units))
+                        if _need <= 0:
+                            continue
+                        _local_avail = int(_pr.get(_raw, 0) or 0)
+                        _draw_local = min(_need, _local_avail)
+                        if _draw_local > 0:
+                            _pr[_raw] = _local_avail - _draw_local
+                            res_drawn += _draw_local
+                            _ag[_fgood] = int(_ag.get(_fgood, 0) or 0) + _draw_local
+                        _gap = _need - _draw_local
+                        if _gap > 0:
+                            _p.setdefault("res_gap", {})[_raw] = \
+                                int(_p.get("res_gap", {}).get(_raw, 0) or 0) + _gap
+                # ---- F3 省域溢出 → 政权仓（库存 > 月产×N 月 → 溢出部分入仓，跨州/府调拨枢纽）----
+                for _p in provinces:
+                    _pr = _p.get("resources") or {}
+                    _mp = _p.get("month_prod") or {}
+                    for rd in _raw_dims:
+                        _st = int(_pr.get(rd, 0) or 0)
+                        if _st <= 0:
+                            continue
+                        _cap = int(_mp.get(rd, 0) * _overflow_months)
+                        if _cap > 0 and _st > _cap:
+                            _ovf = _st - _cap
+                            _pr[rd] = _cap
+                            _res_regime[rd] = int(_res_regime.get(rd, 0) or 0) + _ovf
+                            res_overflow += _ovf
+                # ---- F4 政权仓 → 省域缺口调入（跨州/府调拨，模拟边贸/漕运；缺口省份优先领）----
+                for _p in provinces:
+                    _gap = _p.get("res_gap")
+                    if not _gap:
+                        continue
+                    _pr = _p.get("resources") or {}
+                    _ag = _p.get("pops", {}).get("工匠", {}).setdefault("goods", {})
+                    for _raw, _gap_need in _gap.items():
+                        _avail = int(_res_regime.get(_raw, 0) or 0)
+                        _draw = min(_gap_need, _avail)
+                        if _draw > 0:
+                            _res_regime[_raw] = _avail - _draw
+                            _pr[_raw] = int(_pr.get(_raw, 0) or 0) + _draw
+                            res_inflow += _draw
+                            _fgood = None
+                            for (_r, _u, _f) in _recipes:
+                                if _r == _raw:
+                                    _fgood = _f
+                                    break
+                            if _fgood:
+                                _ag[_fgood] = int(_ag.get(_fgood, 0) or 0) + _draw
+                    _p["res_gap"] = {}   # 本月缺口已处理（领到多少算多少，余下下月再试）
+                # ---- F5 雀鼠耗（省域 stock + 政权仓 stock；非金属 1.2%/月、金属 0.5%/月）----
+                for _p in provinces:
+                    _pr = _p.get("resources") or {}
+                    for rd in _raw_dims:
+                        _st = int(_pr.get(rd, 0) or 0)
+                        if _st > 0:
+                            _rate = _spoil_metal if rd in _metal else _spoil_rate
+                            _spoil = int(_st * _rate)
+                            if _spoil > 0:
+                                _pr[rd] = _st - _spoil
+                                res_spoiled += _spoil
+                for rd in _raw_dims:
+                    _st = int(_res_regime.get(rd, 0) or 0)
+                    if _st > 0:
+                        _rate = _spoil_metal if rd in _metal else _spoil_rate
+                        _spoil = int(_st * _rate)
+                        if _spoil > 0:
+                            _res_regime[rd] = _st - _spoil
+                            res_spoiled += _spoil
+                # ---- 资源残差审计：Δ总库存 == 产 − 耗 − 领料（领料转成品，库存净减）----
+                _res_before = agg_res.get("_res_before", None)
+                _res_after_prov = sum(int(v.get(rd, 0) or 0) for _p in provinces
+                                      for rd, v in [(_p.get("resources") or {}).get(rd, 0) and {rd: v} or {rd: 0}]
+                                      for rd in _raw_dims for v in [_p.get("resources", {}).get(rd, 0)])
+                # 简化：直接算总库存变化 = 省域 stock 之和 + 政权仓 stock 之和
+                _res_total_after = sum(int((_p.get("resources") or {}).get(rd, 0) or 0)
+                                       for _p in provinces for rd in _raw_dims) \
+                    + sum(int(v or 0) for v in _res_regime.values())
+                agg["res_produced"] = res_produced
+                agg["res_drawn"] = res_drawn
+                agg["res_spoiled"] = res_spoiled
+                agg["res_overflow"] = res_overflow
+                agg["res_inflow"] = res_inflow
+                agg["res_total_after"] = _res_total_after
+                if _res_before is not None:
+                    agg["resource_residual"] = (_res_total_after - _res_before) - \
+                        (res_produced - res_spoiled - res_drawn)
+                else:
+                    agg["resource_residual"] = 0   # 首月无基准
+                # 记本月基准供下月审计
+                agg_res["_res_before"] = _res_total_after
+                if int(agg.get("resource_residual", 0)) != 0:
+                    log.append(f"[外邦经济·{rk}] ⚠ 资源残差 {agg['resource_residual']:+d} "
+                               f"（产 {res_produced} 领 {res_drawn} 耗 {res_spoiled} "
+                               f"溢出 {res_overflow} 调入 {res_inflow}）")
+            ex["treasury"] = treasury
+            ex["econ_audit"] = agg
+            # ex["pop"] 汇总视图刷新（size 由 _simulate_external 对齐；wealth/grain
+            # 从省域权威账加和——面板/岁币/审计读 ex["pop"] 始终与省域一致，不双账）
+            _aggv = {}
+            for _p in provinces:
+                for _kl, _v in (_p.get("pops") or {}).items():
+                    if not isinstance(_v, dict):
+                        continue
+                    _slot = _aggv.setdefault(_kl, {"wealth": 0, "grain": 0})
+                    _slot["wealth"] += int(_v.get("wealth", 0) or 0)
+                    _slot["grain"] += int(_v.get("grain", 0) or 0)
+            _reg_pop = ex.setdefault("pop", {})
+            for _kl, _v in _aggv.items():
+                _slot = _reg_pop.setdefault(_kl, {"size": 0, "wealth": 0, "grain": 0})
+                _slot["wealth"] = _v["wealth"]
+                _slot["grain"] = _v["grain"]
+            _ppr = max(float(_p.get("grain_price", 0) or 0) for _p in provinces) if provinces else _p0
+            log.append(f"[外邦经济·{rk}·省域×{len(provinces)}] 税入{agg['tax']:,} "
+                       f"军饷{agg['paid_army']:,} 官俸{agg['paid_off']:,} "
+                       f"产粮{agg['produced']:,} 饥荒{agg['famine']:,}石 "
+                       f"粮价≤{_ppr:.2f} 库藏{treasury:,}")
+            continue
+        # ---- 简单模拟路径（38 政权：政权级聚合账单市场，同 2026-09-19 版）----
+        pop = ex.get("pop")
+        if not isinstance(pop, dict) or not pop:
+            continue
+        price = float(ex.get("grain_price", 0) or 0) or _p0
+        price = max(float(cfg["price_floor"]), min(float(cfg["price_cap"]), price))
+        _m0 = sum(int(v.get("wealth", 0) or 0) for v in pop.values() if isinstance(v, dict)) + treasury
+        _g0 = sum(int(v.get("grain", 0) or 0) for v in pop.values() if isinstance(v, dict))
+        st = _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype=rtype)
+        treasury += int(st["tax"])
+        _need_all = int(st["need_army"]) + int(st["need_off"])
+        _scale = 1.0 if _need_all <= 0 else min(1.0, treasury / _need_all)
+        _pa = int(st["need_army"] * _scale)
+        _po = int(st["need_off"] * _scale)
+        treasury -= _pa + _po
+        _bs = pop.get("兵")
+        if isinstance(_bs, dict) and _pa > 0:
+            _bs["wealth"] = int(_bs.get("wealth", 0) or 0) + _pa
+        _os = pop.get("官僚")
+        if isinstance(_os, dict) and _po > 0:
+            _os["wealth"] = int(_os.get("wealth", 0) or 0) + _po
+        _arrears = _need_all - _pa - _po
+        if _arrears > 0:
+            ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
+        if int(st["famine"]) > 0:
+            ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
+        _m1 = sum(int(v.get("wealth", 0) or 0) for v in pop.values() if isinstance(v, dict)) + treasury
+        _g1 = sum(int(v.get("grain", 0) or 0) for v in pop.values() if isinstance(v, dict))
+        ex["treasury"] = treasury
+        audit = ex.setdefault("econ_audit", {})
+        audit["money_residual"] = _m1 - _m0
+        audit["grain_residual"] = (_g1 - _g0) - (int(st["produced"]) - int(st["eaten"]))
+        audit.update({"produced": int(st["produced"]), "eaten": int(st["eaten"]),
+                      "tax": int(st["tax"]), "paid_army": _pa, "paid_off": _po,
+                      "arrears": max(0, _arrears), "famine": int(st["famine"])})
+        if audit["money_residual"] != 0 or audit["grain_residual"] != 0:
+            log.append(f"[外邦经济·{rk}] ⚠ 守恒断裂 money={audit['money_residual']:+d} "
+                       f"grain={audit['grain_residual']:+d}")
+        log.append(f"[外邦经济·{rk}] 税入{int(st['tax']):,} 军饷{_pa:,} 官俸{_po:,} "
+                   f"产粮{int(st['produced']):,} 饥荒{int(st['famine']):,}石 "
+                   f"粮价{float(st['price']):.2f} 库藏{treasury:,}")
 
 
 # ------------------------------------------------------------
@@ -2075,7 +2777,11 @@ def _settle_granary(state, log):
                 for gdim, share in GOODS_DEMAND.get(pop_name, {"布": 1.0}).items():
                     if share > 0:
                         pop["goods"][gdim] = pop["goods"].get(gdim, 0) + int(spend * share)
-                artisan["wealth"] += int(spend * 0.7); merchant["wealth"] += int(spend * 0.3)  # 全额分配（0.7+0.3=1.0，钱守恒）
+                # 尾差归商人（守恒修正）：int(0.7x)+int(0.3x) ≤ x，截断差是无对手方销毁
+                # （逐月 ~百贯级残差漂移主源）；改为商人收余款，保证 Σcredit == spend。
+                _art_share = int(spend * 0.7)
+                artisan["wealth"] += _art_share
+                merchant["wealth"] += spend - _art_share
         # 3) 商品折旧（各 POP 持有商品每月 5% 消耗，商品有使用寿命、用完再买，防只增不耗）
         for _pop in p["pops"].values():
             for _gdim in _pop.get("goods", {}):
@@ -2112,7 +2818,9 @@ def _settle_granary(state, log):
         _lux = int(_genty["wealth"] * 0.01 * _boom)
         if _lux > 0:
             _genty["wealth"] -= _lux
-            artisan["wealth"] += int(_lux * 0.5); merchant["wealth"] += int(_lux * 0.5)
+            _lux_art = int(_lux * 0.5)
+            artisan["wealth"] += _lux_art
+            merchant["wealth"] += _lux - _lux_art   # 尾差归商人（守恒修正，奇数 _lux 不再丢 1 贯）
     # ---- 士绅囤粮操作（AI 推演档位优先，无 AI 按粮价方向兜底；钱粮守恒）----
     # B1（A1）出清顺序裁决：士绅先售、农售余量——士绅囤抛先于下方"非农缺粮买农粮"执行，
     # 与农售粮共用同一批缺粮 POP（工匠/商人/官僚/兵）的 wealth 池：先扣士绅粮款，
@@ -2186,14 +2894,26 @@ def _settle_granary(state, log):
                 _buy_q[bname] = q
                 _left -= q
             # 3) 落地：卖方 grain −、wealth +；买方 grain +、wealth −（钱粮双向守恒，总量 == trade）
-            for sname, q in _sell_q.items():
-                if q > 0:
-                    pops[sname]["grain"] -= q
-                    pops[sname]["wealth"] += int(q * price)
+            # 守恒修正：买卖两侧原本各自 int(q*price) 截断，Σ卖收 ≠ Σ买付（差额成无对手方
+            # 销毁/造币）。改为买方扣款求和后，卖方按份额分得**同一笔实付额**（尾差归末位）。
+            _paid_total = 0
             for bname, q in _buy_q.items():
                 if q > 0:
                     pops[bname]["grain"] += q
-                    pops[bname]["wealth"] -= int(q * price)
+                    _c = int(q * price)
+                    pops[bname]["wealth"] -= _c
+                    _paid_total += _c
+            _seller_items = [(sname, q) for sname, q in _sell_q.items() if q > 0]
+            _qtot = sum(q for _, q in _seller_items) or 1
+            _left = _paid_total
+            for _j, (sname, q) in enumerate(_seller_items):
+                pops[sname]["grain"] -= q
+                if _j == len(_seller_items) - 1:
+                    _c = _left
+                else:
+                    _c = int(_paid_total * q / _qtot)
+                    _left -= _c
+                pops[sname]["wealth"] += _c
         # 4) 口粮消费（按职业）：不足则饥荒（农逃荒）
         for pn, pop in pops.items():
             need = need_of[pn]
@@ -3964,19 +4684,37 @@ def _settle_finance(state, log):
     state.payraise_budget = max(0, state.payraise_budget - payraise_used)
 
     sui_gong = 0
+    _sui_parts = []   # [(政权, 银绢折钱额)]——岁币落账（2026-09-19）：钱入对应政权库藏
     _mult = getattr(state, "_sui_gong_mult", None) or {}
     if state.external.get("辽", {}).get("attitude", 50) >= 60:
-        sui_gong += int(SUI_GONG_ANNUAL * 0.6 / 12 * _mult.get("辽", 1.0))   # 岁币倍率（外交协议）
+        _amt = int(SUI_GONG_ANNUAL * 0.6 / 12 * _mult.get("辽", 1.0))   # 岁币倍率（外交协议）
+        if _amt > 0:
+            _sui_parts.append(("辽", _amt))
     if state.external.get("西夏", {}).get("attitude", 50) >= 60:
-        sui_gong += int(SUI_GONG_ANNUAL * 0.4 / 12 * _mult.get("西夏", 1.0))
+        _amt = int(SUI_GONG_ANNUAL * 0.4 / 12 * _mult.get("西夏", 1.0))
+        if _amt > 0:
+            _sui_parts.append(("西夏", _amt))
+    sui_gong = sum(_a for _, _a in _sui_parts)
     # 阶段 B-2：岁币岁赐是**真实外流**（钱付与辽/西夏，退出本经济体），
     # 登记为销毁通道，使对账残差不再把它误算成"凭空销毁"。
+    # 2026-09-19 岁币落账：外邦库藏**不在宋 ACCOUNTS**，对宋 M_ALL 而言口径不变
+    # （仍为 burn）；同时把每笔岁币记入对应政权 treasury，由
+    # `_settle_external_economy`（紧随本步）当月参与辽/夏的税饷/粮市循环——
+    # 岁币从此有可见去向，辽夏经济与宋同构（test_external_economy.py）。
     if sui_gong > 0:
         try:
             from core.money import register_flow as _reg_flow
             _reg_flow(state, "burn", int(sui_gong), "岁币岁赐外流")
         except Exception:  # noqa: BLE001
             pass
+        _ext_regimes = getattr(state, "external_regimes", {}) or {}
+        for _rk, _amt in _sui_parts:
+            _ex = _ext_regimes.get(_rk)
+            if isinstance(_ex, dict):
+                _ex["treasury"] = int(_ex.get("treasury", 0) or 0) + _amt
+                _ex.setdefault("econ_stats", {})
+                _ex["econ_stats"]["tribute_in"] = int(
+                    _ex["econ_stats"].get("tribute_in", 0) or 0) + _amt
 
     # 兵 POP size 重聚合（兵额唯一真账 = army_units.troops 求和，避免增募/伤亡后 POP 漂移）
     for _p in state.prefectures.values():
@@ -4052,27 +4790,25 @@ def _settle_finance(state, log):
 
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环；金额取**实付额**，见上）
     # 守恒修复（一体发钞）：俸禄已以交子支付，POP 铜钱不得再增（_paper_pay 门控）。
+    # 残差修正：逐府 int() 分摊截断曾使 Σcredit < 实付额（无对手方销毁 ~50贯/月），
+    # 改用尾差归最大府的守恒分摊 _distribute_pop_wealth，保证 Σcredit == 实付额。
     if not _paper_pay and _paid_personnel > 0:
         _ratio_army = army_pay / max(army_pay + official_pay, 1.0)
         _army_paid = int(_paid_personnel * _ratio_army)
         _off_paid = _paid_personnel - _army_paid
-        for _p in state.prefectures.values():
-            if _p["pops"]["兵"]["size"] > 0:
-                _p["pops"]["兵"]["wealth"] += int(_army_paid * _p["pops"]["兵"]["size"] / _total_soldiers)
-            if _p["pops"]["官僚"]["size"] > 0:
-                _p["pops"]["官僚"]["wealth"] += int(_off_paid * _p["pops"]["官僚"]["size"] / _total_guan)
+        _distribute_pop_wealth(state, _army_paid, "兵", _total_soldiers)
+        _distribute_pop_wealth(state, _off_paid, "官僚", _total_guan)
     # 支出回流（A1 定案·修货币漂移斜率 -13%→-3.5%）：常费不再纯蒸发 → 工匠 40% + 商人 60%（按 size 分摊，
     # 政府花钱买营造/服务/商品，钱进民间）；贪腐扣减 → 官僚 wealth（隐性聚敛，可抄没）；岁币保留销币（真实外流）。
     # 以上三项同样按 **实付额** 落地（`_pay_scale`），保证"扣==收"。
     _total_artisan = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
     _total_merchant = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
-    for _p in state.prefectures.values():
-        if _p["pops"]["工匠"]["size"] > 0:
-            _p["pops"]["工匠"]["wealth"] += int(_paid_civil * 0.4 * _p["pops"]["工匠"]["size"] / _total_artisan)
-        if _p["pops"]["商人"]["size"] > 0:
-            _p["pops"]["商人"]["wealth"] += int(_paid_civil * 0.6 * _p["pops"]["商人"]["size"] / _total_merchant)
-        if _p["pops"]["官僚"]["size"] > 0:
-            _p["pops"]["官僚"]["wealth"] += int(_paid_corruption * _p["pops"]["官僚"]["size"] / _total_guan)
+    if _paid_civil > 0:
+        _civ_artisan = int(_paid_civil * 0.4)
+        _distribute_pop_wealth(state, _civ_artisan, "工匠", _total_artisan)
+        _distribute_pop_wealth(state, _paid_civil - _civ_artisan, "商人", _total_merchant)
+    if _paid_corruption > 0:
+        _distribute_pop_wealth(state, _paid_corruption, "官僚", _total_guan)
     # 一体发钞时俸禄由交子支付（国库不发现金）；否则按**实付** personnel 计出
     if _paper_pay:
         effective_cash_out = 0
@@ -4277,3 +5013,70 @@ def _settle_disaster(state, log):
             log.append(f"[流民] {region}灾荒（{severity}级），本地流民骤增 {flee}，四散就食，田禾减产")
         log.append(f"[灾荒] {region}发生灾荒！严重度 {severity}")
         state.statistics["total_disasters"] += 1
+
+
+def _settle_bank_stock(state, log) -> None:
+    """**Step 10.6**：银行（抵当所）存款**存量**月末硬收敛（2026-09-19 修复）。
+
+    存款上限 = 目标阶层 POP 财富 × `didang_deposit_cap`（旋钮，默认 0.30）。
+
+    **为什么必须放在全部结算步之后**：原"吸储饱和"修复只约束**当月吸储流量**
+    （`_settle_bank` 内的 `_room`），而存款是历史累积、从不回落；且 `wealth` 在银行步
+    之后仍会被赋税/俸禄/物价等步骤继续改变 → 银行步内按当时 wealth 收敛，月末实测仍超限
+    （240 月压力测试：存款 15,541,569 贯 vs 上限 5,897,845 贯；仅按银行步内财富收敛仍差 1,489 贯）。
+
+    收敛分两段，**都不破坏货币守恒**：
+      ① 准备金足够 → **回吐**给目标阶层（`reserve` → POP `wealth`，成对转移）；
+      ② 不足（钱已贷出在 `loans` 里）→ 超额部分由「存款负债」**重分类**为
+         「已投放资金」memo（`disbursed`）：不动 `reserve`/`wealth`，货币总量不变，
+         只是账面科目重分类 —— 不假装那部分钱仍是可提取的民间存款。
+    """
+    b = getattr(state, "bank", None)
+    if not isinstance(b, dict) or not b.get("established"):
+        return
+    from core import institution as _inst
+    target = str(b.get("target") or "")
+    pop_name = target if target in ("农", "士绅", "工匠", "商人", "官僚", "兵") else "商人"
+    pools = []
+    for _p in (getattr(state, "prefectures", None) or {}).values():
+        slot = (_p.get("pops") or {}).get(pop_name)
+        if isinstance(slot, dict) and int(slot.get("wealth", 0) or 0) > 0:
+            pools.append(slot)
+    if not pools:
+        return
+    cap_ratio = float(_inst.get(state, "didang_deposit_cap", 0.30))
+    w_final = sum(int(s.get("wealth", 0) or 0) for s in pools)
+    if w_final <= 0:
+        return
+    cap = int(w_final * cap_ratio)
+    dep = int(b.get("deposits", 0) or 0)
+    if dep <= cap:
+        return
+
+    # ① 准备金够 → 回吐（成对：reserve ↓ / POP wealth ↑）
+    reserve = int(b.get("reserve", 0) or 0)
+    give = min(dep - cap, reserve)
+    if give > 0:
+        returned = 0
+        for _idx, slot in enumerate(pools):
+            w = int(slot.get("wealth", 0) or 0)
+            add = (give - returned) if _idx == len(pools) - 1 else int(give * w / max(1, w_final))
+            add = max(0, min(add, give - returned))
+            slot["wealth"] = w + add
+            returned += add
+        if returned > 0:
+            b["reserve"] = reserve - returned
+            b["deposits"] = dep - returned
+            log.append(f"[银行] 月末存款存量超上限，回吐 {returned:,}贯与{pop_name}（防抽干民间）")
+            # 回吐抬高财富 → 上限随之上抬，重算后再判是否需要重分类
+            w_final = sum(int(s.get("wealth", 0) or 0) for s in pools)
+            cap = int(w_final * cap_ratio)
+            dep = int(b.get("deposits", 0) or 0)
+
+    # ② 准备金不足（钱已贷出）→ 超额部分重分类为「已投放资金」memo（不动货币）
+    if dep > cap:
+        excess = dep - cap
+        b["deposits"] = cap
+        b["disbursed"] = int(b.get("disbursed", 0) or 0) + excess
+        log.append(f"[银行] 月末存款存量超上限，{excess:,}贯由存款负债转列「已投放资金」"
+                   f"（账面重分类，货币总量不变）")

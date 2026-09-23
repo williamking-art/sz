@@ -202,6 +202,14 @@ def test_subset_kind_must_match_fields():
                                              "routes": ["两浙路"]})
     assert not validate_faction_basis("x", {**base, "subset_kind": "pool+route",
                                              "pool": "clan", "routes": ["两浙路"]})
+    # 新枚举值 `faction`（2026-09-19 立场切片口径）：允许无 pool/无 routes，
+    # 但**不得再按地域切** —— 集团从"某地域/某子池的子集"改为"某阶级中持某立场的那一部分"。
+    # 实证：中立派 =「党争之外的第三方（不结党的士商力量）」＝士绅/商人 POP 中不结党的
+    # 那部分（**按立场切，不绑定东南**）；军功集团＝兵/官僚 POP 中持军功立场的那部分。
+    assert not validate_faction_basis("x", {**base, "subset_kind": "faction"})
+    assert validate_faction_basis("x", {**base, "subset_kind": "faction",
+                                         "routes": ["两浙路"]}), \
+        "立场切片不得再按地域切（routes 必须为 None）"
     # 现网 6 派与 5 个催生集团的声明都必须自洽
     from content.data import FACTION_NAMES, FACTION_POP_BASIS, REFORM_POP_BASIS
     for name in FACTION_NAMES:

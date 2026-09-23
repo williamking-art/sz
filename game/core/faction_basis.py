@@ -268,7 +268,7 @@ def basis_readout(state: Dict[str, Any], spec: Dict[str, Any],
 
     集团不是与 POP 并列的实体，而是**某阶级（或某子池、某路域）的子集**——故返回值
     同时给出 `parent_*`（母集）与 `share`（占母集比例），并附一句中文 `subset_note`，
-    面板/AI 据此写成"西军集团＝兵 POP 的路域子集，占全国兵额 X%"，不得并列展示。
+    面板/AI 据此写成"军功集团＝兵 POP 的路域子集，占全国兵额 X%"，不得并列展示。
     全部取自既有字段，不重算算法、不写 state。
     """
     prefs = _prefs(state)

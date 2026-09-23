@@ -59,7 +59,7 @@ def test_event_delta_is_consumed_once():
 
 def test_satisfaction_and_cohesion_move_toward_derived_target():
     s = _s()
-    name = "西军集团"
+    name = "军功集团"
     spec = FACTION_POP_BASIS[name]
     s.factions[name]["satisfaction"] = 0.0
     s.factions[name]["cohesion"] = 0.0

@@ -438,11 +438,11 @@ def api_advance(request: Request):
             events, log, report, _state = _backend.advance(_state, _get_ai())
         except AIRuntimeError as e:
             # 审查 I-2 / E-2 修复（2026-09-18）：回合推演是「全游戏级强制 AI → 拒绝式」，
-            # 未配置或推演失败时 core 抛 AIRuntimeError（core/commands.py:251-259）。
-            # 原先此处无人接管 → FastAPI 回 500 裸 "Internal Server Error"：
-            #   ① 与模块 docstring 的「无 key 自动降级」相矛盾（已同步勘误）；
-            #   ② 前端拿不到错误码，无法区分「没配 AI」与「真崩了」。
+            # 原先此处无人接管 → FastAPI 回 500 裸 "Internal Server Error"。
             # 现映射为 503 ＋ 结构化错误码（AI_ERROR_CODES 6 码之一）。
+            # 异常来源（2026-09-21 重审 M-1 更正）：三段式下 `advance_two_phase` **首段
+            # AI 预检**（AI 缺失/未配置 → code=AI_NOT_CONFIGURED，不 spawn daemon），
+            # 以及旧同步路径 `settle_turn` / `advance_and_settle` 的拒绝式。
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -459,6 +459,26 @@ def api_advance(request: Request):
             pass
         return {"events": _json_safe(events), "log": _json_safe(log),
                 "report": report, "state": _state_to_dict(_state)}
+
+
+@app.get("/api/advance/round2")
+def api_advance_round2(request: Request):
+    """**两段式回合推进 round2 轮询**（2026-09-21「民间情况先行」）。
+
+    首段 `/api/advance` 已同步返回程序真值月报（民间情况立即可读）；round2 daemon
+    线程在后台跑 AI 月报/奏章富化，完成后置 `state.rich_ready`。前端每 4s 轮询本端点，
+    `ready=true` 且 `rich_report` 非空 → 就地替换月报富文本段（阅读不中断）。
+    """
+    _require_auth(request)
+    with _lock:
+        s = _require_state()
+        return {"ready": bool(getattr(s, "rich_ready", False)),
+                "rich_report": str(getattr(s, "rich_report", "") or ""),
+                "rich_civilian": str(getattr(s, "rich_civilian", "") or ""),
+                "settle_error": str(getattr(s, "settle_error", "") or ""),
+                "log": _json_safe(list(getattr(s, "_last_settle_log", None) or [])),
+                # 后台结算完成的最新快照（供回合报告弹窗用 before/after 差值）
+                "state": _state_to_dict(s)}
 
 
 class ProposeProjectReq(BaseModel):

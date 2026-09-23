@@ -3,7 +3,7 @@
 
 锁定：
   1. 全局表校验（别名唯一 / 重叠指向存在 / 子通道落在基本盘内）；
-  2. **口径：集团名取「总集」，具体群体（西军、东南士人…）只能是 subchannels 子集**；
+  2. **口径：集团名取「总集」，具体群体（西军、中立派…）只能是 subchannels 子集**；
   3. 任意历史写法（旧名 / 推荐显示名 / 内部 ID）归一到同一权威键；
   4. 每个集团都能说明历史性质(kind)、POP 类、路线、子池与重叠关系（方案完成标准）。
 """
@@ -41,16 +41,16 @@ def test_display_name_is_superset_never_a_subset():
         disp = FACTION_DISPLAY_NAMES[key]
         subs = [x.get("name") for x in (spec.get("subchannels") or [])]
         assert disp not in subs, f"{key}: 显示名 {disp!r} 不得同时是自己的子集"
-    # 具体断例：西军 / 东南士人 都被下沉为子集
-    assert FACTION_DISPLAY_NAMES["西军集团"] == "军功集团"
-    assert "西军" in [x["name"] for x in FACTION_POP_BASIS["西军集团"]["subchannels"]]
-    assert FACTION_DISPLAY_NAMES["东南士人"] == "中立派"
-    assert "东南士人" in [x["name"] for x in FACTION_POP_BASIS["东南士人"]["subchannels"]]
+    # 具体断例：西军 / 东南士人 都被下沉为子集（显示名是总集，具体群体只作子集出现）
+    assert FACTION_DISPLAY_NAMES["军功集团"] == "军功集团"
+    assert "西军" in [x["name"] for x in FACTION_POP_BASIS["军功集团"]["subchannels"]]
+    assert FACTION_DISPLAY_NAMES["中立派"] == "中立派"
+    assert "东南士人" in [x["name"] for x in FACTION_POP_BASIS["中立派"]["subchannels"]]
     # 宦官是子集，集团总集名为「皇党集团」
-    assert FACTION_DISPLAY_NAMES["宦官集团"] == "皇党集团"
+    assert FACTION_DISPLAY_NAMES["皇党集团"] == "皇党集团"
     assert "入内内侍省" in [
-        x["name"] for x in FACTION_POP_BASIS["宦官集团"]["subchannels"]]
-    assert resolve_faction_key("皇党集团") == "宦官集团"
+        x["name"] for x in FACTION_POP_BASIS["皇党集团"]["subchannels"]]
+    assert resolve_faction_key("皇党集团") == "皇党集团"
 
 
 def test_every_faction_states_history_pop_routes_pool_overlap():
@@ -72,8 +72,8 @@ def test_resolve_faction_key_normalises_every_writing():
     assert resolve_faction_key("新法系") == "新党"
     assert resolve_faction_key("new_law_network") == "新党"
     assert resolve_faction_key("绍述派") == "新党"
-    assert resolve_faction_key("军功集团") == "西军集团"
-    assert resolve_faction_key("中立派") == "东南士人"
+    assert resolve_faction_key("军功集团") == "军功集团"
+    assert resolve_faction_key("中立派") == "中立派"
     assert resolve_faction_key("根本不存在的集团") is None
     assert faction_display_name("新党") == "新法系"
     assert faction_display_name("不存在的集团") == "不存在的集团"
@@ -131,7 +131,7 @@ def test_channels_expose_display_name_kind_and_subchannels():
     from core.faction_basis import build_faction_channels
     ch = build_faction_channels(GameState("史实"))
     assert ch["declared"] is True and ch["basis_errors"] == []
-    row = ch["factions"]["西军集团"]
+    row = ch["factions"]["军功集团"]
     assert row["display_name"] == "军功集团"
     assert row["kind"] == "military_command"
     assert "西军" in [x["name"] for x in row["subchannels"]]
