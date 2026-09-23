@@ -2455,10 +2455,7 @@ def _settle_external_economy(state, log):
                 _prev_audit = ex.get("econ_audit")
                 _res_before = _prev_audit.get("_res_before", None) \
                     if isinstance(_prev_audit, dict) else None
-                _res_after_prov = sum(int(v.get(rd, 0) or 0) for _p in provinces
-                                      for rd, v in [(_p.get("resources") or {}).get(rd, 0) and {rd: v} or {rd: 0}]
-                                      for rd in _raw_dims for v in [_p.get("resources", {}).get(rd, 0)])
-                # 简化：直接算总库存变化 = 省域 stock 之和 + 政权仓 stock 之和
+                # 总库存变化 = 省域 stock 之和 + 政权仓 stock 之和
                 _res_total_after = sum(int((_p.get("resources") or {}).get(rd, 0) or 0)
                                        for _p in provinces for rd in _raw_dims) \
                     + sum(int(v or 0) for v in _res_regime.values())
