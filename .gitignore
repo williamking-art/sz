@@ -85,6 +85,7 @@ game/frontend/**/*.bak
 _dev_tools/*
 !_dev_tools/songzuo-game-studio/
 !_dev_tools/agnes_gen.py
+!_dev_tools/dev-env.ps1
 # 文档入库：game-docs/ 是权威机制文档与审查/设计文档所在，
 # README 明确指向 `_dev_tools/game-docs/docs/游戏机制说明.md`；
 # 被 README 引为权威却整目录不入库属自相矛盾，故放行文档目录（仍排除其 __pycache__）。
