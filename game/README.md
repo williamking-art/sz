@@ -328,7 +328,7 @@ pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校
 1. **环境变量**（命令行/启动脚本）：
 
    ```bash
-   set SONGZUO_BACKEND=https://songzuo-298842-11-1440445995.sh.run.tcloudbase.com
+   set SONGZUO_BACKEND=https://<你的后端域名>      # 例：云托管服务的默认域名
    python -m backend.server
    ```
 
@@ -337,7 +337,7 @@ pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校
    （可选字段 `"token"`：服务端设置 `SONGZUO_SERVER_TOKEN` 时，客户端需携带同名 token 才能通过鉴权。）
 
    ```json
-   { "backend": "remote", "url": "https://songzuo-298842-11-1440445995.sh.run.tcloudbase.com" }
+   { "backend": "remote", "url": "https://<你的后端域名>" }
    ```
 
    置为 `{ "backend": "local" }` 或删除该文件即回到本地模式。
