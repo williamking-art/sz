@@ -466,9 +466,15 @@ function abortRequestError(): Error {
 
 export class ApiClient {
   private base: string;
+  /**
+   * Bearer token。服务端启用 SONGZUO_SERVER_TOKEN 时必需（远程 / 云托管部署即此情形）；
+   * 为空则不发 Authorization 头（本地回环模式不受影响，保持原有行为）。
+   */
+  private token: string;
 
-  constructor(base: string) {
+  constructor(base: string, token = "") {
     this.base = base.replace(/\/+$/, "");
+    this.token = token.trim();
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -494,8 +500,15 @@ export class ApiClient {
       }
       try {
         const res = await fetch(`${this.base}${path}`, {
-          headers: { "Content-Type": "application/json" },
           ...init,
+          headers: {
+            "Content-Type": "application/json",
+            // 服务端启用 SONGZUO_SERVER_TOKEN 时必须携带（否则 /api/* 一律 401，
+            // 而 /healthz 仍 200，表现为「服务健康但功能全废」）。
+            ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+            // 调用方显式传入的 headers 仍具最高优先级（保持原有语义）
+            ...((init?.headers as Record<string, string> | undefined) ?? {})
+          },
           signal: controller.signal
         });
         if (!res.ok) {
@@ -507,6 +520,14 @@ export class ApiClient {
             /* ignore */
           }
           console.error("[api] 非 2xx", path, res.status, detail);
+          // 401/403：服务端启用了 SONGZUO_SERVER_TOKEN，而客户端未携带或携带错误。
+          // 若不加这层，玩家只会看到「此令未获准：HTTP 401」而无从下手。
+          if (res.status === 401 || res.status === 403) {
+            throw new Error(
+              "政务后端拒收此令（未授权）：请设置环境变量 SONGZUO_SERVER_TOKEN，" +
+                "或在本机 backend_config.json 中补上 token 字段。"
+            );
+          }
           const msg =
             res.status >= 500
               ? `政务后端一时失序：${detail}`
