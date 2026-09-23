@@ -1546,15 +1546,26 @@ def external_pop_shares(pop_type: str) -> dict[str, float]:
 def _ext_pop_by_heads(regime_type: str, heads: int) -> dict[str, dict[str, int]]:
     """由政权类型与总人口（**人**，精确）派生六阶 POP（口/贯/石，审查 2026-09）。
 
-    省域经济账（2026-09-22）权威入口：按该省精确人口 × type 份额，逐阶层
-    int(total×share)（截断），size 合计 ≈ heads。wealth/grain 给粗略均值
-    （可参与结算演化）。返回 {"农": {"size", "wealth", "grain"}, ...}。
+    省域经济账（2026-09-22）权威入口：按该省精确人口 × type 份额分配六阶 size，
+    用**最大余数法**保证 size 合计**精确等于** heads（2026-09-23 修：原逐层
+    int() 截断会因份额归一化的浮点误差累计少 1~5 人）。wealth/grain 给粗略
+    均值（可参与结算演化）。返回 {"农": {"size", "wealth", "grain"}, ...}。
     """
     shares = external_pop_shares(regime_type)
     total = max(0, int(heads))
+    order = ("农", "士绅", "工匠", "商人", "官僚", "兵")
+    raw = {kl: total * float(shares.get(kl, 0) or 0) for kl in order}
+    sizes = {kl: int(v) for kl, v in raw.items()}
+    # 最大余数法：external_pop_shares 的归一化除法带浮点误差（如 0.55 → 0.5499…），
+    # 逐层 int() 截断会累计少 1~5 人（实测吐蕃 120 万口少 8 人），迫使守恒断言放宽容差。
+    # 此处按小数部分从大到小把余数补回，使 Σsize **精确等于** total。
+    _rest = total - sum(sizes.values())
+    if _rest > 0:
+        for _kl in sorted(order, key=lambda k: raw[k] - sizes[k], reverse=True)[:_rest]:
+            sizes[_kl] += 1
     out = {}
-    for kl in ("农", "士绅", "工匠", "商人", "官僚", "兵"):
-        sz = int(total * shares.get(kl, 0))
+    for kl in order:
+        sz = sizes[kl]
         if kl == "兵":
             # 兵不产粮、靠支给，wealth 少粮少
             out[kl] = {"size": sz, "wealth": int(sz * 4), "grain": int(sz * 10)}
