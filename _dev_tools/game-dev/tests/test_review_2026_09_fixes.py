@@ -109,7 +109,9 @@ def test_external_regime_pop_and_provinces():
     for key, ex in s.external_regimes.items():
         pop = ex.get("pop")
         assert isinstance(pop, dict) and pop, f"{key} 缺 pop"
-        assert abs(sum(v["size"] for v in pop.values()) - ex["population"] * 10000) <= 5, \
+        # 2026-09-23：_ext_pop_by_heads 改用最大余数法后 Σsize 精确等于人口×万，
+        # 容差由 5 收紧为 0 —— 任何份额归一化/取整回归都会被立刻抓住。
+        assert sum(v["size"] for v in pop.values()) == ex["population"] * 10000, \
             f"{key} 六阶 Σsize ≠ 人口×万"
         provs = ex.get("provinces")
         assert isinstance(provs, list) and provs, f"{key} 缺省份"
