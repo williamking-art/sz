@@ -1,0 +1,3 @@
+# 让 codebase-memory 索引项目文档（默认跳过名为 docs 的目录）
+!_dev_tools/game-docs/docs/
+!_dev_tools/game-docs/docs/**
