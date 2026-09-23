@@ -21,10 +21,25 @@ BackendClient 与游戏逻辑交互，不直接 import / 调用 core.commands。
 import os
 import sys
 import json
+import time
 import urllib.request
 import urllib.error
 
 from core import commands as cmd
+
+# 云托管冷启动参数（服务按需拉起、不常驻：MinNum=0）。与 Electron 端
+# `game/frontend/src/renderer/api/client.ts` 同口径、同判据：
+#   **503 的来源必须区分，不能一律重放** ——
+#     平台网关（实例缩容到 0）：响应体不是 JSON → 请求没到应用 → 重放安全，非幂等亦然；
+#     应用自身（backend/server.py 的 AI 拒绝式失败，advance/action 都在其中）：
+#       503 + JSON 结构化错误码 → 可能已进入处理流程 → 绝不重放（C4）。
+# 其余 5xx 与超时仍严格不重试非幂等端点。
+_COLD_START_WAIT = 150.0  # 冷启动等待上限（秒），与前端 COLD_START_WAIT_MS 对齐
+_IDLE_BEFORE_WARMUP = 45.0  # 距上次确证在线超过此时长 → 疑似已缩容到 0
+_WARMUP_POLL = 2.0  # 就绪轮询间隔（秒）
+_COLD_START_MSG = (
+    "后端正在唤起（云端实例按需启动，未保持常驻）：首次约需一两分钟，请稍候再试。"
+)
 from core.game_state import GameState
 from ai.client import AIClient
 
@@ -304,6 +319,7 @@ class HttpBackend(BackendClient):
     def __init__(self, base_url):
         self.base = base_url
         self._token = ""
+        self._last_ok = time.time()  # 上次「确证后端在线」的时刻（收到任何非网关 503 即算）
 
     def _headers(self) -> dict:
         """请求头（含可选 Bearer 鉴权；token 来自环境变量或 backend_config.json）。"""
@@ -314,42 +330,88 @@ class HttpBackend(BackendClient):
             h["Authorization"] = f"Bearer {self._token}"
         return h
 
-    def _post(self, path, payload=None, _attempt=0):
+    def _wait_ready(self, timeout) -> bool:
+        """无副作用就绪等待：轮询 `/health`（幂等、免鉴权）直到 2xx 或超时。
+
+        用途：云端实例按需启动（不常驻）时网关先返回 503，此时直接下发动作必然
+        失败；先等就绪再发，就不会把动作打进冷启动窗口。
+        """
+        deadline = time.time() + timeout
+        while True:
+            try:
+                with urllib.request.urlopen(self.base + "/health", timeout=10) as resp:
+                    if 200 <= resp.getcode() < 300:
+                        self._last_ok = time.time()
+                        return True
+            except Exception:
+                pass  # 冷启动期：网络错误 / 超时 / 503 一律视为尚未就绪
+            if time.time() >= deadline:
+                return False
+            time.sleep(_WARMUP_POLL)
+
+    def _post(self, path, payload=None, _attempt=0, _cold=False):
+        # 冷启动前置防护：非幂等端点若距上次确证在线已久（疑似实例已缩容到 0），
+        # 先做无副作用的就绪等待，免得把「推演 / 下诏 / 存档」白白打进冷启动窗口。
+        if (not _cold
+                and path.startswith(self._NON_IDEMPOTENT)
+                and (time.time() - self._last_ok) > _IDLE_BEFORE_WARMUP
+                and not self._wait_ready(_COLD_START_WAIT)):
+            raise RuntimeError(_COLD_START_MSG)
         body = json.dumps(payload if payload is not None else {}).encode("utf-8")
         req = urllib.request.Request(self.base + path, data=body, headers=self._headers())
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
+                self._last_ok = time.time()
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            # 响应体只能读一次：先取原文，后续各分支复用（原实现在多个分支各读一次，
+            # 到第二个分支时只能拿到空串）。
+            raw = e.read().decode("utf-8", "ignore")
+            # 收到任何非 503 响应都证明后端实例在线（连 401/4xx 也算：应用已应答）
+            if e.code != 503:
+                self._last_ok = time.time()
+            # 应用自身的 503 带 JSON 结构化错误码（backend/server.py 的 AI 拒绝式失败，
+            # advance/action 都在其中）；平台网关的 503 响应体不是 JSON。
+            app_503 = False
+            if e.code == 503:
+                try:
+                    parsed = json.loads(raw)
+                    app_503 = isinstance(parsed, dict) and "detail" in parsed
+                except Exception:
+                    app_503 = False
             # 审查 P1-13：鉴权失败给出明确指引（服务端配置 token 后所有 /api/* 强制校验）
             if e.code in (401, 403):
                 raise RuntimeError(
                     "后端未授权（HTTP %d）：请配置环境变量 SONGZUO_SERVER_TOKEN "
                     "或 backend_config.json 的 token 字段" % e.code)
+            # 冷启动重放：仅限「平台网关 503」（响应体非 JSON = 请求根本没到应用）
+            # → 即便非幂等也安全。应用自身的 503 绝不重放（C4：可能已进入处理流程）。
+            if e.code == 503 and not app_503 and not _cold:
+                if self._wait_ready(_COLD_START_WAIT):
+                    return self._post(path, payload, _attempt, True)
+                raise RuntimeError(_COLD_START_MSG)
             # 5xx（含云托管缩容到 0 后的 503）一般可重试：实例正在冷启动。
             # C4 修复：但**非幂等端点**（advance/action/resolve_event/save/decree）
             # 重试可能造成重复推演回合、重复下诏 → 一律不重试，如实上报。
             if 500 <= e.code < 600 and _attempt < self._max_retry:
                 if path.startswith(self._NON_IDEMPOTENT):
                     raise RuntimeError(
-                        f"后端错误 {e.code}（{path} 为非幂等端点，不自动重试）: "
-                        f"{e.read().decode('utf-8', 'ignore')}")
+                        f"后端错误 {e.code}（{path} 为非幂等端点，不自动重试）: {raw}")
                 # 审查 P3：5xx 重试补退避（原实现立即连打，冷启动窗口内无意义）
-                import time
                 time.sleep(self._retry_backoff * (2 ** _attempt))
                 return self._post(path, payload, _attempt + 1)
-            raise RuntimeError(f"后端错误 {e.code}: {e.read().decode('utf-8', 'ignore')}")
+            raise RuntimeError(f"后端错误 {e.code}: {raw}")
         except Exception as e:
             # C4 修复（重复计费/重复推演）：原实现**任何**异常都退避重发，含「读超时」
             # —— 超时 ≠ 未执行，服务端可能已处理并提交。现仅在「请求确认未送达」
             # （拒绝连接/DNS 失败等连接建立前错误）时重试；超时一律上抛。
             if _attempt < self._max_retry and self._is_presend_error(e):
-                import time
                 time.sleep(self._retry_backoff * (2 ** _attempt))
                 return self._post(path, payload, _attempt + 1)
             raise RuntimeError(f"无法连接后端 {self.base}: {e}")
 
-    # 冷启动容错：云托管 MinNum=0 时首次请求可能 503/超时，重试可等实例唤醒
+    # 冷启动容错：云托管 MinNum=0 时闲置后实例缩容到 0，网关回 503；
+    # 重放策略见模块头 `_COLD_START_*` 常量注释（**仅**对「网关 503」重放）。
     _max_retry = 3
     _retry_backoff = 1.0
     #: 非幂等端点前缀（重试会造成重复副作用）

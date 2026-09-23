@@ -59,6 +59,9 @@ export default function MainMenu() {
   const setInGame = useGameStore((s) => s.setInGame);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
   const backendReady = useGameStore((s) => s.backendReady);
+  // 首屏连接失败的原因（含云端实例按需启动的冷启动提示）。此前它只被写进 store、
+  // 没有任何组件消费 —— 玩家只看到「后端连接中…」一直转，却不说明为什么。
+  const backendError = useGameStore((s) => s.backendError);
 
   useEffect(() => {
     async function checkSave() {
@@ -282,8 +285,24 @@ export default function MainMenu() {
             <span>·</span>
             <span className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${backendReady ? "bg-emerald-500 animate-pulse" : "bg-red"}`} />
-              {backendReady ? "AI 枢密推演引擎已就绪" : "后端连接中…"}
+              {backendReady ? "AI 枢密推演引擎已就绪" : backendError ? "后端未就绪" : "后端连接中…"}
             </span>
+            {/* 失败原因必须可见：否则玩家只看到「后端连接中…」一直转却不知为何。
+                重载渲染层会重跑一轮就绪等待 —— 云端实例按需启动时，「等一会」是
+                正常现象而非故障，故文案需说明等待时长。 */}
+            {!backendReady && backendError && (
+              <>
+                <span className="max-w-[40rem] truncate text-red/80" title={backendError}>
+                  {backendError}
+                </span>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded border border-gold/40 px-2 py-0.5 text-gold transition hover:bg-white/10"
+                >
+                  重试
+                </button>
+              </>
+            )}
           </div>
           <div>宋祚游戏制造组 · 乾清通宝</div>
         </div>
