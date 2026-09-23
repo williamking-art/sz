@@ -69,6 +69,11 @@ assets/map/web/tiles/
 # 它绑定的是本机环境、属机器配置而非源码，故不入库。
 .cloudbase/
 
+# --- 开发辅助分析产物（可再生，不入库） ---
+# 由 _dev_tools/game-docs/analysis/econ_pg_export.py 生成；数据已落在
+# CloudBase PG 的 dev_econ_monthly 表（见文档 §8.9），产物本身不必入库。
+_dev_tools/game-docs/analysis/econ_monthly.json
+
 # --- 操作系统 / 编辑器 ---
 .DS_Store
 Thumbs.db
