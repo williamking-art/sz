@@ -10,9 +10,9 @@
 |---|---|---|---|---|
 |new_law_network|新法系|新党、绍述派|支持熙丰新法、绍述和财政整顿的官僚—士绅政治网络|官僚 officials 核心；新法暴露士绅为扩展层|
 |yuanyou_old_officials|元祐旧臣与保守士绅|旧党、旧法系|维护元祐旧制、反对绍述的政治联盟|全国士绅子集；在朝官僚可重叠|
-|inner_court|内侍与内廷势力|宦官集团|入内内侍省、供奉官及依附内廷的网络|京畿路官僚 officials 子集|
-|northwest_frontier_command|陕西边将与西军|西军集团|西北边防禁军将校、军户与军镇网络|陕西、河东、河北等路兵 POP 子集|
-|southeast_gentry_merchants|东南形势户与市舶商人|东南士人|东南科举士人、形势户、市舶和城市商人联盟|东南路线士绅+商人 POP|
+|inner_court|内侍与内廷势力|皇党集团|入内内侍省、供奉官及依附内廷的网络|京畿路官僚 officials 子集|
+|northwest_frontier_command|陕西边将与西军|军功集团|西北边防禁军将校、军户与军镇网络|陕西、河东、河北等路兵 POP 子集|
+|southeast_gentry_merchants|东南形势户与市舶商人|中立派|东南科举士人、形势户、市舶和城市商人联盟|东南路线士绅+商人 POP|
 |censorial_critics|台谏清议|清流言官|御史台、谏院及清议官僚网络|全国官僚 officials 子集|
 
 ## 子集关系

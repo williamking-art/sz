@@ -81,11 +81,11 @@ def test_a6_tier_effects_converted_and_applied():
 def test_a6_faction_change_tiers_applied():
     s = _new_state()
     e1 = _event_by_id("chongning_party_proscription")
-    before = {fn: s.factions[fn]["satisfaction"] for fn in ("新党", "旧党", "东南士人")}
-    apply_event_choice(s, e1, 0)  # 颁行党籍：新党 中升 / 旧党 大降 / 清流 小降 / 东南士人 微降
+    before = {fn: s.factions[fn]["satisfaction"] for fn in ("新党", "旧党", "中立派")}
+    apply_event_choice(s, e1, 0)  # 颁行党籍：新党 中升 / 旧党 大降 / 清流 小降 / 中立派 微降
     assert s.factions["新党"]["satisfaction"] == min(100, before["新党"] + 3)
     assert s.factions["旧党"]["satisfaction"] == max(0, before["旧党"] - 4)   # 大=1.5×3=4.5→round 4
-    assert s.factions["东南士人"]["satisfaction"] == max(0, before["东南士人"] - 1)
+    assert s.factions["中立派"]["satisfaction"] == max(0, before["中立派"] - 1)
 
 
 def test_a6_tech_tier_applied():

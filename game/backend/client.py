@@ -135,7 +135,11 @@ class LocalBackend(BackendClient):
     def advance(self, state, ai_client):
         # 审查修复：改走原子封装，使 advance_month 写入的 active_events 也纳入
         # 结算快照的回滚范围（原两步分开，结算失败回滚后事件仍留在场 → 幽灵事件）。
-        events, log, report = cmd.advance_and_settle(state, ai_client)
+        # 两段式（2026-09-21「民间情况先行」）：首段同步返回**程序真值月报**（民间情况
+        # 立即可读，数值结算已完成），AI 月报/奏章富化由 round2 daemon 线程后台补录——
+        # 完成后 `state.rich_ready=True` / `state.rich_report=富文本`（前端轮询
+        # `/api/state` 就地替换月报富文本段；本地/远程同源，`_state_to_dict` 直发）。
+        events, log, report = cmd.advance_two_phase(state, ai_client)
         # 与 HttpBackend 保持统一四元组签名 (events, log, report, new_state)
         return events, log, report, state
 

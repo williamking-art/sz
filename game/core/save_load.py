@@ -1,11 +1,53 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 存档系统"""
+
+# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
+#      14    def  _strip_unknown_faction_keys   —— 清理旧存档里**已废弃的集团名键**（2026-09-19 集团改名，用户定稿"不迁移"）。
+#      41    def  _safe_int   —— 宽松取整：空值 / 布尔 / 数字串可转则转；非法字符串、容器、NaN/inf → `default`。
+#      62    def  _safe_float   —— 宽松取浮点：语义同 `_safe_int`，并剔除 NaN / ±inf。
+#      79    def  _slot_path   —— 存档槽位文件路径（save/load/slots 三处共用，避免硬编码漂移）。
+#      84    def  save_game   —— 保存游戏到指定槽位（含记忆知识库同步写盘）。
+#     289    def  _merge_regions   —— 把存档中的政权数据并入新版默认结构。
+#     306    def  _load_situations   —— 载入校验（规范 §9）：返回 `(kept, bad)`。
+#     330    def  load_game   —— 从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）
+#     818    def  get_save_slots   —— 获取所有存档槽位信息
+# ══ 目录结束 ══
 import json
 import math
 import os
 from datetime import datetime
 
-from content.data import SAVE_DIR
+from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, FACTION_NAMES
+
+#: 当前合法集团名（改名后：新党/旧党/皇党集团/军功集团/中立派）
+FACTION_NAME_SET = frozenset(FACTION_NAMES)
+
+
+def _strip_unknown_faction_keys(state) -> list:
+    """清理旧存档里**已废弃的集团名键**（2026-09-19 集团改名，用户定稿"不迁移"）。
+
+    不迁移 ≠ 什么都不做：`faction_split`（立场占比）与各诏令的 `faction_stances`
+    都以集团名为键，而 `GameState.calc_decree_execution_rate` 会 `self.factions[名]`
+    直接取值 → 旧名残留会让**读档即崩**。故此处按当前 `FACTION_NAMES` 白名单删键，
+    只删已废弃的键、不动其余值；返回被删名单（供日志诊断）。
+    """
+    known = FACTION_NAME_SET
+    dropped: set = set()
+
+    def _clean(d) -> None:
+        if not isinstance(d, dict):
+            return
+        for k in [k for k in list(d.keys()) if str(k) not in known]:
+            d.pop(k, None)
+            dropped.add(str(k))
+
+    _clean(getattr(state, "faction_split", None))
+    for attr in ("pending_decrees", "active_decrees", "longterm_public", "longterm_secret",
+                 "pending_secret_decrees", "pending_public_decrees"):
+        for dec in (getattr(state, attr, None) or []):
+            if isinstance(dec, dict):
+                _clean(dec.get("faction_stances"))
+    return sorted(dropped)
 
 
 def _safe_int(value, default=None):
@@ -181,6 +223,11 @@ def save_game(state, slot: int = 1) -> bool:
         "population": state.population,
         "population_satisfaction": state.population_satisfaction,
         "refugee_count": state.refugee_count,
+        # 两段式回合推进（2026-09-21「民间情况先行」）：AI 富化月报 + 就位标记 + 民间反应富版
+        "rich_report": getattr(state, "rich_report", ""),
+        "rich_civilian": getattr(state, "rich_civilian", ""),
+        "rich_ready": bool(getattr(state, "rich_ready", False)),
+        "settle_error": getattr(state, "settle_error", ""),
 
         "disaster_severity": state.disaster_severity,
         "disaster_region": state.disaster_region,
@@ -436,14 +483,30 @@ def load_game(slot: int = 1):
     state.waste_reform = data.get("waste_reform", getattr(state, "waste_reform",
                                   {"active": False, "kind": "", "savings": 0,
                                    "target": 0, "months_left": 0, "progress": 0}))
-    # 旧档兼容：factions 按派系逐项合并，缺失的新字段保留 GameState 默认值
-    saved_factions = data.get("factions", state.factions)
+    # 集团改名（2026-09-19 用户定稿）：`东南士人→中立派`、`西军集团→军功集团`、
+    # `宦官集团→皇党集团`（改用 FACTION_POP_BASIS.aliases 里已备好的名称）。
+    # **旧档不迁移** —— 用户定稿"按新开局重建 factions"：
+    #   · `state.factions` 保留 GameState 的新开局默认值，**不合并**旧档派系数据；
+    #   · 旧名**不再作为未知派系加入**（原 `else: state.factions[fn] = fdata` 会让旧名
+    #     变成幽灵派系，而 `calc_decree_execution_rate` 遍历 `faction_stances` 时会
+    #     `self.factions[旧名]` 直接 KeyError → 读档即崩）；
+    #   · 旧名仍留在各集团 `aliases` 里（`resolve_faction_key` 可反查），故 AI/事件
+    #     文本里出现旧名时仍能归一，不影响在玩内容。
+    saved_factions = data.get("factions")
     if isinstance(saved_factions, dict):
+        # **同名派系照常合并**（如新党/旧党：其进度与改名无关，绝不因改名凭空丢失）
         for fn, fdata in saved_factions.items():
             if fn in state.factions and isinstance(fdata, dict):
                 state.factions[fn].update(fdata)
-            else:
-                state.factions[fn] = fdata
+        # **旧名不迁移**（用户定稿）：改名涉及的旧派系键被丢弃——不走原 `else` 分支
+        # （原实现会把旧名当**幽灵派系**加入 `state.factions`，而 `calc_decree_execution_rate`
+        # 遍历 `faction_stances` 时会 `self.factions[旧名]` → 读档即崩）。
+        _dropped = sorted(str(k) for k in saved_factions if k not in FACTION_NAME_SET)
+        if _dropped:
+            import logging as _lg6
+            _lg6.getLogger("save_load").warning(
+                "旧存档含已改名集团（东南士人/西军集团/宦官集团），按用户定稿不迁移，"
+                "其进度不并入新集团（同名派系不受影响）；忽略的旧派系：%s", _dropped)
     state.external = data.get("external", state.external)
     # 军队真账：兵额已迁移到 army_units（list[ArmyUnit]），central_arsenal 为央级实物库
     from core.army_models import build_army_units, ArmyUnit, CentralArsenal  # 延迟导入，避免顶层互引
@@ -554,6 +617,11 @@ def load_game(slot: int = 1):
     state.population = data.get("population", 80000000)
     state.population_satisfaction = data.get("population_satisfaction", 55)
     state.refugee_count = data.get("refugee_count", 0)
+    # 两段式回合推进（2026-09-21）：富化字段幂等补齐（旧档无 → 空/False）
+    state.rich_report = str(data.get("rich_report", "") or "")
+    state.rich_civilian = str(data.get("rich_civilian", "") or "")
+    state.rich_ready = bool(data.get("rich_ready", False))
+    state.settle_error = str(data.get("settle_error", "") or "")
 
     # 恢复灾荒
     state.disaster_severity = data.get("disaster_severity", 0)
@@ -598,6 +666,14 @@ def load_game(slot: int = 1):
     except Exception as e:  # noqa: BLE001
         import logging as _lg5
         _lg5.getLogger("save_load").warning("立场占比载入异常：%s", e)
+    # 集团改名后的**残留键清理**（用户定稿：不迁移；但绝不留 KeyError 隐患）——
+    # 旧档的 `faction_split` 与各诏令 `faction_stances` 里可能仍是旧名，而
+    # `calc_decree_execution_rate` 会 `self.factions[名]` 取值 → 不清则读档即崩。
+    _stripped = _strip_unknown_faction_keys(state)
+    if _stripped:
+        import logging as _lg7
+        _lg7.getLogger("save_load").warning(
+            "旧存档含已废弃的集团名键，已清理（不迁移）：%s", _stripped)
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
@@ -663,7 +739,7 @@ def load_game(slot: int = 1):
         p.setdefault("yields", {})
         p.setdefault("officials", 1)
         p.setdefault("clerks", 8)
-        p.setdefault("route_mult", 1.0)
+        p.setdefault("route_mult", ROUTE_MULT_DEFAULT)
         # 旧档兼容：地方财力缺省按"月税留成 25%"重建（贯），不用 storage（石）当财力
         p.setdefault("local_finance", round(p.get("monthly_tax", 200000) * 0.25))
         # 旧档兼容：地方府库（贯）缺省按"3 个月税入"重建

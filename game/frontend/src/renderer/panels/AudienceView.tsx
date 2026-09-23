@@ -89,7 +89,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
   const nobleTitle = dictInfo?.nobility || "";
   const isMilitary =
     /军|枢密|将|节度/.test(dictInfo?.role || "") ||
-    ["西军集团", "宦官集团"].includes(currentFaction);
+    ["军功集团", "皇党集团"].includes(currentFaction);
 
   function roleOf(name: string): string {
     const d = dict[name];

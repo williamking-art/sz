@@ -98,10 +98,10 @@ def test_examiner_faction_resolution_order():
     assert _examiner_faction(s) == "旧党"          # 默认：声量最大（韩忠彦等旧党在朝）
     s.central_orgs["礼部"]["holders"]["礼部尚书"] = "蔡京"   # 新党
     assert _examiner_faction(s) == "新党"
-    s.exam["examiner"] = "童贯"                    # 宦官集团，人名优先于机构
-    assert _examiner_faction(s) == "宦官集团"
-    s.exam["examiner_faction"] = "东南士人"         # 显式派系优先于一切
-    assert _examiner_faction(s) == "东南士人"
+    s.exam["examiner"] = "童贯"                    # 皇党集团，人名优先于机构
+    assert _examiner_faction(s) == "皇党集团"
+    s.exam["examiner_faction"] = "中立派"         # 显式派系优先于一切
+    assert _examiner_faction(s) == "中立派"
 
 
 def test_exam_flow_conserves_pop_and_adds_no_ledger():
@@ -123,13 +123,13 @@ def test_exam_flow_conserves_pop_and_adds_no_ledger():
 def test_yinben_inherits_father_faction_split_exactly():
     """荫补者随父辈派系：来派结构 = 士绅立场分布，严格按并流公式并入官僚。"""
     s = _s()
-    set_split(s, "士绅", {"旧党": 0.8, "东南士人": 0.2})
+    set_split(s, "士绅", {"旧党": 0.8, "中立派": 0.2})
     base = _officials_total(s)
     before = dict(_sum_ok(s, "官僚"))
     n = _triennial_yinben(s, [])
     assert n > 0
     after = _sum_ok(s, "官僚")
-    for f, share in (("旧党", 0.8), ("东南士人", 0.2)):
+    for f, share in (("旧党", 0.8), ("中立派", 0.2)):
         expect = (before.get(f, 0.0) * base + share * n) / (base + n)
         assert abs(after[f] - expect) < 1e-9, f
 

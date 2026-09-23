@@ -253,6 +253,45 @@ def route_agents(player_input: str = "", state=None,
 # ---------------------------------------------------------------------------
 # 与 game loop 融合：按需注入 Agent 契约（供 settle_turn 调用）
 # ---------------------------------------------------------------------------
+def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
+    """单个 agent 的注入（强并发的单元，2026-09-21「民间情况先行」首段并发化）。
+
+    并发安全性（逐一核对过）：
+      · AIClient 的 provider 栈是 `threading.local()`（ai/client.py:213-244——每线程
+        独立 push/pop）→ 多线程各自进入/退出 provider 的行为互不串扰；
+      · 各 agent 只写**自己**的 `settle_attr` 槽位（对 state 不同字段赋值）；
+      · `failures.append`（list）单次 append 在 CPython 下原子；
+    失败语义不变：单 agent 失败照旧记入 failures，不影响他 agent 与结算。
+    """
+    adef = AGENT_DEFS.get(aid)
+    if not adef or adef.get("wired") is False:
+        return None
+    method = adef.get("method")
+    attr = adef.get("settle_attr")
+    if not method or not attr:
+        return None                                    # narrative 无 settle_attr，跳过
+    # economy 由调用方强制前置推演并写入 _economy_ai（P1-11），此处跳过防双倍 token。
+    if attr == "_economy_ai" and getattr(state, "_economy_ai", None):
+        return None
+    try:
+        try:
+            r = getattr(ai_client, method)(state.posture, state=state)
+        except TypeError:
+            # 兼容旧签名契约（如 survey_settle(posture) 无 state 形参）
+            r = getattr(ai_client, method)(state.posture)
+    except Exception as e:  # noqa: BLE001
+        failures.append({"agent": aid, "method": method,
+                         "error": f"{type(e).__name__}: {e}"})
+        log.warning("Agent %s 唤醒失败: %s", aid, e)
+        return None
+    if isinstance(r, dict) and not r.get("_error"):
+        setattr(state, attr, r)
+        return aid
+    failures.append({"agent": aid, "method": method, "error": "contract_failed"})
+    log.warning("Agent %s 契约失败: %r", aid, r)
+    return None
+
+
 def inject_woken_agents(state, ai_client, woken: List[str]) -> List[str]:
     """只调用被唤醒的 Agent，注入 state._xxx_ai 槽位（未唤醒不消耗 token）。
     返回实际注入成功的 Agent id 列表。
@@ -260,41 +299,45 @@ def inject_woken_agents(state, ai_client, woken: List[str]) -> List[str]:
     T8 推演分级（不伪造 + 明确失败信号）：被唤醒的推演 Agent 失败 → **记入
     state._ai_failures**（明确失败清单：{agent, error}），不注入假槽位、不静默；
     economy 为强制核心推演，其失败由调用方（settle_turn/_ai_prelude）拒绝式处理。
+
+    **并发注入（2026-09-21，两段式首段提速）**：≥2 个唤醒 agent 时用线程池并发推演
+    （每个 agent 独立网络往返 ~7s，串行为首段耗时主因；并发后首段 ≈ max(单路)）。
+    单个唤醒 → 串行照旧（零额外开销）；economy 仍由调用方前置（并发只发被唤醒的其余 agent）。
     """
-    injected = []
     failures = getattr(state, "_ai_failures", None)
     if failures is None:
         failures = []
         state._ai_failures = failures
+
+    # economy 双引擎防覆盖（原逻辑原样保留）：调用方已注入 → 此处跳过
+    usable = []
     for aid in woken:
         adef = AGENT_DEFS.get(aid)
         if not adef or adef.get("wired") is False:
             continue
-        method = adef.get("method")
         attr = adef.get("settle_attr")
-        if not method or not attr:
-            continue  # narrative 无 settle_attr，跳过（月报另行）
-        # 审查 P1-11 修复：economy 由调用方强制前置推演并写入 _economy_ai
-        # （同步 _ai_prelude / 异步 run_settlement_ai 已注入），此处跳过，
-        # 否则同回合 economy_decide 被调用两次、后一次结果覆盖前一次（双倍 token + 不确定）。
         if attr == "_economy_ai" and getattr(state, "_economy_ai", None):
             continue
-        try:
-            try:
-                r = getattr(ai_client, method)(state.posture, state=state)
-            except TypeError:
-                # 兼容旧签名契约（如 survey_settle(posture) 无 state 形参）
-                r = getattr(ai_client, method)(state.posture)
-            if isinstance(r, dict) and not r.get("_error"):
-                setattr(state, attr, r)
-                injected.append(aid)
-            else:
-                # 契约失败/返回错误标记：明确记录，不伪造槽位
-                failures.append({"agent": aid, "method": method,
-                                 "error": "contract_failed"})
-                log.warning("Agent %s 契约失败: %r", aid, r)
-        except Exception as e:  # noqa: BLE001
-            failures.append({"agent": aid, "method": method,
-                             "error": f"{type(e).__name__}: {e}"})
-            log.warning("Agent %s 唤醒失败: %s", aid, e)
+        usable.append(aid)
+
+    if len(usable) <= 1:
+        injected = []
+        for aid in usable:
+            r = _inject_one(state, ai_client, failures, aid)
+            if r:
+                injected.append(r)
+        return injected
+
+    from concurrent.futures import ThreadPoolExecutor
+    # 每线程独立 provider 栈（threading.local，ai/client.py:213-244）+ 各 agent
+    # 只写自己的 settle_attr → 并发安全；失败按 agent 记入 state._ai_failures。
+    injected: list = []
+    with ThreadPoolExecutor(max_workers=min(4, len(usable)),
+                            thread_name_prefix="agent-inject") as pool:
+        futs = [pool.submit(_inject_one, state, ai_client, failures, aid)
+                for aid in usable]
+        for f in futs:
+            r = f.result() or None
+            if r:
+                injected.append(r)
     return injected

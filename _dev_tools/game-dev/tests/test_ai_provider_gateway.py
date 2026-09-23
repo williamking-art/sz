@@ -19,7 +19,7 @@ if _GAME_ROOT not in sys.path:
 
 from ai.client import AIClient  # noqa: E402
 
-AGNES = ("k-ag", "https://apihub.agnes-ai.com/v1", "agnes-2.5-flash")
+AGNES = ("k-ag", "https://apihub.agnes-ai.com/v1", "agnes-3.0-flash")
 A6 = ("k-a6", "https://api.a6api.com/v1", "gemini-3.8-flash")
 
 
@@ -129,24 +129,26 @@ def test_first_attempt_uses_primary_provider_not_fallback():
         return "ok"
     c._call_impl = impl
     assert c._call("sys") == "ok"
-    assert seq[0][0] == "agnes-2.5-flash" and "agnes" in seq[0][1]
+    assert seq[0][0] == AGNES[2] and "agnes" in seq[0][1]
     assert c.fallback_hits == 0
 
 
 def test_project_config_is_agnes_first_and_modern():
-    """项目配置口径（用户定稿）：主 = Agnes `agnes-2.5-flash`；兜底 = a6api `gemini-3.8-flash`；
-    **不得**出现旧世代模型名（否则"调用旧模型"违反口径）。"""
+    """项目配置口径（用户 2026-09-22 定稿）：主/结算 = Agnes `agnes-3.0-flash`；
+    **无 fallback 字段**（a6api 回退已从开发期结算验证移除——client.py 以
+    `fallback_model` 非空为回退开关，缺字段即永不回退，主失败走程序兜底）；
+    不得出现旧世代模型名（违反「只用最新/次新」）。"""
     import json
     cfg_path = os.path.join(_GAME_ROOT, "ai_config.json")
     if not os.path.exists(cfg_path):
         pytest.skip("未配置 ai_config.json")
     cfg = json.loads(open(cfg_path, encoding="utf-8").read())
-    assert cfg.get("model") == "agnes-2.5-flash", cfg.get("model")
+    assert cfg.get("model") == "agnes-3.0-flash", cfg.get("model")
     assert "agnes" in str(cfg.get("base_url", "")), cfg.get("base_url")
-    assert cfg.get("fallback_model") == "gemini-3.8-flash", cfg.get("fallback_model")
-    assert "a6api" in str(cfg.get("fallback_base_url", "")), cfg.get("fallback_base_url")
+    assert not cfg.get("fallback_model"), \
+        "fallback 已按用户口径移除（client.py：fallback_model 非空才回退）"
     blob = json.dumps(cfg, ensure_ascii=False)
     legacy = ("gemini-2.5", "gemini-3-pro-preview", "gpt-4o", "gpt-4.1", "claude-3",
-              "grok-3", "grok-4.3")
+              "grok-3", "grok-4.3", "agnes-2.5")
     bad = [m for m in legacy if m in blob]
     assert not bad, f"配置含旧世代模型（违反「只用最新/次新」）：{bad}"

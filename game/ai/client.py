@@ -1687,6 +1687,62 @@ class AIClient(ClientNarrativeMixin):
         raw = self._cached_call("monthly", posture, sys_p, "", 0.7, 600)
         return self._postprocess(raw, validate, lambda: _narrative_fallback("report"))
 
+    def civilian_situation(self, state=None):
+        """**民间反应（AI 版）**：按〔当前局势真值 + 本回合落下的圣旨〕推演民间当场反应。
+
+        语义分工（用户定稿 2026-09-21）：「民间情况」＝民间反应（平民/士绅/商贾），
+        与"月报"（结算后的**官方总结**：数值变化/政务进度/人事变动）**不同源、不同时**——
+        本路只写"民间会怎么看"，不碰月底结算的数值结果（官方月报走 `monthly_report`）。
+
+        失败 → 程序版兜底（`narrative_fallback.civilian_situation` 或 fallback_civilian），
+        不阻塞结算：装饰层全兜底，与 month-report 同一韧性口径。
+        """
+        from ai.narrative_fallback import civilian_situation as _civ_fallback
+        # ---- 真值输入（program side）----
+        era_name = str(getattr(state, "era_name", "") or "")
+        posture = str(getattr(state, "posture", "") or "")
+        decs = list(getattr(state, "pending_decrees", None) or [])
+        titles = [str(d.get("title", "")) for d in decs[-3:]
+                  if isinstance(d, dict) and d.get("title")]
+        fmt = lambda v: ("，".join(titles) if titles else "（本回合未落新旨）")   # noqa: E731
+        # 局势真值摘要（简短，不做决策数值）——防伪造，只把真值喂给模型
+        facts = []
+        try:
+            prefs = getattr(state, "prefectures", {}) or {}
+            if prefs:
+                ps = [round(float(p.get("grain_price", 1.0) or 1.0), 2) for p in prefs.values()]
+                ms = [int(p.get("mood", 50) or 50) for p in prefs.values()]
+                facts.append(f"粮价均值 {sum(ps) / len(ps):.2f}"
+                             f"（最高 {max(ps):.2f} / 最低 {min(ps):.2f}）")
+                facts.append(f"民情均值 {sum(ms) / len(ms):.0f}/100")
+            if int(getattr(state, "disaster_severity", 0) or 0) > 0:
+                facts.append(f"灾情 {int(state.disaster_severity)} 级（民间流民渐多）")
+            facs = getattr(state, "factions", None)
+            neg = [k for k, v in (facs or {}).items()
+                   if isinstance(v, dict) and int(v.get("satisfaction", 50) or 50) < 40]
+            if neg:
+                facts.append("集团不满：" + "、".join(neg))
+        except Exception:
+            pass
+        sys_p = _load_prompt(
+            "civilian_reaction",
+            era_name=era_name, posture=posture,
+            plural_decrees=("" if len(titles) < 2 else "（本回合最多 3 道；无新旨则此栏为空）"),
+            titles="；".join(titles) if titles else "（本回合未落新旨）",
+            facts="；".join(facts) if facts else "（无显著变动）")
+
+        def validate(o):
+            if not isinstance(o, dict) or not o.get("text"):
+                return None
+            o["text"] = _clean_text(o.get("text", ""))
+            return o if o["text"] else None
+
+        raw = self._cached_call("civilian", posture, sys_p, "", 0.8, 500)
+        res = self._postprocess(raw, validate, None)
+        if not isinstance(res, dict) or not res.get("text"):
+            return {"text": _civ_fallback(state), "_fallback": True}
+        return res
+
     def event_narrative(self, event_title, event_context, state=None):
         sys_p = _load_prompt("event_narrative", event_title=event_title, event_context=event_context)
         # 12 步 agent 化 P2：事件叙事闭集化（agent 只从本期来源闭集取材）

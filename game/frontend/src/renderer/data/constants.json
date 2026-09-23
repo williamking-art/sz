@@ -2,9 +2,9 @@
  "faction_names": [
   "新党",
   "旧党",
-  "宦官集团",
-  "西军集团",
-  "东南士人"
+  "皇党集团",
+  "军功集团",
+  "中立派"
  ],
  "faction_init": {
   "新党": {
@@ -19,19 +19,19 @@
    "cohesion": 40,
    "leader": "韩忠彦"
   },
-  "宦官集团": {
+  "皇党集团": {
    "influence": 70,
    "satisfaction": 80,
    "cohesion": 65,
    "leader": "童贯"
   },
-  "西军集团": {
+  "军功集团": {
    "influence": 60,
    "satisfaction": 70,
    "cohesion": 75,
    "leader": "种师道"
   },
-  "东南士人": {
+  "中立派": {
    "influence": 50,
    "satisfaction": 55,
    "cohesion": 50,
@@ -76,7 +76,7 @@
   },
   "兵部": {
    "duty": "武官选授、舆图军籍",
-   "faction": "西军集团",
+   "faction": "军功集团",
    "acts": [
     "整练新军",
     "缮修兵甲",
@@ -94,7 +94,7 @@
   },
   "工部": {
    "duty": "山泽沟洫、营造工役",
-   "faction": "宦官集团",
+   "faction": "皇党集团",
    "acts": [
     "兴修水利",
     "营缮宫观",

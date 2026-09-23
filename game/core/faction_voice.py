@@ -101,8 +101,22 @@ def _orgs(state) -> Dict[str, Any]:
 
 
 def voice_seats(state) -> Dict[str, float]:
-    """各集团声量 = Σ (其官员所任官职的权限权重)。只读；空 holder 不计。"""
-    out: Dict[str, float] = {}
+    """各集团声量 = Σ (其**官员个人**的声量)。只读；空 holder / 无派系不计。
+
+    **一人一份声量（2026-09-19 修复）**：每位在任官员只按其**最高权限职位**计一次，
+    兼任多个职位**不叠加**——依据用户定稿"官员的声量来自官职，派系的声量来自其官员"：
+    **官员才是载体**，一个人的政治影响力不会因为多挂一个头衔而翻倍。
+
+    原实现按"每个职位都取机构权限累加"（`Σ holder×org_voice`），会让兼任者的机构权限
+    重复计入：实证 `王古` 兼 `户部·户部尚书`（19.0）与 `户部·抵当所提举`（19.0）→ 38.0，
+    `曾布` 兼中书侍郎（12.0）与尚书右仆射（6.5）→ 18.5；结果中立派声量虚高到 67.0，
+    把"朝堂声量最大者"判给了它（影响 `_examiner_faction` 的知贡举举荐权归属）。
+    修正后：中立派 41.5 < 旧党 53.5（旧党在朝八人各领一职，声量来自**人数**，不是兼任）。
+
+    注：**不采用**"同机构去重"口径 —— 那会同时砍掉旧党（御史台/谏院/尚书省各有两人），
+    把"人多势众"这一真实政治优势抹掉；按人计权才与"官员是载体"自洽。
+    """
+    best: Dict[str, Tuple[float, str]] = {}      # 人名 → (最高权限, 派系)
     for org_name, o in _orgs(state).items():
         if not isinstance(o, dict) or o.get("abolished"):
             continue
@@ -114,8 +128,14 @@ def voice_seats(state) -> Dict[str, float]:
             continue
         for _title, holder in holders.items():
             fac = _faction_of(holder)
-            if fac:
-                out[fac] = out.get(fac, 0.0) + w
+            if not fac or not holder:
+                continue
+            prev = best.get(str(holder))
+            if prev is None or w > prev[0]:
+                best[str(holder)] = (w, fac)
+    out: Dict[str, float] = {}
+    for _holder, (w, fac) in best.items():
+        out[fac] = out.get(fac, 0.0) + w
     return out
 
 

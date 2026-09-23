@@ -366,7 +366,7 @@ def test_missing_pop_basis_is_rejected():
 def test_jungong_is_subset_of_soldier_and_official_pop():
     """军功集团 = 兵与官僚 POP 的边域**子集**（含以军功晋身的文官）。
 
-    2026-09-19 口径调整（用户定稿）：「西军集团」更名「军功集团」，基盘由
+    2026-09-19 口径调整（用户定稿）：「军功集团」更名「军功集团」，基盘由
     纯兵 POP 扩为 **兵 + 边路官僚**——军功补官、军前参议、经略安抚等文官因此可入；
     兵系仍只来自兵 POP（不得因此新开兵额账本）。展示仍须给母集占比，不得并列。
     """
@@ -374,7 +374,7 @@ def test_jungong_is_subset_of_soldier_and_official_pop():
     s = _state()
     fc = build_faction_channels(s)
     assert fc["declared"], fc["basis_errors"]
-    xijun = fc["factions"]["西军集团"]
+    xijun = fc["factions"]["军功集团"]
     b = xijun["basis_readout"]
     assert b["subset_of"] == ["兵", "官僚"] and b["subset_kind"] == "faction"
     assert b["troops"] > 0

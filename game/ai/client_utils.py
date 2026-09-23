@@ -261,10 +261,9 @@ def _load_prompt(name: str, **kwargs) -> str:
 
 # ============================================================
 # 档位换算表（AI 只给 tier，数字由程序掷定并封顶）
-# 单一权威源已迁至 content/data.py（TIER_RANGE/TIER_ORDER），此处只做导入转发
+# 单一权威源已迁至 content/data.py（TIER_RANGE），此处只做导入转发
 # ============================================================
-from content.data import TIER_RANGE, TIER_ORDER
-TIER_KEYS = list(TIER_RANGE.keys())
+from content.data import TIER_RANGE
 
 # 各维度档位 → 基准数值（再乘皇威乘数等）
 # 档位→数值换算基值/封顶：单一权威源在 content/data.py（审查 P1-2/P2-3 修复）。

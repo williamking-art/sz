@@ -23,10 +23,10 @@ from core.settlement_steps import (
     _settle_factions,
     _settle_economy, _settle_land_local, _settle_extensions,
     _settle_literacy,
-    _settle_longterm_decrees, _simulate_external,
+    _settle_longterm_decrees, _simulate_external, _settle_external_economy,
     _settle_granary, _settle_region_deepen,
     _settle_upkeep, _settle_officialdom, _settle_clan, _settle_clerks,
-    _settle_finance,
+    _settle_finance, _settle_bank_stock,
     _settle_projects, _settle_workshops, _settle_econ_prices,
     _settle_treasury,
     _evaluate_timeline_breaks,
@@ -130,12 +130,22 @@ def _settle_tech(state, log):
 
 
 def _settle_org_economy(state, log):
-    """层④机构经济生命周期：汇总各机构 budget_in/out 算 net，走 change_treasury，
-    受 TREASURY_COLLAPSE_LINE 约束（不可绕过 game_over）。
+    """层④机构经济生命周期（2026-09-22 守恒化：货币口径规范 §13.9 方案 B）。
 
-    注：net 直入国库为既有多账审计设计（budget_in=度支拨款额度、net=结余回缴/超支
-    补拨，审计测试 test_wealth_ledger_no_hoard 断言 org 步 ΔW==org_net）。
-    幅度为个位贯级，属机构财政生命周期记账，非 AI 改动通道守恒对象。"""
+    旧口径缺陷：`net = int(budget_in − budget_out)` 直入国库——拨款额度从未流出过，
+    逐机构取整后 ≈+39 贯/月凭空生钱（60 月审计残差 +2,360 贯唯一来源）。
+    新口径（同周期借→清，无在途余额）：
+      月初拨出：Σin 离开国库（度支拨款在途，月末归零）；
+      月末结清：实际支出 Σout 走 burn 通道（机构运营消耗，真实销毁），
+      余额 Σin−Σout 回缴国库（可为负 = 超支补拨）。
+    国库净变化 = −Σout，对账残差恒 0。`o["net"]` 语义随之改为
+    「国库净变化」= −int(out_i)；审计测试 test_wealth_ledger_no_hoard /
+    test_pop_identity 继续按 org 步 ΔW == Σnet 断言。
+    仍受 TREASURY_COLLAPSE_LINE 约束（不可绕过 game_over）；幅度为个位贯级
+    的机构财政生命周期记账。
+    """
+    total_in = 0
+    total_out = 0
     for oname, o in state.central_orgs.items():
         if o.get("abolished"):
             o["budget_in"] = o["budget_out"] = o["net"] = 0
@@ -144,14 +154,25 @@ def _settle_org_economy(state, log):
         o["budget_in"] = base_grant
         out = 1 + len(o.get("posts", [])) * 0.5 + len(o.get("branches", {})) * 0.3
         o["budget_out"] = round(out, 2)
-        # 国库记账为整数贯：net 先取整再入账（"文"级精度只存在于物价体系，不进国库）
-        net = int(round(o["budget_in"] - o["budget_out"]))
-        o["net"] = net
-        if net != 0:
-            state.change_treasury(net)
+        _oi = int(round(o["budget_out"]))          # 实际支取出账（整数贯；"文"级不进国库）
+        o["net"] = -_oi                            # 国库净变化 = −实际支出（在途已清）
+        total_in += int(o["budget_in"])
+        total_out += _oi
+    if total_in:
+        state.change_treasury(-total_in)          # 月初拨出：度支拨款（在途）
+    _back = total_in - total_out
+    if _back:
+        state.change_treasury(_back)              # 结余回缴 / 超支补拨
+    if total_out:
+        try:
+            from core.money import register_flow as _reg_flow
+            _reg_flow(state, "burn", total_out, "机构运营支出（预算实付）")
+        except Exception:  # noqa: BLE001
+            pass
     org_net = sum(o.get("net", 0) for o in state.central_orgs.values() if not o.get("abolished"))
     state.statistics.setdefault("org_net", 0)
     state.statistics["org_net"] = round(org_net, 2)
+    log.append(f"[机构经济] 拨款 {total_in} 实支 {total_out} 回缴 {_back}（burn 通道）")
 
 
 def _settle_legacies(state, log):
@@ -449,6 +470,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 禁止直接给集团发钱（集团读数由下方 Step 5.5 从 POP 实际变化派生）。
     _settle_finance(state, log)
 
+    # ---- [外邦经济] Step 4.1: 辽/西夏月度经济循环（2026-09-19）----
+    # 位置：紧随宋财政之后——岁币本月入辽/夏库藏（_settle_finance 岁币落账），
+    # 随即参与其税饷/粮市循环，同月闭环。外邦账户不在宋 ACCOUNTS，
+    # 宋 M_ALL 对账不受影响（岁币仍为 burn）。
+    _settle_external_economy(state, log)
+
     # ---- [货币信用] Step 4.2: 扩展维度自然演进（交子/铸币/熔化/金融/科举/科技/外交）----
     # 顺序修正（整改①-1）：货币信用排在税收之后——税率/税额先落账，货币发行与
     # 信用变化再影响物价（由下方物价相位读取），避免“先通胀再收税”的次序倒置。
@@ -511,6 +538,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     _pop_total = sum(_pop["size"] for _p in state.prefectures.values()
                      for _pop in _p["pops"].values()) + state.refugee_count
     state.population = max(10_000_000, _pop_total)
+
+    # ---- Step 10.6: 银行（抵当所）存款**存量**月末硬收敛 ----
+    # 必须在全部结算步之后：存款上限 = 目标阶层财富 × didang_deposit_cap，而 wealth 在
+    # 银行步（Step 4.2）之后仍会被赋税/俸禄/物价改变；银行步内收敛月末仍会超限
+    # （240 月压力测试：15,541,569 贯 vs 上限 5,897,845 贯）。
+    _settle_bank_stock(state, log)
 
     # ---- Step 10.9: 货币口径对账（阶段 B-1；**只读视图**，不改任何货币账户）----
     # 把本月各账户余额与上月末对比：`ΔM_ALL  = 外部净注入（白银流入）− 销毁 ＋ 残差`，

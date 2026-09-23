@@ -1,5 +1,54 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 核心游戏状态"""
+
+# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
+#      51    def  _next_month   —— 推进一个月份，返回新的 (year, month)。作为模块级纯函数，供 commands 与 settleme
+#      60    def  _build_pops   —— 每路 POP 群体开局分配（参考维多利亚人口分层）。
+#     110    def  _init_local_refugees   —— 按路本地流民开局基数：边镇/高动乱路略高，腹里近 0，体现北宋常态流徙而非开局危机。
+#     122    def  _init_city_defense   —— 按路类型初始化城防（0~100）：边镇高，腹里低，京畿最高。
+#     139    def  _garrison_by_tier   —— 某路各军籍兵额（人）聚合（供 to_public 快照，非真账）。
+#     148    def  _external_province_lonlats   —— 外邦省真实经纬（Web 舆图用）：取 geo_admin.REGIME_GEO[regime] 多边形 bbox
+#     175  class  GameState   —— 宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）
+#     179      .def  _init_external_regimes   —— 外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）。
+#     264      .def  _init_extensions   —— 扩展维度：金融/科举/科技/机制槽/外交/记忆/忠诚/贪腐 + 中枢机构运行态。
+#     346      .def  __init__   
+#     787      .def  get_prestige_info   
+#     797      .def  change_prestige   —— 修改皇威，自动做上限截断。
+#     812      .def  change_treasury   —— 修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）
+#     816      .def  change_imperial_treasury   —— 修改内帑（皇帝私库，与国库分理；禁止穿底）
+#     820      .def  deficit_depth   —— 累计亏空深度（贯，B3）：破产/库藏空虚两档线的**唯一判据**。
+#     828      .def  transfer_money   —— 钱组守恒划转：src → dst，返回实际划转额（不足则按 src 可付截断）。
+#     874      .def  drain_pop_wealth   —— 从各路同阶层 POP wealth 按池比例扣款，返回实扣额（守恒来源用）。
+#     898      .def  change_granary   —— 修改中央粮仓存粮（石），自动封顶于容量。
+#     902      .def  granary_capacity_used   
+#     905      .def  change_granary_cap   —— 新建仓储：扩建中央仓容量（石）。
+#     912      .def  jiaozi_issue_limit   —— 交子可发行上限（第二节§2）：取「准备金 / 税收接受度 / 信用上限」三者最紧。
+#     938      .def  ensure_finance_fields   —— 旧存档迁移：补齐 JIAOZI/BANK/STANDARD 新数据契约字段（幂等；**不改既有数值**）。
+#     959      .def  establish_bank   —— 设立官营银行（第二节§3）：准备金自国库/内帑**守恒划入**，不凭空造钱。
+#     992      .def  _derive_defense_lines   —— 由各路 army_units 聚合防线兵额（兵额唯一真账 = unit.troops）。
+#    1001      .def  defense_lines_view   —— 返回防区派生只读视图（每次调用实时聚合）。
+#    1009      .def  calc_decree_execution_rate   —— 计算诏令执行率。
+#    1051      .def  add_edict_draft   —— 将一道诏草加入待会签队列，返回 draft_id。
+#    1067      .def  get_edict_draft   
+#    1076      .def  minister_status   —— 返回大臣状态：'active' | 'dead' | 'dismissed'；缺省视为主事在朝。
+#    1080      .def  mark_minister_status   
+#    1084      .def  is_minister_available   
+#    1087      .def  remove_edict_draft   
+#    1091      .def  store_council_review   
+#    1094      .def  enqueue_ai_action   
+#    1105      .def  get_ai_pending   
+#    1109      .def  pop_ai_pending   
+#    1115      .def  set_ai_pending_status   
+#    1125      .def  update_era_name   
+#    1134      .def  _loyalty_band   —— 把后台忠诚度映射为定性档位（玩家不可见数值）。
+#    1145      .def  authority_brief_for_ai   —— 为改制结算 AI 组装定性上下文：威望 + 相关机构运行态度 + 大臣定性效忠度。
+#    1178      .def  org_ministers   —— 返回某机构「依职权回话」的相关大臣：含各岗位在任者与在办差遣领办人。
+#    1195      .def  matter_org   —— 返回某事权当前 owner 机构名（改权限/越权授权后可动态变化）。
+#    1203      .def  get_state_summary   —— 获取完整状态，用于 AI 调用
+#    1299      .def  posture   —— AI 所需的精简脱敏态势字符串。
+#    1355      .def  refugee_count   —— 全局流民数 = 各路本地 refugees 求和（单一事实来源，避免双写漂移）。
+#    1360      .def  refugee_count   —— 兼容旧代码对 self.refugee_count 的赋值：按比例摊回各路（极端兜底，正常不应触发）。
+# ══ 目录结束 ══
 import json
 import os
 import random
@@ -12,7 +61,7 @@ from content.data import (
     PRESTIGE_MAX, PRESTIGE_MIN, PRESTIGE_MONTHLY_CAP, PRESTIGE_MAJOR_EVENT_CAP,
     S_BASE, S_SUPPORT_WEIGHT, S_CONFLICT_WEIGHT, S_SECRET_BASE,
     S_SECRET_LOYALTY_WEIGHT, S_DIRECT_BONUS, S_ZHONGZHI_SUPPORT_WEIGHT,
-    E_MIN, E_MAX,
+    E_MIN, E_MAX, ROUTE_MULT_DEFAULT,
     TREASURY_START, INNER_TREASURY_START, ARRIVAL_BASE, EMPEROR_HEALTH_START,
     EMPEROR_ART_START, EMPEROR_TAOISM_START, EMPEROR_PLEASURE_START,
     FACTION_INIT, FACTION_NAMES, EXTERNAL_FORCES,
@@ -174,6 +223,214 @@ def _external_province_lonlats(regime_key: str, provs_src: list):
 
 class GameState(GameStateEconMixin):
     """宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）"""
+
+
+    def _init_external_regimes(self) -> None:
+        """外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）。
+
+        审查 2026-09：为每政权派生六阶 POP（`_ext_pop`）、省份运行态（`provinces`，
+        独立人口/兵力）与**实体军队**（`armies`，每省 1 支，仿宋 ArmyUnit）。原
+        EXTERNAL_REGIMES/_PROVINCES 结构保留。（2026-09-19 自 `__init__` 纯搬出，
+        零行为变更）
+        """
+        from content.data import _ext_pop, _ext_pop_by_heads, external_provinces_of, \
+            external_army_spec, external_province_buildings, EXTERNAL_ECON, \
+            EXTERNAL_ECONOMY_REGIMES
+        self.external_regimes: dict = {}
+        for key, info in EXTERNAL_REGIMES.items():
+            item = {k: v for k, v in info.items() if k != "hotspot"}
+            item["growth_curve"] = dict(info["growth_curve"])
+            item["rename_log"] = []
+            population_wan = int(item.get("population", 0))
+            regime_type = str(info.get("type", ""))
+            power_val = int(item.get("power", 0))
+            _hot = info.get("hotspot", (0.05, 0.05, 0.9, 0.9))
+            _hx, _hy, _hw, _hh = float(_hot[0]), float(_hot[1]), float(_hot[2]), float(_hot[3])
+            # 六阶 POP（口）——由总人口(万)与政权 type 派生
+            item["pop"] = _ext_pop(regime_type, population_wan)
+            # 外邦经济（2026-09-19）：政权库藏（岁币/税入落点；外邦账户**不在宋
+            # ACCOUNTS**，对宋 M_ALL 为 burn 口径）与政权粮价初值。旧档经
+            # _merge_regions 合并时缺失键保留此默认 → 存档兼容；结算步内另有
+            # setdefault 兜底。
+            _wealth0 = sum(int(v.get("wealth", 0) or 0) for v in item["pop"].values())
+            item["treasury"] = max(0, int(_wealth0 * float(EXTERNAL_ECON["treasury_ratio"])))
+            item["grain_price"] = float(EXTERNAL_ECON["grain_price0"].get(
+                regime_type, EXTERNAL_ECON["grain_price0"]["default"]))
+            # 省份独立运行态：每省带 人口(口)/兵力(人)/权重 + 中心坐标 + 默认建筑 + 归省军队
+            _troops_total = int(item["pop"].get("兵", {}).get("size", 0))
+            _provinces = []
+            _provs_src = external_provinces_of(key)
+            _n = max(1, len(_provs_src))
+            # 外邦省真实经纬（Web 舆图用）：取 REGIME_GEO 该政权多边形 bbox，按省序横向分布
+            _lonlats = _external_province_lonlats(key, _provs_src)
+            # 2026-09-22：三政权（辽/西夏/大理）经济拆到省域——每省挂六类 POP
+            # （按该省**精确人口** × type 份额派生，省域经济撮合的权威账）；
+            # 政权级 pop 保持原「国总人口 × 份额」派生（既有守恒断言基准：
+            # Σ六阶 size ≈ 人口×万，≤5 人），wealth/grain 结算后由省域单向同步。
+            # 其他政权维持简单模拟（无省域 POP，政权级 pop 即权威）。
+            _prov_econ = key in EXTERNAL_ECONOMY_REGIMES
+            # 2026-09-22 产业链：三政权省域挂 14 维原料产出（yields，按 type 系数 × 省人口派生）
+            # + 省域建筑 level（×0.05/Lv 乘数作用于产出）+ 省域物资仓（resources，
+            # 成品入池）；政权级挂 resources_regime（14 维原料仓，省域产出 → 政权仓
+            # 汇总 → 雀鼠耗 → 省域作坊领料，原料在政权内真实流动）。
+            _ry = EXTERNAL_ECON["RAW_YIELDS"].get(regime_type, EXTERNAL_ECON["RAW_YIELDS"]["default"])
+            _raw_wan = max(1, _prov_pop_wan := (population_wan if not _prov_econ else population_wan))
+            _raw_dims = list(EXTERNAL_ECON["RAW_DIMS"])
+            for _idx, (pn, pw) in enumerate(_provs_src):
+                _prov_pop = int(population_wan * 10000 * pw)
+                _prov_troops = int(_troops_total * pw)
+                # 省内坐标：在政权 hotspot 内按省序横向分布（展示/点击用，非精确史址）
+                _cx = _hx + _hw * (_idx + 1) / (_n + 1)
+                _cy = _hy + _hh * 0.5
+                _prov_yield = {
+                    rd: int(_prov_pop * float(_ry.get(rd, 0.0)))
+                    for rd in _raw_dims
+                } if _prov_econ else None
+                _prov_res = {rd: 0 for rd in _raw_dims} if _prov_econ else None
+                _provinces.append({
+                    "name": pn, "weight": round(float(pw), 4),
+                    "population": _prov_pop, "troops": _prov_troops,
+                    "pops": _ext_pop_by_heads(regime_type, _prov_pop) if _prov_econ else None,
+                    "yields": _prov_yield, "resources": _prov_res,
+                    "center": [round(_cx, 4), round(_cy, 4)],
+                    "center_lonlat": _lonlats[_idx] if _lonlats else None,
+                    "buildings": external_province_buildings(regime_type),
+                    "armies": [],
+                })
+            item["provinces"] = _provinces
+            # 政权级 14 维原料仓（省域产出 → 政权仓 → 雀鼠耗 → 省域领料，两级流通）
+            item["resources_regime"] = {rd: 0 for rd in _raw_dims} if _prov_econ else None
+            # 兵 POP 对齐 Σ省兵力（int 权重分摊截断差归零，三元严格一致：兵POP==Σ省==Σ军队）
+            item["pop"]["兵"]["size"] = sum(int(p["troops"]) for p in _provinces)
+            # 军队实体化：每省 1 支军队，兵额=该省 troops，branches 按 type 拆兵种
+            _core, _split, _tr_base, _mo_base = external_army_spec(regime_type)
+            _training = max(20, min(90, _tr_base + min(25, power_val // 4)))
+            _morale = max(30, min(90, _mo_base + min(20, power_val // 5)))
+            _armies = []
+            _seq = 0
+            for _p in _provinces:
+                _t = int(_p["troops"])
+                if _t <= 0:
+                    continue
+                _seq += 1
+                _branches = {}
+                _rem = _t
+                _keys = list(_split.keys())
+                for _i, _bk in enumerate(_keys):
+                    _n = int(_t * _split[_bk]) if _i < len(_keys) - 1 else _rem
+                    if _n > 0:
+                        _branches[_bk] = _n
+                        _rem -= _n
+                if not _branches:
+                    continue
+                _army = {
+                    "uid": f"{key}_a{_seq:02d}",
+                    "name": f"{_p['name']}·{_core}",
+                    "tier": _core,
+                    "branches": _branches,
+                    "troops": sum(_branches.values()),
+                    "morale": _morale,
+                    "training": _training,
+                    "equip": {},
+                    "station": _p["name"],
+                    "regime": key,
+                }
+                _armies.append(_army)
+                _p["armies"].append(_army)   # 军队归入省份信息
+            item["armies"] = _armies
+            self.external_regimes[key] = item
+
+
+    def _init_extensions(self) -> None:
+        """扩展维度：金融/科举/科技/机制槽/外交/记忆/忠诚/贪腐 + 中枢机构运行态。
+
+        2026-09-19 自 `__init__` 纯搬出，零行为变更。
+        """
+        # ---- 田亩户籍 ----
+        self.land = dict(LAND_INFO)
+
+        # ---- 奏对历史（召见大臣多轮对话） ----
+        self.dialogue_history: list = []   # [(speaker, text), ...]
+        self.last_audience: str = ""       # 最近召见的大臣
+
+        # ---- 两段式回合推进（2026-09-21「民间情况先行」）----
+        # 首段（同步）：economy+agent 注入 → 程序结算 → **民间反应（程序真值）**立即返回；
+        # round2（daemon 线程）：AI 民间反应 / AI 官方月报 / AI 奏章 → 完成置 rich_ready。
+        # 语义分工（用户定稿）：民间情况＝民间反应（局势+圣旨怎么看），月报＝官方总结
+        # （数值变化/政务进度/人事变动）。旧档缺字段：save/load 幂等补齐。
+        self.rich_report: str = ""         # 官方月报富化版（空 = 无富化，程序兜底即最终版）
+        self.rich_civilian: str = ""       # AI 民间反应富化版（空 = 程序版已可读）
+        self.rich_ready: bool = False      # 本回合富化链是否已跑完（前端据此停止轮询）
+
+        # ---- 扩展维度：金融/货币/市舶/交子/银行/本位 ----
+        self.jiaozi = dict(JIAOZI_INFO)
+        self.maritime = dict(MARITIME_INFO)
+        self.coin = dict(COIN_INFO)
+        self.bank = dict(BANK_INFO)
+        self.standard = dict(STANDARD_INFO)
+
+        # ---- 扩展维度：科举/学校 ----
+        self.exam = dict(EXAM_INFO)
+
+        # ---- 扩展维度：科技/工技 ----
+        self.tech = dict(TECH_INFO)
+        # 开局默认已启北宋既有之器（DEFAULT_UNLOCKED 9 根节点）
+        if not self.tech.get("unlocked"):
+            from content.data import DEFAULT_UNLOCKED
+            self.tech["unlocked"] = list(DEFAULT_UNLOCKED)
+        # 研发管线（五层③）：玩家可研项目 {名: {progress, masters, monthly_cost}}
+        self.tech.setdefault("projects", {})
+
+        # ---- 机制槽（五层②）：{机制名: {org, params, progress}} ----
+        self.mechanisms: dict = {}
+
+        # ---- 扩展维度：外交细化（金/辽/夏关系动作后的态势标记） ----
+        self.diplomacy_log: list = []      # 外交动作记录
+        self.alliance_jin_liao: bool = False  # 是否联金抗辽（海上之盟）
+        # 外交对话协议（言枢密 diplomacy_dialogue 落地；存档持久化）
+        self.treaties: dict = {}                 # {势力: [{type, terms, turn, year, month}]}
+        self._at_war: dict = {}                  # {势力: 1/0} 战争标记
+        self._sui_gong_mult: dict = {"辽": 1.0, "金": 1.0, "西夏": 1.0}   # 岁币倍率
+        self._trade_income: dict = {}            # {势力: 榷场月入}
+
+        # ---- 大臣长期记忆（真 function calling 落档；存档兼容旧档缺字段默认空） ----
+        self.minister_memory: dict = {}    # {大臣名: [办差记录/长久偏好]}
+        self.player_minister_status: dict = {}  # {大臣名: "active"|"dead"|"dismissed"} 角色状态校验
+
+        # ---- 大臣忠诚度（后台隐藏，不可见；0.0 离心 ~ 1.0 死忠）----
+        # 注意：权限归属机构/职位（见 central_orgs），忠诚度归属个人，二者分离。
+        self.loyalty: dict = loyalty_init()
+
+        # ---- 大臣贪腐度（后台隐藏，不可见；0.0 清廉 ~ 1.0 贪墨极甚）----
+        # 随制度/圣旨颁布后的事件联动变化，绝不进入任何 UI 文本。
+        self.corruption: dict = corruption_init()
+
+        # ---- 中枢机构运行态（权限跟随机构/职位，不跟随人）----
+        # lead 由 posts[0].holder 派生（兼容旧接口）；posts/holders/comissions 承载权限。
+        self.central_orgs: dict = {
+            name: {
+                "lead": org_lead(info),
+                "belong": info.get("belong", "皇帝"),
+                "scope": info.get("scope", ""),
+                "authority": list(info.get("authority", [])),
+                "matter_keys": list(info.get("matter_keys", [])),
+                "posts": [dict(p) for p in info.get("posts", [])],   # 岗位表（属机构）
+                "holders": dict(info.get("holders", {})),            # 人岗映射（换人不变权）
+                "comissions": list(info.get("comissions", [])),      # 差遣列表（交差即撤）
+                "abolished": False,        # 是否被裁撤
+                "efficiency": 1.0,         # 运行效率倍率（改制后果结算用）
+                "backlog": 0,              # 政务积压
+                # ---- 五层承接层扩展字段 ----
+                "branches": {},            # 地理挂载：{路名: [分机构名]}（与 prefectures[路]["orgs"] 双向索引）
+                "budget_in": 0,           # 机构经济生命周期：本月进项（朝廷拨/民间工程，贯）
+                "budget_out": 0,          # 机构经济生命周期：本月支出（工匠俸/工训营/流民口粮，贯）
+                "net": 0,                 # 机构经济生命周期：本月净结余（受崩盘线约束）
+            }
+            for name, info in CENTRAL_ORG_INFO.items()
+        }
+        self.authority_matters: dict = {
+            k: dict(v) for k, v in AUTHORITY_MATTERS.items()
+        }
 
     def __init__(self, difficulty: str = "史实"):
         diff = DIFFICULTY_PRESETS.get(difficulty, DIFFICULTY_PRESETS["史实"])
@@ -535,7 +792,7 @@ class GameState(GameStateEconMixin):
                 "yields": dict(info.get("yields", {})),                        # 七维物资初值
                 "officials": info.get("officials", round(info["households"] * 0.00135)),  # 官数（真实官；households 为在籍明户，×0.00135 → 全国约 2.7 万官，史实 2-4 万）
                 "clerks": info.get("clerks", round(info["households"] * 0.00135) * 8),    # 吏数（=官×8，全国约 21.6 万，史实 20-30 万）
-                "route_mult": info.get("route_mult", 1.0),                     # 路级乘数
+                "route_mult": info.get("route_mult", ROUTE_MULT_DEFAULT),                     # 路级乘数
                 # 地方财力（贯，俸给足额率用）：地方留成月税实收的 25% 作俸给财力。
                 # 单位统一：不得用 storage（石）当财力（贯），否则 pay_ratio 恒满、吏俸缺口恒 0。
                 "local_finance": info.get("local_finance",
@@ -610,163 +867,9 @@ class GameState(GameStateEconMixin):
         # 防区派生：此时 prefectures 已就绪（fortification 由 DEFENSE_LINES 初值，garrison 由各路聚合）
         self._derive_defense_lines()
 
-        # ---- 外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）----
-        # 审查 2026-09：为每政权派生六阶 POP（_ext_pop）、省份运行态（provinces，
-        # 独立人口/兵力）与**实体军队**（armies，每省 1 支，仿宋 ArmyUnit）。原
-        # EXTERNAL_REGIMES/_PROVINCES 结构保留。
-        from content.data import _ext_pop, external_provinces_of, external_army_spec, \
-            external_province_buildings
-        self.external_regimes: dict = {}
-        for key, info in EXTERNAL_REGIMES.items():
-            item = {k: v for k, v in info.items() if k != "hotspot"}
-            item["growth_curve"] = dict(info["growth_curve"])
-            item["rename_log"] = []
-            population_wan = int(item.get("population", 0))
-            regime_type = str(info.get("type", ""))
-            power_val = int(item.get("power", 0))
-            _hot = info.get("hotspot", (0.05, 0.05, 0.9, 0.9))
-            _hx, _hy, _hw, _hh = float(_hot[0]), float(_hot[1]), float(_hot[2]), float(_hot[3])
-            # 六阶 POP（口）——由总人口(万)与政权 type 派生
-            item["pop"] = _ext_pop(regime_type, population_wan)
-            # 省份独立运行态：每省带 人口(口)/兵力(人)/权重 + 中心坐标 + 默认建筑 + 归省军队
-            _troops_total = int(item["pop"].get("兵", {}).get("size", 0))
-            _provinces = []
-            _provs_src = external_provinces_of(key)
-            _n = max(1, len(_provs_src))
-            # 外邦省真实经纬（Web 舆图用）：取 REGIME_GEO 该政权多边形 bbox，按省序横向分布
-            _lonlats = _external_province_lonlats(key, _provs_src)
-            for _idx, (pn, pw) in enumerate(_provs_src):
-                _prov_pop = int(population_wan * 10000 * pw)
-                _prov_troops = int(_troops_total * pw)
-                # 省内坐标：在政权 hotspot 内按省序横向分布（展示/点击用，非精确史址）
-                _cx = _hx + _hw * (_idx + 1) / (_n + 1)
-                _cy = _hy + _hh * 0.5
-                _provinces.append({
-                    "name": pn, "weight": round(float(pw), 4),
-                    "population": _prov_pop, "troops": _prov_troops,
-                    "center": [round(_cx, 4), round(_cy, 4)],
-                    "center_lonlat": _lonlats[_idx] if _lonlats else None,
-                    "buildings": external_province_buildings(regime_type),
-                    "armies": [],
-                })
-            item["provinces"] = _provinces
-            # 兵 POP 对齐 Σ省兵力（int 权重分摊截断差归零，三元严格一致：兵POP==Σ省==Σ军队）
-            item["pop"]["兵"]["size"] = sum(int(p["troops"]) for p in _provinces)
-            # 军队实体化：每省 1 支军队，兵额=该省 troops，branches 按 type 拆兵种
-            _core, _split, _tr_base, _mo_base = external_army_spec(regime_type)
-            _training = max(20, min(90, _tr_base + min(25, power_val // 4)))
-            _morale = max(30, min(90, _mo_base + min(20, power_val // 5)))
-            _armies = []
-            _seq = 0
-            for _p in _provinces:
-                _t = int(_p["troops"])
-                if _t <= 0:
-                    continue
-                _seq += 1
-                _branches = {}
-                _rem = _t
-                _keys = list(_split.keys())
-                for _i, _bk in enumerate(_keys):
-                    _n = int(_t * _split[_bk]) if _i < len(_keys) - 1 else _rem
-                    if _n > 0:
-                        _branches[_bk] = _n
-                        _rem -= _n
-                if not _branches:
-                    continue
-                _army = {
-                    "uid": f"{key}_a{_seq:02d}",
-                    "name": f"{_p['name']}·{_core}",
-                    "tier": _core,
-                    "branches": _branches,
-                    "troops": sum(_branches.values()),
-                    "morale": _morale,
-                    "training": _training,
-                    "equip": {},
-                    "station": _p["name"],
-                    "regime": key,
-                }
-                _armies.append(_army)
-                _p["armies"].append(_army)   # 军队归入省份信息
-            item["armies"] = _armies
-            self.external_regimes[key] = item
+        self._init_external_regimes()
 
-        # ---- 田亩户籍 ----
-        self.land = dict(LAND_INFO)
-
-        # ---- 奏对历史（召见大臣多轮对话） ----
-        self.dialogue_history: list = []   # [(speaker, text), ...]
-        self.last_audience: str = ""       # 最近召见的大臣
-
-        # ---- 扩展维度：金融/货币/市舶/交子/银行/本位 ----
-        self.jiaozi = dict(JIAOZI_INFO)
-        self.maritime = dict(MARITIME_INFO)
-        self.coin = dict(COIN_INFO)
-        self.bank = dict(BANK_INFO)
-        self.standard = dict(STANDARD_INFO)
-
-        # ---- 扩展维度：科举/学校 ----
-        self.exam = dict(EXAM_INFO)
-
-        # ---- 扩展维度：科技/工技 ----
-        self.tech = dict(TECH_INFO)
-        # 开局默认已启北宋既有之器（DEFAULT_UNLOCKED 9 根节点）
-        if not self.tech.get("unlocked"):
-            from content.data import DEFAULT_UNLOCKED
-            self.tech["unlocked"] = list(DEFAULT_UNLOCKED)
-        # 研发管线（五层③）：玩家可研项目 {名: {progress, masters, monthly_cost}}
-        self.tech.setdefault("projects", {})
-
-        # ---- 机制槽（五层②）：{机制名: {org, params, progress}} ----
-        self.mechanisms: dict = {}
-
-        # ---- 扩展维度：外交细化（金/辽/夏关系动作后的态势标记） ----
-        self.diplomacy_log: list = []      # 外交动作记录
-        self.alliance_jin_liao: bool = False  # 是否联金抗辽（海上之盟）
-        # 外交对话协议（言枢密 diplomacy_dialogue 落地；存档持久化）
-        self.treaties: dict = {}                 # {势力: [{type, terms, turn, year, month}]}
-        self._at_war: dict = {}                  # {势力: 1/0} 战争标记
-        self._sui_gong_mult: dict = {"辽": 1.0, "金": 1.0, "西夏": 1.0}   # 岁币倍率
-        self._trade_income: dict = {}            # {势力: 榷场月入}
-
-        # ---- 大臣长期记忆（真 function calling 落档；存档兼容旧档缺字段默认空） ----
-        self.minister_memory: dict = {}    # {大臣名: [办差记录/长久偏好]}
-        self.player_minister_status: dict = {}  # {大臣名: "active"|"dead"|"dismissed"} 角色状态校验
-
-        # ---- 大臣忠诚度（后台隐藏，不可见；0.0 离心 ~ 1.0 死忠）----
-        # 注意：权限归属机构/职位（见 central_orgs），忠诚度归属个人，二者分离。
-        self.loyalty: dict = loyalty_init()
-
-        # ---- 大臣贪腐度（后台隐藏，不可见；0.0 清廉 ~ 1.0 贪墨极甚）----
-        # 随制度/圣旨颁布后的事件联动变化，绝不进入任何 UI 文本。
-        self.corruption: dict = corruption_init()
-
-        # ---- 中枢机构运行态（权限跟随机构/职位，不跟随人）----
-        # lead 由 posts[0].holder 派生（兼容旧接口）；posts/holders/comissions 承载权限。
-        self.central_orgs: dict = {
-            name: {
-                "lead": org_lead(info),
-                "belong": info.get("belong", "皇帝"),
-                "scope": info.get("scope", ""),
-                "authority": list(info.get("authority", [])),
-                "matter_keys": list(info.get("matter_keys", [])),
-                "posts": [dict(p) for p in info.get("posts", [])],   # 岗位表（属机构）
-                "holders": dict(info.get("holders", {})),            # 人岗映射（换人不变权）
-                "comissions": list(info.get("comissions", [])),      # 差遣列表（交差即撤）
-                "abolished": False,        # 是否被裁撤
-                "efficiency": 1.0,         # 运行效率倍率（改制后果结算用）
-                "backlog": 0,              # 政务积压
-                # ---- 五层承接层扩展字段 ----
-                "branches": {},            # 地理挂载：{路名: [分机构名]}（与 prefectures[路]["orgs"] 双向索引）
-                "budget_in": 0,           # 机构经济生命周期：本月进项（朝廷拨/民间工程，贯）
-                "budget_out": 0,          # 机构经济生命周期：本月支出（工匠俸/工训营/流民口粮，贯）
-                "net": 0,                 # 机构经济生命周期：本月净结余（受崩盘线约束）
-            }
-            for name, info in CENTRAL_ORG_INFO.items()
-        }
-        self.authority_matters: dict = {
-            k: dict(v) for k, v in AUTHORITY_MATTERS.items()
-        }
-
+        self._init_extensions()
     # ================================================================
     # 皇威工具
     # ================================================================

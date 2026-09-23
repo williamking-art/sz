@@ -569,6 +569,21 @@ export class ApiClient {
     return this.request("/api/advance", { method: "POST" });
   }
 
+  /** 朝情富化轮询（两段式回合推进 round2；GET 幂等可重复拉）。
+   *  `rich_civilian`＝AI 民间反应富版；`rich_report`＝官方月报（结算总结）；
+   *  `settle_error`＝后台结算失败（前端弹"推演失败"）；`log`＝结算朝报；
+   *  `state`＝结算完成后的**最新快照**（供回合报告弹窗 before/after 差值）。 */
+  async pollRich(): Promise<{
+    ready: boolean;
+    rich_report: string;
+    rich_civilian: string;
+    settle_error: string;
+    log: string[];
+    state: GameState;
+  }> {
+    return this.request("/api/advance/round2", { method: "GET" });
+  }
+
   async action(action: ActionName, params: Record<string, unknown> = {}): Promise<ActionResult> {
     return this.request("/api/action", {
       method: "POST",
