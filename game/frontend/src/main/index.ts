@@ -10,14 +10,26 @@ interface BackendConfig {
   spawn: boolean;
   cwd?: string;
   command?: string;
+  /** 服务端启用 SONGZUO_SERVER_TOKEN 时的 Bearer token；未配置为 undefined。 */
+  token?: string;
 }
 
 const DEFAULT_BACKEND = "http://127.0.0.1:8080";
 
+/** 规范化 token：去首尾空白，空串视为未配置（与 backend/client.py 的 strip 语义一致）。 */
+function normalizeToken(raw: unknown): string | undefined {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  return s.length > 0 ? s : undefined;
+}
+
 function resolveBackendConfig(): BackendConfig {
+  // 鉴权 token 与环境变量 SONGZUO_SERVER_TOKEN 同名、同优先级，与 Python 端
+  // backend/client.py 完全对齐 —— 两端可共用同一份 backend_config.json
+  // （{"backend":"remote","url":...,"token":...}）。
+  const envToken = normalizeToken(process.env.SONGZUO_SERVER_TOKEN);
   const envUrl = process.env.SONGZUO_BACKEND;
   if (envUrl) {
-    return { url: envUrl, spawn: false };
+    return { url: envUrl, spawn: false, token: envToken };
   }
   // 配置查找：前端工程根 + 游戏本体根（前端在 game/frontend/）
   // dev: __dirname ≈ <repo>/game/frontend/out/main
@@ -31,14 +43,29 @@ function resolveBackendConfig(): BackendConfig {
       try {
         const cfg = JSON.parse(readFileSync(p, "utf-8")) as Partial<BackendConfig>;
         if (cfg.url) {
-          return { url: cfg.url, spawn: cfg.spawn ?? false, cwd: cfg.cwd, command: cfg.command };
+          return {
+            url: cfg.url,
+            spawn: cfg.spawn ?? false,
+            cwd: cfg.cwd,
+            command: cfg.command,
+            // 环境变量优先于配置文件（与 client.py 的 `env or config` 同序）
+            token: envToken ?? normalizeToken(cfg.token)
+          };
         }
       } catch (e) {
         console.error("[backend] 解析 backend_config.json 失败:", e);
       }
     }
   }
-  return { url: DEFAULT_BACKEND, spawn: true };
+  return { url: DEFAULT_BACKEND, spawn: true, token: envToken };
+}
+
+// 缓存一次解析结果：保证「后端地址」与「token」出自同一次解析 —— 若两处各自解析，
+// 会出现「url 命中配置文件、token 命中环境变量」这类不一致的组合。
+let resolvedBackendConfig: BackendConfig | null = null;
+function getBackendConfig(): BackendConfig {
+  if (!resolvedBackendConfig) resolvedBackendConfig = resolveBackendConfig();
+  return resolvedBackendConfig;
 }
 
 // ---------------- 后端健康检查与拉起 ----------------
@@ -126,7 +153,8 @@ function spawnBackend(cfg: BackendConfig): void {
 }
 
 async function ensureBackend(): Promise<string> {
-  const cfg = resolveBackendConfig();
+  // 走缓存配置：后端地址与 token 必须出自同一次解析
+  const cfg = getBackendConfig();
   if (await checkHealth(cfg.url)) {
     console.log(`[backend] 已就绪: ${cfg.url}`);
     return cfg.url;
@@ -220,6 +248,9 @@ function ensureBackendUrl(): Promise<string> {
 ipcMain.handle("backend:get-url", async () => {
   return ensureBackendUrl();
 });
+
+// token 与 url 分开取：url 会触发后端拉起（可能耗时），token 是纯配置读取、立即返回。
+ipcMain.handle("backend:get-token", () => getBackendConfig().token ?? "");
 
 ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:maximize", () => {

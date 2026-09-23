@@ -26,9 +26,14 @@ export default function App() {
     async function init() {
       try {
         let url = "http://127.0.0.1:8080";
-        if (window.songzuo) url = await window.songzuo.getBackendUrl();
+        let token = "";
+        if (window.songzuo) {
+          url = await window.songzuo.getBackendUrl();
+          // 远程后端启用 SONGZUO_SERVER_TOKEN 时必需；未配置返回空串（此时不发 Authorization）
+          token = await window.songzuo.getBackendToken();
+        }
         if (cancelled) return;
-        const client = new ApiClient(url);
+        const client = new ApiClient(url, token);
         setApiClient(client);
 
         // 后端可能仍在拉起，做有限次轮询
