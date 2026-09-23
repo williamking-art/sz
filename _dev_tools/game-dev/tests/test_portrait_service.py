@@ -28,7 +28,12 @@ def _s():
 
 def test_portrait_url_is_controlled_route_not_public_path():
     """URL 必须是后端受控路由，且**不得**是写进 public 的相对路径。"""
-    u = _portrait_url(r"D:\anywhere\_composed\韩忠彦_zi_longxiu.png")
+    # 用**当前平台的原生绝对路径**（Windows → D:\...；POSIX → /...）构造入参。
+    # 原先写死 Windows 路径，在 Linux 下 basename 取不出文件名、被安全校验判为可疑输入
+    # 而返回空串，导致该用例只在 Windows 通过（2026-09-23 修）。
+    _sample = os.path.join(os.path.abspath(os.sep), "anywhere", "_composed",
+                           "韩忠彦_zi_longxiu.png")
+    u = _portrait_url(_sample)
     assert u.startswith("/api/portrait/"), u
     assert "frontend" not in u and "public" not in u
     assert _portrait_url("") == ""
