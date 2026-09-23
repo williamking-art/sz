@@ -460,12 +460,16 @@ const NON_IDEMPOTENT_PATHS = [
 /**
  * 云托管冷启动参数（服务按需拉起、不常驻：MinNum=0）。
  *
- * **依据（2026-09-23 实测）**：本后端源码 `songzuo_server/src` 中**不存在 503**，
- * 因此线上任何 503 都只可能来自平台网关 —— 即「请求根本没到达应用」。
- * 所以对 503 做「等待就绪 + 重放」是可证安全的，即便端点非幂等（不会造成
- * 重复推演 / 重复下诏）。这与 C4 那条「5xx 不重试」并不冲突：C4 要防的是
- * 「响应可能来自应用、副作用可能已发生」，而 503 恰好排除了这种可能；
- * 其余 5xx（含超时）仍严格不重试非幂等端点。
+ * **503 的来源必须区分，不能一律重放**（2026-09-23 两次核对后的结论）：
+ *   - **平台网关**：实例缩容到 0 时网关直接回 503，响应体**不是 JSON**
+ *     → 请求根本没到达应用 → 等待就绪后重放安全，非幂等端点亦然；
+ *   - **应用自身**：`game/backend/server.py` 在 AI 拒绝式失败时回
+ *     503 + `{"detail":{"error_code":...,"message":...}}`，而 `/api/advance`、
+ *     `/api/action` 都在其中 → 可能已进入处理流程 → **绝不重放**（C4 要防的
+ *     「副作用可能已发生」正是这一种）。
+ * 故判据取「响应体是否为 JSON」，而不是「状态码是否为 503」。
+ * Rust 端 `songzuo_server/src` 本身不含 503，走的也是同一条保守判据。
+ * 其余 5xx 与超时仍严格不重试非幂等端点，C4 行为不变。
  *
  * 代价提示：这是「不保持常驻实例」的必然代价 —— 闲置一段时间后首次操作
  * 需等待实例唤起（实测约 1~2 分钟）。若日后改为常驻（MinNum>=1），
@@ -581,17 +585,31 @@ export class ApiClient {
         // 据此刷新「最后在线时刻」，供上面的冷启动前置防护判断。
         if (res.status !== 503) this.lastOkAt = Date.now();
         if (!res.ok) {
+          // 响应体只解析一次，并记录「是否为 JSON」—— 这正是区分 503 来源的判据。
           let detail = `HTTP ${res.status}`;
+          let jsonBody: unknown = null;
           try {
-            const body = await res.json();
-            if (body && typeof body.detail === "string") detail = body.detail;
+            jsonBody = await res.json();
           } catch {
-            /* ignore */
+            /* 非 JSON：平台网关的错误响应（如缩容到 0 的 503）即此形态 */
           }
+          if (jsonBody && typeof jsonBody === "object") {
+            const d = (jsonBody as { detail?: unknown }).detail;
+            if (typeof d === "string") {
+              detail = d;
+            } else if (d && typeof d === "object") {
+              // server.py 的 503 形状：{"detail":{"error_code":...,"message":...}}
+              const dm = d as { error_code?: string; message?: string };
+              detail =
+                [dm.error_code, dm.message].filter(Boolean).join(" ") || JSON.stringify(d);
+            }
+          }
+          // 503 的来源必须区分（见文件头常量注释）：
+          //   响应体非 JSON = 平台网关 → 请求未到应用 → 重放安全，非幂等端点亦然；
+          //   响应体是 JSON = 应用自身（AI 拒绝式失败）→ 可能已进入处理流程 → 不重放。
+          const fromGateway = jsonBody === null;
           console.error("[api] 非 2xx", path, res.status, detail);
-          // 503 = 平台网关在实例未就绪时返回（本应用源码零 503）→ 请求未到达应用
-          // → 等待就绪后重放一次是安全的，非幂等端点亦然（见文件头常量注释）。
-          if (res.status === 503 && !isHealthProbe && !coldStartReplayed) {
+          if (res.status === 503 && fromGateway && !isHealthProbe && !coldStartReplayed) {
             coldStartReplayed = true;
             if (await this.waitReady(COLD_START_WAIT_MS)) continue;
             throw new Error(COLD_START_MSG);
@@ -605,7 +623,7 @@ export class ApiClient {
             );
           }
           const msg =
-            res.status === 503
+            res.status === 503 && fromGateway
               ? COLD_START_MSG
               : res.status >= 500
                 ? `政务后端一时失序：${detail}`
