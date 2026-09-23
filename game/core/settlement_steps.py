@@ -2452,7 +2452,9 @@ def _settle_external_economy(state, log):
                             _res_regime[rd] = _st - _spoil
                             res_spoiled += _spoil
                 # ---- 资源残差审计：Δ总库存 == 产 − 耗 − 领料（领料转成品，库存净减）----
-                _res_before = agg_res.get("_res_before", None)
+                _prev_audit = ex.get("econ_audit")
+                _res_before = _prev_audit.get("_res_before", None) \
+                    if isinstance(_prev_audit, dict) else None
                 _res_after_prov = sum(int(v.get(rd, 0) or 0) for _p in provinces
                                       for rd, v in [(_p.get("resources") or {}).get(rd, 0) and {rd: v} or {rd: 0}]
                                       for rd in _raw_dims for v in [_p.get("resources", {}).get(rd, 0)])
@@ -2472,7 +2474,7 @@ def _settle_external_economy(state, log):
                 else:
                     agg["resource_residual"] = 0   # 首月无基准
                 # 记本月基准供下月审计
-                agg_res["_res_before"] = _res_total_after
+                agg["_res_before"] = _res_total_after
                 if int(agg.get("resource_residual", 0)) != 0:
                     log.append(f"[外邦经济·{rk}] ⚠ 资源残差 {agg['resource_residual']:+d} "
                                f"（产 {res_produced} 领 {res_drawn} 耗 {res_spoiled} "
