@@ -146,24 +146,30 @@ else {
     else { Bad "CVM/CI 检查失败：$out" '检查网络、安全组与密钥' }
 }
 
-# ---------------------------------------------------------------- 6. 浏览器 MCP（Playwright）
-Head '6. 浏览器 MCP（Playwright，§8.12）'
-$pwCli = Join-Path $NodeDir 'node_modules\@playwright\mcp\cli.js'
-if (Test-Path $pwCli) { Ok "已安装 @playwright/mcp（$pwCli）" }
-else { Bad '未安装 @playwright/mcp' 'npm install -g @playwright/mcp@latest（需 Node 在 PATH）' }
+# ---------------------------------------------------------------- 6. MCP 服务器（~/.codebuddy/mcp.json）
+Head '6. MCP 服务器（~/.codebuddy/mcp.json，§8.13）'
 $mcpJson = Join-Path $env:USERPROFILE '.codebuddy\mcp.json'
 if (-not (Test-Path $mcpJson)) { Skip "无 $mcpJson" }
 else {
-    try { $m = Get-Content $mcpJson -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $m = $null }
-    $entry = $null
-    if ($m -and $m.mcpServers) { $entry = $m.mcpServers.playwright }
-    if (-not $entry) { Skip "mcp.json 里没有 playwright 条目（浏览器 MCP 未配置，见 §8.12）" }
-    else {
-        $cmdOk = Test-Path $entry.command
-        $jsArg = $entry.args | Where-Object { $_ -like '*.js' } | Select-Object -First 1
-        $argOk = [bool]($jsArg) -and (Test-Path $jsArg)
-        if ($cmdOk -and $argOk) { Ok "mcp.json 已配置 playwright（浏览器 MCP 生效需重启 IDE）" }
-        else { Bad 'mcp.json 的 playwright 指向不存在的路径' '按文档 §8.12 修正 command/args（路径均在 Node 目录下）' }
+    $m = $null
+    try { $m = Get-Content $mcpJson -Raw -Encoding UTF8 | ConvertFrom-Json }
+    catch { Bad "$mcpJson 不是合法 JSON" '修正该文件，或按文档 §8.13 重建' }
+    if ($m -and $m.mcpServers) {
+        $names = @($m.mcpServers.PSObject.Properties.Name)
+        Ok "mcp.json 合法，共 $($names.Count) 个服务器：$($names -join '、')（生效需重启 IDE）"
+        foreach ($n in $names) {
+            $s = $m.mcpServers.$n
+            if (-not (Test-Path $s.command)) {
+                Bad "[$n] command 不存在：$($s.command)" '修正路径（条目均指向 Node 安装目录下的 node.exe）'
+                continue
+            }
+            $miss = @()
+            foreach ($a in @($s.args)) {
+                if ($a -like '*.js' -and -not (Test-Path $a)) { $miss += $a }
+            }
+            if ($miss.Count -eq 0) { Ok "[$n] 入口存在" }
+            else { Bad "[$n] 入口缺失：$($miss -join ', ')" '修正 args 路径（见 §8.13 清单）' }
+        }
     }
 }
 
