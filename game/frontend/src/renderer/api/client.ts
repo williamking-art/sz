@@ -457,6 +457,26 @@ const NON_IDEMPOTENT_PATHS = [
   "/api/decree/"
 ];
 
+/**
+ * 云托管冷启动参数（服务按需拉起、不常驻：MinNum=0）。
+ *
+ * **依据（2026-09-23 实测）**：本后端源码 `songzuo_server/src` 中**不存在 503**，
+ * 因此线上任何 503 都只可能来自平台网关 —— 即「请求根本没到达应用」。
+ * 所以对 503 做「等待就绪 + 重放」是可证安全的，即便端点非幂等（不会造成
+ * 重复推演 / 重复下诏）。这与 C4 那条「5xx 不重试」并不冲突：C4 要防的是
+ * 「响应可能来自应用、副作用可能已发生」，而 503 恰好排除了这种可能；
+ * 其余 5xx（含超时）仍严格不重试非幂等端点。
+ *
+ * 代价提示：这是「不保持常驻实例」的必然代价 —— 闲置一段时间后首次操作
+ * 需等待实例唤起（实测约 1~2 分钟）。若日后改为常驻（MinNum>=1），
+ * 本机制自然不再触发。
+ */
+export const COLD_START_WAIT_MS = 150_000; // 冷启动等待上限（与 App 首屏等待对齐）
+const IDLE_BEFORE_WARMUP_MS = 45_000; // 距上次成功超过此时长 → 疑似已缩容到 0
+const WARMUP_POLL_MS = 2_000; // 就绪轮询间隔
+const COLD_START_MSG =
+  "政务后端正在唤起（云端实例按需启动，未保持常驻）：首次约需一两分钟，请稍候再试。";
+
 /** 构造「调用方主动取消」错误（name=AbortError），供调用方识别并静默丢弃回执。 */
 function abortRequestError(): Error {
   const err = new Error("请求已取消");
@@ -471,10 +491,40 @@ export class ApiClient {
    * 为空则不发 Authorization 头（本地回环模式不受影响，保持原有行为）。
    */
   private token: string;
+  /** 上次「确证后端在线」的时刻（收到任何非 503 响应即算），用于判断是否可能已缩容到 0。 */
+  private lastOkAt = 0;
 
   constructor(base: string, token = "") {
     this.base = base.replace(/\/+$/, "");
     this.token = token.trim();
+  }
+
+  /**
+   * 等待后端就绪（**无副作用**）：轮询 `/health`（幂等、免鉴权）直到 2xx 或超时。
+   *
+   * 用途：云端实例按需启动（不常驻）时，网关会先返回 503，此时直接下发动作必然失败；
+   * 先等就绪再发，就不会把动作打进冷启动窗口。
+   *
+   * @returns 就绪返回 true；超时返回 false（由调用方决定如何上报）
+   */
+  private async waitReady(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      try {
+        const res = await fetch(`${this.base}/health`, {
+          signal: AbortSignal.timeout(10_000)
+        });
+        if (res.ok) {
+          this.lastOkAt = Date.now();
+          return true;
+        }
+      } catch {
+        /* 冷启动期：网络错误 / 超时 / 503 一律视为尚未就绪 */
+      }
+      if (Date.now() >= deadline) return false;
+      await new Promise((r) => setTimeout(r, WARMUP_POLL_MS));
+      if (Date.now() >= deadline) return false;
+    }
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -487,6 +537,22 @@ export class ApiClient {
     // 调用方外部取消信号（如切换召对会话时 abort 在途记忆库请求）。
     // 未传 signal 的旧调用完全保持原有行为。
     const externalSignal = init?.signal ?? null;
+    // `/health` 本身即就绪探针：不可在其内部再触发「等待就绪」，否则自我嵌套。
+    const isHealthProbe = path === "/health";
+    const isNonIdempotent = NON_IDEMPOTENT_PATHS.some((p) => path.startsWith(p));
+    // 冷启动重放只做一次，避免边界情况下反复重放非幂等动作。
+    let coldStartReplayed = false;
+
+    // 冷启动前置防护：非幂等端点若距上次成功已久（疑似实例已缩容到 0），先做
+    // 无副作用的就绪等待，免得把「推演 / 下诏 / 存档」白白打进冷启动窗口。
+    if (
+      isNonIdempotent &&
+      !isHealthProbe &&
+      Date.now() - this.lastOkAt > IDLE_BEFORE_WARMUP_MS &&
+      !(await this.waitReady(COLD_START_WAIT_MS))
+    ) {
+      throw new Error(COLD_START_MSG);
+    }
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       if (externalSignal?.aborted) throw abortRequestError();
@@ -511,6 +577,9 @@ export class ApiClient {
           },
           signal: controller.signal
         });
+        // 收到任何非 503 响应都证明后端实例在线（连 401/4xx 也算：应用已应答），
+        // 据此刷新「最后在线时刻」，供上面的冷启动前置防护判断。
+        if (res.status !== 503) this.lastOkAt = Date.now();
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try {
@@ -520,6 +589,13 @@ export class ApiClient {
             /* ignore */
           }
           console.error("[api] 非 2xx", path, res.status, detail);
+          // 503 = 平台网关在实例未就绪时返回（本应用源码零 503）→ 请求未到达应用
+          // → 等待就绪后重放一次是安全的，非幂等端点亦然（见文件头常量注释）。
+          if (res.status === 503 && !isHealthProbe && !coldStartReplayed) {
+            coldStartReplayed = true;
+            if (await this.waitReady(COLD_START_WAIT_MS)) continue;
+            throw new Error(COLD_START_MSG);
+          }
           // 401/403：服务端启用了 SONGZUO_SERVER_TOKEN，而客户端未携带或携带错误。
           // 若不加这层，玩家只会看到「此令未获准：HTTP 401」而无从下手。
           if (res.status === 401 || res.status === 403) {
@@ -529,9 +605,11 @@ export class ApiClient {
             );
           }
           const msg =
-            res.status >= 500
-              ? `政务后端一时失序：${detail}`
-              : `此令未获准：${detail}`;
+            res.status === 503
+              ? COLD_START_MSG
+              : res.status >= 500
+                ? `政务后端一时失序：${detail}`
+                : `此令未获准：${detail}`;
           // 5xx（含 503 服务暂不可用）→ 退避后重试；其余（4xx 等）终态错误直接抛。
           // C4 修复：非幂等端点不重试（5xx-after-commit / 读超时会造成重复副作用）。
           const retryable =

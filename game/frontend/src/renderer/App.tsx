@@ -6,7 +6,7 @@ import RightStrip from "./hud/RightStrip";
 import Dock from "./hud/Dock";
 import OverlayStack from "./panels/OverlayStack";
 import MainMenu from "./main-menu/MainMenu";
-import { ApiClient, setApiClient } from "./api/client";
+import { ApiClient, setApiClient, COLD_START_WAIT_MS } from "./api/client";
 import { useGameStore, pick } from "./store/gameStore";
 
 // 单页面三层布局：L0 舆图铺底 / L1 常驻 HUD 悬浮 / L2 面板浮层栈
@@ -36,19 +36,26 @@ export default function App() {
         const client = new ApiClient(url, token);
         setApiClient(client);
 
-        // 后端可能仍在拉起，做有限次轮询
+        // 后端可能仍在拉起：轮询到就绪或超时。云端实例按需启动（不常驻）时首次唤醒
+        // 实测约 1~2 分钟，故按时间限界等待（而非原先固定的 14 秒），否则冷启动后
+        // 首屏会直接判定「后端未就绪」，玩家卡在菜单。
         let health = null;
-        for (let i = 0; i < 20 && !cancelled; i++) {
+        const readyDeadline = Date.now() + COLD_START_WAIT_MS;
+        while (!cancelled && Date.now() < readyDeadline) {
           try {
             health = await client.health();
             break;
           } catch {
-            await new Promise((r) => setTimeout(r, 700));
+            await new Promise((r) => setTimeout(r, 1000));
           }
         }
         if (cancelled) return;
         if (!health) {
-          setBackend(url, false, "后端未就绪：请确认 Python 与 backend.server 可启动");
+          setBackend(
+            url,
+            false,
+            "后端未就绪：请确认后端可启动；云端实例按需启动时首次约需一两分钟"
+          );
           return;
         }
         setBackend(url, true, null);
