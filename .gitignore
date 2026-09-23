@@ -64,6 +64,11 @@ assets/map/web/tiles/
 # --- 项目数据目录（CodeBuddy 工作区数据，非源码） ---
 .codebuddy/
 
+# --- CloudBase MCP 项目级绑定（本机机器管理文件，不入库） ---
+# MCP 从 .cloudbase/project.json 读 envId/site/region，实现「打开仓库即连对环境」。
+# 它绑定的是本机环境、属机器配置而非源码，故不入库。
+.cloudbase/
+
 # --- 操作系统 / 编辑器 ---
 .DS_Store
 Thumbs.db
