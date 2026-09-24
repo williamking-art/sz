@@ -120,3 +120,85 @@ def test_dispatch_unauthorized_tool_still_rejected():
     """白名单闸门兜底：危险工具名依旧被拒（kb_search 加入后闸门不失效）。"""
     _cid, text = _call({}, name="update_state")[0]
     assert "未授权工具被拒" in text
+
+
+# ---------------------------------------------------------------
+# 用量埋点（第四轮全审补：此前知识库用量完全不可观测）
+# ---------------------------------------------------------------
+def test_kb_stats_counts_call_and_hit():
+    """dispatch 一次命中 → calls+1 且 hits+1。"""
+    state = _FakeState()
+    _call({"query": "常平仓"}, state=state)
+    st = kbq.kb_stats(state)
+    assert st["calls"] == 1 and st["hits"] == 1
+
+
+def test_kb_stats_miss_not_counted_as_hit():
+    """无获仍计一次调用，但不计命中（命中率 = hits/calls 才有意义）。"""
+    state = _FakeState()
+    _call({"query": "zzqqxx 不存在的词"}, state=state)
+    st = kbq.kb_stats(state)
+    assert st["calls"] == 1 and st["hits"] == 0
+
+
+def test_kb_stats_missing_query_not_counted():
+    """缺参被拒的调用不计入用量（根本没检索）。"""
+    state = _FakeState()
+    _call({}, state=state)
+    st = kbq.kb_stats(state)
+    assert st["calls"] == 0 and st["hits"] == 0
+
+
+def test_kb_stats_accumulates_per_state():
+    """按存档累计：两个 state 互不串台。"""
+    a, b = _FakeState(), _FakeState()
+    _call({"query": "货币"}, state=a)
+    _call({"query": "货币"}, state=a)
+    _call({"query": "货币"}, state=b)
+    assert kbq.kb_stats(a)["calls"] == 2
+    assert kbq.kb_stats(b)["calls"] == 1
+
+
+def test_meter_rows_include_kb_usage():
+    """计量表出现「典章·检索」行，命中数填在 hit 列。"""
+    from ai.token_meter import grouped_meter_rows
+    rows = grouped_meter_rows(None, {"prefilter_hits": 0, "cache_hits": 0, "ai_calls": 0},
+                              {"calls": 4, "hits": 3})
+    row = next(r for r in rows if r["type"] == "典章·检索")
+    assert row["calls"] == 4 and row["hit"] == 3
+
+
+def test_meter_rows_tolerates_missing_kb_stats():
+    """未埋点（旧存档/None）时该行为零，不得炸。"""
+    from ai.token_meter import grouped_meter_rows
+    rows = grouped_meter_rows(None, None, None)
+    row = next(r for r in rows if r["type"] == "典章·检索")
+    assert row["calls"] == 0 and row["hit"] == 0
+
+
+# ---------------------------------------------------------------
+# 弱模型工具面（SIMPLE）：此前 kb_search 只在全量面，simple 档看不到
+# ---------------------------------------------------------------
+def test_kb_search_in_simple_tool_face():
+    from ai.client_utils import SIMPLE_TOOL_SCHEMAS
+    names = [t.get("function", {}).get("name") for t in SIMPLE_TOOL_SCHEMAS]
+    assert "kb_search" in names, "只读零副作用的典章检索应进弱模型精简面"
+    sch = next(t for t in SIMPLE_TOOL_SCHEMAS
+               if t.get("function", {}).get("name") == "kb_search")
+    assert sch["function"]["parameters"]["required"] == ["query"], "精简面只保留必填 query"
+
+
+def test_simple_face_subset_of_whitelist():
+    """精简面不得引入白名单外的工具。"""
+    from ai.client_utils import SIMPLE_TOOL_SCHEMAS
+    names = {t.get("function", {}).get("name") for t in SIMPLE_TOOL_SCHEMAS}
+    assert names <= set(_TOOL_NAMES)
+
+
+def test_full_face_tool_count_docstring_in_sync():
+    """client._tool_schemas 的 docstring 写着工具数，防再次漏改。"""
+    import re
+    import ai.client as aic
+    m = re.search(r"全量\s*(\d+)\s*工具", aic.AIClient._tool_schemas.__doc__ or "")
+    assert m, "_tool_schemas docstring 未写明全量工具数"
+    assert int(m.group(1)) == len(_TOOL_SCHEMAS), "docstring 工具数与 _TOOL_SCHEMAS 不一致"

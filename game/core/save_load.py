@@ -27,6 +27,18 @@ from core.save_load_util import (  # noqa: F401 — re-export 兼容
 )
 
 
+#: 槽位约定（勿擅自收窄）：0 = **自动存档槽**（`finish_turn` 每年正月与终局写入，
+#: 见 core/commands.py）；1–5 = 玩家可见槽（`get_save_slots` 只列这些）；
+#: >5 = 测试/临时槽（多个回归用例刻意用 6/7/8/9/99 做隔离）。
+#: 故 save/load **只校验「非负整数」**，不做 1–5 钳制 —— 钳制会打断自动存档并炸掉一批用例。
+SLOT_MIN = 0
+
+
+def _slot_ok(slot) -> bool:
+    """槽位合法性：非负整数（HTTP 层的 Pydantic 已挡住类型注入，此处兜住内部调用）。"""
+    return isinstance(slot, int) and not isinstance(slot, bool) and slot >= SLOT_MIN
+
+
 def _slot_path(slot: int) -> str:
     """存档槽位文件路径（save/load/slots 三处共用，避免硬编码漂移）。
 
@@ -37,9 +49,16 @@ def _slot_path(slot: int) -> str:
 
 
 def save_game(state, slot: int = 1) -> bool:
-    """保存游戏到指定槽位（含记忆知识库同步写盘）。"""
+    """保存游戏到指定槽位（含记忆知识库同步写盘）。
+
+    槽位约定见 `SLOT_MIN` 注释：0 为自动存档槽，>5 供测试隔离，均可写。
+    非法槽位（负数/非整数）→ 记日志并返回 False，绝不写盘。
+    """
     import logging as _lg
     _slog = _lg.getLogger("save_load")
+    if not _slot_ok(slot):
+        _slog.error("存档槽位非法（slot=%r），拒绝写盘", slot)
+        return False
     os.makedirs(SAVE_DIR, exist_ok=True)
     # 记忆知识库（Phase 3a）：回合末原子写盘到 slot_{slot}.db
     # 审查 P2-2 修复：写盘失败记日志而非静默吞（防崩溃后无感知丢失记忆）
@@ -170,6 +189,7 @@ def save_game(state, slot: int = 1) -> bool:
         # 两段式回合推进（2026-09-21「民间情况先行」）：AI 富化月报 + 就位标记 + 民间反应富版
         "rich_report": getattr(state, "rich_report", ""),
         "rich_civilian": getattr(state, "rich_civilian", ""),
+        "rich_civilian_scenes": getattr(state, "rich_civilian_scenes", []),
         "rich_ready": bool(getattr(state, "rich_ready", False)),
         "settle_error": getattr(state, "settle_error", ""),
 
@@ -289,7 +309,13 @@ def _load_situations(raw) -> tuple:
 
 
 def load_game(slot: int = 1):
-    """从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）"""
+    """从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）
+
+    非法槽位（负数/非整数）与「档不存在」同口径返回 None（不抛、不记错误日志）：
+    读档是高频探测路径，缺档属正常。
+    """
+    if not _slot_ok(slot):
+        return None
     path = _slot_path(slot)
     if not os.path.exists(path):
         return None
@@ -536,6 +562,7 @@ def load_game(slot: int = 1):
     # 两段式回合推进（2026-09-21）：富化字段幂等补齐（旧档无 → 空/False）
     state.rich_report = str(data.get("rich_report", "") or "")
     state.rich_civilian = str(data.get("rich_civilian", "") or "")
+    state.rich_civilian_scenes = data.get("rich_civilian_scenes", []) or []
     state.rich_ready = bool(data.get("rich_ready", False))
     state.settle_error = str(data.get("settle_error", "") or "")
 

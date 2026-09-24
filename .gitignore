@@ -236,3 +236,8 @@ game/assets/_backup_original/
 # 规则（仅覆盖 frontend），此处补全局规则。
 *.bak
 
+# --- 开发用知识库（build_kb.py 的可再生产物，每次 build 都变，不入库） ---
+# 注意：`game/assets/kb/game_kb.sqlite` **不在此列** —— 它随游戏分发，
+# 新建克隆后 kb_search 才能直接可用（缺失只是静默降级，不易察觉）。
+_dev_tools/game-docs/kb/dev_kb.sqlite
+

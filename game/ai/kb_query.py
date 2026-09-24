@@ -44,6 +44,26 @@ def _detect_available():
         return False
 
 
+def kb_stats(state) -> dict:
+    """典章库用量统计（按存档累计，非全局）：`calls` 调用次数 / `hits` 命中次数。
+
+    存在意义：知识库若从不被 AI 调用，就是白做的——而在此之前**没有任何埋点**能证明
+    它被调用过（`telemetry.record_ai_call` 标注 intentionally_unwired）。本计数器由
+    `client_utils._tool_dispatch` 在 kb_search 分支累加，经 `/api/meter` 与召对命中率
+    同表可见，使「典章库是否真在发挥作用」变为可观测。
+
+    命中率 = hits / calls；持续为 0 说明工具没被触发（应查 prompt 引导/工具面），
+    命中率过低说明检索算法需要调优。
+    """
+    st = getattr(state, "_kb_stats", None)
+    if not isinstance(st, dict):
+        st = {}
+        state._kb_stats = st
+    st.setdefault("calls", 0)
+    st.setdefault("hits", 0)
+    return st
+
+
 def kb_available():
     """知识库可用性（结果缓存，进程内只探测一次）。"""
     global _available

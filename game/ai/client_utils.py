@@ -796,6 +796,19 @@ SIMPLE_TOOL_SCHEMAS = [
                            "required": ["target"]},
         },
     },
+    {
+        # 第四轮全审补入：kb_search 只读、零副作用、不耗推理，正合「弱模型可用」的
+        # 精简面标准；此前只在全量 10 工具面里，simple 档的大臣永远看不到典章库。
+        "type": "function",
+        "function": {
+            "name": "kb_search",
+            "description": "查典章（必填：query 关键词，空格分隔）",
+            "parameters": {"type": "object",
+                           "properties": {"query": {"type": "string"},
+                                          "top_k": {"type": "integer"}},
+                           "required": ["query"]},
+        },
+    },
 ]
 
 
@@ -1017,15 +1030,19 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
             elif name == "kb_search":
                 # 本地典章知识库检索（只读，同 query_state 的「问到才查」哲学）：
                 # 库缺失/FTS5 不可用/异常时 kb_query 返回空串 → 降级话术，不炸管线。
-                from ai.kb_query import kb_search as _kb_search
+                from ai.kb_query import kb_search as _kb_search, kb_stats
                 # 同 prereq_hint 的 _cap_str 口径：AI 可能回传整段话，先截到 100 字
                 _q = str(args.get("query", "")).strip()[:100]
                 try:
                     _tk = max(1, min(5, int(args.get("top_k", 3))))
                 except (TypeError, ValueError):
                     _tk = 3
+                # 埋点（第四轮全审）：典章库此前无任何调用观测手段，calls/hits 供 /api/meter
+                _st = kb_stats(state)
+                _st["calls"] += 1
                 _hit = _kb_search(_q, top_k=_tk)
                 if _hit:
+                    _st["hits"] += 1
                     res = _hit
                     mem.setdefault(minister_name, []).append(f"查典章：{_q[:20]}")
                 else:
