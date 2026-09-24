@@ -267,15 +267,11 @@ def job_flow_unemployed(pops: dict, staffed: Dict[str, int], cfg: dict,
     if farm_idle > 0 and isinstance(mer, dict):
         move = int(farm_idle * rate)
         if move > 0:
-            target = art if art_jobs > 0 or not isinstance(mer, dict) else mer
             # 有工坊空岗 → 转工匠；否则转商人
             art_open = sum(max(0, _lv(buildings.get(bt, 1)) * int((cfg.get("JOBS_PER_LEVEL") or {}).get(bt, 0) or 0)
                                - int(staffed.get(bt, 0) or 0))
                            for bt, wk in worker_of.items() if wk == "工匠")
-            if art_open > 0:
-                target = art
-            else:
-                target = mer
+            target = art if art_open > 0 else mer
             nong["size"] = nong_sz - move
             target["size"] = int(target.get("size", 0) or 0) + move
             flow_out = move
@@ -396,8 +392,6 @@ def apply_bankruptcy(prov: dict, cfg: dict, arrears_building: int,
     streak = prov.setdefault("building_arrears_streak", {})
     lv_min = int(cfg.get("BUILDING_LV_MIN", _LV_MIN_DEFAULT))
     events: List[dict] = []
-    worker_of = cfg.get("BUILDING_WORKER") or {}
-    job_share_keys = ("JOBS_PER_LEVEL",)
 
     if arrears_building > 0:
         for bt in buildings:

@@ -1,4 +1,4 @@
-﻿import * as React from "react";
+import * as React from "react";
 import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2, Lock, Trees, FileText, Building2, ClipboardList, Stamp, BookOpen, Flame } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { getApiClient, subscribeRichPoll } from "../api/client";
@@ -121,6 +121,7 @@ export default function Dock() {
               props: {
                 stage: "final",
                 report: r.rich_report,
+                scenes: r.rich_report_scenes ?? [],
                 rich_civilian: r.rich_civilian,
                 events: res.events,
                 log: Array.isArray(r.log) ? r.log : res.log,

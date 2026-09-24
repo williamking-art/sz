@@ -16,7 +16,6 @@
 """
 from __future__ import annotations
 
-import math
 from typing import Any, Dict, List, Optional, Tuple
 
 __all__ = ["update_goods_prices", "logistics_rate", "civil_logistics",
@@ -83,7 +82,7 @@ def logistics_rate(distance_km: float, terrain: str = "平川",
 
 
 def civil_logistics(buyer_pop: dict, seller_merchant_pop: dict,
-                    quantity: int, distance_km: float, unit_value: float,
+                    quantity: int, distance_km: float,
                     terrain: str = "平川", at_war: bool = False,
                     cfg: Optional[dict] = None) -> Dict[str, int]:
     """民间账（商路）：求购方 POP wealth → 货源方商人 POP wealth（不碰 treasury）。

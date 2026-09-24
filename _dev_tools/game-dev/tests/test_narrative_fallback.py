@@ -144,8 +144,9 @@ def test_monthly_report_template_fallback_in_settle():
     from core.commands import _monthly_report_text
     s = _new_state()
     s.settlement_log = [{"kind": "treasury", "title": "国库入账", "note": "+50万贯"}]
-    txt = _monthly_report_text(s, _BrokenAI())
-    assert txt and "有司补录" in txt or "起居注官" in txt or "史官" in txt
+    result = _monthly_report_text(s, _BrokenAI())
+    txt = result.get("report", "") if isinstance(result, dict) else str(result)
+    assert txt and ("有司补录" in txt or "起居注官" in txt or "史官" in txt)
     assert "国库入账" in txt, "模板应组装结算真值"
 
 

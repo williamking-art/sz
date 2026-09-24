@@ -308,7 +308,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 ---
 
-## 改进方案落地（2026-09-22 起，合并版批 0–3）
+## 改进方案落地（2026-09-22 起，合并版批 0–7）
 
 > 依据 [`改进方案_合并版_2026-09-22.md`](../_dev_tools/game-docs/analysis/改进方案_合并版_2026-09-22.md)（明末经验 + 外邦产业链 + 玩家体验三线合并）。基线 **945 passed** + tsc 干净。
 
@@ -322,6 +322,10 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | 批 5 | 大臣工具化最小闭环 + 409 守卫 + 话术 chip | ✅ | C1 财政域草案（`enqueue_finance_proposal`→PendingActions 核定→`state_applier` 落地）；C2 颁诏 409 未决呈请守卫（`issue_decree`/`issue_free_decree`）；C3 召对话术 chip（问户部钱粮/命兵部调兵/下密令/准奏/问吏治） |
 | 批 6 | 粮=硬通货（本色饷/官仓平粜/本色粮税） | ✅ | 外邦本色兵粮/禄米（官仓→POP grain，缺额 arrears_grain）+ 本色粮税（产粮×10%→官仓）+ 官仓平粜（价高放粮/价低籴入）+ 粮残差含本色/平粜项 + 计价位不并入货币 |
 | 批 7 | 14 维原料 + 动态价格 + 物流分账 | ✅ | 14 维统一（宋侧 RAW_DIMS 扩至 15 维含金/铜/银/牲畜/马/药材）+ 动态商品价（基准×clamp 供需比 0.5–1.5，月涨跌 ±20%）+ 物流费率（距离档位×地形×战乱）+ 民间/政府分账（`core/dynamic_price.py`） |
+| 众生相 P0 | scenes 分幕渲染 | ✅ | AI 月报 scenes 数组 → `AdvancePanel` 分幕卡片（幕标题+正文）；兼容无 scenes 回落纯文本 |
+| 众生相 P1 | 六类心气注入叙事 | ✅ | `pop_sentiment_brief` 六民生齿真值摘要（脱敏定性）注入 monthly_report / event_narrative / civilian_situation prompt |
+| 众生相 ③ | 分幕约束后验 | ✅ | `_validate_scenes`：幕数钳位/字数钳位/脱敏（阿拉伯数字→「数」）/空幕占位，接入 monthly/event/civilian 三处 |
+| 众生相 ④ | 民间反应分幕化 | ✅ | `civilian_reaction` prompt 改 3 幕（农人/士绅/商贾）→ `rich_civilian_scenes` 全链路 → `AdvancePanel` 分幕卡片 |
 
 ---
 

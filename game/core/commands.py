@@ -324,6 +324,8 @@ def settle_turn(state: GameState, ai_client=None) -> tuple:
         # 模板只影响叙事呈现，结算已就地发生，勿误判"未推进"而重复结算）
         try:
             report = _monthly_report_text(state, ai_client)
+            if isinstance(report, dict):
+                report = report.get("report", "")
         except Exception:
             from ai.narrative_fallback import fallback_report
             report = str(fallback_report(state=state).get("report") or "")
@@ -544,6 +546,9 @@ def _rich_narrative(state, ai_client) -> None:
                     _civ = (_res or {}).get("text") if isinstance(_res, dict) else None
                     if _civ:
                         state.rich_civilian = str(_civ)
+                    _civ_scenes = (_res or {}).get("scenes") if isinstance(_res, dict) else None
+                    if _civ_scenes:
+                        state.rich_civilian_scenes = list(_civ_scenes)
             except Exception as _e:  # noqa: BLE001
                 log.warning("[rich_civilian] 民间反应富化未成: %s", _e)
             # ② AI 奏章（memorials）
@@ -557,9 +562,15 @@ def _rich_narrative(state, ai_client) -> None:
                 log.warning("[memorials] round2 上折未成: %s", _e)
             # ③ AI 官方月报（结算后的官方总结；失败走本地模板 → 不写 rich_report）
             try:
-                rich = _monthly_report_text(state, ai_client)
-                if isinstance(rich, str) and rich:
-                    state.rich_report = rich
+                _rpt = _monthly_report_text(state, ai_client)
+                if isinstance(_rpt, dict):
+                    if _rpt.get("report"):
+                        state.rich_report = str(_rpt["report"])
+                    _scenes = _rpt.get("scenes") or []
+                    if _scenes:
+                        state.rich_report_scenes = _scenes
+                elif isinstance(_rpt, str) and _rpt:
+                    state.rich_report = _rpt
             except Exception as _e:  # noqa: BLE001
                 log.warning("[rich_report] 回合报告富化未成: %s", _e)
             _flush_ai_token(state, ai_client)
@@ -772,30 +783,95 @@ def monthly_report_args(state) -> tuple:
         _posture += f"\n【时代】{era_brief(state)}"
     except Exception:
         pass
+    # 六类心气真值注入（众生相 P1）：供 AI 分幕锚定各阶层真实状态
+    try:
+        _posture += "\n" + pop_sentiment_brief(state)
+    except Exception:
+        pass
     return state.year, state.month, state.era_name, _posture
 
 
-def _monthly_report_text(state, ai_client) -> str:
-    """生成月报文本（装饰性 AI 文本）。
+def pop_sentiment_brief(state) -> str:
+    """六民生齿真值摘要（众生相 P1）：供叙事 prompt 锚定各阶层真实状态。
 
+    数据源：`POP_SENTIMENT_CHANNELS`（六类心气通道）+ `situation_metrics` 快照。
+    只给定性描述（偏高/偏低/疲敝/安和），**不注入精确数值**（脱敏约束）。
+    """
+    try:
+        from core.situation_metrics import POP_SENTIMENT_CHANNELS, CLERK_SENTIMENT_CHANNELS
+        from core.situations import build_situation_readout
+        out = build_situation_readout(state)
+        pop_ch = (out.get("pop_channels") or {})
+        by_route = (pop_ch.get("by_route") or {})
+        nation = (pop_ch.get("nation") or {})
+    except Exception:
+        return "【六民生齿】（读数暂缺，按常情叙写）"
+    lines = ["【六民生齿真值（只写入叙事，不编造数值）】"]
+    _LABELS = {"农": "民心", "士绅": "士绅抵抗", "工匠": "工困", "商人": "商情",
+               "官僚": "官心", "兵": "军心", "吏": "吏怨"}
+    # 逐类给全国截面 + 最差路
+    for cls, label in _LABELS.items():
+        vals = []
+        for rname, row in by_route.items():
+            v = row.get(cls)
+            if isinstance(v, (int, float)):
+                vals.append((rname, float(v)))
+        if not vals:
+            # 全国截面
+            nrow = nation.get(cls) or {}
+            nv = nrow.get("primary") or nrow.get("均")
+            if isinstance(nv, (int, float)):
+                vals.append(("全国", float(nv)))
+        if not vals:
+            continue
+        hb = cls in ("农", "兵")   # 军心/民心越高越好；其余越低越好
+        # 最差 = 距理想方向最远
+        if hb:
+            vals.sort(key=lambda x: x[1])   # 越低越差
+        else:
+            vals.sort(key=lambda x: -x[1])  # 越高越差
+        worst_name, worst_v = vals[0]
+        best_name, best_v = vals[-1]
+
+        def _q(v, higher_better):
+            if higher_better:
+                return "疲敝" if v < 40 else ("偏低" if v < 55 else ("尚安" if v < 70 else "安和"))
+            return "偏高" if v > 60 else ("偏高" if v > 45 else "平和")
+
+        lines.append(f"- {cls}·{label}：最差 {worst_name}（{_q(worst_v, hb)}）｜最好 {best_name}（{_q(best_v, hb)}）")
+    # 吏怨单列
+    try:
+        clerks = (pop_ch.get("clerks") or (out.get("pop_channels") or {}).get("clerks") or {})
+        g = clerks.get("grievance") or clerks.get("吏怨")
+        if isinstance(g, (int, float)):
+            lines.append(f"- 吏怨：全国均值（{'偏高' if g > 55 else '平和'}，政令折扣受影响）")
+    except Exception:
+        pass
+    lines.append("约束：标了偏高/疲敝的路，对应幕须写疲敝之态；标了安和的路，可写太平之景。")
+    return "\n".join(lines)
+
+
+def _monthly_report_text(state, ai_client) -> dict:
+    """生成月报文本（装饰性 AI 文本）+ 众生相分幕。
+
+    返回 `{"report": str, "scenes": [{"scene", "text"}]}`。
     T8 分级降级：AI 失败 / 未接入 / 返回 _fallback 标记 → 本地模板 + 结构化真值组装
     （只引用 settlement_log 程序真值，不伪造数字、不伪造 AI 口吻）。
     """
     year, month, era_name, posture = monthly_report_args(state)
     if not (ai_client and getattr(ai_client, "available", False)):
-        # AI 未接入 → 本地模板兜底（游戏可继续）
         from ai.narrative_fallback import fallback_report
-        return str(fallback_report(year=year, month=month, era_name=era_name,
-                                   state=state).get("report") or "")
+        fb = fallback_report(year=year, month=month, era_name=era_name, state=state)
+        return {"report": str(fb.get("report") or ""), "scenes": []}
     monthly = ai_client.monthly_report(year, month, era_name, posture)
     if isinstance(monthly, dict):
         if monthly.get("_error") or monthly.get("_fallback"):
-            # AI 未接入/失败 → 本地模板 + 真值组装（游戏可继续）
             from ai.narrative_fallback import fallback_report
-            return str(fallback_report(year=year, month=month, era_name=era_name,
-                                       state=state).get("report") or "")
-        return str(monthly.get("report") or "")
-    return str(monthly or "")
+            fb = fallback_report(year=year, month=month, era_name=era_name, state=state)
+            return {"report": str(fb.get("report") or ""), "scenes": []}
+        return {"report": str(monthly.get("report") or ""),
+                "scenes": list(monthly.get("scenes") or [])}
+    return {"report": str(monthly or ""), "scenes": []}
 
 
 # ============================================================

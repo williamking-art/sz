@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-__all__ = ["settle_production_chain", "PRODUCTION_BUILDING_MULT"]
+__all__ = ["settle_production_chain", "goods_direct_production_backup",
+           "PRODUCTION_BUILDING_MULT"]
 
 # 建筑等级 → 产出乘数（与外邦 LV_OUTPUT_BONUS 同口径：1 + 0.05×(lv−1)）
 PRODUCTION_BUILDING_MULT = 0.05
