@@ -13,6 +13,35 @@ from ai.narrative_guard import (
 )
 from ai.validators import _narrative_fallback
 
+
+def _validate_scenes(scenes: list, min_count: int = 2, max_count: int = 12) -> list:
+    """③ 分幕约束后验：幕数钳位、字数钳位、脱敏（去阿拉伯数字）、空幕占位。
+
+    - 幕数 < min_count：补「有司补录」占位幕；> max_count：截断；
+    - 每幕 text 20–120 字：过长截断、过短标 [文略]；
+    - text 含阿拉伯数字：替换为「数」（脱敏约束，与 prompt「不写具体数字」对齐）。
+    """
+    if not isinstance(scenes, list):
+        return []
+    out = []
+    for s in scenes[:max_count]:
+        if not isinstance(s, dict):
+            continue
+        text = str(s.get("text", "") or "")
+        # 脱敏：阿拉伯数字 → 「数」（prompt 约束后验）
+        import re
+        text = re.sub(r"\d+", "数", text)
+        if len(text) < 20:
+            text = text + "（文略）"
+        elif len(text) > 120:
+            text = text[:118] + "…"
+        out.append({"scene": str(s.get("scene", ""))[:16], "text": text})
+    # 不足 min_count 补占位
+    while len(out) < min_count:
+        idx = len(out) + 1
+        out.append({"scene": f"补录{idx}", "text": "（本月此幕暂缺，有司补录存档。）"})
+    return out
+
 class MiscContractMixin:
     def monthly_report(self, year, month, era_name, posture):
         sys_p = _load_prompt("monthly_report", year=year, month=month, era_name=era_name, posture=posture)
@@ -31,6 +60,8 @@ class MiscContractMixin:
                 ]
             else:
                 o["scenes"] = []
+            # ③ 分幕约束后验：幕数/字数/脱敏
+            o["scenes"] = _validate_scenes(o["scenes"], min_count=2, max_count=12)
             return o if o["report"] else None
         # 朝局 hash 缓存（同月同态势不重复烧 token）
         raw = self._cached_call("monthly", posture, sys_p, "", 0.7, 600)
@@ -64,6 +95,15 @@ class MiscContractMixin:
                 facts.append(f"粮价均值 {sum(ps) / len(ps):.2f}"
                              f"（最高 {max(ps):.2f} / 最低 {min(ps):.2f}）")
                 facts.append(f"民情均值 {sum(ms) / len(ms):.0f}/100")
+            # 众生相 P1：六民生齿真值（民间反应按阶层锚定）
+            try:
+                from core.commands import pop_sentiment_brief
+                _brief = pop_sentiment_brief(state)
+                for _ln in _brief.split("\n")[1:]:   # 跳过标题行
+                    if _ln.strip() and _ln.startswith("- "):
+                        facts.append(_ln.strip()[2:])
+            except Exception:
+                pass
             if int(getattr(state, "disaster_severity", 0) or 0) > 0:
                 facts.append(f"灾情 {int(state.disaster_severity)} 级（民间流民渐多）")
             facs = getattr(state, "factions", None)
@@ -84,6 +124,17 @@ class MiscContractMixin:
             if not isinstance(o, dict) or not o.get("text"):
                 return None
             o["text"] = _clean_text(o.get("text", ""))
+            # 众生相分幕（④ 民间反应分幕化）：农人/士绅/商贾 3 幕 + ③ 后验
+            scenes = o.get("scenes")
+            if isinstance(scenes, list):
+                o["scenes"] = [
+                    {"scene": str(s.get("scene", ""))[:16],
+                     "text": _clean_text(str(s.get("text", "")))}
+                    for s in scenes if isinstance(s, dict) and s.get("text")
+                ]
+            else:
+                o["scenes"] = []
+            o["scenes"] = _validate_scenes(o["scenes"], min_count=1, max_count=5)
             return o if o["text"] else None
 
         raw = self._cached_call("civilian", posture, sys_p, "", 0.8, 500)
@@ -101,6 +152,12 @@ class MiscContractMixin:
                 sys_p += f"\n{closure}"
             except Exception:
                 pass
+            # 众生相 P1：六民生齿真值注入（锚定各阶层真实状态）
+            try:
+                from core.commands import pop_sentiment_brief
+                sys_p += "\n" + pop_sentiment_brief(state)
+            except Exception:
+                pass
 
         def validate(o):
             if not isinstance(o, dict) or "narrative" not in o:
@@ -109,8 +166,7 @@ class MiscContractMixin:
             # 拒绝式：severity_hint 缺失/非法 → 整单失败（不默认「中」）
             if o.get("severity_hint") not in ("轻", "中", "重"):
                 return None
-            o["severity_hint"] = o["severity_hint"]
-            # 众生相分幕（可选，向后兼容）
+            # 众生相分幕（可选，向后兼容）+ ③ 后验
             scenes = o.get("scenes")
             if isinstance(scenes, list):
                 o["scenes"] = [
@@ -120,6 +176,7 @@ class MiscContractMixin:
                 ]
             else:
                 o["scenes"] = []
+            o["scenes"] = _validate_scenes(o["scenes"], min_count=1, max_count=8)
             # 审查 P2-4 修复：人物查表——叙事命中已故/已黜 → 标记回喂
             if state is not None:
                 try:

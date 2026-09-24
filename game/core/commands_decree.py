@@ -310,7 +310,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     if _pending:
         _titles = "、".join(str(a.get("title", "无题"))[:12] for a in _pending[:3])
         return (
-            f"⚠ 409 未决呈请：尚有 {_pending.__len__()} 件大臣呈请待朱批（{_titles}…）。"
+            f"⚠ 409 未决呈请：尚有 {len(_pending)} 件大臣呈请待朱批（{_titles}…）。"
             f"此刻颁诏，这些事会随本月一并作废，且从未办过。"
             f"请先至「朱批待阅」处置后再颁诏。"
         )

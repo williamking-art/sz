@@ -84,7 +84,7 @@ def test_civil_logistics_conserves():
     buyer = {"wealth": 10000}
     merchant = {"wealth": 0}
     res = civil_logistics(buyer, merchant, quantity=50000,
-                          distance_km=200, unit_value=1.0, cfg=CFG)
+                          distance_km=200, cfg=CFG)
     assert not res["abandoned"]
     assert res["fee"] > 0
     assert buyer["wealth"] == 10000 - res["fee"]
@@ -93,7 +93,7 @@ def test_civil_logistics_conserves():
     buyer2 = {"wealth": 0}
     merchant2 = {"wealth": 0}
     res2 = civil_logistics(buyer2, merchant2, quantity=50000,
-                           distance_km=200, unit_value=1.0, cfg=CFG)
+                           distance_km=200, cfg=CFG)
     assert res2["abandoned"]
     assert res2["fee"] == 0
     assert buyer2["wealth"] == 0 and merchant2["wealth"] == 0

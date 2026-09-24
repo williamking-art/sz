@@ -698,7 +698,11 @@ export class ApiClient {
   async pollRich(): Promise<{
     ready: boolean;
     rich_report: string;
+    /** 众生相分幕（AI 月报 6~10 幕场景） */
+    rich_report_scenes?: { scene: string; text: string }[];
     rich_civilian: string;
+    /** ④ 民间反应分幕（农人/士绅/商贾） */
+    rich_civilian_scenes?: { scene: string; text: string }[];
     settle_error: string;
     log: string[];
     state: GameState;
@@ -871,7 +875,11 @@ export function getApiClient(): ApiClient {
 export type RichPollResult = {
   ready: boolean;
   rich_report: string;
+  /** 众生相分幕（AI 月报 6~10 幕场景） */
+  rich_report_scenes?: { scene: string; text: string }[];
   rich_civilian: string;
+  /** ④ 民间反应分幕（农人/士绅/商贾） */
+  rich_civilian_scenes?: { scene: string; text: string }[];
   settle_error: string;
   log: string[];
   state: GameState;

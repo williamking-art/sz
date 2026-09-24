@@ -104,6 +104,7 @@ def save_game(state, slot: int = 1) -> bool:
         "longterm_effects": getattr(state, "longterm_effects", []),
         "short_term_log": getattr(state, "short_term_log", []),
         "monthly_gazette": getattr(state, "monthly_gazette", [])[-12:],
+        "rich_report_scenes": getattr(state, "rich_report_scenes", []),
         "tool_registry": getattr(state, "tool_registry", {}),
         "branch_registry": getattr(state, "branch_registry", {}),
         "tech_registry": getattr(state, "tech_registry", {}),
@@ -576,6 +577,7 @@ def load_game(slot: int = 1):
     state.spy_network = data.get("spy_network", state.spy_network)
     state.settlement_log = data.get("settlement_log", [])
     state.monthly_gazette = data.get("monthly_gazette", []) or []
+    state.rich_report_scenes = data.get("rich_report_scenes", []) or []
 
     # 恢复扩展维度
     state.yamen = data.get("yamen", state.yamen)

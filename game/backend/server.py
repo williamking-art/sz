@@ -481,6 +481,7 @@ def api_advance_round2(request: Request):
         s = _require_state()
         return {"ready": bool(getattr(s, "rich_ready", False)),
                 "rich_report": str(getattr(s, "rich_report", "") or ""),
+                "rich_report_scenes": _json_safe(list(getattr(s, "rich_report_scenes", None) or [])),
                 "rich_civilian": str(getattr(s, "rich_civilian", "") or ""),
                 "rich_civilian_scenes": _json_safe(list(getattr(s, "rich_civilian_scenes", None) or [])),
                 "settle_error": str(getattr(s, "settle_error", "") or ""),

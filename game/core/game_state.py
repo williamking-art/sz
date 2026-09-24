@@ -361,6 +361,7 @@ class GameState(GameStateEconMixin):
         # （数值变化/政务进度/人事变动）。旧档缺字段：save/load 幂等补齐。
         self.rich_report: str = ""         # 官方月报富化版（空 = 无富化，程序兜底即最终版）
         self.rich_civilian: str = ""       # AI 民间反应富化版（空 = 程序版已可读）
+        self.rich_civilian_scenes: list = []  # ④ 民间反应分幕（农人/士绅/商贾）
         self.rich_ready: bool = False      # 本回合富化链是否已跑完（前端据此停止轮询）
 
         # ---- 扩展维度：金融/货币/市舶/交子/银行/本位 ----
@@ -750,6 +751,8 @@ class GameState(GameStateEconMixin):
         self.situations: list = []
         # ---- 月度奏章八章（批 3）：最近 12 月 [{year,month,chapters,couplet,diff_summary}] ----
         self.monthly_gazette: list = []
+        # ---- 众生相分幕（P0）：AI 月报 scenes 数组 [{"scene","text"}] ----
+        self.rich_report_scenes: list = []
         # 运行时态（**不落档**）：AI 档位 `_situation_grades`、本回合诏令携带的
         # `_situation_intents_this_turn`。
         self._situation_grades: dict = {}

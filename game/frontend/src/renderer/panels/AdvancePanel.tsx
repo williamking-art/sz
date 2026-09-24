@@ -17,6 +17,12 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
   const log = Array.isArray(props?.log) ? (props.log as string[]) : [];
   const error = typeof props?.error === "string" ? props.error : "";
   const richPending = props?.rich_pending === true && stage === "civilian";
+  // 众生相分幕（P0）：AI 月报 6~10 幕场景
+  const rawScenes = Array.isArray(props?.scenes) ? props.scenes : [];
+  const scenes = rawScenes.filter(
+    (s): s is { scene: string; text: string } =>
+      !!s && typeof s === "object" && typeof (s as Record<string, unknown>).text === "string"
+  );
   const [rich, setRich] = useState<string>("");
 
   // round2 民间反应 AI 版轮询（仅第一弹窗；ready 后就地替换民间反应富文本）
@@ -119,6 +125,27 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
               朝情补录中…（民间情况已可读；AI 富文本完成后将就地更新此段）
             </p>
           )}
+        </div>
+      )}
+
+      {/* 众生相分幕（P0）：AI 月报 6~10 幕场景卡片 */}
+      {scenes.length > 0 && (
+        <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
+          <p className="mb-2 font-kai text-sm font-bold tracking-widest text-red">
+            众 生 相 · 分 幕
+          </p>
+          <div className="space-y-2">
+            {scenes.map((s, i) => (
+              <div key={i} className="border-l-2 border-red/40 pl-3">
+                <p className="font-kai text-[13px] font-bold text-ink">
+                  【{s.scene || `其${"一二三四五六七八九十"[i] || i + 1}`}】
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-light">
+                  {s.text}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
