@@ -482,6 +482,7 @@ def api_advance_round2(request: Request):
         return {"ready": bool(getattr(s, "rich_ready", False)),
                 "rich_report": str(getattr(s, "rich_report", "") or ""),
                 "rich_civilian": str(getattr(s, "rich_civilian", "") or ""),
+                "rich_civilian_scenes": _json_safe(list(getattr(s, "rich_civilian_scenes", None) or [])),
                 "settle_error": str(getattr(s, "settle_error", "") or ""),
                 "log": _json_safe(list(getattr(s, "_last_settle_log", None) or [])),
                 # 后台结算完成的最新快照（供回合报告弹窗用 before/after 差值）
@@ -859,7 +860,8 @@ def api_meter(request: Request):
         _require_state()
         from ai.token_meter import grouped_meter_rows
         ai = _get_ai()
-        rows = grouped_meter_rows(ai, getattr(_state, "_dialogue_stats", None))
+        rows = grouped_meter_rows(ai, getattr(_state, "_dialogue_stats", None),
+                                  getattr(_state, "_kb_stats", None))
         total = {}
         try:
             total = (ai.meter_summary() or {}).get("total", {}) if ai is not None else {}
@@ -891,6 +893,9 @@ def api_meter_reset(request: Request):
         st = getattr(_state, "_dialogue_stats", None)
         if isinstance(st, dict):
             st.update({"prefilter_hits": 0, "cache_hits": 0, "ai_calls": 0})
+        kst = getattr(_state, "_kb_stats", None)
+        if isinstance(kst, dict):
+            kst.update({"calls": 0, "hits": 0})
         return {"ok": True}
 
 

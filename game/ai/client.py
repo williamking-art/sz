@@ -406,7 +406,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         return True
 
     def _tool_schemas(self):
-        """按 enable_tools_mode 选工具面：simple → 精简 4 工具；其余 → 全量 9 工具。"""
+        """按 enable_tools_mode 选工具面：simple → 精简 5 工具；其余 → 全量 10 工具。"""
         if self.enable_tools_mode == "simple":
             from ai.client_utils import SIMPLE_TOOL_SCHEMAS
             return SIMPLE_TOOL_SCHEMAS
