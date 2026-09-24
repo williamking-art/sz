@@ -10,11 +10,37 @@ AI 自由动作（free_edict 推演）产出的效果契约，程序侧**拒绝�
   duration 递减、0=永久、到期核销）。
 - AI 只有叙事/提议权，数值换算封顶归程序（与全游戏 AI 档位封顶同源）。
 """
+import math
+
 from content.data import FREE_EFFECT_FIELD_WHITELIST, FREE_EFFECT_CAP, FREE_EFFECT_COST_REJECT_RATIO
 
 
+def _is_finite_number(v) -> bool:
+    """真有限数值：排除 bool（bool 是 int 子类）、NaN、±inf。"""
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return math.isfinite(v)
+    return False
+
+
+def _safe_int(v, default: int = 0) -> int:
+    """安全取整：bool/NaN/Inf/非法 → default（禁止 int(nan) 抛错、int(True)==1 混入）。"""
+    if not _is_finite_number(v):
+        return default
+    try:
+        return int(v)
+    except (ValueError, OverflowError, TypeError):
+        return default
+
+
 def _clamp(v, cap):
-    """clamp 到 ±cap（保留小数——档位微 0.75 不截断，成本平衡评估准确；落地处自行 int）。"""
+    """clamp 到 ±cap（保留小数——档位微 0.75 不截断，成本平衡评估准确；落地处自行 int）。
+
+    非有限输入一律回落 0：修复 min(cap, nan) 在 CPython 下返回 cap（NaN 被当成 +CAP 铸币）。
+    """
+    if not _is_finite_number(v):
+        return 0
     return max(-cap, min(cap, v))
 
 
@@ -60,15 +86,20 @@ def _money_feasible(state, d: int) -> bool:
     return getattr(state, "treasury", 0) >= -d
 
 
-def _apply_money_delta(state, d: int) -> None:
+def _apply_money_delta(state, d: int) -> bool:
     """国库 ↔ 民间钱池守恒划转（ΣΔ==0，调用前须 _money_feasible 通过）：
     - d>0：国库入账，民间按持钱从高到低摊扣（税征/榷利等收益来源）；
     - d<0：国库出账，民间均分发放（赏赐/购办）。
+
+    返回是否真正落地。**原子**：无民间池 / 余额不足 → 返回 False 且**零副作用**
+    （修复前：空池时静默 return，cost.treasury 被记「耗国帑」实未扣 → 成本逃逸）。
     """
+    d = _safe_int(d)
+    if d == 0:
+        return True
     pools = _money_pools(state)
     if not pools:
-        return
-    d = int(round(d or 0))
+        return False
     if d > 0:
         remain = d
         for pp in sorted(pools, key=lambda x: -int(x.get("wealth", 0) or 0)):
@@ -78,31 +109,46 @@ def _apply_money_delta(state, d: int) -> None:
             take = min(remain, w)
             pp["wealth"] = w - take
             remain -= take
-        if remain > 0:  # 预检已挡；防御兜底
-            raise ValueError("民间财富不足以承担国库增额（守恒拒绝）")
+        if remain > 0:  # 预检已挡；防御兜底——不半落地
+            return False
         state.change_treasury(d)
-    else:
-        spend = -d
-        n = len(pools)
-        base, extra = spend // n, spend % n
-        for i, pp in enumerate(pools):
-            pp["wealth"] = int(pp.get("wealth", 0) or 0) + base + (1 if i < extra else 0)
-        state.change_treasury(-spend)
+        return True
+    spend = -d
+    if getattr(state, "treasury", 0) < spend:
+        return False
+    n = len(pools)
+    base, extra = spend // n, spend % n
+    for i, pp in enumerate(pools):
+        pp["wealth"] = int(pp.get("wealth", 0) or 0) + base + (1 if i < extra else 0)
+    state.change_treasury(-spend)
+    return True
 
 
-def _grant_grain(state, amount: int) -> None:
-    """cost.granary 守恒配对：太仓出粮 → 民间粮池均分（粜济），ΣΔ==0。"""
+def _grant_grain(state, amount: int) -> bool:
+    """cost.granary 守恒配对：太仓出粮 → 民间粮池均分（粜济），ΣΔ==0。
+
+    返回是否真正落地。无民间粮池 → False 且零副作用（调用方不得先扣太仓）。
+    """
+    amount = _safe_int(amount)
+    if amount <= 0:
+        return True
     pools = _grain_pools(state)
     if not pools:
-        return
+        return False
     n = len(pools)
     base, extra = amount // n, amount % n
     for i, pp in enumerate(pools):
         pp["grain"] = int(pp.get("grain", 0) or 0) + base + (1 if i < extra else 0)
+    return True
 
 
 def _resolve_effect_value(dim, value):
-    """效果值归一：档位词（无/微/小/中/大，可带 +/-）→ 数值；数字 → 原值；均 CAP 封顶。"""
+    """效果值归一：档位词（无/微/小/中/大，可带 +/-）→ 数值；数字 → 原值；均 CAP 封顶。
+
+    非有限（NaN/Inf）与 bool 一律回落 0——禁止 NaN 经 min(cap, nan) 变成 +CAP 铸币。
+    """
+    if isinstance(value, bool):
+        return 0
     if isinstance(value, (int, float)):
         return _clamp(value, FREE_EFFECT_CAP.get(dim, 1 << 30))
     if isinstance(value, str):
@@ -143,8 +189,10 @@ def validate_free_effect(contract) -> str:
             unknown = [kk for kk in v if kk not in INSTITUTION_PARAM_SPEC]
             if unknown:
                 return f"institution 含未授权参数 {unknown}，整单拒绝"
-        elif not isinstance(v, (int, float, str)):
+        elif isinstance(v, bool) or not isinstance(v, (int, float, str)):
             return f"effects[{k}] 值须为数字或档位词"
+        elif isinstance(v, (int, float)) and not math.isfinite(v):
+            return f"effects[{k}] 不接受 NaN/Inf"
     cost = contract.get("cost") or {}
     if cost:
         if not isinstance(cost, dict):
@@ -152,8 +200,16 @@ def validate_free_effect(contract) -> str:
         for ck, cv in cost.items():
             if ck not in ("treasury", "granary"):
                 return f"cost 字段「{ck}」不支持"
-            if not isinstance(cv, (int, float)) or cv < 0:
+            if isinstance(cv, bool) or not isinstance(cv, (int, float)):
                 return f"cost.{ck} 须为非负数字"
+            if not math.isfinite(cv) or cv < 0:
+                return f"cost.{ck} 须为非负有限数字"
+    if mode == "ongoing":
+        dur = contract.get("duration", 12)
+        if isinstance(dur, bool) or not isinstance(dur, (int, float)):
+            return "duration 须为非负整数（0=永久）"
+        if not math.isfinite(dur) or dur < 0:
+            return "duration 须为非负有限数（0=永久）"
     return ""
 
 
@@ -179,11 +235,10 @@ def _apply_effect_to_state(state, effects):
             state.change_prestige(d, "自由动作")
         elif k == "treasury":
             # 审查 P0-5：国库增减一律与民间钱池成对（税征/赏赐），ΣΔ==0，不凭空铸币
-            d = int(_resolve_effect_value(k, v))
-            if not _money_feasible(state, d):
+            d = _safe_int(_resolve_effect_value(k, v))
+            if not _money_feasible(state, d) or not _apply_money_delta(state, d):
                 log.append(f"{k} 效果未落地：余额不足（{d:+d}）")
                 continue
-            _apply_money_delta(state, d)
         elif k == "population_satisfaction":
             d = _resolve_effect_value(k, v)
             state.population_satisfaction = max(0, min(100, state.population_satisfaction + d))
@@ -208,11 +263,10 @@ def _apply_effect_to_state(state, effects):
                 u.morale = max(0, min(100, u.morale + d))
         elif k == "finance":
             # 审查 P0-5：金融/市舶收益视同征自民间（国库入 ↔ 民间扣），ΣΔ==0
-            d = int(_resolve_effect_value(k, v))
-            if not _money_feasible(state, d):
+            d = _safe_int(_resolve_effect_value(k, v))
+            if not _money_feasible(state, d) or not _apply_money_delta(state, d):
                 log.append(f"{k} 效果未落地：余额不足（{d:+d}）")
                 continue
-            _apply_money_delta(state, d)
         elif k == "talent":
             d = _resolve_effect_value(k, v)
             state.exam["talent_pool"] = max(0, min(100, state.exam.get("talent_pool", 0) + d))
@@ -228,26 +282,32 @@ def _pay_cost(state, cost, log):
     杜绝"国库灭钱/太仓灭粮无去向"的凭空销毁。
     """
     for k, v in (cost or {}).items():
-        cv = int(v)
+        cv = _safe_int(v)
         if cv <= 0:
             continue
         if k == "treasury":
             if getattr(state, "treasury", 0) < cv:
                 continue
-            _apply_money_delta(state, -cv)   # 国库 -cv 且民间 +cv（成对，ΣΔ==0）
-            log.append(f"耗国帑{cv}（散入民间工赈）")
+            # 国库 -cv 且民间 +cv（成对，ΣΔ==0）；空池/失败 → 不扣账、不记假账
+            if _apply_money_delta(state, -cv):
+                log.append(f"耗国帑{cv}（散入民间工赈）")
+            else:
+                log.append(f"耗国帑{cv} 未执行：民间池不可达（守恒拒绝，防灭钱）")
         elif k == "granary":
             if getattr(state, "granary", 0) < cv:
                 continue
+            # 先确认民间粮池可达再出仓——防「已出仓却无去向」的灭粮
+            if not _grant_grain(state, cv):
+                log.append(f"耗太仓{cv}石 未执行：民间粮池不可达（守恒拒绝，防灭粮）")
+                continue
             state.change_granary(-cv)
-            _grant_grain(state, cv)
             log.append(f"耗太仓{cv}石（粜济民间）")
 
 
 def _cost_affordable(state, cost) -> bool:
     """成本可承受判定（超存量 → 整单不执行）。"""
     for k, v in (cost or {}).items():
-        cv = int(v)
+        cv = _safe_int(v)
         if cv <= 0:
             continue
         if k == "treasury" and state.treasury < cv:
@@ -261,7 +321,7 @@ def _cost_balanced(effects, cost) -> bool:
     """成本失衡拒绝：cost 总额 > FREE_EFFECT_COST_REJECT_RATIO × 效果价值（粗估折价）。"""
     if not cost:
         return True
-    cost_total = int(cost.get("treasury", 0)) + int(cost.get("granary", 0)) * 2   # 粮折钱粗估 2 贯/石
+    cost_total = _safe_int(cost.get("treasury", 0)) + _safe_int(cost.get("granary", 0)) * 2   # 粮折钱粗估 2 贯/石
     value = 0.0
     for k, v in effects.items():
         if k in ("treasury", "finance"):
@@ -298,7 +358,7 @@ def _money_effects_feasible(state, effects, cost) -> bool:
         pop_demand = 0
         for k, v in effects.items():
             if k in ("treasury", "finance"):
-                d = int(round(_resolve_effect_value(k, v) or 0))
+                d = _safe_int(round(_resolve_effect_value(k, v) or 0))
                 treasury_delta += d
                 if d > 0:
                     pop_demand += d
@@ -309,7 +369,7 @@ def _money_effects_feasible(state, effects, cost) -> bool:
             pop_have = sum(int(pp.get("wealth", 0) or 0) for pp in _money_pools(state))
             if pop_have < pop_demand:
                 return False
-        if int(cost.get("granary", 0) or 0) > getattr(state, "granary", 0):
+        if _safe_int(cost.get("granary", 0) or 0) > getattr(state, "granary", 0):
             return False
     except Exception:
         return False
@@ -342,7 +402,7 @@ def _apply_free_effect(state, contract) -> list:
         item = {
             "name": str(contract.get("name", "自由制度"))[:20],
             "mode": "ongoing",
-            "duration": int(contract.get("duration", 12)),
+            "duration": _safe_int(contract.get("duration", 12), default=12),
             "effects": contract.get("effects", {}),
             "cost": dict(cost),
         }

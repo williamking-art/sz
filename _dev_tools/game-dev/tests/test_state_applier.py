@@ -307,3 +307,37 @@ def test_range100_add_delta_not_clamped_but_result_is():
     applier_pipeline(s, [("x", [
         {"path": "prestige", "op": "add", "value": -9, "reason": "大失德"}])])
     assert s.prestige == 0
+
+
+# ============================================================
+# 批次 2：写通道语义（P1-15/16/17）
+# ============================================================
+def test_push_appends_not_overwrite():
+    """P1-15：push 语义 = 追加到列表，不是覆盖成标量。"""
+    from engine.state_applier import _apply_op
+    assert _apply_op(None, "x", "push", "a", ["b"]) == ["b", "a"]
+    assert _apply_op(None, "x", "push", "a", None) == ["a"]
+    assert _apply_op(None, "x", "push", "a", "old") == ["old", "a"]
+
+
+def test_merge_multi_set_takes_last():
+    """P1-16：多 set 取末值（merge 管道可跑通）。"""
+    from engine.state_applier import merge_changes
+    merged = merge_changes([
+        ("a", [{"path": "treasury", "op": "set", "value": 1}]),
+        ("b", [{"path": "treasury", "op": "set", "value": 2}]),
+    ])
+    sets = [m for m in merged if m["op"] == "set"]
+    assert sets and sets[-1]["value"] == 2
+
+
+def test_change_log_reset_isolates_games():
+    """P1-17：reset_change_log 清空全局日志，多局/测试不互污。"""
+    from engine.state_applier import CHANGE_LOG, reset_change_log
+    CHANGE_LOG.append({"path": "x", "op": "set", "value": 1, "old": 0})
+    assert len(CHANGE_LOG) >= 1
+    reset_change_log()
+    assert len(CHANGE_LOG) == 0
+    CHANGE_LOG.append({"path": "y", "op": "set", "value": 2, "old": 0})
+    _s()
+    assert len(CHANGE_LOG) == 0

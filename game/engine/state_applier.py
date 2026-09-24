@@ -238,6 +238,11 @@ def merge_changes(all_agent_changes: List[Tuple[str, List[dict]]]) -> List[dict]
             merge_log.append(f"{path}: set({sets[-1]['value']}) 后 add 累加 "
                              f"({sum(a['value'] for a in adds)})")
         if sets:
+            if len(sets) > 1:
+                # P1-16：多 set 冲突不得静默取末——至少留痕，便于审计
+                merge_log.append(
+                    f"{path}: 多 set 冲突，取末值 {sets[-1].get('value')!r}"
+                    f"（丢弃 {[s.get('value') for s in sets[:-1]]}）")
             merged.append(dict(sets[-1]))  # 先 set（多 set 取最后一个）
         if adds:
             merged.append({
@@ -641,6 +646,11 @@ def apply_conservation_fix(changes: List[dict], state=None) -> List[dict]:
 CHANGE_LOG: List[dict] = []  # 变更日志（path, old, new, reason, source_agent）
 
 
+def reset_change_log() -> None:
+    """新开局/读档时清空变更日志——P1-17：模块级全局跨局共享，不清会互污测试与多局审计。"""
+    CHANGE_LOG.clear()
+
+
 def _locate_path(state, path: str):
     """定位 path 的最终写入容器与键。
 
@@ -699,7 +709,12 @@ def _apply_op(state, path: str, op: str, value, cur=_UNSET) -> Any:
     if op == "remove":
         return 0
     if op == "push":
-        return value
+        # P1-15：push = 追加，不是覆盖。原 `return value` 把列表覆盖成标量。
+        if isinstance(cur, list):
+            return cur + [value]
+        if cur is None:
+            return [value]
+        return [cur, value]
     return cur
 
 

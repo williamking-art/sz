@@ -230,6 +230,20 @@ def test_establish_bank_conserved_and_fails_loudly():
     assert not bad3["ok"] and bad3["error"]
 
 
+def test_m3_no_double_count_bank_capital():
+    """P0-4：设行是 treasury→reserve 的 M2 内部划转，ΔM2=ΔM3=0；
+    不得把同一笔再记入 capital 使 M3 虚增（双计）。"""
+    s = _new_state()
+    m2_before, m3_before = M.m2(s), M.m3(s)
+    r = s.establish_bank(500_000)
+    assert r["ok"]
+    # treasury 与 bank.reserve 同属 M2：划转不改变 M2/M3 总量
+    assert abs(M.m2(s) - m2_before) < 1, f"ΔM2={M.m2(s) - m2_before}"
+    assert abs(M.m3(s) - m3_before) < 1, f"ΔM3={M.m3(s) - m3_before}（双计会 +500_000）"
+    # capital 展示仍在（bank_view），但不进 M3
+    assert abs(M.bank_view(s)["capital_guan"] - 500_000) < 1
+
+
 def test_bank_credit_conserved_interest_not_treasury_income():
     """§3 月度信贷：ΔM_ALL 只等于 −坏账；利息归银行、不入国库；债权=借款方资产。"""
     from core.money import take_flow

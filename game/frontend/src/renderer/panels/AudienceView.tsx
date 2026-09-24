@@ -351,7 +351,8 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         }
       ]);
     } finally {
-      setBusy(false);
+      // P2-35：旧请求不得解除新会话 busy（ticket 失效则不动）
+      if (guard.isFresh(ticket, currentRef.current)) setBusy(false);
     }
   }
 
@@ -421,7 +422,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           ]);
         }
       } finally {
-        setBusy(false);
+        if (guard.isFresh(ticket, currentRef.current)) setBusy(false);
       }
       return;
     }
@@ -475,7 +476,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
         ]);
       }
     } finally {
-      setBusy(false);
+      if (guard.isFresh(ticket, currentRef.current)) setBusy(false);
       // 刷新侧栏与名录末条预览（不动即时消息列，避免抹掉未落库的内帑/异常提示）
       if (guard.isFresh(ticket, currentRef.current)) void pullMemory(target, false);
     }
@@ -919,6 +920,28 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                 </button>
               </div>
             )}
+
+            {/* 批 5 C3 · 话术 chip：固定话术压 LLM 不确定性，与 SKILL description 对应 */}
+            <div className="mb-1 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-dim">话术：</span>
+              {[
+                { label: "问户部钱粮", text: "目下国库用度几何？岁入岁出可还支应？卿当据实奏来。" },
+                { label: "命兵部调兵", text: "边备紧要，兵部当速议调兵布防之策，毋得迟误。" },
+                { label: "下密令", text: "此事机密，卿可暗中查办，勿使外泄。" },
+                { label: "准奏", text: "准奏，依议施行。" },
+                { label: "问吏治", text: "近来中外官吏考课如何？有无贪墨旷职者？" },
+              ].map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => setInput(c.text)}
+                  disabled={busy}
+                  className="rounded-full border border-gold/50 bg-paper/80 px-2.5 py-0.5 text-[11px] text-ink-light transition hover:bg-gold-light hover:text-ink disabled:opacity-40"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
 
             {/* 下层：长条宣纸传旨输入框 */}
             <div className="flex items-center gap-2">

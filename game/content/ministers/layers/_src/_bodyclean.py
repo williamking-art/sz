@@ -1,3 +1,5 @@
+﻿# -*- coding: utf-8 -*-
+# ⚠️ **已废弃**（2026-09-22）：旧版净身脚本，会覆盖 _lay2.py 权威产物。禁止运行。
 import os, numpy as np
 from PIL import Image, ImageFilter
 # 路径自 __file__ 推导（原为硬编码 g:\sz\...）

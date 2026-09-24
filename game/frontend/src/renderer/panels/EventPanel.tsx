@@ -52,7 +52,9 @@ export default function EventPanel({ props }: { props?: Record<string, unknown> 
     if (busy) return;
     setBusy(true);
     try {
-      const res = await getApiClient().resolveEvent(title, idx);
+      const res = await getApiClient().resolveEvent(
+        title, idx, typeof event?.id === "string" ? event.id : undefined
+      );
       setState(res.state);
       setResult(res.message);
     } catch (e) {

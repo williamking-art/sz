@@ -441,6 +441,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- [工程投入] Step 4.5: 工程 / 制作系统 ----
     # 顺序修正（整改①-1）：工程投入必须排在粮食市场与税收之前——工程量在当月
     # 形成产能/耗料/占款，才能被当月市场与财政读到。
+    # Step 4.4 产出链（批 4 S1）：原料 yields 年额/12 × 建筑乘数 → state.resources
+    # （消除「原料只出不进」缺口；须在作坊耗料之前入仓）。
+    try:
+        from core.production_chain import settle_production_chain
+        settle_production_chain(state, log)
+    except Exception as _pc_e:  # noqa: BLE001
+        log.append(f"[产出链][WARN] 原料入仓失败：{_pc_e!r}")
     _settle_projects(state, log)
     _settle_workshops(state, log)
 
@@ -553,13 +560,36 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     try:
         from core.money import audit_step as _money_audit_step
         _money_audit_step(state)
-    except Exception as _money_err:  # noqa: BLE001 — 对账失败不得影响结算主流程
-        log.append(f"[货币对账] 跳过（{_money_err!r}）")
+    except Exception as _money_err:  # noqa: BLE001 — 对账崩溃不拖垮结算，但必须响亮可见
+        # P1-19：原静默「跳过」→ 对账可连续数月失效而无人知。现 ERROR 落档 + 持久计数。
+        import logging as _logging
+        _logging.getLogger("songzuo.money").exception("货币对账失败（必须修复）")
+        log.append(f"[货币对账][ERROR] 对账失败（非跳过）：{_money_err!r}")
+        _audit = getattr(state, "money_audit", None)
+        if not isinstance(_audit, dict):
+            _audit = {}
+            state.money_audit = _audit
+        _audit["last_error"] = repr(_money_err)
+        _audit["error_count"] = int(_audit.get("error_count", 0)) + 1
 
     # ---- Step 11: 记录与回合推进 ----
     # 将月份/年份推进收敛到结算函数内部，确保与 Rust 后端（settle.rs）的推进位置一致，
     # 避免 commands 层再次推进导致双端月份各推一次的漂移。
     state.settlement_log.append(log)
+    # ---- Step 11.5: 月度奏章八章（批 3 · 明末经验）----
+    # 固定八章 + 章末七言联 + ▲▼ 差值摘要；只读组装，失败不阻断回合推进。
+    try:
+        from core.monthly_gazette import build_monthly_gazette
+        _gaz = build_monthly_gazette(state, year=state.year, month=state.month)
+        _hist = getattr(state, "monthly_gazette", None)
+        if not isinstance(_hist, list):
+            _hist = []
+        _hist.append(_gaz)
+        if len(_hist) > 12:
+            del _hist[:-12]
+        state.monthly_gazette = _hist
+    except Exception as _gaz_e:  # noqa: BLE001
+        log.append(f"[邸报][WARN] 八章组装失败：{_gaz_e!r}")
     state.turn += 1
     state.year, state.month = _next_month(state.year, state.month)
     state.update_era_name()

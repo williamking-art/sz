@@ -4,8 +4,7 @@
 interface Window {
   songzuo?: {
     getBackendUrl: () => Promise<string>;
-    /** 服务端启用 SONGZUO_SERVER_TOKEN 时的 Bearer token；未配置返回空串。 */
-    getBackendToken: () => Promise<string>;
+    // P1-10：getBackendToken 已移除——token 由主进程注入，不进渲染层
     minimize: () => Promise<void>;
     maximize: () => Promise<void>;
     close: () => Promise<void>;

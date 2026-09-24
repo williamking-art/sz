@@ -1,3 +1,7 @@
+﻿# -*- coding: utf-8 -*-
+# ⚠️ **已废弃**（2026-09-22）：本脚本为旧版立绘生成管线，会覆盖 _lay2.py 权威产物。
+# 权威管线 = content/ministers/layers/_lay2.py（4 步：body→offsets→净身→head）。
+# 仅保留作历史参考，**禁止运行**。
 import json
 import os
 import numpy as np

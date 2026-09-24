@@ -112,6 +112,8 @@ export default function AccountingPanel() {
   const nominalAnnual = asNum(fin.nominal_annual);
   const monthlyIn = asNum(fin.monthly_in);
   const diff = nominalAnnual / 12 - monthlyIn;
+  // 批1 · 财政三值：到账率 = 实收 ÷ 账面月额（明末「加税≠增收」的可解释层）
+  const arrivalRate = nominalAnnual > 0 ? (monthlyIn / (nominalAnnual / 12)) : 0;
   const totalOut = asNum(fin.total_out);
   const net = asNum(fin.net);
 
@@ -156,6 +158,12 @@ export default function AccountingPanel() {
         </p>
         <p className="mt-1 text-xs leading-relaxed text-dim">
           差额 {humanizeCoin(diff)}/月即「隐漏与拖欠」——账面名义与实到之距，正田赋隐漏、胥吏侵蚀之漏出。
+          <span
+            className="ml-2 cursor-help underline decoration-dotted underline-offset-2"
+            title={`到账率 = 实收 ÷ (账面年额 ÷ 12) = ${humanizeCoin(monthlyIn)} ÷ ${humanizeCoin(nominalAnnual / 12)} = ${(arrivalRate * 100).toFixed(1)}%` + "　公式：账面岁入 ÷ 12 × 到账率 = 实收；到账率受隐漏、胥吏侵蚀、钱荒、动乱影响"}
+          >
+            到账率 {(arrivalRate * 100).toFixed(1)}%
+          </span>
         </p>
       </div>
 

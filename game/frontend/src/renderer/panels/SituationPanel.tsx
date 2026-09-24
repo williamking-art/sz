@@ -19,13 +19,15 @@ const SOURCE_LABEL: Record<SituationItem["source"], string> = {
   legacy: "帝国修正",
   focus: "国策",
   free_effect: "长期诏",
-  event: "事件"
+  event: "事件",
+  record: "长期局势"
 };
 const SOURCE_BADGE: Record<SituationItem["source"], string> = {
   legacy: "bg-red/90 text-paper",
   focus: "bg-emerald-700/90 text-paper",
   free_effect: "bg-amber-600/90 text-paper",
-  event: "bg-ink/80 text-paper"
+  event: "bg-ink/80 text-paper",
+  record: "bg-red-dark/90 text-paper"
 };
 const STATUS_LABEL: Record<SituationItem["status"], string> = {
   active: "在办",
@@ -115,6 +117,13 @@ function ItemCard({ r }: { r: SituationItem }) {
           {r.bar_value === null ? "无进度" : `${r.bar_value} / 100`}
           {r.progress_text ? `　${r.progress_text}` : ""}
         </span>
+        {(r.bar_good_meaning || r.bar_bad_meaning) && (
+          <span className="text-[11px] text-dim">
+            {r.bar_good_meaning ? `推进→${r.bar_good_meaning}` : ""}
+            {r.bar_good_meaning && r.bar_bad_meaning ? "　" : ""}
+            {r.bar_bad_meaning ? `恶化→${r.bar_bad_meaning}` : ""}
+          </span>
+        )}
       </div>
 
       <div className="mt-1 space-y-0.5 text-[13px] text-ink">

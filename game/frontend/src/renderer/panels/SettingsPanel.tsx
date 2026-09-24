@@ -48,9 +48,9 @@ export default function SettingsPanel() {
     if (saveFirst) {
       try {
         const res = await getApiClient().save(0);
-        if (!res.ok && !window.confirm("自动存档失败（槽位 0）。仍要返回主菜单吗？")) return;
+        if (!res.ok && !window.confirm("自动存档失败（专用自动存档槽）。仍要返回主菜单吗？")) return;
       } catch {
-        if (!window.confirm("自动存档失败（槽位 0 写入异常）。仍要返回主菜单吗？")) return;
+        if (!window.confirm("自动存档失败（专用自动存档槽写入异常）。仍要返回主菜单吗？")) return;
       }
     }
     clearOverlays();

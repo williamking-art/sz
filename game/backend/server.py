@@ -27,6 +27,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -44,6 +45,8 @@ from core.errors import AIRuntimeError
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Songzuo Reference Backend", version="1.0")
+
+log = logging.getLogger("backend.server")
 
 # 配置：默认仅本机；跨源需显式白名单（审查 P2：禁止裸 * + credentials）
 _DEFAULT_ORIGINS = [
@@ -455,6 +458,10 @@ def api_advance(request: Request):
         try:
             _state._frontend_events = {
                 str(e.get("title", "")): e for e in (events or []) if isinstance(e, dict)}
+            # P1-29：同时按 id 索引——同名事件/标题改写时仍可精确定位
+            for e in (events or []):
+                if isinstance(e, dict) and e.get("id"):
+                    _state._frontend_events[str(e["id"])] = e
         except Exception:
             pass
         return {"events": _json_safe(events), "log": _json_safe(log),
@@ -927,7 +934,7 @@ def api_council_review(req: CouncilReviewReq, request: Request):
             try:
                 rev = ai.council_review(draft, _state.get_state_summary(), state=_state)
             except Exception as e:  # noqa: BLE001
-                print(f"[server] 会签推演失败: {e!r}", flush=True)
+                log.warning("[server] 会签推演失败: %s", e)
                 rev = None
         # 审查修复（伪结论 + 失败入档）：契约失败时 council_review 返回带 _error 的
         # **非空** dict，原 `if not rev` 判空对其无效 → 错误对象被当作合法会签意见；
@@ -969,7 +976,7 @@ def api_decree_polish(req: DecreePolishReq, request: Request):
             out = ai.polish_decree(text, summary)
         except Exception as e:  # noqa: BLE001
             # 异常类名/原文只入服务端日志，不下发界面（界面一律中文）
-            print(f"[server] 诏书润色中断: {e!r}", flush=True)
+            log.warning("[server] 诏书润色中断: %s", e)
             raise HTTPException(status_code=502, detail="AI 词臣一时未有回音，请稍后再试。")
         if not isinstance(out, dict) or out.get("_error"):
             raise HTTPException(status_code=502, detail="润色未通过契约校验（可重试）")
@@ -1045,7 +1052,7 @@ def api_monthly_report(request: Request):
         try:
             text = _monthly_report_text(_state, _get_ai())
         except Exception as e:  # noqa: BLE001
-            print(f"[server] 月折生成失败: {e!r}", flush=True)
+            log.warning("[server] 月折生成失败: %s", e)
             raise HTTPException(status_code=502, detail="月折未能草就，请稍后再试。")
         return {"report": text}
 

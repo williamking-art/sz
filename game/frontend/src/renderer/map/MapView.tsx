@@ -33,6 +33,7 @@ export default function MapView() {
   const markersRef = useRef<MarkerManager | null>(null);
   const dataRef = useRef<GeoData | null>(null);
   const debounceRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
   const state = useGameStore((s) => s.state);
   const setSelected = useGameStore((s) => s.setSelected);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
@@ -72,6 +73,10 @@ export default function MapView() {
     });
     controller.init();
     return () => {
+      // P1-24：先清 marker（label/custom/pulse），再 destroy map——否则 DOM/监听残留
+      markersRef.current?.clearAll();
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      cancelledRef.current = true;
       controller.destroy();
       controllerRef.current = null;
       markersRef.current = null;
@@ -112,6 +117,7 @@ export default function MapView() {
         fc.features.forEach((f, j) => { f.id = j; });
       }
       dataRef.current = data;
+      if (cancelledRef.current) return; // 卸载后不再 setData/挂监听
       // 政权几何全精度注入(不再按 zoom 分档简化):精确国界/省界被简化
       // 会在中低缩放退化为直线多边形
       controller.setData(data);

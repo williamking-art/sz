@@ -20,7 +20,9 @@
          · `m1_full`    ：全额计入（旧口径，便于对比）
          · `m1_working` ：仅计"周转金"（k×月常费），其余视为**封桩**沉淀（§12.2）
     M2  广义货币   = M1 ＋ 沉淀层（士绅窖银 ＋ 熔铜池 ＋ 银行准备金）
-    M3  全社会     = M2 ＋ 白银存量 ＋ 银行资本（万贯→贯）
+    M3  全社会     = M2 ＋ 白银存量 ＋ 交子本钱
+         · **不含 bank["capital"]**（P0-4：capital 与 reserve 同源双计会虚增 M3；
+           capital 为 legacy 展示字段，真实银行钱在 reserve，已由 M2 计入）
     M_ALL 会计全集 = 全部持有主体之和（见 `ACCOUNTS`）
 
 ## 刻意**不计入** M_ALL 的项（避免重复计算 / 非实际持有）
@@ -271,11 +273,15 @@ def m2(state, working_only: bool = False) -> float:
 
 
 def m3(state, working_only: bool = False) -> float:
-    """全社会货币资产 = M2 ＋ 白银存量 ＋ 银行资本 ＋ 交子本钱。"""
+    """全社会货币资产 = M2 ＋ 白银存量 ＋ 交子本钱。
+
+    **P0-4**：不再加 `_bank_capital_as_guan`——bank.capital 与 bank.reserve 是同一笔
+    准备金的两种记法（establish_bank 曾同时入账），reserve 已在 M2，再加 capital 即双计。
+    capital 仅作 legacy 展示（万贯），不入货币分层。
+    """
     jz = getattr(state, "jiaozi", {}) or {}
     return (m2(state, working_only=working_only)
             + _silver_stock(state)
-            + _bank_capital_as_guan(state)
             + float(jz.get("reserve", 0) or 0))
 
 

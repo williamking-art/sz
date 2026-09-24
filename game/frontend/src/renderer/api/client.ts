@@ -156,13 +156,18 @@ export interface ExecutionChannels {
 export interface SituationItem {
   id: string;
   title: string;
-  source: "legacy" | "focus" | "free_effect" | "event";
+  source: "legacy" | "focus" | "free_effect" | "event" | "record";
   status: "active" | "resolved" | "failed" | "cancelled";
   /** 0–100；无进度来源为 null（前端显示"未定义"，不得当 0） */
   bar_value: number | null;
+  /** bar=进度条；goal=只判进行/达成/失败 */
+  progress_mode?: "bar" | "goal";
   resolve_condition_text: string | null;
   fail_condition_text: string | null;
   ongoing_text: string | null;
+  /** 推进=什么好 / 恶化=什么坏（明末 §3.4 双向语义标签） */
+  bar_good_meaning?: string | null;
+  bar_bad_meaning?: string | null;
   progress_text: string | null;
   severity: number;
   phase: "起" | "中" | "终前" | null;
@@ -708,10 +713,11 @@ export class ApiClient {
     });
   }
 
-  async resolveEvent(title: string, choice: number): Promise<ResolveResult> {
+  /** 事件抉择：优先传 eventId（同名事件/标题改写可精确定位），title 作兼容回退 */
+  async resolveEvent(title: string, choice: number, eventId?: string): Promise<ResolveResult> {
     return this.request("/api/resolve_event", {
       method: "POST",
-      body: JSON.stringify({ title, choice })
+      body: JSON.stringify({ title: eventId || title, choice })
     });
   }
 
@@ -787,16 +793,6 @@ export class ApiClient {
     });
   }
 
-  /** 润色稿入待签队列（三省会签用） */
-  async saveDecreeDraft(
-    draft: Record<string, unknown>
-  ): Promise<{ draft_id: string; state?: GameState }> {
-    return this.request("/api/decree/draft", {
-      method: "POST",
-      body: JSON.stringify({ draft })
-    });
-  }
-
   /** 弃删诏草 */
   async discardDecreeDraft(
     draftId: string
@@ -864,4 +860,46 @@ export function setApiClient(c: ApiClient): void {
 export function getApiClient(): ApiClient {
   if (!_client) throw new Error("ApiClient 尚未初始化");
   return _client;
+}
+
+
+// ============================================================
+// 共享朝情富化轮询器（P2-37：Dock 与 AdvancePanel 原各起一条 setInterval
+// 同时打 /api/advance/round2，互相覆盖弹窗/富文本时机）。
+// 现收敛为**单 interval + 多订阅者**，谁在听谁收，互不抢跑。
+// ============================================================
+export type RichPollResult = {
+  ready: boolean;
+  rich_report: string;
+  rich_civilian: string;
+  settle_error: string;
+  log: string[];
+  state: GameState;
+};
+type RichPollSub = (r: RichPollResult) => void;
+const _richSubs = new Set<RichPollSub>();
+let _richTimer: number | null = null;
+
+function _richTick(): void {
+  void getApiClient().pollRich().then((r) => {
+    // 订阅者各自决定是否消费（ready/settle_error 等语义在调用方）
+    for (const cb of [..._richSubs]) {
+      try { cb(r); } catch (e) { console.error("[richPoll] 订阅者异常", e); }
+    }
+  }).catch(() => { /* 轮询失败静默——调用方有各自兜底 */ });
+}
+
+/** 订阅共享富化轮询（首个订阅者启动 timer，返回退订函数）。 */
+export function subscribeRichPoll(cb: RichPollSub, intervalMs = 4000): () => void {
+  _richSubs.add(cb);
+  if (_richTimer === null) {
+    _richTimer = window.setInterval(_richTick, intervalMs);
+  }
+  return () => {
+    _richSubs.delete(cb);
+    if (_richSubs.size === 0 && _richTimer !== null) {
+      window.clearInterval(_richTimer);
+      _richTimer = null;
+    }
+  };
 }

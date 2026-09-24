@@ -4,7 +4,7 @@
 
 > **产品定位**：模拟一个穿越者（玩家），通过跟大臣的对话、发布圣旨（政策），来改变历史进程（北宋徽宗朝）。**AI 是游戏的核心引擎**——所有机制（经济/军事/政治/事件/外部/叙事）都通过 AI（agent）推演驱动，harness 保证稳定与编排，程序负责数值/守恒/校验。让 AI 更有效地发挥，就是游戏的宗旨。
 >
-> **架构**（详见 `_dev_tools/game-docs/docs/游戏机制说明.md`）：AI 通过**结构化契约**返回变更——各角色 `*_decide` 契约（JSON 输出，validate 校验）为主通道，大臣办差走 **function calling**（`enable_tools` 三档：auto/on/off）；`STATE_TOOL_SCHEMAS`（update_state/query_state/trigger_event 3 工具 + tool_choice=required）为**预留契约**（尚无生产调用方，见 `ai/client_utils.py` 注释）。变更统一经应用层 `engine/state_applier.py`（验证/合并/**守恒校验**/cascade/原子写库）→ 记忆库（**SQLite 一轮一库**：主库存圣旨/口谕/决策 + 对话记忆库存召对，每 3 回合总结去重）→ 叙事组装（narrative_guard 护栏 + persona 差异）。Agent 按需唤醒（`agent_router.AGENT_DEFS`；`PENDING_CONTRACTS` 登记未接线契约），异步化（UI 不卡），回合时序 = AI 推演 → 系统结算 → 形成叙事。
+> **架构**（详见 `_dev_tools/game-docs/docs/游戏机制说明.md`）：AI 通过**结构化契约**返回变更——各角色 `*_decide` 契约（JSON 输出，validate **拒绝式**校验）为主通道，大臣办差走 **function calling**（`enable_tools` 四档：auto/on/off/**simple**（限 4 工具面））；`STATE_TOOL_SCHEMAS`（update_state/query_state/trigger_event 3 工具 + tool_choice=required）为**预留契约**（尚无生产调用方，见 `ai/client_utils.py` 注释）。变更统一经应用层 `engine/state_applier.py`（验证/合并/**守恒校验**/cascade/原子写库）→ 记忆库（**SQLite 一轮一库**：主库存圣旨/口谕/决策 + 对话记忆库存召对，每 3 回合总结去重）→ 叙事组装（narrative_guard 护栏 + persona 差异）。Agent 按需唤醒（`agent_router.AGENT_DEFS`；`PENDING_CONTRACTS` 登记未接线契约），异步化（UI 不卡），回合时序 = AI 推演 → 系统结算 → 形成叙事。
 
 ---
 
@@ -154,7 +154,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 | 模块 | 职责 |
 |------|------|
-| `ai/` | AI 叙事管线：`client.py`（LLM 调用 + 契约 validate/回喂 + `AI_ERROR_CODES` 6 码全生产者〔超时/401/403 精确映射〕+ 角色 agent 契约 + function calling 三档）、`client_narrative.py`（叙事 agent 客户端）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图，**待接线**：有 T5 测试覆盖，尚无生产调用方）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验〔支持中文数字〕+ 来源闭集 + 人物校验表）。契约缺字段处置策略（B6 考证）：**类型/枚举字段 → 拒绝式**（`return None`），**强度/档位字段 → 向下降级**（一律 中/小/微/不变，全库反查无一处落到 大/巨/极）；高代价协议（和亲/盟约/纳贡/战争）档位非法时直接拒绝——宁可少给，绝不因 AI 漏字段而多给、`narrative_fallback.py`（离线降级叙事模板）、`desensitize.py`（脱敏）、`schemas.py`（A1：JSON Schema 校验，可选）、`token_meter.py`（A3：token 计量 + **HTTP 计量表分组** `grouped_meter_rows`）、`semantic.py` + `vector_store.py`（B2：本地语义检索，可选）、`model_setup.py`（B2 模型下载入口）、`safety_lexicon.json`（安全词表）、`prompts/`（23 个 .md：角色 prompt + decree_style_ref 拟旨文风） |
+| `ai/` | AI 叙事管线：`client.py`（LLM 调用 + 契约 validate/回喂 + `AI_ERROR_CODES` 6 码全生产者〔超时/401/403 精确映射〕+ 角色 agent 契约 + function calling 三档）、`client_narrative.py`（叙事 agent 客户端）、`contract_adapter.py`（34 契约 → {changes, narrative} 统一视图，**待接线**：有 T5 测试覆盖，尚无生产调用方）、`client_utils.py`（STATE_TOOL_SCHEMAS 3 工具 + parse_tool_calls + _tool_dispatch）、`narrative_guard.py`（叙事-数值校验〔支持中文数字〕+ 来源闭集 + 人物校验表）。契约缺字段处置策略（B6 考证）：**类型/枚举字段 → 拒绝式**（`return None`），**强度/档位字段 → 向下降级**（一律 中/小/微/不变，全库反查无一处落到 大/巨/极）；高代价协议（和亲/盟约/纳贡/战争）档位非法时直接拒绝——宁可少给，绝不因 AI 漏字段而多给、`narrative_fallback.py`（离线降级叙事模板）、`desensitize.py`（脱敏）、`schemas.py`（A1：JSON Schema 校验，可选）、`token_meter.py`（A3：token 计量 + **HTTP 计量表分组** `grouped_meter_rows`）、`semantic.py` + `vector_store.py`（B2：本地语义检索，可选）、`model_setup.py`（B2 模型下载入口）、`safety_lexicon.json`（安全词表）、`prompts/`（23 个 .md：角色 prompt + decree_style_ref 拟旨文风）、`kb_query.py`（**典章知识库**检索，见下节） |
 | `core/` | 核心逻辑：`game_state.py`（状态机）、`commands.py`（回合时序：AI 推演 → 结算 → 叙事；`advance_and_settle` 事件+结算**原子封装**〔含按回合上折，AI 不可用时走模板兜底〕；`settle_local`/`advance_and_settle` 结算异常**快照回滚**，且回滚同时按水位截断记忆库〔A2〕；`envoy_diplomacy` 遣使缔约（经 `apply_treaty` 落地，D11）；`allocate_payraise` 拨帑入加俸预算〔D9〕）+ `commands_decree.py`（拟旨族 + 内帑金额解析）、`settlement.py`（结算主流程 + 机构改制 + 承接层钩子）+ `settlement_steps.py`（Step 1~11，含财政/灾荒/士绅囤粮、金融调制读 `FINANCE_DECIDE_BASE` 单一源）、`registries.py`（科技/兵种注册表 + 软约束）、`agent_router.py`（按需唤醒：economy 必调；5 契约接线 + diff 唤醒；未接线登记 `PENDING_CONTRACTS`）、`async_ai.py`（**未接线**〔审查 B7〕：契约以已移除的 Tkinter `ui.after` 轮询为前提，现 Web 架构的非阻塞由 FastAPI 线程池 + 前端 HTTP 异步承担；保留为参照实现，接线前不计已生效能力）、`free_effect.py`（契约落地，第二条受控通道）、`estate_mechanic.py`（家产/投资）、`era_mechanic.py`（时代五维：目标值重算）、`minister_profile.py`（群臣档案：年龄/性情/生平，HTTP 与测试共用） |
 | `engine/` | 应用层：`state_applier.py`——**AI changes 唯一改状态通道**（验证/合并/守恒校验/cascade/原子写库/变更日志/返回叙事层）；`CASCADE_REASON_FIX` 补来源支持按 `share` **拆分归属**（酒课 工匠60%/商人40%、田赋 农60%/士绅40%，末条吃尾差保 `ΣΔ==0` 精确，D10） |
 | `memory/` | 记忆库（SQLite 一轮一库）：`memory_graph.py`（图谱：实体/关系 + 去重/6回合压缩/12回合总结/精确调动）、`dialogue_memory.py`（对话记忆库：召对对话 + 每 3 回合总结去重，与主库分离）。两库均有 `rollback_after(turn)`：结算失败时按水位截断，只删 `> turn`、不误删同回合合法写入（A2 —— 记忆库含 SQLite 连接不可深拷贝，故不能随 state 快照还原）。**检索与容量完善（2026-09-18）**：`keyword_search` 中文改 2-gram 切分（原「连续中文整段」取词 → 玩家自然语言查询恒 0 命中，拟旨「既往同类诏令」注入长期空转）；内存 `query`/`keyword_search` 补 `turn <= self.turn` 封顶并与 `query_sql` 同口径，`load_game` 读档后按主存档水位重新对齐 `memory.turn`（审查 B-1/J-10「读旧档记得未来」）；`archive()` 由 `finish_turn` 每 12 回合接线（容量治理：低权重旧史打 archived 标记、不物理删除）；补审计读接口 `query_change_log` 与对话库 `ref_ids` 下钻（`fetch_dialogues_by_ids`/`summary_refs`/`list_summaries`）；对话总结改为回补全部未总结窗口；槽位 db 缺失（新开局/换档）时 SQL 路径回退内存镜像 |
@@ -162,6 +162,36 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | `content/` | 数据（**单一权威源**）：`data.py`（派系 / 军队 / 州县 / 六部 / 财政 / TIER_RANGE 7 档 / FREE_EFFECT_CAP / FINANCE_DECIDE_BASE / BUILDING_STD / ESTATE_INIT / AI_ERROR_CODES / `clamp` / `TECH_EFFECT_LABELS` / `DESENSITIZE_MAP`）、`ministers/data.py`（大臣数据库）、`ministers/persona.py`（0-100 六维人格 + 立场演化〔国运取 `population_satisfaction`；仅 MINISTERS 在册者演化〕+ 阳奉阴违）、`codex_data.py`（图鉴 8 类数据，自 Tk 面板迁出） |
 | `audio/` | 音频**骨架（播放未接线）**：`manifest.py`（资源清单与槽位登记 + `EVENT_AUDIO_CLASS` 分类单一源；8 个槽位 `file` 均为空，其中 6 项待生成、2 项为运行时合成）、`tts.py`（B1：大臣语音朗读，edge-tts 微软在线，可选）。Tk 界面删除后播放路径随之消失，`assets/audio/` 目前仅 `.gitkeep`；前端设置面板的音量项亦只有本地 state（不写 localStorage、无播放对象）。即「清单已定、播放未接」，待接线后方可称落地 |
 | `telemetry/` | 玩法遥测：`store.py`（指标落库，可选，规划性增强中） |
+| `assets/kb/` | **典章知识库**（随游戏分发的只读 SQLite）：`game_kb.sqlite`（6 篇设计文档 / 226 块）。与 `memory/` 的**记忆库职责正交**：记忆库 = 本局运行态（「史」，随存档变、可写）；典章库 = 静态设计规则（「典」，随分发、只读）。详见下节 |
+
+---
+
+## 典章知识库（`kb_search`，2026-09-24 新增）
+
+> **定位**：把项目设计文档（`_dev_tools/game-docs/docs/*.md`）切片入库，让 AI 大臣在
+> 奏对/拟旨时能**按需查阅成文规则**（货币口径、三冗、财力消耗、外邦产业链等），
+> 替代原先依赖 CloudBase PG 的云端方案 —— 云端失效或断网时游戏内检索不受影响。
+
+| 项 | 内容 |
+|---|---|
+| 库文件 | `game/assets/kb/game_kb.sqlite`（随游戏分发；**只读**） |
+| 检索实现 | `game/ai/kb_query.py::_search()`（**唯一权威源**） |
+| 构建工具 | `_dev_tools/game-docs/kb/build_kb.py`（`build` 重建 / `query` 试查） |
+| 校验工具 | `_dev_tools/game-docs/kb/kb_stats.py`（文档数/块数/字符数/哈希漂移） |
+| 开发库 | `_dev_tools/game-docs/kb/dev_kb.sqlite`（工程文档，**不随游戏分发**，游戏进程读不到） |
+
+**检索算法**：FTS5 trigram（≥3 字符可靠）→ `LIKE AND`（中文子串精确，覆盖 2 字词盲区）→ `LIKE OR`（按命中词数降序）三级兜底。
+`build_kb.py` 的开发侧查询**直接转调** `ai/kb_query.py::_search()`，故不存在两份副本漂移。
+
+**接入管线**（`ai/client_utils.py`）：第 10 个工具 `kb_search`（schema `:560` / 白名单 `:583` / 必填校验 `:930` / dispatch `:1017`），
+参数 `query`（必填，截断 100 字）+ `top_k`（1~5，默认 3）。**AI 主动调用**（「问到才查」），
+与 `query_state` 同一省 token 哲学；单次回传上限 `MAX_RESULT_CHARS=1500` 字符。
+
+**降级**：库缺失 / SQLite 无 FTS5 trigram / 任何异常 → 返回空串，dispatch 侧给「典章库中未查到」话术，
+**绝不抛进 AI 管线**（同 `ai/semantic.py` 的降级哲学）。无命中亦不伪造内容。
+
+**文档变更后的维护**：改完 `_dev_tools/game-docs/docs/*.md` 后必须重跑 `python build_kb.py build`，
+否则游戏内读到的仍是旧切片；`kb_stats.py` 可校验内容哈希是否漂移。
 
 ---
 
@@ -232,7 +262,66 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | R2-17 | 并发/健壮 | `backend/server.py` 状态判空移入全局锁内；`/api/ai_config` 联网探测移出锁；Rust 存档改 `.tmp`+rename **原子写**、补 `/health` 别名、bind 失败不再 panic；记忆库 `save()` 补清 `summaries`、`query_sql` 降级记 warning |
 | R2-18 | 契约/文档 | 校正 `frontend/` 路径（在 `game/frontend/`）、`backend/client.py` 前后矛盾的后端定位、Rust 端过期 tkinter 注释/存档目录口径、工具数/路数注释等 |
 
+### 第三轮全审修复（2026-09-22，`R3-*`；基线 **917 passed**）
+
+> 详见仓库根 [`game全审报告.md`](../../../game全审报告.md)。大文件已**按模块拆分**（入口 re-export 兼容）。
+
+| 编号 | 类别 | 要点 |
+|------|------|------|
+| R3-1 | 数值安全 | `free_effect` 放行 NaN/Inf/bool，`min(cap, nan)` 变 `+CAP` → **凭空铸币**；现 `math.isfinite` + 拒 bool，`json.loads(parse_constant=…)` 拒 NaN/Infinity |
+| R3-2 | 守恒 | `events.apply_event_choice` 裸改国库（第三条写通道）→ 改走 `_apply_money_delta` 成对划转，资财不足不落地 |
+| R3-3 | 守恒 | `free_effect` 成本腿：民间池空假扣国帑、粮池空灭粮 → 改原子（失败零副作用） |
+| R3-4 | 货币口径 | M3 把 `bank.reserve` 与 `bank.capital` **双计** → M3 不再加 capital（reserve 已在 M2） |
+| R3-5 | 守恒 | 铸钱/太仓粮分发 `int()` 截断无尾差 + 铸钱未 `register_flow` → 尾差归最大府 + 对账台账 |
+| R3-6 | 前端 | Dock 在 `setInterval` 里调 Hook（必炸）→ `turnRef`；DecreePanel 失败后双发 → 仅「不支持」才降级 |
+| R3-7 | 安全 | 无 CSP；`will-navigate` 放行任意 `file://`；token 进渲染层 → CSP + 路径白名单 + 主进程注入 Authorization |
+| R3-8 | 权限 | `enable_tools="simple"` 落入 auto **满权** → `_tool_schemas()` 限 4 工具面 |
+| R3-9 | 拒绝式 | `parse_decree` 非法 category 静默改 `free_edict`；`*_decide` 非法档位静默填默认 → 一律整单拒绝 |
+| R3-10 | 写通道 | applier `push` 覆盖非追加；多 `set` 静默取末；`CHANGE_LOG` 跨局共享 → 修语义 + 留痕 + `reset_change_log()` |
+| R3-11 | 结构 | `data.py` 191KB→58KB+7 模块；`settlement_steps.py` 283KB→14KB 入口+9 领域模块；`ai/client.py` 161KB→62KB+契约 Mixin |
+| R3-12 | 测试 | 补 `audit_step`/`reconcile`/`validate_geo`/demography 拆分恒等式/铸钱尾差 等盲区；**917 passed** |
+| R3-13 | 前端 | MapView/Dock 资源泄漏；busy 竞态；resolveEvent 仅按 title → clearAll/卸载清理/ticket 守卫/id 定位 |
+| R3-14 | 杂项 | `personnel_nominate` 全 yamen +1；dev host `0.0.0.0`；`_load_prompt` 路径穿越；`_cached_call` 不随 provider 失效；`changping_stock` 魔法数；旧立绘管线加废弃头 |
+
 细节见 `_dev_tools/game-docs/docs/游戏机制说明.md` 头部「2026-09 全量审计修复要点」。
+
+### 第四轮全审修复（2026-09-25，`R4-*`；基线 **994 passed**）
+
+> 本轮聚焦增量：**典章知识库本地化**（替代 CloudBase PG 方案）已上线，故一并复核接入面。
+> 基线变化：修复前 **980 passed** → 补 `audio/`/`telemetry/` 冒烟测试后 **994 passed**（+14）。
+> 未处置项另见文末「已知未处置」提示。
+
+| 编号 | 类别 | 要点 |
+|------|------|------|
+| R4-1 | 文档 | 第 10 个工具 `kb_search` 上线后 README 零命中 → 补「典章知识库」专节（库/算法/管线/降级/维护）与 `ai/`、`assets/kb/` 模块条目 |
+| R4-2 | 文档 | 基线文档停留在 2026-09-22（917 passed）→ 追加第四轮基线（**994 passed**） |
+| R4-3 | 双源漂移 | `build_kb.py::search()` 与 `kb_query.py::_search()` 曾靠注释互保 → 开发侧改为**转调**运行时实现，单一权威源 |
+| R4-4 | 日志 | 运行时 `print()` 当错误日志（13 处：`commands.py`×8 / `commands_decree.py`×2 / `server.py`×3）→ 改 `logging`（对齐 `save_load._slog` 模式），兑现「原文只入服务端日志」的注释承诺 |
+| R4-5 | 测试 | `audio/`、`telemetry/` 长期零测试 → 补冒烟测试（清单/槽位/分类单一源、遥测落库与读回） |
+| R4-6 | 打包 | 空目录 `game/ui/`（Tk 界面残留）仍被 `SongZuo.spec` 打进分发包 → 移除目录与 spec datas 条目 |
+| R4-7 | 健壮性 | `kb_search` 的 `query` 无长度上限 → 两侧各截 100 字；`kb_query.py` 冗余 `except sqlite3.Error` 分支合并 |
+| R4-8 | 文档 | `游戏机制说明.md` §八补「典章知识库（`kb_search`）」小节，明确与记忆库的职责边界（典 vs 史） |
+
+> ⚠️ **已知未处置（用户明确跳过）**：`game/content/ministers/layers/_src/_i2i.py:5` 硬编码第三方
+> 服务商 API key，且该文件**已被 git 跟踪**。本轮未改动。若日后要按密钥泄露流程处理，
+> **第一步应是去服务商后台轮换该 key**（改文件本身不能消除已入库历史里的泄露）。
+
+---
+
+## 改进方案落地（2026-09-22 起，合并版批 0–3）
+
+> 依据 [`改进方案_合并版_2026-09-22.md`](../_dev_tools/game-docs/analysis/改进方案_合并版_2026-09-22.md)（明末经验 + 外邦产业链 + 玩家体验三线合并）。基线 **945 passed** + tsc 干净。
+
+| 批次 | 内容 | 状态 | 要点 |
+|---|---|---|---|
+| **批 0** | Phase F 草稿核实/清理 + 外邦两池守恒测试 | ✅ | `agg_res` 等零残留；`test_external_two_pool_conservation.py` 24 月双残差恒 0（修正 `s.external`→`s.external_regimes` 空转断言） |
+| **批 1** | 州/路面板字段 + 财政三值 + 可排序表 | ✅ | 民心/动乱/士绅阻力/到账率/存粮垫 + 真实进度条 + hover formula（`AccountingPanel`/`PrefecturePanel`） |
+| **批 2** | 局势系统 v1（成败条件全公开 + 持续代价） | ✅ | 开局 3 局势（花石纲民怨/东南财政亏空/辽事边备）条件 DSL + `new_game` 挂载 + readout 投影 `state.situations` + 面板公开成败/代价/双向语义 |
+| **批 3** | 月度奏章八章 + 七言联 + ▲▼ 摘要 | ✅ | `core/monthly_gazette.py` 八章（诏书/指令/局势/密令/讣闻/人物/军事/邦交）+ 邸报面板结构化渲染 + 落档 |
+| 批 4 | 建筑-岗位-就业（外邦三政权 + 宋侧同构） | ✅ | 外邦：6 类建筑 `{type:{lv}}` + 就业队列 + 轨 A/B + 等级演化 + 工资发放 + 营造回流（禁 burn）+ 轻量倒闭；宋侧：S1 产出链（yields/12×建筑乘数→`state.resources`，消除只出不进）+ S2 商品单通道（删 POP 直产，作坊 PM 唯一产出 + 不断供护栏）；`core/building_jobs.py` + `core/production_chain.py` |
+| 批 5 | 大臣工具化最小闭环 + 409 守卫 + 话术 chip | ✅ | C1 财政域草案（`enqueue_finance_proposal`→PendingActions 核定→`state_applier` 落地）；C2 颁诏 409 未决呈请守卫（`issue_decree`/`issue_free_decree`）；C3 召对话术 chip（问户部钱粮/命兵部调兵/下密令/准奏/问吏治） |
+| 批 6 | 粮=硬通货（本色饷/官仓平粜/本色粮税） | ✅ | 外邦本色兵粮/禄米（官仓→POP grain，缺额 arrears_grain）+ 本色粮税（产粮×10%→官仓）+ 官仓平粜（价高放粮/价低籴入）+ 粮残差含本色/平粜项 + 计价位不并入货币 |
+| 批 7 | 14 维原料 + 动态价格 + 物流分账 | ✅ | 14 维统一（宋侧 RAW_DIMS 扩至 15 维含金/铜/银/牲畜/马/药材）+ 动态商品价（基准×clamp 供需比 0.5–1.5，月涨跌 ±20%）+ 物流费率（距离档位×地形×战乱）+ 民间/政府分账（`core/dynamic_price.py`） |
 
 ---
 

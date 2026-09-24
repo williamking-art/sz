@@ -14,7 +14,7 @@ a = Analysis(
         (os.path.join(_ROOT, 'ai'), 'ai'),
         (os.path.join(_ROOT, 'core'), 'core'),
         (os.path.join(_ROOT, 'engine'), 'engine'),
-        (os.path.join(_ROOT, 'ui'), 'ui'),
+        # （R4-6）`ui/` 为 Tk 界面残留的空目录，随界面一并移除，不再打进分发包
         (os.path.join(_ROOT, 'backend'), 'backend'),
         (os.path.join(_ROOT, 'content'), 'content'),
         (os.path.join(_ROOT, 'audio'), 'audio'),

@@ -124,6 +124,8 @@
   "广南东路",
   "广南西路"
  ],
+ "direct_decree_max": 2,
+ "secret_decree_max": 3,
  "tech_lines": [
   "机械动力",
   "能源与材料",

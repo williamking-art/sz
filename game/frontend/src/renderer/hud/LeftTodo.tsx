@@ -31,13 +31,21 @@ export default function LeftTodo() {
                   {t.label}
                 </span>
                 <span className="h-2.5 w-[65px] shrink-0 overflow-hidden rounded-sm bg-[#dfd1b0]">
-                  <span
-                    className="block h-full rounded-sm transition-all"
-                    style={{
-                      width: `${Math.min(100, Math.round(t.progress * 0.65))}%`,
-                      backgroundColor: t.isFocus ? "#a93226" : statusColor(t.progress)
-                    }}
-                  />
+                  {t.progress < 0 ? (
+                    /* P1-27：无真实进度 → 「在办」脉冲条，不伪造百分比 */
+                    <span
+                      className="block h-full w-1/3 animate-pulse rounded-sm"
+                      style={{ backgroundColor: t.isFocus ? "#a93226" : "#8a7a5a" }}
+                    />
+                  ) : (
+                    <span
+                      className="block h-full rounded-sm transition-all"
+                      style={{
+                        width: `${Math.min(100, Math.round(t.progress * 0.65))}%`,
+                        backgroundColor: t.isFocus ? "#a93226" : statusColor(t.progress)
+                      }}
+                    />
+                  )}
                 </span>
               </button>
             </li>
