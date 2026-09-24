@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { getApiClient, type GameState, type ReadoutsResult } from "../api/client";
 import { formatEra } from "../utils/format";
 
@@ -149,8 +149,26 @@ export interface GameStoreApi extends StoreShape {
 
 export const GameStoreContext = createContext<GameStoreApi | null>(null);
 
+// P1-26：模块级外部 store —— useGameStore 经 useSyncExternalStore 只订阅读到的切片，
+// 避免「Provider value 每 render 新建 → 全部 consumer 重渲」。
+type Listener = () => void;
+const _listeners = new Set<Listener>();
+let _snapshot: StoreShape = initialState;
+function _subscribe(l: Listener): () => void {
+  _listeners.add(l);
+  return () => { _listeners.delete(l); };
+}
+function _getSnapshot(): StoreShape { return _snapshot; }
+function _setSnapshot(s: StoreShape): void {
+  _snapshot = s;
+  _listeners.forEach((l) => l());
+}
+
 export function GameStoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  // 同步到外部 store（供 useSyncExternalStore 订阅）
+  useEffect(() => { _setSnapshot(state); }, [state]);
 
   // 派生读数自动刷新：每次后端 GameState 快照更新（开局/载档/推演/任意 action 回执）后
   // 重新拉取 /api/readouts，保证 TopBar 收支悬浮卡等消费的是与当前状态同源的 live 数据。
@@ -170,8 +188,8 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [state.backendReady, state.inGame, state.state]);
 
-  const api: GameStoreApi = {
-    ...state,
+  // 动作方法身份稳定（useMemo），避免 action 引用变化触发 consumer 重渲
+  const actions: Omit<GameStoreApi, keyof StoreShape> = useMemo(() => ({
     setBackend: (url, ready, error) => dispatch({ type: "SET_BACKEND", url, ready, error }),
     setState: (st) => dispatch({ type: "SET_STATE", state: st }),
     setReadouts: (readouts) => dispatch({ type: "SET_READOUTS", readouts }),
@@ -183,16 +201,33 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     setAdvancing: (advancing) => dispatch({ type: "SET_ADVANCING", advancing }),
     pushUiLog: (line) => dispatch({ type: "PUSH_UI_LOG", line }),
     setInGame: (inGame) => dispatch({ type: "SET_IN_GAME", inGame })
-  };
+  }), []);
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  // 注册到模块级引用，供 useSyncExternalStore 的 getSnapshot 合成完整 api
+  _actionsRef = actions;
 
-  return <GameStoreContext.Provider value={api}>{children}</GameStoreContext.Provider>;
+  // Context 只承载稳定 actions（不再每次 render 新建 api 对象）
+  return (
+    <GameStoreContext.Provider value={actions as GameStoreApi}>
+      {children}
+    </GameStoreContext.Provider>
+  );
 }
 
+// actions 引用（模块级，由 Provider 维护）
+let _actionsRef: Omit<GameStoreApi, keyof StoreShape> | null = null;
+
 // 选择器式 hook：useGameStore((s) => s.state)
+// P1-26：经 useSyncExternalStore 订阅外部 store，selector 结果不变则不重渲。
 export function useGameStore<T>(selector: (s: GameStoreApi) => T): T {
   const ctx = useContext(GameStoreContext);
   if (!ctx) throw new Error("useGameStore 必须在 GameStoreProvider 内使用");
-  return selector(ctx);
+  return useSyncExternalStore(
+    _subscribe,
+    () => selector({ ..._getSnapshot(), ...(_actionsRef ?? {}) } as GameStoreApi),
+    () => selector({ ..._getSnapshot(), ...(_actionsRef ?? {}) } as GameStoreApi),
+  );
 }
 
 // ---- HUD 派生辅助（字段名对齐 game/ui/panels_core.py::_refresh_hud） ----
@@ -274,9 +309,11 @@ export function hudTodos(state: GameState | null): TodoItem[] {
   for (const t of issues.slice(0, 7 - items.length)) {
     const raw = String(t.task_name ?? t.title ?? "事务");
     const label = raw.slice(0, 12);
-    let h = 0;
-    for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) % 1_000_003;
-    items.push({ label, progress: 30 + (h % 60) });
+    // P1-27：不再用 hash 伪造进度条；有真实 progress 字段则用之，
+    // 否则标 -1（无进度），由 LeftTodo 显示「在办」而非假百分比。
+    const p = Number((t as Record<string, unknown>).progress);
+    const progress = Number.isFinite(p) && p >= 0 ? Math.max(0, Math.min(100, p)) : -1;
+    items.push({ label, progress });
   }
 
   return items;

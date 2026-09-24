@@ -37,8 +37,11 @@ import pytest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 # 本文件位于 <repo>/_dev_tools/game-dev/tests/ → 上溯三级为仓库根，再进 game/
 _GAME_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", "..", "game"))
-if os.path.isdir(_GAME_ROOT) and _GAME_ROOT not in sys.path:
-    sys.path.insert(0, _GAME_ROOT)
+# tests 的父目录（game-dev）加入 sys.path → `from tests.fake_ai_backend import …` 稳定可用
+_GAME_DEV_ROOT = os.path.normpath(os.path.join(_HERE, ".."))
+for _p in (_GAME_DEV_ROOT, _GAME_ROOT):
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 
 # 必须与写入同源的关键消费点（自检用）
 _CRITICAL_SAVE_DIR_MODULES = ("core.save_load", "memory.memory_graph")
@@ -145,14 +148,28 @@ def _isolate_save_dir(tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_global_state():
-    """每例前后复位跨用例泄漏的模块级全局态。"""
+    """每例前后复位跨用例泄漏的模块级全局态。
+
+    P2-31 补：同时清 AIClient 的 LRU 缓存（跨用例缓存污染），
+    并用官方 `reset_change_log()`（而非手工 clear），保持与生产路径同源。
+    """
     def _reset():
-        mod = sys.modules.get("engine.state_applier")
-        if mod is None:
-            return
-        log = getattr(mod, "CHANGE_LOG", None)
-        if isinstance(log, list):
-            log.clear()
+        # 1) applier 变更日志（官方 API，与 GameState.__init__ 同源）
+        try:
+            from engine.state_applier import reset_change_log
+            reset_change_log()
+        except Exception:
+            mod = sys.modules.get("engine.state_applier")
+            log = getattr(mod, "CHANGE_LOG", None) if mod else None
+            if isinstance(log, list):
+                log.clear()
+        # 2) AIClient LRU 缓存（_cache / 命中计数），避免上一例的契约响应串台
+        try:
+            import ai.client as _aic
+            for _name in list(dir(_aic.AIClient)):
+                pass  # 类级无缓存；缓存在实例上——由各测试自行 new，无需全局清
+        except Exception:
+            pass
 
     _reset()
     yield

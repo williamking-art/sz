@@ -230,3 +230,9 @@ game.zip
 # --- 资产替换前的本地原始备份（非源码，勿入库） ---
 game/assets/_backup_original/
 
+# --- 大文件拆分时留下的原始副本（非源码，勿入库） ---
+# 2026-09-25 第四轮全审时发现：`content/data.py` 与 `ai/client.py` 拆分后
+# 各留了一份 .bak，均被 git 视为未跟踪新文件。前端早有 `game/frontend/**/*.bak`
+# 规则（仅覆盖 frontend），此处补全局规则。
+*.bak
+

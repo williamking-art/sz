@@ -26,14 +26,12 @@ export default function App() {
     async function init() {
       try {
         let url = "http://127.0.0.1:8080";
-        let token = "";
+        // P1-10：token 由主进程注入 Authorization 头，渲染层不再持有密钥。
         if (window.songzuo) {
           url = await window.songzuo.getBackendUrl();
-          // 远程后端启用 SONGZUO_SERVER_TOKEN 时必需；未配置返回空串（此时不发 Authorization）
-          token = await window.songzuo.getBackendToken();
         }
         if (cancelled) return;
-        const client = new ApiClient(url, token);
+        const client = new ApiClient(url, "");
         setApiClient(client);
 
         // 后端可能仍在拉起：轮询到就绪或超时。云端实例按需启动（不常驻）时首次唤醒

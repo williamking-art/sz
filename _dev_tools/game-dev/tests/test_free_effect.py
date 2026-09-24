@@ -152,3 +152,72 @@ def test_money_conservation_no_mint():
     log2 = _apply_free_effect(s, {"mode": "once", "effects": {"treasury": "大"}})
     assert any("不足" in x or "拒绝" in x for x in log2)
     assert s.treasury == s.treasury  # 国库未变（拒绝）
+
+
+def test_nan_inf_bool_rejected():
+    """P0-1：NaN/Inf/bool 不得经 _clamp 变成 +CAP 铸币，须整单拒绝或回落 0。"""
+    import math
+    s = _new_state()
+    t0 = s.treasury
+    # validate 拒绝式
+    assert "NaN" in validate_free_effect({"mode": "once", "effects": {"treasury": float("nan")}})
+    assert "NaN" in validate_free_effect({"mode": "once", "effects": {"treasury": float("inf")}})
+    assert "数字" in validate_free_effect({"mode": "once", "effects": {"treasury": True}})
+    assert "有限" in validate_free_effect({"mode": "once", "effects": {"prestige": "中"},
+                                           "cost": {"treasury": float("nan")}})
+    assert "duration" in validate_free_effect({"mode": "ongoing", "duration": float("nan"),
+                                               "effects": {"tech": "微"}})
+    assert "duration" in validate_free_effect({"mode": "ongoing", "duration": float("inf"),
+                                               "effects": {"tech": "微"}})
+    # 即便绕过 validate，_resolve_effect_value 也不得铸币
+    from core.free_effect import _resolve_effect_value
+    assert _resolve_effect_value("treasury", float("nan")) == 0
+    assert _resolve_effect_value("treasury", float("inf")) == 0
+    assert _resolve_effect_value("treasury", True) == 0
+    log = _apply_free_effect(s, {"mode": "once", "effects": {"treasury": float("nan")}})
+    assert any("拒绝" in x or "NaN" in x or "数字" in x for x in log)
+    assert s.treasury == t0, "NaN 不得改变国库"
+
+
+def test_cost_leg_no_false_deduct_no_vanish():
+    """P0-3：**无民间池**（不是财富=0）时 cost.treasury 不得假扣账；无粮池时不得灭粮。
+
+    注意：财富=0 但池仍在 → 成本应正常散入民间（守恒），见
+    test_cost_leg_conservation_when_pools_exist。本测的是「池不可达」路径。
+    """
+    s = _new_state()
+    # 摘掉 wealth/grain 键 → _money_pools/_grain_pools 为空
+    for p in s.prefectures.values():
+        for x in p["pops"].values():
+            x.pop("wealth", None)
+            x.pop("grain", None)
+    t0, g0 = s.treasury, s.granary
+    if g0 <= 0:
+        s.granary = 10000
+        g0 = s.granary
+    log = _apply_free_effect(s, {"mode": "once", "effects": {"prestige": "微"},
+                                 "cost": {"treasury": 50000, "granary": 100}})
+    # 无池 → cost.treasury 不得扣国库（假扣账=成本逃逸）；无粮池 → 不得太仓出仓（灭粮）
+    assert s.treasury == t0, f"无池 cost.treasury 不应扣账，实际 Δ={s.treasury - t0}"
+    assert s.granary == g0, f"无粮池 cost.granary 不应出仓，实际 Δ={s.granary - g0}"
+    assert any("未执行" in x or "守恒" in x or "不足" in x or "拒绝" in x for x in log)
+
+
+def test_cost_leg_conservation_when_pools_exist():
+    """cost 落地时 Σ(国库+民间)==Σ(太仓+民间粮) 守恒。"""
+    from core.free_effect import _money_pools, _grain_pools
+
+    def money_tot(state):
+        return state.treasury + sum(int(p.get("wealth", 0) or 0) for p in _money_pools(state))
+
+    def grain_tot(state):
+        return state.granary + sum(int(p.get("grain", 0) or 0) for p in _grain_pools(state))
+
+    s = _new_state()
+    m0, g0 = money_tot(s), grain_tot(s)
+    s.granary = max(s.granary, 50000)
+    g0 = grain_tot(s)
+    _apply_free_effect(s, {"mode": "once", "effects": {"prestige": "微"},
+                           "cost": {"treasury": 30000, "granary": 500}})
+    assert money_tot(s) == m0, f"cost.treasury 应守恒 Δ={money_tot(s) - m0}"
+    assert grain_tot(s) == g0, f"cost.granary 应守恒 Δ={grain_tot(s) - g0}"

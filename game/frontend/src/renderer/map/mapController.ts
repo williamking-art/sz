@@ -255,11 +255,7 @@ export class MapController {
   }
 
   // 运行时按 zoom 档位重设单个图层几何（TopoJSON 动态简化后注入）
-  setLayerData(name: string, fc: GeoJSON.FeatureCollection): void {
-    if (!this.map) return;
-    const src = this.map.getSource(name) as maplibregl.GeoJSONSource | undefined;
-    if (src) src.setData(fc);
-  }
+
 
   fitBounds(): void {
     if (!this.map) return;
@@ -268,19 +264,6 @@ export class MapController {
   }
 
   // 视角下钻：聚焦某要素（层层递进）
-  flyToFeature(bbox: [number, number, number, number], zoom?: number): void {
-    if (!this.map) return;
-    this.map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], {
-      padding: 60,
-      maxZoom: zoom ?? 7,
-      duration: 800
-    });
-  }
-
-  resetView(): void {
-    this.fitBounds();
-  }
-
   highlightSelected(feature: GeoJSON.Feature | null): void {
     if (!this.map) return;
     const src = this.map.getSource("selected") as maplibregl.GeoJSONSource;

@@ -248,6 +248,9 @@ def _http_get_json(url: str, headers: dict, timeout: int = 15):
 
 def _load_prompt(name: str, **kwargs) -> str:
     """载入 ai/prompts/<name>.md 并把 {key} 替换为 kwargs 值。"""
+    # P2-38：拒绝路径穿越（name 现均为字面量，防御未来动态拼接）
+    if not name or "/" in name or "\\" in name or ".." in name or "\x00" in name:
+        return f"[提示词名非法: {name!r}]"
     path = os.path.join(_PROMPT_DIR, f"{name}.md")
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -554,13 +557,30 @@ _TOOL_SCHEMAS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "kb_search",
+            "description": "检索大宋典章知识库（只读，本地库，不耗推理）。查证制度细节：三冗/官制差遣/"
+                         "货币交子/财力维持费/常平仓/产业链等。问到才查；query 用 1~3 个关键词，"
+                         "空格分隔，如『冗官 差遣』『交子 准备金』。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "检索关键词，空格分隔"},
+                    "top_k": {"type": "integer", "description": "返回条数 1~5，默认 3"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
 ]
 
 #: 服务端工具白名单（审查 P2-16：模型只能调这些，参数/对象/数值由程序校验）
 _TOOL_NAMES = frozenset({
     "register_draft", "secret_order", "check_treasury", "propose_governance",
     "personnel_nominate", "military_dispatch", "relief_grant", "offer_blueprint",
-    "query_state",
+    "query_state", "kb_search",
 })
 
 
@@ -907,6 +927,7 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 "personnel_nominate": ("name", "post"),
                 "relief_grant": ("region",),
                 "military_dispatch": ("army", "action"),
+                "kb_search": ("query",),
             }
             _missing = [k for k in _REQUIRED.get(name, ())
                         if not str(args.get(k, "")).strip()]
@@ -993,14 +1014,41 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                     res = f"{tgt} {val}"
                 mem.setdefault(minister_name, []).append(f"查{tgt}")
 
+            elif name == "kb_search":
+                # 本地典章知识库检索（只读，同 query_state 的「问到才查」哲学）：
+                # 库缺失/FTS5 不可用/异常时 kb_query 返回空串 → 降级话术，不炸管线。
+                from ai.kb_query import kb_search as _kb_search
+                # 同 prereq_hint 的 _cap_str 口径：AI 可能回传整段话，先截到 100 字
+                _q = str(args.get("query", "")).strip()[:100]
+                try:
+                    _tk = max(1, min(5, int(args.get("top_k", 3))))
+                except (TypeError, ValueError):
+                    _tk = 3
+                _hit = _kb_search(_q, top_k=_tk)
+                if _hit:
+                    res = _hit
+                    mem.setdefault(minister_name, []).append(f"查典章：{_q[:20]}")
+                else:
+                    res = "典章库中未查到相关条目（或本机未部署典章库），请凭已有学识回奏。"
+                    mem.setdefault(minister_name, []).append(f"查典章无获：{_q[:20]}")
+
             elif name == "personnel_nominate":
                 nm = str(args.get("name", "某人"))
                 post = str(args.get("post", ""))
                 note = str(args.get("note", ""))
-                if "yamen" in state.__dict__ and isinstance(state.yamen, dict):
-                    for y in state.yamen.values():
-                        if isinstance(y, dict):
-                            y["backlog"] = int(y.get("backlog", 0)) + 1
+                # P2-36 修复：原对**所有** yamen backlog+1（一次荐举=处处增压）。
+                # 现按 post 关键词匹配单一 yamen；无匹配则记到第一个，只 +1。
+                if "yamen" in state.__dict__ and isinstance(state.yamen, dict) and state.yamen:
+                    _target_y = None
+                    for _yn, _y in state.yamen.items():
+                        if isinstance(_y, dict) and _yn and (_yn in post or post in _yn):
+                            _target_y = _y
+                            break
+                    if _target_y is None:
+                        _target_y = next(
+                            (y for y in state.yamen.values() if isinstance(y, dict)), None)
+                    if isinstance(_target_y, dict):
+                        _target_y["backlog"] = int(_target_y.get("backlog", 0)) + 1
                 res = f"已录荐牍：举 {nm} 任 {post}。{('荐语：' + note) if note else ''}"
                 mem.setdefault(minister_name, []).append(f"举 {nm}→{post}")
 
@@ -1238,9 +1286,14 @@ def _extract_json(raw: str):
         return None
     raw = raw[a:b + 1]
     try:
-        return json.loads(raw)
+        # parse_constant：拒绝 NaN/Infinity（模型输出可触发；下游数值通道会被 NaN 击穿）
+        return json.loads(raw, parse_constant=_reject_json_constant)
     except Exception:
         return None
+
+
+def _reject_json_constant(name):
+    raise ValueError(f"非法 JSON 常量: {name}")
 
 
 def _valid_tier(t: str) -> bool:

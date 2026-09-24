@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from content.data import (
     FACTION_NAMES, FACTION_INIT, YAMEN_LIST, YAMEN_INFO,
     PREFECTURE_LIST, PREFECTURE_INFO, TECH_NODES, TECH_LINES,
+    DIRECT_DECREE_MAX, SECRET_DECREE_MAX,
     BUILDING_STD, BUILDING_BLUEPRINTS, IMPERIAL_ACTION_MATRIX,
     IMPERIAL_LOCATIONS, IMPERIAL_MODES,
 )
@@ -23,6 +24,8 @@ out = {
     "yamen_list": list(YAMEN_LIST),
     "yamen_info": {k: dict(v) for k, v in YAMEN_INFO.items()},
     "prefecture_list": list(PREFECTURE_LIST),
+    "direct_decree_max": DIRECT_DECREE_MAX,
+    "secret_decree_max": SECRET_DECREE_MAX,
     "tech_lines": list(TECH_LINES),
     # 科技节点元组：(id, line, era, name, desc, prereq, need_level, need_sub, cost, effect)
     # 审查修复：原导出漏掉 need_level / need_sub → 前端 nodeStatus() 只校验 prereq，

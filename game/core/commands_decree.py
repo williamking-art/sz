@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 诏令/密旨/拟旨/会签 指令族（拆分自 core/commands.py）"""
+import logging
 import random
 from typing import Any
 from core.game_state import GameState
@@ -12,6 +13,8 @@ from content.data import (
     get_prestige_level,
 )
 from content.ministers import MINISTERS, loyalty_init
+
+log = logging.getLogger("commands_decree")
 
 
 def _rule_draft(intent: str) -> dict:
@@ -300,6 +303,17 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     is_secret=True 转密旨通道（text/title 为密旨内容、minister 为目标）；
     text 落 desc（正文随诏存档/叙事显示），不再静默丢弃玩家正文。
     """
+    # ---- 批 5 C2 · 409 未决呈请守卫 ----
+    # 颁诏前若有大臣呈请未决 → 显式拦截（把「漏看」从静默丢数据变成 409）。
+    _pending = [a for a in (getattr(state, "ai_pending_actions", None) or [])
+                if isinstance(a, dict) and a.get("status") == "pending"]
+    if _pending:
+        _titles = "、".join(str(a.get("title", "无题"))[:12] for a in _pending[:3])
+        return (
+            f"⚠ 409 未决呈请：尚有 {_pending.__len__()} 件大臣呈请待朱批（{_titles}…）。"
+            f"此刻颁诏，这些事会随本月一并作废，且从未办过。"
+            f"请先至「朱批待阅」处置后再颁诏。"
+        )
     # 密谕分支（前端密谕勾选：is_secret=True → 走密旨通道，上限 3 道）
     if decree.get("is_secret"):
         target = str(decree.get("target") or decree.get("minister") or "有司")
@@ -389,6 +403,16 @@ def issue_secret_decree(state: GameState, target: str, content: str = "") -> str
 
 
 def issue_free_decree(state, parse_result, minister, is_secret=False):
+    # ---- 批 5 C2 · 409 未决呈请守卫（与 issue_decree 同款）----
+    _pending = [a for a in (getattr(state, "ai_pending_actions", None) or [])
+                if isinstance(a, dict) and a.get("status") == "pending"]
+    if _pending:
+        _titles = "、".join(str(a.get("title", "无题"))[:12] for a in _pending[:3])
+        return (
+            f"⚠ 409 未决呈请：尚有 {len(_pending)} 件大臣呈请待朱批（{_titles}…）。"
+            f"此刻颁诏，这些事会随本月一并作废，且从未办过。"
+            f"请先至「朱批待阅」处置后再颁诏。"
+        )
     """将 AI 解析结果落地为即时效果或长期任务。
 
     parse_result: ai.decree.parse_decree 返回结构。
@@ -535,7 +559,7 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
         from content.data import AI_ERROR_CODES
         _raw = contract.get("_error", "") if isinstance(contract, dict) else ""
         if _raw:
-            print(f"[decree] 契约失败: {_raw!r}", flush=True)
+            log.warning("[decree] 契约失败: %s", _raw)
         return (f"〔{parse_result.get('title', '诏')}〕AI 推演未成"
                 f"（{AI_ERROR_CODES.get(_raw, '诏意未能落地')}），诏令未落地。")
 
@@ -566,7 +590,7 @@ def preview_draft(state: GameState, minister_advice: str, player_intent: str,
             decree = ai_client.draft_decree(minister_advice, player_intent, state.get_state_summary(), state=state)
         except Exception as e:
             # 运行时故障：停下，不静默、不伪造（2026-09-18：透传底层错误码）
-            print(f"[decree] 拟诏叙事中断: {e!r}", flush=True)
+            log.warning("[decree] 拟诏叙事中断: %s", e)
             raise AIRuntimeError(
                 "拟诏时 AI 叙事中断：请检查 AI 配置或网络后重试。",
                 code=getattr(e, "code", "") or "",

@@ -35,8 +35,8 @@ RICH_CIV = "【AI 民间反应】米肆贩夫私语：清丈令既下，邻里�
 FAKE_MEMOS = [{"title": "劝农使上言", "text": "臣本月按行州县……"}]
 
 
-class FakeAIClient:
-    """最小 AIClient 替身：available=True、AI 民间反应可用、各路无网络。"""
+class TwoPhaseFakeAI:
+    """两段式结算专用替身（接口面与 tests.fake_ai_backend.FakeAIClient 不同，故独立命名）。"""
 
     def __init__(self):
         self.available = True
@@ -76,7 +76,7 @@ def test_first_phase_returns_civilian_immediately_algorithmic_not_rich():
     数值结算（log）留空（后台段跑）。"""
     s = GameState("史实")
     init_legacies(s)
-    fake = FakeAIClient()
+    fake = TwoPhaseFakeAI()
     events, log, civilian = advance_two_phase(s, fake)
     assert isinstance(civilian, str) and civilian, "民间反应文本必须即得"
     assert RICH_TEXT not in civilian and RICH_CIV not in civilian, \
@@ -89,7 +89,7 @@ def test_async_settle_fills_rich_fields_and_settle_log():
     """round2 完成 → rich_report / rich_civilian / memorials 就位；朝报挂在 _last_settle_log。"""
     s = GameState("史实")
     init_legacies(s)
-    advance_two_phase(s, FakeAIClient())
+    advance_two_phase(s, TwoPhaseFakeAI())
     assert _wait_ready(s, 10.0), "后台段须在 10s 窗口内跑完（fake 无网络）"
     assert s.rich_report == RICH_TEXT, "官方月报（结算后总结）应入 rich_report"
     assert s.rich_civilian == RICH_CIV, "AI 民间反应应入 rich_civilian"
@@ -127,12 +127,12 @@ def test_settle_failure_clears_rich_fields():
     AdvancePanel 只判 ready，残留会让上月文本当月显示；Dock 单次触发会弹上月报告）。"""
     s = GameState("史实")
     init_legacies(s)
-    advance_two_phase(s, FakeAIClient())
+    advance_two_phase(s, TwoPhaseFakeAI())
     assert _wait_ready(s, 10.0), "首回合成功，富化字段就位"
     assert s.rich_report == RICH_TEXT and s.rich_civilian == RICH_CIV
     assert getattr(s, "_last_settle_log", None), "成功回合朝报应就位"
 
-    class Boom(FakeAIClient):
+    class Boom(TwoPhaseFakeAI):
         def economy_decide(self, posture):
             raise RuntimeError("模拟推演失败")
 
@@ -153,10 +153,10 @@ def test_no_stale_ready_window_on_failure():
     采样从首次 advance 返回后开始——成功残留态（ready+无错误+富文本）是合法态不计入。"""
     s = GameState("史实")
     init_legacies(s)
-    advance_two_phase(s, FakeAIClient())
+    advance_two_phase(s, TwoPhaseFakeAI())
     assert _wait_ready(s, 10.0)
 
-    class Boom(FakeAIClient):
+    class Boom(TwoPhaseFakeAI):
         def economy_decide(self, posture):
             raise RuntimeError("模拟推演失败")
 

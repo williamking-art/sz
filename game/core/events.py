@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 事件系统 —— 史实事件脚本"""
+import math
 import random
 
 
@@ -502,8 +503,10 @@ def _split_tier(value):
 
     返回 (档位词或数值, 方向)。方向 +1 表升、-1 表降，仅对档位词有意义。
     """
+    if isinstance(value, bool):
+        return 0, 1.0
     if isinstance(value, (int, float)):
-        return value, 1.0
+        return (value if math.isfinite(value) else 0), 1.0
     text = str(value).strip()
     direction = 1.0
     if text.startswith("+"):
@@ -521,8 +524,10 @@ def _tier_value(dim: str, tier, direction: float) -> int:
     - faction_change（派系满意度）→ 用 0~100 刻度基准换算；
     - 未知档位词 / 未知维度 → 0（安全失败：不抛出、不写状态）。
     """
+    if isinstance(tier, bool):
+        return 0
     if isinstance(tier, (int, float)):
-        return int(tier)
+        return int(tier) if math.isfinite(tier) else 0
     if dim == "faction_change":
         from content.data import TIER_RANGE  # 延迟导入，避免顶层环
         return int(direction * round(_FACTION_TIER_BASE * TIER_RANGE.get(tier, 0.0)))
@@ -569,10 +574,18 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
         state.change_prestige(effects["prestige"], event.get("title", ""))
         log.append(f"皇威 {'+' if effects['prestige']>=0 else ''}{effects['prestige']}")
 
-    # 国库
+    # 国库（守恒：与民间钱池成对划转，禁止凭空铸/毁币——受控写通道口径）
     if "treasury" in effects:
-        state.change_treasury(effects["treasury"])
-        log.append(f"国帑 {'+' if effects['treasury']>=0 else ''}{effects['treasury']:.0f}贯")
+        raw = effects["treasury"]
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            log.append("国帑 未落地：非法数值（守恒拒绝）")
+        else:
+            d = int(raw)
+            from core.free_effect import _apply_money_delta, _money_feasible
+            if _money_feasible(state, d) and _apply_money_delta(state, d):
+                log.append(f"国帑 {'+' if d>=0 else ''}{d:.0f}贯")
+            else:
+                log.append(f"国帑 {'+' if d>=0 else ''}{d:.0f}贯 未落地：资财不足（守恒拒绝）")
 
     # 人口满意度
     if "population_satisfaction" in effects:

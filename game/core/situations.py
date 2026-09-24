@@ -530,6 +530,68 @@ def _project_longterm_effects(state, errors: List[str], snapshot: dict) -> List[
     return out
 
 
+def _project_records(state, errors: List[str], snapshot: dict) -> List[dict]:
+    """v2 SituationRecord（`state.situations`）→ Readout 条目（批 2 · 成败条件全公开）。
+
+    与 `_project_legacies` 等 v1 来源并列：唯一落库的局势（`origin_kind=event_pool`）
+    在此投影为玩家可读条目。`resolve_condition` / `fail_condition` 经 `describe_condition`
+    渲染为中文（或直接用种子的 `*_text` 原文）；`ongoing_cost` 用 `ongoing_text` 或 `_fmt_cost`。
+    **不写任何 state**——推进与扣费仍由 `core/situation_settle.py` 负责。
+    """
+    records = getattr(state, "situations", None)
+    if not isinstance(records, list):
+        if records is not None:
+            errors.append("situations: 结构非 list，已跳过")
+        return []
+    out: List[dict] = []
+    for rec in records:
+        if not isinstance(rec, dict):
+            errors.append("situations: 条目非 dict，已跳过")
+            continue
+        bar = rec.get("bar_value")
+        bar100 = int(round(_clamp(_finite(bar), 0.0, 100.0))) if bar is not None else None
+        # severity：越未推进越严重（与 legacy 同则）；goal 模式无 bar → 中位 50
+        if bar100 is not None:
+            sev = int(round(SEVERITY_RULES["legacy_min"]
+                            + (1.0 - bar100 / 100.0) * SEVERITY_RULES["legacy_span"]))
+        else:
+            sev = 50
+        # 成败条件：优先种子原文（resolve_text / fail_text），否则 DSL 渲染
+        resolve_text = rec.get("resolve_text") or (
+            describe_condition(rec.get("resolve_condition"))
+            if rec.get("resolve_condition") else None)
+        fail_text = rec.get("fail_text") or (
+            describe_condition(rec.get("fail_condition"))
+            if rec.get("fail_condition") else None)
+        ongoing_text = rec.get("ongoing_text")
+        if not ongoing_text:
+            oc = _fmt_cost(rec.get("ongoing_cost"))
+            ongoing_text = None if oc == "—" else oc
+        status = str(rec.get("status") or "active")
+        route = rec.get("region_hint")
+        out.append({
+            "id": str(rec.get("id") or f"record:{rec.get('origin_ref')}"),
+            "title": str(rec.get("title") or "局势"),
+            "source": "record",
+            "status": status,
+            "bar_value": bar100,
+            "progress_mode": rec.get("progress_mode") or "bar",
+            "resolve_condition_text": resolve_text,
+            "fail_condition_text": fail_text,
+            "ongoing_text": ongoing_text,
+            "bar_good_meaning": rec.get("bar_good_meaning"),
+            "bar_bad_meaning": rec.get("bar_bad_meaning"),
+            "progress_text": None,
+            "severity": sev,
+            "phase": _phase_from_ratio((bar100 / 100.0) if bar100 is not None else None),
+            "region_hint": route,
+            "faction_hint": rec.get("faction_hint"),
+            "pop_highlights": _pop_highlights(snapshot, route),
+            "timeline": list(rec.get("timeline") or []),
+        })
+    return out
+
+
 def _project_events(state, errors: List[str], snapshot: dict) -> List[dict]:
     evs = getattr(state, "active_events", None)
     if not isinstance(evs, list):
@@ -1277,7 +1339,8 @@ def build_situation_readout(state) -> dict:
         log.warning("situations 取 metric 快照失败：%s", e)
 
     items: List[dict] = []
-    for fn in (_project_legacies, _project_focus, _project_longterm_effects, _project_events):
+    for fn in (_project_legacies, _project_focus, _project_longterm_effects,
+               _project_records, _project_events):
         try:
             items.extend(fn(state, errors, snapshot))
         except Exception as e:  # noqa: BLE001  单来源失败不影响其他来源
@@ -1287,7 +1350,7 @@ def build_situation_readout(state) -> dict:
     # 执行通道逐项下发（帝修不是「执行」对象 → 保持 None，不假装有执行度）
     for r in items:
         route = r.get("region_hint")
-        if r.get("source") in ("focus", "free_effect", "event"):
+        if r.get("source") in ("focus", "free_effect", "event", "record"):
             r["execution_channels"] = _execution_channels(
                 state, snapshot, route, str(r.get("title") or ""))
             r["channel_highlights"] = _channel_highlights(snapshot, route)

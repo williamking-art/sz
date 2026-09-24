@@ -112,6 +112,15 @@ export default function DecreePanel() {
       setTitle("");
     } catch (e) {
       console.error("[issue_decree]", e);
+      // P0-7：**禁止**在任意失败后自动二次提交（非幂等）。仅当后端明确表示
+      // 不支持 issue_decree（未知动作/未实现）才降级；超时/5xx/断连可能已 commit。
+      const m1 = e instanceof Error ? e.message : String(e);
+      const canFallback =
+        /HTTP 404|HTTP 405|unknown action|未知动作|未实现|not implemented|unsupported/i.test(m1);
+      if (!canFallback) {
+        setResult(`拟旨未成：${m1}（未自动重试，防重复下诏；请确认未生效后再手动重试）`);
+        return;
+      }
       try {
         const fallbackRes = await getApiClient().action("issue_free_decree", {
           parse_result: {
@@ -129,7 +138,6 @@ export default function DecreePanel() {
         setResult(fallbackRes.message || "拟旨未成（后端未返回结果），请重试或改用「颁行政务」。");
         setFreeText("");
       } catch (err2) {
-        const m1 = e instanceof Error ? e.message : String(e);
         const m2 = err2 instanceof Error ? err2.message : String(err2);
         setResult(`拟旨未成：${m2}（首试：${m1}）`);
       }

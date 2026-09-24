@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Menu, net, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, net, shell, session } from "electron";
 import { join } from "path";
+import { pathToFileURL } from "url";
 import { spawn, ChildProcess } from "child_process";
 import { existsSync, readFileSync } from "fs";
 
@@ -222,10 +223,14 @@ function createWindow() {
   });
 
   // 安全审查 A6：拦截页面内跳转（否则渲染层可导航到任意来源/协议）。
+  // P1-11：file:// 不得放行任意路径——白名单到本应用 renderer 页面。
   mainWindow.webContents.on("will-navigate", (event, url) => {
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     if (devUrl && url.startsWith(devUrl)) return;      // 开发模式热更新
-    if (url.startsWith("file://")) return;             // 本地打包页面
+    const rendererFile = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
+    if (url === rendererFile || url.startsWith(rendererFile + "?") || url.startsWith(rendererFile + "#")) {
+      return;                                          // 仅本应用打包页面
+    }
     event.preventDefault();
     openExternalIfSafe(url);
   });
@@ -235,6 +240,24 @@ function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+}
+
+// P1-10：Bearer token **不进渲染进程**。主进程按目标 URL 注入 Authorization，
+// XSS/渲染层只能发请求，读不走密钥（getBackendToken 已从 preload 移除）。
+function installAuthHeaderInjection() {
+  const ses = session.defaultSession;
+  ses.webRequest.onBeforeSendHeaders((details, cb) => {
+    try {
+      const token = normalizeToken(getBackendConfig().token);
+      const base = resolveBackendConfig().url.replace(/\/+$/, "");
+      if (token && details.url.startsWith(base)) {
+        details.requestHeaders["Authorization"] = `Bearer ${token}`;
+      }
+    } catch {
+      /* 配置读取失败则不注头，保持匿名请求 */
+    }
+    cb({ requestHeaders: details.requestHeaders });
+  });
 }
 
 // ---------------- IPC ----------------
@@ -250,7 +273,9 @@ ipcMain.handle("backend:get-url", async () => {
 });
 
 // token 与 url 分开取：url 会触发后端拉起（可能耗时），token 是纯配置读取、立即返回。
-ipcMain.handle("backend:get-token", () => getBackendConfig().token ?? "");
+// P1-10：不再向渲染进程暴露 token——鉴权由主进程 webRequest 注入。
+// （保留 handler 仅返回空串，兼容旧 preload；新 preload 已不声明 getBackendToken。）
+ipcMain.handle("backend:get-token", () => "");
 
 ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:maximize", () => {
@@ -263,6 +288,7 @@ ipcMain.handle("window:close", () => mainWindow?.close());
 app.whenReady().then(() => {
   // 去掉系统默认菜单栏（File/Edit/View…），游戏窗口只保留自绘 HUD
   Menu.setApplicationMenu(null);
+  installAuthHeaderInjection();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

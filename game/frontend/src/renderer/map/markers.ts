@@ -190,8 +190,14 @@ export class MarkerManager {
       if (!isFinite(m.lng) || !isFinite(m.lat)) continue;
       const el = document.createElement("div");
       el.className = "seal-mk";
-      el.innerHTML = `<div class="sq${m.kind === "warn" ? " warn" : ""}"></div><div class="tx"></div>`;
-      el.querySelector(".tx")!.textContent = m.label || "";
+      // P3：用 DOM API 拼装，避免 innerHTML（即使当前 kind 受限）
+      const sq = document.createElement("div");
+      sq.className = m.kind === "warn" ? "sq warn" : "sq";
+      const tx = document.createElement("div");
+      tx.className = "tx";
+      el.appendChild(sq);
+      el.appendChild(tx);
+      tx.textContent = m.label || "";
       const mk = new maplibregl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([m.lng, m.lat])
         .addTo(this.map);

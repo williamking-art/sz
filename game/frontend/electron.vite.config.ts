@@ -33,8 +33,9 @@ export default defineConfig({
       }
     },
     server: {
-      host: "0.0.0.0",
-      allowedHosts: true
+      // P2-34：禁止 0.0.0.0（局域网可访问 dev 渲染层）；仅本机回环
+      host: "127.0.0.1",
+      allowedHosts: ["localhost", "127.0.0.1"]
     }
   }
 });

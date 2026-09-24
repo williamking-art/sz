@@ -60,6 +60,7 @@ from content.data import (
     # 常量定义了却无人引用 → 改常量不生效）
     PRESTIGE_MAX, PRESTIGE_MIN, PRESTIGE_MONTHLY_CAP, PRESTIGE_MAJOR_EVENT_CAP,
     S_BASE, S_SUPPORT_WEIGHT, S_CONFLICT_WEIGHT, S_SECRET_BASE,
+    CHANGPING_INIT_MONTHLY_SHARE,
     S_SECRET_LOYALTY_WEIGHT, S_DIRECT_BONUS, S_ZHONGZHI_SUPPORT_WEIGHT,
     E_MIN, E_MAX, ROUTE_MULT_DEFAULT,
     TREASURY_START, INNER_TREASURY_START, ARRIVAL_BASE, EMPEROR_HEALTH_START,
@@ -294,7 +295,7 @@ class GameState(GameStateEconMixin):
                     "yields": _prov_yield, "resources": _prov_res,
                     "center": [round(_cx, 4), round(_cy, 4)],
                     "center_lonlat": _lonlats[_idx] if _lonlats else None,
-                    "buildings": external_province_buildings(regime_type),
+                    "buildings": external_province_buildings(regime_type, economy=_prov_econ),
                     "armies": [],
                 })
             item["provinces"] = _provinces
@@ -434,6 +435,12 @@ class GameState(GameStateEconMixin):
 
     def __init__(self, difficulty: str = "史实"):
         diff = DIFFICULTY_PRESETS.get(difficulty, DIFFICULTY_PRESETS["史实"])
+        # P1-17：新开局清空 applier 变更日志（模块级全局跨局共享）
+        try:
+            from engine.state_applier import reset_change_log
+            reset_change_log()
+        except Exception:  # noqa: BLE001
+            pass
 
         # ---- 时间 ----
         self.year: int = START_YEAR
@@ -740,9 +747,11 @@ class GameState(GameStateEconMixin):
         # ---- 局势（SituationRecord，规范 §1.2）----
         # **唯一落库的长期目标**：仅 `origin_kind == "event_pool"`；`legacy`/`focus`/`free_effect`
         # 只生成只读 Readout（`core/situations.py`），绝不在此双写。
+        self.situations: list = []
+        # ---- 月度奏章八章（批 3）：最近 12 月 [{year,month,chapters,couplet,diff_summary}] ----
+        self.monthly_gazette: list = []
         # 运行时态（**不落档**）：AI 档位 `_situation_grades`、本回合诏令携带的
         # `_situation_intents_this_turn`。
-        self.situations: list = []
         self._situation_grades: dict = {}
         self._situation_intents_this_turn: list = []
         # 识字率（2026-09-19 新增设定，core/literacy.py）：全国 POP 加权派生值；
@@ -786,7 +795,7 @@ class GameState(GameStateEconMixin):
                 # 常平仓存粮（石，平抑储备，与州仓 storage 分离、不参与漕运上供）：
                 # 初值 = 月产 20%；容量上限 = 月产 50%（见 _settle_granary），防止籴入无上限膨胀
                 "changping_stock": info.get("changping_stock",
-                                            round(info.get("grain", 0) / 12 * 0.2)),
+                                            round(info.get("grain", 0) * CHANGPING_INIT_MONTHLY_SHARE)),
                 # 经济全浮动重构新增字段（兼容缺省）
                 "grain_yield": info.get("grain_yield", info["grain"]),   # 兼容旧字段：粮年产量(石/年)（新口径 grain 即年产，不再 ×12）
                 "yields": dict(info.get("yields", {})),                        # 七维物资初值
@@ -1063,6 +1072,8 @@ class GameState(GameStateEconMixin):
         if moved <= 0:
             return {"ok": False, "error": "来源库藏不足", "reserve": 0, "source_moved": 0}
         # 守恒转移：source（M_ALL 账户）→ bank.reserve（M_ALL 账户），ΔM_ALL == 0
+        # P0-4：capital 仅作 legacy 展示（万贯，bank_view），**不入 M3**（money.m3 已
+        # 排除 capital，避免与 reserve 双计）。此处仍写 capital 以保持展示口径连续。
         setattr(self, source, avail - moved)
         b = self.bank
         b["reserve"] = int(b.get("reserve", 0) or 0) + moved

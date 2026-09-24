@@ -355,7 +355,7 @@ def test_contract_v2_rejected():
 # AI 接线：_ai_prelude 注入 _emperor_ai（契约 v2 结果）
 # ------------------------------------------------------------
 def test_ai_prelude_wiring():
-    from fake_ai_backend import FakeAIClient
+    from tests.fake_ai_backend import FakeAIClient
 
     class _Fake(FakeAIClient):
         def __init__(self):

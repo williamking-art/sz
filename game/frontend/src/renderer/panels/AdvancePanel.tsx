@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../store/gameStore";
-import { getApiClient } from "../api/client";
+import { getApiClient, subscribeRichPoll } from "../api/client";
 import { humanizeCoin } from "../utils/format";
 
 // 回合推演结果面板：本月损益（▲▼）+ 叙事报告 + 事件 + 朝报（逐行揭示，可跳过）
@@ -20,28 +20,18 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
   const [rich, setRich] = useState<string>("");
 
   // round2 民间反应 AI 版轮询（仅第一弹窗；ready 后就地替换民间反应富文本）
+  // P2-37：订阅共享轮询器，不再自起 setInterval 与 Dock 抢跑
   useEffect(() => {
     if (!richPending) return;
-    let cancelled = false;
-    const t = window.setInterval(async () => {
-      try {
-        const r = await getApiClient().pollRich();
-        if (cancelled) return;
-        if (r.ready) {
-          window.clearInterval(t);
-          // S-1（2026-09-21 重审）：推演未成时富化字段已被后端清空，但仍先判
-          // settle_error —— 绝不把任何非本回合文本替换进民间段。
-          if (r.settle_error) return;
-          if (r.rich_civilian) setRich(r.rich_civilian);
-        }
-      } catch {
-        /* 轮询失败静默——民间情况文本已在读 */
-      }
-    }, 4000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(t);
-    };
+    const unsubscribe = subscribeRichPoll((r) => {
+      if (!r.ready) return;
+      // S-1（2026-09-21 重审）：推演未成时富化字段已被后端清空，但仍先判
+      // settle_error —— 绝不把任何非本回合文本替换进民间段。
+      if (r.settle_error) return;
+      if (r.rich_civilian) setRich(r.rich_civilian);
+      unsubscribe(); // ready 即收工
+    });
+    return () => unsubscribe();
   }, [richPending]);
 
   /** stage="civilian"（民间情况，第一弹）→ **民间反应**（程序真值/AI 富版）；

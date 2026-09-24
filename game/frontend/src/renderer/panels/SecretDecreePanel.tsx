@@ -1,4 +1,5 @@
 import { useGameStore, pick } from "../store/gameStore";
+import constants from "../data/constants.json";
 
 // 密旨与御笔 —— 对齐 game/ui/panels_govern.py::_panel_secret_decree（只读展示）
 // 展示：待下密谕清单 / 御笔直发剩余额度 / 生效中密令。狼来了机制已取消，不再显示公信惩罚。
@@ -32,7 +33,7 @@ export default function SecretDecreePanel() {
     <div className="space-y-5">
       {/* 额度 */}
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-4">
-        <p className="font-kai text-sm tracking-widest text-dim">御笔直发（本月已用 {used} / 上限 2）　圣旨带宽余 {band}</p>
+        <p className="font-kai text-sm tracking-widest text-dim">御笔直发（本月已用 {used} / 上限 {(constants as { direct_decree_max?: number }).direct_decree_max ?? 2}）　圣旨带宽余 {band}</p>
       </div>
 
       {/* 待下密谕 */}

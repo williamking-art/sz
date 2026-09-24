@@ -49,7 +49,10 @@ Electron 前端经 HTTP 调用）与测试。**Tkinter GUI 已废弃删除**—�
 #    1205    def  audience_dialogue_apply   —— 召对落定（主线程）：解出回奏并写入史册/意向，返回回奏文本。
 #    1239    def  apply_minister_departure   —— 执行大臣离任（贬黜/致仕/病故/战殁/处死/乞休），返回日志列表。
 # ══ 目录结束 ══
+import logging
 import random
+
+log = logging.getLogger("commands")
 
 from content.data import (
     FACTION_NAMES, PERSONAL_ACTIONS, MAJOR_POLICIES, get_prestige_level,
@@ -96,6 +99,13 @@ def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
         init_focus_tree(state)
     except Exception:
         state.focus_tree = {}
+    # 局势系统 v1 开局种子（批 2）：花石纲民怨 / 东南财政亏空 / 辽事边备
+    # 成败条件全公开 + 持续代价；幂等（按 situation_key 去重），失败不阻断开局
+    try:
+        from content.situation_seeds import seed_initial_situations
+        seed_initial_situations(state, turn=0)
+    except Exception:
+        state.situations = getattr(state, "situations", None) or []
     # 记忆基线：开局录大臣/派系/机构/外部政权实体
     try:
         g = state.memory
@@ -374,7 +384,7 @@ def _ai_prelude(state, ai_client):
         eco = ai_client.economy_decide(state.posture)
     except Exception as e:
         # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
-        print(f"[settle] 经济推演失败: {e!r}", flush=True)
+        log.warning("[settle] 经济推演失败: %s", e)
         # 2026-09-18 修复：保留底层错误码——AIClient 已把 401/403 映射为 AI_AUTH_FAILED、
         # 超时映射为 AI_TIMEOUT（R2 修复）；此处原样丢弃，导致 HTTP 层无法给出精确诊断
         # （`AIRuntimeError` 的 `code` 字段形同虚设）。现透传，无码时留空由上层兜底。
@@ -506,7 +516,7 @@ def advance_and_settle(state, ai_client=None) -> tuple:
             if _memos:
                 state.memorials = _memos
         except Exception as _e:  # noqa: BLE001
-            print(f"[memorials] 上折未成: {_e!r}", flush=True)
+            log.warning("[memorials] 上折未成: %s", _e)
         return events, log, report
     except Exception:  # noqa: BLE001
         _restore_state(state, snap)
@@ -535,7 +545,7 @@ def _rich_narrative(state, ai_client) -> None:
                     if _civ:
                         state.rich_civilian = str(_civ)
             except Exception as _e:  # noqa: BLE001
-                print(f"[rich_civilian] 民间反应富化未成: {_e!r}", flush=True)
+                log.warning("[rich_civilian] 民间反应富化未成: %s", _e)
             # ② AI 奏章（memorials）
             try:
                 _res = ai_client.generate_memorials(
@@ -544,14 +554,14 @@ def _rich_narrative(state, ai_client) -> None:
                 if _memos:
                     state.memorials = _memos
             except Exception as _e:  # noqa: BLE001
-                print(f"[memorials] round2 上折未成: {_e!r}", flush=True)
+                log.warning("[memorials] round2 上折未成: %s", _e)
             # ③ AI 官方月报（结算后的官方总结；失败走本地模板 → 不写 rich_report）
             try:
                 rich = _monthly_report_text(state, ai_client)
                 if isinstance(rich, str) and rich:
                     state.rich_report = rich
             except Exception as _e:  # noqa: BLE001
-                print(f"[rich_report] 回合报告富化未成: {_e!r}", flush=True)
+                log.warning("[rich_report] 回合报告富化未成: %s", _e)
             _flush_ai_token(state, ai_client)
     finally:
         state.rich_ready = True
@@ -896,12 +906,15 @@ def approve_ai_action(state: GameState, action_id: str) -> str:
         if kind == "military_dispatch":
             return _apply_military_dispatch(state, action_id, payload, title)
 
+        if kind == "finance_proposal":
+            return _apply_finance_proposal(state, action_id, payload, title)
+
         state.set_ai_pending_status(action_id, "rejected")
         return f"未知待批类型：{kind}，已驳回。"
     except Exception as e:  # noqa: BLE001
         state.set_ai_pending_status(action_id, "rejected")
         # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
-        print(f"[approve_ai_action] 落地失败: {e!r}", flush=True)
+        log.warning("[approve_ai_action] 落地失败: %s", e)
         return f"批红未成：{title}（该条已驳回）。"
 
 
@@ -911,6 +924,41 @@ def reject_ai_action(state: GameState, action_id: str) -> str:
         return "无此待批条目（或已处置）。"
     state.set_ai_pending_status(action_id, "rejected")
     return f"已驳回：「{item.get('title', '')}」。"
+
+
+def enqueue_finance_proposal(state: GameState, title: str, summary: str,
+                              changes: list, proposer: str = "") -> str:
+    """批 5 C1 · 财政域草案入队：大臣工具产物先落草案，玩家「准/驳」后才立项。
+
+    `changes` 为 `update_state` 契约的 changes 数组（`{path, op, value, reason}`）；
+    落地走 `engine/state_applier.applier_pipeline`（与 AI 写状态同一批量事务 API）。
+    返回 action_id。
+    """
+    return state.enqueue_ai_action(
+        kind="finance_proposal", title=title, summary=summary,
+        payload={"changes": list(changes or [])}, proposer=proposer)
+
+
+def _apply_finance_proposal(state: GameState, action_id: str, payload: dict,
+                            title: str) -> str:
+    """批红财政草案：changes 走 state_applier（验证/守恒/原子写库）。"""
+    changes = payload.get("changes") or []
+    if not changes:
+        state.set_ai_pending_status(action_id, "rejected")
+        return f"批红驳回：「{title}」无变更明细。"
+    try:
+        from engine.state_applier import applier_pipeline
+        res = applier_pipeline(state, [("大臣财政草案", changes)])
+        if res.get("applied"):
+            state.set_ai_pending_status(action_id, "approved")
+            return f"批红：财政草案「{title}」已落地。"
+        errs = res.get("rejected") or res.get("errors") or ["未落地"]
+        state.set_ai_pending_status(action_id, "rejected")
+        return f"批红未成：「{title}」（{str(errs[0])[:40]}）。"
+    except Exception as e:  # noqa: BLE001
+        state.set_ai_pending_status(action_id, "rejected")
+        log.warning("[finance_proposal] 落地失败: %s", e)
+        return f"批红未成：「{title}」（该条已驳回）。"
 
 
 def _apply_military_dispatch(state, action_id, payload, title) -> str:
@@ -1277,7 +1325,7 @@ def envoy_diplomacy(state: GameState, target: str, speech: str, ai_client) -> st
     try:
         obj = ai_client.diplomacy_dialogue(speech, target, state=state)
     except Exception as e:  # noqa: BLE001
-        print(f"[diplomacy] 遣使{target}失败: {e!r}", flush=True)
+        log.warning("[diplomacy] 遣使%s失败: %s", target, e)
         obj = None
     if not isinstance(obj, dict):
         _note(f"遣使{target}，国书往返而未成议")

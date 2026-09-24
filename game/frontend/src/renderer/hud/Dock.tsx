@@ -1,6 +1,7 @@
+﻿import * as React from "react";
 import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2, Lock, Trees, FileText, Building2, ClipboardList, Stamp, BookOpen, Flame } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
-import { getApiClient } from "../api/client";
+import { getApiClient, subscribeRichPoll } from "../api/client";
 
 // 底部命令 dock：朝堂/群臣/朝报/个人行止/拟旨 + 回合推演
 const COMMANDS: { key: string; label: string; icon: React.ReactNode }[] = [
@@ -41,6 +42,14 @@ export default function Dock() {
   const setAdvancing = useGameStore((s) => s.setAdvancing);
   const setState = useGameStore((s) => s.setState);
   const state = useGameStore((s) => s.state);
+  // P0-6：禁止在 setInterval 回调里调用 Hook。用 ref 镜像当前 turn，轮询里只读 ref。
+  const turnRef = React.useRef<number | undefined>(undefined);
+  turnRef.current = (state as Record<string, unknown> | null)?.turn as number | undefined;
+  // P1-25：轮询 interval 挂到 ref，组件卸载时清理（否则关 Dock 后仍 pollRich/pushOverlay）
+  const pollTimerRef = React.useRef<number | null>(null);
+  React.useEffect(() => () => {
+    if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
+  }, []);
   const pendingCount = (() => {
     const raw = (state as Record<string, unknown> | null)?.ai_pending_actions;
     if (!Array.isArray(raw)) return 0;
@@ -86,56 +95,44 @@ export default function Dock() {
       // 继续等（原实现 `if (r.ready) { clearInterval }` 单次触发，命中后台回滚的
       // 「ready + 无错误 + 上月富文本」窗口会弹**上月**报告并吞掉「推演未成」）；
       // ③ ready 且两路皆空（三路 AI 全失败且本地兜底也未产出的极端态）→ 静默收尾。
-      (async () => {
-        let cancelled = false;
-        const _t = window.setInterval(async () => {
-          try {
-            const r = await getApiClient().pollRich();
-            if (cancelled || !r.ready) return;          // 未就绪：下轮再查
-            window.clearInterval(_t);
-            cancelled = true;
-            // 后台结算失败（AI 拒绝式）→ 弹"推演未成"（原因 code），不走富化弹。
-            if (r.settle_error) {
-              if (useGameStore((s) => s.state)?.turn === stNow?.turn) {
-                pushOverlay({
-                  kind: "advance",
-                  title: "推演未成",
-                  props: {
-                    error:
-                      `回合结算未成：${r.settle_error}（可重试；民间情况文本仍在上方）`
-                  }
-                });
-              }
-              return;
-            }
-            // 富化已收尾但两路皆空 → 无第二轮可弹，静默收尾（民间情况仍在首段弹窗）。
-            if (!r.rich_report && !r.rich_civilian) return;
-            if (useGameStore((s) => s.state)?.turn === stNow?.turn) {
+      // P2-37：订阅共享轮询器，不再自起 setInterval 与 AdvancePanel 抢跑。
+      {
+        const stNow = res.state as Record<string, unknown> | undefined;
+        const unsubscribe = subscribeRichPoll((r) => {
+          if (!r.ready) return;
+          unsubscribe();
+          if (r.settle_error) {
+            if (turnRef.current === stNow?.turn) {
               pushOverlay({
                 kind: "advance",
-                title: "回合报告",
+                title: "推演未成",
                 props: {
-                  stage: "final",
-                  report: r.rich_report,          // 官方月报（结算后的官方总结）
-                  rich_civilian: r.rich_civilian, // AI 民间反应富版（与首段同源不同时）
-                  events: res.events,
-                  log: Array.isArray(r.log) ? r.log : res.log,  // 朝报（后台结算产出，随 round2 到位）
-                  before,
-                  after: r.state
-                      ? snapshotHud(r.state)        // 结算后快照（round2 带），差异正确
-                      : snapshotHud(res.state)
+                  error: `回合结算未成：${r.settle_error}（可重试；民间情况文本仍在上方）`
                 }
               });
             }
-          } catch {
-            /* 轮询失败静默——民间情况文本已在读 */
+            return;
           }
-        }, 4000);
-        window.setTimeout(() => {
-          window.clearInterval(_t);
-          cancelled = true;
-        }, 180_000);   // 装饰层失败也不无限轮询（3 分钟上限）
-      })();
+          if (!r.rich_report && !r.rich_civilian) return;
+          if (turnRef.current === stNow?.turn) {
+            pushOverlay({
+              kind: "advance",
+              title: "回合报告",
+              props: {
+                stage: "final",
+                report: r.rich_report,
+                rich_civilian: r.rich_civilian,
+                events: res.events,
+                log: Array.isArray(r.log) ? r.log : res.log,
+                before,
+                after: r.state ? snapshotHud(r.state) : snapshotHud(res.state)
+              }
+            });
+          }
+        });
+        // 3 分钟上限：后端一直不 ready 也停表
+        window.setTimeout(() => unsubscribe(), 180_000);
+      }
     } catch (e) {
       console.error("[advance]", e);
       // 推演为全游戏级强制 AI（core/commands.py::settle_turn 拒绝式），
