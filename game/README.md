@@ -326,6 +326,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | 众生相 P1 | 六类心气注入叙事 | ✅ | `pop_sentiment_brief` 六民生齿真值摘要（脱敏定性）注入 monthly_report / event_narrative / civilian_situation prompt |
 | 众生相 ③ | 分幕约束后验 | ✅ | `_validate_scenes`：幕数钳位/字数钳位/脱敏（阿拉伯数字→「数」）/空幕占位，接入 monthly/event/civilian 三处 |
 | 众生相 ④ | 民间反应分幕化 | ✅ | `civilian_reaction` prompt 改 3 幕（农人/士绅/商贾）→ `rich_civilian_scenes` 全链路 → `AdvancePanel` 分幕卡片 |
+| 众生相 ⑤ | 八章邸报+分幕合并 | ✅ | `_chapter_scenes` 各章分幕小剧场（程序真值模板：局势/密令/人物/军事/邦交 5 章）→ `GazettePanel` 章内渲染 |
 
 ---
 

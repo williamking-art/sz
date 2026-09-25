@@ -18,6 +18,30 @@ from typing import Any, Dict, List, Optional
 
 __all__ = ["CHAPTER_ORDER", "build_monthly_gazette", "GAZETTE_COUPLETS"]
 
+
+# ⑤ 八章+分幕合并：各章分幕小剧场模板（程序真值，不伪造数字）
+# 每章 0~2 幕，把结构化事实翻译成场景叙事
+_CHAPTER_SCENE_TEMPLATES: Dict[str, list] = {
+    "长期局势": [
+        "【其一·枢密】 堂上摊开邸报，诸臣传阅局势条目，或蹙眉或颔首。",
+        "【其二·州县】 驿马飞递新政，州县小吏连夜抄录张挂，百姓围看。",
+    ],
+    "密令动向": [
+        "【其一·暗室】 烛影摇红，内侍奉密札出宫，蹄声渐远。",
+        "【其二·边镇】 边将夜启封函，阅毕焚之，帐外风紧。",
+    ],
+    "人物历练": [
+        "【其一·朝房】 诸臣候朝，或相揖或默坐，各怀心事。",
+        "【其二·衙署】 案头簿册堆积如山，属官伏案核对，灯花落了又落。",
+    ],
+    "军事": [
+        "【其一·边堡】 城头望烽火，戍卒持戈而立，风卷旌旗。",
+    ],
+    "邦交": [
+        "【其一·都亭驿】 辽使入馆，驿丞殷勤接待，市井侧目相看。",
+    ],
+}
+
 # 八章固定顺序（明末 §2.2 对齐；标题即 UI 章名）
 CHAPTER_ORDER: tuple = (
     "诏书核销",
@@ -48,6 +72,30 @@ _CHAPTER_KEYWORDS: Dict[str, tuple] = {
     "邦交": ("辽", "夏", "金", "大理", "岁币", "岁赐", "邦交", "外邦", "朝贡", "和议"),
     "讣闻登场": ("讣", "薨", "卒", "故", "贬", "黜", "擢", "迁", "拜", "除", "致仕"),
 }
+
+
+def _chapter_scenes(chapter: str, lines: List[str]) -> List[dict]:
+    """⑤ 八章+分幕合并：为有内容的章追加分幕小剧场（程序真值模板）。
+
+    仅在该章有实质内容（非「本月无事」占位）时附加 1~2 幕；
+    幕文本由 `_CHAPTER_SCENE_TEMPLATES` 模板池提供（确定性，不伪造数字）。
+    """
+    has_content = any("本月无" not in ln and "暂无" not in ln for ln in lines)
+    if not has_content:
+        return []
+    templates = _CHAPTER_SCENE_TEMPLATES.get(chapter) or []
+    scenes = []
+    for t in templates[:2]:
+        # 从模板提取幕标题与正文
+        if t.startswith("【") and "】" in t:
+            title_end = t.index("】") + 1
+            scene_title = t[1:title_end - 1]  # 去掉【】
+            text = t[title_end:].strip()
+        else:
+            scene_title = f"补录{len(scenes) + 1}"
+            text = t
+        scenes.append({"scene": scene_title, "text": text})
+    return scenes
 
 
 def _couplet(year: int, month: int) -> str:
@@ -215,7 +263,8 @@ def build_monthly_gazette(state, year: Optional[int] = None,
             lines = _chapter_by_keywords(state, name) or ["本月无讣闻、无新擢。"]
         else:
             lines = _chapter_by_keywords(state, name) or [f"本月无{name}可记。"]
-        chapters.append({"title": name, "lines": lines})
+        chapters.append({"title": name, "lines": lines,
+                         "scenes": _chapter_scenes(name, lines)})
 
     diff = _diff_summary(state)
     return {

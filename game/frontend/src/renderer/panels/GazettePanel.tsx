@@ -24,6 +24,8 @@ interface MonthBlock {
 interface GazetteChapter {
   title: string;
   lines: string[];
+  /** ⑤ 八章+分幕合并：各章分幕小剧场 */
+  scenes?: { scene: string; text: string }[];
 }
 
 interface GazetteRecord {
@@ -56,6 +58,17 @@ function ChapterBlock({ ch }: { ch: GazetteChapter }) {
         ch.lines.map((l, i) => (
           <p key={i} className="py-0.5 text-sm leading-relaxed text-ink">· {l}</p>
         ))
+      )}
+      {/* ⑤ 分幕小剧场 */}
+      {(ch.scenes?.length ?? 0) > 0 && (
+        <div className="mt-1 space-y-1 border-t border-gold/20 pt-1">
+          {ch.scenes!.map((s, i) => (
+            <div key={i} className="pl-2">
+              <span className="font-kai text-[11px] text-dim">【{s.scene}】</span>
+              <span className="ml-1 text-xs leading-relaxed text-ink-light">{s.text}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
