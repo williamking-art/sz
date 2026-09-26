@@ -314,6 +314,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | R5-3 | CI 基建 | 服务器 CI (`/opt/sz-ci/ci.sh`) 原只在首次部署时安装 node_modules；新增依赖后 typecheck 失败 → 改为 `package-lock.json` 变更时自动 `npm install`，并把 `npm run test` 纳入前端回归链 |
 | R5-4 | 前端音频触发点 | 引擎建成后仍缺少触发点 → 新增 `useGameBgm`（局中自动播放 `bgm_court`，回菜单停止）；为「主菜单按钮、Dock 指令、下旨、批答、事件选择、关闭浮层」注入 `playClick()` 合成点击音；开局/事件弹出/月末推进分别触发 `sfx_fanfare`/`sfx_event`/`sfx_gong`；合成音效不依赖外部资源，文件到位后自动混用 |
 | R5-5 | 前端测试 | 新增 `useGameBgm` 与合成点击音单测（6 用例），覆盖 AudioContext 调用、静音、音量缩放、BGM 状态切换；前端单测累计 47 个 |
+| R5-6 | 云端 PG 冗余副本清理 | 典章库迁移到本地 SQLite 后，CloudBase PG 可能残留旧表 → 新增 `cleanup_cloudbase_pg.py`（dry-run + 白名单 + apply 二次确认）；因缺少管理员 API Key，当前只能待命，凭据就位后可一键列出并删除冗余表 |
+| R5-7 | kb_search 真实调用率观测 | 埋点已落地但缺少真实数据 → 新增 `observe_kb_search.py`，用真实 AI 跑 5 条召对问题；实测 4 次走 AI、2 次触发 `kb_search`、命中 2 次，真实调用率约 50%；后续可随玩家实际游戏持续观察 |
 
 > ⚠️ **已知未处置（用户明确跳过 key 轮换）**：`_dev_tools/game-assets-src/ministers-layers/_src/_i2i.py:5`
 > 硬编码第三方服务商 API key，且**已被 git 跟踪**。2026-09-26 已随立绘工具链迁出 `game/content/`
