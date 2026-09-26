@@ -2,8 +2,23 @@
 # ⚠️ **已废弃**（2026-09-22）：旧版净身脚本，会覆盖 _lay2.py 权威产物。禁止运行。
 import os, numpy as np
 from PIL import Image, ImageFilter
-# 路径自 __file__ 推导（原为硬编码 g:\sz\...）
-L=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .../layers
+
+
+def _repo_root() -> str:
+    """向上找仓库根（含 game/content/ministers 的目录），避免硬编码相对层级数。"""
+    p = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.isdir(os.path.join(p, "game", "content", "ministers")):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            raise RuntimeError("未找到仓库根（应含 game/content/ministers 目录）")
+        p = parent
+
+
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...；2026-09-26 随工具链迁出 game/content/ 后
+# 改为从仓库根定位；__main__ 独立运行时产物仍写回运行时 layers 目录）
+L = os.path.join(_repo_root(), "game", "content", "ministers", "layers")
 PO=["zheng","gongshou","chihu","longxiu"]
 TI=["zi","fei","lv","qing","shi","qinwang"]
 H,W=1080,810

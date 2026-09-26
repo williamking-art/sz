@@ -1,15 +1,29 @@
 ﻿# -*- coding: utf-8 -*-
 # ⚠️ **已废弃**（2026-09-22）：本脚本为旧版立绘生成管线，会覆盖 _lay2.py 权威产物。
-# 权威管线 = content/ministers/layers/_lay2.py（4 步：body→offsets→净身→head）。
+# 权威管线 = _dev_tools/game-assets-src/ministers-layers/_lay2.py（4 步：body→offsets→净身→head）。
 # 仅保留作历史参考，**禁止运行**。
 import json
 import os
 import numpy as np
 from PIL import Image
 
-# 路径自 __file__ 推导（原为硬编码 g:\sz\...，换机器/换盘符即失败且写错位置）
-SRC = os.path.dirname(os.path.abspath(__file__))          # .../layers/_src
-DST = os.path.dirname(SRC)                                # .../layers
+
+def _repo_root() -> str:
+    """向上找仓库根（含 game/content/ministers 的目录），避免硬编码相对层级数。"""
+    p = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.isdir(os.path.join(p, "game", "content", "ministers")):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            raise RuntimeError("未找到仓库根（应含 game/content/ministers 目录）")
+        p = parent
+
+
+# 路径自 __file__ 推导（原为硬编码 g:\sz\...，换机器/换盘符即失败且写错位置；
+# 2026-09-26 随工具链迁出 game/content/ 后，SRC 仍为本目录（源图所在），DST 指向运行时 layers）
+SRC = os.path.dirname(os.path.abspath(__file__))          # .../ministers-layers/_src
+DST = os.path.join(_repo_root(), "game", "content", "ministers", "layers")
 H, W = 1080, 810
 CUT, FE = 0.40, 0.06
 POSES = ["zheng", "gongshou", "chihu", "longxiu"]

@@ -1,8 +1,13 @@
 # 大臣立绘生成规范（分层管线）
 
 > 目的：新增大臣时，**照本规范出图即可有机融入既有 42 人体系**，不需要改代码、不需要手工对位。
-> 一键复现：`python game/content/ministers/layers/_lay2.py`
-> 复核：`python game/content/ministers/layers/_src/_verify_layers.py`
+> 一键复现：`python _dev_tools/game-assets-src/ministers-layers/_lay2.py`
+> 复核：`python _dev_tools/game-assets-src/ministers-layers/_src/_verify_layers.py`
+>
+> 📁 本规范与生成工具链（`_lay2.py`、`_src/`）原在 `game/content/ministers/layers/` 内，
+> 2026-09-26 迁至 `_dev_tools/game-assets-src/ministers-layers/`（分层纪律：开发脚本不驻运行时
+> 内容目录；顺带使 `_i2i.py` 的第三方 key 不再随 PyInstaller 打包进分发版）。
+> **产物仍写回** `game/content/ministers/layers/`（body_* / head_* / `_offsets.json`），游戏运行时只读那里。
 
 ---
 
@@ -85,7 +90,8 @@ python _dev_tools/agnes_gen.py --prompt "<上句>" --ratio 3:4 --size 2K
 2. 不得改绢底——背景是官服层提供的，24 张必须无缝互相替换。
 3. 不得改幞头形制——冠形一改，头部层叠上去就会「双帽」。
 
-产出落盘为 `layers/_src/_base_{tier}.png`（正立）与 `layers/_src/_pose_{pose}[_{tier}].png`。
+产出落盘为 `_src/_base_{tier}.png`（正立）与 `_src/_pose_{pose}[_{tier}].png`
+（工具链目录 `_dev_tools/game-assets-src/ministers-layers/_src/`）。
 
 ---
 
@@ -118,9 +124,9 @@ python _dev_tools/agnes_gen.py --prompt "<上句>" --ratio 3:4 --size 2K
 
 1. **出立绘**：按第三节出 `portraits/{名}.png`（810×1080、3:4、正面半身、绢底同色、头顶 y≈0.10H）。
    已有成品图也行，只要构图接近。
-2. **跑管线**：`python game/content/ministers/layers/_lay2.py`
+2. **跑管线**：`python _dev_tools/game-assets-src/ministers-layers/_lay2.py`
    —— 自动完成：生成官服层 → 测姿态偏移 → 净身 → 抠头部层（42→43 张）。
-3. **复核**：把新人名加进 `layers/_src/_verify_layers.py` 的 `names` 列表后运行，
+3. **复核**：把新人名加进 `_dev_tools/game-assets-src/ministers-layers/_src/_verify_layers.py` 的 `names` 列表后运行，
    肉眼确认无 ghost 帽檐、无灰月牙、无边缘条带。
 4. **建档**：在 `content/ministers/data.py::MINISTERS` 追加一条
    （`born / role / faction / traits / nobility / rank / portrait="" / in_office / loyalty / corruption`）。
