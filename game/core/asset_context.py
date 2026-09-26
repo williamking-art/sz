@@ -355,7 +355,10 @@ def node_adoption_coverage(state, node_id: str) -> float:
                 continue
             b = p.get("buildings") or {}
             if isinstance(b, dict):
-                lv += max(0, int(b.get(deploy, 0) or 0))
+                # 等级经统一读口（兼容标量 2 与结构 {"lv": 2}；原 `int(b.get(...))` 遇结构会
+                # TypeError，且本函数在月度结算的科技采用率步上 —— 2026-09-27 加固）
+                from core.building_jobs import building_level as _bld_lv
+                lv += _bld_lv(b.get(deploy, 0), 0)
     return min(TECH_ADOPTION_MAX, lv * TECH_ADOPTION_PER_LEVEL)
 
 

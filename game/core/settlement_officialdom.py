@@ -117,13 +117,17 @@ def _settle_upkeep(state, log):
         if _std:
             asset_value += _lv_cost(_std, _pj.get("level", 1))
     # 2) POP 建筑（按路）：命中 BUILDING_STD 用其 base_cost，否则用 POP_BUILDING_VALUE
+    #    等级经统一读口 `building_jobs.building_level`（兼容标量 2 与结构 {"lv": 2}；
+    #    散落的 int(lv) 遇结构会 TypeError 且此处位于月度结算路径 —— 2026-09-27 加固）
+    from core.building_jobs import building_level as _bld_lv
     for _p in state.prefectures.values():
         for _bt, _lv in ((_p.get("buildings") or {})).items():
             _std = BUILDING_STD.get(str(_bt))
+            _level = _bld_lv(_lv, 1)
             if _std:
-                asset_value += _lv_cost(_std, _lv)
+                asset_value += _lv_cost(_std, _level)
             else:
-                asset_value += POP_BUILDING_VALUE * max(1, int(_lv or 1))
+                asset_value += POP_BUILDING_VALUE * max(1, _level)
     # 3) 作坊（酒坊/畜栏…）：按名义造价
     asset_value += len(getattr(state, "workshops", {}) or {}) * float(WORKSHOP_VALUE)
     # 4) 中央武库：按件折价

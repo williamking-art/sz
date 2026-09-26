@@ -58,12 +58,13 @@ def settle_era_links(state, log):
         dim = ERA_BUILDING_LINK.get(btype)
         if dim:
             contrib[dim] = contrib.get(dim, 0) + int(proj.get("level", 1))
-    # POP 建筑（各路）
+    # POP 建筑（各路）——等级经统一读口（兼容标量与 {"lv": n}；2026-09-27 加固）
+    from core.building_jobs import building_level as _bld_lv
     for p in state.prefectures.values():
         for bt, lv in (p.get("buildings") or {}).items():
             dim = ERA_BUILDING_LINK.get(bt)
             if dim:
-                contrib[dim] = contrib.get(dim, 0) + int(lv)
+                contrib[dim] = contrib.get(dim, 0) + _bld_lv(lv, 1)
     # 审查 P2-24 修复（棘轮锁死）：原实现每月把建筑等级**累加**到 era[dim]（无衰减、
     # 无回落），数月即 clamp 到 100 并永久停留，使 era_trend/上行调制形同虚设。
     # 现改为「目标值重算」：era[dim] = 50 + 建筑贡献（clamp 0~100）——
@@ -97,12 +98,14 @@ def build_speed_mod(state) -> float:
 def damage_buildings(state, log, reason="战乱"):
     """战乱/灾荒 → 建筑毁损（level 降、记 destroyed/ruined；史实：金兵毁宫室/水利失修）。"""
     from memory.memory_graph import MemoryGraph
+    from core.building_jobs import building_level as _bld_lv
     damaged = 0
     for p in state.prefectures.values():
         b = p.get("buildings") or {}
-        for bt, lv in list(b.items()):
+        for bt, raw in list(b.items()):
+            lv = _bld_lv(raw, 1)
             if lv > 1:
-                b[bt] = lv - 1
+                b[bt] = lv - 1        # 写回归一化后的标量（结构 {"lv": n} 顺带归一）
                 damaged += 1
             elif lv == 1:
                 del b[bt]
@@ -186,6 +189,7 @@ def tech_build_bonus(state) -> float:
 def calc_industry_scale(state):
     """产业规模统计（程序）：旧/新产业规模 = Σ(建筑数量×等级)、结构 = 新产业占比。"""
     from content.data import INDUSTRY_CLASS
+    from core.building_jobs import building_level as _bld_lv
     old_set, new_set = set(INDUSTRY_CLASS["old"]), set(INDUSTRY_CLASS["new"])
     old_scale = new_scale = 0
     # 政府 projects
@@ -209,9 +213,9 @@ def calc_industry_scale(state):
     for p in state.prefectures.values():
         for bt, lv in (p.get("buildings") or {}).items():
             if bt in old_set:
-                old_scale += int(lv)
+                old_scale += _bld_lv(lv, 1)
             elif bt in new_set:
-                new_scale += int(lv)
+                new_scale += _bld_lv(lv, 1)
     total = old_scale + new_scale
     share = new_scale / total if total > 0 else 0.0
     return {"old_scale": old_scale, "new_scale": new_scale,

@@ -94,6 +94,30 @@ def _lv(entry: Any) -> int:
         return _LV_MIN_DEFAULT
 
 
+def building_level(entry: Any, default: int = 1) -> int:
+    """**建筑等级统一读口**（兼容两种既存写法，并显式保留 0）。
+
+    - 标量：宋侧 `prefectures[*]["buildings"] = {"工坊": 2}`（`settlement_tech._settle_projects` 实际写法）；
+    - 结构：`{"lv": 2}`（外邦省域 `provinces[*]["buildings"]` 写法；宋侧未来并轨亦兼容）；
+    - `{"closed": true}` → 0（倒闭：不计岗位、不计资产）。
+
+    **为什么需要统一读口**（2026-09-27 审计）：`building_jobs._lv()` 是**外邦岗位口径**
+    （按「缺省 1」把 0 也归一到 1，`or 1`），而其它模块（资产维持费估值、时代维度、科技采用率）
+    直接 `int(lv)` —— 两种格式一旦混用即 `TypeError`，且这些读点都在**月度结算**路径上。
+    本函数与 `_lv()` 的差别：**(a) 保留 0**（裁撤/倒闭有意义）；**(b) 不设等级上下限**。
+    """
+    if isinstance(entry, dict):
+        if entry.get("closed"):
+            return 0
+        raw = entry.get("lv", default)
+    else:
+        raw = default if entry is None else entry
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return max(0, int(default))
+
+
 def jobs_of(buildings: dict, cfg: dict) -> Dict[str, int]:
     """各类建筑岗位数 = lv × JOBS_PER_LEVEL（粮田 0——粮维豁免岗位制）。"""
     jpl = cfg.get("JOBS_PER_LEVEL") or {}
