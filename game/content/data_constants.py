@@ -486,11 +486,14 @@ INSTITUTION_PARAM_SPEC = {
     # 调整须经圣旨、由掌「官营放贷」事权者执行（人是载体，换人不换权）。
     # 设计：**参数不删、只给旋钮** —— 玩家经诏令 `effects: {"institution": {...}}` 调，
     # AI 同经 free_effect 提案；值域由本表单点约束（未知键整单/逐项拒绝）。
-    "didang_reserve_ratio": {"default": 0.20, "min": 0.05, "max": 0.60, "label": "抵当所准备金率"},
-    "didang_loan_rate":     {"default": 0.01, "min": 0.0,  "max": 0.05, "label": "抵当所月息"},
-    "didang_loan_share":    {"default": 0.10, "min": 0.0,  "max": 0.50, "label": "抵当所放贷力度"},
-    "didang_deposit_share": {"default": 0.05, "min": 0.0,  "max": 0.20, "label": "抵当所吸储力度"},
-    "didang_deposit_cap":   {"default": 0.30, "min": 0.05, "max": 0.80, "label": "抵当所存款上限"},
+    # 带 `authority` 字段的参数即**受事权约束**：`core.institution.apply_reform` 会核对
+    # 执行主体是否掌该事权（机构 / 官职 / 任职人三种载体均可），未指定主体或非掌权者
+    # 一律拒绝（用户口径：不能绕过；换人不换权）。
+    "didang_reserve_ratio": {"default": 0.20, "min": 0.05, "max": 0.60, "label": "抵当所准备金率", "authority": "官营放贷"},
+    "didang_loan_rate":     {"default": 0.01, "min": 0.0,  "max": 0.05, "label": "抵当所月息",     "authority": "官营放贷"},
+    "didang_loan_share":    {"default": 0.10, "min": 0.0,  "max": 0.50, "label": "抵当所放贷力度", "authority": "官营放贷"},
+    "didang_deposit_share": {"default": 0.05, "min": 0.0,  "max": 0.20, "label": "抵当所吸储力度", "authority": "官营放贷"},
+    "didang_deposit_cap":   {"default": 0.30, "min": 0.05, "max": 0.80, "label": "抵当所存款上限", "authority": "官营放贷"},
 }
 
 # ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与

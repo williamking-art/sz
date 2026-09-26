@@ -210,11 +210,28 @@ def validate_free_effect(contract) -> str:
             return "duration 须为非负整数（0=永久）"
         if not math.isfinite(dur) or dur < 0:
             return "duration 须为非负有限数（0=永久）"
+    # 执行主体（用户口径 2026-09-19：权限跟部门/官职，人是载体）：
+    # 受事权约束的参数（如 didang_* 归「官营放贷」）须由契约指定执行主体，
+    # 由 core.institution.apply_reform 逐项核对；此处只做类型校验。
+    ex = contract.get("executor")
+    if ex is not None:
+        if isinstance(ex, str):
+            if not ex.strip():
+                return "executor 须为非空字符串（机构/官职/人名）"
+        elif isinstance(ex, dict):
+            if not any(str(ex.get(k) or "").strip() for k in ("org", "post", "holder", "person", "minister")):
+                return "executor 须含 org/post/holder 之一"
+        else:
+            return "executor 须为字符串或对象"
     return ""
 
 
-def _apply_effect_to_state(state, effects):
-    """把白名单 effects 落地到 GameState（CAP 封顶，AI 只有提议权）。返回日志。"""
+def _apply_effect_to_state(state, effects, executor=None):
+    """把白名单 effects 落地到 GameState（CAP 封顶，AI 只有提议权）。返回日志。
+
+    `executor` = 执行主体（机构/官职/人名，或 `{org|post|holder}`），透传给
+    `core.institution.apply_reform` 做**执行侧权限校验**；不受事权约束的参数忽略它。
+    """
     log = []
     for k, v in effects.items():
         if k == "faction_change":
@@ -227,8 +244,9 @@ def _apply_effect_to_state(state, effects):
         if k == "institution":
             # 阶段 C-7：编制参数（§12.3 六杠杆 ＋ §17.4 参数清单 ＋ S-D6 维持费）。
             # 值域由 INSTITUTION_PARAM_SPEC 单点约束；逐项钳制，未知键逐项拒绝。
+            # 受事权约束的参数（spec 带 authority）须 executor 掌权才落地。
             from core import institution as _inst
-            log += _inst.apply_reform(state, v)
+            log += _inst.apply_reform(state, v, executor)
             continue
         if k == "prestige":
             d = _resolve_effect_value(k, v)
@@ -395,8 +413,9 @@ def _apply_free_effect(state, contract) -> list:
         return ["[自由动作] 国库/民间资财不足，整单不执行（守恒拒绝，防凭空造灭）"]
     log = []
     mode = contract.get("mode", "once")
+    executor = contract.get("executor")
     if mode == "once":
-        log += _apply_effect_to_state(state, contract.get("effects", {}))
+        log += _apply_effect_to_state(state, contract.get("effects", {}), executor)
         _pay_cost(state, cost, log)
     else:
         item = {
@@ -405,6 +424,8 @@ def _apply_free_effect(state, contract) -> list:
             "duration": _safe_int(contract.get("duration", 12), default=12),
             "effects": contract.get("effects", {}),
             "cost": dict(cost),
+            # 执行主体随长期诏留存：月度复用时仍按同一主体校验（换人换权即随之失效）
+            "executor": executor,
         }
         state.longterm_effects.append(item)
         log.append(f"[自由动作] 立长期制度「{item['name']}」（duration={item['duration']}，0=永久）")
@@ -424,7 +445,7 @@ def _settle_free_effects(state, log) -> None:
         applied = bool(_cost_affordable(state, cost)
                        and _money_effects_feasible(state, effects, cost))
         if applied:
-            log += _apply_effect_to_state(state, effects)
+            log += _apply_effect_to_state(state, effects, item.get("executor"))
             _pay_cost(state, cost, log)
             log.append(f"[制度] {item.get('name', '')} 本月生效")
         else:

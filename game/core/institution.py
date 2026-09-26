@@ -93,13 +93,166 @@ def set_by_delta(state, key: str, delta: float) -> Tuple[bool, str]:
     return set_param(state, key, get(state, key) + float(delta or 0))
 
 
-def apply_reform(state, reform: Any) -> list:
+# ---------------------------------------------------------------------------
+# 执行侧权限校验（用户口径 2026-09-19：**权限跟部门/官职，人是载体**，换人不换权）
+#
+# 旋钮不是"定义"而是**权限**：圣旨须**指定执行主体**，由掌该事权者执行。
+# 授权表复用既有数据（不新开账本）：
+#   · `content/ministers/data.py::AUTHORITY_MATTERS`（事权 → owner 机构）
+#   · `CENTRAL_ORG_INFO[机构]["authority"] / ["posts"] / ["holders"]`
+# 运行期以 `state.central_orgs`（机构改名/裁撤/换人后的活账）为准，缺省回退内容表。
+# ---------------------------------------------------------------------------
+
+_EXECUTOR_KEYS = ("org", "post", "holder", "person", "minister")
+
+
+def _matter_of(key: str) -> str:
+    """参数要求的事权（无 → 不受事权约束，任何主体可改）。"""
+    return str((_SPEC.get(key) or {}).get("authority") or "")
+
+
+def _org_table(state) -> dict:
+    """机构活账：`state.central_orgs` 优先（含改名/裁撤/换人），回退内容表。"""
+    orgs = getattr(state, "central_orgs", None)
+    if isinstance(orgs, dict) and orgs:
+        return orgs
+    try:
+        from content.ministers.data import CENTRAL_ORG_INFO
+        return CENTRAL_ORG_INFO
+    except Exception:  # noqa: BLE001 - 内容表缺失不应让结算路径崩
+        return {}
+
+
+def _authority_matters_of(state, org_name: str) -> set:
+    """某机构掌有的事权集合（机构 authority/matter_keys ＋ 事权表 owner 反查）。"""
+    out = set()
+    org = _org_table(state).get(org_name) or {}
+    if isinstance(org, dict):
+        for m in list(org.get("authority") or []) + list(org.get("matter_keys") or []):
+            out.add(str(m))
+    matters = getattr(state, "authority_matters", None)
+    if not isinstance(matters, dict) or not matters:
+        try:
+            from content.ministers.data import AUTHORITY_MATTERS
+            matters = AUTHORITY_MATTERS
+        except Exception:  # noqa: BLE001
+            matters = {}
+    for m, info in (matters or {}).items():
+        if isinstance(info, dict) and info.get("owner") == org_name:
+            out.add(str(m))
+    return out
+
+
+def _executor_by_org(state, orgs: dict, name: str) -> Tuple[set, str, str]:
+    org = orgs.get(name)
+    if not isinstance(org, dict):
+        return set(), name, f"未知机构「{name}」"
+    if org.get("abolished"):
+        return set(), name, f"机构「{name}」已裁撤，无权执行"
+    return _authority_matters_of(state, name), f"{name}（机构）", ""
+
+
+def _executor_by_post(state, orgs: dict, title: str) -> Tuple[set, str, str]:
+    """官职载体：须该官职**有人任职**（人是载体；换人不换权 → 权在官职上）。"""
+    for oname, org in orgs.items():
+        if not isinstance(org, dict):
+            continue
+        for p in (org.get("posts") or []):
+            if not isinstance(p, dict) or str(p.get("title") or "") != title:
+                continue
+            if org.get("abolished"):
+                return set(), title, f"机构「{oname}」已裁撤，无权执行"
+            holder = str((org.get("holders") or {}).get(title) or "").strip()
+            if not holder:
+                return set(), title, f"官职「{title}」无人任职（人是载体，须先授职）"
+            return (_authority_matters_of(state, oname),
+                    f"{title}（{oname} · {holder}）", "")
+    return set(), title, f"未知官职「{title}」"
+
+
+def _executor_by_person(state, orgs: dict, name: str) -> Tuple[set, str, str]:
+    """人只是载体：按其**担任的官职**所属机构取权，不按人另立权限。"""
+    hits = []
+    for oname, org in orgs.items():
+        if not isinstance(org, dict) or org.get("abolished"):
+            continue
+        for post, holder in (org.get("holders") or {}).items():
+            if str(holder or "").strip() == name:
+                hits.append((oname, str(post)))
+    if not hits:
+        return set(), name, f"「{name}」未担任任何掌权官职（人是载体）"
+    matters = set()
+    for oname, _post in hits:
+        matters |= _authority_matters_of(state, oname)
+    label = name + "（" + "、".join(f"{o}·{p}" for o, p in hits) + "）"
+    return matters, label, ""
+
+
+def resolve_executor(state, executor) -> Tuple[set, str, str]:
+    """把"执行主体"解析为 `(掌有的事权集合, 可读标签, 拒绝原因)`。
+
+    载体（三种等价，均落到"机构"上取权）：
+      · 机构名（如「户部」）；
+      · 官职名（如「抵当所提举」，须有人任职）；
+      · 人名（如「王古」，按其担任的官职反查）。
+    也可传 `{"org": ...}` / `{"post": ...}` / `{"holder": ...}`（取首个非空字段）。
+    解析失败返回原因，由调用方拒绝并留痕（**不静默放行**）。
+    """
+    if isinstance(executor, dict):
+        org = str(executor.get("org") or "").strip()
+        post = str(executor.get("post") or "").strip()
+        holder = str(executor.get("holder") or executor.get("person")
+                     or executor.get("minister") or "").strip()
+        text = org or post or holder
+        if not text:
+            return set(), "", "执行主体须含 org/post/holder 之一"
+    else:
+        text = str(executor or "").strip()
+    if not text:
+        return set(), "", "未指定执行主体"
+    orgs = _org_table(state)
+    if isinstance(executor, dict) and str(executor.get("org") or "").strip():
+        return _executor_by_org(state, orgs, text)
+    specific = ""
+    for finder in (_executor_by_org, _executor_by_post, _executor_by_person):
+        matters, label, err = finder(state, orgs, text)
+        if not err:
+            return matters, label, ""
+        if err and "未知" not in err:
+            # 已知机构/官职/人但不可执行（已裁撤 / 无人任职 / 未任官职）→ 保留具体原因
+            specific = specific or err
+    return set(), text, specific or f"未知执行主体「{text}」（既非机构，也非官职或任职人）"
+
+
+def check_authority(state, key: str, executor) -> Tuple[bool, str]:
+    """校验参数 `key` 可否由 `executor` 执行 → `(是否放行, 原因)`。
+
+    无 `authority` 字段的参数（如磨勘/荫补等六杠杆）**不受事权约束**，恒放行；
+    受约束参数**未指定主体即拒绝**（圣旨不能绕过执行侧校验）。
+    """
+    matter = _matter_of(key)
+    if not matter:
+        return True, ""
+    matters, label, err = resolve_executor(state, executor)
+    if err:
+        return False, f"须由掌「{matter}」事权的部门/官职执行：{err}"
+    if matter not in matters:
+        return False, f"执行主体「{label}」不掌「{matter}」事权，拒绝"
+    return True, ""
+
+
+def apply_reform(state, reform: Any, executor: Any = None) -> list:
     """落地一份编制改革契约 `{参数名: 绝对值或档位词}`（`free_effect` 的 `institution` 字段）。
 
     - 值是数字 → **增量**（与 `FREE_EFFECT_CAP["institution"]` 同量纲，档位词换算的结果）；
       「定编」「吏薪」这类用户可能想给倍率绝对值的，也接受带 `=` 前缀的字符串（如 `"=1.4"`）。
     - 值是档位词（无/微/小/中/大）→ 经 `tier_to_value` 换算为增量。
     - 未知键 / 非数值 → 该项拒绝，其余照常（逐项拒绝，不整单回滚）。
+    - **受事权约束的参数**（spec 带 `authority` 字段，如 `didang_*` 归「官营放贷」：
+      户部 + 抵当所提举）须由 `executor` 掌该事权才落地；**未指定主体或非掌权者逐项拒绝**，
+      玩家诏令与 AI 提案走同一校验（不能绕过）。
+
+    `executor` 支持机构名 / 官职名 / 人名 / `{org|post|holder}`（见 `resolve_executor`）。
     """
     log = []
     if not isinstance(reform, dict):
@@ -109,6 +262,10 @@ def apply_reform(state, reform: Any) -> list:
             log.append(f"[编制] 「{key}」不在白名单，拒绝")
             continue
         label = _SPEC[key]["label"]
+        allowed, why = check_authority(state, key, executor)
+        if not allowed:
+            log.append(f"[编制] 「{label}」拒绝：{why}")
+            continue
         absolute = False
         val = raw
         if isinstance(raw, str):
