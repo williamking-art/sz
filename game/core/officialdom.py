@@ -18,7 +18,7 @@ pops["官僚"] = {
   "officials": N1,        # 官（身份子池）
   "clerks":    N2,        # 吏（身份子池）
   "on_post":   N1a,       # 官·在岗（有差遣）→ 全俸      ┐
-  "waiting":   N1b,       # 官·待阙（守选）  → 半俸      ├ Σ == officials（不变量 ②）
+  "waiting":   N1b,       # 官·待阙（守选）  → 折减      ├ Σ == officials（不变量 ②）
   "sinecure":  N1c,       # 官·祠禄（宫观官）→ 折俸      ┘
   "wealth": ..., "grain": ...,
 }
@@ -31,7 +31,8 @@ pops["官僚"] = {
 
 Rust 并行后端（`songzuo_server/src/settle.rs`）与旧存档仍按**人头**读这两个字段，故保留为
 **派生镜像**：由 `sync_legacy_mirror()` 在每月结算末**唯一写入**，任何其他代码**不得写**它们。
-等价的付款权数另镜像为 `p["official_units"]`（在岗 1.0 / 待阙 0.5 / 祠禄 0.5），
+等价的付款权数另镜像为 `p["official_units"]`（在岗 = 1.0，待阙 = `WAITING_PAY_RATIO`，
+祠禄 = `SINECURE_PAY_RATIO`；**数值以 `content/data_constants.py` 为唯一权威**，此处不写死），
 供后续把子池计价同步进 Rust（**已知并行后端平价缺口**：Rust 目前仍按人头 × 全俸估算官俸）。
 """
 from typing import Any, Dict, Optional, Tuple
@@ -291,7 +292,8 @@ def route_clerks(pref: Dict[str, Any]) -> int:
 def route_pay_units(pref: Dict[str, Any]) -> float:
     """本路**官·付款权数**：在岗 1.0、待阙 WAITING_PAY_RATIO、祠禄 SINECURE_PAY_RATIO。
 
-    这是官俸总额的真正乘数——「待阙堆成山」也要花钱，只是花半俸（§13.6）。
+    这是官俸总额的真正乘数——「待阙堆成山」也要花钱，只是按 `WAITING_PAY_RATIO` /
+    `SINECURE_PAY_RATIO` 折减（数值见 `content/data_constants.py`；§13.6）。
     """
     pop = (pref.get("pops") or {}).get(POP_CLASS) or {}
     if not any(k in pop for k in ("on_post", "waiting", "sinecure")):

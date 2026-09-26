@@ -204,7 +204,11 @@ START_MONEY_BOOST = 170_000_000
 GENTRY_TREASURY_NORTH = 12     # 北方士绅资金（贯）= 月税入 × 12（士绅财力有限，囤粮受资金约束）
 GENTRY_TREASURY_SOUTH = 24     # 南方士绅资金（贯）= 月税入 × 24（南方地主富）
 # ---- POP 人口群体模型（参考维多利亚：每路人口按职业分层，每 POP 有 人数/钱/粮）----
-POP_TYPES = ["农", "士绅", "工匠", "商人", "官僚", "兵"]
+# 口径单一化（2026-09-27）：六类 POP 的**唯一权威清单** = `content/data.py` 的
+# `GRAIN_CONSUME_PER_CAPITA` 键序（农/士绅/工匠/商人/官僚/兵）。
+# 此处原有的 `POP_TYPES` 因与该表重复（且全仓零消费者）**已删除**；本模块**不得** import
+# `content.data`（循环 import），故不做派生，只留此指引。
+# 守卫测试：`_dev_tools/game-dev/tests/test_pop_class_single_source.py`
 POP_SHARE = {                 # 开局各 POP 占在籍人口比例（官僚/兵另由 officials/clerks/army 给出）
     "士绅": 0.015,            # 地主+官，南方更集中
     "工匠": 0.05,             # 坊郭工匠
