@@ -712,6 +712,18 @@ def load_game(slot: int = 1):
                 _pop.setdefault("窖银", 0)
                 # A1 存档兼容：旧档 POP 无欠税科目则补 0（新结算读写 pop["欠税"]，防 KeyError）
                 _pop.setdefault("欠税", 0)
+                # 家产迁移（2026-09-27）：士绅 POP 的家产子池（钱的真实所在）
+                _pop.setdefault("estate", 0)
+                _pop.setdefault("estate_hoard", 0)
+    # 家产入 POP 的旧档迁移：旧档只有具名镜像 `minister_estate`、钱记在独立账户
+    # estate_wealth/estate_hoard（已从 ACCOUNTS 移除）→ 载入后按镜像**物化**到
+    # `士绅.estate` / `士绅.estate_hoard` 子池。注入量正好等于旧口径里被计入 M_ALL 的那部分，
+    # 故 M_ALL 与迁移前一致（不产生对账残差）。幂等。
+    try:
+        from core.estate_mechanic import sync_estate_slices
+        sync_estate_slices(state)
+    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
+        pass
     # 经济全浮动重构状态字段缺省兼容
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))

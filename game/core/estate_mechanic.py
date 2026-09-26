@@ -23,6 +23,229 @@ from content.data import (
 
 
 # ---------------- 大臣家产 ----------------
+# POP 挂载律条 4（2026-09-27 迁移完成）：家产的钱**物理上落在 `士绅` POP** 的加法子池：
+#   · `prefectures[路].pops["士绅"]["estate"]`        家产持钱（计入 `money.pop_money`）
+#   · `prefectures[路].pops["士绅"]["estate_hoard"]`  家产窖藏（计入 `money.hoard_money`）
+# `state.minister_estate[name]`（wealth/窖银/land）是**具名镜像**：只作展示、persona 阈值与
+# 事件判定用，**不是账本**；唯一写入点就是本模块的这几个助手。
+# `sync_estate_slices()` 负责让「Σ镜像 == Σ子池」恒成立（开局物化 / 旧档迁移 / 外部直改兜底）。
+_GENTRY = "士绅"
+
+
+def _prefs(state):
+    return getattr(state, "prefectures", {}) or {}
+
+
+def _gentry_slot(p):
+    """取某路的士绅 POP 槽（缺失返回 None，不新建结构）。"""
+    pops = p.get("pops") if isinstance(p, dict) else None
+    if not isinstance(pops, dict):
+        return None
+    slot = pops.get(_GENTRY)
+    return slot if isinstance(slot, dict) else None
+
+
+def _rows_with_slice(state, key="estate"):
+    """[(路名, 士绅槽)]，且该路子池余额 > 0。"""
+    out = []
+    for rname, p in _prefs(state).items():
+        g = _gentry_slot(p)
+        if g is not None and int(g.get(key, 0) or 0) > 0:
+            out.append((rname, g))
+    return out
+
+
+def estate_slice_total(state, key="estate") -> int:
+    """Σ 士绅 POP 的家产子池（`estate` / `estate_hoard`）——家产的钱**真实所在**。"""
+    return sum(int(g.get(key, 0) or 0)
+               for p in _prefs(state).values()
+               for g in [_gentry_slot(p)] if g is not None)
+
+
+def _mirror_total(state, mirror_key="wealth") -> int:
+    me = getattr(state, "minister_estate", None)
+    if not isinstance(me, dict):
+        return 0
+    return sum(int((v or {}).get(mirror_key, 0) or 0)
+               for v in me.values() if isinstance(v, dict))
+
+
+def _inject_slice(state, amount: int, key="estate") -> int:
+    """把 `amount` 注入士绅子池（按各路士绅 wealth 权重分摊，余数归最大路）。返回实注入额。"""
+    amount = int(amount)
+    if amount <= 0:
+        return 0
+    rows = [(rname, g) for rname, p in _prefs(state).items()
+            for g in [_gentry_slot(p)] if g is not None]
+    if not rows:
+        return 0
+    weights = [max(1, int(g.get("wealth", 0) or 0)) for _r, g in rows]
+    top = max(range(len(rows)), key=lambda i: weights[i])
+    total = sum(weights)
+    got = 0
+    for i, (_r, g) in enumerate(rows):
+        part = amount - got if i == len(rows) - 1 else int(amount * weights[i] / total)
+        if part <= 0:
+            continue
+        g[key] = int(g.get(key, 0) or 0) + part
+        got += part
+    if got != amount:      # 拾整尾差并入权重最大路，保证 Σ == amount
+        rows[top][1][key] = int(rows[top][1].get(key, 0) or 0) + (amount - got)
+        got = amount
+    return got
+
+
+def _withdraw_slice(state, amount: int, key="estate") -> int:
+    """从士绅子池扣 `amount`（按各路子池余额权重），返回实扣额（不超过池内总额）。"""
+    amount = int(amount)
+    if amount <= 0:
+        return 0
+    rows = _rows_with_slice(state, key)
+    pool = sum(int(g.get(key, 0) or 0) for _r, g in rows)
+    if pool <= 0:
+        return 0
+    amount = min(amount, pool)
+    taken = 0
+    for i, (_r, g) in enumerate(rows):
+        have = int(g.get(key, 0) or 0)
+        part = min(have, amount - taken if i == len(rows) - 1
+                   else int(amount * have / pool))
+        if part <= 0:
+            continue
+        g[key] = have - part
+        taken += part
+    return taken
+
+
+def sync_estate_slices(state) -> dict:
+    """使「Σ具名镜像 == Σ士绅子池」成立（**幂等**）。返回各轴调整量。
+
+    用途：① 开局把 `ESTATE_INIT` 镜像存量物化进 POP；② 旧档（无子池）载入迁移；
+    ③ 外部直改镜像（测试/脚本）后的兜底对齐。正常结算路径下两者始终同步，本函数为 no-op。
+    差额为正 → 注入 POP（不凭空消失、也不重复计入 M_ALL）；为负 → 从 POP 回收。
+    """
+    out = {}
+    for key, mirror_key in (("estate", "wealth"), ("estate_hoard", "窖银")):
+        delta = _mirror_total(state, mirror_key) - estate_slice_total(state, key)
+        if delta > 0:
+            _inject_slice(state, delta, key)
+        elif delta < 0:
+            _withdraw_slice(state, -delta, key)
+        out[mirror_key] = delta
+    return out
+
+
+def _estate_income(state, name, src_class: str, want: int) -> int:
+    """逐路：`src_class` 的 wealth → 同路士绅 `estate` 子池，镜像同步。返回实转入额。
+
+    守恒：POP 内部转移（阶层间），ΣPOP 与 M_ALL 均不变；按 `ESTATE_WEALTH_CAP` 限幅。
+    """
+    from content.data import ESTATE_WEALTH_CAP
+    e = (getattr(state, "minister_estate", {}) or {}).get(name)
+    if not isinstance(e, dict):
+        return 0
+    want = int(want)
+    room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0) or 0))
+    want = min(want, room)
+    if want <= 0:
+        return 0
+    got = 0
+    for _r, p in _prefs(state).items():
+        if got >= want:
+            break
+        src = (p.get("pops") or {}).get(src_class)
+        g = _gentry_slot(p)
+        if not isinstance(src, dict) or g is None:
+            continue
+        have = int(src.get("wealth", 0) or 0)
+        take = min(have, want - got)
+        if take <= 0:
+            continue
+        src["wealth"] = have - take
+        g["estate"] = int(g.get("estate", 0) or 0) + take
+        got += take
+    if got:
+        e["wealth"] = int(e.get("wealth", 0) or 0) + got
+    return got
+
+
+def credit_estate(state, name, amount: int) -> int:
+    """**外部**收入入家产（投资贪腐截留等）：注入士绅 `estate` 子池 ＋ 镜像（封顶）。"""
+    from content.data import ESTATE_WEALTH_CAP
+    e = (getattr(state, "minister_estate", {}) or {}).get(name)
+    if not isinstance(e, dict):
+        return 0
+    room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0) or 0))
+    amount = min(int(amount), room)
+    if amount <= 0:
+        return 0
+    got = _inject_slice(state, amount, "estate")
+    e["wealth"] = int(e.get("wealth", 0) or 0) + got
+    return got
+
+
+def _estate_spend(state, name, want: int, mode: str = "luxury") -> int:
+    """家产支出（逐路，**钱不出 POP**；镜像同步）。返回实支额。
+
+    mode：
+      · `luxury`   士绅 `estate` → 同路 `工匠`/`商人` wealth（对半，余数给商人；缺接收方→国库）
+      · `treasury` 士绅 `estate` → 国库（抄没）
+      · `hoard`    士绅 `estate` → 士绅 `estate_hoard`（窖藏，M_ALL 不变：仍在 M2）
+    """
+    e = (getattr(state, "minister_estate", {}) or {}).get(name)
+    if not isinstance(e, dict):
+        return 0
+    if mode == "hoard":
+        want = min(int(want), int(e.get("wealth", 0) or 0))
+        spent = 0
+        for _r, g in _rows_with_slice(state, "estate"):
+            take = min(int(g.get("estate", 0) or 0), want - spent)
+            if take <= 0:
+                continue
+            g["estate"] = int(g.get("estate", 0) or 0) - take
+            g["estate_hoard"] = int(g.get("estate_hoard", 0) or 0) + take
+            spent += take
+            if spent >= want:
+                break
+        if spent:
+            e["wealth"] = max(0, int(e.get("wealth", 0) or 0) - spent)
+            e["窖银"] = int(e.get("窖银", 0) or 0) + spent
+        return spent
+    # luxury / treasury：按路逐笔支出
+    want = min(int(want), int(e.get("wealth", 0) or 0))
+    if want <= 0:
+        return 0
+    spent = 0
+    for _r, p in _prefs(state).items():
+        if spent >= want:
+            break
+        g = _gentry_slot(p)
+        if g is None:
+            continue
+        take = min(int(g.get("estate", 0) or 0), want - spent)
+        if take <= 0:
+            continue
+        g["estate"] = int(g.get("estate", 0) or 0) - take
+        if mode == "treasury":
+            state.change_treasury(take)
+        else:
+            pops = p.get("pops") or {}
+            half = take // 2
+            plan = [("工匠", half), ("商人", take - half)]
+            paid = 0
+            for target, got in plan:
+                slot = pops.get(target)
+                if isinstance(slot, dict) and got > 0:
+                    slot["wealth"] = int(slot.get("wealth", 0) or 0) + got
+                    paid += got
+            if paid < take:      # 接收方缺失 → 退回国库（钱不凭空消失）
+                state.change_treasury(take - paid)
+        spent += take
+    if spent:
+        e["wealth"] = max(0, int(e.get("wealth", 0) or 0) - spent)
+    return spent
+
+
 def estate_tier(wealth) -> str:
     """家产档位词（脱敏：玩家/AI 只见档位）：清贫/小康/殷实/豪富/巨富。"""
     from content.data import ESTATE_TIERS
@@ -34,80 +257,61 @@ def estate_tier(wealth) -> str:
 
 def settle_minister_estate(state, log):
     """大臣家产月度循环（钱：奢侈消费/聚敛窖藏；田：收租；膨胀：corruption 驱动）。
-    守恒：来源-去向差为 0。仅在有经济推演（_economy_ai 注入）时运行——家产为新账目，
-    无 AI 直跑结算（测试/回放 harness）时跳过，避免破坏既有 money ledger 口径。
+
+    钱的四条腿**全部是 POP 内部/阶层之间的守恒转移**（2026-09-27 迁入 POP 后）：
+      膨胀  `官僚.wealth` → 同路 `士绅.estate`        （阶层间转移：ΣPOP、M_ALL 均不变）
+      奢侈  `士绅.estate` → 同路 `工匠`/`商人.wealth`  （同上；接收方缺失则退回国库）
+      窖藏  `士绅.estate` → `士绅.estate_hoard`       （同 POP 内，钱仍在 M2）
+      收租  `农.wealth`   → 同路 `士绅.estate`        （阶层间转移）
+    仅在有经济推演（`_economy_ai` 注入）时运行——无 AI 直跑结算（测试/回放 harness）时跳过，
+    以免破坏既有 money ledger 口径。
     """
     if not getattr(state, "_economy_ai", None):
         return {"luxury": 0, "rent": 0, "hoard": 0}
-    from content.data import ESTATE_FLOW as EF, ESTATE_GROWTH_BASE, ESTATE_GROWTH_CORRUPT, ESTATE_WEALTH_CAP
+    from content.data import ESTATE_FLOW as EF, ESTATE_GROWTH_BASE, ESTATE_GROWTH_CORRUPT
     from content.ministers.data import MINISTERS
     estate = getattr(state, "minister_estate", {})
+    if not isinstance(estate, dict):
+        return {"luxury": 0, "rent": 0, "hoard": 0}
+    sync_estate_slices(state)      # 兜底：外部直改镜像（脚本/测试）后先与子池对齐
     boom = BOOM_MULT.get((getattr(state, "_economy_ai", None) or {}).get("景气", "中"), 1.0)
     lux_total = 0
     rent_total = 0
     hoard_total = 0
     for name, e in list(estate.items()):
-        we = int(e.get("wealth", 0))
-        land = int(e.get("land", 0))
-        # 膨胀（史翰青 1101 基线 → 靖康籍没锚点）：家产随年按 corruption 膨胀
-        # 月膨胀 = 家产×(俸禄基准 + 贪腐×系数)，封顶巨富档上限
-        # 守恒（审查 P0）：增长来源 = 各路官僚 POP wealth 池；池不足则按实扣额入账，禁止凭空铸币
-        growth = 0
+        if not isinstance(e, dict):
+            continue
+        land = int(e.get("land", 0) or 0)
+        # 膨胀（史翰青 1101 基线 → 靖康籍没锚点）：月膨胀 = 家产×(俸禄基准 + 贪腐×系数)。
+        # 来源 = 官僚 POP wealth 池（逐路转移），池不足/家产封顶则只计实收——禁止凭空铸币。
+        corruption = 0.3
         try:
             corruption = MINISTERS.get(name, {}).get("corruption", 0.3)
-            want = int(we * (ESTATE_GROWTH_BASE + corruption * ESTATE_GROWTH_CORRUPT))
-            # 审查 P2-18 修复（凭空销币）：先按封顶剩余空间限幅 want，只申请「真正能入账」
-            # 的额度。原实现先全额 drain_pop_wealth（已从官僚 POP 扣钱），再用 min(CAP,…)
-            # 截断入账 → 差额既不在 POP 也不在家产，凭空销毁。
-            room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0)))
-            if want > 0:
-                want = min(want, room)
-            actual = state.drain_pop_wealth("官僚", want) if want > 0 else 0
-            growth = actual
-            e["wealth"] = min(ESTATE_WEALTH_CAP, e["wealth"] + growth)
-            we = int(e["wealth"])
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
-        # 奢侈消费（守恒转移：家产 → 工匠/商人 POP）
-        lux = int(we * EF["luxury_rate"] * boom)
-        if lux > 0:
-            e["wealth"] = max(0, we - lux)
-            lux_total += lux
-        # 聚敛窖藏（聚敛倾向大臣：**膨胀增长部分**藏窖 → 钱荒加剧；本金不缩，净增长为正）
-        hoard = int(growth * EF["hoard_rate"]) if _hoard_leaning(state, name) else 0
-        if hoard > 0:
-            e["wealth"] = max(0, e["wealth"] - hoard)
-            # D-11 修复（2026-09-18 阶段 B-2）：原实现只从家产 wealth 扣减、只把
-            # hoard_total 累加到 `coin["shortage"]`，**没有任何对手账户** ——
-            # 货币月度对账实测此处每月凭空销毁约 5,300 贯（行级追踪定位）。
-            # 现转入家产内的「窖银」子池（与士绅 POP 的 `窖银` 同构：退出流通但仍在账上，
-            # 计入 M2 沉淀层），使该腿闭合、可被 `core/money.py` 对账。
-            e["窖银"] = int(e.get("窖银", 0) or 0) + hoard
+        want = int(int(e.get("wealth", 0) or 0)
+                   * (ESTATE_GROWTH_BASE + corruption * ESTATE_GROWTH_CORRUPT))
+        growth = _estate_income(state, name, "官僚", want)
+        # 奢侈消费（守恒转移：家产 → 工匠/商人 POP，逐路同路支付）
+        lux = _estate_spend(state, name,
+                            int(int(e.get("wealth", 0) or 0) * EF["luxury_rate"] * boom),
+                            "luxury")
+        lux_total += lux
+        # 聚敛窖藏（聚敛倾向大臣：**膨胀增长部分**藏窖 → 钱荒加剧；本金不缩）
+        hoard = 0
+        if _hoard_leaning(state, name):
+            hoard = _estate_spend(state, name, int(growth * EF["hoard_rate"]), "hoard")
             hoard_total += hoard
-        # 田收租（B4 修复）。原实现把**租金金额**并入各路 gentry_land（田亩），
-        # 有两处错：① 单位错（钱→亩）；② 无对手账户（凭空增长）→
-        # self_farm_land+gentry_land+official_land+imperial_land 会逐渐超过
-        # p["land"]，而 _settle_land_local 以田亩归属分配产粮/田赋 → 分成比例溢出。
-        # 现改为**守恒转移**：由农 POP wealth 缴纳，计入该大臣家产 wealth；
-        # 按家产封顶剩余空间限幅，收不足只计实收（不凭空生钱）。
-        rent = int(land * EF["rent_rate"] / 12.0)
-        if rent > 0:
-            _room = max(0, int(ESTATE_WEALTH_CAP) - int(e.get("wealth", 0)))
-            _want = min(rent, _room)
-            _got = state.drain_pop_wealth("农", _want) if _want > 0 else 0
-            if _got > 0:
-                e["wealth"] = min(ESTATE_WEALTH_CAP, e.get("wealth", 0) + _got)
-            rent_total += _got
-    # 奢侈消费 → 工匠/商人（按路分，守恒）
-    if lux_total > 0:
-        _distribute_luxury(state, lux_total)
+        # 田收租（B4 修复口径不变）：由农 POP wealth 缴纳，按家产封顶剩余限幅，收不足只计实收
+        rent = _estate_income(state, name, "农", int(land * EF["rent_rate"] / 12.0))
+        rent_total += rent
     # 聚敛窖藏 → 钱荒加剧（shortage 增，≤0.95）
     if hoard_total > 0:
         state.coin["shortage"] = min(0.95, state.coin.get("shortage", 0.3) + hoard_total / 100_000_000.0)
-    # B4：租金不再并入 gentry_land（田亩），已在收租处守恒转入大臣家产 wealth。
     # 物议事件：聚敛超阈值（家产丰厚 + 聚敛倾向）
     for name, e in list(estate.items()):
-        if e.get("wealth", 0) >= EF["persona_rich"] and _hoard_leaning(state, name):
+        if (isinstance(e, dict) and e.get("wealth", 0) >= EF["persona_rich"]
+                and _hoard_leaning(state, name)):
             state._estate_scandal = True
             log.append(f"[物议] {name} 家产丰厚、聚敛无度，朝野物议沸腾！")
             break
@@ -123,38 +327,6 @@ def _hoard_leaning(state, name):
         return False
 
 
-def _distribute_luxury(state, amount):
-    """奢侈消费 → 工匠/商人 POP（按路分，守恒转移）。
-
-    审查 P2-22 修复（奇数丢币）：原对每路 share 分别给工匠/商人 share//2，share 为奇数时
-    每路丢 1 贯（Σ分发 < amount）；且 POP 缺失时该份额凭空消失。现改为余数补给商人；
-    接收方缺失时退回国库（不凭空灭币）。
-    """
-    _paths = list(state.prefectures.keys())
-    per = amount // max(1, len(_paths))
-    rem = amount - per * len(_paths)
-    for i, name in enumerate(_paths):
-        p = state.prefectures[name]
-        share = per + (1 if i < rem else 0)
-        pops = p.get("pops") or {}
-        _targets = [t for t in ("工匠", "商人") if t in pops]
-        if not _targets:
-            # 无人承接 → 退回国库（钱不凭空消失）
-            state.change_treasury(share)
-            continue
-        _half = share // 2
-        _plan = [("工匠", _half), ("商人", share - _half)]
-        _paid = 0
-        for pop, got in _plan:
-            if pop in pops and got > 0:
-                pops[pop]["wealth"] = pops[pop].get("wealth", 0) + got
-                _paid += got
-        if _paid < share:
-            # 缺一个接收方时，剩余份额给存在的那个（不丢币）
-            _fallback = _targets[0]
-            pops[_fallback]["wealth"] = pops[_fallback].get("wealth", 0) + (share - _paid)
-
-
 def estate_persona_mod(state, name):
     """persona 阈值：家产≥100万 → 危险度 +0.15；≤5万 → 敢谏 +15%。"""
     from content.data import ESTATE_FLOW as EF
@@ -168,15 +340,18 @@ def estate_persona_mod(state, name):
 
 
 def seize_estate(state, name, ratio=1.0):
-    """抄没家产（物议三选一：抄没）：钱→国库、田→官田（守恒）。返回 (钱, 田)。"""
+    """抄没家产（物议三选一：抄没）：钱→国库、田→官田（守恒）。返回 (钱, 田)。
+
+    钱的口径（2026-09-27 迁移后）：从 `士绅.estate` 子池**逐路扣出 → 国库**
+    （POP → 政府，M_ALL 不变）；`state.minister_estate` 镜像同步递减。
+    """
     e = getattr(state, "minister_estate", {}).get(name)
     if not e:
         return (0, 0)
-    we = int(e["wealth"] * ratio)
-    land = int(e["land"] * ratio)
-    e["wealth"] = max(0, e["wealth"] - we)
-    e["land"] = max(0, e["land"] - land)
-    state.change_treasury(we)
+    sync_estate_slices(state)      # 家产钱已被外部直改镜像时先对齐子池
+    land = int(int(e.get("land", 0) or 0) * ratio)
+    we = _estate_spend(state, name, int(int(e.get("wealth", 0) or 0) * ratio), "treasury")
+    e["land"] = max(0, int(e.get("land", 0) or 0) - land)
     # 审查修复（田账消失）：原写 state.official_land —— GameState 并无该属性，
     # 等于凭空造一个**顶层私有属性**（存档不落、也无任何消费方读取），抄没的田
     # 就此蒸发。真账在 prefectures[*].official_land（见 settlement 官田分成读取处）。
@@ -260,7 +435,7 @@ def invest(state, field: str, amount: int, fund: str = "treasury",
     if random.random() < base["risk"]:
         lose = random.uniform(0.0, 0.5)
     ret_total = int(ret_total * (1 - lose))
-    # 贪腐截留：corruption 高大臣经手 → 入其家产（守恒：截留从回报出）
+    # 贪腐截留：corruption 高大臣经手 → 入其家产（守恒：截留从回报出，外部收益分流进 POP）
     seized = 0
     if minister and isinstance(state.minister_estate, dict) and minister in state.minister_estate:
         corruption = 0.5  # 简化：大臣贪腐度
@@ -269,10 +444,12 @@ def invest(state, field: str, amount: int, fund: str = "treasury",
             corruption = fig.get("corruption", 0.5)
         except Exception:
             pass
-        seized = int(ret_total * corruption * 0.3)
-        ret_total -= seized
-        state.minister_estate[minister]["wealth"] = \
-            state.minister_estate[minister].get("wealth", 0) + seized
+        seized_want = int(ret_total * corruption * 0.3)
+        if seized_want > 0:
+            ret_total -= seized_want
+            # 家产封顶未入账的部分**留在回报里**（不凭空消失），入账的注入士绅 `estate` 子池
+            seized = credit_estate(state, minister, seized_want)
+            ret_total += seized_want - seized
     inv_id = f"inv{state.turn}_{field}{len(state.investments)}"
     state.investments[inv_id] = {
         "invest_id": inv_id, "field": field, "fund": fund, "amount": amount,

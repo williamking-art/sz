@@ -140,6 +140,11 @@ def _build_pops(info: dict, p_type: str) -> dict:
             "grain": int(monthly_grain * (CIVILIAN_HOARD_SOUTH if south else CIVILIAN_HOARD_NORTH)),
             "goods": _g0(),
             "窖银": 0,           # 士绅窖藏之银（贯）：退出流通、可后续掏出（挥霍/抄家）
+            # 大臣家产的钱**物理落在本 POP**（POP 挂载律条 4；2026-09-27 迁移）：
+            # `estate` = 家产持钱（加法子池，计入 pop_money）、`estate_hoard` = 家产窖藏
+            # （计入 hoard_money）。`state.minister_estate[*]` 只是具名镜像，不得作为账本。
+            "estate": 0,
+            "estate_hoard": 0,
             "欠税": 0,           # 欠税科目（A1）：税征缺口累计，逐月追缴；存档兼容见 save_load 迁移
         },
         "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
@@ -875,6 +880,16 @@ class GameState(GameStateEconMixin):
             for _p in self.prefectures.values():
                 for pop in _p["pops"].values():
                     pop["wealth"] += int(_boost * pop.get("wealth", 0) / _total_w)
+
+        # 家产入 POP（2026-09-27，POP 挂载律条 4 迁移）：把 `minister_estate` 镜像的开局存量
+        # **物化**到 `士绅` POP 的 `estate` 子池，此后"家产的钱"只存在于 POP 内、镜像与其恒等。
+        # 旧口径下这批钱记在独立账户 `estate_wealth` 里且已被计入 M_ALL，故此处注入（而非从
+        # 士绅 wealth 抽走）→ M_ALL 与迁移前一致，不产生对账残差。
+        try:
+            from core.estate_mechanic import sync_estate_slices
+            sync_estate_slices(self)
+        except Exception:  # noqa: BLE001  家产切片初始化失败不得阻断开局
+            pass
 
         # 防区派生：此时 prefectures 已就绪（fortification 由 DEFENSE_LINES 初值，garrison 由各路聚合）
         self._derive_defense_lines()

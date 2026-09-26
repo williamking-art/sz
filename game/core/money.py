@@ -65,26 +65,27 @@ __all__ = [
 
 # 计入 M_ALL 的账户（顺序即展示顺序）
 ACCOUNTS: Tuple[str, ...] = (
-    "pop_wealth",        # Σ 六类 POP wealth（民间持钱，含其持有的交子）
-    "estate_wealth",     # Σ 大臣家产 wealth（官僚私人持钱；**待迁移到 POP**，见下注）
+    "pop_wealth",        # Σ 六类 POP wealth ＋ 士绅 `estate` 子池（含其持有的交子）
     "treasury",          # 国库
     "imperial",          # 内帑
     "local_treasury",    # Σ 各路地方府库
     "payraise_budget",   # 加俸预算池（由国库拨入、随后发放给官僚/吏）
     "invest_principal",  # 未到期投资本金（由国库/内帑拨出、尚在"体外"）
-    "hoard",             # Σ 士绅窖银（退出流通）
-    "estate_hoard",      # Σ 大臣家产窖藏（退出流通；修复 D-11 后新增）
+    "hoard",             # Σ 士绅窖银 ＋ `estate_hoard` 子池（退出流通）
     "melt_pool",         # 熔铜池（钱→铜料，退出流通）
     "bank_reserve",      # 银行准备金
     "silver_stock",      # 海外白银存量（外部注入的唯一合法入口）
 )
 
-# ⚠️ POP 挂载律违规记录（2026-09-18 阶段 B-2）
-# `estate_wealth` / `estate_hoard` 对应 `state.minister_estate[*]`，它是**与 POP 平行的
-# 独立钱账本**，违反 POP 挂载律律条 4（"禁止任何与 POP 平行的独立存量账本"）。
-# 正确归宿：挂到 `官僚`（及 `士绅`）POP 的子池上。
-# 现阶段先把它**纳入货币口径**（否则它一进一出都会污染对账残差），
-# 迁移到 POP 的工作排入批次 C（官制完善），届时本注与两个账户一并移除。
+# ✅ POP 挂载律违规**已修复**（2026-09-27，原 2026-09-18 阶段 B-2 记录）
+# 原先 `estate_wealth` / `estate_hoard` 是计入 M_ALL 的**独立账户**，对应
+# `state.minister_estate[*]` —— 与 POP 平行的钱账本，违反挂载律律条 4。
+# 现已迁移：家产的钱**物理上落在 `士绅` POP 的加法子池**里
+#   · `prefectures[路].pops["士绅"]["estate"]`        ∈ pop_money（M0/M1/M2/M3）
+#   · `prefectures[路].pops["士绅"]["estate_hoard"]`  ∈ hoard_money（M2 沉淀层）
+# `state.minister_estate[*]` 降级为**具名镜像**（唯一写入点 `core/estate_mechanic`，
+# 与子池恒等由 `estate_mechanic.sync_estate_slices` 维护）；故两个账户从 ACCOUNTS 移除，
+# `estate_wealth()` / `estate_hoard()` 只作**投影读数**，不得再计入任何货币分层。
 
 # 真实销毁通道（真正让货币退出 M_ALL 的机制）
 SINK_ACCOUNTS: Tuple[str, ...] = ()   # step 1 暂空；换界销毁/铜料离库在 step 2 接入
@@ -149,20 +150,29 @@ def take_flow(state) -> Dict[str, Any]:
 # 账户读数（全部只读）
 # --------------------------------------------------------------------------
 def pop_money(state) -> float:
-    """Σ 六类 POP wealth（民间持钱；交子已含在持有者 wealth 中）。"""
+    """Σ 六类 POP 持钱（民间持钱；交子已含在持有者 wealth 中）。
+
+    **含 `士绅` POP 的加法子池 `estate`（大臣家产的钱）**——家产已迁入 POP（见 ACCOUNTS 注），
+    故这里一次计入，调用方**不得**再叠加 `estate_wealth()`（否则双计）。
+    """
     total = 0.0
     for p in getattr(state, "prefectures", {}).values():
         for pp in (p.get("pops") or {}).values():
             total += float(pp.get("wealth", 0) or 0)
+            total += float(pp.get("estate", 0) or 0)      # 家产钱（士绅子池）
     return total
 
 
 def hoard_money(state) -> float:
-    """Σ 士绅窖银（贯）——退出流通，计入 M2 沉淀层。"""
+    """Σ 士绅窖银（贯）——退出流通，计入 M2 沉淀层。
+
+    **含 `士绅` POP 的 `estate_hoard` 子池（大臣家产窖藏）**，同样只计一次。
+    """
     total = 0.0
     for p in getattr(state, "prefectures", {}).values():
         g = (p.get("pops") or {}).get("士绅") or {}
         total += float(g.get("窖银", 0) or 0)
+        total += float(g.get("estate_hoard", 0) or 0)     # 家产窖藏（士绅子池）
     return total
 
 
@@ -173,7 +183,12 @@ def local_treasury_total(state) -> float:
 
 
 def estate_wealth(state) -> float:
-    """Σ 大臣家产 wealth（贯）。**待迁移到 POP**（POP 挂载律违规项，见 ACCOUNTS 注）。"""
+    """Σ 大臣家产 wealth（贯）——**投影读数**。
+
+    真钱在 `士绅` POP 的 `estate` 子池里（已由 `pop_money()` 计入），本函数只按具名镜像求和，
+    **不得**再入 `ACCOUNTS`/M0/M_ALL（否则双计）。镜像与子池恒等由
+    `core.estate_mechanic.sync_estate_slices()` 保证，并有回归测试钉住。
+    """
     me = getattr(state, "minister_estate", None)
     if not isinstance(me, dict):
         return 0.0
@@ -182,7 +197,7 @@ def estate_wealth(state) -> float:
 
 
 def estate_hoard(state) -> float:
-    """Σ 大臣家产窖藏（贯）——退出流通，计入 M2 沉淀层（修复 D-11 后新增的对手账户）。"""
+    """Σ 大臣家产窖藏（贯）——**投影读数**（真钱在 `士绅.estate_hoard` 子池，已由 `hoard_money()` 计入）。"""
     me = getattr(state, "minister_estate", None)
     if not isinstance(me, dict):
         return 0.0
@@ -238,9 +253,8 @@ def _bank_capital_as_guan(state) -> float:
 # 分层
 # --------------------------------------------------------------------------
 def m0(state) -> float:
-    """流通中通货 = 民间铜钱（含大臣家产持钱）＋ 有效交子。"""
-    return (pop_money(state) + estate_wealth(state)) * copper_share(state) \
-        + effective_jiaozi(state)
+    """流通中通货 = 民间铜钱（含大臣家产持钱，已并入 `pop_money`）＋ 有效交子。"""
+    return pop_money(state) * copper_share(state) + effective_jiaozi(state)
 
 
 def m1(state, working_only: bool = False, months_of_base: float = 3.0) -> float:
@@ -262,12 +276,11 @@ def m1(state, working_only: bool = False, months_of_base: float = 3.0) -> float:
 
 
 def m2(state, working_only: bool = False) -> float:
-    """广义货币 = M1 ＋ 沉淀层（士绅窖银 ＋ 大臣家产窖藏 ＋ 熔铜池 ＋ 银行准备金）。"""
+    """广义货币 = M1 ＋ 沉淀层（士绅窖银（含家产窖藏子池）＋ 熔铜池 ＋ 银行准备金）。"""
     coin = getattr(state, "coin", {}) or {}
     bank = getattr(state, "bank", {}) or {}
     return (m1(state, working_only=working_only)
             + hoard_money(state)
-            + estate_hoard(state)
             + float(coin.get("melted_pool", 0) or 0)
             + float(bank.get("reserve", 0) or 0))
 
@@ -286,18 +299,20 @@ def m3(state, working_only: bool = False) -> float:
 
 
 def m_all(state) -> float:
-    """会计全集 = 全部**计入**账户之和（见模块头"刻意不计入"表）。"""
+    """会计全集 = 全部**计入**账户之和（见 `ACCOUNTS` 与模块头"刻意不计入"表）。
+
+    家产的钱与窖藏已在 `pop_money` / `hoard_money`（士绅 `estate` / `estate_hoard` 子池）内，
+    故此处**不再**单独叠加 `estate_wealth()` / `estate_hoard()`。
+    """
     coin = getattr(state, "coin", {}) or {}
     bank = getattr(state, "bank", {}) or {}
     return (pop_money(state)
-            + estate_wealth(state)
             + float(getattr(state, "treasury", 0) or 0)
             + float(getattr(state, "imperial_treasury", 0) or 0)
             + local_treasury_total(state)
             + payraise_budget_total(state)
             + invest_principal_total(state)
             + hoard_money(state)
-            + estate_hoard(state)
             + float(coin.get("melted_pool", 0) or 0)
             + float(bank.get("reserve", 0) or 0)
             + _silver_stock(state))
@@ -623,8 +638,8 @@ def exchange_quote(state, amount, *, from_unit: str = "copper",
 
 
 def circulating_copper(state) -> float:
-    """流通铜钱（贯）= 民间持钱 × 铜钱占比（窖藏银/准备金/仓粮不计）。"""
-    return max(0.0, (pop_money(state) + estate_wealth(state)) * copper_share(state))
+    """流通铜钱（贯）= 民间持钱（含家产，已并入 pop_money）× 铜钱占比（窖藏银/准备金/仓粮不计）。"""
+    return max(0.0, pop_money(state) * copper_share(state))
 
 
 def circulating_jiaozi(state) -> float:
@@ -652,8 +667,7 @@ def supply_breakdown(state) -> dict:
     """有效货币供给拆解 + 明确排除项（供对账/面板/API）。"""
     coin = getattr(state, "coin", {}) or {}
     excluded = {
-        "hoard": hoard_money(state),                 # 士绅窖银（窖藏，退出流通）
-        "estate_hoard": estate_hoard(state),         # 大贾窖藏
+        "hoard": hoard_money(state),                 # 士绅窖银 ＋ 家产窖藏（窖藏，退出流通）
         "bank_reserve": _num((getattr(state, "bank", {}) or {}).get("reserve")),
         "jiaozi_reserve": jiaozi_reserve(state),
         "melt_pool": _num(coin.get("melted_pool")),  # 钱→铜料，退出流通

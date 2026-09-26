@@ -293,6 +293,31 @@ def _estate_band_word(e) -> str:
         return "清贫"
 
 
+def _prefs_without_estate_slices(prefs: dict) -> dict:
+    """深拷贝一层 prefectures，并剔除 POP 里的家产子池键（`estate` / `estate_hoard`）。
+
+    2026-09-27 家产迁入 `士绅` POP 后，家产的钱在这两个加法子池里；家产真值属隐藏数值
+    （审查 P2，与 `minister_estate` 档位化同一姿态），故快照下发前剔除，
+    避免"档位化了 minister_estate、却从 POP 子池把真值漏出去"。
+    **不得修改传入的 state**（只建副本）。
+    """
+    out = {}
+    for rname, p in prefs.items():
+        pops = p.get("pops") if isinstance(p, dict) else None
+        if not isinstance(pops, dict):
+            out[rname] = p
+            continue
+        p2 = dict(p)
+        p2["pops"] = {}
+        for cls, slot in pops.items():
+            if isinstance(slot, dict) and ("estate" in slot or "estate_hoard" in slot):
+                slot = {kk: vv for kk, vv in slot.items()
+                        if kk not in ("estate", "estate_hoard")}
+            p2["pops"][cls] = slot
+        out[rname] = p2
+    return out
+
+
 def _state_to_dict(s) -> dict:
     """GameState → JSON 快照（与 HttpBackend._to_state 对称）。
 
@@ -312,6 +337,10 @@ def _state_to_dict(s) -> dict:
         if k == "minister_estate" and isinstance(v, dict):
             # 家产真值不外泄：只给档位词
             out[k] = {str(n): _estate_band_word(e) for n, e in v.items()}
+            continue
+        if k == "prefectures" and isinstance(v, dict):
+            # 家产的钱在士绅 POP 的 estate/estate_hoard 子池里 → 与上面同口径剔除
+            out[k] = _prefs_without_estate_slices(v)
             continue
         if k == "pending_secret_decrees" and isinstance(v, list):
             # 密令中的 secret_loyalty 为隐藏数值，剔除后下发

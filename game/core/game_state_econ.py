@@ -204,11 +204,11 @@ class GameStateEconMixin:
         #     （3×月常费；内帑 1/3），超出部分视为封桩（M2 沉淀），
         #     使"囤钱不流通的玩家不会凭空制造通胀"（规范 §12.2、§13.3）。
         from core.money import (m1 as _m1_working, pop_money as _pop_money,
-                                estate_wealth as _estate_wealth,
                                 copper_share as _copper_share)
         _cs = _copper_share(self)
         _melt = float(self.coin.get("private_melt", 0.2) or 0)
-        _copper_amt = (_pop_money(self) + _estate_wealth(self)) * _cs
+        # 家产的钱已在 pop_money 内（士绅 `estate` 子池），不得再叠加 estate_wealth（双计）
+        _copper_amt = _pop_money(self) * _cs
         # 白银**存量**计入货币（规范 M-D6：白银由流量改存量，仍影响物价）。
         # 修复前是把 `maritime.silver_in`（万两/年，流量）直接 ×10000 当存量用；
         # 现用逐月累积的真实存量 `state.silver_stock`（见 _settle_extensions）。
