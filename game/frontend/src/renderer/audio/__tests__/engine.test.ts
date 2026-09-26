@@ -2,6 +2,47 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AudioEngine, type AudioLike, audioEngine } from "../engine";
 import { loadAudioSettings, saveAudioSettings, DEFAULT_AUDIO_SETTINGS } from "../settings";
 
+interface MockCtx {
+  factory: () => Record<string, unknown>;
+  resume: ReturnType<typeof vi.fn>;
+  createOscillator: ReturnType<typeof vi.fn>;
+  createGain: ReturnType<typeof vi.fn>;
+  oscillator: Record<string, unknown>;
+  gain: Record<string, unknown>;
+}
+
+function mockAudioContext(): MockCtx {
+  const resume = vi.fn().mockResolvedValue(undefined);
+  const oscillator = {
+    type: "",
+    frequency: { value: 0, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+    connect: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    disconnect: vi.fn()
+  };
+  const gain = {
+    gain: {
+      value: 0,
+      setValueAtTime: vi.fn(),
+      linearRampToValueAtTime: vi.fn(),
+      exponentialRampToValueAtTime: vi.fn()
+    },
+    connect: vi.fn(),
+    disconnect: vi.fn()
+  };
+  const createOscillator = vi.fn(() => oscillator);
+  const createGain = vi.fn(() => gain);
+  const factory = () => ({
+    resume,
+    currentTime: 0,
+    createOscillator,
+    createGain,
+    destination: {}
+  });
+  return { factory, resume, createOscillator, createGain, oscillator, gain };
+}
+
 function mockAudio(): { instances: AudioLike[]; factory: (src: string) => AudioLike } {
   const instances: AudioLike[] = [];
   const factory = (src: string): AudioLike => {
@@ -148,5 +189,48 @@ describe("AudioEngine", () => {
     };
     const engine = new AudioEngine(factory);
     expect(() => engine.playSfx("missing")).not.toThrow();
+  });
+
+  it("synthesizes a UI click via Web Audio API", () => {
+    const { factory: ctxFactory, createOscillator, createGain, oscillator, gain, resume } = mockAudioContext();
+    const ctxFactorySpy = vi.fn(ctxFactory);
+    const { factory } = mockAudio();
+    const engine = new AudioEngine(factory, ctxFactorySpy as unknown as () => AudioContext);
+    engine.setMasterVolume(100);
+    engine.setMuted(false);
+    engine.playClick();
+    expect(ctxFactorySpy).toHaveBeenCalledTimes(1);
+    expect(createOscillator).toHaveBeenCalledTimes(1);
+    expect(createGain).toHaveBeenCalledTimes(1);
+    expect(oscillator.start).toHaveBeenCalledTimes(1);
+    expect(oscillator.stop).toHaveBeenCalledTimes(1);
+    expect(resume).toHaveBeenCalledTimes(1);
+    // 峰值音量 = effectiveVolume * 0.12 = 0.12
+    expect(
+      (gain.gain as { linearRampToValueAtTime: ReturnType<typeof vi.fn> }).linearRampToValueAtTime
+    ).toHaveBeenCalledWith(expect.closeTo(0.12, 4), expect.closeTo(0.005, 4));
+  });
+
+  it("does not synthesize click when muted", () => {
+    const { factory: ctxFactory, createOscillator } = mockAudioContext();
+    const { factory } = mockAudio();
+    const engine = new AudioEngine(factory, ctxFactory as unknown as () => AudioContext);
+    engine.setMuted(true);
+    engine.playClick();
+    expect(createOscillator).not.toHaveBeenCalled();
+  });
+
+  it("scales click volume with master volume", () => {
+    const { factory: ctxFactory, gain } = mockAudioContext();
+    const { factory } = mockAudio();
+    const engine = new AudioEngine(factory, ctxFactory as unknown as () => AudioContext);
+    engine.setMasterVolume(50);
+    engine.setMuted(false);
+    engine.playClick();
+    // effectiveVolume=0.5, peak=0.5*0.12=0.06
+    expect((gain.gain as { linearRampToValueAtTime: ReturnType<typeof vi.fn> }).linearRampToValueAtTime).toHaveBeenCalledWith(
+      expect.closeTo(0.06, 4),
+      expect.closeTo(0.005, 4)
+    );
   });
 });

@@ -2,6 +2,7 @@ import * as React from "react";
 import { Landmark, Users, Newspaper, ScrollText, PenLine, Play, Globe2, Lock, Trees, FileText, Building2, ClipboardList, Stamp, BookOpen, Flame } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { getApiClient, subscribeRichPoll } from "../api/client";
+import { audioEngine } from "../audio/engine";
 
 // 底部命令 dock：朝堂/群臣/朝报/个人行止/拟旨 + 回合推演
 const COMMANDS: { key: string; label: string; icon: React.ReactNode }[] = [
@@ -58,12 +59,14 @@ export default function Dock() {
 
   async function handleAdvance() {
     if (advancing) return;
+    audioEngine.playClick();
     setAdvancing(true);
     // 迁移补齐：结算前抓关键指标快照，供浮层展示本月涨跌（原 Tk 有、Web 缺）
     const before = snapshotHud(state);
     try {
       const res = await getApiClient().advance();
       setState(res.state);
+      audioEngine.playSfx("sfx_gong", { volumeBias: 0.6 });
       // 迁移补齐：即时回执（原 Tk `_log_lines`）——朝报面板「近日机务回执」可查
       {
         const st = res.state as Record<string, unknown> | undefined;
@@ -156,7 +159,10 @@ export default function Dock() {
         {COMMANDS.map((c) => (
           <button
             key={c.key}
-            onClick={() => pushOverlay({ kind: c.key as never, title: c.label })}
+            onClick={() => {
+              audioEngine.playClick();
+              pushOverlay({ kind: c.key as never, title: c.label });
+            }}
             title={c.label}
             className="group sz-dock-btn relative flex h-14 w-14 flex-col items-center justify-center rounded-full"
           >

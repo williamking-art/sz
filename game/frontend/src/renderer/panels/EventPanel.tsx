@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { audioEngine } from "../audio/engine";
 import { formatEffects, judgeEffects } from "../utils/effects";
 
 // 历史大事件工笔画卷映射表
@@ -48,8 +49,13 @@ export default function EventPanel({ props }: { props?: Record<string, unknown> 
   const setState = useGameStore((s) => s.setState);
   const popOverlay = useGameStore((s) => s.popOverlay);
 
+  useEffect(() => {
+    audioEngine.playSfx("sfx_event", { volumeBias: 0.5 });
+  }, []);
+
   async function choose(idx: number) {
     if (busy) return;
+    audioEngine.playClick();
     setBusy(true);
     try {
       const res = await getApiClient().resolveEvent(

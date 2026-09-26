@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { useGameStore, type PanelKind } from "../store/gameStore";
+import { audioEngine } from "../audio/engine";
 import AdvancePanel from "./AdvancePanel";
 import DecreePanel from "./DecreePanel";
 import EventPanel from "./EventPanel";
@@ -96,7 +97,10 @@ export default function OverlayStack() {
                 </div>
                 {canClose && (
                   <button
-                    onClick={() => popTo(i)}
+                    onClick={() => {
+                      audioEngine.playClick();
+                      popTo(i);
+                    }}
                     aria-label="关闭"
                     className="rounded p-1.5 text-ink-light transition hover:bg-gold-light hover:text-ink"
                   >

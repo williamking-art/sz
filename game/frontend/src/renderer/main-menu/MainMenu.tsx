@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Crown, FolderOpen, BookOpen, Settings, LogOut, Loader2, Play, Sparkles } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { audioEngine } from "../audio/engine";
 
 // 主菜单背景图池（按序轮换：每次启动续接上次索引，且每 20s 自动切换下一张）
 const BG_POOL = [
@@ -77,6 +78,7 @@ export default function MainMenu() {
 
   async function handleNewGame() {
     if (busy) return;
+    audioEngine.playClick();
     setBusy(true);
     setErr(null);
     try {
@@ -84,6 +86,7 @@ export default function MainMenu() {
       setState(res.state);
       setInGame(true); // 优雅揭晓进入舆图天下
       // 迁移补齐：开局引子 + 邸报 + 「登基治国」仪式（原 Tk `_show_intro`；Web 此前直接进舆图）
+      audioEngine.playSfx("sfx_fanfare", { volumeBias: 0.7 });
       pushOverlay({
         kind: "intro",
         title: "建中靖国元年 · 春正月",
@@ -329,7 +332,10 @@ function MenuButton({
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => {
+        audioEngine.playClick();
+        onClick();
+      }}
       disabled={disabled}
       className={`group relative flex w-full items-center justify-between overflow-hidden rounded-md border px-4 py-2.5 text-left transition-all duration-200 ${
         disabled
