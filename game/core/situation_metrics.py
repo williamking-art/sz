@@ -320,7 +320,7 @@ def _m_route_clerks_grip(state, arg: Optional[str], ctx: SnapshotContext):
 
 # —— 官制（官员 POP 的差遣结构）：待阙/冗官是**政令能否落地**的制度性来源 ——
 def _m_officials_waiting(state, arg: Optional[str], ctx: SnapshotContext):
-    """待阙官数（有官无差遣：领半俸、不办事）。"""
+    """待阙官数（有官无差遣：按 `WAITING_PAY_RATIO` 折减、不办事）。"""
     v = ctx.officials.get("waiting")
     return None if v is None else _finite(v)
 
@@ -339,7 +339,7 @@ def _m_officials_redundant_rate(state, arg: Optional[str], ctx: SnapshotContext)
 
 
 def _m_officials_waiting_share(state, arg: Optional[str], ctx: SnapshotContext):
-    """待阙率 = 待阙官 / 官额（领着半俸、无差遣可办——政令无人经办）。"""
+    """待阙率 = 待阙官 / 官额（按 `WAITING_PAY_RATIO` 折减、无差遣可办——政令无人经办）。"""
     officials = _finite(ctx.officials.get("officials"))
     if officials <= 0:
         return None
