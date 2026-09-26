@@ -99,6 +99,15 @@ _dev_tools/*
 !_dev_tools/dev-env.ps1
 # 开发辅助工具链自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，可 -Fix 自动修可修项）
 !_dev_tools/cloudbase-check.ps1
+# 立绘生成工具链入库：一次性资产管线的源脚本+源图（2026-09-26 从 game/content/
+# 迁出，修复分层纪律违规；含 _i2i.py 的第三方 key——key 本体按用户决定不轮换，
+# 但迁出后至少不再随 PyInstaller 把 content/ 整体打包而进每个分发版）。
+!_dev_tools/game-assets-src/
+!_dev_tools/game-assets-src/**
+# 放行 game-assets-src/** 会连带纳入 __pycache__，须显式排除（每次跑脚本都变）
+_dev_tools/game-assets-src/**/__pycache__/
+# 抽查脚本产物（肉眼复核用拼版图，见 _src/_verify_layers.py，可随时再生）
+_dev_tools/game-assets-src/ministers-layers/_src/_verify.png
 # 文档入库：game-docs/ 是权威机制文档与审查/设计文档所在，
 # README 明确指向 `_dev_tools/game-docs/docs/游戏机制说明.md`；
 # 被 README 引为权威却整目录不入库属自相矛盾，故放行文档目录（仍排除其 __pycache__）。

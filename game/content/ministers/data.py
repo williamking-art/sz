@@ -447,8 +447,9 @@ def _minister_kind(name: str) -> str:
 #   layers/body_{tier}.png  官服身体层（上半透明+羽化，tier=服色档）
 #   layers/head_{name}.png  头部层（脸+须+冠，下半透明+羽化）
 #   合成：同源母版统一构图 ⇒ 颈肩/衣领处羽化融合，有机结合无拼接
-#   生成规范 / 新增大臣 SOP / 生图提示词模板：见同目录 PORTRAIT_PIPELINE.md
-#   一键复现：python content/ministers/layers/_lay2.py（生成→测偏移→净身→抠头）
+#   生成规范 / 新增大臣 SOP / 生图提示词模板：见 _dev_tools/game-assets-src/ministers-layers/PORTRAIT_PIPELINE.md
+#   一键复现：python _dev_tools/game-assets-src/ministers-layers/_lay2.py（生成→测偏移→净身→抠头）
+#   （工具链 2026-09-26 迁出 game/content/，产物仍写回本 layers/ 目录）
 # ============================================================
 LAYER_DIR = os.path.join(_BASE, "layers")
 COMPOSE_DIR = os.path.join(PORTRAIT_DIR, "_composed")

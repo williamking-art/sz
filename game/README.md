@@ -302,9 +302,10 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | R4-7 | 健壮性 | `kb_search` 的 `query` 无长度上限 → 两侧各截 100 字；`kb_query.py` 冗余 `except sqlite3.Error` 分支合并 |
 | R4-8 | 文档 | `游戏机制说明.md` §八补「典章知识库（`kb_search`）」小节，明确与记忆库的职责边界（典 vs 史） |
 
-> ⚠️ **已知未处置（用户明确跳过）**：`game/content/ministers/layers/_src/_i2i.py:5` 硬编码第三方
-> 服务商 API key，且该文件**已被 git 跟踪**。本轮未改动。若日后要按密钥泄露流程处理，
-> **第一步应是去服务商后台轮换该 key**（改文件本身不能消除已入库历史里的泄露）。
+> ⚠️ **已知未处置（用户明确跳过 key 轮换）**：`_dev_tools/game-assets-src/ministers-layers/_src/_i2i.py:5`
+> 硬编码第三方服务商 API key，且**已被 git 跟踪**。2026-09-26 已随立绘工具链迁出 `game/content/`
+> （修复分层纪律违规），故**新构建不再随 PyInstaller 打包进分发版**；但 git 历史里的泄露仍在。
+> 若日后要按密钥泄露流程处理，**第一步仍是去服务商后台轮换该 key**（改文件/迁移目录都不能消除历史泄露）。
 
 ---
 

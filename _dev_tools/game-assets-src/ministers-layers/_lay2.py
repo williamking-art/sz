@@ -11,7 +11,11 @@
   4) 头部层：portraits/*.png → layers/head_*.png（连通域抠图 + 底部渐出）。
      旧版全局阈值会把绢底纹理留成半透明 ghost，并让细薄的幞头翅发虚。
 
-新增大臣只需：把立绘放入 ../portraits/{名}.png，再跑本脚本即可有机融入。
+新增大臣只需：把立绘放入 game/content/ministers/portraits/{名}.png，再跑本脚本即可有机融入。
+
+本脚本与 _src/ 于 2026-09-26 从 game/content/ministers/layers/ 迁至
+_dev_tools/game-assets-src/ministers-layers/（分层纪律：开发脚本不驻运行时内容目录），
+产物仍写回 game/content/ministers/layers/。
 """
 import importlib.util
 import os
@@ -19,9 +23,26 @@ import json
 import numpy as np
 from PIL import Image
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.abspath(__file__))          # .../ministers-layers（工具链目录）
 SRC = os.path.join(HERE, "_src")
-PORTRAITS = os.path.abspath(os.path.join(HERE, "..", "portraits"))
+
+
+def _repo_root() -> str:
+    """向上找仓库根（含 game/content/ministers 的目录），避免硬编码相对层级数。"""
+    p = HERE
+    while True:
+        if os.path.isdir(os.path.join(p, "game", "content", "ministers")):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            raise RuntimeError("未找到仓库根（应含 game/content/ministers 目录）")
+        p = parent
+
+
+_ROOT = _repo_root()
+# 产物落运行时图层目录（2026-09-26 起工具链迁出 game/content/，但产物仍写回那里）
+LAYERS = os.path.join(_ROOT, "game", "content", "ministers", "layers")
+PORTRAITS = os.path.join(_ROOT, "game", "content", "ministers", "portraits")
 H, W = 1080, 810
 POSES = ["zheng", "gongshou", "chihu", "longxiu"]
 TIERS = ["zi", "fei", "lv", "qing", "shi", "qinwang"]
@@ -73,7 +94,7 @@ def gen_bodies():
             im = load(pose, tier)
             alpha = Image.new("L", (W, H), 255)
             Image.merge("RGBA", (*im.split(), alpha)).save(
-                os.path.join(HERE, "body_%s_%s.png" % (pose, tier)))
+                os.path.join(LAYERS, "body_%s_%s.png" % (pose, tier)))
         print("body", pose, flush=True)
 
 
@@ -84,7 +105,7 @@ def gen_offsets():
     for pose in POSES:
         c = head_center(load(pose, "zi"))
         off[pose] = [round(c[0] - base[0], 2), round(c[1] - base[1], 2)]
-    with open(os.path.join(HERE, "_offsets.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(LAYERS, "_offsets.json"), "w", encoding="utf-8") as f:
         json.dump(off, f)
     print("offsets", off, flush=True)
 
@@ -94,7 +115,7 @@ def clean_bodies():
     mod = _load("_bodyclean", "_bodyclean.py")
     for pose in POSES:
         for tier in TIERS:
-            f = os.path.join(HERE, "body_%s_%s.png" % (pose, tier))
+            f = os.path.join(LAYERS, "body_%s_%s.png" % (pose, tier))
             im = np.array(Image.open(f).convert("RGB"))
             Image.fromarray(np.clip(mod.clean(im), 0, 255).astype("uint8"),
                             "RGB").save(f)
