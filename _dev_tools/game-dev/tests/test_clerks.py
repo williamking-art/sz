@@ -39,6 +39,39 @@ def _run(s, months, seed=7):
     return s
 
 
+# ---------------------------------------------------------------- 吏额单一权威源（2026-09-27）
+def test_clerks_detail_holds_no_headcount_copy():
+    """吏额只存在于 `pops["官僚"]["clerks"]`；`clerks_detail` 不得再有 `actual` 人头副本。"""
+    s = GameState("史实")
+    ck.ensure_detail(s)
+    for p in s.prefectures.values():
+        assert "actual" not in p["clerks_detail"], "clerks_detail 不得存人头副本"
+    pop_sum = sum(int(p["pops"]["官僚"]["clerks"]) for p in s.prefectures.values())
+    assert ck.totals(s)["clerks"] == pop_sum
+
+
+def test_legacy_actual_key_is_cleaned_and_ignored():
+    """旧档残留的 `actual` 键被清理，且其数值**不影响**任何读数（不构成第二真相源）。"""
+    s = GameState("史实")
+    for p in s.prefectures.values():
+        p.setdefault("clerks_detail", {})["actual"] = 999_999   # 伪造一个错误副本
+    ck.ensure_detail(s)
+    for p in s.prefectures.values():
+        assert "actual" not in p["clerks_detail"]
+    pop_sum = sum(int(p["pops"]["官僚"]["clerks"]) for p in s.prefectures.values())
+    assert ck.totals(s)["clerks"] == pop_sum != 999_999 * len(s.prefectures)
+
+
+def test_clerk_headcount_follows_pop_only():
+    """改 POP 子池即改吏额读数；`clerks_detail` 不参与人头计数。"""
+    s = GameState("史实")
+    ck.ensure_detail(s)
+    before = ck.totals(s)["clerks"]
+    s.prefectures[next(iter(s.prefectures))]["pops"]["官僚"]["clerks"] += 7
+    assert ck.totals(s)["clerks"] == before + 7
+    assert all("actual" not in p["clerks_detail"] for p in s.prefectures.values())
+
+
 def _pool_wealth(s, route, keys=("农", "工匠", "商人")):
     p = s.prefectures[route]
     return sum(int(p["pops"][k]["wealth"]) for k in keys)

@@ -46,13 +46,28 @@ FARM_CLASS = "农"
 _EXACTION_POOLS = ("农", "工匠", "商人")
 
 
+def clerks_actual(p: Dict[str, Any]) -> int:
+    """该路**吏额（人数）**——唯一权威源是 `pops["官僚"]["clerks"]`（POP 挂载律条 1）。
+
+    `clerks_detail` 只存**比率/惯量**类派生（quota/establishment/grip/grievance/…），
+    **不存人头副本**（2026-09-27 收敛：原 `clerks_detail["actual"]` 与 POP 子池双写，
+    属"人有第二处记录"的残留；旧档残留键由 `ensure_detail` 清理）。
+    """
+    pop = (p.get("pops") or {}).get(POP_CLASS) or {}
+    try:
+        return max(0, int(pop.get("clerks", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 # ---------------------------------------------------------------- 初始化
 def ensure_detail(state) -> int:
     """幂等补齐每路的 `clerks_detail`（§16.10：`pay_ratio` 钩子早已存在，其余为新增）。
 
-    旧档迁移：`actual = 官僚.clerks`、`quota = actual`、`grip = GRIP_BASE`、
+    旧档迁移：`quota = 官僚.clerks`（吏额基数取自 POP）、`grip = GRIP_BASE`、
     `grievance = 0`、`source_mix = {"差役":0.6,"募吏":0.4}`、`hereditary = 0.4`。
     `w0` 记该路**开局政务量**，用于 `(W/W₀)^α` 弹性校准（§11.5）。
+    **吏额不落本表**：旧档的 `actual` 键在此清理（派生读见 `clerks_actual`）。
     """
     fixed = 0
     for p in state.prefectures.values():
@@ -63,7 +78,7 @@ def ensure_detail(state) -> int:
             d = {}
             p["clerks_detail"] = d
             fixed += 1
-        d.setdefault("actual", actual)
+        d.pop("actual", None)          # 派生：吏额唯一权威源 = 官僚 POP（清理旧档人头副本）
         d.setdefault("quota", actual)
         d.setdefault("establishment", actual)
         d.setdefault("grip", GRIP_BASE)
@@ -133,11 +148,10 @@ def _adjust_staffing(state, log: List[str]) -> int:
         if not isinstance(pop, dict) or not isinstance(nong, dict):
             continue
         d = p["clerks_detail"]
-        actual = int(pop.get("clerks", 0) or 0)
+        actual = clerks_actual(p)
         quota = int(d.get("establishment", d.get("quota", actual)) or 0)
         diff = quota - actual
         if diff == 0:
-            d["actual"] = actual
             continue
         step = int(diff * CLERK_ADJUST_RATE)
         if step == 0:
@@ -154,7 +168,6 @@ def _adjust_staffing(state, log: List[str]) -> int:
             nong["size"] = int(nong.get("size", 0)) + (-step)      # 去向：回乡
         pop["clerks"] = actual + step
         pop["size"] = max(0, int(pop.get("size", 0)) + step)
-        d["actual"] = actual + step
         net += step
     if net:
         log.append(f"[吏额] 幕职吏员{'增' if net > 0 else '减'} {abs(net)} 人"
@@ -369,7 +382,7 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
     if base_total == 0:
         for p in state.prefectures.values():
             d = p["clerks_detail"]
-            d["_base"] = int(d.get("actual", 0) or 0)
+            d["_base"] = clerks_actual(p)
             d["quota"] = int(d["_base"])
             d["establishment"] = int(d["_base"])
         log.append("[吏制] 记录吏额基数（此后编制由政务量驱动）")
