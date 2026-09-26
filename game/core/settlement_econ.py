@@ -61,7 +61,7 @@ def _settle_economy(state, log):
     state.population = max(10_000_000, state.population + growth)
     _boom = (getattr(state, "_economy_ai", None) or {}).get("景气", "中")
     _exam_open = state.exam.get("open")
-    # 增长分摊份额分母：各路在籍基准之和（恒定 = PREFECTURE_INFO population 合计 ≈8000 万）。
+    # 增长分摊份额分母：各路在籍基准之和（恒定 = PREFECTURE_INFO population 合计 = 1 亿）。
     # 不能用"增长后的动态 state.population"做分母——否则 Σshare<1，农流入比 growth 系统性
     # 少 growth²/总人口，破 ΔΣPOP==growth 守恒不变式（审查回归修复）。
     _pop_base_total = sum(p.get("population", 0) for p in state.prefectures.values()) or 1

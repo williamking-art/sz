@@ -13,6 +13,7 @@ from content.data import (
 from core.settlement_common import (
     _distribute_cash,
 )
+from content.data_constants import PERSONS_PER_HOUSEHOLD
 
 def _hidden_people(p) -> int:
     """某路隐户**口数**（`农` POP 的加法子池 `hidden`；缺键视为 0）。"""
@@ -36,7 +37,7 @@ def ensure_hidden_in_pops(state) -> int:
         return 0
     if sum(_hidden_people(p) for p in prefs.values()) > 0:
         return 0
-    want = int(land.get("hidden_households", 0) or 0) * 4
+    want = int(land.get("hidden_households", 0) or 0) * PERSONS_PER_HOUSEHOLD
     if want <= 0:
         return 0
     items = list(prefs.values())
@@ -74,7 +75,7 @@ def _settle_hidden_pop(state, log):
       · 「总口」= Σ六类 `size` ＋ Σ`农.hidden`（需求侧见 `game_state_econ`）；
       · 旧实现以**户**记账并维护 `land["hidden_rem"]` 余数科目（÷4 换算的产物）；
         现**直接以口记账** → 余数科目消灭，也不再需要"全局户数按路摊派"；
-      · `land["hidden_households"]` 降级为**派生镜像**（= Σhidden // 4，户），
+      · `land["hidden_households"]` 降级为**派生镜像**（= Σhidden // `PERSONS_PER_HOUSEHOLD`，户），
         仅供 UI/旧档/文档读取。
     隐户不落籍不纳税；UI 不显示（设计锚）。
     """
@@ -142,7 +143,7 @@ def _settle_hidden_pop(state, log):
         log.append(f"[隐户] {'清丈' if _survey else '招抚'}，{_back_people:,} 口归籍复业（回本路 农 POP）")
 
     # 派生镜像（户）+ 旧余数科目清理：`hidden_rem` 是旧"以户记账 ÷4"的产物，随以口记账消灭
-    land["hidden_households"] = sum(_hidden_people(_p) for _p in prefs.values()) // 4
+    land["hidden_households"] = sum(_hidden_people(_p) for _p in prefs.values()) // PERSONS_PER_HOUSEHOLD
     land.pop("hidden_rem", None)
 
 

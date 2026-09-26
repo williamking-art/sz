@@ -89,7 +89,8 @@ def _build_numeric_ranges(state):
     treasury = int(getattr(state, "treasury", 0))
     granary = int(getattr(state, "granary", 0))
     population = int(getattr(state, "population", 0))
-    households = int(getattr(state, "households", 0)) or population // 5
+    from content.data_constants import PERSONS_PER_HOUSEHOLD
+    households = int(getattr(state, "households", 0)) or population // PERSONS_PER_HOUSEHOLD
     army = sum(u.troops for u in getattr(state, "army_units", []))
     return {
         "贯": (0, max(1, int(treasury * 1.5))),

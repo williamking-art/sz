@@ -22,6 +22,7 @@ _GAME_ROOT = os.path.normpath(os.path.join(
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
+from content.data_constants import PERSONS_PER_HOUSEHOLD as PPH  # noqa: E402
 from core.game_state import GameState  # noqa: E402
 from core.settlement import run_monthly_settlement  # noqa: E402
 from core.settlement_imperial import (  # noqa: E402
@@ -52,14 +53,14 @@ def _full_pressure(s):
 def test_new_game_materializes_hidden_into_pops():
     """开局：镜像户数被物化进 `农.hidden`；`hidden_rem` 余数科目消灭；在籍口径不变。"""
     s = GameState("史实")
-    assert _hidden_total(s) == 5_000_000 * 4, "设计锚：隐户 2000 万口"
+    assert _hidden_total(s) == 5_000_000 * PPH, "设计锚：隐户 2500 万口（500 万户 × 户均 5 口）"
     assert s.land["hidden_households"] == 5_000_000
-    assert "hidden_rem" not in s.land, "以口记账后不再需要 ÷4 余数科目"
+    assert "hidden_rem" not in s.land, "以口记账后不再需要户↔口余数科目"
     # 在籍口径不变：隐户**不计入** population。
-    # 注：开局 `population`（8000 万）与 `Σsize`（8075 万，含兵 75 万）本就不等，
+    # 注：开局 `population`（1 亿）与 `Σsize`（1.0075 亿，含兵 75 万）本就不等，
     # 差额由首月 Step 10.5 校正——这是开局既有事实，与隐户无关（见 test_monthly_...）。
-    assert s.population == 80_000_000
-    assert s.population + _hidden_total(s) == 100_000_000, "总口 1 亿 = 在籍 8000 万 + 隐户 2000 万（设计锚）"
+    assert s.population == 100_000_000
+    assert s.population + _hidden_total(s) == 125_000_000, "总口 1.25 亿 = 在籍 1 亿 + 隐户 2500 万"
 
 
 def test_flee_is_route_local_and_pop_conserving():
@@ -73,7 +74,7 @@ def test_flee_is_route_local_and_pop_conserving():
     assert _pops_total(s) == sizes0 - (hidden1 - hidden0), "Σsize 与 hidden 此消彼长（逐路同额）"
     assert _pops_total(s) + hidden1 == sizes0 + hidden0, "总口守恒"
     assert s.population == pop0, "本步不改在籍人口（月末 Step 10.5 才校正）"
-    assert s.land["hidden_households"] == hidden1 // 4, "镜像 = Σhidden // 4"
+    assert s.land["hidden_households"] == hidden1 // PPH, "镜像 = Σhidden // 户均口数"
 
 
 def test_return_to_registry_moves_hidden_back_to_farm():
@@ -89,7 +90,7 @@ def test_return_to_registry_moves_hidden_back_to_farm():
     assert hidden1 < hidden0, "清丈应使隐户归籍"
     assert _pops_total(s) == sizes0 + (hidden0 - hidden1), "归籍人口全数回到 `农`（同额）"
     assert _pops_total(s) + hidden1 == sizes0 + hidden0, "总口守恒"
-    assert s.land["hidden_households"] == hidden1 // 4
+    assert s.land["hidden_households"] == hidden1 // PPH
 
 
 def test_mirror_matches_subsystem_and_is_not_ai_writable():
@@ -98,7 +99,7 @@ def test_mirror_matches_subsystem_and_is_not_ai_writable():
     assert "land.hidden_households" not in VALID_PATHS
     assert "land.hidden_rate" in VALID_PATHS, "税率隐漏率与人口无关，保留可写"
     s = GameState("史实")
-    assert s.land["hidden_households"] == _hidden_total(s) // 4
+    assert s.land["hidden_households"] == _hidden_total(s) // PPH
 
 
 def test_legacy_save_migration_is_idempotent():
@@ -107,18 +108,18 @@ def test_legacy_save_migration_is_idempotent():
     for p in s.prefectures.values():
         p["pops"]["农"]["hidden"] = 0          # 模拟旧档：人口未落在 POP 里
     s.land["hidden_households"] = 4_000_000
-    assert ensure_hidden_in_pops(s) == 16_000_000
-    assert _hidden_total(s) == 16_000_000
+    assert ensure_hidden_in_pops(s) == 4_000_000 * PPH
+    assert _hidden_total(s) == 4_000_000 * PPH
     assert ensure_hidden_in_pops(s) == 0, "幂等：已有子池则不动"
-    assert _hidden_total(s) == 16_000_000
+    assert _hidden_total(s) == 4_000_000 * PPH
 
 
 def test_demand_side_equivalent_to_old_household_mirror():
-    """需求侧口径（总口 = 在籍 + 隐户口）与旧"镜像 × 4"等价，差仅来自户取整（≤3 口）。"""
+    """需求侧口径（总口 = 在籍 + 隐户口）与"镜像 × 户均口数"等价，差仅来自户取整。"""
     s = GameState("史实")
     hp = _hidden_total(s)
     assert hp > 0
-    assert abs(hp - s.land["hidden_households"] * 4) <= 3
+    assert abs(hp - s.land["hidden_households"] * PPH) <= PPH - 1
 
 
 def test_monthly_settlement_absorbs_registry_into_population():

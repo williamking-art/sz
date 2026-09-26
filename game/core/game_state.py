@@ -73,7 +73,7 @@ from content.data import (
     EXTERNAL_REGIMES,
     YAMEN_LIST, YAMEN_INFO, PREFECTURE_LIST, PREFECTURE_INFO, LAND_INFO,
     JIAOZI_INFO, MARITIME_INFO, COIN_INFO, BANK_INFO, STANDARD_INFO,
-    EXAM_INFO, TECH_INFO,
+    EXAM_INFO, TECH_INFO, PERSONS_PER_HOUSEHOLD,
     desensitize_trust, desensitize_shortage, desensitize_talent, desensitize_tech,
     GRANARY_START, GRANARY_START_CAP, GRANARY_CAP_SOFT, GRAIN_PRICE_MIN,
     GRAIN_PRICE_MAX, PER_CAPITA_MONTH_GRAIN, PRICE_LEVEL_BASE, PRICE_LEVEL_MIN,
@@ -118,6 +118,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
         CIVILIAN_HOARD_SOUTH, CIVILIAN_HOARD_NORTH,
         RESOURCE_DIMS, RAW_DIMS,
     )
+    from content.data_constants import PERSONS_PER_HOUSEHOLD
     pop_total = info.get("population", 0)
     south = p_type in ("财赋膏腴", "沿海市舶", "天府沃野")
     share_shen = POP_SHARE["士绅"] * (1.3 if south else 0.7)
@@ -129,17 +130,24 @@ def _build_pops(info: dict, p_type: str) -> dict:
     sz_nong = max(0, pop_total - sz_shen - sz_gong - sz_shang - sz_guan)
     monthly_grain = info.get("grain", 0) / 12.0
     monthly_tax = info.get("monthly_tax", 200_000)
+    # 存量标定（B0.5）：人口由 4 口/户标定为 5 口/户（×1.25）后，**人均**存量保持不变。
+    # 分两条腿：① **粮**——`PREFECTURE_INFO.grain`（年产量，同时是开局囤粮与月产粮的基数）
+    #   已在数据层 ×1.25，故此处**不再乘** `_stock`（避免双重放大）；
+    # ② **钱**——`monthly_tax` 是税收名义额基数（按 (ii) **不放大**，保财政绝对量），
+    #   故开局 wealth 需乘 `_stock` 以保人均现金（否则农被"保底线"挤出、农税通道重回死账）。
+    _stock = PERSONS_PER_HOUSEHOLD / 4.0
     # 商品种类（成品，多商品支持；后期玩家新增商品经 register_finished_good 加入）
     _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
         # 隐户（不落籍）＝ `农` POP 的**加法**子池 `hidden`（口）—— POP 挂载律条 1/4：
         # 人口不再另立"第 7 类池"，但**不计入在籍**（`state.population` 仍 = Σsize + 流民）。
-        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0),
+        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5 * _stock),
+               "grain": int(monthly_grain * 2.0),
                "hidden": 0, "goods": _g0(), "欠税": 0},
         "士绅": {
             "size": sz_shen,
-            "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH)),
+            "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH) * _stock),
             "grain": int(monthly_grain * (CIVILIAN_HOARD_SOUTH if south else CIVILIAN_HOARD_NORTH)),
             "goods": _g0(),
             "窖银": 0,           # 士绅窖藏之银（贯）：退出流通、可后续掏出（挥霍/抄家）
@@ -150,8 +158,8 @@ def _build_pops(info: dict, p_type: str) -> dict:
             "estate_hoard": 0,
             "欠税": 0,           # 欠税科目（A1）：税征缺口累计，逐月追缴；存档兼容见 save_load 迁移
         },
-        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
-        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0},
+        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0 * _stock), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
+        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0 * _stock), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0},
         "官僚": {"size": sz_guan,
                   # 身份子池（宋代官制设计 §13.3/§13.4）：官/吏分账，官再分在岗/待阙/祠禄。
                   # 不变量：size == officials + clerks；officials == on_post + waiting + sinecure。
@@ -159,7 +167,11 @@ def _build_pops(info: dict, p_type: str) -> dict:
                   # （唯一写入点 `core/officialdom.sync_legacy_mirror`，供 Rust 后端与旧档读取）。
                   "officials": _off, "clerks": _off * 8,
                   "on_post": _off, "waiting": 0, "sinecure": 0,
-                  "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02), "goods": _g0(), "欠税": 0},
+                  # 注意：官僚人数由**户数**派生（`households × 0.00135`，不随"户均口数"变化），
+                  # 故其开局存量需**抵消**粮基数的同比例放大（`/ _stock`），保持原人均缓冲
+                  # （≈4.9 石/人 = 1~2 月口粮；见 `test_tuning_fixes` 的 Q2 定案）。
+                  "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02 / _stock),
+                  "goods": _g0(), "欠税": 0},
         # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
         "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0},  # 兵额由 army_units 聚合后回填
     }
@@ -705,7 +717,7 @@ class GameState(GameStateEconMixin):
         self.event_history: list = []
 
         # ---- 人口/民生 ----
-        self.population: int = 80_000_000   # 约8000万
+        self.population: int = 100_000_000  # 约1亿 = 2000 万明户 × PERSONS_PER_HOUSEHOLD(5)
         self.population_satisfaction: int = 55
         # 注意：refugee_count 已改为各路 refugees 求和的 property 派生（见类末），
         # 此处不再作为独立存储字段；保留兼容赋值语义由 property setter 兜底。
@@ -798,7 +810,7 @@ class GameState(GameStateEconMixin):
                 "grain": info["grain"],             # 粮产(石)
                 "mood": info["mood"],               # 民情 0-100
                 "govern": info["govern"],           # 治理度 0-100
-                "population": info.get("population", info["households"] * 4),  # 人口(口，在籍，户均4口)
+                "population": info["households"] * PERSONS_PER_HOUSEHOLD,  # 人口(口，在籍，户均 5 口；**以户为权威**)
                 "unrest": info.get("unrest", 15),               # 动乱 0-100
                 "monthly_tax": info.get("monthly_tax", 200_000),     # 月税实收锚(贯)→二税折色 tax_base
                 "hidden_land": info.get("hidden_land", 0),      # 隐田(亩，开局数字 = land×25%，随清丈/隐漏回升演化)

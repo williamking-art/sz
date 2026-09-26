@@ -557,7 +557,7 @@ def load_game(slot: int = 1):
     state.event_history = data.get("event_history", [])
 
     # 恢复人口
-    state.population = data.get("population", 80000000)
+    state.population = data.get("population", 100_000_000)
     state.population_satisfaction = data.get("population_satisfaction", 55)
     state.refugee_count = data.get("refugee_count", 0)
     # 两段式回合推进（2026-09-21）：富化字段幂等补齐（旧档无 → 空/False）

@@ -193,8 +193,8 @@ def test_settle_turn_advances_month_once():
 def test_koubei_not_collapsed_by_small_refugee_rate():
     s = _new_state()
     s.population_satisfaction = 70
-    s.population = 80_000_000
-    s.refugee_count = 1_000_000  # 流民率 1.25%
+    s.population = 100_000_000
+    s.refugee_count = 1_000_000  # 流民率 1%
     res = evaluate_game(s)
     koubei = res["scores"]["百姓口碑"]
     # 1.25% 流民率只应轻微拉低口碑，不应被打到接近 0

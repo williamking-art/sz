@@ -533,8 +533,8 @@ def test_global_ledger_total(monkeypatch):
         f"整月钱账本残差过大：ΔW={dW} 科目净值={expected}（差 {residual}）"
     # 人口：growth + 流民公式 + 隐户动态净变化
     # 2026-09-27 方案 A：隐户人口已并入 `农` POP 的加法子池 `hidden`（**以口记账**）——
-    # 不再有 `hidden_households × 4` 的户↔口换算，`hidden_rem` 余数科目消灭。
-    growth = s.population - 80_000_000
+    # 不再有户↔口的手工换算（户均口数见 `PERSONS_PER_HOUSEHOLD`），`hidden_rem` 余数科目消灭。
+    growth = s.population - 100_000_000
     delta_pre = _refugee_delta_formula(_new_state())
 
     def _hidden_people_of(st):
