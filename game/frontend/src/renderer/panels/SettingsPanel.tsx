@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ChevronDown, Type } from "lucide-react";
 import { getApiClient, type AiConfigResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { audioEngine } from "../audio/engine";
 
 // 常见大模型服务商快捷预设
 const PROVIDER_PRESETS = [
@@ -444,10 +445,22 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** 视听音律设置 */
+/** 视听音律设置（偏好持久化到 localStorage，并同步到 AudioEngine） */
 function AudioSettingsView() {
-  const [muted, setMuted] = useState(false);
-  const [vol, setVol] = useState(75);
+  const [muted, setMuted] = useState(() => audioEngine.settings.muted);
+  const [vol, setVol] = useState(() => audioEngine.settings.masterVolume);
+
+  function updateVolume(next: number) {
+    setVol(next);
+    setMuted(false);
+    audioEngine.setMasterVolume(next);
+    audioEngine.setMuted(false);
+  }
+
+  function updateMuted(next: boolean) {
+    setMuted(next);
+    audioEngine.setMuted(next);
+  }
 
   return (
     <div className="space-y-4 rounded-lg border border-gold/40 bg-paper/60 p-4 font-kai">
@@ -461,10 +474,7 @@ function AudioSettingsView() {
           min="0"
           max="100"
           value={muted ? 0 : vol}
-          onChange={(e) => {
-            setVol(Number(e.target.value));
-            setMuted(false);
-          }}
+          onChange={(e) => updateVolume(Number(e.target.value))}
           className="w-full accent-red"
         />
       </div>
@@ -473,11 +483,15 @@ function AudioSettingsView() {
         <input
           type="checkbox"
           checked={muted}
-          onChange={(e) => setMuted(e.target.checked)}
+          onChange={(e) => updateMuted(e.target.checked)}
           className="accent-red"
         />
         <span>静音（关闭全盘背景古乐与音效）</span>
       </label>
+
+      <p className="text-xs text-dim">
+        当前资源尚未生成，引擎已就绪；音效文件落位到 public/audio/ 后自动生效。
+      </p>
     </div>
   );
 }
