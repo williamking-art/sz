@@ -35,6 +35,15 @@ from core.settlement_tech import (  # 跨域互调
     _settle_tech_research,
 )
 
+from core.building_jobs import (  # 宋侧岗位口径 + 就业驱动阶层流动（见 _settle_economy 2b）
+    song_job_cfg,
+    apply_employment_flow,
+)
+
+# 宋侧岗位配置：模块级构建一次（`song_job_cfg()` 返回新 dict，不污染外邦 `EXTERNAL_ECON`
+# 全局表；只需改 `core/building_jobs.song_job_cfg` 一处即可换口径）。
+_SONG_JOB_CFG = song_job_cfg()
+
 def _settle_economy(state, log):
     """经济基础结算"""
     # 整改①-3：记录**月初**物价，供物价相位（`_settle_econ_prices`）做单月涨跌上限。
@@ -91,6 +100,17 @@ def _settle_economy(state, log):
             pops["工匠"]["size"] -= _art_out
             pops["商人"]["size"] -= _out - _art_out
             pops["农"]["size"] += _out
+        # 2b) 就业驱动的阶层流动（宋侧接线）：**岗位缺口驱动**的农 ↔ 工匠/商人。
+        #     与 2) 的关系＝协同而不双计：2) 是「景气驱动」的量（AI 城市化/回乡档位），
+        #     本段**串行于其后**，只补「建筑岗位缺口」的差额，且按当月真实就业安排
+        #     （`allocate_employment`）与 `JOB_FLOW_RATE` 封顶；同月同一路只有一个方向
+        #     （农→工/商 与 工/商→农 互斥），故不存在同一人的两次迁移。
+        #     新局 `buildings` 为空 → `apply_employment_flow` 直接返回零迁移，基线不漂移。
+        #     守恒：只改 农/工匠/商人 三类 size，Σ六类 size 逐字不变（另见回归测试）。
+        _emp_flow = apply_employment_flow(p, pops, p.get("buildings"), _SONG_JOB_CFG)
+        if _emp_flow["moved_to_artisan"] or _emp_flow["moved_to_merchant"] \
+                or _emp_flow["returned_to_farm"]:
+            p.setdefault("econ_audit", {})["job_flow"] = dict(_emp_flow)
         # 3) 科举入仕已改为**离散科次**（阶段 C-6，§15）：见 `core/officialdom._triennial_exam`
         #    —— 每 EXAM_INTERVAL_YEARS 年一次，一次入仕一批（数百人），落在**待阙**池。
         #    此处不再做每月连续小额入仕：那既不符合史实形态（一期数百进士），

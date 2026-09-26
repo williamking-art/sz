@@ -19,10 +19,66 @@ __all__ = [
     "jobs_of", "allocate_employment", "produce_grain_track",
     "produce_job_track", "evolve_building_levels", "job_flow_unemployed",
     "pay_wages_from_revenue", "pay_construction_cost", "apply_bankruptcy",
+    "song_job_cfg", "apply_employment_flow", "live_job_buildings",
 ]
 
 _LV_MIN_DEFAULT = 1
 _LV_MAX_DEFAULT = 5
+
+# ---------------------------------------------------------------------------
+# 宋侧岗位口径（宋祚 · 就业驱动阶层流动 §宋侧接线）
+# ---------------------------------------------------------------------------
+# 为何不写进 content/data*.py：本表是**岗位模型的宋侧标定**，与外邦
+# `content/data_external.EXTERNAL_ECON` 的 6 类建筑表分属两套建筑命名
+# （宋侧 `POP_BUILDING_TYPES` = 农田/工坊/商铺/庄园）。为不改动
+# `content/data_constants.py`（边界：并行改动），此处就近定义；待「停用词/常量表」
+# 统一（单源化）时再迁出——迁移时须同时改 `song_job_cfg` 一处即可。
+SONG_JOB_CLASSES = ("农", "工匠", "商人")
+SONG_JOB_SHARE_DEFAULT = 0.35          # 农可上岗比例上限（农田+庄园用工上限）
+SONG_JOB_FLOW_RATE = 0.02              # 月迁移率（与 `JOB_FLOW_RATE` 同口径）
+SONG_JOBS_PER_LEVEL = {                # 岗位数 = lv × 每级岗位（农田 0——粮维豁免岗位制）
+    "农田": 0, "工坊": 160, "商铺": 40, "庄园": 120,
+}
+SONG_BUILDING_WORKER = {               # 岗位归属 POP（农职岗 / 工匠岗 / 商人岗）
+    "农田": "农", "庄园": "农", "工坊": "工匠", "商铺": "商人",
+}
+SONG_JOB_QUEUE_FARM = ("农田", "庄园")
+SONG_JOB_QUEUE_ARTISAN = ("工坊",)     # 只有工匠岗进工匠岗序（商铺是商人岗，见下）
+SONG_JOB_QUEUE_MERCHANT = ("商铺",)    # 商人岗序（`allocate_employment` 兜底按 worker 类型喂池）
+
+_SONG_BASECFG: Optional[dict] = None
+
+
+def song_job_cfg() -> dict:
+    """宋侧岗位配置（含外邦同名字段作并集兜底）。
+
+    返回**新 dict**（每次调用独立），调用侧可自由增改而不污染全局；
+    `JOBS_PER_LEVEL`/`BUILDING_WORKER`/`JOB_QUEUE_*` 均以宋侧标定为权威。
+    """
+    global _SONG_BASECFG
+    if _SONG_BASECFG is None:
+        base: dict = {}
+        try:                                   # 外邦表作并集兜底（缺字段时不 KeyError）
+            from content.data_external import EXTERNAL_ECON as _EXT
+            base = dict(_EXT)
+        except Exception:                      # noqa: BLE001
+            base = {}
+        _SONG_BASECFG = base
+    cfg = dict(_SONG_BASECFG)
+    cfg["JOBS_PER_LEVEL"] = dict(SONG_JOBS_PER_LEVEL)
+    cfg["BUILDING_WORKER"] = dict(SONG_BUILDING_WORKER)
+    cfg["JOB_QUEUE_FARM"] = tuple(SONG_JOB_QUEUE_FARM)
+    cfg["JOB_QUEUE_ARTISAN"] = tuple(SONG_JOB_QUEUE_ARTISAN)
+    cfg["JOB_QUEUE_MERCHANT"] = tuple(SONG_JOB_QUEUE_MERCHANT)
+    share = dict((_SONG_BASECFG.get("JOB_SHARE") or {}))
+    share["宋"] = SONG_JOB_SHARE_DEFAULT
+    share["default"] = SONG_JOB_SHARE_DEFAULT
+    cfg["JOB_SHARE"] = share
+    # 显式口径：宋侧调用不以 rtype 取 share（`allocate_employment` 优先读此项），
+    # 避免「调用侧漏传 rtype → 回落到外邦 default(0.25)」的静默偏差。
+    cfg["JOB_SHARE_OVERRIDE"] = SONG_JOB_SHARE_DEFAULT
+    cfg["JOB_FLOW_RATE"] = SONG_JOB_FLOW_RATE
+    return cfg
 
 
 def _lv(entry: Any) -> int:
@@ -55,12 +111,16 @@ def allocate_employment(pops: dict, buildings: dict, cfg: dict,
 
     - 农职岗序：牧场 → 桑麻田 → 林果蔗田（竞争农剩余劳动力，上限 `JOB_SHARE`）；
     - 工匠岗序：工坊 → 矿场（全量工匠可上岗）；
+    - 商人岗序：`JOB_QUEUE_MERCHANT`（宋侧 `商铺`；外邦未配置 → 空表，行为不变）；
     - 同月内不重复计入；余工 = 未上岗人数（派生读数，不落账）。
     """
     jobs = jobs_of(buildings, cfg)
     worker_of = cfg.get("BUILDING_WORKER") or {}
-    job_share = float((cfg.get("JOB_SHARE") or {}).get(rtype,
-                      (cfg.get("JOB_SHARE") or {}).get("default", 0.25)))
+    # `JOB_SHARE_OVERRIDE`（宋侧显式入参口径）优先；否则按 rtype 取表
+    _ov = cfg.get("JOB_SHARE_OVERRIDE")
+    job_share = float(_ov) if _ov is not None else float(
+        (cfg.get("JOB_SHARE") or {}).get(rtype,
+        (cfg.get("JOB_SHARE") or {}).get("default", 0.25)))
     staffed: Dict[str, int] = {bt: 0 for bt in jobs}
 
     # 农剩余劳动力（口粮之外可投入）
@@ -83,6 +143,16 @@ def allocate_employment(pops: dict, buildings: dict, cfg: dict,
         staffed[bt] = n
         art_pool -= n
 
+    # 商人岗序（宋侧 `商铺`；外邦未配置 → 空表，行为不变）
+    mer_sz = int((pops.get("商人") or {}).get("size", 0) or 0)
+    mer_pool = mer_sz
+    for bt in cfg.get("JOB_QUEUE_MERCHANT") or ():
+        if bt not in jobs or jobs[bt] <= 0 or mer_pool <= 0:
+            continue
+        n = min(jobs[bt], mer_pool)
+        staffed[bt] = n
+        mer_pool -= n
+
     # 显式按 worker 类型兜底（防岗序表漏项）
     for bt, j in jobs.items():
         if staffed.get(bt, 0) > 0 or j <= 0:
@@ -98,6 +168,11 @@ def allocate_employment(pops: dict, buildings: dict, cfg: dict,
                 n = min(j, art_pool)
                 staffed[bt] = n
                 art_pool -= n
+        elif wk == "商人":
+            if mer_pool > 0:
+                n = min(j, mer_pool)
+                staffed[bt] = n
+                mer_pool -= n
     return staffed
 
 
@@ -290,6 +365,182 @@ def job_flow_unemployed(pops: dict, staffed: Dict[str, int], cfg: dict,
 
     total_unemp = farm_idle + art_idle
     return {"flow_out": flow_out, "flow_in": flow_in, "unemployed": total_unemp}
+
+
+# ---------------------------------------------------------------------------
+# 宋侧接线：就业驱动的阶层流动（与既有城市化/回乡通道协同，不双计）
+# ---------------------------------------------------------------------------
+def live_job_buildings(buildings: Optional[dict], cfg: dict,
+                       lv_min: Optional[int] = None) -> Tuple[Dict[str, Any], bool]:
+    """筛出「本月真在册且岗位 > 0」的岗位建筑，返回 `(live, has_job_building)`。
+
+    - `live`：`{建筑类型: 条目}`——只含**岗位表内**（`JOBS_PER_LEVEL` ∩ `BUILDING_WORKER`）
+      且**未倒闭、`lv >= lv_min`** 的条目；可直接喂 `allocate_employment`。
+    - `has_job_building`：本月是否存在**岗位建筑条目**（无论 `lv` 是否为 0）——
+      用于区分两种「没岗位」：① 根本没有岗位建筑（新局 `{}`／只有政府工程）→ 通道不生效；
+      ② 有岗位建筑但 `lv == 0`（裁撤/毁损）→ 岗位归零，失业推应当生效。
+    - `lv == 0` 必须**显式判零**：`_lv()` 按「缺省 1」口径把 0 归一为 1（`or 1`），
+      直接用它会漏掉裁撤（设计 §3.4「降级/倒闭是事件」）。
+    """
+    worker_of = cfg.get("BUILDING_WORKER") or {}
+    jpl = cfg.get("JOBS_PER_LEVEL") or {}
+    _min = _LV_MIN_DEFAULT if lv_min is None else int(lv_min)
+    live: Dict[str, Any] = {}
+    has_job_building = False
+    for bt, entry in (buildings or {}).items():
+        if bt not in jpl or bt not in worker_of:
+            continue                              # 非岗位表建筑（政府工程/外邦建筑）
+        if isinstance(entry, dict) and entry.get("closed"):
+            continue                              # 倒闭建筑不计岗位（同 job 模式口径）
+        has_job_building = True
+        raw_lv = entry.get("lv") if isinstance(entry, dict) else entry
+        if raw_lv is None:
+            raw_lv = 1
+        if int(raw_lv) < _min:
+            continue                              # 岗位归零：不进 live，但仍是「有岗位建筑」
+        live[bt] = entry
+    return live, has_job_building
+
+
+def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
+                          cfg: dict, rng: Optional[random.Random] = None
+                          ) -> Dict[str, int]:
+    """宋侧「岗位缺口驱动」阶层流动：农 ↔ 工匠/商人，逐路执行（ΣPOP 守恒）。
+
+    设计依据：`外邦省域产业链设计_2026-09-22.md` §3.6 与 §15.1 决策 #6
+    「加就业驱动（**失业推＋空岗拉＋回农兜底**）」。与外邦 `job_flow_unemployed`
+    的差别（为何另开函数而不改它）：
+      · 外邦是**省域**视图，「无空岗也转商」是省域口径；宋侧要求「岗位不足时
+        不迁移、只补缺口」（空岗拉），故另立；
+      · 外邦调用点已上链，改其语义会漂移外邦长局守恒基线。
+
+    规则（两方向**串行**，同一路同一月只有一个方向 → 不存在同一人两次迁移）：
+      ① **空岗拉**：目标岗空缺 = `lv×JOBS_PER_LEVEL − 在岗`（按 POP 归属建筑，
+         `allocate_employment` 优先队列）；农闲 = `int(农 size × JOB_SHARE) − 农在岗`。
+         `农闲>0` 且有空缺 → `min(农闲×JOB_FLOW_RATE, 空缺)` 农转工/商，按两类
+         空缺比例分摊（整数尾差归商）；
+      ② **失业推（回农兜底）**：① 不成立（无农闲或无空缺）时，工匠/商人中
+         「未进任何岗位」者按 `JOB_FLOW_RATE` 回流农轨领口粮——这是生计安全阀
+         （非农不产粮，无岗者只能买粮）。
+
+    与既有通道**协同而不双计**：既有 `_settle_economy` 的城市化/回乡通道是
+    「景气驱动」的量（先走），本通道**串行于其后**、只补「岗位缺口驱动」的差额；
+    两方向互斥，故净额既非两侧相加、也不会把同一人算两次。
+
+    守恒：只改 农/工匠/商人 三类 `size`，且逐字 `Δ农 + Δ工匠 + Δ商人 == 0`
+    （`Σ六类 size` 不变）；每个迁移量都钳到来源 POP 的 `size`，不会抽成负数。
+
+    返回 `{moved_to_artisan, moved_to_merchant, returned_to_farm, farm_idle,
+    artisan_vacancy, merchant_vacancy}`（迁移量全 0 = 本月无岗位驱动迁移）。
+    """
+    _zero = {"moved_to_artisan": 0, "moved_to_merchant": 0,
+             "returned_to_farm": 0, "farm_idle": 0,
+             "artisan_vacancy": 0, "merchant_vacancy": 0}
+    bld = buildings or {}
+    if not bld:
+        return dict(_zero)                       # 新局（buildings 空）→ 零迁移：基线不变
+    _rate = float(cfg.get("JOB_FLOW_RATE", 0.0) or 0.0)
+    if _rate <= 0:
+        return dict(_zero)
+    nong, art, mer = pops.get("农"), pops.get("工匠"), pops.get("商人")
+    if not isinstance(art, dict):
+        return dict(_zero)
+    # 岗位只认「岗位表里有名且实际有 lv 建筑」的类型（结构 `{lv}` 与旧 `座数` 兼容）
+    worker_of = cfg.get("BUILDING_WORKER") or {}
+    jpl = cfg.get("JOBS_PER_LEVEL") or {}
+    lv_min = int(cfg.get("BUILDING_LV_MIN", _LV_MIN_DEFAULT))
+    live, has_job_building = live_job_buildings(bld, cfg, lv_min=lv_min)
+    if not has_job_building:
+        # 本月**没有任何岗位建筑条目**（新局 `buildings == {}`、或只有政府工程建筑）
+        # → 零迁移。这是「新局行为逐字不变」的硬前提。
+        # 注意：`live` 为空但 `has_job_building` 为真（`{"工坊": {"lv": 0}}` = 岗位被裁撤）
+        # **不是**零迁移场景——那正是失业推（工/商→农）该生效的地方。
+        return dict(_zero)
+
+    share_tbl = cfg.get("JOB_SHARE") or {}
+    _ov = cfg.get("JOB_SHARE_OVERRIDE")
+    job_share = float(_ov) if _ov is not None else float(
+        share_tbl.get("宋", share_tbl.get("default", 0.0)) or 0.0)
+    staffed = allocate_employment(pops, live, cfg, "宋")
+
+    nong_sz = int(nong.get("size", 0) or 0) if isinstance(nong, dict) else 0
+    art_sz = int(art.get("size", 0) or 0)
+    mer_sz = int(mer.get("size", 0) or 0) if isinstance(mer, dict) else 0
+
+    def _pool_jobs(wk: str) -> Tuple[int, int]:
+        """该 worker 类型的（岗位, 在岗）。"""
+        jobs_n = sum(_lv(live[bt]) * int(jpl.get(bt, 0) or 0)
+                     for bt, w in worker_of.items() if w == wk and bt in live)
+        staff_n = sum(int(staffed.get(bt, 0) or 0)
+                      for bt, w in worker_of.items() if w == wk)
+        return jobs_n, staff_n
+
+    farm_jobs, farm_staffed = _pool_jobs("农")
+    artisan_jobs, artisan_staffed = _pool_jobs("工匠")
+    merchant_jobs, merchant_staffed = _pool_jobs("商人")
+
+    farm_pool = int(nong_sz * job_share)
+    farm_idle = max(0, farm_pool - farm_staffed)
+    artisan_vacancy = max(0, artisan_jobs - artisan_staffed)
+    merchant_vacancy = max(0, merchant_jobs - merchant_staffed)
+    # 非农失业 = 未进任何岗位的那部分（口径同设计 §3.6「未进工坊/矿场」）
+    art_idle = max(0, art_sz - artisan_staffed)
+    mer_idle = max(0, mer_sz - merchant_staffed)
+
+    stats = {"moved_to_artisan": 0, "moved_to_merchant": 0, "returned_to_farm": 0,
+             "farm_idle": farm_idle, "artisan_vacancy": artisan_vacancy,
+             "merchant_vacancy": merchant_vacancy}
+
+    if farm_idle > 0 and (artisan_vacancy > 0 or merchant_vacancy > 0) \
+            and isinstance(mer, dict):
+        # ① 空岗拉：农闲 → 工匠/商人，只补**真实空缺**（无空缺不迁移——与
+        #    外邦「无空岗也转商」不同：宋侧既有城市化通道已管景气流向，本通道只补缺口）
+        move = int(min(farm_idle, max(1, int(farm_idle * _rate))))
+        take = min(move, farm_idle, nong_sz, artisan_vacancy + merchant_vacancy)
+        if take <= 0:
+            return stats
+        open_total = artisan_vacancy + merchant_vacancy
+        to_art = min(artisan_vacancy, int(take * artisan_vacancy / open_total))
+        to_mer = take - to_art                      # 整数尾差归商（开店门槛低）
+        to_art = min(to_art, artisan_vacancy)
+        to_mer = min(to_mer, merchant_vacancy)
+        if to_mer < 0:
+            to_mer = 0
+        applied = to_art + to_mer
+        if applied <= 0:
+            return stats
+        nong["size"] = nong_sz - applied
+        if to_art > 0:
+            art["size"] = art_sz + to_art
+        if to_mer > 0:
+            mer["size"] = mer_sz + to_mer
+        stats["moved_to_artisan"] = to_art
+        stats["moved_to_merchant"] = to_mer
+        return stats
+
+    # ② 失业推（生计兜底）：本月无农闲（或空岗拉未落地）而工匠/商人**未进任何岗位**
+    #    → 按 `JOB_FLOW_RATE` 回流农轨领口粮。口径同设计 §3.6「失业工匠 → 农」
+    #    ＝「未进工坊/矿场」，即没有岗位容纳的那部分非农人口（生计安全阀）；
+    #    回流按未在岗比例分摊，上限制到来源 POP size（不得抽成负数）。
+    pool_sz = art_sz + mer_sz
+    idle_sz = art_idle + mer_idle
+    if idle_sz <= 0 or pool_sz <= 0 or not isinstance(nong, dict):
+        return stats
+    back = min(int(min(idle_sz, max(1, int(idle_sz * _rate)))), pool_sz)
+    if back <= 0:
+        return stats
+    from_art = min(art_idle, int(back * art_idle / idle_sz))
+    from_mer = min(mer_idle, back - from_art)
+    applied = from_art + from_mer
+    if applied <= 0:
+        return stats
+    if from_art > 0:
+        art["size"] = art_sz - from_art
+    if from_mer > 0:
+        mer["size"] = mer_sz - from_mer
+    nong["size"] = nong_sz + applied
+    stats["returned_to_farm"] = applied
+    return stats
 
 
 # ---------------------------------------------------------------------------
