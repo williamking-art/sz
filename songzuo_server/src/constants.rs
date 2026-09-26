@@ -58,6 +58,22 @@ pub const CLERK_PAY_PER_MONTH: f64 = 2.0;        // 吏/月 折色俸（贯/万�
 pub const CLERK_GRAIN_PER_MONTH: f64 = 1.5;      // 吏/月 本色禄（万石/万吏）
 pub const CLERK_PER_OFFICIAL: i64 = 8;           // 吏/官 比（初始锚）
 
+// ============================================================
+// 官·子池折俸权数（官俸/官禄的真正乘数）
+//   **须与 `game/content/data_constants.py:118,120` 保持一致（Python 为权威）**：
+//     WAITING_PAY_RATIO  = 0.35  # 待阙（守选无差遣）折俸
+//     SINECURE_PAY_RATIO = 0.4   # 祠禄（宫观官）折俸
+//   在岗（on_post）恒为全俸，权数 1.0。
+//   同步义务：Python 侧改这两个常量时，此处必须同步修改。
+// ============================================================
+pub const WAITING_PAY_RATIO: f64 = 0.35;         // 官·待阙 付款权数（对齐 data_constants.py:118）
+pub const SINECURE_PAY_RATIO: f64 = 0.4;         // 官·祠禄 付款权数（对齐 data_constants.py:120）
+pub const ON_POST_PAY_RATIO: f64 = 1.0;          // 官·在岗 付款权数（全俸）
+
+/// 官僚 POP 类名 —— 子池字段 on_post/waiting/sinecure 挂载于 `p["pops"][POP_CLASS]`。
+/// **须与 `game/core/officialdom.py:51` 的 `POP_CLASS = "官僚"` 保持一致（Python 为权威）**。
+pub const POP_CLASS: &str = "官僚";
+
 // 贪腐相关（对齐 calc_corruption_deduction）
 pub const CORRUPTION_MULT: f64 = 0.8;            // 贪腐放大系数
 pub const BRIBE_FLOOR: f64 = 0.2;                // 贿赂下限（顽固部分）

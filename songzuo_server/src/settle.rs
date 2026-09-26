@@ -153,6 +153,67 @@ fn settle_economy(state: &mut GameState, log: &mut Vec<String>) {
     ));
 }
 
+// ---- 官俸计价口径（子池付款权数；对齐 Python core/officialdom.py）----
+
+/// 本路**官·付款权数**（官俸/官禄的真正乘数）—— 对应 Python
+/// `core/officialdom.py:route_pay_units`（**Python 为权威**）。
+///
+/// 取值优先级：
+///   ① `p["official_units"]`：Python `sync_legacy_mirror()` 写入的等价付款权数镜像
+///      （officialdom.py:479）。字段存在且为**数字、有限、非负**时直接采用 ——
+///      这是权威值，已经含了待阙 0.35 / 祠禄 0.4 的折算。
+///   ② 无镜像则由子池推算：`pops["官僚"]` 的
+///      `on_post*1.0 + waiting*WAITING_PAY_RATIO + sinecure*SINECURE_PAY_RATIO`
+///      （与 Python route_pay_units L299-301 同式；三字段**任一存在**即视为有新口径子池）。
+///      若子池缺失但 POP 有 `officials`，按 Python `route_officials` 的「POP 优先」回落到它。
+///   ③ 否则回退人头 `p["officials"] * ON_POST_PAY_RATIO`（旧存档 / AI 直改场景的稳健兜底，
+///      与 Python「旧档无子池：按全部在岗计价」一致）。
+fn route_pay_units(p: &Value) -> f64 {
+    // ① Python 镜像（权威）
+    if let Some(u) = p.get("official_units").and_then(|v| v.as_f64()) {
+        if u.is_finite() && u >= 0.0 {
+            return u;
+        }
+    }
+    // ② 由子池推算
+    if let Some(pop) = p
+        .get("pops")
+        .and_then(|v| v.get(POP_CLASS))
+        .and_then(|v| v.as_object())
+    {
+        if ["on_post", "waiting", "sinecure"]
+            .iter()
+            .any(|k| pop.contains_key(*k))
+        {
+            let pool = |k: &str| pop.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0).max(0.0);
+            return pool("on_post") * ON_POST_PAY_RATIO
+                + pool("waiting") * WAITING_PAY_RATIO
+                + pool("sinecure") * SINECURE_PAY_RATIO;
+        }
+        if let Some(o) = pop.get("officials").and_then(|v| v.as_f64()) {
+            return o.max(0.0);
+        }
+    }
+    // ③ 回退人头镜像（旧档全俸）
+    p.get("officials")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0)
+        .max(0.0)
+        * ON_POST_PAY_RATIO
+}
+
+/// 本路官俸**折色**月支（万贯/月）＝ 付款权数 × 官月俸。
+/// 与 Python `calc_official_cash`（game_state_econ.py:584 用 route_pay_units）同口径。
+fn official_cash_pay(p: &Value) -> f64 {
+    route_pay_units(p) * OFFICIAL_PAY_PER_MONTH / 10000.0
+}
+
+/// 本路官禄**本色**月支（万石/月）＝ 付款权数 × 官月禄。
+/// 与 Python `calc_official_grain`（game_state_econ.py:574 用 route_pay_units）同口径。
+fn official_grain_pay(p: &Value) -> f64 {
+    route_pay_units(p) * OFFICIAL_GRAIN_PER_MONTH / 10000.0
+}
+
 // ---- 财政计算辅助（对齐 Python game_state.calc_* / settlement._settle_finance）----
 
 /// 国内工商经济总量（贯/年）—— 税基同源。
@@ -256,9 +317,10 @@ fn settle_finance(state: &mut GameState, log: &mut Vec<String>) {
     let mut share_due_total = 0.0_f64;
     let mut share_gap_total = 0.0_f64;
     for (_, p) in state.prefectures.iter() {
-        let off = p.get("officials").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let cle = p.get("clerks").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let due = off * OFFICIAL_PAY_PER_MONTH / 10000.0 + cle * CLERK_PAY_PER_MONTH / 10000.0;
+        // 官 component 取**付款权数**（子池折俸）—— 对齐 Python calc_pay_ratio L596-598；
+        // 吏 component 仍按人头（本次不改）。
+        let due = official_cash_pay(p) + cle * CLERK_PAY_PER_MONTH / 10000.0;
         let local = p.get("local_finance").and_then(|v| v.as_f64()).unwrap_or(0.0);
         share_due_total += due;
         share_gap_total += (due - local).max(0.0);
@@ -282,16 +344,15 @@ fn settle_finance(state: &mut GameState, log: &mut Vec<String>) {
         }
         army_cash += troops * SOLDIER_PAY_PER_MONTH * strength_factor;
 
-        let officials = p.get("officials").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let clerks = p.get("clerks").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-        // 官俸折色
-        official_cash += officials * OFFICIAL_PAY_PER_MONTH / 10000.0;
+        // 官俸折色：按**付款权数**（在岗 1.0 / 待阙 0.35 / 祠禄 0.4）计价，不再按人头全俸。
+        // 对齐 Python calc_official_cash（game_state_econ.py:584）。
+        official_cash += official_cash_pay(p);
 
         // 吏俸：pay_ratio = clamp((local_finance + payraise_budget*share/10000)/due, 0, 1)
         let local = p.get("local_finance").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let due = officials * OFFICIAL_PAY_PER_MONTH / 10000.0
-                + clerks * CLERK_PAY_PER_MONTH / 10000.0;
+        let due = official_cash_pay(p) + clerks * CLERK_PAY_PER_MONTH / 10000.0;
         let pr = if due <= 0.0 {
             1.0
         } else {
@@ -427,9 +488,9 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
     let mut share_due_total = 0.0_f64;
     let mut share_gap_total = 0.0_f64;
     for (_, p) in state.prefectures.iter() {
-        let off = p.get("officials").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let cle = p.get("clerks").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let due = off * OFFICIAL_PAY_PER_MONTH / 10000.0 + cle * CLERK_PAY_PER_MONTH / 10000.0;
+        // 官 component 取**付款权数**（与现金侧同一口径）；吏 component 仍按人头。
+        let due = official_cash_pay(p) + cle * CLERK_PAY_PER_MONTH / 10000.0;
         let local = p.get("local_finance").and_then(|v| v.as_f64()).unwrap_or(0.0);
         share_due_total += due;
         share_gap_total += (due - local).max(0.0);
@@ -452,13 +513,13 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
         }
         army_grain += troops * SOLDIER_GRAIN_PER_MONTH * strength_factor;
 
-        let officials = p.get("officials").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let clerks = p.get("clerks").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        official_grain += officials * OFFICIAL_GRAIN_PER_MONTH / 10000.0;
+        // 官禄本色：按**付款权数**计价（与现金侧同一乘数）。
+        // 对齐 Python calc_official_grain（game_state_econ.py:574）。
+        official_grain += official_grain_pay(p);
 
         let local = p.get("local_finance").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let due = officials * OFFICIAL_PAY_PER_MONTH / 10000.0
-                + clerks * CLERK_PAY_PER_MONTH / 10000.0;
+        let due = official_cash_pay(p) + clerks * CLERK_PAY_PER_MONTH / 10000.0;
         let pr = if due <= 0.0 {
             1.0
         } else {
@@ -522,10 +583,17 @@ pub fn settle_granary(state: &mut GameState, log: &mut Vec<String>) {
     // 月出（兵/官/吏禄 + 雀鼠 + 侵盗）统一从太仓扣；本色只经漕运入太仓（不再二次加 grain_in）
     state.granary = (state.granary - grain_out).clamp(0.0, state.granary_cap);
 
-    // 恒等断言：太仓变动 == 漕运汇入 - 月出
+    // 恒等断言：Δ太仓 == 月出 − 漕运汇入。
+    // 修复（2026-09-27）：原式写成 `(Δ) as i64 == (canal - out) as i64` —— ① 符号写反
+    // （太仓是"加漕运、减月出"，Δ = out − canal）；② 浮点转 i64 截断，|值| ≥ 1 的非整数
+    // 会左 1 右 −1 而误报（实测 `Δ=1.2726 canal=0 out=1.2726` 直接 panic，debug 构建下
+    // 真实对局必炸）。现改为**容差比较**，并在触及仓容上下限（clamp 生效）时豁免。
+    let _granary_delta = granary_before - state.granary;
+    let _granary_expect = grain_out - canal;
+    let _granary_clamped = state.granary <= 0.0 || state.granary >= state.granary_cap;
     debug_assert!(
-        (granary_before - state.granary) as i64 == (canal - grain_out) as i64,
-        "太仓恒等断裂：Δ={} canal={} out={}", granary_before - state.granary, canal, grain_out
+        (_granary_delta - _granary_expect).abs() < 1e-6 || _granary_clamped,
+        "太仓恒等断裂：Δ={} 月出={} 漕运={}", _granary_delta, grain_out, canal
     );
 
     // ---- 常平仓平粜籴（修复 audit-qa L698-720 缺陷：先砍量后扣款，籴粜同层中央太仓）----
@@ -588,5 +656,212 @@ fn settle_emperor(state: &mut GameState, _log: &mut Vec<String>) {
     if state.emperor_health <= 0 {
         state.emperor_alive = false;
         state.game_over = true;
+    }
+}
+
+// ============================================================
+// 官俸付款权数（子池折俸）测试
+//   权威口径：Python game/core/officialdom.py:route_pay_units
+//             （在岗 1.0 / 待阙 WAITING_PAY_RATIO / 祠禄 SINECURE_PAY_RATIO）
+// ============================================================
+#[cfg(test)]
+mod official_pay_units_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 折色（现金）单位：万贯/月；本色（粮）单位：万石/月。
+    const EPS: f64 = 1e-12;
+
+    /// ① 有 `official_units` 镜像（Python 权威派生）：直接按权数计价，**不看人头**。
+    #[test]
+    fn mirror_official_units_drives_both_cash_and_grain() {
+        // 官 100 人、子池折后权数 70
+        let p = json!({"officials": 100.0, "clerks": 8.0, "official_units": 70.0});
+
+        assert!((route_pay_units(&p) - 70.0).abs() < EPS, "镜像权数未被采用");
+
+        // 现金路径：70 × OFFICIAL_PAY_PER_MONTH / 10000
+        let cash_expect = 70.0 * OFFICIAL_PAY_PER_MONTH / 10000.0;
+        assert!(
+            (official_cash_pay(&p) - cash_expect).abs() < EPS,
+            "官俸折色应 == 70×单价，实得 {}",
+            official_cash_pay(&p)
+        );
+        // 粮路径：70 × OFFICIAL_GRAIN_PER_MONTH / 10000
+        let grain_expect = 70.0 * OFFICIAL_GRAIN_PER_MONTH / 10000.0;
+        assert!(
+            (official_grain_pay(&p) - grain_expect).abs() < EPS,
+            "官禄本色应 == 70×单价，实得 {}",
+            official_grain_pay(&p)
+        );
+
+        // 反证：确实低于人头全俸（100 人），即折俸机制生效
+        let headcount_cash = 100.0 * OFFICIAL_PAY_PER_MONTH / 10000.0;
+        let headcount_grain = 100.0 * OFFICIAL_GRAIN_PER_MONTH / 10000.0;
+        assert!(official_cash_pay(&p) < headcount_cash);
+        assert!(official_grain_pay(&p) < headcount_grain);
+        // 且恰为 70/100
+        assert!((official_cash_pay(&p) / headcount_cash - 0.7).abs() < EPS);
+        assert!((official_grain_pay(&p) / headcount_grain - 0.7).abs() < EPS);
+    }
+
+    /// ② 无镜像但有子池：按 1.0 / 0.35 / 0.4 推算（对齐 Python route_pay_units L299-301）。
+    #[test]
+    fn subpool_fallback_uses_waiting_and_sinecure_ratios() {
+        let pop = |on_post: i64, waiting: i64, sinecure: i64| {
+            json!({
+                "officials": on_post + waiting + sinecure,
+                "clerks": 8,
+                "pops": {"官僚": {
+                    "size": on_post + waiting + sinecure + 8,
+                    "officials": on_post + waiting + sinecure,
+                    "clerks": 8,
+                    "on_post": on_post, "waiting": waiting, "sinecure": sinecure
+                }}
+            })
+        };
+
+        // 单一子池：逐一钉死三个权数常量
+        assert!((route_pay_units(&pop(100, 0, 0)) - 100.0 * ON_POST_PAY_RATIO).abs() < EPS);
+        assert!((route_pay_units(&pop(0, 100, 0)) - 100.0 * WAITING_PAY_RATIO).abs() < EPS);
+        assert!((route_pay_units(&pop(0, 0, 100)) - 100.0 * SINECURE_PAY_RATIO).abs() < EPS);
+        // 显式断言常量值本身（防止有人改常量后测试仍"自洽"通过）
+        assert!((WAITING_PAY_RATIO - 0.35).abs() < EPS, "须与 data_constants.py:118 一致");
+        assert!((SINECURE_PAY_RATIO - 0.4).abs() < EPS, "须与 data_constants.py:120 一致");
+
+        // 混合子池 on_post=60 / waiting=30 / sinecure=10
+        //   60×1.0 + 30×0.35 + 10×0.4 = 60 + 10.5 + 4 = 74.5
+        // 注：任务书示例写"→ 权数 70.0"系笔误；按权威常量算应为 74.5（此处以常量为准）。
+        let p = pop(60, 30, 10);
+        assert!((route_pay_units(&p) - 74.5).abs() < EPS, "实得 {}", route_pay_units(&p));
+
+        // 现金与粮两条路径同时断言
+        assert!((official_cash_pay(&p) - 74.5 * OFFICIAL_PAY_PER_MONTH / 10000.0).abs() < EPS);
+        assert!((official_grain_pay(&p) - 74.5 * OFFICIAL_GRAIN_PER_MONTH / 10000.0).abs() < EPS);
+    }
+
+    /// ③ 三者皆无（镜像/子池/人头子池都缺）：回退 `officials` 人头全俸。
+    #[test]
+    fn headcount_fallback_when_no_units_and_no_subpools() {
+        let p = json!({"officials": 100.0, "clerks": 8.0});
+        assert!((route_pay_units(&p) - 100.0).abs() < EPS);
+        assert!(
+            (official_cash_pay(&p) - 100.0 * OFFICIAL_PAY_PER_MONTH / 10000.0).abs() < EPS,
+            "旧存档应回退人头全俸（现金）"
+        );
+        assert!(
+            (official_grain_pay(&p) - 100.0 * OFFICIAL_GRAIN_PER_MONTH / 10000.0).abs() < EPS,
+            "旧存档应回退人头全俸（粮）"
+        );
+
+        // 极端稳健：完全没有字段 → 0，不 panic
+        let empty = json!({});
+        assert_eq!(route_pay_units(&empty), 0.0);
+        assert_eq!(official_cash_pay(&empty), 0.0);
+        assert_eq!(official_grain_pay(&empty), 0.0);
+    }
+
+    /// 优先级与健壮性：镜像 ① > 子池 ② > 人头 ③；非法镜像值不当真。
+    #[test]
+    fn priority_order_and_robustness() {
+        // 镜像优先于子池（official_units 已是权威派生值）
+        let both = json!({
+            "officials": 100.0, "official_units": 42.0,
+            "pops": {"官僚": {"officials": 100, "on_post": 100, "waiting": 0, "sinecure": 0}}
+        });
+        assert!((route_pay_units(&both) - 42.0).abs() < EPS);
+
+        // 镜像非法（负 / 字符串）→ 忽略，退回子池
+        for bad in [json!(-1.0), json!("70"), json!(null), json!({"v": 70})] {
+            let p = json!({
+                "officials": 100.0, "official_units": bad,
+                "pops": {"官僚": {"officials": 100, "on_post": 60, "waiting": 30, "sinecure": 10}}
+            });
+            assert!(
+                (route_pay_units(&p) - 74.5).abs() < EPS,
+                "非法镜像 {:?} 应被忽略",
+                p.get("official_units")
+            );
+        }
+
+        // 子池存在时优先于人头镜像 officials（否则"养更多官一分钱不多花"的双账复活）
+        let subpool_beats_headcount = json!({
+            "officials": 100.0,
+            "pops": {"官僚": {"officials": 100, "on_post": 70, "waiting": 0, "sinecure": 0}}
+        });
+        assert!((route_pay_units(&subpool_beats_headcount) - 70.0).abs() < EPS);
+
+        // 无子池但有 POP officials → 按 POP 人头（对齐 Python route_officials 的 POP 优先）
+        let pop_headcount = json!({"officials": 1.0, "pops": {"官僚": {"officials": 250}}});
+        assert!((route_pay_units(&pop_headcount) - 250.0).abs() < EPS);
+
+        // 子池三键齐备但全 0（"全在待阙且已裁空"）→ 权数 0，不回退人头
+        //   （与 Python `any(k in pop ...)` 判定一致：有键即按子池）
+        let zero_subpools = json!({
+            "officials": 100.0,
+            "pops": {"官僚": {"officials": 100, "on_post": 0, "waiting": 0, "sinecure": 0}}
+        });
+        assert_eq!(route_pay_units(&zero_subpools), 0.0);
+
+        // 负子池被夹到 0
+        let negative_subpool = json!({
+            "officials": 100.0,
+            "pops": {"官僚": {"on_post": -5, "waiting": 10, "sinecure": 0}}
+        });
+        assert!((route_pay_units(&negative_subpool) - 10.0 * WAITING_PAY_RATIO).abs() < EPS);
+    }
+
+    /// 粮路径端到端：走真实 `settle_granary`，断言太仓支出按**付款权数**而非人头。
+    #[test]
+    fn settle_granary_subtracts_official_grain_by_units() {
+        let mut state = GameState::new_game("");
+        let routes = state.prefectures.len() as f64;
+        assert!(routes > 0.0, "初始 12 路应非空");
+
+        // 构造无干扰环境：每路 officials=1000 人头但 official_units=100（折俸后权数）；无兵、无吏、
+        // 无地方财力、无州仓储粮（漕运为 0）、监察满格（贪腐损耗归零）、粮价平稳（不触发常平）。
+        // 量级刻意取到 **月出 ≥ 1 万石**：settle_granary 的恒等断言原先用
+        // `(Δ) as i64 == (canal - out) as i64`，符号写反且浮点截断，此量级必 panic
+        // —— 2026-09-27 已改容差比较，本用例即为该回归的守卫。
+        for p in state.prefectures.values_mut() {
+            let obj = p.as_object_mut().expect("prefecture 应为 object");
+            obj.insert("officials".into(), json!(1000.0));
+            obj.insert("official_units".into(), json!(100.0));
+            obj.insert("clerks".into(), json!(0.0));
+            obj.insert("local_finance".into(), json!(0.0));
+            obj.insert("garrisons".into(), json!({}));
+            obj.insert("storage".into(), json!(0.0));
+            obj.remove("pops");
+        }
+        state.oversight = 1.0;
+        state.payraise_budget = 0;
+        state.price_level = 1.0;
+        state.granary = 100_000.0;
+        state.granary_cap = 1_000_000.0;
+
+        let units_total = 100.0 * routes;
+        let official_grain = units_total * OFFICIAL_GRAIN_PER_MONTH / 10000.0;
+        // 吏/兵为 0，贪腐项被 oversight=1 归零，故只余官禄 + 雀鼠耗
+        let expect_out = official_grain * (1.0 + SPARROW_RAT);
+        let expect_headcount_out = 1000.0 * routes * OFFICIAL_GRAIN_PER_MONTH / 10000.0
+            * (1.0 + SPARROW_RAT);
+        assert!(expect_out >= 1.0, "用量级须 ≥ 1 万石以覆盖截断回归：{}", expect_out);
+
+        let before = state.granary;
+        let mut log: Vec<String> = vec![];
+        settle_granary(&mut state, &mut log);
+        let spent = before - state.granary;
+
+        assert!(
+            (spent - expect_out).abs() < 1e-9,
+            "太仓月出应 == 权数口径 {}，实得 {}",
+            expect_out,
+            spent
+        );
+        assert!(
+            (spent - expect_headcount_out).abs() > 1e-9,
+            "太仓月出仍等于人头口径 {}，折俸未生效",
+            expect_headcount_out
+        );
     }
 }
