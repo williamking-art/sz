@@ -301,6 +301,7 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | R4-6 | 打包 | 空目录 `game/ui/`（Tk 界面残留）仍被 `SongZuo.spec` 打进分发包 → 移除目录与 spec datas 条目 |
 | R4-7 | 健壮性 | `kb_search` 的 `query` 无长度上限 → 两侧各截 100 字；`kb_query.py` 冗余 `except sqlite3.Error` 分支合并 |
 | R4-8 | 文档 | `游戏机制说明.md` §八补「典章知识库（`kb_search`）」小节，明确与记忆库的职责边界（典 vs 史） |
+| R4-9 | 前端测试 | 前端长期零单测 → 引入 vitest + jsdom + @testing-library/react，首批覆盖 `utils/format`、`utils/portrait`、`utils/effects`（29 用例） |
 
 > ⚠️ **已知未处置（用户明确跳过 key 轮换）**：`_dev_tools/game-assets-src/ministers-layers/_src/_i2i.py:5`
 > 硬编码第三方服务商 API key，且**已被 git 跟踪**。2026-09-26 已随立绘工具链迁出 `game/content/`
@@ -387,6 +388,7 @@ npm run dev      # electron-vite 开发模式（热更新）
 npm run build    # 产出 out/（main + renderer）
 npm run dist     # electron-vite build + electron-builder --win nsis → Windows 安装包
 npm run typecheck
+npm run test     # vitest 前端单测（jsdom；见 vitest.config.mts）
 ```
 
 前端经 HTTP 桥对接 Python 后端；舆图由 MapLibre 渲染，几何源经 `npm run build:topo` 生成。
