@@ -46,8 +46,10 @@ export class AudioEngine {
   private currentBgm: AudioLike | null = null;
   private currentBgmKey: string | null = null;
   private readonly createAudio: AudioFactory;
+  private readonly createAudioContext: () => AudioContext | null;
+  private audioCtx: AudioContext | null = null;
 
-  constructor(createAudio?: AudioFactory) {
+  constructor(createAudio?: AudioFactory, createAudioContext?: () => AudioContext | null) {
     this.settings = loadAudioSettings();
     this.createAudio =
       createAudio ??
@@ -57,6 +59,24 @@ export class AudioEngine {
         el.preload = "auto";
         return el as AudioLike;
       });
+    this.createAudioContext =
+      createAudioContext ??
+      (() => {
+        const g = globalThis as unknown as {
+          AudioContext?: typeof AudioContext;
+          webkitAudioContext?: typeof AudioContext;
+        };
+        const Ctx = g.AudioContext ?? g.webkitAudioContext;
+        return Ctx ? new Ctx() : null;
+      });
+  }
+
+  /** 取得或创建 Web Audio 上下文（UI 点击合成音用）。 */
+  private getAudioContext(): AudioContext | null {
+    if (!this.audioCtx) {
+      this.audioCtx = this.createAudioContext();
+    }
+    return this.audioCtx;
   }
 
   private get effectiveVolume(): number {
@@ -124,6 +144,41 @@ export class AudioEngine {
   /** 播放语音朗读（与 sfx 同一通道，但语义区分便于后续独立开关）。 */
   playVoice(key: string, opts: PlayOptions = {}): void {
     this.playSfx(key, { ...opts, volumeBias: opts.volumeBias ?? 0.9 });
+  }
+
+  /**
+   * UI 点击反馈音。
+   * 不依赖外部音频资源，使用 Web Audio API 合成短促三角波；
+   * 在资源尚未生成时也能给玩家即时听觉反馈。
+   */
+  playClick(): void {
+    if (this.settings.muted || this.settings.masterVolume <= 0) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.08);
+
+      const peak = Math.max(0, Math.min(1, this.effectiveVolume * 0.12));
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.1);
+      // 浏览器在用户手势前会 suspend context；点击时主动 resume
+      ctx.resume().catch(() => {
+        /* 忽略 */
+      });
+    } catch {
+      // 合成失败时静默降级
+    }
   }
 }
 

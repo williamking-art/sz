@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2, Merge, PenLine, Scroll, Send, Sparkles, Stamp, MessageSquare } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { audioEngine } from "../audio/engine";
 
 // 常见拟旨范例模板（点击一键填入）
 const DECREE_TEMPLATES = [
@@ -96,6 +97,7 @@ export default function DecreePanel() {
 
   async function submitFree() {
     if (busy || !freeText.trim()) return;
+    audioEngine.playClick();
     setBusy(true);
     setResult(null);
 
@@ -148,6 +150,7 @@ export default function DecreePanel() {
 
   async function submitKouyu() {
     if (busy || !kouyuText.trim()) return;
+    audioEngine.playClick();
     setBusy(true);
     setResult(null);
     const effects: Record<string, unknown>[] = [];
@@ -180,6 +183,7 @@ export default function DecreePanel() {
 
   async function submitFixed() {
     if (busy) return;
+    audioEngine.playClick();
     setBusy(true);
     setResult(null);
     const params: Record<string, string | number> = {};
@@ -244,6 +248,7 @@ export default function DecreePanel() {
 
   async function reviewAction(decision: "approve" | "force") {
     if (revBusy || !detailId) return;
+    audioEngine.playClick();
     setRevBusy(true);
     setResult(null);
     try {

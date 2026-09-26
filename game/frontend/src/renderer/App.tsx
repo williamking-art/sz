@@ -8,6 +8,7 @@ import OverlayStack from "./panels/OverlayStack";
 import MainMenu from "./main-menu/MainMenu";
 import { ApiClient, setApiClient, COLD_START_WAIT_MS } from "./api/client";
 import { useGameStore, pick } from "./store/gameStore";
+import { useGameBgm } from "./audio/useGameBgm";
 
 // 单页面三层布局：L0 舆图铺底 / L1 常驻 HUD 悬浮 / L2 面板浮层栈
 export default function App() {
@@ -19,6 +20,9 @@ export default function App() {
   const overlays = useGameStore((s) => s.overlays);
   // 终局浮层守卫：game_over 置真后只自动弹一次；game_over 复位（新开局）后再遇终局可再弹
   const concludeShownRef = useRef(false);
+
+  // 按「主菜单 / 局中」自动切换 BGM
+  useGameBgm(inGame);
 
   // 初始化：解析后端地址 → 探测已有存档，否则唤出开局面板
   useEffect(() => {

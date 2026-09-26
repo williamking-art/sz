@@ -312,6 +312,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | R5-1 | 前端音频 | 设置面板「视听音律」原先只有 UI 状态、不持久、不发声 → 新增 `renderer/audio/engine.ts` + `settings.ts`：localStorage 持久化主音量/静音、`playMusic`/`playSfx`/`playVoice` 接口、BGM 切换与音量实时同步；资源约定 `public/audio/<key>.ogg`，当前资源未生成时静默降级 |
 | R5-2 | 前端测试 | 新增 `audio/engine` 与 `audio/settings` 单测（12 用例），覆盖持久化、音量钳位、BGM 切换、静音、SFX 档位系数、play() 失败降级 |
 | R5-3 | CI 基建 | 服务器 CI (`/opt/sz-ci/ci.sh`) 原只在首次部署时安装 node_modules；新增依赖后 typecheck 失败 → 改为 `package-lock.json` 变更时自动 `npm install`，并把 `npm run test` 纳入前端回归链 |
+| R5-4 | 前端音频触发点 | 引擎建成后仍缺少触发点 → 新增 `useGameBgm`（局中自动播放 `bgm_court`，回菜单停止）；为「主菜单按钮、Dock 指令、下旨、批答、事件选择、关闭浮层」注入 `playClick()` 合成点击音；开局/事件弹出/月末推进分别触发 `sfx_fanfare`/`sfx_event`/`sfx_gong`；合成音效不依赖外部资源，文件到位后自动混用 |
+| R5-5 | 前端测试 | 新增 `useGameBgm` 与合成点击音单测（6 用例），覆盖 AudioContext 调用、静音、音量缩放、BGM 状态切换；前端单测累计 47 个 |
 
 > ⚠️ **已知未处置（用户明确跳过 key 轮换）**：`_dev_tools/game-assets-src/ministers-layers/_src/_i2i.py:5`
 > 硬编码第三方服务商 API key，且**已被 git 跟踪**。2026-09-26 已随立绘工具链迁出 `game/content/`
