@@ -743,6 +743,14 @@ def load_game(slot: int = 1):
     # 旧档兼容：隐户锚（UI 不显示）缺失时补默认，保持总户 2500 万口径
     if isinstance(state.land, dict):
         state.land.setdefault("hidden_households", 5_000_000)
+    # 隐户入 POP 的旧档迁移（2026-09-27 方案 A）：旧档只有镜像户数、人口未落在 POP 里 →
+    # 按各路 `population` 比例把 ×4 口注入本路 `农.hidden` 子池；幂等（已有子池则不动）。
+    # 守恒：这是把"账外人口"记入 POP 口径，**不改在籍**（`state.population` 仍不含隐户）。
+    try:
+        from core.settlement_imperial import ensure_hidden_in_pops
+        ensure_hidden_in_pops(state)
+    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
+        pass
     state.jiaozi = data.get("jiaozi", state.jiaozi)
     state.maritime = data.get("maritime", state.maritime)
     state.coin = data.get("coin", state.coin)

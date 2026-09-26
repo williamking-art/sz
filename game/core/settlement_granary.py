@@ -446,8 +446,14 @@ def _settle_granary(state, log):
             if _spoil > 0:
                 _nong_g["grain"] -= _spoil
                 state.granary_stats["farmer_spoil"] = state.granary_stats.get("farmer_spoil", 0) + _spoil
-        # 6) 隐户消费（Phase B）：隐户不落籍（每户按 4 口计），吃粮由该路士绅/地主供给（记 hidden_feed）
-        _hidden_share = state.land.get("hidden_households", 0) * 4 * p.get("population", 1) / max(state.population, 1)
+        # 6) 隐户消费（Phase B）：隐户不落籍，吃粮由该路士绅/地主供给（记 hidden_feed）。
+        # 2026-09-27 方案 A：隐户人口已并入 `农` POP 的加法子池 `hidden`（口）——
+        # 这里直接取子池总量（旧口径 `hidden_households×4` 的等值替换，无 ÷4 舍入），
+        # 仍按在籍比例摊入各路需求（按路精确化留待后续批次）。
+        _hidden_total = sum(
+            int((((q.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0)
+            for q in state.prefectures.values())
+        _hidden_share = _hidden_total * p.get("population", 1) / max(state.population, 1)
         _hidden_feed = int(_hidden_share * HIDDEN_CONSUME_PER_CAPITA)
         if _hidden_feed > 0:
             _g0 = pops["士绅"]

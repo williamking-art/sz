@@ -542,6 +542,8 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 在 POP 规模上的净变化此前不回写 population，长期回放背离数百万（60 月差 600万+），
     # 导致按 population 比例分配的逻辑（人口增长分摊、隐户比例、税收人口）失真。
     # growth 已在 Step 3 分配到农 POP，故校正后 population 仍含当月增长效果，数学一致。
+    # 2026-09-27（方案 A）：隐户人口已并入 `农` POP 的加法子池 `hidden`（口），但**不在籍**
+    # （不落籍、不纳税）→ 本式**不含**隐户；「总口」口径 = 本式结果 ＋ Σ`农.hidden`。
     _pop_total = sum(_pop["size"] for _p in state.prefectures.values()
                      for _pop in _p["pops"].values()) + state.refugee_count
     state.population = max(10_000_000, _pop_total)

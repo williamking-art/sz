@@ -14,78 +14,136 @@ from core.settlement_common import (
     _distribute_cash,
 )
 
-def _settle_hidden_pop(state, log):
-    """隐户动态（月度，人口守恒——隐户是第 7 类动态人口池，与六类 POP 转换）：
+def _hidden_people(p) -> int:
+    """某路隐户**口数**（`农` POP 的加法子池 `hidden`；缺键视为 0）。"""
+    return max(0, int((((p.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0))
 
-    1) 在籍 → 隐户（史实：赋税重/灾荒/民怨时民逃为隐户）：税重 + 灾荒（路粮缺）+
-       民怨 → 部分农/工匠/商人转隐户（农 POP size 减、隐户增——逃税逃役）；
-    2) 隐户 → 在籍（史实：清丈/轻徭/招抚时归籍）：清丈（land.survey）或轻徭政策
-       → 隐户转农（隐户减、POP 增——归籍复业）。
-    守恒：Σ六类 size（口） + hidden_households×4（口） 不变（转换非凭空）；
-    隐户不落籍不纳税；UI 不显示（设计锚）。"""
+
+def ensure_hidden_in_pops(state) -> int:
+    """幂等迁移：把 `land["hidden_households"]`（户，含旧档镜像）**物化**进各路 `农.hidden`（口）。
+
+    - **新局**：`content/data.py` 的 land 初值给出 500 万户（= 2000 万口，设计锚：
+      总口 1 亿 = 在籍 8000 万 + 隐户 2000 万），而 POP 子池初值为 0 →
+      由本函数按各路 `population` 比例注入，使「总口 = 在籍 + 隐户」与旧口径**数值一致**；
+    - **旧档**：只有镜像、无子池 → 同样注入；
+    - **幂等**：Σ子池 > 0 时不动（新档已同时存子池与派生镜像，载入后保持一致）。
+
+    返回注入的口数（0 = 无需迁移）。**不改在籍口径**（`state.population` 不含隐户）。
+    """
+    prefs = getattr(state, "prefectures", None) or {}
+    land = getattr(state, "land", None)
+    if not prefs or not isinstance(land, dict):
+        return 0
+    if sum(_hidden_people(p) for p in prefs.values()) > 0:
+        return 0
+    want = int(land.get("hidden_households", 0) or 0) * 4
+    if want <= 0:
+        return 0
+    items = list(prefs.values())
+    weights = [max(1, int(p.get("population", 0) or 0)) for p in items]
+    total_w = sum(weights)
+    given = 0
+    for i, p in enumerate(items):
+        slot = (p.get("pops") or {}).get("农")
+        if not isinstance(slot, dict):
+            continue
+        part = (want - given) if i == len(items) - 1 else int(want * weights[i] / total_w)
+        if part <= 0:
+            continue
+        slot["hidden"] = int(slot.get("hidden", 0) or 0) + part
+        given += part
+    if given < want:                      # 尾差：补进第一个有农槽的路（不凭空少口）
+        for p in items:
+            slot = (p.get("pops") or {}).get("农")
+            if isinstance(slot, dict):
+                slot["hidden"] = int(slot.get("hidden", 0) or 0) + (want - given)
+                break
+    return given
+
+
+def _settle_hidden_pop(state, log):
+    """隐户动态（月度，**人口守恒**）：隐户是 `农` POP 的**加法子池 `hidden`（口）**，
+    **不再是第 7 类人口池**（POP 挂载律条 1/4；2026-09-27 用户拍板方案 A 落地）。
+
+    1) 逃籍（在籍 → 隐户）：税重 + 灾荒 + 民怨 → 部分 农/工匠/商人 转隐户。
+       **逐路局部守恒**：该路来源 POP `size` 减、该路 `农.hidden` 增，两侧同额。
+    2) 归籍（隐户 → 在籍）：清丈/轻徭/招抚 → 该路 `农.hidden` 减、`农.size` 增（同额）。
+
+    口径（与旧实现的差异）：
+      · **在籍人口 `state.population` 不含隐户**（隐户不落籍、不纳税）；
+      · 「总口」= Σ六类 `size` ＋ Σ`农.hidden`（需求侧见 `game_state_econ`）；
+      · 旧实现以**户**记账并维护 `land["hidden_rem"]` 余数科目（÷4 换算的产物）；
+        现**直接以口记账** → 余数科目消灭，也不再需要"全局户数按路摊派"；
+      · `land["hidden_households"]` 降级为**派生镜像**（= Σhidden // 4，户），
+        仅供 UI/旧档/文档读取。
+    隐户不落籍不纳税；UI 不显示（设计锚）。
+    """
     land = state.land
-    hidden = int(land.get("hidden_households", 5_000_000))
-    total_in_reg = sum(pop["size"] for _p in state.prefectures.values()
-                       for pop in _p["pops"].values())
-    if total_in_reg <= 0:
-        return
-    # 1) 逃户压力（在籍→隐户）：税率高 + 灾荒 + 民怨
-    # 审查 P2-20 修复：原读 `commerce_tax`（不存在，getattr 恒返回默认 0.05）→ 压力恒 0，
-    # 「税重→逃户」永不触发。改为真实字段 commerce_tax_rate，基准取默认税率 0.15
-    # （超过常规税率才产生逃户压力，默认配置下不改变既有平衡）。
+    prefs = state.prefectures or {}
+    # 1) 逃户压力（在籍→隐户）：税率高 + 灾荒 + 民怨（压力口径与旧实现一致）
+    # 审查 P2-20 修复保留：原读 `commerce_tax`（不存在，getattr 恒返回默认 0.05）→ 压力恒 0，
+    # 「税重→逃户」永不触发；现读真实字段 `commerce_tax_rate`，基准取默认税率 0.15。
     _tax_pressure = min(0.010, max(0.0, (getattr(state, "commerce_tax_rate", 0.15) - 0.15) * 1.0))
     _sat_pressure = max(0.0, (50 - getattr(state, "population_satisfaction", 50)) / 50.0) * 0.004
     _disaster = 0.0
-    for _p in state.prefectures.values():
+    for _p in prefs.values():
         if _p.get("grain", 0) < max(_p.get("population", 1_000_000), 1) * 0.3:
             _disaster = 0.008
             break
     _flee_rate = min(0.012, _tax_pressure + _sat_pressure + _disaster)
+    _flee_actual = 0
     if _flee_rate > 0:
-        _flee = int(total_in_reg * _flee_rate)
-        _flee_left = _flee
-        for _pop_name in ("农", "工匠", "商人"):
-            if _flee_left <= 0:
-                break
-            for _p in state.prefectures.values():
-                if _flee_left <= 0:
+        for _p in prefs.values():
+            pops = _p.get("pops") or {}
+            _nong = pops.get("农")
+            if not isinstance(_nong, dict):
+                continue
+            _avail = sum(int((pops.get(_k) or {}).get("size", 0) or 0)
+                         for _k in ("农", "工匠", "商人"))
+            _want = int(_avail * _flee_rate)
+            if _want <= 0:
+                continue
+            _left = _want
+            for _name in ("农", "工匠", "商人"):
+                if _left <= 0:
                     break
-                _pop = _p["pops"][_pop_name]
-                _t = min(_flee_left, int(_pop["size"] * 0.02))
+                _slot = pops.get(_name)
+                if not isinstance(_slot, dict):
+                    continue
+                _sz = int(_slot.get("size", 0) or 0)
+                _t = min(_left, int(_sz * 0.02), _sz)      # 单池单月上限 2%
                 if _t > 0:
-                    _pop["size"] = max(0, _pop["size"] - _t)
-                    _flee_left -= _t
-        _flee_actual = _flee - _flee_left
-        if _flee_actual > 0:
-            # 口 → 户精确换算：整除转户 + 余数口记账（land["hidden_rem"] 累计 ≥4 转户）
-            # ——修复整数截断凭空多/少人口（test_global_ledger_total ΔP 根因）
-            hidden += _flee_actual // 4
-            _rem = int(land.get("hidden_rem", 0)) + _flee_actual % 4
-            if _rem >= 4:
-                hidden += _rem // 4
-                _rem = _rem % 4
-            land["hidden_rem"] = _rem
-            log.append(f"[隐户] 税重民困，{_flee_actual:,} 口逃为隐户（不落籍不纳税）")
-    # 2) 归籍（隐户→在籍）：清丈/轻徭/招抚——隐户减、农增（×4 口）
+                    _slot["size"] = _sz - _t
+                    _left -= _t
+            _got = _want - _left
+            if _got > 0:
+                _nong["hidden"] = int(_nong.get("hidden", 0) or 0) + _got
+                _flee_actual += _got
+    if _flee_actual > 0:
+        log.append(f"[隐户] 税重民困，{_flee_actual:,} 口逃为隐户"
+                   f"（不落籍不纳税；挂本路 农 POP 子池 `hidden`）")
+    # 2) 归籍（隐户→在籍）：清丈/轻徭/招抚——逐路 `农.hidden` 减、`农.size` 增（同额）
     _survey = int(land.get("survey", 0) or 0)
     _back_rate = 0.004 + (0.010 if _survey else 0.0)
-    _back = int(hidden * _back_rate)
-    if _back > 0:
-        _back_people = _back * 4
-        _bl = _back_people
-        for _p in state.prefectures.values():
-            if _bl <= 0:
-                break
-            _t = min(_bl, max(0, int(_p.get("population", 0) * 0.004)))
-            _p["pops"]["农"]["size"] = _p["pops"]["农"].get("size", 0) + _t
-            _bl -= _t
-        # 尾差强制分配（修复：上限截断致农增 < 隐户减×4——人口凭空少）
-        if _bl > 0 and state.prefectures:
-            _p0 = next(iter(state.prefectures.values()))
-            _p0["pops"]["农"]["size"] = _p0["pops"]["农"].get("size", 0) + _bl
-        hidden = max(0, hidden - _back)
-        log.append(f"[隐户] {'清丈' if _survey else '招抚'}，{_back:,} 户（{_back_people:,} 口）归籍复业")
-    state.land["hidden_households"] = max(0, hidden)
+    _back_people = 0
+    if _back_rate > 0:
+        for _p in prefs.values():
+            _nong = (_p.get("pops") or {}).get("农")
+            if not isinstance(_nong, dict):
+                continue
+            _hid = int(_nong.get("hidden", 0) or 0)
+            _t = min(_hid, int(_hid * _back_rate))
+            if _t <= 0:
+                continue
+            _nong["hidden"] = _hid - _t
+            _nong["size"] = int(_nong.get("size", 0) or 0) + _t
+            _back_people += _t
+    if _back_people > 0:
+        log.append(f"[隐户] {'清丈' if _survey else '招抚'}，{_back_people:,} 口归籍复业（回本路 农 POP）")
+
+    # 派生镜像（户）+ 旧余数科目清理：`hidden_rem` 是旧"以户记账 ÷4"的产物，随以口记账消灭
+    land["hidden_households"] = sum(_hidden_people(_p) for _p in prefs.values()) // 4
+    land.pop("hidden_rem", None)
 
 
 def _settle_emperor_personal(state, log):

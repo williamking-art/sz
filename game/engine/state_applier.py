@@ -38,7 +38,11 @@ VALID_PATHS: List[str] = [
     "prefectures.*.refugees",
     "factions.*.satisfaction", "factions.*.influence",
     # ---- 四大机制改良（legacies / focus / 地区深化）----
-    "land.hidden_rate", "land.hidden_households",
+    # 2026-09-27（隐户入 POP）：`land.hidden_households` 已从可写路径**移除** ——
+    # 人口属"人"轴，按 POP 挂载律条 1 必须落在 POP 上（现为 `农.hidden` 子池，
+    # 且子池亦不在本白名单内），AI/大臣不得直接改人口；该键现为**派生镜像**（只读）。
+    # `land.hidden_rate` 是**税率隐漏率**（非人口），保留可写。
+    "land.hidden_rate",
     "waste_reform.active", "waste_reform.savings",
     "defense_lines.*.fortification", "defense_lines.*.garrison",
     "legacies.*.active", "legacies.*.progress",

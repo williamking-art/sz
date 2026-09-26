@@ -531,13 +531,17 @@ def test_global_ledger_total(monkeypatch):
     residual = dW - expected
     assert abs(residual) <= 200, \
         f"整月钱账本残差过大：ΔW={dW} 科目净值={expected}（差 {residual}）"
-    # 人口：growth + 流民公式 + 隐户动态净变化（隐户为设计内动态人口池——逃户/归籍转换，UI 不显示但真实变化）
+    # 人口：growth + 流民公式 + 隐户动态净变化
+    # 2026-09-27 方案 A：隐户人口已并入 `农` POP 的加法子池 `hidden`（**以口记账**）——
+    # 不再有 `hidden_households × 4` 的户↔口换算，`hidden_rem` 余数科目消灭。
     growth = s.population - 80_000_000
     delta_pre = _refugee_delta_formula(_new_state())
-    _hh0 = _new_state().land.get("hidden_households", 0)
-    _rem0 = _new_state().land.get("hidden_rem", 0)
-    hidden_delta = (s.land.get("hidden_households", 0) - _hh0) * 4 + \
-        (s.land.get("hidden_rem", 0) - _rem0)
+
+    def _hidden_people_of(st):
+        return sum(int((((p.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0)
+                   for p in st.prefectures.values())
+
+    hidden_delta = _hidden_people_of(s) - _hidden_people_of(_new_state())
     assert abs(dP - (growth + delta_pre - hidden_delta)) <= 20, \
         f"整月人口残差过大：ΔP={dP} growth={growth} 流民公式={delta_pre} 隐户净={hidden_delta}"
 

@@ -133,7 +133,10 @@ def _build_pops(info: dict, p_type: str) -> dict:
     _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
-        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0), "goods": _g0(), "欠税": 0},
+        # 隐户（不落籍）＝ `农` POP 的**加法**子池 `hidden`（口）—— POP 挂载律条 1/4：
+        # 人口不再另立"第 7 类池"，但**不计入在籍**（`state.population` 仍 = Σsize + 流民）。
+        "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 2.0),
+               "hidden": 0, "goods": _g0(), "欠税": 0},
         "士绅": {
             "size": sz_shen,
             "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH)),
@@ -897,6 +900,16 @@ class GameState(GameStateEconMixin):
         self._init_external_regimes()
 
         self._init_extensions()
+
+        # 隐户入 POP（2026-09-27 方案 A，POP 挂载律条 1/4）：**必须放在 `_init_extensions()`
+        # 之后** —— `state.land`（含 500 万户设计锚）在那里才建立（`:359`）。把它物化为各路
+        # `农.hidden`（口）子池；此后隐户人口只存在于 POP 内，`land.hidden_households` 降为派生镜像。
+        # 注意：隐户**不计入在籍** `state.population`（不落籍、不纳税）。
+        try:
+            from core.settlement_imperial import ensure_hidden_in_pops
+            ensure_hidden_in_pops(self)
+        except Exception:  # noqa: BLE001  隐户子池初始化失败不得阻断开局
+            pass
     # ================================================================
     # 皇威工具
     # ================================================================

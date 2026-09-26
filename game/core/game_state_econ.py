@@ -257,8 +257,13 @@ class GameStateEconMixin:
         p = self.prefectures.get(name)
         if not p:
             return self.grain_price
-        # 隐户 2000 万口也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求
-        total_pop = self.population + self.land.get("hidden_households", 0) * 4
+        # 隐户也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求。
+        # 2026-09-27 方案 A：人口已并入 `农` POP 的加法子池 `hidden`（口），此处直接取子池，
+        # 与旧口径 `hidden_households × 4` 数值等价但无 ÷4 舍入（该镜像已降为派生读数）。
+        _hidden_people = sum(
+            int((((q.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0)
+            for q in self.prefectures.values())
+        total_pop = self.population + _hidden_people
         factor = total_pop / max(self.population, 1)
         # 酒耗粮：酿酒消耗粮食（总酒课 × WINE_GRAIN_PER_GUAN），按该路在籍人口比例摊入当地需求
         from content.data import WINE_TAX_SHARE, WINE_GRAIN_PER_GUAN
