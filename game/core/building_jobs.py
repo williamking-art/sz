@@ -43,15 +43,39 @@ SONG_JOB_FLOW_RATE = 0.02              # 月迁移率（与 `JOB_FLOW_RATE` 同�
 # 失业推的代码路径保留，可由 `JOB_FLOW_UNEMPLOYED_PUSH` 一行打开，
 # 待宋侧岗位容量标定与真实建筑写入路径（S3–S5 批次）并轨后再评估。
 SONG_JOB_PUSH_UNEMPLOYED = False
-SONG_JOBS_PER_LEVEL = {                # 岗位数 = lv × 每级岗位（农田 0——粮维豁免岗位制）
-    "农田": 0, "工坊": 160, "商铺": 40, "庄园": 120,
+# **多职位岗位表**（B0，2026-09-27 用户口径："一个建筑不是只有一个职位的"）：
+# `{建筑: {职位: 每级岗位数}}`——一个建筑可由不同 POP 类的人填多个职位槽
+# （对齐 V3：一个农场里 laborers / farmers / aristocrats 并存）。
+#   · 「农田」不占岗（粮维豁免岗位制＝生计轨）；
+#   · 「庄园」是**旧档别名**，与「地主农庄」同表（零迁移兼容）；
+#   · 职位 → POP 类由 `SONG_POSITION_CLASS` 给出（自耕农/富农/贫农/佃农→农；地主→士绅）。
+SONG_JOBS_PER_LEVEL = {
+    "农田":     {},                                    # 生计轨：不占岗
+    "自耕农庄": {"自耕农": 120, "富农": 20, "贫农": 20},
+    "地主农庄": {"佃农": 100, "地主": 20},
+    "工坊":     {"工匠": 160},
+    "商铺":     {"商人": 40},
+    "庄园":     {"佃农": 100, "地主": 20},              # 旧档别名（= 地主农庄）
 }
-SONG_BUILDING_WORKER = {               # 岗位归属 POP（农职岗 / 工匠岗 / 商人岗）
-    "农田": "农", "庄园": "农", "工坊": "工匠", "商铺": "商人",
+SONG_POSITION_CLASS = {                # 职位 → 所属 POP 类（多职位：建筑可横跨多个 POP 类）
+    "自耕农": "农", "富农": "农", "贫农": "农", "佃农": "农",
+    "地主": "士绅", "工匠": "工匠", "商人": "商人",
 }
-SONG_JOB_QUEUE_FARM = ("农田", "庄园")
-SONG_JOB_QUEUE_ARTISAN = ("工坊",)     # 只有工匠岗进工匠岗序（商铺是商人岗，见下）
-SONG_JOB_QUEUE_MERCHANT = ("商铺",)    # 商人岗序（`allocate_employment` 兜底按 worker 类型喂池）
+SONG_BUILDING_WORKER = {               # 主职位所属 POP 类（**兼容层**：单职位调用者/外邦扁平表用）
+    "农田": "农", "自耕农庄": "农", "地主农庄": "农",
+    "工坊": "工匠", "商铺": "商人", "庄园": "农",
+}
+SONG_JOB_QUEUE = {                     # POP 类 → 该类的建筑岗位序（同月内不重复计入）
+    "农": ("自耕农庄", "地主农庄", "庄园", "农田"),
+    "工匠": ("工坊",),
+    "商人": ("商铺",),
+    "士绅": ("地主农庄", "庄园"),
+}
+SONG_JOB_QUEUE_FARM = SONG_JOB_QUEUE["农"]
+SONG_JOB_QUEUE_ARTISAN = SONG_JOB_QUEUE["工匠"]
+SONG_JOB_QUEUE_MERCHANT = SONG_JOB_QUEUE["商人"]
+SONG_JOB_QUEUE_GENTRY = SONG_JOB_QUEUE["士绅"]
+_QUEUE_KEY = {"农": "FARM", "工匠": "ARTISAN", "商人": "MERCHANT", "士绅": "GENTRY"}
 
 _SONG_BASECFG: Optional[dict] = None
 
@@ -72,11 +96,16 @@ def song_job_cfg() -> dict:
             base = {}
         _SONG_BASECFG = base
     cfg = dict(_SONG_BASECFG)
-    cfg["JOBS_PER_LEVEL"] = dict(SONG_JOBS_PER_LEVEL)
+    # ---- 多职位明细（B0）＋ 扁平兼容键（既有调用者语义不变）----
+    cfg["BUILDING_POSITIONS"] = {bt: dict(d) for bt, d in SONG_JOBS_PER_LEVEL.items()}
+    cfg["POSITION_CLASS"] = dict(SONG_POSITION_CLASS)
+    cfg["JOBS_PER_LEVEL"] = {bt: sum(int(v or 0) for v in d.values())
+                             for bt, d in SONG_JOBS_PER_LEVEL.items()}
     cfg["BUILDING_WORKER"] = dict(SONG_BUILDING_WORKER)
     cfg["JOB_QUEUE_FARM"] = tuple(SONG_JOB_QUEUE_FARM)
     cfg["JOB_QUEUE_ARTISAN"] = tuple(SONG_JOB_QUEUE_ARTISAN)
     cfg["JOB_QUEUE_MERCHANT"] = tuple(SONG_JOB_QUEUE_MERCHANT)
+    cfg["JOB_QUEUE_GENTRY"] = tuple(SONG_JOB_QUEUE_GENTRY)
     share = dict((_SONG_BASECFG.get("JOB_SHARE") or {}))
     share["宋"] = SONG_JOB_SHARE_DEFAULT
     share["default"] = SONG_JOB_SHARE_DEFAULT
@@ -126,86 +155,118 @@ def building_level(entry: Any, default: int = 1) -> int:
         return max(0, int(default))
 
 
-def jobs_of(buildings: dict, cfg: dict) -> Dict[str, int]:
-    """各类建筑岗位数 = lv × JOBS_PER_LEVEL（粮田 0——粮维豁免岗位制）。"""
+def _positions_of(bt: str, cfg: dict) -> Dict[str, int]:
+    """建筑 → `{职位: 每级岗位数}`（**多职位读口**）。
+
+    优先读 `BUILDING_POSITIONS`（宋侧多职位表）；缺失时回落到
+    `BUILDING_WORKER` + 扁平 `JOBS_PER_LEVEL`（**一建筑一职位**的外邦/旧档写法）。
+    """
+    pos = (cfg.get("BUILDING_POSITIONS") or {}).get(bt)
+    if isinstance(pos, dict):
+        return {str(p): max(0, int(v or 0)) for p, v in pos.items()}
+    wk = (cfg.get("BUILDING_WORKER") or {}).get(bt, "")
+    if not wk:
+        return {}
+    raw = (cfg.get("JOBS_PER_LEVEL") or {}).get(bt)
+    return {str(wk): max(0, int(raw or 0))}
+
+
+def jobs_by_position(buildings: dict, cfg: dict) -> Dict[str, Dict[str, int]]:
+    """**分职位**岗位数：`{建筑: {职位: 岗位数}}`（岗位数 = lv × 每级岗位）。
+
+    与 `jobs_of` 的关系：`jobs_of` = 本函数的逐建筑合计（兼容既有调用者）。
+    裁撤/倒闭（`lv == 0`）的显式判零由 `live_job_buildings` 负责（`_lv()` 会把 0 归一为 1）。
+    """
     jpl = cfg.get("JOBS_PER_LEVEL") or {}
-    out: Dict[str, int] = {}
+    out: Dict[str, Dict[str, int]] = {}
     for bt, entry in (buildings or {}).items():
         if bt not in jpl:
             continue
-        out[bt] = max(0, _lv(entry) * int(jpl.get(bt, 0) or 0))
+        lv = _lv(entry)
+        out[bt] = {p: max(0, lv * int(per or 0))
+                   for p, per in _positions_of(bt, cfg).items()}
     return out
 
 
-def allocate_employment(pops: dict, buildings: dict, cfg: dict,
-                        rtype: str = "") -> Dict[str, int]:
-    """优先队列就业分配（§3.3）：返回 {建筑类型: 在岗数}。
+def jobs_of(buildings: dict, cfg: dict) -> Dict[str, int]:
+    """各类建筑岗位**总数** = Σ职位（粮田 0——粮维豁免岗位制）。"""
+    return {bt: sum(d.values()) for bt, d in jobs_by_position(buildings, cfg).items()}
 
-    - 农职岗序：牧场 → 桑麻田 → 林果蔗田（竞争农剩余劳动力，上限 `JOB_SHARE`）；
-    - 工匠岗序：工坊 → 矿场（全量工匠可上岗）；
-    - 商人岗序：`JOB_QUEUE_MERCHANT`（宋侧 `商铺`；外邦未配置 → 空表，行为不变）；
-    - 同月内不重复计入；余工 = 未上岗人数（派生读数，不落账）。
+
+def allocate_employment_detail(pops: dict, buildings: dict, cfg: dict,
+                               rtype: str = "") -> Dict[str, Dict[str, int]]:
+    """**多职位**优先队列就业分配（B0）：返回 `{建筑: {职位: 在岗数}}`。
+
+    - 池（类间互不挤占）：农池 = `农 size × JOB_SHARE`（`JOB_SHARE_OVERRIDE` 优先）；
+      工匠/商人/**士绅**池 = 各自 `size` 全额（士绅池服务于「地主」岗——宋侧新增；
+      外邦无士绅岗 → 池空，行为不变）；
+    - 类内按 `JOB_QUEUE_<类>` 的建筑序、建筑内按职位槽依次 `min(槽位, 池余)`；
+    - 兜底：岗序表漏项的建筑，其未分配槽按所属 POP 类喂池（与旧实现同语义）；
+    - **单职位情形（外邦扁平表/旧档）与旧 `allocate_employment` 逐字等价**。
     """
-    jobs = jobs_of(buildings, cfg)
+    jb = jobs_by_position(buildings, cfg)
+    pos_class = cfg.get("POSITION_CLASS") or {}
     worker_of = cfg.get("BUILDING_WORKER") or {}
     # `JOB_SHARE_OVERRIDE`（宋侧显式入参口径）优先；否则按 rtype 取表
     _ov = cfg.get("JOB_SHARE_OVERRIDE")
     job_share = float(_ov) if _ov is not None else float(
         (cfg.get("JOB_SHARE") or {}).get(rtype,
         (cfg.get("JOB_SHARE") or {}).get("default", 0.25)))
-    staffed: Dict[str, int] = {bt: 0 for bt in jobs}
+    pools = {
+        "农": int(int((pops.get("农") or {}).get("size", 0) or 0) * job_share),
+        "工匠": int((pops.get("工匠") or {}).get("size", 0) or 0),
+        "商人": int((pops.get("商人") or {}).get("size", 0) or 0),
+        "士绅": int((pops.get("士绅") or {}).get("size", 0) or 0),
+    }
+    staffed: Dict[str, Dict[str, int]] = {bt: {p: 0 for p in d} for bt, d in jb.items()}
 
-    # 农剩余劳动力（口粮之外可投入）
-    nong_sz = int((pops.get("农") or {}).get("size", 0) or 0)
-    farm_pool = int(nong_sz * job_share)
-    for bt in cfg.get("JOB_QUEUE_FARM") or ():
-        if bt not in jobs or jobs[bt] <= 0 or farm_pool <= 0:
-            continue
-        n = min(jobs[bt], farm_pool)
-        staffed[bt] = n
-        farm_pool -= n
+    def _cls_of(bt: str, position: str) -> str:
+        if position in pos_class:
+            return str(pos_class[position])
+        wk = worker_of.get(bt)
+        return str(wk) if isinstance(wk, str) else str(position)
 
-    # 工匠全量
-    art_sz = int((pops.get("工匠") or {}).get("size", 0) or 0)
-    art_pool = art_sz
-    for bt in cfg.get("JOB_QUEUE_ARTISAN") or ():
-        if bt not in jobs or jobs[bt] <= 0 or art_pool <= 0:
+    for cls, key in _QUEUE_KEY.items():
+        if pools.get(cls, 0) <= 0:
             continue
-        n = min(jobs[bt], art_pool)
-        staffed[bt] = n
-        art_pool -= n
+        for bt in cfg.get(f"JOB_QUEUE_{key}") or ():
+            if bt not in jb or pools[cls] <= 0:
+                continue
+            for position, slots in jb[bt].items():
+                if slots <= 0 or _cls_of(bt, position) != cls:
+                    continue
+                cur = staffed[bt].get(position, 0)
+                if cur >= slots:
+                    continue
+                n = min(slots - cur, pools[cls])
+                staffed[bt][position] = cur + n
+                pools[cls] -= n
 
-    # 商人岗序（宋侧 `商铺`；外邦未配置 → 空表，行为不变）
-    mer_sz = int((pops.get("商人") or {}).get("size", 0) or 0)
-    mer_pool = mer_sz
-    for bt in cfg.get("JOB_QUEUE_MERCHANT") or ():
-        if bt not in jobs or jobs[bt] <= 0 or mer_pool <= 0:
-            continue
-        n = min(jobs[bt], mer_pool)
-        staffed[bt] = n
-        mer_pool -= n
-
-    # 显式按 worker 类型兜底（防岗序表漏项）
-    for bt, j in jobs.items():
-        if staffed.get(bt, 0) > 0 or j <= 0:
-            continue
-        wk = worker_of.get(bt, "")
-        if wk == "农":
-            if farm_pool > 0:
-                n = min(j, farm_pool)
-                staffed[bt] = n
-                farm_pool -= n
-        elif wk == "工匠":
-            if art_pool > 0:
-                n = min(j, art_pool)
-                staffed[bt] = n
-                art_pool -= n
-        elif wk == "商人":
-            if mer_pool > 0:
-                n = min(j, mer_pool)
-                staffed[bt] = n
-                mer_pool -= n
+    # 兜底（防岗序表漏项）：未分配的槽按所属 POP 类喂池
+    for bt, d in jb.items():
+        for position, slots in d.items():
+            cur = staffed[bt].get(position, 0)
+            if slots <= 0 or cur >= slots:
+                continue
+            cls = _cls_of(bt, position)
+            avail = pools.get(cls, 0)
+            if avail <= 0:
+                continue
+            n = min(slots - cur, avail)
+            staffed[bt][position] = cur + n
+            pools[cls] = avail - n
     return staffed
+
+
+def allocate_employment(pops: dict, buildings: dict, cfg: dict,
+                        rtype: str = "") -> Dict[str, int]:
+    """（兼容签名）优先队列就业分配：返回 `{建筑类型: 在岗数}`。
+
+    = `allocate_employment_detail` 的逐建筑合计；多职位明细见前者。
+    单职位情形（外邦/旧档）与历史实现逐字等价。
+    """
+    detail = allocate_employment_detail(pops, buildings, cfg, rtype)
+    return {bt: sum(d.values()) for bt, d in detail.items()}
 
 
 def produce_grain_track(pops: dict, buildings: dict, cfg: dict,

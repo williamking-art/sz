@@ -39,10 +39,12 @@ CFG = song_job_cfg()
 # 非农人口，无条件失业推 60 月会把非农抽掉约 70%）。验证**该分支实现**的用例显式开启，
 # 使"分支语义"与"当前默认策略"分开受测。
 CFG_PUSH = dict(CFG, JOB_FLOW_UNEMPLOYED_PUSH=True)
-_WORKSHOP_JPL = int(SONG_JOBS_PER_LEVEL["工坊"])
-_SHOP_JPL = int(SONG_JOBS_PER_LEVEL["商铺"])
-_MANOR_JPL = int(SONG_JOBS_PER_LEVEL["庄园"])
-_FARM_JPL = int(SONG_JOBS_PER_LEVEL["农田"])
+# 岗位数走**扁平兼容口径** `CFG["JOBS_PER_LEVEL"]`（= Σ职位；B0 多职位化后仍保持该语义）；
+# 多职位明细在 `CFG["BUILDING_POSITIONS"]`，由 `test_building_multi_position.py` 覆盖。
+_WORKSHOP_JPL = int(CFG["JOBS_PER_LEVEL"]["工坊"])
+_SHOP_JPL = int(CFG["JOBS_PER_LEVEL"]["商铺"])
+_MANOR_JPL = int(CFG["JOBS_PER_LEVEL"]["庄园"])
+_FARM_JPL = int(CFG["JOBS_PER_LEVEL"]["农田"])
 _FLOW_RATE = float(CFG["JOB_FLOW_RATE"])
 
 
