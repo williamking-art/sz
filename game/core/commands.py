@@ -278,7 +278,8 @@ def advance_month(state: GameState) -> list:
         if not ev:
             ev = get_strategic_branch(state)
         if not ev:
-            ev = get_historical_event(state.year, state.month)
+            # 传入 state：历史压力链改写位（sea_pact_jin / 花石纲默许）可动态前移卡窗口
+            ev = get_historical_event(state.year, state.month, state)
         if not ev:
             ev = get_random_event()
     finally:
@@ -1424,6 +1425,23 @@ def envoy_diplomacy(state: GameState, target: str, speech: str, ai_client) -> st
     return f"{narrative}\n\n{res.get('msg')}" if narrative else str(res.get("msg"))
 
 
+def _faction_stance_word(state: GameState, faction: str) -> str:
+    """派系满意度（0~100）→ 对话注入的「派系底色」档位词。
+
+    档位：≥70 上气昂扬乐于任事 / 40~70 循例奉行 / <40 心怀怨望多讥讽。
+    只给档位词，不外泄满意度数值（与 loyalty/满意度脱敏铁律一致）。
+    """
+    try:
+        sat = int(state.factions.get(faction, {}).get("satisfaction", 50))
+    except Exception:
+        sat = 50
+    if sat >= 70:
+        return "本派上意气昂扬，乐于任事，愿附议陛下之兴作"
+    if sat >= 40:
+        return "本派循例奉行，不置可否，勉力王事而已"
+    return "本派心怀怨望，言辞间多有讥讽，凡有兴作必陈其弊"
+
+
 def audience_dialogue_prepare(state: GameState, minister_name: str,
                               player_input: str):
     """召对前奏（主线程）：身份/状态校验 + 入史（朕言/短期日志）+ 构建 AI 入参。
@@ -1434,17 +1452,24 @@ def audience_dialogue_prepare(state: GameState, minister_name: str,
         history 为快照列表，避免后台读取时主线程追加的竞态）。
     """
     from content.ministers import HISTORICAL_FIGURES
-    from content.data import FACTION_INIT
-    # 找到大臣所属派系
-    faction = "中枢"
-    for fn, f in state.factions.items():
-        if f["leader"] == minister_name:
-            faction = fn
-            break
+    from core.faction_basis import resolve_faction_key  # 延迟导入（项目约定）
+    # 找到大臣所属派系：先按档案 faction（覆盖全体大臣，经 resolve_faction_key
+    # 归一），回退按派系领袖反查，再回退「中枢」。
+    # 修复：旧逻辑只认「派系领袖」，非领袖大臣一律落到「中枢」，persona 立场尽失。
     fig = HISTORICAL_FIGURES.get(minister_name, {})
-    faction_stance = FACTION_INIT.get(faction, {}).get("leader", "")
+    faction = resolve_faction_key(fig.get("faction", "")) or ""
+    if not faction:
+        for fn, f in state.factions.items():
+            if f["leader"] == minister_name:
+                faction = fn
+                break
+    if not faction:
+        faction = "中枢"
     minister_traits = fig.get("traits", "老成持重")
     minister_role = fig.get("role", "朝中大臣")
+    # 派系底色：由该派系对朝局的满意度派生档位词（不外泄数值）。
+    # 修复：旧逻辑把 FACTION_INIT 的派系领袖**人名**当 stance 注入（「派系底色：蔡京」）。
+    faction_stance = _faction_stance_word(state, faction)
     # 角色状态校验：已薨/已革职之臣不可再召对办差
     mstatus = state.minister_status(minister_name)
     if mstatus != "active":

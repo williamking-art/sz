@@ -327,11 +327,15 @@ def _settle_stabilizer_recycle(state, log):
 
 
 def _settle_treasury(state, log):
-    """国库结算——**占位（无操作）**：国库收支已在 Step 4（_settle_finance）完成。
+    """国库结算——财政计征已在 Step 4（_settle_finance）完成，此处不得重复计征。
 
-    保留空实现仅为维持 settlement 主流程的步骤编号（Step 5）与导入稳定性；
-    此处不得再写任何财政逻辑（避免与 Step 4 重复计征）。
+    2026-09-26 起 Step 5 承载**封桩分层代价通道**（`core/hoard_settle.settle_hoard`，
+    货币规范 §12.2/§12.3）：C2 侵渔（封桩→吏私囊，守恒划转非计征）＋ C3/C4
+    「帑藏充溢」事件压力（Step 7 事件步之前当月生效）。占位步由此转正为
+    「库存结算」语义，步骤编号与 _STEPS 镜像不变。
     """
+    from core.hoard_settle import settle_hoard  # 延迟导入（避免顶层环）
+    settle_hoard(state, log)
     return None
 
 

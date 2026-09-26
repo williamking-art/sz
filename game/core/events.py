@@ -17,10 +17,21 @@ HISTORICAL_EVENTS = [
         "category": "花石纲",
         "effects": {"prestige": -2, "population_satisfaction": -3},
         "desc": "朱勔借花石纲之名大肆搜刮，东南民怨沸腾",
+        # 历史压力链①：默许则贡入御前（内帑）且东南乱源滋长——
+        # 花石纲压力长期 ≥30 → 方腊/宋江压力受推；≥60 → 起义可提前酝酿（约 1114 年起）。
+        # 见 settlement_military._settle_events 的因果联动。
         "choices": [
-            {"text": "默许", "effects": {"prestige": -1, "population_satisfaction": -2, "treasury": 200000}},
-            {"text": "斥责朱勔", "effects": {"prestige": 2, "population_satisfaction": 3, "treasury": -100000}},
-            {"text": "严惩朱勔", "effects": {"prestige": 5, "population_satisfaction": 5, "treasury": -300000}},
+            {"text": "默许", "effects": {"prestige": -1, "population_satisfaction": -2,
+                                          "imperial_treasury": 200000,
+                                          "timeline_set": {"key": "huashigang_indulged",
+                                                           "label": "默许应奉局，花石纲不绝"},
+                                          "pressure_change": {"方腊起义": 15, "宋江起义": 8}}},
+            {"text": "斥责朱勔", "effects": {"prestige": 2, "population_satisfaction": 3,
+                                              "treasury": -100000,
+                                              "pressure_change": {"花石纲": -30}}},
+            {"text": "严惩朱勔", "effects": {"prestige": 5, "population_satisfaction": 5,
+                                              "treasury": -300000,
+                                              "pressure_change": {"花石纲": -80}}},
         ],
     },
     {
@@ -59,9 +70,19 @@ HISTORICAL_EVENTS = [
         "category": "海上之盟",
         "effects": {},
         "desc": "女真完颜阿骨打遣使渡海而来，邀大宋共击辽国",
+        # 历史压力链②：允盟落 sea_pact_jin 改写位 → 金窥宋虚实，金军南侵压力
+        # 自 1119 年起且增速翻倍；拒绝落 liao_buffer → 辽为屏藩，南侵压力放缓。
+        # 见 settlement_military._settle_events 的节奏分档。
         "choices": [
-            {"text": "允盟，联金灭辽", "effects": {"prestige": 5, "external_jin": 20, "external_liao": -30, "external_xixia": -10}},
-            {"text": "拒绝，固守盟约", "effects": {"prestige": -1, "external_jin": -10, "external_liao": 5}},
+            {"text": "允盟，联金灭辽",
+             "effects": {"prestige": 5, "external_jin": 20, "external_liao": -30,
+                         "external_xixia": -10,
+                         "timeline_set": {"key": "sea_pact_jin",
+                                          "label": "海上之盟既成，联金灭辽"}}},
+            {"text": "拒绝，固守盟约",
+             "effects": {"prestige": -1, "external_jin": -10, "external_liao": 5,
+                         "timeline_set": {"key": "liao_buffer",
+                                          "label": "拒海上之盟，辽为屏藩"}}},
             {"text": "待价而沽，虚与委蛇", "effects": {"prestige": 2, "external_jin": 5}},
         ],
     },
@@ -91,6 +112,29 @@ HISTORICAL_EVENTS = [
             {"text": "死守东京", "effects": {"prestige": 10, "defense_bonus": 15, "treasury": -3000000}},
             {"text": "迁都南幸", "effects": {"prestige": -15, "population_satisfaction": -10, "defense_bonus": -5}},
             {"text": "遣使乞和", "effects": {"prestige": -20, "treasury": -10000000}},
+        ],
+    },
+    {
+        # 封桩分层 C3/C4（货币规范 §12.3）：不走 get_historical_event 概率触发
+        # （prob=0），仅由 core/hoard_settle.settle_hoard 的「帑藏充溢」压力通道触发
+        # ——国库 > 24×月常费 或 内帑 > 12×月常费 时压力月增，囤积越久越快。
+        "id": "treasure_overflow",
+        "year_range": (1101, 1125),
+        "prob": 0.0,
+        "title": "帑藏充溢，群臣请开内帑",
+        "category": "帑藏充溢",
+        "effects": {},
+        "desc": "封桩既厚，府库充衍。大臣上疏：请发内帑以充军国；亦有逢迎之徒，"
+                "劝陛下大兴土木以彰太平盛世。",
+        "choices": [
+            {"text": "发内帑三百万贯以充边备",
+             "effects": {"inner_to_treasury": 3000000, "prestige": 2, "defense_bonus": 5}},
+            {"text": "大兴土木，丰亨豫大",
+             "effects": {"prestige": 6, "art_mastery": 5, "treasury": -8000000,
+                         "population_satisfaction": -4,
+                         "pressure_change": {"花石纲": 25}}},
+            {"text": "拒而弗听，充耳不闻",
+             "effects": {"prestige": -2, "faction_change": {"旧党": -3, "中立派": -3}}},
         ],
     },
     {
@@ -456,10 +500,53 @@ def get_imperial_risk_event(state, action: dict) -> dict | None:
     return random.choice(candidates)
 
 
-def get_historical_event(year: int, month: int) -> dict | None:
-    """根据年份检查是否有史实事件触发"""
+# ============================================================
+# 有效窗口（历史压力链①②）：默认取卡片 year_range（史实锚点），
+# 可被玩家的改写决策**动态前移**：
+#   - 花石纲长期默许（压力 ≥60）→ 方腊起义酝酿窗口提前至 1114（史实 1118）
+#   - 允盟联金灭辽（sea_pact_jin）→ 金窥宋虚实，金灭辽 1122→1120、金军南侵 1125→1123
+# 动态前移同时作用于两处：压力触发的内部爆发（_settle_events 扣住/放行）
+# 与玩家事件卡（get_historical_event），保证「内部爆发必有卡可解」。
+# ============================================================
+_DYNAMIC_WINDOW_SHIFTS = {
+    # 显式默许（huashigang_indulged 落档）且压力 ≥60 才前移——不作为不等于明示默许
+    "fangla_uprising": lambda st: (1114 if ("huashigang_indulged" in st.timeline
+                                             and st.event_pressure.get("花石纲", 0) >= 60) else None),
+    "jin_destroys_liao": lambda st: 1120 if "sea_pact_jin" in st.timeline else None,
+    "jin_invasion": lambda st: 1123 if "sea_pact_jin" in st.timeline else None,
+}
+
+
+def effective_event_window(ev: dict, state) -> tuple:
+    """事件的有效触发窗口 (lo, hi)：史实锚点为底，改写位动态前移下界。"""
+    lo, hi = ev["year_range"]
+    shift = _DYNAMIC_WINDOW_SHIFTS.get(ev.get("id"))
+    if shift is not None and state is not None:
+        try:
+            new_lo = shift(state)
+        except Exception:
+            new_lo = None
+        if new_lo:
+            lo = min(lo, int(new_lo))
+    return lo, hi
+
+
+def category_window_open(state, category: str) -> bool:
+    """该类别当前是否进入有效窗口（用于 _settle_events 触发扣住）。
+
+    无对应事件卡的类别（纯内部事件）不受窗口约束，恒为开。
+    """
     for ev in HISTORICAL_EVENTS:
-        lo, hi = ev["year_range"]
+        if ev.get("category") == category:
+            lo, _hi = effective_event_window(ev, state)
+            return state.year >= lo
+    return True
+
+
+def get_historical_event(year: int, month: int, state=None) -> dict | None:
+    """根据年份检查是否有史实事件触发（state 传入时改写位可动态前移窗口）"""
+    for ev in HISTORICAL_EVENTS:
+        lo, hi = effective_event_window(ev, state) if state is not None else ev["year_range"]
         if lo <= year <= hi:
             if random.random() < ev["prob"]:
                 return ev
@@ -586,6 +673,64 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
                 log.append(f"国帑 {'+' if d>=0 else ''}{d:.0f}贯")
             else:
                 log.append(f"国帑 {'+' if d>=0 else ''}{d:.0f}贯 未落地：资财不足（守恒拒绝）")
+
+    # 事件压力（历史压力链：如花石纲默许推升起义、惩治泄压）
+    if "pressure_change" in effects and isinstance(effects["pressure_change"], dict):
+        for cat, delta in effects["pressure_change"].items():
+            if isinstance(delta, bool) or not isinstance(delta, (int, float)) \
+                    or not math.isfinite(delta) or not cat:
+                continue
+            cur = state.event_pressure.get(cat, 0)
+            state.event_pressure[cat] = max(0.0, cur + float(delta))
+            log.append(f"{cat}之患 {'滋长' if delta > 0 else '稍纾'}"
+                       f"（{state.event_pressure[cat]:.0f}/80）")
+
+    # 内帑（守恒：民间 ⇄ 国库 ⇄ 内帑 成对划转，禁止凭空铸/毁币）
+    if "imperial_treasury" in effects:
+        raw = effects["imperial_treasury"]
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            log.append("内帑 未落地：非法数值（守恒拒绝）")
+        else:
+            d = int(raw)
+            from core.free_effect import _apply_money_delta, _money_feasible
+            if d >= 0:
+                # 民间 → 国库 → 内帑
+                if _money_feasible(state, d) and _apply_money_delta(state, d):
+                    moved = state.transfer_money("treasury", "imperial_treasury", d)
+                    log.append(f"内帑 +{moved:.0f}贯（应奉贡入御前）")
+                else:
+                    log.append("内帑 未落地：资财不足（守恒拒绝）")
+            else:
+                # 内帑 → 国库 → 民间
+                moved = state.transfer_money("imperial_treasury", "treasury", -d)
+                if moved > 0 and _apply_money_delta(state, -moved):
+                    log.append(f"内帑 -{moved:.0f}贯（发御前以济国用）")
+                else:
+                    if moved > 0:
+                        state.transfer_money("treasury", "imperial_treasury", moved)  # 回滚
+                    log.append("内帑 未落地：发帑失败（守恒拒绝）")
+
+    # 内帑 → 国库（C4 请开内帑：转充军国用度，留在国库不入民间）
+    if "inner_to_treasury" in effects:
+        raw = effects["inner_to_treasury"]
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) \
+                or not math.isfinite(raw) or raw <= 0:
+            log.append("内帑拨充 未落地：非法数值（守恒拒绝）")
+        else:
+            moved = state.transfer_money("imperial_treasury", "treasury", int(raw))
+            if moved > 0:
+                log.append(f"内帑拨充国库 {moved:.0f}贯（发御前以充军国）")
+            else:
+                log.append("内帑拨充 未落地：内帑空虚（守恒拒绝）")
+
+    # timeline 改写位（历史压力链②：海上之盟抉择改写金军南侵节奏）
+    if "timeline_set" in effects and isinstance(effects["timeline_set"], dict):
+        spec = effects["timeline_set"]
+        key = spec.get("key")
+        if key and key not in state.timeline:
+            state.timeline[key] = {"year": state.year,
+                                   "label": str(spec.get("label", "改写历史"))}
+            log.append(f"〔史移〕{spec.get('label', '改写历史')}")
 
     # 人口满意度
     if "population_satisfaction" in effects:

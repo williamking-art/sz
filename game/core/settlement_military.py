@@ -205,6 +205,16 @@ def _settle_events(state, log):
             state.event_pressure["方腊起义"] = 20
         state.event_pressure["方腊起义"] += random.uniform(1, 4)
 
+    # 历史压力链①：花石纲默许 → 东南乱源滋长。
+    # 压力 ≥30 时按超额推升起义压力；≥60 时起义酝酿窗口提前至 1114 年
+    # （史实 1118），体现「默许花石纲则方腊提前」的改写历史语义。
+    hsg = state.event_pressure.get("花石纲", 0)
+    if hsg >= 30:
+        boost = (hsg - 30) * 0.06
+        for cat in ("方腊起义", "宋江起义"):
+            if cat in state.event_pressure:
+                state.event_pressure[cat] += boost
+
     if state.year >= 1111:
         if "宋江起义" not in state.event_pressure:
             state.event_pressure["宋江起义"] = 10
@@ -212,18 +222,32 @@ def _settle_events(state, log):
 
     if "jin_crushed" in state.timeline or "no_jingkang" in state.timeline:
         state.event_pressure["金军南侵"] = 0
+    elif "sea_pact_jin" in state.timeline:
+        # 历史压力链②：允盟联金灭辽 → 金窥宋虚实，南侵提前（1119）且增速翻倍
+        # （史实：1125 年灭辽后即挥师南下，海上之盟正是催化剂）。
+        if state.year >= 1119:
+            if "金军南侵" not in state.event_pressure:
+                state.event_pressure["金军南侵"] = 10
+            state.event_pressure["金军南侵"] += random.uniform(1.5, 3.0)
     elif state.year >= 1120:
         if "金军南侵" not in state.event_pressure:
             state.event_pressure["金军南侵"] = 10
-        if "liao_ally" in state.timeline:
+        if "liao_ally" in state.timeline or "liao_buffer" in state.timeline:
             state.event_pressure["金军南侵"] += random.uniform(0.25, 0.75)
         else:
             state.event_pressure["金军南侵"] += random.uniform(0.5, 1.5)
 
     threshold_base = 80
     threshold = threshold_base * state.diff_params.get("event_threshold_mult", 1.0)
+    from core import events as _events_mod  # 延迟导入（避免顶层环依赖）
     for cat, pressure in list(state.event_pressure.items()):
         if pressure >= threshold:
+            # 历史压力链：窗口未开的类别**扣住不触发、不重置**（封顶防溢出）——
+            # 修复实测 bug：基线 0~2/月的随机增长会让方腊 1105、金南侵 1107 年
+            # 就「爆发」（史实 1118/1125），皇威凭空被吃且无卡可解。开窗即爆。
+            if not _events_mod.category_window_open(state, cat):
+                state.event_pressure[cat] = min(pressure, threshold)
+                continue
             _trigger_event(state, cat, log)
             state.event_pressure[cat] = 0
 

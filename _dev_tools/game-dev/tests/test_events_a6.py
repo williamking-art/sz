@@ -44,7 +44,7 @@ def _new_state():
 # ------------------------------------------------------------
 def test_a6_historical_events_registered():
     ids = [e.get("id") for e in HISTORICAL_EVENTS]
-    assert len(HISTORICAL_EVENTS) == 14  # 既有 9 条 + A6 新增 5 条，纯增量
+    assert len(HISTORICAL_EVENTS) == 15  # 既有 9 + A6 新增 5 + 封桩帑藏充溢卡，纯增量
     for eid in A6_IDS:
         assert eid in ids, f"新事件 {eid} 未注册进 HISTORICAL_EVENTS"
         ev = _event_by_id(eid)
@@ -111,30 +111,34 @@ def test_a6_army_tier_maps_to_army_strength():
 def test_a6_old_style_digits_passthrough():
     s = _new_state()
     t0, p0 = s.treasury, s.prestige
+    imp0 = s.imperial_treasury
     hs = _event_by_id("huashigang")
-    log = apply_event_choice(s, hs, 0)  # 默许：prestige -1 / population -2 / treasury +200000
-    assert s.treasury == t0 + 200_000
+    # 历史压力链改版：默许 → prestige -1 / population -2 / 内帑 +200000（贡入御前，非国库）
+    log = apply_event_choice(s, hs, 0)
+    assert s.imperial_treasury == imp0 + 200_000
+    assert s.treasury == t0
     assert s.prestige == max(0, min(100, p0 - 1))
     assert log[0].startswith("选择：")
 
 
 def test_event_treasury_conservation_no_mint():
-    """P0-2：事件国库效果走守恒成对划转，Σ(国库+民间) 不变；资财不足则不落地。"""
+    """P0-2：事件钱效果走守恒成对划转，Σ(国库+内帑+民间) 不变；资财不足则不落地。"""
     from core.free_effect import _money_pools
 
     def tot(state):
-        return state.treasury + sum(int(p.get("wealth", 0) or 0) for p in _money_pools(state))
+        return (state.treasury + state.imperial_treasury
+                + sum(int(p.get("wealth", 0) or 0) for p in _money_pools(state)))
 
     s = _new_state()
     t0 = tot(s)
     hs = _event_by_id("huashigang")
-    apply_event_choice(s, hs, 0)  # treasury +200000 应来自民间，而非凭空铸币
-    assert tot(s) == t0, f"事件国库效果应守恒，Δ={tot(s) - t0}"
-    # 民间枯竭 → 正 treasury 效果不落地（国库不变）
+    apply_event_choice(s, hs, 0)  # 内帑 +200000 应来自民间（民间→国库→内帑），而非凭空铸币
+    assert tot(s) == t0, f"事件钱效果应守恒，Δ={tot(s) - t0}"
+    # 民间枯竭 → 正 imperial_treasury 效果不落地（内帑不变）
     for p in s.prefectures.values():
         for x in p["pops"].values():
             x["wealth"] = 0
-    t1 = s.treasury
+    t1 = s.imperial_treasury
     log = apply_event_choice(s, hs, 0)
-    assert s.treasury == t1, "民间枯竭时事件不得凭空铸币"
+    assert s.imperial_treasury == t1, "民间枯竭时事件不得凭空铸币"
     assert any("守恒" in x or "不足" in x or "未落地" in x for x in log)

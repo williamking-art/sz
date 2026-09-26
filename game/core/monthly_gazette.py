@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""宋祚 · 月度奏章八章（批 3 · 明末经验搬运）。
+"""宋祚 · 月度奏章九章（批 3 · 明末经验搬运）。
 
 依据《改进方案_合并版》A2 与《明末经验》§2.2：
-  每回合固定八章 + 章末七言联 + ▲▼ 差值摘要，把「看不见的数值变化」翻译成可读叙事。
+  每回合固定章节 + 章末七言联 + ▲▼ 差值摘要，把「看不见的数值变化」翻译成可读叙事。
 
-八章：`诏书核销 / 指令核销 / 长期局势 / 密令动向 / 讣闻登场 / 人物历练 / 军事 / 邦交`。
+章节：`诏书核销 / 指令核销 / 长期局势 / 密令动向 / 讣闻登场 / 人物历练 / 军事 / 邦交`
+＋ 2026-09-26 新增第九章 `推演变更`（state_applier 落地明细，政策 diff 视图）。
 必补三章（明末实测缺口）：① 局势进展逐条 ② 人物历练/属性涨跌 ③ 密令动向。
 
 纪律：
@@ -43,6 +44,7 @@ _CHAPTER_SCENE_TEMPLATES: Dict[str, list] = {
 }
 
 # 八章固定顺序（明末 §2.2 对齐；标题即 UI 章名）
+# 2026-09-26 增第九章「推演变更」：state_applier 落地明细（政策 diff 视图）。
 CHAPTER_ORDER: tuple = (
     "诏书核销",
     "指令核销",
@@ -52,7 +54,78 @@ CHAPTER_ORDER: tuple = (
     "人物历练",
     "军事",
     "邦交",
+    "推演变更",
 )
+
+# 推演变更章：状态路径 → 中文标签（玩家可见口径；未登记路径回落「朝局」）
+DIFF_PATH_LABELS: Dict[str, str] = {
+    "treasury": "国库",
+    "imperial_treasury": "内帑",
+    "granary": "太仓",
+    "population_satisfaction": "民心",
+    "prestige": "皇威",
+    "grain_price": "米价",
+    "price_level": "物价",
+    "population": "户口",
+    "canal_block": "漕渠淤塞",
+    "corruption": "贪腐",
+}
+
+_DIFF_POP_LABELS = {
+    "农": "农户", "士绅": "士绅", "工匠": "工匠", "商人": "商人",
+    "官僚": "官僚", "兵": "将士", "吏": "吏胥",
+}
+
+
+def _diff_path_label(path: str) -> str:
+    """applier 变更路径 → 中文标签（未登记回落「朝局·<尾段>」）。"""
+    label = DIFF_PATH_LABELS.get(path)
+    if label:
+        return label
+    # 州县 POP 路径：prefectures.*.pops.农.wealth → 民间·农户财货
+    parts = path.split(".")
+    if "pops" in parts and len(parts) >= 2:
+        pop = parts[parts.index("pops") + 1]
+        tail = parts[-1]
+        kind = {"wealth": "财货", "grain": "粮储", "size": "人丁"}.get(tail, tail)
+        return f"民间·{_DIFF_POP_LABELS.get(pop, pop)}{kind}"
+    if parts and parts[0] == "prefectures":
+        return f"州县·{parts[-1]}"
+    return f"朝局·{parts[-1] if parts else path}"
+
+
+def _chapter_agent_diff(state, max_lines: int = 8) -> List[str]:
+    """推演变更章：本月 state_applier 实际落地变更明细（政策 diff 视图）。
+
+    数据源 `state._last_agent_diff`（apply_to_state 返回：path/old/new/reason）。
+    按 |Δ| 降序取前 N 条；空则「本月推演未落新变更」。只读，不外泄数值口径以外内容。
+    """
+    applied = getattr(state, "_last_agent_diff", None) or []
+    rows = []
+    for ch in applied:
+        if not isinstance(ch, dict):
+            continue
+        try:
+            old, new = float(ch.get("old", 0) or 0), float(ch.get("new", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        delta = new - old
+        if abs(delta) < 0.5:
+            continue
+        rows.append((abs(delta), ch, old, new, delta))
+    if not rows:
+        return ["本月推演未落新变更。"]
+    rows.sort(key=lambda r: r[0], reverse=True)
+    lines: List[str] = []
+    for _absd, ch, old, new, delta in rows[:max_lines]:
+        label = _diff_path_label(str(ch.get("path", "")))
+        reason = str(ch.get("reason", "") or "").split("；")[0][:30]
+        arrow = "▲" if delta > 0 else "▼"
+        seg = f"{label} {arrow}{abs(delta):,.0f}（{old:,.0f}→{new:,.0f}）"
+        lines.append(seg + (f" —— {reason}" if reason else ""))
+    if len(rows) > max_lines:
+        lines.append(f"（另有 {len(rows) - max_lines} 笔细务从略）")
+    return lines
 
 # 章末七言联模板池（确定性轮换；AI 可后续润色，程序版先落）
 GAZETTE_COUPLETS: tuple = (
@@ -261,6 +334,8 @@ def build_monthly_gazette(state, year: Optional[int] = None,
             lines = _chapter_life(state)
         elif name == "讣闻登场":
             lines = _chapter_by_keywords(state, name) or ["本月无讣闻、无新擢。"]
+        elif name == "推演变更":
+            lines = _chapter_agent_diff(state)
         else:
             lines = _chapter_by_keywords(state, name) or [f"本月无{name}可记。"]
         chapters.append({"title": name, "lines": lines,
