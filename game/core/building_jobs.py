@@ -36,6 +36,13 @@ _LV_MAX_DEFAULT = 5
 SONG_JOB_CLASSES = ("农", "工匠", "商人")
 SONG_JOB_SHARE_DEFAULT = 0.35          # 农可上岗比例上限（农田+庄园用工上限）
 SONG_JOB_FLOW_RATE = 0.02              # 月迁移率（与 `JOB_FLOW_RATE` 同口径）
+# 「失业推」在宋侧**默认关闭**（2026-09-27 收口）：设计 §3.6 的失业推是**无条件**的
+# （凡未进岗位即按 2% 回流农轨），而宋侧量级是「工匠约 40 万 vs 一座工坊 160 岗」——
+# 探针实测 60 月非农 **−70%**（尚未触底）。这是**文档口径与宋侧岗位容量的内在冲突**，
+# 不是实现缺陷。宋侧只保留「空岗拉」（有真实空缺才迁移）；
+# 失业推的代码路径保留，可由 `JOB_FLOW_UNEMPLOYED_PUSH` 一行打开，
+# 待宋侧岗位容量标定与真实建筑写入路径（S3–S5 批次）并轨后再评估。
+SONG_JOB_PUSH_UNEMPLOYED = False
 SONG_JOBS_PER_LEVEL = {                # 岗位数 = lv × 每级岗位（农田 0——粮维豁免岗位制）
     "农田": 0, "工坊": 160, "商铺": 40, "庄园": 120,
 }
@@ -78,6 +85,7 @@ def song_job_cfg() -> dict:
     # 避免「调用侧漏传 rtype → 回落到外邦 default(0.25)」的静默偏差。
     cfg["JOB_SHARE_OVERRIDE"] = SONG_JOB_SHARE_DEFAULT
     cfg["JOB_FLOW_RATE"] = SONG_JOB_FLOW_RATE
+    cfg["JOB_FLOW_UNEMPLOYED_PUSH"] = SONG_JOB_PUSH_UNEMPLOYED
     return cfg
 
 
@@ -546,6 +554,13 @@ def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
     #    → 按 `JOB_FLOW_RATE` 回流农轨领口粮。口径同设计 §3.6「失业工匠 → 农」
     #    ＝「未进工坊/矿场」，即没有岗位容纳的那部分非农人口（生计安全阀）；
     #    回流按未在岗比例分摊，上限制到来源 POP size（不得抽成负数）。
+    #
+    #    ⚠️ **受开关控制**：`cfg["JOB_FLOW_UNEMPLOYED_PUSH"]`（缺省 True 以保持外邦语义）；
+    #    宋侧 `song_job_cfg()` 显式置 **False**——宋侧岗位容量（一座工坊 160 岗）远小于
+    #    非农人口（约 40 万），无条件失业推会以约 2%/月复利抽干非农（60 月实测 −70%）。
+    #    宋侧只保留①空岗拉；待岗位容量标定后再评估。
+    if not cfg.get("JOB_FLOW_UNEMPLOYED_PUSH", True):
+        return stats
     pool_sz = art_sz + mer_sz
     idle_sz = art_idle + mer_idle
     if idle_sz <= 0 or pool_sz <= 0 or not isinstance(nong, dict):

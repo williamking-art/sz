@@ -9,7 +9,7 @@
 断言要点：
   (i)   无建筑（新局基线）→ **零迁移**，不写任何 econ_audit 痕迹；
   (ii)  有工坊空岗且农富余 → 农→工匠，量 == min(农闲×率, 空岗) 且 ≤ 空岗，ΣPOP 不变；
-  (iii) 岗位裁撤/减少 → 工/商→农回流，ΣPOP 不变；
+  (iii) 岗位裁撤/减少 → 工/商→农回流，ΣPOP 不变（**该分支宋侧默认关闭**，用例显式开启验证）；
   (iv)  月迁移有上限（`JOB_FLOW_RATE`）且不会把任一 POP 抽成负数；
   (v)   与既有城市化/回乡通道协同：本通道串行其后，**当月同路只有一个方向**。
 
@@ -35,6 +35,10 @@ from core.game_state import GameState  # noqa: E402
 from core.settlement_econ import _settle_economy  # noqa: E402
 
 CFG = song_job_cfg()
+# 「失业推」在宋侧默认关闭（见 `building_jobs.SONG_JOB_PUSH_UNEMPLOYED`：宋侧岗位容量远小于
+# 非农人口，无条件失业推 60 月会把非农抽掉约 70%）。验证**该分支实现**的用例显式开启，
+# 使"分支语义"与"当前默认策略"分开受测。
+CFG_PUSH = dict(CFG, JOB_FLOW_UNEMPLOYED_PUSH=True)
 _WORKSHOP_JPL = int(SONG_JOBS_PER_LEVEL["工坊"])
 _SHOP_JPL = int(SONG_JOBS_PER_LEVEL["商铺"])
 _MANOR_JPL = int(SONG_JOBS_PER_LEVEL["庄园"])
@@ -52,10 +56,10 @@ def _total(pops):
     return sum(int(v.get("size", 0) or 0) for v in pops.values())
 
 
-def _flow(pops, buildings, prov=None):
+def _flow(pops, buildings, prov=None, cfg=None):
     prov = prov if prov is not None else {"pops": pops}
     before = _total(pops)
-    st = apply_employment_flow(prov, pops, buildings, CFG)
+    st = apply_employment_flow(prov, pops, buildings, CFG if cfg is None else cfg)
     assert _total(pops) == before, f"ΣPOP 破裂：{before} → {_total(pops)}"
     return st
 
@@ -196,7 +200,7 @@ def test_shop_only_pulls_to_merchant():
 def test_layoff_returns_artisans_to_farm():
     """(iii) 岗位全部裁撤（lv=0）→ 工/商按 2% 回流农，ΣPOP 不变。"""
     pops = _pops(nong=200_000, art=3_000, mer=2_500)
-    st = _flow(pops, {"工坊": {"lv": 0}})          # 岗位 0 = 已裁撤
+    st = _flow(pops, {"工坊": {"lv": 0}}, cfg=CFG_PUSH)   # 岗位 0 = 已裁撤（需显式开失业推）
     idle = 3_000 + 2_500
     assert abs(st["returned_to_farm"] - int(idle * _FLOW_RATE)) <= 1
     assert st["moved_to_artisan"] == st["moved_to_merchant"] == 0, "同月不得双向迁移"
@@ -216,7 +220,7 @@ def test_shop_removal_returns_merchants_to_farm():
     staffed = allocate_employment(pops, live, CFG, "宋")
     assert staffed.get("工坊") == _WORKSHOP_JPL, "lv1 工坊坐满即无空岗"
     idle = 900                                    # 工匠全在岗；商铺裁撤后 900 商人全失业
-    st = _flow(pops, bld)
+    st = _flow(pops, bld, cfg=CFG_PUSH)
     assert st["artisan_vacancy"] == 0 and st["merchant_vacancy"] == 0, "无空岗可拉 → 只走失业推"
     assert st["returned_to_farm"] == int(idle * _FLOW_RATE), "回流 = 未在岗 × 月率"
     assert st["moved_to_artisan"] == st["moved_to_merchant"] == 0, "同月不得双向迁移"
@@ -231,7 +235,7 @@ def test_partial_shrink_returns_only_unstaffed():
     bld = {"工坊": {"lv": 1}}
     staffed = allocate_employment(pops, bld, CFG, "宋")
     assert staffed["工坊"] == _WORKSHOP_JPL, "lv1 工坊只坐得下 1 级岗位"
-    st = _flow(pops, bld)
+    st = _flow(pops, bld, cfg=CFG_PUSH)
     idle_art = 3_000 - _WORKSHOP_JPL
     idle = idle_art + 2_500
     assert abs(st["returned_to_farm"] - int(idle * _FLOW_RATE)) <= 1
@@ -243,6 +247,24 @@ def test_partial_shrink_returns_only_unstaffed():
     assert pops["农"]["size"] == 200_000 + st["returned_to_farm"]
 
 
+def test_song_default_disables_unemployed_push():
+    """默认策略（宋侧）：岗位全裁撤也**不发生**「失业推」回流——避免 2%/月复利抽干非农。
+
+    量级证据：宋侧「工匠约 40 万 vs 一座工坊 160 岗」，无条件失业推 60 月非农 **−70%**。
+    该分支并未删除：显式置 `JOB_FLOW_UNEMPLOYED_PUSH=True` 即恢复（下面给出对照断言）。
+    """
+    pops = _pops(nong=200_000, art=40_000, mer=25_000)
+    before = {k: int(v["size"]) for k, v in pops.items()}
+    st = _flow(pops, {"工坊": {"lv": 0}, "商铺": {"lv": 0}})       # 岗位全裁撤
+    assert st["returned_to_farm"] == 0, "默认策略下不得发生无条件失业回流"
+    assert (st["moved_to_artisan"], st["moved_to_merchant"]) == (0, 0)
+    assert all(int(v["size"]) == before[k] for k, v in pops.items()), "默认策略下三类 size 不变"
+    # 对照：显式开启后，同一场景恢复「按未在岗 × 月率」的回流语义
+    pops2 = _pops(nong=200_000, art=40_000, mer=25_000)
+    st2 = _flow(pops2, {"工坊": {"lv": 0}, "商铺": {"lv": 0}}, cfg=CFG_PUSH)
+    assert st2["returned_to_farm"] == int((40_000 + 25_000) * _FLOW_RATE)
+
+
 # ---------------------------------------------------------------
 # (iv) 上限与下限：月迁移有上限、不抽成负数
 # ---------------------------------------------------------------
@@ -250,7 +272,7 @@ def test_monthly_rate_cap_and_no_negative_pop():
     """(iv) 迁移 ≤ 率上限（`JOB_FLOW_RATE`）、极小池仍受 `max(1, …)` 兜底、不抽成负数。"""
     # ① 极小未在岗数（率取整为 0）→ `max(1, …)` 兜底仍推 1，且不超未在岗总数
     pops = _pops(nong=200_000, art=3, mer=0)
-    st = _flow(pops, {"工坊": {"lv": 0}, "商铺": {"lv": 0}})
+    st = _flow(pops, {"工坊": {"lv": 0}, "商铺": {"lv": 0}}, cfg=CFG_PUSH)
     assert st["returned_to_farm"] == 1, "未在岗 3 人 × 2% < 1 → 兜底推 1"
     assert pops["工匠"]["size"] == 2
     assert all(int(v["size"]) >= 0 for v in pops.values())
@@ -318,7 +340,7 @@ def test_settlement_wiring_is_serial_and_single_direction(monkeypatch):
         before = {k: int(v.get("size", 0) or 0) for k, v in pops.items()}
         st = real(p, pops, buildings, cfg, *a, **kw)
         after = {k: int(v.get("size", 0) or 0) for k, v in pops.items()}
-        seen.append((dict(st), before, after))
+        seen.append((dict(st), before, after, buildings))
         return st
 
     monkeypatch.setattr(se, "apply_employment_flow", _wrap)
@@ -326,17 +348,27 @@ def test_settlement_wiring_is_serial_and_single_direction(monkeypatch):
     s = GameState("史实")
     p = s.prefectures["两浙路"]
     p["buildings"] = {"工坊": 2, "商铺": 1}        # 旧（座数）格式：宋侧现状写入格式
+    # 人为压缩非农 POP 以**造出真实空岗**：宋侧真实量级下（工匠数十万 vs 工坊 320 岗）
+    # 岗位常年坐满、空岗恒为 0，空岗拉不会发生 —— 本用例要验证的是「接线与守恒」，
+    # 故显式造出空岗；"真实量级下不动"这一事实由 `test_song_default_disables_unemployed_push`
+    # 与长局探针覆盖。
+    p["pops"]["工匠"]["size"] = 10
+    p["pops"]["商人"]["size"] = 5
     random.seed(11)
     _settle_economy(s, [])
     assert seen, "接线未被执行（防『写了没接上』）"
-    # 只有「本月有建筑」的路才会走到迁移分支（其余 19 路 buildings 为空 → 全 0 读数）
-    active = [(st, b, a) for st, b, a in seen
-              if st["farm_idle"] or st["artisan_vacancy"] or st["merchant_vacancy"]]
+    # 只有「本月有建筑」的路才会走到迁移分支（其余路 buildings 为空 → 全 0 读数）
+    active = [(st, b, a) for st, b, a, bld in seen if bld]
     assert active, f"有建筑的 两浙路 必须进入岗位流动分支：{seen[:3]}"
+    moved_any = 0
     for st, before, after in active:
         moved = st["moved_to_artisan"] + st["moved_to_merchant"]
         back = st["returned_to_farm"]
-        assert (moved > 0) != (back > 0), f"同路同月只能单向迁移：{st}"
+        # 不变量：两方向**串行互斥** → 同路同月绝不同时为正
+        assert not (moved > 0 and back > 0), f"同路同月双向迁移：{st}"
+        # 宋侧默认关闭「失业推」（SONG_JOB_PUSH_UNEMPLOYED=False）→ 本场景不得回流
+        assert back == 0, f"默认策略下不得发生失业回流：{st}"
+        moved_any += moved
         # 只动 农/工匠/商人，且逐字守恒
         for k in before:
             if k not in ("农", "工匠", "商人"):
@@ -351,6 +383,7 @@ def test_settlement_wiring_is_serial_and_single_direction(monkeypatch):
         if back:
             assert after["工匠"] <= before["工匠"] and after["商人"] <= before["商人"]
     # 审计痕迹（有迁移才写）
+    assert moved_any > 0, "工坊有真实空岗 → 应至少发生一次农→工匠迁移（防『接了没生效』）"
     flow = (p.get("econ_audit") or {}).get("job_flow")
     assert flow, "有工坊空岗时必须留下岗位流动痕迹"
 
