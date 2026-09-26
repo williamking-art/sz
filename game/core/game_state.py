@@ -922,6 +922,14 @@ class GameState(GameStateEconMixin):
             ensure_hidden_in_pops(self)
         except Exception:  # noqa: BLE001  隐户子池初始化失败不得阻断开局
             pass
+
+        # 农的**职位子池**与**丁口子池**（B1a，2026-09-27 用户口径"一建筑多职位"＋"户"）：
+        # `自耕农+富农+贫农+佃农 == 农.size`、`ding+kou == 农.size`（逐路，幂等；不改 size）。
+        try:
+            from core.pop_structure import ensure_farm_slices
+            ensure_farm_slices(self)
+        except Exception:  # noqa: BLE001  职位/丁口子池初始化失败不得阻断开局
+            pass
     # ================================================================
     # 皇威工具
     # ================================================================

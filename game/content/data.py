@@ -190,6 +190,12 @@ FACTION_INIT = {
 #   （`national`＝全国整个阶级；`pool`＝只取该阶级的某个子池；`route`＝只取若干路的该阶级；
 #     `pool+route`＝两者的交）。展示时必须写成「占母集 X%」的**子集**，不得与 POP 并列。
 POP_POOLS_VALID = ("officials", "clerks", "clan")   # POP 的合法子池（官僚官/吏、士绅宗室）
+# ⚠️ 白名单语义（B1a 澄清）：这里指**⊂ `size` 的人口子池**（`pop_pool_share/size` 按"占母集比例"
+# 折算，故必须可加总到 `size`）。以下子池**不属于**此列，且不得并入：
+#   · `农.hidden`（隐户）——**加法**子池、**不在籍**（不计入 `size`），并入会算出 >100% 的比例；
+#   · `农.自耕农/富农/贫农/佃农`（职位）与 `农.ding/kou`（丁口）——是 `size` 的**两种正交划分**，
+#     各自加总等于 `size`（见 `core/pop_structure.py`），若混入白名单会被重复折算；
+#   · `士绅.estate/estate_hoard`（家产）——是**钱**不是人，与人口子池不同维。
 # 集团类型（kind）：说明这是“什么性质的政治网络”（与用于判重叠与关系图），
 # 与 POP 基本盘正交：kind 讲政治联结方式，pop_basis 讲势力来源（人口与财赋）。
 FACTION_KINDS = (

@@ -751,6 +751,12 @@ def load_game(slot: int = 1):
         ensure_hidden_in_pops(state)
     except Exception:  # noqa: BLE001  迁移失败不得阻断读档
         pass
+    # 农职位/丁口子池的旧档迁移（B1a）：幂等补齐（**只改子池，不改 size**）
+    try:
+        from core.pop_structure import ensure_farm_slices
+        ensure_farm_slices(state)
+    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
+        pass
     state.jiaozi = data.get("jiaozi", state.jiaozi)
     state.maritime = data.get("maritime", state.maritime)
     state.coin = data.get("coin", state.coin)
