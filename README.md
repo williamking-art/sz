@@ -57,3 +57,36 @@ D:\codebuddy\sz\start.bat
   `POP改良纲领_2026-09-27.md`、`交接_POP改良_B05B1_2026-09-27.md`。
 - 待办（内容/平衡批）：宋侧岗位容量标定 + S3–S5 建筑链路、Rust 官俸平价的自建局触发、
   P4 的 goods 守恒审计、回归门禁（vitest + CI）。
+
+## 五、体积与历史（2026-09-27 瘦身）
+
+**当前体积**：`game/` 约 1.1 GB —— 其中 `frontend/node_modules` **749 MB 是本机依赖**（0 跟踪文件、
+`.gitignore` 已忽略、不入库），"项目本体（源码+入库资产）"不到 400 MB；`.git/` 约 **378 MB**
+（同日从 628 MB 压下来）。
+
+**做过什么**：
+
+1. 删可再生产物：`frontend/out`(93MB)、立绘合成缓存 `_composed`(57MB)、`assets/_backup_original`(29MB)、
+   全部 `__pycache__`、`.pytest_cache`/`.ruff_cache`、`*.bak`、`.coverage` ＝ **约 190 MB**；
+   `git gc` 再压 54 MB。
+2. **重写历史**（`git filter-repo --invert-paths`）：
+   - 删除 `_scratch/` 的**全部历史**与 `assets/demo-acp.mp4`（约 88 MiB）；
+   - 把 **257 个大二进制资产**（≥256KB 的 PNG/geojson/topojson/字体等，当前合计 **402 MB**）
+     **重置为单版本** —— 历史里每个资产只留当前一份（此前每次改动都新增一份完整 blob，
+     是 483 MiB 历史的主因）；
+   - 清理指向旧历史的分支与 remote-tracking refs（`main`、`remotes/*`）→ `git gc --prune=now`。
+3. 结果：`.git` 628 MB → **378 MB**（当前历史里"当前版二进制"约 270 MiB + 源码/文档历史约 100 MiB）。
+
+**⚠️ 后果**：**所有 commit hash 已改变** —— 2026-09-27 之前文档/报告里引用的 hash（如 `3d46eee6bb`、
+`77e5bd35c4`）**均已失效**，检索历史请依据**提交信息**而非 hash。
+
+**备份（确认无误后可删）**：
+
+| 路径 | 体积 | 用途 |
+|---|---|---|
+| `D:\codebuddy\_scratch\sz-history-20260927-101448.bundle` | 563.9 MB | 重写前的**完整历史**（`git clone <bundle> <dir>` 可整体恢复） |
+| `D:\codebuddy\_scratch\asset-snapshot\` | 401.8 MB | 257 个大资产快照（恢复工作区文件用，内容已提交，可删） |
+
+**防复发**：二进制资产（立绘/地图/字体）每改一次就新增一份 blob，是仓库膨胀的根源。后续应改为
+**Git LFS**（`.gitattributes` 指定 `*.png *.jpg *.geojson *.topojson *.ttf *.mp4`），
+或把大资产**移出 git**（只留工作区 + `.gitignore`，随发行包分发）——后者可把 `.git` 压到 100 MB 级。
