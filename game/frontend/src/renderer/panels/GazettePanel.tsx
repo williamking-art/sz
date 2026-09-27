@@ -98,11 +98,14 @@ function GazetteMonthCard({ g }: { g: GazetteRecord }) {
 export default function GazettePanel() {
   const state = useGameStore((s) => s.state);
   const uiLogs = useGameStore((s) => s.uiLogs);
-  const uiLogBlock = uiLogs.length > 0 ? (
+  // 2026-09-27：本面板是全仓 38 个面板里**唯一**没给 store 字段兜底守卫的（其余都 `?? []`/`!state` 判空），
+  // 补上以保持一致。（生产里 store 一定提供 uiLogs，故这**不是**用户可见缺陷——是截图台 mock
+  // 不够忠实时暴露出来的不一致。）
+  const uiLogBlock = (uiLogs ?? []).length > 0 ? (
     <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
       <p className="font-kai text-sm font-bold tracking-widest text-red">近 日 机 务 回 执</p>
       <div className="mt-1 max-h-40 space-y-0.5 overflow-y-auto">
-        {uiLogs.slice(-20).reverse().map((l, i) => (
+        {(uiLogs ?? []).slice(-20).reverse().map((l, i) => (
           <p key={i} className="text-xs leading-relaxed text-ink-light">· {l}</p>
         ))}
       </div>
