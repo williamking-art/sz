@@ -39,6 +39,7 @@ from core.building_jobs import (  # 宋侧岗位口径 + 就业驱动阶层流�
     song_job_cfg,
     apply_employment_flow,
 )
+from core.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
 
 # 宋侧岗位配置：模块级构建一次（`song_job_cfg()` 返回新 dict，不污染外邦 `EXTERNAL_ECON`
 # 全局表；只需改 `core/building_jobs.song_job_cfg` 一处即可换口径）。
@@ -91,15 +92,22 @@ def _settle_economy(state, log):
         net = urban - back
         if net > 0:
             net = min(net, pops["农"]["size"])                 # 钳制：农不减负
-            pops["农"]["size"] -= net
-            pops["工匠"]["size"] += int(net * URBAN_SPLIT["工匠"])
-            pops["商人"]["size"] += net - int(net * URBAN_SPLIT["工匠"])
+            # B1d-b：迁移**带财富/粮**（人均连续）——城市化不是"人在两池间凭空跳"
+            _to_art = int(net * URBAN_SPLIT["工匠"])
+            _to_mer = net - _to_art
+            if _to_art > 0:
+                move_pop_people(pops["农"], pops["工匠"], _to_art)
+            if _to_mer > 0:
+                move_pop_people(pops["农"], pops["商人"], _to_mer)
         elif net < 0:
             _out = min(-net, pops["工匠"]["size"] + pops["商人"]["size"])  # 钳制：工/商不减负
             _art_out = min(int(_out * URBAN_SPLIT["工匠"]), pops["工匠"]["size"])
-            pops["工匠"]["size"] -= _art_out
-            pops["商人"]["size"] -= _out - _art_out
-            pops["农"]["size"] += _out
+            # B1d-b：回乡同样**带财富/粮**（否则"回乡者两手空空"= 人均假信号）
+            if _art_out > 0:
+                move_pop_people(pops["工匠"], pops["农"], _art_out)
+            _mer_out = _out - _art_out
+            if _mer_out > 0:
+                move_pop_people(pops["商人"], pops["农"], _mer_out)
         # 2b) 就业驱动的阶层流动（宋侧接线）：**岗位缺口驱动**的农 ↔ 工匠/商人。
         #     与 2) 的关系＝协同而不双计：2) 是「景气驱动」的量（AI 城市化/回乡档位），
         #     本段**串行于其后**，只补「建筑岗位缺口」的差额，且按当月真实就业安排
