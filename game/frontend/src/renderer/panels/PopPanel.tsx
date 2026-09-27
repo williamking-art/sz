@@ -101,7 +101,7 @@ export default function PopPanel() {
         </div>
         <div>
           <div className="flex items-center justify-center gap-1 text-dim text-xs font-kai">
-            <Coins size={12} className="text-goldDark" /> 民间私财
+            <Coins size={12} className="text-gold-dark" /> 民间私财
           </div>
           <div className="mt-1 font-sans text-base font-bold text-ink">{wan(totalWealth, "贯")}</div>
         </div>
@@ -133,7 +133,7 @@ export default function PopPanel() {
                     <span className="font-kai text-base font-bold text-ink">
                       【{popKey}】{prof.label}
                     </span>
-                    <span className="rounded bg-card px-1.5 py-0.2 font-kai text-[10px] text-dim border border-border">
+                    <span className="rounded bg-card px-1.5 py-0.5 font-kai text-[10px] text-dim border border-border">
                       占生齿 {pct}%
                     </span>
                   </div>
@@ -144,7 +144,7 @@ export default function PopPanel() {
 
                 <div className="text-right font-sans text-xs">
                   <div className="font-bold text-ink">{wan(size, "口")}</div>
-                  <div className="text-[11px] text-goldDark">持钱：{wan(wealth, "贯")}</div>
+                  <div className="text-[11px] text-gold-dark">持钱：{wan(wealth, "贯")}</div>
                   <div className="text-[11px] text-amber-800">存粮：{wan(grain, "石")}</div>
                 </div>
               </div>
@@ -152,7 +152,7 @@ export default function PopPanel() {
               {/* 核心诉求 */}
               <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-xs font-kai">
                 <span className="text-dim flex items-center gap-1">
-                  <Sparkles size={12} className="text-goldDark" /> 核心民意诉求：
+                  <Sparkles size={12} className="text-gold-dark" /> 核心民意诉求：
                 </span>
                 <span className={`${prof.color} font-medium`}>{prof.focus}</span>
               </div>

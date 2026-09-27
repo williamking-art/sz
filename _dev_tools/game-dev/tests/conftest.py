@@ -163,13 +163,9 @@ def _reset_global_state():
             log = getattr(mod, "CHANGE_LOG", None) if mod else None
             if isinstance(log, list):
                 log.clear()
-        # 2) AIClient LRU 缓存（_cache / 命中计数），避免上一例的契约响应串台
-        try:
-            import ai.client as _aic
-            for _name in list(dir(_aic.AIClient)):
-                pass  # 类级无缓存；缓存在实例上——由各测试自行 new，无需全局清
-        except Exception:
-            pass
+        # 2) AIClient 缓存：**类级无缓存**（缓存在实例上，由各测试自行 new）→ 无需全局清。
+        #    2026-09-27：原处留有 `for _name in list(dir(_aic.AIClient)): pass` 的死循环
+        #    （空体 + 自带"什么都不做"的注释），已删以免误导后人以为这里在做清理。
 
     _reset()
     yield

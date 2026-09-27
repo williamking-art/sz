@@ -146,7 +146,7 @@ export default function StartPanel() {
             className="flex w-full items-center justify-between rounded-lg border border-gold/40 bg-card/80 px-5 py-2.5 shadow-sm transition hover:border-gold hover:bg-gold-light/20"
           >
             <div className="flex items-center gap-3">
-              <BookOpen size={16} className="text-goldDark" />
+              <BookOpen size={16} className="text-gold-dark" />
               <span className="font-kai text-sm tracking-wider text-ink">大宋典制（图鉴百览）</span>
             </div>
             <span className="font-kai text-xs text-dim">{CODEX_COUNT} 辞条</span>
@@ -200,7 +200,7 @@ export default function StartPanel() {
                     <span className="font-kai text-sm font-bold tracking-wider text-ink">
                       {d.label}
                     </span>
-                    <span className="rounded bg-card px-1 py-0.2 font-kai text-[10px] text-red-dark">
+                    <span className="rounded bg-card px-1 py-0.5 font-kai text-[10px] text-red-dark">
                       {d.tag}
                     </span>
                   </div>

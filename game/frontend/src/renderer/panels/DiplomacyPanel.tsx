@@ -116,7 +116,7 @@ export default function DiplomacyPanel() {
         <div className="w-56 space-y-3 overflow-y-auto pr-1">
           {groups.map((grp) => (
             <div key={grp.title} className="space-y-1">
-              <div className="font-kai text-xs font-bold tracking-widest text-goldDark px-1">
+              <div className="font-kai text-xs font-bold tracking-widest text-gold-dark px-1">
                 ── {grp.title} ──
               </div>
               <div className="space-y-1">
@@ -160,7 +160,7 @@ export default function DiplomacyPanel() {
                 <span className="font-kai text-2xl font-bold tracking-widest text-ink">
                   {currentInfo.name || currentKey || "（万邦未启）"}
                 </span>
-                <span className="ml-2 font-kai text-xs text-goldDark">
+                <span className="ml-2 font-kai text-xs text-gold-dark">
                   〔{currentInfo.type || "域外邦国"}〕
                 </span>
               </div>
@@ -292,7 +292,7 @@ export default function DiplomacyPanel() {
             {/* 回音反馈 */}
             {reply && (
               <div className="rounded-lg border border-gold/40 bg-card/80 p-3 shadow-sm">
-                <div className="font-kai text-xs font-bold text-goldDark mb-1">【夷国回表】</div>
+                <div className="font-kai text-xs font-bold text-gold-dark mb-1">【夷国回表】</div>
                 <p className="font-kai text-xs leading-relaxed text-ink/90 whitespace-pre-wrap">
                   {reply}
                 </p>

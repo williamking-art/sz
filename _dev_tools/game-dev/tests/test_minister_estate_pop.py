@@ -163,3 +163,21 @@ def test_http_snapshot_hides_estate_slices_without_mutating_state():
     # 活动状态未被改动（深拷贝一层，不能污染）
     assert estate_slice_total(s, "estate") == _mirror(s, "wealth")
     assert "estate" in s.prefectures[next(iter(s.prefectures))]["pops"]["士绅"]
+
+
+def test_http_snapshot_exposes_ai_failures_agent_names_only():
+    """快照必须下发 `ai_failures`（**仅 agent 名**）。
+
+    回归锁定 2026-09-27 修复：该分支原先写在 `_` 前缀过滤**之后** → **永不可达**，
+    AI 失败对玩家全静默（历史审计 3 次记录未修；前端 `GovernanceHub.tsx` 早已在消费
+    `ai_failures`，即一直在等一个到不了的字段）。
+    """
+    from backend.server import _state_to_dict
+    s = _new_state()
+    assert _state_to_dict(s).get("ai_failures", []) == []      # 无失败 → 空/缺省
+    s._ai_failures = [{"agent": "finance", "error": "timeout"},
+                      {"agent": "survey", "error": "boom"},
+                      {"error": "缺 agent 名者应被丢弃"}]
+    d = _state_to_dict(s)
+    assert d["ai_failures"] == ["finance", "survey"]
+    assert "_ai_failures" not in d, "私有键仍不得外发"

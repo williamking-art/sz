@@ -20,8 +20,9 @@ import os
 import sys
 import threading
 
-__all__ = ["available", "embed", "cosine", "semantic_repetition_hit",
-           "MODEL_DIR", "EMBED_DIM"]
+# 2026-09-27 修正：原列表声明了**并不存在**的 `MODEL_DIR`（ruff F822，全库唯一一处）；
+# 实际常量为 `MODEL_DIR_NAME`（见下）。若日后需要路径助手，请新增 `MODEL_DIR = ...` 并同时登记。
+__all__ = ["available", "embed", "cosine", "semantic_repetition_hit", "EMBED_DIM"]
 
 MODEL_DIR_NAME = os.path.join("assets", "models", "bge-small-zh-v1.5")
 EMBED_DIM = 512

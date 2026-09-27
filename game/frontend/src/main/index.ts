@@ -249,7 +249,10 @@ function installAuthHeaderInjection() {
   ses.webRequest.onBeforeSendHeaders((details, cb) => {
     try {
       const token = normalizeToken(getBackendConfig().token);
-      const base = resolveBackendConfig().url.replace(/\/+$/, "");
+      // 2026-09-27 修正：此处必须用**缓存版** getBackendConfig()。
+      // 原用 resolveBackendConfig() 会每个请求重读盘 + JSON.parse，且 url 与 token 可能
+      // 来自两次不同解析 —— 与 :64-70 注释「缓存一次解析结果，保证 url 与 token 同源」矛盾。
+      const base = getBackendConfig().url.replace(/\/+$/, "");
       if (token && details.url.startsWith(base)) {
         details.requestHeaders["Authorization"] = `Bearer ${token}`;
       }

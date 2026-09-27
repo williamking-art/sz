@@ -27,7 +27,7 @@ const KIND_META: Record<string, { label: string; icon: React.ReactNode; tone: st
   propose_governance: {
     label: "施政条陈",
     icon: <Landmark size={14} />,
-    tone: "border-goldDark/50 bg-gold-light/40 text-ink",
+    tone: "border-gold-dark/50 bg-gold-light/40 text-ink",
   },
   military_dispatch: {
     label: "军令",

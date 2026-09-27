@@ -262,7 +262,7 @@ if __name__ == "__main__":
     test_next_month_rolls_over_december()
     test_next_month_normal()
     test_execution_rate_secret_uses_loyalty()
-    test_execution_rate_direct_wolf_bonus_penalty()
+    test_execution_rate_direct_no_wolf_penalty()  # 2026-09-27 修正：函数已在 :59 改名，旧名使直跑必 NameError（F821）
     test_execution_rate_zhongzhi_affiliation()
     test_execution_rate_bounded()
     test_reach_end_year_forces_game_over()

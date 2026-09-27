@@ -243,7 +243,7 @@ export default function MainMenu() {
                         <span className="font-kai text-sm font-bold tracking-wider text-white">
                           {d.label}
                         </span>
-                        <span className="rounded bg-black/50 px-1 py-0.2 font-kai text-[10px] text-gold">
+                        <span className="rounded bg-black/50 px-1 py-0.5 font-kai text-[10px] text-gold">
                           {d.tag}
                         </span>
                       </div>

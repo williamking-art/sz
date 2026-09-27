@@ -384,7 +384,7 @@ export default function DecreePanel() {
           >
             <Stamp size={14} /> 票拟批红
             {drafts.length > 0 && (
-              <span className="ml-0.5 rounded-full bg-goldDark/20 px-1.5 text-[10px] leading-4 text-ink-light">
+              <span className="ml-0.5 rounded-full bg-gold-dark/20 px-1.5 text-[10px] leading-4 text-ink-light">
                 {drafts.length}
               </span>
             )}
@@ -530,7 +530,7 @@ export default function DecreePanel() {
           {/* 典籍范例快捷填入 */}
           <div>
             <div className="mb-1.5 flex items-center gap-1 font-kai text-xs text-dim">
-              <Sparkles size={12} className="text-goldDark" /> 朝廷常用诏令范本（点击速填）：
+              <Sparkles size={12} className="text-gold-dark" /> 朝廷常用诏令范本（点击速填）：
             </div>
             <div className="grid grid-cols-2 gap-2">
               {DECREE_TEMPLATES.map((tpl) => (

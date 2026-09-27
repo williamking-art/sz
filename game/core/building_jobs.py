@@ -351,6 +351,16 @@ def evolve_building_levels(prov: dict, cfg: dict, *, surplus: bool = False,
     changes: List[dict] = []
     downgraded = False
 
+    def _cur(bt: str) -> int:
+        """本函数专用等级读口：**倒闭 = 0**。
+
+        不能用 `_lv()`：它的 `or 1` 会把 `{"lv": 0, "closed": True}` 归一为 1，
+        于是倒闭建筑会被"结余营造"随机升级（lv 1→2 而 closed 保留）——2026-09-27 审查
+        实测 120 个月出现 **225 次**「closed=True 且 lv>0」。`building_level()` 对
+        `{"closed": True}` 显式返回 0（见其 docstring）。
+        """
+        return building_level(buildings.get(bt), 0)
+
     def _set(bt: str, new_lv: int, reason: str, delta: int) -> None:
         nonlocal downgraded
         entry = buildings.get(bt)
@@ -369,33 +379,36 @@ def evolve_building_levels(prov: dict, cfg: dict, *, surplus: bool = False,
         for bt, streak in list(idle_streak.items()):
             if streak < idle_months or downgraded:
                 continue
-            jobs = max(1, _lv(buildings.get(bt, 1)) * int(jpl.get(bt, 0) or 0))
+            cur = _cur(bt)
+            if cur <= 0:
+                continue          # 倒闭/裁撤建筑无岗位，不参与空置降级
+            jobs = max(1, cur * int(jpl.get(bt, 0) or 0))
             rate = int(staffed.get(bt, 0) or 0) / jobs if jobs else 0
-            if rate < idle_rate:
-                cur = _lv(buildings.get(bt, 1))
-                if cur > lv_min:
-                    _set(bt, cur - 1, "持续空置", -1)
+            if rate < idle_rate and cur > lv_min:
+                _set(bt, cur - 1, "持续空置", -1)
 
     # ① 灾荒降级（随机一类）
     if famine and not downgraded:
-        cands = [bt for bt in buildings if _lv(buildings[bt]) > lv_min]
+        cands = [bt for bt in buildings if _cur(bt) > lv_min]
         if cands:
             bt = R.choice(cands)
-            _set(bt, _lv(buildings[bt]) - 1, "灾荒", -1)
+            _set(bt, _cur(bt) - 1, "灾荒", -1)
 
     # ② 欠饷降级（牧场/工坊优先）
     if arrears and not downgraded:
         for bt in ("牧场", "工坊"):
-            if bt in buildings and _lv(buildings[bt]) > lv_min:
-                _set(bt, _lv(buildings[bt]) - 1, "欠饷", -1)
+            if bt in buildings and _cur(bt) > lv_min:
+                _set(bt, _cur(bt) - 1, "欠饷", -1)
                 break
 
     # 升级（结余>0 且无饥荒；月 5% 概率择一类）
     if surplus and not famine and R.random() < float(cfg.get("BUILDING_UPGRADE_PROB", 0.05)):
-        cands = [bt for bt in buildings if _lv(buildings[bt]) < lv_max]
+        # 只升「存在且未倒闭」的建筑：`_cur` 对倒闭返回 0，故 0 < lv 天然排除倒闭项
+        # （2026-09-27 修复：原判据 `_lv(...) < lv_max` 会把倒闭建筑当成 lv=1 而升级）
+        cands = [bt for bt in buildings if 0 < _cur(bt) < lv_max]
         if cands:
             bt = R.choice(cands)
-            _set(bt, _lv(buildings[bt]) + 1, "结余营造", +1)
+            _set(bt, _cur(bt) + 1, "结余营造", +1)
 
     return changes
 

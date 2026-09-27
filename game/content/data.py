@@ -43,9 +43,6 @@ EXTERNAL_ALWAYS_SHOW = {
 }
 
 
-
-
-
 def desk_bg_path() -> str:
     # 优先压缩版 JPEG；缺失时回退 PNG（旧资源）
     jpg = os.path.join(MAP_DIR, "desk_bg.jpg")

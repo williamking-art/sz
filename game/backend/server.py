@@ -328,6 +328,14 @@ def _state_to_dict(s) -> dict:
     """
     out = {}
     for k, v in vars(s).items():
+        if k == "_ai_failures" and isinstance(v, list):
+            # ⚠️ 本分支必须放在 `_` 前缀过滤**之前**：该字段以 `_` 开头，否则永不可达
+            # （2026-09-27 审查实测：历史审计 3 次记录未修，AI 失败对玩家全静默，
+            #   而前端 GovernanceHub.tsx 早已在消费 `ai_failures`）。
+            # 按公开名下发**仅 agent 名**；异常原文属技术细节，只留服务端日志。
+            _names = [str((d or {}).get("agent", "")).strip() for d in v[-8:]]
+            out["ai_failures"] = [n for n in _names if n]
+            continue
         if k.startswith("_"):
             continue  # 私有/缓存字段不外发
         if k in ("loyalty", "corruption") and isinstance(v, dict):
@@ -346,15 +354,6 @@ def _state_to_dict(s) -> dict:
             # 密令中的 secret_loyalty 为隐藏数值，剔除后下发
             out[k] = [{kk: vv for kk, vv in (d or {}).items() if kk != "secret_loyalty"}
                       for d in v]
-            continue
-        if k == "_ai_failures" and isinstance(v, list):
-            # 审查修复（AI 失败对玩家全静默）：各 Agent 契约失败只写 state._ai_failures，
-            # 而该字段以 `_` 前缀被快照过滤、且全库无读取方 → 除 economy（拒绝式）外，
-            # 「本月哪几项推演未成、已走本地兜底」玩家完全无从得知。
-            # 此处按公开名 ai_failures 下发**仅 agent 名**（异常原文属技术细节，只留服务端日志，
-            # 故不随快照外发），由前端以中文提示呈现。
-            _names = [str((d or {}).get("agent", "")).strip() for d in v[-8:]]
-            out["ai_failures"] = [n for n in _names if n]
             continue
         try:
             json.dumps(v, ensure_ascii=False)

@@ -806,7 +806,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
             {sessionView === "loading" && (
               <div className="flex items-center gap-2 py-2 text-xs text-dim">
-                <Loader2 size={14} className="animate-spin text-goldDark" />
+                <Loader2 size={14} className="animate-spin text-gold-dark" />
                 <span>正在调阅 {current} 的旧档…</span>
               </div>
             )}
@@ -837,7 +837,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                 <div className="flex items-center gap-2 mb-1 text-[11.5px] text-dim px-1">
                   <span className="font-bold">{t.timeLabel}</span>
                   {t.persisted && (
-                    <span className="rounded bg-gold/15 px-1 text-[9.5px] text-goldDark">留档</span>
+                    <span className="rounded bg-gold/15 px-1 text-[9.5px] text-gold-dark">留档</span>
                   )}
                 </div>
 
@@ -863,7 +863,7 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
 
             {busy && (
               <div className="flex items-center gap-2 text-dim text-xs py-2 px-1">
-                <Loader2 size={14} className="animate-spin text-goldDark" />
+                <Loader2 size={14} className="animate-spin text-gold-dark" />
                 <span>{current} 深思谋定，正拟奏对草疏中…</span>
               </div>
             )}
@@ -887,8 +887,8 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
                   }`}
                 >
                   <span
-                    className={`text-[9.5px] px-1 py-0.2 rounded font-sans ${
-                      opt.isPrimary ? "bg-black/20 text-gold-light" : "bg-gold/15 text-goldDark"
+                    className={`text-[9.5px] px-1 py-0.5 rounded font-sans ${
+                      opt.isPrimary ? "bg-black/20 text-gold-light" : "bg-gold/15 text-gold-dark"
                     }`}
                   >
                     {opt.badge}

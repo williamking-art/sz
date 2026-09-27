@@ -243,7 +243,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
       <div>
         <div className="mb-1.5 flex items-center justify-between font-kai text-xs text-dim">
           <span className="flex items-center gap-1">
-            <Sparkles size={12} className="text-goldDark" /> 服务商快捷模版（点击自动预填）：
+            <Sparkles size={12} className="text-gold-dark" /> 服务商快捷模版（点击自动预填）：
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -334,7 +334,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
               onClick={handleFetchModels}
               disabled={fetchingModels}
               title="自动探测并识别该接口下的可用模型列表"
-              className="group flex h-6 w-6 items-center justify-center rounded border border-gold/50 bg-paper text-goldDark transition hover:border-red hover:bg-gold-light/40 hover:text-red disabled:opacity-50"
+              className="group flex h-6 w-6 items-center justify-center rounded border border-gold/50 bg-paper text-gold-dark transition hover:border-red hover:bg-gold-light/40 hover:text-red disabled:opacity-50"
             >
               {fetchingModels ? (
                 <Loader2 size={13} className="animate-spin text-red" />

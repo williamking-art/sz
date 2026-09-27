@@ -145,7 +145,7 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
             }}
             className="flex items-center justify-center gap-2 rounded border border-gold/60 bg-paper px-3 py-1.5 font-kai text-sm text-ink shadow-sm transition hover:border-gold hover:bg-gold-light/40"
           >
-            <Landmark size={15} className="text-goldDark" /> 查阅路分账册 ({String(p.game_unit || (kind === "circuit" ? name : String(p.circuit || "")) || name)})
+            <Landmark size={15} className="text-gold-dark" /> 查阅路分账册 ({String(p.game_unit || (kind === "circuit" ? name : String(p.circuit || "")) || name)})
           </button>
         )}
 

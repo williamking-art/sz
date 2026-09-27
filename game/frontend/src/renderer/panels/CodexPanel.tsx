@@ -123,7 +123,7 @@ export default function CodexPanel({ props }: { props?: { category?: string; ent
                   </span>
                   {item.sub && (
                     <span
-                      className={`ml-1 shrink-0 rounded px-1 py-0.2 text-[10px] ${
+                      className={`ml-1 shrink-0 rounded px-1 py-0.5 text-[10px] ${
                         isSelected ? "bg-red/20 text-red" : "bg-card text-dim"
                       }`}
                     >
@@ -147,10 +147,10 @@ export default function CodexPanel({ props }: { props?: { category?: string; ent
                     {activeItem.name}
                   </span>
                   {activeItem.sub && (
-                    <span className="font-kai text-xs text-goldDark">〔{activeItem.sub}〕</span>
+                    <span className="font-kai text-xs text-gold-dark">〔{activeItem.sub}〕</span>
                   )}
                 </div>
-                <BookOpen size={16} className="text-goldDark/70" />
+                <BookOpen size={16} className="text-gold-dark/70" />
               </div>
 
               {/* 属性表格 */}

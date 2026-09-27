@@ -96,7 +96,7 @@ export default function FocusPanel() {
             </button>
           ))}
         </div>
-        <div className="font-kai text-xs text-goldDark">
+        <div className="font-kai text-xs text-gold-dark">
           已施行：{unlockedCount} / {totalNodesCount} 策
         </div>
       </div>
@@ -118,10 +118,10 @@ export default function FocusPanel() {
               <div className="flex items-center gap-2">
                 <span className="font-kai text-xs font-bold text-red">中枢专精在办大策：</span>
                 <span className="font-kai text-sm font-bold text-ink">{activeFocus.name}</span>
-                <span className="rounded bg-paper px-1.5 py-0.2 font-kai text-[10px] text-dim border border-border">
+                <span className="rounded bg-paper px-1.5 py-0.5 font-kai text-[10px] text-dim border border-border">
                   月耗度支 {activeFocus.cost_per_month} 贯
                 </span>
-                <span className="font-kai text-xs font-semibold text-goldDark">
+                <span className="font-kai text-xs font-semibold text-gold-dark">
                   推进进度：{activeFocus.progress || 0}% ({activeFocus.elapsed_turns || 0}/{activeFocus.total_turns || 3}月)
                 </span>
               </div>
@@ -193,24 +193,24 @@ export default function FocusPanel() {
                     <span className="font-kai text-base font-bold text-ink">
                       第{idx + 1}策 · {node.name}
                     </span>
-                    <span className="rounded bg-card border border-border px-1.5 py-0.2 font-kai text-[10px] text-dim">
+                    <span className="rounded bg-card border border-border px-1.5 py-0.5 font-kai text-[10px] text-dim">
                       权级 {node.power_level}
                     </span>
-                    <span className="rounded bg-paper border border-border px-1.5 py-0.2 font-kai text-[10px] text-dim">
+                    <span className="rounded bg-paper border border-border px-1.5 py-0.5 font-kai text-[10px] text-dim">
                       历时 {node.duration || 3} 月
                     </span>
-                    <span className="rounded bg-paper border border-border px-1.5 py-0.2 font-kai text-[10px] text-dim">
+                    <span className="rounded bg-paper border border-border px-1.5 py-0.5 font-kai text-[10px] text-dim">
                       月支 {node.cost_per_month || 10000} 贯
                     </span>
 
                     {isUnlocked && (
-                      <span className="flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-0.2 font-kai text-[10px] font-bold text-emerald-800">
+                      <span className="flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-0.5 font-kai text-[10px] font-bold text-emerald-800">
                         <CheckCircle2 size={11} /> 已经大策功成 · AI长期记忆已沉淀
                       </span>
                     )}
 
                     {isCurrentActive && (
-                      <span className="flex items-center gap-1 rounded bg-red/20 px-2 py-0.2 font-kai text-[10px] font-bold text-red">
+                      <span className="flex items-center gap-1 rounded bg-red/20 px-2 py-0.5 font-kai text-[10px] font-bold text-red">
                         <Clock size={11} className="animate-spin" /> 中枢专精推行中 ({activeFocus.progress}%)
                       </span>
                     )}
@@ -223,7 +223,7 @@ export default function FocusPanel() {
                   {/* 历史沉淀与 AI 推演影响简注 */}
                   {node.narrative_memory && (
                     <div className="mt-2 flex items-start gap-1.5 rounded bg-paper/60 p-1.5 border border-gold/30 text-[11px] font-kai text-ink/80">
-                      <BookOpen size={13} className="shrink-0 mt-0.5 text-goldDark" />
+                      <BookOpen size={13} className="shrink-0 mt-0.5 text-gold-dark" />
                       <span><strong>史评与AI记忆定式：</strong>{node.narrative_memory}</span>
                     </div>
                   )}
@@ -231,7 +231,7 @@ export default function FocusPanel() {
 
                 <div className="shrink-0 pl-2">
                   {isUnlocked ? (
-                    <div className="rounded-full bg-gold/20 p-2 text-goldDark" title="已获帝国朱红御玺印鉴">
+                    <div className="rounded-full bg-gold/20 p-2 text-gold-dark" title="已获帝国朱红御玺印鉴">
                       <Sparkles size={18} />
                     </div>
                   ) : isCurrentActive ? (

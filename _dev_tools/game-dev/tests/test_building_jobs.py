@@ -224,3 +224,23 @@ def test_apply_bankruptcy_layoff_and_closed():
     ev3 = apply_bankruptcy(prov, CFG, arrears_building=50, staffed=staffed)
     assert any(e["action"] == "closed" for e in ev3), f"应倒闭：{ev3}"
     assert prov["buildings"]["工坊"].get("closed") is True
+
+
+def test_closed_building_is_never_upgraded():
+    """倒闭建筑（`lv=0, closed=True`）**不得**被"结余营造"升级（2026-09-27 修复）。
+
+    原 `evolve_building_levels` 用 `_lv()` 判等级，而 `_lv()` 的 `or 1` 把 0 归一为 1
+    → 判据 `_lv < lv_max` 成立 → 把倒闭建筑升成 `lv=2` 而 `closed` 保留。
+    实测（史实难度 120 个月）曾出现 **225 次**「closed=True 且 lv>0」。
+    """
+    cfg = dict(CFG)
+    cfg["BUILDING_UPGRADE_PROB"] = 1.0          # 必定尝试升级，确保走到判据
+    prov = {"buildings": {"粮田": {"lv": 0, "closed": True}, "工坊": {"lv": 1}}}
+    changes = evolve_building_levels(prov, cfg, surplus=True, famine=False, arrears=False,
+                                     staffed={"粮田": 0, "工坊": 100},
+                                     idle_streak={}, rng=random.Random(7))
+    closed = prov["buildings"]["粮田"]
+    assert closed["lv"] == 0, "倒闭建筑被升级 => 闭厂复活"
+    assert closed.get("closed") is True, "closed 标记不得被清除"
+    assert all(c["type"] != "粮田" for c in changes), "升级机会应落在未倒闭建筑上"
+    assert prov["buildings"]["工坊"]["lv"] == 2, "未倒闭建筑应正常升级"

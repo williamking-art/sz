@@ -316,7 +316,7 @@ export default function AccountingPanel() {
           onClick={() => pushOverlay({ kind: "pop", title: "天下民生 · 六民生齿与财帛" })}
           className="flex items-center gap-1.5 rounded border border-gold/60 bg-paper px-3 py-1.5 font-kai text-xs text-ink transition hover:bg-gold-light"
         >
-          <Users2 size={14} className="text-goldDark" /> 查阅六民生齿与民间财帛 (POP)
+          <Users2 size={14} className="text-gold-dark" /> 查阅六民生齿与民间财帛 (POP)
         </button>
         <button
           onClick={() => pushOverlay({ kind: "decree", title: "拟旨 · 度支" })}

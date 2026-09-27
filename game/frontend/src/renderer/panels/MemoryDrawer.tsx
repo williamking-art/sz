@@ -121,7 +121,7 @@ export default function MemoryDrawer({
               </span>
             </div>
             {drift && (
-              <p className="mt-1 text-[10.5px] leading-relaxed text-goldDark">
+              <p className="mt-1 text-[10.5px] leading-relaxed text-gold-dark">
                 记忆水位与主存档不一致：多为主存档未更新（记忆库每回合落盘），读档后已按存档水位对齐检索。
               </p>
             )}
@@ -260,7 +260,7 @@ function StreamTab({ rows, minister }: { rows: MemoryDialogueRow[]; minister: st
               return (
                 <p key={r.id} className="text-[12px] leading-relaxed">
                   <span
-                    className={`mr-1 font-bold ${isEmperor ? "text-red" : "text-goldDark"}`}
+                    className={`mr-1 font-bold ${isEmperor ? "text-red" : "text-gold-dark"}`}
                   >
                     {isEmperor ? "朕" : r.speaker}：
                   </span>
