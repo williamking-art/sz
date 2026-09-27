@@ -284,3 +284,9 @@ game/frontend/_shot-dist/
 # --- 截图台的浏览器 profile 与输出（一律不入库；默认已改到系统临时目录）---
 game/frontend/_shot-profile/
 game/frontend/_shots/
+
+# --- 打包成品（2026-09-27：按用户要求直接放在 game/ 根）---
+# 注意：不能写 `game/SongZuo*` —— `game/SongZuo.spec` 是**入库的源码**。
+game/win-unpacked/
+game/SongZuo Setup*.exe
+game/SongZuo Setup*.exe.blockmap

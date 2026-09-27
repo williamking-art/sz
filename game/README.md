@@ -400,7 +400,7 @@ python -m pytest --durations=25     # 重新量耗时分布（分层阈值应据
 cd game
 & <venv>\python.exe -m PyInstaller SongZuo.spec --noconfirm
 
-# 2) 构建前端 + 打包 Electron 壳 → game/dist/win-unpacked/SongZuo.exe
+# 2) 构建前端 + 打包 Electron 壳 → game/win-unpacked/SongZuo.exe（成品直接在 game/ 下）
 cd game\frontend
 npm run build
 node node_modules\electron-builder\cli.js --win --dir        # 免安装的运行目录
@@ -408,12 +408,13 @@ node node_modules\electron-builder\cli.js --win nsis         # 生成安装包�
 
 # 3) 冒烟（重要：先剥掉 ELECTRON_RUN_AS_NODE，否则 Electron 会被当 Node 跑）
 Remove-Item env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-& ..\dist\win-unpacked\SongZuo.exe
+& ..\win-unpacked\SongZuo.exe
 Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing   # 期望 {"ok":true,...}
 ```
 
-**所有产物统一在 `game/dist/`**（`directories.output: "../dist"`）：
-`SongZuo/`＝Python 后端 onedir、`win-unpacked/`＝免安装可运行入口、`SongZuo Setup *.exe`＝NSIS 安装包。
+**成品直接放在 `game/` 根**（`directories.output: ".."`）：
+`game/win-unpacked/SongZuo.exe`＝免安装可运行入口、`game/SongZuo Setup *.exe`＝NSIS 安装包；
+`game/dist/SongZuo/`＝PyInstaller 后端 onedir（**打包输入**，由 `extraResources` 拷进 `resources/backend/`，可删可重建）。
 
 打包配置在 `package.json` 的 `build` 段：`extraResources` 把 `game/dist/SongZuo` 放进
 `resources/backend/`（主进程按 `resources/backend/SongZuo.exe` 探测）；
