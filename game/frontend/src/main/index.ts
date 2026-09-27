@@ -69,6 +69,16 @@ function getBackendConfig(): BackendConfig {
   return resolvedBackendConfig;
 }
 
+// ---------------- 启动分段计时（2026-09-27，报告 §17） ----------------
+// 目的：**真机跑一次就能出数**。每条一行 `[boot] 标签 +Nms`，把「冷启到可用」拆成：
+//   主进程加载 → app:ready → 建窗 → 后端 spawn → 后端就绪/复用 → 首帧 → 渲染层索取后端地址。
+// 有了它才能判断「该优化谁」，而不是凭感觉改。
+const _bootT0 = Date.now();
+function bootMark(label: string): void {
+  console.log(`[boot] ${label} +${Date.now() - _bootT0}ms`);
+}
+bootMark("main:loaded");
+
 // ---------------- 后端健康检查与拉起 ----------------
 let backendProc: ChildProcess | null = null;
 
@@ -91,10 +101,22 @@ async function checkHealth(url: string, timeoutMs = 1500): Promise<boolean> {
   });
 }
 
-async function waitForBackend(url: string, attempts = 40, intervalMs = 500): Promise<boolean> {
-  for (let i = 0; i < attempts; i++) {
+/**
+ * 等待后端就绪：**首探立即**，随后节奏自适应。
+ *
+ * 2026-09-27 实测（见审查报告 §17）：后端冷启到可服务约 450~700 ms（其中 FastAPI 导入 329 ms），
+ * 而原实现固定 500 ms 间隔 → 后端在 t=700 ms 就绪，客户端要到 t≈1000~1200 ms 才发现，
+ * 白等 300~500 ms。改为**前 1 秒每 100 ms 探一次**（覆盖典型冷启窗口），之后退到 300 ms，
+ * 总预算仍约 20 s（10×100 + 40×300 ≈ 13 s，超过则判定超时）。
+ */
+async function waitForBackend(url: string, fastAttempts = 10, slowAttempts = 40): Promise<boolean> {
+  for (let i = 0; i < fastAttempts; i++) {
     if (await checkHealth(url)) return true;
-    await new Promise((r) => setTimeout(r, intervalMs));
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  for (let i = 0; i < slowAttempts; i++) {
+    if (await checkHealth(url)) return true;
+    await new Promise((r) => setTimeout(r, 300));
   }
   return false;
 }
@@ -135,6 +157,7 @@ function spawnBackend(cfg: BackendConfig): void {
     ? { command: cfg.command, args: ["-m", "backend.server"] }
     : resolveBackendCommand(cwd);
   console.log(`[backend] spawn ${command} ${args.join(" ")} (cwd=${cwd})`);
+  bootMark("backend:spawn");
   backendProc = spawn(command, args, {
     cwd,
     shell: false,
@@ -158,15 +181,18 @@ async function ensureBackend(): Promise<string> {
   const cfg = getBackendConfig();
   if (await checkHealth(cfg.url)) {
     console.log(`[backend] 已就绪: ${cfg.url}`);
+    bootMark("backend:reused");   // 已有热后端：本次启动**完全省去**进程拉起与导入
     return cfg.url;
   }
   if (cfg.spawn) {
     spawnBackend(cfg);
     if (await waitForBackend(cfg.url)) {
       console.log(`[backend] 拉起成功: ${cfg.url}`);
+      bootMark("backend:ready");
       return cfg.url;
     }
     console.warn(`[backend] 拉起超时，前端将显示连接错误: ${cfg.url}`);
+    bootMark("backend:timeout");
   }
   return cfg.url;
 }
@@ -215,7 +241,11 @@ function createWindow() {
     }
   });
 
-  mainWindow.on("ready-to-show", () => mainWindow?.show());
+  mainWindow.on("ready-to-show", () => {
+    bootMark("window:ready-to-show");
+    mainWindow?.show();
+  });
+  mainWindow.webContents.on("did-finish-load", () => bootMark("window:loaded"));
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     openExternalIfSafe(url);
@@ -314,6 +344,7 @@ function ensureBackendUrl(): Promise<string> {
 }
 
 ipcMain.handle("backend:get-url", async () => {
+  bootMark("ipc:backend-url-requested");
   return ensureBackendUrl();
 });
 
@@ -331,11 +362,13 @@ ipcMain.handle("window:close", () => mainWindow?.close());
 
 // ---------------- 生命周期 ----------------
 app.whenReady().then(() => {
+  bootMark("app:ready");
   // 去掉系统默认菜单栏（File/Edit/View…），游戏窗口只保留自绘 HUD
   Menu.setApplicationMenu(null);
   installAuthHeaderInjection();
   installCspForBackend();
   createWindow();
+  bootMark("window:created");
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
