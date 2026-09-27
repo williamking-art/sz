@@ -107,7 +107,7 @@ game/  （宋祚游戏本体 = 仓库内 songzuo 游戏本体）
 | 层 | 是否打包 | 说明 |
 |----|---------|------|
 | 游戏本体 | ✅ 是 | 运行所需全部代码、资源、配置（Electron 安装包由 `frontend/` 构建，与 Python 本体分发物组合） |
-| `构建/分发产物` | ❌ 否 | `game/dist/`、`game/build/` 为构建输出，可随时重建 |
+| `构建/分发产物` | ❌ 否 | `game/dist/`（PyInstaller 最终产物，**electron-builder 的输入**）与 `game/build/`（增量缓存）；**保留**以便下次打包免重跑、加快重打（不入库，随时可重建） |
 | **`songzuo/`（仓库根）** | ❌ 否 | **发行目录**：exe + Chromium 运行时 + `resources/` + `locales/` + `saves/`；由构建产出 |
 | `_dev_tools/`（仓库根） | ❌ 否 | 开发期测试 / 分析脚本 / 文档 / 知识库，路径引用以仓库根为基准 |
 | `_scratch/`（仓库根） | ❌ 否 | **临时区**：一次性脚本 / 试验稿 / 日志（不入库；根上历史脚本已归入 `tmp-scripts-2026-09/`） |
@@ -399,6 +399,13 @@ python -m pytest --durations=25     # 重新量耗时分布（分层阈值应据
 - 缺 Node/Edge/Python 时相关节会 **SKIP**（不制造假失败）；截图矩阵把 **<10KB 的 PNG 视为空白页**（面板崩了或 mock 没喂上）。
 
 ## 打包成 exe（打包入口）
+
+> **中间目录策略（2026-09-27 用户决定：保留）**
+> `game/dist/SongZuo/`（207.7 MB，226 文件）= PyInstaller 最终产物，**是 electron-builder 的输入**
+> （`extraResources: ../dist/SongZuo`）；`game/build/SongZuo/`（38.5 MB）= 增量缓存。
+> **两者都保留**：留着可让下次重打免重跑冻后端、且 PyInstaller 增量分析更快；两者均**不入库**，
+> 需要腾空间时可随时删（删后重打要多跑一遍 `PyInstaller SongZuo.spec`，约 40 秒）。
+
 
 ```powershell
 # 0) 依赖：Python 侧需要 PyInstaller（前端 electron/electron-builder 已在 devDependencies）
