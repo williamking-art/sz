@@ -266,3 +266,12 @@ _dev_tools/game-docs/kb/dev_kb.sqlite
 !_dev_tools/unwired/**
 # 放行 _dev_tools/unwired/** 会连带纳入 __pycache__（每次跑测试都变），须显式排除
 _dev_tools/unwired/__pycache__/
+
+# --- 舆图生成物：不入库（2026-09-27；再生成步骤见 game/assets/README.md §四）---
+# 这些文件均可由已入库的源料重建：assets/map/raw/ + content/build_map_*.py + npm run build:topo
+# + fetch_hillshade.py（地形瓦片，需联网）。**注意规则须放在文件末尾**（git 以最后匹配为准）。
+game/assets/map/web/*.geojson
+game/frontend/public/map/*.geojson
+game/frontend/public/map/regions.topojson
+game/frontend/public/map/view.json
+game/frontend/public/map/tiles/

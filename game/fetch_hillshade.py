@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""抓取 ESRI World Hillshade 地形晕渲瓦片到 assets/map/web/tiles/hill/{z}/{x}/{y}.png。
+"""抓取 ESRI World Hillshade 地形晕渲瓦片到
+`frontend/public/map/tiles/hill/{z}/{x}/{y}.png`（**前端实际读取处**，见
+`frontend/src/renderer/map/mapController.ts` 的 hill 栅格源）。
+
+2026-09-27 修正（历史审计 I-8）：原写死输出到 `assets/map/web/tiles/hill`，
+而前端读 `frontend/public/map/tiles/hill`，且 `build-topo.ts` 明写"瓦片无需拷贝"
+→ 脚本产物**无消费方**、断链。现直接写入前端读取目录。
 
 覆盖范围：lon 46.5-150, lat -44-56（= MAP_VIEW 全视野，含澳大利亚），z5-z7。
 ESRI 瓦片 URL 模式：/tile/{z}/{y}/{x}（注意 y 在前）。
@@ -10,7 +16,8 @@ import concurrent.futures as cf
 import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-WEB = os.path.join(BASE, "assets", "map", "web")
+# 输出到**前端实际读取**的目录（I-8 修复）：game/frontend/public/map/tiles/hill
+WEB = os.path.join(BASE, "frontend", "public", "map")
 OUT = os.path.join(WEB, "tiles", "hill")
 UA = {"User-Agent": "Mozilla/5.0 (Songzuo basemap fetcher)"}
 

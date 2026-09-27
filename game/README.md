@@ -323,3 +323,36 @@ pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校
 - `_dev_tools/cloudbase-check.ps1` **第 7 节**：知识库 `STALE` → `FAIL`（`-Fix` 自动重建）；
 - `_dev_tools/game-docs/analysis/check_docs_constants.py`：文档 ↔ 代码常量漂移；
 - `_dev_tools/game-dev/tests/` 全量 pytest：口径类断言（役钱等额、六类 POP 单一权威源、步序镜像等）。
+
+## 舆图资源重建（生成物不入库，2026-09-27 起）
+
+> ⚠️ **为什么必须看这节**：舆图的**生成物已移出版本库**（避免 2200+ 文件占仓库）。
+> 新克隆 / 换机后，`assets/map/web/*.geojson` 与 `frontend/public/map/**` 都是**空的**，
+> 不重建则**舆图空白或只有底色**。
+> （本节写在入库的 `game/README.md` 里，正是因为 `assets/README.md`、`frontend/README.md` 等
+> 本地 README **不入库**——只在本地可见的文档不能承载"克隆后怎么办"。）
+
+| 路径 | 类型 | 入库 | 再生成 |
+|---|---|---|---|
+| `assets/map/raw/*.json`（DataV 省级 + Natural Earth 河流/湖泊） | **源料** | ✅ | 需联网重下 |
+| `assets/map/web/*.geojson`（11 层） | 生成物 | ❌ | `build_map_basemap.py` → `build_map_geo.py` |
+| `frontend/public/map/{regions.topojson,land,rivers,lakes,cities.geojson,view.json}` | 生成物 | ❌ | `npm run build:topo` |
+| `frontend/public/map/tiles/hill/**` | 生成物（地形晕渲 z5–z7） | ❌ | `python fetch_hillshade.py`（**需联网**） |
+
+**四步（缺任一步舆图都不完整）**：
+
+```powershell
+$PY = 'D:\codebuddy\.audit-venv\Scripts\python.exe'   # 本机测试解释器
+cd game
+& $PY content/build_map_basemap.py    # → assets/map/web/{circuits,circuit_borders,prefectures,prefecture_borders}.geojson
+& $PY content/build_map_geo.py        # → assets/map/web/{regimes,regime_borders,regime_prefectures,cities,land,rivers,lakes}.geojson
+cd frontend; npm run build:topo       # → public/map/regions.topojson + 平移 geojson/view.json（**已实测可跑**）
+cd ..; & $PY fetch_hillshade.py       # → public/map/tiles/hill/**（ESRI World Hillshade，需联网）
+```
+
+- 只缺 `tiles/` → 舆图正常但**无地形晕渲**；缺前两步或 `build:topo` → 舆图空白/只有底色。
+- 📌 2026-09-27 修复历史审计 **I-8**：`fetch_hillshade.py` 原先输出到 `assets/map/web/tiles/hill`
+  （**无人读取**，且 `build-topo.ts` 明写"瓦片无需拷贝"）→ 断链；现改为前端实际读取的
+  `frontend/public/map/tiles/hill`（`frontend/src/renderer/map/mapController.ts` 的 hill 栅格源）。
+- 📌 `.gitignore` 的对应规则在**文件末尾**（`# --- 舆图生成物：不入库`）——git 以最后匹配为准，
+  后续新增放行规则时**不要把它覆盖回入库**（本项目已有"放行目录连带纳入 `__pycache__`"的先例）。
