@@ -173,6 +173,31 @@ else {
     }
 }
 
+# ---------------------------------------------------------------- 7. 知识库与文档一致性（本地）
+Head '7. 知识库与文档一致性（本地开发，2026-09-27 新增）'
+# 背景：知识库是"产物"，改了 docs/ 不重建就会**静默过期**——而且旧版 kb_stats.py 的
+#       OK/DRIFT 是库内自洽检查（恒报 OK），实测曾让 7 篇里 5 篇脱节却全绿。现已改为与磁盘源比对。
+$kbDir   = Join-Path $RepoRoot '_dev_tools\game-docs\kb'
+$kbStats = Join-Path $kbDir 'kb_stats.py'
+$kbBuild = Join-Path $kbDir 'build_kb.py'
+$kbPy    = Join-Path $PyDir 'python.exe'
+if (-not (Test-Path $kbStats)) { Skip "缺少 $kbStats" }
+elseif (-not (Test-Path $kbPy)) { Skip '无 Python（§1），略过知识库一致性检查' }
+else {
+    $kbOut  = & $kbPy $kbStats 2>&1
+    $kbCode = $LASTEXITCODE
+    if ($kbCode -eq 0) { Ok '两个知识库与磁盘源文档一致（游戏库 7 篇 / 开发库 21 篇）' }
+    elseif ($Fix) {
+        & $kbPy $kbBuild build 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { Ok '知识库已重建（-Fix）：build_kb.py build 完成' }
+        else { Bad '知识库重建失败' "手动跑：& '$kbPy' '$kbBuild' build" }
+    }
+    else {
+        $stale = @($kbOut | Select-String -Pattern '\[STALE\]' -AllMatches).Count
+        Bad "知识库已脱节（$stale 篇）——改了 docs/ 但未重建" '重跑本脚本并加 -Fix（自动重建两库），或手动 python build_kb.py build'
+    }
+}
+
 # ---------------------------------------------------------------- 汇总
 Write-Host "`n=== 汇总 ===" -ForegroundColor Cyan
 Write-Host ("  OK={0}  FAIL={1}  SKIP={2}" -f $script:pass, $script:fail, $script:skip)
