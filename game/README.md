@@ -454,21 +454,3 @@ pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校
    置为 `{ "backend": "local" }` 或删除该文件即回到本地模式。
 
 后端选择顺序：`SONGZUO_BACKEND` 环境变量 > `backend_config.json` > 本地。
-
-## 各目录说明（README 索引，2026-09-27 补）
-
-每个子目录都有自己的 README，写清了该目录的职责、关键文件与坑。**改某个目录前先读它**：
-
-| 目录 | 一句话 | README |
-|---|---|---|
-| `core/` | **内核**：月度结算、状态权威源、人口/财政/派系机制（61 个模块） | [core/README.md](core/README.md) |
-| `content/` | **静态数据与常量**（六类 POP 权威清单、路府州县地理表、科技/军制/诏令数据） | [content/README.md](content/README.md) |
-| `engine/` | 契约应用层：AI 产出 → 世界状态（白名单/守恒/整批回滚） | [engine/README.md](engine/README.md) |
-| `ai/` | LLM 契约与叙事：schemas/validators、脱敏、守卫、失败降级、知识库检索 | [ai/README.md](ai/README.md) |
-| `backend/` | 前端↔内核接口：客户端抽象 + Python 参考后端（FastAPI，可选） | [backend/README.md](backend/README.md) |
-| `frontend/` | Electron + React：main/preload/renderer 三进程、构建与打包命令 | [frontend/README.md](frontend/README.md) |
-| `assets/` | 运行期资源：地图/事件图/立绘/字体/**随分发的 `kb/game_kb.sqlite`** | [assets/README.md](assets/README.md) |
-| `memory/` | 记忆层：对话记忆 + 记忆图谱（一轮游戏一个 SQLite） | [memory/README.md](memory/README.md) |
-| `telemetry/` | 遥测（可选层，零第三方依赖，失败静默） | [telemetry/README.md](telemetry/README.md) |
-| `audio/` | 音频清单与可选 TTS（骨架，缺失静默降级） | [audio/README.md](audio/README.md) |
-| `saves/` | 存档目录（运行产物，不入库）；**读档兼容**是硬要求 | [saves/README.md](saves/README.md) |

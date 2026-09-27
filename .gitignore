@@ -4,7 +4,6 @@
 # --- 运行时生成的存档 ---
 game/saves/*
 !game/saves/.gitkeep
-!game/saves/README.md
 
 # --- 临时归档与构建产物 (_scratch/：任意层级均不入库) ---
 _scratch/
@@ -251,10 +250,14 @@ game/assets/_backup_original/
 # 新建克隆后 kb_search 才能直接可用（缺失只是静默降级，不易察觉）。
 _dev_tools/game-docs/kb/dev_kb.sqlite
 
-# ===== 项目自身 README 与工具导览（2026-09-27 目录整理时放行）=====
-# 背景：上面 "DeepSeek Harness (dsh) 忽略规则" 段里的 `/README.md` 是**根锚定**规则，
-# 它会把本仓库自己的 README 一并忽略（dsh 段的初衷是忽略 dsh 检出物，不适用宋祚文档）。
-# git 以**最后匹配**的规则为准，故在此显式放行。
-!/README.md
-!_dev_tools/README.md
+# ===== 开发说明类 README：**不入库**（用户 2026-09-27 口径）=====
+# 目录/导览类 README 只作**本地参考**（文件保留在磁盘），不进版本库。
+# 注意：`/game/*/README.md` 不匹配 `game/README.md` —— 后者是游戏本体的既有说明，仍入库。
+# 也注意：本仓库仍入库的文档是 `_dev_tools/game-docs/docs/`（权威机制）与 `analysis/`（分析）、
+# `reviews/`（归档的审查/规范文档），它们不是"说明性 README"。
+/README.md
+/_dev_tools/README.md
+/_dev_tools/game-docs/README.md
+/_dev_tools/game-docs/reviews/README.md
+/game/*/README.md
 
