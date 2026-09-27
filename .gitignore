@@ -99,6 +99,9 @@ _dev_tools/*
 !_dev_tools/dev-env.ps1
 # 开发辅助工具链自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，可 -Fix 自动修可修项）
 !_dev_tools/cloudbase-check.ps1
+# 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：
+# `game/README.md`（**入库**文档）已引用它 —— 若不入库，新克隆者按文档跑会找不到文件。
+!_dev_tools/verify-all.ps1
 # 立绘生成工具链入库：一次性资产管线的源脚本+源图（2026-09-26 从 game/content/
 # 迁出，修复分层纪律违规；含 _i2i.py 的第三方 key——key 本体按用户决定不轮换，
 # 但迁出后至少不再随 PyInstaller 把 content/ 整体打包而进每个分发版）。
