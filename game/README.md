@@ -375,3 +375,17 @@ python -m pytest --durations=25     # 重新量耗时分布（分层阈值应据
   `PytestUnknownMarkWarning`）。
 - ⚠️ `pytest.ini` 里 `addopts = -q` 与命令行 `-q` 叠加会变 `-qq` 并**抑制摘要行**；
   要看摘要请加 `-o addopts=` 覆盖。
+
+## 一条命令全量验证（写代码后跑这个）
+
+```powershell
+& .\_dev_tools\verify-all.ps1            # 全量：后端 + 前端 + 类型 + 截图矩阵（约 2 分钟）
+& .\_dev_tools\verify-all.ps1 -Fast      # 后端快路径（-m "not slow"，省约 30 秒）
+& .\_dev_tools\verify-all.ps1 -SkipShot  # 跳过截图（省约 30 秒）
+& .\_dev_tools\verify-all.ps1 -Bench     # 追加地图首帧基准（信息性）
+```
+
+- 各节输出**可直接引用的摘要**（如 `pytest 1167 passed, 8 deselected`、`vitest 57 passed`、`截图 9 张`）；
+- **退出码 = 失败数**，可被 CI/门禁直接消费；
+- 与 `_dev_tools/cloudbase-check.ps1` 的分工：**本脚本查代码**，那边查**环境/云端/知识库**。
+- 缺 Node/Edge/Python 时相关节会 **SKIP**（不制造假失败）；截图矩阵把 **<10KB 的 PNG 视为空白页**（面板崩了或 mock 没喂上）。
