@@ -1048,16 +1048,30 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
     scale = max(1, min(5, int(payload.get("scale", 3) or 3)))
     if tier in ("西军", "北军"):
         tier = "禁军"
-    units = [u for u in state.army_units if u.tier == tier]
-    if not units:
-        state.set_ai_pending_status(action_id, "rejected")
-        return f"批红驳回：无此军籍 {tier}。"
+    # 2026-09-27（方案 §3.1，用户口径"军队按编制成军"）：军令的对象是**编制单位**（ArmyUnit 实体）。
+    #   · 带 `unit_id` → 只作用于**该一支**（对应参考图"选中某支军再下令"）；
+    #   · 不带 → 维持旧行为（按军籍整批扫），**向后兼容**，不新增写状态通道。
+    unit_id = str(payload.get("unit_id", "") or "").strip()
+    if unit_id:
+        units = [u for u in state.army_units
+                 if str(getattr(u, "unit_id", "") or "") == unit_id]
+        if not units:
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：无此编制单位「{unit_id}」。"
+    else:
+        units = [u for u in state.army_units if u.tier == tier]
+        if not units:
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：无此军籍 {tier}。"
+    # 回执标签：定向时用**实际单位**的军籍·番号，避免 payload.tier 与实际不符时误导
+    label = (f"{getattr(units[0], 'tier', tier)}·{getattr(units[0], 'name', '')}"
+             if unit_id else tier)
 
     if act in ("操练", "整编"):
         for u in units:
             u.training = max(0, min(100, u.training + scale * 2))
         state.set_ai_pending_status(action_id, "approved")
-        return f"批红：{tier} {act}（档 {scale}）已饬行。"
+        return f"批红：{label} {act}（档 {scale}）已饬行。"
 
     if act == "增募":
         _N = scale * 2000
@@ -1109,13 +1123,13 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
                 break
             paid += state.transfer_money("treasury", f"pop:{road}:兵", cost - paid)
         state.set_ai_pending_status(action_id, "approved")
-        return f"批红：{tier} 增募 {total} 人，縻饷 {paid} 贯。"
+        return f"批红：{label} 增募 {total} 人，縻饷 {paid} 贯。"
 
     if act == "调赴" and tgt:
         for u in units:
             u.station = tgt
         state.set_ai_pending_status(action_id, "approved")
-        return f"批红：{tier} 调赴 {tgt}。"
+        return f"批红：{label} 调赴 {tgt}。"
 
     state.set_ai_pending_status(action_id, "rejected")
     return f"批红驳回：未识军令动作「{act}」。"
