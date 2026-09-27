@@ -310,3 +310,5 @@ songzuo/LICENSES.chromium.html
 # 这里只补一条兜底：发行目录内的运行数据与生成物都不入库（保留 .gitkeep）。
 songzuo/**/*.db
 songzuo/**/_composed/
+# ai_config.json 是**运行配置（含密钥）**：发行目录与开发目录各一份，两处都必须忽略
+game/ai_config.json
