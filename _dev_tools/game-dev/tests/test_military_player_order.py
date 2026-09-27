@@ -95,3 +95,21 @@ def test_player_order_move_targets_single_unit():
     b_station = b.station
     issue_military_order(s, a.unit_id, "地图调度", target=dest)
     assert a.station == dest and b.station == b_station
+
+
+def test_command_channel_dispatch_reaches_player_order():
+    """**通道验证**：前端 `action("issue_military_order", …)` 经 `LocalBackend.action`
+    分派表 → `commands.issue_military_order`（HttpBackend 走 /api/action → 同一实现）。"""
+    from backend.client import LocalBackend
+
+    s = _state()
+    a, b = _two_same_tier(s)
+    a.training = b.training = 10
+    backend = LocalBackend()
+    msg, s2 = backend.action(
+        s, "issue_military_order",
+        {"unit_id": a.unit_id, "button": "整编", "scale": 3}, None)
+    assert s2 is s, "本地模式应返回同一 state 对象"
+    assert "批红" in msg, f"应走批红通道，实得：{msg}"
+    assert a.training == 16 and b.training == 10, "分派后仍须定向生效"
+    assert s.ai_pending_actions[-1]["proposer"] == "玩家", "审计须留痕"

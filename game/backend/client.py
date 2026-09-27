@@ -217,6 +217,12 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: self._start_focus_action(s, p),
             "cancel_focus":
                 lambda s, p, ai: self._cancel_focus_action(s, p),
+            # 2026-09-27（方案 §3.2 方案 B）：**玩家亲裁军令**——编制单位定向。
+            # 执行仍走 approve_ai_action → _apply_military_dispatch（唯一写状态通道）。
+            "issue_military_order":
+                lambda s, p, ai: (cmd.issue_military_order(
+                    s, p.get("unit_id", ""), p.get("button", ""),
+                    p.get("scale", 3), p.get("target", "")), s),
             "approve_ai_action":
                 lambda s, p, ai: (cmd.approve_ai_action(s, p.get("action_id", "")), s),
             "reject_ai_action":

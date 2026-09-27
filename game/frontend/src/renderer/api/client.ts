@@ -474,6 +474,7 @@ export type ActionName =
   | "start_tech_research"
   | "approve_invention"
   | "reject_invention"
+  | "issue_military_order"
   | "approve_ai_action"
   | "reject_ai_action"
   | "issue_kouyu"

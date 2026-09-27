@@ -45,6 +45,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const [tab, setTab] = useState<"route" | "nation">("route");
   const [route, setRoute] = useState(initial);
   const [picked, setPicked] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [dest, setDest] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -87,6 +90,29 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   }, [state, route]);
 
   const sel = routeUnits.find((u) => u.unit_id === picked) ?? routeUnits[0];
+
+  // 已实现契约的按钮（其余 5 个尚无契约 → 保持禁用）。键=按钮名，值=命令层动作。
+  const CAN_ORDER: Record<string, boolean> = { "整编": true, "扩编": true, "地图调度": true };
+  const destOptions = routes.map((r) => r.route).filter((n) => n !== route);
+
+  async function doOrder(button: string) {
+    if (!sel || busy) return;
+    setBusy(true);
+    try {
+      const r = await getApiClient().action("issue_military_order", {
+        unit_id: sel.unit_id, button, scale: 3,
+        target: button === "地图调度" ? (dest || destOptions[0] || "") : ""
+      });
+      setMsg(String((r as { message?: string })?.message ?? "已饬行。"));
+      const rr = await getApiClient().readouts();
+      const m = ((rr as { regions?: { military?: Military } } | null)?.regions?.military) ?? null;
+      if (m) setMil(m);
+    } catch (e) {
+      setMsg(`未成：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -232,21 +258,43 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
           {/* 军令按钮：渲染但置灰 —— 发起通道未定（方案 §3.2） */}
           <section>
             <div className="mb-1 font-kai text-[13.5px] font-bold text-gold-dark">驻地施令</div>
-            <div className="grid grid-cols-4 gap-2">
-              {ACTIONS.map((a) => (
-                <button
-                  key={a}
-                  disabled
-                  title="军令发起通道未定：A 准/驳既有 AI 提议（零新写路径）｜B 新增玩家主动军令通道（触及『AI 只提议、程序执行』铁律，需拍板）"
-                  className="cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"
+            {destOptions.length > 0 ? (
+              <div className="mb-1 flex items-center gap-2 text-[12.5px]">
+                <span className="text-dim">调赴目的地</span>
+                <select
+                  value={dest || destOptions[0]}
+                  onChange={(e) => setDest(e.target.value)}
+                  className="rounded border border-border bg-card px-2 py-0.5 text-[13px]"
                 >
-                  {a}
-                </button>
-              ))}
+                  {destOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-4 gap-2">
+              {ACTIONS.map((a) => {
+                const ok = !!CAN_ORDER[a] && !!sel && !busy;
+                return (
+                  <button
+                    key={a}
+                    disabled={!ok}
+                    onClick={() => void doOrder(a)}
+                    title={CAN_ORDER[a]
+                      ? `对选中编制单位「${sel?.army_name || sel?.name || ""}」施行${a}（走既有批红通道，留审计）`
+                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度）`}
+                    className={ok
+                      ? "rounded border border-gold/60 bg-card/70 px-2 py-1 text-[13px] text-ink hover:bg-card"
+                      : "cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
             </div>
+            {msg ? <div className="mt-1 text-[12px] text-ink">{msg}</div> : null}
             <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
-              已就绪：编制单位定向（`_apply_military_dispatch` 支持 `unit_id`，向后兼容）与军政读数（`regions.military`）。
-              缺的一环是"谁发起"——定案后按钮即接既有通道（AI 只提议、程序执行），无需新增写状态路径。
+              玩家亲裁：经 `issue_military_order` 入待批队列（`proposer="玩家"`）后**即时批红**，
+              执行落在既有 `_apply_military_dispatch`（校验/档位封顶/POP 守恒同一处）；
+              整编／扩编／地图调度 已可施行，其余 5 键待各自契约。
             </div>
           </section>
         </>
