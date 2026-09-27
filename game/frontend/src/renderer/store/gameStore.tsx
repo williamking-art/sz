@@ -220,6 +220,31 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 // actions 引用（模块级，由 Provider 维护）
 let _actionsRef: Omit<GameStoreApi, keyof StoreShape> | null = null;
 
+// ---- 合并后的 API 快照：按 (snapshot, actions) 身份缓存 ----
+// 地基（2026-09-27 实测）：`getSnapshot` 返回的是 **selector 结果**，故选择器门槛本身是有效的
+// （`s.pushOverlay` / `s.setState` 等稳定引用不会因 state 变更而重渲）。但原实现**每次调用都新建**
+// `{ ..._getSnapshot(), ..._actionsRef }`，而它被 100+ 个订阅者在**每次通知与每次渲染**时调用
+// → 大量瞬时对象。此处按身份缓存：只有快照或 actions 真的换了才重建。
+let _apiCache: { snap: StoreShape; acts: unknown; api: GameStoreApi } | null = null;
+let _apiRebuilds = 0;
+
+function _getApi(): GameStoreApi {
+  const snap = _getSnapshot();
+  const acts = _actionsRef;
+  if (_apiCache && _apiCache.snap === snap && _apiCache.acts === acts) {
+    return _apiCache.api;
+  }
+  _apiRebuilds += 1;
+  const api = { ...snap, ...(acts ?? {}) } as GameStoreApi;
+  _apiCache = { snap, acts, api };
+  return api;
+}
+
+/** **仅测试用**：合并对象实际重建次数（用于断言缓存生效，不影响生产语义）。 */
+export function __storeApiRebuilds(): number {
+  return _apiRebuilds;
+}
+
 // 选择器式 hook：useGameStore((s) => s.state)
 // P1-26：经 useSyncExternalStore 订阅外部 store，selector 结果不变则不重渲。
 export function useGameStore<T>(selector: (s: GameStoreApi) => T): T {
@@ -227,8 +252,8 @@ export function useGameStore<T>(selector: (s: GameStoreApi) => T): T {
   if (!ctx) throw new Error("useGameStore 必须在 GameStoreProvider 内使用");
   return useSyncExternalStore(
     _subscribe,
-    () => selector({ ..._getSnapshot(), ...(_actionsRef ?? {}) } as GameStoreApi),
-    () => selector({ ..._getSnapshot(), ...(_actionsRef ?? {}) } as GameStoreApi),
+    () => selector(_getApi()),
+    () => selector(_getApi()),
   );
 }
 
