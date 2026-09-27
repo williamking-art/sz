@@ -457,3 +457,25 @@ node node_modules\electron-builder\cli.js --win --dir      # 产出 game\win-unp
 `portable` 目标）——实测那样的 `SongZuo.exe` 每次启动要把 ~1 GB 解到 `%TEMP%`，
 **到后端就绪 14.3 s，而文件夹形态只要 2.8 s（慢 5 倍）**。故 `win.target` 只保留 `nsis`
 （需要安装包时再单独打，属可选分发形式，不是必须）。
+
+### exe 图标与版本信息（本机权限限制下的做法）
+
+electron-builder 自己写图标/版本需要解压 `winCodeSign` 里的 **macOS 符号链接**（`darwin/*.dylib`），
+本机无管理员权限 → 该步失败。故 `win.signAndEditExecutable=false`，图标与版本改由**后置一步**写入：
+
+```powershell
+# 在 game\frontend 下执行；rcedit 取自 electron-builder 自己的缓存（无需下载）
+$rcedit = (Get-ChildItem "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign" -Recurse `
+           -Filter rcedit-x64.exe | Select-Object -First 1).FullName
+& $rcedit ..\..\songzuo\SongZuo.exe --set-icon ..\assets\icon.ico `
+  --set-version-string ProductName SongZuo --set-version-string FileDescription SongZuo `
+  --set-version-string CompanyName SongZuo --set-version-string LegalCopyright SongZuo `
+  --set-version-string OriginalFilename SongZuo.exe `
+  --set-file-version 0.1.0.0 --set-product-version 0.1.0.0
+```
+
+**验证已通过（2026-09-27）**：`VersionInfo` = `ProductName/CompanyName=SongZuo`、`FileVersion=0.1.0.0`；
+从 exe 抽出的图标 = `game/assets/icon.ico`（红底「宋祚」篆印）。
+
+> 若在**管理员权限或 Windows 开发者模式**下打包，可把 `build.win.signAndEditExecutable` 设回 `true`，
+> electron-builder 会一步写完图标与版本（`build.win.icon` 已指向 `../assets/icon.ico`）。
