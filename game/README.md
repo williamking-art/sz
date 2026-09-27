@@ -309,7 +309,7 @@ pip install -r requirements-extras.txt       # 可选增强：A1 JSON Schema 校
 | 改了什么 | 必须同步到 |
 |---|---|
 | 机制 / 数值口径（`core/`、`content/`） | `_dev_tools/game-docs/docs/游戏机制说明.md`；财政→`财力消耗设计.md`；货币→`货币口径规范_M0M1M2.md`；官制→`宋代官制与三冗设计.md`；建筑/产业链→`外邦省域产业链设计_2026-09-22.md` |
-| 结算步序（`core/settlement_steps._STEPS`） | `游戏机制说明.md` §二 流水线（步号与职责）＋ `test_pop_identity.py` 的 `_STEPS` 镜像 |
+| 结算步序 | **权威镜像＝`_dev_tools/game-dev/tests/test_pop_identity.py::_STEPS`**（`test_middle_calibration.py` 逐步同函数比对）；`core/settlement_steps.py::_STEPS` 是**同名副本、生产零引用**（2026-09-27 审查实测）。新增结算步必须同步**测试侧镜像**，并同步 `游戏机制说明.md` §二 流水线 |
 | 新增/重构模块、目录职责变化 | 该目录的 `README.md`（`game/*/README.md`）——**这些 README 不入库但本地必须存在** |
 | 工具脚本（`_dev_tools/*.ps1`、`cloudbase-check.ps1` 增删分节） | `docs/开发服务器与回归测试说明.md` 对应小节（如 §8.11 自检表） |
 | **任何 `docs/*.md` 改动** | **重建知识库**：`python _dev_tools/game-docs/kb/build_kb.py build`，否则游戏内 `kb_search` 读到的仍是旧切片 |
