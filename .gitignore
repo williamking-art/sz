@@ -290,3 +290,6 @@ game/frontend/_shots/
 game/win-unpacked/
 game/SongZuo Setup*.exe
 game/SongZuo Setup*.exe.blockmap
+# electron-builder 的调试产物（directories.output=.. 时会落在 game\ 根）——生成物，不入库
+game/builder-debug.yml
+game/*.blockmap

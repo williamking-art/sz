@@ -420,3 +420,14 @@ Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing   # 期望 {"ok"
 `resources/backend/`（主进程按 `resources/backend/SongZuo.exe` 探测）；
 `win.signAndEditExecutable=false` 免管理员权限（代价：图标/版本信息未写入）。
 启动分段日志：设 `ELECTRON_ENABLE_LOGGING=1` 可见 `[boot] 标签 +Nms`。
+
+### 三种形态与实测取舍（2026-09-27）
+
+| 形态 | 位置 | 实测到后端就绪 | 说明 |
+|---|---|---|---|
+| **文件夹版（推荐）** | `game/win-unpacked/SongZuo.exe` | **2.8 s** | 免安装即玩，启动最快 |
+| 安装包 | `game/SongZuo Setup 0.1.0.exe` | 2.8 s | 装完有桌面／开始菜单快捷方式 |
+| 便携版单文件 | `game/SongZuo.exe` | **14.3 s** | 每次启动要把 ~1 GB 自解压到 `%TEMP%`，**慢 5 倍** |
+
+便携版适合「拷一个文件就能走」；日常玩请用**文件夹版**或**安装包**。
+
