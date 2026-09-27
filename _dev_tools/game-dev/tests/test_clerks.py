@@ -22,6 +22,7 @@ from core import money  # noqa: E402
 from core.game_state import GameState  # noqa: E402
 from core.settlement import run_monthly_settlement  # noqa: E402
 from content.data import EXACTION_MAX_SHARE  # noqa: E402
+import pytest
 
 _ECO = {"景气": "中", "士绅": "观望", "士绅力度": "中", "生产": "中",
         "窖银": "小", "城市化": "中", "回乡": "无", "科举": "中"}
@@ -129,6 +130,7 @@ def test_staffing_change_conserves_pop_and_swaps_with_farmers():
     assert _pop_total(s) == p0, f"裁吏破了 ΣPOP：{p0} → {_pop_total(s)}"
 
 
+@pytest.mark.slow  # 长时推演（4.21s）：快路径 `-m "not slow"` 可略过
 def test_redundant_clerks_arise_from_entitlement_growth():
     """**冗吏**来自编制自我膨胀（世袭/请托，"吏额有增无损"），不来自政务量增长。"""
     s = _run(GameState("史实"), 240, seed=7)

@@ -185,6 +185,7 @@ def test_category_window_open_unmapped_category_always_open():
 # ------------------------------------------------------------
 # 4) 南侵节奏分档
 # ------------------------------------------------------------
+@pytest.mark.slow  # 长时推演（1.31s）：快路径 `-m "not slow"` 可略过
 def test_jin_invasion_growth_pacing():
     """允盟增速（1.5~3.0/月）显著高于拒盟（0.25~0.75/月）。"""
     def _avg(timeline, trials=200):

@@ -356,3 +356,22 @@ cd ..; & $PY fetch_hillshade.py       # → public/map/tiles/hill/**（ESRI Worl
   `frontend/public/map/tiles/hill`（`frontend/src/renderer/map/mapController.ts` 的 hill 栅格源）。
 - 📌 `.gitignore` 的对应规则在**文件末尾**（`# --- 舆图生成物：不入库`）——git 以最后匹配为准，
   后续新增放行规则时**不要把它覆盖回入库**（本项目已有"放行目录连带纳入 `__pycache__`"的先例）。
+
+## 跑测试：快路径与全量（2026-09-27 起分层）
+
+```bash
+cd game
+python -m pytest -m "not slow"      # 快路径：约 27–33 秒（跳过 8 个长时推演用例）
+python -m pytest                    # 全量：约 57–60 秒
+python -m pytest -m slow            # 只跑那 8 个长时用例（约 28 秒）
+python -m pytest --durations=25     # 重新量耗时分布（分层阈值应据此复核）
+```
+
+- **分层依据（实测）**：全量 56.9 s；仅收集 1.4 s（故瓶颈不是导入）；最慢 25 例合计 ≈40 s，
+  断崖在 1.31 s → 1.13 s，故阈值取 **≥1.3 s 标 `slow`**。
+- **刻意不标 `slow` 的**：静态守卫与哨兵（如 `test_async_ai::test_async_module_is_not_wired_yet`、
+  `test_faction_flows::..._static_guard`）——**快路径必须始终跑它们**。
+- 覆盖度用 `--collect-only` 复核；marker 已注册在 `game/pytest.ini`（未注册会有
+  `PytestUnknownMarkWarning`）。
+- ⚠️ `pytest.ini` 里 `addopts = -q` 与命令行 `-q` 叠加会变 `-qq` 并**抑制摘要行**；
+  要看摘要请加 `-o addopts=` 覆盖。

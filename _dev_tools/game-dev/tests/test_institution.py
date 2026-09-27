@@ -23,6 +23,7 @@ from core.free_effect import _apply_effect_to_state, validate_free_effect  # noq
 from core.game_state import GameState  # noqa: E402
 from core.settlement_steps import _settle_upkeep  # noqa: E402
 from content.data import ASSET_MAINTAIN_RATE, INSTITUTION_PARAM_SPEC  # noqa: E402
+import pytest
 
 _ECO = {"景气": "中", "士绅": "观望", "士绅力度": "中", "生产": "中",
         "窖银": "小", "城市化": "中", "回乡": "无", "科举": "中"}
@@ -173,6 +174,7 @@ def test_asset_maintain_mult_scales_upkeep():
     assert ASSET_MAINTAIN_RATE > 0, "默认费率常量被改写（应只改参数，不动权威源）"
 
 
+@pytest.mark.slow  # 长时推演（2.02s）：快路径 `-m "not slow"` 可略过
 def test_muster_share_and_hereditary_lower_grip():
     """**禁世袭 ＋ 多用募吏** → 把持度下降（§16.7 的两条政策杠杆）。"""
     s = GameState("史实")

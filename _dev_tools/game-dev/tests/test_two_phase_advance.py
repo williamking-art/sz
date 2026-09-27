@@ -146,6 +146,7 @@ def test_settle_failure_clears_rich_fields():
     assert s.turn == turn_before, "失败回滚回合不推进"
 
 
+@pytest.mark.slow  # 长时推演（3.46s）：快路径 `-m "not slow"` 可略过
 def test_no_stale_ready_window_on_failure():
     """S-1 窗口回归：失败回合期间任何时刻，round2 视角都不得出现
     「ready=True + settle_error='' + 富文本非空」组合（修复前：快照把上一回合的

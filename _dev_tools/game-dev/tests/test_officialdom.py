@@ -21,6 +21,7 @@ from core import money, officialdom as od  # noqa: E402
 from core.game_state import GameState  # noqa: E402
 from core.settlement import run_monthly_settlement  # noqa: E402
 from core.settlement_steps import _settle_clan  # noqa: E402
+import pytest  # noqa: E402
 from content.data import (  # noqa: E402
     CLAN_PAY_PER_MONTH, ROUTE_POST_QUOTA, WAITING_SINECURE_MULT,
 )
@@ -280,6 +281,7 @@ def test_poll_tax_base_is_service_ding_only():
     assert abs(tb["exempt_share"] - exempt / total) < 1e-6
 
 
+@pytest.mark.slow  # 长时推演（3.53s）：快路径 `-m "not slow"` 可略过
 def test_exempt_share_grows_poll_base_shrinks_over_time():
     """§13.6「最有价值的一条」：冗官膨胀 → 免役人口↑ → **役钱税基萎缩**。
 
@@ -374,6 +376,7 @@ def test_exam_cohort_conserves_pop_and_lands_in_waiting():
 
 
 # ---------------------------------------------------------------- 长局综合
+@pytest.mark.slow  # 长时推演（3.75s）：快路径 `-m "not slow"` 可略过
 def test_officialdom_240_month_trajectory():
     """240 月：官额与官俸显著增长、待阙有界、祠禄承接、人口账零偏差、子池不变量恒成立。
 

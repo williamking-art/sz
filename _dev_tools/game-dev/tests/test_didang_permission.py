@@ -26,6 +26,7 @@ from content.ministers.data import AUTHORITY_MATTERS, CENTRAL_ORG_INFO  # noqa: 
 from core import institution as _inst  # noqa: E402
 from core.game_state import GameState  # noqa: E402
 from core.settlement import run_monthly_settlement  # noqa: E402
+import pytest
 
 _DIDANG_KNOBS = ("didang_reserve_ratio", "didang_loan_rate", "didang_loan_share",
                  "didang_deposit_share", "didang_deposit_cap")
@@ -167,6 +168,7 @@ def test_longterm_effect_keeps_executor():
 
 
 
+@pytest.mark.slow  # 长时推演（3.74s）：快路径 `-m "not slow"` 可略过
 def test_deposit_is_saturated_not_draining_pop_wealth():
     """吸储饱和：240 月后存款 ≤ 目标阶层财富 × cap（原无上限会抽干民间）。"""
     s = GameState("史实")
