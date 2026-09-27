@@ -390,12 +390,20 @@ def test_settlement_wiring_is_serial_and_single_direction(monkeypatch):
     assert flow, "有工坊空岗时必须留下岗位流动痕迹"
 
 
-def test_employment_flow_does_not_touch_wealth_or_grain():
-    """迁移只搬人：wealth/grain 不做任何搬动（POP 挂载律：钱粮各挂其主）。"""
+def test_employment_flow_moves_wealth_conservingly():
+    """迁移**带财富/粮**（B1d-b：人均连续），但 `Σwealth`/`Σgrain` 跨池**不变**（纯内部转移）。
+
+    2026-09-27 语义变更：原实现"只搬人、钱粮不动"会让迁出/迁入池**人均**失真
+    （一次大流动即造成人均假信号，污染消费/生计/派系读数），故改为按**人均份额**随迁；
+    本用例锁定"随迁但守恒"，防止改回"净身出户"或凭空造钱。
+    """
     pops = _pops()
     for v in pops.values():
         v["wealth"] = 1234
         v["grain"] = 567
+    w0 = sum(v["wealth"] for v in pops.values())
+    g0 = sum(v["grain"] for v in pops.values())
     apply_employment_flow({"pops": pops}, pops, {"工坊": {"lv": 3}}, CFG)
-    for k, v in pops.items():
-        assert v["wealth"] == 1234 and v["grain"] == 567, f"{k} 的钱粮被迁移改动"
+    assert sum(v["wealth"] for v in pops.values()) == w0, "wealth 总量必须守恒（不得凭空增减）"
+    assert sum(v["grain"] for v in pops.values()) == g0, "grain 总量必须守恒"
+    assert any(v["wealth"] != 1234 for v in pops.values()), "应有池的财富随人迁移而变化"

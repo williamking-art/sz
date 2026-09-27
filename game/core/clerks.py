@@ -35,6 +35,7 @@ from content.data import (
     W_OFFICIAL_BASE, W_GARRISON_BASE,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+from core.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移**带财富/粮**（人均连续）
 
 HEREDITARY_BASE = 0.4           # 世袭比例基准（`hereditary_mult` 作用于此）
 MUSTER_GRIP_W = 0.08            # 募吏占比对把持度的影响（募吏较专业、可裁，把持度略低）
@@ -160,14 +161,14 @@ def _adjust_staffing(state, log: List[str]) -> int:
             step = min(step, int(nong.get("size", 0)))            # 来源：农户
             if step <= 0:
                 continue
-            nong["size"] = int(nong["size"]) - step
+            move_pop_people(nong, pop, step)                      # B1d-b：农户 → 吏（带财富/粮）
         else:
             step = max(step, -actual)                              # 不得裁到负数
             if step == 0:
                 continue
-            nong["size"] = int(nong.get("size", 0)) + (-step)      # 去向：回乡
+            move_pop_people(pop, nong, -step)                     # B1d-b：吏 → 农户（带财富/粮）
         pop["clerks"] = actual + step
-        pop["size"] = max(0, int(pop.get("size", 0)) + step)
+        # `pop["size"]` 由 `move_pop_people` 同步（不再手动 ±step，避免双重计数）
         net += step
     if net:
         log.append(f"[吏额] 幕职吏员{'增' if net > 0 else '减'} {abs(net)} 人"

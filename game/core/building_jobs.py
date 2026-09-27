@@ -15,6 +15,8 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
+
 __all__ = [
     "jobs_of", "allocate_employment", "produce_grain_track",
     "produce_job_track", "evolve_building_levels", "job_flow_unemployed",
@@ -602,11 +604,11 @@ def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
         applied = to_art + to_mer
         if applied <= 0:
             return stats
-        nong["size"] = nong_sz - applied
+        # B1d-b：空岗拉**带财富/粮**（人均连续）——迁移不是"净身出户"
         if to_art > 0:
-            art["size"] = art_sz + to_art
+            move_pop_people(nong, art, to_art)
         if to_mer > 0:
-            mer["size"] = mer_sz + to_mer
+            move_pop_people(nong, mer, to_mer)
         stats["moved_to_artisan"] = to_art
         stats["moved_to_merchant"] = to_mer
         return stats
@@ -634,11 +636,11 @@ def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
     applied = from_art + from_mer
     if applied <= 0:
         return stats
+    # B1d-b：回流同样**带财富/粮**（否则"回乡者两手空空"＝人均假信号）
     if from_art > 0:
-        art["size"] = art_sz - from_art
+        move_pop_people(art, nong, from_art)
     if from_mer > 0:
-        mer["size"] = mer_sz - from_mer
-    nong["size"] = nong_sz + applied
+        move_pop_people(mer, nong, from_mer)
     stats["returned_to_farm"] = applied
     return stats
 
