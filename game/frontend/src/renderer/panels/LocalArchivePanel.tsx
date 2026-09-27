@@ -106,6 +106,11 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
             地方档案 · {selKind === "city" ? "州府" : "路（省）"} · {route?.controlled_by ?? String(p.controlled_by ?? "宋")}
             {note ? `　${note}` : ""}
           </span>
+          {selKind === "city" ? (
+            <span className="text-[11px] text-dim">
+              （未标「该府」的读数均为**全路**口径，府级数字见文末「该府底盘」）
+            </span>
+          ) : null}
           {routeName ? (
             <button
               onClick={() => pushOverlay({ kind: "provincemilitary", title: `${routeName}·地方军政`, props: { route: routeName } })}
@@ -118,6 +123,7 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
       </div>
 
       {/* 四格摘要（路级真值；府级面板同样显示"全路"值并标注） */}
+      <div className="mb-0.5 text-[11px] text-dim">路级摘要（全路）</div>
       <div className="grid grid-cols-4 gap-2">
         {[
           { k: "人口", v: route ? wan(route.population, "口") : wan(pnum(p, "population"), "口") },
@@ -166,7 +172,9 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
 
       {/* 地方底册 */}
       <section>
-        <div className="mb-1 font-kai text-[13.5px] font-bold text-gold-dark">地方底册</div>
+        <div className="mb-1 font-kai text-[13.5px] font-bold text-gold-dark">
+          地方底册 <span className="text-[11px] text-dim">（全路）</span>
+        </div>
         <div className="rounded border border-border/60 bg-card/40 px-2 py-1">
           <Row label="在册田亩" value={route ? wan(route.land, "亩") : "—"} />
           <Row

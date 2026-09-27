@@ -21,5 +21,6 @@
       "@/*": ["src/renderer/*"]
     }
   },
-  "include": ["src/renderer/**/*"]
+  // 截图台（scripts/shot/**: 浏览器侧 DOM+JSX，Vite alias 换 mock）与渲染层同配置检查
+  "include": ["src/renderer/**/*", "scripts/shot/**/*"]
 }

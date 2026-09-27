@@ -15,5 +15,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/types/**/*", "scripts/**/*"]
+  // scripts/ 下除截图台外为 Node 侧脚本（如 build-topo.ts）；截图台是**浏览器侧**（DOM+JSX），
+  // 归 tsconfig.web.json 检查（2026-09-27：先前误入此配置，导致 tsc node 报 --jsx/lib 错误）。
+  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/types/**/*", "scripts/**/*"],
+  "exclude": ["scripts/shot/**/*"]
 }
