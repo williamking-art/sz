@@ -263,6 +263,48 @@ function installAuthHeaderInjection() {
   });
 }
 
+/**
+ * ⑦ 2026-09-27：按**已解析的后端 origin** 注入 CSP（支持远端后端）。
+ *
+ * 背景：`index.html` 的 meta CSP 原先写死 `connect-src ... 127.0.0.1/localhost`，
+ * 而 `SONGZUO_BACKEND` / `backend_config.json` 允许指向云端 → 远端请求被 CSP 拦成网络错误
+ * （前端却提示"未能接通**本地**政务后端"，误导）。静态 meta 无法知道运行期地址，
+ * 故把 `connect-src` 挪到主进程按配置下发：**http/https 远端都可用，且只放行那一个 origin**。
+ * 配置不可用时退回回环（与旧行为一致），不会出现"无 CSP"。
+ */
+function installCspForBackend() {
+  const ses = session.defaultSession;
+  ses.webRequest.onHeadersReceived((details, cb) => {
+    let origin = "";
+    try {
+      origin = new URL(getBackendConfig().url).origin;
+    } catch {
+      /* 配置不可用 → 仅回环（保守） */
+    }
+    const connect = ["'self'", "http://127.0.0.1:*", "http://localhost:*",
+                     "ws://127.0.0.1:*", "ws://localhost:*"];
+    if (origin) connect.push(origin);
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      `connect-src ${connect.join(" ")}`,
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'none'",
+    ].join("; ");
+    cb({
+      responseHeaders: {
+        ...(details.responseHeaders || {}),
+        "Content-Security-Policy": [csp],
+      },
+    });
+  });
+}
+
 // ---------------- IPC ----------------
 // 缓存后端 URL 解析结果，避免多次触发 spawn
 let backendUrlPromise: Promise<string> | null = null;
@@ -292,6 +334,7 @@ app.whenReady().then(() => {
   // 去掉系统默认菜单栏（File/Edit/View…），游戏窗口只保留自绘 HUD
   Menu.setApplicationMenu(null);
   installAuthHeaderInjection();
+  installCspForBackend();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

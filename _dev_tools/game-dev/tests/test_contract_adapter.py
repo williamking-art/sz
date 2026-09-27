@@ -1,3 +1,10 @@
+# 2026-09-27：未接线模块（contract_adapter / async_ai）已移出 game/（不随分发），
+# 其测试从 _dev_tools/unwired 导入。
+import os as _os, sys as _sys
+_UNWIRED = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "unwired"))
+if _UNWIRED not in _sys.path:
+    _sys.path.insert(0, _UNWIRED)
 # -*- coding: utf-8 -*-
 """T5 契约统一测试：contract_adapter 映射表（推演类→changes / 叙事类→{changes,narrative}）。
 
@@ -7,7 +14,7 @@
 在接线前**不能**作为"AI 契约已在线上生效"的证据。
 若要让本文件成为线上行为验证，需先把 `to_unified` 接进 `agent_router` / `state_applier` 链路。
 """
-from ai.contract_adapter import (
+from contract_adapter import (
     CONTRACT_FIELD_MAP, NARRATIVE_FIELD_MAP, to_changes, to_unified,
 )
 

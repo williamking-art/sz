@@ -1,3 +1,10 @@
+# 2026-09-27：未接线模块（contract_adapter / async_ai）已移出 game/（不随分发），
+# 其测试从 _dev_tools/unwired 导入。
+import os as _os, sys as _sys
+_UNWIRED = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "unwired"))
+if _UNWIRED not in _sys.path:
+    _sys.path.insert(0, _UNWIRED)
 # -*- coding: utf-8 -*-
 """T6 异步化核心测试：core/async_ai.py（run_ai_call / run_settlement_ai / 线程纪律）
 + 结算拆分基件（settle_local / finish_turn / monthly_report_args）
@@ -63,7 +70,7 @@ def test_async_module_is_not_wired_yet():
                     elif isinstance(node, ast.Attribute):
                         hit = node.attr in ("async_ai", "AsyncAI")
                     elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-                        hit = "core.async_ai" in node.value or "core/async_ai" in node.value
+                        hit = "async_ai" in node.value or "async_ai" in node.value
                     if hit:
                         callers.append(f"{os.path.relpath(p, game_root)}:{node.lineno}")
     assert not callers, (
@@ -104,7 +111,7 @@ class _EchoAI:
 # ============================================================
 def test_run_ai_call_success_main_thread_callback():
     """后台执行成功 → on_success 收到返回值，on_error 不被调用。"""
-    from core.async_ai import run_ai_call
+    from async_ai import run_ai_call
     ai = _EchoAI()
     got, errors = [], []
 
@@ -123,7 +130,7 @@ def test_run_ai_call_success_main_thread_callback():
 
 def test_run_ai_call_error_routes_to_on_error():
     """后台抛 AIRuntimeError → on_error 收到异常，on_success 不被调用。"""
-    from core.async_ai import run_ai_call
+    from async_ai import run_ai_call
     ai = _EchoAI()
     got, errors = [], []
 
@@ -142,7 +149,7 @@ def test_run_ai_call_error_routes_to_on_error():
 
 def test_run_ai_call_unknown_method():
     """未知方法名 → on_error 收到 TypeError（不炸 mainloop）。"""
-    from core.async_ai import run_ai_call
+    from async_ai import run_ai_call
     ai = _EchoAI()
     errors = []
 
@@ -156,7 +163,7 @@ def test_run_ai_call_unknown_method():
 
 def test_run_ai_call_ui_none_returns_future():
     """无 UI（测试/无 Tk 环境）：直接返回 future，结果可取。"""
-    from core.async_ai import run_ai_call
+    from async_ai import run_ai_call
     ai = _EchoAI()
     fut = run_ai_call(ai, "echo", "x", ui=None)
     assert fut.result() == {"ok": "x", "echo": "x"}
@@ -188,7 +195,7 @@ class _SettleAI(_EchoAI):
 
 def test_run_settlement_ai_no_state_write():
     """后台推演族不写 GameState：结果经 on_success 返回，state 槽位保持未注入。"""
-    from core.async_ai import run_settlement_ai
+    from async_ai import run_settlement_ai
     s = GameState("史实")
     ai = _SettleAI()
     results, errors = [], []
@@ -211,7 +218,7 @@ def test_run_settlement_ai_no_state_write():
 
 def test_run_settlement_ai_woken_agents_inject_results():
     """按需唤醒：woken 列表里的领域契约结果并入返回字典（仍不写 state）。"""
-    from core.async_ai import run_settlement_ai
+    from async_ai import run_settlement_ai
     s = GameState("史实")
     ai = _SettleAI()
     results = []
@@ -229,7 +236,7 @@ def test_run_settlement_ai_woken_agents_inject_results():
 
 def test_run_settlement_ai_economy_refusal():
     """economy 推演失败（_error）→ 拒绝式：on_error 收到 AIRuntimeError，结算不进行。"""
-    from core.async_ai import run_settlement_ai
+    from async_ai import run_settlement_ai
     s = GameState("史实")
     ai = _SettleAI(economy={"_error": "AI_CONTRACT_FAILED"})
     results, errors = [], []

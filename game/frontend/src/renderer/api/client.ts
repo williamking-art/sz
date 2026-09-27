@@ -658,7 +658,9 @@ export class ApiClient {
         }
         if (e instanceof TypeError) {
           console.error("[api] 网络失败", path, e);
-          throw new Error("未能接通本地政务后端（服务未就绪或已断开），请稍后再试。");
+          // 2026-09-27（⑦ 支持远端）：原文案写死"**本地**政务后端"，而 SONGZUO_BACKEND 可指向云端
+          // ——远端不通时会误导玩家去查本机服务。改为不假设部署形态。
+          throw new Error("未能接通政务后端（服务未就绪或已断开，本地/云端皆可能），请稍后再试。");
         }
         // D 修复：2xx 但响应体非 JSON 时 `res.json()` 抛 SyntaxError，原先直接
         // `throw e` 会把原生英文错误漏到界面，违反「玩家可见文案一律中文」契约。

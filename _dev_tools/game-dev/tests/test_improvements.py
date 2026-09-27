@@ -1,3 +1,10 @@
+# 2026-09-27：未接线模块（contract_adapter / async_ai）已移出 game/（不随分发），
+# 其测试从 _dev_tools/unwired 导入。
+import os as _os, sys as _sys
+_UNWIRED = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "unwired"))
+if _UNWIRED not in _sys.path:
+    _sys.path.insert(0, _UNWIRED)
 # -*- coding: utf-8 -*-
 """落地改进批测试：召对预过滤/缓存 / AI 失败分级（叙事模板兜底）/ 并行上下文共享。"""
 import os
@@ -108,7 +115,7 @@ def test_narrative_fallback_templates():
 
 def test_cumulative_diff_injected():
     """并行上下文共享：run_settlement_ai 注入其他 Agent 上轮摘要。"""
-    from core.async_ai import run_settlement_ai, _cumulative_diff
+    from async_ai import run_settlement_ai, _cumulative_diff
     s = _new_state()
     s._economy_ai = {"景气": "大"}
     s._diplomacy_ai = {"attitude": "小"}

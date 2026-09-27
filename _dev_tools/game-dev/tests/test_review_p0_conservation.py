@@ -1,3 +1,10 @@
+# 2026-09-27：未接线模块（contract_adapter / async_ai）已移出 game/（不随分发），
+# 其测试从 _dev_tools/unwired 导入。
+import os as _os, sys as _sys
+_UNWIRED = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "unwired"))
+if _UNWIRED not in _sys.path:
+    _sys.path.insert(0, _UNWIRED)
 # -*- coding: utf-8 -*-
 """审查修复回归：钱守恒 / 家产来源 / 一条鞭 / AI 待批队列 / 异步无嵌套。"""
 import os
@@ -100,7 +107,7 @@ def test_async_settlement_no_nested_submit():
     接线状态由 `test_async_ai.py::test_async_module_is_not_wired_yet` 哨兵守护。
     """
     import inspect
-    import core.async_ai as m
+    import async_ai as m
     src = inspect.getsource(m.run_settlement_ai)
     assert "_EXECUTOR.submit(_call_guarded" not in src
     assert "as_completed" not in src

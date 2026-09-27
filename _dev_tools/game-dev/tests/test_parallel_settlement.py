@@ -1,3 +1,10 @@
+# 2026-09-27：未接线模块（contract_adapter / async_ai）已移出 game/（不随分发），
+# 其测试从 _dev_tools/unwired 导入。
+import os as _os, sys as _sys
+_UNWIRED = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "unwired"))
+if _UNWIRED not in _sys.path:
+    _sys.path.insert(0, _UNWIRED)
 # -*- coding: utf-8 -*-
 """并行执行升级测试：run_settlement_ai 线程池并行 / 结果统一 / economy 拒绝式 / 失败隔离。"""
 import os
@@ -67,7 +74,7 @@ class _FakeAI:
 
 def _run(client, woken=None):
     """同步包装 run_settlement_ai（无 UI → future.result() 直接取）。"""
-    from core.async_ai import run_settlement_ai
+    from async_ai import run_settlement_ai
     s = _new_state()
     fut = run_settlement_ai(client, "posture", s, woken, ui=None,
                             on_success=None, on_error=None)
