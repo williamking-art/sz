@@ -46,7 +46,7 @@
 
 - 后端：`MingSalvageBackend.exe --host 127.0.0.1 --port 8098`，存档目录隔离在 `_ming_probe\userdata10`（**未触碰玩家真实存档**）
 - 模型：`agnes-2.5-flash`（直连需代理钳 max_tokens）→ `gemini-3.8-flash`（a6api，无上限）→ `gemini-2.5-flash`（降本）
-- 战役：`b47fef7a11f3`，1627-10 → 1628-05（7 回合）
+- 战役：`（旧提交·2026-09-27 历史重写后失效）`，1627-10 → 1628-05（7 回合）
 
 ### 1.3 实跑数据（7 回合）
 
