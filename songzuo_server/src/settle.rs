@@ -153,10 +153,11 @@ fn settle_economy(state: &mut GameState, log: &mut Vec<String>) {
     ));
 }
 
-// ---- 官俸计价口径（子池付款权数；对齐 Python core/officialdom.py）----
+// ---- 官俸计价口径（子池付款权数；**名称与语义参考** Python core/officialdom.py）----
 
 /// 本路**官·付款权数**（官俸/官禄的真正乘数）—— 对应 Python
-/// `core/officialdom.py:route_pay_units`（**Python 为权威**）。
+/// `core/officialdom.py:route_pay_units`（名称与语义参考 Python 侧；本端是单机 MVP，
+/// **不要求与其数值一致**，见 `main.rs` 顶部定位说明）。
 ///
 /// 取值优先级：
 ///   ① `p["official_units"]`：Python `sync_legacy_mirror()` 写入的等价付款权数镜像
@@ -726,8 +727,8 @@ mod official_pay_units_tests {
         assert!((route_pay_units(&pop(0, 100, 0)) - 100.0 * WAITING_PAY_RATIO).abs() < EPS);
         assert!((route_pay_units(&pop(0, 0, 100)) - 100.0 * SINECURE_PAY_RATIO).abs() < EPS);
         // 显式断言常量值本身（防止有人改常量后测试仍"自洽"通过）
-        assert!((WAITING_PAY_RATIO - 0.35).abs() < EPS, "须与 data_constants.py:118 一致");
-        assert!((SINECURE_PAY_RATIO - 0.4).abs() < EPS, "须与 data_constants.py:120 一致");
+        assert!((WAITING_PAY_RATIO - 0.35).abs() < EPS, "参考值：本端待阙折俸取 0.35");
+        assert!((SINECURE_PAY_RATIO - 0.4).abs() < EPS, "参考值：本端祠禄折俸取 0.4");
 
         // 混合子池 on_post=60 / waiting=30 / sinecure=10
         //   60×1.0 + 30×0.35 + 10×0.4 = 60 + 10.5 + 4 = 74.5

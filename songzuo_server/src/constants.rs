@@ -60,18 +60,24 @@ pub const CLERK_PER_OFFICIAL: i64 = 8;           // 吏/官 比（初始锚）
 
 // ============================================================
 // 官·子池折俸权数（官俸/官禄的真正乘数）
-//   **须与 `game/content/data_constants.py:118,120` 保持一致（Python 为权威）**：
+//   **口径：单机 MVP —— 本 crate 与 Python 原型端相互独立，不要求数值一致**
+//   （见 `main.rs` 顶部定位：数值口径不必一致、存档也不互通）。
+//   下列取值为**参考值**（原取自 Python 侧 0.35 / 0.4，仅为让两端手感相近）：
 //     WAITING_PAY_RATIO  = 0.35  # 待阙（守选无差遣）折俸
 //     SINECURE_PAY_RATIO = 0.4   # 祠禄（宫观官）折俸
 //   在岗（on_post）恒为全俸，权数 1.0。
-//   同步义务：Python 侧改这两个常量时，此处必须同步修改。
+//   ⚠️ 2026-09-27 修正：本处原先写「**须与 `data_constants.py` 保持一致（Python 为权威）**＋同步义务」，
+//   与 `main.rs` 的「不必一致」**同 crate 内自相矛盾**；且实测三个常量已与 Python 漂移
+//   1.25×/1.97×/6×、又无任何对拍测试。既然本端是单机 MVP，**取消强制对齐**，改为"参考值"。
+//   若日后确需平价：先定权威源，再补对拍测试（当前 Rust 侧仅 2 个 `cfg(test)` 模块）。
 // ============================================================
-pub const WAITING_PAY_RATIO: f64 = 0.35;         // 官·待阙 付款权数（对齐 data_constants.py:118）
-pub const SINECURE_PAY_RATIO: f64 = 0.4;         // 官·祠禄 付款权数（对齐 data_constants.py:120）
+pub const WAITING_PAY_RATIO: f64 = 0.35;         // 官·待阙 付款权数（参考值，非强制对齐）
+pub const SINECURE_PAY_RATIO: f64 = 0.4;         // 官·祠禄 付款权数（参考值，非强制对齐）
 pub const ON_POST_PAY_RATIO: f64 = 1.0;          // 官·在岗 付款权数（全俸）
 
 /// 官僚 POP 类名 —— 子池字段 on_post/waiting/sinecure 挂载于 `p["pops"][POP_CLASS]`。
-/// **须与 `game/core/officialdom.py:51` 的 `POP_CLASS = "官僚"` 保持一致（Python 为权威）**。
+/// 名称**参考** Python 侧 `core/officialdom.py` 的 `POP_CLASS = "官僚"`（单机 MVP 不强制对齐，
+/// 但两端沿用同一中文键名便于人读与排障）。
 pub const POP_CLASS: &str = "官僚";
 
 // 贪腐相关（对齐 calc_corruption_deduction）

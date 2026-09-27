@@ -10,6 +10,10 @@
 //!
 //! 后期部署：把本目录整体搬到服务器，编译为 release，`SONGZUO_SAVE_DIR` 指向服务器存档路径，
 //! 用 `cargo run --release` 或 systemd/docker 常驻即可。
+//!
+//! （2026-09-27 补充）据此，`constants.rs` 里的常数一律视为**参考值**，不承担"须与 Python 一致"的
+//! 义务——该文件原先写有"须保持一致＋同步义务"，与本段定位矛盾，已一并修正；
+//! 未参与编译的 `src/ai.rs` 亦已删除（`mod` 列表从未包含它）。
 
 mod commands;
 mod constants;
