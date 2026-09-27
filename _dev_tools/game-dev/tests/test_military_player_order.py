@@ -70,7 +70,7 @@ def test_unimplemented_button_is_refused_without_side_effect():
     a, _b = _two_same_tier(s)
     before = [(u.unit_id, u.training, u.station, dict(u.branches)) for u in s.army_units]
     n0 = len(s.ai_pending_actions)
-    for btn in ("拆分", "合并", "换帅", "改名"):          # 裁撤已于 2026-09-27 补契约
+    for btn in ("拆分", "合并", "换帅"):                  # 裁撤/改名已补契约
         msg = issue_military_order(s, a.unit_id, btn)
         assert "尚无契约" in msg, f"{btn} 应明确拒绝"
     assert len(s.ai_pending_actions) == n0, "拒绝不得留审计（未成形）"
@@ -131,6 +131,47 @@ def test_disband_only_touches_selected_unit():
     b0 = sum(b.branches.values())
     issue_military_order(s, a.unit_id, "裁撤", scale=1)
     assert sum(b.branches.values()) == b0, "未选中的编制单位不得被裁"
+
+
+def _two_same_station(s):
+    by = {}
+    for u in s.army_units:
+        by.setdefault(u.station, []).append(u)
+    for _st, us in by.items():
+        if len(us) >= 2:
+            return us[0], us[1]
+    return None, None
+
+
+def test_rename_touches_display_layer_only():
+    """**改名**：番号（展示层）变，**兵额/兵种/士气/训练/驻地/欠饷一律不动**。"""
+    s = _state()
+    a, _b = _two_same_tier(s)
+    before = [(u.troops, tuple(sorted(u.branches.items())), u.morale, u.training,
+               u.station, u.arrears) for u in s.army_units]
+    msg = issue_military_order(s, a.unit_id, "改名", new_name="殿前神卫军")
+    assert "改称" in msg and "殿前神卫军" in msg
+    assert a.army_name == "殿前神卫军"
+    assert a.name.endswith("·殿前神卫军") or a.name == "殿前神卫军", "完整番号应同步军号段"
+    after = [(u.troops, tuple(sorted(u.branches.items())), u.morale, u.training,
+              u.station, u.arrears) for u in s.army_units]
+    assert after == before, "改名只动展示层，不得触及真账"
+
+
+def test_rename_rejects_empty_long_and_duplicate():
+    """番号校验：空白 / 超 12 字 / 同路重名 → 明确驳回，且**不改动任何单位**。"""
+    s = _state()
+    a, b = _two_same_station(s)
+    assert a is not None, "前提：同路存在两支编制单位"
+    names0 = [(u.unit_id, u.army_name, u.name) for u in s.army_units]
+    assert "1–12 字" in issue_military_order(s, a.unit_id, "改名", new_name="   ")
+    assert "1–12 字" in issue_military_order(s, a.unit_id, "改名", new_name="号" * 13)
+    assert "1–12 字" in issue_military_order(s, a.unit_id, "改名")          # 未给新名
+    # 先给 a 起名，再让同路 b 撞名
+    issue_military_order(s, a.unit_id, "改名", new_name="试号军")
+    b0 = (b.army_name, b.name)
+    assert "已有番号" in issue_military_order(s, b.unit_id, "改名", new_name="试号军")
+    assert (b.army_name, b.name) == b0, "驳回不得留下半改状态"
 
 
 def test_command_channel_dispatch_reaches_player_order():

@@ -48,6 +48,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [dest, setDest] = useState("");
+  const [newName, setNewName] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +93,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const sel = routeUnits.find((u) => u.unit_id === picked) ?? routeUnits[0];
 
   // 已实现契约的按钮（其余 5 个尚无契约 → 保持禁用）。键=按钮名，值=命令层动作。
-  const CAN_ORDER: Record<string, boolean> = { "整编": true, "扩编": true, "地图调度": true, "裁撤": true };
+  const CAN_ORDER: Record<string, boolean> = {
+    "整编": true, "扩编": true, "地图调度": true, "裁撤": true, "改名": true
+  };
   const destOptions = routes.map((r) => r.route).filter((n) => n !== route);
 
   async function doOrder(button: string) {
@@ -101,7 +104,8 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
     try {
       const r = await getApiClient().action("issue_military_order", {
         unit_id: sel.unit_id, button, scale: 3,
-        target: button === "地图调度" ? (dest || destOptions[0] || "") : ""
+        target: button === "地图调度" ? (dest || destOptions[0] || "") : "",
+        new_name: button === "改名" ? newName : ""
       });
       setMsg(String((r as { message?: string })?.message ?? "已饬行。"));
       const rr = await getApiClient().readouts();
@@ -258,6 +262,15 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
           {/* 军令按钮：渲染但置灰 —— 发起通道未定（方案 §3.2） */}
           <section>
             <div className="mb-1 font-kai text-[13.5px] font-bold text-gold-dark">驻地施令</div>
+            <div className="mb-1 flex items-center gap-2 text-[12.5px]">
+              <span className="text-dim">新番号</span>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="1–12 字（改名前填写）"
+                className="w-40 rounded border border-border bg-card px-2 py-0.5 text-[13px]"
+              />
+            </div>
             {destOptions.length > 0 ? (
               <div className="mb-1 flex items-center gap-2 text-[12.5px]">
                 <span className="text-dim">调赴目的地</span>
@@ -280,7 +293,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                     onClick={() => void doOrder(a)}
                     title={CAN_ORDER[a]
                       ? `对选中编制单位「${sel?.army_name || sel?.name || ""}」施行${a}（走既有批红通道，留审计）`
-                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度／裁撤）`}
+                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度／裁撤／改名）`}
                     className={ok
                       ? "rounded border border-gold/60 bg-card/70 px-2 py-1 text-[13px] text-ink hover:bg-card"
                       : "cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"}
@@ -294,7 +307,8 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
             <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
               玩家亲裁：经 `issue_military_order` 入待批队列（`proposer="玩家"`）后**即时批红**，
               执行落在既有 `_apply_military_dispatch`（校验/档位封顶/POP 守恒同一处）；
-              整编／扩编／地图调度／裁撤 已可施行（裁撤＝兵额复员归农，Σ守恒），其余 4 键待契约。
+              整编／扩编／地图调度／裁撤／改名 已可施行（裁撤＝兵额复员归农，Σ守恒；
+              改名＝只动宋制番号展示层，与兵额真账解耦），其余 3 键待契约。
             </div>
           </section>
         </>

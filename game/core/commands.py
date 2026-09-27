@@ -1125,6 +1125,35 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
         state.set_ai_pending_status(action_id, "approved")
         return f"批红：{label} 增募 {total} 人，縻饷 {paid} 贯。"
 
+    if act == "改名":
+        # 2026-09-27（方案 §3.2 方案 B）：**改宋制番号**——只动**展示层**（army_models.py:53-57
+        # 明示"宋制番号命名层只读展示，与兵额真账解耦"）。
+        # 三条校验：① 须指定**单一编制单位**（整军籍批量改名无意义）；② 1–12 字、去空白；
+        #           ③ 同路番号不得重复（否则面板/军表将出现两个同名单位）。
+        # **不动** branches/troops/morale/training/station/arrears —— 改名不改变真账。
+        if len(units) != 1:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：改名须指定单一编制单位。"
+        new_name = str(payload.get("new_name", "") or "").strip()
+        if not new_name or len(new_name) > 12:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：番号须为 1–12 字。"
+        u = units[0]
+        station = getattr(u, "station", "")
+        if any(x is not u and getattr(x, "station", "") == station
+               and str(getattr(x, "army_name", "") or "") == new_name
+               for x in state.army_units):
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：本路已有番号「{new_name}」。"
+        old_name = str(getattr(u, "army_name", "") or "")
+        u.army_name = new_name
+        # 完整番号「路·军号」同步替换军号段，避免展示层一处新一处旧（`army_name || name` 已优先，
+        # 但 `name` 会被其它军表直接显示，故一并同步）
+        full = str(getattr(u, "name", "") or "")
+        u.name = (full.split("·", 1)[0] + "·" + new_name) if "·" in full else new_name
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{old_name or '旧番号'} 改称「{new_name}」。"
+
     if act == "裁撤":
         # 2026-09-27（方案 §3.2 方案 B）：**裁减兵额**，与增募对称（档位 scale×2000）。
         # ⚠️ 只减兵额，**不删编制单位实体**：编制单位按"每路禁/厢/乡各一支"被多处引用，
@@ -1173,11 +1202,12 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
 # 玩家主动军令（方案 §3.2 方案 B；2026-09-27 用户口径"对齐"参考图）
 # ============================================================
 # **参考图 8 按钮** → 命令层动作（仅列已实现者；拆分/合并/裁撤/换帅/改名尚无契约）
-_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴", "裁撤": "裁撤"}
+_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴",
+                         "裁撤": "裁撤", "改名": "改名"}
 
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
-                         scale: int = 3, target: str = "") -> str:
+                         scale: int = 3, target: str = "", new_name: str = "") -> str:
     """**玩家亲裁军令**：对象是**编制单位**（非兵种、非军籍整批），入队后即时批红。
 
     为什么这样接（三条，缺一不可）：
@@ -1199,6 +1229,8 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}
+    if act == "改名":
+        payload["new_name"] = str(new_name or "").strip()
     if act == "调赴":
         dest = str(target or "").strip()
         if dest not in (getattr(state, "prefectures", None) or {}):
