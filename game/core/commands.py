@@ -934,7 +934,6 @@ def conclude(state: GameState, ai_client=None) -> tuple:
     ai_eval = ""
     if ai_client and ai_client.available:
         try:
-            summary = state.get_state_summary()
             ai_eval_raw = ai_client.final_eval(state.year, state.year, state.posture)
             ai_eval = str(ai_eval_raw.get("commentary") or "") if isinstance(ai_eval_raw, dict) else str(ai_eval_raw or "")
         except Exception:

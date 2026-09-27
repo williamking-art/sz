@@ -214,7 +214,10 @@ def settle_reform(state, decree: dict) -> dict:
     from ai.client import AIClient, _load_prompt, _clean_text
 
     reform = decree.get("reform") or {}
-    rtype = reform.get("reform_type", "")
+    # 2026-09-27：原在此组装 reform_settle 提示词上下文（faction_text / authority_brief / reform_text），
+    # 但 `ai/prompts/reform_settle.md` **全库从未被加载**（无 `_load_prompt("reform_settle")`）→ 三值算完即弃，已删。
+    # 副作用：`GameState.authority_brief_for_ai()` 因此成为**孤立 API**（其唯一调用点即此处）——
+    # 待定：接线（让改制结算真的用上定性上下文）或移除；见审查报告 §14。
     target = reform.get("target_org", "")
     matter = reform.get("matter", "")
 
@@ -231,11 +234,7 @@ def settle_reform(state, decree: dict) -> dict:
                 related.add(l)
     related = list(related)
 
-    fs = decree.get("faction_stances", {})
-    faction_text = "；".join(f"{k}：{v}" for k, v in fs.items()) or "（无显著派系反应）"
 
-    authority_brief = state.authority_brief_for_ai(target_org=target, target_ministers=related)
-    reform_text = decree.get("body") or decree.get("text") or decree.get("title", "")
 
     # 优先用结算前注入的 _reform_ai 槽位；无则本地兜底（禁止结算路径同步 HTTP）
     res = getattr(state, "_reform_ai", None)

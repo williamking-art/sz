@@ -84,7 +84,7 @@ class MiscContractMixin:
         decs = list(getattr(state, "pending_decrees", None) or [])
         titles = [str(d.get("title", "")) for d in decs[-3:]
                   if isinstance(d, dict) and d.get("title")]
-        fmt = lambda v: ("，".join(titles) if titles else "（本回合未落新旨）")   # noqa: E731
+            # 2026-09-27：`fmt` 赋值后从未使用（F841）——已删
         # 局势真值摘要（简短，不做决策数值）——防伪造，只把真值喂给模型
         facts = []
         try:

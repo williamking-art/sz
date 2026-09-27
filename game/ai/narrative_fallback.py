@@ -280,10 +280,6 @@ def fallback_memorials(state=None, turn=0) -> dict:
     只上折不落地；_fallback 标记供前端提示"AI 未接入，此折为程式所拟"。
     """
     memos = []
-    if state is not None:
-        post = getattr(state, "posture", "")
-    else:
-        post = ""
     year = getattr(state, "year", 0) or 0
     n_todo = max(0, len(getattr(state, "longterm_public", []) or []))
     # 按局势挑选：财政吃紧/国库低 → 理财折；有在办 → 施政折；否则献新制折

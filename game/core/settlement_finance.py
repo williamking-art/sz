@@ -599,8 +599,6 @@ def _settle_finance(state, log):
             log.append(f"[变法] {'裁汰冗员' if wr['kind']=='reduce_office' else '省浮费'}推进中，用度稍省（月省 {wr['savings']:.0f}贯）")
     waste_savings = int(wr.get("savings", 0))
 
-    pay = state.pay_system.get("cash_ratio", 0.5)
-    cash_pay = int(PAY_CASH_BASE * pay)
     # C（A1）：真俸额先算，一体发钞时按真俸额单发交子（替代固定 cash_pay，防"纸钞+现金"双发）
     army_cash_total, _ = state.calc_army_cash()
     official_cash_total, _ = state.calc_official_cash()
@@ -645,10 +643,9 @@ def _settle_finance(state, log):
         state.jiaozi["issued"] += personnel_cash          # 交子按真俸额发行（单发，替代固定 cash_pay）
         state.jiaozi["trust"] = max(0, state.jiaozi["trust"] - 2)
         expenditure = MONTHLY_EXP_CIVIL_BASE - waste_savings
-        cash_out = 0
     else:
         expenditure = MONTHLY_EXP_CIVIL_BASE - waste_savings
-        cash_out = cash_pay
+        # 2026-09-27：原 `cash_out = cash_pay` 赋值后未使用——已删
 
     corruption_cash_ded, corruption_grain_loss = state.calc_corruption_deduction()
     clerk_gap_total, _ = state.calc_clerk_gap()

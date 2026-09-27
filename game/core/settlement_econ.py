@@ -156,7 +156,7 @@ def _settle_land_local(state, log):
         if _land_ai.get("narrative"):
             log.append(f"[田亩] {_land_ai['narrative']}")
 
-    arrival = state.calc_arrival_rate()
+    # 2026-09-27：原 `arrival = state.calc_arrival_rate()` 算完即弃（本函数未用到账率）——已删
 
     hyd = state.tech.get("hydraulics", 40) / 100.0
     tech = state.tech.get("level", 50) / 100.0
@@ -203,10 +203,12 @@ def _settle_land_local(state, log):
         tier_map = {"无": 0.0, "微": 0.5, "小": 1.0, "中": 2.0, "大": 3.0,
                     "巨": 4.0, "极": 5.0}
 
-        # 清丈力度（AI 契约加成）
-        survey_boost = tier_map.get(survey_tier, 1.0)
-        # 劝垦力度（AI 契约加成）
-        reclaim_boost = tier_map.get(reclaim_tier, 1.0)
+        # ⚠️ 2026-09-27（F841 实测）：AI 契约 `contracts_settle` 会给出并校验 survey/reclaim 档位，
+        # 但**全库无消费方**（清丈另有诏令路径 `settlement_decree.py:265` 走 land_survey 效果；
+        # 劝垦同理）。故这两个值**刻意保留并标注**：删掉会抹掉"未接线"的痕迹。
+        # 待拍板：接线（让 AI 档位真的作用于隐漏/垦荒）或移除契约字段。见审查报告 §14。
+        survey_boost = tier_map.get(survey_tier, 1.0)      # noqa: F841 —— 未接线，见上
+        reclaim_boost = tier_map.get(reclaim_tier, 1.0)    # noqa: F841 —— 未接线，见上
         # 均税力度（AI 契约加成）
         tax_fair_boost = tier_map.get(tax_fair_tier, 1.0)
 
@@ -1324,8 +1326,6 @@ def _sell_to_buyers(p, seller, qty, price, copper_share=1.0):
         pop["grain"] = pop.get("grain", 0) + grain_share   # 粮进（缺口被填补）
         paid += share
         grain_given += grain_share
-    copper = int(paid * max(0.0, min(1.0, copper_share)))   # 铜钱部分
-    jiaozi_part = paid - copper                              # 交子部分（不窖藏，全进流通）
     # 用户关键修正：**窖银只囤银**——铜钱/交子（钞）均不入窖，全部进 wealth（流通）；
     # 窖银（白银）由 _settle_civilian_hoard 从市舶 silver 池分配（银硬通货可窖、钞不可窖）
     # 审查 P2-17：卖方按「实收 paid」入账（与买方实扣合计一致，钱粮双向守恒）

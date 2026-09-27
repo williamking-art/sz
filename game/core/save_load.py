@@ -728,7 +728,6 @@ def load_game(slot: int = 1):
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))
     state.oversight = data.get("oversight", getattr(state, "oversight", 0.30))
-    saved_res = data.get("resources", {})
     if not isinstance(state.resources, dict):
         state.resources = {d: {"stock": 0, "cap": 5000} for d in RESOURCE_DIMS}
     for d in RESOURCE_DIMS:

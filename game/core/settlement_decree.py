@@ -306,8 +306,6 @@ def _apply_decree_effect(state, decree, log):
             if _amt > 0:
                 log.append(f"[军需] 入中粮草 {_amt}石，军储稍实")
     if "settle_refugees" in effects:
-        total_wasteland = sum(p.get("wasteland", state.land.get("wasteland", 0)) for p in state.prefectures.values()) \
-            if any("wasteland" in p for p in state.prefectures.values()) else state.land.get("wasteland", 0)
         target = int(effects["settle_refugees"])
         local_total = sum(p.get("refugees", 0) for p in state.prefectures.values())
         placed = 0

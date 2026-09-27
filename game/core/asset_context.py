@@ -221,7 +221,6 @@ def approve_invention(state, index: int, fund: str = "treasury",
     inv = _pop_invention(state, index)
     if inv is None:
         return "查无此献策。"
-    name = inv.get("name", "")
     node_id = _match_node_by_hint(inv)
     if node_id:
         return start_research(state, node_id, fund=fund, source="council",

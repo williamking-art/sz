@@ -426,7 +426,7 @@ def job_flow_unemployed(pops: dict, staffed: Dict[str, int], cfg: dict,
     约束：Σ六类 size 守恒（整数尾差归迁出方）；返回 `{flow_out, flow_in, unemployed}`。
     **不改 total**——只在农/工匠/商人三类间迁移 size。
     """
-    R = rng or random
+    # 2026-09-27：`R = rng or random` 在本函数从未使用（残留 rng 管道，本函数不抽随机）——已删
     rate = float(cfg.get("JOB_FLOW_RATE", 0.02))
     if rate <= 0:
         return {"flow_out": 0, "flow_in": 0, "unemployed": 0}
@@ -756,7 +756,6 @@ def apply_bankruptcy(prov: dict, cfg: dict, arrears_building: int,
     - 恢复：省域结余 + 无欠薪 → 士绅可重新出资 → lv1（`pay_construction_cost` 负责出资）。
     返回 `[{type, action, detail}]` 供 audit。
     """
-    R = rng or random
     buildings = prov.get("buildings") or {}
     if not buildings:
         return []

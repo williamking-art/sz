@@ -59,7 +59,7 @@ def _settle_factions(state, log):
     for event in ai_events:
         etype = event.get("type", "")
         desc = event.get("desc", "")
-        tier = event.get("tier", "小")
+        # 2026-09-27：原 `tier = event.get("tier", "小")` 未使用——已删
         if etype == "党争":
             log.append(f"[党争] {desc}")
             state.change_prestige(-2, "党争")
