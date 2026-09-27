@@ -49,6 +49,7 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
   const selName = String(props?.name ?? "");
   const selKind = String(props?.kind ?? "circuit");
   const state = useGameStore((s) => s.state);
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
   const [regions, setRegions] = useState<RegionBriefResult | null>(null);
   const [note, setNote] = useState<string>("");
 
@@ -96,9 +97,19 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
     <div className="space-y-4">
       <div className="border-b border-border pb-2">
         <div className="font-kai text-[19px] font-bold tracking-[0.28em] text-ink">{title}</div>
-        <div className="mt-1 text-[12px] text-dim">
-          地方档案 · {selKind === "city" ? "州府" : "路（省）"} · {route?.controlled_by ?? String(p.controlled_by ?? "宋")}
-          {note ? `　${note}` : ""}
+        <div className="mt-1 flex items-center gap-2 text-[12px] text-dim">
+          <span>
+            地方档案 · {selKind === "city" ? "州府" : "路（省）"} · {route?.controlled_by ?? String(p.controlled_by ?? "宋")}
+            {note ? `　${note}` : ""}
+          </span>
+          {routeName ? (
+            <button
+              onClick={() => pushOverlay({ kind: "provincemilitary", title: `${routeName}·地方军政`, props: { route: routeName } })}
+              className="rounded border border-gold/60 bg-card/60 px-2 py-0.5 text-[12px] text-ink"
+            >
+              省级军政 →
+            </button>
+          ) : null}
         </div>
       </div>
 

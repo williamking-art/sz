@@ -14,6 +14,7 @@ export type PanelKind =
   | "personal"
   | "prefecture"
   | "localarchive"
+  | "provincemilitary"
   | "granary"
   | "focus"
   | "diplomacy"

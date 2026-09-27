@@ -14,6 +14,7 @@ import TodoPanel from "./TodoPanel";
 import PersonalPanel from "./PersonalPanel";
 import PrefecturePanel from "./PrefecturePanel";
 import LocalArchivePanel from "./LocalArchivePanel";
+import ProvinceMilitaryPanel from "./ProvinceMilitaryPanel";
 import GranaryPanel from "./GranaryPanel";
 import AccountingPanel from "./AccountingPanel";
 import MilitaryPanel from "./MilitaryPanel";
@@ -149,6 +150,8 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
       return <PrefecturePanel props={props as any} />;
     case "localarchive":
       return <LocalArchivePanel props={props} />;
+    case "provincemilitary":
+      return <ProvinceMilitaryPanel props={props} />;
     case "granary":
       return <GranaryPanel />;
     case "accounting":
