@@ -92,7 +92,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const sel = routeUnits.find((u) => u.unit_id === picked) ?? routeUnits[0];
 
   // 已实现契约的按钮（其余 5 个尚无契约 → 保持禁用）。键=按钮名，值=命令层动作。
-  const CAN_ORDER: Record<string, boolean> = { "整编": true, "扩编": true, "地图调度": true };
+  const CAN_ORDER: Record<string, boolean> = { "整编": true, "扩编": true, "地图调度": true, "裁撤": true };
   const destOptions = routes.map((r) => r.route).filter((n) => n !== route);
 
   async function doOrder(button: string) {
@@ -280,7 +280,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                     onClick={() => void doOrder(a)}
                     title={CAN_ORDER[a]
                       ? `对选中编制单位「${sel?.army_name || sel?.name || ""}」施行${a}（走既有批红通道，留审计）`
-                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度）`}
+                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度／裁撤）`}
                     className={ok
                       ? "rounded border border-gold/60 bg-card/70 px-2 py-1 text-[13px] text-ink hover:bg-card"
                       : "cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"}
@@ -294,7 +294,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
             <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
               玩家亲裁：经 `issue_military_order` 入待批队列（`proposer="玩家"`）后**即时批红**，
               执行落在既有 `_apply_military_dispatch`（校验/档位封顶/POP 守恒同一处）；
-              整编／扩编／地图调度 已可施行，其余 5 键待各自契约。
+              整编／扩编／地图调度／裁撤 已可施行（裁撤＝兵额复员归农，Σ守恒），其余 4 键待契约。
             </div>
           </section>
         </>

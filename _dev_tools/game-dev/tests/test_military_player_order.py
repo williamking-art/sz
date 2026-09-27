@@ -70,7 +70,7 @@ def test_unimplemented_button_is_refused_without_side_effect():
     a, _b = _two_same_tier(s)
     before = [(u.unit_id, u.training, u.station, dict(u.branches)) for u in s.army_units]
     n0 = len(s.ai_pending_actions)
-    for btn in ("拆分", "合并", "裁撤", "换帅", "改名"):
+    for btn in ("拆分", "合并", "换帅", "改名"):          # 裁撤已于 2026-09-27 补契约
         msg = issue_military_order(s, a.unit_id, btn)
         assert "尚无契约" in msg, f"{btn} 应明确拒绝"
     assert len(s.ai_pending_actions) == n0, "拒绝不得留审计（未成形）"
@@ -95,6 +95,42 @@ def test_player_order_move_targets_single_unit():
     b_station = b.station
     issue_military_order(s, a.unit_id, "地图调度", target=dest)
     assert a.station == dest and b.station == b_station
+
+
+def test_disband_conserves_population_and_troops():
+    """**裁撤**：兵额减 N 且**恰为**档位值；Σ(农+流民+兵) 不变；兵种不为负。"""
+    s = _state()
+    a, _b = _two_same_tier(s)
+    st = a.station if a.station in s.prefectures else next(iter(s.prefectures))
+    a.station = st
+    p = s.prefectures[st]
+    p["pops"]["兵"]["size"] = max(20_000, int(p["pops"]["兵"].get("size", 0) or 0))
+
+    def pool():
+        return (int(p["pops"]["农"]["size"]) + int(p.get("refugees", 0))
+                + int(p["pops"]["兵"]["size"]))
+
+    before, troops0 = pool(), sum(a.branches.values())
+    pop0, farm0 = int(p["pops"]["兵"]["size"]), int(p["pops"]["农"]["size"])
+    msg = issue_military_order(s, a.unit_id, "裁撤", scale=1)
+    assert "裁减 2000 人" in msg, f"应按档位裁 2000，实得：{msg}"
+    assert pool() == before, "POP 挂载律：Σ(农+流民+兵) 不变"
+    assert sum(a.branches.values()) == troops0 - 2000, "兵额真账 = Σbranches，应恰减 2000"
+    assert a.troops == sum(a.branches.values())
+    assert int(p["pops"]["兵"]["size"]) == pop0 - 2000 and int(p["pops"]["农"]["size"]) == farm0 + 2000
+    assert all(v > 0 for v in a.branches.values()), "不得把某兵种扣成负/零残留"
+
+
+def test_disband_only_touches_selected_unit():
+    """裁撤同样**编制定向**：同军籍的其他编制单位不动。"""
+    s = _state()
+    a, b = _two_same_tier(s)
+    st = a.station if a.station in s.prefectures else next(iter(s.prefectures))
+    a.station = st
+    s.prefectures[st]["pops"]["兵"]["size"] = max(20_000, int(s.prefectures[st]["pops"]["兵"].get("size", 0) or 0))
+    b0 = sum(b.branches.values())
+    issue_military_order(s, a.unit_id, "裁撤", scale=1)
+    assert sum(b.branches.values()) == b0, "未选中的编制单位不得被裁"
 
 
 def test_command_channel_dispatch_reaches_player_order():

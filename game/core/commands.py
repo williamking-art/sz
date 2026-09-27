@@ -1125,6 +1125,40 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
         state.set_ai_pending_status(action_id, "approved")
         return f"批红：{label} 增募 {total} 人，縻饷 {paid} 贯。"
 
+    if act == "裁撤":
+        # 2026-09-27（方案 §3.2 方案 B）：**裁减兵额**，与增募对称（档位 scale×2000）。
+        # ⚠️ 只减兵额，**不删编制单位实体**：编制单位按"每路禁/厢/乡各一支"被多处引用，
+        #    删除属结构变更（须先定 unit_id/serial 规则）→ 裁到 0 亦保留空编制。
+        # 归农：兵额减 N → 该路 `兵` POP size −N → 同路 `农` POP size +N（复员归田），
+        #    **Σ(农 + 流民 + 兵) 不变**（POP 挂载律）；N 取 min(档位, 兵额, 兵POP) 以保证精确守恒。
+        cut_total = 0
+        for u in units:
+            station = getattr(u, "station", "")
+            if station not in state.prefectures:
+                continue
+            p = state.prefectures[station]
+            troops = sum(u.branches.values())
+            pop_bing = max(0, int(p["pops"]["兵"].get("size", 0) or 0))
+            want = min(scale * 2000, troops, pop_bing)
+            if want <= 0:
+                continue
+            left = want
+            for key in sorted(u.branches, key=lambda k: -u.branches[k]):
+                if left <= 0:
+                    break
+                take = min(left, u.branches[key])
+                u.branches[key] = u.branches[key] - take
+                left -= take
+            u.branches = {k: v for k, v in u.branches.items() if v > 0}
+            p["pops"]["兵"]["size"] = pop_bing - want
+            p["pops"]["农"]["size"] = int(p["pops"]["农"].get("size", 0) or 0) + want
+            cut_total += want
+        if cut_total <= 0:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：无可裁之兵。"
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{label} 裁减 {cut_total} 人，复员归农。"
+
     if act == "调赴" and tgt:
         for u in units:
             u.station = tgt
@@ -1139,7 +1173,7 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
 # 玩家主动军令（方案 §3.2 方案 B；2026-09-27 用户口径"对齐"参考图）
 # ============================================================
 # **参考图 8 按钮** → 命令层动作（仅列已实现者；拆分/合并/裁撤/换帅/改名尚无契约）
-_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴"}
+_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴", "裁撤": "裁撤"}
 
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
