@@ -16,7 +16,7 @@ cloudbase-check.ps1 —— 开发辅助工具链自检（默认只读；-Fix 修
 ⚠️ 本文件必须保存为 **UTF-8 with BOM**：PowerShell 5.1 按 GBK 读 .ps1，
    中文注释无 BOM 会解析报错（见文档 §七 的踩坑记录）。
 #>
-param([switch]$Fix)
+param([switch]$Fix, [switch]$Shot)
 
 $ErrorActionPreference = 'Continue'
 $RepoRoot     = Split-Path -Parent $PSScriptRoot          # _dev_tools 的上级 = 仓库根
@@ -37,6 +37,51 @@ function Bad ($m, $fix)  { Write-Host "  [FAIL] $m" -ForegroundColor Red; $scrip
                            if ($fix) { Write-Host "         -> $fix" -ForegroundColor Yellow } }
 function Skip($m)        { Write-Host "  [SKIP] $m" -ForegroundColor DarkGray; $script:skip++ }
 function Head($m)        { Write-Host "`n=== $m ===" -ForegroundColor Cyan }
+
+# ---------------------------------------------------------------- 面板目视截图回路（函数体；§8 调用）
+# 背景：面板的**逻辑**有 pytest/vitest 与 tsc 把关，但**布局/文案渲染/禁用态**只有"真看"才发现。
+#       2026-09-27 该回路当场抓到 5 处产品缺陷（Markdown 记号被原样渲染、隐户静默归零、
+#       禁用态不可辨、州府级页路级读数未标注、页头再次写 Markdown）+ 截图台自身 4 个坑（方案 §8.2）。
+# 触发：面板源码有改动才跑；`-Shot` 强制。缺工具一律 SKIP，不造假失败。
+function Invoke-ShotCheck {
+    $feRoot  = Join-Path $RepoRoot 'game\frontend'
+    $shotJs  = Join-Path $feRoot 'scripts\shot\shoot.mjs'
+    $shotPy  = Join-Path $PyDir 'python.exe'
+    $edgeExe = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    $shotOut = Join-Path $env:TEMP 'songzuo-shots'
+    $nodeExe = $null
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($nodeCmd) { $nodeExe = $nodeCmd.Source }
+    elseif ($NodeDir -and (Test-Path (Join-Path $NodeDir 'node.exe'))) { $nodeExe = Join-Path $NodeDir 'node.exe' }
+    $panelDirty = @(& git -C $RepoRoot status --porcelain -- game/frontend/src/renderer/panels 2>$null).Count
+
+    if (-not (Test-Path $shotJs))              { Skip "缺少 $shotJs" }
+    elseif (-not $Shot -and $panelDirty -eq 0) { Skip '面板未改动（要强制出图加 -Shot）' }
+    elseif (-not $nodeExe)                     { Skip 'Node 不在 PATH（§1），略过截图回路' }
+    elseif (-not (Test-Path $edgeExe))         { Skip '无 Edge，略过无头截图' }
+    elseif (-not (Test-Path $shotPy))          { Skip '无 Python（§1），略过静态服务' }
+    else {
+        $env:SHOT_PYTHON = $shotPy
+        $env:SHOT_OUT    = $shotOut
+        Push-Location $feRoot
+        & $nodeExe 'scripts\shot\shoot.mjs' 2>&1 | Out-Null
+        $shotCode = $LASTEXITCODE
+        Pop-Location
+        $pngs  = @(Get-ChildItem (Join-Path $shotOut '*.png') -ErrorAction SilentlyContinue)
+        $small = @($pngs | Where-Object { $_.Length -lt 10KB }).Count
+        if ($shotCode -ne 0)      { Bad "截图回路失败（exit $shotCode）" '手动：cd game\frontend; npm run shot' }
+        elseif ($pngs.Count -lt 9) { Bad "只生成 $($pngs.Count) 张（应 ≥9）" '检查 scripts/shot/shoot.mjs 的 PAGES' }
+        elseif ($small -gt 0)     { Bad "$small 张 PNG < 10KB（疑似空白：面板崩了或 mock 没喂上）" '看页头探针 store ok 与引导期错误；方案 §8.2' }
+        else                      { Ok "面板截图 $($pngs.Count) 张 → $shotOut（<10KB 视为空白，已排除）" }
+    }
+}
+
+if ($Shot) {
+    Head '面板目视截图回路（-Shot：只跑本节）'
+    Invoke-ShotCheck
+    Write-Host ("`n  OK={0}  FAIL={1}  SKIP={2}" -f $script:pass, $script:fail, $script:skip) -ForegroundColor Cyan
+    return
+}
 
 # ---------------------------------------------------------------- 1. 本机工具链
 Head '1. 本机工具链'
@@ -197,6 +242,10 @@ else {
         Bad "知识库已脱节（$stale 篇）——改了 docs/ 但未重建" '重跑本脚本并加 -Fix（自动重建两库），或手动 python build_kb.py build'
     }
 }
+
+# ---------------------------------------------------------------- 8. 面板目视截图回路（本地，dev-only）
+Head '8. 面板目视截图回路（本地）'
+Invoke-ShotCheck
 
 # ---------------------------------------------------------------- 汇总
 Write-Host "`n=== 汇总 ===" -ForegroundColor Cyan
