@@ -108,7 +108,8 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
           </span>
           {selKind === "city" ? (
             <span className="text-[11px] text-dim">
-              （未标「该府」的读数均为**全路**口径，府级数字见文末「该府底盘」）
+              {/* 面板文案勿写 Markdown 记号：反引号/星号会被原样渲染（截图台两次抓到） */}
+              （未标「该府」的读数均为全路口径，府级数字见文末「该府底盘」）
             </span>
           ) : null}
           {routeName ? (

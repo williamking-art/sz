@@ -5,11 +5,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FE = resolve(__dirname, "../..");
-const OUT = process.env.SHOT_OUT ?? resolve(FE, "_shots");
+// 输出与浏览器 profile 一律放仓库外：先前放在 frontend/ 内，被 git add -A 连带提交过
+const OUT = process.env.SHOT_OUT ?? resolve(tmpdir(), "songzuo-shots");
 const BROWSER = process.env.SHOT_BROWSER
   ?? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const PYTHON = process.env.SHOT_PYTHON ?? "python";
@@ -58,7 +60,7 @@ for (const [name, query, w, h] of PAGES) {
   const png = resolve(OUT, `${name}.png`);
   const r = spawnSync(BROWSER, [
     "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-    `--user-data-dir=${resolve(FE, "_shot-profile")}`, "--hide-scrollbars",
+    `--user-data-dir=${resolve(tmpdir(), "songzuo-shot-profile")}`, "--hide-scrollbars",
     "--virtual-time-budget=6000", `--window-size=${w},${h}`, `--screenshot=${png}`, url
   ], { stdio: "ignore" });
   if (r.status !== 0) console.error(`[shot] ${name} 截图失败（exit ${r.status}）`);

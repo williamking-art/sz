@@ -278,3 +278,6 @@ game/frontend/public/map/tiles/
 
 # --- 面板截图台的构建产物（dev-only；源在 scripts/shot/ + vite.shot.config.mts）---
 game/frontend/_shot-dist/
+# --- 截图台的浏览器 profile 与输出（一律不入库；默认已改到系统临时目录）---
+game/frontend/_shot-profile/
+game/frontend/_shots/
