@@ -283,6 +283,10 @@ def _distribute_cash(state, amount: int, shares: dict) -> int:
     末位（最后一个阶层 × 最后一支池）吃尾差，保证 **Σ入账 == amount**（精确守恒），
     从而与 `state.change_treasury(-paid)` 构成 `ΣΔ==0` 的守恒转移。
     返回实际分发额。
+
+    ⚠️ **尾差口径：末位（最后一个阶层 × 最后一支池）吃尾差** —— 与
+    `settlement_econ_helpers._distribute_pop_wealth`（**尾差归最大府**）不同；
+    二者语义确有差异，**不可盲目合并**（2026-09-27 审查 §8.2-#8）。
     """
     amount = int(amount or 0)
     if amount <= 0:
@@ -321,6 +325,10 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
       · 国库/内帑不足 → 按实付（返回 < amount，调用方须据实记录，不得静默成功）；
       · 接收方池缺失 → 余额退回，仅划转实到部分；
       · 守恒/穿底/落点非法 → applier 整批拒绝 → 返回 0（可诊断，不假装已付）。
+
+    ⚠️ 本函数是**第三处**"公共资金 → POP"通道（另两处：`_distribute_cash` 末位吃尾差、
+    `settlement_econ_helpers._distribute_pop_wealth` 尾差归最大府）；三者的**分摊与尾差处理
+    各不相同**，2026-09-27 审查确认**不可盲目合并**（§8.2-#8）。
     """
     amount = int(amount or 0)
     avail = max(0, int(getattr(state, source_account, 0) or 0))

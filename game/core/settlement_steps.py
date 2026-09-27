@@ -273,38 +273,13 @@ def _evaluate_timeline_breaks(state, log):
 
 
 # ------------------------------------------------------------
-# 流水线步骤序列（元数据；执行仍由 run_monthly_settlement 按固定顺序直接调用，
-# 本表供 test_pop_identity `_STEPS` 镜像与调试逐步比对。命名与顺序不得改。）
+# 流水线步骤序列：**本地副本已删除**（2026-09-27 审查）。
+#   原因：① 全库零引用（生产与测试都不读它）；② 只有 27 条，而真实管线实际调用 **34** 个
+#   `_settle_*` 步 —— **残缺的"权威表"比没有更危险**（曾被 4 处文档误引为步序真源）。
+#   **真权威镜像**：`_dev_tools/game-dev/tests/test_pop_identity.py::_STEPS`
+#   （`test_middle_calibration.py` 逐步断言**同一函数对象、同一顺序**）。
+#   新增结算步请同步：该测试镜像 ＋《游戏机制说明》§二 流水线。
 # ------------------------------------------------------------
-_STEPS = [
-    ("decrees", _settle_decrees),
-    ("factions", _settle_factions),
-    ("economy", _settle_economy),
-    ("land_local", _settle_land_local),
-    ("region_deepen", _settle_region_deepen),
-    ("literacy", _settle_literacy),
-    ("longterm", _settle_longterm_decrees),
-    ("external", _simulate_external),
-    ("projects", _settle_projects),
-    ("workshops", _settle_workshops),
-    ("upkeep", _settle_upkeep),
-    ("granary", _settle_granary),
-    ("officialdom", _settle_officialdom),
-    ("clan", _settle_clan),
-    ("clerks", _settle_clerks),
-    ("finance", _settle_finance),
-    ("external_economy", _settle_external_economy),
-    ("extensions", _settle_extensions),
-    ("econ_prices", _settle_econ_prices),
-    ("treasury", _settle_treasury),
-    ("military", _settle_military_diplomacy),
-    ("timeline", _evaluate_timeline_breaks),
-    ("events", _settle_events),
-    ("disaster", _settle_disaster),
-    ("emperor", _settle_emperor_personal),
-    ("hidden", _settle_hidden),
-    ("bank_stock", _settle_bank_stock),
-]
 
 
 def __getattr__(name):

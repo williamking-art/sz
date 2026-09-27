@@ -197,21 +197,26 @@ def test_conclude_template_on_failure():
 
 
 def test_agent_failures_recorded_not_silent():
-    """被唤醒的推演 Agent 失败 → state._ai_failures 明确记录（不静默、不伪造槽位）。"""
+    """被唤醒的推演 Agent 失败 → state._ai_failures 明确记录（不静默、不伪造槽位）。
+
+    ⚠️ 2026-09-27：本用例原先用 `finance` 作失败载体，而 `finance` 已置 `wired: False`
+    （结算侧不消费 `_finance_ai`，唤醒＝白烧 token）——`route_agents` 与 `inject_woken_agents`
+    **两个入口都会跳过未接线 agent**，故改用默认接线的 `diplomacy` 作载体；
+    "未接线即跳过"这一新行为由 `test_agent_router.py::test_finance_is_not_woken_until_wired` 守护。
+    """
     from core.agent_router import inject_woken_agents
 
     s = _new_state()
-    s.treasury = -100  # 触发 finance 唤醒
 
     class _FailingAI:
         available = True
-        def finance_decide(self, posture, state=None):
+        def diplomacy_decide(self, posture, state=None):
             raise RuntimeError("推演失败")
         def economy_decide(self, posture, state=None):
             return {"景气": "中", "士绅": "观望", "士绅力度": "中", "生产": "中"}
 
-    injected = inject_woken_agents(s, _FailingAI(), ["finance"])
+    injected = inject_woken_agents(s, _FailingAI(), ["diplomacy"])
     assert injected == [], "失败的 Agent 不应注入槽位"
     failures = getattr(s, "_ai_failures", [])
-    assert any(f["agent"] == "finance" for f in failures), "失败应记入 _ai_failures"
-    assert not hasattr(s, "_finance_ai"), "不伪造推演槽位"
+    assert any(f["agent"] == "diplomacy" for f in failures), "失败应记入 _ai_failures"
+    assert not hasattr(s, "_diplomacy_ai"), "不伪造推演槽位"

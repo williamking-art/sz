@@ -12,6 +12,9 @@ def _distribute_pop_wealth(state, lump, cls, total):
 
     守恒修正：逐府 `int(lump * size / total)` 截断使 Σcredit < lump，差额成为
     无对手方的货币销毁（对账残差漂移源，实测 ~50 贯/月）。分摊后 Σcredit == lump。
+
+    ⚠️ **尾差口径：归最大府** —— 与 `settlement_common._distribute_cash`
+    （末位阶层吃尾差）不同；**不可盲目合并**（2026-09-27 审查 §8.2-#8）。
     """
     if lump <= 0 or total <= 0:
         return 0

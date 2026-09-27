@@ -66,3 +66,25 @@ def test_wake_by_keywords():
     s = _new_state()
     assert "military" in route_agents(player_input="调兵守边", state=s)
     assert "relief" in route_agents(player_input="赈济灾民", state=s)
+
+
+def test_finance_is_not_woken_until_wired():
+    """`finance` 已于 2026-09-27 置 `wired: False`：结算侧不消费 `_finance_ai`，唤醒＝白烧 token。
+
+    回归锁定：即使玩家输入命中其关键词、或国库为负（原先的状态触发条件），
+    `route_agents` 也必须因 `wired is False` 守卫而跳过它。
+    """
+    s = _new_state()
+    s.treasury = -50_000                                  # 原本触发 finance 状态唤醒
+    woken = route_agents(player_input="税银钱粮商盐市舶交子钱荒", state=s)
+    assert "finance" not in woken, "finance 未接线却仍被唤醒（白烧 token）"
+    # 其它 agent 不受影响（economy 必醒）
+    assert "economy" in woken
+    # **两个入口都守 `wired`**：即便显式把 finance 放进 woken 列表，注入侧同样跳过
+    # （2026-09-27 实测：`inject_woken_agents` 亦守 `wired is False`，无法被绕开）
+    class _Fake:
+        available = True
+        def finance_decide(self, posture, state=None):      # pragma: no cover - 不应被调用
+            raise AssertionError("未接线 agent 不应被调用")
+    assert inject_woken_agents(s, _Fake(), ["finance"]) == []
+    assert not hasattr(s, "_finance_ai")

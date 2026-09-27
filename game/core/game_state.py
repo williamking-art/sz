@@ -1,53 +1,55 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 核心游戏状态"""
 
-# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
-#      51    def  _next_month   —— 推进一个月份，返回新的 (year, month)。作为模块级纯函数，供 commands 与 settleme
-#      60    def  _build_pops   —— 每路 POP 群体开局分配（参考维多利亚人口分层）。
-#     110    def  _init_local_refugees   —— 按路本地流民开局基数：边镇/高动乱路略高，腹里近 0，体现北宋常态流徙而非开局危机。
-#     122    def  _init_city_defense   —— 按路类型初始化城防（0~100）：边镇高，腹里低，京畿最高。
-#     139    def  _garrison_by_tier   —— 某路各军籍兵额（人）聚合（供 to_public 快照，非真账）。
-#     148    def  _external_province_lonlats   —— 外邦省真实经纬（Web 舆图用）：取 geo_admin.REGIME_GEO[regime] 多边形 bbox
-#     175  class  GameState   —— 宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）
-#     179      .def  _init_external_regimes   —— 外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）。
-#     264      .def  _init_extensions   —— 扩展维度：金融/科举/科技/机制槽/外交/记忆/忠诚/贪腐 + 中枢机构运行态。
-#     346      .def  __init__   
-#     787      .def  get_prestige_info   
-#     797      .def  change_prestige   —— 修改皇威，自动做上限截断。
-#     812      .def  change_treasury   —— 修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）
-#     816      .def  change_imperial_treasury   —— 修改内帑（皇帝私库，与国库分理；禁止穿底）
-#     820      .def  deficit_depth   —— 累计亏空深度（贯，B3）：破产/库藏空虚两档线的**唯一判据**。
-#     828      .def  transfer_money   —— 钱组守恒划转：src → dst，返回实际划转额（不足则按 src 可付截断）。
-#     874      .def  drain_pop_wealth   —— 从各路同阶层 POP wealth 按池比例扣款，返回实扣额（守恒来源用）。
-#     898      .def  change_granary   —— 修改中央粮仓存粮（石），自动封顶于容量。
-#     902      .def  granary_capacity_used   
-#     905      .def  change_granary_cap   —— 新建仓储：扩建中央仓容量（石）。
-#     912      .def  jiaozi_issue_limit   —— 交子可发行上限（第二节§2）：取「准备金 / 税收接受度 / 信用上限」三者最紧。
-#     938      .def  ensure_finance_fields   —— 旧存档迁移：补齐 JIAOZI/BANK/STANDARD 新数据契约字段（幂等；**不改既有数值**）。
-#     959      .def  establish_bank   —— 设立官营银行（第二节§3）：准备金自国库/内帑**守恒划入**，不凭空造钱。
-#     992      .def  _derive_defense_lines   —— 由各路 army_units 聚合防线兵额（兵额唯一真账 = unit.troops）。
-#    1001      .def  defense_lines_view   —— 返回防区派生只读视图（每次调用实时聚合）。
-#    1009      .def  calc_decree_execution_rate   —— 计算诏令执行率。
-#    1051      .def  add_edict_draft   —— 将一道诏草加入待会签队列，返回 draft_id。
-#    1067      .def  get_edict_draft   
-#    1076      .def  minister_status   —— 返回大臣状态：'active' | 'dead' | 'dismissed'；缺省视为主事在朝。
-#    1080      .def  mark_minister_status   
-#    1084      .def  is_minister_available   
-#    1087      .def  remove_edict_draft   
-#    1091      .def  store_council_review   
-#    1094      .def  enqueue_ai_action   
-#    1105      .def  get_ai_pending   
-#    1109      .def  pop_ai_pending   
-#    1115      .def  set_ai_pending_status   
-#    1125      .def  update_era_name   
-#    1134      .def  _loyalty_band   —— 把后台忠诚度映射为定性档位（玩家不可见数值）。
-#    1145      .def  authority_brief_for_ai   —— 为改制结算 AI 组装定性上下文：威望 + 相关机构运行态度 + 大臣定性效忠度。
-#    1178      .def  org_ministers   —— 返回某机构「依职权回话」的相关大臣：含各岗位在任者与在办差遣领办人。
-#    1195      .def  matter_org   —— 返回某事权当前 owner 机构名（改权限/越权授权后可动态变化）。
-#    1203      .def  get_state_summary   —— 获取完整状态，用于 AI 调用
-#    1299      .def  posture   —— AI 所需的精简脱敏态势字符串。
-#    1355      .def  refugee_count   —— 全局流民数 = 各路本地 refugees 求和（单一事实来源，避免双写漂移）。
-#    1360      .def  refugee_count   —— 兼容旧代码对 self.refugee_count 的赋值：按比例摊回各路（极端兜底，正常不应触发）。
+# ══ 目录（**纯符号索引**，2026-09-27 起不写行号）══
+#   背景：原为自动生成的行号目录，实测 46/46（game_state）与 38/38（commands）**行号全错**，
+#   反而误导；行号会随每次编辑漂移，符号名不会。查定义位置请用 `rg 'def <名字>'`。
+#      def    _next_month   —— 推进一个月份，返回新的 (year, month)。作为模块级纯函数，供 commands 与 settleme
+#      def    _build_pops   —— 每路 POP 群体开局分配（参考维多利亚人口分层）。
+#      def    _init_local_refugees   —— 按路本地流民开局基数：边镇/高动乱路略高，腹里近 0，体现北宋常态流徙而非开局危机。
+#      def    _init_city_defense   —— 按路类型初始化城防（0~100）：边镇高，腹里低，京畿最高。
+#      def    _garrison_by_tier   —— 某路各军籍兵额（人）聚合（供 to_public 快照，非真账）。
+#      def    _external_province_lonlats   —— 外邦省真实经纬（Web 舆图用）：取 geo_admin.REGIME_GEO[regime] 多边形 bbox
+#      class  GameState   —— 宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）
+#      .def   _init_external_regimes   —— 外部政权（41 个，完整数据 + 六阶 POP + 省份运行态 + 军队实体化）。
+#      .def   _init_extensions   —— 扩展维度：金融/科举/科技/机制槽/外交/记忆/忠诚/贪腐 + 中枢机构运行态。
+#      .def   __init__   
+#      .def   get_prestige_info   
+#      .def   change_prestige   —— 修改皇威，自动做上限截断。
+#      .def   change_treasury   —— 修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）
+#      .def   change_imperial_treasury   —— 修改内帑（皇帝私库，与国库分理；禁止穿底）
+#      .def   deficit_depth   —— 累计亏空深度（贯，B3）：破产/库藏空虚两档线的**唯一判据**。
+#      .def   transfer_money   —— 钱组守恒划转：src → dst，返回实际划转额（不足则按 src 可付截断）。
+#      .def   drain_pop_wealth   —— 从各路同阶层 POP wealth 按池比例扣款，返回实扣额（守恒来源用）。
+#      .def   change_granary   —— 修改中央粮仓存粮（石），自动封顶于容量。
+#      .def   granary_capacity_used   
+#      .def   change_granary_cap   —— 新建仓储：扩建中央仓容量（石）。
+#      .def   jiaozi_issue_limit   —— 交子可发行上限（第二节§2）：取「准备金 / 税收接受度 / 信用上限」三者最紧。
+#      .def   ensure_finance_fields   —— 旧存档迁移：补齐 JIAOZI/BANK/STANDARD 新数据契约字段（幂等；**不改既有数值**）。
+#      .def   establish_bank   —— 设立官营银行（第二节§3）：准备金自国库/内帑**守恒划入**，不凭空造钱。
+#      .def   _derive_defense_lines   —— 由各路 army_units 聚合防线兵额（兵额唯一真账 = unit.troops）。
+#      .def   defense_lines_view   —— 返回防区派生只读视图（每次调用实时聚合）。
+#      .def   calc_decree_execution_rate   —— 计算诏令执行率。
+#      .def   add_edict_draft   —— 将一道诏草加入待会签队列，返回 draft_id。
+#      .def   get_edict_draft   
+#      .def   minister_status   —— 返回大臣状态：'active' | 'dead' | 'dismissed'；缺省视为主事在朝。
+#      .def   mark_minister_status   
+#      .def   is_minister_available   
+#      .def   remove_edict_draft   
+#      .def   store_council_review   
+#      .def   enqueue_ai_action   
+#      .def   get_ai_pending   
+#      .def   pop_ai_pending   
+#      .def   set_ai_pending_status   
+#      .def   update_era_name   
+#      .def   _loyalty_band   —— 把后台忠诚度映射为定性档位（玩家不可见数值）。
+#      .def   authority_brief_for_ai   —— 为改制结算 AI 组装定性上下文：威望 + 相关机构运行态度 + 大臣定性效忠度。
+#      .def   org_ministers   —— 返回某机构「依职权回话」的相关大臣：含各岗位在任者与在办差遣领办人。
+#      .def   matter_org   —— 返回某事权当前 owner 机构名（改权限/越权授权后可动态变化）。
+#      .def   get_state_summary   —— 获取完整状态，用于 AI 调用
+#      .def   posture   —— AI 所需的精简脱敏态势字符串。
+#      .def   refugee_count   —— 全局流民数 = 各路本地 refugees 求和（单一事实来源，避免双写漂移）。
+#      .def   refugee_count   —— 兼容旧代码对 self.refugee_count 的赋值：按比例摊回各路（极端兜底，正常不应触发）。
 # ══ 目录结束 ══
 import json
 import os

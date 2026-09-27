@@ -39,8 +39,12 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["treasury", "tax_breakdown.", "prefectures.*.tax"],
         "domain_fields": ["treasury", "imperial_treasury", "tax_breakdown",
                           "commerce_tax_rate"],
-        # 审查 P2-36（登记，未停用）：结算侧暂无消费者（_settle_finance 不读 _finance_ai）
-        # → 唤醒结果会被丢弃（白烧 token）。接线需先设计消费语义，见 PENDING_CONTRACTS。
+        # 2026-09-27 **已停用**（审查 §8.2-#3）：结算侧无消费者（`_settle_finance` 不读
+        # `_finance_ai`），此前每回合仍会按关键词 / `treasury < 0` **真实唤醒并调用 LLM**
+        # → 结果被丢弃＝白烧 token。`route_agents` 的 `wired is False` 守卫（见下 :232 附近）
+        # 会跳过本项；契约方法与 PENDING 登记一并保留。
+        # **接线前须先设计消费语义**：谁读 `_finance_ai`、读哪几个字段、如何落账。
+        "wired": False,
     },
     "military": {
         "order": 3,
@@ -157,9 +161,10 @@ AGENT_DEFS: Dict[str, dict] = {
 #: 接线步骤 = 补 AIClient 契约方法 → 从本表移除 → 加进 AGENT_DEFS（wired 默认 True）。
 #: 接线前对应 getattr 分支恒走本地兜底（等价扩展挂点，非缺陷）。
 PENDING_CONTRACTS = (
-    ("_reform_ai", "reform_decide", "core/settlement.py::_apply_reform"),
+    ("_reform_ai", "reform_decide", "core/settlement.py::settle_reform"),
     # 反向不一致（有生产者无消费者）：唤醒会消耗 token 但结果被丢弃；接线需先设计消费语义
-    ("_finance_ai", "finance_decide", "core/settlement_steps.py::_settle_finance（未消费）"),
+    ("_finance_ai", "finance_decide",
+     "core/settlement_steps.py::_settle_finance（未消费；2026-09-27 起 AGENT_DEFS 已置 wired=False 停用唤醒）"),
     # 半接线：结算侧已有消费者（settle_investments），但落地入口 invest() 无生产调用方
     ("_invest_ai", "invest_decide", "core/estate_mechanic.py::invest（无调用方）"),
 )

@@ -9,45 +9,47 @@ Electron 前端经 HTTP 调用）与测试。**Tkinter GUI 已废弃删除**—�
 (ui/gui.py)使用」所述消费方已不存在，此处据实更新。
 """
 
-# ══ 目录（自动生成 2026-09-21，纯注释；重复运行会先移除旧块再插入）══
-#      37    def  new_game   —— 创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。
-#      82    def  audience_minister   —— 召见大臣并施行一项行动，返回叙述文本
-#     146    def  choose_imperial_action   —— 皇帝个人行动矩阵（契约 v2）：按 location×mode 限定 action 白名单（跨格子非法），
-#     184    def  do_personal_action   —— 旧单值个人行动通道（UI/后端兼容）：映射到 宫里·公开 矩阵行动。
-#     195    def  choose_major_policy   
-#     205    def  advance_month   —— 触发当月事件。返回本回合需要玩家处理的事件列表。
-#     247    def  settle_turn   —— 执行月度结算，返回 (log, ai_report)。行为与拆分前完全一致：
-#     286    def  _flush_ai_token   —— 把 AIClient 本回合累计的 token 用量写进 state.ai_token_log（一行），然后重置
-#     325    def  _ai_prelude   —— 结算前 AI 推演族（同步版）：economy 强制推演 + 按需唤醒注入，写 state 槽位。
-#     387    def  _snapshot_state   —— 结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。
-#     404    def  _restore_state   —— 把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。
-#     437    def  advance_and_settle   —— 事件触发 + 月度结算的原子封装。返回 (events, log, report)。
-#     475    def  settle_local   —— 本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
-#     497    def  finish_turn   —— 结算收尾（主线程）：终局判定 + 记忆库压缩/总结/落盘 + 对话记忆库每 3 回合总结去重。
-#     550    def  monthly_report_args   —— 构建月报调用入参（主线程快照）：(year, month, era_name, posture_with_mem
-#     582    def  _monthly_report_text   —— 生成月报文本（装饰性 AI 文本）。
-#     608    def  resolve_event   —— 处理玩家对某事件的选择，返回效果叙述。
-#     641    def  save   
-#     645    def  load   
-#     649    def  save_slots   
-#     656    def  conclude   —— 生成结局评定，返回 (eval_result, ai_eval_text)。
-#     675    def  approve_ai_action   —— 批红一条 AI 待批行动；按 kind 落地。返回叙述。
-#     722    def  reject_ai_action   
-#     730    def  _apply_military_dispatch   —— 批红军令：先校验钱粮，增募钱不够则整单拒绝。
-#     832    def  _prefilter_rules   —— 预过滤规则：(关键词组, 模板, 意图词)。模板用 {m} 占位大臣名。
-#     853    def  _prefilter_intent_hint   —— 预过滤命中后的意图词（供后续拟诏 AI 上下文，降低模板与 AI 割裂）。
-#     862    def  _prefilter_dialogue   —— 召对 token 优化：本地规则匹配常用诏令 → 本地模板回复（AI 只处理非常规）。
-#     879    def  _dialogue_stats   —— 召对 token 统计（省 token 可量化；动态字段不序列化）：预过滤命中/缓存命中/AI 调用。
-#     896    def  _topic_key   —— 召对意图主题词（缓存键组成部分）：命中主题词取主题词（同话题不同措辞命中），
-#     906    def  _dialogue_cache_store   —— AI 成功回复后写召对缓存（结构化键：minister+topic+意图摘要；近 N 回合复用）。
-#     917    def  _dialogue_cache_hit   —— 召对缓存：同大臣同话题近 N 回合的召对结果复用（省 token，命中不调 AI）。
-#     945    def  _record_dialogue_row   —— 把单条召对发言写入对话记忆库（失败不阻断，兼容层 dialogue_history 仍在）。
-#     964    def  audience_dialogue   —— 与大臣奏对一轮。返回大臣的奏对文本，并把对话记入 state.dialogue_history。
-#    1034    def  allocate_payraise   —— 拨国帑入加俸预算（厚禄养廉）。
-#    1060    def  envoy_diplomacy   —— 遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
-#    1117    def  audience_dialogue_prepare   —— 召对前奏（主线程）：身份/状态校验 + 入史（朕言/短期日志）+ 构建 AI 入参。
-#    1205    def  audience_dialogue_apply   —— 召对落定（主线程）：解出回奏并写入史册/意向，返回回奏文本。
-#    1239    def  apply_minister_departure   —— 执行大臣离任（贬黜/致仕/病故/战殁/处死/乞休），返回日志列表。
+# ══ 目录（**纯符号索引**，2026-09-27 起不写行号）══
+#   背景：原为自动生成的行号目录，实测 46/46（game_state）与 38/38（commands）**行号全错**，
+#   反而误导；行号会随每次编辑漂移，符号名不会。查定义位置请用 `rg 'def <名字>'`。
+#      def    new_game   —— 创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。
+#      def    audience_minister   —— 召见大臣并施行一项行动，返回叙述文本
+#      def    choose_imperial_action   —— 皇帝个人行动矩阵（契约 v2）：按 location×mode 限定 action 白名单（跨格子非法），
+#      def    do_personal_action   —— 旧单值个人行动通道（UI/后端兼容）：映射到 宫里·公开 矩阵行动。
+#      def    choose_major_policy   
+#      def    advance_month   —— 触发当月事件。返回本回合需要玩家处理的事件列表。
+#      def    settle_turn   —— 执行月度结算，返回 (log, ai_report)。行为与拆分前完全一致：
+#      def    _flush_ai_token   —— 把 AIClient 本回合累计的 token 用量写进 state.ai_token_log（一行），然后重置
+#      def    _ai_prelude   —— 结算前 AI 推演族（同步版）：economy 强制推演 + 按需唤醒注入，写 state 槽位。
+#      def    _snapshot_state   —— 结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。
+#      def    _restore_state   —— 把快照字段写回 state（不删除快照之后新增的瞬态键，如 _economy_ai）。
+#      def    advance_and_settle   —— 事件触发 + 月度结算的原子封装。返回 (events, log, report)。
+#      def    settle_local   —— 本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
+#      def    finish_turn   —— 结算收尾（主线程）：终局判定 + 记忆库压缩/总结/落盘 + 对话记忆库每 3 回合总结去重。
+#      def    monthly_report_args   —— 构建月报调用入参（主线程快照）：(year, month, era_name, posture_with_mem
+#      def    _monthly_report_text   —— 生成月报文本（装饰性 AI 文本）。
+#      def    resolve_event   —— 处理玩家对某事件的选择，返回效果叙述。
+#      def    save   
+#      def    load   
+#      def    save_slots   
+#      def    conclude   —— 生成结局评定，返回 (eval_result, ai_eval_text)。
+#      def    approve_ai_action   —— 批红一条 AI 待批行动；按 kind 落地。返回叙述。
+#      def    reject_ai_action   
+#      def    _apply_military_dispatch   —— 批红军令：先校验钱粮，增募钱不够则整单拒绝。
+#      def    _prefilter_rules   —— 预过滤规则：(关键词组, 模板, 意图词)。模板用 {m} 占位大臣名。
+#      def    _prefilter_intent_hint   —— 预过滤命中后的意图词（供后续拟诏 AI 上下文，降低模板与 AI 割裂）。
+#      def    _prefilter_dialogue   —— 召对 token 优化：本地规则匹配常用诏令 → 本地模板回复（AI 只处理非常规）。
+#      def    _dialogue_stats   —— 召对 token 统计（省 token 可量化；动态字段不序列化）：预过滤命中/缓存命中/AI 调用。
+#      def    _topic_key   —— 召对意图主题词（缓存键组成部分）：命中主题词取主题词（同话题不同措辞命中），
+#      def    _dialogue_cache_store   —— AI 成功回复后写召对缓存（结构化键：minister+topic+意图摘要；近 N 回合复用）。
+#      def    _dialogue_cache_hit   —— 召对缓存：同大臣同话题近 N 回合的召对结果复用（省 token，命中不调 AI）。
+#      def    _record_dialogue_row   —— 把单条召对发言写入对话记忆库（失败不阻断，兼容层 dialogue_history 仍在）。
+#      def    audience_dialogue   —— 与大臣奏对一轮。返回大臣的奏对文本，并把对话记入 state.dialogue_history。
+#      def    allocate_payraise   —— 拨国帑入加俸预算（厚禄养廉）。
+#      def    envoy_diplomacy   —— 遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
+#      def    audience_dialogue_prepare   —— 召对前奏（主线程）：身份/状态校验 + 入史（朕言/短期日志）+ 构建 AI 入参。
+#      def    audience_dialogue_apply   —— 召对落定（主线程）：解出回奏并写入史册/意向，返回回奏文本。
+#      def    apply_minister_departure   —— 执行大臣离任（贬黜/致仕/病故/战殁/处死/乞休），返回日志列表。
 # ══ 目录结束 ══
 import logging
 import random
