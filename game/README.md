@@ -8,49 +8,6 @@
 
 ---
 
-## 2026-09-18 全量审查与设计定稿
-
-> ⚠️ **状态说明**：下列设计与修复**已定稿但尚未实现**（实现按 [fix_plan_2026-09-18.md](../_dev_tools/game-docs/analysis/fix_plan_2026-09-18.md) 分批次推进）。**本 README 其余各节仍描述当前版本的真实行为**——请勿把本节内容当作已生效能力。
-
-**审查产出**
-
-| 文档 | 内容 |
-|---|---|
-| [review_2026-09-18.md](../_dev_tools/game-docs/analysis/review_2026-09-18.md) | 全量审查汇总：P0×9（去重）、测试基线 379/11 与三簇归因、历史修复核实、误报澄清 |
-| [fix_plan_2026-09-18.md](../_dev_tools/game-docs/analysis/fix_plan_2026-09-18.md) | 修复计划：阶段 0–6、逐项改法与验收、待拍板决策 |
-| `_dev_tools/_scratch/audit-2026/` | 10 份分报告（结算经济 / 状态存档 / AI 管线 / 写状态通道 / 后端安全与 Rust / 前端 / 内容与文档 / 测试质量 / 启动打包 / 端到端） |
-
-**设计定稿（三份；货币与财力已实现，官制大部分已实现）**
-
-| 设计 | 文档 | 一句话 | 状态 |
-|---|---|---|---|
-| 货币口径 | [货币口径规范_M0M1M2.md](../_dev_tools/game-docs/docs/货币口径规范_M0M1M2.md) | 引入 M0/M1/M2/M3 与月度对账恒等式，使"凭空造币/销毁"在构造上可观测；含仓鼠症与国库封桩分层 | ✅ **B-1/B-2/B-3 已生效**：60 月残差 **+43,380,547 → −7,966 贯**；取中后 240 月 **−30,907 贯** |
-| 财力消耗 | [财力消耗设计.md](../_dev_tools/game-docs/docs/财力消耗设计.md) | 六层 money sink；核心为 **L1 资产维持费**（随资产存量增长）与 **L2a 军俸补足至史实** | ✅ **L1 已落地**（Step 3.9）；**L2a/L2b/L2c 已落地**（军俸 1,349 万贯/年 ＋ 冗官膨胀 ＋ 宗室俸禄） |
-| 官制与三冗 | [宋代官制与三冗设计.md](../_dev_tools/game-docs/docs/宋代官制与三冗设计.md) | 官/职/差遣分离、冗官量化定义、政务量 W 界定、地方三层可见性与路级四司、科举离散科次、吏员制度、公务员化 | 🔶 **C-1～C-7 已生效**（双账消灭＋身份子池＋官制结算步＋宗室俸禄＋免役税基＋吏制＋离散科次＋编制参数）；**C-8 地方三层可见性 / C-5′ 吏制奏议外显待做** |
-
-**落地顺序（用户定稿）**：① 先修审查问题 → ② 再做 M0/M1/M2/M3 货币口径（含军俸提至史实、money sink）→ ③ 最后做官制完善。
-进度：**① ✅ 已完成**（P0×9 ＋ 测试整理）｜**② ✅ 已收口**（B-1 观测 → B-2 守恒 → B-2′ 军俸/欠饷 → B-3 L1 维持费）｜**③ 🔶 主体已完成**（C-1～C-7）｜**④ ✅ 历史↔游戏性取中已落地**（农户粜粮完税 ＋ 结余补发积欠 ＋ 四个校准旋钮；**史实锚点不动**）。余 C-8 地方三层可见性与 C-5′ 吏制奏议外显。详见 [fix_plan_2026-09-18.md](../_dev_tools/game-docs/analysis/fix_plan_2026-09-18.md) 与 [游戏机制说明.md §七](../_dev_tools/game-docs/docs/游戏机制说明.md)。
-
-**已拍板决策**
-
-1. **废弃** `engine/state_applier.py` 的 `factions.*.power` cascade 规则，并同步删除过期测试 `test_cascade_faction_power`。
-2. `_settle_events` 的压力事件通道**并入 `core/events.py` 富事件卡**（保留压力累积语义，产出事件带 `title`/`desc`/`choices`/`effects` 并可被 `/api/resolve_event` 反查）。
-3. **不为公务员制做专门的转轨系统**（不做"归一入口"、不做转轨开关）；公务员化由玩家在局内通过现有政令链路自行达成。
-
-**实现硬约束 · POP 挂载律**（**所有改动必须遵守**，全文见 [游戏机制说明.md §五](../_dev_tools/game-docs/docs/游戏机制说明.md)）
-
-1. 凡**"人"**（官/吏/宗室/兵/编制）→ 必须落在 **6 类 POP 的 `size`** 上，不得另立人口账本；
-2. 凡**"钱/粮"** → 必须落在某 POP 的 `wealth`/`grain` 或国库/内帑；POP 之外只允许 `core/money.py` 作为**只读对账视图**；
-3. 凡**"阶层变动"** → 必须走既有 POP 流动通道，且 **ΣPOP 守恒**（或显式记为人口自然增减）；
-4. **禁止**任何与 POP 平行的独立存量账本（~~现行 `officials` 与官僚 POP 双账即教训~~ **已于 2026-09-18 阶段 C-1 修复**，见下）；
-5. 每条改动都要配**守恒断言**并进回归测试。
-
-> **已修的违规一 · `officials` 双账（阶段 C-1）**：`prefectures[].officials`（原 `户数 × 0.00135` 派生后**永不变化**）与 `pops["官僚"].size`（随科举/裁汰流动）曾是**两本账**——30 月实跑官僚 POP **+23.1%** 而 `officials` **+0.0%**，国库俸禄支出 30 月**零增长**（"养更多官、一分钱不多花"）。现以 `pops["官僚"]` 为**唯一人头账**（单一权威源 `core/officialdom.py`），旧字段降为**派生镜像**（唯一写入点 `sync_legacy_mirror`，供 Rust 后端与旧档读取），并加两条不变量与自愈校验。240 月实跑：官额 **27,001 → 62,934**、官俸 **81.0 → 152.1 万贯/月**。详见 [宋代官制与三冗设计.md §十三/§十八](../_dev_tools/game-docs/docs/宋代官制与三冗设计.md)。
->
-> **已修的违规二 · 被裁的人凭空消失（阶段 C-1）**：诏令「裁汰冗员」原实现直接 `pops["官僚"].size -= cut`，被裁官员**凭空消失**（破 ΣPOP 守恒）。现回流 `士绅`（罢官为民/回乡），ΣPOP 严格守恒，并由 `test_officialdom.py` 断言。**凡涉及"人"的改动都必须检查对手方。**
-
----
-
 ## 前端构建 / 类型检查（无系统 Node 时的办法）
 
 本仓库**不要求系统安装 Node**：`game/frontend/node_modules/electron`（**Electron 33.0.0**）
@@ -226,125 +183,14 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 
 ---
 
-## 近期质量修复（2026-09 全量审计）
+## 历史记录（已归档）
 
-> **第二轮复审修复要点见本节末**（崩溃/安全/守恒/AI 管线；标注 `R2-*`）。
+历轮全审修复（`R2-*`~`R5-*`）、改进方案批次 0–7，以及 2026-08 ~ 09-22 的分析/修复计划/交接文档，
+均已移入 [`_dev_tools/game-docs/archive/`](../_dev_tools/game-docs/archive/)（含 `review_2026-09-18`、
+`fix_plan_2026-09-18`、`改进方案_合并版_2026-09-22` 等）。
 
-| 类别 | 要点 |
-|------|------|
-| 守恒与原子性 | `state_applier` 写入**原子回滚**（失败整批不落地）；0-100 区间校验；守恒补记账只补未配对项；内帑调拨执行前复检余额；月度结算异常**快照回滚**；存档**原子写**（`.tmp` + `os.replace`）+ 损坏档备份 `.corrupt` |
-| 数值修正 | 评价「武功」量纲；士绅囤粮 / 买方分摊 / 家产封顶 / 奢侈分配的守恒漏洞；时代五维棘轮 → 目标值重算；学校科技加成小数池；`EXAM_HARD_POOR_SHARE` 补 7 档；`FINANCE_DECIDE_BASE` 单一权威源；外邦 `type` 注册；图鉴死键对齐 |
-| AI 管线 | 6 错误码全生产者（超时/401/403 精确映射）；网络层退避重试；dialogue 遇端点不支持工具正确降级 + 去重复计费；叙事护栏支持中文数字；缓存改 LRU |
-| 记忆库 | 对话总结冲突改**合并**（不再静默丢数据）；按需建表 + WAL；压缩/总结窗口不重叠 |
-| 接口一致性 | 5 个结算侧契约接入按需唤醒 + diff 唤醒接线（`_last_agent_diff`）；未接线契约登记 `PENDING_CONTRACTS`；新增 HTTP 端点（见上节） |
-| 前端 | Tk 界面与 Web 舆图桥均已删除（`ui/` 包**整体移除**）；界面全在 `frontend/`（Electron+React+MapLibre），游戏内舆图自带实现；Web 迁移补齐清单见上节 |
-
-### 第二轮复审修复（2026-09，`R2-*`）
-
-| 编号 | 类别 | 要点 |
-|------|------|------|
-| R2-1 | 崩溃 | `settlement_steps._settle_coin_melt` 熔铜池溢出分支缺 `COPPER_RESOURCE_DIM` 导入 → NameError 中断整月结算（已补导入） |
-| R2-2 | 安全 | `/api/fetch_models` 原在未填 key 时回落服务端已存 Key 并以**客户端指定 base_url** 外联（凭据外泄 + SSRF）；现仅在「目标与已配置端点一致」时复用，且强制校验 http(s) |
-| R2-3 | 安全 | 鉴权绕过：Python 端「未配 token 即全放行」→ 改为「无 token 时仅放行回环来源」+ `hmac.compare_digest`；Rust 端原**完全无鉴权**且绑 `0.0.0.0` → 新增 `/api/*` 鉴权中间件（同构规则），CORS 可经 `SONGZUO_CORS_ORIGINS` 收紧 |
-| R2-4 | 安全 | Electron：`sandbox:false` → `true`；`shell.openExternal` 任意协议 → 仅 http(s)；补 `will-navigate` 白名单 |
-| R2-5 | 守恒 | 市舶关税在 `_settle_extensions` 与 `_settle_finance` 双通道入国库（重复计账、凭空增币）→ 删去前者，只保留「税从 POP 征」守恒通道 |
-| R2-6 | 守恒 | Rust `settle_granary` 二次调用带副作用的 `settle_land_local` → 本色粮单月双计（已删除该调用） |
-| R2-7 | 机制 | 破产两档线（原 −500万/−2000万）与国库 `max(0,…)` 纪律矛盾 → 永不可达；改为以 **累计亏空深度** `GameState.deficit_depth()` 为唯一判据（`TREASURY_CRISIS_LINE=500万` / `TREASURY_COLLAPSE_LINE=2000万`），并同步存档/评价/简报 |
-| R2-8 | 守恒 | 士绅「收租」原把**金额**并入田亩 `gentry_land`（单位错 + 无对手方）→ 改为由农 POP wealth 守恒转入大臣家产（封顶限幅） |
-| R2-9 | 守恒 | `registries._pay_equip_and_grain` 原把金额按「每维度各加 `eq_total*0.5`」写入**实物**军械库（单位错 + N× 超算）→ 按 per 权重登记实物数量，并以人均装备价值折算使 Σ(数量×价) ≈ eq_total |
-| R2-10 | 守恒 | `free_effect` 出账只逐项校验、不校验**合计** → 契约半落地；改为按净额合计校验（含 cost），任一不足整单拒绝 |
-| R2-11 | 机制 | `focus_mechanic`：欠费月仍推进国策进度（可免费完成）→ 改为停摆不推进；互斥分支「任意解锁即整支锁死」→ 改按 `power_level` 比较；「政务·财政减耗」原扣累计统计（假效果）→ 改提升真实 `waste_reform.savings` |
-| R2-12 | AI 管线 | `AIClient.enable_tools` 实例属性遮蔽同名方法（调用即 TypeError、`_call_with_tools` 永远不可达）→ 属性改名 `enable_tools_mode`，方法与属性双向同步 |
-| R2-13 | AI 管线 | 召对工具分支第二轮返回 str 时穿透，落到第三次不带 tools 的请求（三倍计费且回奏被丢弃）→ 统一归一为文本后无条件返回 |
-| R2-14 | AI 管线 | 办差工具 `register_draft` 的 `effects` 为对象契约，下游按列表迭代 → 会签审批 AttributeError → 新增 `_coerce_effects_to_list` 双向归一 + `effects_to_dict` 形态守卫 |
-| R2-15 | AI 管线 | 非幂等重试：AI 网络层对**读超时**重试、`HttpBackend`/前端对 5xx 重试非幂等端点 → 现仅对「请求未送达」重试，非幂等端点不自动重试；T1 重发补记 token 计量，计量累加加锁 |
-| R2-16 | AI 管线 | 叙事人物护栏只写 `_char_violation` 无读取方（空转）→ 按文档意图回喂一次订正要求 |
-| R2-17 | 并发/健壮 | `backend/server.py` 状态判空移入全局锁内；`/api/ai_config` 联网探测移出锁；Rust 存档改 `.tmp`+rename **原子写**、补 `/health` 别名、bind 失败不再 panic；记忆库 `save()` 补清 `summaries`、`query_sql` 降级记 warning |
-| R2-18 | 契约/文档 | 校正 `frontend/` 路径（在 `game/frontend/`）、`backend/client.py` 前后矛盾的后端定位、Rust 端过期 tkinter 注释/存档目录口径、工具数/路数注释等 |
-
-### 第三轮全审修复（2026-09-22，`R3-*`；基线 **917 passed**）
-
-> 详见仓库根 [`game全审报告.md`](../../../game全审报告.md)。大文件已**按模块拆分**（入口 re-export 兼容）。
-
-| 编号 | 类别 | 要点 |
-|------|------|------|
-| R3-1 | 数值安全 | `free_effect` 放行 NaN/Inf/bool，`min(cap, nan)` 变 `+CAP` → **凭空铸币**；现 `math.isfinite` + 拒 bool，`json.loads(parse_constant=…)` 拒 NaN/Infinity |
-| R3-2 | 守恒 | `events.apply_event_choice` 裸改国库（第三条写通道）→ 改走 `_apply_money_delta` 成对划转，资财不足不落地 |
-| R3-3 | 守恒 | `free_effect` 成本腿：民间池空假扣国帑、粮池空灭粮 → 改原子（失败零副作用） |
-| R3-4 | 货币口径 | M3 把 `bank.reserve` 与 `bank.capital` **双计** → M3 不再加 capital（reserve 已在 M2） |
-| R3-5 | 守恒 | 铸钱/太仓粮分发 `int()` 截断无尾差 + 铸钱未 `register_flow` → 尾差归最大府 + 对账台账 |
-| R3-6 | 前端 | Dock 在 `setInterval` 里调 Hook（必炸）→ `turnRef`；DecreePanel 失败后双发 → 仅「不支持」才降级 |
-| R3-7 | 安全 | 无 CSP；`will-navigate` 放行任意 `file://`；token 进渲染层 → CSP + 路径白名单 + 主进程注入 Authorization |
-| R3-8 | 权限 | `enable_tools="simple"` 落入 auto **满权** → `_tool_schemas()` 限 4 工具面 |
-| R3-9 | 拒绝式 | `parse_decree` 非法 category 静默改 `free_edict`；`*_decide` 非法档位静默填默认 → 一律整单拒绝 |
-| R3-10 | 写通道 | applier `push` 覆盖非追加；多 `set` 静默取末；`CHANGE_LOG` 跨局共享 → 修语义 + 留痕 + `reset_change_log()` |
-| R3-11 | 结构 | `data.py` 191KB→58KB+7 模块；`settlement_steps.py` 283KB→14KB 入口+9 领域模块；`ai/client.py` 161KB→62KB+契约 Mixin |
-| R3-12 | 测试 | 补 `audit_step`/`reconcile`/`validate_geo`/demography 拆分恒等式/铸钱尾差 等盲区；**917 passed** |
-| R3-13 | 前端 | MapView/Dock 资源泄漏；busy 竞态；resolveEvent 仅按 title → clearAll/卸载清理/ticket 守卫/id 定位 |
-| R3-14 | 杂项 | `personnel_nominate` 全 yamen +1；dev host `0.0.0.0`；`_load_prompt` 路径穿越；`_cached_call` 不随 provider 失效；`changping_stock` 魔法数；旧立绘管线加废弃头 |
-
-细节见 `_dev_tools/game-docs/docs/游戏机制说明.md` 头部「2026-09 全量审计修复要点」。
-
-### 第四轮全审修复（2026-09-25，`R4-*`；基线 **994 passed**）
-
-> 本轮聚焦增量：**典章知识库本地化**（替代 CloudBase PG 方案）已上线，故一并复核接入面。
-> 基线变化：修复前 **980 passed** → 补 `audio/`/`telemetry/` 冒烟测试后 **994 passed**（+14）。
-> 未处置项另见文末「已知未处置」提示。
-
-| 编号 | 类别 | 要点 |
-|------|------|------|
-| R4-1 | 文档 | 第 10 个工具 `kb_search` 上线后 README 零命中 → 补「典章知识库」专节（库/算法/管线/降级/维护）与 `ai/`、`assets/kb/` 模块条目 |
-| R4-2 | 文档 | 基线文档停留在 2026-09-22（917 passed）→ 追加第四轮基线（**994 passed**） |
-| R4-3 | 双源漂移 | `build_kb.py::search()` 与 `kb_query.py::_search()` 曾靠注释互保 → 开发侧改为**转调**运行时实现，单一权威源 |
-| R4-4 | 日志 | 运行时 `print()` 当错误日志（13 处：`commands.py`×8 / `commands_decree.py`×2 / `server.py`×3）→ 改 `logging`（对齐 `save_load._slog` 模式），兑现「原文只入服务端日志」的注释承诺 |
-| R4-5 | 测试 | `audio/`、`telemetry/` 长期零测试 → 补冒烟测试（清单/槽位/分类单一源、遥测落库与读回） |
-| R4-6 | 打包 | 空目录 `game/ui/`（Tk 界面残留）仍被 `SongZuo.spec` 打进分发包 → 移除目录与 spec datas 条目 |
-| R4-7 | 健壮性 | `kb_search` 的 `query` 无长度上限 → 两侧各截 100 字；`kb_query.py` 冗余 `except sqlite3.Error` 分支合并 |
-| R4-8 | 文档 | `游戏机制说明.md` §八补「典章知识库（`kb_search`）」小节，明确与记忆库的职责边界（典 vs 史） |
-| R4-9 | 前端测试 | 前端长期零单测 → 引入 vitest + jsdom + @testing-library/react，首批覆盖 `utils/format`、`utils/portrait`、`utils/effects`（29 用例） |
-
-### 第五轮补充修复（2026-09-26，`R5-*`；基线 **1010 passed**）
-
-> 本轮在前端补齐「听觉」与「测试」两条短板的可运行骨架。
-
-| 编号 | 类别 | 要点 |
-|------|------|------|
-| R5-1 | 前端音频 | 设置面板「视听音律」原先只有 UI 状态、不持久、不发声 → 新增 `renderer/audio/engine.ts` + `settings.ts`：localStorage 持久化主音量/静音、`playMusic`/`playSfx`/`playVoice` 接口、BGM 切换与音量实时同步；资源约定 `public/audio/<key>.ogg`，当前资源未生成时静默降级 |
-| R5-2 | 前端测试 | 新增 `audio/engine` 与 `audio/settings` 单测（12 用例），覆盖持久化、音量钳位、BGM 切换、静音、SFX 档位系数、play() 失败降级 |
-| R5-3 | CI 基建 | 服务器 CI (`/opt/sz-ci/ci.sh`) 原只在首次部署时安装 node_modules；新增依赖后 typecheck 失败 → 改为 `package-lock.json` 变更时自动 `npm install`，并把 `npm run test` 纳入前端回归链 |
-| R5-4 | 前端音频触发点 | 引擎建成后仍缺少触发点 → 新增 `useGameBgm`（局中自动播放 `bgm_court`，回菜单停止）；为「主菜单按钮、Dock 指令、下旨、批答、事件选择、关闭浮层」注入 `playClick()` 合成点击音；开局/事件弹出/月末推进分别触发 `sfx_fanfare`/`sfx_event`/`sfx_gong`；合成音效不依赖外部资源，文件到位后自动混用 |
-| R5-5 | 前端测试 | 新增 `useGameBgm` 与合成点击音单测（6 用例），覆盖 AudioContext 调用、静音、音量缩放、BGM 状态切换；前端单测累计 47 个 |
-| R5-6 | 云端 PG 冗余副本清理 | 典章库迁移到本地 SQLite 后，CloudBase PG 可能残留旧表 → 新增 `cleanup_cloudbase_pg.py`（dry-run + 白名单 + apply 二次确认）；因缺少管理员 API Key，当前只能待命，凭据就位后可一键列出并删除冗余表 |
-| R5-7 | kb_search 真实调用率观测 | 埋点已落地但缺少真实数据 → 新增 `observe_kb_search.py`，用真实 AI 跑 5 条召对问题；实测 4 次走 AI、2 次触发 `kb_search`、命中 2 次，真实调用率约 50%；后续可随玩家实际游戏持续观察 |
-
-> ⚠️ **已知未处置（用户明确跳过 key 轮换）**：`_dev_tools/game-assets-src/ministers-layers/_src/_i2i.py:5`
-> 硬编码第三方服务商 API key，且**已被 git 跟踪**。2026-09-26 已随立绘工具链迁出 `game/content/`
-> （修复分层纪律违规），故**新构建不再随 PyInstaller 打包进分发版**；但 git 历史里的泄露仍在。
-> 若日后要按密钥泄露流程处理，**第一步仍是去服务商后台轮换该 key**（改文件/迁移目录都不能消除历史泄露）。
-
----
-
-## 改进方案落地（2026-09-22 起，合并版批 0–7）
-
-> 依据 [`改进方案_合并版_2026-09-22.md`](../_dev_tools/game-docs/analysis/改进方案_合并版_2026-09-22.md)（明末经验 + 外邦产业链 + 玩家体验三线合并）。基线 **945 passed** + tsc 干净。
-
-| 批次 | 内容 | 状态 | 要点 |
-|---|---|---|---|
-| **批 0** | Phase F 草稿核实/清理 + 外邦两池守恒测试 | ✅ | `agg_res` 等零残留；`test_external_two_pool_conservation.py` 24 月双残差恒 0（修正 `s.external`→`s.external_regimes` 空转断言） |
-| **批 1** | 州/路面板字段 + 财政三值 + 可排序表 | ✅ | 民心/动乱/士绅阻力/到账率/存粮垫 + 真实进度条 + hover formula（`AccountingPanel`/`PrefecturePanel`） |
-| **批 2** | 局势系统 v1（成败条件全公开 + 持续代价） | ✅ | 开局 3 局势（花石纲民怨/东南财政亏空/辽事边备）条件 DSL + `new_game` 挂载 + readout 投影 `state.situations` + 面板公开成败/代价/双向语义 |
-| **批 3** | 月度奏章八章 + 七言联 + ▲▼ 摘要 | ✅ | `core/monthly_gazette.py` 八章（诏书/指令/局势/密令/讣闻/人物/军事/邦交）+ 邸报面板结构化渲染 + 落档 |
-| 批 4 | 建筑-岗位-就业（外邦三政权 + 宋侧同构） | ✅ | 外邦：6 类建筑 `{type:{lv}}` + 就业队列 + 轨 A/B + 等级演化 + 工资发放 + 营造回流（禁 burn）+ 轻量倒闭；宋侧：S1 产出链（yields/12×建筑乘数→`state.resources`，消除只出不进）+ S2 商品单通道（删 POP 直产，作坊 PM 唯一产出 + 不断供护栏）；`core/building_jobs.py` + `core/production_chain.py` |
-| 批 5 | 大臣工具化最小闭环 + 409 守卫 + 话术 chip | ✅ | C1 财政域草案（`enqueue_finance_proposal`→PendingActions 核定→`state_applier` 落地）；C2 颁诏 409 未决呈请守卫（`issue_decree`/`issue_free_decree`）；C3 召对话术 chip（问户部钱粮/命兵部调兵/下密令/准奏/问吏治） |
-| 批 6 | 粮=硬通货（本色饷/官仓平粜/本色粮税） | ✅ | 外邦本色兵粮/禄米（官仓→POP grain，缺额 arrears_grain）+ 本色粮税（产粮×10%→官仓）+ 官仓平粜（价高放粮/价低籴入）+ 粮残差含本色/平粜项 + 计价位不并入货币 |
-| 批 7 | 14 维原料 + 动态价格 + 物流分账 | ✅ | 14 维统一（宋侧 RAW_DIMS 扩至 15 维含金/铜/银/牲畜/马/药材）+ 动态商品价（基准×clamp 供需比 0.5–1.5，月涨跌 ±20%）+ 物流费率（距离档位×地形×战乱）+ 民间/政府分账（`core/dynamic_price.py`） |
-| 众生相 P0 | scenes 分幕渲染 | ✅ | AI 月报 scenes 数组 → `AdvancePanel` 分幕卡片（幕标题+正文）；兼容无 scenes 回落纯文本 |
-| 众生相 P1 | 六类心气注入叙事 | ✅ | `pop_sentiment_brief` 六民生齿真值摘要（脱敏定性）注入 monthly_report / event_narrative / civilian_situation prompt |
-| 众生相 ③ | 分幕约束后验 | ✅ | `_validate_scenes`：幕数钳位/字数钳位/脱敏（阿拉伯数字→「数」）/空幕占位，接入 monthly/event/civilian 三处 |
-| 众生相 ④ | 民间反应分幕化 | ✅ | `civilian_reaction` prompt 改 3 幕（农人/士绅/商贾）→ `rich_civilian_scenes` 全链路 → `AdvancePanel` 分幕卡片 |
-| 众生相 ⑤ | 八章邸报+分幕合并 | ✅ | `_chapter_scenes` 各章分幕小剧场（程序真值模板：局势/密令/人物/军事/邦交 5 章）→ `GazettePanel` 章内渲染 |
-
----
+**当前基线以全量 pytest 为准**（跑法见上文「运行」节）——本文**不再维护递增的 `passed` 数字**：
+历史上写过 379 / 917 / 945 / 980 / 994 / 1010 等，都会过期，看测试结果即可。
 
 ## 代码规范
 
