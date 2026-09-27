@@ -389,3 +389,30 @@ python -m pytest --durations=25     # 重新量耗时分布（分层阈值应据
 - **退出码 = 失败数**，可被 CI/门禁直接消费；
 - 与 `_dev_tools/cloudbase-check.ps1` 的分工：**本脚本查代码**，那边查**环境/云端/知识库**。
 - 缺 Node/Edge/Python 时相关节会 **SKIP**（不制造假失败）；截图矩阵把 **<10KB 的 PNG 视为空白页**（面板崩了或 mock 没喂上）。
+
+## 打包成 exe（打包入口）
+
+```powershell
+# 0) 依赖：Python 侧需要 PyInstaller（前端 electron/electron-builder 已在 devDependencies）
+& .\.audit-venv\Scripts\python.exe -m pip install pyinstaller        # 首次
+
+# 1) 冻 Python 后端（onedir）→ game/dist/SongZuo/
+cd game
+& <venv>\python.exe -m PyInstaller SongZuo.spec --noconfirm
+
+# 2) 构建前端 + 打包 Electron 壳 → game/frontend/release/win-unpacked/SongZuo.exe
+cd game\frontend
+npm run build
+node node_modules\electron-builder\cli.js --win --dir        # 免安装的运行目录
+node node_modules\electron-builder\cli.js --win nsis         # 生成安装包（需下载 nsis）
+
+# 3) 冒烟（重要：先剥掉 ELECTRON_RUN_AS_NODE，否则 Electron 会被当 Node 跑）
+Remove-Item env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+& .\release\win-unpacked\SongZuo.exe
+Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing   # 期望 {"ok":true,...}
+```
+
+打包配置在 `package.json` 的 `build` 段：`extraResources` 把 `game/dist/SongZuo` 放进
+`resources/backend/`（主进程按 `resources/backend/SongZuo.exe` 探测）；
+`win.signAndEditExecutable=false` 免管理员权限（代价：图标/版本信息未写入）。
+启动分段日志：设 `ELECTRON_ENABLE_LOGGING=1` 可见 `[boot] 标签 +Nms`。

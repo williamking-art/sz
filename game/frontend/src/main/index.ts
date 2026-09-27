@@ -179,7 +179,11 @@ function spawnBackend(cfg: BackendConfig): void {
 async function ensureBackend(): Promise<string> {
   // 走缓存配置：后端地址与 token 必须出自同一次解析
   const cfg = getBackendConfig();
-  if (await checkHealth(cfg.url)) {
+  // ⚠️ 2026-09-27 打包实测（报告 §17.5）：这里原用**默认 1500 ms** 超时探测"是否已有热后端"，
+  // 而**端口没开时 Electron 的 net.request 不会快速失败**，会把 1500 ms 吃满 →
+  // 实测 `ipc:backend-url-requested +659ms` 到 `backend:spawn +2174ms` **白等 1.5 秒**。
+  // 本地回环探测"有没有人在听"只需毫秒级（实测热后端 3 ms），故此处上限 300 ms。
+  if (await checkHealth(cfg.url, 300)) {
     console.log(`[backend] 已就绪: ${cfg.url}`);
     bootMark("backend:reused");   // 已有热后端：本次启动**完全省去**进程拉起与导入
     return cfg.url;
