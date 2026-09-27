@@ -64,13 +64,13 @@ def test_player_order_recruit_conserves_population():
     assert sum(a.branches.values()) == branches + 4000
 
 
-def test_unimplemented_button_is_refused_without_side_effect():
-    """拆分/合并/裁撤/换帅/改名：**明确拒绝**且零副作用（不静默、不假装成功）。"""
+def test_unknown_button_is_refused_without_side_effect():
+    """**未知**按钮名：明确拒绝且零副作用（8 个参考图键已于 2026-09-27 全部实现）。"""
     s = _state()
     a, _b = _two_same_tier(s)
     before = [(u.unit_id, u.training, u.station, dict(u.branches)) for u in s.army_units]
     n0 = len(s.ai_pending_actions)
-    for btn in ("拆分", "合并", "换帅"):                  # 裁撤/改名已补契约
+    for btn in ("操练", "子虚乌有"):                      # 8 键已实现；非参考图键须拒绝
         msg = issue_military_order(s, a.unit_id, btn)
         assert "尚无契约" in msg, f"{btn} 应明确拒绝"
     assert len(s.ai_pending_actions) == n0, "拒绝不得留审计（未成形）"

@@ -49,6 +49,8 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const [msg, setMsg] = useState("");
   const [dest, setDest] = useState("");
   const [newName, setNewName] = useState("");
+  const [mergePick, setMergePick] = useState("");
+  const [commander, setCommander] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -92,9 +94,12 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
 
   const sel = routeUnits.find((u) => u.unit_id === picked) ?? routeUnits[0];
 
-  // 已实现契约的按钮（其余 5 个尚无契约 → 保持禁用）。键=按钮名，值=命令层动作。
+  // **参考图 8 键全部已实现**（2026-09-27）：与 `core/commands.py::_MILITARY_BUTTON_ACTS` 严格一致。
+  // 「合并」的可行性是**数据相关**的：须本路同军籍 ≥2 支（通常先「拆分」出一支）。
+  const mergeOptions = routeUnits.filter((u) => u.unit_id !== sel?.unit_id && u.tier === sel?.tier);
   const CAN_ORDER: Record<string, boolean> = {
-    "整编": true, "扩编": true, "地图调度": true, "裁撤": true, "改名": true
+    "整编": true, "扩编": true, "地图调度": true, "拆分": true,
+    "合并": mergeOptions.length > 0, "换帅": true, "裁撤": true, "改名": true
   };
   const destOptions = routes.map((r) => r.route).filter((n) => n !== route);
 
@@ -105,7 +110,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
       const r = await getApiClient().action("issue_military_order", {
         unit_id: sel.unit_id, button, scale: 3,
         target: button === "地图调度" ? (dest || destOptions[0] || "") : "",
-        new_name: button === "改名" ? newName : ""
+        new_name: (button === "改名" || button === "拆分") ? newName : "",
+        merge_unit_id: button === "合并" ? (mergePick || mergeOptions[0]?.unit_id || "") : "",
+        commander: button === "换帅" ? commander : ""
       });
       setMsg(String((r as { message?: string })?.message ?? "已饬行。"));
       const rr = await getApiClient().readouts();
@@ -267,10 +274,33 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="1–12 字（改名前填写）"
+                placeholder="1–12 字（拆分/改名）"
                 className="w-40 rounded border border-border bg-card px-2 py-0.5 text-[13px]"
               />
             </div>
+            <div className="mb-1 flex items-center gap-2 text-[12.5px]">
+              <span className="text-dim">统帅（换帅）</span>
+              <input
+                value={commander}
+                onChange={(e) => setCommander(e.target.value)}
+                placeholder="在朝大臣姓名"
+                className="w-40 rounded border border-border bg-card px-2 py-0.5 text-[13px]"
+              />
+            </div>
+            {mergeOptions.length > 0 ? (
+              <div className="mb-1 flex items-center gap-2 text-[12.5px]">
+                <span className="text-dim">并入（合并）</span>
+                <select
+                  value={mergePick || mergeOptions[0].unit_id}
+                  onChange={(e) => setMergePick(e.target.value)}
+                  className="rounded border border-border bg-card px-2 py-0.5 text-[13px]"
+                >
+                  {mergeOptions.map((u) => (
+                    <option key={u.unit_id} value={u.unit_id}>{u.army_name || u.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {destOptions.length > 0 ? (
               <div className="mb-1 flex items-center gap-2 text-[12.5px]">
                 <span className="text-dim">调赴目的地</span>
@@ -293,7 +323,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                     onClick={() => void doOrder(a)}
                     title={CAN_ORDER[a]
                       ? `对选中编制单位「${sel?.army_name || sel?.name || ""}」施行${a}（走既有批红通道，留审计）`
-                      : `${a} 尚无契约（现可施行：整编／扩编／地图调度／裁撤／改名）`}
+                      : (a === "合并"
+                        ? "合并需本路同军籍 ≥2 支编制单位（可先「拆分」出一支）"
+                        : `${a} 尚无契约`)}
                     className={ok
                       ? "rounded border border-gold/60 bg-card/70 px-2 py-1 text-[13px] text-ink hover:bg-card"
                       : "cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"}
@@ -307,8 +339,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
             <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
               玩家亲裁：经 `issue_military_order` 入待批队列（`proposer="玩家"`）后**即时批红**，
               执行落在既有 `_apply_military_dispatch`（校验/档位封顶/POP 守恒同一处）；
-              整编／扩编／地图调度／裁撤／改名 已可施行（裁撤＝兵额复员归农，Σ守恒；
-              改名＝只动宋制番号展示层，与兵额真账解耦），其余 3 键待契约。
+              **参考图 8 键全部可施行**：整编／扩编／地图调度／拆分／合并／换帅／裁撤／改名。
+              守恒口径：拆分为兵种对半（Σ兵额不变、兵 POP 不变）、合并相加（欠饷随存续番号）、
+              裁撤复员归农（ΣPOP 不变）、改名与换帅只动展示层。
             </div>
           </section>
         </>

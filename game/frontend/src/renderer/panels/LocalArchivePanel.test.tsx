@@ -134,14 +134,31 @@ describe("省级军政（编制单位 + 军令）", () => {
     expect(screen.queryAllByText("殿前第1军").length).toBe(0);            // 京畿路的单位不该出现
   });
 
-  it("军令按钮：5 键可施行、3 键待契约（禁用）", async () => {
+  it("军令按钮：8 键均实现；「合并」因本路同军籍仅一支而禁用并说明原因", async () => {
     render(<ProvinceMilitaryPanel props={{ route: "两浙路" }} />);
     await waitFor(() => expect(screen.getAllByText("殿前第15军").length).toBeGreaterThan(0));
-    for (const a of ["整编", "扩编", "地图调度", "裁撤", "改名"]) {
+    // 2026-09-27：参考图 8 键全部落地（拆分/合并/换帅 已补契约）
+    for (const a of ["整编", "扩编", "地图调度", "拆分", "换帅", "裁撤", "改名"]) {
       expect((screen.getByRole("button", { name: a }) as HTMLButtonElement).disabled).toBe(false);
     }
-    for (const a of ["拆分", "合并", "换帅"]) {
-      expect((screen.getByRole("button", { name: a }) as HTMLButtonElement).disabled).toBe(true);
+    // 「合并」的可行性是数据相关的：本路同军籍须 ≥2 支（可先拆分）
+    const merge = screen.getByRole("button", { name: "合并" }) as HTMLButtonElement;
+    expect(merge.disabled).toBe(true);
+    expect(merge.title).toMatch(/同军籍 ≥2 支/);
+  });
+
+  it("拆分后「合并」变为可用（同军籍出现第二支）", async () => {
+    // 让拆分返回后 state 里多出一支同路同军籍单位 → 合并按钮应解禁
+    const extra = { ...h.state.army_units[0], unit_id: "u1s1", army_name: "殿前第15军·别部",
+                    name: "两浙路·殿前第15军·别部", branches: { 轻步兵: 10_000 } };
+    const before = h.state.army_units.slice();
+    h.state.army_units = [...before, extra];
+    try {
+      render(<ProvinceMilitaryPanel props={{ route: "两浙路" }} />);
+      await waitFor(() => expect(screen.getAllByText("殿前第15军·别部").length).toBeGreaterThan(0));
+      expect((screen.getByRole("button", { name: "合并" }) as HTMLButtonElement).disabled).toBe(false);
+    } finally {
+      h.state.army_units = before;
     }
   });
 

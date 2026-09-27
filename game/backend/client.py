@@ -222,7 +222,8 @@ class LocalBackend(BackendClient):
             "issue_military_order":
                 lambda s, p, ai: (cmd.issue_military_order(
                     s, p.get("unit_id", ""), p.get("button", ""),
-                    p.get("scale", 3), p.get("target", ""), p.get("new_name", "")), s),
+                    p.get("scale", 3), p.get("target", ""), p.get("new_name", ""),
+                    p.get("merge_unit_id", ""), p.get("commander", "")), s),
             "approve_ai_action":
                 lambda s, p, ai: (cmd.approve_ai_action(s, p.get("action_id", "")), s),
             "reject_ai_action":

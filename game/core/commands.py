@@ -1154,6 +1154,124 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
         state.set_ai_pending_status(action_id, "approved")
         return f"批红：{old_name or '旧番号'} 改称「{new_name}」。"
 
+    if act == "拆分":
+        # 2026-09-27（方案 §3.2 方案 B）：从选中编制单位**拨出一部另立新番**（同路同军籍）。
+        # 规则与理由：
+        #   · **逐个兵种对半**（floor），余数留原军 → 两边非负且 Σbranches **精确**守恒；
+        #   · 装备同法对半（Σ装备守恒）；morale/training 复制（新立之部沿用本军操练水平）；
+        #   · **arrears 留原军**：欠饷随原番号追讨，不凭空把债务记到新单位；
+        #   · **兵 POP size 不变**（兵额总账不变）→ ΣPOP 不变（POP 挂载律）；
+        #   · `unit_id` = 原 + "s"+n（唯一、可复现）；`serial` = 原 +100（避让原序列）。
+        if len(units) != 1:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：拆分须指定单一编制单位。"
+        u = units[0]
+        if sum(u.branches.values()) < 2:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：兵额不足，无可拆分。"
+        from core.army_models import ArmyUnit as _AU
+        _new_br, _new_eq = {}, {}
+        for _k, _v in list(u.branches.items()):
+            _half = int(_v) // 2
+            if _half > 0:
+                _new_br[_k] = _half
+            u.branches[_k] = int(_v) - _half
+        u.branches = {k: v for k, v in u.branches.items() if v > 0}
+        if not _new_br:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：各兵种仅 1 人，不足拆分。"
+        _eq = dict(getattr(u, "equip", None) or {})
+        for _k, _v in list(_eq.items()):
+            try:
+                _iv = int(_v)
+            except Exception:      # noqa: BLE001
+                continue
+            _half = _iv // 2
+            if _half > 0:
+                _new_eq[_k] = _half
+            _eq[_k] = _iv - _half
+        u.equip = _eq
+        _nn = str(payload.get("new_name", "") or "").strip() or \
+            f"{getattr(u, 'army_name', '') or '本军'}·别部"
+        _base = str(getattr(u, "unit_id", "") or "u") + "s"
+        _i = 1
+        while any(str(getattr(x, "unit_id", "")) == f"{_base}{_i}" for x in state.army_units):
+            _i += 1
+        _st = str(getattr(u, "station", "") or "")
+        state.army_units.append(_AU(
+            unit_id=f"{_base}{_i}",
+            name=(f"{_st}·{_nn}" if _st else _nn),
+            tier=str(getattr(u, "tier", "禁军") or "禁军"),
+            branches=dict(_new_br), station=_st,
+            defense_line=str(getattr(u, "defense_line", "") or ""),
+            morale=int(_mil_int(getattr(u, "morale", 0))),
+            training=int(_mil_int(getattr(u, "training", 0))),
+            equip=dict(_new_eq),
+            army_name=_nn,
+            org_arm=str(getattr(u, "org_arm", "") or ""),
+            scale=str(getattr(u, "scale", "") or ""),
+            serial=int(_mil_int(getattr(u, "serial", 0))) + 100,
+            arrears=0,
+            commander=str(getattr(u, "commander", "") or ""),
+        ))
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{label} 拨出「{_nn}」{sum(_new_br.values())} 人，别立一军。"
+
+    if act == "合并":
+        # 2026-09-27：同路**同军籍**两支合为一支（`merge_ids` 指定，选中者承接）。
+        # 守恒：Σbranches/Σ装备 不变、兵 POP size 不变、ΣPOP 不变；**arrears 相加**（存续番号承接旧欠）。
+        _ids = [str(x) for x in (payload.get("merge_ids") or []) if str(x).strip()]
+        _picked = [x for x in state.army_units if str(getattr(x, "unit_id", "")) in _ids]
+        if len(_picked) != 2:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：合并须指定两支编制单位。"
+        _a, _b2 = _picked
+        if str(getattr(_a, "station", "")) != str(getattr(_b2, "station", "")) or \
+                str(getattr(_a, "tier", "")) != str(getattr(_b2, "tier", "")):
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：只能合并同一路、同一军籍的编制单位。"
+        for _k, _v in (_b2.branches or {}).items():
+            _a.branches[_k] = _a.branches.get(_k, 0) + int(_v)
+        _eq = dict(getattr(_a, "equip", None) or {})
+        for _k, _v in (getattr(_b2, "equip", None) or {}).items():
+            _eq[_k] = int(_eq.get(_k, 0) or 0) + int(_v or 0)
+        _a.equip = _eq
+        _a.arrears = int(_mil_int(getattr(_a, "arrears", 0))) + int(_mil_int(getattr(_b2, "arrears", 0)))
+        state.army_units.remove(_b2)
+        state.set_ai_pending_status(action_id, "approved")
+        return (f"批红：{label} 并为一军，兵额 {sum(_a.branches.values())} 人"
+                f"（并欠饷 {_a.arrears} 贯）。")
+
+    if act == "换帅":
+        # 2026-09-27：指派统帅（展示层留痕）。校验：须为现有大臣、**一人不得领两军**。
+        # ⚠️ 刻意**不**改战力/士气/结算：那属平衡设计，须单独拍板并补对拍断言。
+        if len(units) != 1:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：换帅须指定单一编制单位。"
+        _cm = str(payload.get("commander", "") or "").strip()
+        if not _cm:
+            state.set_ai_pending_status(action_id, "rejected")
+            return "批红驳回：须指定统帅姓名。"
+        # 在朝大臣名册 = `state.loyalty` 的键（game_state.py:1346 亦以 `n in self.loyalty` 判在朝）；
+        # 旧写法查 `state.ministers` —— 该属性**不存在**（2026-09-27 断言当场抓出）。
+        _roster = getattr(state, "loyalty", None)
+        if not isinstance(_roster, dict):
+            _roster = getattr(state, "corruption", None)
+        _ok_min = isinstance(_roster, dict) and _cm in _roster
+        if not _ok_min:
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：无此大臣「{_cm}」。"
+        _other = next((x for x in state.army_units
+                       if x is not units[0]
+                       and str(getattr(x, "commander", "") or "") == _cm), None)
+        if _other is not None:
+            state.set_ai_pending_status(action_id, "rejected")
+            return f"批红驳回：{_cm} 已领「{getattr(_other, 'name', '')}」，一人不得领两军。"
+        _old = str(getattr(units[0], "commander", "") or "")
+        units[0].commander = _cm
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{label} 统帅 {_old or '（虚位）'} → {_cm}。"
+
     if act == "裁撤":
         # 2026-09-27（方案 §3.2 方案 B）：**裁减兵额**，与增募对称（档位 scale×2000）。
         # ⚠️ 只减兵额，**不删编制单位实体**：编制单位按"每路禁/厢/乡各一支"被多处引用，
@@ -1202,12 +1320,27 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
 # 玩家主动军令（方案 §3.2 方案 B；2026-09-27 用户口径"对齐"参考图）
 # ============================================================
 # **参考图 8 按钮** → 命令层动作（仅列已实现者；拆分/合并/裁撤/换帅/改名尚无契约）
-_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴",
-                         "裁撤": "裁撤", "改名": "改名"}
+def _mil_int(v, d: int = 0) -> int:
+    """军令用安全整数：坏值/NaN/inf → 默认值（本模块无 `_num`，勿误用别处的同名函数）。"""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return d
+    if f != f or f in (float("inf"), float("-inf")):
+        return d
+    return int(f)
+
+
+_MILITARY_BUTTON_ACTS = {
+    "整编": "整编", "扩编": "增募", "地图调度": "调赴",
+    "拆分": "拆分", "合并": "合并", "换帅": "换帅",
+    "裁撤": "裁撤", "改名": "改名",
+}   # ⚠️ 严格等于参考图的 8 键（勿自行增减）
 
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
-                         scale: int = 3, target: str = "", new_name: str = "") -> str:
+                         scale: int = 3, target: str = "", new_name: str = "",
+                         merge_unit_id: str = "", commander: str = "") -> str:
     """**玩家亲裁军令**：对象是**编制单位**（非兵种、非军籍整批），入队后即时批红。
 
     为什么这样接（三条，缺一不可）：
@@ -1229,8 +1362,15 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}
-    if act == "改名":
+    if act == "改名" or act == "拆分":
         payload["new_name"] = str(new_name or "").strip()
+    if act == "换帅":
+        payload["commander"] = str(commander or "").strip()
+    if act == "合并":
+        _mid = str(merge_unit_id or "").strip()
+        if not _mid or _mid == uid:
+            return "未成：合并须指定**另一支**编制单位。"
+        payload["merge_ids"] = [uid, _mid]
     if act == "调赴":
         dest = str(target or "").strip()
         if dest not in (getattr(state, "prefectures", None) or {}):
