@@ -83,15 +83,26 @@ def test_tax_share_sums_to_one_or_zero():
 
 
 def test_routes_cover_all_prefectures_and_fields():
+    """路由行字段契约（2026-09-27 起含治安正极性与隐田约值脱敏）。
+
+    ⚠️ 契约变更记录：
+      · **新增** `security` / `security_label`（治安 = 100 − 动乱，**正极性**，用户口径）；
+      · **移除** `hidden_land` 真值 → 改为 `surveyed` / `hidden_land_band` / `hidden_land_est`（约值），
+        真值仅在**已清丈**（隐匿率 < 0.2）时出现 —— 见 `test_prefecture_brief.py` 的脱敏断言。
+    """
     s = _state()
     b = build_region_brief(s)
     assert [r["name"] for r in b["routes"]] == list(PREFECTURE_LIST)
-    need = {"name", "controlled_by", "households", "population", "land", "hidden_land",
+    need = {"name", "controlled_by", "households", "population", "land",
+            "surveyed", "hidden_land_band", "hidden_land_est",
             "mood", "govern", "public_support", "gentry_resistance", "city_defense",
-            "unrest", "fiscal", "grain_year", "grain_stock", "grain_months",
+            "unrest", "security", "security_label",
+            "fiscal", "grain_year", "grain_stock", "grain_months",
             "tax_month", "tax_share", "army_cash_month", "army_grain_month",
             "risk_score", "risk_label", "risk_hints"}
     assert not (need - set(b["routes"][0]))
+    # 开局未清丈 → 真值不得出现（脱敏）
+    assert "hidden_land" not in b["routes"][0]
 
 
 def test_nation_weighted_support_in_range():

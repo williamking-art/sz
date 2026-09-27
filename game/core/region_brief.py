@@ -32,7 +32,7 @@ from core.numeric import parse_number as _num, clamp as _clamp
 
 log = logging.getLogger("region_brief")
 
-__all__ = ["build_region_brief", "route_risk"]
+__all__ = ["build_region_brief", "route_risk", "build_prefecture_brief"]
 
 
 def _route_literacy(state, name: str):
@@ -99,6 +99,151 @@ def route_risk(row: Dict[str, Any]) -> Dict[str, Any]:
 
     label = "安" if score < RISK_SAFE else ("警" if score < RISK_WARN else "危")
     return {"risk_score": round(score, 1), "risk_label": label, "risk_hints": hints}
+
+
+# ============================================================
+# 治安（**正极性**）与隐田脱敏 —— 2026-09-27 用户口径
+# ============================================================
+_SECURITY_BANDS = ((80.0, "太平"), (60.0, "尚可"), (40.0, "多事"), (0.0, "不靖"))
+_HIDDEN_BANDS = ((0.30, "隐匿极重"), (0.20, "隐匿较重"), (0.10, "隐匿尚轻"), (0.0, "隐匿轻微"))
+_HIDDEN_SURVEYED_RATIO = 0.20      # 与 legacy_mechanic._clear_hidden_land 同门槛
+_PREF_DEMOG = None
+
+
+def _security(unrest: Any) -> float:
+    """**治安 = 100 − 动乱**（正极性：越高越好）。
+
+    用户口径（2026-09-27）："治安的数值越高肯定治安越好" —— 故不得把 `unrest`
+    直接标成"治安"（极性相反）。阈值与既有 `content.data.PROJECT_SECURITY_UNREST = 60`
+    对齐：治安 < 40 ⇔ 动乱 > 60 ⇔ 工程降效（同一含义，只换极性）。
+    """
+    return round(100.0 - _clamp(_num(unrest), 0.0, 100.0), 1)
+
+
+def _security_label(unrest: Any) -> str:
+    s = _security(unrest)
+    for lo, word in _SECURITY_BANDS:
+        if s >= lo:
+            return word
+    return "不靖"
+
+
+def _hidden_fields(p: Dict[str, Any]) -> Dict[str, Any]:
+    """隐田字段：**未清丈只下发约值**，清丈后才给真数（脱敏）。
+
+    用户口径：朝廷只知约值、清丈才知真数（POP 改良 §4.3）。
+    清丈判据 = 隐匿率 < 0.2（与 `legacy_mechanic._clear_hidden_land` 同门槛，路级口径）。
+    约值粗化到 **50 万亩**，故无法反推真值；`hidden_land` 仅在已清丈时出现。
+    """
+    land = max(0.0, _num(p.get("land")))
+    hid = max(0.0, _num(p.get("hidden_land")))
+    denom = land + hid
+    ratio = (hid / denom) if denom > 0 else 0.0
+    surveyed = ratio < _HIDDEN_SURVEYED_RATIO
+    out: Dict[str, Any] = {
+        "surveyed": surveyed,
+        "hidden_land_band": next(w for lo, w in _HIDDEN_BANDS if ratio >= lo),
+        "hidden_land_est": int(round(hid / 500_000.0) * 500_000),   # 约值（粗化）
+    }
+    if surveyed:
+        out["hidden_land"] = int(hid)                               # 清丈后才给真数
+    return out
+
+
+# ============================================================
+# 州府级档案（P0，2026-09-27 方案 §4）
+# ============================================================
+def _pref_demog() -> Dict[str, Any]:
+    """州府级静态底盘（content/demography.py 为单一权威源）；懒加载 + 容错。"""
+    global _PREF_DEMOG
+    if _PREF_DEMOG is None:
+        try:
+            from content.demography import prefecture_demog
+            _PREF_DEMOG = prefecture_demog() or {}
+        except Exception as e:            # noqa: BLE001
+            log.warning("region_brief：州府级底盘不可用：%s", e)
+            _PREF_DEMOG = {}
+    return _PREF_DEMOG
+
+
+def _circuit_to_route() -> Dict[str, str]:
+    """行政路（CIRCUIT_INFO 键）→ 游戏单位路（state.prefectures 键）。"""
+    out: Dict[str, str] = {}
+    try:
+        from content.geo_admin import CIRCUIT_INFO
+        for circ, info in CIRCUIT_INFO.items():
+            gu = (info or {}).get("game_unit")
+            if gu:
+                out[circ] = str(gu)
+    except Exception:                     # noqa: BLE001
+        log.warning("region_brief：CIRCUIT_INFO 不可用，州府级档案降级为空")
+    return out
+
+
+def build_prefecture_brief(state) -> Dict[str, Any]:
+    """州府级档案：把**路级实数**按 demography 份额分到府/州（只读派生）。
+
+    纪律：
+      ① **不新增账本**：府级只做份额分配，Σ府 == 路级（尾差归最大府，与
+         `settlement_econ_helpers._distribute_pop_wealth` 同口径）；
+      ② 路级动态量（治安/城防/民心/士绅抵抗/识字率）**不分配到府** —— 它们在数据上
+         本就只有路级值，面板以"（全路）"标注直显，避免把派生值当真状态；
+      ③ 隐田/隐户沿用 `_hidden_fields` 的约值口径。
+    返回 {"prefectures": [...], "audit": {...}}；`audit.violations` 非空即守恒被破坏。
+    """
+    routes = {r["name"]: r for r in build_region_brief(state).get("routes", [])}
+    c2r = _circuit_to_route()
+    static = _pref_demog()
+
+    members: Dict[str, List[Dict[str, Any]]] = {}
+    for pref, d in sorted(static.items()):
+        circ = str((d or {}).get("circuit") or "")
+        route = c2r.get(circ)
+        if not route or route not in routes:
+            continue
+        members.setdefault(route, []).append({
+            "name": pref, "circuit": circ, "route": route,
+            "population": int(_num((d or {}).get("population"))),
+            "households": int(_num((d or {}).get("households"))),
+            "land": int(_num((d or {}).get("land"))),
+            "grain": int(_num((d or {}).get("grain"))),
+            "monthly_tax": int(_num((d or {}).get("monthly_tax"))),
+        })
+
+    DIMS = (("population", "population"), ("households", "households"),
+            ("land", "land"), ("grain_year", "grain"), ("tax_month", "monthly_tax"))
+    out: List[Dict[str, Any]] = []
+    violations: List[str] = []
+    for route, group in sorted(members.items()):
+        row = routes[route]
+        for out_key, stat_key in DIMS:
+            target = row[out_key]
+            total_stat = sum(float(m[stat_key]) for m in group) or 0.0
+            biggest = max(group, key=lambda m: float(m[stat_key]))
+            assigned = 0.0
+            for m in group:
+                share = (float(m[stat_key]) / total_stat) if total_stat > 0 else 1.0 / len(group)
+                val = int(target * share) if out_key != "tax_month" else round(target * share, 2)
+                m[out_key] = val
+                assigned += val
+            rest = round(target - assigned, 2 if out_key == "tax_month" else 6)
+            biggest[out_key] = (round(biggest[out_key] + rest, 2) if out_key == "tax_month"
+                                else int(biggest[out_key] + rest))
+            got = sum(float(m[out_key]) for m in group)
+            if abs(got - float(target)) > (0.02 if out_key == "tax_month" else 0.5):
+                violations.append(f"{route}.{out_key}: Σ府={got} ≠ 路级={target}")
+        for m in group:
+            m["share"] = round(float(m["population"]) / max(1.0, float(row["population"])), 4)
+            out.append(m)
+
+    return {
+        "prefectures": out,
+        "audit": {
+            "routes": len(members),
+            "prefectures": len(out),
+            "violations": violations,
+        },
+    }
 
 
 def build_region_brief(state) -> Dict[str, Any]:
@@ -184,13 +329,18 @@ def build_region_brief(state) -> Dict[str, Any]:
             "households": int(_num(p.get("households"))),
             "population": pop_total,
             "land": int(_num(p.get("land"))),
-            "hidden_land": int(_num(p.get("hidden_land"))),
+            # 隐田：**未清丈只下发约值**（真值留服务端）；清丈（隐匿率<0.2）后才给真数
+            **_hidden_fields(p),
             "mood": round(_clamp(_num(p.get("mood")), 0, 100), 1),
             "govern": round(_clamp(_num(p.get("govern")), 0, 100), 1),
             "public_support": round(_clamp(_num(p.get("public_support"), _num(p.get("mood"), 50.0)), 0, 100), 1),
             "gentry_resistance": round(_clamp(_num(p.get("gentry_resistance"), 30.0), 0, 100), 1),
             "city_defense": round(_clamp(_num(p.get("city_defense"), 40.0), 0, 100), 1),
             "unrest": round(_clamp(_num(p.get("unrest")), 0, 100), 1),
+            # 治安 = 100 − 动乱（**正极性**：越高越好）；单一权威在此派生，前端不自算。
+            # 与 data.PROJECT_SECURITY_UNREST=60 对齐：治安<40 ⇔ 工程降效。
+            "security": _security(p.get("unrest")),
+            "security_label": _security_label(p.get("unrest")),
             "fiscal": round(_clamp(_num(p.get("fiscal"), 50.0), 0, 100), 1),
             # 识字率（2026-09-19 新增，core/literacy.py）：**各地 POP 自有**识字率按
             # 人口加权的派生读——政令能否"写下去、读得懂"的弱关联项

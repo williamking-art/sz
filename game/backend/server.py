@@ -727,6 +727,14 @@ def api_readouts(request: Request):
         try:
             from core.region_brief import build_region_brief
             regions = _json_safe(build_region_brief(s))
+            # 州府级档案（P0，2026-09-27 方案 §4）：**增量视图**，失败不得影响既有读数
+            try:
+                from core.region_brief import build_prefecture_brief
+                _pb = build_prefecture_brief(s)
+                regions["prefectures"] = _json_safe(_pb.get("prefectures") or [])
+                regions["prefecture_audit"] = _json_safe(_pb.get("audit") or {})
+            except Exception:  # noqa: BLE001
+                log.warning("readouts：州府级档案派生失败（已降级为空）", exc_info=True)
         except Exception:
             regions = {}
         # 局势投影（只读，core/situations.py 单一权威源）：把既有长期项
