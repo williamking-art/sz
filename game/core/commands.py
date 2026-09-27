@@ -1135,6 +1135,49 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
     return f"批红驳回：未识军令动作「{act}」。"
 
 
+# ============================================================
+# 玩家主动军令（方案 §3.2 方案 B；2026-09-27 用户口径"对齐"参考图）
+# ============================================================
+# **参考图 8 按钮** → 命令层动作（仅列已实现者；拆分/合并/裁撤/换帅/改名尚无契约）
+_MILITARY_BUTTON_ACTS = {"整编": "整编", "扩编": "增募", "地图调度": "调赴"}
+
+
+def issue_military_order(state: GameState, unit_id: str, button: str,
+                         scale: int = 3, target: str = "") -> str:
+    """**玩家亲裁军令**：对象是**编制单位**（非兵种、非军籍整批），入队后即时批红。
+
+    为什么这样接（三条，缺一不可）：
+      ① **执行仍走唯一通道** `approve_ai_action` → `_apply_military_dispatch`：
+         校验、档位封顶、钱粮与 POP 守恒都在那一处，本函数**不写任何状态**；
+      ② **必留审计**：经 `enqueue_ai_action(kind="military_dispatch", proposer="玩家")` 入
+         `ai_pending_actions`（与 AI 提议同构），批红后 `status="approved"`，可回溯谁在何月下的令；
+      ③ **未实现的按钮明确拒绝**，不静默、不假装成功。
+    """
+    act = _MILITARY_BUTTON_ACTS.get(str(button or "").strip())
+    if not act:
+        return (f"未成：军令「{button}」尚无契约（现可施行："
+                f"{'、'.join(_MILITARY_BUTTON_ACTS)}）。")
+    uid = str(unit_id or "").strip()
+    unit = next((u for u in (getattr(state, "army_units", None) or [])
+                 if str(getattr(u, "unit_id", "") or "") == uid), None)
+    if unit is None:
+        return f"未成：无此编制单位「{uid}」。"
+
+    payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
+               "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}
+    if act == "调赴":
+        dest = str(target or "").strip()
+        if dest not in (getattr(state, "prefectures", None) or {}):
+            return f"未成：调赴目的地「{dest}」不在本朝州路中。"
+        payload["target"] = dest
+
+    title = f"{getattr(unit, 'tier', '')}·{getattr(unit, 'name', '') or uid}·{button}"
+    aid = state.enqueue_ai_action(
+        "military_dispatch", title,
+        f"玩家亲裁军令（编制单位 {uid}）", payload, proposer="玩家")
+    return approve_ai_action(state, aid)
+
+
 __all__ = [
     "new_game", "audience_minister", "issue_decree", "issue_secret_decree",
     "do_personal_action", "choose_imperial_action", "choose_major_policy", "advance_month", "settle_turn",
@@ -1144,6 +1187,7 @@ __all__ = [
     "envoy_diplomacy",
     "issue_drafted_decree", "preview_draft",
     "approve_ai_action", "reject_ai_action",
+    "issue_military_order",
 ]
 
 
