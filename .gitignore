@@ -264,3 +264,5 @@ _dev_tools/game-docs/kb/dev_kb.sqlite
 # --- 未接线参考实现（2026-09-27 从 game/ 移出：不随分发；测试仍覆盖）---
 !_dev_tools/unwired/
 !_dev_tools/unwired/**
+# 放行 _dev_tools/unwired/** 会连带纳入 __pycache__（每次跑测试都变），须显式排除
+_dev_tools/unwired/__pycache__/
