@@ -743,6 +743,8 @@ def api_readouts(request: Request):
                 _pb = build_prefecture_brief(s)
                 regions["prefectures"] = _json_safe(_pb.get("prefectures") or [])
                 regions["prefecture_audit"] = _json_safe(_pb.get("audit") or {})
+                from core.region_brief import route_military_summary
+                regions["military"] = _json_safe(route_military_summary(s))
             except Exception:  # noqa: BLE001
                 log.warning("readouts：州府级档案派生失败（已降级为空）", exc_info=True)
         except Exception:

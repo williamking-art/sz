@@ -32,7 +32,8 @@ from core.numeric import parse_number as _num, clamp as _clamp
 
 log = logging.getLogger("region_brief")
 
-__all__ = ["build_region_brief", "route_risk", "build_prefecture_brief", "hidden_surveyed"]
+__all__ = ["build_region_brief", "route_risk", "build_prefecture_brief",
+           "hidden_surveyed", "route_military_summary"]
 
 
 def _route_literacy(state, name: str):
@@ -421,3 +422,85 @@ def build_region_brief(state) -> Dict[str, Any]:
         "readout_status": "partial" if errors else "ok",
         "readout_errors": errors,
     }
+
+# ============================================================
+# 省级军政（P1，2026-09-27 方案 §3）
+# ============================================================
+def route_military_summary(state, route: str | None = None) -> Dict[str, Any]:
+    """省级军政（**只读派生**）：按路聚合 `army_units` 实体。
+
+    - 兵额唯一真账 = `ArmyUnit.troops`（= Σbranches；勿在别处另求和，避免漂移）；
+    - 军饷/军粮**复用** `build_region_brief` 的逐路核心派生（`army_cash_month`/`army_grain_month`），
+      不重复调用 `calc_army_*`；
+    - `route=None` → **全国总览**（逐路行 + 合计）；否则给该路军表 + 该路汇总；
+    - 只读：不写 `army_units`、不写任何 POP/国库。
+    """
+    def _unit_row(u) -> Dict[str, Any]:
+        br = getattr(u, "branches", None)
+        br = br if isinstance(br, dict) else {}
+        try:
+            troops = int(getattr(u, "troops", 0) or 0)
+        except Exception:                 # noqa: BLE001
+            troops = 0
+        return {
+            "unit_id": str(getattr(u, "unit_id", "") or ""),
+            "name": str(getattr(u, "name", "") or ""),
+            "army_name": str(getattr(u, "army_name", "") or ""),
+            "tier": str(getattr(u, "tier", "") or ""),
+            "station": str(getattr(u, "station", "") or ""),
+            "defense_line": str(getattr(u, "defense_line", "") or ""),
+            "troops": max(0, troops),
+            "morale": int(_num(getattr(u, "morale", 0))),
+            "training": int(_num(getattr(u, "training", 0))),
+            "arrears": max(0, int(_num(getattr(u, "arrears", 0)))),
+            "branches": {str(k): max(0, int(_num(v))) for k, v in br.items()},
+        }
+
+    all_units = [u for u in (getattr(state, "army_units", None) or [])]
+    rows = [_unit_row(u) for u in all_units]
+    if route:
+        rows = [r for r in rows if r["station"] == route]
+
+    brief = {r.get("name"): r for r in build_region_brief(state).get("routes", [])}
+    by_route: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        by_route.setdefault(r["station"] or "（未列路）", []).append(r)
+
+    route_rows: List[Dict[str, Any]] = []
+    for name in sorted(by_route):
+        us = by_route[name]
+        br = brief.get(name) or {}
+        troops = sum(u["troops"] for u in us)
+        morale = (sum(u["morale"] * u["troops"] for u in us) / troops) if troops > 0 else 0.0
+        route_rows.append({
+            "route": name,
+            "units": len(us),
+            "troops": troops,
+            "morale_weighted": round(morale, 1),
+            "arrears": sum(u["arrears"] for u in us),
+            "cash_month": br.get("army_cash_month"),
+            "grain_month": br.get("army_grain_month"),
+            "city_defense": br.get("city_defense"),
+            "security": br.get("security"),
+            "security_label": br.get("security_label"),
+            "controlled_by": br.get("controlled_by"),
+        })
+    nation = {
+        "routes": len(route_rows),
+        "units": sum(r["units"] for r in route_rows),
+        "troops": sum(r["troops"] for r in route_rows),
+        "arrears": sum(r["arrears"] for r in route_rows),
+        "cash_month": round(sum(_num(r["cash_month"]) for r in route_rows), 2),
+        "grain_month": round(sum(_num(r["grain_month"]) for r in route_rows), 1),
+    }
+    if route:
+        hit = next((r for r in route_rows if r["route"] == route), None)
+        return {
+            "route": route,
+            "units": rows,
+            "summary": hit or {"route": route, "units": 0, "troops": 0, "morale_weighted": 0.0,
+                               "arrears": 0, "cash_month": None, "grain_month": None,
+                               "city_defense": None, "security": None, "security_label": None},
+            "nation": nation,
+        }
+    return {"route": None, "routes": route_rows, "nation": nation}
