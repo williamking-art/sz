@@ -8,7 +8,12 @@
        （`SONGZUO_BACKEND` / `backend_config.json` 可指向云端），原先只放行回环，导致远端请求被 CSP
        拦成网络错误。现由主进程按**已解析的后端 origin** 注入完整 CSP（见 `src/main/index.ts::installCspForBackend`），
        http/https 远端均可，且比"放行 https: 全部"更紧。 -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+  <!-- 2026-09-27 修复：**meta 必须自带 connect-src**。原因：`file://` 加载不会触发主进程的
+       webRequest.onHeadersReceived（installCspForBackend 的注入对 asar 内的 file:// 无效），
+       打包版只剩这条 meta → 无 connect-src 时退回 default-src 'self' → 连不上本机后端，
+       界面永远停在「后端连接中…」（实测日志：Refused to connect ... 127.0.0.1:8080/health）。
+       取值=回环（本机后端）+ https/wss（⑦ 远端云后端）；开发态仍由主进程注入更紧的 CSP。 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https: wss:" />
   <title>宋祚</title>
 </head>
 <body>
