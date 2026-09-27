@@ -116,7 +116,7 @@ Team 型（多角色协作团队）
 - 状态权威 `core/game_state.py`；数值权威 `content/data.py`（禁止重复定义 SAVE_DIR/常量）。
 - 档位 `TIER_RANGE = {"无":0.0,"微":0.25,"小":0.5,"中":1.0,"大":1.8}`，经 `tier_to_value()` 封顶。⚠ 当前 `TIER_RANGE` 定义于 `ai/client_utils.py:67`，`content/data.py` 仅注释引用，属常量漂移，应迁回 `content/data.py` 统一权威源。
 - 12 步月度结算流水线；结局七维加权（百姓口碑 0.20 > 文治/武功/民生/声望 0.15 > 财政/艺术 0.10）。
-- 分层边界：`dev/`、`_scratch/` 不得成为运行依赖；AI 调用走 urllib；地图仅 `empire_bg.png`/`desk_bg.png` 为权威资源。
+- 分层边界：本体在 `game/`、发行物在 `songzuo/`；`dev/`、`_scratch/` 不得成为运行依赖；AI 调用走 urllib；地图仅 `empire_bg.png`/`desk_bg.png` 为权威资源。
 - 已知质量债：远程后端常量漂移、`_tool_dispatch` 直改 GameState 应迁后端、钱荒口径多处不统一、`TIER_RANGE` 定义于 `ai/client_utils.py` 未归 `content/data.py`。
 
 ## 使用示例

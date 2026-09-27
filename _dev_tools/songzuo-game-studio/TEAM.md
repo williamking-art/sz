@@ -217,7 +217,7 @@
 **触发**：requirements.txt、构建缓存、缺失模块/资源、源码与冻结环境差异、发布验收（打包验证脚本待补，此前 `_verify_exe.py` 已不存在）。
 **核心能力**：分析 gui_main.py 真实依赖/动态导入/资源路径；可复现依赖清单与 PyInstaller spec；区分 build 缓存/EXE 交付物/归档区；验证冻结环境配置/存档/资源/错误/中文；PyInstaller 非跨平台交叉编译器。
 **执行步骤**：先验干净环境 `python gui_main.py` 可启动 → 审计 imports/隐式导入/数据文件/仅开发依赖（requests/rich/Pillow，AI 走 urllib）→ 打包缓存日志留 `_scratch/` → 无源码环境启产物验 `sys._MEIPASS`/ai_config.json/saves/AI 错误路径 → 查发布包不依赖 dev/_scratch/绝对路径/密钥 → 记录构建命令/环境/校验和/限制。
-**项目基准（实勘）**：依赖清单 `requirements.txt` 权威（requests/rich/Pillow，AI 走 urllib）；分层边界游戏本体参与打包，dev/_scratch 不得成运行依赖；资源收集只含 `assets/` 真实文件，地图仅 empire_bg.png/desk_bg.png；冻结路径 `sys._MEIPASS` 兼容；`SAVE_DIR` 以 `content/data.py` 为权威；打包验证脚本待补（此前 `_verify_exe.py` 已不存在，需按 `dev/verify_ai_connect.py` 范式重建）。
+**项目基准（实勘）**：依赖清单 `requirements.txt` 权威（requests/rich/Pillow，AI 走 urllib）；分层边界：**游戏本体 = `game/`**（参与打包）；**发行物 = `songzuo/`**（exe+运行时+resources）；dev/_scratch 不得成运行依赖；资源收集只含 `assets/` 真实文件，地图仅 empire_bg.png/desk_bg.png；冻结路径 `sys._MEIPASS` 兼容；`SAVE_DIR` 以 `content/data.py` 为权威；打包验证脚本待补（此前 `_verify_exe.py` 已不存在，需按 `dev/verify_ai_connect.py` 范式重建）。
 **SendMessage 回传**：EXE 验证报告与发布清单回传主理人。
 **禁止事项**：本机缓存当依赖；声称一次构建适配所有系统；打包真实 api_key；仅确认"生成了 EXE"不启动验证。
 **来源**：[P1][P10][P11][P12][E11]

@@ -2,8 +2,8 @@
 # 依据 game/README.md 分层规范：dev/ 与 _scratch/ 不参与版本管理
 
 # --- 运行时生成的存档 ---
-game/saves/*
-!game/saves/.gitkeep
+songzuo/saves/*
+!songzuo/saves/.gitkeep
 
 # --- 临时归档与构建产物 (_scratch/：任意层级均不入库) ---
 _scratch/
@@ -11,7 +11,7 @@ game/_scratch/
 _dev_tools/songzuo-game-studio/_scratch/
 
 # --- 密钥与本地配置（绝不入库） ---
-game/ai_config.json
+songzuo/ai_config.json
 **/ai_config.json
 *.env
 .env
@@ -41,11 +41,11 @@ dist/
 game/build/
 game/dist/
 # PyInstaller 目录模式分发产物（含 _internal/ 系统 DLL，均不参与版本管理）
-game/SongZuo/
+songzuo/SongZuo/
 
 # --- 日志 ---
 *.log
-game/*.log
+songzuo/*.log
 
 # --- 运行产物 / 快捷方式（不入版） ---
 songzuo_server/run*.out
@@ -57,7 +57,7 @@ songzuo_server/deploy.log.err
 # 会在 targetPath 下自动生成 cloudbaserc.json（内容仅本机 envId + 服务名）。
 # 它属"本机部署上下文"而非项目源码，故不入库；不带斜杠的写法可匹配任意层级。
 cloudbaserc.json
-game/宋祚.exe.lnk
+songzuo/宋祚.exe.lnk
 game/assets/map/web/tiles/
 assets/map/web/tiles/
 
@@ -287,21 +287,26 @@ game/frontend/_shots/
 
 # --- 打包成品（2026-09-27：按用户要求直接放在 game/ 根）---
 # 注意：不能写 `game/SongZuo*` —— `game/SongZuo.spec` 是**入库的源码**。
-game/win-unpacked/
-game/SongZuo Setup*.exe
-game/SongZuo Setup*.exe.blockmap
+songzuo/win-unpacked/
+songzuo/SongZuo Setup*.exe
+songzuo/SongZuo Setup*.exe.blockmap
 # electron-builder 的调试产物（directories.output=.. 时会落在 game\ 根）——生成物，不入库
-game/builder-debug.yml
-game/*.blockmap
+songzuo/builder-debug.yml
+songzuo/*.blockmap
 
 # --- Electron 运行时（2026-09-27：发布根＝ game\ 本身，即"游戏根目录"）---
 # 这些是 electron-builder 的产物、不是源码；`game/SongZuo.exe` 已被全局 `*.exe` 覆盖。
-game/resources/
-game/locales/
-game/*.pak
-game/*.dll
-game/*.bin
-game/*.dat
-game/vk_swiftshader_icd.json
-game/LICENSE.electron.txt
-game/LICENSES.chromium.html
+songzuo/resources/
+songzuo/locales/
+songzuo/*.pak
+songzuo/*.dll
+songzuo/*.bin
+songzuo/*.dat
+songzuo/vk_swiftshader_icd.json
+songzuo/LICENSE.electron.txt
+songzuo/LICENSES.chromium.html
+# --- 2026-09-27 发行物分层：发行目录 = sz\songzuo\（游戏本体仍在 game\）---
+# 依据 game/README.md §目录分层规范 + DoD #7（临时/生成产物不得混入游戏本体）。
+# 这里只补一条兜底：发行目录内的运行数据与生成物都不入库（保留 .gitkeep）。
+songzuo/**/*.db
+songzuo/**/_composed/

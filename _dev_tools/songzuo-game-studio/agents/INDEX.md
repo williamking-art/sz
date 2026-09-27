@@ -76,7 +76,7 @@
 
 ## 依赖与边界
 
-- 权威根目录：`G:/sz/game/`（游戏本体）。改动须符合 TEAM.md 的 9 条工程约束与分层规则。
+- 权威根目录：`sz/game/`（游戏本体）；发行物在 `sz/songzuo/`。改动须符合 TEAM.md 的 9 条工程约束与分层规则。
 - 数值权威 `content/data.py`；状态权威 `core/game_state.py`；地图仅 `assets/map/empire_bg.png`、`desk_bg.png`。
 - 差异以 `TEAM.md` / 各 `.md` 角色卡为准；结构变更以游戏 `README.md` 同步。
 

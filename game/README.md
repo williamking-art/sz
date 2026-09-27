@@ -51,7 +51,11 @@ $node = '.\node_modules\electron\dist\electron.exe'
 项目严格按「游戏本体 / 开发工具 / 无关归档」三层隔离，保证游戏可单独分发、不被开发脚本与临时产物污染。
 
 ```
-game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
+sz/    （项目文件夹 = 仓库根）
+├── game/   ← 本文件描述的对象：**游戏本体**（源码 / 素材 / 前端 / spec，参与打包）
+└── songzuo/ ← **发行物**（生成物，不入库）：SongZuo.exe + Chromium 运行时 + resources/ + locales/ + saves/
+
+game/  （宋祚游戏本体 = 仓库内 songzuo 游戏本体）
 ├── 🎮 游戏本体（参与打包 / 运行所需）
 │   ├── backend_server_entry.py  # PyInstaller 后端入口（调 backend.server.main）
 │   ├── fetch_basemap.py / fetch_hillshade.py / build_map_basemap.py  # 舆图底图抓取/构建
@@ -93,6 +97,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 ```
 
 > **目录分层纪律（E 修复）**：`game/` 本体目录内**不得**存放开发/审计临时脚本；
+> **2026-09-27 补充（用户定稿）**：**打包生成物（exe / Chromium 运行时 / `resources/` / `locales/` / `saves/`）同样不得放进 `game/`** —— 发行物统一放 `sz/songzuo/`（依据 DoD #7「没有把临时产物混入游戏本体」）。
+> 此前一段时间曾把成品摊进 `game/` 根，已按本条迁出。
 > 原先误置于 `game/_scratch/` 的 30 个 `_audit_*.py` / `_check_*.py` / `_fix_*.py`
 > 已迁至 `_dev_tools/_scratch/game-audit/`（经全库检索确认无任何运行时引用）。
 
@@ -101,7 +107,8 @@ game/  （宋祚游戏根目录，即仓库内 songzuo 游戏本体）
 | 层 | 是否打包 | 说明 |
 |----|---------|------|
 | 游戏本体 | ✅ 是 | 运行所需全部代码、资源、配置（Electron 安装包由 `frontend/` 构建，与 Python 本体分发物组合） |
-| `构建/分发产物` | ❌ 否 | `SongZuo/`、`build/` 为构建输出，可随时重建 |
+| `构建/分发产物` | ❌ 否 | `game/dist/`、`game/build/` 为构建输出，可随时重建 |
+| **`songzuo/`（仓库根）** | ❌ 否 | **发行目录**：exe + Chromium 运行时 + `resources/` + `locales/` + `saves/`；由构建产出 |
 | `_dev_tools/`（仓库根） | ❌ 否 | 开发期测试 / 分析脚本，路径引用以仓库根为基准 |
 | `_dev_tools/_scratch/` | ❌ 否 | 临时产物 / 归档 / Electron 参考工程，可随时清理（**不在 `game/` 内**） |
 

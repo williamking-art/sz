@@ -37,7 +37,7 @@ maxTurns: 80
 
 ## 项目基准（实勘）
 - 依赖清单（`requirements.txt` 权威）：requests / rich / Pillow；AI 调用走 urllib。
-- 分层边界：游戏本体参与打包；`dev/`、`_scratch/` 不得成为运行依赖。
+- 分层边界：本体 `game/` 参与打包，发行物落 `songzuo/`；`dev/`、`_scratch/` 不得成为运行依赖。
 - 资源收集只含 `assets/` 真实文件；地图仅 empire_bg.png / desk_bg.png。
 - 冻结路径用 `sys._MEIPASS` 兼容；`SAVE_DIR` 以 `content/data.py` 为权威。
 - 验证脚本待补（此前 `dev/_verify_exe.py` 已不存在，需按 `dev/verify_ai_connect.py` 范式重建）。

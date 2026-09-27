@@ -38,7 +38,7 @@ maxTurns: 80
 ## 项目基准（实勘）
 - 回归范式沿用 `dev/verify_ai_connect.py`（三态输出）；打包验证脚本待补（此前 `dev/_verify_exe.py` 已不存在，需按同范式重建）。
 - 冻结路径用 `sys._MEIPASS` 兼容；`SAVE_DIR` 以 `content/data.py` 为权威；地图仅 `assets/map/empire_bg.png` 与 `desk_bg.png`。
-- 分层边界：游戏本体参与打包；`dev/`、`_scratch/` 不得成为运行依赖。
+- 分层边界：本体 `game/` 参与打包，发行物落 `songzuo/`；`dev/`、`_scratch/` 不得成为运行依赖。
 - GUI 已知缺陷模式：弹窗回调 `self.self` 笔误（静默失效）、主线程同步网络调用阻塞 mainloop——回归矩阵须含对应断言。
 
 ## 注意事项
