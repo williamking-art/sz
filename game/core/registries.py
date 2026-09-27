@@ -70,7 +70,6 @@ def sanity_effect(effects: dict, caps: dict = None) -> tuple:
 # ============================================================
 # 二、科技注册表（原 tech_registry.py，玩家承接天马行空研发）
 # ============================================================
-from content.data import BRANCH_BASE  # noqa: F401   # 效果字段白名单同源（档位词）
 
 TECH_REGISTRY_MAX = 12
 # 效果字段白名单（玩家注册节点可声明：既有效果键）

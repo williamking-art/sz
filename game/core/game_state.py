@@ -118,7 +118,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
     from content.data import (
         POP_SHARE, GENTRY_TREASURY_SOUTH, GENTRY_TREASURY_NORTH,
         CIVILIAN_HOARD_SOUTH, CIVILIAN_HOARD_NORTH,
-        RESOURCE_DIMS, RAW_DIMS,
+        RAW_DIMS,
     )
     from content.data_constants import PERSONS_PER_HOUSEHOLD
     pop_total = info.get("population", 0)
@@ -511,14 +511,13 @@ class GameState(GameStateEconMixin):
 
         # ---- 经济全浮动重构新增状态 ----
         # 七维物资仓：{dim: {"stock": 现有, "cap": 容量}}
-        from content.data import RESOURCE_DIMS
         self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
         # 工程系统（玩家手动发起，逐月推进）：{pid: {...}}
         self.projects: dict = {}
         # 制作/作坊系统（配方：粮→酒/肉 等）：{wid: {...}}
         # 加消耗修正·加工型消耗依托建筑：开局每路 2 酒坊 + 2 畜栏（各 ×5万石/月太仓粮耗 → 120万石/月），
         # 酒坊产酒增 wine_tax、畜栏产肉折钱入内帑（玩家可建更多；存档已序列化 workshops）
-        from content.data import PREFECTURE_INFO, WORKSHOP_RECIPES
+        from content.data import WORKSHOP_RECIPES
         self.workshops = {}
         _widx = 0
         for _rname in PREFECTURE_INFO:

@@ -236,7 +236,7 @@ def choose_imperial_action(state: GameState, location: str, mode: str, action: s
 
 def do_personal_action(state: GameState, name: str) -> str:
     """旧单值个人行动通道（UI/后端兼容）：映射到 宫里·公开 矩阵行动。"""
-    from content.data import PERSONAL_ACTIONS, LEGACY_PERSONAL_ACTION_MAP
+    from content.data import LEGACY_PERSONAL_ACTION_MAP
     if name not in PERSONAL_ACTIONS:
         return "无此行动。"
     mapped = LEGACY_PERSONAL_ACTION_MAP.get(name)

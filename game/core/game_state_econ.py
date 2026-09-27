@@ -321,17 +321,14 @@ class GameStateEconMixin:
         差额即"隐漏与拖欠"——把漏出做成可见读数，呼应田赋隐漏。
         """
         from content.data import (
-            ANNUAL_TAX_BASE, TAX_POLL_RATIO, POLL_TAX_NOMINAL_SHARE, MONTHLY_EXP_CIVIL_BASE,
-            PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
-            COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
-            SOLDIER_PAY_PER_MONTH, OFFICIAL_PAY_PER_MONTH, CLERK_PAY_PER_MONTH,
+            COMMERCE_TAX_RATE_DEFAULT,
+            OFFICIAL_PAY_PER_MONTH, CLERK_PAY_PER_MONTH,
             SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
             SALT_PRICE_FLOOR, SALT_PRICE_CEIL,
-            WINE_COIN_BASE, IMPERIAL_SHARE, TAX_COLOR_RATE,
+            IMPERIAL_SHARE, TAX_COLOR_RATE,
         )
         arrival = self.calc_arrival_rate()
         shortage = self.coin.get("shortage", 0.3)
-        from content.data import TAX_COEFF_MIN, TAX_COEFF_MAX
         tax_coeff = TAX_COEFF_MIN + (TAX_COEFF_MAX - TAX_COEFF_MIN) * (1 - shortage)
 
         commerce = self.calc_commerce()
@@ -391,7 +388,6 @@ class GameStateEconMixin:
                      + int(corruption_cash_ded) + payraise_used + sui_gong)
 
         # ---- 后端权威定性字段（前端一律读这里，杜绝多口径重复与真实层泄漏）----
-        from content.data import desensitize_shortage, desensitize_price
         # 钱荒定性：统一走 desensitize_shortage（与仓廪页/状态条同源）
         shortage_desc = desensitize_shortage(shortage)
         # 税率定性：统一走 _describe_tax_rate（与 AI 认知层同源）
