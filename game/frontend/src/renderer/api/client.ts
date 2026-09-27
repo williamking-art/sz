@@ -268,6 +268,8 @@ export interface RegionRoute {
   hidden_land_est?: number;
   /** 未清丈时的隐田档位词 */
   hidden_land_band?: string;
+  /** **隐户口数约值**（粗化 5 万；未清丈时快照不含 `pops.农.hidden` 真值） */
+  hidden_pop_est?: number;
   mood: number;
   govern: number;
   public_support: number;

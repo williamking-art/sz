@@ -192,7 +192,10 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
         items: [
           ["户数", wan(r.households, "户")],
           ["人口", wan(r.population, "口")],
-          ["垦田", `${wan(r.land, "亩")}（隐田 ${wan(r.hidden_land, "亩")}）`]
+          ["垦田",
+            `${wan(r.land, "亩")}（隐田 ${r.surveyed
+              ? wan(r.hidden_land ?? 0, "亩")
+              : `约 ${wan(r.hidden_land_est ?? 0, "亩")}${r.hidden_land_band ? `·${r.hidden_land_band}` : ""}`}）`]
         ]
       },
       {

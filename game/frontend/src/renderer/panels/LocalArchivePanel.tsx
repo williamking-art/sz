@@ -82,8 +82,9 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
   // ⚠️ 隐户按原设定「只知约值」：**面板层粗化到 5 万口**再显示（不把真值摆到玩家眼前）。
   //    更彻底的做法是在快照层 `backend/server.py::_state_to_dict` 对 `prefectures.*.pops.农.hidden`
   //    做与 `estate`/`loyalty` 同类的脱敏——**目前快照仍含真值**，此处只是展示层兜底（见方案 §8 待办）。
-  const hiddenTrue = Math.round(pnum(nong, "hidden"));
-  const hidden = Math.round(hiddenTrue / 50_000) * 50_000;
+  // 隐户「只知约值」：数值取后端粗化后的 `hidden_pop_est`；快照层已对未清丈剔除 `农.hidden` 真值
+  // （`backend/server.py::_prefs_desensitized` ← `core.region_brief.hidden_surveyed` 单点判据）。
+  const hidden = route?.hidden_pop_est ?? 0;
   const buildings = asDict(p.buildings);
   const buildingCount = Object.keys(buildings).length;
 

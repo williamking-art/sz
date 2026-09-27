@@ -32,7 +32,7 @@ from core.numeric import parse_number as _num, clamp as _clamp
 
 log = logging.getLogger("region_brief")
 
-__all__ = ["build_region_brief", "route_risk", "build_prefecture_brief"]
+__all__ = ["build_region_brief", "route_risk", "build_prefecture_brief", "hidden_surveyed"]
 
 
 def _route_literacy(state, name: str):
@@ -107,6 +107,7 @@ def route_risk(row: Dict[str, Any]) -> Dict[str, Any]:
 _SECURITY_BANDS = ((80.0, "太平"), (60.0, "尚可"), (40.0, "多事"), (0.0, "不靖"))
 _HIDDEN_BANDS = ((0.30, "隐匿极重"), (0.20, "隐匿较重"), (0.10, "隐匿尚轻"), (0.0, "隐匿轻微"))
 _HIDDEN_SURVEYED_RATIO = 0.20      # 与 legacy_mechanic._clear_hidden_land 同门槛
+_HIDDEN_POP_COARSE = 50_000        # 隐户约值粗化粒度（"朝廷只知约数"）
 _PREF_DEMOG = None
 
 
@@ -128,6 +129,25 @@ def _security_label(unrest: Any) -> str:
     return "不靖"
 
 
+def _hidden_pop_est(pops: Dict[str, Any]) -> int:
+    """隐户口数**约值**：粗化到 5 万（"朝廷只知约数"），供面板展示。"""
+    nong = _as_map((pops or {}).get("农"))
+    raw = max(0.0, _num(nong.get("hidden")))
+    return int(round(raw / _HIDDEN_POP_COARSE) * _HIDDEN_POP_COARSE)
+
+
+def hidden_surveyed(p: Dict[str, Any]) -> bool:
+    """该路是否**已清丈**（隐匿率 < 0.2）。
+
+    **单一判据**：读数（`_hidden_fields`）与快照脱敏（`backend/server.py::_prefs_desensitized`）
+    共用本函数，避免两处阈值漂移。
+    """
+    land = max(0.0, _num(p.get("land") if isinstance(p, dict) else 0))
+    hid = max(0.0, _num(p.get("hidden_land") if isinstance(p, dict) else 0))
+    denom = land + hid
+    return ((hid / denom) if denom > 0 else 0.0) < _HIDDEN_SURVEYED_RATIO
+
+
 def _hidden_fields(p: Dict[str, Any]) -> Dict[str, Any]:
     """隐田字段：**未清丈只下发约值**，清丈后才给真数（脱敏）。
 
@@ -139,7 +159,7 @@ def _hidden_fields(p: Dict[str, Any]) -> Dict[str, Any]:
     hid = max(0.0, _num(p.get("hidden_land")))
     denom = land + hid
     ratio = (hid / denom) if denom > 0 else 0.0
-    surveyed = ratio < _HIDDEN_SURVEYED_RATIO
+    surveyed = hidden_surveyed(p)
     out: Dict[str, Any] = {
         "surveyed": surveyed,
         "hidden_land_band": next(w for lo, w in _HIDDEN_BANDS if ratio >= lo),
@@ -331,6 +351,8 @@ def build_region_brief(state) -> Dict[str, Any]:
             "land": int(_num(p.get("land"))),
             # 隐田：**未清丈只下发约值**（真值留服务端）；清丈（隐匿率<0.2）后才给真数
             **_hidden_fields(p),
+            # 隐户**约值**（真值属隐藏数值，未清丈快照不下发；清丈后才给真数）
+            "hidden_pop_est": _hidden_pop_est(pops),
             "mood": round(_clamp(_num(p.get("mood")), 0, 100), 1),
             "govern": round(_clamp(_num(p.get("govern")), 0, 100), 1),
             "public_support": round(_clamp(_num(p.get("public_support"), _num(p.get("mood"), 50.0)), 0, 100), 1),

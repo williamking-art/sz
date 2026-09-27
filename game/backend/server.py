@@ -293,14 +293,18 @@ def _estate_band_word(e) -> str:
         return "清贫"
 
 
-def _prefs_without_estate_slices(prefs: dict) -> dict:
-    """深拷贝一层 prefectures，并剔除 POP 里的家产子池键（`estate` / `estate_hoard`）。
+def _prefs_desensitized(prefs: dict) -> dict:
+    """深拷贝一层 prefectures，剔除**隐藏数值子池**：家产与**未清丈的隐户**。
 
     2026-09-27 家产迁入 `士绅` POP 后，家产的钱在这两个加法子池里；家产真值属隐藏数值
     （审查 P2，与 `minister_estate` 档位化同一姿态），故快照下发前剔除，
     避免"档位化了 minister_estate、却从 POP 子池把真值漏出去"。
+    · **隐户**（2026-09-27 用户口径）：朝廷只知约值、清丈才知真数 → **未清丈不发** `农.hidden`，
+      清丈后才随快照下发；面板展示用的约值由 `core/region_brief.hidden_pop_est`（粗化）提供。
+      判据复用 `region_brief.hidden_surveyed`（单点，防阈值漂移）。
     **不得修改传入的 state**（只建副本）。
     """
+    from core.region_brief import hidden_surveyed
     out = {}
     for rname, p in prefs.items():
         pops = p.get("pops") if isinstance(p, dict) else None
@@ -309,10 +313,16 @@ def _prefs_without_estate_slices(prefs: dict) -> dict:
             continue
         p2 = dict(p)
         p2["pops"] = {}
+        _surveyed = hidden_surveyed(p)
         for cls, slot in pops.items():
-            if isinstance(slot, dict) and ("estate" in slot or "estate_hoard" in slot):
-                slot = {kk: vv for kk, vv in slot.items()
-                        if kk not in ("estate", "estate_hoard")}
+            if isinstance(slot, dict):
+                _drop = set()
+                if "estate" in slot or "estate_hoard" in slot:
+                    _drop |= {"estate", "estate_hoard"}
+                if cls == "农" and "hidden" in slot and not _surveyed:
+                    _drop.add("hidden")          # 未清丈：隐户真值不外泄
+                if _drop:
+                    slot = {kk: vv for kk, vv in slot.items() if kk not in _drop}
             p2["pops"][cls] = slot
         out[rname] = p2
     return out
@@ -348,7 +358,7 @@ def _state_to_dict(s) -> dict:
             continue
         if k == "prefectures" and isinstance(v, dict):
             # 家产的钱在士绅 POP 的 estate/estate_hoard 子池里 → 与上面同口径剔除
-            out[k] = _prefs_without_estate_slices(v)
+            out[k] = _prefs_desensitized(v)
             continue
         if k == "pending_secret_decrees" and isinstance(v, list):
             # 密令中的 secret_loyalty 为隐藏数值，剔除后下发
