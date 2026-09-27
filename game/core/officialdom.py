@@ -45,6 +45,7 @@ from content.data import (
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+from core.pop_structure import move_pop_people   # B1d-b：跨 POP 流动**带财富/粮**（人均连续）
 # 利益集团二期：人员进出口只改 `state.faction_split` 占比（唯一写入点 set_split），
 # 人仍在同一 POP 的 size 里 —— 不新开人口账本。
 from core.faction_split import blend_entrants, exit_faction_members, split_of
@@ -581,10 +582,12 @@ def _annual_retire(state, log) -> int:
         n = min(n, int(pop["on_post"]))
         pop["on_post"] = int(pop["on_post"]) - n
         pop["officials"] = int(pop["officials"]) - n
-        pop["size"] = max(0, int(pop["size"]) - n)
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if isinstance(shen, dict):
-            shen["size"] = int(shen.get("size", 0)) + n
+            # B1d-b：致仕者**带本派立场回士绅**，并按人头**带走财富/粮**（人均连续）
+            move_pop_people(pop, shen, n)
+        else:
+            pop["size"] = max(0, int(pop["size"]) - n)
         total += n
     if total:
         # 退出轴（二期）：致仕者**带本派立场回士绅** → 只改士绅立场占比，Σ=1；
@@ -638,8 +641,18 @@ def _annual_clan(state, log) -> int:
         if n > 0:
             n = min(n, int(shen.get("size", 0)))
             if n > 0:
-                shen["size"] = int(shen["size"]) - n          # 转移：士绅 → 官僚
-                add_officials(p, n, "waiting")
+                # B1d-b：士绅 → 官僚＝**换职位**，带财富/粮（人均连续）。
+                # ⚠️ `add_officials` 会改 `size`（:410）→ 此处只调子池，`size` 交给 move 负责
+                # （否则 size 双重计数）。
+                guan = (p.get("pops") or {}).get(POP_CLASS)
+                if isinstance(guan, dict):
+                    ensure_subpools(p)
+                    move_pop_people(shen, guan, n)
+                    guan["officials"] = int(guan["officials"]) + n
+                    guan["waiting"] = int(guan["waiting"]) + n
+                else:
+                    shen["size"] = int(shen["size"]) - n
+                    add_officials(p, n, "waiting")
                 entered += n
     if births:
         log.append(f"[宗室] 宗室人口自然增长 {births} 人（复利 {CLAN_GROWTH_ANNUAL:.0%}/年）")
@@ -701,9 +714,22 @@ def _triennial_exam(state, log) -> int:
         elite = min(quota - hard, int(shen.get("size", 0)))
         if hard + elite <= 0:
             continue
-        nong["size"] = int(nong["size"]) - hard          # 转移：农 → 官僚
-        shen["size"] = int(shen["size"]) - elite          # 转移：士绅 → 官僚
-        add_officials(p, hard + elite, "waiting")          # 新科进士先待阙（§13.5）
+        # B1d-b：新科进士**带财富/粮**入官僚 POP（人均连续）。`add_officials` 会改 `size`（:410），
+        # 故此处只调子池，`size` 交给 `move_pop_people`（避免双重计数）。
+        guan = (p.get("pops") or {}).get(POP_CLASS)
+        if isinstance(guan, dict):
+            ensure_subpools(p)
+            if hard > 0:
+                move_pop_people(nong, guan, hard)        # 转移：农 → 官僚
+            if elite > 0:
+                move_pop_people(shen, guan, elite)       # 转移：士绅 → 官僚
+            _added = hard + elite
+            guan["officials"] = int(guan["officials"]) + _added
+            guan["waiting"] = int(guan["waiting"]) + _added   # 新科进士先待阙（§13.5）
+        else:
+            nong["size"] = int(nong["size"]) - hard
+            shen["size"] = int(shen["size"]) - elite
+            add_officials(p, hard + elite, "waiting")
         taken += hard + elite
         hard_total += hard
 

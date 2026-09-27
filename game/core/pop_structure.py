@@ -184,3 +184,33 @@ def sync_all_farm_slices(state) -> int:
         adjust_farm_slices(p)
         fixed += 1
     return fixed
+
+
+def move_pop_people(src: dict, dst: dict, n: int) -> int:
+    """把 `n` 人从 `src` POP 搬到 `dst` POP，**按人头带走 `wealth`/`grain`**（人均连续）。
+
+    B1d-b（修 P3）：此前跨 POP 流动**只改 `size`**，于是人均财富出现**假信号**——
+    一次大科举让官僚人均 wealth 骤降、士绅骤升，污染消费/生计/派系读数。
+    本函数把迁出池的**人均**财富/粮按人数划转给迁入池 ⇒ 两池人均**连续**，
+    且 `Σwealth`/`Σgrain` 跨两池**不变**（纯内部转移）。
+
+    - 只处理 `size`/`wealth`/`grain`；POP 的**身份子池**（官/吏、农的职位/丁口）由调用方
+      或月度兜底 `sync_all_farm_slices`（`settlement.py` Step 10.55）对齐。
+    - 受源池 `size` 与余额双重钳制，**不会抽成负数**；返回**实搬人数**。
+    """
+    n = int(n)
+    if n <= 0 or not isinstance(src, dict) or not isinstance(dst, dict):
+        return 0
+    src_sz = max(0, int(src.get("size", 0) or 0))
+    n = min(n, src_sz)
+    if n <= 0:
+        return 0
+    for key in ("wealth", "grain"):
+        total = int(src.get(key, 0) or 0)
+        take = int(total * n / src_sz) if src_sz > 0 else 0
+        take = max(0, min(take, max(0, total)))
+        src[key] = total - take
+        dst[key] = int(dst.get(key, 0) or 0) + take
+    src["size"] = src_sz - n
+    dst["size"] = int(dst.get("size", 0) or 0) + n
+    return n
