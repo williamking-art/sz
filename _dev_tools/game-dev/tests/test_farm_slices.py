@@ -148,3 +148,32 @@ def test_poll_tax_amount_equal_to_b05_baseline():
     old_amt = farm * POLL_TAX_NOMINAL_SHARE
     assert abs(new_amt - old_amt) / old_amt < 0.01, \
         f"役钱绝对量漂移：新={new_amt:,.0f} 旧={old_amt:,.0f}"
+
+
+# ---------------------------------------------------------------
+# B1d-a 月度兜底：长局中任何改动 `农.size` 的通道之后，恒等式仍成立
+# ---------------------------------------------------------------
+def test_long_run_keeps_invariants():
+    """跑 12 个月（含人口增长/城市化/逃籍/征兵等改动 `农.size` 的通道）→ 恒等式恒成立。"""
+    from core.settlement import run_monthly_settlement
+    s = GameState("史实")
+    s.treasury = 10 ** 9
+    for _ in range(12):
+        run_monthly_settlement(s, 0)
+    assert check_farm_invariants(s) == [], check_farm_invariants(s)
+    assert not (getattr(s, "settlement_audit", {}) or {}).get("farm_slice_violations"), \
+        "兜底后仍不成立（异常）"
+
+
+def test_monthly_sync_repairs_drifted_slices():
+    """人为漂移（只改 `size`、不改子池）→ 跑一月被兜底修复，并留下**诊断读数**。"""
+    from core.settlement import run_monthly_settlement
+    s = GameState("史实")
+    s.treasury = 10 ** 9
+    p = s.prefectures[next(iter(s.prefectures))]
+    _nong(p)["size"] = int(_nong(p)["size"]) + 500_000          # 制造漂移
+    assert check_farm_invariants(s) != [], "前提：漂移应被检查器发现"
+    run_monthly_settlement(s, 0)
+    assert check_farm_invariants(s) == [], check_farm_invariants(s)
+    assert int((getattr(s, "settlement_audit", {}) or {}).get("farm_slice_fixes", 0)) >= 1, \
+        "修复路数应入诊断读数（用于发现漏挂钩的通道）"

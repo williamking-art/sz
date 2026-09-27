@@ -159,3 +159,28 @@ def service_ding_total(state) -> int:
     """全国**应役丁**（= 役钱税基）；`士绅/官僚/兵` 免役，隐户不在籍。"""
     return sum(service_ding_of(p)
                for p in (getattr(state, "prefectures", None) or {}).values())
+
+
+def sync_all_farm_slices(state) -> int:
+    """**月度兜底**：把逐路职位/丁口子池与 `农.size` 对齐（按**现有比例**），返回修正路数。
+
+    为什么需要兜底：改动 `农.size` 的通道很多（城市化/回乡、就业流动、逃荒赈济、征兵裁兵、
+    逃籍归籍、人口自然增长……），逐一挂钩容易漏。此处统一在月度收尾对齐——
+    **只改子池、不改 `size`**，因此不掩盖任何人口守恒问题，只保证两条恒等式恒成立。
+    返回 > 0 长期出现 ⇒ 有通道漏挂钩（诊断读数，见 `settlement.py` 的 `farm_slice_fixes`）。
+    """
+    fixed = 0
+    for p in (getattr(state, "prefectures", None) or {}).values():
+        nong = _nong_of(p)
+        if not isinstance(nong, dict):
+            continue
+        size = max(0, int(nong.get("size", 0) or 0))
+        pos_ok = (all(k in nong for k in FARM_POSITIONS)
+                  and sum(int(nong.get(k, 0) or 0) for k in FARM_POSITIONS) == size)
+        dk_ok = (_DING_KEY in nong and _KOU_KEY in nong
+                 and int(nong.get(_DING_KEY, 0) or 0) + int(nong.get(_KOU_KEY, 0) or 0) == size)
+        if pos_ok and dk_ok:
+            continue
+        adjust_farm_slices(p)
+        fixed += 1
+    return fixed

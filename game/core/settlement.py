@@ -548,6 +548,27 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
                      for _pop in _p["pops"].values()) + state.refugee_count
     state.population = max(10_000_000, _pop_total)
 
+    # ---- Step 10.55: 农的职位/丁口子池对齐（B1d-a **月度兜底**，幂等）----
+    # 本月内一切改动 `农.size` 的通道（城市化/回乡、就业流动、逃荒赈济、征兵裁兵、逃籍归籍、
+    # 人口自然增长…）都可能让「Σ职位 == size」「ding+kou == size」暂时失衡；此处按**现有比例**
+    # 一次性对齐（**只改子池、不改 size**，不掩盖人口守恒）。诊断读数：
+    # `farm_slice_fixes > 0` 长期出现 ⇒ 有通道漏挂钩（可观测、不阻断）；`farm_slice_violations`
+    # 用于记录兜底后仍不成立的异常（应为空）。
+    try:
+        from core.pop_structure import check_farm_invariants, sync_all_farm_slices
+        _audit = getattr(state, "settlement_audit", None)
+        if not isinstance(_audit, dict):
+            _audit = {}
+            state.settlement_audit = _audit
+        _fixed = sync_all_farm_slices(state)
+        if _fixed:
+            _audit["farm_slice_fixes"] = _fixed
+        _bad = check_farm_invariants(state)
+        if _bad:
+            _audit["farm_slice_violations"] = _bad[:5]
+    except Exception:  # noqa: BLE001  兜底失败不得阻断结算
+        pass
+
     # ---- Step 10.6: 银行（抵当所）存款**存量**月末硬收敛 ----
     # 必须在全部结算步之后：存款上限 = 目标阶层财富 × didang_deposit_cap，而 wealth 在
     # 银行步（Step 4.2）之后仍会被赋税/俸禄/物价改变；银行步内收敛月末仍会超限
