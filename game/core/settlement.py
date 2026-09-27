@@ -212,10 +212,8 @@ def settle_reform(state, decree: dict) -> dict:
     """
 
     reform = decree.get("reform") or {}
-    # 2026-09-27：原在此组装 reform_settle 提示词上下文（faction_text / authority_brief / reform_text），
-    # 但 `ai/prompts/reform_settle.md` **全库从未被加载**（无 `_load_prompt("reform_settle")`）→ 三值算完即弃，已删。
-    # 副作用：`GameState.authority_brief_for_ai()` 因此成为**孤立 API**（其唯一调用点即此处）——
-    # 待定：接线（让改制结算真的用上定性上下文）或移除；见审查报告 §14。
+    # 2026-09-27：原在此组装 reform_settle 提示词上下文（算完即弃）；该模板与
+    # `authority_brief_for_ai` 已按「如无必要勿增实体」一并移除（审查报告 §14.1/§14.2）。
     target = reform.get("target_org", "")
     matter = reform.get("matter", "")
 

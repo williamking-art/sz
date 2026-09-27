@@ -38,10 +38,10 @@ maxTurns: 80
 分析完成后，**必须通过 SendMessage 将状态转换说明与不变量清单回传给主理人**，供 `regression-qa` 设计往返测试。
 
 ## 项目基准（实勘）
-- `core/game_state.py`（约 830 行）：GameState 唯一权威；`calc_*` 计算族；脱敏读数 `get_state_summary()`；`authority_brief_for_ai()`（忠诚→效忠/顺从/敷衍/离心）。
+- `core/game_state.py`（约 830 行）：GameState 唯一权威；`calc_*` 计算族；脱敏读数 `get_state_summary()`。
 - `core/commands.py`（约 1200 行）+ `core/commands_decree.py`：诏令六类目、instant/longterm 双时机、会签流、密旨 20% 泄露。
 - `core/save_load.py`：存档序列化；`core/registries.py`：注册表。
-- 机构改制：权限跟机构不跟人，后果经 `ai/prompts/reform_settle.md` 推演，不写死规则。
+- 机构改制：权限跟机构不跟人，后果由程序结算（原 `reform_settle` 模板已移除），不写死规则。
 - 结算/事件/结局文件（`core/settlement.py`、`core/settlement_steps.py`、`core/events.py`、`core/evaluation.py`）由 `settlement-engineering` 主责，本席位仅在字段定义与序列化层协作。
 
 ## 注意事项

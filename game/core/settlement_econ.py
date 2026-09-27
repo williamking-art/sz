@@ -193,8 +193,6 @@ def _settle_land_local(state, log):
     for name, p in state.prefectures.items():
         # AI 契约档位映射
         ai_pref = ai_prefs.get(name, {})
-        survey_tier = ai_pref.get("survey", "小")
-        reclaim_tier = ai_pref.get("reclaim", "小")
         tax_fair_tier = ai_pref.get("tax_fair", "小")
         ai_mood = ai_pref.get("mood", "平实")
 
@@ -203,12 +201,6 @@ def _settle_land_local(state, log):
         tier_map = {"无": 0.0, "微": 0.5, "小": 1.0, "中": 2.0, "大": 3.0,
                     "巨": 4.0, "极": 5.0}
 
-        # ⚠️ 2026-09-27（F841 实测）：AI 契约 `contracts_settle` 会给出并校验 survey/reclaim 档位，
-        # 但**全库无消费方**（清丈另有诏令路径 `settlement_decree.py:265` 走 land_survey 效果；
-        # 劝垦同理）。故这两个值**刻意保留并标注**：删掉会抹掉"未接线"的痕迹。
-        # 待拍板：接线（让 AI 档位真的作用于隐漏/垦荒）或移除契约字段。见审查报告 §14。
-        survey_boost = tier_map.get(survey_tier, 1.0)      # noqa: F841 —— 未接线，见上
-        reclaim_boost = tier_map.get(reclaim_tier, 1.0)    # noqa: F841 —— 未接线，见上
         # 均税力度（AI 契约加成）
         tax_fair_boost = tier_map.get(tax_fair_tier, 1.0)
 

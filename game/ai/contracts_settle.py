@@ -485,15 +485,19 @@ class SettleContractMixin:
         return self._postprocess(raw, validate, lambda: _ai_unavailable("faction"))
 
     def land_local_decide(self, posture, state=None):
-        """田亩与地方州县契约（户部/转运司/路分）：推演清丈、劝垦、均税、地方民情。
-        输出：{"prefectures": {"路名": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, "narrative": "田亩地方叙事"}"""
+        """田亩与地方州县契约（户部/转运司/路分）：推演均税与地方民情。
+
+        2026-09-27（如无必要勿增实体）：原契约还要求 `survey`（清丈力度）与 `reclaim`（劝垦力度）
+        两档位并做校验，但**全库无消费方**（清丈另有诏令路径 `settlement_decree` 的 `land_survey` 效果；
+        劝垦同理）→ 已移除契约字段，不再向模型索取无落点的档位。
+        输出：{"prefectures": {"路名": {"tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, "narrative": "田亩地方叙事"}"""
         sys_p = (
             "你是北宋转运使，巡按诸路田亩户籍。根据当前垦田、隐漏、荒田、各路民情，推演本月清丈劝垦成效。\n"
             "输出契约（严格 JSON）：\n"
-            '{"prefectures": {"京东": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}, '
-            '"河北": {"survey": "微|小|中|大", "reclaim": "微|小|中|大", "tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, '
+            '{"prefectures": {"京东": {"tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}, '
+            '"河北": {"tax_fair": "微|小|中|大", "mood": "安定|平实|动荡"}}, '
             '"narrative": "田亩地方叙事（≤150字，体现清丈阻力、劝垦成效、百姓疾苦）"}\n'
-            "- survey=清丈力度、reclaim=劝垦力度、tax_fair=均税力度，档位：微/小/中/大。\n"
+            "- tax_fair=均税力度，档位：微/小/中/大。\n"
             "- mood：安定/平实/动荡。\n"
             "- 只给档位不给数字；不写数值。"
         )
@@ -508,7 +512,7 @@ class SettleContractMixin:
                         mood = p.get("mood", "中")
                         lines.append(f"{name}: 民情{mood}")
                     inj += f"\n【诸路概况】{'; '.join(lines)}"
-                inj += "（田亩隐漏难测，以清丈/劝垦档位推演为准，不必外引精确亩数。）"
+                inj += "（田亩隐漏难测，以均税档位与定性民情推演为准，不必外引精确亩数。）"
             except Exception:
                 pass
         sys_p += inj
@@ -523,16 +527,13 @@ class SettleContractMixin:
             for name, p in prefs.items():
                 if not isinstance(p, dict):
                     return None
-                survey = str(p.get("survey", "")).strip()
-                reclaim = str(p.get("reclaim", "")).strip()
                 tax_fair = str(p.get("tax_fair", "")).strip()
                 mood = str(p.get("mood", "")).strip()
                 # P1-14：拒绝式——非法档位不得静默填「小/平实」
-                if survey not in ("微", "小", "中", "大") or reclaim not in ("微", "小", "中", "大") \
-                        or tax_fair not in ("微", "小", "中", "大") \
+                if tax_fair not in ("微", "小", "中", "大") \
                         or mood not in ("安定", "平实", "动荡"):
                     return None
-                valid_prefs[name] = {"survey": survey, "reclaim": reclaim, "tax_fair": tax_fair, "mood": mood}
+                valid_prefs[name] = {"tax_fair": tax_fair, "mood": mood}
             o["prefectures"] = valid_prefs
             o["narrative"] = _clean_text(str(o.get("narrative", "")))[:150]
             return o

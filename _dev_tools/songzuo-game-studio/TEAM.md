@@ -164,7 +164,7 @@
 **边界（2026-09 拆分）**：12 步结算流水线/事件触发/结局评价/改写位移交席位 13（程月衡）。
 **核心能力**：维护确定性权威 GameState，隔离 UI/AI/规则；显式命令与状态转换；存档可版本化/可迁移/可诊断；函数内延迟导入解环；坏存档安全失败。
 **执行步骤**：追踪入口到写入点标记字段唯一所有者 → 状态转换（输入/校验/原子更新/事件/输出）→ 存档定义 schema_version/默认值/迁移/备份 → 优先 JSON 等可审查格式，绝不反序列化不可信 pickle → save→load 往返测试。
-**项目基准（实勘）**：`core/game_state.py`(~830 行) GameState 唯一权威，calc_* 计算族，脱敏读数 `get_state_summary()`/`posture`，`authority_brief_for_ai()`（忠诚→效忠/顺从/敷衍/离心）；`core/commands.py`(~1200 行) 诏令六类目、instant/longterm 双时机、会签流、密旨 20% 泄露；`core/settlement.py`(~1100 行) 12 步流水线；历史改写位 `_evaluate_timeline_breaks` + `confirm_timeline_break()`/`dismiss_pending_break()`；机构改制权限跟机构不跟人，后果经 `ai/prompts/reform_settle.md` 推演。
+**项目基准（实勘）**：`core/game_state.py`(~830 行) GameState 唯一权威，calc_* 计算族，脱敏读数 `get_state_summary()`/`posture`；`core/commands.py`(~1200 行) 诏令六类目、instant/longterm 双时机、会签流、密旨 20% 泄露；`core/settlement.py`(~1100 行) 12 步流水线；历史改写位 `_evaluate_timeline_breaks` + `confirm_timeline_break()`/`dismiss_pending_break()`；机构改制权限跟机构不跟人，后果由程序结算（原 `reform_settle` 模板已于 2026-09-27 移除）。
 **SendMessage 回传**：状态转换说明与不变量清单回传主理人，供 regression-qa 设计往返测试。
 **禁止事项**：UI 直改核心字段；重复定义 SAVE_DIR；静默吞坏存档；加载不可信 pickle；新增顶层互引。
 **来源**：[P1][P3][P4][P5][E5]
@@ -175,7 +175,7 @@
 **边界（2026-09 拆分）**：18 个 prompt 模板文本/分幕契约设计/诏书文风移交席位 17（祝辞修），本席位负责管线联调。
 **核心能力**：事实/文本分离；先 JSON 契约再 prompt；统一错误对象（超时/网络/鉴权/空响应/非 JSON/越界）；最小脱敏；LocalBackend/HttpBackend 语义一致可替身。
 **执行步骤**：定义输入事实包（仅已校验状态）→ 定义输出 schema（type/properties/required/枚举/额外字段）→ 构造 prompt（不改状态/不补造/不泄漏）→ 调用后解析→schema 校验→安全过滤→业务校验 → 失败返回明确错误标记，未配置绝不伪文本 → 测试覆盖正常/围栏/截断/额外/缺字段/类型/超时/鉴权。
-**项目基准（实勘）**：管线 `ai/prompts/*.md`(18 模板) → `ai/client.py` `_load_prompt` 填槽 → `_call` → `_postprocess(raw, validator, fallback)`（失败补调一次仍败返回 `_error`）；18 模板：advice/audience_host/council_review/decree_drafter/decree_parse/diplomacy/event_narrative/exam/final_eval/finance/land_manage/local_policy/military_expand/monthly_report/reform/reform_settle/science/yamen_govern；八工具 function-calling + `_tool_dispatch` 数值经 `tier_to_value()` 封顶；脱敏 `ai/desensitize.py`，安全过滤 `_safety_filter()` + `ai/safety_lexicon.json`(六类敏感词 MIT)，复读检测 `SequenceMatcher`>0.6 拦截，朝局 hash LRU 上限 64；分幕契约月报 6~10 幕/幕 30~70 字/总 200~360 字，事件 4~6 幕，结局面评 120~260 字仿《宋史》论赞。
+**项目基准（实勘）**：管线 `ai/prompts/*.md`(18 模板) → `ai/client.py` `_load_prompt` 填槽 → `_call` → `_postprocess(raw, validator, fallback)`（失败补调一次仍败返回 `_error`）；17 模板：advice/audience_host/council_review/decree_drafter/decree_parse/diplomacy/event_narrative/exam/final_eval/finance/land_manage/local_policy/military_expand/monthly_report/reform/science/yamen_govern；八工具 function-calling + `_tool_dispatch` 数值经 `tier_to_value()` 封顶；脱敏 `ai/desensitize.py`，安全过滤 `_safety_filter()` + `ai/safety_lexicon.json`(六类敏感词 MIT)，复读检测 `SequenceMatcher`>0.6 拦截，朝局 hash LRU 上限 64；分幕契约月报 6~10 幕/幕 30~70 字/总 200~360 字，事件 4~6 幕，结局面评 120~260 字仿《宋史》论赞。
 **SendMessage 回传**：JSON 契约与错误分类表回传主理人，供 song-narrative-designer 与 regression-qa 复用。
 **禁止事项**：api_key 写入代码/日志；信任未校验模型字段；模型改 GameState；错误伪造成功。
 **来源**：[P1][P6][P9][P12][E6][E7]
@@ -319,7 +319,7 @@
 ### 项目来源（代码库实勘，权威根目录 G:/sz/game/）
 - [P1] `README.md` — 项目定位、目录分层规范、模块职责、代码规范、运行说明
 - [P2] `gui_main.py` — GUI 入口与启动路径
-- [P3] `core/game_state.py` — GameState 唯一状态权威、calc_* 计算族、脱敏读数、authority_brief_for_ai
+- [P3] `core/game_state.py` — GameState 唯一状态权威、calc_* 计算族、脱敏读数
 - [P4] `core/commands.py` + `core/settlement.py` — 诏令六类目/会签流/执行率；12 步月度结算流水线
 - [P5] `core/events.py` + `core/evaluation.py` + `core/save_load.py` + `core/asset_context.py` — 事件四级优先级/战略分支/改写位、七维结局评估、存档序列化、科技资产结算
 - [P6] `ai/client.py` + `ai/prompts/*.md`(18) + `ai/decree.py` + `ai/desensitize.py` + `ai/safety_lexicon.json` + `ai/SensitiveWords.SOURCE.md` — 叙事管线全链路（TIER_RANGE、_tool_dispatch、容错链、安全过滤）

@@ -43,7 +43,6 @@
 #      .def   set_ai_pending_status   
 #      .def   update_era_name   
 #      .def   _loyalty_band   —— 把后台忠诚度映射为定性档位（玩家不可见数值）。
-#      .def   authority_brief_for_ai   —— 为改制结算 AI 组装定性上下文：威望 + 相关机构运行态度 + 大臣定性效忠度。
 #      .def   org_ministers   —— 返回某机构「依职权回话」的相关大臣：含各岗位在任者与在办差遣领办人。
 #      .def   matter_org   —— 返回某事权当前 owner 机构名（改权限/越权授权后可动态变化）。
 #      .def   get_state_summary   —— 获取完整状态，用于 AI 调用
@@ -1277,35 +1276,6 @@ class GameState(GameStateEconMixin):
             return "敷衍"
         return "离心"
 
-    def authority_brief_for_ai(self, target_org: str = "", target_ministers: list = None) -> str:
-        """为改制结算 AI 组装定性上下文：威望 + 相关机构运行态度 + 大臣定性效忠度。
-        注意：只给定性（效忠/顺从/敷衍/离心），绝不给 loyalty 数值。
-        """
-        pi = self.get_prestige_info()
-        prestige_line = f"圣威：{pi['level']}（{pi['description']}）"
-
-        org_lines = []
-        orgs = [target_org] if target_org else list(self.central_orgs.keys())
-        for oname in orgs:
-            o = self.central_orgs.get(oname)
-            if not o:
-                continue
-            lead = o.get("lead", "")
-            band = self._loyalty_band(lead) if lead else "无主官"
-            status = "已裁撤" if o.get("abolished") else f"运行效率×{o.get('efficiency', 1.0):.2f}/积压{o.get('backlog', 0)}"
-            org_lines.append(f"  - {oname}（主官{lead}：{band}；{belong if (belong:=o.get('belong')) else '皇帝'}下属；{status}）")
-
-        minister_lines = []
-        for m in (target_ministers or []):
-            if m in self.loyalty:
-                minister_lines.append(f"  - {m}：{self._loyalty_band(m)}")
-
-        brief = [prestige_line, "中枢机构态势："]
-        brief += org_lines if org_lines else ["  （无）"]
-        if minister_lines:
-            brief.append("相关大臣定性态度：")
-            brief += minister_lines
-        return "\n".join(brief)
 
     # ================================================================
     # 中枢相关大臣（供廷议入对）
