@@ -57,7 +57,7 @@
     "appId": "com.songzuo.game",
     "productName": "SongZuo",
     "directories": {
-      "output": "release"
+      "output": "../dist"
     },
     "files": [
       "out/**/*",
