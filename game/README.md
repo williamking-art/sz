@@ -421,14 +421,15 @@ Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing   # 期望 {"ok"
 `win.signAndEditExecutable=false` 免管理员权限（代价：图标/版本信息未写入）。
 启动分段日志：设 `ELECTRON_ENABLE_LOGGING=1` 可见 `[boot] 标签 +Nms`。
 
-### 发布形态：**一个文件夹，exe 在它根部**（2026-09-27 定稿）
+### 发布形态：**`game/` 就是游戏根目录，exe 在根本身**（2026-09-27 定稿）
 
 参考同类项目（`D:\game\MingSalvageSim`，同为 Electron + PyInstaller onedir）的做法：
 **不打包成"单文件 exe"**，而是把构建产物**摊在发布目录的根**——
 
 ```
 D:\game\宋祚\                     ← 发布目录（把它整个拷走即发布）
-├── SongZuo.exe            180 MB    ← 玩家双击的就是根目录这个
+├── SongZuo.exe            180 MB    ← 玩家双击的就是这个
+├── core\ content\ ai\ …             ← 源码（与运行时并存于同一目录）
 ├── *.dll / *.pak / icudtl.dat       ← Chromium 运行时（20+ 个文件，必须同级）
 ├── locales\
 └── resources\
