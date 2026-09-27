@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
-"""打印本地两个知识库的统计信息（文档数/块数/字符数/哈希）。只读。"""
+"""打印本地两个知识库的统计信息（文档数/块数/字符数/**与磁盘源的一致性**）。只读。
+
+⚠️ 2026-09-27 修正：原来的 `OK/DRIFT` 比较的是「**库内** content 与**库内** content_hash」——
+那是**库自洽性**检查，**恒为 OK**，测不出"源文档已更新而库未重建"（实测踩坑：7 篇里 5 篇已脱节
+却全报 OK）。现改为与**磁盘上的源文件**比对：库里的 `content_hash`（建库时算）vs 磁盘当前内容哈希。
+`STALE` = **需要重建**（跑 `python build_kb.py build`）。
+"""
 import hashlib
 import pathlib
 import sqlite3
 import sys
 
 KB_DIR = pathlib.Path(__file__).resolve().parent
+DOCS_DIR = KB_DIR.parent / "docs"                     # 与 build_kb.py 的 DOCS_DIR 一致
 GAME_DB = KB_DIR.parents[2] / "game" / "assets" / "kb" / "game_kb.sqlite"
 DEV_DB = KB_DIR / "dev_kb.sqlite"
 
@@ -21,11 +28,23 @@ def stat(path):
         "SELECT (SELECT count(*) FROM documents), (SELECT count(*) FROM chunks),"
         " (SELECT COALESCE(sum(length(content)),0) FROM chunks)").fetchone()
     print(f"    documents={docs} chunks={chunks} chunk_chars={chars}")
+    stale = 0
     for title, sp, h in conn.execute(
             "SELECT title, source_path, content_hash FROM documents ORDER BY source_path"):
-        text = conn.execute("SELECT content FROM documents WHERE source_path=?", (sp,)).fetchone()[0]
-        flag = "OK " if hashlib.md5(text.encode("utf-8")).hexdigest() == h else "DRIFT"
-        print(f"    [{flag}] {sp} ({len(text)} chars) {title}")
+        disk = DOCS_DIR / sp
+        if not disk.exists():
+            flag, n = "MISS ", 0
+        else:
+            now = disk.read_text(encoding="utf-8")
+            n = len(now)
+            if hashlib.md5(now.encode("utf-8")).hexdigest() == h:
+                flag = "OK   "
+            else:
+                flag = "STALE"
+                stale += 1
+        print(f"    [{flag}] {sp} (磁盘 {n} chars) {title}")
+    if stale:
+        print(f"    ⚠️ {stale} 篇已脱节 → 跑 `python build_kb.py build` 重建")
     conn.close()
 
 
