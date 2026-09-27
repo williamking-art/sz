@@ -421,13 +421,30 @@ Invoke-WebRequest http://127.0.0.1:8080/health -UseBasicParsing   # 期望 {"ok"
 `win.signAndEditExecutable=false` 免管理员权限（代价：图标/版本信息未写入）。
 启动分段日志：设 `ELECTRON_ENABLE_LOGGING=1` 可见 `[boot] 标签 +Nms`。
 
-### 三种形态与实测取舍（2026-09-27）
+### 发布形态：**一个文件夹，exe 在它根部**（2026-09-27 定稿）
 
-| 形态 | 位置 | 实测到后端就绪 | 说明 |
-|---|---|---|---|
-| **文件夹版（推荐）** | `game/win-unpacked/SongZuo.exe` | **2.8 s** | 免安装即玩，启动最快 |
-| 安装包 | `game/SongZuo Setup 0.1.0.exe` | 2.8 s | 装完有桌面／开始菜单快捷方式 |
-| 便携版单文件 | `game/SongZuo.exe` | **14.3 s** | 每次启动要把 ~1 GB 自解压到 `%TEMP%`，**慢 5 倍** |
+参考同类项目（`D:\game\MingSalvageSim`，同为 Electron + PyInstaller onedir）的做法：
+**不打包成"单文件 exe"**，而是把构建产物**摊在发布目录的根**——
 
-便携版适合「拷一个文件就能走」；日常玩请用**文件夹版**或**安装包**。
+```
+D:\game\宋祚\                     ← 发布目录（把它整个拷走即发布）
+├── SongZuo.exe            180 MB    ← 玩家双击的就是根目录这个
+├── *.dll / *.pak / icudtl.dat       ← Chromium 运行时（20+ 个文件，必须同级）
+├── locales\
+└── resources\
+    ├── app.asar           157 MB    ← 游戏本体（JS/HTML/素材）
+    └── backend\          251 MB    ← Python 后端（+ _internal\）
+```
 
+**构建 → 发布 两步**：
+```powershell
+cd game\frontend
+npm run build
+node node_modules\electron-builder\cli.js --win --dir      # 产出 game\win-unpacked\
+# 发布：把 game\win-unpacked\ **里面的内容**（不是它本身）移到发布目录，exe 即在根
+```
+
+**为什么不做"单文件 exe"**：Electron 没有原生单文件形态，只能靠自解压壳（electron-builder 的
+`portable` 目标）——实测那样的 `SongZuo.exe` 每次启动要把 ~1 GB 解到 `%TEMP%`，
+**到后端就绪 14.3 s，而文件夹形态只要 2.8 s（慢 5 倍）**。故 `win.target` 只保留 `nsis`
+（需要安装包时再单独打，属可选分发形式，不是必须）。

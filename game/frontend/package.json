@@ -72,8 +72,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "../assets/icon.ico",
       "signAndEditExecutable": false
@@ -84,9 +83,6 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "shortcutName": "宋祚"
-    },
-    "portable": {
-      "artifactName": "SongZuo.exe"
     }
   }
 }
