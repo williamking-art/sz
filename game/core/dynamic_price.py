@@ -16,7 +16,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 __all__ = ["update_goods_prices", "logistics_rate", "civil_logistics",
            "gov_logistics", "LOGISTICS_TIERS"]

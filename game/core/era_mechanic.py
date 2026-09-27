@@ -97,7 +97,6 @@ def build_speed_mod(state) -> float:
 
 def damage_buildings(state, log, reason="战乱"):
     """战乱/灾荒 → 建筑毁损（level 降、记 destroyed/ruined；史实：金兵毁宫室/水利失修）。"""
-    from memory.memory_graph import MemoryGraph
     from core.building_jobs import building_level as _bld_lv
     damaged = 0
     for p in state.prefectures.values():
@@ -169,7 +168,6 @@ def building_level_cap(state, btype: str) -> int:
 
 def tech_build_bonus(state) -> float:
     """建筑反馈科技：学校/书院 → 科技研发加速（月 tech level 加成，已有机制扩展）。"""
-    from content.data import ERA_BUILDING_LINK
     bonus = 0.0
     # 政府学校建筑 + POP 无（学校为政府类）
     projects = getattr(state, "projects", None)

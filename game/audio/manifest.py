@@ -7,7 +7,7 @@
 资源命名约定：<类别>_<语义>.ogg（背景乐用 .ogg，短音效可用 .wav）。
 试验稿与未批准素材禁止出现在此清单，统一放 _scratch/generated-audio/。
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 __all__ = ["AUDIO_SLOTS", "register_slot", "EVENT_AUDIO_CLASS", "audio_class_for"]
 

@@ -2,17 +2,13 @@
 """宋祚 · 诏令/密旨/拟旨/会签 指令族（拆分自 core/commands.py）"""
 import logging
 import random
-from typing import Any
 from core.game_state import GameState
-from core.settlement import run_monthly_settlement, settle_reform, _apply_decree_effect
 from core.errors import AIRuntimeError
 from content.data import (
-    ZHONGZHI_AFFILIATION_RATE,
     DIRECT_DECREE_MAX,
     FACTION_NAMES,
     get_prestige_level,
 )
-from content.ministers import MINISTERS, loyalty_init
 
 log = logging.getLogger("commands_decree")
 

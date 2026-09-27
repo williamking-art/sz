@@ -6,9 +6,8 @@
 from __future__ import annotations
 
 import math
-import os
 
-from content.data import SAVE_DIR, FACTION_NAMES
+from content.data import FACTION_NAMES
 
 #: 当前合法集团名（改名后：新党/旧党/皇党集团/军功集团/中立派）
 FACTION_NAME_SET = frozenset(FACTION_NAMES)
@@ -92,7 +91,7 @@ def migrate_army_units(data: dict):
       ② 混合版（branches 键「军籍:兵种」复合键）→ 按军籍拆分（每支单一军籍），兵额守恒。
     返回 (army_units: list[ArmyUnit], central_arsenal: CentralArsenal)。
     """
-    from core.army_models import build_army_units, ArmyUnit, CentralArsenal
+    from core.army_models import ArmyUnit, CentralArsenal
     if "army_units" not in data:
         # 旧档兼容：无 army_units 字段，由调用方从 state 重建
         return None, CentralArsenal()

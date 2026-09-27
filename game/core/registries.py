@@ -10,11 +10,9 @@
   （过分 → 降档/提示，非拒绝）；名称放开（仅防重名）。
 - **程序底线不变**：守恒/记账/不伪造/合理性软校验/科技门槛。
 """
-import math
 
 from content.data import (
-    BRANCH_SPEC, EQUIP_PRICE, RECRUIT_MONTHS, BRANCH_POWER_CAP,
-    BRANCH_PAY_CAP, BRANCH_REGISTRY_MAX, BRANCH_TECH_GATE,
+    EQUIP_PRICE, RECRUIT_MONTHS, BRANCH_PAY_CAP, BRANCH_TECH_GATE,
     BRANCH_BASE, ARMY_RATE, EQUIP_STD, EQUIP_RATE,
 )
 

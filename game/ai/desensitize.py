@@ -17,11 +17,6 @@ tier_to_value，AI 回答趋于一致。带噪声的区间让 AI 每次"看到�
 """
 import json
 import random as _rng
-from content.data import (
-    desensitize_prestige, desensitize_arrival,
-    desensitize_satisfaction, desensitize_treasury,
-    get_prestige_level,
-)
 
 
 # ============================================================

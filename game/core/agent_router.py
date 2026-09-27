@@ -11,7 +11,7 @@ route_agents 返回需要唤醒的 Agent 列表；game loop 只调用被唤醒�
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 log = logging.getLogger("agent_router")
 

@@ -17,11 +17,10 @@
 #     818    def  get_save_slots   —— 获取所有存档槽位信息
 # ══ 目录结束 ══
 import json
-import math
 import os
 from datetime import datetime
 
-from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, FACTION_NAMES, CHANGPING_INIT_MONTHLY_SHARE
+from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, CHANGPING_INIT_MONTHLY_SHARE
 from core.save_load_util import (  # noqa: F401 — re-export 兼容
     FACTION_NAME_SET, _safe_float, _safe_int, _strip_unknown_faction_keys,
 )

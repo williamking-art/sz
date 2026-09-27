@@ -3,7 +3,7 @@
 
 拆分自 ai/client.py：以 mixin 形式承载部门叙事方法，AIClient 继承之。
 """
-from ai.client_utils import _ai_unavailable, _clean_text, _load_prompt
+from ai.client_utils import _clean_text, _load_prompt
 
 
 class ClientNarrativeMixin:

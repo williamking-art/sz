@@ -15,7 +15,6 @@
 **场景**：report(月报) / event(事件，按 severity 分档) / decree(拟旨) /
          dialogue(召对) / advice(建言) / eval(结局) / narrative(通用部门叙事)。
 """
-import os
 
 # 句式库：每场景多句式，按确定性轮换（避免固定复读，可测试复现）
 _MONTHLY_TEMPLATES = (

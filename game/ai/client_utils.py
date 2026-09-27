@@ -7,7 +7,6 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from difflib import SequenceMatcher
-from typing import Any
 
 # ============================================================
 # 出站 URL 安全（SSRF，审查 P1-2）

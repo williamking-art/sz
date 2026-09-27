@@ -177,8 +177,7 @@ def _settle_granary(state, log):
     # local_treasury 不在 money 公式）。净回收联动：价>2.0 时平粜量上限 60%，
     # 并评估稳定器净回收目标（月销币目标 = money×(price−1.2)/price×0.5）。
     from content.data import (CHANGPING_BUY_BUDGET_RATIO, CHANGPING_CAP_RATIO,
-                              CHANGPING_SELL_RATIO, CHANGPING_PRICE_TARGET_HIGH,
-                              CHANGPING_PRICE_TARGET_LOW, PRICE_TARGET_SUPER)
+                              CHANGPING_SELL_RATIO)
     _sell_ratio = CHANGPING_SELL_RATIO          # 0.60（价>2.0 档，原 0.45）
     _recycled_total = 0                          # 本月平粜回收累计（稳定器达成度）
     for name, p in state.prefectures.items():

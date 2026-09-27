@@ -1049,7 +1049,7 @@ def _settle_external_economy(state, log):
     grain_residual == Δ省grain −(产 − 食)，恒 0（回归 test_external_economy.py）。
     旧档缺省域 pops 时按省人口幂等重建（setdefault 语义）。
     """
-    from content.data import (GRAIN_CONSUME_PER_CAPITA, EXTERNAL_ECONOMY_REGIMES,
+    from content.data import (EXTERNAL_ECONOMY_REGIMES,
                               EXTERNAL_ECON, _ext_pop_by_heads)
     regimes = getattr(state, "external_regimes", None)
     if not isinstance(regimes, dict):

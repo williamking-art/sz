@@ -22,7 +22,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.situations import (
-    GRADE_DELTA, MAX_INTENTS_PER_TURN, advance_bar, deadline_reached,
+    advance_bar, deadline_reached,
     effects_to_changes, evaluate, is_terminal, next_status, pick_intents,
     used_metrics, validate_intent, validate_situation_effects,
 )

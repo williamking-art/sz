@@ -306,7 +306,7 @@ class SettleContractMixin:
         非法档位 / 缺字段 / 重复 id / 未知 id / 越权字段 → **该条丢弃**（不改任何状态）；
         结果只写入 `state._situation_grades`（临时变量），由 Step 8.5 结算步消费。
         """
-        from core.situations import GRADE_DELTA, describe_condition
+        from core.situations import describe_condition
 
         recs = [r for r in (getattr(state, "situations", None) or [])
                 if isinstance(r, dict) and r.get("status") == "active"] if state is not None else []

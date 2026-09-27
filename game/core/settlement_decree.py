@@ -11,7 +11,6 @@ from content.data import (
     CHANGPING_LOW,
     COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX,
-    TIER_RANGE,
 )
 
 # 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）

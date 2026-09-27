@@ -8,7 +8,7 @@ from ai.client_utils import (
     _ai_unavailable, _clean_text, _load_prompt,
 )
 from ai.narrative_guard import (
-    _validate_narrative_numbers, _build_numeric_ranges, _build_source_closure,
+    _build_numeric_ranges, _build_source_closure,
     build_character_statuses, _validate_characters,
 )
 from ai.validators import _narrative_fallback

@@ -26,6 +26,11 @@ from content.data import (
     CENTRAL_ARSENAL_INIT,
 )
 
+__all__ = [
+    "EQUIP_STD",
+]
+
+
 # 7 项装备实物键（顺序即存档/显示顺序）
 EQUIP_KEYS = ["枪刀", "弓弩", "火器", "战马", "盔甲", "舟船", "器械"]
 

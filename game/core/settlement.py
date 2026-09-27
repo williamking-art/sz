@@ -11,7 +11,6 @@
 """
 import functools
 import random
-from typing import Any
 
 from content.data import (
     TREASURY_CRISIS_LINE, TREASURY_COLLAPSE_LINE,
@@ -211,7 +210,6 @@ def settle_reform(state, decree: dict) -> dict:
     后果完全由 AI 依「威望 + 相关大臣隐藏忠诚度 + 派系立场」推演决定，
     不做写死的规则拒绝。返回叙事字典供 UI 展示（绝不泄露忠诚度数值）。
     """
-    from ai.client import AIClient, _load_prompt, _clean_text
 
     reform = decree.get("reform") or {}
     # 2026-09-27：原在此组装 reform_settle 提示词上下文（faction_text / authority_brief / reform_text），

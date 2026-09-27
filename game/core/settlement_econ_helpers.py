@@ -41,7 +41,7 @@ def _settle_mint(state, log, amount: int = 0):
     熔耗 20%（MINT_MELT_LOSS）→ 净增 80%（MINT_NET_RATIO）入民间流通（工匠/商人 wealth）。
     返回 (ok, message)。
     """
-    from content.data import (MINT_MELT_LOSS, MINT_NET_RATIO, MINT_PRICE_BAN,
+    from content.data import (MINT_NET_RATIO, MINT_PRICE_BAN,
                               COPPER_RESOURCE_DIM)
     if state.price_level > MINT_PRICE_BAN:
         return False, f"物价 {state.price_level:.2f} 高于 {MINT_PRICE_BAN}，禁铸钱（防助涨通胀）"

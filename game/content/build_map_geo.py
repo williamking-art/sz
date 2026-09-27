@@ -274,7 +274,7 @@ def build_regime_borders() -> dict[str, object]:
        剔除落在政权总外轮廓 boundary（≈国界/与其他政权交界）附近的部分，
        剩下的才是真正的"省内界线"（消除与国界重描的残余）。
     """
-    from shapely.geometry import mapping, shape, MultiLineString
+    from shapely.geometry import mapping, shape
     from shapely.ops import linemerge, unary_union
 
     raw_dir = os.path.join(MAP_DIR, "raw")
@@ -432,7 +432,6 @@ def _regime_prefecture_blocks(reg_key: str, by_name: dict,
     （difference 已保留区），保证块间零重叠且并集不变（先算并集与道/司
     并集恒等，再切）。fill 与 borders 两层共用本函数，几何单一来源。
     """
-    from shapely.geometry import shape
     from shapely.ops import unary_union
     out: list[tuple[str, str, object]] = []
     kept: list[object] = []

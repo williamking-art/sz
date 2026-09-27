@@ -8,16 +8,13 @@
 - 解析失败 / 字段越界 / 复读 → 程序拦截，补调用一次；仍不可用则返回错误标记。
 - AI 不可用时不伪造文本，统一返回含 `_error` 标记的结构，由上层提示配置 AI。
 """
-import math
 import os
 import sys
 import json
-import re
 import socket
 import threading
 import urllib.request
 import urllib.error
-from difflib import SequenceMatcher
 
 
 
@@ -27,13 +24,11 @@ from difflib import SequenceMatcher
 
 from ai.client_narrative import ClientNarrativeMixin
 from ai.client_utils import (
-    _ai_unavailable, _app_root, _build_offer_context, _clean_text, _extract_json, _fallback_parse, _http_get_json, _http_post_json, _load_prompt, _normalize_decree_effects, _normalize_effects, _org_by_affiliation, _prompt_dir, _safety_filter, _safety_lexicon_path, _sanitize_history, _similar, _tool_dispatch, _TOOL_SCHEMAS, _valid_tier, _wrap_untrusted, effects_to_dict, load_safety_lexicon, safety_filter_operational, tier_to_value,
+    _ai_unavailable, _app_root, _clean_text, _extract_json, _fallback_parse, _http_get_json, _http_post_json, _load_prompt, _normalize_decree_effects, _safety_filter, _sanitize_history, _similar, _tool_dispatch, _TOOL_SCHEMAS, effects_to_dict, safety_filter_operational, tier_to_value,
 )
 from ai.narrative_guard import (
-    _validate_narrative_numbers, _build_numeric_ranges, _build_source_closure,
-    build_character_statuses, build_character_blacklist, _validate_characters,
+    _validate_narrative_numbers,
 )
-from content.data import normalize_tier
 from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构层（可选，未装库自动跳过）
 
 import logging as _logging
@@ -43,12 +38,25 @@ log = _logging.getLogger("ai.client")   # provider 回退/空响应自愈等需�
 # ---- 共享辅助（validators）/ 契约 Mixin（contracts_*）----
 # 公共 API 再导出：历史调用方 `from ai.client import _summary_text` 等不破。
 from ai.validators import (
-    _TIERS7, _summary_text, _decide_state_text, _narrative_fallback,
+    _summary_text, _narrative_fallback,
 )
 from ai.contracts_court import CourtContractMixin
 from ai.contracts_decree import DecreeContractMixin
 from ai.contracts_settle import SettleContractMixin
 from ai.contracts_misc import MiscContractMixin
+
+__all__ = [
+    "_ai_unavailable",
+    "_clean_text",
+    "_fallback_parse",
+    "_load_prompt",
+    "_narrative_fallback",
+    "_normalize_decree_effects",
+    "_summary_text",
+    "effects_to_dict",
+    "tier_to_value",
+]
+
 
 
 def normalize_endpoint(base_url: str) -> tuple[str, str, str]:

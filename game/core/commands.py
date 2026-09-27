@@ -52,17 +52,14 @@ Electron 前端经 HTTP 调用）与测试。**Tkinter GUI 已废弃删除**—�
 #      def    apply_minister_departure   —— 执行大臣离任（贬黜/致仕/病故/战殁/处死/乞休），返回日志列表。
 # ══ 目录结束 ══
 import logging
-import random
 
 log = logging.getLogger("commands")
 
 from content.data import (
-    FACTION_NAMES, PERSONAL_ACTIONS, MAJOR_POLICIES, get_prestige_level,
-    desensitize_satisfaction,
-    desensitize_trust, desensitize_shortage, desensitize_talent, desensitize_tech,
+    PERSONAL_ACTIONS, MAJOR_POLICIES,
 )
 
-from core.game_state import GameState, _next_month
+from core.game_state import GameState
 from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.evaluation import evaluate_game, check_game_over
@@ -75,8 +72,7 @@ from core.errors import AIRuntimeError
 # ============================================================
 
 from core.commands_decree import (
-    _apply_rename, _draft_to_effects_dict, _enqueue, _generate_decree_effects, _random_faction_stances, _rule_draft, _run_fixed, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_edict_from_review, issue_free_decree, issue_kouyu, issue_secret_decree, merge_drafts, preview_draft, reject_edict_draft,
-    propose_inner_transfer, confirm_inner_transfer, cancel_inner_transfer,
+    _random_faction_stances, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_secret_decree, preview_draft,
 )
 
 
@@ -801,7 +797,6 @@ def pop_sentiment_brief(state) -> str:
     只给定性描述（偏高/偏低/疲敝/安和），**不注入精确数值**（脱敏约束）。
     """
     try:
-        from core.situation_metrics import POP_SENTIMENT_CHANNELS, CLERK_SENTIMENT_CHANNELS
         from core.situations import build_situation_readout
         out = build_situation_readout(state)
         pop_ch = (out.get("pop_channels") or {})
@@ -1393,6 +1388,8 @@ __all__ = [
     "issue_drafted_decree", "preview_draft",
     "approve_ai_action", "reject_ai_action",
     "issue_military_order",
+    "confirm_timeline_break",
+    "dismiss_pending_break",
 ]
 
 

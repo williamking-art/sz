@@ -17,7 +17,6 @@
 - **阳奉阴违概率式**：危险度 P 每月随机触发；刚直≥70 且 score<45 → 直言力诤。
 - **召对注入** `_build_persona_prompt`：**loyalty 数值绝不注入**（只给档位词姿态）。
 """
-import random
 
 from content.ministers.data import MINISTERS
 

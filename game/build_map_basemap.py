@@ -37,7 +37,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 if BASE not in sys.path:
     sys.path.insert(0, BASE)
 
-from content.geo_admin import CIRCUIT_BOUNDS, CIRCUIT_INFO, MAP_VIEW
+from content.geo_admin import CIRCUIT_INFO, MAP_VIEW
 
 RAW = os.path.join(BASE, "assets", "map", "raw")
 WEB = os.path.join(BASE, "assets", "map", "web")

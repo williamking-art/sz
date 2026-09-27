@@ -32,7 +32,6 @@ import os
 import sys
 import tempfile
 import threading
-import urllib.parse
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel

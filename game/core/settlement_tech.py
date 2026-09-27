@@ -4,9 +4,6 @@
 `_settle_tech_research` / `_settle_projects`。"""
 from __future__ import annotations
 
-from content.data import (
-    get_prestige_level,
-)
 
 from core.settlement_common import (
     transfer_public_funds_to_pops,
@@ -70,7 +67,7 @@ def _settle_tech_research(state, log):
     """
     from core.asset_context import (unlock_node, tech_cost_with_era, get_tech_node,
                                     settle_adoption)
-    from content.data import (TECH_RESEARCH_BUDGET_RATIO, TECH_RESEARCH_PAY_TO,
+    from content.data import (TECH_RESEARCH_PAY_TO,
                               TECH_WEST_ACCEL_PER_POINT, TECH_WEST_ACCEL_CAP)
     tech = state.tech
     researching = tech.get("researching", {})

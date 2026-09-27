@@ -41,7 +41,6 @@ _COLD_START_MSG = (
     "后端正在唤起（云端实例按需启动，未保持常驻）：首次约需一两分钟，请稍候再试。"
 )
 from core.game_state import GameState
-from ai.client import AIClient
 
 
 class BackendClient:
