@@ -312,3 +312,7 @@ songzuo/**/*.db
 songzuo/**/_composed/
 # ai_config.json 是**运行配置（含密钥）**：发行目录与开发目录各一份，两处都必须忽略
 game/ai_config.json
+# --- 发行目录（2026-09-27 分层定稿）：整个目录都不入库 ---
+# 发行物 = 生成物（exe + Chromium 运行时 + resources/ + locales/ + saves/）。
+# 目录级忽略，防止「新增文件未被既有规则覆盖」而变成未跟踪。
+songzuo/

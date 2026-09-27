@@ -109,8 +109,9 @@ game/  （宋祚游戏本体 = 仓库内 songzuo 游戏本体）
 | 游戏本体 | ✅ 是 | 运行所需全部代码、资源、配置（Electron 安装包由 `frontend/` 构建，与 Python 本体分发物组合） |
 | `构建/分发产物` | ❌ 否 | `game/dist/`、`game/build/` 为构建输出，可随时重建 |
 | **`songzuo/`（仓库根）** | ❌ 否 | **发行目录**：exe + Chromium 运行时 + `resources/` + `locales/` + `saves/`；由构建产出 |
-| `_dev_tools/`（仓库根） | ❌ 否 | 开发期测试 / 分析脚本，路径引用以仓库根为基准 |
-| `_dev_tools/_scratch/` | ❌ 否 | 临时产物 / 归档 / Electron 参考工程，可随时清理（**不在 `game/` 内**） |
+| `_dev_tools/`（仓库根） | ❌ 否 | 开发期测试 / 分析脚本 / 文档 / 知识库，路径引用以仓库根为基准 |
+| `_scratch/`（仓库根） | ❌ 否 | **临时区**：一次性脚本 / 试验稿 / 日志（不入库；根上历史脚本已归入 `tmp-scripts-2026-09/`） |
+| `songzuo_server/`（仓库根） | ❌ 否 | **开发侧并行实现**（Rust MVP）：数值口径与 Python 本体不必一致、存档不互通；不随发行（`target/` 为构建缓存） |
 
 ---
 
