@@ -9,6 +9,7 @@
 各 Step 结算函数见 core/settlement_steps.py；本文件 re-export 常用符号保持
 既有 import 兼容（commands / panels 等）。
 """
+import functools
 import random
 from typing import Any
 
@@ -357,13 +358,36 @@ def _fallback_reform(state, reform, related) -> dict:
 # ------------------------------------------------------------
 # 主流水线
 # ------------------------------------------------------------
+def _isolated_rng(fn):
+    """装饰器：结算期间播种全局 RNG，**结束后还原**（对外零副作用，内部仍按回合确定）。
+
+    为什么用装饰器而不是"wrapper + 改名"：`test_econ_price_review` / `test_middle_calibration`
+    以内省 `run_monthly_settlement` 的**源码/AST**守护流水线步序与测试镜像；把函数体挪走会让
+    这两条安全网失效（改完当场变红）。装饰器下函数体仍在原函数内，且 `inspect.getsourcelines`
+    会 `unwrap()`（`functools.wraps` 设了 `__wrapped__`）→ 内省拿到的仍是真实流水线。
+    """
+    @functools.wraps(fn)
+    def _wrapper(state, seed_offset: int = 0):
+        _saved = random.getstate()
+        random.seed(state.turn * 1000003 + seed_offset)
+        try:
+            return fn(state, seed_offset)
+        finally:
+            random.setstate(_saved)
+    return _wrapper
+
+
+@_isolated_rng
 def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     """执行月度结算，返回本轮结算日志列表。
 
     seed_offset 用于确定性复现：以 (state.turn + seed_offset) 派生随机种子，
     使相同回合+offset 的结算结果可复现，为 dev/replay 回放与平衡 A/B 对比打基础。
+
+    **地基（2026-09-27）**：结算结束必须**还原全局随机流**（由 `@_isolated_rng` 负责）。
+    原实现直接 `random.seed(...)` 播种全局 RNG 且不还原 —— 实测污染调用方后续随机序列
+    （结算前抽 `[0.41662, 0.010169, 0.825207]`，结算后变成 `[0.481827, 0.610136, 0.673403]`）。
     """
-    random.seed(state.turn * 1000003 + seed_offset)
     log = []
 
     # 局势 intent 校验用：本回合 `state_applier` 事务记录的起始游标（§5.2）。

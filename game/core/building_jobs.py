@@ -284,6 +284,11 @@ def produce_grain_track(pops: dict, buildings: dict, cfg: dict,
     sz = int(nong.get("size", 0) or 0)
     if sz <= 0:
         return 0
+    # 地基实测（2026-09-27）：本读点用 `_lv`（closed→1）与 `building_level`（closed→0）**数值等价**——
+    #   下方 `eff = 1 + FARM_LV_EFF*max(0, lv-1)`，lv0 与 lv1 同为 1.0。对照实验：
+    #   粮田 lv1 → 100000 石、closed({"lv":0,"closed":True}) → 100000 石、lv5 → 120000 石。
+    #   故"倒闭粮田仍计产"在本读点**不成立**（早先审计结论已按实测更正）；
+    #   **勿**仅因读口不同就改成 `building_level`——那会改动平衡，需另行拍板。
     farm_lv = _lv((buildings or {}).get("粮田", 1))
     eff = 1.0 + float(cfg.get("FARM_LV_EFF", 0.05)) * max(0, farm_lv - 1)
     g = int(sz * float(gy) * eff)

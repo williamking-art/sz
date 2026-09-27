@@ -46,6 +46,7 @@ A-2（穿底造币）/ A-4（畜栏产肉无买方）/ A-5（酒课无上限累�
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
+import math
 
 __all__ = [
     "ACCOUNTS", "SINK_ACCOUNTS", "EXTERNAL_ACCOUNTS",
@@ -441,10 +442,18 @@ def audit_step(state) -> Dict[str, Any]:
 # 「发行额/流通额/兑付率/折价/存款/贷款/汇率」等口径，供面板、存档对账与 API。
 # ==========================================================================
 def _num(v, default: float = 0.0) -> float:
+    """数值归一：**非有限值一律回落默认**。
+
+    地基（2026-09-27）：原实现只挡 `TypeError/ValueError`，`inf/-inf/nan` **原样穿过**
+    （实测 `_num(float("inf")) == inf`）。后果：① 面板显示 `inf`；② `json.dumps` 产出
+    `Infinity`/`NaN` —— **非法 JSON**，前端 `JSON.parse` 直接抛错。
+    与 `core/numeric.py` 口径对齐：非有限视为坏值 → 回落 `default`。
+    """
     try:
-        return float(v)
+        f = float(v)
     except (TypeError, ValueError):
         return float(default)
+    return f if math.isfinite(f) else float(default)
 
 
 def _clamp01(v) -> float:
