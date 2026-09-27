@@ -275,3 +275,6 @@ game/frontend/public/map/*.geojson
 game/frontend/public/map/regions.topojson
 game/frontend/public/map/view.json
 game/frontend/public/map/tiles/
+
+# --- 面板截图台的构建产物（dev-only；源在 scripts/shot/ + vite.shot.config.mts）---
+game/frontend/_shot-dist/

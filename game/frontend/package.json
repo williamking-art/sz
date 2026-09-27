@@ -13,7 +13,9 @@
     "build:topo": "tsx scripts/build-topo.ts",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "dist": "electron-vite build && electron-builder --win nsis"
+    "dist": "electron-vite build && electron-builder --win nsis",
+    "shot:build": "vite build --config vite.shot.config.mts",
+    "shot:serve": "vite preview --config vite.shot.config.mts --port 8231"
   },
   "dependencies": {
     "@turf/turf": "^7.1.0",

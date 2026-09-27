@@ -83,9 +83,13 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
   // ⚠️ 隐户按原设定「只知约值」：**面板层粗化到 5 万口**再显示（不把真值摆到玩家眼前）。
   //    更彻底的做法是在快照层 `backend/server.py::_state_to_dict` 对 `prefectures.*.pops.农.hidden`
   //    做与 `estate`/`loyalty` 同类的脱敏——**目前快照仍含真值**，此处只是展示层兜底（见方案 §8 待办）。
-  // 隐户「只知约值」：数值取后端粗化后的 `hidden_pop_est`；快照层已对未清丈剔除 `农.hidden` 真值
-  // （`backend/server.py::_prefs_desensitized` ← `core.region_brief.hidden_surveyed` 单点判据）。
-  const hidden = route?.hidden_pop_est ?? 0;
+  // 隐户「只知约值」：数值取后端粗化后的 hidden_pop_est（快照层已对未清丈剔除 农.hidden 真值，
+  // 判据单点在 core.region_brief.hidden_surveyed）。
+  // ⚠️ **缺失时显式「—」**：早期写成 `?? 0` 会在读数不全时静默显示"约 0 口"（截图台实拍发现）。
+  const hiddenEst = route?.hidden_pop_est;
+  const hiddenText = typeof hiddenEst === "number"
+    ? `约 ${wan(hiddenEst, "口")}（未清丈，据税籍推估）`
+    : "—（读数未就绪）";
   const buildings = asDict(p.buildings);
   const buildingCount = Object.keys(buildings).length;
 
@@ -149,7 +153,7 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
             <span>{route?.public_support ?? "—"}</span>
           </div>
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="w-14 shrink-0 text-dim">士绅抵抗</span>
+            <span className="w-14 shrink-0 text-dim">士绅阻力</span>
             <Bar value={route?.gentry_resistance ?? 30} tone={toneLow(route?.gentry_resistance ?? 30)} />
             <span>{route?.gentry_resistance ?? "—"}</span>
           </div>
@@ -174,7 +178,7 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
                   : <span>约 {wan(route?.hidden_land_est ?? 0, "亩")}<span className="ml-1 text-[11px] text-dim">（{route?.hidden_land_band}，未清丈）</span></span>
             }
           />
-          <Row label="隐户" value={<span>约 {wan(hidden, "口")}<span className="ml-1 text-[11px] text-dim">（未清丈，据税籍推估）</span></span>} />
+          <Row label="隐户" value={<span>{hiddenText}</span>} />
           <Row label="粮食年产" value={route ? wan(route.grain_year, "石") : "—"} />
           <Row label="存粮" value={route ? <span>{wan(route.grain_stock, "石")}　<span className="text-[11px] text-dim">可支 {route.grain_months ?? "—"} 月</span></span> : "—"} />
           <Row label="月税实收" value={route ? <span>{wan(route.tax_month, "贯")}　<span className="text-[11px] text-dim">占全国 {((route.tax_share ?? 0) * 100).toFixed(1)}%</span></span> : "—"} />
@@ -209,7 +213,7 @@ export default function LocalArchivePanel({ props }: { props?: Dict }) {
           <div className="rounded border border-dashed border-border/60 bg-card/20 px-2 py-1">
             <div className="flex items-baseline justify-between">
               <span className="font-kai text-[13.5px] text-dim">隐户</span>
-              <span className="text-[12.5px] text-dim">约 {wan(hidden, "口")}</span>
+              <span className="text-[12.5px] text-dim">{hiddenText}</span>
             </div>
             <div className="mt-0.5 text-[11.5px] text-dim">未在籍；隐田产出七成自留、三成归庇护士绅（清丈后归籍）</div>
           </div>

@@ -328,7 +328,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                         : `${a} 尚无契约`)}
                     className={ok
                       ? "rounded border border-gold/60 bg-card/70 px-2 py-1 text-[13px] text-ink hover:bg-card"
-                      : "cursor-not-allowed rounded border border-border/60 bg-card/40 px-2 py-1 text-[13px] text-dim"}
+                      : "cursor-not-allowed rounded border border-dashed border-border/60 bg-card/30 px-2 py-1 text-[13px] text-dim opacity-50"}
                   >
                     {a}
                   </button>
@@ -336,10 +336,12 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
               })}
             </div>
             {msg ? <div className="mt-1 text-[12px] text-ink">{msg}</div> : null}
+            {/* ⚠️ 面板文案不要写 Markdown 记号：反引号/星号会被当普通字符渲染出来
+                （2026-09-27 由截图台实拍发现）*/}
             <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
-              玩家亲裁：经 `issue_military_order` 入待批队列（`proposer="玩家"`）后**即时批红**，
-              执行落在既有 `_apply_military_dispatch`（校验/档位封顶/POP 守恒同一处）；
-              **参考图 8 键全部可施行**：整编／扩编／地图调度／拆分／合并／换帅／裁撤／改名。
+              玩家亲裁：入待批队列（proposer=玩家）后即时批红，执行落在既有
+              _apply_military_dispatch（校验／档位封顶／POP 守恒同一处）。
+              参考图 8 键全部可施行：整编／扩编／地图调度／拆分／合并／换帅／裁撤／改名。
               守恒口径：拆分为兵种对半（Σ兵额不变、兵 POP 不变）、合并相加（欠饷随存续番号）、
               裁撤复员归农（ΣPOP 不变）、改名与换帅只动展示层。
             </div>
