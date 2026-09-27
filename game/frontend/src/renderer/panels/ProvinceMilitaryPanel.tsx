@@ -27,7 +27,11 @@ interface MRoute {
 interface MNation { routes: number; units: number; troops: number; arrears: number; cash_month: number; grain_month: number }
 interface Military { route: string | null; routes?: MRoute[]; nation: MNation }
 
-const ACTIONS = ["整编", "操练", "扩编", "地图调度", "裁撤", "拆分", "合并", "换帅", "改名"];
+// **参考图的 8 个按钮**（严格对齐，不自行增减）：
+//   地图调度 / 扩编 / 拆分 / 合并 ｜ 整编 / 换帅 / 裁撤 / 改名
+// 注：命令层另有 `act="操练"`（`_apply_military_dispatch` 支持），但**参考图没有这个按钮**，
+//     故不在此暴露（避免"我改了需求"——2026-09-27 用户指出此处多加了一键，已改回 8 个）。
+const ACTIONS = ["地图调度", "扩编", "拆分", "合并", "整编", "换帅", "裁撤", "改名"];
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
@@ -228,7 +232,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
           {/* 军令按钮：渲染但置灰 —— 发起通道未定（方案 §3.2） */}
           <section>
             <div className="mb-1 font-kai text-[13.5px] font-bold text-gold-dark">驻地施令</div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {ACTIONS.map((a) => (
                 <button
                   key={a}
