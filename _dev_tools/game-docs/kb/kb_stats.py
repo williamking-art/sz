@@ -13,6 +13,7 @@ import sys
 
 KB_DIR = pathlib.Path(__file__).resolve().parent
 DOCS_DIR = KB_DIR.parent / "docs"                     # 与 build_kb.py 的 DOCS_DIR 一致
+REPO_ROOT = KB_DIR.parents[2]                         # 仓库根（sz/）
 GAME_DB = KB_DIR.parents[2] / "game" / "assets" / "kb" / "game_kb.sqlite"
 DEV_DB = KB_DIR / "dev_kb.sqlite"
 
@@ -33,6 +34,8 @@ def stat(path):
             "SELECT title, source_path, content_hash FROM documents ORDER BY source_path"):
         disk = DOCS_DIR / sp
         if not disk.exists():
+            disk = REPO_ROOT / sp                     # 支持 `game/README.md` 这类仓库根相对路径
+        if not disk.exists():
             flag, n = "MISS ", 0
         else:
             now = disk.read_text(encoding="utf-8")
@@ -46,6 +49,7 @@ def stat(path):
     if stale:
         print(f"    ⚠️ {stale} 篇已脱节 → 跑 `python build_kb.py build` 重建")
     conn.close()
+    return stale
 
 
 if __name__ == "__main__":
@@ -54,7 +58,9 @@ if __name__ == "__main__":
     except Exception:
         pass
     if len(sys.argv) > 1:
-        stat(pathlib.Path(sys.argv[1]))
-    else:
-        stat(GAME_DB)
-        stat(DEV_DB)
+        sys.exit(1 if stat(pathlib.Path(sys.argv[1])) else 0)
+    # 退出码可用作**本地门禁**：非 0 = 有 STALE（改了文档但没重建知识库）
+    bad = stat(GAME_DB) + stat(DEV_DB)
+    if bad:
+        print(f"\n❌ {bad} 篇脱节：跑 `python build_kb.py build` 重建后再提交")
+    sys.exit(1 if bad else 0)

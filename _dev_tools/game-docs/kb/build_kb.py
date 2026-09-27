@@ -40,7 +40,30 @@ GAME_DOCS = [
     ("局势系统实施规范", "局势系统实施规范.md", "design"),
 ]
 DEV_DOCS = [
+    # —— 本地开发优先（2026-09-27 扩源）：把"本地才有"的开发资料收进开发库 ——
     ("开发服务器与回归测试说明", "开发服务器与回归测试说明.md", "ops"),
+    # 仓库与各目录导览（部分**不入库**，只在本地存在；正因如此更该进开发库）
+    ("宋祚 仓库总览", "README.md", "guide"),
+    ("game 本体说明", "game/README.md", "guide"),
+    ("core 内核导览", "game/core/README.md", "guide"),
+    ("content 数据导览", "game/content/README.md", "guide"),
+    ("engine 契约应用导览", "game/engine/README.md", "guide"),
+    ("ai 契约与叙事导览", "game/ai/README.md", "guide"),
+    ("backend 接口导览", "game/backend/README.md", "guide"),
+    ("frontend 前端导览", "game/frontend/README.md", "guide"),
+    ("assets 资源导览", "game/assets/README.md", "guide"),
+    ("memory 记忆层导览", "game/memory/README.md", "guide"),
+    ("telemetry 遥测导览", "game/telemetry/README.md", "guide"),
+    ("audio 音频导览", "game/audio/README.md", "guide"),
+    ("saves 存档导览", "game/saves/README.md", "guide"),
+    ("_dev_tools 工具导览", "_dev_tools/README.md", "guide"),
+    ("game-docs 文档树导览", "_dev_tools/game-docs/README.md", "guide"),
+    ("reviews 归档导览", "_dev_tools/game-docs/reviews/README.md", "guide"),
+    # 现行设计与史料索引（本地开发最常查）
+    ("POP 体系改良（合并版）", "_dev_tools/game-docs/analysis/POP改良_合并版_2026-09-27.md", "design"),
+    ("改进方案（合并版）", "_dev_tools/game-docs/analysis/改进方案_合并版_2026-09-22.md", "design"),
+    ("全审台账索引（2026-09-18）", "_dev_tools/game-docs/archive/全审台账索引_2026-09-18.md", "audit"),
+    ("会话交接（失败会话复盘）", "_dev_tools/game-docs/reviews/交接_失败会话_2026-09-26.md", "ops"),
 ]
 
 SCHEMA = """
@@ -130,6 +153,14 @@ def chunk_doc(text):
 # ---------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------
+def resolve_src(fname: str):
+    """解析源文件：**先 `game-docs/docs/`，找不到再到仓库根**（支持 `game/README.md` 这类路径）。"""
+    p = DOCS_DIR / fname
+    if p.exists():
+        return p
+    return GAME_ROOT / fname
+
+
 def build_db(db_path, docs):
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
@@ -138,7 +169,7 @@ def build_db(db_path, docs):
     conn.executescript(SCHEMA)
     total = 0
     for title, fname, kind in docs:
-        text = (DOCS_DIR / fname).read_text(encoding="utf-8")
+        text = resolve_src(fname).read_text(encoding="utf-8")
         digest = hashlib.md5(text.encode("utf-8")).hexdigest()
         cur = conn.execute(
             "INSERT INTO documents(title, source_path, doc_kind, content, content_hash)"
