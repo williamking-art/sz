@@ -138,6 +138,8 @@ def _settle_land_local(state, log):
     """田亩户籍与地方州县自然演进；田赋以实物粮（本色）征收入各州府储粮，
     或（行一条鞭后）折银入国库。粮产率随科技/工业、田亩随开垦动态变化。
     （12 步 agent 化 P2+：田亩地方契约接线）"""
+    # 隐田分成参数：**函数内取属性**（模块属性读取），便于测试 monkeypatch 与后续调参热改
+    from content.data_constants import HIDDEN_LAND_TENANT_SHARE
     # 12 步 agent 化 P2+：读取田亩地方 AI 契约
     _land_ai = getattr(state, "_land_local_ai", None)
     ai_prefs = {}
@@ -229,7 +231,15 @@ def _settle_land_local(state, log):
                     state.granary_stats.get("official", 0) + _op_in)
             _ip = int(produce * p.get("imperial_land", 0) / _land)
             _nong["grain"] += _ip // 2; state.imperial_granary += _ip // 2              # 皇庄→佃户半+内帑粮
-            _shen["grain"] += int(produce * p.get("hidden_land", 0) / _land)            # 隐田→士绅(逃税)
+            # 隐田（不籍）产出（B1c）：**隐户自产 70% / 庇护士绅 30%** —— 修正"隐户只有消费
+            # 没有生产"与文档 §3.7"隐户全产归己"的冲突；两份额之和 == 原全额 ⇒ Σ粮守恒不变。
+            _hp = int(produce * p.get("hidden_land", 0) / _land)
+            _hp_own = int(_hp * HIDDEN_LAND_TENANT_SHARE)
+            _nong["grain"] += _hp_own
+            _shen["grain"] += _hp - _hp_own
+            if _hp_own:
+                state.statistics["hidden_produce"] = (
+                    state.statistics.get("hidden_produce", 0) + _hp_own)
         # 田赋按田亩归属征：自耕田→自耕农、地主田→士绅；官田皇庄免、隐田逃税
         _st = int(tax * p.get("self_farm_land", 0) / _land); _gt = int(tax * p.get("gentry_land", 0) / _land)
         # AI 契约：均税力度减轻赋税负担

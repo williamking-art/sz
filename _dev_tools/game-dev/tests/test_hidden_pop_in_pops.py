@@ -128,3 +128,33 @@ def test_monthly_settlement_absorbs_registry_into_population():
     _full_pressure(s)
     run_monthly_settlement(s, 0)
     assert s.population == _pops_total(s) + s.refugee_count
+
+
+# ---------------------------------------------------------------
+# B1c：隐户**有生产**（隐田产出 70% 自留 / 30% 庇护士绅）且**自产自食**
+# ---------------------------------------------------------------
+def test_hidden_has_production_and_self_feeds():
+    """跑 12 个月：隐户产出与消费都必须进台账（修"隐户只有消费没有生产"）。"""
+    s = GameState("史实")
+    s.treasury = 10 ** 9
+    for _ in range(12):
+        run_monthly_settlement(s, 0)
+    assert s.statistics.get("hidden_produce", 0) > 0, "隐户仍未生产（B1c 未生效）"
+    assert s.granary_stats.get("hidden_feed", 0) > 0, "隐户消费未入台账"
+
+
+def test_hidden_land_split_ratio_is_tunable(monkeypatch):
+    """隐田分成比例**可调**（行为测试）：自留 1.0 → 全记隐户生产；自留 0.0 → 零。"""
+    import content.data_constants as dc
+
+    def _produce(share: float) -> int:
+        monkeypatch.setattr(dc, "HIDDEN_LAND_TENANT_SHARE", share)
+        s = GameState("史实")
+        s.treasury = 10 ** 9
+        for _ in range(12):
+            run_monthly_settlement(s, 0)
+        return int(s.statistics.get("hidden_produce", 0))
+
+    full = _produce(1.0)
+    zero = _produce(0.0)
+    assert full > 0 and zero == 0, f"分成比例未生效：自留 1.0={full}，自留 0.0={zero}"
