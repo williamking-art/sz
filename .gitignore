@@ -4,6 +4,7 @@
 # --- 运行时生成的存档 ---
 game/saves/*
 !game/saves/.gitkeep
+!game/saves/README.md
 
 # --- 临时归档与构建产物 (_scratch/：任意层级均不入库) ---
 _scratch/
