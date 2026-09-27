@@ -17,11 +17,19 @@ const BROWSER = process.env.SHOT_BROWSER
 const PYTHON = process.env.SHOT_PYTHON ?? "python";
 const PORT = Number(process.env.SHOT_PORT ?? 8235);
 
-// 要拍的面板（路径相对 _shot-dist）
+// 要拍的面板：面板名 = src/renderer/panels/<name>.tsx（由 import.meta.glob 动态解析）
+//   既有面板可能因 fixture 不全而显"—"或空表——那本身也是有效发现（面板对缺数据的容错），
+//   但要区分"fixture 未覆盖"与"产品缺陷"。
 const PAGES = [
-  ["localarchive-circuit", "panel=localarchive&kind=circuit&route=两浙路", 1000, 1520],
-  ["localarchive-city", "panel=localarchive&kind=city&route=杭州", 1000, 1320],
-  ["provincemilitary", "panel=provincemilitary&route=两浙路", 1000, 1240]
+  ["localarchive-circuit", "panel=LocalArchivePanel&kind=circuit&route=两浙路", 1000, 1520],
+  ["localarchive-city", "panel=LocalArchivePanel&kind=city&route=杭州", 1000, 1320],
+  ["provincemilitary", "panel=ProvinceMilitaryPanel&route=两浙路", 1000, 1240],
+  ["PopPanel", "panel=PopPanel", 1000, 1100],
+  ["LandPanel", "panel=LandPanel", 1000, 900],
+  ["GranaryPanel", "panel=GranaryPanel", 1000, 900],
+  ["CourtPanel", "panel=CourtPanel", 1000, 1100],
+  ["AccountingPanel", "panel=AccountingPanel", 1000, 1000],
+  ["MilitaryPanel", "panel=MilitaryPanel", 1000, 1000]
 ];
 
 function run(file, args, opts = {}) {

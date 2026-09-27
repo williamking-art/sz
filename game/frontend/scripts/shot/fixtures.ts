@@ -7,36 +7,48 @@ export const STATE: Dict = {
     两浙路: {
       controlled_by: "宋",
       population: 1_072_871,
+      households: 210_000,
       govern: 62,
       buildings: { 农田: 3, 市舶司: 1, 造船场: 2 },
       pops: {
         农: {
           size: 500_000, hidden: 120_000,
           自耕农: 300_000, 富农: 50_000, 贫农: 100_000, 佃农: 50_000,
-          ding: 80_000, kou: 120_000
+          ding: 80_000, kou: 120_000, wealth: 120_000, grain: 800_000
         },
-        士绅: { size: 9_000 },
-        工匠: { size: 110_000 },
-        商人: { size: 220_000 },
-        官僚: { size: 40_000 },
-        兵: { size: 33_000 }
+        士绅: { size: 9_000, wealth: 900_000, grain: 400_000 },
+        工匠: { size: 110_000, wealth: 80_000, grain: 50_000 },
+        商人: { size: 220_000, wealth: 260_000, grain: 90_000 },
+        官僚: { size: 40_000, wealth: 60_000, grain: 40_000 },
+        兵: { size: 33_000, wealth: 30_000, grain: 120_000 }
       }
     },
     京畿路: {
       controlled_by: "宋",
       population: 1_371_000,
+      households: 268_000,
       govern: 70,
       buildings: { 农田: 5, 军营: 4 },
       pops: {
-        农: { size: 620_000, hidden: 60_000, 自耕农: 400_000, 富农: 80_000, 贫农: 90_000, 佃农: 50_000, ding: 90_000, kou: 150_000 },
-        士绅: { size: 20_000 },
-        工匠: { size: 130_000 },
-        商人: { size: 180_000 },
-        官僚: { size: 60_000 },
-        兵: { size: 60_000 }
+        农: { size: 620_000, hidden: 60_000, 自耕农: 400_000, 富农: 80_000, 贫农: 90_000, 佃农: 50_000, ding: 90_000, kou: 150_000, wealth: 180_000, grain: 1_050_000 },
+        士绅: { size: 20_000, wealth: 1_600_000, grain: 700_000 },
+        工匠: { size: 130_000, wealth: 95_000, grain: 60_000 },
+        商人: { size: 180_000, wealth: 210_000, grain: 70_000 },
+        官僚: { size: 60_000, wealth: 90_000, grain: 55_000 },
+        兵: { size: 60_000, wealth: 55_000, grain: 220_000 }
       }
     }
   },
+  land: {
+    cultivated: 45_265_960, hidden_rate: 0.32, wasteland: 3_200_000,
+    hidden_households: 480_000, rem: 0
+  },
+  granary: {
+    stock: 1_013_000,
+    changping: 400_000, capacity: 3_000_000
+  },
+  treasury: 1_250_000,
+  imperial_treasury: 320_000,
   army_units: [
     {
       unit_id: "u0001", name: "两浙路·殿前第15军", army_name: "殿前第15军", tier: "禁军",

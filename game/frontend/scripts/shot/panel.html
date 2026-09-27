@@ -3,6 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <title>宋祚 · 面板截图台（dev-only）</title>
+    <script>
+      // 引导期错误可视化：模块导入或根渲染若失败，页面会是**纯空白**（无法诊断）。
+      // 这里在模块脚本之前挂错误钩子，把错误直接写进 DOM → 截图与 --dump-dom 都能看到。
+      (function () {
+        function show(tag, msg) {
+          var el = document.createElement("pre");
+          el.style.color = "#a00";
+          el.style.fontSize = "13px";
+          el.style.whiteSpace = "pre-wrap";
+          el.style.padding = "8px";
+          el.textContent = "【截图台·" + tag + "】" + msg;
+          document.body.appendChild(el);
+        }
+        window.addEventListener("error", function (e) {
+          show("引导期错误", (e.message || String(e.error || "")) +
+            "\n" + (e.filename || "") + ":" + (e.lineno || 0));
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          show("未处理拒绝", String((e.reason && (e.reason.stack || e.reason.message)) || e.reason || ""));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -47,11 +47,11 @@ const h = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("../api/client", () => ({
+vi.mock("../../api/client", () => ({
   getApiClient: () => ({ readouts: h.readouts, action: h.action })
 }));
 
-vi.mock("../store/gameStore", () => ({
+vi.mock("../../store/gameStore", () => ({
   useGameStore: (sel: (s: unknown) => unknown) => sel({ state: h.state, pushOverlay: h.pushOverlay }),
   pick: (obj: Record<string, unknown>, path: string, dflt: unknown) => {
     const v = path.split(".").reduce<unknown>(
@@ -60,8 +60,8 @@ vi.mock("../store/gameStore", () => ({
   }
 }));
 
-import LocalArchivePanel from "./LocalArchivePanel";
-import ProvinceMilitaryPanel from "./ProvinceMilitaryPanel";
+import LocalArchivePanel from "../LocalArchivePanel";
+import ProvinceMilitaryPanel from "../ProvinceMilitaryPanel";
 
 const ROUTE = {
   name: "两浙路", display_name: "两浙路", controlled_by: "宋",
