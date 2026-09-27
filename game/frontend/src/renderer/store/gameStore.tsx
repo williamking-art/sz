@@ -13,6 +13,7 @@ export type PanelKind =
   | "gazette"
   | "personal"
   | "prefecture"
+  | "localarchive"
   | "granary"
   | "focus"
   | "diplomacy"

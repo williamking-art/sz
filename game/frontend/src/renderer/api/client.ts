@@ -260,13 +260,24 @@ export interface RegionRoute {
   households: number;
   population: number;
   land: number;
-  hidden_land: number;
+  /** ⚠️ 2026-09-27 起：**未清丈不下发真值**，仅 `surveyed === true` 时出现 */
+  hidden_land?: number;
+  /** 隐田是否已清丈（隐匿率 < 0.2）；前端回落行可不填 */
+  surveyed?: boolean;
+  /** 未清丈时的隐田**约值**（粗化 50 万亩，不可反推真值） */
+  hidden_land_est?: number;
+  /** 未清丈时的隐田档位词 */
+  hidden_land_band?: string;
   mood: number;
   govern: number;
   public_support: number;
   gentry_resistance: number;
   city_defense: number;
   unrest: number;
+  /** **治安 = 100 − 动乱**（正极性：越高越好；后端单点派生） */
+  security?: number;
+  /** 治安档位词：太平 / 尚可 / 多事 / 不靖 */
+  security_label?: string;
   fiscal: number;
   /** 识字率（该路各地 POP 自有值按人口加权派生；未初始化时 null） */
   literacy: number | null;
@@ -287,8 +298,27 @@ export interface RegionRoute {
   risk_hints: string[];
 }
 
+/** 州府级底盘（对齐 core/region_brief.py::build_prefecture_brief；**Σ府 == 路级**） */
+export interface RegionPrefecture {
+  name: string;
+  /** 行政路（CIRCUIT_INFO 键） */
+  circuit: string;
+  /** 游戏单位路（state.prefectures 键） */
+  route: string;
+  population: number;
+  households: number;
+  land: number;
+  grain_year: number;
+  tax_month: number;
+  /** 占本路人口比 0~1 */
+  share: number;
+}
+
 export interface RegionBriefResult {
   routes: RegionRoute[];
+  /** 州府级底盘（P0，2026-09-27）；不可用时缺省 */
+  prefectures?: RegionPrefecture[];
+  prefecture_audit?: { routes: number; prefectures: number; violations: string[] };
   top_risk: RegionRoute[];
   nation: {
     routes: number;
