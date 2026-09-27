@@ -259,17 +259,25 @@ def test_reduce_office_returns_officials_to_gentry():
 
 
 # ---------------------------------------------------------------- C-4 免役税基
-def test_poll_tax_base_is_farm_pop_only():
-    """役钱税基 = `农` POP（乡村主户）；`士绅`/`官僚`/`兵` 免役，不在税基内。"""
+def test_poll_tax_base_is_service_ding_only():
+    """役钱税基 = **应役丁**（B1b 税负分层）= 农的丁 × (1 − 佃农占比)。
+
+    佃农（客户）**无国税、无摊派**（负担体现为地租）；`士绅`/`官僚`/`兵` 免役；
+    隐户不落籍（既不在 `size`、也不在 `ding`）→ 不进税基。
+    """
+    from core.pop_structure import service_ding_total
     s = GameState("史实")
     tb = s.tax_base_summary()
     farm = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
     exempt = sum(p["pops"][k]["size"] for p in s.prefectures.values()
                  for k in ("士绅", "官僚", "兵"))
-    assert tb["taxable_pop"] == farm
-    assert tb["exempt_pop"] == exempt
     total = sum(pop["size"] for p in s.prefectures.values() for pop in p["pops"].values())
-    assert abs(tb["taxable_share"] + tb["exempt_share"] - (farm + exempt) / total) < 1e-6
+    assert tb["taxable_pop"] == service_ding_total(s), "税基必须是应役丁，不是农 POP 全额"
+    assert tb["taxable_pop"] < farm, "佃农免役 ⇒ 税基小于农全额"
+    assert tb["farm_pop"] == farm and tb["tenant_pop"] > 0, "应同时暴露农总口与佃农口（对照读数）"
+    assert tb["exempt_pop"] == exempt
+    assert abs(tb["taxable_share"] - tb["taxable_pop"] / total) < 1e-6
+    assert abs(tb["exempt_share"] - exempt / total) < 1e-6
 
 
 def test_exempt_share_grows_poll_base_shrinks_over_time():

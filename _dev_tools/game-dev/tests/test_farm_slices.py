@@ -22,11 +22,14 @@ _GAME_ROOT = os.path.normpath(os.path.join(
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
-from content.data_constants import DING_RATIO  # noqa: E402
+from content.data_constants import (  # noqa: E402
+    DING_RATIO, POLL_TAX_NOMINAL_SHARE, TAX_POLL_RATIO,
+)
 from core.game_state import GameState  # noqa: E402
 from core.pop_structure import (  # noqa: E402
     FARM_POSITIONS, adjust_farm_slices, check_farm_invariants, ding_of,
-    ensure_farm_slices, kou_of, seed_farm_slices,
+    ensure_farm_slices, kou_of, seed_farm_slices, service_ding_of,
+    service_ding_total,
 )
 
 
@@ -109,3 +112,39 @@ def test_checker_catches_broken_invariants():
     _nong(s.prefectures[name])["ding"] = int(_nong(s.prefectures[name])["ding"]) + 1
     bad2 = check_farm_invariants(s)
     assert any("丁+口" in b for b in bad2), bad2
+
+
+# ---------------------------------------------------------------
+# B1b 税负分层：役钱税基 = 应役丁（佃农免役）
+# ---------------------------------------------------------------
+def test_service_ding_excludes_tenants():
+    """应役丁 = `ding × (1 − 佃农占比)`；佃农占比↑ → 税基↓（土地兼并的财政后果）。"""
+    s = GameState("史实")
+    p = s.prefectures[next(iter(s.prefectures))]
+    nong = _nong(p)
+    size, ding, tenant = int(nong["size"]), int(nong["ding"]), int(nong["佃农"])
+    assert service_ding_of(p) == int(ding * (1.0 - tenant / size))
+    nong["佃农"] = min(size, tenant + max(1, int(size * 0.1)))
+    assert service_ding_of(p) < int(ding * (1.0 - tenant / size)), "佃农变多 ⇒ 应役丁变少"
+
+
+def test_hidden_is_not_in_tax_base():
+    """隐户不落籍：既不在 `size`、也不在 `ding` → 增减隐户**不影响**税基。"""
+    s = GameState("史实")
+    p = s.prefectures[next(iter(s.prefectures))]
+    before = service_ding_total(s)
+    _nong(p)["hidden"] = int(_nong(p).get("hidden", 0) or 0) + 500_000
+    assert service_ding_total(s) == before
+
+
+def test_poll_tax_amount_equal_to_b05_baseline():
+    """**保绝对量**：B1b（税基=应役丁、税率 `TAX_POLL_RATIO`）与 B0.5（税基=农全额、税率 0.08）等额。
+
+    这条锁定"(ii) 保财政绝对量"，防止后续调参把它悄悄改坏。
+    """
+    s = GameState("史实")
+    farm = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
+    new_amt = service_ding_total(s) * TAX_POLL_RATIO
+    old_amt = farm * POLL_TAX_NOMINAL_SHARE
+    assert abs(new_amt - old_amt) / old_amt < 0.01, \
+        f"役钱绝对量漂移：新={new_amt:,.0f} 旧={old_amt:,.0f}"

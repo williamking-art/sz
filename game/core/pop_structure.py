@@ -134,3 +134,28 @@ def ding_of(p: dict) -> int:
 def kou_of(p: dict) -> int:
     nong = _nong_of(p)
     return max(0, int((nong or {}).get(_KOU_KEY, 0) or 0))
+
+
+def service_ding_of(p: dict) -> int:
+    """**应役丁**（役钱税基）：农的丁 × (1 − 佃农占农比例)。
+
+    依据（文档 §3.7 用户修正）：佃农（客户）**无国税、无摊派**（负担体现为地租）；
+    自耕农/富农/贫农（主户）**有国税＋摊派**（田赋正税＋徭役/科配）。
+    ⚠️ 因职位与丁口是**正交**划分（刻意不做交叉表），此处按"佃农占农比例"折算——
+    这是正交结构的必然近似（佃农比例变化缓慢、误差有界）；若要精确需引入交叉表（明确不做）。
+    """
+    nong = _nong_of(p)
+    if not isinstance(nong, dict):
+        return 0
+    size = max(0, int(nong.get("size", 0) or 0))
+    ding = max(0, int(nong.get(_DING_KEY, 0) or 0))
+    if size <= 0 or ding <= 0:
+        return 0
+    tenant = max(0, int(nong.get("佃农", 0) or 0))
+    return int(ding * (1.0 - min(1.0, tenant / float(size))))
+
+
+def service_ding_total(state) -> int:
+    """全国**应役丁**（= 役钱税基）；`士绅/官僚/兵` 免役，隐户不在籍。"""
+    return sum(service_ding_of(p)
+               for p in (getattr(state, "prefectures", None) or {}).values())

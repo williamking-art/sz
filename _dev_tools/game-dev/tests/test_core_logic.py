@@ -214,13 +214,14 @@ def test_finance_readout_poll_tax_matches_settlement():
     readout = s.finance_readout()
     poll_readout = readout["poll"]
 
-    # 结算层（_settle_finance 同口径）役钱
-    farm_pop = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
+    # 结算层（_settle_finance 同口径）役钱：B1b 起税基＝**应役丁**（农的丁 × (1 − 佃农占比)）
+    from core.pop_structure import service_ding_total
+    service_ding = service_ding_total(s)
     arrival = s.calc_arrival_rate()
     shortage = s.coin.get("shortage", 0.3)
     from content.data import TAX_COEFF_MIN, TAX_COEFF_MAX
     tax_coeff = TAX_COEFF_MIN + (TAX_COEFF_MAX - TAX_COEFF_MIN) * (1 - shortage)
-    expected = int((farm_pop * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
+    expected = int((service_ding * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
 
     assert poll_readout == expected
 

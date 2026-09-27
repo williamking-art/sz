@@ -516,10 +516,12 @@ def _settle_finance(state, log):
     rate = max(COMMERCE_TAX_RATE_MIN, min(COMMERCE_TAX_RATE_MAX,
                                           getattr(state, "commerce_tax_rate", COMMERCE_TAX_RATE_DEFAULT)))
     commerce_tax = int(_commerce_monthly * rate * arrival * tax_coeff)
-    # 役钱（徭役代役钱）：只从农 POP 征（乡村民户负担徭役）；坊郭户（工匠/商人）不服乡村差役、
-    # 官户（士绅/官僚）免役、兵免。坊郭户的科配负担并入工商税（commerce_tax）。
-    _farm_pop = sum(p["pops"]["农"]["size"] for p in state.prefectures.values())
-    poll_tax = int((_farm_pop * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
+    # 役钱（徭役代役钱）：税基＝**应役丁**（B1b）——农的丁 × (1 − 佃农占比)；
+    # 佃农（客户）无国税/摊派、坊郭户（工匠/商人）不服乡村差役、官户（士绅/官僚）免役、兵免；
+    # 坊郭户的科配负担并入工商税（commerce_tax）；隐户不落籍（既不在 size、也不在 ding）。
+    from core.pop_structure import service_ding_total
+    _service_ding = service_ding_total(state)
+    poll_tax = int((_service_ding * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
     maritime_tax = int((state.calc_maritime_trade() / 12.0) *
                        (state.maritime.get("tariff", 0.10) if state.maritime.get("open") else 0.0) *
                        arrival * tax_coeff)

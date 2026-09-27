@@ -6,7 +6,7 @@
 """
 
 from content.data import (
-    ANNUAL_TAX_BASE, TAX_POLL_RATIO, MONTHLY_EXP_CIVIL_BASE,
+    ANNUAL_TAX_BASE, TAX_POLL_RATIO, POLL_TAX_NOMINAL_SHARE, MONTHLY_EXP_CIVIL_BASE,
     # 到账率公式常量（2026-09-19 质量全检回收：此前 `calc_arrival_rate` 内硬编码同值）
     ARRIVAL_AUDIT_WEIGHT, ARRIVAL_AUTHORITY_WEIGHT, ARRIVAL_DIVERSION_WEIGHT,
     ARRIVAL_MIN, ARRIVAL_MAX,
@@ -321,7 +321,7 @@ class GameStateEconMixin:
         差额即"隐漏与拖欠"——把漏出做成可见读数，呼应田赋隐漏。
         """
         from content.data import (
-            ANNUAL_TAX_BASE, TAX_POLL_RATIO, MONTHLY_EXP_CIVIL_BASE,
+            ANNUAL_TAX_BASE, TAX_POLL_RATIO, POLL_TAX_NOMINAL_SHARE, MONTHLY_EXP_CIVIL_BASE,
             PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
             COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
             SOLDIER_PAY_PER_MONTH, OFFICIAL_PAY_PER_MONTH, CLERK_PAY_PER_MONTH,
@@ -338,16 +338,18 @@ class GameStateEconMixin:
         rate = max(COMMERCE_TAX_RATE_MIN, min(COMMERCE_TAX_RATE_MAX,
                     getattr(self, "commerce_tax_rate", COMMERCE_TAX_RATE_DEFAULT)))
         commerce_tax = int((commerce / 12.0) * rate * arrival * tax_coeff)
-        # 役钱（徭役代役钱）：与 _settle_finance 同源——只从农 POP 征（坊郭户/官户/兵免役）
-        _farm_pop = sum(p["pops"]["农"]["size"] for p in self.prefectures.values())
-        poll_tax = int((_farm_pop * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
+        # 役钱（徭役代役钱）：与 `_settle_finance` 同源——税基＝**应役丁**（B1b，
+        # 佃农（客户）无国税/摊派、坊郭户（工匠/商人）不服乡村差役、官户（士绅/官僚）免役、兵免；
+        # 隐户不落籍，既不在 `size` 也不在 `ding`）。
+        from core.pop_structure import service_ding_total
+        poll_tax = int((service_ding_total(self) * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
         maritime_trade = self.calc_maritime_trade()
         maritime_tax = int((maritime_trade / 12.0) *
                            (self.maritime.get("tariff", 0.10) if self.maritime.get("open") else 0.0) *
                            arrival * tax_coeff)
 
         # 名义岁入（账面，贴史实） = 年应征工商税 + 年役钱 + 年市舶抽解
-        nominal_annual = int(commerce * rate) + int(ANNUAL_TAX_BASE * TAX_POLL_RATIO) \
+        nominal_annual = int(commerce * rate) + int(ANNUAL_TAX_BASE * POLL_TAX_NOMINAL_SHARE) \
             + int(maritime_trade * (self.maritime.get("tariff", 0.10) if self.maritime.get("open") else 0.0))
 
         # 支出侧：常支 + 折色俸禄 + 岁币
@@ -538,25 +540,33 @@ class GameStateEconMixin:
         """税基与免役派生视图（**只读**，口径唯一权威源）。
 
         「冗官 → 财政恶化」最史实的一条链是 **免役 → 税基萎缩**：
-        役钱只从 `农` POP 征；`士绅`（形势户）、`官僚`（官户）、`兵` 免役。
-        冗官膨胀（科举/恩荫/宗室入官）把人口从 `农` 抽走 → 纳税人口下降；
+        役钱税基＝**应役丁**（B1b）= 农的**丁** × (1 − 佃农占比)；
+        `士绅`（形势户）、`官僚`（官户）、`兵` 免役；佃农（客户）**无国税、无摊派**（负担在地租里）。
+        冗官膨胀（科举/恩荫/宗室入官）把人口从 `农` 抽走 → 应役丁下降；
         官户另行纳**助役钱**（俸禄总额 5%），但远不足以抵消其俸禄本身。
 
-        返回：纳税人口、免役人口与占比、役钱与助役钱实收、冗官数。
+        返回：纳税人口（**应役丁**）、免役人口与占比、农总口/佃农口（对照读数）、
+        役钱与助役钱实收、冗官数。
         """
         from core import officialdom as _od
+        from core.pop_structure import service_ding_total
 
         pops = {}
         for p in self.prefectures.values():
             for k, v in (p.get("pops") or {}).items():
                 pops[k] = pops.get(k, 0) + int(v.get("size", 0) or 0)
-        taxable = pops.get("农", 0)
+        taxable = service_ding_total(self)          # 应役丁（B1b；原为农 POP 全额）
+        farm_pop = pops.get("农", 0)
+        tenant_pop = sum(int((p["pops"]["农"].get("佃农", 0) or 0))
+                         for p in self.prefectures.values())
         exempt = pops.get("士绅", 0) + pops.get("官僚", 0) + pops.get("兵", 0)
         total = sum(pops.values()) or 1
         _od.ensure_quota(self)      # 定员是惰性初始化的**岗位**存量（幂等），其余全为派生
         t = _od.totals(self)
         return {
             "taxable_pop": taxable,
+            "farm_pop": farm_pop,          # 农总口（对照；含佃农）
+            "tenant_pop": tenant_pop,      # 佃农口（免役；B1b 新增）
             "exempt_pop": exempt,
             "exempt_share": round(exempt / total, 6),
             "poll_tax": int((self.tax_breakdown or {}).get("poll", 0)),
