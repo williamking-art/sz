@@ -88,6 +88,12 @@ export default function MapView() {
   async function loadGeoData() {
     const controller = controllerRef.current;
     if (!controller) return;
+    // 地基（2026-09-27）：**把首帧成本变成产品自己报的数**。
+    // 实测（Node/V8，scripts/shot/bench-map.mjs）：regions.topojson 13.0 MB，
+    // JSON.parse 130.7 ms + 4 次 feature() 11.5 ms ≈ **142 ms 主线程阻塞/每次挂载**。
+    // 该量级不做侵入式改造（迁 Worker / 降几何精度会推翻 :121 的"全精度注入"设计），
+    // 但必须**可观测**：留 performance mark，并把耗时挂到 window 供基准/诊断读取。
+    try { performance.mark("songzuo:geo:start"); } catch { /* 非浏览器环境 */ }
     try {
       const loadGeo = async (name: string) => {
         const res = await fetch(`${MAP_BASE_URL}/${name}.geojson`);
@@ -117,6 +123,15 @@ export default function MapView() {
         fc.features.forEach((f, j) => { f.id = j; });
       }
       dataRef.current = data;
+      try {
+        performance.mark("songzuo:geo:end");
+        const m = performance.measure("songzuo:geo", "songzuo:geo:start", "songzuo:geo:end");
+        (window as unknown as { __songzuoGeoMs?: number }).__songzuoGeoMs = m.duration;
+        if (import.meta.env.DEV) {
+          console.info(`[map] 舆图数据就绪：fetch+parse+解码 ${m.duration.toFixed(1)} ms` +
+            `（基准参考 142 ms @13.0MB）`);
+        }
+      } catch { /* performance 不可用则忽略 */ }
       if (cancelledRef.current) return; // 卸载后不再 setData/挂监听
       // 政权几何全精度注入(不再按 zoom 分档简化):精确国界/省界被简化
       // 会在中低缩放退化为直线多边形
