@@ -371,8 +371,8 @@ def _settle_hidden(state, log):
     # 隐户动态（用户指示：隐户是动态人口池，与六类 POP 转换，非静态）——月度逃户/归籍
     try:
         _settle_hidden_pop(state, log)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
+        log.append("[归籍] 隐户归籍结算失败，本月未归籍（POP 未变）")
     if state.population_satisfaction < 30:
         if random.random() < 0.15:
             # 审查 P2-21：补下限钳制（其余结算处均已 max(0,…)，此处漏）

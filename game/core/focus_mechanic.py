@@ -504,8 +504,8 @@ def _apply_branch_effect(state, log, branch, eff, node) -> None:
         elif branch == "tax":
             # 税务：清隐田，隐漏率下降
             state.land["hidden_rate"] = max(0.05, state.land.get("hidden_rate", 0.35) - 0.01)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
+        log.append(f"[国策] 分支效果【{branch}】施加失败，本月该效果未落地")
 
 
 def focus_summary(state) -> dict:

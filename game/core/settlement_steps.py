@@ -240,8 +240,8 @@ def _simulate_external(state, log):
                         _nb = {(_a.get("tier") or "轻步兵"): _target}
                     _a["branches"] = _nb
                     _a["troops"] = sum(_nb.values())
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
+            log.append("[外邦] 省域 POP/兵额三元对齐失败，本月该政权未对齐")
 
 
 # ------------------------------------------------------------

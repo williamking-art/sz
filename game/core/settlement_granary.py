@@ -315,8 +315,8 @@ def _settle_granary(state, log):
                             _reg_flow(state, "external", _income, f"外销变现·{_gdim}")
                         except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
                             pass
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
+            log.append("[外销] 外销变现失败，本月未变现（goods/wealth 未变）")
         # 4) 士绅奢侈消费（蓄养奴婢/园林/宴饮/香火/收藏），消耗财富、钱流向工匠商人（服务），体现"富而奢"
         # Phase B 定稿：奢侈品 = 士绅wealth × 0.01 × 景气倍率（景气驱动，繁荣挥霍、萧条收缩）
         _genty = p["pops"]["士绅"]
