@@ -2,7 +2,7 @@
 """宋祚 · 州路简报（core/region_brief.py）—— **只读派生视图**
 
 依据：`_dev_tools/game-docs/docs/游戏机制说明.md`（州县/民生/粮储口径）与
-《明末力挽狂澜》可解释面板经验（`D:\\codebuddy\\MingSalvageSim_经验与宋祚改善建议.md` §4）。
+《明末力挽狂澜》可解释面板经验（`_dev_tools/game-docs/reviews/MingSalvageSim_经验与宋祚改善建议.md` §4）。
 
 ## 纪律（POP 挂载律，见《游戏机制说明》§五）
 1. 本模块**只读**：不写任何 POP `size/wealth/grain`、不写国库/内帑/州县字段；
