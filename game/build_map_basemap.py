@@ -73,7 +73,8 @@ FORCE_CIRCUIT: dict = {
 }
 
 # 路-省白名单：受限路只收本省地级（省级 adcode 前两位）。黔中路的种子位于贵州，
-# 若无限制会吸走邻省地级（泸州→应属成都府路、昭通/曲靖→应属大理）。
+# 若无限制会吸走邻省地级（泸州→应属成都府路、昭通/曲靖→应属大理）。最近邻搜索前
+# 先应用白名单，避免最近者被拒后不再尝试次近合法路，造成地图空洞。
 CIRCUIT_PROV_LIMIT: dict[str, set] = {"黔中路": {"52"}}
 
 # 省级整体直挂：无 DataV 地级数据、或按用户指示不再细切州府的省级整体
@@ -191,6 +192,12 @@ def build_circuits() -> None:
     seeds = _seat_index()
     feats = []
     for ad in PROVINCES:
+        province_code = ad[:2]
+        eligible_seeds = [
+            seed for seed in seeds
+            if seed[2] not in CIRCUIT_PROV_LIMIT
+            or province_code in CIRCUIT_PROV_LIMIT[seed[2]]
+        ]
         data = _load_raw(f"datav_{ad}_full.json")
         for f in data["features"]:
             if str(f["properties"].get("adcode", "")).startswith(EXCLUDE_ADCODES):
@@ -205,13 +212,9 @@ def build_circuits() -> None:
                 south_parts = [poly for poly in g.geoms if poly.centroid.y <= 39.62]
                 if south_parts:
                     g = south_parts[0] if len(south_parts) == 1 else MultiPolygon(south_parts)
-            hit = _nearest_seat(g.centroid, seeds, SEED_CAP)
-            # 路-省白名单：受限路只收本省地级（如黔中路仅贵州 52），避免新设路的
-            # 种子把邻省地级吸走（泸州→成都府路、昭通/曲靖→大理），越界即视为未命中。
-            if hit is not None:
-                lim = CIRCUIT_PROV_LIMIT.get(hit[0])
-                if lim and str(f["properties"].get("adcode", ""))[:2] not in lim:
-                    hit = None
+            # 省份限制在最近邻搜索前应用，避免先命中受限路（如黔中路）再拒绝，
+            # 却不尝试次近合法路（怀化→荆湖北路、秀山→夔州路）。
+            hit = _nearest_seat(g.centroid, eligible_seeds, SEED_CAP)
             if hit is None:   # 超种子半径：FORCE_CIRCUIT 兜底，再取该路内最近治所
                 forced = FORCE_CIRCUIT.get(f["properties"].get("name", ""))
                 if forced is None:

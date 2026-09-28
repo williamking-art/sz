@@ -83,6 +83,7 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "shortcutName": "宋祚"
-    }
+    },
+    "afterPack": "scripts/afterPack.js"
   }
 }

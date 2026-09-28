@@ -486,3 +486,17 @@ $rcedit = (Get-ChildItem "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign" 
 
 > 若在**管理员权限或 Windows 开发者模式**下打包，可把 `build.win.signAndEditExecutable` 设回 `true`，
 > electron-builder 会一步写完图标与版本（`build.win.icon` 已指向 `../assets/icon.ico`）。
+
+### 打安装包（NSIS）
+
+```powershell
+cd game\frontend
+npm run build
+node node_modules\electron-builder\cli.js --win nsis
+# 产物：songzuo\SongZuo Setup <版本>.exe（含 resources/backend 冻结后端）
+```
+
+**图标/版本自动化（`scripts/afterPack.js`）**：本机无管理员权限，electron-builder 解压 winCodeSign
+（内含 macOS 符号链接）会失败 → 只能 `win.signAndEditExecutable=false`，即 electron-builder **不写**图标。
+故用 `afterPack` 钩子在"打包完成、安装包压缩之前"调用缓存里的 `rcedit-x64.exe` 写入图标与版本
+——**目录版与安装包版同时正确**（此前手工 rcedit 只能修目录版，安装出来的 exe 仍是 Electron 默认图标）。
