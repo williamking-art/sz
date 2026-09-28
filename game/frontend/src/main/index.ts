@@ -383,11 +383,16 @@ function installCspForBackend() {
     const connect = ["'self'", "http://127.0.0.1:*", "http://localhost:*",
                      "ws://127.0.0.1:*", "ws://localhost:*"];
     if (origin) connect.push(origin);
+    // 2026-09-27：立绘等**媒体来自后端受控路由**（`/api/portrait/...`），故 img/media
+    // 必须放行后端 origin —— 否则与 meta CSP 叠加后图片被拦（实测：URL 已绝对化仍 naturalWidth=0）。
+    const media = ["'self'", "data:", "blob:"];
+    if (origin) media.push(origin);
     const csp = [
       "default-src 'self'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      `img-src ${media.join(" ")} http://127.0.0.1:* http://localhost:* https:`,
+      `media-src ${media.join(" ")}`,
       "font-src 'self' data:",
       `connect-src ${connect.join(" ")}`,
       "worker-src 'self' blob:",

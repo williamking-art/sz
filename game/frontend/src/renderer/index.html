@@ -13,7 +13,7 @@
        打包版只剩这条 meta → 无 connect-src 时退回 default-src 'self' → 连不上本机后端，
        界面永远停在「后端连接中…」（实测日志：Refused to connect ... 127.0.0.1:8080/health）。
        取值=回环（本机后端）+ https/wss（⑦ 远端云后端）；开发态仍由主进程注入更紧的 CSP。 -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https: wss:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https: wss:" />
   <title>宋祚</title>
 </head>
 <body>

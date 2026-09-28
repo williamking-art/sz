@@ -9,6 +9,7 @@ import MainMenu from "./main-menu/MainMenu";
 import { ApiClient, setApiClient, COLD_START_WAIT_MS } from "./api/client";
 import { useGameStore, pick } from "./store/gameStore";
 import { useGameBgm } from "./audio/useGameBgm";
+import { setPortraitBase } from "./utils/portrait";
 
 // 单页面三层布局：L0 舆图铺底 / L1 常驻 HUD 悬浮 / L2 面板浮层栈
 export default function App() {
@@ -52,6 +53,7 @@ export default function App() {
           }
         }
         if (cancelled) return;
+        setPortraitBase(url);   // 立绘等媒体走**后端绝对 URL**（app:// 下相对路径会 404）
         if (!health) {
           setBackend(
             url,
@@ -65,7 +67,10 @@ export default function App() {
         // 默认进入 MainMenu 全屏开屏大作主菜单
       } catch (e) {
         console.error("[init] 后端连接失败", e);
-        if (!cancelled) setBackend("", false, String(e));
+        if (!cancelled) {
+          setPortraitBase("");
+          setBackend("", false, String(e));
+        }
       }
     }
     init();
