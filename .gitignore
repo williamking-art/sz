@@ -316,3 +316,11 @@ game/ai_config.json
 # 发行物 = 生成物（exe + Chromium 运行时 + resources/ + locales/ + saves/）。
 # 目录级忽略，防止「新增文件未被既有规则覆盖」而变成未跟踪。
 songzuo/
+
+# --- 2026-09-27 补目录文档：game-dev 下的导航 README 放行 ---
+# 原 `_dev_tools/game-dev/*` 忽略是为了挡住同目录的 `skill/`（≈1.7 GB）与过时脚本；
+# 导航类 README 属**文档**，应当入库（否则新克隆者看不到目录职责，且易在清理中永久丢失）。
+!_dev_tools/game-dev/README.md
+!_dev_tools/game-dev/analytics/README.md
+!_dev_tools/game-dev/replay/README.md
+!_dev_tools/game-dev/scripts/README.md
