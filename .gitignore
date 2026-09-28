@@ -324,3 +324,13 @@ songzuo/
 !_dev_tools/game-dev/analytics/README.md
 !_dev_tools/game-dev/replay/README.md
 !_dev_tools/game-dev/scripts/README.md
+# 精确放行（按整行判断，2026-09-27）：先放行目录 → 排除目录内其它 → 放行 README
+!_dev_tools/game-dev/analytics/
+_dev_tools/game-dev/analytics/*
+!_dev_tools/game-dev/analytics/README.md
+!_dev_tools/game-dev/replay/
+_dev_tools/game-dev/replay/*
+!_dev_tools/game-dev/replay/README.md
+!_dev_tools/game-dev/scripts/
+_dev_tools/game-dev/scripts/*
+!_dev_tools/game-dev/scripts/README.md
