@@ -51,6 +51,10 @@ log = logging.getLogger("backend.server")
 _DEFAULT_ORIGINS = [
     "http://127.0.0.1:8080", "http://localhost:8080",
     "http://127.0.0.1:5173", "http://localhost:5173",
+    # 2026-09-27：打包态渲染层改由自定义协议提供（`file://` 下 fetch 本地文件被 Chromium 禁止，
+    # 故改用 app://songzuo，见 frontend/src/main/index.ts::installAppProtocol）。其来源变成
+    # **跨源** `app://songzuo`，必须显式放行，否则 fetch 被 CORS 拦 → 界面永远"后端连接中"。
+    "app://songzuo",
 ]
 _allowed = os.environ.get("SONGZUO_CORS_ORIGINS", "")
 _origins = [o.strip() for o in _allowed.split(",") if o.strip()] or _DEFAULT_ORIGINS

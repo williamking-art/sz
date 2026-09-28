@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Menu, net, shell, session } from "electron";
-import { join } from "path";
+import { app, BrowserWindow, ipcMain, Menu, net, protocol, shell, session } from "electron";
+import { extname, join, sep } from "path";
 import { pathToFileURL } from "url";
 import { spawn, ChildProcess } from "child_process";
 import { existsSync, readFileSync } from "fs";
+import { readFile } from "fs/promises";
 
 // ---------------- 后端配置解析 ----------------
 // 优先级：环境变量 SONGZUO_BACKEND > backend_config.json > 本地默认
@@ -16,6 +17,68 @@ interface BackendConfig {
 }
 
 const DEFAULT_BACKEND = "http://127.0.0.1:8080";
+
+/**
+ * 2026-09-27 修复（打包版舆图空白）：渲染层改用自定义协议 `app://` 提供。
+ *
+ * 背景：打包态原来用 `loadFile()` 走 `file://`，而 **Chromium 禁止 `file://` 页面 `fetch()` 本地文件**
+ * （CDP 实测：`fetch('./map/view.json')` → `ERR Failed to fetch`）→ MapView 取不到
+ * `regions.topojson`/`geojson` → 舆图空白。开发态走 http 所以看不出问题。
+ *
+ * 注册为 standard+secure+supportFetchAPI，使 `app://` 成为**正常同源站点**（fetch/worker/CSP 'self' 均可用）。
+ * 必须在 app ready 之前调用。
+ */
+const APP_SCHEME = "app";
+const APP_ORIGIN = `${APP_SCHEME}://songzuo/`;
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
+
+/** 把 `app://songzuo/<path>` 映射到 `out/renderer/<path>`（含路径穿越防护）。 */
+function installAppProtocol(): void {
+  const root = join(__dirname, "../renderer");
+  // ⚠️ 必须用 fs 读文件，**不能用 net.fetch(file://)**：Chromium 网络栈不认识 asar，
+  //    对 app.asar 内的路径一律 404（实测：页面 URL 已是 app://… 但 JS/地图全 404 → 空白页）。
+  //    fs 有 asar 补丁，可直接读包内文件。
+  const MIME: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".geojson": "application/json; charset=utf-8",
+    ".topojson": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".ttf": "font/ttf",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".wasm": "application/wasm",
+  };
+  protocol.handle(APP_SCHEME, async (req) => {
+    try {
+      const rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\/+/, "");
+      const target = join(root, rel || "index.html");
+      // 路径穿越防护：解析后必须仍在 root 之内
+      if (target !== root && !target.startsWith(root + sep) && !target.startsWith(root + "/")) {
+        return new Response("forbidden", { status: 403 });
+      }
+      const buf = await readFile(target);
+      return new Response(buf, {
+        headers: { "Content-Type": MIME[extname(target).toLowerCase()] ?? "application/octet-stream" },
+      });
+    } catch {
+      return new Response("not found", { status: 404 });
+    }
+  });
+}
 
 /** 规范化 token：去首尾空白，空串视为未配置（与 backend/client.py 的 strip 语义一致）。 */
 function normalizeToken(raw: unknown): string | undefined {
@@ -261,6 +324,7 @@ function createWindow() {
   mainWindow.webContents.on("will-navigate", (event, url) => {
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     if (devUrl && url.startsWith(devUrl)) return;      // 开发模式热更新
+    if (url.startsWith(APP_ORIGIN)) return;            // 打包态：自定义协议站内
     const rendererFile = pathToFileURL(join(__dirname, "../renderer/index.html")).href;
     if (url === rendererFile || url.startsWith(rendererFile + "?") || url.startsWith(rendererFile + "#")) {
       return;                                          // 仅本应用打包页面
@@ -272,7 +336,8 @@ function createWindow() {
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
-    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+    // 2026-09-27：改走自定义协议（file:// 下 fetch 本地文件被 Chromium 禁止 → 舆图空白）
+    mainWindow.loadURL(`${APP_ORIGIN}index.html`);
   }
 }
 
@@ -371,6 +436,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   installAuthHeaderInjection();
   installCspForBackend();
+  installAppProtocol();   // 2026-09-27：注册 app:// 静态资源处理器（须在 createWindow 前）
   createWindow();
   bootMark("window:created");
   app.on("activate", () => {
