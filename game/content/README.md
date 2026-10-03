@@ -1,0 +1,31 @@
+# `game/content/` · 游戏静态数据
+
+本目录提供游戏数据、常量、地理行政基础、文案和大臣资料。复杂派生、结算规则与状态变更放在 `game/core/`，不要在数据表中复制运行逻辑。
+
+## 模块索引
+
+| 文件/目录 | 内容 |
+|---|---|
+| `data.py` | 向其他模块提供的兼容总入口；新增导出时同步维护显式导出表。 |
+| `data_constants.py` | 规则常量、公式参数、档位和脱敏映射。`MATERIAL_PRICE_BASE` 是静态基准价；运行期价格发现由 `core/market_price.py` 负责。 |
+| `data_tech.py` | 科技、建筑蓝图与研发相关静态数据。动态蓝图的校验/注册逻辑位于 `core/blueprint_dynamic.py`。 |
+| `data_imperial.py`、`data_decree.py` | 年号、帝行与诏令内容/参数。 |
+| `data_military.py`、`data_external.py` | 军制、兵种、军械及外部势力/省域静态数据。 |
+| `data_geo_tables.py`、`geo_admin.py` | 路级地理经济数据与路/府等行政归属。地图几何资源另见 `game/assets/map/`。<br>⚠️ `geo_admin.CIRCUIT_INFO.members` 是**州府实体清单的权威来源**（136 席，主键 `路\|治所`）；`REGIME_DEMOG` 的道/区域总量为**游戏设定值**（辽已于 2026-10-02 按《辽史》对齐为 55 万户）。 |
+| `demography.py` | 地区人口/经济派生读数；按实际调用方确认用途，不作为独立人口账本。<br>⚠️ 外邦州府级 `regime_prefecture_demog()` **强制带口径标注**：`historical_ub`（辽，史料上限+分摊）／`setting`（西夏·吐蕃·大理，**玩法设定/未有可靠总量**），并附 `source`／`is_historical` 回答"谁报告、依据是什么"；**禁止**标成 `historical`。宋侧崇宁户口见 `data_households_hist.py`。 |
+| `data_households_hist.py` | **宋州府级史料户口**（《宋史·地理志》崇宁户），已录 96 席、13/21 路成路。<br>纪律：**只收「崇宁户」**——「元丰户」（万州/施州）与**无年号**者（汉州/兴化军）**一律不入表**；同名不同府须查原文「本X州」映射（常德府本鼎州、宝庆府本邵州、赣州本虔州、瑞州本筠州…）。 |
+| `data_prefecture_demog.py` | **生成物，勿手改**。由 `build_prefecture_demog.py` 生成，把路级总量拆到 136 州府，`basis` 四态（`historical`/`area_x_anchor`/`area_only`/`merged`）**写在表内作单一来源**。 |
+| `build_prefecture_demog.py` | 州府人口经济表生成器。**含恒等式自检，`Σ子+residual==父级` 不成立即拒写**；已录史料且该路席位齐全者按**崇宁户比例**分配，否则回退"面积×锚点"（部分覆盖不启用，避免同路掺两种口径）。 |
+| `build_map_geo.py` | 舆图数据构建工具；资源生成和前端消费路径见 `game/assets/map/README.md`。 |
+| `codex_data.py`、`codex_text.py`、`legacy_gazette.py`、`situation_seeds.py` | 图鉴、开局邸报与局势种子内容。 |
+| `ministers/` | 大臣基础资料、人格和相关立绘资源，见 [`ministers/README.md`](ministers/README.md)。 |
+
+## 修改约定
+
+1. 同一规则数值只保留一个权威来源；兼容导出集中在 `data.py`，不在调用方复制常量。
+2. 改人口、税负、产量或商品基准数据时，核对对应机制文档、结算消费方和存档迁移；历史报告中的基线不自动代表当前参数。
+3. 动态价格、交易、需求与市场读数在 `core/` 有不同职责；不要因为本目录含静态价表，就认为动态交易机制不存在或已自动接入。
+4. 大体积资源的入库规则以仓库忽略配置与 `game/assets/README.md` 为准；修改资源前确认它属于源料、运行资源还是可重建产物。
+5. 新增/调整货币账户、库存或 POP 子池，须同步核心账本口径和回归覆盖，确保来源与去向可追踪。
+
+相关专题：[`游戏机制说明.md`](../../_dev_tools/game-docs/docs/游戏机制说明.md)、[`POP改良_合并版_2026-09-27.md`](../../_dev_tools/game-docs/analysis/POP改良_合并版_2026-09-27.md)。

@@ -2,11 +2,15 @@
 """宋祚 · AI 客户端工具函数（拆分自 ai/client.py）"""
 import os, sys, json, re
 import ipaddress
+import logging
+import math
 import socket
 import urllib.request
 import urllib.error
 import urllib.parse
 from difflib import SequenceMatcher
+
+log = logging.getLogger("client_utils")
 
 # ============================================================
 # 出站 URL 安全（SSRF，审查 P1-2）
@@ -168,10 +172,61 @@ def _sanitize_history(history, limit: int = 8) -> list:
 
 
 def _app_root() -> str:
-    """可写资源根（配置/存档）：frozen 时用 exe 同级目录。"""
+    """可写资源根：frozen 时用 exe 同级目录（**安装目录，通常只读**）。
+
+    2026-10-03：**配置文件不再落这里** —— 见 `_ai_config_path()`。装到
+    `C:\\Program Files` 一类只读位置时，`_app_root()` 写不进去。
+    本函数保留给确实需要「exe 同级」的只读/回退场景（如旧配置回退）。
+    """
     if getattr(sys, "frozen", False):
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _user_data_dir() -> str:
+    """用户数据根（**可写**，与存档同根）：`~/Documents/宋祚`。
+
+    与 `content/data.py::SAVE_DIR`（= 本目录 + `/saves`）**同根**，故配置与存档
+    都随用户走、与安装位置解耦。这里不直接引用 SAVE_DIR，是为了不让 `ai/` 依赖
+    `content.data` 的模块级常量（那会拖进整个数据表）。
+    """
+    return os.path.join(os.path.expanduser("~/Documents"), "宋祚")
+
+
+def _ai_config_path() -> str:
+    """`ai_config.json` 的**权威路径（写入口）**——全库唯一单点。
+
+    `ai/client.py::_config_path()` 与 `backend/server.py::_ai_config_path()`
+    都必须委托到这里，不得各自 `join(_app_root(), ...)`（2026-10-03 前是两份重复定义）。
+    """
+    return os.path.join(_user_data_dir(), "ai_config.json")
+
+
+def _legacy_ai_config_path() -> str:
+    """旧路径（exe 同级/安装目录）。**仅供读取回退**，不再写入。
+
+    2026-10-03 前写入此处；已装机的用户配置可能还在，故读时回退一次。
+    """
+    return os.path.join(_app_root(), "ai_config.json")
+
+
+def resolve_ai_config_path(new_path: str | None = None) -> str:
+    """**读取**用路径：新位置优先；新位置不存在而旧位置存在时回退到旧位置。
+
+    返回新位置（即使两个都不存在）—— 调用方可据此判「未配置」。
+
+    `new_path` 允许调用方传入**自己的**「新位置」解析结果。这样 `ai/client.py`
+    与 `backend/server.py` 既能共用这一份回退逻辑，又能保留各自可被 monkeypatch
+    打桩的接缝（`AIClient._config_path` / `server._ai_config_path`）——
+    绕过接缝会让既有测试全红（2026-10-03 第一版就踩了这个）。
+    """
+    new = new_path if new_path is not None else _ai_config_path()
+    if os.path.exists(new):
+        return new
+    legacy = _legacy_ai_config_path()
+    if os.path.exists(legacy):
+        return legacy
+    return new
 
 
 def _prompt_dir() -> str:
@@ -182,6 +237,12 @@ def _prompt_dir() -> str:
 
 _BASE = _app_root()
 _PROMPT_DIR = _prompt_dir()
+
+#: 提示词缺失哨兵前缀（M11）。`_load_prompt` 返回 `_PROMPT_MISSING_MARK + name + "]"`，
+#: 使"缺资源"在字符串层面可检出——`AIClient._call_impl` 据此**不发 HTTP**、拒绝式失败。
+#: 用中文长串而非单字符，避免与提示词正文/模型输出偶然撞车（撞车最坏结果也只是
+#: 本次调用被拒并发 ERROR 日志，不会伪造成功）。
+_PROMPT_MISSING_MARK = "[提示词资源不可用："
 
 
 def _build_urllib_opener():
@@ -246,19 +307,48 @@ def _http_get_json(url: str, headers: dict, timeout: int = 15):
 
 
 def _load_prompt(name: str, **kwargs) -> str:
-    """载入 ai/prompts/<name>.md 并把 {key} 替换为 kwargs 值。"""
+    """载入 ai/prompts/<name>.md 并把 {key} 替换为 kwargs 值。
+
+    **提示词缺失 ≠ 可静默继续**（审查 P2-3 / M11）：原先返回
+    `"[提示词文件缺失: name]"` 当 system prompt 继续请求，打包缺 prompts 时
+    全库 25 处契约一律以 AI_CONTRACT_FAILED 失败，玩家只看到"AI 推演未成"、
+    日志里找不到根因（占位文本被静默当规程发给了 provider）。
+    现改为：ERROR 记**完整路径** + 返回带 `_PROMPT_MISSING_MARK` 的哨兵串；
+    `AIClient._call_impl`（**全库唯一 API 调用漏斗**）识别该哨兵即
+    **不发 HTTP**、直接以错误码 `PROMPT_MISSING` 拒绝式失败，由各契约的
+    `_postprocess` 把该码下发（中文映射见 `content.data.AI_ERROR_CODES`）。
+    返回类型仍是 `str`，25 处调用点的拼接/传参写法**零改动**。
+    """
     # P2-38：拒绝路径穿越（name 现均为字面量，防御未来动态拼接）
     if not name or "/" in name or "\\" in name or ".." in name or "\x00" in name:
-        return f"[提示词名非法: {name!r}]"
+        log.error("提示词名非法（拒绝加载）：%r", name)
+        return f"{_PROMPT_MISSING_MARK}{name}"          # 非法名同属"资源不可用"，不得当规程发送
     path = os.path.join(_PROMPT_DIR, f"{name}.md")
     try:
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
-    except FileNotFoundError:
-        text = f"[提示词文件缺失: {name}]"
+    except OSError as e:
+        # FileNotFoundError / PermissionError / IsADirectoryError 同口径：
+        # 都属"资源不可用"，必须能从日志区分（含完整路径 + 异常类型）
+        log.error("提示词缺失：%s（%s）", path, type(e).__name__)
+        return f"{_PROMPT_MISSING_MARK}{name}"
     for k, v in kwargs.items():
         text = text.replace("{" + k + "}", str(v))
     return text
+
+
+def prompt_missing_name(*texts):
+    """从若干文本（system prompt / messages 片段）中检出提示词缺失哨兵。
+
+    命中的任一文本 → 返回缺失的提示词名（首个）；否则返回 `""`。
+    `AIClient._call_impl` 用它把"占位文本静默继续"变成"拒绝式失败"。
+    """
+    for t in texts:
+        s = str(t or "")
+        idx = s.find(_PROMPT_MISSING_MARK)
+        if idx >= 0:
+            return s[idx + len(_PROMPT_MISSING_MARK):].split("]", 1)[0].strip()
+    return ""
 
 
 # ============================================================
@@ -1163,7 +1253,10 @@ def _tool_dispatch(state, tool_calls: list, minister_name: str = "") -> list:
                 res = f"未知工具：{name}"
 
         except Exception as e:  # 单工具失败不影响其它
-            res = f"办差受阻：{name} 执行出错（{e}）"
+            # 审查 P2-3 / L3：原文 `f"...（{e}）"` 会把内部路径/键名/异常类名回给模型，
+            # 模型可能复述给玩家（且属技术细节外泄）。原文只入服务端日志，工具结果用中文通用语。
+            log.exception("大臣办差工具执行出错：%s（%s）", name, type(e).__name__)
+            res = "该差事办理受阻（内部错误已记录）"
         # 记忆知识库（Phase 3a）：召对工具调用结构化写入图谱（promise/stance，不从叙事挖）
         try:
             mg = getattr(state, "memory", None)
@@ -1475,17 +1568,29 @@ _EFFECT_WHITELIST = tuple(_TIER_BASE.keys())
 
 
 def _normalize_decree_effects(effects: dict):
-    """归一化拟旨的 effects：仅保留白名单键并强制数值类型，非法键丢弃。"""
+    """归一化拟旨的 effects：仅保留白名单键并强制数值类型，非法键丢弃。
+
+    审查 M4：旧实现只做 `float(v)`，**非有限值（NaN/±Inf）与布尔**会原样放行：
+      · `float('nan')` 进 `_apply_decree_effect` 的 `min/max` 钳位 → NaN 恒返回下界，
+        变成「最高工商税」；`int(nan)` 直接抛 ValueError 打断整月结算；
+      · `True` 被当作 1.0（农税/仓储等键会真按 1 计）。
+    现统一丢弃非有限值与布尔（缺失 ≠ 0，脏值不进结算）。
+    """
     if not isinstance(effects, dict):
         return None
     out = {}
     for k, v in effects.items():
         if k not in _EFFECT_WHITELIST:
             continue
+        if isinstance(v, bool):        # True/False 不是数值效果（否则恒等于 1/0）
+            continue
         try:
-            out[k] = float(v)
+            f = float(v)
         except (TypeError, ValueError):
             continue
+        if not math.isfinite(f):       # NaN / ±Inf 一律丢弃
+            continue
+        out[k] = f
     return out or None
 
 

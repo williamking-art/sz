@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """导出前端所需静态常量为 JSON（React 面板迁移用）。
 
-运行（工作目录为 game/）：python export_constants.py
-输出：frontend/src/renderer/data/constants.json
+运行（工作目录为 game/）：python export_constants.py [输出路径]
+输出：默认 frontend/src/renderer/data/constants.json；给了路径则写到该路径（供只读回归用，不碰仓库）
 """
 import json
 import sys
@@ -17,6 +17,15 @@ from content.data import (
     BUILDING_STD, BUILDING_BLUEPRINTS, IMPERIAL_ACTION_MATRIX,
     IMPERIAL_LOCATIONS, IMPERIAL_MODES,
 )
+# 审查 D1：以下 5 项此前**未进导出面**，前端各自复制了一份字面量
+#   （PersonalPanel 复制 RISK_PROB / ROUTE_DISTANCE / DISTANCE_MONTHS 并**重实现**
+#   `imperial_distance()`；MilitaryPanel 复制 EQUIP_KEYS）——当前数值恰好一致，
+#   但 core 改一次 UI 就静默说谎。现由导出面单点供给，前端改读 constants.json。
+from content.data_imperial import (
+    IMPERIAL_RISK_PROB, IMPERIAL_ROUTE_DISTANCE, IMPERIAL_DISTANCE_MONTHS,
+    IMPERIAL_EFFECT_DIM,
+)
+from core.army_models import EQUIP_KEYS
 
 out = {
     "faction_names": list(FACTION_NAMES),
@@ -46,6 +55,12 @@ out = {
     "building_blueprints": {k: dict(v) for k, v in BUILDING_BLUEPRINTS.items()},
     "imperial_locations": list(IMPERIAL_LOCATIONS),
     "imperial_modes": list(IMPERIAL_MODES),
+    # 审查 D1：风险概率 / 距离档 / 距离月数 / 效果维度 / 装备键（前端不再复制）
+    "imperial_risk_prob": dict(IMPERIAL_RISK_PROB),
+    "imperial_route_distance": {k: list(v) for k, v in IMPERIAL_ROUTE_DISTANCE.items()},
+    "imperial_distance_months": dict(IMPERIAL_DISTANCE_MONTHS),
+    "imperial_effect_dim": dict(IMPERIAL_EFFECT_DIM),
+    "equip_keys": list(EQUIP_KEYS),
     "imperial_matrix": {
         loc: {
             mode: {
@@ -76,7 +91,12 @@ out = {
 print(json.dumps(out, ensure_ascii=False, indent=1))
 
 # 直接写文件（Windows stdout 默认 GBK，重定向会乱码）
-_target = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "src", "renderer", "data", "constants.json")
+# 2026-10-03：允许用 argv[1] 指定输出路径，让只读回归能写到临时目录而不碰仓库内文件
+# （原先测试直接覆写 frontend/src/renderer/data/constants.json，违反「只审不改」）。
+_target = (sys.argv[1] if len(sys.argv) > 1 else
+           os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "frontend", "src", "renderer", "data", "constants.json"))
+os.makedirs(os.path.dirname(os.path.abspath(_target)), exist_ok=True)
 with open(_target, "w", encoding="utf-8", newline="\n") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)
 print(f"[export] written → {_target}", file=sys.stderr)

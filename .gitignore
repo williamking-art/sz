@@ -97,6 +97,9 @@ _dev_tools/*
 !_dev_tools/songzuo-game-studio/
 !_dev_tools/agnes_gen.py
 !_dev_tools/dev-env.ps1
+# 开发期交接：把 CloudBase 交接状态（state/context/worklog）拉到本地镜像 tmp/mcp_sync/，
+# 供没有 MCP 的 agent 直接读——与 cloudbase-check.ps1 / verify-all.ps1 同类，故放行入库。
+!_dev_tools/sync_mcp_state.py
 # 开发辅助工具链自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，可 -Fix 自动修可修项）
 !_dev_tools/cloudbase-check.ps1
 # 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：
@@ -264,6 +267,23 @@ _dev_tools/game-docs/kb/dev_kb.sqlite
 /_dev_tools/game-docs/reviews/README.md
 /game/*/README.md
 
+# --- 目录 README 与索引：放行入库（2026-10-03 用户决定，**推翻上方 2026-09-27 口径**）---
+# 推翻理由（实测证据，见 game-docs/reviews/宋祚全审复核_2026-03.md 与 宋祚全审报告_2026-10-02.md B-3）：
+#   1. `game/README.md` **本身已入库**，但它的 17 个相对链接目标里有 **13 个未入库** ——
+#      9 个 game/*/README.md + 4 个 _dev_tools/game-docs/specs/* —— 干净 clone 里这个
+#      唯一的游戏入口有 13 条死链。
+#   2. `sz/AGENTS.md` §6.1 定「每轮必须更新文档」，但文档索引本身不入库 = 该纪律对
+#      换机器接手的 agent 失效（写了不随仓库走）。
+#   3. `_dev_tools/game-docs/README.md` 是整个权威文档目录的入口；它不入库，
+#      新克隆者拿到的是一堆没有入口的文档。
+# 与既有放行块（:331-344 的 game-dev/*、:350 的 !/AGENTS.md）同构；
+# **注意本块必须排在文件末尾的 `!/AGENTS.md` 之前** —— 那条要求自己留在末尾。
+!/README.md
+!/_dev_tools/README.md
+!/_dev_tools/game-docs/README.md
+!/_dev_tools/game-docs/reviews/README.md
+!/game/*/README.md
+
 # --- 未接线参考实现（2026-09-27 从 game/ 移出：不随分发；测试仍覆盖）---
 !_dev_tools/unwired/
 !_dev_tools/unwired/**
@@ -274,8 +294,13 @@ _dev_tools/unwired/__pycache__/
 # 这些文件均可由已入库的源料重建：assets/map/raw/ + content/build_map_*.py + npm run build:topo
 # + fetch_hillshade.py（地形瓦片，需联网）。**注意规则须放在文件末尾**（git 以最后匹配为准）。
 game/assets/map/web/*.geojson
+# 治所台账（137 席 = 126 有块 + 11 省级归入）同样是生成物：由 build_map_basemap.py
+# 重建，其恒等式由已入库的 test_map_prefecture_geometry.py / test_geo_demography.py 守住。
+game/assets/map/web/circuit_seat_ledger.json
 game/frontend/public/map/*.geojson
 game/frontend/public/map/regions.topojson
+# 府级边界拓扑（P1-2 接入的产物；同样是生成物，由 `npm run build:topo` 重建）
+game/frontend/public/map/prefecture_borders.topojson
 game/frontend/public/map/view.json
 game/frontend/public/map/tiles/
 
@@ -334,3 +359,9 @@ _dev_tools/game-dev/replay/*
 !_dev_tools/game-dev/scripts/
 _dev_tools/game-dev/scripts/*
 !_dev_tools/game-dev/scripts/README.md
+
+# --- 开发期 agent 交接协议：放行入库（2026-09-29 用户决定）---
+# `/AGENTS.md` 在上方的"根文件忽略"块里被排除；**本行必须留在文件末尾**
+# （git 以最后匹配的规则为准，本项目其它豁免规则同样放末尾）。
+# 不放行 → 协议不随仓库分发，新克隆/其他机器上的 agent 无从接手。
+!/AGENTS.md

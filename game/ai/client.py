@@ -24,9 +24,10 @@ import urllib.error
 
 from ai.client_narrative import ClientNarrativeMixin
 from ai.client_utils import (
-    _ai_unavailable, _app_root, _clean_text, _extract_json, _fallback_parse, _http_get_json, _http_post_json, _load_prompt, _normalize_decree_effects, _safety_filter, _sanitize_history, _similar, _tool_dispatch, _TOOL_SCHEMAS, effects_to_dict, safety_filter_operational, tier_to_value,
+    _ai_config_path, _ai_unavailable, _clean_text, _extract_json, _fallback_parse, _http_get_json, _http_post_json, _legacy_ai_config_path, _load_prompt, _normalize_decree_effects, _PROMPT_MISSING_MARK, _safety_filter, _sanitize_history, _similar, _tool_dispatch, _TOOL_SCHEMAS, effects_to_dict, prompt_missing_name, resolve_ai_config_path, safety_filter_operational, tier_to_value,
 )
 from ai.narrative_guard import (
+    _validate_completion_claims,
     _validate_narrative_numbers,
 )
 from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构层（可选，未装库自动跳过）
@@ -461,18 +462,30 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
 
     @staticmethod
     def _config_path() -> str:
-        return os.path.join(_app_root(), "ai_config.json")
+        """`ai_config.json` 的写入路径（**单点**在 `ai.client_utils._ai_config_path`）。
+
+        2026-10-03 迁址：原为 `_app_root()/ai_config.json`，即 frozen 态的
+        **安装目录**（exe 同级）。装到 `C:\\Program Files` 一类只读位置时，
+        `/api/ai-config` 的读-改-写会失败、AI 配置无处安放；而存档一直放在
+        `~/Documents/宋祚/saves`。现与存档同根，二者都随用户走。
+        """
+        return _ai_config_path()
 
     def save_config(self) -> bool:
-        """把当前 API 配置写入根目录 ai_config.json（未配置 AI 则清空）。"""
+        """把当前 API 配置写入用户数据目录的 ai_config.json（未配置 AI 则清空）。
+
+        清空时**新旧两处都删** —— 否则旧位置（安装目录）的残留配置会被
+        `load_config()` 的回退读回来，玩家「清空配置」后其实没清掉。
+        """
         path = self._config_path()
         if not self.api_key:
-            # 未配置 AI 叙事：删除已保存配置（若存在）
-            try:
-                if os.path.exists(path):
-                    os.remove(path)
-            except OSError:
-                pass
+            # 未配置 AI 叙事：删除已保存配置（新位置 + 旧位置，见 docstring）
+            for _p in (path, _legacy_ai_config_path()):
+                try:
+                    if os.path.exists(_p):
+                        os.remove(_p)
+                except OSError:
+                    pass
             return True
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -490,9 +503,18 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                     **({"fallback_base_url": self.fallback_base_url} if self.fallback_base_url else {}),
                     **({"fallback_model": self.fallback_model} if self.fallback_model else {}),
                 }, f, ensure_ascii=False, indent=2)
-            return True
         except OSError:
             return False
+        # 迁移收尾：新位置写成功即删掉旧位置的残留副本。
+        # 2026-10-03 前配置只住旧位置（安装目录/exe 同级）；留着会变成「两份配置」，
+        # 而旧那份含真实 key，且清空时还得靠 load 的回退逻辑去盖住它。
+        legacy = _legacy_ai_config_path()
+        if os.path.abspath(legacy) != os.path.abspath(path) and os.path.exists(legacy):
+            try:
+                os.remove(legacy)
+            except OSError:
+                pass
+        return True
 
     def probe(self, timeout: float = 15, force: bool = False) -> tuple:
         """轻量在线自检：用当前模型发一个极小请求，验证 key + 模型可用。
@@ -529,7 +551,12 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 err = (body or {}).get("error", {}).get("message", "") or text
             except Exception:
                 err = text
-            self._probe_cache = (False, f"模型返回 {status}：{str(err)[:120]}")
+            if not str(err or "").strip():
+                err = f"HTTP {status}"
+            # L2（审查 P2-3）：设置面板只显示中文状态 + 状态码；provider 原文（可能含
+            # key 片段/请求参数）只入服务端日志，绝不进 `_probe_cache`（面板直接显示它）。
+            log.warning("自检探测失败（HTTP %s）：%s", status, err)
+            self._probe_cache = (False, f"模型返回 {status}：无可用的模型服务响应，请检查配置")
             return self._probe_cache
         except urllib.error.URLError as e:
             # URLError.reason 可能是 TimeoutError / ConnectionError / socket 错误
@@ -540,13 +567,23 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 self._probe_cache = (False, "无法连接，请检查 base_url 与网络")
             return self._probe_cache
         except Exception as e:  # noqa: BLE001
-            self._probe_cache = (False, f"检测异常：{e}")
+            # L2：异常原文只入日志（可能含 URL/key 片段），面板只见类型级中文
+            log.warning("自检探测异常：%s", e, exc_info=True)
+            self._probe_cache = (False, f"检测异常（{type(e).__name__}），请检查配置")
             return self._probe_cache
 
     def fetch_available_models(self, timeout: float = 12) -> list[str]:
-        """尝试从远程端点 GET /models 获取该 Key 授权的所有可用模型。"""
+        """尝试从远程端点 GET /models 获取该 Key 授权的所有可用模型。
+
+        **失败必须如实回空列表**（审查 P2-3 / M12）：原实现在「无 key」与「任何异常/
+        非 200」时返回**硬编码推荐清单**（deepseek-chat/deepseek-reasoner/gpt-4o…），
+        而 `/api/fetch_models` 据此回 `{"ok": true, "models": [...]}` —— 前端
+        `client.ts::fetchModels` 已按"失败即空列表 + error"修好，后端却把该修复架空，
+        引导玩家选中该端点并不存在的模型（保存/调用时才报错，来源难辨）。
+        """
         if not self.api_key:
-            return ["deepseek-chat", "deepseek-reasoner", "gpt-4o-mini", "gpt-4o", "qwen-plus"]
+            log.info("模型探测失败：未配置 API Key")
+            return []
         try:
             headers = self._auth_headers()
             status, body, _ = _http_get_json(self.models_url, headers, timeout=timeout)
@@ -564,15 +601,16 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             if alt_url != self.models_url:
                 status2, body2, _ = _http_get_json(alt_url, headers, timeout=timeout)
                 if status2 == 200 and isinstance(body2, dict):
-                    data = body2.get("data", [])
-                    models = [i.get("id") for i in data if isinstance(i, dict) and i.get("id")]
-                    if models: return sorted(models)
+                    data2 = body2.get("data", [])
+                    models2 = [i.get("id") for i in data2 if isinstance(i, dict) and i.get("id")]
+                    if models2:
+                        return sorted(models2)
+            log.info("模型探测失败：端点返回 %s", status)
         except Exception as e:
             # 审查 P3 修复：改用 logging（GUI 程序 stdout 不宜输出诊断信息）
-            import logging as _lg
-            _lg.getLogger("ai.client").info("获取模型列表异常：%s", type(e).__name__)
-        # 默认推荐清单
-        return ["deepseek-chat", "deepseek-reasoner", "gpt-4o", "gpt-4o-mini", "qwen-plus", "qwen-turbo"]
+            log.info("模型探测失败：%s", type(e).__name__)
+        # 不伪造推荐清单：失败即空列表，由端点回 ok:false（前端据 error 提示）
+        return []
 
     def _probe_json_mode(self, timeout: float = 15):
         """探测 response_format=json_object 是否被端点支持。
@@ -618,9 +656,16 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                        "temperature": 0, "max_tokens": 1}
             status, body, text = _http_post_json(self.chat_url, headers, payload, timeout)
             if status != 200:
+                # L2（审查 P2-3）：正文只入日志；缓存里只留中文 + 状态码（面板直接显示它）
+                _detail = ""
+                try:
+                    _detail = (body or {}).get("error", {}).get("message", "") or text
+                except Exception:
+                    _detail = text
+                log.warning("能力探测失败（HTTP %s）：%s", status, _detail)
                 self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
                                          "format": "json",
-                                         "error": f"模型返回 {status}：{str(text)[:120]}"}
+                                         "error": f"模型返回 {status}：无可用的模型服务响应，请检查配置"}
                 return self._cap_probe_cache
             # 维度 2/3：tool_calls + json_mode（原生 tools 探测）
             json_ok = bool(self._probe_json_mode(timeout))
@@ -645,8 +690,10 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                                      "format": "json", "error": msg}
             return self._cap_probe_cache
         except Exception as e:  # noqa: BLE001
+            # L2：异常原文只入日志（可能含 URL/key 片段），缓存里只留类型级中文
+            log.warning("能力探测异常：%s", e, exc_info=True)
             self._cap_probe_cache = {"ok": False, "tools": "none", "json_mode": False,
-                                     "format": "json", "error": f"检测异常：{e}"}
+                                     "format": "json", "error": f"检测异常（{type(e).__name__}）"}
             return self._cap_probe_cache
 
     def _probe_tools(self, timeout: float = 15) -> bool:
@@ -751,13 +798,34 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
 
     @classmethod
     def load_saved(cls):
-        """读取已保存配置并返回 AIClient；无配置或读取出错返回 None。"""
-        path = cls._config_path()
+        """读取已保存配置并返回 AIClient；无配置返回 None。
+
+        **归因修正（审查 P2-3）**：原实现把「配置损坏」与「未配置」一律 `return None`，
+        上层（`core/commands_decree.py` 等）据此判"AI 未配置"→ **归因错误**（玩家看到
+        "请先配置 AI"，而实际是配置文件坏了，怎么配都不生效）。
+        现区分并留痕（含路径 + 异常类型 + 栈）：
+          - 文件不存在 / 无 key → 正常的"未配置"，静默返回 None（高频探测路径，不造噪声）；
+          - 文件存在但读不通（OSError / JSON 损坏 / 顶层非对象）→ **WARNING 留痕**后返回 None。
+        上层判空时至少日志可区分；调用点若在 `core/**`（本次不在授权范围）则仍只能
+        凭日志区分，见交付说明。
+        """
+        # 读用 resolve：新位置优先，旧位置（安装目录）作一次性回退，兼容已装机配置。
+        # 显式传入 cls._config_path() 而非让 resolve 自己取 —— 保留可被 monkeypatch
+        # 打桩的接缝（tests/test_ai_fallback.py 打的就是它）。
+        path = resolve_ai_config_path(cls._config_path())
         if not os.path.exists(path):
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
+        except (OSError, ValueError) as e:
+            log.warning("AI 配置读取失败（%s）：%s —— 按「未配置」处理，但**根因是配置损坏**，"
+                        "请修复或删除该文件后重配", path, e, exc_info=True)
+            return None
+        if not isinstance(cfg, dict):
+            log.warning("AI 配置结构非法（%s）：顶层非对象 → 按「未配置」处理（配置已损坏）", path)
+            return None
+        try:
             api_key = (cfg.get("api_key") or "").strip()
             if not api_key:
                 return None
@@ -769,7 +837,8 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                        fallback_api_key=cfg.get("fallback_api_key", ""),
                        fallback_base_url=cfg.get("fallback_base_url", ""),
                        fallback_model=cfg.get("fallback_model", ""))
-        except (OSError, json.JSONDecodeError, ValueError):
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            log.warning("AI 配置构造客户端失败（%s）：%s", path, e, exc_info=True)
             return None
 
     def __init_cache(self):
@@ -813,8 +882,17 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             self._cache[key] = val
             return val
         self._cache_misses += 1
-        raw = self._call(system_prompt, user_prompt, temperature=temperature,
-                        max_tokens=max_tokens, json_mode=json_mode)
+        try:
+            raw = self._call(system_prompt, user_prompt, temperature=temperature,
+                            max_tokens=max_tokens, json_mode=json_mode)
+        except Exception as e:  # noqa: BLE001
+            # M11（审查 P2-3）：提示词资源缺失须由契约层换算成 `_error=PROMPT_MISSING`
+            # 下发，**不能**以异常穿透到 UI（否则又变成玩家看不懂的 500）。
+            # 转成哨兵文本 → `_postprocess` 识别为"提示词缺失"且跳过无意义的回喂。
+            if getattr(e, "code", "") == "PROMPT_MISSING":
+                log.error("契约因提示词资源缺失中止（不发送占位文本）")
+                return f"{_PROMPT_MISSING_MARK}{prompt_missing_name(str(e)) or 'prompt'}]"
+            raise
         if raw is not None:
             self._cache[key] = raw
             # 审查 P3 修复（缓存淘汰）：原「超 64 条整体 clear」在朝局抖动时收益不稳；
@@ -875,6 +953,10 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         try:
             raw = self._call_impl(*args, **kwargs)
         except Exception as e:  # noqa: BLE001  主 provider 失败不立即抛出，先试兜底
+            # M11（审查 P2-3）：提示词资源缺失是**本机部署问题**，换 provider 无用
+            # → 直接上抛（不浪费一次兜底调用，也不产生重复 ERROR 噪声）。
+            if getattr(e, "code", "") == "PROMPT_MISSING":
+                raise
             err = e
         if self._usable_raw(raw, json_mode):
             return raw
@@ -924,6 +1006,20 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         """
         if not self.available:
             return None
+        # M11（审查 P2-3）：提示词资源缺失 → **不发 HTTP、不把占位文本当规程送 provider**。
+        # 本方法是全库唯一 API 调用漏斗（各契约经 `_call`/`_cached_call` 汇入），
+        # 故哨兵检测放这里即可覆盖 25 处 `_load_prompt` 调用点，且它们零改动。
+        # 以 `AIRuntimeError(code="PROMPT_MISSING")` 拒绝式失败；`_postprocess` 的失败码
+        # 通道把它换算成 `_error=PROMPT_MISSING` 下发（中文映射见 content.data.AI_ERROR_CODES）。
+        _miss = prompt_missing_name(
+            system_prompt,
+            *[m.get("content") for m in (messages or []) if isinstance(m, dict)])
+        if _miss:
+            from core.errors import AIRuntimeError as _AIRE
+            log.error("提示词资源缺失，已中止本次 AI 调用（不发送占位文本）：%s", _miss)
+            raise _AIRE(
+                f"AI 提示词资源缺失（{_PROMPT_MISSING_MARK}{_miss}]）：安装包不完整，已中止本次推演。",
+                code="PROMPT_MISSING")
         if messages is None:
             messages = [{"role": "system", "content": system_prompt}]
             if history:
@@ -993,12 +1089,17 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 self.tools_required_supported = False
                 payload["tool_choice"] = "auto"
                 continue
+            # L1（审查 P2-3）：provider 错误正文可能回显 key 片段/请求参数，属技术细节，
+            # 只入服务端日志；对上游（503 detail.message → 界面）只下发中文通用文案 + 状态码。
+            log.warning("provider 报错（HTTP %s）：%s", status, err)
             from core.errors import AIRuntimeError as _AIRE
             # 审查 P2-43：鉴权失败给明确错误码（原仅把状态码拼进文本，无法诊断）
             if status in (401, 403):
                 raise _AIRE(f"AI 鉴权失败（HTTP {status}）：请检查 api_key 与 base_url。",
                             code="AI_AUTH_FAILED") from None
-            raise _AIRE(f"AI 服务返回错误（HTTP {status}）：{err}") from None
+            raise _AIRE(
+                f"AI 服务返回错误（HTTP {status}）：请检查配置或稍后重试。"
+                "（详情已记服务端日志）") from None
         try:
             msg = data["choices"][0]["message"]
         except (KeyError, TypeError, IndexError) as e:
@@ -1039,7 +1140,9 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             try:
                 headers = self._auth_headers()
                 status, data, _ = _http_post_json(self.chat_url, headers, payload, timeout=30)
-            except Exception:
+            except Exception as e:  # noqa: BLE001
+                # 审查 P2-3：T1 补发失败原先静默回退首轮文本，根因无处可查 → 补 warning
+                log.warning("T1 未调工具的补发请求失败（%s）：%s", type(e).__name__, e)
                 return msg.get("content") or ""
             if status < 400:
                 try:
@@ -1082,7 +1185,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         return content
 
     def _postprocess(self, raw, validator, fallback, retry_prompt=None,
-                     retry_user=None, retry_temp: float = 0.3, ranges=None):
+                     retry_user=None, retry_temp: float = 0.3, ranges=None, state=None):
         """验收：解析 → validator 校验 → 复读检测；失败回喂修复或兜底。
 
         三方案：ranges（叙事数值区间）传入时，AI 文本字段过 _validate_narrative_numbers
@@ -1092,10 +1195,18 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         AI_INVALID_JSON/AI_CONTRACT_FAILED），覆盖 fallback 默认的 AI_NOT_CONFIGURED，
         使 _error 码具备可诊断性。
         """
-        obj = _extract_json(raw) if raw else None
+        # M11（审查 P2-3）：提示词资源缺失是**部署故障**，不是模型输出问题——
+        # `_call` 已识别哨兵（且未发 HTTP），此处直接判"提示词缺失"并**跳过回喂**
+        # （资源不在，重试一次也无意义），把错误码如实下发。
+        # 必须放在 `_extract_json` **之前**：哨兵首字符是 `[`，`_extract_json` 可能把它
+        # 当成空数组解析出来（那样就绕过了本判定）。
+        _prompt_missing = raw is not None and bool(prompt_missing_name(raw))
+        obj = None if _prompt_missing else (_extract_json(raw) if raw else None)
         # 审查 P2-5：按失败阶段定错误码（供 fallback 结果覆盖）
         _fail_code = None
-        if not raw:
+        if _prompt_missing:
+            _fail_code = "PROMPT_MISSING"
+        elif not raw:
             _fail_code = "AI_EMPTY_RESPONSE"
         elif obj is None:
             _fail_code = "AI_INVALID_JSON"
@@ -1106,7 +1217,10 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         if obj is not None:
             try:
                 _caller = sys._getframe(1).f_code.co_name
-            except Exception:
+            except Exception as e:  # noqa: BLE001
+                # 审查 P2-3：取不到调用方名字曾静默跳过 schema 结构校验（契约少一层把关）
+                # → 记 debug（非故障，仅结构层不生效），便于排查"schema 未生效"类问题
+                log.debug("schema 层无法确定调用方（跳过结构校验）：%s", e)
                 _caller = ""
             _ok, _schema_err = _schema_check(_caller, obj)
             if not _ok:
@@ -1118,7 +1232,8 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             _fail_code = "AI_CONTRACT_FAILED"
         if obj is None:
             # 回喂修复：把校验失败如实告知模型，补调一次；仍失败才兜底
-            if retry_prompt and retry_user:
+            # （提示词缺失时跳过：资源不在，补调只会再撞同一个哨兵）
+            if retry_prompt and retry_user and _fail_code != "PROMPT_MISSING":
                 try:
                     retry_p = (retry_prompt
                                + "\n【程序校验提示】上一次输出未通过契约校验，"
@@ -1135,14 +1250,24 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                         obj = obj2
                 except Exception as _re:  # noqa: BLE001
                     obj = None
+                    # 审查 P2-3：回喂修复失败原先不记原因（只留错误码）→ 补 warning + exc_info
+                    log.warning("契约回喂修复失败（保留错误码 %s）：%s",
+                                getattr(_re, "code", "") or _fail_code, _re, exc_info=True)
                     # 审查 P2-43：保留底层错误码（AI_TIMEOUT / AI_AUTH_FAILED 等）供 fallback 携带
                     _fail_code = getattr(_re, "code", "") or _fail_code
             if obj is None:
                 fb = fallback()
                 # 审查 P2-5：用阶段失败码覆盖 fallback 默认 AI_NOT_CONFIGURED
-                if _fail_code and isinstance(fb, dict) and fb.get("_error"):
+                # 审查 P2-3（M11）：叙事兜底结构是 `{"...": 文本, "_fallback": True}`（**无**
+                # `_error`），原先的覆盖条件要求 `fb["_error"]` 存在 → 错误码根本下不去，
+                # 玩家/前端只看到"程序代拟"的模板文本而无从知道根因（如提示词缺失）。
+                # 现：只要该码在 AI_ERROR_CODES 内且 fb 是 dict，就如实补上 `_error` + 中文，
+                # 保留原有文本字段（不伪造 AI 产出，只是把失败原因标注清楚）。
+                if _fail_code and isinstance(fb, dict):
                     from content.data import AI_ERROR_CODES
-                    if _fail_code in AI_ERROR_CODES:
+                    if _fail_code in AI_ERROR_CODES and (
+                            fb.get("_error")
+                            or _fail_code in ("PROMPT_MISSING", "AI_NOT_CONFIGURED")):
                         fb["_error"] = _fail_code
                         fb["message"] = AI_ERROR_CODES.get(_fail_code, "")
                 return fb
@@ -1164,6 +1289,19 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 # 三方案：叙事-数值一致（数字须落在注入区间，区间外改写定性词）
                 if ranges:
                     _txt, _flagged = _validate_narrative_numbers(_txt, ranges)
+                # 规格 decree-action-chain 任务 5：**完成宣称核对** ——
+                # 叙事说"告成/已生效"但真实工程未到 operating 时改写为如实表述，
+                # 防"AI 叙事替程序补状态"（design.md:46）。读数与面板同源。
+                # 调用方未传 state 时**跳过核对**（不猜、不误伤），但也不算已核对。
+                if state is not None:
+                    try:
+                        from core.plan_readout import build_plan_readout as _bpr
+                        _txt, _cflag = _validate_completion_claims(_txt, _bpr(state))
+                        if _cflag:
+                            log.warning("[叙事] 拦下 %d 处不实的完工宣称（已改写为如实表述）：%s",
+                                        len(_cflag), _cflag[:3])
+                    except Exception as _ce:  # noqa: BLE001 — 核对失败不得阻断契约
+                        log.warning("[叙事] 完成宣称核对失败（本次未核对，已留痕）：%s", _ce)
                 obj[_field] = _txt
         # 复读检测（针对有 reply/advice/report 等文本字段）
         # B2 语义升级：语义后端可用时加语义相似度判定（阈值 0.92，抓"换皮复读"——

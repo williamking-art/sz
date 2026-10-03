@@ -37,8 +37,10 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from ai.client import AIClient
-from ai.client_utils import validate_outbound_url
-from backend.client import LocalBackend, _app_root
+from ai.client_utils import (
+    _ai_config_path as _ai_config_path_impl, resolve_ai_config_path, validate_outbound_url,
+)
+from backend.client import LocalBackend
 from core.errors import AIRuntimeError
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -145,13 +147,30 @@ _AI_CONFIG_OPTIONAL_FIELDS = (
 
 
 def _load_ai_config() -> dict:
-    """读取 ai_config.json；缺失/损坏返回 {}（不抛，避免端点 500）。"""
-    try:
-        with open(_ai_config_path(), "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        return cfg if isinstance(cfg, dict) else {}
-    except Exception:
+    """读取 ai_config.json；缺失/损坏返回 {}（不抛，避免端点 500）。
+
+    审查 P2-3：**"未配置"与"配置损坏"必须可区分**（含路径 + 异常类型 + 栈）——
+    原实现在两种情形下都静默返回 {}，玩家在设置面板看到"未配置"而根因是配置坏了，
+    怎么重配都不生效。文件不存在属正常"未配置"（不记日志，防噪声）。
+
+    2026-10-03：改用 `resolve_ai_config_path()` —— 新位置（用户数据目录）优先，
+    旧位置（安装目录）作一次性回退，兼容已装机的旧配置。
+    """
+    # 显式传入本模块的 _ai_config_path() 而非让 resolve 自己取 —— 保留可打桩接缝
+    # （tests/test_ai_security_config.py 的 cfg_path fixture 打的就是它）。
+    path = resolve_ai_config_path(_ai_config_path())
+    if not os.path.exists(path):
         return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as e:  # noqa: BLE001
+        log.warning("AI 配置读取失败（%s）：%s", path, type(e).__name__, exc_info=True)
+        return {}
+    if not isinstance(cfg, dict):
+        log.warning("AI 配置结构非法（%s）：顶层非对象（%s）", path, type(cfg).__name__)
+        return {}
+    return cfg
 
 
 def _client_from_config(cfg: dict) -> AIClient:
@@ -238,10 +257,16 @@ def _merge_ai_config(req, old_cfg: dict) -> dict:
 
 
 def _build_ai() -> AIClient:
-    """按 ai_config.json 构建服务端 AI 客户端；无配置/无 key → 禁用客户端。"""
+    """按 ai_config.json 构建服务端 AI 客户端；无配置/无 key → 禁用客户端。
+
+    审查 P2-3：构造失败原先静默回落 `AIClient()`（表现为"AI 未配置"，**归因错误**）
+    → 补 warning（含异常类型 + 栈），使"配置写坏了"与"没配"在日志上可区分。
+    """
     try:
         return _client_from_config(_load_ai_config())
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        log.warning("按 ai_config 构造 AIClient 失败（%s）：回落禁用客户端（叙事走本地降级）",
+                    type(e).__name__, exc_info=True)
         return AIClient()  # available=False → 叙事走本地降级
 
 
@@ -252,21 +277,28 @@ def _get_ai() -> AIClient:
     return _ai
 
 
+#: JSON 原生标量（`json.dumps` 唯一能直接接受的叶子类型；bool 是 int 子类，顺序无关）
+_JSON_SAFE_SCALARS = (str, int, float, bool)
+
+
 def _json_safe(v):
-    """递归转 JSON 安全值：set/tuple→list，其余不可序列化→str 兜底。"""
+    """递归转 JSON 安全值：set/tuple→list，其余不可序列化→str 兜底。
+
+    审查 S10（原 A.3）：旧实现在叶子层用 `json.dumps(v)` **逐个试探**能否序列化，
+    而调用方（`_state_to_dict`）**已经整体探测过一次** → 同一份快照被序列化两遍，
+    实测 218 KiB 快照的序列化成本约翻倍（现在更大：285,576 B）。
+    现改为**类型白名单**：JSON 原生标量与容器已在上面的 isinstance 分支处理，
+    任何其它对象 `json.dumps` 必然抛 TypeError → 直接 `str(v)` 兜底，**行为等价、零额外开销**。
+    """
     if isinstance(v, dict):
         return {str(k): _json_safe(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):
         return [_json_safe(x) for x in v]
-    if isinstance(v, (str, int, float, bool)) or v is None:
+    if isinstance(v, _JSON_SAFE_SCALARS) or v is None:
         return v
     if isinstance(v, (set, frozenset)):
         return sorted(str(x) for x in v)
-    try:
-        json.dumps(v, ensure_ascii=False)
-        return v
-    except Exception:
-        return str(v)
+    return str(v)
 
 
 def _loyalty_band_word(v) -> str:
@@ -297,7 +329,7 @@ def _estate_band_word(e) -> str:
 
 
 def _prefs_desensitized(prefs: dict) -> dict:
-    """深拷贝一层 prefectures，剔除**隐藏数值子池**：家产与**未清丈的隐户**。
+    """深拷贝一层 prefectures，剔除**隐藏数值子池**：家产、**未清丈的隐户**与**未清丈的隐田真值**。
 
     2026-09-27 家产迁入 `士绅` POP 后，家产的钱在这两个加法子池里；家产真值属隐藏数值
     （审查 P2，与 `minister_estate` 档位化同一姿态），故快照下发前剔除，
@@ -305,6 +337,9 @@ def _prefs_desensitized(prefs: dict) -> dict:
     · **隐户**（2026-09-27 用户口径）：朝廷只知约值、清丈才知真数 → **未清丈不发** `农.hidden`，
       清丈后才随快照下发；面板展示用的约值由 `core/region_brief.hidden_pop_est`（粗化）提供。
       判据复用 `region_brief.hidden_surveyed`（单点，防阈值漂移）。
+    · **隐田亩**（审查 M9）：`hidden_land` 同属"未清丈不得外泄"的隐藏真值。原实现只剔了
+      `农.hidden`，`hidden_land` 仍逐路全量下发（实测 21 路真值），与隐户口径不一致；
+      面板用的是粗化值 `hidden_land_est`/`hidden_land_band`，故未清丈时一并剔除。
     **不得修改传入的 state**（只建副本）。
     """
     from core.region_brief import hidden_surveyed
@@ -317,6 +352,8 @@ def _prefs_desensitized(prefs: dict) -> dict:
         p2 = dict(p)
         p2["pops"] = {}
         _surveyed = hidden_surveyed(p)
+        if not _surveyed and "hidden_land" in p2:
+            p2.pop("hidden_land", None)   # 未清丈：隐田真值不外泄（面板用 hidden_land_est）
         for cls, slot in pops.items():
             if isinstance(slot, dict):
                 _drop = set()
@@ -368,10 +405,30 @@ def _state_to_dict(s) -> dict:
             out[k] = [{kk: vv for kk, vv in (d or {}).items() if kk != "secret_loyalty"}
                       for d in v]
             continue
+        if k == "land" and isinstance(v, dict):
+            # 审查 M9：`hidden_households` 是 `Σ农.hidden // PERSONS_PER_HOUSEHOLD` 的
+            # **精确派生**（×4 即还原隐户真数），未清丈时下发它等于绕过 `农.hidden`
+            # 的脱敏（实测埋哨兵 123,456 → 快照出现 30,864，×4 原样还原）。
+            # 与隐户同一判据（单点 `region_brief.hidden_surveyed`）：未清丈则剔除；
+            # 面板要的约值由 `region_brief.hidden_pop_est` / `hidden_land_est` 提供。
+            _land2 = dict(v)
+            try:
+                from core.region_brief import hidden_surveyed as _hs_any
+                _all_surveyed = bool(s.prefectures) and all(
+                    _hs_any(pp) for pp in s.prefectures.values() if isinstance(pp, dict))
+            except Exception:  # noqa: BLE001
+                _all_surveyed = False
+            if not _all_surveyed:
+                _land2.pop("hidden_households", None)
+            out[k] = _json_safe(_land2)
+            continue
         try:
             json.dumps(v, ensure_ascii=False)
             out[k] = _json_safe(v)
         except Exception:
+            # 审查 P2-3：不可序列化字段原先静默 `continue`（快照少字段、前端莫名空白）
+            # → 记 warning 且**含字段名**，便于定位是哪个 state 字段没落下去。
+            log.warning("状态快照剔除不可序列化字段：%s（%s）", k, type(v).__name__)
             continue
     return out
 
@@ -617,7 +674,14 @@ def api_save(req: SlotReq, request: Request):
     # 对旧 state 执行动作）。
     with _lock:
         _require_state()
-        _backend.save(_state, req.slot)
+        # M2（审查 P2-3）：原实现**丢弃** save_game 的布尔返回、恒回 `{"ok": True}`，
+        # 前端 SavePanel 据此显示「已保存至槽位 N」——**把存档失败伪装成成功**。
+        # 现如实回传：失败（槽位非法/磁盘写入失败）→ 500 + 中文原因。
+        ok = bool(_backend.save(_state, req.slot))
+        if not ok:
+            log.error("存档未写入：slot=%s（save_game 返回 False）", req.slot)
+            raise HTTPException(status_code=500,
+                                detail="存档未写入：槽位非法或磁盘写入失败")
         return {"ok": True, "slot": req.slot}
 
 
@@ -626,7 +690,18 @@ def api_load(req: SlotReq, request: Request):
     global _state
     _require_auth(request)
     with _lock:
-        _state = _backend.load(req.slot)
+        # M1（审查 P2-3）：原实现 `_state = _backend.load(req.slot)` 不判 None →
+        # 损坏档/空槽返回 None 时**全局 _state 被置 None**，随后 `_state_to_dict(None)`
+        # 抛 TypeError（500）；玩家点一次坏档即把**当前这一局**从后端抹掉，之后所有
+        # 请求 409「尚未开局」，未存档进度不可恢复。
+        # 现：先取局部变量，失败即 404 且**只在成功分支**写 _state。
+        s = _backend.load(req.slot)
+        if s is None:
+            log.warning("读档失败：slot=%s 无档或已损坏（原档已备份为 .corrupt）", req.slot)
+            raise HTTPException(
+                status_code=404,
+                detail="读档失败：该槽无档或存档已损坏（原档已备份为 .corrupt）")
+        _state = s
         return {"state": _state_to_dict(_state)}
 
 
@@ -655,11 +730,17 @@ def api_readouts(request: Request):
     with _lock:
         _require_state()
         s = _state
+        # 审查 P2-3（应修）：失败读数一律"空 {}"会与"真的没有数据"不可区分——
+        # 尤其 clerks/finance：面板把"读不到"显示成 0/空白，吏治折扣无从解释。
+        # 现按本函数已有范式（situations 的 readout_status=partial）汇总失败 key，
+        # 随响应下发 readout_errors（前端未接线，仅后端提供数据），并逐个 warning。
+        readout_errors: list = []
         try:
             s._derive_defense_lines()
         except Exception:
-            pass
+            log.warning("readouts：防线段派生失败（defense_lines 可能滞后）", exc_info=True)
         army = []
+        army_dropped = 0
         for u in getattr(s, "army_units", []) or []:
             try:
                 army.append({
@@ -676,7 +757,12 @@ def api_readouts(request: Request):
                     "scale": u.scale, "serial": u.serial,
                 })
             except Exception:
-                continue
+                # 单军序列化失败原先静默 `continue`：军团列表少一军而无人知晓
+                army_dropped += 1
+                log.warning("readouts：某军序列化失败（已跳过）：%s",
+                            getattr(u, "unit_id", "?"), exc_info=True)
+        if army_dropped:
+            readout_errors.append(f"army: 跳过 {army_dropped} 支无法序列化的军队")
         arsenal = {}
         ca = getattr(s, "central_arsenal", None)
         if ca is not None:
@@ -685,11 +771,16 @@ def api_readouts(request: Request):
             finance = _json_safe(s.finance_readout())
         except Exception:
             finance = {}
+            readout_errors.append("finance")
+            log.warning("readouts：会计读数（finance_readout）派生失败，面板将显示空白",
+                        exc_info=True)
         try:
             from core.flow_summary import build_flow_summary
             flow = _json_safe(build_flow_summary(s))
         except Exception:
             flow = {}
+            readout_errors.append("flow")
+            log.warning("readouts：流水汇总（build_flow_summary）派生失败", exc_info=True)
         try:
             granary = {
                 "monthly": s.calc_monthly_grain()[0],
@@ -700,6 +791,9 @@ def api_readouts(request: Request):
             }
         except Exception:
             granary = {}
+            readout_errors.append("granary")
+            log.warning("readouts：仓廪读数（calc_*_grain）派生失败，面板将显示空白",
+                        exc_info=True)
         # 迁移补齐（原 Tk panels_govern `_render_briefing`）：朝局简报可行动项
         # （纯程序派生、零 AI、只读；Web 端据此渲染「前往」跳转）
         try:
@@ -707,6 +801,18 @@ def api_readouts(request: Request):
             briefing = _json_safe(build_briefing_actions(s))
         except Exception:
             briefing = []
+            readout_errors.append("briefing")
+            log.warning("readouts：朝局简报（build_briefing_actions）派生失败", exc_info=True)
+        # 规格 decree-action-chain 任务 6：**计划/工程实际状态读数**（拟旨面板据此展示
+        # 行动拆解、逐地点工程状态、四层级（受理/推进/告成/生效）与因果回看）。
+        # 与 AI 推演**同源**（core/plan_readout.py），前端不复制任何算法。
+        try:
+            from core.plan_readout import build_plan_readout
+            plan = _json_safe(build_plan_readout(s))
+        except Exception:
+            plan = {}
+            readout_errors.append("plan")
+            log.warning("readouts：计划/工程读数（build_plan_readout）派生失败", exc_info=True)
         # 迁移补齐（原 Tk 大臣卡片信息密度）：群臣档案（年龄/职衔/派系/性格一句话/生平）
         # —— 单一权威源 core/minister_profile.py（Tk 废弃后由面板与后端内联下沉而来）
         try:
@@ -714,12 +820,17 @@ def api_readouts(request: Request):
             ministers = build_minister_profiles(s)
         except Exception:
             ministers = {}
+            readout_errors.append("ministers")
+            log.warning("readouts：群臣档案（build_minister_profiles）派生失败，面板将显示空白",
+                        exc_info=True)
         # 税基 / 免役口径（阶段 C-4，§13.6）：让"冗官 → 免役 → 税基萎缩"这条链可见。
         # 薄壳纪律：只调 GameState 的只读派生视图。
         try:
             tax_base = _json_safe(s.tax_base_summary())
         except Exception:
             tax_base = {}
+            readout_errors.append("tax_base")
+            log.warning("readouts：税基读数（tax_base_summary）派生失败", exc_info=True)
         # 吏制派生视图（阶段 C-5，§16）：吏额/冗吏率/吏禄充足/把持度/吏怨/有效吏力/定性四档。
         # 吏不具名（§16.9）；面板据此渲染「吏治」一行与「该路吏胥把持」的诊断。
         try:
@@ -727,6 +838,11 @@ def api_readouts(request: Request):
             clerks = _json_safe(_clerk_totals(s))
         except Exception:
             clerks = {}
+            readout_errors.append("clerks")
+            # 吏治是诏令效果的**唯一强关联**折扣解释；读不到时面板会把"读不到"显示成
+            # 0/空白，玩家无从理解"为何办不动" → 必须能从 readout_errors 定位。
+            log.warning("readouts：吏制读数（core.clerks.totals）派生失败——"
+                        "吏治折扣将无从解释，面板将显示空白", exc_info=True)
         # 编制参数（阶段 C-7，§12.3/§17.4）：面板据此渲染"改革完成度"读数；
         # AI 经 free_effect 的 `institution` 字段提议改动（值域由 core/institution 单点约束）。
         try:
@@ -734,6 +850,8 @@ def api_readouts(request: Request):
             institution = _json_safe(_inst_describe(s))
         except Exception:
             institution = {}
+            readout_errors.append("institution")
+            log.warning("readouts：编制参数（core.institution.describe）派生失败", exc_info=True)
         # 州路简报（只读派生，core/region_brief.py 为单一权威源）：民生/粮储/到账月税/
         # 驻军月饷/风险分一体下发，供前端「州县」面板排序与"为何危险"的可解释展示。
         # 薄壳纪律：只调 core 的只读派生函数，算法不在此复制。
@@ -750,8 +868,12 @@ def api_readouts(request: Request):
                 regions["military"] = _json_safe(route_military_summary(s))
             except Exception:  # noqa: BLE001
                 log.warning("readouts：州府级档案派生失败（已降级为空）", exc_info=True)
+                readout_errors.append("regions.prefectures")
         except Exception:
             regions = {}
+            readout_errors.append("regions")
+            log.warning("readouts：州路简报（build_region_brief）派生失败，州县面板将空白",
+                        exc_info=True)
         # 局势投影（只读，core/situations.py 单一权威源）：把既有长期项
         # （帝修/国策/长期诏/活跃事件）聚合成统一局势视图；缺失维度下发 None（前端示"未定义"）。
         # 薄壳纪律：只调 core 只读投影，不在此复制映射规则。
@@ -759,8 +881,10 @@ def api_readouts(request: Request):
             from core.situations import build_situation_readout
             situations = _json_safe(build_situation_readout(s))
         except Exception:
+            log.warning("readouts：局势投影（build_situation_readout）派生失败", exc_info=True)
             situations = {"items": [], "by_status": {}, "readout_status": "partial",
                           "readout_errors": ["situations: 投影失败"]}
+            readout_errors.append("situations")
         return {
             "army": army,
             "arsenal": arsenal,
@@ -768,6 +892,7 @@ def api_readouts(request: Request):
             "flow": flow,
             "granary": granary,
             "briefing": briefing,
+            "plan": plan,
             "ministers": ministers,
             "tax_base": tax_base,
             "clerks": clerks,
@@ -775,6 +900,9 @@ def api_readouts(request: Request):
             "regions": regions,
             "situations": situations,
             "defense_lines": _json_safe(s.defense_lines),
+            # 审查 P2-3（应修）：失败读数清单（正常时为空表 → 前端可据此区分
+            # "读不到"与"真的是 0/空"）。前端尚未接线（他人负责），仅后端提供。
+            "readout_errors": readout_errors,
         }
 
 
@@ -817,6 +945,9 @@ def api_memory(request: Request, minister: str = "", limit: int = 60):
             key = str(e.get("type", "?"))
             counts[key] = counts.get(key, 0) + 1
         # 概要层（compress/summarize_period 产物）
+        # 审查 P2-3（应修）：四处异常各自回落 `[]`，与"记忆库为空"**不可区分**
+        # （玩家以为 AI 什么都没记住）→ 汇总失败项为 memory_errors + 逐个 warning。
+        memory_errors: list = []
         summaries = []
         try:
             for row in mg.query_summaries(top_k=8, slot=slot) or []:
@@ -835,6 +966,8 @@ def api_memory(request: Request, minister: str = "", limit: int = 60):
                 })
         except Exception:
             summaries = []
+            memory_errors.append("summaries")
+            log.warning("memory：概要层查询失败（query_summaries），已回落空表", exc_info=True)
         # 细节层：近 24 回合关系（query_sql 自身跳过 archived）
         names = {eid: str(e.get("name", eid))
                  for eid, e in (mg.entities or {}).items() if isinstance(e, dict)}
@@ -849,6 +982,8 @@ def api_memory(request: Request, minister: str = "", limit: int = 60):
                 })
         except Exception:
             recent = []
+            memory_errors.append("recent")
+            log.warning("memory：近关系查询失败（query_sql），已回落空表", exc_info=True)
         # 对话记忆库概要（召对：人 + 立场/主题）；minister 非空时收窄到该大臣
         dialogue = []
         sessions = []
@@ -864,11 +999,15 @@ def api_memory(request: Request, minister: str = "", limit: int = 60):
                 dialogue = _json_safe(dm.list_summaries(limit=12))
         except Exception:
             dialogue, sessions, dialogues = [], [], []
+            memory_errors.append("dialogues")
+            log.warning("memory：对话记忆库读取失败，已回落空表", exc_info=True)
         # 变更日志（审计/回放）
         try:
             change_log = mg.query_change_log(limit=20, slot=slot) or []
         except Exception:
             change_log = []
+            memory_errors.append("change_log")
+            log.warning("memory：变更日志查询失败（query_change_log），已回落空表", exc_info=True)
         # 涉该大臣的近关系（会话视图：侧栏「相关关系」；按实体名精确匹配，非模糊）
         minister_relations = []
         if minister:
@@ -892,6 +1031,8 @@ def api_memory(request: Request, minister: str = "", limit: int = 60):
             "sessions": sessions,
             "dialogues": dialogues,
             "minister_relations": minister_relations,
+            # 审查 P2-3（应修）：失败项清单（正常为空表）——便于区分"读不到"与"确为空"
+            "memory_errors": memory_errors,
         }
 
 
@@ -1052,7 +1193,10 @@ def api_decree_polish(req: DecreePolishReq, request: Request):
             try:
                 _state.store_council_review(req.draft_id, {})   # 清缓存：批改后重入待签
             except Exception:
-                pass
+                # 审查 P2-3（应修）：原先 `pass` → 缓存未清而接口报成功，玩家看到的是
+                # **改诏前的旧会签结论**（宁失败不改错）。失败即 500，要求重试。
+                log.error("清会签缓存失败：draft_id=%s", req.draft_id, exc_info=True)
+                raise HTTPException(status_code=500, detail="会签缓存未能重置，请重试")
             return {"draft": _json_safe(d), "state": _state_to_dict(_state)}
         return {"draft": _json_safe(out)}
 
@@ -1115,7 +1259,14 @@ def api_monthly_report(request: Request):
 
 
 def _ai_config_path() -> str:
-    return os.path.join(_app_root(), "ai_config.json")
+    """`ai_config.json` 的**写入**路径。
+
+    2026-10-03：委托到 `ai.client_utils._ai_config_path()` 这个**单点**。
+    原实现在此处与 `ai/client.py::_config_path()` 各写一份
+    `join(_app_root(), "ai_config.json")`（口径单点被破），且落点是 frozen 态的
+    **安装目录**（只读），见 `ai/client_utils._ai_config_path` 的说明。
+    """
+    return _ai_config_path_impl()
 
 
 @app.get("/api/portrait/{fname}")
@@ -1163,21 +1314,33 @@ def api_ai_config_get(request: Request):
     审查 P3：补鉴权（原缺 _require_auth）。
     审查 P2-15：只回 configured + 服务端稳定 key 指纹（sha256 前 8 位），
     绝不回传 key 的任何片段（原 `key[:4]+…+key[-4:]`）。
+    审查 P2-3：**区分「未配置」与「配置损坏」**——`configured:false` 时若
+    `ai_config.json` 存在却读不出配置，补 `error` 字段说明"配置损坏"，
+    否则玩家会一直以为是"没配"，反复重配也不生效（归因错误）。
+    形状保持既有（新增 `error` 字段为可选，前端未接线，不会破坏解析）。
     """
     _require_auth(request)
+    cfg = {}
+    err = ""
     try:
         cfg = _load_ai_config()
-        key = str(cfg.get("api_key", "") or "")
-        return {
-            "configured": bool(key),
-            "key_id": _key_id(key),
-            "base_url": str(cfg.get("base_url", "") or ""),
-            "model": str(cfg.get("model", "") or ""),
-            "enable_tools": str(cfg.get("enable_tools", "") or "auto"),
-        }
-    except Exception:
-        return {"configured": False, "key_id": "", "base_url": "",
-                "model": "", "enable_tools": "auto"}
+    except Exception as e:  # noqa: BLE001
+        log.warning("读取 AI 配置异常：%s", type(e).__name__, exc_info=True)
+        err = "AI 配置读取异常"
+    if not isinstance(cfg, dict):
+        cfg = {}
+    if not cfg and os.path.exists(_ai_config_path()):
+        # 文件在、配置空 → 只有"损坏/清空"这一种解释（正常缺文件时 cfg 也为 {}，但无文件）
+        err = err or "AI 配置已损坏或为空（请重存配置或删除 ai_config.json 后重配）"
+        log.warning("AI 配置损坏/为空：%s", _ai_config_path())
+    return {
+        "configured": bool(str(cfg.get("api_key", "") or "")),
+        "key_id": _key_id(str(cfg.get("api_key", "") or "")),
+        "base_url": str(cfg.get("base_url", "") or ""),
+        "model": str(cfg.get("model", "") or ""),
+        "enable_tools": str(cfg.get("enable_tools", "") or "auto"),
+        "error": err,
+    }
 
 
 @app.post("/api/fetch_models")
@@ -1188,6 +1351,9 @@ def api_fetch_models(req: FetchModelsReq, request: Request):
       - base_url 先过 SSRF 校验（协议 / userinfo / 内网/回环/metadata / DNS rebinding）；
       - key 为空时可复用服务端已配置 Key，**仅当目标与已配置端点同规范**，
         绝不把生产 Key 发往客户端指定的任意地址；连接前由 _http_* 再解析校验一次。
+    审查 P2-3 / M12：原实现无论探测失败与否都回 `{"ok": true, "models": [...]}`
+    （`fetch_available_models` 内部回落硬编码清单），把前端"失败必须空列表"的修复架空
+    → 现改为 `ok:false + error + models:[]`（形状不变，仅语义如实）。
     """
     _require_auth(request)
     base_url = _validate_base_url(req.base_url)
@@ -1201,6 +1367,7 @@ def api_fetch_models(req: FetchModelsReq, request: Request):
             _cfg_clean = _ne(_cfg_url)[0].rstrip("/")
             _req_clean = _ne(base_url)[0].rstrip("/")
         except Exception:
+            log.warning("模型探测：端点规范化失败，改按字符串比较复用服务端 Key", exc_info=True)
             _cfg_clean, _req_clean = _cfg_url.rstrip("/"), base_url.rstrip("/")
         if _cfg_key and _cfg_clean and _cfg_clean == _req_clean:
             key = _cfg_key
@@ -1210,12 +1377,18 @@ def api_fetch_models(req: FetchModelsReq, request: Request):
         from ai.client import AIClient
         client = AIClient(api_key=key, base_url=base_url)
         models = client.fetch_available_models()
+        if not models:
+            # 探测失败（无授权模型/401/网络异常/空清单）→ 如实回失败，**不得**回硬编码清单
+            log.warning("模型探测未取得任何可用模型：base_url=%s", base_url)
+            return {"ok": False, "models": [],
+                    "error": "未能取到模型清单（Key 无效/端点不支持/网络异常）"}
         return {"ok": True, "models": models}
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
-        # 不回传完整异常栈/URL 细节给客户端
-        return {"ok": False, "models": [], "error": type(e).__name__}
+        # 不回传完整异常栈/URL 细节给客户端；原文留日志便于定位
+        log.warning("模型探测异常：%s", e, exc_info=True)
+        return {"ok": False, "models": [], "error": f"探测失败（{type(e).__name__}）"}
 
 
 @app.post("/api/ai_config")
@@ -1239,8 +1412,11 @@ def api_ai_config_set(req: AiConfigReq, request: Request):
         try:
             ok, msg = candidate.probe(force=True)
         except Exception as e:  # noqa: BLE001
+            # 审查 P2-3：探测异常原先只把类名拼进 message（无日志、无栈）→ 补 warning
+            log.warning("AI 配置候选探测异常：%s", type(e).__name__, exc_info=True)
             ok, msg = False, f"探测失败：{type(e).__name__}"
         if not ok:
+            log.warning("AI 配置未提交（探测失败）：%s", msg)
             # 事务回滚语义：probe 失败 → 不落盘、不替换，旧配置/旧 client 保留
             _old = _ai if _ai is not None else None
             return {
