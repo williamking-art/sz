@@ -300,23 +300,116 @@ def seat_yield_weights_of_circuit(
 SEAT_W = Tuple[str, float]
 
 
-def seat_weights_for(state, circuit: str, dim: str) -> List[SEAT_W]:
-    """**州府分桶权重**（G-2 骨架）：优先**产地**证据，无则回退**人口**。
+def _seat_name_of(seat_id: str) -> str:
+    """`路|治所` 主键 → 治所名（去路前缀）。"""
+    s = str(seat_id or "")
+    return s.split("|", 1)[1] if "|" in s else s
 
-    🔴 **当前两口径数值等价，故接口必须分开**（2026-10-04 实测）：
-    治所级 `yields` 是**路级总量按人口等比拆分**（`demography.py` 的 `_split_dim_scoped`），
-    各治所「某维/人」比值恒定 ⇒ **治所间无真实产地差异**。故现阶段走人口权重。
 
-    待《宋史·地理志》**州级贡物**（195 条，见 `sources/songshi/`）接入后，
-    `seat_yield_weights_of_circuit` 才会给出真实差异，届时**无需改调用方**。
+def seat_tribute_dims(seat: str) -> frozenset:
+    """该治所在《宋史·地理志》**进贡过哪些物料维**（卡1.4 · 存在性证据）。
 
-    **不臆造归属**：两条都空 ⇒ 返回 `[]`，调用方据此不做分摊（份额留总账）。
+    · 数据：`_dev_tools/sources/songshi/gong_prefecture.json`（195 条州府级贡物）；
+    · 映射：`content/seat_products.py` 的显式映射表（66 条，覆盖 53% 贡物出现次数）。
+
+    🔴 **贡物是存在性证据，不含数量** ⇒ 只用于**产地权重**，**不可当产量**。
+    🔴 **无记录 ≠ 不产**（`缺失 ≠ 0`）⇒ 返回空集时**不得归零**，调用方须保留人口基础权重。
     """
-    w = seat_yield_weights_of_circuit(circuit, dim)
-    if w:
-        return w
-    return seat_weights_of_circuit(circuit)
+    name = str(seat or "").strip()
+    if not name:
+        return frozenset()
+    for suf in ("府", "军", "监", "州", "军州"):
+        if name.endswith(suf) and len(name) > len(suf):
+            name = name[: -len(suf)]
+            break
+    hit = _TRIBUTE_BY_SEAT.get(name)
+    return hit if hit else frozenset()
 
+
+#: 《宋史·地理志》治所贡物存在性索引：{治所名(去后缀): frozenset(物料维)}
+_TRIBUTE_BY_SEAT: Dict[str, frozenset] = {}
+
+
+def _build_tribute_index() -> Dict[str, Dict[str, frozenset]]:
+    """加载 195 条州级贡物 → `{路: {治所: frozenset(维)}}` 与 `{路: frozenset(维)}`。
+
+    **缺文件不报错**（返回空表）—— 行为退回纯人口权重，不因数据缺失而崩。
+    """
+    import json
+    import os
+    import re
+    by_circuit: Dict[str, Dict[str, set]] = {}
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "..", "_dev_tools", "sources", "songshi",
+                         "gong_prefecture.json")
+    if not os.path.exists(path):
+        return {}, {}
+    try:
+        recs = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {}, {}
+    from content.seat_products import SEAT_PRODUCT_MAP
+    for r in recs:
+        r = r or {}
+        circ = str(r.get("circuit") or "").strip()
+        seat = str(r.get("seat") or "").strip()
+        if not circ:
+            continue
+        dims = set()
+        for g in re.split(r"[\u3001\uff0c,]", str(r.get("goods") or "")):
+            dims.update(SEAT_PRODUCT_MAP.get(g.strip(), ()))
+        if not dims:
+            continue
+        by_circuit.setdefault(circ, {}).setdefault(seat, set()).update(dims)
+    circ_all = {c: frozenset().union(*v.values()) if v else frozenset()
+                for c, v in by_circuit.items()}
+    return ({c: {s: frozenset(x) for s, x in v.items()} for c, v in by_circuit.items()},
+            circ_all)
+
+_TRIBUTE_BY_SEAT, _TRIBUTE_BY_CIRCUIT = _build_tribute_index()
+
+
+#: 贡物证据的**权重增强倍数**。有进贡记录的治所权重 ×该值。
+#: 取 4 而非更大：既让特产州显著更重，又不把其余州压成 0（缺失 ≠ 0）。
+TRIBUTE_WEIGHT_BONUS = 4.0
+
+
+def seat_weights_for(state, circuit: str, dim: str) -> List[SEAT_W]:
+    """**州府分桶权重**（G-2 骨架 + 卡1.4 差异化）。
+
+    **人口基础权重 × 贡物证据增强**：该路在《宋史·地理志》进贡过 `dim` ⇒ 全路权重 ×4。
+
+    🔴 **差异化现阶段只到路级**：两套命名路级 12/21 精确命中、治所级仅 7/126
+    （子串匹配已否决：「京」会命中「上京」「东京」）。治所级待人工考据的别名对照表。
+
+    **不臆造归属**：该路无治所 ⇒ 返回 `[]`，调用方不做分摊（份额留总账）。
+    """    # ══ 卡1.4 差异化增强 ══
+    # 🚦 治所级暂缓：游戏用简体简称（万州/京兆府/代州），《宋史》用带助词的完整地名
+    #    （上洛/为晋宁/相如）—— 精确匹配仅 7/126；子串匹配已否决（「京」会命中「上京」）。
+    #    待人工考据的显式别名对照表落地后再启用治所级，**不臆造**。
+    # ✅ 路级可靠对齐（12/21 精确命中）⇒ 现阶段差异化的**主力来源**。
+    _boost = (TRIBUTE_WEIGHT_BONUS
+              if dim in circuit_tribute_dims(circuit) else 1.0)
+    base = seat_weights_of_circuit(circuit)
+    if not base:
+        return []
+    if _boost == 1.0:
+        return base
+    return [(sid, w0 * _boost) for sid, w0 in base]
+
+def circuit_tribute_dims(circuit: str) -> frozenset:
+    """该**路**在《宋史·地理志》进贡过哪些物料维（卡1.4 · 路级存在性证据）。
+
+    路级比治所级**可靠**：两套命名 12/21 精确命中，治所级仅 7/126。
+    ⇒ 差异化现阶段**以路级为主力**。
+
+    缺失 ≠ 0：某路无记录 ⇒ 空集，调用方**不归零**，仍按人口权重分配。
+    """
+    name = str(circuit or "").strip()
+    return _TRIBUTE_BY_CIRCUIT.get(name) or frozenset()
+
+
+__all_TAIL__ = None
 
 def _attribute_by_weights(pop: Optional[dict], weights: List[SEAT_W],
                         dim: str, qty: int) -> int:
