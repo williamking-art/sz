@@ -19,7 +19,8 @@ _GAME = os.path.normpath(os.path.join(
 if _GAME not in sys.path:
     sys.path.insert(0, _GAME)
 
-from content.data import FINISHED_DIMS, GOODS_DIMS, GRAIN_DIMS, RAW_DIMS  # noqa: E402
+from content.data import (FINISHED_DIMS, FINISHED_TAX_DIMS, GOODS_DIMS,  # noqa: E402
+                          GRAIN_DIMS, RAW_DIMS)
 
 
 def test_goods_dims_is_unique_and_complete():
@@ -30,13 +31,18 @@ def test_goods_dims_is_unique_and_complete():
     assert "粮" not in GOODS_DIMS, "粗粒度「粮」不应与米/麦并存（外邦表口径，民间已细分）"
     for d in RAW_DIMS:
         assert d in GOODS_DIMS, f"原料 {d} 漏出目录"
+    # ⚠️ 2026-10-04 卡1：成品维**不要求**全在商品目录 —— `FINISHED_TAX_DIMS`（wine/meat）
+    # 是「即产即销折钱入内帑」，从不以货物流转。详见成品口径契约与 test_finished_goods_caliber。
     for d in FINISHED_DIMS:
-        assert d in GOODS_DIMS, f"成品 {d} 漏出目录"
+        if d in FINISHED_TAX_DIMS:
+            continue
+        assert d in GOODS_DIMS, f"可交易成品 {d} 漏出目录"
 
 
 def test_goods_dims_count_matches_components():
-    """目录长度 = 原料 + 成品 + 米麦（不多不少，防将来误并）。"""
-    assert len(GOODS_DIMS) == len(RAW_DIMS) + len(FINISHED_DIMS) + len(GRAIN_DIMS)
+    """目录长度 = 原料 + **可交易成品** + 米麦（即产即销的 wine/meat 不计）。"""
+    tradeable = [d for d in FINISHED_DIMS if d not in FINISHED_TAX_DIMS] + ["wine"]
+    assert len(GOODS_DIMS) == len(RAW_DIMS) + len(tradeable) + len(GRAIN_DIMS)
 
 
 def test_goods_dims_importable_from_content_data():

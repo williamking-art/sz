@@ -1530,8 +1530,12 @@ def _settle_workshops(state, log):
     # ⚠️ `wine` 也是成品维，但走**酒课入内帑**（既有口径，`wine_tax`），
     # 不进工匠池——池子只放**民间可买的布/绸**。
     _finished_goods: dict = {}
-    from content.data_constants import FINISHED_DIMS as _FIN_DIMS
-    _POOL_DIMS = tuple(d for d in _FIN_DIMS if d != "wine")
+    from content.data_constants import (FINISHED_DIMS as _FIN_DIMS,
+                                      FINISHED_TAX_DIMS as _FIN_TAX_DIMS)
+    # 工匠货栈（可交易）= 成品维 − 即产即销折钱入内帑的维（wine 酒课 / meat 按人口征收）。
+    # ⚠️ 2026-10-04：`meat` 已登记进 `FINISHED_DIMS`，但它**不可交易** ——
+    # 若沿用旧的「排除 wine」写法，`meat` 会自动进池，改变「畜栏产肉折钱入内帑」的业务语义。
+    _POOL_DIMS = tuple(d for d in _FIN_DIMS if d not in _FIN_TAX_DIMS)
     for wid, ws in list(state.workshops.items()):
         if not ws.get("active"):
             continue
