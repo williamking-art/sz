@@ -122,7 +122,7 @@ WIRING_HINT = (
 )
 
 #: 统计键（全部落既有 `state.statistics`，随档整表保存）
-#: 物料按维度另记 `agri_material_used_<dim>`（如 `agri_material_used_timber`）。
+#: 物料按维度另记 `agri_material_used_<dim>`（如 `agri_material_used_木`）。
 AGRI_STAT_KEYS = (
     "agri_grain_produced",      # 实物增产（石）——粮账恒等式的"产"项，须可登记
     "agri_upkeep_paid",         # 维护费实付（贯）
@@ -164,7 +164,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "label": "水利", "category": "irrigation", "sources": ("building",),
         "yield_mult": 0.050, "loss_reduction": 0.010, "transport_relief": 2.0,
         "land_per_lv": 2_000,
-        "material_per_lv": {"timber": 60, "stone": 40},
+        "material_per_lv": {"木": 60, "石": 40},
         "labor_per_lv": 40.0,
         # 官造水利：营建款已在 `_settle_projects` 付过、月度运维已在 `_settle_upkeep`
         # 按造价统一计 ⇒ 此处**不另计**（防重复收费）。
@@ -174,7 +174,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "label": "常平仓", "category": "storage", "sources": ("building",),
         "yield_mult": 0.000, "loss_reduction": 0.030, "transport_relief": 0.0,
         "land_per_lv": 0,
-        "material_per_lv": {"timber": 40},
+        "material_per_lv": {"木": 40},
         "labor_per_lv": 20.0,
         "maintenance_mode": "asset_maintenance", "upkeep_per_lv": 0,
     },
@@ -185,7 +185,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "aliases": ("C4_fertilizer",),
         "yield_mult": 0.030, "loss_reduction": 0.000, "transport_relief": 0.0,
         "land_per_lv": 500,
-        "material_per_lv": {"timber": 30},
+        "material_per_lv": {"木": 30},
         "labor_per_lv": 30.0,
         "maintenance_mode": "asset_maintenance", "upkeep_per_lv": 0,
     },
@@ -197,7 +197,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "label": "农田", "category": "farm", "sources": ("building",),
         "yield_mult": 0.020, "loss_reduction": 0.005, "transport_relief": 0.0,
         "land_per_lv": 500,
-        "material_per_lv": {"timber": 20},
+        "material_per_lv": {"木": 20},
         "labor_per_lv": 10.0,
         "maintenance_mode": "incremental", "upkeep_per_lv": 60,
     },
@@ -205,7 +205,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "label": "自耕农庄", "category": "farm", "sources": ("building",),
         "yield_mult": 0.025, "loss_reduction": 0.008, "transport_relief": 0.0,
         "land_per_lv": 800,
-        "material_per_lv": {"timber": 30},
+        "material_per_lv": {"木": 30},
         "labor_per_lv": 20.0,
         "maintenance_mode": "incremental", "upkeep_per_lv": 90,
     },
@@ -213,7 +213,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "label": "地主农庄", "category": "farm", "sources": ("building",),
         "yield_mult": 0.020, "loss_reduction": 0.008, "transport_relief": 0.0,
         "land_per_lv": 800,
-        "material_per_lv": {"timber": 30},
+        "material_per_lv": {"木": 30},
         "labor_per_lv": 20.0,
         "maintenance_mode": "incremental", "upkeep_per_lv": 90,
     },
@@ -223,7 +223,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
         "tech_node": "M1_noria", "deploy_building": "水排筒车",
         "yield_mult": 0.020, "loss_reduction": 0.005, "transport_relief": 0.0,
         "land_per_lv": 1_000,
-        "material_per_lv": {"timber": 25},
+        "material_per_lv": {"木": 25},
         "labor_per_lv": 25.0,
         "maintenance_mode": "asset_maintenance", "upkeep_per_lv": 0,
     },

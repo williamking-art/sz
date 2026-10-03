@@ -29,7 +29,7 @@ def test_every_blueprint_declares_full_schema():
             assert f in bp, f"{key} 缺字段 {f}"
         assert bp["category"] in BLUEPRINT_CATEGORIES, (key, bp["category"])
         assert bp["branch"] in BLUEPRINT_BRANCHES, (key, bp["branch"])
-        assert isinstance(bp["cost"], dict) and bp["cost"].get("silver", 0) > 0, key
+        assert isinstance(bp["cost"], dict) and bp["cost"].get("银", 0) > 0, key
         assert isinstance(bp["requires_region"], (tuple, list)), key
 
 

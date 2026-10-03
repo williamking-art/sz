@@ -25,7 +25,7 @@ def test_tech_building_map_anchors():
     """科技-建筑映射（史实锚）：三舍法→学校、火药→火器作坊、水利→水利、市舶法→市舶司、冶铁→铁作。"""
     assert TECH_BUILDING_MAP["hydraulics"] == ("水利", 30)
     assert TECH_BUILDING_MAP["gunpowder"] == ("火器作坊", 30)
-    assert TECH_BUILDING_MAP["iron"] == ("铁作", 30)
+    assert TECH_BUILDING_MAP["铁"] == ("铁作", 30)
     assert TECH_BUILDING_MAP["school_three_halls"] == ("学校", 40)
     assert TECH_BUILDING_MAP["maritime_law"] == ("市舶司", 40)
 

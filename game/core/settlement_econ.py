@@ -677,7 +677,7 @@ def _settle_extensions(state, log):
             state, "tech_build_bonus", "科技建筑",
             f"学校/书院科技加成未结算：{type(e).__name__}", log=log, exc=e)
     state.tech["gunpowder"] = max(0, min(100, state.tech["gunpowder"] + random.randint(-1, 1)))
-    state.tech["iron"] = max(0, min(100, state.tech["iron"] + random.randint(0, 1)))
+    state.tech["铁"] = max(0, min(100, state.tech["铁"] + random.randint(0, 1)))
     # west 来源制（整改④.4）：只从贸易/使团/书籍/工匠/战争累积，不再每月凭空 +0.01。
     try:
         from core.asset_context import accrue_west

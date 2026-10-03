@@ -116,7 +116,7 @@ def test_reading_materials_does_not_mutate():
     snap = holding_report(s)
     for _ in range(3):
         for r in s.prefectures:
-            material_holding_for_circuit(s, r, "timber")
+            material_holding_for_circuit(s, r, "木")
     assert holding_report(s) == snap
 
 
@@ -150,7 +150,7 @@ def test_supply_skips_routes_without_merchant():
     (prefs[some_route].get("pops") or {}).pop("商人", None)
     supply_merchant_materials(s)
     assert merchant_goods(s, some_route) is None or \
-        "timber" not in (merchant_goods(s, some_route) or {})
+        "木" not in (merchant_goods(s, some_route) or {})
 
 
 # ====================================================== 3 · 缺失 ≠ 0
@@ -158,7 +158,7 @@ def test_missing_merchant_is_none_not_zero():
     """🔴 无商人 POP ⇒ 读数 `None`，**不是 0**。"""
     s = _state()
     (s.prefectures[R1].get("pops") or {}).pop("商人", None)
-    assert material_holding_for_circuit(s, R1, "timber") is None
+    assert material_holding_for_circuit(s, R1, "木") is None
 
 
 def test_missing_dim_is_none():
@@ -169,15 +169,15 @@ def test_missing_dim_is_none():
     """
     s = _state()
     g = _mg(s, R1)
-    g.pop("iron", None)
+    g.pop("铁", None)
     for k in [k for k in g if "|" in k and isinstance(g.get(k), dict)]:
-        g[k].pop("iron", None)
-    assert material_holding_for_circuit(s, R1, "iron") is None
+        g[k].pop("铁", None)
+    assert material_holding_for_circuit(s, R1, "铁") is None
 
 
 def test_unknown_route_is_none():
     s = _state()
-    assert material_holding_for_circuit(s, "不存在路", "timber") is None
+    assert material_holding_for_circuit(s, "不存在路", "木") is None
 
 
 def test_non_material_dim_rejected():
@@ -190,43 +190,43 @@ def test_non_material_dim_rejected():
 def test_consume_returns_shortfall_not_silent():
     """🔴 扣不足返回**实扣量**，不静默吞掉。"""
     s = _state()
-    _set(s, R1, "timber", 40)
-    got = consume_for_circuit(s, R1, "timber", 300)
+    _set(s, R1, "木", 40)
+    got = consume_for_circuit(s, R1, "木", 300)
     assert got == 40
-    assert material_holding_for_circuit(s, R1, "timber") == 0
+    assert material_holding_for_circuit(s, R1, "木") == 0
 
 
 def test_consume_does_not_borrow_from_other_routes():
     """🔴 **不跨路借料**：本路无料时取 0（"运没运到"必须可观测）。"""
     s = _state()
-    _set(s, R1, "timber", 0)          # 本路无料
-    _set(s, R2, "timber", 99999)       # 别路堆满
-    assert consume_for_circuit(s, R1, "timber", 100) == 0
-    assert material_holding_for_circuit(s, R2, "timber") == 99999, "别路料须原样不动"
+    _set(s, R1, "木", 0)          # 本路无料
+    _set(s, R2, "木", 99999)       # 别路堆满
+    assert consume_for_circuit(s, R1, "木", 100) == 0
+    assert material_holding_for_circuit(s, R2, "木") == 99999, "别路料须原样不动"
 
 
 def test_consume_zero_amount_is_noop():
     s = _state()
-    _set(s, R1, "stone", 500)
-    assert consume_for_circuit(s, R1, "stone", 0) == 0
-    assert material_holding_for_circuit(s, R1, "stone") == 500
+    _set(s, R1, "石", 500)
+    assert consume_for_circuit(s, R1, "石", 0) == 0
+    assert material_holding_for_circuit(s, R1, "石") == 500
 
 
 def test_consume_never_goes_negative():
     s = _state()
-    _set(s, R1, "iron", 10)
-    consume_for_circuit(s, R1, "iron", 999)
-    assert material_holding_for_circuit(s, R1, "iron") == 0
+    _set(s, R1, "铁", 10)
+    consume_for_circuit(s, R1, "铁", 999)
+    assert material_holding_for_circuit(s, R1, "铁") == 0
 
 
 # ====================================================== 5 · 维度合并
-@pytest.mark.parametrize("cn,en", [("铁", "iron"), ("石", "stone"), ("木", "timber")])
+@pytest.mark.parametrize("cn,en", [("铁", "铁"), ("石", "石"), ("木", "木")])
 def test_raw14_chinese_names_translate(cn, en):
     assert to_material_dim(cn) == en
 
 
 def test_english_name_passes_through():
-    assert to_material_dim("timber") == "timber"
+    assert to_material_dim("木") == "木"
 
 
 def test_non_material_chinese_name_returns_none():
@@ -253,14 +253,14 @@ def test_trade_conserves_goods_and_money():
     buyer, seller = _two_merchants(s)
     buyer["wealth"] = 100000.0
     seller["wealth"] = 0.0
-    _set(s, R1, "timber", 1000)
-    g0, w0 = _sum_goods(s, "timber"), _sum_wealth(s)
+    _set(s, R1, "木", 1000)
+    g0, w0 = _sum_goods(s, "木"), _sum_wealth(s)
 
     res = trade_material(s, buyer_pop=buyer, seller_pop=seller,
-                         dim="timber", qty=100, price=2.0)
+                         dim="木", qty=100, price=2.0)
     assert res["traded"] == 100
     assert res["paid"] == 200
-    assert _sum_goods(s, "timber") == g0, "成交不得增删建材"
+    assert _sum_goods(s, "木") == g0, "成交不得增删建材"
     assert _sum_wealth(s) == w0, "成交不得创造/销毁钱"
     assert res["material_delta"]["sum"] == 0
 
@@ -269,7 +269,7 @@ def test_trade_self_dealing_rejected():
     s = _state()
     m, _ = _two_merchants(s)
     with pytest.raises(ValueError):
-        trade_material(s, buyer_pop=m, seller_pop=m, dim="timber",
+        trade_material(s, buyer_pop=m, seller_pop=m, dim="木",
                        qty=1, price=1.0)
 
 
@@ -279,9 +279,9 @@ def test_trade_unmet_qty_returned():
     buyer, seller = _two_merchants(s)
     buyer["wealth"] = 30.0            # 只够买 15（单价 2）
     seller["wealth"] = 0.0
-    _set(s, R1, "timber", 1000)
+    _set(s, R1, "木", 1000)
     res = trade_material(s, buyer_pop=buyer, seller_pop=seller,
-                         dim="timber", qty=100, price=2.0)
+                         dim="木", qty=100, price=2.0)
     assert res["traded"] == 15
     assert res["unmet_qty"] == 85
 
@@ -299,13 +299,13 @@ def test_trade_many_times_conserves():
     buyer, seller = _two_merchants(s)
     buyer["wealth"] = 1_000_000.0
     seller["wealth"] = 0.0
-    _set(s, R1, "timber", 5000)
-    _set(s, R1, "timber", 0)
-    g0, w0 = _sum_goods(s, "timber"), _sum_wealth(s)
+    _set(s, R1, "木", 5000)
+    _set(s, R1, "木", 0)
+    g0, w0 = _sum_goods(s, "木"), _sum_wealth(s)
     for i in range(20):
-        trade_material(s, buyer_pop=buyer, seller_pop=seller, dim="timber",
+        trade_material(s, buyer_pop=buyer, seller_pop=seller, dim="木",
                        qty=37, price=1.5, trade_id=f"t{i}")
-    assert _sum_goods(s, "timber") == g0
+    assert _sum_goods(s, "木") == g0
     assert _sum_wealth(s) == w0
 
 
@@ -328,9 +328,9 @@ def test_supply_attributes_materials_into_goods_seat_buckets():
         buckets = [k for k in goods if "|" in k and isinstance(goods[k], dict)]
         assert buckets, f"{circuit} 商人 goods 缺州府桶"
         # 桶之和 == 读数总量（证明没双计）
-        per = sum(int(goods[b].get("timber", 0) or 0) for b in buckets)
-        assert per == goods_amount(goods, "timber"), \
-            f"{circuit} 桶之和 {per} != goods_amount {goods_amount(goods, 'timber')}（疑似双计）"
+        per = sum(int(goods[b].get("木", 0) or 0) for b in buckets)
+        assert per == goods_amount(goods, "木"), \
+            f"{circuit} 桶之和 {per} != goods_amount {goods_amount(goods, '木')}（疑似双计）"
 
 
 def test_seat_holding_reads_and_unknown_seat_is_none():
@@ -339,9 +339,9 @@ def test_seat_holding_reads_and_unknown_seat_is_none():
     weights = seat_weights_of_circuit(R1)
     assert weights, f"{R1} 应有治所人口权重"
     seat_id = weights[0][0]
-    v = material_holding_for_seat(s, seat_id, "timber")
+    v = material_holding_for_seat(s, seat_id, "木")
     assert isinstance(v, int) and v > 0, f"{seat_id} 应有归属量，实得 {v!r}"
-    assert material_holding_for_seat(s, "不存在|某州", "timber") is None
+    assert material_holding_for_seat(s, "不存在|某州", "木") is None
     with pytest.raises(KeyError):
         material_holding_for_seat(s, seat_id, "绸")
 
@@ -352,29 +352,29 @@ def test_consume_for_seat_is_local_and_leaves_other_seats_intact():
     weights = seat_weights_of_circuit(R1)
     seat_id = weights[0][0]
     other_id = weights[1][0] if len(weights) > 1 else None
-    have = material_holding_for_seat(s, seat_id, "timber")
-    other_before = (material_holding_for_seat(s, other_id, "timber")
+    have = material_holding_for_seat(s, seat_id, "木")
+    other_before = (material_holding_for_seat(s, other_id, "木")
                     if other_id else None)
     take = min(10, have)
-    got = consume_for_seat(s, seat_id, "timber", take)
+    got = consume_for_seat(s, seat_id, "木", take)
     assert got == take, f"实扣量应等于申请量：{got} != {take}"
-    assert material_holding_for_seat(s, seat_id, "timber") == have - got
+    assert material_holding_for_seat(s, seat_id, "木") == have - got
     if other_id:
-        assert material_holding_for_seat(s, other_id, "timber") == other_before, \
+        assert material_holding_for_seat(s, other_id, "木") == other_before, \
             "扣 A 治所却动了 B 治所（桶之间应彼此独立）"
-    over = consume_for_seat(s, seat_id, "timber", 10 ** 9)
+    over = consume_for_seat(s, seat_id, "木", 10 ** 9)
     assert over == have - got, f"扣不足应返回实扣量而非需求量：{over}"
-    assert material_holding_for_seat(s, seat_id, "timber") == 0
+    assert material_holding_for_seat(s, seat_id, "木") == 0
 
 
 def test_seat_level_change_does_not_alter_other_circuits():
     """🔴 加法式保证：州府级扣料后，**路级口径变动恰好等于扣量，且不牵连异路**。"""
     s = _state()
     seat_id = seat_weights_of_circuit(R1)[0][0]
-    r2_before = material_holding_for_circuit(s, R2, "timber")
-    r1_before = material_holding_for_circuit(s, R1, "timber")
-    consume_for_seat(s, seat_id, "timber", 7)
-    assert material_holding_for_circuit(s, R2, "timber") == r2_before, "异路被牵连"
-    assert material_holding_for_circuit(s, R1, "timber") == r1_before - 7
+    r2_before = material_holding_for_circuit(s, R2, "木")
+    r1_before = material_holding_for_circuit(s, R1, "木")
+    consume_for_seat(s, seat_id, "木", 7)
+    assert material_holding_for_circuit(s, R2, "木") == r2_before, "异路被牵连"
+    assert material_holding_for_circuit(s, R1, "木") == r1_before - 7
     assert holding_report(s)["ok"] is True, "搬运守恒被破坏"
     assert seat_holding_report(s)["ok"] is True

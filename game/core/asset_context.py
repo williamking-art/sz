@@ -117,7 +117,7 @@ def prepare_research(state, node_id: str, silver_in: int = 0,
         return {"ok": True, "node_id": node_id, "name": node[3], "desc": node[4],
                 "silver": 0, "months": cost["months"], "masters": 0,
                 "idea": True, "fund": "none"}
-    silver = silver_in if silver_in > 0 else cost["silver"]
+    silver = silver_in if silver_in > 0 else cost["银"]
     if fund == "inner":
         if getattr(state, "imperial_treasury", 0) < silver:
             return {"ok": False, "reason": "内帑不足，难拨此费。"}
@@ -126,7 +126,7 @@ def prepare_research(state, node_id: str, silver_in: int = 0,
             return {"ok": False, "reason": "国库不足，难拨此费。"}
     return {"ok": True, "node_id": node_id, "name": node[3], "desc": node[4],
             "silver": silver, "months": cost["months"], "masters": cost["masters"],
-            "idea": False, "fund": fund, "cost_orig": cost["silver"]}
+            "idea": False, "fund": fund, "cost_orig": cost["银"]}
 
 
 # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
@@ -168,7 +168,7 @@ def start_research(state, node_id: str, silver_in: int = 0,
         }
         return f"「{node[3]}」乃观念之革，不费帑藏，已下诏颁行天下。"
     if silver_in <= 0:
-        silver_in = cost["silver"]
+        silver_in = cost["银"]
 
     # 立项首月经费：**守恒转移**（国库/内帑 → 学者·工匠 POP wealth），
     # 不再是无对手方的 `change_treasury(-silver)` 销毁（整改④.2 / POP 挂载律）。
@@ -266,7 +266,7 @@ def _register_generated_node(state, inv: dict) -> str:
     node = (
         gid, inv.get("kind", "科技") if inv.get("kind") in TECH_LINES else "观念与制度",
         int(tech.get("era", 0)), name, inv.get("desc", "工部新献之制"),
-        [], 0, [], {"silver": 300000, "months": 12, "masters": 3},
+        [], 0, [], {"银": 300000, "months": 12, "masters": 3},
         {effect_dim: val},
     )
     tech.setdefault("generated_nodes", {})[gid] = {

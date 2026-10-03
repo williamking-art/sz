@@ -32,7 +32,7 @@ __all__ = ["sell_material_across", "procure_materials",
 
 #: 建材基准价（贯/单位）。⚠️ **设定值，非史料**——宋无逐建材的可靠市价记载。
 #: 仅用于给"买不买得起"一个可判定口径，**不做价格发现**。
-MATERIAL_PRICE = {"timber": 1.0, "stone": 1.0, "iron": 3.0}
+MATERIAL_PRICE = {"木": 1.0, "石": 1.0, "铁": 3.0}
 
 #: 补货阈值（单位）：低于此值即考虑进货。⚠️ **设定值**。
 STOCK_FLOOR = 800
@@ -88,6 +88,15 @@ def procure_materials(state, *, stock_floor: int = STOCK_FLOOR
             need = int(stock_floor) - have
             sellers = sorted((r for r in prefs if r != buyer),
                              key=lambda r: -stock_of[r][dim])
+            # 🔴 **不留痕就是静默**：若**全场无货**，原实现在 `for seller` 里对
+            # 每个 `stock<=0` 直接 continue，循环走完什么都不记 ⇒ `skipped` 为空，
+            # 调用方分不清「没下单」是「无货」还是「算错了」。
+            # 故先判「一个有料的卖方都没有」并如实记 `no_stock_local`。
+            if not any(stock_of[r][dim] > 0 for r in sellers):
+                out["skipped"].append({
+                    "buyer": buyer, "seller": None, "dim": dim,
+                    "reason": "no_stock_local"})
+                continue
             for seller in sellers:
                 if stock_of[seller][dim] <= 0:
                     continue

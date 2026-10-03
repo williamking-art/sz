@@ -145,7 +145,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -163,7 +163,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -188,7 +188,7 @@
     ]
    ],
    "cost": {
-    "silver": 120000,
+    "银": 120000,
     "months": 9,
     "masters": 3
    },
@@ -208,12 +208,12 @@
    "need_level": 55,
    "need_sub": [
     [
-     "iron",
+     "铁",
      35
     ]
    ],
    "cost": {
-    "silver": 80000,
+    "银": 80000,
     "months": 7,
     "masters": 3
    },
@@ -233,12 +233,12 @@
    "need_level": 72,
    "need_sub": [
     [
-     "iron",
+     "铁",
      55
     ]
    ],
    "cost": {
-    "silver": 300000,
+    "银": 300000,
     "months": 18,
     "masters": 6
    },
@@ -263,7 +263,7 @@
     ]
    ],
    "cost": {
-    "silver": 500000,
+    "银": 500000,
     "months": 20,
     "masters": 6
    },
@@ -289,7 +289,7 @@
     ]
    ],
    "cost": {
-    "silver": 1200000,
+    "银": 1200000,
     "months": 28,
     "masters": 8
    },
@@ -314,7 +314,7 @@
     ]
    ],
    "cost": {
-    "silver": 1500000,
+    "银": 1500000,
     "months": 26,
     "masters": 8
    },
@@ -340,7 +340,7 @@
     ]
    ],
    "cost": {
-    "silver": 2000000,
+    "银": 2000000,
     "months": 30,
     "masters": 10
    },
@@ -366,7 +366,7 @@
     ]
    ],
    "cost": {
-    "silver": 3000000,
+    "银": 3000000,
     "months": 32,
     "masters": 12
    },
@@ -384,7 +384,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -402,7 +402,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -423,12 +423,12 @@
    "need_level": 72,
    "need_sub": [
     [
-     "iron",
+     "铁",
      60
     ]
    ],
    "cost": {
-    "silver": 300000,
+    "银": 300000,
     "months": 18,
     "masters": 6
    },
@@ -453,7 +453,7 @@
     ]
    ],
    "cost": {
-    "silver": 800000,
+    "银": 800000,
     "months": 22,
     "masters": 7
    },
@@ -478,7 +478,7 @@
     ]
    ],
    "cost": {
-    "silver": 1500000,
+    "银": 1500000,
     "months": 26,
     "masters": 8
    },
@@ -503,7 +503,7 @@
     ]
    ],
    "cost": {
-    "silver": 2500000,
+    "银": 2500000,
     "months": 30,
     "masters": 10
    },
@@ -530,7 +530,7 @@
     ]
    ],
    "cost": {
-    "silver": 3500000,
+    "银": 3500000,
     "months": 34,
     "masters": 12
    },
@@ -548,7 +548,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -573,7 +573,7 @@
     ]
    ],
    "cost": {
-    "silver": 30000,
+    "银": 30000,
     "months": 5,
     "masters": 2
    },
@@ -598,7 +598,7 @@
     ]
    ],
    "cost": {
-    "silver": 120000,
+    "银": 120000,
     "months": 8,
     "masters": 3
    },
@@ -623,7 +623,7 @@
     ]
    ],
    "cost": {
-    "silver": 300000,
+    "银": 300000,
     "months": 14,
     "masters": 5
    },
@@ -652,7 +652,7 @@
     ]
    ],
    "cost": {
-    "silver": 800000,
+    "银": 800000,
     "months": 20,
     "masters": 7
    },
@@ -672,12 +672,12 @@
    "need_level": 70,
    "need_sub": [
     [
-     "iron",
+     "铁",
      45
     ]
    ],
    "cost": {
-    "silver": 250000,
+    "银": 250000,
     "months": 16,
     "masters": 5
    },
@@ -697,7 +697,7 @@
    "need_level": 75,
    "need_sub": [],
    "cost": {
-    "silver": 400000,
+    "银": 400000,
     "months": 16,
     "masters": 5
    },
@@ -717,7 +717,7 @@
    "need_level": 80,
    "need_sub": [],
    "cost": {
-    "silver": 600000,
+    "银": 600000,
     "months": 18,
     "masters": 6
    },
@@ -743,7 +743,7 @@
     ]
    ],
    "cost": {
-    "silver": 2000000,
+    "银": 2000000,
     "months": 28,
     "masters": 9
    },
@@ -768,7 +768,7 @@
     ]
    ],
    "cost": {
-    "silver": 3000000,
+    "银": 3000000,
     "months": 30,
     "masters": 11
    },
@@ -786,7 +786,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -806,7 +806,7 @@
    "need_level": 15,
    "need_sub": [],
    "cost": {
-    "silver": 20000,
+    "银": 20000,
     "months": 4,
     "masters": 2
    },
@@ -826,7 +826,7 @@
    "need_level": 58,
    "need_sub": [],
    "cost": {
-    "silver": 60000,
+    "银": 60000,
     "months": 8,
     "masters": 3
    },
@@ -846,7 +846,7 @@
    "need_level": 65,
    "need_sub": [],
    "cost": {
-    "silver": 150000,
+    "银": 150000,
     "months": 10,
     "masters": 4
    },
@@ -872,7 +872,7 @@
     ]
    ],
    "cost": {
-    "silver": 1200000,
+    "银": 1200000,
     "months": 24,
     "masters": 8
    },
@@ -897,7 +897,7 @@
     ]
    ],
    "cost": {
-    "silver": 2000000,
+    "银": 2000000,
     "months": 26,
     "masters": 9
    },
@@ -922,7 +922,7 @@
     ]
    ],
    "cost": {
-    "silver": 3000000,
+    "银": 3000000,
     "months": 30,
     "masters": 11
    },
@@ -940,7 +940,7 @@
    "need_level": 0,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 0,
     "masters": 0
    },
@@ -960,7 +960,7 @@
    "need_level": 50,
    "need_sub": [],
    "cost": {
-    "silver": 40000,
+    "银": 40000,
     "months": 6,
     "masters": 2
    },
@@ -980,7 +980,7 @@
    "need_level": 68,
    "need_sub": [],
    "cost": {
-    "silver": 200000,
+    "银": 200000,
     "months": 12,
     "masters": 4
    },
@@ -1005,7 +1005,7 @@
     ]
    ],
    "cost": {
-    "silver": 400000,
+    "银": 400000,
     "months": 14,
     "masters": 5
    },
@@ -1030,7 +1030,7 @@
     ]
    ],
    "cost": {
-    "silver": 800000,
+    "银": 800000,
     "months": 20,
     "masters": 6
    },
@@ -1055,7 +1055,7 @@
     ]
    ],
    "cost": {
-    "silver": 1500000,
+    "银": 1500000,
     "months": 24,
     "masters": 8
    },
@@ -1081,7 +1081,7 @@
     ]
    ],
    "cost": {
-    "silver": 2200000,
+    "银": 2200000,
     "months": 28,
     "masters": 9
    },
@@ -1101,7 +1101,7 @@
    "need_level": 60,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 6,
     "masters": 0,
     "idea": true
@@ -1122,7 +1122,7 @@
    "need_level": 65,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 8,
     "masters": 0,
     "idea": true
@@ -1143,7 +1143,7 @@
    "need_level": 70,
    "need_sub": [],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 10,
     "masters": 0,
     "idea": true
@@ -1170,7 +1170,7 @@
     ]
    ],
    "cost": {
-    "silver": 0,
+    "银": 0,
     "months": 12,
     "masters": 0,
     "idea": true
@@ -1196,7 +1196,7 @@
     ]
    ],
    "cost": {
-    "silver": 60000,
+    "银": 60000,
     "months": 8,
     "masters": 3
    },
@@ -1222,7 +1222,7 @@
     ]
    ],
    "cost": {
-    "silver": 90000,
+    "银": 90000,
     "months": 9,
     "masters": 3
    },
@@ -1272,7 +1272,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 80000,
+    "银": 80000,
     "months": 3
    },
    "outputs": [
@@ -1294,7 +1294,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 200000,
+    "银": 200000,
     "months": 4
    },
    "outputs": [
@@ -1316,7 +1316,7 @@
    "branch": "军工",
    "requires_region": [],
    "cost": {
-    "silver": 60000,
+    "银": 60000,
     "months": 2
    },
    "outputs": [
@@ -1341,7 +1341,7 @@
     "京畿要地"
    ],
    "cost": {
-    "silver": 50000,
+    "银": 50000,
     "months": 2
    },
    "outputs": [
@@ -1367,7 +1367,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 600000,
+    "银": 600000,
     "months": 5
    },
    "outputs": [
@@ -1389,7 +1389,7 @@
    "branch": "农医",
    "requires_region": [],
    "cost": {
-    "silver": 80000,
+    "银": 80000,
     "months": 3
    },
    "outputs": [
@@ -1411,7 +1411,7 @@
    "branch": "农医",
    "requires_region": [],
    "cost": {
-    "silver": 150000,
+    "银": 150000,
     "months": 3
    },
    "outputs": [
@@ -1433,7 +1433,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 300000,
+    "银": 300000,
     "months": 4
    },
    "outputs": [
@@ -1455,7 +1455,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 800000,
+    "银": 800000,
     "months": 6
    },
    "outputs": [
@@ -1477,7 +1477,7 @@
    "branch": "工巧",
    "requires_region": [],
    "cost": {
-    "silver": 2000000,
+    "银": 2000000,
     "months": 6
    },
    "outputs": [

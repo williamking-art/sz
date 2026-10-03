@@ -52,6 +52,7 @@ def test_valid_dynamic_blueprint_accepted_normalized():
     assert clean is not None, errs
     assert clean["name"] == "海塘"
     assert clean["_dynamic"] is True
+    # `cost.silver` 是**货币银两**（造价），与物料维「银」无关
     assert clean["cost"] == {"silver": 120000, "months": 2}
     assert clean["effects"] == [{"op": "仓容", "params": {"amount": 50000}}]
     assert clean["schema_version"] == 1
@@ -60,7 +61,7 @@ def test_valid_dynamic_blueprint_accepted_normalized():
 @pytest.mark.parametrize("bad,frag", [
     ({"name": ""}, "缺 name"),                                   # 无名
     ({"name": "X", "category": "修仙"}, "分类非法"),              # 分类白名单
-    ({"name": "X", "cost": {"silver": -1}}, "silver"),           # 负造价
+    ({"name": "X", "cost": {"silver": -1}}, "silver"),     # 负造价（货币）
     ({"name": "X", "cost": {"months": 99}}, "months"),           # 工期越界
     ({"name": "X", "maintenance": 5}, "maintenance"),            # 维护费非 0-1
     ({"name": "X", "requires_region": "沿海"}, "requires_region"),  # 非数组

@@ -152,7 +152,7 @@ def building_unlocked(state, btype: str) -> bool:
         if bt != btype:
             continue
         tech = getattr(state, "tech", {}) or {}
-        if key in ("hydraulics", "gunpowder", "iron"):
+        if key in ("hydraulics", "gunpowder", "铁"):
             return int(tech.get(key, 0)) >= th
         return int(tech.get("level", 0)) >= th
     return True   # 基础建筑恒可建

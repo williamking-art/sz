@@ -36,7 +36,7 @@ def test_14_raw_dims_declared():
                 "果", "牲畜", "药材", "马", "蔗"):
         assert dim in RAW_DIMS_14
     # 宋侧 RAW_DIMS 已扩到含新维
-    for dim in ("gold", "copper", "silver", "livestock", "horses", "herbs"):
+    for dim in ("金", "铜", "银", "牲畜", "马", "药材"):
         assert dim in RAW_DIMS, f"宋侧 RAW_DIMS 缺 {dim}"
     # RESOURCE_DIMS 覆盖 RAW_DIMS
     for dim in RAW_DIMS:
@@ -130,5 +130,5 @@ def test_metal_not_money():
 def test_song_raw_dims_expanded():
     """宋侧 RAW_DIMS 已扩到 15 维（原 9 + 金/铜/银/牲畜/马/药材）。"""
     assert len(RAW_DIMS) >= 15
-    assert "gold" in RAW_DIMS and "copper" in RAW_DIMS and "silver" in RAW_DIMS
-    assert "livestock" in RAW_DIMS and "horses" in RAW_DIMS and "herbs" in RAW_DIMS
+    assert "金" in RAW_DIMS and "铜" in RAW_DIMS and "银" in RAW_DIMS
+    assert "牲畜" in RAW_DIMS and "马" in RAW_DIMS and "药材" in RAW_DIMS

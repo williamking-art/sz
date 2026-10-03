@@ -199,7 +199,7 @@ MATERIAL_TECH_UNLOCKS: Dict[str, Dict[str, Any]] = {
         "aliases": ("portland_cement", "hydraulic_cement"),
         "workshop": "官营作坊",
         "sites": ("京畿路", "两浙路", "成都府路"),
-        "recipe": {"name": "水泥窑", "recipe": {"stone": 100, "copper": 5},
+        "recipe": {"name": "水泥窑", "recipe": {"石": 100, "铜": 5},
                    "output_dim": "水泥", "yield": 40},
         "unlock": {
             # 科技：石灰黏土煅烧属「酸碱制取」一路，前置「砖石高炉」的煅烧技术
@@ -226,7 +226,7 @@ MATERIAL_TECH_UNLOCKS: Dict[str, Dict[str, Any]] = {
         "aliases": ("rebar", "reinforcing_steel"),
         "workshop": "官营作坊",
         "sites": ("京畿路", "河北路", "利州路"),
-        "recipe": {"name": "轧铁坊", "recipe": {"iron": 100, "copper": 2},
+        "recipe": {"name": "轧铁坊", "recipe": {"铁": 100, "铜": 2},
                    "output_dim": "钢筋", "yield": 45},
         "unlock": {
             # 科技：精炼钢 + 焦炭冶铁为前置（E3_steel 本身即 era4 的超时代节点）

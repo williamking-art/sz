@@ -34,7 +34,7 @@ def _state():
 def test_readout_does_not_mutate_state():
     """B0 契约：只观测、不改模型。任何写 state 的行为都视为违约。"""
     s = _state()
-    s.resources["iron"] = {"stock": 500, "cap": 1000}
+    s.resources["铁"] = {"stock": 500, "cap": 1000}
     s.prefectures[list(s.prefectures)[0]]["pops"]["工匠"]["goods"]["布"] = 40
     before = {
         "m": dict(s.resources),
@@ -86,9 +86,9 @@ def test_inventory_marks_artisan_pool_double_role():
 
 def test_inventory_warehouse_reports_fill_ratio():
     s = _state()
-    s.resources["timber"] = {"stock": 250, "cap": 1000}
+    s.resources["木"] = {"stock": 250, "cap": 1000}
     ro = inventory_ledger(s)
-    row = next(r for r in ro["warehouses"] if r["dim"] == "timber")
+    row = next(r for r in ro["warehouses"] if r["dim"] == "木")
     assert row["stock"] == 250 and row["cap"] == 1000
     assert row["fill_ratio"] == 0.25
     assert row["holder_type"] == "warehouse"
@@ -97,9 +97,9 @@ def test_inventory_warehouse_reports_fill_ratio():
 def test_inventory_missing_value_is_none_not_zero():
     """缺失 ≠ 0：stock 不可读时给 None，不回落 0 冒充"空仓"。"""
     s = _state()
-    s.resources["gold"] = {"stock": None, "cap": 1000}
+    s.resources["金"] = {"stock": None, "cap": 1000}
     ro = inventory_ledger(s)
-    row = next(r for r in ro["warehouses"] if r["dim"] == "gold")
+    row = next(r for r in ro["warehouses"] if r["dim"] == "金")
     assert row["stock"] is None
     assert row["fill_ratio"] is None
 
@@ -115,7 +115,7 @@ def test_inventory_truncation_is_reported():
 def test_inventory_totals_are_readview_not_ledger():
     """汇总只是读视图：仓储与 POP 持货是不同载体，标明不可相加。"""
     s = _state()
-    s.resources["stone"] = {"stock": 100, "cap": 500}
+    s.resources["石"] = {"stock": 100, "cap": 500}
     route = list(s.prefectures)[0]
     s.prefectures[route]["pops"]["农"]["goods"]["布"] = 7
     ro = inventory_ledger(s)

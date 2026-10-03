@@ -163,19 +163,19 @@ def test_dispatch_deducts_immediately_and_creates_batch():
     """发货：**立刻扣货** + 建批次。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    before = _have(s, A, "timber")
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    before = _have(s, A, "木")
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
     assert res["ok"] and res["shipped"] == 300
-    assert _have(s, A, "timber") == before - 300, "发货须立刻扣源"
+    assert _have(s, A, "木") == before - 300, "发货须立刻扣源"
     assert len(transport.in_transit(s)) == 1
 
 
 def test_dispatch_without_stock_creates_nothing():
     """🔴 钱货两清或两不做：扣不到货**不建批次**，不产生凭空在途。"""
     s = _state()
-    _give(s, A, "timber", 0)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=100)
+    _give(s, A, "木", 0)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=100)
     # 目的地 NB 与 A **有路** ⇒ 这才轮得到查库存，验证"无货不建批次"
     assert transport.is_adjacent(A, NB) is True
     assert res["ok"] is False and res["reason"] == "no_stock_local"
@@ -189,18 +189,18 @@ def test_dispatch_to_unreachable_route_is_route_undefined():
     货**仍留在卖方**，不会因为"路远"就凭空消失。
     """
     s = _state()
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=FAR, dim="timber", qty=100)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=FAR, dim="木", qty=100)
     assert transport.is_adjacent(A, FAR) is False, "前提：FAR 与 A 无直达道路"
     assert res["ok"] is False and res["reason"] == "route_undefined"
     assert transport.in_transit(s) == [], "不通不得建批次"
-    assert int((merchant_goods(s, "京畿路") or {})["timber"]) == 1000, \
+    assert int((merchant_goods(s, "京畿路") or {})["木"]) == 1000, \
         "🔴 不通时货须留在卖方（扣了又没批次＝凭空消失）"
 
 
 def test_dispatch_unknown_origin_rejected():
     s = _state()
-    res = transport.dispatch(s, frm="不存在|某州", to=FAR, dim="timber", qty=1)
+    res = transport.dispatch(s, frm="不存在|某州", to=FAR, dim="木", qty=1)
     assert res["ok"] is False and res["reason"] == "unknown_origin"
     assert transport.in_transit(s) == []
 
@@ -208,7 +208,7 @@ def test_dispatch_unknown_origin_rejected():
 def test_dispatch_zero_qty_is_no_demand():
     """期望量为 0 不是"未满足"（B0-3 口径）。"""
     s = _state()
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=0)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=0)
     assert res["ok"] and res["reason"] == "no_demand"
 
 
@@ -217,14 +217,14 @@ def test_goods_not_arrived_are_not_credited():
     """🔴 **未到不入账**——这是"运没运到"可观测的关键。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    dst_before = _have(s, NB, "timber")
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    dst_before = _have(s, NB, "木")
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
     assert res["arrive_month"] > 10, "跨路不应当月到达"
 
     arrived = transport.arrive_due(s)
     assert arrived == [], "未到期不得入账"
-    assert _have(s, NB, "timber") == dst_before, "目的地不得凭空增料"
+    assert _have(s, NB, "木") == dst_before, "目的地不得凭空增料"
     assert len(transport.in_transit(s)) == 1, "批次应仍在途"
 
 
@@ -232,14 +232,14 @@ def test_goods_arrive_after_due_month():
     """到月份才入账，且批次从在途移除。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    dst_before = _have(s, NB, "timber")
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    dst_before = _have(s, NB, "木")
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
 
     _set_month(s, res["arrive_month"])
     arrived = transport.arrive_due(s)
     assert len(arrived) == 1 and arrived[0]["qty"] == 300
-    assert _have(s, NB, "timber") == dst_before + 300
+    assert _have(s, NB, "木") == dst_before + 300
     assert transport.in_transit(s) == []
 
 
@@ -247,22 +247,22 @@ def test_arrive_due_is_idempotent_per_batch():
     """同一批次**不会重复入账**。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=200)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=200)
     _set_month(s, res["arrive_month"])
     transport.arrive_due(s)
-    after = _have(s, NB, "timber")
+    after = _have(s, NB, "木")
     transport.arrive_due(s)
     transport.arrive_due(s)
-    assert _have(s, NB, "timber") == after, "重复调用不得重复入账"
+    assert _have(s, NB, "木") == after, "重复调用不得重复入账"
 
 
 def test_arrive_keeps_batch_when_destination_has_no_merchant():
     """目的地无商人货栈 ⇒ **保留批次**，不静默丢弃（缺失≠0）。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=200)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=200)
     # 把**有路目的地** NB 的商人挪走
     s.prefectures["京西路"]["pops"].pop("商人", None)
     _set_month(s, res["arrive_month"])
@@ -276,8 +276,8 @@ def test_transit_report_shape_matches_market_readout():
     """与 `market_readout.in_transit` 的结构对齐（原先 `implemented: False`）。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 500)
-    transport.dispatch(s, frm=A, to=NB, dim="timber", qty=100)
+    _give(s, A, "木", 500)
+    transport.dispatch(s, frm=A, to=NB, dim="木", qty=100)
     rep = transport.transit_report(s)
     for k in ("implemented", "items", "count"):
         assert k in rep, f"缺字段 {k}"
@@ -308,8 +308,8 @@ def test_dispatch_uses_real_calendar_not_zero():
     from core.civil_building import abs_month_index
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=100)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=100)
     now = abs_month_index(s)
     assert res["ok"]
     assert res["arrive_month"] == now + res["days"], \
@@ -320,14 +320,14 @@ def test_dispatch_uses_real_calendar_not_zero():
 def test_undefined_calendar_refuses_to_dispatch():
     """🔴 时点未定义 ⇒ **拒绝建批次**（不猜、不回落 0），且**不扣货**。"""
     s = _state()
-    _give(s, A, "timber", 1000)
+    _give(s, A, "木", 1000)
     s.year = None
     s.month = None
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=100)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=100)
     assert res["ok"] is False and res["reason"] == "time_undefined"
     assert transport.in_transit(s) == [], "时点未定义不得建批次"
     # 🔴 更重要：货**不得被扣掉**（扣了又没批次＝凭空消失）
-    assert int((merchant_goods(s, "京畿路") or {})["timber"]) == 1000
+    assert int((merchant_goods(s, "京畿路") or {})["木"]) == 1000
 
 
 def test_state_carries_transit_book():
@@ -346,11 +346,11 @@ def test_transit_survives_save_load_round_trip():
     from core.save_load import load_game, save_game
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    dst_before = _have(s, NB, "timber")   # 目的地原有量（配货而来，非 0）
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    dst_before = _have(s, NB, "木")   # 目的地原有量（配货而来，非 0）
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
     assert res["ok"] and res["arrive_month"] > 10
-    src_before = _have(s, A, "timber")
+    src_before = _have(s, A, "木")
 
     assert save_game(s, slot=97)
     s2 = load_game(slot=97)
@@ -363,11 +363,11 @@ def test_transit_survives_save_load_round_trip():
         assert k in b, f"批次缺字段 {k}"
     assert b["qty"] == 300
     assert b["arrive_month"] == res["arrive_month"]
-    assert _have(s2, A, "timber") == src_before, "存档不得凭空改卖方存量"
+    assert _have(s2, A, "木") == src_before, "存档不得凭空改卖方存量"
 
     s2.year=1101; s2.month=1+(int(b["arrive_month"])%12)
     transport.arrive_due(s2)
-    assert _have(s2, NB, "timber") == dst_before + 300, "到货应叠加在原有量上"
+    assert _have(s2, NB, "木") == dst_before + 300, "到货应叠加在原有量上"
 
 
 def test_old_save_without_transit_key_loads_as_empty():
@@ -384,8 +384,8 @@ def test_dispatch_batch_records_destination_circuit():
     """批次自带**路级归属**：「运到哪条路」不必反查州府索引。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
     assert res["ok"] and res["shipped"] == 300
     b = transport.in_transit(s)[0]
     assert b["from_circuit"] == "京畿路", f"源路归属错：{b['from_circuit']!r}"
@@ -396,16 +396,16 @@ def test_transit_by_seat_is_conserved_against_dispatch():
     """🔴 `transit_by_seat` 按**目的地治所**汇总在途量，且 Σ == 实际发货量（守恒）。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    r1 = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
-    r2 = transport.dispatch(s, frm=A, to=NB, dim="stone", qty=120)
+    _give(s, A, "木", 1000)
+    r1 = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
+    r2 = transport.dispatch(s, frm=A, to=NB, dim="石", qty=120)
     rows = transport.transit_by_seat(s)
     assert NB in rows, f"在途读数缺目的地治所 {NB}：{rows!r}"
     row = rows[NB]
     assert row["circuit"] == "京西路"
     assert row["batches"] == 2
-    assert row["qty"]["timber"] == r1["shipped"]
-    assert row["qty"]["stone"] == r2["shipped"]
+    assert row["qty"]["木"] == r1["shipped"]
+    assert row["qty"]["石"] == r2["shipped"]
     total = sum(v["qty"][d] for v in rows.values() for d in v["qty"])
     assert total == r1["shipped"] + r2["shipped"], "州府级在途汇总与发货量不符（漏记/重复记）"
 
@@ -414,8 +414,8 @@ def test_arrived_batch_reports_destination_seat():
     """到货批次带出**落在哪个治所**——C-c「先运到才能用」缺的那一半可观测性。"""
     s = _state()
     _set_month(s, 10)
-    _give(s, A, "timber", 1000)
-    res = transport.dispatch(s, frm=A, to=NB, dim="timber", qty=300)
+    _give(s, A, "木", 1000)
+    res = transport.dispatch(s, frm=A, to=NB, dim="木", qty=300)
     _set_month(s, res["arrive_month"])
     arrived = transport.arrive_due(s)
     assert len(arrived) == 1

@@ -41,7 +41,7 @@ _CONSUMERS = {
 }
 
 #: 建材维度（须经单点读口）
-_MAT_DIMS = ("timber", "stone", "iron")
+_MAT_DIMS = ("木", "石", "铁")
 
 #: **有建材注册表**的消费方（配置表里的维度名须受校验）
 _REGISTRY_CONSUMERS = {
@@ -77,7 +77,7 @@ def test_consumer_does_not_bypass_single_entry(name):
     src = _sources()[name]
     assert '["by_pref"]' not in src and "['by_pref']" not in src, \
         f"{name} 绕过单点读口直读/直写 by_pref（该层已退役）"
-    assert '"iron"]["stock"]' not in src and "'iron']['stock']" not in src, \
+    assert '"铁"]["stock"]' not in src and "'铁']['stock']" not in src, \
         f"{name} 直读仓里建材 ⇒ 等于「料可凭空调用」，物流失去意义"
 
 
@@ -145,8 +145,8 @@ def test_single_entry_points_are_the_only_write_path():
     settle_production_chain(s, [])
     supply_merchant_materials(s)
 
-    assert material_holding_for_circuit(s, "京畿路", "timber") is not None
-    before = int(material_holding_for_circuit(s, "京畿路", "timber"))
-    got = consume_for_circuit(s, "京畿路", "timber", 400)
+    assert material_holding_for_circuit(s, "京畿路", "木") is not None
+    before = int(material_holding_for_circuit(s, "京畿路", "木"))
+    got = consume_for_circuit(s, "京畿路", "木", 400)
     assert got == 400
-    assert material_holding_for_circuit(s, "京畿路", "timber") == before - 400
+    assert material_holding_for_circuit(s, "京畿路", "木") == before - 400

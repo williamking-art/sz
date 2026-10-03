@@ -361,7 +361,7 @@ def _good_entry():
         "aliases": ("wrought_iron",),
         "workshop": "官营作坊",
         "sites": ("京畿路",),
-        "recipe": {"name": "锻铁坊", "recipe": {"iron": 10},
+        "recipe": {"name": "锻铁坊", "recipe": {"铁": 10},
                    "output_dim": "熟铁", "yield": 8},
         "unlock": {
             "tech": {"tech_node": "E2_coke", "tech_nodes": ("E2_coke",),

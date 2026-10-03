@@ -252,7 +252,7 @@ CIVIL_BUILDING_SPECS: Dict[str, Dict[str, Any]] = {
         # 建成Lv5 之后的循环由**损坏重修**（decay_cycle_months）与
         # `settlement_tech` 的玩家工程接棒，不靠"永远不够住"驱动。
         "capacity_per_lv": 1_500_000,
-        "stock_per_lv": {"timber": 120, "stone": 40},
+        "stock_per_lv": {"木": 120, "石": 40},
         "labor_per_lv": 4_000.0, "wage_per_labor_hour": 1.5,
         "payers": ("士绅", "商人", "工匠", "农"),
         "level_cap": 5, "decay_cycle_months": 120,
@@ -263,7 +263,7 @@ CIVIL_BUILDING_SPECS: Dict[str, Dict[str, Any]] = {
         "label": "货栈", "drivers": ("expansion", "decay"),
         "job_class": False, "write_form": "dict",
         "capacity_per_lv": 0,          # 货栈不居住人口 ⇒ 人口/拥挤动因对其不适用
-        "stock_per_lv": {"timber": 150, "stone": 60},
+        "stock_per_lv": {"木": 150, "石": 60},
         "labor_per_lv": 3_000.0, "wage_per_labor_hour": 1.5,
         "payers": ("商人", "士绅", "工匠", "农"),
         "level_cap": 5, "decay_cycle_months": 96,
@@ -279,7 +279,7 @@ CIVIL_BUILDING_SPECS: Dict[str, Dict[str, Any]] = {
         # **就业基线**。故默认 `allow_job_class=False`，只出读数不写入；
         # 由 Lead 显式开闸，且只能写标量等级（`pop_building_effect` 做 `int(lv)`）。
         "capacity_per_lv": 0,
-        "stock_per_lv": {"timber": 80, "stone": 20},
+        "stock_per_lv": {"木": 80, "石": 20},
         "labor_per_lv": 2_000.0, "wage_per_labor_hour": 1.5,
         "payers": ("商人", "士绅", "工匠"),
         "level_cap": 5, "decay_cycle_months": 120,

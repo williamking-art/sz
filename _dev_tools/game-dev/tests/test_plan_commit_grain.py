@@ -39,7 +39,7 @@ def _plan(route="两浙路", name="海塘", decree_id="d-1"):
         "title": name, "source_fragment": "修海塘", "kind": "营建",
         "location_id": route, "blueprint_proposal": {
             "name": name, "category": "民生",
-            "cost": {"silver": 100_000, "months": 1},
+            "cost": {"银": 100_000, "months": 1},
             "effects": [{"op": "仓容", "params": {"amount": 20_000}}]}}]}
 
 
@@ -82,7 +82,7 @@ def test_idempotency_survives_reordering_and_revalidation():
     p = _plan()
     p["actions"].append({"title": "疏浚", "source_fragment": "疏浚", "kind": "营建",
                          "location_id": "京畿路", "blueprint_proposal": {
-                             "name": "疏浚", "cost": {"silver": 50_000, "months": 1},
+                             "name": "疏浚", "cost": {"银": 50_000, "months": 1},
                              "effects": []}})
     commit_plan(s, p)
     reordered = {"decree_id": "d-1", "actions": list(reversed(p["actions"]))}
@@ -164,7 +164,7 @@ def test_old_save_without_plan_schemas_migrates():
     from core.save_load import load_game, save_game
     s = _state()
     register_dynamic_blueprint(s, {
-        "name": "海塘", "cost": {"silver": 100_000, "months": 1},
+        "name": "海塘", "cost": {"银": 100_000, "months": 1},
         "effects": [{"op": "仓容", "params": {"amount": 100}}]})
     assert save_game(s, 94) is True
     s2 = load_game(94)
@@ -192,7 +192,7 @@ def test_higher_schema_version_section_is_refused():
 
 # ====================================================== C. 运行期粮类落点
 def _bp_grain():
-    return {"name": "常平仓", "category": "财政", "cost": {"silver": 100_000, "months": 1},
+    return {"name": "常平仓", "category": "财政", "cost": {"银": 100_000, "months": 1},
             "effects": [{"op": "籴买", "params": {"amount": 5_000}}]}
 
 
@@ -257,7 +257,7 @@ def test_grain_runtime_respects_pop_supply_limit():
     s = _state()
     register_dynamic_blueprint(s, {
         "name": "常平仓", "category": "财政",
-        "cost": {"silver": 100_000, "months": 1},
+        "cost": {"银": 100_000, "months": 1},
         "effects": [{"op": "籴买", "params": {"amount": 200_000}}]})
     _operate(s)
     total_pop_grain = sum(float((p.get("pops") or {}).get(k, {}).get("grain", 0) or 0)

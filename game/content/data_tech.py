@@ -61,7 +61,7 @@ TECH_EFFECT_LABELS = {
 TECH_BUILDING_MAP = {
     "hydraulics": ("水利", 30),          # 水利机械 ≥30 → 水利设施可建
     "gunpowder": ("火器作坊", 30),        # 火药 ≥30 → 火器作坊
-    "iron": ("铁作", 30),                # 冶铁 ≥30 → 铁作
+    "铁": ("铁作", 30),                # 冶铁 ≥30 → 铁作
     "school_three_halls": ("学校", 40),   # 三舍法（level ≥40）→ 太学/州学
     "maritime_law": ("市舶司", 40),       # 市舶法（level ≥40）→ 市舶司
 }
@@ -78,7 +78,7 @@ TECH_INFO: dict[str, object] = {
     "gunpowder": 20,      # 火药军用程度（0~100）
     "hydraulics": 40,     # 水利机械
     "calendar": 60,       # 历法天文
-    "iron": 20,           # 冶金副指标（0~100）
+    "铁": 20,           # 冶金副指标（0~100）
     "masters": 3,         # 工匠/学者人才（可投入量）
     "era": 0,             # 当前所处时代序号 0~6（叙事标签）
     "west": 0,            # 西学东渐程度 0~5（跨时代加速因子）
@@ -156,59 +156,59 @@ TechNode = tuple[str, str, int, str, str, list[str], int,
                  list[tuple[str, int]], dict[str, int | bool], dict[str, int | float]]
 TECH_NODES: list[TechNode] = [
     # ---- 机械动力 ----
-    ("M0_plow",     "机械动力", 0, "牛耕挽犁",   "铁犁牛耕，九州之基", [], 0, [], {"silver":0,"months":0,"masters":0}, {"yield_bonus":0.05}),
-    ("M1_noria",    "机械动力", 0, "水排筒车",   "水激轮转，灌田碾谷", [], 0, [], {"silver":0,"months":0,"masters":0}, {"yield_bonus":0.08}),
-    ("M2_spindle",  "机械动力", 1, "水力大纺车", "水转大纺，昼夜不息", ["M1_noria"], 60, [("hydraulics",50)], {"silver":120000,"months":9,"masters":3}, {"trade_income":0.15}),
-    ("M3_bellows",  "机械动力", 1, "水力鼓风",   "水排鼓风，铸冶不绝", ["M1_noria"], 55, [("iron",35)], {"silver":80000,"months":7,"masters":3}, {"build_cost":-0.08}),
-    ("M4_furnace",  "机械动力", 2, "砖石高炉",   "高炉积薪，万斛铁出", ["M3_bellows"], 72, [("iron",55)], {"silver":300000,"months":18,"masters":6}, {"build_cost":-0.15}),
-    ("M5_steampump","机械动力", 4, "蒸汽抽水机", "汽机汲水，矿穴乃通", ["M4_furnace"], 80, [("west",1)], {"silver":500000,"months":20,"masters":6}, {"mining_income":0.10}),
-    ("M6_loco",     "机械动力", 5, "蒸汽机车",   "汽机驱动，铁轨万里", ["M5_steampump","E3_steel"], 85, [("west",2)], {"silver":1200000,"months":28,"masters":8}, {"canal_efficiency":0.30}),
-    ("M7_elecbasis","机械动力", 5, "电学基础",   "琥珀引电，磁石感线", ["M6_loco"], 88, [("west",2)], {"silver":1500000,"months":26,"masters":8}, {"production":0.08}),
-    ("M8_ice",      "机械动力", 6, "内燃机",     "油气入炉，机转如雷", ["M6_loco","E4_oil"], 90, [("west",3)], {"silver":2000000,"months":30,"masters":10}, {"production":0.25}),
-    ("M9_power",    "机械动力", 6, "电力传输",   "电枢旋转，千里动力一脉", ["M8_ice","M7_elecbasis"], 95, [("west",4)], {"silver":3000000,"months":32,"masters":12}, {"production":0.30}),
+    ("M0_plow",     "机械动力", 0, "牛耕挽犁",   "铁犁牛耕，九州之基", [], 0, [], {"银": 0,"months":0,"masters":0}, {"yield_bonus":0.05}),
+    ("M1_noria",    "机械动力", 0, "水排筒车",   "水激轮转，灌田碾谷", [], 0, [], {"银": 0,"months":0,"masters":0}, {"yield_bonus":0.08}),
+    ("M2_spindle",  "机械动力", 1, "水力大纺车", "水转大纺，昼夜不息", ["M1_noria"], 60, [("hydraulics",50)], {"银": 120000,"months":9,"masters":3}, {"trade_income":0.15}),
+    ("M3_bellows",  "机械动力", 1, "水力鼓风",   "水排鼓风，铸冶不绝", ["M1_noria"], 55, [("铁",35)], {"银": 80000,"months":7,"masters":3}, {"build_cost":-0.08}),
+    ("M4_furnace",  "机械动力", 2, "砖石高炉",   "高炉积薪，万斛铁出", ["M3_bellows"], 72, [("铁",55)], {"银": 300000,"months":18,"masters":6}, {"build_cost":-0.15}),
+    ("M5_steampump","机械动力", 4, "蒸汽抽水机", "汽机汲水，矿穴乃通", ["M4_furnace"], 80, [("west",1)], {"银": 500000,"months":20,"masters":6}, {"mining_income":0.10}),
+    ("M6_loco",     "机械动力", 5, "蒸汽机车",   "汽机驱动，铁轨万里", ["M5_steampump","E3_steel"], 85, [("west",2)], {"银": 1200000,"months":28,"masters":8}, {"canal_efficiency":0.30}),
+    ("M7_elecbasis","机械动力", 5, "电学基础",   "琥珀引电，磁石感线", ["M6_loco"], 88, [("west",2)], {"银": 1500000,"months":26,"masters":8}, {"production":0.08}),
+    ("M8_ice",      "机械动力", 6, "内燃机",     "油气入炉，机转如雷", ["M6_loco","E4_oil"], 90, [("west",3)], {"银": 2000000,"months":30,"masters":10}, {"production":0.25}),
+    ("M9_power",    "机械动力", 6, "电力传输",   "电枢旋转，千里动力一脉", ["M8_ice","M7_elecbasis"], 95, [("west",4)], {"银": 3000000,"months":32,"masters":12}, {"production":0.30}),
     # ---- 能源与材料 ----
-    ("E0_firewood", "能源与材料", 0, "柴薪取火",  "柴薪为燃，窑冶之基", [], 0, [], {"silver":0,"months":0,"masters":0}, {"build_speed":0.05}),
-    ("E1_coal",     "能源与材料", 0, "煤炭开采",  "山石可燃，可代柴薪", [], 0, [], {"silver":0,"months":0,"masters":0}, {"production":0.08}),
-    ("E2_coke",     "能源与材料", 2, "焦炭冶铁",  "煤炼成焦，火猛而无硫", ["E1_coal","M4_furnace"], 72, [("iron",60)], {"silver":300000,"months":18,"masters":6}, {"build_cost":-0.18}),
-    ("E3_steel",    "能源与材料", 4, "钢铁精炼",  "百炼成钢，器用坚利", ["E2_coke"], 82, [("west",1)], {"silver":800000,"months":22,"masters":7}, {"army_power":0.20}),
-    ("E4_oil",      "能源与材料", 5, "石油提炼",  "井中黑金，炼为灯油沥青", ["E3_steel"], 88, [("west",2)], {"silver":1500000,"months":26,"masters":8}, {"mining_income":0.25}),
-    ("E5_alloy",    "能源与材料", 6, "合金钢材",  "锰镍入钢，造轮船轨", ["E4_oil"], 93, [("west",3)], {"silver":2500000,"months":30,"masters":10}, {"army_power":0.25,"production":0.15}),
-    ("E6_elecsteel","能源与材料", 6, "电工钢",    "硅钢导磁，电机之骨", ["E5_alloy","M9_power"], 97, [("west",4)], {"silver":3500000,"months":34,"masters":12}, {"production":0.35}),
+    ("E0_firewood", "能源与材料", 0, "柴薪取火",  "柴薪为燃，窑冶之基", [], 0, [], {"银": 0,"months":0,"masters":0}, {"build_speed":0.05}),
+    ("E1_coal",     "能源与材料", 0, "煤炭开采",  "山石可燃，可代柴薪", [], 0, [], {"银": 0,"months":0,"masters":0}, {"production":0.08}),
+    ("E2_coke",     "能源与材料", 2, "焦炭冶铁",  "煤炼成焦，火猛而无硫", ["E1_coal","M4_furnace"], 72, [("铁",60)], {"银": 300000,"months":18,"masters":6}, {"build_cost":-0.18}),
+    ("E3_steel",    "能源与材料", 4, "钢铁精炼",  "百炼成钢，器用坚利", ["E2_coke"], 82, [("west",1)], {"银": 800000,"months":22,"masters":7}, {"army_power":0.20}),
+    ("E4_oil",      "能源与材料", 5, "石油提炼",  "井中黑金，炼为灯油沥青", ["E3_steel"], 88, [("west",2)], {"银": 1500000,"months":26,"masters":8}, {"mining_income":0.25}),
+    ("E5_alloy",    "能源与材料", 6, "合金钢材",  "锰镍入钢，造轮船轨", ["E4_oil"], 93, [("west",3)], {"银": 2500000,"months":30,"masters":10}, {"army_power":0.25,"production":0.15}),
+    ("E6_elecsteel","能源与材料", 6, "电工钢",    "硅钢导磁，电机之骨", ["E5_alloy","M9_power"], 97, [("west",4)], {"银": 3500000,"months":34,"masters":12}, {"production":0.35}),
     # ---- 化学化工 ----
-    ("C0_alchemy",  "化学化工", 0, "炼丹术",     "炉鼎丹砂，化玄为妙", [], 0, [], {"silver":0,"months":0,"masters":0}, {"build_speed":0.05}),
-    ("C1_gunpowder","化学化工", 0, "火药成熟",   "硝硫木炭，一硝二磺三木炭", ["C0_alchemy"], 20, [("gunpowder",30)], {"silver":30000,"months":5,"masters":2}, {"army_power":0.10}),
-    ("C1b_huochong","化学化工", 1, "火铳",       "铜铁为管，火药推送子丸", ["C1_gunpowder"], 40, [("gunpowder",45)], {"silver":120000,"months":8,"masters":3}, {"army_power":0.12}),
-    ("C1c_huoqiang","化学化工", 2, "火枪",       "更制枪铳，演为列阵之器", ["C1b_huochong"], 65, [("gunpowder",65)], {"silver":300000,"months":14,"masters":5}, {"army_power":0.15}),
-    ("C1d_suifa",  "化学化工", 4, "燧发枪",     "燧石击发，机巧胜于人力", ["C1c_huoqiang"], 85, [("gunpowder",85),("west",2)], {"silver":800000,"months":20,"masters":7}, {"army_power":0.20}),
-    ("C2_acid",     "化学化工", 3, "酸碱制取",   "石胆绿矾，化水为强酸", ["C1_gunpowder"], 70, [("iron",45)], {"silver":250000,"months":16,"masters":5}, {"production":0.10}),
-    ("C3_dye",      "化学化工", 3, "合成染料",   "靛蓝茜草，色染天下", ["C2_acid"], 75, [], {"silver":400000,"months":16,"masters":5}, {"trade_income":0.20}),
-    ("C4_fertilizer","化学化工", 4, "化学肥料",  "骨粉硝石，沃土千亩", ["C2_acid"], 80, [], {"silver":600000,"months":18,"masters":6}, {"yield_bonus":0.20}),
-    ("C5_rubber",   "化学化工", 5, "人造橡胶",   "石脑油蒸，炼为弹体", ["C4_fertilizer","E4_oil"], 90, [("west",3)], {"silver":2000000,"months":28,"masters":9}, {"production":0.20}),
-    ("C6_plastic",  "化学化工", 6, "合成塑料",   "酚醛树脂，百器可塑", ["C5_rubber"], 95, [("west",4)], {"silver":3000000,"months":30,"masters":11}, {"production":0.30}),
+    ("C0_alchemy",  "化学化工", 0, "炼丹术",     "炉鼎丹砂，化玄为妙", [], 0, [], {"银": 0,"months":0,"masters":0}, {"build_speed":0.05}),
+    ("C1_gunpowder","化学化工", 0, "火药成熟",   "硝硫木炭，一硝二磺三木炭", ["C0_alchemy"], 20, [("gunpowder",30)], {"银": 30000,"months":5,"masters":2}, {"army_power":0.10}),
+    ("C1b_huochong","化学化工", 1, "火铳",       "铜铁为管，火药推送子丸", ["C1_gunpowder"], 40, [("gunpowder",45)], {"银": 120000,"months":8,"masters":3}, {"army_power":0.12}),
+    ("C1c_huoqiang","化学化工", 2, "火枪",       "更制枪铳，演为列阵之器", ["C1b_huochong"], 65, [("gunpowder",65)], {"银": 300000,"months":14,"masters":5}, {"army_power":0.15}),
+    ("C1d_suifa",  "化学化工", 4, "燧发枪",     "燧石击发，机巧胜于人力", ["C1c_huoqiang"], 85, [("gunpowder",85),("west",2)], {"银": 800000,"months":20,"masters":7}, {"army_power":0.20}),
+    ("C2_acid",     "化学化工", 3, "酸碱制取",   "石胆绿矾，化水为强酸", ["C1_gunpowder"], 70, [("铁",45)], {"银": 250000,"months":16,"masters":5}, {"production":0.10}),
+    ("C3_dye",      "化学化工", 3, "合成染料",   "靛蓝茜草，色染天下", ["C2_acid"], 75, [], {"银": 400000,"months":16,"masters":5}, {"trade_income":0.20}),
+    ("C4_fertilizer","化学化工", 4, "化学肥料",  "骨粉硝石，沃土千亩", ["C2_acid"], 80, [], {"银": 600000,"months":18,"masters":6}, {"yield_bonus":0.20}),
+    ("C5_rubber",   "化学化工", 5, "人造橡胶",   "石脑油蒸，炼为弹体", ["C4_fertilizer","E4_oil"], 90, [("west",3)], {"银": 2000000,"months":28,"masters":9}, {"production":0.20}),
+    ("C6_plastic",  "化学化工", 6, "合成塑料",   "酚醛树脂，百器可塑", ["C5_rubber"], 95, [("west",4)], {"银": 3000000,"months":30,"masters":11}, {"production":0.30}),
     # ---- 信息通讯 ----
-    ("I0_block",    "信息通讯", 0, "雕版印刷",   "雕木为版，刷印成书", [], 0, [], {"silver":0,"months":0,"masters":0}, {"exam_talent":3}),
-    ("I1_movable",  "信息通讯", 0, "活字印刷",   "胶泥活字，可拆可排", ["I0_block"], 15, [], {"silver":20000,"months":4,"masters":2}, {"exam_talent":5}),
-    ("I2_metaltype","信息通讯", 1, "金属活字",   "铜锡浇铸，耐久复用", ["I1_movable"], 58, [], {"silver":60000,"months":8,"masters":3}, {"exam_talent":5}),
-    ("I3_post",     "信息通讯", 2, "邮政驿站",   "驿路烽烟，传檄四方", ["I2_metaltype"], 65, [], {"silver":150000,"months":10,"masters":4}, {"decree_speed":-2}),
-    ("I4_telegraph","信息通讯", 5, "电报",       "铜线千里，电传讯息", ["I3_post","M7_elecbasis"], 85, [("west",2)], {"silver":1200000,"months":24,"masters":8}, {"decree_speed":-4}),
-    ("I5_phone",    "信息通讯", 5, "电话",       "声波化电，隔空传语", ["I4_telegraph"], 90, [("west",3)], {"silver":2000000,"months":26,"masters":9}, {"decree_speed":-5}),
-    ("I6_radio",    "信息通讯", 6, "无线电",     "电波无远不至，千里同声", ["I5_phone"], 95, [("west",4)], {"silver":3000000,"months":30,"masters":11}, {"decree_speed":-6}),
+    ("I0_block",    "信息通讯", 0, "雕版印刷",   "雕木为版，刷印成书", [], 0, [], {"银": 0,"months":0,"masters":0}, {"exam_talent":3}),
+    ("I1_movable",  "信息通讯", 0, "活字印刷",   "胶泥活字，可拆可排", ["I0_block"], 15, [], {"银": 20000,"months":4,"masters":2}, {"exam_talent":5}),
+    ("I2_metaltype","信息通讯", 1, "金属活字",   "铜锡浇铸，耐久复用", ["I1_movable"], 58, [], {"银": 60000,"months":8,"masters":3}, {"exam_talent":5}),
+    ("I3_post",     "信息通讯", 2, "邮政驿站",   "驿路烽烟，传檄四方", ["I2_metaltype"], 65, [], {"银": 150000,"months":10,"masters":4}, {"decree_speed":-2}),
+    ("I4_telegraph","信息通讯", 5, "电报",       "铜线千里，电传讯息", ["I3_post","M7_elecbasis"], 85, [("west",2)], {"银": 1200000,"months":24,"masters":8}, {"decree_speed":-4}),
+    ("I5_phone",    "信息通讯", 5, "电话",       "声波化电，隔空传语", ["I4_telegraph"], 90, [("west",3)], {"银": 2000000,"months":26,"masters":9}, {"decree_speed":-5}),
+    ("I6_radio",    "信息通讯", 6, "无线电",     "电波无远不至，千里同声", ["I5_phone"], 95, [("west",4)], {"银": 3000000,"months":30,"masters":11}, {"decree_speed":-6}),
     # ---- 生命医学 ----
-    ("H0_herbal",   "生命医学", 0, "本草医方",   "尝百草辨药性，济世活人", [], 0, [], {"silver":0,"months":0,"masters":0}, {"epidemic_risk":-0.10}),
-    ("H1_forensic", "生命医学", 1, "法医检勘",   "验尸断狱，洗冤录成", ["H0_herbal"], 50, [], {"silver":40000,"months":6,"masters":2}, {"epidemic_risk":-0.10}),
-    ("H2_variola",  "生命医学", 2, "人痘接种",   "痘痂种鼻，以毒攻毒", ["H1_forensic"], 68, [], {"silver":200000,"months":12,"masters":4}, {"epidemic_risk":-0.30}),
-    ("H3_anatomy",  "生命医学", 3, "人体解剖",   "剖尸明理，血脉经络", ["H2_variola"], 75, [("west",1)], {"silver":400000,"months":14,"masters":5}, {"epidemic_risk":-0.20}),
-    ("H4_bacteria", "生命医学", 4, "细菌学说",   "微虫致病，灭之可防", ["H3_anatomy"], 82, [("west",2)], {"silver":800000,"months":20,"masters":6}, {"epidemic_risk":-0.40}),
-    ("H5_anesthesia","生命医学", 5, "外科麻醉",   "麻沸汤药，剖腹不痛", ["H4_bacteria"], 88, [("west",2)], {"silver":1500000,"months":24,"masters":8}, {"epidemic_risk":-0.30,"production":0.05}),
-    ("H6_vaccine",  "生命医学", 6, "疫苗学",     "减毒作苗，疫病可御", ["H5_anesthesia"], 93, [("west",3)], {"silver":2200000,"months":28,"masters":9}, {"epidemic_risk":-0.50}),
+    ("H0_herbal",   "生命医学", 0, "本草医方",   "尝百草辨药性，济世活人", [], 0, [], {"银": 0,"months":0,"masters":0}, {"epidemic_risk":-0.10}),
+    ("H1_forensic", "生命医学", 1, "法医检勘",   "验尸断狱，洗冤录成", ["H0_herbal"], 50, [], {"银": 40000,"months":6,"masters":2}, {"epidemic_risk":-0.10}),
+    ("H2_variola",  "生命医学", 2, "人痘接种",   "痘痂种鼻，以毒攻毒", ["H1_forensic"], 68, [], {"银": 200000,"months":12,"masters":4}, {"epidemic_risk":-0.30}),
+    ("H3_anatomy",  "生命医学", 3, "人体解剖",   "剖尸明理，血脉经络", ["H2_variola"], 75, [("west",1)], {"银": 400000,"months":14,"masters":5}, {"epidemic_risk":-0.20}),
+    ("H4_bacteria", "生命医学", 4, "细菌学说",   "微虫致病，灭之可防", ["H3_anatomy"], 82, [("west",2)], {"银": 800000,"months":20,"masters":6}, {"epidemic_risk":-0.40}),
+    ("H5_anesthesia","生命医学", 5, "外科麻醉",   "麻沸汤药，剖腹不痛", ["H4_bacteria"], 88, [("west",2)], {"银": 1500000,"months":24,"masters":8}, {"epidemic_risk":-0.30,"production":0.05}),
+    ("H6_vaccine",  "生命医学", 6, "疫苗学",     "减毒作苗，疫病可御", ["H5_anesthesia"], 93, [("west",3)], {"银": 2200000,"months":28,"masters":9}, {"epidemic_risk":-0.50}),
     # ---- 观念与制度（idea 类：穿越者观念启发，近零成本，靠推行）----
-    ("X0_assembly", "观念与制度", 1, "流水线",   "工序拆解，流水作业，百器速成", ["M2_spindle"], 60, [], {"silver":0,"months":6,"masters":0,"idea":True}, {"production":0.15}),
-    ("X1_standard", "观念与制度", 2, "标准化",   "模件互换，尺寸划一，营造尤便", ["X0_assembly"], 65, [], {"silver":0,"months":8,"masters":0,"idea":True}, {"build_cost":-0.12}),
-    ("X2_bookkeeping","观念与制度", 3, "复式记账", "出入分账，盈亏立见，财政为之一明", ["I3_post"], 70, [], {"silver":0,"months":10,"masters":0,"idea":True}, {"mining_income":0.10}),
-    ("X3_regulation","观念与制度", 4, "制式化军械", "枪械划一，零件可换，士卒易用", ["X1_standard","E3_steel"], 80, [("west",1)], {"silver":0,"months":12,"masters":0,"idea":True}, {"army_power":0.15}),
+    ("X0_assembly", "观念与制度", 1, "流水线",   "工序拆解，流水作业，百器速成", ["M2_spindle"], 60, [], {"银": 0,"months":6,"masters":0,"idea":True}, {"production":0.15}),
+    ("X1_standard", "观念与制度", 2, "标准化",   "模件互换，尺寸划一，营造尤便", ["X0_assembly"], 65, [], {"银": 0,"months":8,"masters":0,"idea":True}, {"build_cost":-0.12}),
+    ("X2_bookkeeping","观念与制度", 3, "复式记账", "出入分账，盈亏立见，财政为之一明", ["I3_post"], 70, [], {"银": 0,"months":10,"masters":0,"idea":True}, {"mining_income":0.10}),
+    ("X3_regulation","观念与制度", 4, "制式化军械", "枪械划一，零件可换，士卒易用", ["X1_standard","E3_steel"], 80, [("west",1)], {"银": 0,"months":12,"masters":0,"idea":True}, {"army_power":0.15}),
     # ---- 能力域补全（整改④.1）：历法 / 航海 ----
-    ("A0_calendar", "观念与制度", 1, "历法修订", "观测星度，校正岁差，颁历授时", ["I0_block"], 50, [("calendar",60)], {"silver":60000,"months":8,"masters":3}, {"calendar":4,"calendar_bonus":5}),
-    ("N0_compass",  "机械动力", 1, "航海罗盘", "水浮磁针，辨向通洋", ["M1_noria"], 50, [("hydraulics",40)], {"silver":90000,"months":9,"masters":3}, {"maritime_income":0.15,"trade_income":0.10}),
+    ("A0_calendar", "观念与制度", 1, "历法修订", "观测星度，校正岁差，颁历授时", ["I0_block"], 50, [("calendar",60)], {"银": 60000,"months":8,"masters":3}, {"calendar":4,"calendar_bonus":5}),
+    ("N0_compass",  "机械动力", 1, "航海罗盘", "水浮磁针，辨向通洋", ["M1_noria"], 50, [("hydraulics",40)], {"银": 90000,"months":9,"masters":3}, {"maritime_income":0.15,"trade_income":0.10}),
 
 ]
 
@@ -230,62 +230,62 @@ BUILDING_BLUEPRINTS = {
     "M2_spindle": {
         "name": "大纺务", "kind": "纺织", "category": "民生", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 80000, "months": 3},
+        "cost": {"银": 80000, "months": 3},
         "outputs": [{"kind": "贸易收入", "amount": 0.15, "unit": "比例"}],
         "effect": {"trade_income": 0.15}, "need_node": "M2_spindle"},
     "M4_furnace": {
         "name": "铁冶务", "kind": "冶金", "category": "民生", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 200000, "months": 4},
+        "cost": {"银": 200000, "months": 4},
         "outputs": [{"kind": "营建成本", "amount": -0.10, "unit": "比例"}],
         "effect": {"build_cost": -0.10}, "need_node": "M4_furnace"},
     "C1_gunpowder": {
         "name": "火药局", "kind": "军工", "category": "军事", "branch": "军工",
         "requires_region": (),
-        "cost": {"silver": 60000, "months": 2},
+        "cost": {"银": 60000, "months": 2},
         "outputs": [{"kind": "军备库", "amount": 400, "item": "火铳", "unit": "件/月"}],
         "effect": {"army_power": 0.10}, "need_node": "C1_gunpowder"},
     "I0_block": {
         "name": "国子监印书局", "kind": "文化", "category": "科技", "branch": "文教",
         "requires_region": ("京畿要地",),
-        "cost": {"silver": 50000, "months": 2},
+        "cost": {"银": 50000, "months": 2},
         "outputs": [{"kind": "科研速度", "amount": 10, "unit": "%"},
                     {"kind": "科举得才", "amount": 3}],
         "effect": {"exam_talent": 3}, "need_node": "I0_block"},
     "I4_telegraph": {
         "name": "电报局", "kind": "通讯", "category": "交通", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 600000, "months": 5},
+        "cost": {"银": 600000, "months": 5},
         "outputs": [{"kind": "建造速度", "amount": 15, "unit": "%"}],
         "effect": {"decree_speed": -3}, "need_node": "I4_telegraph"},
     "H2_variola": {
         "name": "痘苗局", "kind": "医学", "category": "民生", "branch": "农医",
         "requires_region": (),
-        "cost": {"silver": 80000, "months": 3},
+        "cost": {"银": 80000, "months": 3},
         "outputs": [{"kind": "瘟疫抵抗", "amount": 30, "unit": "%"}],
         "effect": {"epidemic_risk": -0.30}, "need_node": "H2_variola"},
     "C4_fertilizer": {
         "name": "肥料局", "kind": "农业", "category": "民生", "branch": "农医",
         "requires_region": (),
-        "cost": {"silver": 150000, "months": 3},
+        "cost": {"银": 150000, "months": 3},
         "outputs": [{"kind": "粮食产量", "amount": 15, "unit": "%"}],
         "effect": {"yield_bonus": 0.15}, "need_node": "C4_fertilizer"},
     "M5_steampump": {
         "name": "蒸汽矿场", "kind": "矿业", "category": "民生", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 300000, "months": 4},
+        "cost": {"银": 300000, "months": 4},
         "outputs": [{"kind": "矿产收入", "amount": 0.10, "unit": "比例"}],
         "effect": {"mining_income": 0.10}, "need_node": "M5_steampump"},
     "M6_loco": {
         "name": "机器局·铁路", "kind": "交通", "category": "交通", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 800000, "months": 6},
+        "cost": {"银": 800000, "months": 6},
         "outputs": [{"kind": "漕运效率", "amount": 0.30, "unit": "比例"}],
         "effect": {"canal_efficiency": 0.30}, "need_node": "M6_loco"},
     "M9_power": {
         "name": "发电厂", "kind": "能源", "category": "科技", "branch": "工巧",
         "requires_region": (),
-        "cost": {"silver": 2000000, "months": 6},
+        "cost": {"银": 2000000, "months": 6},
         "outputs": [{"kind": "建筑产出", "amount": 15, "unit": "%"}],
         "effect": {"production": 0.15}, "need_node": "M9_power"},
 }
@@ -387,7 +387,7 @@ def tech_cost_with_era(node: TechNode, current_era: int) -> dict[str, int | bool
     base = node[8]
     is_idea = bool(base.get("idea"))
     return {
-        "silver": 0 if is_idea else int(base["silver"] * mult),
+        "银": 0 if is_idea else int(base["银"] * mult),
         "months": max(1, int(base["months"] * mult)),
         "masters": base["masters"],
         "idea": is_idea,

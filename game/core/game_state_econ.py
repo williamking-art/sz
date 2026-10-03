@@ -767,7 +767,7 @@ class GameStateEconMixin:
         """月盐课（贯），随盐产区产能、食盐人口、到库率浮动。
 
         盐课 = Σ各路盐产量(斤/年) × SALT_PROFIT_PER_JIN × price_factor × arrival × (总人口/SALT_POP_BASE)
-          - 盐产区产能：各路七维物资初值 yields["salt"] 之和（工程/市舶可改 yields 或 resources 而变）
+          - 盐产区产能：各路七维物资初值 yields["盐"] 之和（工程/市舶可改 yields 或 resources 而变）
           - price_factor：产能/基准产能比越紧俏价越高，夹在 [SALT_PRICE_FLOOR, SALT_PRICE_CEIL]
           - 总人口缩放：食盐人口增减直接线性反映到盐课（开局缩放=1）
           - arrival：到库率（灾荒/治理低则折损）
@@ -776,7 +776,7 @@ class GameStateEconMixin:
         salt_capacity = 0.0
         total_pop = 0.0
         for p in self.prefectures.values():
-            salt_capacity += float(p.get("yields", {}).get("salt", 0))
+            salt_capacity += float(p.get("yields", {}).get("盐", 0))
             total_pop += float(p.get("population", 0))
         adequacy = salt_capacity / SALT_CAPACITY_BASE if SALT_CAPACITY_BASE > 0 else 1.0
         price_factor = 1.0 + (min(adequacy, 2.0) - 1.0) * 0.3

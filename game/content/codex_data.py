@@ -44,7 +44,7 @@ def _build_building():
     _tech_ids = {t[0] for t in TECH_NODES}
     # TECH_BUILDING_MAP 的语义键 → 真实科技节点 id（对齐 TECH_NODES 实数）
     _semantic = {"hydraulics": "M1_noria", "gunpowder": "C1_gunpowder",
-                 "iron": "M3_bellows"}
+                 "铁": "M3_bellows"}
     items = []
     for name, spec in BUILDING_STD.items():
         eff = CODEX_BUILDING_EFFECT.get(spec.get("effect", ""), spec.get("effect", ""))
@@ -65,7 +65,7 @@ def _build_building():
     for tid, bp in BUILDING_BLUEPRINTS.items():
         bname = bp.get("name", tid)
         cost = bp.get("cost", {}) or {}
-        fields = [("营造", f"约 {int(cost.get('silver', 0) or 0) // 10000} 万贯 / {cost.get('months', 0)} 月")]
+        fields = [("营造", f"约 {int(cost.get('银', 0) or 0) // 10000} 万贯 / {cost.get('months', 0)} 月")]
         items.append({"key": bname, "name": bname, "sub": f"新业·{bp.get('kind', '')}",
                       "desc": CODEX_BUILDING_DESC.get(bname, "科技解锁之新业。"),
                       "fields": fields, "links": [("tech", tid, _tech_name(tid))]})

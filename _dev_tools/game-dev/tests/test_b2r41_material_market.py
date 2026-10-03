@@ -26,6 +26,7 @@ if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
 from core.construction_cost import base_material_cost      # noqa: E402
+from core.material_holding import MATERIAL_DIMS             # noqa: E402
 from core.market import reset_trade_ledger                  # noqa: E402
 from core.market_price import pref_good_key                 # noqa: E402
 from core.material_market import (                          # noqa: E402
@@ -37,7 +38,7 @@ from core.material_market import (                          # noqa: E402
 )
 
 PREF = "京畿路"
-TIMBER_PRICE = 50      # content.data_constants.MATERIAL_PRICE_BASE["timber"]（钱/根）
+TIMBER_PRICE = 50      # content.data_constants.MATERIAL_PRICE_BASE["木"]（钱/根）
 STONE_PRICE = 30       # 同上（钱/方）
 
 
@@ -47,9 +48,9 @@ class _State:
     def __init__(self):
         self.turn = 1
         self.treasury = 100_000
-        self.resources = {"timber": {"stock": 1000, "cap": 5000},
-                          "stone": {"stock": 500, "cap": 5000},
-                          "iron": {"stock": 200, "cap": 5000}}
+        self.resources = {"木": {"stock": 1000, "cap": 5000},
+                          "石": {"stock": 500, "cap": 5000},
+                          "铁": {"stock": 200, "cap": 5000}}
         self.prefectures = {PREF: {"pops": {
             "士绅": {"size": 1000, "wealth": 20_000, "grain": 0, "goods": {}},
             "商人": {"size": 500, "wealth": 5_000, "grain": 0, "goods": {}},
@@ -112,9 +113,9 @@ def _isolated_specs():
 # ====================================================== 钱货双向守恒（三方对账）
 def test_pop_buys_pop_is_two_leg_conservation():
     """民间买民间：钱与货**同时**转移，Σwealth 不变。"""
-    s = _state(pop_goods={"商人": {"timber": 200}}, pop_wealth={"士绅": 20_000})
+    s = _state(pop_goods={"商人": {"木": 200}}, pop_wealth={"士绅": 20_000})
     before_money = _money_total(s)
-    r = buy_material(s, pref=PREF, dim="timber", qty=50,
+    r = buy_material(s, pref=PREF, dim="木", qty=50,
                      buyer="pop", buyer_pop="士绅",
                      carrier="pop", seller_pop="商人")
     assert r["ok"] is True and r["reason"] == MaterialReason.OK
@@ -122,39 +123,39 @@ def test_pop_buys_pop_is_two_leg_conservation():
     assert r["paid"] == 50 * TIMBER_PRICE
     assert _pop(s, "士绅")["wealth"] == 20_000 - r["paid"]      # 买方付款
     assert _pop(s, "商人")["wealth"] == 5_000 + r["paid"]       # 货款接收方
-    assert _pop(s, "士绅")["goods"]["timber"] == 50            # 买方得货
-    assert _pop(s, "商人")["goods"]["timber"] == 150           # 卖方出货
+    assert _pop(s, "士绅")["goods"]["木"] == 50            # 买方得货
+    assert _pop(s, "商人")["goods"]["木"] == 150           # 卖方出货
     assert _money_total(s) == before_money, "总钱量被凭空增减"
 
 
 def test_treasury_buys_from_civilian_vendor():
     """官府向民间商户买料：国库出钱、**商户收钱**，料入仓储（工程预留入库）。"""
-    s = _state(pop_goods={"商人": {"timber": 200}})
-    r = buy_material(s, pref=PREF, dim="timber", qty=50, buyer="treasury",
+    s = _state(pop_goods={"商人": {"木": 200}})
+    r = buy_material(s, pref=PREF, dim="木", qty=50, buyer="treasury",
                      carrier="pop", seller_pop="商人")
     assert r["paid"] == 50 * TIMBER_PRICE
     assert s.treasury == 100_000 - r["paid"]
     assert _pop(s, "商人")["wealth"] == 5_000 + r["paid"]
-    assert s.resources["timber"]["stock"] == 1000 + 50
+    assert s.resources["木"]["stock"] == 1000 + 50
     assert r["seller"] == f"{PREF}|商人"
 
 
 def test_civilian_buys_from_state_warehouse():
     """民间向官仓买料：货出仓储、**货款回国库**（钱货两条腿都有真实对手方）。"""
     s = _state()
-    r = buy_material(s, pref=PREF, dim="timber", qty=40, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="木", qty=40, buyer="pop",
                      buyer_pop="士绅", carrier="warehouse")
     assert r["paid"] == 40 * TIMBER_PRICE
-    assert s.resources["timber"]["stock"] == 1000 - 40
+    assert s.resources["木"]["stock"] == 1000 - 40
     assert s.treasury == 100_000 + r["paid"]
-    assert _pop(s, "士绅")["goods"]["timber"] == 40
+    assert _pop(s, "士绅")["goods"]["木"] == 40
 
 
 def test_self_dealing_treasury_buys_own_warehouse_is_rejected():
     """国库买官仓＝自购自卖：不构成市场，直接拒绝（防左手倒右手造钱造货）。"""
     s = _state()
     before = _snapshot(s)
-    r = buy_material(s, pref=PREF, dim="timber", qty=10, buyer="treasury",
+    r = buy_material(s, pref=PREF, dim="木", qty=10, buyer="treasury",
                      carrier="warehouse")
     assert r["ok"] is False
     assert r["reason"] == MaterialReason.SELF_DEALING
@@ -163,9 +164,9 @@ def test_self_dealing_treasury_buys_own_warehouse_is_rejected():
 
 # ====================================================== 无货不能买 / 可售量上限
 def test_no_stock_local_means_no_trade():
-    s = _state(stock={"stone": 0}, pop_goods={"商人": {"stone": 0}})
+    s = _state(stock={"石": 0}, pop_goods={"商人": {"石": 0}})
     before = _snapshot(s)
-    r = buy_material(s, pref=PREF, dim="stone", qty=50, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="石", qty=50, buyer="pop",
                      buyer_pop="士绅", carrier="pop", seller_pop="商人")
     assert r["traded"] == 0 and r["paid"] == 0
     assert r["reason"] == MaterialReason.NO_STOCK
@@ -175,23 +176,23 @@ def test_no_stock_local_means_no_trade():
 
 def test_sellable_never_exceeds_real_stock_after_reserve():
     """预留先扣，且成交后剩余**不得低于预留**（预留不复制库存）。"""
-    s = _state(stock={"stone": 100})
-    r = buy_material(s, pref=PREF, dim="stone", qty=200, buyer="pop",
+    s = _state(stock={"石": 100})
+    r = buy_material(s, pref=PREF, dim="石", qty=200, buyer="pop",
                      buyer_pop="士绅", carrier="warehouse", reserved=30)
     assert r["traded"] == 70, "成交不得超过 真实库存 − 预留"
-    assert s.resources["stone"]["stock"] == 30
+    assert s.resources["石"]["stock"] == 30
     assert r["unmet_qty"] == 130
     # 再买一次：可售量已归零 ⇒ 无货不能买
-    r2 = buy_material(s, pref=PREF, dim="stone", qty=10, buyer="pop",
+    r2 = buy_material(s, pref=PREF, dim="石", qty=10, buyer="pop",
                       buyer_pop="士绅", carrier="warehouse", reserved=30)
     assert r2["traded"] == 0 and r2["reason"] == MaterialReason.NO_STOCK
-    assert s.resources["stone"]["stock"] == 30, "预留份额被吃掉"
+    assert s.resources["石"]["stock"] == 30, "预留份额被吃掉"
 
 
 def test_purchasing_power_is_the_second_cap():
     """三重上限：购买力不足时按实成交，不透支。"""
-    s = _state(pop_goods={"商人": {"timber": 1000}}, pop_wealth={"士绅": 120})
-    r = buy_material(s, pref=PREF, dim="timber", qty=100, buyer="pop",
+    s = _state(pop_goods={"商人": {"木": 1000}}, pop_wealth={"士绅": 120})
+    r = buy_material(s, pref=PREF, dim="木", qty=100, buyer="pop",
                      buyer_pop="士绅", carrier="pop", seller_pop="商人")
     assert r["traded"] == 2 and r["paid"] == 100
     assert _pop(s, "士绅")["wealth"] == 20
@@ -202,8 +203,8 @@ def test_purchasing_power_is_the_second_cap():
 # ====================================================== 替代必须显式
 def test_substitution_not_performed_unless_explicitly_allowed():
     """默认 `allow_substitutes=None` ⇒ **一材不换**，缺口如实记账。"""
-    s = _state(stock={"stone": 10, "timber": 500})
-    r = settle_material_purchase(s, pref=PREF, materials={"stone": 100},
+    s = _state(stock={"石": 10, "木": 500})
+    r = settle_material_purchase(s, pref=PREF, materials={"石": 100},
                                  buyer="treasury", carrier="warehouse")
     assert r["substitutions"], "替代被评估过，必须留下痕迹（未放行＝未采用）"
     assert all(x["accepted"] is False for x in r["substitutions"])
@@ -215,24 +216,24 @@ def test_substitution_not_performed_unless_explicitly_allowed():
 
 def test_substitution_only_for_declared_and_allowed_material():
     """放行未声明的替代材 ⇒ 仍不换（声明表是硬闸门）。"""
-    s = _state(stock={"stone": 0, "timber": 500, "iron": 500})
-    r = settle_material_purchase(s, pref=PREF, materials={"stone": 60},
+    s = _state(stock={"石": 0, "木": 500, "铁": 500})
+    r = settle_material_purchase(s, pref=PREF, materials={"石": 60},
                                  buyer="treasury", carrier="warehouse",
-                                 allow_substitutes=["iron"])     # stone↔iron 未声明
+                                 allow_substitutes=["铁"])     # stone↔iron 未声明
     assert all(x["accepted"] is False for x in r["substitutions"])
     assert r["totals"]["traded"] == 0
 
 
 def test_explicit_substitution_records_acceptability():
     """显式放行 ⇒ 按**接受度**折算当量，并逐条留痕（可审计）。"""
-    s = _state(stock={"stone": 10, "timber": 500})
-    acc = MATERIAL_SUBSTITUTES["stone"][0]["acceptability"]      # 1 材折抵 0.6 方
-    r = settle_material_purchase(s, pref=PREF, materials={"stone": 100},
+    s = _state(stock={"石": 10, "木": 500})
+    acc = MATERIAL_SUBSTITUTES["石"][0]["acceptability"]      # 1 材折抵 0.6 方
+    r = settle_material_purchase(s, pref=PREF, materials={"石": 100},
                                  buyer="treasury", carrier="warehouse",
-                                 allow_substitutes=["timber"])
+                                 allow_substitutes=["木"])
     sub = r["substitutions"][0]
     assert sub["accepted"] is True
-    assert sub["provided_dim"] == "timber"
+    assert sub["provided_dim"] == "木"
     assert sub["acceptability"] == acc
     shortfall = 100 - r["lines"][0]["traded"]          # 主材缺口 90 方
     assert sub["qty"] == math.ceil(shortfall / acc)     # 需 150 材木折抵
@@ -247,24 +248,24 @@ def test_explicit_substitution_records_acceptability():
 
 def test_invalid_acceptability_is_rejected_not_defaulted():
     """接受度非法（>1）⇒ 该条替代被拒并如实标注，**不按 1.0 兜底**。"""
-    saved = MATERIAL_SUBSTITUTES["stone"]
-    MATERIAL_SUBSTITUTES["stone"] = ({"to": "timber", "acceptability": 3.0,
+    saved = MATERIAL_SUBSTITUTES["石"]
+    MATERIAL_SUBSTITUTES["石"] = ({"to": "木", "acceptability": 3.0,
                                       "reason": "非法接受度用例"},)
     try:
-        s = _state(stock={"stone": 0, "timber": 500})
-        r = settle_material_purchase(s, pref=PREF, materials={"stone": 30},
+        s = _state(stock={"石": 0, "木": 500})
+        r = settle_material_purchase(s, pref=PREF, materials={"石": 30},
                                      buyer="treasury", carrier="warehouse",
-                                     allow_substitutes=["timber"])
+                                     allow_substitutes=["木"])
         sub = r["substitutions"][0]
         assert sub["accepted"] is False
         assert sub["reason"] == "invalid_acceptability"
         assert r["totals"]["substitute_qty"] == 0
     finally:
-        MATERIAL_SUBSTITUTES["stone"] = saved
+        MATERIAL_SUBSTITUTES["石"] = saved
 
 
 def test_quote_lists_declared_substitutes_without_enabling_them():
-    q = quote_material(_state(), pref=PREF, dim="stone")
+    q = quote_material(_state(), pref=PREF, dim="石")
     assert q["substitutes"], "必须列出已声明的替代材"
     assert all(x["declared"] is True and x["enabled"] is False
                for x in q["substitutes"])
@@ -272,7 +273,7 @@ def test_quote_lists_declared_substitutes_without_enabling_them():
 
 # ====================================================== 单位与换算
 def test_declared_units_are_explicit_and_consistent():
-    for dim in ("timber", "stone", "iron"):
+    for dim in ("木", "石", "铁"):
         spec = material_spec(dim)
         assert spec["unit"], f"{dim} 必须声明采购单位"
         assert spec["stock_unit"], f"{dim} 必须声明库存单位"
@@ -319,9 +320,9 @@ def test_pop_seller_stock_round_trips_through_unit_conversion(_isolated_specs):
 
 
 def test_fractional_material_qty_is_rejected_not_rounded():
-    s = _state(stock={"timber": 100})
+    s = _state(stock={"木": 100})
     before = _snapshot(s)
-    r = buy_material(s, pref=PREF, dim="timber", qty=1.5, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="木", qty=1.5, buyer="pop",
                      buyer_pop="士绅", carrier="warehouse")
     assert r["ok"] is False and r["reason"] == MaterialReason.INVALID
     assert _snapshot(s) == before
@@ -330,8 +331,8 @@ def test_fractional_material_qty_is_rejected_not_rounded():
 def test_market_unit_price_matches_construction_cost_unit_price():
     """口径单点：市场成交单价与 `construction_cost.base_material_cost` 同价。"""
     s = _state()
-    px = material_price(s, pref=PREF, dim="timber")
-    cost = base_material_cost(materials={"timber": 10.0}, state=s)
+    px = material_price(s, pref=PREF, dim="木")
+    cost = base_material_cost(materials={"木": 10.0}, state=s)
     assert cost["unresolved"] is False
     assert cost["lines"][0]["price"] == pytest.approx(
         px["price_per_stock"], rel=1e-6)
@@ -342,12 +343,12 @@ def test_market_unit_price_matches_construction_cost_unit_price():
 def test_missing_stock_slot_is_none_not_zero():
     """仓储槽位缺失 ⇒ 存量 `None`（**不是 0**），且拒绝成交。"""
     s = _state()
-    del s.resources["stone"]
-    assert material_stock(s, "stone") is None
-    sup = material_supply(s, pref=PREF, dim="stone")
+    del s.resources["石"]
+    assert material_stock(s, "石") is None
+    sup = material_supply(s, pref=PREF, dim="石")
     assert sup["known"] is False and sup["stock"] is None and sup["sellable"] is None
     assert sup["reason"] == MaterialReason.UNKNOWN_STOCK
-    r = buy_material(s, pref=PREF, dim="stone", qty=10, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="石", qty=10, buyer="pop",
                      buyer_pop="士绅", carrier="warehouse")
     assert r["ok"] is False and r["reason"] == MaterialReason.UNKNOWN_STOCK
     assert r["paid"] == 0
@@ -357,9 +358,9 @@ def test_pop_without_goods_slot_is_unknown_not_zero():
     """旧档 POP 缺 `goods` 槽 ⇒ 未定义，不按"没有货"也不按"有货"处理。"""
     s = _state()
     del _pop(s, "商人")["goods"]
-    sup = material_supply(s, pref=PREF, dim="timber", carrier="pop")
+    sup = material_supply(s, pref=PREF, dim="木", carrier="pop")
     assert sup["stock"] is None and sup["known"] is False
-    r = buy_material(s, pref=PREF, dim="timber", qty=10, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="木", qty=10, buyer="pop",
                      buyer_pop="士绅", carrier="pop", seller_pop="商人")
     assert r["ok"] is False and r["reason"] == MaterialReason.UNKNOWN_STOCK
 
@@ -387,10 +388,13 @@ def test_missing_base_price_is_not_zero_price():
 
 # ====================================================== 拒绝式非法输入
 @pytest.mark.parametrize("bad,reason", [
-    ({"timber": -5}, MaterialReason.INVALID),
-    ({"timber": 1.5}, MaterialReason.INVALID),
-    ({"timber": "十"}, MaterialReason.INVALID),
-    ({"木": 10}, MaterialReason.UNKNOWN_MATERIAL),
+    ({"木": -5}, MaterialReason.INVALID),
+    ({"木": 1.5}, MaterialReason.INVALID),
+    ({"木": "十"}, MaterialReason.INVALID),
+    # 🔴 「未知物料」＝**未注册进 `MATERIAL_SPECS` 的维**（如「砖」——见规格：brick 三重缺失）。
+    # 「木」已注册，是**合法建材维**；无来源时的正确 reason 是 `no_stock_local`，
+    # 与「未知物料」是两回事，不可用「木」代测 UNKNOWN。
+    ({"砖": 10}, MaterialReason.UNKNOWN_MATERIAL),
 ])
 def test_invalid_materials_are_rejected_without_state_change(bad, reason):
     s = _state()
@@ -401,14 +405,14 @@ def test_invalid_materials_are_rejected_without_state_change(bad, reason):
 
 
 @pytest.mark.parametrize("kwargs", [
-    {"pref": "", "materials": {"timber": 1}},
-    {"pref": None, "materials": {"timber": 1}},
+    {"pref": "", "materials": {"木": 1}},
+    {"pref": None, "materials": {"木": 1}},
     {"pref": PREF, "materials": None},
-    {"pref": PREF, "materials": {}}, {"pref": PREF, "materials": "timber"},
-    {"pref": PREF, "materials": {"timber": 1}, "budget": -1},
-    {"pref": PREF, "materials": {"timber": 1}, "buyer": "外邦"},
-    {"pref": PREF, "materials": {"timber": 1}, "carrier": "仓库"},
-    {"pref": PREF, "materials": {"timber": 1}, "allow_substitutes": "timber"},
+    {"pref": PREF, "materials": {}}, {"pref": PREF, "materials": "木"},
+    {"pref": PREF, "materials": {"木": 1}, "budget": -1},
+    {"pref": PREF, "materials": {"木": 1}, "buyer": "外邦"},
+    {"pref": PREF, "materials": {"木": 1}, "carrier": "仓库"},
+    {"pref": PREF, "materials": {"木": 1}, "allow_substitutes": "木"},
 ])
 def test_bad_arguments_are_rejected(kwargs):
     s = _state()
@@ -422,10 +426,10 @@ def test_bad_arguments_are_rejected(kwargs):
 def test_missing_holder_is_rejected_not_invented():
     s = _state()
     before = _snapshot(s)
-    r = buy_material(s, pref=PREF, dim="timber", qty=10, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="木", qty=10, buyer="pop",
                      buyer_pop="不存在阶层", carrier="warehouse")
     assert r["ok"] is False and r["reason"] == MaterialReason.NO_BUYER
-    r2 = buy_material(s, pref=PREF, dim="timber", qty=10, buyer="pop",
+    r2 = buy_material(s, pref=PREF, dim="木", qty=10, buyer="pop",
                       buyer_pop="士绅", carrier="pop", seller_pop="不存在阶层")
     assert r2["ok"] is False and r2["reason"] == MaterialReason.NO_SELLER
     assert _snapshot(s) == before
@@ -433,7 +437,7 @@ def test_missing_holder_is_rejected_not_invented():
 
 def test_zero_demand_is_not_unmet():
     s = _state()
-    r = settle_material_purchase(s, pref=PREF, materials={"timber": 0},
+    r = settle_material_purchase(s, pref=PREF, materials={"木": 0},
                                  buyer="treasury", carrier="warehouse")
     assert r["reason"] == MaterialReason.NO_DEMAND
     assert r["totals"]["unmet"] == 0
@@ -441,15 +445,15 @@ def test_zero_demand_is_not_unmet():
 
 # ====================================================== 读数不改 state
 def test_readonly_functions_do_not_touch_state():
-    s = _state(pop_goods={"商人": {"timber": 200}},
+    s = _state(pop_goods={"商人": {"木": 200}},
                projects={"p1": {"status": "building",
-                                "_mat_left_timber": 30.0, "_mat_left_stone": 10.0}})
+                                "_mat_left_木": 30.0, "_mat_left_石": 10.0}})
     before = _snapshot(s)
-    _ = material_stock(s, "timber")
-    _ = material_supply(s, pref=PREF, dim="timber", reserved="projects")
-    _ = material_price(s, pref=PREF, dim="timber")
-    _ = quote_material(s, pref=PREF, dim="timber", qty=10)
-    _ = quote_material(s, pref=PREF, dim="stone")
+    _ = material_stock(s, "木")
+    _ = material_supply(s, pref=PREF, dim="木", reserved="projects")
+    _ = material_price(s, pref=PREF, dim="木")
+    _ = quote_material(s, pref=PREF, dim="木", qty=10)
+    _ = quote_material(s, pref=PREF, dim="石")
     _ = project_reservations(s)
     _ = material_market_readout(s, pref=PREF)
     assert _snapshot(s) == before, "只读读数不得改动任何状态"
@@ -458,8 +462,8 @@ def test_readonly_functions_do_not_touch_state():
 # ====================================================== 幂等 / 预留派生 / 预算
 def test_same_trade_id_in_same_turn_is_idempotent():
     """同回合同 trade_id ⇒ 幂等，不二次转移（防回合重试重复成交）。"""
-    s = _state(pop_goods={"商人": {"timber": 200}})
-    args = dict(pref=PREF, dim="timber", qty=50, buyer="treasury",
+    s = _state(pop_goods={"商人": {"木": 200}})
+    args = dict(pref=PREF, dim="木", qty=50, buyer="treasury",
                 carrier="pop", seller_pop="商人", trade_id="mat:t1:0")
     r1 = buy_material(s, **args)
     snap = _snapshot(s)
@@ -472,24 +476,24 @@ def test_same_trade_id_in_same_turn_is_idempotent():
 
 def test_project_reservation_reduces_sellable():
     """`reserved="projects"`：在营工程的未领申领占用同一批货。"""
-    s = _state(stock={"timber": 100}, pop_goods={"商人": {"timber": 100}},
-               projects={"p1": {"status": "building", "_mat_left_timber": 40.0,
-                                "_mat_left_stone": 10.0},
-                         "p2": {"status": "proposed", "_mat_left_timber": 99.0}})
-    assert project_reservations(s) == {"timber": 40, "stone": 10}
-    assert project_reservations(s, "stone") == {"stone": 10}
-    sup = material_supply(s, pref=PREF, dim="timber", carrier="pop",
+    s = _state(stock={"木": 100}, pop_goods={"商人": {"木": 100}},
+               projects={"p1": {"status": "building", "_mat_left_木": 40.0,
+                                "_mat_left_石": 10.0},
+                         "p2": {"status": "proposed", "_mat_left_木": 99.0}})
+    assert project_reservations(s) == {"木": 40, "石": 10}
+    assert project_reservations(s, "石") == {"石": 10}
+    sup = material_supply(s, pref=PREF, dim="木", carrier="pop",
                           reserved="projects")
     assert sup["reserved"] == 40 and sup["sellable"] == 60
-    r = buy_material(s, pref=PREF, dim="timber", qty=100, buyer="treasury",
+    r = buy_material(s, pref=PREF, dim="木", qty=100, buyer="treasury",
                      carrier="pop", reserved="projects")
     assert r["traded"] == 60, "可售量必须先扣工程预留"
-    assert _pop(s, "商人")["goods"]["timber"] == 40
+    assert _pop(s, "商人")["goods"]["木"] == 40
 
 
 def test_budget_caps_purchase_and_reports_unused():
-    s = _state(pop_goods={"商人": {"timber": 1000}})
-    r = settle_material_purchase(s, pref=PREF, materials={"timber": 100},
+    s = _state(pop_goods={"商人": {"木": 1000}})
+    r = settle_material_purchase(s, pref=PREF, materials={"木": 100},
                                  budget=500, buyer="treasury",
                                  carrier="pop", seller_pop="商人")
     assert r["totals"]["paid"] <= 500
@@ -498,26 +502,26 @@ def test_budget_caps_purchase_and_reports_unused():
     assert r["money"]["receiver"] == f"{PREF}|商人"
     # 官府购料**落进仓储**（工程预留入库）⇒ 现有 `_settle_projects` 仍从仓储扣料
     bought = r["totals"]["traded"]
-    assert s.resources["timber"]["stock"] == 1000 + bought
+    assert s.resources["木"]["stock"] == 1000 + bought
 
 
 # ====================================================== 官仓领料（B4-6 不双计）
 def test_warehouse_issue_has_no_money_leg():
     """官仓领料＝内部调拨：**没有货款**，只记基准估价（与市场购料分别记账）。"""
-    s = _state(stock={"timber": 1000})
+    s = _state(stock={"木": 1000})
     before = _snapshot(s)
-    r = issue_material(s, pref=PREF, dim="timber", qty=100)
+    r = issue_material(s, pref=PREF, dim="木", qty=100)
     assert r["channel"] == CHANNELS[1]
     assert r["traded"] == 100 and r["paid"] == 0
     assert r["value"] == pytest.approx(100 * TIMBER_PRICE)
     assert s.treasury == before["treasury"], "领料不得动钱"
-    assert s.resources["timber"]["stock"] == 900
+    assert s.resources["木"]["stock"] == 900
     assert r["seller"] == "state.resources" and r["buyer"] == "state.treasury"
 
 
 def test_settle_routes_treasury_warehouse_to_issue():
-    s = _state(stock={"timber": 1000})
-    r = settle_material_purchase(s, pref=PREF, materials={"timber": 50},
+    s = _state(stock={"木": 1000})
+    r = settle_material_purchase(s, pref=PREF, materials={"木": 50},
                                  buyer="treasury", carrier="warehouse")
     assert r["channel"] == CHANNELS[1]
     assert r["totals"]["paid"] == 0
@@ -528,20 +532,20 @@ def test_settle_routes_treasury_warehouse_to_issue():
 # ====================================================== 价格：路级动态键
 def test_price_uses_route_level_dynamic_key():
     s = _state()
-    key = pref_good_key(PREF, "timber")
-    assert key == f"{PREF}|timber"
-    px = material_price(s, pref=PREF, dim="timber")
+    key = pref_good_key(PREF, "木")
+    assert key == f"{PREF}|木"
+    px = material_price(s, pref=PREF, dim="木")
     assert px["dynamic_key"] == key
     assert px["price_kind"] == "base" and px["price_per_stock"] == TIMBER_PRICE
     # 成交后回写**路级**动态成交均价（不改基准表）
-    buy_material(s, pref=PREF, dim="timber", qty=10, buyer="pop",
+    buy_material(s, pref=PREF, dim="木", qty=10, buyer="pop",
                  buyer_pop="士绅", carrier="warehouse")
     assert key in s.dynamic_prices
     assert s.dynamic_prices[key] == pytest.approx(TIMBER_PRICE)
 
 
 def test_readout_reports_every_registered_material():
-    s = _state(stock={"timber": 10})
+    s = _state(stock={"木": 10})
     out = material_market_readout(s, pref=PREF)
     dims = {r["dim"] for r in out["rows"]}
     assert dims == set(MATERIAL_SPECS)
@@ -552,27 +556,27 @@ def test_readout_reports_every_registered_material():
 
 # ====================================================== 读数登记不双计
 def test_statistics_are_recorded_once_per_applied_trade():
-    s = _state(pop_goods={"商人": {"timber": 500}})
-    r = settle_material_purchase(s, pref=PREF, materials={"timber": 20},
+    s = _state(pop_goods={"商人": {"木": 500}})
+    r = settle_material_purchase(s, pref=PREF, materials={"木": 20},
                                  buyer="treasury", carrier="pop",
                                  seller_pop="商人", trade_prefix="mt1")
     assert r["totals"]["paid"] == 20 * TIMBER_PRICE
     assert s.statistics["material_paid"] == pytest.approx(20 * TIMBER_PRICE)
-    assert s.statistics["material_qty_by_dim"]["timber"] == 20
+    assert s.statistics["material_qty_by_dim"]["木"] == 20
     # 同回合重复调用被幂等拦截：不得二次登记读数
-    again = settle_material_purchase(s, pref=PREF, materials={"timber": 20},
+    again = settle_material_purchase(s, pref=PREF, materials={"木": 20},
                                      buyer="treasury", carrier="pop",
                                      seller_pop="商人", trade_prefix="mt1")
     assert again["reason"] == MaterialReason.DUPLICATE
     assert again["totals"]["paid"] == 0
     assert s.statistics["material_paid"] == pytest.approx(20 * TIMBER_PRICE)
-    assert _pop(s, "商人")["goods"]["timber"] == 480
+    assert _pop(s, "商人")["goods"]["木"] == 480
 
 
 def test_brick_alternative_is_rejected_without_source():
     """砖未注册来源 ⇒ 不能拿来替代石料（B4-2：科技 ≠ 免费材料）。"""
-    s = _state(stock={"stone": 0, "timber": 500, "brick": 999})
-    r = settle_material_purchase(s, pref=PREF, materials={"stone": 30},
+    s = _state(stock={"石": 0, "木": 500, "brick": 999})
+    r = settle_material_purchase(s, pref=PREF, materials={"石": 30},
                                  buyer="treasury", carrier="warehouse",
                                  allow_substitutes=["brick"])
     assert r["totals"]["substitute_qty"] == 0
@@ -580,9 +584,9 @@ def test_brick_alternative_is_rejected_without_source():
 
 
 def test_same_pop_cannot_buy_from_itself():
-    s = _state(pop_goods={"商人": {"timber": 100}})
+    s = _state(pop_goods={"商人": {"木": 100}})
     before = _snapshot(s)
-    r = buy_material(s, pref=PREF, dim="timber", qty=10, buyer="pop",
+    r = buy_material(s, pref=PREF, dim="木", qty=10, buyer="pop",
                      buyer_pop="商人", carrier="pop", seller_pop="商人")
     assert r["ok"] is False and r["reason"] == MaterialReason.INVALID
     assert _snapshot(s) == before
@@ -597,7 +601,7 @@ def test_works_on_real_game_state():
     s = GameState("史实")
     init_legacies(s)
     pref = next(iter(s.prefectures))
-    q = quote_material(s, pref=pref, dim="timber", qty=10)
+    q = quote_material(s, pref=pref, dim="木", qty=10)
     assert q["supply"]["known"] is True
     assert q["price"]["unit_price"] == pytest.approx(TIMBER_PRICE)
     assert q["unit"] == "材" and q["stock_unit"] == "根"
@@ -605,12 +609,12 @@ def test_works_on_real_game_state():
     assert (q["supply"]["sellable"] or 0) >= 0
     assert q["tradeable"] is False
     # 放入真实库存后即可成交（钱货两腿都落在既有槽位）
-    s.resources["timber"]["stock"] = 200
+    s.resources["木"]["stock"] = 200
     before_treasury = s.treasury
-    r = buy_material(s, pref=pref, dim="timber", qty=20, buyer="pop",
+    r = buy_material(s, pref=pref, dim="木", qty=20, buyer="pop",
                      buyer_pop="士绅", carrier="warehouse")
     assert r["applied"] is True and r["traded"] == 20
-    assert s.resources["timber"]["stock"] == 180
+    assert s.resources["木"]["stock"] == 180
     assert s.treasury == before_treasury + r["paid"]
     out = material_market_readout(s, pref=pref)
     assert len(out["rows"]) == len(MATERIAL_SPECS)

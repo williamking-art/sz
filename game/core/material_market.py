@@ -22,7 +22,7 @@ B4-3/4/5/6 已把「造价＝Σ材料×单价」「凹函数加速」「赶工�
    **本模块不另写第二套成交算法**；只做「取价 → 校验 → 调用 → 写回真实槽位」。
 2. **价格单点**：一律 `core/market_price.py::effective_buy_price`
    （官定 > **本路动态成交均价** > 基准价）。本路动态价的键是
-   `pref_good_key(pref, dim)`＝`"京畿路|timber"`，成交后由 `record_trade_price`
+   `pref_good_key(pref, dim)`＝`"京畿路|木"`，成交后由 `record_trade_price`
    回写该键（**不改基准表**）。
 3. **参数名纪律**：一律用 `pref`（prefecture，`state.prefectures` 的键），
    **不用 `route`**——本仓库另有真义路线的 `route`（`state.routes`、行军路径）。
@@ -170,22 +170,22 @@ class MaterialReason:
 #: 建材规格**单一声明表**。`units_per_stock`＝`1 库存单位 = 多少采购单位`。
 #: `tradable=False` 表示"已登记但**尚无来源**"，一律拒绝成交（不凭空产出）。
 MATERIAL_SPECS: Dict[str, Dict[str, Any]] = {
-    "timber": {
+    "木": {
         "name": "木", "unit": "材", "stock_unit": "根", "units_per_stock": 1.0,
         "divisible": False, "tradable": True,
-        "source": "仓储 state.resources['timber']（官仓/仓储，全国口径）＋ 路级 POP 持货",
+        "source": "仓储 state.resources['木']（官仓/仓储，全国口径）＋ 路级 POP 持货",
         "note": "仓按根本仓、营建按材计价：1 材 = 1 根（换算系数参数待裁）",
     },
-    "stone": {
+    "石": {
         "name": "石", "unit": "方", "stock_unit": "方", "units_per_stock": 1.0,
         "divisible": False, "tradable": True,
-        "source": "仓储 state.resources['stone']（官仓/仓储，全国口径）＋ 路级 POP 持货",
+        "source": "仓储 state.resources['石']（官仓/仓储，全国口径）＋ 路级 POP 持货",
         "note": "仓按方、营建按方计价：1 方 = 1 方（换算系数参数待裁）",
     },
-    "iron": {
+    "铁": {
         "name": "铁", "unit": "斤", "stock_unit": "斤", "units_per_stock": 1.0,
         "divisible": False, "tradable": True,
-        "source": "仓储 state.resources['iron']（官仓/仓储，全国口径）＋ 路级 POP 持货",
+        "source": "仓储 state.resources['铁']（官仓/仓储，全国口径）＋ 路级 POP 持货",
         "note": "五金铁料（铁钉/铁件）：1 斤 = 1 斤",
     },
     "brick": {
@@ -200,9 +200,9 @@ MATERIAL_SPECS: Dict[str, Dict[str, Any]] = {
 #: 只有本表声明过的替代材才可能被启用，且**必须**调用方显式放行
 #: （`settle_material_purchase(allow_substitutes=[...])`）。
 MATERIAL_SUBSTITUTES: Dict[str, Tuple[Dict[str, Any], ...]] = {
-    "stone": ({"to": "timber", "acceptability": 0.6,
+    "石": ({"to": "木", "acceptability": 0.6,
                "reason": "石料不足时以木料替代（土木混合夯筑/木骨）：1 材折抵 0.6 方"},),
-    "timber": ({"to": "stone", "acceptability": 0.5,
+    "木": ({"to": "石", "acceptability": 0.5,
                 "reason": "木料不足时以石料替代（砖石代木梁/柱础）：1 方折抵 0.5 材"},),
 }
 

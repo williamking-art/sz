@@ -244,8 +244,8 @@ def test_multi_season_end_to_end_yield_and_income_up():
             p.setdefault("buildings", {})["水利"] = 1
         for i in range(months):
             s.treasury = max(s.treasury, 20_000_000)
-            _stock(s, "timber", 50_000)
-            _stock(s, "stone", 50_000)
+            _stock(s, "木", 50_000)
+            _stock(s, "石", 50_000)
             A.apply_agri_effects(s, [], month=s.month)
             random.seed(1000 + i)
             S.run_monthly_settlement(s)
@@ -340,8 +340,8 @@ def test_materials_are_really_deducted_and_land_is_a_pure_transfer():
     assert s.land["wasteland"] == waste_before - reg["land_per_lv"]
     assert s.prefectures[r]["land"] == p_land_before + reg["land_per_lv"]
     assert _land_total(s) == land_before, "土地必须只是转移，不得凭空增加"
-    assert float(s.statistics["agri_material_used_timber"]) == \
-        pytest.approx(float(reg["material_per_lv"]["timber"]))
+    assert float(s.statistics["agri_material_used_木"]) == \
+        pytest.approx(float(reg["material_per_lv"]["木"]))
 
 
 def test_money_is_conserved_upkeep_goes_to_real_artisans_and_merchants():
@@ -388,8 +388,8 @@ def test_cost_shortfall_degrades_proportionally_and_never_free():
     s = _state_no_agri()
     r = _route(s)
     s.prefectures[r].setdefault("buildings", {})["水利"] = 1
-    _stock(s, "timber", 30, route=r)           # 需 60 timber ⇒ 料只有一半
-    _stock(s, "stone", 40, route=r)
+    _stock(s, "木", 30, route=r)           # 需 60 timber ⇒ 料只有一半
+    _stock(s, "石", 40, route=r)
     s.treasury = 10_000_000
 
     eff = A.route_agri_effect(s, r)
@@ -409,8 +409,8 @@ def test_no_materials_no_output_at_all():
     s = _state_no_agri()
     r = _route(s)
     s.prefectures[r].setdefault("buildings", {})["水利"] = 1
-    _stock(s, "timber", 0, route=r)
-    _stock(s, "stone", 0, route=r)
+    _stock(s, "木", 0, route=r)
+    _stock(s, "石", 0, route=r)
     eff = A.route_agri_effect(s, r)
     assert eff["applied_ratio"] == 0.0
     summ = A.apply_agri_effects(s, [], month=3)
@@ -425,7 +425,7 @@ def test_money_audit_residual_stays_zero_over_seasons():
     s.prefectures[r].setdefault("buildings", {})["农田"] = 2
     for _ in range(12):
         s.treasury = max(s.treasury, 20_000_000)
-        _stock(s, "timber", 50_000)
+        _stock(s, "木", 50_000)
         A.apply_agri_effects(s, [], month=s.month)
         random.seed(7000 + _)
         S.run_monthly_settlement(s)
@@ -540,7 +540,7 @@ def test_register_accepts_valid_dynamic_blueprint():
         A.register_agri_upgrade("陂塘", {
             "label": "陂塘", "category": "irrigation", "sources": ("building",),
             "yield_mult": 0.04, "loss_reduction": 0.02, "transport_relief": 0.0,
-            "land_per_lv": 1_000, "material_per_lv": {"timber": 50},
+            "land_per_lv": 1_000, "material_per_lv": {"木": 50},
             "labor_per_lv": 30.0,
             "maintenance_mode": "asset_maintenance", "upkeep_per_lv": 0,
         })
@@ -613,7 +613,7 @@ def test_missing_buildings_key_is_recorded_as_missing_not_zero_investment():
     s.projects["p4"] = {"name": "肥料局", "blueprint_key": "C4_fertilizer",
                         "route": r, "status": "operating", "capacity": 1.0,
                         "levels": 1}
-    _stock(s, "timber", 50_000)
+    _stock(s, "木", 50_000)
     del s.prefectures[r]["buildings"]
     eff = A.route_agri_effect(s, r)
     assert "route_buildings_missing" in eff["missing"]
@@ -640,7 +640,7 @@ def test_project_missing_capacity_is_not_defaulted_to_one():
     r = _route(s)
     s.projects["p3"] = {"name": "肥料局", "blueprint_key": "C4_fertilizer",
                         "route": r, "status": "operating", "levels": 2}
-    _stock(s, "timber", 50_000)
+    _stock(s, "木", 50_000)
     eff = A.route_agri_effect(s, r)
     assert any("capacity_missing" in m for m in eff["missing"]), eff["missing"]
     assert eff["sources"] == []
@@ -655,7 +655,7 @@ def test_project_capacity_one_is_read_as_measured_value_not_default():
     s.projects["p3"] = {"name": "肥料局", "blueprint_key": "C4_fertilizer",
                         "route": r, "status": "operating", "capacity": 1.0,
                         "levels": 2}
-    _stock(s, "timber", 50_000)
+    _stock(s, "木", 50_000)
     eff = A.route_agri_effect(s, r)
     assert eff["defined"] is True
     assert eff["yield_mult"] == pytest.approx(
@@ -751,7 +751,7 @@ def test_tech_node_scales_by_adoption_and_route_deployment():
     r = _route(s)
     entry = A.AGRI_UPGRADE_EFFECTS["水排筒车"]
     s.prefectures[r].setdefault("buildings", {})[entry["deploy_building"]] = 2
-    _stock(s, "timber", 50_000)
+    _stock(s, "木", 50_000)
     s.tech.setdefault("unlocked", [])
     if entry["tech_node"] not in s.tech["unlocked"]:
         s.tech["unlocked"].append(entry["tech_node"])

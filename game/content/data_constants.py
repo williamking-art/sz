@@ -151,8 +151,8 @@ WINE_COIN_BASE = 600_000        # 酒课保底月额（加消耗定案扩容 10�
 #   recipe 键为原料维度（grain_feed 表粮耗）；output_dim 为成品维度（绸/布/wine/meat）。
 #   grain_feed 从太仓扣（加工型消耗依托建筑，非无条件消耗）。
 WORKSHOP_RECIPES = {
-    "丝坊": {"name": "丝坊", "recipe": {"silk": 10000}, "output_dim": "绸", "yield": 8000},
-    "麻坊": {"name": "麻坊", "recipe": {"hemp": 10000}, "output_dim": "布", "yield": 9000},
+    "丝坊": {"name": "丝坊", "recipe": {"丝": 10000}, "output_dim": "绸", "yield": 8000},
+    "麻坊": {"name": "麻坊", "recipe": {"麻": 10000}, "output_dim": "布", "yield": 9000},
     "酒坊": {"name": "酒坊", "recipe": {"grain_feed": 50000}, "output_dim": "wine", "yield": 30},
     "畜栏": {"name": "畜栏", "recipe": {"grain_feed": 50000}, "output_dim": "meat", "yield": 2000},
 }
@@ -162,16 +162,16 @@ WINE_GRAIN_PER_GUAN = 2.5      # 酿酒耗粮系数（石/贯总酒课，用于�
 MEAT_PRICE = 0.5               # 畜栏产出折价（贯/单位，肉/畜产品售钱入内帑）
 # 七维物资基准价（钱/单位，动态价=base×供需因子）；wine 为作坊榷酒课利基准价（不属七维物资仓）
 MATERIAL_PRICE_BASE = {
-    "salt": 300, "tea": 200, "silk": 200, "hemp": 40, "cane": 60,
-    "fruit": 70, "timber": 50, "stone": 30, "iron": 250,
+    "盐": 300, "茶": 200, "丝": 200, "麻": 40, "蔗": 60,
+    "果": 70, "木": 50, "石": 30, "铁": 250,
     "wine": 400,   # 酒单位动态价（钱/单位）：作坊产酒折钱归内帑的系数基准
     "绸": 800,     # 丝织成品（钱/匹），丝坊产出，高于生丝原料价
     "布": 120,     # 麻织成品（钱/匹），麻坊产出，高于麻原料价
 }
 # 七维物资维度（与 PREFECTURE_INFO.yields 键对齐）
 # 原料维度（与 PREFECTURE_INFO.yields 键对齐；单位见 yields 注释）
-RAW_DIMS = ["salt", "tea", "silk", "hemp", "cane", "fruit", "timber", "stone", "iron",
-            "gold", "copper", "silver", "livestock", "horses", "herbs"]
+RAW_DIMS = ["盐", "茶", "丝", "麻", "蔗", "果", "木", "石", "铁",
+            "金", "铜", "银", "牲畜", "马", "药材"]
 # 成品维度（作坊产出，进物资仓；丝→绸、麻→布、粮→酒）
 FINISHED_DIMS = ["绸", "布", "wine"]
 # 物资仓维度 = 原料 + 成品（wine 走酒课进内帑，不入仓）
@@ -215,8 +215,8 @@ POP_SHARE = {                 # 开局各 POP 占在籍人口比例（官僚/兵
     "商人": 0.03,             # 行商坐贾
     # 农 = 其余（1 - 士绅 - 工匠 - 商人）
 }
-RAW_UNITS = {"salt": "斤", "tea": "斤", "silk": "匹", "hemp": "匹", "cane": "斤",
-             "fruit": "斤", "timber": "根", "stone": "方", "iron": "斤", "绸": "匹", "布": "匹"}
+RAW_UNITS = {"盐": "斤", "茶": "斤", "丝": "匹", "麻": "匹", "蔗": "斤",
+             "果": "斤", "木": "根", "石": "方", "铁": "斤", "绸": "匹", "布": "匹"}
 
 def register_raw_material(dim, unit, price, default_yield=0, state=None):
     """预留接口：注册新作物 / 新矿（AI 拟诏开发时调用）。
@@ -630,7 +630,7 @@ WON_PER_GUAN = 10_000
 FINANCE_UNITS = {
     "money": MONEY_UNIT,          # 铜钱/交子/国库/内帑/府库/银折钱 …
     "grain": GRAIN_UNIT,          # 太仓/州仓/POP 粮 …
-    "silver": "两",               # 白银原始计量；折钱用 STANDARD_INFO 汇率
+    "银": "两",               # 白银原始计量；折钱用 STANDARD_INFO 汇率
     "material": "单位",           # 材料走 RESOURCE_DIMS[*]["stock"] 的抽象单位
     "bank_capital": "万贯",       # ⚠ legacy：仅 BANK_INFO.capital；换算 WON_PER_GUAN
     "bank_reserve": MONEY_UNIT,   # 银行准备金/存款/贷款一律贯（与 capital 区分）
@@ -678,7 +678,7 @@ TAX_COEFF_MAX = 1.25           # 纳税系数上限（泉货充裕税易征）
 MINT_MELT_LOSS = 0.20           # 铸钱熔耗 20%（熔铜铸钱损耗）
 MINT_NET_RATIO = 0.80           # 净增 80%（1 − 熔耗）
 MINT_PRICE_BAN = 2.0            # 物价 > 此值禁止铸钱（防助涨通胀）
-COPPER_RESOURCE_DIM = "iron"    # 铸钱金属资源维度（resources 记账；用既有 iron 维度承载铸钱金属，不新增维度破坏存档/初始化）
+COPPER_RESOURCE_DIM = "铁"    # 铸钱金属资源维度（resources 记账；用既有 iron 维度承载铸钱金属，不新增维度破坏存档/初始化）
 
 
 

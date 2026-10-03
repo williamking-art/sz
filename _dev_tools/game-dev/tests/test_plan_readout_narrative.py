@@ -36,7 +36,7 @@ def _state():
 
 
 def _bp(name="榷酒务"):
-    return {"name": name, "category": "财政", "cost": {"silver": 100_000, "months": 1},
+    return {"name": name, "category": "财政", "cost": {"银": 100_000, "months": 1},
             "effects": [{"op": "酒课", "params": {"amount": 20_000}}]}
 
 

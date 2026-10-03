@@ -106,6 +106,9 @@ def test_effective_supply_excludes_hoard_reserve_grain():
     assert bd["excluded"]["bank_reserve"] == 3_000_000
     assert bd["excluded"]["jiaozi_reserve"] == 4_000_000
     # 三项 = 铜钱 + 有效交子 + 流通白银
+    # 货币口径键**保持英文**：`supply_breakdown` 的键是 copper/jiaozi/silver，
+    # 与物料维中文化无关（`money.py` 已刻意排除在改名之外，
+    # 因 gold/copper/silver 在此是**币种单位**而非物料维）。
     assert abs(bd["effective"] - (bd["copper"] + bd["jiaozi"] + bd["silver"])) < 1e-6
 
 

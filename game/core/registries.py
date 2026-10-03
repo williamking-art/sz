@@ -124,7 +124,7 @@ def node_entry(state, node_id: str):
     if not n or not n.get("active"):
         return None
     return (node_id, "玩家新制", 0, n["name"], n.get("desc", ""),
-            list(n.get("prereqs", [])), 0, [], {"silver": 0, "months": 12, "masters": 1},
+            list(n.get("prereqs", [])), 0, [], {"银": 0, "months": 12, "masters": 1},
             dict(n.get("effect", {})))
 
 

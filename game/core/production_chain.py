@@ -28,7 +28,7 @@ __all__ = ["settle_production_chain", "goods_direct_production_backup",
 #: 建材的**消费侧只有三处**——`settlement_tech`（工程领料）、`civil_building`
 #: （民居/货栈）、`settlement_agri`（维护料）。仓库其余引用是粮/铜/麻/丝等，
 #: 与建材市场无关，一并改会把"接一个市场"变成"重排全链"。
-BUILDING_MATERIAL_DIMS = ("timber", "stone", "iron")
+BUILDING_MATERIAL_DIMS = ("木", "石", "铁")
 
 # 建筑等级 → 产出乘数（与外邦 LV_OUTPUT_BONUS 同口径：1 + 0.05×(lv−1)）
 PRODUCTION_BUILDING_MULT = 0.05

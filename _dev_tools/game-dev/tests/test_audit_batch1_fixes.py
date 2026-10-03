@@ -169,12 +169,12 @@ def tmp_save_dir(tmp_path, monkeypatch):
 
 def test_m6_resources_roundtrip(tmp_save_dir, state):
     """M6：`resources` 存档写了就必须读得回（旧实现只重建默认骨架，数值归零）。"""
-    state.resources["salt"] = {"stock": 424_242, "cap": 50_000}
+    state.resources["盐"] = {"stock": 424_242, "cap": 50_000}
     assert SL.save_game(state, 1)
     loaded = SL.load_game(1)
     assert loaded is not None
-    assert int(loaded.resources["salt"]["stock"]) == 424_242
-    assert int(loaded.resources["salt"]["cap"]) == 50_000
+    assert int(loaded.resources["盐"]["stock"]) == 424_242
+    assert int(loaded.resources["盐"]["cap"]) == 50_000
 
 
 def test_m6_resources_bad_shape_falls_back(tmp_save_dir, state):
@@ -183,13 +183,13 @@ def test_m6_resources_bad_shape_falls_back(tmp_save_dir, state):
     path = os.path.join(tmp_save_dir, "slot_2.json")
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
-    raw["resources"] = {"salt": "不是字典"}
+    raw["resources"] = {"盐": "不是字典"}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(raw, f, ensure_ascii=False)
     loaded = SL.load_game(2)
     assert loaded is not None
-    assert isinstance(loaded.resources.get("salt"), dict)
-    assert "stock" in loaded.resources["salt"]
+    assert isinstance(loaded.resources.get("盐"), dict)
+    assert "stock" in loaded.resources["盐"]
 
 
 def test_m7_faction_split_persisted(tmp_save_dir, state):

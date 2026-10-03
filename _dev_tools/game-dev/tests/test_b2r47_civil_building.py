@@ -262,12 +262,12 @@ def test_no_build_when_material_short(s):
     """缺料是**实测**事实（仓里确实只有 0 根木）⇒ 不建，不是 undefined。"""
     pref = _pref(s)
     _rich(s, pref)
-    _stock(s, "timber", 0)
+    _stock(s, "木", 0)
     t = C.route_civil_trigger(s, pref, "民居")
     assert t["decision"] == "no_build"
     assert t["reason"] == "material_short"
     assert t["afford"]["materials_ok"] is False
-    assert t["afford"]["material_short"]["timber"] > 0
+    assert t["afford"]["material_short"]["木"] > 0
 
 
 def test_no_build_when_coin_short(s):
@@ -391,7 +391,7 @@ def test_missing_month_counter_is_undefined(s):
 def test_missing_resource_slot_is_undefined(s):
     """仓里**有没有这一维**读不到 ⇒ undefined（否则"未知"会被当成"没有"）。"""
     pref = _pref(s)
-    s.resources.pop("timber", None)
+    s.resources.pop("木", None)
     _assert_undefined(C.route_civil_trigger(s, pref, "民居"),
                       "material_stock_unknown")
 
@@ -541,13 +541,13 @@ def test_build_without_material_changes_nothing(s):
     pref = _pref(s)
     _rich(s, pref)
     # 🔴 E-1：料在**本路商人货栈**（仓总账不再是消费来源）
-    _set_mat(s, pref, "timber", 10)
+    _set_mat(s, pref, "木", 10)
     money = _money_total(s)
     blds = copy.deepcopy(s.prefectures[pref]["buildings"])
     out = C.build_civil_building(s, pref, "民居")
     assert out["ok"] is False and out["reason"] == "material_short"
     assert _money_total(s) == money, "缺料时不得先付工钱"
-    assert goods_amount(_mgoods(s, pref), "timber") == 10, "缺料时不得先扣料"
+    assert goods_amount(_mgoods(s, pref), "木") == 10, "缺料时不得先扣料"
     assert s.prefectures[pref]["buildings"] == blds
 
 
@@ -771,24 +771,24 @@ def test_missing_prefectures_raises(s):
 
 
 @pytest.mark.parametrize("bad", [
-    {"drivers": ("expansion",), "stock_per_lv": {"timber": -1}, "payers": ("士绅",),
+    {"drivers": ("expansion",), "stock_per_lv": {"木": -1}, "payers": ("士绅",),
      "level_cap": 3, "expansion_metric": "商人", "expansion_wealth_per_lv": 1},
-    {"drivers": ("expansion",), "stock_per_lv": {"timber": float("nan")},
+    {"drivers": ("expansion",), "stock_per_lv": {"木": float("nan")},
      "payers": ("士绅",), "level_cap": 3, "expansion_metric": "商人",
      "expansion_wealth_per_lv": 1},
     {"drivers": ("expansion",), "payers": ("士绅",), "level_cap": 3,
      "expansion_metric": "商人", "expansion_wealth_per_lv": 1},          # 缺 stock_per_lv
-    {"drivers": ("population",), "stock_per_lv": {"timber": 1}, "payers": ("士绅",),
+    {"drivers": ("population",), "stock_per_lv": {"木": 1}, "payers": ("士绅",),
      "level_cap": 3, "capacity_per_lv": 0},                             # 人口动因无容量口径
-    {"drivers": ("decay",), "stock_per_lv": {"timber": 1}, "payers": ("士绅",),
+    {"drivers": ("decay",), "stock_per_lv": {"木": 1}, "payers": ("士绅",),
      "level_cap": 3},                                                    # 损坏动因无周期
-    {"drivers": ("expansion",), "stock_per_lv": {"timber": 1}, "payers": ("士绅",),
+    {"drivers": ("expansion",), "stock_per_lv": {"木": 1}, "payers": ("士绅",),
      "level_cap": 3, "expansion_wealth_per_lv": 1},                      # 扩张动因无度量
-    {"drivers": ("bogus",), "stock_per_lv": {"timber": 1}, "payers": ("士绅",),
+    {"drivers": ("bogus",), "stock_per_lv": {"木": 1}, "payers": ("士绅",),
      "level_cap": 3},                                                    # 未知动因
-    {"drivers": ("expansion",), "stock_per_lv": {"timber": 1}, "level_cap": 3,
+    {"drivers": ("expansion",), "stock_per_lv": {"木": 1}, "level_cap": 3,
      "expansion_metric": "商人", "expansion_wealth_per_lv": 1},          # 缺 payers
-    {"drivers": ("expansion",), "stock_per_lv": {"timber": 1}, "payers": ("士绅",),
+    {"drivers": ("expansion",), "stock_per_lv": {"木": 1}, "payers": ("士绅",),
      "level_cap": 0, "expansion_metric": "商人", "expansion_wealth_per_lv": 1},
 ])
 def test_registry_rejects_invalid_entries(bad):
@@ -801,7 +801,7 @@ def test_registry_rejects_job_class_mismatch():
     """`POP_BUILDING_TYPES` 成员必须显式标 `job_class=True`（防静默改就业基线）。"""
     with pytest.raises(C.CivilRegistryError):
         C.register_civil_building("农田", {
-            "drivers": ("expansion",), "stock_per_lv": {"timber": 1},
+            "drivers": ("expansion",), "stock_per_lv": {"木": 1},
             "payers": ("农",), "level_cap": 3, "job_class": False,
             "expansion_metric": "商人", "expansion_wealth_per_lv": 1})
 
@@ -817,7 +817,7 @@ def test_register_valid_civil_building_round_trip(s):
     pref = _pref(s)
     _rich(s, pref)
     spec = {"label": "柴棚", "drivers": ("expansion",), "job_class": False,
-            "write_form": "dict", "stock_per_lv": {"timber": 10},
+            "write_form": "dict", "stock_per_lv": {"木": 10},
             "labor_per_lv": 100.0, "wage_per_labor_hour": 1.0,
             "payers": ("商人",), "level_cap": 2,
             "expansion_metric": "商人", "expansion_wealth_per_lv": 1_000_000}
@@ -827,11 +827,11 @@ def test_register_valid_civil_building_round_trip(s):
     # 🔴 E-1：料在**本路商人货栈**，且开局是**按商人规模分摊**所得
     # （不是整仓 50,000），故基准取扣前实测值
     from core.material_holding import goods_amount
-    t_before = goods_amount(_mgoods(s, pref), "timber") or 0
+    t_before = goods_amount(_mgoods(s, pref), "木") or 0
     out = C.build_civil_building(s, pref, "柴棚")
     assert out["ok"] is True and out["lv"] == 1
     assert s.prefectures[pref]["buildings"]["柴棚"]["lv"] == 1
-    assert goods_amount(_mgoods(s, pref), "timber") == t_before - 10
+    assert goods_amount(_mgoods(s, pref), "木") == t_before - 10
 
 
 def test_resolve_civil_building_returns_none_for_unknown():

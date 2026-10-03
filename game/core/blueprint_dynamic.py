@@ -102,6 +102,8 @@ def validate_dynamic_blueprint(bp: Any) -> Tuple[Optional[Dict[str, Any]], List[
     if raw_cost is not None and not isinstance(raw_cost, dict):
         return None, ["cost 必须是对象"]
     raw_cost = raw_cost or {}
+    # 🔴 `cost.silver` 是**货币银两**，不是物料维「银」——物料维 2026-10-03 归中文后，
+    # 此处若跟着写成「银」会把**造价**误当**物料银**，属跨口径串味，必须保持 `silver`。
     silver = _clean_int(raw_cost.get("silver", 0), 0, _COST_MAX)
     if silver is None:
         return None, [f"cost.silver 必须是 0–{_COST_MAX} 的数值（越界不接受，不夹取）"]

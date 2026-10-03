@@ -284,7 +284,7 @@ class LocalBackend(BackendClient):
         """start_tech_research 分派（int/bool/局部 import 封装，保持与改造前一致）。"""
         from core.asset_context import start_research
         msg = start_research(state, params.get("node_id", ""),
-                             int(params.get("silver", 0) or 0),
+                             int(params.get("银", 0) or 0),
                              fund=params.get("fund", "treasury"),
                              source=params.get("source", "panel"),
                              signoff=bool(params.get("signoff", False)))

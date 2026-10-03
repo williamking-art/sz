@@ -133,7 +133,7 @@ def test_nominal_annual_full_grows_with_a_new_subject(readout, state):
     # 直接放大盐产能（yields.salt 正是 calc_salt_coin 的输入），不改任何常量
     for p in state.prefectures.values():
         p.setdefault("yields", {})
-        p["yields"]["salt"] = float(p["yields"].get("salt", 0) or 0) * 2.0
+        p["yields"]["盐"] = float(p["yields"].get("盐", 0) or 0) * 2.0
     after = state.finance_readout()
     assert after["nominal_annual_full"] > before_full
     # 盐课不进 nominal_annual（三项账面）——这正是旧比值 >100% 的原因
@@ -192,7 +192,7 @@ def test_zero_subject_contributes_zero(state):
     """某科目为 0 → 该项贡献 0（不做无意义反推、不产生 NaN/Inf）。"""
     for p in state.prefectures.values():
         p.setdefault("yields", {})
-        p["yields"]["salt"] = 0.0
+        p["yields"]["盐"] = 0.0
     out = state.finance_readout()
     assert out["salt_coin"] == 0 or out["salt_coin"] == 0.0
     # 盐课为 0 时反推项必须是 0（不允许 0/arr 之外的意外）

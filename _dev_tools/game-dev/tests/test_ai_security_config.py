@@ -480,7 +480,7 @@ def test_tool_dispatch_clamps_numeric_args():
     t0 = s.treasury
     out = U._tool_dispatch(s, [
         {"id": "1", "function": {"name": "relief_grant",
-         "arguments": json.dumps({"region": "畿内", "grain": 9999, "silver": "bad"})}},
+         "arguments": json.dumps({"region": "畿内", "grain": 9999, "银": "bad"})}},
     ], minister_name="测试臣")
     assert "已发 京畿路" in out[0][1], out
     assert "粟档 5" in out[0][1] and "银档 0" in out[0][1], "数值必须被夹取"

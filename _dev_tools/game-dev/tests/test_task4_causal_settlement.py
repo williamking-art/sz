@@ -156,7 +156,7 @@ def test_unsupported_recorded_for_panel():
 # ====================================================== C. 运行期按 capacity 产出
 def _bp_runtime(**kw):
     b = {"name": "榷酒务", "category": "财政",
-         "cost": {"silver": 100_000, "months": 1},
+         "cost": {"银": 100_000, "months": 1},
          "effects": [{"op": "酒课", "params": {"amount": 20_000}}]}
     b.update(kw)
     return b

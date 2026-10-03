@@ -100,12 +100,12 @@ def _prep(s, dim, qty_seller, qty_buyer, wealth_buyer):
 def test_money_paid_now_goods_arrive_later():
     """🔴 核心：钱**成交即付**，货**在途**，未到不入买方账。"""
     s = _state()
-    _prep(s, "timber", 1000, 0, 100000)
+    _prep(s, "木", 1000, 0, 100000)
     w0 = _sum_wealth(s)
-    buyer_before = int(goods_amount(merchant_goods(s, R2), "timber") or 0)
+    buyer_before = int(goods_amount(merchant_goods(s, R2), "木") or 0)
 
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=300, price=2.0)
+                               dim="木", qty=300, price=2.0)
     assert res["ok"] and res["shipped"] == 300 and res["paid"] == 600
     assert res["arrive_month"] > 10, "跨路不应当月到货"
 
@@ -114,43 +114,43 @@ def test_money_paid_now_goods_arrive_later():
         "买方**立刻**付钱（不等货到）"
     assert float(s.prefectures[R1]["pops"]["商人"]["wealth"]) == 600.0, \
         "卖方**立刻**收钱（不必等货到）"
-    assert int(goods_amount(merchant_goods(s, R2), "timber") or 0) == buyer_before, \
+    assert int(goods_amount(merchant_goods(s, R2), "木") or 0) == buyer_before, \
         "🔴 未到货不得计入买方货栈"
-    assert _transit_qty(s, "timber") == 300
+    assert _transit_qty(s, "木") == 300
 
 
 def test_goods_arrive_then_credited():
     """到月份才入账。"""
     s = _state()
-    _prep(s, "timber", 1000, 0, 100000)
+    _prep(s, "木", 1000, 0, 100000)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=300, price=2.0)
+                               dim="木", qty=300, price=2.0)
     _set_month(s, int(res["arrive_month"]))
     transport.arrive_due(s)
-    assert int(goods_amount(merchant_goods(s, R2), "timber") or 0) == 300
-    assert _transit_qty(s, "timber") == 0, "到货后批次应清空"
+    assert int(goods_amount(merchant_goods(s, R2), "木") or 0) == 300
+    assert _transit_qty(s, "木") == 0, "到货后批次应清空"
 
 
 def test_total_goods_conserved_including_transit():
     """🔴 `Σ货`（含在途）守恒——无凭空增删。"""
     s = _state()
-    _prep(s, "stone", 800, 50, 100000)
-    g0 = _sum_goods(s, "stone") + _transit_qty(s, "stone")
+    _prep(s, "石", 800, 50, 100000)
+    g0 = _sum_goods(s, "石") + _transit_qty(s, "石")
     for i in range(5):
         sell_material_across(s, seller_route=R1, buyer_route=R2,
-                             dim="stone", qty=100, price=1.0, trade_id=f"x{i}")
-    g1 = _sum_goods(s, "stone") + _transit_qty(s, "stone")
+                             dim="石", qty=100, price=1.0, trade_id=f"x{i}")
+    g1 = _sum_goods(s, "石") + _transit_qty(s, "石")
     assert g1 == g0, f"Σ货应守恒：{g0} → {g1}"
 
 
 def test_money_conserved_over_many_trades():
     """`ΣPOP wealth` 多笔成交后守恒。"""
     s = _state()
-    _prep(s, "iron", 5000, 0, 1_000_000)
+    _prep(s, "铁", 5000, 0, 1_000_000)
     w0 = _sum_wealth(s)
     for i in range(10):
         sell_material_across(s, seller_route=R1, buyer_route=R2,
-                             dim="iron", qty=50, price=3.0, trade_id=f"y{i}")
+                             dim="铁", qty=50, price=3.0, trade_id=f"y{i}")
     assert _sum_wealth(s) == w0
 
 
@@ -158,31 +158,31 @@ def test_money_conserved_over_many_trades():
 def test_insufficient_purchasing_power_nothing_happens():
     """🔴 购买力不足 ⇒ 货不动、批次不建、钱不变。"""
     s = _state()
-    _prep(s, "timber", 1000, 0, 10)             # 只够买 5（单价2）
+    _prep(s, "木", 1000, 0, 10)             # 只够买 5（单价2）
     w0 = _sum_wealth(s)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=300, price=2.0)
+                               dim="木", qty=300, price=2.0)
     assert res["ok"] is False and res["reason"] == "insufficient_purchasing_power"
-    assert _transit_qty(s, "timber") == 0, "不得留下半笔在途"
+    assert _transit_qty(s, "木") == 0, "不得留下半笔在途"
     assert _sum_wealth(s) == w0, "不得留下半笔钱"
-    assert int(goods_amount(merchant_goods(s, R1), "timber") or 0) == 1000, "货须留在卖方"
+    assert int(goods_amount(merchant_goods(s, R1), "木") or 0) == 1000, "货须留在卖方"
 
 
 def test_payment_failure_refunds_batch():
     """🔴 付款失败 ⇒ 批次撤回、货回卖方（钱货两清或两不做）。"""
     s = _state()
-    _prep(s, "timber", 1000, 0, 100000)
+    _prep(s, "木", 1000, 0, 100000)
 
     def boom(*a, **k):
         raise RuntimeError("模拟付款失败")
 
     s.transfer_money = boom
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=200, price=1.0)
+                               dim="木", qty=200, price=1.0)
     assert res["ok"] is False and res["reason"] == "payment_failed"
     assert res["refunded_batch"] is True
-    assert _transit_qty(s, "timber") == 0, "失败须撤批次"
-    assert int(goods_amount(merchant_goods(s, R1), "timber") or 0) == 1000, "货须回卖方"
+    assert _transit_qty(s, "木") == 0, "失败须撤批次"
+    assert int(goods_amount(merchant_goods(s, R1), "木") or 0) == 1000, "货须回卖方"
 
 
 # ====================================================== 两条路互不串门
@@ -190,7 +190,7 @@ def test_same_circuit_rejected_here():
     """同路成交**不该**走物流（市集内即时可成交）。"""
     s = _state()
     res = sell_material_across(s, seller_route=R1, buyer_route=R1,
-                               dim="timber", qty=1, price=1.0)
+                               dim="木", qty=1, price=1.0)
     assert res["ok"] is False and res["reason"] == "same_circuit"
 
 
@@ -203,12 +203,12 @@ def test_trade_material_rejects_cross_circuit():
     b["wealth"] = 0.0
     from core.material_holding import goods_amount
     _clear_buckets(a["goods"])
-    a["goods"]["timber"] = 500
+    a["goods"]["木"] = 500
     with pytest.raises(ValueError) as ei:
         trade_material(state=s, buyer_pop=b, seller_pop=a,
-                       dim="timber", qty=10, price=1.0)
+                       dim="木", qty=10, price=1.0)
     assert "不得瞬移" in str(ei.value)
-    assert goods_amount(a["goods"], "timber") == 500, "被拒后货须原样不动"
+    assert goods_amount(a["goods"], "木") == 500, "被拒后货须原样不动"
 
 
 def test_trade_material_still_works_within_circuit():
@@ -220,12 +220,12 @@ def test_trade_material_still_works_within_circuit():
     seller["wealth"] = 0.0
     _clear_buckets(buyer.setdefault("goods", {}))
     _clear_buckets(seller["goods"])
-    buyer["goods"]["timber"] = 0
-    seller["goods"]["timber"] = 500
+    buyer["goods"]["木"] = 0
+    seller["goods"]["木"] = 500
     res = trade_material(state=s, buyer_pop=buyer, seller_pop=seller,
-                         dim="timber", qty=100, price=1.0)
+                         dim="木", qty=100, price=1.0)
     assert res["ok"] and res["traded"] == 100
-    assert int(goods_amount(buyer["goods"], "timber") or 0) == 100, "同路应即时到手"
+    assert int(goods_amount(buyer["goods"], "木") or 0) == 100, "同路应即时到手"
     assert float(buyer["wealth"]) == 99900.0
     assert float(seller["wealth"]) == 100.0
 
@@ -240,18 +240,18 @@ def test_invalid_dim_rejected():
 
 def test_invalid_price_rejected():
     s = _state()
-    _prep(s, "timber", 100, 0, 1000)
+    _prep(s, "木", 100, 0, 1000)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=1, price=0)
+                               dim="木", qty=1, price=0)
     assert res["ok"] is False and res["reason"] == "invalid_price"
 
 
 def test_no_stock_rejected_without_money_moved():
     s = _state()
-    _prep(s, "timber", 0, 0, 100000)
+    _prep(s, "木", 0, 0, 100000)
     w0 = _sum_wealth(s)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=10, price=1.0)
+                               dim="木", qty=10, price=1.0)
     assert res["ok"] is False and res["reason"] == "no_stock_local"
     assert _sum_wealth(s) == w0
 
@@ -261,15 +261,15 @@ def test_missing_merchant_pop_is_reported():
     s = _state()
     s.prefectures[R2]["pops"].pop("商人", None)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=10, price=1.0)
+                               dim="木", qty=10, price=1.0)
     assert res["ok"] is False and res["reason"] == "no_buyer_pop"
 
 
 def test_zero_qty_is_no_demand():
     s = _state()
-    _prep(s, "timber", 100, 0, 1000)
+    _prep(s, "木", 100, 0, 1000)
     res = sell_material_across(s, seller_route=R1, buyer_route=R2,
-                               dim="timber", qty=0, price=1.0)
+                               dim="木", qty=0, price=1.0)
     assert res["ok"] is True and res["reason"] == "no_demand"
 
 
@@ -278,25 +278,31 @@ def test_procure_buys_when_below_floor():
     """🔴 本地料低于阈值 ⇒ 自动下单（钱即付、货在途）。"""
     from core.material_trade import procure_materials
     s = _state()
-    _prep(s, "timber", 5000, 0, 1_000_000)      # R1 料足、R2 缺
+    _prep(s, "木", 5000, 0, 1_000_000)      # R1 料足、R2 缺
     res = procure_materials(s, stock_floor=1000)
     assert res["bought"], f"应下单：{res}"
-    assert int(goods_amount(merchant_goods(s, R2), "timber") or 0) == 0, \
+    assert int(goods_amount(merchant_goods(s, R2), "木") or 0) == 0, \
         "下单后货仍在途，买方**不得**立刻到手"
-    assert _transit_qty(s, "timber") > 0
+    assert _transit_qty(s, "木") > 0
 
 
 def test_procure_respects_in_transit_no_double_order():
-    """🔴 **不追货**：已在途的量先抵扣，避免重复下单。"""
+    """🔴 **不追货**：已在途的量先抵扣，避免重复下单。
+
+    断言范围＝**已下单的那个维度**（timber）：第二轮 timber 在途未到，
+    不得再下 timber 单。其它维度（stone/iron 等）本轮本就未订、有货即买，
+    与「防重复下单」无关，不纳入本断言。
+    """
     from core.material_trade import procure_materials
     s = _state()
-    _prep(s, "timber", 5000, 0, 1_000_000)
+    _prep(s, "木", 5000, 0, 1_000_000)
     first = procure_materials(s, stock_floor=1000)
     assert first["bought"]
     n_first = len(first["bought"])
     second = procure_materials(s, stock_floor=1000)
-    assert len(second["bought"]) == 0, \
-        f"在途未到不得重复下单：{second}"
+    timber_again = [b for b in second["bought"] if b["dim"] == "木"]
+    assert len(timber_again) == 0, \
+        f"在途未到的 timber 不得重复下单：{second}"
 
 
 def test_procure_does_not_self_purchase():
@@ -305,7 +311,7 @@ def test_procure_does_not_self_purchase():
     s = _state()
     g = merchant_goods(s, R1)
     _clear_buckets(g)
-    g["timber"] = 5000
+    g["木"] = 5000
     res = procure_materials(s, stock_floor=1000)
     assert all(b["buyer"] != b["seller"] for b in res["bought"]), \
         "不得自购"
@@ -317,12 +323,12 @@ def test_procure_conserves_total_goods():
     s = _state()
     for r in s.prefectures:
         _clear_buckets(merchant_goods(s, r))
-        merchant_goods(s, r)["timber"] = 2000
+        merchant_goods(s, r)["木"] = 2000
     from core import transport as _T
     assert _T.is_adjacent(SEAT_R1, SEAT_R2) is True, "前提：R1/R2 有直达道路"
-    g0 = _sum_goods(s, "timber")
+    g0 = _sum_goods(s, "木")
     procure_materials(s, stock_floor=1500)
-    assert _sum_goods(s, "timber") == g0, "补货不得凭空增删建材"
+    assert _sum_goods(s, "木") == g0, "补货不得凭空增删建材"
 
 
 def test_procure_conserves_money():
@@ -333,7 +339,7 @@ def test_procure_conserves_money():
     assert _T.is_adjacent(SEAT_R1, SEAT_R2) is True, "前提：R1/R2 有直达道路"
     for r in s.prefectures:
         _clear_buckets(merchant_goods(s, r))
-        merchant_goods(s, r)["timber"] = 2000
+        merchant_goods(s, r)["木"] = 2000
         s.prefectures[r]["pops"]["商人"]["wealth"] = 100000.0
     w0 = _sum_wealth(s)
     procure_materials(s, stock_floor=1500)

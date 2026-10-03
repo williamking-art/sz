@@ -44,11 +44,11 @@ from typing import Any, Dict, List, Optional, Tuple
 SEAT_SEP = "|"
 
 #: POP `goods` 内**州府建材归属子槽**的保留键（方案 A · 2026-10-03 用户裁定）。
-#: 形如 `goods["建材"]["京畿路|开封府"]["timber"]`。
+#: 形如 `goods["建材"]["京畿路|开封府"]["木"]`。
 SEAT_SLOT = "建材"
 
 __all__ = [
-    "MATERIAL_DIMS", "RAW14_TO_MATERIAL", "to_material_dim",
+    "MATERIAL_DIMS", "to_material_dim",
     "circuit_seats", "merchant_of", "merchant_goods",
     "material_holding_for_circuit", "consume_for_circuit",
     "supply_merchant_materials", "trade_material",
@@ -59,26 +59,25 @@ __all__ = [
     "material_holding_for_seat", "consume_for_seat", "seat_holding_report",
 ]
 
-#: 🔴 建材取自 **`RAW_DIMS`**（非成品维度）；早前规格误写为"加工品"，已更正。
-MATERIAL_DIMS = ("timber", "stone", "iron")
-
-#: `RAW_DIMS_14` 中文建材名 → `RAW_DIMS` 英文名（**仓边界唯一翻译点**）
-RAW14_TO_MATERIAL = {"石": "stone", "木": "timber", "铁": "iron"}
+#: 🔴 建材 = 物料的**子集**（木/石/铁），不再是「与其它商品平行的另一类东西」。
+#: 取自 `RAW_DIMS`（**2026-10-03 起全部物料维已统一为中文**）。
+#: ⚠️ 物料维度名**唯一**，不存在中英双轨；`to_material_dim()` 保留为**恒等**以兼容
+#: 既有调用点（`settlement_tech` / `civil_building` 等），**不再做翻译**。
+MATERIAL_DIMS = ("木", "石", "铁")
 
 
 def to_material_dim(dim: str) -> Optional[str]:
-    """把 `RAW_DIMS_14` 中文建材名翻译成 `RAW_DIMS` 英文名。
+    """物料维度**恒等**闸门（2026-10-03 起不再翻译）。
 
-    · 已是英文名 ⇒ 原样返回；
-    · 已知中文名 ⇒ 翻译；
-    · 其它（如 `粮`，粮走 `pops[].grain` 不在建材）⇒ **`None`**，
-      调用方须据此**跳过**，**不臆断映射**（不猜"粮≈timber"）。
+    · 属 `MATERIAL_DIMS`（木/石/铁）⇒ 原样返回；
+    · **其它维度（含其它物料与成品）⇒ `None`**，调用方须据此**跳过**。
+
+    ⚠️ **为何保留这个函数**：`settlement_tech` / `civil_building` / `settlement_agri`
+    经它把「建材」与「非建材物料」分开；物料虽已统一命名，但**建材仍是需求侧的一类**
+    （要运到、要付款），这层闸门是**用途过滤**而非**命名翻译**。
     """
     d = str(dim or "")
-    if d in MATERIAL_DIMS:
-        return d
-    return RAW14_TO_MATERIAL.get(d)
-
+    return d if d in MATERIAL_DIMS else None
 
 def circuit_seats(circuit: str) -> list:
     """该路全部治所（限定名 `路|治所`），取自 `CIRCUIT_INFO.members`。
@@ -213,7 +212,7 @@ def seat_slot(pop, seat_id: Optional[str] = None, *, create: bool = False) -> Op
 
     🔴 **口径（2026-10-03 用户裁定：州府桶放在 goods 里）**：
     `goods` 命名空间从「商品维 → 数量」扩为「**治所 → {商品维: 数量}**」，
-    即 `goods["京畿路|开封府"]["timber"]`。**建材仍然是货物**（E-1 不变），
+    即 `goods["京畿路|开封府"]["木"]`。**建材仍然是货物**（E-1 不变），
     只是货物的存放粒度下沉到州府。
 
     **为何读侧必须走 `goods_amount()`**：全仓约定「`goods` 每个键都是商品维」——

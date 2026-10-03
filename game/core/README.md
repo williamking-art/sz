@@ -6,7 +6,7 @@
 
 | 模块 | 职责 |
 |---|---|
-| `game_state.py`、`save_load.py`、`save_load_util.py` | 初始状态、状态扩展、存档序列化与兼容迁移。<br>⚠️ POP `goods` 维度含 `timber`/`stone`/`iron`（**E-1**：建材是商品，由商人持有）。<br>🔴 **新增字段必须在存/读两侧都登记**——只写不读会**静默丢失**（`material_transit` 在途批次曾漏登记，读档后批次消失而货已从卖方扣掉 ⇒ **货凭空消失**；已修并由 `test_transport_transit` 守护）。旧档缺该键读成**空列表**、**不拒档**；类型异常回落空列表但**记 warning**，不静默当"没有在途"。 |
+| `game_state.py`、`save_load.py`、`save_load_util.py` | 初始状态、状态扩展、存档序列化与兼容迁移。<br>🔴 **POP `goods` 命名空间（2026-10-03）**：① **物料维全部中文**——`RAW_DIMS` = `盐/茶/丝/麻/蔗/果/木/石/铁/金/铜/银/牲畜/马/药材`（已无 `timber`/`stone`/`iron` 英文轨）；② **州府桶**——`goods[治所][dim]`（治所主键 `路\|治所`），扁平项＝**无州府归属**的残量，总量 = 扁平 + Σ桶。<br>⚠️ **读写一律走 `material_holding` 单点访问层**（`goods_amount`/`goods_set`/`goods_add`/`commodity_dims`），**不得**裸取 `goods[dim]` 或裸遍历 `goods` 键（桶是 dict，会被当商品维参与算术）。<br>⚠️ **货币 ≠ 物料**：`money.py` 与蓝图 `cost.silver`、科技研发费里的 `silver`/`gold`/`copper` 是**币种**，保持英文；作为物料时才是中文「银/金/铜」。 |
 | `commands.py`、`commands_decree.py` | 玩家命令入口、回合推进与政令相关操作 |
 | `settlement.py`、`settlement_steps.py` | 月度结算编排与步骤顺序。<br>⚠️ **Step 4.45 建材供给**（仓 → 商人货栈，搬运守恒）／**4.46 建材到货**（本月到期批次入账）／**4.47 补货下单**（商人低于阈值即向料足的路下单）。三者**依次**排在 Step 4.4 产出链**之后**、消费侧**之前**；失败只 `log.append(WARN)` 不阻断结算。 |
 | `settlement_*.py` | 财政、经济、粮政、军事、官制、政令、科技等具体结算逻辑。<br>⚠️ **建材口径（C-c + E-1）**：消费侧（`settlement_tech` / `settlement_agri` / `civil_building`）**一律只从本路商人货栈取料**，且**判定与落扣共用同一读口**；直读 `state.resources[dim]["stock"]` 等于"料可凭空调用"，**物流失去意义**（§14.2 障碍 2）。<br>⚠️ **注册表的建材维度必须校验** ∈ `material_holding.MATERIAL_DIMS`——拼错会让该建筑/升级**永远走"缺料"分支而静默失效**；`civil_building.UNKNOWN_MATERIAL_DIM_ALLOWLIST` 是**故意**引入未知维度的白名单（拦"疑似拼错"、不拦"明知故犯"）。 |

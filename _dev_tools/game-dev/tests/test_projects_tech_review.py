@@ -208,7 +208,7 @@ def test_tech_node_declarations_complete():
         nid, prereq, cost, effect = node[0], node[5], node[8], node[9]
         assert isinstance(prereq, list), f"{nid} 前置未声明"
         assert isinstance(cost, dict), f"{nid} 成本未声明"
-        for k in ("silver", "months", "masters"):
+        for k in ("银", "months", "masters"):
             assert k in cost, f"{nid} 成本缺 {k}"
         assert isinstance(effect, dict) and effect, f"{nid} 效果未声明"
         if nid in TECH_NODE_DEPLOY:

@@ -127,7 +127,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
     # 由此 `material_holding` 的州府级明细改由**本路商人 POP `goods`** 承载，
     # 原 `state.resources[dim]["by_pref"]` 明细**不再作为建材来源**（见 material_holding）。
     _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS] + \
-        ["timber", "stone", "iron"]
+        ["木", "石", "铁"]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
         # 隐户（不落籍）＝ `农` POP 的**加法**子池 `hidden`（口）—— POP 挂载律条 1/4：
@@ -678,7 +678,7 @@ class GameState(GameStateEconMixin):
             "commerce": 1130940,
             "poll": 389015,
             "tax_color": 864322,
-            "salt": 498151
+            "盐": 498151
         }
         # 变法节流（省浮费/裁汰冗员）：隐性三冗不可见不可直裁，只能经长期变法逐月挤出水分。
         #   {"active": bool, "kind": "curtail_waste|reduce_office", "savings": 月省贯,
