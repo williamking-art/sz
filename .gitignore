@@ -4,6 +4,8 @@
 # --- 运行时生成的存档 ---
 songzuo/saves/*
 !songzuo/saves/.gitkeep
+# 开发目录的运行存档同样不入库（2026-10-03：slot_1.db 曾被误暂存入库）
+game/saves/*
 
 # --- 临时归档与构建产物 (_scratch/：任意层级均不入库) ---
 _scratch/
