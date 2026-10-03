@@ -4,6 +4,7 @@
 银行信贷、交子界制、熔铜、稳定器回收、税收与积欠、存款存量收敛。"""
 from __future__ import annotations
 
+import logging
 import random
 
 from content.data import (
@@ -22,6 +23,8 @@ from content.data import (
 from core.settlement_econ_helpers import (
     _distribute_pop_wealth,
 )
+
+_fin_log = logging.getLogger("settlement")
 
 def _refresh_jiaozi_credit(state, log):
     """刷新交子数据契约读数（第二节§2）：流通额 / 兑付率 / 折价 / 挤兑压力。
@@ -90,20 +93,33 @@ def _settle_bank_credit(state, log):
     CAP = _inst.get(state, "didang_deposit_cap", 0.30)
     mall0 = _m_all(state)
     # 信用信心：交子挤兑压力越大，信贷越收缩、违约越多（§4 传导链）
-    trust_conf = 1.0
+    #
+    # 审查 P2-3 / M15：原实现读数失败回落 `trust_conf = 1.0` —— 那是"零挤兑压力"的
+    # **伪造值**，且对玩家有利（信心满 → 放贷/坏账口径全部偏向宽松）；更糟的是它与
+    # "确实无压力"完全同值，事后无从分辨。现改为 `None`（**不可判定**）＋沿用上月
+    # `overdue_rate`（存量延续，不凭空造出一个有利读数）＋WARNING/traceback。
+    trust_conf = None
     try:
         from core.money import jiaozi_run_pressure as _jz_run
         trust_conf = 1.0 - max(0.0, min(1.0, float(_jz_run(state))))
-    except Exception:  # noqa: BLE001 — 只读派生失败不阻断结算
-        trust_conf = 1.0
+    except Exception:  # noqa: BLE001 — 只读派生失败不阻断结算，但**不得**伪造"无压力"
+        _fin_log.warning("[银行] 交子挤兑压力读数失败，本月沿用上月逾期率"
+                         "（不回落 1.0 伪造无压力）", exc_info=True)
     target = str(b.get("target") or "")
     pop_name = target if target in ("农", "士绅", "工匠", "商人", "官僚", "兵") else "商人"
 
     # ---- 1) 坏账核销（先于放贷，防坏账继续计息）----
     bad_debt = 0
     loans0 = int(b.get("loans", 0) or 0)
-    overdue = max(0.0, min(1.0, float(b.get("overdue_rate", 0) or 0) * 0.5
-                            + 0.005 + 0.30 * (1.0 - trust_conf)))
+    _prev_overdue = max(0.0, min(1.0, float(b.get("overdue_rate", 0) or 0)))
+    if trust_conf is None:
+        overdue = _prev_overdue          # 不可判定 → 沿用上月值（存量延续）
+        if isinstance(log, list):
+            log.append("[银行][WARN] 挤兑压力不可判定，本月逾期率沿用上月值"
+                       f"（{_prev_overdue:.4f}）")
+    else:
+        overdue = max(0.0, min(1.0, _prev_overdue * 0.5
+                                + 0.005 + 0.30 * (1.0 - trust_conf)))
     b["overdue_rate"] = round(overdue, 6)
     reserve = int(b.get("reserve", 0) or 0)
     if loans0 > 0 and overdue > 0:
@@ -151,7 +167,10 @@ def _settle_bank_credit(state, log):
     lendable = max(0, reserve - req)
     if lendable > 0 and pools:
         _pool_now = sum(int(s.get("wealth", 0) or 0) for s in pools)
-        _want = int(min(lendable, int(reserve * LEND * trust_conf)))
+        # trust_conf=None（读数不可判定）→ 放贷信心因子取 0：**不假装"无压力"**而
+        # 照常放贷（那正是 M15 的畸形收益）；本月信贷收缩，下月读数恢复即复原。
+        _conf_for_lend = 0.0 if trust_conf is None else trust_conf
+        _want = int(min(lendable, int(reserve * LEND * _conf_for_lend)))
         if _want > 0 and _pool_now > 0:
             _lent = 0
             for slot in pools:
@@ -186,10 +205,13 @@ def _settle_bank_credit(state, log):
                 log.append(f"[银行] 收息 {interest:,}贯（归银行留存，不作财政收入）")
 
     # ---- 5) 挤兑压力（准备金不足兑付存款 + 信用不足 → 压力）----
+    # trust_conf=None（不可判定）→ **沿用上月值**（与逾期率同一处理原则），
+    # 既不伪造"无压力"，也不另造一条新公式。
     req_all = int(int(b.get("deposits", 0) or 0) * BANK_RESERVE_RATIO_MIN)
-    b["run_pressure"] = round(max(0.0, min(1.0,
-        (1.0 - trust_conf) * 0.5
-        + (1.0 if int(b.get("reserve", 0) or 0) < req_all else 0.0) * 0.5)), 6)
+    if trust_conf is not None:
+        b["run_pressure"] = round(max(0.0, min(1.0,
+            (1.0 - trust_conf) * 0.5
+            + (1.0 if int(b.get("reserve", 0) or 0) < req_all else 0.0) * 0.5)), 6)
 
     # ---- 守恒断言（失败不得静默；抛错由上层原子回滚）----
     mall1 = _m_all(state)
@@ -648,8 +670,40 @@ def _settle_finance(state, log):
 
     corruption_cash_ded, corruption_grain_loss = state.calc_corruption_deduction()
     clerk_gap_total, _ = state.calc_clerk_gap()
-    payraise_used = min(state.payraise_budget, int(clerk_gap_total) + 10_000)
-    state.payraise_budget = max(0, state.payraise_budget - payraise_used)
+    # ---- 审查 M2（用户 2026-10-01 定稿 (a)）：加俸预算 = **真实分账基金**----
+    # 原实现：`池 -= used` **且** `total_out += used`，而 `used` 无 POP 入账腿
+    #（加俸实际经 `clerk_cash` → `_paid_personnel` 从国库发）⇒ **同一笔钱记两次支出**，
+    #   实测月残差 = −2× 消耗（消耗 1 万/月时残差 −2 万/月）。
+    # 现口径（完整的「拨入—支出—收款」路径）：
+    #   拨入：`commands.allocate_payraise` 国库 → 池（已有）
+    #   支出：本月发放**只**从池扣，金额按 `min(池, 吏俸缺口+1万)` 且以**实付**为准
+    #   收款：同额经 `transfer_public_funds_to_pops`（受管管线）落到**官僚 POP wealth**
+    #   ⇒ 池是钱、`total_out` **不再含它**（避免与国库发薪重复计支出）。
+    from content.data import PAYRAISE_PAY_TO
+    from core.settlement_common import (
+        MoneyChannelUnavailable, note_settlement_error, transfer_public_funds_to_pops,
+    )
+    _payraise_want = min(state.payraise_budget, int(clerk_gap_total) + 10_000)
+    payraise_used = 0
+    if _payraise_want > 0:
+        try:
+            payraise_used = transfer_public_funds_to_pops(
+                state, _payraise_want, PAYRAISE_PAY_TO, "加俸月给：诸路官吏俸给",
+                source_account="payraise_budget", raise_on_unavailable=True)
+        except MoneyChannelUnavailable as _e:
+            # 通道坏了 ≠ 池里没钱：显式区分并留痕（不得静默记成"未发放"）
+            note_settlement_error(
+                state, "payraise_channel", "财政",
+                f"加俸发放通道不可用，本月未发（{type(_e).__name__}）", log=log)
+    # 注意：**不再手工扣池**。`transfer_public_funds_to_pops` 内部已把
+    #   `{path:"payraise_budget", op:"add", value:-实付额}` 交给受管管线执行，
+    #   且只在**部分可用**时按 `allocated`（实付额）等额扣减。此处若再
+    #   `pool -= payraise_used` 就是**同一条腿扣两次**（与本条修复的原缺陷同类：
+    #   池是钱，池的减少只能发生一次、且必须由受管管线记账）。
+    #   余额非负由 `state_applier.NON_NEG_PREFIXES` 的 `payraise_budget` 兜住。
+    if payraise_used > 0:
+        log.append(f"[加俸] 本月应发 {_payraise_want:,} 贯（实付 {payraise_used:,}）"
+                   f"给诸路官吏，池余 {int(state.payraise_budget):,} 贯")
 
     sui_gong = 0
     _sui_parts = []   # [(政权, 银绢折钱额)]——岁币落账（2026-09-19）：钱入对应政权库藏
@@ -670,11 +724,9 @@ def _settle_finance(state, log):
     # `_settle_external_economy`（紧随本步）当月参与辽/夏的税饷/粮市循环——
     # 岁币从此有可见去向，辽夏经济与宋同构（test_external_economy.py）。
     if sui_gong > 0:
-        try:
-            from core.money import register_flow as _reg_flow
-            _reg_flow(state, "burn", int(sui_gong), "岁币岁赐外流")
-        except Exception:  # noqa: BLE001
-            pass
+        # 审查 P2-3 / M8：原静默 `pass` → 岁币外流未登记会被对账算成"凭空销毁"残差。
+        from core.settlement_common import register_money_flow
+        register_money_flow(state, "burn", int(sui_gong), "岁币岁赐外流")
         _ext_regimes = getattr(state, "external_regimes", {}) or {}
         for _rk, _amt in _sui_parts:
             _ex = _ext_regimes.get(_rk)
@@ -783,7 +835,8 @@ def _settle_finance(state, log):
     else:
         effective_cash_out = _paid_personnel
     total_out = (_paid_civil + effective_cash_out
-                 + _paid_corruption + payraise_used + sui_gong)
+                 + _paid_corruption + sui_gong)   # 审查 M2：不再含 payraise_used
+    # （加俸已由预算池支付并直接落入官僚 POP，不再是国库支出；计入此处即为重复计账）
     net = monthly_tax_full - total_out
     # 实际到库净额：保底豁免的税不入国库（钱不凭空生），故用 actual_tax 替代目标 monthly_tax_full
     actual_net = actual_tax - total_out

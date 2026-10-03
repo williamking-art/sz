@@ -119,10 +119,21 @@ def test_farm_only_building_has_zero_jobs():
 
 
 def test_new_game_settlement_buildings_empty_and_flow_dormant():
-    """(i) 新局（`GameState('史实')`）各路 `buildings` 为空 → 接线存在但不迁移。"""
+    """(i) 新局（`GameState('史实')`）各路**无岗位类建筑** → 接线存在但不迁移。
+
+    2026-10-11 口径变更：开局 `buildings` **不再为空**——
+    `game_state._init_agri_buildings` 配置了农业基础设施（水利/常平仓/农田/庄园…），
+    以使 B2-R4 的农业投资**有可作用对象**（此前 `buildings == {}` 导致增产恒 0）。
+    但这些是**资产类**建筑，**不在岗位表内**（`CFG` 的职位键无"水利"等），
+    故**不产生岗位、不触发岗位流动**——本测试的核心断言（人口恒等不漂移、
+    无岗位流动痕迹）依然成立且必须保持。
+    """
     s = GameState("史实")
-    assert all(not (p.get("buildings") or {}) for p in s.prefectures.values()), \
-        "新局 POP 建筑应为空（基线前提）"
+    # 农业资产类建筑允许存在，但**不得含岗位类建筑**
+    for name, p in s.prefectures.items():
+        for key in (p.get("buildings") or {}):
+            assert key not in set(POP_BUILDING_TYPES), \
+                f"{name}：新局不得含岗位类建筑 {key!r}（会导致岗位流动基线漂移）"
     random.seed(11)
     t0 = sum(v["size"] for p in s.prefectures.values() for v in p["pops"].values())
     pop0 = s.population

@@ -120,23 +120,37 @@ def _journal_since(base: int) -> List[dict]:
                         "按「本回合无记录」处理（不拿历史背书）", n)
             return []
         return list(CHANGE_LOG[start:n])
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        # 审查 P2-3 应修：原静默 `return []` —— 台账不可读时所有 intent 都会判 fail
+        # （"本月确实调了兵/拨了帑"被当成没做），而日志一字无、无从分辨。
+        log.warning("situation_settle：本回合事务台账不可读，按「无记录」处理"
+                    "（intent 将全部判 fail）：%s", e, exc_info=True)
         return []
 
 
-def _snapshot_for(state, rec: dict) -> dict:
-    """按该条局势实际用到的 metric 取快照（一次取值，不读 state 之外的东西）。"""
+def _snapshot_for(state, rec: dict):
+    """按该条局势实际用到的 metric 取快照（一次取值，不读 state 之外的东西）。
+
+    返回 `(snapshot 或 None, errors)`：**取快照失败返回 `(None, errs)`** ——
+    审查 P2-3 应修：原实现失败时返回 `{"metrics": {}}`，而 `evaluate` 对缺失值
+    一律返回 False，于是"取不到数据"被当成"**条件未命中**"（fail/resolve 双 False）
+    → 局势会被误判为"仍在进行"甚至被 deadline 判失败。调用方必须**跳过该条终态判定**。
+
+    `build_metric_snapshot` 自身的逐项 errors（未注册 metric / 取值异常 / 参数不存在）
+    也一并返回，由调用方落 `out["errors"]`（此前被静默丢弃，属同一类可观测性缺口）。
+    """
     keys = sorted(set(used_metrics(rec.get("resolve_condition"))) |
                   set(used_metrics(rec.get("fail_condition"))))
     if not keys:
-        return {"metrics": {}}
+        return {"metrics": {}}, []
     try:
         from core.situation_metrics import build_metric_snapshot
-        snap, _errs = build_metric_snapshot(state, keys)
-        return snap
+        snap, errs = build_metric_snapshot(state, keys)
+        return snap, list(errs or [])
     except Exception as e:  # noqa: BLE001
-        log.warning("situation_settle 取快照失败：%s", e)
-        return {"metrics": {}}
+        log.warning("situation_settle 取快照失败（本月跳过该条终态判定）：%s", e,
+                    exc_info=True)
+        return None, [f"快照失败：{type(e).__name__}"]
 
 
 def _push_timeline(rec: dict, entry: dict) -> None:
@@ -163,7 +177,11 @@ def settle_situations(state, log_lines: Optional[list] = None,
     if records is None:
         try:
             state.situations = []
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            # 审查 P2-3 应修：原静默 return（局势系统整个不工作而无人知）。
+            log.warning("situation_settle：无法初始化 state.situations（本月局势整步跳过）：%s",
+                        e, exc_info=True)
+            out["errors"].append(f"无法初始化 state.situations：{type(e).__name__}")
             return out
         records = state.situations
     if not isinstance(records, list) or not records:
@@ -283,7 +301,21 @@ def settle_situations(state, log_lines: Optional[list] = None,
                                      "source": "program"})
 
             # ---- ③ 终态判定（fail > resolve > deadline；deadline 仅在仍 active 时生效）----
-            snap = _snapshot_for(state, rec)
+            # P2-3 应修：**指标快照失败 → 跳过该条终态判定**（不得当作"条件未命中"）。
+            # 快照取不到时 fail/resolve 双双 False，若照常判定，会把"读不到数据"
+            # 误判成"条件未达成"，进而被 deadline 判失败或无限期 active。
+            snap, _snap_errs = _snapshot_for(state, rec)
+            if _snap_errs:
+                out["errors"].extend(f"{rid}: {e}" for e in _snap_errs[:3])
+            if snap is None:
+                out["errors"].append(f"{rid}: 指标快照失败，本月跳过终态判定")
+                _push_timeline(rec, {"turn": turn, "kind": "报",
+                                     "text": "指标快照失败，本月跳过终态判定（不当作条件未命中）",
+                                     "source": "program"})
+                logs.append(f"[局势] {rec.get('title')}：指标快照失败，本月跳过终态判定")
+                rec["last_settled_turn"] = turn
+                out["settled"] += 1
+                continue
             fc, rc = rec.get("fail_condition"), rec.get("resolve_condition")
             fail_hit = bool(evaluate(fc, snap)) if fc else False
             resolve_hit = bool(evaluate(rc, snap)) if rc else False
@@ -364,6 +396,10 @@ def settle_situations(state, log_lines: Optional[list] = None,
     try:
         state._situation_grades = {}
         state._situation_intents_this_turn = []
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        # 审查 P2-3 应修：原静默 pass → 本回合档位/intent 未清空，下月会**重复消费**
+        # （同一档位/意图跨月二次生效）；失败必须可见。
+        log.warning("situation_settle：本回合档位/intent 瞬态未清空，下月可能重复消费：%s",
+                    e, exc_info=True)
+        out["errors"].append(f"档位/意图瞬态未清空：{type(e).__name__}")
     return out

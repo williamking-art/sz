@@ -86,10 +86,11 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
           <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
             <p className="font-kai text-sm font-bold tracking-widest text-red">人 口</p>
             <p className="mt-1 text-sm text-ink">
-              在籍 {Number(extProv[1].population ?? 0).toLocaleString("en-US")} 口
-              {extProv[1].weight !== undefined && (
+              {/* 审查 D2：外邦读数缺失不回落 0（"在籍 0 口"会被读成"无人"） */}
+              在籍{numOrDash(extProv[1].population)}
+              {extProv[1].weight !== undefined && extProv[1].weight !== null && (
                 <span className="ml-3 text-ink-light">
-                  占国 {Math.round(Number(extProv[1].weight ?? 0) * 100)}%
+                  占国 {Math.round(Number(extProv[1].weight) * 100)}%
                 </span>
               )}
             </p>
@@ -101,8 +102,8 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
               (extProv[1].armies as Record<string, unknown>[]).map((a, i) => (
                 <div key={i} className="mt-1.5">
                   <p className="text-sm text-ink">
-                    {str(a.name)}　员 {Number(a.troops ?? 0).toLocaleString("en-US")}
-                    　气 {Number(a.morale ?? 0)}　训 {Number(a.training ?? 0)}
+                    {str(a.name)}　员 {numOrDash(a.troops)}
+                    　气 {numOrDash(a.morale)}　训 {numOrDash(a.training)}
                   </p>
                   <p className="text-xs text-ink-light">
                     {Object.entries((a.branches as Record<string, number>) ?? {})
@@ -182,4 +183,12 @@ export default function DetailPanel({ props }: { props?: Record<string, unknown>
 function str(v: unknown): string {
   if (v === undefined || v === null) return "";
   return String(v);
+}
+
+/** 审查 D2：数值读数缺失 →"—"（**不**回落 0，0 会被读成"真的没有"）。 */
+function numOrDash(v: unknown): string {
+  if (v === undefined || v === null) return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return Math.abs(n) >= 1000 ? n.toLocaleString("en-US") : String(n);
 }

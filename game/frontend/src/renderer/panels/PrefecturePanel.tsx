@@ -289,7 +289,7 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
           })()}
         </div>
         <p className="px-1 text-xs leading-relaxed text-dim">
-          到账月税＝本路二税折色实收（已乘到账率）；存粮可支月数＝（州仓＋常平仓）÷ 各路 POP 月耗。
+          到账月税＝本路二税折色实收月额（已乘机制到账率——隐漏、钱荒后的折扣系数，非会计录的「三税到账率」）；存粮可支月数＝（州仓＋常平仓）÷ 各路 POP 月耗。
           地方之政（劝农、赈灾、平盗、减税）请经「拟旨」施行，效果由中枢推演落地。
         </p>
       </div>

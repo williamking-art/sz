@@ -15,7 +15,16 @@ Team 型（多角色协作团队）
 - **`scripts/load_team.py`** —— 可执行加载脚本（解析 `agents/` 并输出团队配置/任务路由卡）。
 - **（历史副本已删除）** —— 工程内 `_scratch/team_orchestra.md` 曾为工作镜像，现已并入本包并删除，专家团定义唯一存于本包。
 
-> 权威根目录：`G:/sz/game/`。若项目结构变更，以游戏 `README.md` 为准同步。
+> 当前仓库：`D:/codebuddy/sz/`。路径、模块与运行事实以 `sz/AGENTS.md`、`game/README.md`、现行代码与规格为准；本文件的旧 Tkinter、Mixin、工具清单和基线若冲突均作废。
+
+## 当前游戏基线（2026-10-01）
+
+- **前端**：Electron + React + TypeScript + MapLibre；不是 Tkinter。席位 ID `tkinter-ui` 是兼容既有注册的历史 ID，景呈宣实际负责桌面前端框架、地图、主题与共享组件；潘章序负责页面、面板与交互。
+- **推演**：具名 Agent 由 `agent_router` 按需唤醒，通过角色契约参与 AI 推演；大臣办差走受限工具调用。提议经契约与业务校验、`engine/state_applier.py` 和程序结算形成状态；叙事不能冒充效果已执行。
+- **官员**：每位官员有独立 Actor、权限、意图与记忆。会签/朝议逐人表达，再按制度流程汇合；一个“综合回答”不能代替多个官员 Agent。
+- **旨意**：以 `game-docs/specs/decree-action-chain/` 和实际代码为准，追踪旨意、action、动态蓝图、地点工程、建筑/效果、结算流水和因果读数。未注册效果或无 handler 必须是“待支持/未执行”。
+- **待补**：口谕/密令/朝议流程与财政 Agent 接线；民间市场 240 月人口稳定性、路级价格域、供给缺口及外销语义；实物建材、新材解锁和民间营造触发。详见 `game-docs/specs/market-civilian-economy/tasks.md`。
+- **维护原则**：角色卡中的路径、测试数字、完成状态都是可能过期的快照；每次调度先读项目约定、游戏 README、相关代码和规格。规划席位/骨架不得写成已实现能力。
 
 ## 团队构成
 
@@ -42,17 +51,17 @@ Team 型（多角色协作团队）
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
 | strategy-systems | 蔡权衡 | 策略数值：派系/军政/科技/事件概率/结局权重，MDA 链路、平衡难度 |
-| economy-systems | 钱盈仓 | 财政经济：国库/仓廪/田赋/物价/州县经济、TIER_RANGE 档位封顶、钱荒口径 |
+| economy-systems | 钱盈仓 | 财政经济：国库/仓廪/田赋/物价/州县与民间市场、商品/货币口径 |
 | core-engineering | 谷承构 | 核心架构与存档：GameState/命令/序列化迁移/循环依赖/权威常量 |
-| settlement-engineering | 程月衡 | 结算与结局：12 步流水线/事件触发/七维结局评价/timeline break 改写位 |
+| settlement-engineering | 程月衡 | 结算与结局：现行结算/事件触发/结局评价/timeline break 改写位（改动前实查顺序） |
 | data-analytics | 析微澜 | 数据与分析：遥测/平衡挖掘/策略回放/敏感度分析/可玩性诊断 |
 
 表现与交互
 
 | 成员 ID | 花名 | 职责 |
 |---------|------|------|
-| tkinter-ui | 景呈宣 | 界面框架：舆图层/宋式主题/弹窗/进度条/动效/事件循环 |
-| ui-panels | 潘章序 | 面板交互：六 Mixin 面板/信息层级/键盘可达/空与错误状态 |
+| tkinter-ui（历史注册 ID） | 景呈宣 | Electron/React 框架、MapLibre 舆图、宋式主题、共享组件与前端性能 |
+| ui-panels | 潘章序 | React 页面/面板、信息层级、键盘可达、空/加载/错误状态与交互反馈 |
 | art-assets | 惠宋韵 | 宋式美术：地图/立绘/图标/规范/资源命名与授权 |
 | sound-music-designer | 吕清商 | 宋式音频：雅乐/环境音/UI 音/事件配乐/播放总线 |
 
@@ -86,6 +95,9 @@ Team 型（多角色协作团队）
 - `W2` 史实事件 + AI 叙事：event-narrative-designer（事件卡+三标签）→ song-narrative-designer（人物核对）→ ai-prompt-designer（prompt 契约）→ ai-pipeline（管线落地）→ 主理人汇编。
 - `W3` 发布验收：release-engineering（构建+启动验证）→ gui-release-qa（GUI/打包回归）→ regression-qa（质量门）→ 主理人确认边界（不含 dev/_scratch/本机密钥）。
 - `W4` 结算/经济调参：economy-systems（变量表）→ settlement-engineering（结算落地）→ data-analytics（回放验证）→ regression-qa（落断言）。
+- `W5` 旨意到因果落地：定义动作意图 → core 定义 action/蓝图/存档契约 → 对应领域 handler 与结算落地 → UI 展示分项状态与因果 → 核心及 GUI QA 验收。
+- `W6` 官员 Agent 与治理流程：人物制度核查 → 逐人意图/权限/记忆契约 → 朝议/会签程序汇合 → 玩家裁决或旨意执行 → 逐人回馈与权限/失败回归。
+- `W7` 民间市场与长期平衡：商品与所有权口径 → 真实生产/交易/消费 → 路×商品供需读数 → 60/240 月回放 → 人口、生计、价格与钱货因果验收。
 
 **单 agent 路由表**
 
@@ -97,27 +109,28 @@ Team 型（多角色协作团队）
 | 派系/军政/科技/结局权重/平衡/极端场景 | strategy-systems |
 | 财政/国库/仓廪/物价/州县经济/档位封顶 | economy-systems |
 | 状态机/命令/存档/迁移/循环依赖 | core-engineering |
-| 12 步结算/事件触发/结局评价/改写位 | settlement-engineering |
+| 结算/事件触发/结局评价/改写位 | settlement-engineering（以当前实现时序为准） |
 | prompt 文本/分幕契约/文风/脱敏规则 | ai-prompt-designer |
 | JSON 契约校验/安全过滤/后端/错误路径 | ai-pipeline |
 | 连通性/能力探测/不动点回归 | ai-integration |
-| 主题/舆图/弹窗/动效/事件循环 | tkinter-ui |
-| 面板/交互/键盘/信息层级 | ui-panels |
+| Electron/React/MapLibre 框架/舆图/主题 | tkinter-ui（历史注册 ID） |
+| React 页面/面板/交互/键盘/信息层级/状态反馈 | ui-panels |
 | 立绘/地图/图标/美术规范/资源 | art-assets |
 | 核心/数值/AI 契约/存档回归/质量门 | regression-qa |
 | GUI/资源/音频/打包回归/冻结 EXE | gui-release-qa |
 | 打包/EXE/依赖/发布边界 | release-engineering |
 | 雅乐/音效/配乐/音频资源 | sound-music-designer |
 | 遥测/数据挖掘/平衡分析/回放 | data-analytics |
+| 圣旨、口谕、密令到官员承办/蓝图/工程效果 | W5（按需组合叙事/策略/core/结算/经济/UI/QA） |
+| 官员 Agent 独立意见、记忆、朝议/会签 | W6（按需组合史实/策略/core/AI/结算/QA） |
+| POP 消费、官民仓、市价、营造市场、长局失衡 | W7（按需组合策略/core/经济/结算/数据/QA） |
 | 综合性问题 | 走预设 Workflow（主理人编排） |
 
 ## 关键技术基准（全团共享事实）
 
-- 状态权威 `core/game_state.py`；数值权威 `content/data.py`（禁止重复定义 SAVE_DIR/常量）。
-- 档位 `TIER_RANGE = {"无":0.0,"微":0.25,"小":0.5,"中":1.0,"大":1.8}`，经 `tier_to_value()` 封顶。⚠ 当前 `TIER_RANGE` 定义于 `ai/client_utils.py:67`，`content/data.py` 仅注释引用，属常量漂移，应迁回 `content/data.py` 统一权威源。
-- 12 步月度结算流水线；结局七维加权（百姓口碑 0.20 > 文治/武功/民生/声望 0.15 > 财政/艺术 0.10）。
-- 分层边界：本体在 `game/`、发行物在 `songzuo/`；`dev/`、`_scratch/` 不得成为运行依赖；AI 调用走 urllib；地图仅 `empire_bg.png`/`desk_bg.png` 为权威资源。
-- 已知质量债：远程后端常量漂移、`_tool_dispatch` 直改 GameState 应迁后端、钱荒口径多处不统一、`TIER_RANGE` 定义于 `ai/client_utils.py` 未归 `content/data.py`。
+- 当前状态、结算次序、AI 契约、价格/货币口径均不在本包复制定义；权威在 `game/` 实际代码和 `_dev_tools/game-docs/docs/`。
+- 常量和 schema 以当前代码唯一来源为准；本 README 与旧角色卡里的行号、档位、测试数、结算步骤和旧质量债不可直接作为现状引用。
+- 分层边界与地图资产以 `game/README.md` 和 `sz/AGENTS.md` 为准。地图改动同时考虑省级几何覆盖/边界数据和 MapLibre 渲染，不能只凭截图断言数据正确。
 
 ## 使用示例
 
@@ -135,9 +148,9 @@ Team 型（多角色协作团队）
 
 ## 与游戏工程的关系
 
-本专家包是《宋祚》游戏工程（`G:\sz\game`）的多智能体开发团队，18 个席位已注册为 `songzuo-game-studio` 专家团实体。专家团的全部定义（总提示词 + 18 张角色卡 + 来源索引 + Skillhub 分配表 + 注册实体信息）**统一维护在本包内**（`TEAM.md` 为权威主体），工程内不再保留 `team_orchestra.md` 副本：
+本专家包是《宋祚》游戏工程（当前工作区 `D:\codebuddy\sz\game`）的多智能体开发团队。过往软件注册记录可能已迁移或失效；本专家包的全部团队定义（总提示词 + 18 张角色卡 + 来源索引 + 调用示例）统一维护于本包（`TEAM.md` 为权威主体）：
 
-- 专家文件里的「项目基准（实勘）」一律指向 `G:\sz\game` 的真实文件（`core/`、`content/`、`ai/`、`ui/`、`dev/`）。
+- 专家文件中的「项目基准」必须对照当前 `D:\codebuddy\sz\game` 实查；历史 `G:\sz` 路径不再有效。
 - 本包（`TEAM.md` + `agents/`）是**唯一权威配置来源**。
 - 游戏 `README.md` 规定：跨模块需求一律先经本专家团主理人路由，禁止直接改核心模块。
 
@@ -149,11 +162,11 @@ Team 型（多角色协作团队）
 | 调数值/平衡并验证极端 | 单 agent | strategy-systems → data-analytics → regression-qa |
 | 跨模块新功能 | W1 | 主理人路由 → 主责 → 复核 → 验证 |
 | 打包发布 | W3 | release-engineering → regression-qa → 主理人 |
-| 改 Tkinter/美术/音频 | 单 agent | tkinter-ui / art-assets / sound-music-designer |
+| 改 Electron/React 界面、美术或音频 | 按模块派单；跨资源/发布加 GUI QA | tkinter-ui（历史 ID）/ ui-panels / art-assets / sound-music-designer |
 
 ## 安装（对接本机游戏工程）
 
-专家包已置于 `G:\sz\_dev_tools\songzuo-game-studio`。要让其驱动 `G:\sz\game` 开发，在主理人侧以 Team 模式加载本包即可（主理人会 `TeamCreate` 拉起 17 名专家成员，按上文 SOP 调度）。
+专家包位于 `D:\codebuddy\sz\_dev_tools\songzuo-game-studio`，对应本体为 `D:\codebuddy\sz\game`。Team 模式由主理人按任务路由选用必要成员，不要求每项任务启动全员。
 
 如要作为独立专家包分发，保留目录结构：
 
@@ -169,3 +182,6 @@ songzuo-game-studio/
 ```bash
 zip -r songzuo-game-studio.zip songzuo-game-studio/
 ```
+
+---
+最后更新：2026-10-02（按现行 Agent 推演、旨意因果链、市场长局待办与 Electron/React 前端重设团队基线和路由）

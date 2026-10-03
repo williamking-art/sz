@@ -90,12 +90,83 @@ def _split_dim(value: float, names: list[str], shares: list[float],
 # ============================================================
 # 宋：路级总量 → 府/州级
 # ============================================================
+def _split_dim_scoped(value: float, shares: dict, blocked_names: list,
+                      blocked_share: float) -> "tuple[dict[str, int], int]":
+    """把 `value` 中属于**有块**治所的那一份分派下去，返回 (各块份额, 省级残留)。
+
+    口径：先按史实权重算出"有块治所合计占多少"（`blocked_share`），只分派
+    `round(value × blocked_share)`；拾整尾差并入**有块中权重最大者**（沿用既有
+    "尾差归最大块"口径）；余额 `value − Σ各块` 即**省级归入份额**，一分不摊给邻府。
+    """
+    vb = round(value * blocked_share)
+    shares_sum = sum(shares[n] for n in blocked_names) or 1.0
+    norm = {n: shares[n] / shares_sum for n in blocked_names}
+    parts = {n: round(vb * norm[n]) for n in blocked_names}
+    anchor = max(blocked_names, key=lambda n: norm[n])
+    parts[anchor] += vb - sum(parts.values())
+    return parts, value - sum(parts.values())
+
+
+def split_circuit_demog_scoped(
+        circuit: str, area_map: dict[str, float],
+        merged_seats: "tuple[str, ...] | list[str]" = ()) -> "tuple[dict[str, dict[str, object]], dict[str, object]]":
+    """路级总量 → (府/州级各块, **省级归入残留**)。
+
+    口径（用户 2026-09-29 裁决）：**无地图府块的治所按历史数据（`CIRCUIT_INFO.members`）
+    归入省级**——它们不参与府级摊派，其史实权重份额**不从邻府分得、也不摊给邻府**，
+    而是留在路级作为 `residual` 返回。逐维恒等式：
+
+        Σ(府块) + residual == 路级总量                     （拾整后逐维精确相等）
+
+    · 权重表用 `SONG_SEAT_WEIGHTS`（史实锚点，重镇 >1）；归入省级的治所**无几何**，
+      面积按 `1.0` 计（与 `prefecture_demog()` 的等权近似同源），锚点照取。
+    · `merged_seats` 为空时与 `split_circuit_demog` **完全同行为**（残留 `{}`，走旧路径）。
+    """
+    base = PREFECTURE_INFO.get(circuit) or EXTRA_CIRCUIT_DEMOG.get(circuit)
+    if not base or not area_map:
+        return {}, {}
+    names = sorted(area_map)
+    merged = [str(n) for n in merged_seats if n]                  # 只登记，不参与分派
+    if not merged:
+        return split_circuit_demog(circuit, area_map), {}
+
+    # 全体治所（有块 + 省级归入）共同参与权重归一：归入省级者的史实份额因此**不被放大**
+    # 到邻府头上（这正是"归入省级"要解决的隐式摊派）。
+    all_names = sorted(set(names) | set(merged))
+    weights = {n: area_map.get(n, 0.0) or 1.0 for n in all_names}
+    shares, _top = _weighted(all_names, weights, SONG_SEAT_WEIGHTS)
+    share_of = dict(zip(all_names, shares))
+    blocked_share = sum(share_of[n] for n in names) or 1.0
+
+    out: dict[str, dict[str, object]] = {n: {"name": n, "circuit": circuit} for n in names}
+    residual: dict[str, object] = {"circuit": circuit, "merged_seats": sorted(set(merged))}
+
+    for dim in ("population", "households", "land", "grain", "monthly_tax"):
+        v = base.get(dim)
+        if v is None:
+            continue
+        parts, res = _split_dim_scoped(v, share_of, names, blocked_share)
+        for n, val in parts.items():
+            out[n][dim] = val
+        residual[dim] = res
+    for dim in sorted(base.get("yields", {})):
+        parts, res = _split_dim_scoped(base["yields"][dim], share_of, names, blocked_share)
+        for n, val in parts.items():
+            out[n].setdefault("yields", {})[dim] = val      # ← 键是**货品名**（如 silk），不是 "yields"
+        residual.setdefault("yields", {})[dim] = res
+    return out, residual
+
+
 def split_circuit_demog(circuit: str,
                         area_map: dict[str, float]) -> dict[str, dict[str, object]]:
     """city 路按治所面积×锚点拆到州/府。area_map 须含该路全部治所（键=治所名）。
 
     返回 {治所名: {name, circuit, population, households, land, grain,
                   monthly_tax, yields{}}}；未知路或空面积返回 {}。
+
+    ⚠️ 本函数**只覆盖 area_map 里的治所**——历史表中有、但无地图府块的治所会被
+    静默漏掉（其份额摊给邻府）。需要"省级归入"口径时请用
+    `split_circuit_demog_scoped(circuit, area_map, merged_seats)`。
     """
     base = PREFECTURE_INFO.get(circuit) or EXTRA_CIRCUIT_DEMOG.get(circuit)
     if not base or not area_map:
@@ -182,16 +253,66 @@ def _circuit_members() -> dict[str, list[tuple[str, object, object, object]]]:
 
 # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
 # 接线位置：外邦省级人口派生：待接邦交面板
-def regime_prefecture_demog(reg_key: str | None = None) -> dict[str, dict[str, object]]:
-    """辽/西夏：州/府级人口经济（州府名 → demog）。
 
-    面积未知时按州府数平摊（等权近似，供无舆图预览；正式数据以
-    regime_prefectures.geojson 属性为准）。
+#: 🔴 外邦（辽/西夏/吐蕃/大理）州府级数值的**口径标记**。
+#: 这些数值**不是史料**：权重来自 `REGIME_DEMOG[k]["demog_mult"]`（**设定值**），
+#: 面积未知时按州府数**等权**近似，再归一到 `district_base` 的道/区域总量。
+#: 与宋的 `historical`（崇宁户实测）**性质不同**，必须在读数里显式可见，
+#: **禁止**在 UI/AI 口径中显示成"史实户口"（用户 2026-10-02 裁定：夏/大理走估算）。
+BASIS_ESTIMATE = "estimate"
+
+#: 🔴 **无史料总量**的政权（西夏/吐蕃/大理）：其州府级数值由本项目**玩法设定**的
+#: 道/区域总量按权重分摊而来，**不存在可靠的历史总量**（已实测：
+#: 《宋史》西夏传通篇无户口、大理传无户口、吐蕃仅有零散"降附部族"数）。
+#: 设计文档（`docs/AI推演与民间经济营造市场落地建议.md` §验收断言）规定：
+#: 「**史料缺失显示为"玩法设定/未有可靠总量"，不会显示为 0 或伪装成史料值**」。
+#: 故本表一律标 `setting`，**不得**标 `historical`。
+BASIS_SETTING = "setting"
+
+#: 政权 → 数值来源说明（回答"谁报告、依据是什么"）
+REGIME_SOURCE: dict[str, str] = {
+    "辽": "《辽史·地理志》官方案语「各郡县户总计之不过五十五万有奇」"
+          "（**史料上限**；用户 2026-10-02 定为 55 万户，逐道为按比例分摊非史料）",
+    "西夏": "**玩法设定/未有可靠总量**——《宋史》夏国传未载户口；"
+            "仅凉州有孤证「户二万五千六百九十三，口十二万八千一百九十三」",
+    "吐蕃": "**玩法设定/未有可靠总量**——《宋史》吐蕃传仅有零散『降附部族』户口数",
+    "大理": "**玩法设定/未有可靠总量**——《宋史》大理传未载户口",
+}
+
+#: 史料口径 vs 设定口径（决定 `basis` 取值）
+_REGIME_BASIS = {
+    "辽": "historical_ub",      # historical upper bound：史料上限，逐道为分摊
+    "西夏": BASIS_SETTING,
+    "吐蕃": BASIS_SETTING,
+    "大理": BASIS_SETTING,
+}
+
+
+def regime_prefecture_demog(reg_key: str | None = None) -> dict[str, dict[str, object]]:
+    """辽/西夏/吐蕃/大理：州/府级人口经济（州府名 → demog）。
+
+    🔴 **口径**：`basis` 取值区分三态——
+    - `"historical_ub"`（辽）：父级总量**有史料上限**，但**逐道/逐府为按比例分摊**，
+      不是逐府史料；
+    - `"setting"`（西夏/吐蕃/大理）：**玩法设定/未有可靠总量**，
+      依设计文档验收断言，**不得显示为史料值、也不得显示为 0**；
+    - 权重来源为 `demog_mult`（设定值）+ 真实面积，故**无一条是史料级州府值**。
+
+    `REGIME_PREFECTURES` 已含州府级清单（辽 18 府州/西夏 9/吐蕃 4/大理 12），
+    本函数即在其上做区域→州府的分配。
     """
     out: dict[str, dict[str, object]] = {}
     keys = [reg_key] if reg_key else list(REGIME_DEMOG)
     for key in keys:
         tab = REGIME_PREFECTURES.get(key, {})
         area_map = {pname: 1.0 for prefs in tab.values() for pname in prefs}
-        out.update(split_regime_prefecture_demog(key, area_map))
+        rows = split_regime_prefecture_demog(key, area_map)
+        basis = _REGIME_BASIS.get(key, BASIS_SETTING)
+        src = REGIME_SOURCE.get(key, "**玩法设定/未有可靠总量**")
+        for name, row in rows.items():
+            row["basis"] = basis
+            row["regime"] = key
+            row["source"] = src
+            row["is_historical"] = basis == "historical_ub"
+        out.update(rows)
     return out

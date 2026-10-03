@@ -84,6 +84,11 @@ def _minister_faction(name: Any) -> Optional[str]:
         return None
 
 
+#: 公开别名（跨模块唯一入口）：长期事务等模块需要"人名 → 派系主键"，不得复制实现。
+#: 语义与 `_minister_faction` 完全一致（查不到 = None，不编造）。
+minister_faction = _minister_faction
+
+
 def _examiner_faction(state) -> Optional[str]:
     """座主（知贡举）所在派系主键——「门生随座主入派」的锚点（二期）。
 
@@ -328,7 +333,7 @@ def ensure_quota(state) -> int:
             continue
         central += len(o.get("posts") or [])
     base = central + ROUTE_POST_QUOTA * len(state.prefectures)
-    state.posts_quota = int(base * _inst.get(state, "posts_quota_mult"))
+    state.posts_quota = max(0, int(base * _inst.get(state, "posts_quota_mult")))  # 钳下界，见 rescale_quota
     return state.posts_quota
 
 
@@ -343,7 +348,11 @@ def rescale_quota(state) -> int:
             continue
         central += len(o.get("posts") or [])
     base = central + ROUTE_POST_QUOTA * len(state.prefectures)
-    new = int(base * _inst.get(state, "posts_quota_mult"))
+    # 审查（加固）：出口钳下界。正规路径 `institution.set_param` 已 clamp 到 [0.4, 1.6]
+    # → 定员恒正；但**手改/越界存档**（绕过 set_param 直写 institution_params）会让
+    # `posts_quota` 变负 → `vacancies` 恒负 → `_fill_vacancies` 永不授职（官制永久冻结），
+    # 且 `redundant` 被 `max(0, …)` 掩盖成正常值。故在此硬性兜底。
+    new = max(0, int(base * _inst.get(state, "posts_quota_mult")))
     old, state.posts_quota = int(getattr(state, "posts_quota", 0) or 0), new
     return new - old
 

@@ -390,6 +390,25 @@ def issue_secret_decree(state: GameState, target: str, content: str = "") -> str
     }
     state.pending_secret_decrees.append(decree)
     state.statistics["total_decrees"] += 1
+    # B5-4/B5-5（2026-11 接线）：**下达这一刻就定 `decree_id` 并建立知情范围**。
+    # 此前全仓从不写该键 ⇒ `settlement_decree` 的 `if _did:` 恒假、
+    # **密令泄露推演从未执行过**、`_secret_contacts` 恒返回 `[]`。
+    # 顺序要紧：必须先有 id 再 seal，否则知情范围会挂在 `title` 上，
+    # 而结算时用的是另一个 id ⇒ 查不到授权人。
+    try:
+        from core.decree_confirm import ensure_decree_id
+        ensure_decree_id(state, decree)
+    except Exception:                # noqa: BLE001 — 补id 失败不阻断下旨
+        pass
+    try:
+        from content.ministers.data import MINISTERS
+        if isinstance(target, str) and target in MINISTERS:
+            from core.decree_confidential import seal_secret_decree
+            seal_secret_decree(state, decree, authorized=[target],
+                               channel="奏对", turn=state.turn)
+    except Exception as _se_e:      # noqa: BLE001 — 建知情范围失败不阻断下旨
+        logging.getLogger("settlement").warning(
+            "[密旨] 知情范围未建立：%s", _se_e, exc_info=True)
     return f"密旨已下，目标：{target}。"
 
 
@@ -612,9 +631,44 @@ def preview_draft(state: GameState, minister_advice: str, player_intent: str,
     }
 
 
+def _kouyu_drift_factor(state) -> tuple:
+    """口谕**走样**判定（B5-4· 2026-11 废除固定概率）。
+
+    旧实现是 `random.random() < KOUYU_DRIFT_CHANCE`（固定 0.30）——
+    与 B5-4「废除『固定 0.6/30% 假装弱效』」的要求冲突：
+    走样与否**与吏治无关**，纯随机，治理无从下手（审计 J-2 同类问题）。
+
+    现口径：走样概率＝**该路吏胥把持度**（`clerks.decree_execution_mult`
+    的补数：把持越高越易走样），治理方向与 §16.4 一致。
+    读数缺失 ⇒ `prob=None` ⇒ **不掷骰、不走样**（拒绝式：不按 0.30 假装）。
+
+    返回 `(prob: float|None, source: str)`。
+    """
+    try:
+        from core.clerks import totals as _cl_totals
+        mult = float((_cl_totals(state) or {}).get("decree_mult"))
+    except Exception:                # noqa: BLE001 — 读数不可用
+        return None, "undefined"
+    # `decree_mult` 越小＝把持越重；把它反比为走样压力。
+    p = max(0.0, min(0.9, 1.0 - mult))
+    return p, "clerks_decree_mult"
+
+
 def issue_kouyu(state: GameState, draft: dict) -> str:
-    """口宣（口谕）：即时弱效、不占带宽、可能走样。"""
-    from content.data import KOUYU_EFFECT_MULT, KOUYU_DRIFT_CHANCE, KOUYU_DRIFT_DOWN, TIER_ORDER
+    """口宣（口谕）：即时生效、不占带宽。
+
+    **强度与走样均改由吏治单点读数决定**（B5-4 · 2026-11）：
+    旧实现用固定 `KOUYU_EFFECT_MULT = 0.6` 与 `KOUYU_DRIFT_CHANCE = 0.30`，
+    属"假装弱效/走样"的第二口径点；现统一走 `clerks`（§16.4 吏治是唯一强关联）。
+    读数缺失 ⇒ **不按固定值假装**，标记 `undefined` 并按原档位如实登记。
+    """
+    from content.data import KOUYU_DRIFT_DOWN, TIER_ORDER
+    try:
+        from core.clerks import decree_execution_mult
+        _gov = decree_execution_mult(state)      # 吏治单点（唯一强关联）
+    except Exception:                # noqa: BLE001
+        _gov = None
+    _drift_p, _drift_src = _kouyu_drift_factor(state)
     effs = draft.get("effects", [])
     applied = {}
     for e in effs:
@@ -635,13 +689,13 @@ def issue_kouyu(state: GameState, draft: dict) -> str:
             else:
                 t = e.get("tier", "无")
                 idx = TIER_ORDER.index(t) if t in TIER_ORDER else 0
-                if random.random() < KOUYU_DRIFT_CHANCE and idx > 0:
+                if _drift_p and random.random() < _drift_p and idx > 0:
                     idx -= KOUYU_DRIFT_DOWN
                 applied["commerce_tax"] = {"tier": TIER_ORDER[idx]}
             continue
         t = e.get("tier", "无")
         idx = TIER_ORDER.index(t) if t in TIER_ORDER else 0
-        if random.random() < KOUYU_DRIFT_CHANCE and idx > 0:
+        if _drift_p and random.random() < _drift_p and idx > 0:
             idx -= KOUYU_DRIFT_DOWN
         applied[e.get("dim")] = TIER_ORDER[idx]
     # 用与诏令同一换算
@@ -653,14 +707,17 @@ def issue_kouyu(state: GameState, draft: dict) -> str:
          for k, v in applied.items() if k != "faction_change"], authority)
     if "faction_change" in applied:
         eff_dict["faction_change"] = applied["faction_change"]
-    # 口谕弱效：整体乘以乘数（对数值）。commerce_tax 是设定税率，不打折、不 int 截断。
-    for k in list(eff_dict.keys()):
-        if k == "commerce_tax":
-            continue
-        if isinstance(eff_dict[k], dict):
-            eff_dict[k] = {fn: int(d * KOUYU_EFFECT_MULT) for fn, d in eff_dict[k].items()}
-        else:
-            eff_dict[k] = int(eff_dict[k] * KOUYU_EFFECT_MULT)
+    # 口谕弱效：改由**吏治折扣**决定（不再用固定 0.6）。
+    # 缺失 ⇒ `_gov is None` ⇒ **不打折也不假装**，按原值登记并留痕。
+    if _gov is not None:
+        _k = max(0.0, min(1.0, float(_gov)))
+        for k in list(eff_dict.keys()):
+            if k == "commerce_tax":
+                continue          # 设定税率不打折（与旧口径一致）
+            if isinstance(eff_dict[k], dict):
+                eff_dict[k] = {fn: int(d * _k) for fn, d in eff_dict[k].items()}
+            else:
+                eff_dict[k] = int(eff_dict[k] * _k)
     decree_full = {
         "title": draft.get("title", "口谕") + "（口宣）",
         "category": "口谕",
@@ -676,11 +733,16 @@ def issue_kouyu(state: GameState, draft: dict) -> str:
     state.statistics["total_decrees"] += 1
     # 口谕即时生效：直接落地效果（弱效），不再等月度 pending 结算。
     # 否则 active_decrees 仅供展示，改税等 value 键永不落地（历史"口谕清零税率"更深根因）。
+    # P2-3（M5）：原实现 `except Exception: pass` 后**无条件**返回成功文案 → 改税率/发帑
+    # 实际未落地，玩家却看到"即时传谕"（历史"口谕清零税率"根因会以更隐蔽的形式复现）。
+    # 现失败即如实回报，成功文案只在真正落地时给。
     try:
         from core.settlement import _apply_decree_effect
         _apply_decree_effect(state, decree_full, [])
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 — 单条口谕失败不得中断命令层
+        log.warning("[kouyu] 口谕效果落地失败：%s", e, exc_info=True)
+        return (f"口宣：「{decree_full['title']}」**未落地**"
+                f"（{type(e).__name__}，已记服务端日志）——该谕未见施行，请改由正式诏令下颁。")
     return f"口宣：「{decree_full['title']}」即时传谕（效力稍弱，或失本意）。"
 
 

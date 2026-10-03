@@ -76,6 +76,8 @@ from .data_constants import (
     IMPERIAL_SHARE, INNER_TREASURY_START, INSTITUTION_PARAM_SPEC, JIAOZI_CREDIT_FLOOR,
     JIAOZI_RUN_RESERVE_LINE, JIAOZI_RUN_TRUST_LINE, JIAOZI_TAX_ACCEPTANCE,
     LAND_TAX_RATE_BASE, LAND_TAX_RATE_BENEFIT, MATERIAL_PRICE_BASE,
+    SUBSISTENCE_LINE, SUBSISTENCE_SCALE, DURABLE_TARGET_STOCK,
+    BASIC_NEED_BASKET, SUBSTITUTE_TOLERANCE,
     MEAT_PRICE, MEMORY_ARCHIVE_WEIGHT, MEMORY_RELATION_DECAY, MINT_MELT_LOSS,
     MINT_NET_RATIO, MINT_PRICE_BAN, MIN_WEALTH_FLOOR_RATIO, MONEY_UNIT,
     MONTHLY_EXP_CIVIL_BASE, OFFICIAL_GRAIN_PER_MONTH, OFFICIAL_PAY_PER_MONTH,
@@ -141,6 +143,15 @@ from .data_tech import (
     TECH_WEST_MAX, TECH_WEST_SOURCES, blueprint_region_ok, get_tech_node,
     tech_cost_with_era, _TECH_NODE_MAP,
 )
+
+# ---- 错误码补充（审查 P2-3 / M11：提示词资源缺失）----
+# `AI_ERROR_CODES` 的权威定义在 `content/data_constants.py`（勿在此重定义，避免双源漂移）；
+# 上面的 `from .data_constants import AI_ERROR_CODES` 绑定的是**同一个 dict 对象**，
+# 故此处**就地补键**即对全部消费方（`ai/client_utils._ai_unavailable`、
+# `ai/client.py::_postprocess` 的失败码下发、前端 `AI_ERROR_CODES` 中文映射）一并生效。
+# 背景：打包缺 `ai/prompts/*.md` 时原先用「[提示词文件缺失: x]」占位文本继续请求，
+# 25 处契约全部以 AI_CONTRACT_FAILED 失败而玩家/日志都找不到根因（M11）。
+AI_ERROR_CODES["PROMPT_MISSING"] = "提示词资源缺失（安装包不完整），请重新安装或校验完整性"
 
 __all__ = [
     "AI_ERROR_CODES",
@@ -259,6 +270,11 @@ __all__ = [
     "LAND_TAX_RATE_BENEFIT",
     "LEGACY_PERSONAL_ACTION_MAP",
     "MATERIAL_PRICE_BASE",
+    "SUBSISTENCE_LINE",
+    "SUBSISTENCE_SCALE",
+    "DURABLE_TARGET_STOCK",
+    "BASIC_NEED_BASKET",
+    "SUBSTITUTE_TOLERANCE",
     "MEAT_PRICE",
     "MEMORY_ARCHIVE_WEIGHT",
     "MEMORY_RELATION_DECAY",
@@ -463,7 +479,9 @@ FACTION_KINDS = (
 # 推荐显示名（历史化命名，2026-09-19）：前端/AI 文案一律取此表，不硬编码中文旧名。
 # **口径（用户定稿 2026-09-19）：集团名取「总集」**（能涵盖其下多支的政治集团整体），
 # 而具体地域/群体（西军、中立派…）是它的**子集**，下沉到 `subchannels`，不得当集团名。
-# 故「军功集团」→「西北武人集团」、「中立派」→「东南士商集团」。
+# **注（S12-d 审查 2026-10-01）**：下方五派**显示名与键名一致**（`新党`→"新法系"为唯一例外，
+# 属有意的推荐显示名）；此前本注释称「军功集团→西北武人集团」「中立派→东南士商集团」，
+# 与实际的 `FACTION_DISPLAY_NAMES` 不符（该映射曾被讨论但**未采用**），已更正。
 FACTION_DISPLAY_NAMES = {
     "新党": "新法系",
     "旧党": "元祐旧臣与保守士绅",
@@ -845,6 +863,12 @@ FINANCE_DECIDE_BASE = {
     "price_mult": {"cap": 0.05, "up": 1.05, "down": 0.95,
                    "min": 0.5, "max": 3.0},                  # 价格系数 ±5%（clamp [0.5,3.0]）
 }
+# 加俸月给的接收方（POP 口径单点）：拨帑入池 → 每月按吏俸缺口发放 → **官僚 POP 实际收到**。
+# 审查 M2（用户 2026-10-01 定稿 (a)）：池按**真实分账基金**处理，收款腿走
+# `transfer_public_funds_to_pops`（受管管线 + ΣΔ==0）。POP 无独立「吏」类，
+# 官吏一并落`官僚`（与 `money.ACCOUNTS` 注释「发放给官僚/吏」一致）。
+PAYRAISE_PAY_TO = {"官僚": 1.0}
+
 # 三态词白名单（金融字段）
 FINANCE_STATES = {
     "jiaozi_trust": ("增", "稳", "跌"),

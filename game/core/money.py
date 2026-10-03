@@ -574,17 +574,39 @@ def bank_view(state) -> dict:
 
 
 def standard_rates(state, market: bool = False) -> dict:
-    """本位只读汇率：market=False 取**记账汇率**，True 取**市场汇率**（旧档回退 legacy）。"""
+    """本位只读汇率：market=False 取**记账汇率**，True 取**市场汇率**（旧档回退 legacy）。
+
+    审查 O5（缺失 ≠ 1.0）：原实现缺字段时**静默回落** 1.0 / 10.0。直接返回 None 会
+    炸下游 `_unit_per_copper`（兑换运算要参与乘除），故按 **S2 先例**：保留既定比价基线
+    以维持算术，同时补 `silver_defined` / `gold_defined` **显式标记**——读数层（:738
+    对账视图）据此显示"未定义"，不让缺失读起来像一个真实汇率。
+    """
     s = getattr(state, "standard", {}) or {}
-    if market:
-        silver = s.get("market_silver_per_copper", s.get("silver_per_copper", 1.0))
-        gold = s.get("market_gold_per_copper", s.get("gold_per_copper", 10.0))
-    else:
-        silver = s.get("book_silver_per_copper", s.get("silver_per_copper", 1.0))
-        gold = s.get("book_gold_per_copper", s.get("gold_per_copper", 10.0))
-    silver = max(1e-9, _num(silver, 1.0))
-    gold = max(1e-9, _num(gold, 10.0))
+
+    def _pick(book_key: str, market_key: str, legacy_key: str, dflt: float):
+        """→ (值, 是否读到真实读数)；三级回退 book↔market（按 market 标志定优先级）→ legacy → 基线。
+
+        每级都判存在与有限：NaN/Inf/非正视为**未读到**（不得当成真实汇率）。
+        """
+        order = ((market_key, book_key, legacy_key) if market
+                 else (book_key, market_key, legacy_key))
+        for k in order:
+            v = s.get(k)
+            if v is None:
+                continue
+            fv = _num(v, 0.0)
+            if fv > 0 and fv == fv and abs(fv) != float("inf"):
+                return fv, True
+        return float(dflt), False
+
+    silver, silver_def = _pick("book_silver_per_copper", "market_silver_per_copper",
+                               "silver_per_copper", 1.0)
+    gold, gold_def = _pick("book_gold_per_copper", "market_gold_per_copper",
+                           "gold_per_copper", 10.0)
+    silver = max(1e-9, silver)
+    gold = max(1e-9, gold)
     return {"silver_per_copper": silver, "gold_per_copper": gold,
+            "silver_defined": silver_def, "gold_defined": gold_def,
             "rate_basis": "market" if market else "book"}
 
 

@@ -45,24 +45,29 @@ export default function TopBar() {
   const finance = readouts ? (readouts.finance ?? null) : null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-4 sm:px-7 sm:pt-5">
       {/* 左：纯正大宋皇室徽标 + 纪元（庄严只读展示，不做按钮） */}
-      <div className="pointer-events-auto flex items-center gap-3 rounded-[3px] border border-gold bg-card px-2.5 py-1.5 shadow-paper">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red ring-2 ring-gold shadow-sm">
+      <div className="sz-era-plaque pointer-events-auto flex items-center gap-3 px-3 py-2">
+        <div className="sz-era-seal flex h-10 w-10 shrink-0 items-center justify-center">
           <span className="font-kai text-[20px] font-bold leading-none text-[#f3e6c4]">宋</span>
         </div>
-        <span className="whitespace-nowrap font-kai text-[15px] font-bold tracking-wide text-ink">
-          {era || "建中靖国元年正月"}
-        </span>
+        <div className="min-w-0">
+          <span className="block font-kai text-[9px] tracking-[.34em] text-[#8f6e28]">大 宋 · 治 世 纪 年</span>
+          <span className="mt-0.5 block whitespace-nowrap font-kai text-[14px] font-bold tracking-[.1em] text-[#2b1d12] sm:text-[15px]">
+            {era || "建中靖国元年正月"}
+          </span>
+        </div>
       </div>
 
       {/* 右：数值胶囊 + 词元 */}
-      <div className="pointer-events-auto flex items-center gap-2 rounded-[3px] border border-gold bg-card px-2.5 py-2 shadow-paper">
-        <span className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-[13px] font-bold text-ink">
-          ◆威望 {Math.round(prestige)}
+      <div className="sz-status-plaque pointer-events-auto flex max-w-[calc(100vw-11rem)] items-center gap-1.5 overflow-x-auto px-2 py-2 sm:gap-2 sm:px-3">
+        <span className="sz-status-chip group flex items-center gap-1.5 whitespace-nowrap px-2 py-1.5">
+          <span className="sz-status-mark">威</span><span className="hidden text-[10px] tracking-wider text-[#76664a] sm:inline">皇 威</span>
+          <strong className="font-sans text-[13px] text-[#2b1d12]">{Math.round(prestige)}</strong>
         </span>
-        <span className="whitespace-nowrap rounded-[2px] border border-border px-2 py-1 text-[13px] font-bold text-ink">
-          ♥民心 {Math.round(popular)}
+        <span className="sz-status-chip group flex items-center gap-1.5 whitespace-nowrap px-2 py-1.5">
+          <span className="sz-status-mark is-jade">民</span><span className="hidden text-[10px] tracking-wider text-[#76664a] sm:inline">民 心</span>
+          <strong className="font-sans text-[13px] text-[#2b1d12]">{Math.round(popular)}</strong>
         </span>
         <HoverDetailCapsule
           typeKey="treasury"
@@ -122,7 +127,7 @@ export default function TopBar() {
         <button
           onClick={() => pushOverlay({ kind: "settings", title: "机务设置" })}
           title="系统机务设置 / 返回主菜单"
-          className="group flex h-7 w-7 items-center justify-center rounded-[2px] border border-border bg-paper/60 text-ink-light transition hover:border-gold hover:bg-gold-light hover:text-red"
+          className="group flex h-8 w-8 shrink-0 items-center justify-center border border-[#caa24a]/55 bg-[#fffaf0]/65 text-[#6d5b3c] transition hover:border-[#8f6e28] hover:bg-[#e8d49c]/55 hover:text-[#8a2b22]"
         >
           <Settings size={15} className="transition group-hover:rotate-45" />
         </button>

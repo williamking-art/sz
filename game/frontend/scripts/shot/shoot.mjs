@@ -20,7 +20,17 @@ const PORT = Number(process.env.SHOT_PORT ?? 8235);
 // 要拍的面板：面板名 = src/renderer/panels/<name>.tsx（由 import.meta.glob 动态解析）
 //   既有面板可能因 fixture 不全而显"—"或空表——那本身也是有效发现（面板对缺数据的容错），
 //   但要区分"fixture 未覆盖"与"产品缺陷"。
+// 第 5 项可选：页面文件（缺省 `panel.html`；`hud.html` 用于 HUD 四区占位/裁切核对）。
 const PAGES = [
+  // P1-1：在办事务面板（支持方/阻力方、当前阻碍、下月预判、圣旨留痕、颁旨入口），
+  // 公开 tab 与密令 tab 各一张——两种队列的呈现不同（密令不支持调兵督行）。
+  ["todo-public", "panel=TodoPanel", 1000, 1400],
+  ["todo-secret", "panel=TodoPanel&tab=secret", 1000, 900],
+  ["todo-empty", "panel=TodoPanel&empty=1", 1000, 700],
+  // P2-1：主界面 HUD 四区——大窗 / 较小窗（宽 1024×高 640）/ 窄高窗 + 事务空状态
+  ["hud-large", "empty=0", 1600, 900, "hud.html"],
+  ["hud-small", "empty=0", 1024, 640, "hud.html"],
+  ["hud-tiny-empty", "empty=1", 900, 560, "hud.html"],
   ["localarchive-circuit", "panel=LocalArchivePanel&kind=circuit&route=两浙路", 1000, 1520],
   ["localarchive-city", "panel=LocalArchivePanel&kind=city&route=杭州", 1000, 1320],
   ["provincemilitary", "panel=ProvinceMilitaryPanel&route=两浙路", 1000, 1240],
@@ -63,8 +73,8 @@ try {
 }
 
 console.log("[shot] 3/3 截图…");
-for (const [name, query, w, h] of PAGES) {
-  const url = `http://127.0.0.1:${PORT}/scripts/shot/panel.html?${query}`;
+for (const [name, query, w, h, page = "panel.html"] of PAGES) {
+  const url = `http://127.0.0.1:${PORT}/scripts/shot/${page}?${query}`;
   const png = resolve(OUT, `${name}.png`);
   const r = spawnSync(BROWSER, [
     "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",

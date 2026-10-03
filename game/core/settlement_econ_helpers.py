@@ -90,13 +90,13 @@ def _settle_mint(state, log, amount: int = 0):
     state.statistics["minted"] = state.statistics.get("minted", 0) + _net
     # 对账：矿料（resources，不在 M_ALL）→ 货币 = external_in；熔铜池出资 = 池侧离账，
     # 其中未变成钱的部分（熔耗）记 burn，使 residual 归零。
-    try:
-        from core.money import register_flow as _reg_flow
-        if _net > 0:
-            _reg_flow(state, "external", _net, "铸钱净增")
-        if _from_pool > 0:
-            _reg_flow(state, "burn", _from_pool, "熔铜池出资离账")
-    except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
-        pass
+    # 审查 P2-3 / M8：原 `except Exception: pass  # 台账登记失败不影响结算`——未登记的
+    # 净增/离账会被对账算成**残差**（面板误报"无对手方的造币/销毁"）。统一走
+    # `register_money_flow`：WARNING + traceback + `money_audit["flow_errors"]`。
+    from core.settlement_common import register_money_flow
+    if _net > 0:
+        register_money_flow(state, "external", _net, "铸钱净增", log=log)
+    if _from_pool > 0:
+        register_money_flow(state, "burn", _from_pool, "熔铜池出资离账", log=log)
     log.append(f"[铸钱] 熔铜铸钱 {amount}贯（熔耗 {amount - _net}贯，净增 {_net}贯入市）")
     return True, f"铸钱 {_net}贯入市（熔耗 {amount - _net}贯）"

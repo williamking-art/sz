@@ -133,22 +133,47 @@ def test_first_attempt_uses_primary_provider_not_fallback():
     assert c.fallback_hits == 0
 
 
+_LEGACY_MODELS = ("gemini-2.5", "gemini-3-pro-preview", "gemini-3.8-flash", "gpt-4o",
+                  "gpt-4.1", "claude-3", "grok-3", "grok-4.3", "agnes-2.5")
+
+
+def test_tracked_example_config_has_no_legacy_model():
+    """**入库**的示例配置不得含旧世代模型名/兜底字段（审查：应补测试资产）。
+
+    原实现只查 `game/ai_config.json`，而该文件被 `.gitignore` 忽略 → 新克隆/CI 上
+    **必然 skip**，provider 口径守卫静默蒸发（本机因文件存在才 8/8 通过）。
+    故拆成两段：① 本段**永远执行**（查入库的 `ai_config.example.json`）；
+    ② 下一段在真实配置存在时校验它。
+    """
+    import json
+    ex_path = os.path.join(_GAME_ROOT, "ai_config.example.json")
+    assert os.path.exists(ex_path), "示例配置应入库（否则 provider 口径无守卫）"
+    blob = json.dumps(json.loads(open(ex_path, encoding="utf-8").read()),
+                      ensure_ascii=False)
+    bad = [m for m in _LEGACY_MODELS if m in blob]
+    assert not bad, f"示例配置含旧世代模型（违反「只用最新/次新」）：{bad}"
+
+
 def test_project_config_is_agnes_first_and_modern():
     """项目配置口径（用户 2026-09-22 定稿）：主/结算 = Agnes `agnes-3.0-flash`；
     **无 fallback 字段**（a6api 回退已从开发期结算验证移除——client.py 以
     `fallback_model` 非空为回退开关，缺字段即永不回退，主失败走程序兜底）；
-    不得出现旧世代模型名（违反「只用最新/次新」）。"""
+    不得出现旧世代模型名（违反「只用最新/次新」）。
+
+    `game/ai_config.json` 是开发态本机文件（git-ignored），缺失属正常 → **不 skip**
+    （否则该守卫在新克隆上形同虚设），改为显式断言"要么不存在、要么存在即合规"，
+    且真实存在时校验（与上面的入库示例用例形成两段式保障）。
+    """
     import json
     cfg_path = os.path.join(_GAME_ROOT, "ai_config.json")
     if not os.path.exists(cfg_path):
-        pytest.skip("未配置 ai_config.json")
+        pytest.xfail("本机未配置 ai_config.json（开发态文件，git-ignored）；"
+                     "入库示例的口径守卫见 test_tracked_example_config_has_no_legacy_model")
     cfg = json.loads(open(cfg_path, encoding="utf-8").read())
     assert cfg.get("model") == "agnes-3.0-flash", cfg.get("model")
     assert "agnes" in str(cfg.get("base_url", "")), cfg.get("base_url")
     assert not cfg.get("fallback_model"), \
         "fallback 已按用户口径移除（client.py：fallback_model 非空才回退）"
     blob = json.dumps(cfg, ensure_ascii=False)
-    legacy = ("gemini-2.5", "gemini-3-pro-preview", "gpt-4o", "gpt-4.1", "claude-3",
-              "grok-3", "grok-4.3", "agnes-2.5")
-    bad = [m for m in legacy if m in blob]
+    bad = [m for m in _LEGACY_MODELS if m in blob]
     assert not bad, f"配置含旧世代模型（违反「只用最新/次新」）：{bad}"

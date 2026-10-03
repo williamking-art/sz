@@ -5,6 +5,13 @@
 import { READOUTS } from "./fixtures";
 import { STATE } from "./fixtures";
 
+// HUD 组件（TopBar/LeftTodo/…）除了 `useGameStore` 还要一堆**纯派生 helper**
+// （`hudEra`/`hudPrestige`/`getTreasuryDetail`…）。手写穷举它们正是本文件顶部警告的坑
+// （2026-09-27 实测：HUD 截图台首次构建即因 `hudEra is not exported` 失败）。
+// 故整体转发真实模块的导出，**仅遮蔽** store 本体与取数口径不同的 `pick`
+// （apiMock.ts 用同一手法，注释亦说明"显式本地导出会遮蔽 export * 的同名导出"）。
+export * from "../../src/renderer/store/gameStore";
+
 type Sel = (s: unknown) => unknown;
 
 const noop = () => undefined;
@@ -24,6 +31,8 @@ function store() {
     clearOverlays: noop,
     setState: noop,
     setInGame: noop,
+    // TodoPanel（P1-1）会写 UI 日志；缺此字段会让 mock 下渲染崩（见本文件顶部警告）
+    pushUiLog: noop,
     getState: () => store(),
     subscribe: noopReturns(noop)
   };

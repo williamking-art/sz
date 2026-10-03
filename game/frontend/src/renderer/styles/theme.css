@@ -238,6 +238,239 @@ button:focus-visible {
 .lbl-hidden {
   display: none;
 }
+
+/* ── 舆图机务新饰面：淡墨边框、纸签、玺印与横向案几 ── */
+.sz-atlas-shell {
+  isolation: isolate;
+}
+.sz-atlas-vignette {
+  background:
+    radial-gradient(ellipse at 50% 44%, transparent 48%, rgba(51, 38, 20, 0.035) 100%),
+    linear-gradient(180deg, rgba(248, 239, 217, 0.08), transparent 15%, transparent 82%, rgba(67, 47, 24, 0.08));
+}
+.sz-atlas-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(143, 110, 40, 0.22);
+  box-shadow: inset 0 0 0 3px rgba(246, 236, 214, 0.12);
+}
+.sz-map-compass {
+  filter: drop-shadow(0 1px 2px rgba(43, 29, 18, 0.18));
+}
+.sz-map-cartouche {
+  border-top: 1px solid rgba(143, 110, 40, 0.48);
+  border-bottom: 1px solid rgba(143, 110, 40, 0.48);
+  background: linear-gradient(90deg, transparent, rgba(246, 236, 214, 0.72) 14%, rgba(246, 236, 214, 0.82) 50%, rgba(246, 236, 214, 0.72) 86%, transparent);
+  text-shadow: 0 1px rgba(255, 250, 240, 0.9);
+}
+.sz-cartouche-rule {
+  display: block;
+  width: 38px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(143, 110, 40, 0.62));
+}
+.sz-cartouche-rule:last-child {
+  transform: rotate(180deg);
+}
+
+.sz-era-plaque,
+.sz-status-plaque {
+  background-color: rgba(255, 250, 240, 0.94);
+  background-image: linear-gradient(110deg, rgba(232, 212, 156, 0.3), transparent 46%), url("/images/panel_paper.jpg");
+  background-size: auto, 420px;
+  background-blend-mode: normal, soft-light;
+  border: 1px solid rgba(143, 110, 40, 0.68);
+  box-shadow: 0 8px 26px rgba(28, 18, 12, 0.17), inset 0 0 0 3px rgba(255, 250, 240, 0.56);
+}
+.sz-era-plaque {
+  position: relative;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+.sz-era-seal {
+  position: relative;
+  border: 1px solid #caa24a;
+  background: #8a2b22;
+  color: #f3e6c4;
+  box-shadow: inset 0 0 0 2px rgba(202, 162, 74, 0.28), 0 2px 5px rgba(43, 29, 18, 0.2);
+}
+.sz-era-seal::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(246, 236, 214, 0.38);
+  pointer-events: none;
+}
+.sz-status-plaque {
+  border-radius: 2px;
+}
+.sz-status-chip {
+  border: 1px solid rgba(143, 110, 40, 0.29);
+  background: rgba(255, 250, 240, 0.72);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.75);
+}
+.sz-status-mark {
+  display: inline-flex;
+  width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(202, 162, 74, 0.75);
+  background: #8a2b22;
+  color: #f6ecd6;
+  font-family: var(--kai);
+  font-size: 10px;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(246, 236, 214, 0.25);
+}
+.sz-status-mark.is-jade {
+  background: #465343;
+}
+
+.sz-docket-panel {
+  position: relative;
+  border: 1px solid rgba(143, 110, 40, 0.72);
+  background: #fffaf0;
+  box-shadow: 0 12px 34px rgba(28, 18, 12, 0.2), inset 0 0 0 3px rgba(232, 212, 156, 0.25);
+}
+.sz-docket-panel::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(143, 110, 40, 0.22);
+  pointer-events: none;
+}
+.sz-docket-art {
+  background: #efe2c4;
+}
+.sz-docket-art > img {
+  object-position: center 57%;
+}
+.sz-docket-list {
+  background:
+    linear-gradient(90deg, rgba(202, 162, 74, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(202, 162, 74, 0.035) 1px, transparent 1px),
+    rgba(255, 250, 240, 0.96);
+  background-size: 18px 18px;
+}
+
+.sz-nav-seal {
+  border: 1px solid rgba(143, 110, 40, 0.5);
+  background: linear-gradient(145deg, rgba(255, 250, 240, 0.98), rgba(239, 226, 196, 0.94));
+  color: #7a1f1f;
+  box-shadow: inset 0 0 0 2px rgba(202, 162, 74, 0.16), 0 2px 5px rgba(28, 18, 12, 0.08);
+}
+.sz-nav-seal:hover,
+.sz-nav-seal.is-active {
+  border-color: #8f6e28;
+  background: #8a2b22;
+  color: #f6ecd6;
+  box-shadow: inset 0 0 0 2px rgba(202, 162, 74, 0.38), 0 5px 14px rgba(28, 18, 12, 0.2);
+}
+.sz-nav-drawer {
+  border: 1px solid rgba(143, 110, 40, 0.88);
+  background: #f6ecd6;
+  box-shadow: 0 18px 52px rgba(28, 18, 12, 0.32), 0 0 0 4px rgba(246, 236, 214, 0.35);
+  animation: sz-drawer-in 180ms ease-out both;
+}
+.sz-nav-drawer::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(232, 212, 156, 0.42);
+  pointer-events: none;
+}
+.sz-nav-landscape {
+  background:
+    linear-gradient(90deg, rgba(28, 18, 12, 0.82), rgba(28, 18, 12, 0.52)),
+    url("../assets/hud_ink_landscape.svg") center 62% / cover no-repeat,
+    #3b3428;
+}
+.sz-nav-entry {
+  border: 1px solid rgba(143, 110, 40, 0.29);
+  background: rgba(255, 250, 240, 0.66);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.65);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  animation: sz-entry-in 180ms ease-out both;
+}
+.sz-nav-entry:hover {
+  border-color: rgba(138, 43, 34, 0.55);
+  background: #fffaf0;
+  transform: translateY(-1px);
+}
+
+.sz-command-tile {
+  border: 1px solid rgba(143, 110, 40, 0.48);
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.94), rgba(239, 226, 196, 0.93));
+  box-shadow: 0 2px 0 rgba(143, 110, 40, 0.42), 0 4px 10px rgba(28, 18, 12, 0.08), inset 0 1px rgba(255, 255, 255, 0.75);
+  transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease;
+}
+.sz-command-tile::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(202, 162, 74, 0.28);
+  pointer-events: none;
+}
+.sz-command-tile:hover {
+  border-color: #8f6e28;
+  transform: translateY(-2px);
+  box-shadow: 0 3px 0 rgba(143, 110, 40, 0.5), 0 7px 13px rgba(28, 18, 12, 0.15);
+}
+.sz-command-tile.is-primary {
+  border-color: #8f6e28;
+  background: linear-gradient(180deg, #9d3c30, #7a1f1f);
+  box-shadow: 0 2px 0 #5d1718, 0 5px 12px rgba(122, 31, 31, 0.2), inset 0 1px rgba(255, 250, 240, 0.24);
+}
+.sz-command-tile.is-primary span { color: #f6ecd6; }
+.sz-command-tile.is-primary::after { border-color: rgba(232, 212, 156, 0.38); }
+.sz-advance-seal {
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid #caa24a;
+  color: #f8efd9;
+  background: linear-gradient(145deg, #a44032, #7a1f1f 72%);
+  box-shadow: 0 3px 0 #5d1718, 0 10px 24px rgba(79, 24, 20, 0.32), inset 0 0 0 3px rgba(202, 162, 74, 0.24);
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+}
+.sz-advance-seal::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(232, 212, 156, 0.54);
+  pointer-events: none;
+}
+.sz-advance-seal:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 #5d1718, 0 13px 28px rgba(79, 24, 20, 0.38), inset 0 0 0 3px rgba(202, 162, 74, 0.3);
+}
+.sz-advance-glint {
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 250, 240, 0.09) 50%, transparent 80%);
+  animation: sz-seal-glint 4s ease-in-out infinite;
+}
+@keyframes sz-drawer-in {
+  from { opacity: 0; transform: translate(8px, -50%); }
+  to { opacity: 1; transform: translate(0, -50%); }
+}
+@keyframes sz-entry-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sz-seal-glint {
+  0%, 65% { transform: translateX(-140%); }
+  100% { transform: translateX(140%); }
+}
+@media (max-width: 680px) {
+  .sz-status-plaque { max-width: calc(100vw - 10.5rem); }
+  .sz-map-compass { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sz-nav-drawer, .sz-nav-entry, .sz-advance-glint { animation: none; }
+  .sz-nav-entry, .sz-command-tile, .sz-advance-seal { transition: none; }
+}
 .lbl-regime {
   font-family: var(--kai);
   font-size: 23px;
@@ -349,4 +582,99 @@ button:focus-visible {
   color: var(--red-dark);
   text-shadow: 0 0 3px var(--paper), 0 0 5px var(--paper);
   white-space: nowrap;
+}
+
+/* 统一所有功能页的奏章外框：页面内容本身保留各自的操作与数据布局。 */
+.sz-overlay-shell {
+  max-width: min(1080px, 96vw);
+  overflow: hidden;
+  background-color: var(--card);
+  background-image:
+    radial-gradient(ellipse at 0 0, rgba(202, 162, 74, 0.12), transparent 38%),
+    url("/images/panel_paper.jpg");
+}
+.sz-overlay-header {
+  min-height: 68px;
+  padding: 12px 22px;
+  background:
+    linear-gradient(90deg, rgba(138, 43, 34, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(232, 212, 156, 0.62), rgba(246, 236, 214, 0.76)),
+    url("/images/ornament_cloud_band.jpg") center 43% / cover no-repeat;
+}
+.sz-overlay-kicker {
+  margin-bottom: 1px;
+  color: var(--gold-dark);
+  font-family: var(--kai);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+}
+.sz-overlay-edition {
+  border-left: 1px solid rgba(143, 110, 40, 0.35);
+  padding-left: 12px;
+  color: var(--gold-dark);
+  font-family: var(--kai);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.sz-overlay-close {
+  border: 1px solid rgba(143, 110, 40, 0.3);
+  background: rgba(255, 250, 240, 0.68);
+}
+.sz-overlay-body {
+  min-height: 0;
+  padding: 18px 22px 22px;
+  background:
+    linear-gradient(rgba(255, 250, 240, 0.42), rgba(255, 250, 240, 0.42)),
+    radial-gradient(ellipse at 100% 100%, rgba(202, 162, 74, 0.08), transparent 45%);
+  scrollbar-color: rgba(143, 110, 40, 0.55) rgba(202, 162, 74, 0.12);
+  scrollbar-width: thin;
+}
+.sz-overlay-content {
+  min-width: 0;
+  max-width: 100%;
+}
+.sz-overlay-content [class*="rounded-lg"][class*="border-gold"],
+.sz-overlay-content [class*="rounded-xl"][class*="border-gold"] {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(202, 162, 74, 0.12), 0 2px 7px rgba(43, 29, 18, 0.035);
+}
+.sz-overlay-content input:not([type="checkbox"]):not([type="radio"]),
+.sz-overlay-content select,
+.sz-overlay-content textarea {
+  border-radius: 2px;
+  border-color: rgba(143, 110, 40, 0.45);
+  background-color: rgba(255, 250, 240, 0.86);
+  color: var(--ink);
+}
+.sz-overlay-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.sz-overlay-content select:focus,
+.sz-overlay-content textarea:focus {
+  border-color: var(--red);
+  outline: 2px solid rgba(138, 43, 34, 0.16);
+  outline-offset: 1px;
+}
+.sz-overlay-content input::placeholder,
+.sz-overlay-content textarea::placeholder {
+  color: rgba(66, 50, 36, 0.54);
+}
+@media (max-width: 720px) {
+  .sz-overlay-shell {
+    width: 98vw;
+    max-height: 95dvh;
+  }
+  .sz-overlay-header {
+    min-height: 58px;
+    padding: 9px 14px;
+  }
+  .sz-overlay-header .sz-panel-title {
+    font-size: 16px;
+    letter-spacing: 0.16em;
+  }
+  .sz-overlay-edition {
+    display: none;
+  }
+  .sz-overlay-body {
+    padding: 14px 14px 18px;
+  }
 }

@@ -190,6 +190,10 @@ def _settle_land_local(state, log):
 
     # 产粮按田亩归属分配 + 田赋按田亩归属征（粮是田产的）
     _harvest = state.month in (3, 6, 9)
+    # 审查 S4：一条鞭分支的 `total_income` 原按**名义税粮**折银计收入，而实际只征到
+    # `got_nong + got_shen`（不足记欠税）→ 统计口径比国库实收多（实测 +648,313/月）。
+    # 故此处累加**实征银**，与国库 Δ  treasury 同源。
+    _silver_actual = 0
     for name, p in state.prefectures.items():
         # AI 契约档位映射
         ai_pref = ai_prefs.get(name, {})
@@ -256,13 +260,28 @@ def _settle_land_local(state, log):
             got_nong = state.transfer_money(f"pop:{name}:农", "treasury", silver_nong) if silver_nong else 0
             got_shen = state.transfer_money(f"pop:{name}:士绅", "treasury", silver_shen) if silver_shen else 0
             short = (silver_nong + silver_shen) - (got_nong + got_shen)
+            _silver_actual += (got_nong + got_shen)
             if short > 0:
                 _nong["欠税"] = int(_nong.get("欠税", 0)) + (silver_nong - got_nong)
                 _shen["欠税"] = int(_shen.get("欠税", 0)) + (silver_shen - got_shen)
         else:
-            _nong["grain"] = max(0, _nong["grain"] - _st)
-            _shen["grain"] = max(0, _shen["grain"] - _gt)
-            p["storage"] = p.get("storage", 0) + _st + _gt
+            # 本色征粮：**只按实征入库**（审查 M1）。原实现按 `max(0, …)` 从农/士绅存粮扣
+            # 名义税额，却把**名义全额**记入 `storage` → 存粮不足时凭空多出等额仓粮
+            # （实测 +899,480 石/月）。现改为：扣多少、入库多少，缺口如实记账但不并入
+            # `欠税`（该科目单位为贯且有逐月追缴段，粮缺口以石计，混入会污染单位语义）。
+            _avail_n = int(_nong.get("grain", 0) or 0)
+            _avail_s = int(_shen.get("grain", 0) or 0)
+            _got_n = min(_st, _avail_n)
+            _got_s = min(_gt, _avail_s)
+            _nong["grain"] = _avail_n - _got_n
+            _shen["grain"] = _avail_s - _got_s
+            p["storage"] = p.get("storage", 0) + _got_n + _got_s
+            _tax_grain_short = (_st - _got_n) + (_gt - _got_s)
+            if _tax_grain_short > 0:
+                state.granary_stats["tax_grain_short"] = (
+                    state.granary_stats.get("tax_grain_short", 0) + _tax_grain_short)
+                log.append(f"[田赋·本色] {name} 应征粮 {_st + _gt}石，实征 {_got_n + _got_s}石，"
+                           f"欠 {_tax_grain_short}石（仓中无粮，按实征入廪）")
         # 种粮（加消耗完整定案）：播种预留 = 耕地亩 × SEED_GRAIN_PER_MU / 12（石/月，约250万石/月），
         # 从农存粮扣（农户备种，真实粮耗不造币；口粮已改「纯口粮」口径防双计）
         _seed = int(p.get("land", 0) * SEED_GRAIN_PER_MU / 12.0)
@@ -271,13 +290,17 @@ def _settle_land_local(state, log):
             state.granary_stats["seed_grain"] = state.granary_stats.get("seed_grain", 0) + _seed
     if state.single_whip:
         if land_grain > 0:
-            silver_total = int(land_grain * state.grain_price)
-            state.statistics["total_income"] += silver_total
-            log.append(f"[田赋·一条鞭] 两税折银（税粮当量 {land_grain}石）按 wealth 实征入国库，不足记欠税")
+            # 审查 S4：按**实征银**计收入（与国库 Δ 同源），不再按名义税粮折银。
+            state.statistics["total_income"] += int(_silver_actual)
+            log.append(f"[田赋·一条鞭] 两税折银（应收税粮当量 {land_grain}石）"
+                       f"按 wealth 实征银 {_silver_actual}贯入国库，不足记欠税")
     else:
-        state.granary_stats["tax"] += land_grain
+        state.granary_stats["tax"] += land_grain      # 应收（核定）口径
         if land_grain > 0:
-            log.append(f"[田赋] 两税本色征收粮 {land_grain}石，分储诸路仓廪（三运期各征 1/3 年产）")
+            # 应收 vs 实征分清：实征已逐路记入 `storage`，欠征部分在上面的逐路日志里。
+            _short_tot = int(state.granary_stats.get("tax_grain_short", 0) or 0)
+            log.append(f"[田赋] 两税本色应收粮 {land_grain}石（三运期各征 1/3 年产），"
+                       f"分储诸路仓廪；累计欠征 {_short_tot}石")
 
     # 整改①-3（物价）：权威物价相位在**货币信用之后**（`_settle_econ_prices`）；
     # 此处先按当期供需试算一次，供粮食市场（常平籴粜）与财政（俸禄指数化/粜粮完税）当月使用。
@@ -319,7 +342,14 @@ def _settle_land_local(state, log):
             else:
                 _gains = [_bg(state, r) for r in state.prefectures]
                 _gain = sum(_gains) / max(1, len(_gains))
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            # 审查 P2-3 应修：原静默 `except Exception: _gain = float(random.randint(0,3))`
+            # —— 吏制步坏掉时积压照旧随机涨，玩家/开发者都看不出用的是兜底值。
+            from core.settlement_common import note_settlement_error
+            note_settlement_error(
+                state, "clerks_backlog", "吏治",
+                f"政务积压按兜底随机项估算（clerks.backlog_gain 不可用：{type(e).__name__}）",
+                log=log, exc=e)
             _gain = float(random.randint(0, 3))
         y["backlog"] = max(0, int(y["backlog"] + _gain - y["efficiency"] / 40))
         y["efficiency"] = max(20, min(100, y["efficiency"] + random.randint(-2, 1)))
@@ -373,8 +403,12 @@ def _settle_literacy(state, log=None):
         from core.literacy import settle_literacy as _impl
         return _impl(state, log)
     except Exception as e:  # noqa: BLE001  文教步失败不得影响结算主流程
-        if isinstance(log, list):
-            log.append(f"[文教] 识字率结算跳过（{type(e).__name__}）")
+        # 审查 P2-3 应修：原只有结算日志一行、**无 traceback** → 玩家知道"跳过了"，
+        # 开发者却拿不到定位信息。此处补 `logging.exception`（玩家可见 + 可定位）。
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "literacy", "文教",
+            f"识字率结算跳过（{type(e).__name__}）", log=log, exc=e, level="exception")
         return {"routes": 0, "national": None, "changed": 0, "error": type(e).__name__}
 
 
@@ -404,8 +438,14 @@ def _settle_region_deepen(state, log):
         gentry_power = 0.0
         try:
             gentry_power = state.factions.get("中立派", {}).get("influence", 50) / 100.0
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001
+            # 审查 P2-3 应修：原静默 pass → 士绅抵抗按 `gentry_power = 0.0`（既有兜底值，
+            # **口径不动**）演化，而日志一字无，读者会以为"士绅毫无影响力"是真实读数。
+            from core.settlement_common import note_settlement_error
+            note_settlement_error(
+                state, "region_deepen_gentry", "地区深化",
+                f"士绅影响力读数失败，沿用兜底值 0.0（{type(e).__name__}）",
+                log=log, exc=e)
         # 清丈（land_survey 施行）则士绅抵抗上升；治理高则下降
         survey = 1.0 if state.land.get("survey_active") else 0.0
         gentry_drift = (gentry_power - 0.5) * 2 + survey * 2 - (p.get("govern", 50) - 50) * 0.02
@@ -521,11 +561,11 @@ def _settle_extensions(state, log):
             _mp_shares[_mp_big] += _merchant_profit - sum(_mp_shares.values())
             for _rk, _c in _mp_shares.items():
                 state.prefectures[_rk]["pops"]["商人"]["wealth"] += _c
-            try:
-                from core.money import register_flow as _reg_flow
-                _reg_flow(state, "external", _merchant_profit, "外贸商人毛利")
-            except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
-                pass
+            # 审查 P2-3 / M8：原 `except Exception: pass  # 台账登记失败不影响结算`
+            # —— 未登记的体外注入会被对账算成残差（面板误报"凭空造币"）。统一走
+            # `register_money_flow`：WARNING + traceback + `money_audit["flow_errors"]`。
+            from core.settlement_common import register_money_flow
+            register_money_flow(state, "external", _merchant_profit, "外贸商人毛利")
         state.coin["shortage"] = max(0.0, state.coin["shortage"] - 0.01)      # 白银流入缓解钱荒
         # 白银**存量**累积（阶段 B-1）：silver_in 是「万两/年」的**流量**，此前只被
         # calc_price_level 当作白银存量 ×10000 使用，**从未进入任何持有账户**——
@@ -572,29 +612,45 @@ def _settle_extensions(state, log):
         _pm = max(_pm_cfg["min"], min(_pm_cfg["max"], _pm * _pm_cfg["down"]))
     state._price_mult = _pm
     # 大臣家产月度循环（奢侈消费/收租/聚敛窖藏/物议——守恒转移）
+    # 审查 P2-3 / M7：整步静默 `pass` → 家产月循环不生效而日志一字无（家产是钱的
+    # 真实所在，静默跳过会让"大臣家产不变"被误读成"本月无家产活动"）。现按步位告警。
     try:
         from core.estate_mechanic import settle_minister_estate
         settle_minister_estate(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "minister_estate", "家产",
+            f"本月家产月循环未结算：{type(e).__name__}（奢侈消费/收租/窖藏均未施加）",
+            log=log, exc=e, level="exception")
     # 投资分期回报（国库/内帑回流，守恒）
     try:
         from core.estate_mechanic import settle_investments
         settle_investments(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "investments", "投资",
+            f"本月投资回款未结算：{type(e).__name__}（分期回报未回流，守恒转移缺失）",
+            log=log, exc=e, level="exception")
     # 建筑-时代交互（言枢密方案）：下行联动（建筑累积到 era_state 五维）
     try:
         from core.era_mechanic import settle_era_links
         settle_era_links(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "era_links", "时代联动",
+            f"建筑-时代联动未结算：{type(e).__name__}", log=log, exc=e)
     # 新旧产业规模化（用户指示）：转型阵痛叙事 + 记忆记录
     try:
         from core.era_mechanic import settle_industry_shift
         settle_industry_shift(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "industry_shift", "产业转型",
+            f"新旧产业规模化未结算：{type(e).__name__}", log=log, exc=e)
 
     state.exam["talent_pool"] = max(0, min(100, state.exam["talent_pool"]
                                            - 1 + int(state.exam["schools"] / 40)))
@@ -613,16 +669,26 @@ def _settle_extensions(state, log):
             state.tech["_build_bonus_pool"] = round(_pool - _gain, 4)
             if _gain > 0:
                 state.tech["level"] = max(0, min(100, state.tech["level"] + _gain))
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        # 审查 P2-3 应修：原静默 pass → 学校/书院科技加成失效而无人知（P2-25 刚修过
+        # 这条链路的截断 bug，静默会让"修了还是没生效"无法区分）。
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "tech_build_bonus", "科技建筑",
+            f"学校/书院科技加成未结算：{type(e).__name__}", log=log, exc=e)
     state.tech["gunpowder"] = max(0, min(100, state.tech["gunpowder"] + random.randint(-1, 1)))
     state.tech["iron"] = max(0, min(100, state.tech["iron"] + random.randint(0, 1)))
     # west 来源制（整改④.4）：只从贸易/使团/书籍/工匠/战争累积，不再每月凭空 +0.01。
     try:
         from core.asset_context import accrue_west
         accrue_west(state)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        # 审查 P2-3 应修：原静默 pass → 西学累积通道坏掉时"西学不涨"被误读为
+        # "来源不足（设计）"，与"通道故障"无法区分。现留痕（每回合最多一行）。
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "accrue_west", "西学",
+            f"西学来源累积未执行：{type(e).__name__}", log=log, exc=e)
     _settle_tech_research(state, log)
 
     # ---- T9 物价方案：交子界制销币（Step 3.6 扩展）----
@@ -638,7 +704,7 @@ def _settle_extensions(state, log):
 
 
 def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
-                     buildings=None, resources=None):
+                     buildings=None, resources=None, state=None, log=None):
     """省域/政权级通用经济相位 A-E（生产→商品市场→粮市→口粮→灾害/阶层流动→税/饷计算）。
 
     钱粮守恒：商市/粮市/税全部整数精确转移；**不碰 treasury**——税从各阶层
@@ -945,8 +1011,14 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         _prev_p = {g: float(cfg.get("GOODS_EXT_PRICES", {}).get(g, 1.0))
                    for g in (cfg.get("GOODS_BASE_PRICE") or {})}
         _goods_prices = update_goods_prices(_prev_p, _demand, _supply, _produced_g, cfg)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        # 审查 P2-3 应修：原静默 pass → 动态商品价整相位失败（_goods_prices 保持空表，
+        # 外邦经济按静态价走）而无人知。**本函数每月被 38 个政权各调一次**，故经
+        # `note_settlement_error` 做"每回合最多一行"去重（防刷屏）。
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "ext_goods_prices", "外邦物价",
+            f"动态商品价未结算（沿用静态价）：{type(e).__name__}", log=log, exc=e)
     # ---- Phase F8 本色饷 + 官仓平粜（批 6 · §6.5/§6.6 粮=硬通货）----
     _grain_pay = {"soldier": 0, "official": 0, "arrears_grain": 0,
                   "ping_tiao_out": 0, "ping_tiao_in": 0, "grain_tax_in_kind": 0}
@@ -1096,7 +1168,8 @@ def _settle_external_economy(state, log):
                 st = _ext_econ_phases(ppop, cfg, _dz_gy, cmul, pprice, pay_cfg,
                                       dz_hit=_dz_hit, rtype=rtype,
                                       buildings=_p.get("buildings"),
-                                      resources=_p.get("resources"))
+                                      resources=_p.get("resources"),
+                                      state=state, log=log)
                 # 灾害 unrest 记账（逃散已在相位内折进 size；unrest 由调用侧加）
                 if _dz_hit:
                     ex["unrest"] = min(100, int(ex.get("unrest", 15) or 0) + 1)
@@ -1216,7 +1289,8 @@ def _settle_external_economy(state, log):
         price = max(float(cfg["price_floor"]), min(float(cfg["price_cap"]), price))
         _m0 = sum(int(v.get("wealth", 0) or 0) for v in pop.values() if isinstance(v, dict)) + treasury
         _g0 = sum(int(v.get("grain", 0) or 0) for v in pop.values() if isinstance(v, dict))
-        st = _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype=rtype)
+        st = _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False,
+                              rtype=rtype, state=state, log=log)
         treasury += int(st["tax"])
         _need_all = int(st["need_army"]) + int(st["need_off"])
         _scale = 1.0 if _need_all <= 0 else min(1.0, treasury / _need_all)
@@ -1428,10 +1502,16 @@ def _settle_civilian_hoard(state, log):
             genty["grain"] = _hard_cap
             _unsold = _excess - sold
             if _unsold > 0:
-                # 未售部分按 HOARD_SPOIL_RATE 损耗核销（雀鼠耗/霉变）：粮凭空消失但钱不凭空生；
-                # 3% 记入损耗统计，余量一并出清（grain 压回硬上限）
-                _spoil = int(_unsold * HOARD_SPOIL_RATE)
-                state.granary_stats["hoard_spoil"] = state.granary_stats.get("hoard_spoil", 0) + _spoil
+                # 未售部分**全部**按损耗核销（雀鼠耗/霉变）：`genty["grain"]` 已被压回
+                # `_hard_cap`，即 `_unsold` 石**全部消失**。
+                # 审查 O4：原统计只记 `int(_unsold * HOARD_SPOIL_RATE)`（3%），
+                # 与实际销毁额差 ~33 倍 → 「囤粮损耗」面板读数严重低估。
+                # 现记**实销额**；HOARD_SPOIL_RATE 仍用于分层口径（损耗/压回）留痕。
+                state.granary_stats["hoard_spoil"] = (
+                    state.granary_stats.get("hoard_spoil", 0) + _unsold)
+                state.granary_stats["hoard_spoil_3pct"] = (
+                    state.granary_stats.get("hoard_spoil_3pct", 0)
+                    + int(_unsold * HOARD_SPOIL_RATE))
         # 窖银动用（A1 定稿·用户史实指示 c）：按 AI 档位换算的每月动用比例取窖银出窖，
         # 流向工匠/商人（挥霍/购地/市舶投资等服务消费），死钱转活钱、不积累 wealth；
         # 无 AI 时 _draw_rate = 0（冻结，不到最后关头不用）。
@@ -1445,6 +1525,13 @@ def _settle_civilian_hoard(state, log):
 def _settle_workshops(state, log):
     """作坊月度推进：配方消耗 inputs（如粮→酒），产出 outputs 入 resources/内帑。"""
     _wine_bonus = 0     # 本月酒课**加成**汇总；下方据此**重算** wine_tax（不做月度累加，见 A-5）
+    # 2026-10-11（B1）：成品维（布/绸）产出另计入工匠 goods 池（待售位）。
+    # 依 `building_jobs.produce_job_track`「原料维 → resources；成品维 → goods_pool」。
+    # ⚠️ `wine` 也是成品维，但走**酒课入内帑**（既有口径，`wine_tax`），
+    # 不进工匠池——池子只放**民间可买的布/绸**。
+    _finished_goods: dict = {}
+    from content.data_constants import FINISHED_DIMS as _FIN_DIMS
+    _POOL_DIMS = tuple(d for d in _FIN_DIMS if d != "wine")
     for wid, ws in list(state.workshops.items()):
         if not ws.get("active"):
             continue
@@ -1501,9 +1588,49 @@ def _settle_workshops(state, log):
             _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
             _cap = int(_slot.get("cap", 0) or 0)
             _new = int(_slot.get("stock", 0) or 0) + yld
-            _slot["stock"] = min(_cap, _new) if _cap > 0 else _new
+            # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
+            # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
+            # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
+            _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
+            # 2026-10-11（规格 market-civilian-economy B1）：**成品维（布/绸）另入工匠 goods 池**。
+            # 口径依 `building_jobs.produce_job_track`（:327-331）「原料维 → resources；
+            # 成品维 → goods_pool，单一产出通道原则」——宋侧此前只写 resources，
+            # 导致 B1 消费端改真成交后**没有可售成品**（民间买到 0）。
+            # 两处是**同一批货的两个用途槽**（`storage` 仓储读数 / `resale` 待售），
+            # 不是两批货：B1-3 台账须标明，**不得相加当"总产量"**。
+            if out_dim in _POOL_DIMS:
+                _fg = _finished_goods.setdefault(out_dim, 0)
+                _finished_goods[out_dim] = _fg + int(round(yld))
     # 酒课按月**重算**（保底 ＋ Σ酒坊产能加成）——杜绝"月度率被逐月累加"（A-5）
     from content.data import WINE_COIN_BASE
     state.wine_tax = int(WINE_COIN_BASE) + int(_wine_bonus)
+
+    # ---- 2026-10-11（B1）：成品维产出分派到各路工匠 goods 池（待售位）----
+    # 分派口径：作坊产出是**全局**记账（`state.workshops` 不分路），
+    # 故按各路**工匠 size 占比**分派；整数尾差归末路，保证 Σ分派 == Σ产出（不丢量）。
+    if _finished_goods:
+        _stats = getattr(state, "statistics", None)
+        if isinstance(_stats, dict):
+            _stats["workshop_finished_goods"] = sum(_finished_goods.values())
+        _rows = []
+        for r, p in (getattr(state, "prefectures", None) or {}).items():
+            if not isinstance(p, dict):
+                continue
+            a = (p.get("pops") or {}).get("工匠")
+            if isinstance(a, dict):
+                _rows.append((r, a, max(0, int(a.get("size", 0) or 0))))
+        _sum_sz = sum(sz for _, _, sz in _rows)
+        if _sum_sz <= 0 or not _rows:
+            return
+        _assigned = {dim: 0 for dim in _finished_goods}
+        for _i, (_r, a, sz) in enumerate(_rows):
+            g = a.setdefault("goods", {})
+            for dim, q in _finished_goods.items():
+                # 末路取余数（q − 已分派），其余按占比
+                got = (int(q) - _assigned[dim]) if _i == len(_rows) - 1 \
+                    else int(int(q) * sz / float(_sum_sz))
+                got = max(0, got)
+                _assigned[dim] += got
+                g[dim] = int(g.get(dim, 0) or 0) + got
 
 

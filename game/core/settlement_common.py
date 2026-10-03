@@ -1,13 +1,117 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 结算共享守恒工具（从 settlement_steps.py 拆出，零行为变更）。
 
-资金/人口守恒转移、粮贸配对、贪腐与粮价小工具、P1 档位常量。"""
+资金/人口守恒转移、粮贸配对、贪腐与粮价小工具、P1 档位常量。
+
+**错误可观测性（审查 P2-3）**：本模块另提供三件结算侧公共设施，供各结算步共用，
+避免每处各写一套（口径不一 → 有的静默、有的刷屏）：
+
+  · `note_settlement_error`：结算异常统一留痕（玩家可见结算 WARN 行 ＋ 开发者日志
+    ＋ 每回合去重），是"关键故障能从日志/界面区分定位"的唯一入口；
+  · `register_money_flow`：货币台账登记（失败**必须**响亮可见，不得再伪装成残差）；
+  · `MoneyChannelUnavailable`：状态写入通道不可用的**独立**信号（与"合法 0"区分）。
+"""
 from __future__ import annotations
+
+import logging
 
 from content.data import (
     GRAIN_PRICE_MIN,
     GRAIN_PRICE_MAX,
 )
+
+_log = logging.getLogger("settlement")
+
+
+class MoneyChannelUnavailable(RuntimeError):
+    """公共资金 → 民间 POP 的**守恒转移通道**（`engine.state_applier`）不可用。
+
+    存在这个独立异常类型的原因（审查 P2-3 应修）：原实现 import 失败时 `return 0`，
+    与「国库不足 / 接收池缺失 → 合法 0」**同值**，调用方无法区分「真的一分没拨」
+    与「写入通道坏了」。调用方必须显式选择策略（严格模式抛错、其余按 0 处理并留痕）。
+    """
+
+
+def note_settlement_error(state, key: str, tag: str, msg: str, log=None, exc=None,
+                          logger=None, level: str = "warning") -> bool:
+    """结算异常的统一留痕：**玩家可见**结算 WARN 行 ＋ **开发者**日志（含 traceback）。
+
+    审查 P2-3 纪律：`log` 是结算日志列表（玩家/面板可见），`logging` 是服务端日志
+    —— 需要"玩家可见"且"可定位"时必须**两者都要**，本函数一次做齐。
+
+    去重（防噪声）：以 `(state.turn, key)` 为键，单回合内同一 key 只记一次
+    （`_ext_econ_phases` 每月被 38 个政权各调一次，不去重会刷屏）。
+    `key` 应取"步位 + 对象"粒度（如 `"clerks_backlog"`、`"era_links"`）。
+
+    返回 True 表示本次确实记录了（供测试断言"正常路径不产生噪声"）。
+    """
+    turn = int(getattr(state, "turn", 0) or 0) if state is not None else 0
+    _seen = getattr(state, "_settle_warned", None) if state is not None else None
+    if not isinstance(_seen, dict) or _seen.get("_turn") != turn:
+        _seen = {"_turn": turn}
+        if state is not None:
+            try:
+                state._settle_warned = _seen
+            except Exception:  # noqa: BLE001 — 诊断设施自身失败不得反噬结算
+                _seen = None
+    if isinstance(_seen, dict):
+        if key in _seen:
+            return False
+        _seen[key] = str(msg)[:200]
+    _lg = logger or _log
+    if exc is not None:
+        if level == "exception":
+            _lg.exception("[%s] %s", tag, msg)
+        else:
+            _lg.warning("[%s] %s", tag, msg, exc_info=True)
+    else:
+        _lg.warning("[%s] %s", tag, msg)
+    if isinstance(log, list):
+        log.append(f"[{tag}][WARN] {msg}")
+    return True
+
+
+def register_money_flow(state, kind: str, amount: int, reason: str = "",
+                        log=None, tag: str = "货币台账") -> bool:
+    """登记一笔货币台账流水（`core/money.register_flow`）——**失败必须可见**。
+
+    审查 P2-3 / M8：五处结算调用点原先一律 `except Exception: pass`（注释还写
+    "不影响结算"，属误导）。后果不是"少记一笔"：`core/money.reconcile` 会把**未登记**
+    的 M_ALL 变化算成**残差**，面板于是显示"⚠️ 残差 X 贯（存在无对手方的造币/销毁）"
+    ——把**登记 bug 说成造币 bug**，把排查方向指向完全错误的地方。
+
+    现口径：
+      · 开发者：`logging.getLogger("settlement").warning("[货币台账] 登记失败 …", exc_info=True)`；
+      · 玩家/面板：`state.money_audit["flow_errors"]` 累计（**不改** `core/money.py`
+        的对账算法，只在既有 audit 视图里追加"台账登记曾失败"这一事实）；
+      · 结算日志：可选（调用方给 `log` 时追加一行）。
+    返回是否登记成功。
+    """
+    try:
+        from core.money import register_flow as _reg_flow
+        _reg_flow(state, kind, amount, reason)
+        return True
+    except Exception as e:  # noqa: BLE001 — 登记失败必须留痕，但不得中断资金主流程
+        _log.warning("[货币台账] 登记失败 kind=%s amount=%s reason=%s",
+                     kind, amount, reason, exc_info=True)
+        audit = getattr(state, "money_audit", None)
+        if not isinstance(audit, dict):
+            audit = {}
+            try:
+                state.money_audit = audit
+            except Exception:  # noqa: BLE001
+                audit = None
+        if isinstance(audit, dict):
+            errs = audit.setdefault("flow_errors", [])
+            if isinstance(errs, list):
+                errs.append({"turn": int(getattr(state, "turn", 0) or 0), "kind": kind,
+                             "amount": amount, "reason": reason, "error": repr(e)})
+            audit["flow_error_count"] = int(audit.get("flow_error_count", 0)) + 1
+        if isinstance(log, list):
+            log.append(f"[{tag}][WARN] 登记失败 kind={kind} amount={amount}"
+                       f"（对账残差可能被误报为造币，实为登记失败：{type(e).__name__}）")
+        return False
+
 
 def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log, tag: str) -> tuple:
     """政府粮食交易的守恒配对（审查 P0：杜绝「国库灭钱/太仓凭空得粮」幻影对手）。
@@ -277,7 +381,7 @@ def _collect_from_pops(state, amount: int) -> int:
     return taken
 
 
-def _distribute_cash(state, amount: int, shares: dict) -> int:
+def _distribute_cash(state, amount: int, shares: dict, applied: list = None) -> int:
     """把 `amount` 贯按 `shares` {阶层: 占比} 精确分发给各路该阶层 POP wealth。
 
     末位（最后一个阶层 × 最后一支池）吃尾差，保证 **Σ入账 == amount**（精确守恒），
@@ -287,6 +391,16 @@ def _distribute_cash(state, amount: int, shares: dict) -> int:
     ⚠️ **尾差口径：末位（最后一个阶层 × 最后一支池）吃尾差** —— 与
     `settlement_econ_helpers._distribute_pop_wealth`（**尾差归最大府**）不同；
     二者语义确有差异，**不可盲目合并**（2026-09-27 审查 §8.2-#8）。
+
+    **原子性（审查 P2-3 / M3）**：本函数直接写各 POP `wealth`，**不走** `state_applier`
+    事务。原实现边算边写 —— 中途抛错时先写进去的那些 POP 留下、调用方却按"分发 0"
+    全额退款，净效果 = 国库不减而民间多钱（ΣΔ>0，凭空造币）。现改为**两阶段**：
+    `① 构造`（含所有数值解析：size / wealth 取整）→ `② 一次性写入`。任何异常都发生在
+    ①，此时**零写入**，与"实际分发额=0"自洽。
+
+    `applied`（可选 list）：把**实际已入账额**逐笔追加其中。调用方在异常后据此计算
+    退款额（**退款额必须用实际已分发额**，不得按请求额全退）——即便将来有人把本函数
+    改回非原子写法，调用方的守恒也不破。
     """
     amount = int(amount or 0)
     if amount <= 0:
@@ -294,6 +408,7 @@ def _distribute_cash(state, amount: int, shares: dict) -> int:
     roads = list(state.prefectures.values())
     items = [(c, float(s)) for c, s in (shares or {}).items()]
     paid = 0
+    writes = []                      # [(pop_dict, 新 wealth, 本次入账额)]
     for i, (cls, share) in enumerate(items):
         want = (amount - paid) if i == len(items) - 1 else int(amount * share)
         if want <= 0:
@@ -308,14 +423,20 @@ def _distribute_cash(state, amount: int, shares: dict) -> int:
             g = (want - given) if j == len(pools) - 1 else int(
                 want * float(x.get("size", 0) or 0) / _tot)
             g = max(0, int(g))
-            x["wealth"] = int(x.get("wealth", 0) or 0) + g
+            _cur = int(x.get("wealth", 0) or 0)      # 解析在阶段①：坏值 → 零写入
+            writes.append((x, _cur + g, g))
             given += g
         paid += given
+    for x, _new, g in writes:                        # 阶段②：纯赋值，不再可能抛错
+        x["wealth"] = _new
+        if applied is not None:
+            applied.append(g)
     return paid
 
 
 def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
-                                  source_account: str = "treasury") -> int:
+                                  source_account: str = "treasury",
+                                  raise_on_unavailable: bool = False) -> int:
     """公共资金（国库/内帑）→ 民间 POP wealth 的**守恒转移**（走 applier_pipeline）。
 
     用于研发经费、工程款等**新增支出通道**：批量事务 + 路径白名单 + ΣΔ==0 + 原子回滚，
@@ -325,6 +446,11 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
       · 国库/内帑不足 → 按实付（返回 < amount，调用方须据实记录，不得静默成功）；
       · 接收方池缺失 → 余额退回，仅划转实到部分；
       · 守恒/穿底/落点非法 → applier 整批拒绝 → 返回 0（可诊断，不假装已付）。
+
+    **通道不可用（P2-3 应修）**：`engine.state_applier` 取不到时，原实现 `return 0`
+    —— 与上面那几种**合法 0** 同值，调用方无从区分"真没拨"与"写入通道坏了"。
+    现由 `raise_on_unavailable` 显式选择：授权范围内的调用方传 True 并捕获
+    `MoneyChannelUnavailable` 自行区分；范围外调用方保持旧行为（不擅自改变其语义）。
 
     ⚠️ 本函数是**第三处**"公共资金 → POP"通道（另两处：`_distribute_cash` 末位吃尾差、
     `settlement_econ_helpers._distribute_pop_wealth` 尾差归最大府）；三者的**分摊与尾差处理
@@ -368,7 +494,16 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
     changes[0]["value"] = -allocated
     try:
         from engine.state_applier import applier_pipeline
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        # 通道不可用 ≠ 拨了 0：默认（范围外调用方）仍返回 0 但**留 WARNING**；
+        # 授权范围内的调用方传 raise_on_unavailable=True 以区分（见 docstring）。
+        _log.warning("[公共资金→POP] 状态写入通道不可用（source=%s reason=%s，"
+                     "本次按 0 处理，与「国库不足」不可区分）", source_account, reason,
+                     exc_info=True)
+        if raise_on_unavailable:
+            raise MoneyChannelUnavailable(
+                f"engine.state_applier 不可用（{type(e).__name__}）："
+                f"公共资金→POP 转移无法执行（reason={reason}）") from e
         return 0
     res = applier_pipeline(state, [("settlement", changes)])
     if not (res.get("applied") or []):
@@ -427,6 +562,59 @@ def _avg_corruption(state):
         return 0.0
     vals = [state.corruption.get(n, 0.0) for n in names]
     return sum(vals) / len(vals)
+
+
+#: 单路每月逃籍/逃荒的**爆版保护上限**（口）。用户 2026-10-01 定稿：逃籍人数由
+#: 「无法吃粮人数」1:1 派生，此上限**仅作爆版保护、非驱动项**（吃饱了就不会逃，
+#: 不靠比例魔数）。沿用既有饥荒逃荒通道的同名上限，避免两处各立一个数。
+FLEE_CAP_PER_ROUTE = 50_000
+
+
+def food_insecure_headcount(pops: dict, price: float) -> dict:
+    """各类 POP 中**吃不上饭的人数**（口）——"无法吃粮"的**唯一口径**。
+
+    口径（用户 2026-10-01 定稿）：
+      · 先算该类 POP 的**月口粮需求** = `size × GRAIN_CONSUME_PER_CAPITA[类]`（石）；
+      · 可支配粮 = **自有粮 ＋ 购粮能力**，其中购粮能力 = `wealth / 粮价`（石）——
+        即"钱能买到多少粮"。购粮通道已落地且钱粮守恒（`_changping_trade` /
+        `_state_grain_trade` / 士绅售粮），故**买得到就不算饿**；
+      · 吃不上饭的人数 = `size − 可支配粮 / 人均需求`（向下取整，不为负）。
+
+    返回：`{"农": n, "工匠": n, …, "total": n}`；`pops` 非 dict 或价格非正时返回全 0
+    （**读数缺失不当饿**：不拿"价格未知"当"买不起"，也不拿它凭空造饥荒）。
+
+    为什么要单点：逃籍（`settlement_imperial`）与饥荒逃农（`settlement_granary`）
+    两处都依赖"谁吃不上饭"，**必须同源**——否则一处按公储、一处按户存，
+    会出现"没饿却在逃籍"或"饿着却不逃"的矛盾（硬约束 #2 口径单点）。
+    """
+    from content.data import GRAIN_CONSUME_PER_CAPITA
+    out = {}
+    if not isinstance(pops, dict):
+        return out
+    _price = float(price)
+    if not (_price > 0) or _price != _price or _price == float("inf"):
+        return out
+    total = 0
+    for cls, slot in pops.items():
+        if not isinstance(slot, dict):
+            continue
+        size = int(slot.get("size", 0) or 0)
+        if size <= 0:
+            out[cls] = 0
+            continue
+        per = float(GRAIN_CONSUME_PER_CAPITA.get(cls, 0.5))
+        if per <= 0:
+            out[cls] = 0
+            continue
+        own = max(0.0, float(slot.get("grain", 0) or 0))
+        wealth = max(0.0, float(slot.get("wealth", 0) or 0))
+        buyable = wealth / _price                      # 钱能买到的粮（石）
+        fed = int((own + buyable) // per)              # 吃得上饭的人数
+        hungry = max(0, size - fed)
+        out[cls] = hungry
+        total += hungry
+    out["total"] = total
+    return out
 
 
 def _recalc_region_price(state, name: str, extra_supply: float = 0.0) -> float:

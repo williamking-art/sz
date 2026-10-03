@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { getApiClient } from "../api/client";
+import type { ReadoutsResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 import { wan } from "../utils/format";
 
 // 省级军政 —— 点击舆图的路（省），或由「地方档案」跳入。
 // 数据来源：/api/readouts::regions.military（core/region_brief.py::route_military_summary，**只读派生**）
 //   · 兵额唯一真账 = ArmyUnit.troops（= Σbranches）；军饷/军粮复用 region_brief 逐路派生（口径同源）
-// 军令（八按钮）现状：**置灰**。原因（方案 §3.2，已核实）：
-//   后端无军事端点，前端命令里军令只有 `approve_ai_action`（批红 AI 提议）
-//   → "点一下就执行"需要先定：A 准/驳既有提议（零新写路径）｜B 新增玩家主动军令通道（触铁律边界）。
-//   一旦定案，按钮只需把 payload 换成 {army, action, unit_id, scale|target} 即可接入既有通道。
+//   · **编制单位明细**取 `/api/readouts::army`（审查 M8）：`/api/state` 快照会剔除
+//     `army_units`（ArmyUnit 为对象、不可 JSON 序列化），故不可从 store.state 取；
+//     `MilitaryPanel.tsx` 已是同一数据源。
+// 军令（八按钮）：**已接线** —— 后端 `core/commands.py::issue_military_order`
+//   （`act="issue_military_order"`，`_MILITARY_BUTTON_ACTS` 与本面板 8 键严格一致）。
+//   「合并」的可行性是数据相关的（本路同军籍 ≥2 支，通常先「拆分」出一支）。
+//   可行性由 `CAN_ORDER` 按读数实时算，不做静态置灰。
 type Dict = Record<string, unknown>;
 
 interface MUnit {
   unit_id: string; name: string; army_name: string; tier: string; station: string;
-  defense_line: string; troops: number; morale: number; training: number; arrears: number;
+  defense_line: string; troops: number;
+  morale: number | null; training: number | null; arrears: number | null;
   org_arm: string;
   branches: Record<string, number>;
 }
@@ -37,10 +42,22 @@ function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
 }
 
+/** 有限数→number，缺失/非有限→null（审查 D2：缺失不得回落 0）。 */
+function numOrNull(v: unknown): number | null {
+  const n = Number(v);
+  return v === null || v === undefined || !Number.isFinite(n) ? null : n;
+}
+
+/** 读数渲染：null → "—"（缺失即"未定义"，不显示 0）。 */
+function numText(v: number | null): string {
+  return v === null ? "—" : String(v);
+}
+
 export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const initial = String(props?.route ?? props?.name ?? "");
   const state = useGameStore((s) => s.state);
   const [mil, setMil] = useState<Military | null>(null);
+  const [army, setArmy] = useState<Dict[]>([]);
   const [err, setErr] = useState("");
   const [tab, setTab] = useState<"route" | "nation">("route");
   const [route, setRoute] = useState(initial);
@@ -58,8 +75,14 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
       .readouts()
       .then((r) => {
         if (!alive) return;
-        const m = ((r as { regions?: { military?: Military } } | null)?.regions?.military) ?? null;
-        setMil(m);
+        const rr = r as ReadoutsResult | null;
+        const m = (rr?.regions as { military?: Military } | undefined)?.military ?? null;
+        setMil(m ?? null);
+        // 编制单位走 **`/api/readouts` 的 `army`**（审查 M8）：`/api/state` 快照
+        // 经 `_state_to_dict` 会剔除 `army_units`（ArmyUnit 对象列表不可 JSON 序列化），
+        // 旧实现从 `state.army_units` 取 → 生产环境恒空 → 部队选择器空、军令全部早退。
+        // 与 `MilitaryPanel.tsx` 同一数据源（口径单点：后端只提供派生，算法不在前端复制）。
+        setArmy(Array.isArray(rr?.army) ? (rr!.army as unknown as Dict[]) : []);
         if (!m) setErr("（军政读数不可用）");
         else if (!route && m.routes?.length) setRoute(m.routes[0].route);
       })
@@ -70,8 +93,8 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const routes = mil?.routes ?? [];
   const routeRow = useMemo(() => routes.find((r) => r.route === route), [routes, route]);
   const routeUnits: MUnit[] = useMemo(() => {
-    // 由 state.army_units 投影（快照含 army_units；字段与 ArmyUnit 对齐）
-    const list = (state as unknown as { army_units?: Dict[] })?.army_units ?? [];
+    // 数据源：`/api/readouts.army`（见上方 useEffect 注释），字段与 ArmyUnit 对齐
+    const list = army;
     return list
       .map(asDict)
       .filter((u) => String(u.station ?? "") === route)
@@ -84,13 +107,15 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
         defense_line: String(u.defense_line ?? ""),
         org_arm: String(u.org_arm ?? ""),
         troops: Object.values(asDict(u.branches)).reduce<number>((a, b) => a + (Number(b) || 0), 0),
-        morale: Number(u.morale ?? 0) || 0,
-        training: Number(u.training ?? 0) || 0,
-        arrears: Number(u.arrears ?? 0) || 0,
+        // 审查 D2：士气/训练/欠饷缺失**不回落 0**（0 = 最差值，会被读成"士气崩溃"）；
+        // 缺失一律 null，由渲染层显示"—"。
+        morale: numOrNull(u.morale),
+        training: numOrNull(u.training),
+        arrears: numOrNull(u.arrears),
         branches: Object.fromEntries(Object.entries(asDict(u.branches)).map(([k, v]) => [k, Number(v) || 0]))
       }))
       .sort((a, b) => b.troops - a.troops);
-  }, [state, route]);
+  }, [army, route]);
 
   const sel = routeUnits.find((u) => u.unit_id === picked) ?? routeUnits[0];
 
@@ -246,7 +271,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                       <td className="px-2 py-0.5">{u.army_name || u.name}</td>
                       <td className="px-2 py-0.5">{u.tier}</td>
                       <td className="px-2 py-0.5 text-right">{wan(u.troops, "")}</td>
-                      <td className="px-2 py-0.5 text-right">{u.morale}</td>
+                      <td className="px-2 py-0.5 text-right">{numText(u.morale)}</td>
                       <td className="px-2 py-0.5 text-right">{wan(u.arrears, "")}</td>
                       <td className="px-2 py-0.5">{u.org_arm || "—"}</td>
                     </tr>
@@ -261,7 +286,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
               <div className="mt-1 text-[11.5px] leading-relaxed text-dim">
                 选中：<span className="text-ink">{sel.army_name || sel.name}</span>（{sel.tier}·{sel.station}）｜
                 兵种构成：{Object.entries(sel.branches).map(([k, v]) => `${k} ${wan(v, "")}`).join("｜") || "—"}｜
-                训练 {sel.training}｜防区 {sel.defense_line || "—"}
+                训练 {numText(sel.training)}｜防区 {sel.defense_line || "—"}
               </div>
             ) : null}
           </section>

@@ -270,7 +270,12 @@ def _m_clerks_grip(state, arg: Optional[str], ctx: SnapshotContext):
 
 
 def _m_clerks_execution_mult(state, arg: Optional[str], ctx: SnapshotContext):
-    """诏令执行折扣（`core/clerks.py` 唯一权威：`decree_execution_mult`，已 clamp 0–2）。"""
+    """诏令执行折扣（`core/clerks.py` 唯一权威：`decree_execution_mult`）。
+
+    审查 O7（注释漂移）：本docstring 原称该值「已 clamp 0–2」，与实现不符——
+    实际值域是 **[0.3, 1.0]**（下限 0.3 是"吏治最差也执行三成"的上限型衰减，
+    上限 1.0 表示不打折）。注释按实现更正，避免后续按 0–2 误读。
+    """
     return None if not ctx.clerks else ctx.execution_mult
 
 

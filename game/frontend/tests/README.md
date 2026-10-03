@@ -10,8 +10,7 @@
 ## 怎么跑
 ```powershell
 cd D:\codebuddy\sz\game\frontend
-npm test            # vitest run（当前 7 文件 / 57 用例）
+npm test            # vitest run（测试文件与用例会持续变化）
 ```
 用例与源码同放（`src/**/__tests__/*.test.ts(x)`），**不集中在本目录**；本目录只放公共设置。
 ---
-最后更新：2026-09-27（补目录文档）

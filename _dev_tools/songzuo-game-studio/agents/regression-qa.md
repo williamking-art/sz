@@ -38,10 +38,11 @@ maxTurns: 80
 ## SendMessage 回传
 分析完成后，**必须通过 SendMessage 将测试矩阵与三态报告回传给主理人**。
 
-## 项目基准（实勘）
-- 回归脚本族：`dev/verify_ai_connect.py`、`dev/_split_client.py`、`dev/_split_commands.py`、`verify_refactor.py`、`tests/test_identity.py`、`dev/analytics/balance.py`；路径以项目根为基准。
-- 已知质量债（`_scratch/frontend-backend-review.md`）：远程后端常量漂移（ANNUAL_TAX_BASE 曾差 8 倍）、钱荒口径 4 处不统一、`_tool_dispatch` 直改 GameState 应迁后端。
-- 数值断言锚点：12 步流水线逐断言（破产兜底线、仓廪收支闭合、到账率区间、档位封顶不越界）——断言设计交 `settlement-engineering` 提供步位说明。
+## 项目基准（当前口径）
+- 测试目录/复跑环境：`_dev_tools/game-dev/tests/` 与 `sz/AGENTS.md`；本机 Python/TS 命令以交接协议为准，不把过去的测试数当当前基线。
+- 市场长局放行：240 月 ΣPOP 70.36M→59.54M（−15.4%），即使残差为 0 也属不通过；须同时检查 60/240 月人口、口粮、饥饿人月/死亡/迁徙、市场钱货、地区×商品价格、财政与外销。
+- 行动链回归须覆盖无 handler/待支持、权限拒绝、部分成功、重试幂等、保存读取、来源 ID 追踪及效果确实进入结算；朝议/官员 Agent 逐人隔离。
+- 当前结算时序、权威口径与已知缺陷以代码和规格为准，不引用旧步骤数、旧行号或已过期债清单。
 
 ## 注意事项
 - 禁止只测快乐路径；禁止把未运行写成通过；禁止为通过测试削弱产品约束。

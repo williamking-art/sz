@@ -1,5 +1,8 @@
-import { useEffect, useState, useRef } from "react";
-import { Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ChevronDown, Type } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw,
+  ChevronDown, Type, Eye, EyeOff, Plus, Trash2, Save, ChevronRight
+} from "lucide-react";
 import { getApiClient, type AiConfigResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 import { audioEngine } from "../audio/engine";
@@ -139,306 +142,322 @@ export default function SettingsPanel() {
   );
 }
 
-/** 智能 AI 配置核心表单（支持自定义接口与模型自动识别） */
+/** 三档模型配置项（截图参考：聊天模型 / 推演模型 / 其他场景） */
+interface ModelTier {
+  id: string;
+  label: string;
+  sub: string;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  fullUrl: boolean;
+  expanded: boolean;
+}
+
+interface ConfigProfile {
+  id: string;
+  name: string;
+  tiers: ModelTier[];
+}
+
+const PROVIDER_OPTIONS = [
+  { value: "custom", label: "自定义 / 自建网关" },
+  { value: "steam", label: "Steam 联机" },
+  { value: "deepseek", label: "DeepSeek 官方" },
+  { value: "openai", label: "OpenAI 官方" },
+  { value: "ollama", label: "本地 Ollama / vLLM" },
+];
+
+function makeDefaultTier(id: string, label: string, sub: string): ModelTier {
+  return {
+    id, label, sub,
+    provider: "custom",
+    baseUrl: "https://apihub.agnes-ai.com",
+    model: "agnes-3.0-flash",
+    apiKey: "",
+    fullUrl: true,
+    expanded: id !== "advanced",
+  };
+}
+
+/** AI 配置表单：多配置切换 + 三档模型（聊天/推演/高级） + 供应商下拉 */
 function AiConfigDirectView({ onClose }: { onClose: () => void }) {
-  const [cfg, setCfg] = useState<AiConfigResult | null>(null);
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
-  const [model, setModel] = useState("deepseek-chat");
-  const [activePreset, setActivePreset] = useState<string>("DeepSeek 官方");
-
-  const baseUrlRef = useRef<HTMLInputElement>(null);
-  const apiKeyRef = useRef<HTMLInputElement>(null);
-
-  // 模型自动识别列表
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [fetchingModels, setFetchingModels] = useState(false);
-
+  const [profiles, setProfiles] = useState<ConfigProfile[]>(() => {
+    try {
+      const raw = localStorage.getItem("songzuo_ai_profiles");
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return [{
+      id: "default",
+      name: "\u9ed8\u8ba4",
+      tiers: [
+        makeDefaultTier("chat", "\u804a\u5929\u6a21\u578b", "\u5927\u81e3\u53ec\u5bf9 \u00b7 \u8bb0\u5fc6\u68c0\u7d22"),
+        makeDefaultTier("sim", "\u63a8\u6f14\u6a21\u578b", "\u6708\u5ea6\u63a8\u6f14 \u00b7 \u7ed3\u7b97\uff08\u601d\u8003\u578b\u6a21\u578b\u66f4\u4f73\uff09"),
+        makeDefaultTier("advanced", "\u5176\u4ed6\u573a\u666f\uff08\u9ad8\u7ea7\uff09", "7 \u6863 \u00b7 \u5df2\u914d 0"),
+      ],
+    }];
+  });
+  const [activeProfileId, setActiveProfileId] = useState("default");
+  const [showKey, setShowKey] = useState(false);
+  const [disableThinking, setDisableThinking] = useState(() =>
+    localStorage.getItem("songzuo_disable_thinking") === "1"
+  );
   const [busy, setBusy] = useState(false);
-  // 迁移补齐：大臣办差工具（function calling）三档（对齐 Tk 设置面板 auto/on/off）
-  const [enableTools, setEnableTools] = useState("auto");
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // 读取已保存的配置
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await getApiClient().getAiConfig();
-        if (!alive) return;
-        setCfg(res);
-        if (res.base_url) setBaseUrl(res.base_url);
-        if (res.model) setModel(res.model);
-        if (res.enable_tools) setEnableTools(res.enable_tools);
-      } catch (e) {
-        console.error("[ai_config]", e);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+  const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
+
+  const persistProfiles = useCallback((next: ConfigProfile[]) => {
+    setProfiles(next);
+    try { localStorage.setItem("songzuo_ai_profiles", JSON.stringify(next)); } catch { /* ignore */ }
   }, []);
 
-  // 自动探测并识别该接口下的所有可用模型
-  async function handleFetchModels() {
-    if (fetchingModels) return;
-    setFetchingModels(true);
-    setMsg(null);
-    try {
-      const res = await getApiClient().fetchModels(apiKey.trim(), baseUrl.trim());
-      if (res.ok && res.models && res.models.length > 0) {
-        setAvailableModels(res.models);
-        // 如果当前模型不在列表里，默认选第一个
-        if (!res.models.includes(model)) {
-          setModel(res.models[0]);
-        }
-        setMsg({ type: "success", text: `成功识别出 ${res.models.length} 个可用模型，请在下方点击或下拉选择。` });
-      } else {
-        setMsg({ type: "error", text: "未能从该接口拉取到模型列表，请确认 Key 与 Base URL 是否正确。" });
-      }
-    } catch (e) {
-      setMsg({ type: "error", text: "探测模型列表失败：" + (e instanceof Error ? e.message : String(e)) });
-    } finally {
-      setFetchingModels(false);
-    }
+  function updateTier(tierId: string, patch: Partial<ModelTier>) {
+    persistProfiles(profiles.map((p) => {
+      if (p.id !== activeProfileId) return p;
+      return { ...p, tiers: p.tiers.map((t) => t.id === tierId ? { ...t, ...patch } : t) };
+    }));
   }
 
-  // 保存并强制在线自检
+  function saveAsProfile() {
+    const name = window.prompt("\u65b0\u914d\u7f6e\u540d\u79f0\uff1a", `\u914d\u7f6e ${profiles.length + 1}`);
+    if (!name?.trim()) return;
+    const id = "p_" + Date.now();
+    const cloned: ConfigProfile = { id, name: name.trim(), tiers: activeProfile.tiers.map((t) => ({ ...t })) };
+    persistProfiles([...profiles, cloned]);
+    setActiveProfileId(id);
+  }
+
+  function deleteProfile() {
+    if (profiles.length <= 1) return;
+    if (!window.confirm(`\u786e\u8ba4\u5220\u9664\u914d\u7f6e\u300c${activeProfile.name}\u300d\uff1f`)) return;
+    const next = profiles.filter((p) => p.id !== activeProfileId);
+    persistProfiles(next);
+    setActiveProfileId(next[0].id);
+  }
+
   async function handleSave() {
     if (busy) return;
     setBusy(true);
     setMsg(null);
     try {
+      const chat = activeProfile.tiers.find((t) => t.id === "chat");
       const res = await getApiClient().setAiConfig(
-        apiKey.trim(), baseUrl.trim(), model.trim(), enableTools);
+        chat?.apiKey.trim() ?? "",
+        chat?.baseUrl.trim() ?? "",
+        chat?.model.trim() ?? "",
+        "auto"
+      );
+      localStorage.setItem("songzuo_disable_thinking", disableThinking ? "1" : "0");
       if (res.ok) {
-        // D 修复：setAiConfig 的返回体不含 has_key/configured/api_key_masked，
-        // 原 `setCfg(res as any)` 整体覆盖 → 保存后界面会错误显示「（未配置）」，
-        // 直到重新拉取。现改为保存成功后回读权威配置（失败则保留旧值）。
-        try {
-          const fresh = await getApiClient().getAiConfig();
-          setCfg(fresh);
-        } catch (cfgErr) {
-          console.warn("[setAiConfig] 回读配置失败，沿用原配置：", cfgErr);
-        }
+        try { await getApiClient().getAiConfig(); } catch { /* ignore */ }
         if (res.available) {
-          setMsg({ type: "success", text: `AI 接口连接成功！${res.message || `当前模型【${model}】在线自检通过。`}` });
+          setMsg({ type: "success", text: `AI \u63a5\u53e3\u8fde\u63a5\u6210\u529f\uff01${res.message || `\u6a21\u578b\u3010${chat?.model}\u3011\u81ea\u68c0\u901a\u8fc7\u3002`}` });
         } else {
-          setMsg({ type: "error", text: `配置已保存，但连通自检未通过：${res.message || "请检查密钥、地址或模型名称。"}` });
+          setMsg({ type: "error", text: `\u914d\u7f6e\u5df2\u4fdd\u5b58\uff0c\u4f46\u8fde\u901a\u81ea\u68c0\u672a\u901a\u8fc7\uff1a${res.message || "\u8bf7\u68c0\u67e5\u5bc6\u94a5\u3001\u5730\u5740\u6216\u6a21\u578b\u540d\u79f0\u3002"}` });
         }
       } else {
-        setMsg({ type: "error", text: "保存配置失败，请确认后端服务运行正常。" });
+        setMsg({ type: "error", text: "\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4\u540e\u7aef\u670d\u52a1\u8fd0\u884c\u6b63\u5e38\u3002" });
       }
     } catch (e) {
-      console.error("[setAiConfig]", e);
-      setMsg({ type: "error", text: "保存失败：" + (e instanceof Error ? e.message : String(e)) });
+      setMsg({ type: "error", text: "\u4fdd\u5b58\u5931\u8d25\uff1a" + (e instanceof Error ? e.message : String(e)) });
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <div className="space-y-3.5">
-      {/* 预设与自定义快捷切换 */}
-      <div>
-        <div className="mb-1.5 flex items-center justify-between font-kai text-xs text-dim">
-          <span className="flex items-center gap-1">
-            <Sparkles size={12} className="text-gold-dark" /> 服务商快捷模版（点击自动预填）：
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDER_PRESETS.map((p) => {
-            const isSelected = activePreset === p.name;
-            return (
-              <button
-                key={p.name}
-                type="button"
-                onClick={() => {
-                  setActivePreset(p.name);
-                  if (p.name.includes("自定义")) {
-                    // 点击自定义时：若当前仍是官方地址则清空，并自动光标聚焦到 Base URL 输入框
-                    if (baseUrl === "https://api.deepseek.com" || baseUrl === "https://api.openai.com/v1" || baseUrl.includes("11434")) {
-                      setBaseUrl("");
-                      setModel("");
-                    }
-                    setTimeout(() => baseUrlRef.current?.focus(), 50);
-                    setMsg({ type: "success", text: "已切换为自定义中转站模式，请在下方输入您的接口地址与模型。" });
-                  } else {
-                    setBaseUrl(p.baseUrl);
-                    setModel(p.model);
-                    setMsg(null);
-                  }
-                }}
-                className={`rounded border p-2 text-left transition cursor-pointer ${
-                  isSelected
-                    ? "border-red bg-red/15 shadow-sm ring-1 ring-red/50"
-                    : "border-gold/40 bg-paper/70 hover:border-gold hover:bg-gold-light/40"
-                }`}
-              >
-                <div className={`font-kai text-xs font-bold truncate ${isSelected ? "text-red-dark" : "text-ink"}`}>
-                  {p.name}
-                </div>
-                <div className="mt-0.5 line-clamp-1 font-sans text-[10px] text-dim">
-                  {p.model || "支持任意网关"}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getApiClient().getAiConfig();
+        if (!alive || !res.base_url) return;
+        persistProfiles(profiles.map((p) => {
+          if (p.id !== activeProfileId) return p;
+          return {
+            ...p,
+            tiers: p.tiers.map((t) => t.id === "chat"
+              ? { ...t, baseUrl: res.base_url, model: res.model || t.model }
+              : t),
+          };
+        }));
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      {/* 核心表单区 */}
-      <div className="space-y-3 rounded-lg border border-gold/40 bg-paper/60 p-4 shadow-paper">
-        {/* API Key */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="font-kai font-medium text-ink">API Key（密钥）</span>
-            <span className="font-sans text-[11px] text-dim">
-              {cfg?.has_key ? "（已配置生效）" : "（未配置）"}
-            </span>
+  function TierCard({ tier }: { tier: ModelTier }) {
+    return (
+      <div className="rounded-lg border border-gold/40 bg-card/80 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="font-kai text-sm font-bold text-ink">{tier.label}</span>
+            <span className="ml-2 text-[11px] text-dim">{tier.sub}</span>
           </div>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={cfg?.has_key ? "保持留空则使用已保存密钥，输入则更新覆盖" : "输入 sk-... 密钥"}
-            className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
-          />
+          <button
+            onClick={() => updateTier(tier.id, { expanded: !tier.expanded })}
+            className="flex items-center gap-1 text-[11px] text-dim hover:text-ink"
+          >
+            {tier.expanded ? "\u66f4\u5c11" : "\u66f4\u591a"}
+            <ChevronRight size={12} className={`transition-transform ${tier.expanded ? "rotate-90" : ""}`} />
+          </button>
         </div>
-
-        {/* Base URL (支持自定义接口) */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="font-kai font-medium text-ink">Base URL（自定义接口地址）</span>
-            <span className="font-sans text-[10px] text-dim">支持任意自定义中转 / OneAPI / 本地网关</span>
-          </div>
-          <input
-            ref={baseUrlRef}
-            type="text"
-            value={baseUrl}
-            onChange={(e) => {
-              setBaseUrl(e.target.value);
-              setActivePreset("自定义中转站 / OneAPI");
-            }}
-            placeholder="如：https://api.deepseek.com 或 https://your-proxy.com/v1"
-            className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
-          />
-        </div>
-
-        {/* Model 与 纯图标识别按钮 */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-kai font-medium text-ink">Model（大模型名称）</span>
-            {/* 自动识别模型：仅保留精致纯图标 */}
-            <button
-              onClick={handleFetchModels}
-              disabled={fetchingModels}
-              title="自动探测并识别该接口下的可用模型列表"
-              className="group flex h-6 w-6 items-center justify-center rounded border border-gold/50 bg-paper text-gold-dark transition hover:border-red hover:bg-gold-light/40 hover:text-red disabled:opacity-50"
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-[11px] text-dim">\u4f9b\u5e94\u5546</label>
+            <select
+              value={tier.provider}
+              onChange={(e) => updateTier(tier.id, { provider: e.target.value })}
+              className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
             >
-              {fetchingModels ? (
-                <Loader2 size={13} className="animate-spin text-red" />
-              ) : (
-                <RefreshCw size={13} className="transition group-hover:rotate-90" />
-              )}
-            </button>
+              {PROVIDER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
-
-          <div className="relative">
+          <div>
+            <label className="text-[11px] text-dim">Base URL</label>
             <input
               type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="如 deepseek-chat 或 qwen-plus"
-              className="w-full rounded border border-gold/40 bg-card px-3 py-1.5 font-sans text-sm text-ink outline-none focus:border-red"
+              value={tier.baseUrl}
+              onChange={(e) => updateTier(tier.id, { baseUrl: e.target.value })}
+              className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
             />
           </div>
-
-          {/* 若识别成功，展示快捷可选模型胶囊 */}
-          {availableModels.length > 0 && (
-            <div className="mt-2 space-y-1 rounded border border-gold/30 bg-card/70 p-2 text-xs">
-              <div className="font-kai text-[11px] text-dim">接口已识别可用模型（点击直接选择）：</div>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                {availableModels.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setModel(m)}
-                    className={`rounded px-2 py-0.5 font-sans text-[11px] transition ${
-                      model === m
-                        ? "bg-red text-paper shadow-sm"
-                        : "bg-paper text-ink-light hover:bg-gold-light hover:text-ink"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <label className="text-[11px] text-dim">Model</label>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={tier.model}
+                onChange={(e) => updateTier(tier.id, { model: e.target.value })}
+                className="mt-0.5 flex-1 rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+              />
+              <button
+                className="mt-0.5 rounded border border-gold/40 px-1.5 text-[11px] text-dim hover:text-ink"
+                title="\u5237\u65b0\u6a21\u578b\u5217\u8868"
+              >
+                <RefreshCw size={11} />
+              </button>
             </div>
-          )}
+          </div>
         </div>
-
-        {/* 迁移补齐：大臣办差工具三档（对齐 Tk 设置面板 auto/on/off） */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-kai font-medium text-ink">大臣办差工具（function calling）</span>
-            <span className="font-sans text-[10px] text-dim">
-              自动＝按端点探测；关闭＝纯文本契约
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {([["auto", "自动（探测端点）"], ["on", "强制开启"], ["off", "关闭"]] as const).map(
-              ([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setEnableTools(val)}
-                  className={`rounded border px-2.5 py-1 font-kai text-xs transition ${
-                    enableTools === val
-                      ? "border-red bg-red/10 text-red-dark"
-                      : "border-gold/40 bg-paper/70 text-ink hover:bg-gold-light/40"
-                  }`}
-                >
-                  {label}
-                </button>
-              )
-            )}
-          </div>
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-[11px] text-dim">API Key</label>
+          <input
+            type={showKey ? "text" : "password"}
+            value={tier.apiKey}
+            onChange={(e) => updateTier(tier.id, { apiKey: e.target.value })}
+            placeholder={tier.apiKey ? "\u5df2\u8bbe\u7f6e\uff0c\u7559\u7a7a\u4fdd\u7559" : "\u8f93\u5165 Key"}
+            className="flex-1 rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+          />
+        </div>
+        <div className="mt-1.5 flex items-center gap-3">
+          <label className="flex items-center gap-1 text-[11px] text-ink">
+            <input
+              type="checkbox"
+              checked={tier.fullUrl}
+              onChange={(e) => updateTier(tier.id, { fullUrl: e.target.checked })}
+              className="accent-red"
+            />
+            \u5b8c\u6574 URL\uff08\u4e0d\u81ea\u52a8\u8865 /v1\uff09
+          </label>
         </div>
       </div>
+    );
+  }
 
-      {/* 状态与反馈信息 */}
-      {msg && (
-        <div
-          className={`flex items-start gap-2 rounded-lg border p-3 text-xs leading-relaxed font-kai ${
-            msg.type === "success"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800"
-              : "border-red/40 bg-red/10 text-red-dark"
-          }`}
+  return (
+    <div className="space-y-4">
+      {/* 说明 */}
+      <p className="text-xs leading-relaxed text-dim">
+        \u4fdd\u5b58\u540e\u7acb\u5373\u751f\u6548\uff0c\u4e0b\u6b21\u542f\u52a8\u81ea\u52a8\u6cbf\u7528\u3002\u5404\u6863 API Key \u7559\u7a7a\u5219\u4fdd\u7559\u5f53\u524d\u3002
+        \u63a8\u6f14 / \u7ed3\u7b97 / \u5404\u7ed3\u7b97\u6a21\u5757\u53ef\u5206\u522b\u914d\u72ec\u7acb\u6e20\u9053\u3001\u6a21\u578b\u4e0e\u601d\u8003\u6863\uff08\u7559\u7a7a\u56de\u9000\u4e0a\u7ea7\uff09\u3002
+      </p>
+
+      {/* 配置切换 */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-kai text-ink">\u914d\u7f6e</span>
+        <select
+          value={activeProfileId}
+          onChange={(e) => setActiveProfileId(e.target.value)}
+          className="flex-1 rounded border border-gold/40 bg-card px-2 py-1.5 text-sm text-ink"
         >
-          {msg.type === "success" ? (
-            <CheckCircle2 size={16} className="shrink-0 text-emerald-600 mt-0.5" />
-          ) : (
-            <AlertCircle size={16} className="shrink-0 text-red mt-0.5" />
-          )}
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <button
+          onClick={saveAsProfile}
+          className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-gold-light"
+        >
+          <Save size={12} className="mr-0.5 inline" />\u53e6\u5b58\u4e3a
+        </button>
+        <button
+          onClick={deleteProfile}
+          disabled={profiles.length <= 1}
+          className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-red/10 disabled:opacity-40"
+        >
+          <Trash2 size={12} className="mr-0.5 inline" />\u5220\u9664
+        </button>
+        <button
+          onClick={() => setShowKey(!showKey)}
+          className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-gold-light"
+        >
+          {showKey ? <EyeOff size={12} className="mr-0.5 inline" /> : <Eye size={12} className="mr-0.5 inline" />}
+          {showKey ? "\u9690\u85cf Key" : "\u663e\u793a Key"}
+        </button>
+      </div>
+
+      {/* 三档模型 */}
+      <div className="space-y-3">
+        {activeProfile.tiers.map((tier) => (
+          <TierCard key={tier.id} tier={tier} />
+        ))}
+      </div>
+
+      {/* 底部选项 */}
+      <label className="flex items-center gap-2 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={disableThinking}
+          onChange={(e) => setDisableThinking(e.target.checked)}
+          className="accent-red"
+        />
+        \u5173\u6389\u6708\u672b\u63a8\u6f14\u601d\u8003\uff08\u66f4\u5feb\uff09
+      </label>
+
+      {/* 状态提示 */}
+      {msg && (
+        <div className={`flex items-start gap-2 rounded-lg border p-3 text-xs leading-relaxed ${
+          msg.type === "success"
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800"
+            : "border-red/40 bg-red/10 text-red-dark"
+        }`}>
+          {msg.type === "success"
+            ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600 mt-0.5" />
+            : <AlertCircle size={16} className="shrink-0 text-red mt-0.5" />}
           <span>{msg.text}</span>
         </div>
       )}
 
-      {/* 操作按钮区 */}
+      {/* 操作按钮 */}
       <div className="flex items-center justify-between pt-1">
         <button
           onClick={onClose}
-          className="rounded border border-gold/40 bg-paper/60 px-4 py-1.5 font-kai text-xs text-ink transition hover:bg-gold-light"
+          className="rounded border border-gold/40 bg-paper/60 px-4 py-1.5 font-kai text-xs text-ink hover:bg-gold-light"
         >
-          关闭
+          \u5173\u95ed
         </button>
         <button
           onClick={handleSave}
           disabled={busy}
-          className="flex items-center gap-2 rounded-lg bg-red px-6 py-2 font-kai text-sm font-bold tracking-widest text-paper shadow-card transition hover:bg-red-dark disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-red px-6 py-2 font-kai text-sm font-bold tracking-widest text-paper shadow-card hover:bg-red-dark disabled:opacity-50"
         >
           {busy && <Loader2 size={15} className="animate-spin" />}
-          {busy ? "连通测试中…" : "保存并在线自检"}
+          {busy ? "\u8fde\u901a\u6d4b\u8bd5\u4e2d\u2026" : "\u4fdd\u5b58\u5e76\u5728\u7ebf\u81ea\u68c0"}
         </button>
       </div>
     </div>

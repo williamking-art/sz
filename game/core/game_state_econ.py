@@ -312,7 +312,16 @@ class GameStateEconMixin:
         """本月财政预估读数（供会计录只读奏报台，GUI 与终端共用，避免两处口径漂移）。
 
         口径与 _settle_finance 一致：名义岁入（账面） vs 实际到库（按月结算）。
-        差额即"隐漏与拖欠"——把漏出做成可见读数，呼应田赋隐漏。
+
+        **P2-2 口径注记（2026-09-19）**：`nominal_annual` 只是**三项账面**（工商·役钱·市舶，
+        贴史实年额），而 `monthly_in` 是**五项月度应征**（另加二税折色、盐课），二者**不同口径**，
+        不可直接相除；`nominal_annual/12 − monthly_in` 也不是"隐漏与拖欠"（开局为**负值**，
+        −682,098贯/月，漏出不可能为负）。故本函数**新增** `nominal_annual_full` /
+        `monthly_in_taxed` / `arrival_ratio_taxed` / `arrival_ratio_full` /
+        `arrival_ratio_cross_scope`（旧面板跨口径原值，仅作诊断）/ `mechanism_arrival_rate` /
+        `arrival_ratio_scope*` 单点派生字段：前端直读比率、不再自行相除，避免多口径复制。
+        三个比率**分子分母各自同科目**（跨口径旧值单列保留、不得当"到账率"用）。
+        既有字段取值与语义**一概不变**。
         """
         from content.data import (
             COMMERCE_TAX_RATE_DEFAULT,
@@ -370,12 +379,70 @@ class GameStateEconMixin:
             effective_cash_out = 0
         else:
             effective_cash_out = personnel_cash
-        # 加俸预算消耗（与 _settle_finance 同源：min(payraise_budget, 吏俸缺口+10000)）
+        # 加俸预算消耗（与 _settle_finance 同源口径：M2 定稿 (a) 后池是**真实分账基金**，
+        # 发放额只作读数展示，**不再计入 total_out** —— 它已由池支付并落入官僚 POP，
+        # 再计一次支出即重复计账）。
         clerk_gap_total, _ = self.calc_clerk_gap()
         payraise_used = min(self.payraise_budget, int(clerk_gap_total) + 10_000)
         monthly_in = commerce_tax + poll_tax + maritime_tax + tax_color_total + salt_coin
         total_out = (expenditure + effective_cash_out
-                     + int(corruption_cash_ded) + payraise_used + sui_gong)
+                     + int(corruption_cash_ded) + sui_gong)
+
+        # ---- P2-2（会计指标口径核对）：到账率**收敛为单点派生**，前端不再自行相除 ----
+        # 为什么要有这一段：`nominal_annual` 只覆盖**三项**（工商·役钱·市舶），
+        # `monthly_in` 却覆盖**五项**（另加二税折色、盐课）。前端原来自行算
+        # `monthly_in / (nominal_annual/12)`，分母缺了二税折色与盐课——开局这两项
+        # 合计 1,578,554 贯/月，占分子 **50.9%** —— 于是比值必然 >100%：
+        # 开局实测 3,098,770 ÷ (29,000,060 ÷ 12) = **128.2%**（走查截图同值）。
+        # 更早一步，`diff = nominal_annual/12 − monthly_in = −682,098贯/月` 被面板当作
+        # 「隐漏与拖欠」输出 → 出现**负的隐漏**，自相矛盾（漏出不可能为负）。
+        # 修法：**不动**任何机制常量、**不改** `nominal_annual` 的取值口径与字段语义，
+        # 只在此处补**同口径分母**与比率读数，前端直读（单点口径，杜绝算法复制）。
+        # 应征额反推：`calc_monthly_tax_income`（二税折色）与 `calc_salt_coin`（盐课）
+        # 的月额**已乘 arrival**，故 ÷ arrival × 12 即回年度应征额；arrival 可能为 0 或
+        # 缺失（损坏存档）→ 用 max(arrival, ARRIVAL_MIN) 兜底，并保证结果为有限值：
+        # 科目为 0 时该项为 0（不做无意义反推）。
+        import math as _math   # 局部导入（本文件既有风格：函数内按需 import）
+        try:
+            _arr = float(arrival)
+        except (TypeError, ValueError):
+            _arr = ARRIVAL_MIN
+        if not _math.isfinite(_arr) or _arr < ARRIVAL_MIN:
+            _arr = ARRIVAL_MIN
+        tax_color_annual = (float(tax_color_total) / _arr * 12.0) if tax_color_total else 0.0
+        salt_annual = (float(salt_coin) / _arr * 12.0) if salt_coin else 0.0
+        # 五项全口径年度应征（**新增**派生量；不是对 nominal_annual 的改写）
+        nominal_annual_full = nominal_annual + tax_color_annual + salt_annual
+        # 三税（工商·役钱·市舶）月度应征合计：供前端 tooltip 展示"同口径分子"，
+        # 免得前端为写等式再自行相加（前端不复制算法）。
+        monthly_in_taxed = commerce_tax + poll_tax + maritime_tax
+        _den_taxed = nominal_annual / 12.0          # 三税口径：三项账面月额
+        _den_full = nominal_annual_full / 12.0      # 五科目口径：五项应征月额
+        # 分母为 0（极端存档）→ None（缺失语义：前端显示"未定义"）；
+        # **禁止**回落 0 或 1.0 假装无事（1.0 会让"到账完美"成为默认）。
+        # 口径纪律：**分子与分母必须同科目**，否则又回到本次要修的"跨口径比值"。
+        #   arrival_ratio_taxed ＝ 三税应征 ÷ 三税账面月额（分子分母都是三税）
+        #   arrival_ratio_full  ＝ 五项应征 ÷ 五项应征月额（分子分母都是五项）
+        # 注：任务书初稿把 arrival_ratio_taxed 写成 `monthly_in / (nominal_annual/12)`
+        #   （＝五科目÷三税，开局 128.2%），那正是本次要修的跨口径比值本身，与
+        #   tooltip 要求的"成立等式（≈64.6%）"矛盾；故此处按**同口径**实现，跨口径旧值
+        #   另立 arrival_ratio_cross_scope 保留（仅作诊断/回归凭证，**不得**当到账率显示）。
+        #   实测同口径三税值 62.9%（＝1,520,216 ÷ 2,416,672），与走查所记 64.625% 的差
+        #   来自**役钱基数不同源**：三税实际役钱按**应役丁**（7,228,339/年），而
+        #   `nominal_annual` 的役钱项按 ANNUAL_TAX_BASE×POLL_TAX_NOMINAL_SHARE（8,000,000/年）；
+        #   64.625% 正是 arrival×TAX_COEFF（1.1）——只对工商项精确成立（1,130,940÷(21,000,060/12)）。
+        #   改名义岁入役钱基数属机制改动，本轮不做（见交付说明"遗留/需用户裁决"）。
+        arrival_ratio_taxed = (monthly_in_taxed / _den_taxed) if _den_taxed > 0 else None
+        arrival_ratio_full = (monthly_in / _den_full) if _den_full > 0 else None
+        # 旧面板算法原值（跨口径：分子五科目、分母三税账面）——开局 128.2%。
+        # 保留它只为「可复现旧读数 + 回归断言」，UI 一律不得据此称"到账率"。
+        arrival_ratio_cross_scope = (monthly_in / _den_taxed) if _den_taxed > 0 else None
+        # 机制到账率（隐漏/胥吏侵蚀/钱荒后的折扣系数）＝ 二税折色、盐课实收的隐含折扣，
+        # 也是 `calc_arrival_rate()` 的当月值；供 tooltip 解释"为何二税折色/盐课口径 = 58.8%"。
+        # 缺失（非有限值）→ None（不伪造 1.0）。
+        mechanism_arrival_rate = _arr if _math.isfinite(_arr) else None
+        scope_taxed = "三税（工商·役钱·市舶）——不含二税折色与盐课"
+        scope_full = "五科目（工商·役钱·市舶·二税折色·盐课）"
 
         # ---- 后端权威定性字段（前端一律读这里，杜绝多口径重复与真实层泄漏）----
         # 钱荒定性：统一走 desensitize_shortage（与仓廪页/状态条同源）
@@ -399,6 +466,33 @@ class GameStateEconMixin:
 
         return {
             "nominal_annual": nominal_annual,      # 名义岁入（贯/年，账面）
+            # ---- P2-2 新增单点派生（既有字段一律原值/原语义，机制常量未动）----
+            # `nominal_annual_full`：**五项全口径**年度应征 = nominal_annual（三项账面）
+            #   + 二税折色应征年 + 盐课应征年。与旧「名义岁入」不同的**唯一原因**就是
+            #   它多含二税折色与盐课；旧比值之所以 >100%，正是分母缺这两项所致。
+            # `monthly_in_taxed`：**三税**（工商·役钱·市舶）月度应征合计，即
+            #   `nominal_annual` 那三项在月度侧的同科目分子。
+            # `arrival_ratio_taxed`：**三税口径**到账率 = 三税应征 ÷ (三税账面年额÷12)，
+            #   覆盖 工商·役钱·市舶，**分子分母同科目**（开局 62.9%）。分母为 0 → None。
+            #   （不是 monthly_in/(nominal_annual/12)：那是跨口径比值，见下一字段。）
+            # `arrival_ratio_full`：**五科目口径**到账率 = monthly_in ÷ (nominal_annual_full/12)，
+            #   分子分母同口径（覆盖 工商·役钱·市舶·二税折色·盐课；开局 60.7%）。分母为 0 → None。
+            # `arrival_ratio_cross_scope`：**旧面板算法原值**（分子五科目 ÷ 分母三税账面）
+            #   = 开局 **128.2%**。它的存在本身就是"分母缺二税折色与盐课 → 比值 >100%
+            #   → 差额为负却被当『隐漏与拖欠』"这条自相矛盾的凭证；**仅作诊断与回归**，
+            #   UI 不得把它当"到账率"显示。
+            # `mechanism_arrival_rate`：机制到账率（隐漏/钱荒后的折扣系数），供 tooltip 解释。
+            # `arrival_ratio_scope*`：上面比率各自覆盖的科目（中文可读，前端直取，
+            #   不再各处自写口径）；两处均**明写不含二税折色与盐课**，以免再被当成同一比率。
+            "nominal_annual_full": nominal_annual_full,
+            "monthly_in_taxed": monthly_in_taxed,
+            "arrival_ratio_taxed": arrival_ratio_taxed,
+            "arrival_ratio_full": arrival_ratio_full,
+            "arrival_ratio_cross_scope": arrival_ratio_cross_scope,
+            "mechanism_arrival_rate": mechanism_arrival_rate,
+            "arrival_ratio_scope": f"{scope_taxed}｜{scope_full}",
+            "arrival_ratio_scope_taxed": scope_taxed,
+            "arrival_ratio_scope_full": scope_full,
             "commerce": commerce_tax,              # 月工商税（实际到库）
             "poll": poll_tax,                      # 月役钱
             "maritime": maritime_tax,              # 月市舶抽解
@@ -412,7 +506,12 @@ class GameStateEconMixin:
             "corruption_ded": corruption_cash_ded, # 月吏俸缺口贪腐扣减（隐性，不进UI明细）
             "cash_out": cash_out,                  # 月折色俸禄（旧口径兜底）
             "sui_gong": sui_gong,                  # 月岁币
-            "total_out": total_out,                # 月支出合计
+            # 审查 M2：加俸发放额**单列**（池支出 → 官僚 POP 收款）。
+            # 它**不在** `total_out` 里（池是钱、已直接付给官吏，非国库支出）；
+            # 单列供面板显示"本月加俸发放多少"，避免读者以为漏计。
+            "payraise_disbursed": payraise_used,
+            "payraise_pool": self.payraise_budget,
+            "total_out": total_out,                # 月支出合计（不含 payraise，见上）
             "net": monthly_in - total_out,         # 月结余（正=结余 负=亏空）
             "imperial_treasury": self.imperial_treasury,   # 内帑余额（甲口径：抽成+酒课）
             "wine_coin": WINE_COIN_BASE,           # 月酒课（进内帑）

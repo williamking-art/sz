@@ -40,6 +40,26 @@ def _new_state():
     return GameState("史实")
 
 
+def _mg(s, route="京畿路"):
+    """取某路**商人 POP `goods`**（E-1 后建材在这里）。"""
+    return s.prefectures[route]["pops"]["商人"]["goods"]
+
+
+def _stock_local(s, dim14, qty, route="京畿路"):
+    """往**本地商人货栈**放建材。
+
+    🔴 E-1（用户 2026-10-02「建材也是商品啊」）：建材是**商品**，存量落在
+    **商人 POP `goods`**（POP 挂载律），不再在仓里。
+    施工侧（C-c）仍**只从本地取、取不到即缺料** ⇒ 物流仍有意义。
+    """
+    from core.material_holding import to_material_dim
+    mdim = to_material_dim(dim14)
+    assert mdim, f"{dim14!r} 应能翻译为建材维度"
+    goods = s.prefectures[route]["pops"]["商人"]["goods"]
+    goods[mdim] = int(qty)
+    return mdim
+
+
 def _pop_wealth(s):
     return sum(int(pp.get("wealth", 0) or 0)
                for p in s.prefectures.values() for pp in p["pops"].values())
@@ -93,8 +113,7 @@ def test_project_material_shortage_degrades_by_supply_ratio():
     """九项声明齐全时，材料不足按供给率同比例消耗与推进（不静默完成）。"""
     s = _new_state()
     s.treasury = 1_000_000
-    s.resources.setdefault("铁", {"stock": 50, "cap": 100_000})
-    s.resources["铁"]["stock"] = 50
+    mdim = _stock_local(s, "铁", 50)
     s.projects["p1"] = _full_project(
         cost_material={"铁": 100}, cost_coin=0, speed=20)
     log = []
@@ -102,7 +121,7 @@ def test_project_material_shortage_degrades_by_supply_ratio():
     p1 = s.projects["p1"]
     assert p1["progress"] == 10, f"供给率 0.5 应降效推进 10，实际 {p1['progress']}"
     assert not p1.get("done"), "降效不得静默完工"
-    assert s.resources["铁"]["stock"] == 0, "材料应按供给率同比例消耗"
+    assert _mg(s)[mdim] == 0, "材料应按供给率同比例消耗"
     assert any("降效" in m for m in log), "降效必须留痕"
 
 
@@ -133,7 +152,7 @@ def test_project_coin_is_conserving_transfer_and_enters_operating():
     """营造款：国库照扣、全额入民间 POP wealth、ΔM_ALL==0；完工转 operating。"""
     s = _new_state()
     s.treasury = 5_000_000
-    s.resources.setdefault("铁", {"stock": 10_000, "cap": 100_000})
+    mdim = _stock_local(s, "铁", 10_000)
     s.projects["p1"] = _full_project(
         progress=90, speed=20, cost_material={"铁": 100}, cost_coin=500_000)
     w0, m0, t0 = _pop_wealth(s), money.m_all(s), s.treasury
@@ -145,7 +164,7 @@ def test_project_coin_is_conserving_transfer_and_enters_operating():
     assert t0 - s.treasury == 500_000, "财政成本丢失（国库未扣）"
     assert _pop_wealth(s) - w0 == 500_000, "工程款未回流民间（无对手方销毁）"
     assert money.m_all(s) - m0 == 0, "工程款破坏货币守恒"
-    assert s.resources["铁"]["stock"] == 9_900, "材料未扣"
+    assert _mg(s)[mdim] == 9_900, "材料未扣"
 
 
 def test_operating_project_degrades_on_maintenance_arrears_then_recovers():

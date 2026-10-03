@@ -74,8 +74,14 @@ def test_era_uplink_build_speed():
 
 
 def test_era_damage_and_memory():
-    """战乱毁损（level 降/移除）+ 记忆记录（building 实体 + 兴衰事件）。"""
+    """战乱毁损（level 降/移除）+ 记忆记录（building 实体 + 兴衰事件）。
+
+    2026-10-11：开局 `buildings` 不再为空（B2-R4 接线补缺配置了农业资产类建筑），
+    故本测试**显式清空**以隔离"只损毁被设定的实体"这一意图。
+    """
     s = _new_state()
+    for _p in s.prefectures.values():
+        _p["buildings"] = {}
     s.prefectures["京畿路"]["buildings"] = {"农田": 3, "商铺": 1}
     d = damage_buildings(s, [], reason="金兵南下")
     assert d == 2

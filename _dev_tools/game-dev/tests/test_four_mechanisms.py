@@ -162,6 +162,9 @@ def test_estate_roundtrip():
     assert len(s2.investments) == 1
     assert s2.minister_estate["蔡京"]["wealth"] == ESTATE_INIT["蔡京"]["wealth"]
     for p in s2.prefectures.values():
-        assert "buildings" in p and p["buildings"] == {}
+        # 2026-10-11：开局 `buildings` 不再为空（B2-R4 接线补缺配置了农业资产类建筑），
+        # 此处改为验证 **buildings 正确落档**（原断言 `== {}` 是开局面貌的顺带检查）。
+        assert "buildings" in p and isinstance(p["buildings"], dict), \
+            f"buildings 应随档序列化，实际 {p.get('buildings')!r}"
     if os.path.exists(_slot_path(2)):
         os.remove(_slot_path(2))

@@ -122,12 +122,14 @@ export class MarkerManager {
       // 先按数据侧可见性与档位过滤
       if (!l.visible || zoom < l.tier) {
         l.el.classList.add("lbl-hidden");
+        l.marker.setOffset([0, 0]);
         continue;
       }
       const p = this.map.project(l.lngLat);
       if (p.x < -60 || p.y < -30 || p.x > this.map.getContainer().clientWidth + 60 ||
           p.y > this.map.getContainer().clientHeight + 30) {
         l.el.classList.add("lbl-hidden"); // 视口外，无需参与避让
+        l.marker.setOffset([0, 0]);
         continue;
       }
       const rect = l.el.getBoundingClientRect();
@@ -140,10 +142,35 @@ export class MarkerManager {
       const finalW = Math.max(actualW, estimatedW);
       const finalH = Math.max(rect.height || l.el.offsetHeight, fontSize + 8);
 
+      // P2-1：**边缘标签防裁切**（动态避让的第三层）。
+      // 原实现只按"锚点是否在视口外 ±60px"过滤 → 锚点刚进视口的长标签（如边缘政权/海岛名）
+      // 会被地图容器 `overflow:hidden` 切掉半截，既看不全也点不准。现按标签**包围盒**
+      // 推回安全区：用 MapLibre 官方 `Marker.setOffset()` 平移（不用改 el.style.transform——
+      // 那个由 Marker 每帧重写，改了会被冲掉）。安全区同时避开顶部资源条与底部功能栏，
+      // 以免"向内推"之后又被 HUD 盖住。
+      const cw = this.map.getContainer().clientWidth;
+      const ch = this.map.getContainer().clientHeight;
+      const SIDE_SAFE = 8, TOP_SAFE = 76, BOTTOM_SAFE = 112;
+      const halfW = finalW / 2, halfH = finalH / 2;
+      let dx = 0;
+      let dy = 0;
+      const minX = SIDE_SAFE + halfW, maxX = cw - SIDE_SAFE - halfW;
+      if (minX <= maxX) {
+        if (p.x < minX) dx = minX - p.x;
+        else if (p.x > maxX) dx = maxX - p.x;
+      }
+      const minY = TOP_SAFE + halfH, maxY = ch - BOTTOM_SAFE - halfH;
+      if (minY <= maxY) {
+        if (p.y < minY) dy = minY - p.y;
+        else if (p.y > maxY) dy = maxY - p.y;
+      }
+      l.marker.setOffset([dx, dy]);
+
       boxes.push({
         key: i,
-        x: p.x,
-        y: p.y,
+        // 碰撞判定用**推回后**的位置：否则被推回的两个边缘标签会互相压住却都显示。
+        x: p.x + dx,
+        y: p.y + dy,
         w: finalW,
         h: finalH,
         priority: l.priority

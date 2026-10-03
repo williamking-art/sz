@@ -33,6 +33,41 @@ export const TIER = {
   town: 4.6
 } as const;
 
+/** 地形晕渲瓦片开关（P1-2 处置方案 B）。
+ *
+ * `frontend/public/map/tiles/hill/` **目录不存在**（不是"空目录"），而
+ * `mapController` 仍声明 `${MAP_BASE_URL}/tiles/hill/{z}/{x}/{y}.png`：
+ * 开发版与安装版（`app://songzuo/map/...` → 404）都会**每一块瓦片持续 404**。
+ *
+ * 现状选择"禁用图层 + 消除 404"（可逆、零资源/授权风险）：
+ *   · 恢复瓦片需联网跑 `game/fetch_hillshade.py`（ESRI World Hillshade，再分发条款未核），
+ *     且脚本只产 z5–7 而源声明 z4–8（z4/z8 仍会 404），还须把瓦片变成可复现构建产物；
+ *   · 缺此层仅失去地形晕渲（`frontend/README.md` 已明示其余功能不受影响）。
+ * 若日后瓦片入库，把本常量改回 `true` 即可恢复（source 与 layer 同时受其控制）。
+ */
+export const HILL_TILES_ENABLED = false;
+
+/**
+ * 府级（州府）边界线开关（P1-2 接入）。
+ *
+ * 数据来自权威生成产物 `game/assets/map/web/prefecture_borders.geojson`（127 块，
+ * 与路级同一次闭合、同批次），构建期拓扑化为 `public/map/prefecture_borders.topojson`
+ * （**独立文件**，不并入 `regions.topojson`，避免推高首帧 `JSON.parse` 成本）。
+ *
+ * 口径（为什么不与路界抢视觉）：
+ *   · **只加线、不加填充**——不加府级 fill 层，避免叠色与命中竞争（填色仍按路）；
+ *   · 线宽/色阶低于路界（`TIER`/`inkLight`、`minzoom 5.2`），路界仍为主导层级；
+ *   · **不注册 click**，故政区详情/命中测试行为与接入前完全一致。
+ *
+ * 已知限制：137 个治所中有 11 个（含荆湖北路·澧州）在现代地级质心最近邻判定下
+ * 未获独立块 → 该处无府界可绘。修它需改生成算法（`build_map_basemap.py` 归属判定），
+ * 会改变逐府人口/田亩/月税摊派，属核心模拟改动，留待设计确认后单独处理。
+ */
+export const PREFECTURE_BORDERS_ENABLED = true;
+
+/** 府界可见/加载的最低 zoom（单一来源：图层 `minzoom` 与 MapView 懒加载门槛共用）。 */
+export const PREFECTURE_BORDERS_MIN_ZOOM = 5.2;
+
 export const LAYER_IDS = {
   land: "land",
   hill: "hill",
@@ -40,6 +75,7 @@ export const LAYER_IDS = {
   rivers: "rivers",
   circuits: "circuits",
   circuitBorders: "circuit-borders",
+  prefectureBorders: "prefecture-borders",
   regimes: "regimes",
   regimeBorders: "regime-borders",
   cities: "cities",
@@ -57,12 +93,14 @@ export function buildLayerDefs() {
       paint: { "fill-color": THEME.landGold, "fill-opacity": 0.55 }
     },
     // 地形晕渲（山脉立体感，半透明叠于陆地之上、政区之下）
-    {
+    // 开关见 `HILL_TILES_ENABLED`：瓦片目录缺失时**整层不建**（连 source 也不声明），
+    // 否则每一块瓦片都会向 app://songzuo/map/tiles/hill/… 发一次 404。
+    ...(HILL_TILES_ENABLED ? [{
       id: LAYER_IDS.hill,
       type: "raster" as const,
       source: "hill",
       paint: { "raster-opacity": 0.42 }
-    },
+    }] : []),
     // 湖泊
     {
       id: LAYER_IDS.lakes,
@@ -94,6 +132,19 @@ export function buildLayerDefs() {
       source: "borders",
       paint: { "line-color": THEME.goldDark, "line-width": 1.1, "line-opacity": 0.55 }
     },
+    // 府级（州府）边界：**细于路界、压在其下**（本数组顺序 = z-order，故排在此处即低于
+    // 上述路界）。只在 zoom ≥ 5.2 显现，避免全览时线网过密；数据懒加载（见 MapView）。
+    ...(PREFECTURE_BORDERS_ENABLED ? [{
+      id: LAYER_IDS.prefectureBorders,
+      type: "line" as const,
+      source: "prefecture_borders",
+      minzoom: 5.2,
+      paint: {
+        "line-color": THEME.inkLight,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.35, 8, 0.8],
+        "line-opacity": 0.45
+      }
+    }] : []),
     // 境外势力
     {
       id: LAYER_IDS.regimes,

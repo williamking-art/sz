@@ -23,6 +23,13 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "_shot-dist"),
     emptyOutDir: true,
-    rollupOptions: { input: resolve(__dirname, "scripts/shot/panel.html") },
+    rollupOptions: {
+      input: {
+        panel: resolve(__dirname, "scripts/shot/panel.html"),
+        // P2-1：HUD 四区（顶部资源条/左上在办/右侧入口/底部功能栏）叠在舆图占位上，
+        // 用不同 --window-size 截图核对窄窗裁切与小窗遮挡。
+        hud: resolve(__dirname, "scripts/shot/hud.html"),
+      },
+    },
   },
 });

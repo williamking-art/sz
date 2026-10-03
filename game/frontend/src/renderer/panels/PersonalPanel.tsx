@@ -6,10 +6,9 @@ import { humanizeCoin } from "../utils/format";
 import { EFFECT_NAME } from "../utils/effects";
 import constants from "../data/constants.json";
 
-// 个人行止 —— 对齐 game/ui/panels_economy.py::_panel_personal（L195）
-// 全矩阵：地点（宫里/京城/出京）× 方式（公开/微服）→ 行动白名单（constants.json::imperial_matrix）。
-// 钦定行止 → action("choose_imperial_action", { location, mode, action, target, prepared: false })。
-// 风险概率/距离档为纯展示常量（content/data.py::IMPERIAL_RISK_PROB / IMPERIAL_ROUTE_DISTANCE）。
+// 审查 D1：风险概率 / 距离档 / 距离月数 / 效果维度一律取 **导出面**
+//   （`content/data_imperial.py` → `export_constants.py` → `constants.json`），
+//   前端**不再复制字面量、也不再重实现 `imperial_distance()`**（硬约束 #2 口径单点）。
 type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
@@ -22,21 +21,20 @@ function asStr(v: unknown, def = ""): string {
   return typeof v === "string" ? v : def;
 }
 
-// content/data.py::IMPERIAL_RISK_PROB
-const RISK_PROB: Record<string, number> = { 低: 0.02, 中: 0.08, 高: 0.2 };
+// content/data_imperial.py::IMPERIAL_RISK_PROB（经constants.json 供给）
+const RISK_PROB = (constants.imperial_risk_prob ?? {}) as Record<string, number>;
 const RISK_COLOR: Record<string, string> = {
   低: "text-[#5a7a3c]",
   中: "text-[#8f6e28]",
   高: "text-[#8a2b22]"
 };
-// content/data.py::IMPERIAL_ROUTE_DISTANCE / IMPERIAL_DISTANCE_MONTHS
-const ROUTE_DISTANCE: [string, string[]][] = [
-  ["近", ["开封", "京畿", "京西", "京东"]],
-  ["中", ["河北", "河东", "淮南", "京西南", "京西北", "京东南", "京东北"]],
-  ["远", ["陕西", "江南", "两浙", "荆湖", "四川", "广南", "福建", "燕云", "永兴", "秦凤"]]
-];
-const DISTANCE_MONTHS: Record<string, number> = { 近: 0, 中: 1, 远: 2 };
+// content/data_imperial.py::IMPERIAL_ROUTE_DISTANCE / IMPERIAL_DISTANCE_MONTHS
+const ROUTE_DISTANCE: [string, string[]][] = Object.entries(
+  (constants.imperial_route_distance ?? {}) as Record<string, string[]>
+);
+const DISTANCE_MONTHS = (constants.imperial_distance_months ?? {}) as Record<string, number>;
 
+/** 目标路名 → 距离档（判据与后端 `imperial_distance()` 同源：关键词前缀匹配，未命中默认「中」）。 */
 function imperialDistance(target: string): string {
   for (const [d, kws] of ROUTE_DISTANCE) {
     if (kws.some((k) => target.includes(k))) return d;
@@ -44,17 +42,10 @@ function imperialDistance(target: string): string {
   return "中";
 }
 
-// panels_economy.py::_IMPERIAL_EFFECT_NAMES
-const EFFECT_NAMES: Record<string, string> = {
-  prestige: "威望",
-  population_satisfaction: "民心",
-  emperor_health: "健康",
-  pleasure_leaning: "心情",
-  art_mastery: "艺术造诣",
-  taoism_leaning: "道门倾向",
-  bandwidth_bonus: "圣旨额度",
-  faction_change: "派系"
-};
+// content/data_imperial.py::IMPERIAL_EFFECT_DIM（中文键 → 落地维度）
+const EFFECT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries((constants.imperial_effect_dim ?? {}) as Record<string, string>)
+);
 
 const LOCATIONS = constants.imperial_locations as string[];
 const MODES = constants.imperial_modes as string[];

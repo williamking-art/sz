@@ -3,8 +3,13 @@ import { Loader2, Users2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import { humanizeCoin } from "../utils/format";
+import { SectionHead, StatCard, GoldDivider } from "../components/PanelKit";
 
-// 会计录 —— 对齐 game/ui/panels_economy.py::_panel_accounting（L1214）
+// 会计录 —— 后端权威读数走 `/api/readouts::finance`
+//（实现：`core/game_state_econ.py::finance_readout`，账目分项与结算同源）。
+// P2-2（会计指标口径核对）：Tk 版 `game/ui/panels_economy.py` 已随 GUI 迁移废弃、
+// 该文件现已不存在，故不再作为对齐目标；到账率等**比率一律直读后端派生字段**，
+// 本文件不复算，避免多口径漂移与"同名不同义"。
 // 名义岁入 vs 实际到库、月用度、库藏/货币/物价读数；派生读数走 /api/readouts::finance。
 // 三冗不可见不可直裁——用度只呈总盘，对治须走变法长期政务。
 type Dict = Record<string, unknown>;
@@ -15,9 +20,21 @@ function asDict(v: unknown): Dict {
 function asNum(v: unknown, def = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : def;
 }
+// P2-2：比率字段的**缺失语义**——后端分母为 0 时给 null，此处必须保持 null
+//（显示「未定义」），不得回落 0 或 1.0（1.0 会让"到账完美"成为默认）。
+function asRatio(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function fmtRatio(v: number | null): string {
+  return v === null ? "未定义" : `${(v * 100).toFixed(1)}%`;
+}
+// 口径说明串由后端下发（单点口径）；仅在后端缺字段时用同文案兜底。
+function asText(v: unknown, def: string): string {
+  return typeof v === "string" && v.trim() ? v : def;
+}
 
 function SectionTitle({ text }: { text: string }) {
-  return <p className="font-kai text-[15px] font-bold tracking-[0.3em] text-red">{text}</p>;
+  return <SectionHead text={text} />;
 }
 
 // 征率 0~1 小数 → 中文/百分比展示（Tk _format_rate）
@@ -110,10 +127,22 @@ export default function AccountingPanel() {
   }
 
   const nominalAnnual = asNum(fin.nominal_annual);
+  const nominalAnnualFull = asNum(fin.nominal_annual_full);
   const monthlyIn = asNum(fin.monthly_in);
+  const monthlyInTaxed = asNum(fin.monthly_in_taxed);
   const diff = nominalAnnual / 12 - monthlyIn;
-  // 批1 · 财政三值：到账率 = 实收 ÷ 账面月额（明末「加税≠增收」的可解释层）
-  const arrivalRate = nominalAnnual > 0 ? (monthlyIn / (nominalAnnual / 12)) : 0;
+  // 批1 · 财政三值 / P2-2 会计指标口径核对：到账率**直读后端单点派生**，前端不再自算。
+  // 原实现此处自行相除 `monthlyIn / (nominalAnnual / 12)`——分子是**五项**月度应征、
+  // 分母只是**三项**账面（缺二税折色与盐课），属跨口径比值：开局 3,098,770 ÷ 2,416,672
+  // = 128.2%；而 `diff = 账面月额 − 本月应征 = −682,098/月`（负的"隐漏"）→ 自相矛盾。
+  // 现改为读同口径三税比率与五科目比率；后端缺分母时给 null → 显示「未定义」。
+  const arrivalTaxed = asRatio(fin.arrival_ratio_taxed);
+  const arrivalFull = asRatio(fin.arrival_ratio_full);
+  const mechanismArrival = asRatio(fin.mechanism_arrival_rate);
+  const scopeTaxed = asText(fin.arrival_ratio_scope_taxed,
+    "三税（工商·役钱·市舶）——不含二税折色与盐课");
+  const scopeFull = asText(fin.arrival_ratio_scope_full,
+    "五科目（工商·役钱·市舶·二税折色·盐课）");
   const totalOut = asNum(fin.total_out);
   const net = asNum(fin.net);
 
@@ -151,18 +180,51 @@ export default function AccountingPanel() {
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
         <SectionTitle text="岁 入 盈 虚" />
         <p className="mt-1.5 text-sm font-bold text-ink">
-          名义岁入：{humanizeCoin(nominalAnnual)}/年（账面，贴史实）
+          账面岁入（工商·役钱·市舶三项）：{humanizeCoin(nominalAnnual)}/年
+        </p>
+        <p className="mt-0.5 text-xs leading-relaxed text-dim">
+          不含二税折色与盐课——故本月应征可高于此账面数。
         </p>
         <p className="mt-1 text-sm text-ink">
-          实际月入：{humanizeCoin(monthlyIn)}/月　（{inParts.join(" + ")}）
+          本月应征（预估到库）：{humanizeCoin(monthlyIn)}/月　（{inParts.join(" + ")}）
+        </p>
+        <p className="mt-0.5 text-xs leading-relaxed text-dim">
+          未扣 POP 支付力与欠税（保底豁免部分不入库），故略高于结算日志的实收。
         </p>
         <p className="mt-1 text-xs leading-relaxed text-dim">
-          差额 {humanizeCoin(diff)}/月即「隐漏与拖欠」——账面名义与实到之距，正田赋隐漏、胥吏侵蚀之漏出。
+          {diff > 0 ? (
+            <>
+              差额 {humanizeCoin(diff)}/月即「隐漏与拖欠」——账面名义与实到之距，正田赋隐漏、胥吏侵蚀之漏出。
+            </>
+          ) : (
+            <>
+              差额 {humanizeCoin(Math.abs(diff))}/月{diff < 0 ? "为负" : "为零"}——因二税折色与盐课不在三项账面口径内，本行不表示「隐漏与拖欠」。
+            </>
+          )}
           <span
             className="ml-2 cursor-help underline decoration-dotted underline-offset-2"
-            title={`到账率 = 实收 ÷ (账面年额 ÷ 12) = ${humanizeCoin(monthlyIn)} ÷ ${humanizeCoin(nominalAnnual / 12)} = ${(arrivalRate * 100).toFixed(1)}%` + "　公式：账面岁入 ÷ 12 × 到账率 = 实收；到账率受隐漏、胥吏侵蚀、钱荒、动乱影响"}
+            title={
+              `三税到账率（${scopeTaxed}）= 三税应征 ÷ (三税账面年额 ÷ 12) = `
+              + `${humanizeCoin(monthlyInTaxed)} ÷ ${humanizeCoin(nominalAnnual / 12)} = ${fmtRatio(arrivalTaxed)}；`
+              + "本比率不含二税折色与盐课"
+              + (mechanismArrival === null
+                ? "；机制到账率（含隐漏/钱荒）见机制。"
+                : `；机制到账率（含隐漏/钱荒）为 ${(mechanismArrival * 100).toFixed(1)}%。`)
+            }
           >
-            到账率 {(arrivalRate * 100).toFixed(1)}%
+            三税到账率 {fmtRatio(arrivalTaxed)}
+          </span>
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-dim">
+          <span
+            className="cursor-help underline decoration-dotted underline-offset-2"
+            title={
+              `综合到账率（${scopeFull}）= 五项应征 ÷ (五项年报应征 ÷ 12) = `
+              + `${humanizeCoin(monthlyIn)} ÷ ${humanizeCoin(nominalAnnualFull / 12)} = ${fmtRatio(arrivalFull)}；`
+              + "分子分母同口径，故与「三税到账率」不同（两者不可互相换算）。"
+            }
+          >
+            综合到账率（五科目）{fmtRatio(arrivalFull)}
           </span>
         </p>
       </div>

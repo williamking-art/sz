@@ -408,8 +408,8 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
       ? [{
           name: "两税折色",
           amount: taxColor,
-          desc: "二十路夏秋两税折色钱帛直输国库，按田赋隐漏与到账率实收。",
-          formula: "夏秋两税折色月实收（× 到账率）"
+          desc: "二十路夏秋两税折色钱帛直输国库，按田赋隐漏与机制到账率（隐漏·钱荒后的折扣系数）实收。",
+          formula: "夏秋两税折色实收月额（已乘机制到账率）"
         }]
       : []),
     ...(commerce !== null && commerce > 0
@@ -417,7 +417,9 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
           name: "工商榷税",
           amount: commerce,
           desc: "两浙、江南等诸路坊郭工商产值抽解，由工匠与行商分纳。",
-          formula: "工商月产值 × 现行征率 × 到账率"
+          // P2-2：此处"到账率"是**机制到账率**（隐漏/钱荒折扣），非会计录的「三税到账率」
+          //（后者是"三税应征 ÷ 三税账面月额"的读数），两者同名不同义，故写全。
+          formula: "工商月产值 × 现行征率 × 机制到账率 × 钱荒税基系数"
         }]
       : []),
     ...(salt !== null && salt > 0
@@ -433,7 +435,7 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
           name: "身丁役钱",
           amount: poll,
           desc: "天下乡村夫役代役钱，农户免役而输钱，充备百司役使用度。",
-          formula: "在册农户役率折月实收"
+          formula: "应役丁 × 役钱率 ÷ 12 × 机制到账率 × 钱荒税基系数"
         }]
       : []),
     ...(maritime !== null && maritime > 0
@@ -441,7 +443,7 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
           name: "市舶抽解",
           amount: maritime,
           desc: "泉州、广州、明州市舶司番商番货互市抽解关税。",
-          formula: "远洋商舶进港货值 × 抽解率"
+          formula: "远洋商舶进港货值 × 抽解率 × 机制到账率 × 钱荒税基系数"
         }]
       : [])
   ];
@@ -494,7 +496,7 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
     totalIn,
     totalOut,
     net,
-    subNotice: "读数与月结同源：税额随征率/到账率/钱荒动态折算；支合计含吏俸缺口扣减等隐项，以合计为准。",
+    subNotice: "读数与月结同源：税额随征率/机制到账率（隐漏·钱荒后的折扣系数）/钱荒动态折算；支合计含吏俸缺口扣减等隐项，以合计为准。",
     incomes,
     expenses
   };

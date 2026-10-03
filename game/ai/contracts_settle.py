@@ -326,6 +326,11 @@ class SettleContractMixin:
                 x = float(v)
             except (TypeError, ValueError):
                 return "未知"
+            # 审查 O8：`float('nan')` 转换**成功**，而与 NaN 的所有比较恒为 False
+            # → 旧链式三元全部落空 → 返回**最高档"极高"**（NaN 被当成最好）。
+            # 现显式判非有限 → "未知"（缺失就是缺失，不得编造档位）。
+            if x != x or x in (float("inf"), float("-inf")):
+                return "未知"
             return "极低" if x < 20 else "低" if x < 40 else "中" if x < 60 else "高" if x < 80 else "极高"
 
         lines = []
@@ -409,7 +414,12 @@ class SettleContractMixin:
                     pi = state.get_prestige_info()
                     inj += f"\n【皇威】{pi.get('description', '平平')}"
                 except Exception:
-                    inj += "\n【皇威】平平"
+                    # 审查 P2-3：原先注入「【皇威】平平」= **向模型伪造输入**（真值未知
+                    # 却断言"平平"），模型据此推演满意度/影响力。改为如实注入"读数缺失"。
+                    import logging as _lg
+                    _lg.getLogger("ai.client").warning(
+                        "皇威读数读取失败，注入「读数缺失」而非伪造'平平'", exc_info=True)
+                    inj += "\n【皇威】读数缺失（本回合不可用，勿据此断言皇威高下）"
                 # 集团 ⊆ POP：每派的**人口/财赋基本盘**（势力有源，不是无源影响力）
                 # 以及在场的改革使哪些 POP 受益/受损 —— AI 据此推演满意度与影响力档位，
                 # 数值仍由程序算（POP 挂载律；`core/faction_basis.py` 为唯一权威）。
@@ -432,9 +442,15 @@ class SettleContractMixin:
                         inj += (f"\n【在场改革·{item.get('label')}】受益 POP：{gain or '—'}；"
                                 f"受损 POP：{lose or '—'}")
                         for f in item.get("emergent") or []:
-                            inj += (f"；或催生新集团「{f.get('name')}」"
-                                    f"（基本盘 {f.get('pop_basis', {}).get('subset_of')}"
-                                    f"／{'/'.join(f.get('pop_basis', {}).get('pop_classes') or [])}）")
+            # 审查 S11：**不要**在此邀请 AI 产出新集团。`core/faction_split.py:35`
+            #   的 `normalize_split` 会丢弃一切不在 `FACTION_NAMES` 的键，且全库
+            #   没有把emergent 集团登记进 `state.factions` 的写入方 → AI 若照此
+            #   造名，只会被校验丢弃（白费 token，且叙述里会出现无法落地的"幽灵集团"）。
+            #   该机制目前是**仅预告（未接线）**：数据侧已声明 `pop_basis`
+            #   （`content/data.py` REFORM_FACTION_GAIN 的 `emergent`），但登记通道
+            #   尚不存在。接线前不得让 AI 假装能催生新集团。
+                            inj += (f"（该改革在设定上或可催生新集团「{f.get('name')}」，"
+                                    f"但**新集团登记通道尚未接入**，本回合不得据此推演任何派系变化）")
                     inj += ("\n- 请按上述 POP 得失推演各派满意度/影响力档位（受益者升、受损者降）；"
                             "未声明 POP 基本盘的集团不得凭空出现。")
                 except Exception:

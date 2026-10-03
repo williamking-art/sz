@@ -10,7 +10,7 @@
 | `core-engineering.md` / `settlement-engineering.md` | 内核与月度结算 |
 | `ai-integration.md` / `ai-pipeline.md` / `ai-prompt-designer.md` | AI 管线与提示词契约 |
 | `economy-systems.md` / `strategy-systems.md` / `data-analytics.md` | 经济/策略/数据 |
-| `ui-panels.md` / `tkinter-ui.md` | 界面（后者为已废弃 Tk 时代遗留） |
+| `ui-panels.md` / `tkinter-ui.md` | 当前 Electron/React 页面与前端框架；`tkinter-ui` 是兼容旧注册的 Agent ID，职责已迁移，不再开发 Tkinter |
 | `art-assets.md` / `sound-music-designer.md` / `song-narrative-designer.md` / `event-narrative-designer.md` | 美术/音频/叙事 |
 | `regression-qa.md` / `gui-release-qa.md` / `release-engineering.md` | 测试与发布 |
 
@@ -18,4 +18,4 @@
 - 团队级规范（工作流 A–E、完成定义 DoD、9 条工程约束）见上一级的 `TEAM.md`；
 - 头像见 `../avatars/`；装载脚本 `../scripts/load_team.py`。
 ---
-最后更新：2026-09-27（补目录文档）
+最后更新：2026-10-02（同步前端角色职责与游戏当前基线）

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none">
+  <circle cx="80" cy="80" r="68" stroke="#8F6E28" stroke-opacity=".6" stroke-width="1.4"/>
+  <circle cx="80" cy="80" r="59" stroke="#8F6E28" stroke-opacity=".35" stroke-dasharray="1 4"/>
+  <circle cx="80" cy="80" r="4" fill="#8A2B22"/>
+  <path d="M80 15 86 70 80 80 74 70 80 15Z" fill="#8A2B22" fill-opacity=".78"/>
+  <path d="m80 145-6-55 6-10 6 10-6 55Z" fill="#8F6E28" fill-opacity=".58"/>
+  <path d="m15 80 55-6 10 6-10 6-55-6Z" fill="#6D6854" fill-opacity=".42"/>
+  <path d="m145 80-55 6-10-6 10-6 55 6Z" fill="#6D6854" fill-opacity=".42"/>
+  <path d="m34 34 39 35 7 11-11-7-35-39Zm92 92-39-35-7-11 11 7 35 39ZM126 34 91 73l-11 7 7-11 39-35ZM34 126l35-39 11-7-7 11-39 35Z" fill="#8F6E28" fill-opacity=".44"/>
+  <g fill="#51452F" font-family="serif" font-size="10" text-anchor="middle">
+    <text x="80" y="9">北</text><text x="80" y="157">南</text>
+    <text x="8" y="83">西</text><text x="152" y="83">东</text>
+  </g>
+</svg>

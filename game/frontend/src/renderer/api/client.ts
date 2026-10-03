@@ -65,6 +65,49 @@ export interface ArmyUnitReadout {
   serial: string;
 }
 
+/**
+ * 计划/工程读数（core/plan_readout.py 的镜像；字段与后端一一对应）。
+ * 四层级**分开**列出：accepted 旨意受理 / advancing 执行推进 /
+ * completed 工程告成 / effective 效果生效。
+ */
+export interface PlanReadout {
+  phases: {
+    accepted: PlanPhaseItem[];
+    advancing: PlanPhaseItem[];
+    completed: PlanPhaseItem[];
+    effective: PlanPhaseItem[];
+  };
+  /** 层级标签（由后端单点下发，前端**不得**自造文案） */
+  phase_labels: Record<string, string>;
+  projects: {
+    pid: string;
+    name: string;
+    route: string;
+    status: string;
+    status_label: string;
+    progress: number;
+    capacity: number;
+    dynamic: boolean;
+    output: Record<string, number>;
+    runtime: Record<string, number>;
+    effects: { op: string; params: Record<string, number> }[];
+    source_blueprint: string;
+  }[];
+  /** 议毕但无程序侧落点的事务（**不得**展示为"已告成"） */
+  unsupported_tasks: { name?: string; turn?: number; reason?: string }[];
+  counts: Record<string, number>;
+}
+
+export interface PlanPhaseItem {
+  kind: string;
+  title: string;
+  pid?: string;
+  route?: string;
+  progress?: number;
+  outcome?: string | null;
+  note?: string;
+}
+
 export interface ReadoutsResult {
   army: ArmyUnitReadout[];
   arsenal: Record<string, unknown>;
@@ -97,6 +140,12 @@ export interface ReadoutsResult {
   };
   /** 朝局简报可行动项（core.briefing.build_briefing_actions；goto 为跳转语义） */
   briefing?: { key: string; title: string; desc: string; goto: string; urgent?: boolean }[];
+  /**
+   * 计划/工程实际状态读数（core/plan_readout.build_plan_readout）。
+   * 与 AI 推演**同源**——前端只渲染，**不得**自行计算状态/进度/产出。
+   * `phases` 四个层级（旨意受理／执行推进／工程告成／效果生效）**必须分开展示**。
+   */
+  plan?: PlanReadout;
   /** 群臣档案（年龄/职衔/派系/性格一句话/生平）；迁移补齐原 Tk 大臣卡片信息密度 */
   ministers?: Record<string, {
     age?: number | null;
@@ -477,6 +526,7 @@ export type ActionName =
   | "issue_military_order"
   | "approve_ai_action"
   | "reject_ai_action"
+  | "issue_task_decree"
   | "issue_kouyu"
   | "propose_inner_transfer"
   | "confirm_inner_transfer"

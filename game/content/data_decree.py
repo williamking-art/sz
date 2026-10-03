@@ -45,8 +45,17 @@ ZHONGZHI_AFFILIATION_RATE = {
     "地方": 0.60,   # 地方州县，可能抗旨不办
 }
 # 口谕（召对现场口宣）即时生效但效果弱、可能走样
-KOUYU_EFFECT_MULT = 0.6        # 口谕效果乘数（弱效）
-KOUYU_DRIFT_CHANCE = 0.30      # 口谕走样概率（降一档）
+#
+# ⚠️ **B5-4 · 2026-11 已废除这两个固定值**（保留仅为向后兼容，**不再是生效口径**）。
+# 旧口径用固定 0.6 / 0.30 假装"弱效/走样"，与 §16.4「吏治是唯一强关联」冲突：
+# 强度与走样**与吏治无关**，治理无从下手（与审计 J-2「叙事说办了、数值没动」同类）。
+# 现口径统一走 `core/clerks.decree_execution_mult`（吏治单点）：
+#   · 口谕强度折扣 = 吏治执行乘数（实测开局 0.965）；
+#   · 走样概率 = 1 − 吏治乘数（同例 0.035），把持越重越易走样；
+#   · 读数缺失 ⇒ **不按固定值假装**，标记 undefined 并按原档位如实登记。
+# 消费方：`core/commands_decree._kouyu_drift_factor` / `issue_kouyu`。
+KOUYU_EFFECT_MULT = 0.6        # 【已废弃·勿用】旧固定弱效乘数；请用 clerks.decree_execution_mult
+KOUYU_DRIFT_CHANCE = 0.30      # 【已废弃·勿用】旧固定走样概率；请用 1 − clerks.decree_execution_mult
 KOUYU_DRIFT_DOWN = 1            # 走样降档级数（TIER_RANGE 索引下移）
 # 固定程序四类的参数模板（AI 解析拟旨时按 category 归一到这些参数）
 FIXED_PROCEDURES = {

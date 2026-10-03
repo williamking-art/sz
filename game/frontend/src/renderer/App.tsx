@@ -4,12 +4,14 @@ import TopBar from "./hud/TopBar";
 import LeftTodo from "./hud/LeftTodo";
 import RightStrip from "./hud/RightStrip";
 import Dock from "./hud/Dock";
+import MapCartouche from "./hud/MapCartouche";
 import OverlayStack from "./panels/OverlayStack";
 import MainMenu from "./main-menu/MainMenu";
 import { ApiClient, setApiClient, COLD_START_WAIT_MS } from "./api/client";
 import { useGameStore, pick } from "./store/gameStore";
 import { useGameBgm } from "./audio/useGameBgm";
 import { setPortraitBase } from "./utils/portrait";
+import compassRose from "./assets/hud_compass_rose.svg?url";
 
 // 单页面三层布局：L0 舆图铺底 / L1 常驻 HUD 悬浮 / L2 面板浮层栈
 export default function App() {
@@ -114,14 +116,24 @@ export default function App() {
 
   // 进入游戏后：呈现大宋天下舆图与常驻 HUD 治国中枢
   return (
-    <div className="paper-texture relative h-full w-full overflow-hidden bg-paper">
+    <div className="paper-texture sz-atlas-shell relative h-full w-full overflow-hidden bg-paper">
       {/* L0 舆图底图 */}
       <div className="absolute inset-0">
         <MapView />
       </div>
 
+      {/* 舆图外缘的淡墨收边与罗经纹样：作为纸本地图的美术层，不拦截地图操作。 */}
+      <div className="sz-atlas-vignette pointer-events-none absolute inset-0 z-[5]" aria-hidden="true" />
+      <img
+        src={compassRose}
+        alt=""
+        aria-hidden="true"
+        className="sz-map-compass pointer-events-none absolute bottom-[6.2rem] right-[11.8rem] z-[6] hidden h-[74px] w-[74px] opacity-45 xl:block"
+      />
+
       {/* L1 常驻 HUD */}
       <TopBar />
+      <MapCartouche />
       <LeftTodo />
       <RightStrip />
       <Dock />

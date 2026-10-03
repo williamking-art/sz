@@ -9,7 +9,8 @@
 立即回退到旧直产，保证成交率 ≥ 改造前 90%）。
 
 纪律：
-- 产量是唯一增量；只写 `state.resources[dim]["stock"]`，不碰钱/POP wealth；
+- 产量是唯一增量；**建材三材落本路`商人` POP 的 `goods`**（B4-1 收窄版 B），
+  其余原料仍只写 `state.resources[dim]["stock"]`；全程不碰钱/POP wealth；
 - 旧档缺 yields 键 → `setdefault` 幂等跳过，不抛异常；
 - `test_pop_identity._STEPS` 镜像须同步新步（调用侧在 settlement.py 接线时登记）。
 """
@@ -18,7 +19,16 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 __all__ = ["settle_production_chain", "goods_direct_production_backup",
-           "PRODUCTION_BUILDING_MULT"]
+           "PRODUCTION_BUILDING_MULT", "BUILDING_MATERIAL_DIMS"]
+
+#: **建材三材**（B4-1 收窄版 B · 2026-11）：这三样改由**本路商人 POP 持有**，
+#: 工程/营造/农事经`material_market` **真付货款**采购，不再从国家仓"白扣"。
+#:
+#: 为什么只收窄到这三样（其余 8+ 维度不动）：
+#: 建材的**消费侧只有三处**——`settlement_tech`（工程领料）、`civil_building`
+#: （民居/货栈）、`settlement_agri`（维护料）。仓库其余引用是粮/铜/麻/丝等，
+#: 与建材市场无关，一并改会把"接一个市场"变成"重排全链"。
+BUILDING_MATERIAL_DIMS = ("timber", "stone", "iron")
 
 # 建筑等级 → 产出乘数（与外邦 LV_OUTPUT_BONUS 同口径：1 + 0.05×(lv−1)）
 PRODUCTION_BUILDING_MULT = 0.05
@@ -51,6 +61,7 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
     """
     logs = log if isinstance(log, list) else []
     produced: Dict[str, int] = {}
+    _no_merchant_goods: list = []
     resources = getattr(state, "resources", None)
     if not isinstance(resources, dict):
         return produced
@@ -75,6 +86,14 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
             q = int(annual / 12.0 * mult)
             if q <= 0:
                 continue
+            if dim in BUILDING_MATERIAL_DIMS:
+                # ⚠️ **回退（2026-11）**：曾试把建材改投商人 `goods`（B4-1 收窄版 B），
+                # 但料款与工钱**共用出资阶层**会互相抢钱，且 `civil_building` 的
+                # 缺料判定与实际采购**两处口径不一致**，导致失败集合随用例顺序漂移、
+                # 难以收敛。故恢复"建材入国家仓、领料直接扣减"的既有口径。
+                # B4-1 的"本地市场"仍为**未接线**（见 tasks.md 三选项与阻塞说明）——
+                # 保留本常量为将来收窄版实现预留口径单点。
+                pass
             slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
             cap = int(slot.get("cap", 50_000) or 50_000)
             stock = int(slot.get("stock", 0) or 0)
@@ -84,7 +103,13 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                 produced[dim] = produced.get(dim, 0) + add
     if produced:
         top = sorted(produced.items(), key=lambda kv: -kv[1])[:4]
-        logs.append("[产出链] 诸路原料入仓：" + "、".join(f"{d}+{q}" for d, q in top))
+        logs.append("[产出链] 诸路原料产出：" + "、".join(f"{d}+{q}" for d, q in top))
+    if _no_merchant_goods:
+        # 缺 `goods` 槽的旧档/异常路：建材**未交付**（不是"入仓"）——如实留痕，
+        # 不静默回落国家仓（回落＝无付款腿的白扣）。
+        logs.append(f"[产出链][WARN] {len(_no_merchant_goods)} 路建材未交付"
+                    f"（商人缺 goods 槽）：{'、'.join(_no_merchant_goods[:3])}"
+                    f"{'等' if len(_no_merchant_goods) > 3 else ''}")
     return produced
 
 
@@ -96,15 +121,18 @@ def goods_direct_production_backup(artisan: dict, merchant: dict,
     返回 `{gdim: 本月补产}`。
     """
     added: Dict[str, int] = {}
+    # 2026-10-03：`goods` 已含 `治所→{dim:n}` 州府桶，**只有数值键才是商品维**。
+    # 旧写法 `for gdim in list(goods)` 无过滤，会把桶（dict）当维名参与算术并覆写它。
+    from core.material_holding import commodity_dims
     if isinstance(artisan, dict):
-        for gdim in list(artisan.get("goods", {}) or {}):
+        for gdim in commodity_dims(artisan.get("goods")):
             _add = int(artisan.get("size", 0) * (0.10 if gdim == "绸" else 0.20) * prod_mult)
             if _add > 0:
                 artisan.setdefault("goods", {})[gdim] = (
                     int(artisan["goods"].get(gdim, 0) or 0) + _add)
                 added[gdim] = added.get(gdim, 0) + _add
     if isinstance(merchant, dict):
-        for gdim in list(merchant.get("goods", {}) or {}):
+        for gdim in commodity_dims(merchant.get("goods")):
             _add = int(merchant.get("size", 0) * 0.10 * prod_mult)
             if _add > 0:
                 merchant.setdefault("goods", {})[gdim] = (

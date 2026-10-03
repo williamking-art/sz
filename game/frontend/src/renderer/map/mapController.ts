@@ -1,6 +1,6 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { buildLayerDefs, LAYER_IDS, THEME } from "./layers";
+import { buildLayerDefs, HILL_TILES_ENABLED, LAYER_IDS, PREFECTURE_BORDERS_ENABLED, THEME } from "./layers";
 import type { Selected } from "../store/gameStore";
 
 // 舆图数据资产基址（构建期从 game/assets/map/web/ 平移）
@@ -86,14 +86,22 @@ export class MapController {
     src("regime_borders");
     src("cities");
     src("borders");
+    // 府级边界（P1-2 接入）：懒加载源，数据由 `setPrefectureData()` 在 zoom 到位后注入。
+    if (PREFECTURE_BORDERS_ENABLED) src("prefecture_borders");
     // 地形晕渲（山脉立体感）：ESRI World Hillshade，构建期平移至 map/tiles/hill
-    this.map.addSource("hill", {
-      type: "raster",
-      tiles: [`${MAP_BASE_URL}/tiles/hill/{z}/{x}/{y}.png`],
-      tileSize: 256,
-      minzoom: 4,
-      maxzoom: 8
-    });
+    // P1-2 处置：`public/map/tiles/hill/` 目录缺失（不是"空"），源声明会让每块瓦片持续
+    // 404（开发版与安装版皆然）→ 由 `HILL_TILES_ENABLED` 控制**整体**不声明 source。
+    // 只删 layer 不删 source 无妨，但只删 source 不删 layer 会让 addLayer 抛
+    // "Source hill not found"，故两处共用同一开关。
+    if (HILL_TILES_ENABLED) {
+      this.map.addSource("hill", {
+        type: "raster",
+        tiles: [`${MAP_BASE_URL}/tiles/hill/{z}/{x}/{y}.png`],
+        tileSize: 256,
+        minzoom: 4,
+        maxzoom: 8
+      });
+    }
     this.map.addSource("selected", {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] }
@@ -255,6 +263,17 @@ export class MapController {
   }
 
   // 运行时按 zoom 档位重设单个图层几何（TopoJSON 动态简化后注入）
+
+  /** 府级边界数据注入（P1-2；**懒加载**：仅当玩家放大到府界可见档位才取数据）。
+   *
+   * `PREFECTURE_BORDERS_ENABLED=false` 时无 source、本方法为 no-op（不报错）。
+   * 未注册任何 click 监听 → 政区详情/命中测试行为与接入前一致。
+   */
+  setPrefectureData(fc: GeoJSON.FeatureCollection): void {
+    if (!this.map || !PREFECTURE_BORDERS_ENABLED) return;
+    const src = this.map.getSource("prefecture_borders") as maplibregl.GeoJSONSource | undefined;
+    if (src) src.setData(fc);
+  }
 
 
   fitBounds(): void {

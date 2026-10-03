@@ -40,9 +40,54 @@ def _hidden_total(st) -> int:
 
 
 def _no_pressure(s):
-    """关掉逃户压力源（税率/民怨/灾荒），以便单独观察归籍一侧。"""
+    """关掉逃户压力源（税率/民怨/**缺粮**），以便单独观察归籍一侧。
+
+    S6 经用户 2026-10-01 二次细化后，逃籍有**两条独立腿**：
+      · 缺粮腿（人数驱动，无魔数）：`settlement_common.food_insecure_headcount`
+        （自有粮 ＋ 购粮能力）判"吃不上饭的人数"，1:1 派生逃籍；
+      · 税重/民怨腿（压力率驱动，沿用原口径）：由 `commerce_tax_rate` /
+        `population_satisfaction` 折算。
+    归籍单测必须**同时排除两条腿**，否则"清丈是否使隐户回流"会被逃籍反向抵消
+    （实测：即使公储充足，只要某路有人吃不上饭，hidden 就不降反升）。
+    故本助手除归零税重/民怨外，还把各路 POP 补粮补钱到"人人有饭可吃"。
+    """
+    from content.data import GRAIN_CONSUME_PER_CAPITA
     s.commerce_tax_rate = 0.15
     s.population_satisfaction = 50
+    _no_grain_pressure(s, GRAIN_CONSUME_PER_CAPITA)
+
+
+def _no_grain_pressure(s, per_capita=None):
+    """把各路 POP 补到"人人有饭"（消除缺粮腿），并把公储补到≥1 个月。
+
+    补**户存**是必需的：缺粮腿判的是 POP 自有粮 ＋ 购粮能力（不是公储）；
+    公储一并补齐只是保持与旧版断言的语义连续。
+    """
+    if per_capita is None:
+        from content.data import GRAIN_CONSUME_PER_CAPITA as per_capita
+    try:
+        _total, _by_route = s.calc_army_grain()
+    except Exception:                                   # noqa: BLE001
+        _by_route = {}
+    for name, p in s.prefectures.items():
+        for _k, _slot in (p.get("pops") or {}).items():
+            if not isinstance(_slot, dict):
+                continue
+            per = float(per_capita.get(_k, 0.5))
+            size = int(_slot.get("size", 0) or 0)
+            # 自有粮补到 3 个月口粮（远超 1 个月，粮荒腿确定不触发）
+            _slot["grain"] = max(float(_slot.get("grain", 0) or 0), size * per * 3.0)
+        need = 0.0
+        for _k, _v in (p.get("pops") or {}).items():
+            if isinstance(_v, dict):
+                need += int(_v.get("size", 0) or 0) * float(per_capita.get(_k, 0.5))
+        need += max(0.0, float(_by_route.get(name, 0.0) or 0.0))
+        if need > 0:
+            _want = need * 2.0                          # 公储 2 个月，远离告急
+            _cur = max(0.0, float(p.get("storage", 0) or 0)) \
+                + max(0.0, float(p.get("changping_stock", 0) or 0))
+            if _cur < _want:
+                p["storage"] = int(_want - max(0.0, float(p.get("changping_stock", 0) or 0)))
 
 
 def _full_pressure(s):

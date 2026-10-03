@@ -9,6 +9,15 @@
 不宜提纯）。
 """
 import json
+import logging
+
+log = logging.getLogger("ai.validators")
+
+#: 脱敏不可用时的**粗粒度**摘要（L4，审查 P2-3）：绝不能回落原样序列化。
+#: 原文案只说"摘要不可用"，不含任何精确值；`prestige.value`/`treasury.amount`/
+#: 派系 `satisfaction`/`emperor_health` 等真值**一律不出现**。
+_SUMMARY_DESENSITIZE_FAILED = (
+    "【朝局摘要不可用】脱敏层异常，本次不注入精确读数；请按程序给出的定性档位推演。")
 
 # 档位白名单（7 档：无/微/小/中/大/巨/极）；validator 用 normalize_tier 归一丰富表达
 #
@@ -34,6 +43,8 @@ def _summary_text(state_summary) -> str:
       desensitize_state 区间化+定性化，再序列化——杜绝把精确真值直拼进 prompt
       造成脱敏四层失效，同时消灭 'dict' 拼接崩溃；
     - None/未知：返回空串。
+    - **脱敏层异常（L4，审查 P2-3）**：绝不回落原样序列化，改返回粗粒度哨兵
+      `_SUMMARY_DESENSITIZE_FAILED` + ERROR 日志（隐藏数值不得借故障外泄）。
     """
     if isinstance(state_summary, str):
         return state_summary
@@ -45,11 +56,18 @@ def _summary_text(state_summary) -> str:
             ds = desensitize_state(state_summary)
             return json.dumps(ds, ensure_ascii=False, indent=1)
         except Exception:
-            pass
+            # L4（审查 P2-3）：**绝不**在脱敏失败后回落 `json.dumps(state_summary)`——
+            # 那会把 prestige.value / treasury.amount / 派系 satisfaction / emperor_health
+            # 等**隐藏精确值**直送 provider。异常只入日志，入参换成粗粒度哨兵。
+            log.error("朝局摘要脱敏失败，已回落粗粒度摘要（不注入精确读数）", exc_info=True)
+            return _SUMMARY_DESENSITIZE_FAILED
     try:
         return json.dumps(state_summary, ensure_ascii=False, sort_keys=True)
     except Exception:
-        return str(state_summary)
+        # 非 dict 且不可序列化（自定义对象）：同样不得 `str()` 出内部字段，只给粗粒度摘要
+        log.error("朝局摘要不可序列化（类型 %s），已回落粗粒度摘要", type(state_summary).__name__,
+                  exc_info=True)
+        return _SUMMARY_DESENSITIZE_FAILED
 
 
 def _decide_state_text(state) -> str:

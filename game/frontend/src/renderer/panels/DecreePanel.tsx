@@ -3,6 +3,7 @@ import { Loader2, Merge, PenLine, Scroll, Send, Sparkles, Stamp, MessageSquare }
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 import { audioEngine } from "../audio/engine";
+import PlanReadoutPanel from "./PlanReadoutPanel";
 
 // 常见拟旨范例模板（点击一键填入）
 const DECREE_TEMPLATES = [
@@ -351,6 +352,20 @@ export default function DecreePanel() {
 
   return (
     <div className="space-y-4">
+      {/* 规格 decree-action-chain 任务 6：行动拆解 ＋ 因果回看。
+          只渲染 /api/readouts 的 plan 字段（core/plan_readout.py 单点派生），
+          前端不复制算法；四层级（受理/推进/告成/生效）分开展示，互不混写。 */}
+      <section className="rounded border border-gold/30 bg-paper/60 p-2">
+        <div className="mb-1 flex items-center gap-2">
+          <Scroll size={14} className="text-red" />
+          <span className="font-kai text-sm text-ink">工程因果回看</span>
+          <span className="text-[10px] text-ink/50">
+            受理 → 推进 → 告成 → 生效（四层分列，不混写）
+          </span>
+        </div>
+        <PlanReadoutPanel />
+      </section>
+
       {/* 模式切换：亲笔拟旨 / 常设政务 */}
       <div className="flex items-center justify-between border-b border-gold/40 pb-2">
         <div className="flex gap-2">

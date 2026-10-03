@@ -16,6 +16,9 @@
 faction, status}}）；`_validate_characters` 叙事具名人物查表，命中已故/已黜 → 标记回喂。
 """
 import re
+import logging
+
+log = logging.getLogger("ai.narrative_guard")
 
 # 数字+单位正则（支持「300万石」= 300×万×石；审查 P2-42 修复：原只匹配阿拉伯数字，
 # 「三百万石」等中文数字表述全部绕过数值区间校验 —— 现同时匹配中文数字，由 _cn_to_int 解析）
@@ -104,7 +107,8 @@ def _build_numeric_ranges(state):
 
 
 def _build_source_closure(state, extra=None):
-    """本回合真实来源闭集：①诏书/在办事务/国策 ②本回合事件 ③记忆图谱检索闭集 ④本回合 log。
+    """本回合真实来源闭集：①诏书/在办事务/国策 ②本回合事件 ③记忆图谱检索闭集 ④本回合 log
+    ⑤**真实工程/事务状态**（规格任务 5）。
     返回注入文本【本期取材（仅限以下来源）】。"""
     parts = []
     # ① 诏书/在办事务/国策推进
@@ -131,28 +135,118 @@ def _build_source_closure(state, extra=None):
     # ④ 本回合 settlement log
     for line in list(getattr(state, "last_settlement_log", []) or [])[-8:]:
         parts.append(f"报·{str(line)[:20]}")
+    # ⑤ 真实工程/事务状态（规格任务 5）：让 AI 看到**实际**进度与产出，
+    #    而不是凭上下文猜"应该盖好了"。读数与面板同源（core/plan_readout.py）。
+    try:
+        from core.plan_readout import build_plan_readout, render_briefing_text
+        _rt = render_briefing_text(build_plan_readout(state))
+        if _rt:
+            parts.append(_rt)
+    except Exception:  # noqa: BLE001 — 读数失败不得阻断注入（也不编造）
+        log.warning("[叙事] 工程读数注入失败（跳过该段，不编造）", exc_info=True)
     if extra:
         parts.extend(extra)
     closure = "；".join(parts) if parts else "（本期无重大事项）"
     return ("【本期取材（仅限以下来源）】" + closure +
-            "\n硬约束：叙事仅可引用上述来源，**禁止引用闭集外剧情/数字/人物**。")
+            "\n硬约束：叙事仅可引用上述来源，**禁止引用闭集外剧情/数字/人物**；"
+            "**未告成的工程不得说成完工，无程序侧落点的事务不得说成已生效**。")
+
+
+# ------------------------------------------------------------
+# 完成宣称核对（规格任务 5：叙事宣称须与真实 state 一致）
+# ------------------------------------------------------------
+#: 「已完工/已生效」类宣称的触发词
+_COMPLETION_WORDS = ("告成", "竣工", "落成", "已完工", "建成", "完工", "已生效",
+                     "施行完毕", "大功告成")
+#: 可能**不实**的否定语境（"未完工""尚未落成"这类是在说实话，不该被改写）
+_NEGATION_PREFIX = ("未", "尚未", "未能", "没有", "还没", "不曾", "难以", "无法")
+
+
+def _validate_completion_claims(text, readout):
+    """核对"完工/生效"类宣称是否与**真实状态**相符；不符则改写为如实表述。
+
+    返回 `(new_text, flagged)`。`flagged` 为被改写的宣称列表（供审计/面板）。
+    无 readout 时原样返回（不猜、不误伤）。
+    """
+    if not text or not isinstance(readout, dict):
+        return text, []
+    rows = readout.get("projects") or []
+    unsupported = readout.get("unsupported_tasks") or []
+    # 真实已成（可称告成）的名字集合
+    done_names = {str(p.get("name") or "") for p in rows
+                  if p.get("status") in ("operating", "degraded")}
+    flagged = []
+    new = text
+    for w in _COMPLETION_WORDS:
+        idx = 0
+        while True:
+            i = new.find(w, idx)
+            if i < 0:
+                break
+            # 否定语境（"未完工"）是如实表述，跳过
+            head = new[max(0, i - 3):i]
+            if any(head.endswith(p) for p in _NEGATION_PREFIX):
+                idx = i + len(w)
+                continue
+            # 该宣称附近是否点到某个**真实已成**的工程名？点到就算属实
+            seg = new[max(0, i - 24):i + len(w) + 8]
+            if any(n and n in seg for n in done_names):
+                idx = i + len(w)
+                continue
+            # 不实：若附近点了某个仍在办/拟议的工程名 → 改为如实表述；否则泛化
+            fixing = next((str(p.get("name") or "") for p in rows
+                           if p.get("name") and str(p["name"]) in seg
+                           and p.get("status") not in ("operating", "degraded")), "")
+            if fixing:
+                # 工程名若**已在紧邻前缀**（12 字窗口）里出现过，就只补"尚未告成"，
+                # 否则会拼成"乙工程亦乙工程尚未告成"（重复工程名）。
+                near = new[max(0, i - 12):i]
+                repl = "尚未告成" if fixing in near else f"{fixing}尚未告成"
+            elif unsupported:
+                repl = "此事尚待落实"
+            else:
+                repl = "工程尚在进行"
+            flagged.append({"word": w, "at": i, "replaced": repl,
+                            "context": seg.strip()[:40]})
+            new = new[:i] + repl + new[i + len(w):]
+            idx = i + len(repl)
+    return new, flagged
 
 
 def build_character_statuses(state):
-    """每回合人物状态校验表：{人物: {alive, in_office, current_post, faction, status}}。"""
+    """每回合人物状态校验表：{人物: {alive, in_office, current_post, faction, status}}。
+
+    **未知即 `unknown`，不得回落 `active`**（审查 P2-3）：先前 `minister_status`
+    异常时 `st="active"`，会把已死/贬谪而查不出的角色当成**在场**写进叙事
+    （`in_office=True` 进「在朝具名人物」名单，`_validate_characters` 也不再拦），
+    属"把未知当在场"的伪造。现逐项留 warning，未知落 `unknown`（保守：不算在场，
+    也进不了"已故"名单，避免误伤名单本身）。
+    """
     from content.ministers.data import MINISTERS
     out = {}
+    _warned = {"status": False, "post": False}   # 每表一次：防"某接口整体坏掉"时刷屏
     for name in MINISTERS:
         fig = MINISTERS[name]
         # 审查 P3 修复：就地 try 保护（原依赖调用方外层 try，新调用方漏包即崩）
         try:
             st = state.minister_status(name)
         except Exception:
-            st = "active"
+            if not _warned["status"]:
+                log.warning("角色状态读取失败，按 unknown 处理（首个：%s）", name, exc_info=True)
+                _warned["status"] = True
+            st = "unknown"
+        if not st:
+            if not _warned["status"]:
+                log.warning("角色状态为空值，按 unknown 处理（首个：%s）", name)
+                _warned["status"] = True
+            st = "unknown"
         post = ""
         try:
             post = state.ministers.get(name, {}).get("post", "") or fig.get("role", "")
         except Exception:
+            if not _warned["post"]:
+                log.warning("角色现任官职读取失败，回落档案职衔（首个：%s）", name, exc_info=True)
+                _warned["post"] = True
             post = fig.get("role", "")
         out[name] = {
             "alive": st != "dead",

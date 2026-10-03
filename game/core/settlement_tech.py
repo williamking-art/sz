@@ -4,30 +4,61 @@
 `_settle_tech_research` / `_settle_projects`。"""
 from __future__ import annotations
 
+import logging
+import math
 
 from core.settlement_common import (
     transfer_public_funds_to_pops,
     _collect_from_pops,
 )
 
-def _research_rate_mult(state, node, r) -> float:
+_log = logging.getLogger("settlement")
+
+
+def _research_rate_mult(state, node, r, log=None) -> float:
     """研发速率乘数（整改④.2）：受学校/书院、识字率、材料、总体 level 影响。
 
     总体 level 只作**软因子**（不再是能力关卡）；材料不足只降效（不归零）。
+
+    审查 P2-3 应修：原两处 `except Exception: pass` 静默降级 → 乘数少算一档而无人知
+    （玩家看到的是"研究变慢"，看不出是通道坏了）。现经 `note_settlement_error` 留痕
+    （`(state.turn, key)` 去重 → 每回合最多一行，且两个降级点分别命名的 key）。
     """
     from content.data import (TECH_RESEARCH_LITERACY_W, TECH_RESEARCH_SCHOOL_CAP,
                               TECH_RESEARCH_MATERIAL_FLOOR, TECH_RESEARCH_RATE_CAP)
+    from core.settlement_common import note_settlement_error
     mult = 1.0
     try:
         from core.era_mechanic import tech_build_bonus
         mult += min(TECH_RESEARCH_SCHOOL_CAP, max(0.0, float(tech_build_bonus(state))))
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        note_settlement_error(
+            state, "research_school_bonus", "研发",
+            f"学校/书院加成读数失败，速率按无加成计算（{type(e).__name__}）",
+            log=log, exc=e)
+    # 审查 S8：① `or 0.0` 把「缺失」吞成「实测 0% 识字率」（缺失≠0）；且
+    #    `float(nan)` 经 `min(100, nan)`/`max(0, ·)` 会变成**100% 识字率**（与 M4 同族的
+    #    非有限值漏洞）。现：缺失 → 记留痕并按"无识字率加成"处理（不伪造读数）；
+    #    非有限值 → 同样按缺失处理，绝不参与乘算。
     try:
-        _lit = max(0.0, min(100.0, float(getattr(state, "literacy", 0.0) or 0.0)))
+        _lit_raw = getattr(state, "literacy", None)
+        _lit = None if _lit_raw is None else float(_lit_raw)
+        if _lit is None or not math.isfinite(_lit):
+            note_settlement_error(
+                state, "research_literacy_bonus", "研发",
+                "识字率读数缺失或非有限，速率按无识字率加成计算（不伪造读数）",
+                log=log)
+            _lit = None
+        else:
+            _lit = max(0.0, min(100.0, _lit))
+    except Exception as e:  # noqa: BLE001
+        _lit = None
+        note_settlement_error(
+            state, "research_literacy_bonus", "研发",
+            f"识字率加成读数失败，速率按无加成计算（{type(e).__name__}）",
+            log=log, exc=e)
+    if _lit is not None:
         mult += (_lit / 100.0) * TECH_RESEARCH_LITERACY_W
-    except Exception:
-        pass
     # 总体 level 只作综合读数：作为软因子影响速率，不作硬门槛（§四.1）
     need_lv = max(1, int(node[6] or 0))
     lv = max(0, min(100, int((state.tech or {}).get("level", 0) or 0)))
@@ -78,15 +109,28 @@ def _settle_tech_research(state, log):
     _stats = state.statistics if isinstance(getattr(state, "statistics", None), dict) else {}
     for node_id, r in list(researching.items()):
         node = get_tech_node(node_id)
+        _lookup_err = None
         if node is None:
             # 承接模式：玩家注册节点兼容
             try:
                 from core.registries import node_entry
                 node = node_entry(state, node_id)
-            except Exception:
+            except Exception as e:  # noqa: BLE001
+                _lookup_err = e
                 node = None
         if not node:
-            researching.pop(node_id, None)
+            if _lookup_err is not None:
+                # 审查 P2-3 / M14：查表**抛错** ≠ "节点不存在"。原实现把两者都当
+                # `node=None` → `researching.pop(node_id)`，于是**进度＋已投入经费＋
+                # 人才时间一起消失**（玩家看到的只是"研究莫名其妙没了"）。
+                # 现保留条目（下月重试）并留可定位证据。
+                _log.warning("[研发] 节点 %s 查表失败（第 %s 回合）：保留研究条目待重试",
+                             node_id, getattr(state, "turn", 0), exc_info=True)
+                if isinstance(log, list):
+                    log.append(f"[研发][WARN] 节点 {node_id} 查表失败"
+                               f"（{type(_lookup_err).__name__}），本月保留研究进度待重试")
+                continue
+            researching.pop(node_id, None)     # 真正未注册（旧档残留）→ 清理
             continue
         cost = tech_cost_with_era(node, int(tech.get("era", 0)))
         # P1 修复（蔡权衡·超时代软约束递增）：第 N 个超时代节点研发成本 ×(1+0.1×(N-1))
@@ -106,15 +150,28 @@ def _settle_tech_research(state, log):
             if abs(state.factions.get("新党", {}).get("influence", 50) -
                    state.factions.get("旧党", {}).get("influence", 50)) > 40:
                 push *= 0.85
-            rate = (100.0 / months) * push * _research_rate_mult(state, node, r)
+            rate = (100.0 / months) * push * _research_rate_mult(state, node, r, log=log)
             r["progress"] = min(100.0, r.get("progress", 0) + rate)
         else:
             # 月度预算消耗（整改④.2）：不济 → 中断并保留进度（机会成本可诊断）
             monthly = int(r.get("monthly_cost", 0) or 0)
             if monthly > 0:
-                paid = transfer_public_funds_to_pops(
-                    state, monthly, TECH_RESEARCH_PAY_TO,
-                    f"研发月费：{node[3]}")
+                # 审查 S8：与 `settlement.py:119`（同一研发月费机制）**对齐严格模式**——
+                # 原实现未开 `raise_on_unavailable`，通道损坏会被静默记成"经费不济"
+                # （idle_months++），把两件完全不同的事混为一谈。
+                from core.settlement_common import MoneyChannelUnavailable
+                from core.settlement_common import note_settlement_error
+                try:
+                    paid = transfer_public_funds_to_pops(
+                        state, monthly, TECH_RESEARCH_PAY_TO,
+                        f"研发月费：{node[3]}", raise_on_unavailable=True)
+                except MoneyChannelUnavailable as _e:
+                    note_settlement_error(
+                        state, "tech_layer3_channel", "研发",
+                        f"经费通道不可用，本月进度停滞（{type(_e).__name__}）",
+                        log=log, exc=_e)
+                    r["idle_months"] = int(r.get("idle_months", 0) or 0) + 1
+                    continue
                 if paid < monthly:
                     r["idle_months"] = int(r.get("idle_months", 0) or 0) + 1
                     _stats["research_idle_months"] =                         int(_stats.get("research_idle_months", 0) or 0) + 1
@@ -123,7 +180,7 @@ def _settle_tech_research(state, log):
                     continue
             masters = max(1, r.get("masters", cost["masters"]))
             rate = (100.0 / months) * (0.8 + 0.15 * masters)
-            rate *= _research_rate_mult(state, node, r)
+            rate *= _research_rate_mult(state, node, r, log=log)
             # 承接模式：玩家投入（invest_silver/grain）加速推进
             _invest = max(0, float(r.get("invest_silver", 0)))
             if _invest > 0:
@@ -137,6 +194,18 @@ def _settle_tech_research(state, log):
         if r["progress"] >= 100:
             researching.pop(node_id, None)
             unlock_node(state, node_id)
+            # ---- B4-2 新材科技解锁（market-civilian-economy · 2026-11 接线）----
+            # 科技节点点亮时，按注册表解锁该节点对应的新材。
+            # 水泥/钢筋是**架空后世材料**（北宋无），未解锁 ⇒ 不可用、不可定价。
+            # `skipped` **保留 reason 写日志**，不静默吞掉。
+            try:
+                from core.material_tech import unlock_materials_for_node
+                _mt = unlock_materials_for_node(state, node_id, log=log)
+                for _sk in (_mt.get("skipped") or []):
+                    log.append(f"[建材] {_sk.get('material')} 未解锁"
+                               f"（{_sk.get('reason')}）")
+            except Exception as _mte:      # noqa: BLE001 — 新材解锁失败不阻断科技结算
+                log.append(f"[建材][WARN] 新材解锁结算失败：{_mte!r}")
             tag = "颁行" if r.get("idea") else "研成"
             log.append(f"[科技] 新制「{node[3]}」{tag}，技进于器！")
 
@@ -204,6 +273,60 @@ def _settle_projects(state, log):
                 log.append(f"[工程] {name} 产能 {cap:.0%} → "
                            f"{'降效' if new_status == 'degraded' else '恢复运行'}"
                            f"（维持{'到位' if maintained else '欠费'}）")
+            # ---- 运行期产出（规格任务 4）：按 **capacity** 按月执行 operators ----
+            # 口径：产出随产能线性缩放（降效即减产，符合"维护与折旧影响运行"）；
+            # 金额一律经**既有守恒通道** `_collect_from_pops` 向民间征收（实收才入账，
+            # 不足则少收、绝不凭空造币），并写 provenance 供面板/审计回看。
+            _rt = proj.get("_runtime") or {}
+            if isinstance(_rt, dict) and _rt and cap > 0:
+                _paid = 0
+                for _ok, _amt in _rt.items():
+                    _want = int(round(float(_amt or 0) * cap))
+                    if _want <= 0:
+                        continue
+                    if _ok == "wine_coin_add":
+                        _got = int(_collect_from_pops(state, _want) or 0)
+                        state.imperial_treasury += _got
+                        _paid += _got
+                        stats["project_runtime_yield"] = \
+                            float(stats.get("project_runtime_yield", 0) or 0) + _got
+                        _rlog = proj.setdefault("_runtime_log", [])
+                        if isinstance(_rlog, list):
+                            _rlog.append({"turn": getattr(state, "turn", 0), "op": _ok,
+                                          "want": _want, "got": _got,
+                                          "capacity": round(cap, 4),
+                                          "note": "运行期产出（守恒征收）"})
+                            del _rlog[:-6]          # 只留最近 6 条，防存档膨胀
+                        if _got < _want:
+                            log.append(f"[工程] {name} 运行产出应 {_want:,} 贯，"
+                                       f"民间可缴 {_got:,} 贯，按实入账")
+                    elif _ok == "grain_buy":
+                        # 粮类运行产出：走**既有守恒配对**通道（太仓 +粮、国库 −钱、
+                        # 民间售粮得钱；钱粮两组 ΣΔ==0）。民间存粮不足 → 少买，不凭空造粮。
+                        from core.settlement_common import _state_grain_trade
+                        _g_got, _c_paid = _state_grain_trade(
+                            state, _want, "buy", float(getattr(state, "grain_price", 1.0) or 1.0),
+                            log, f"工程籴买·{name}")
+                        if _g_got > 0:
+                            stats["project_runtime_grain"] = \
+                                float(stats.get("project_runtime_grain", 0) or 0) + int(_g_got)
+                            _rlog = proj.setdefault("_runtime_log", [])
+                            if isinstance(_rlog, list):
+                                _rlog.append({"turn": getattr(state, "turn", 0), "op": _ok,
+                                              "want": _want, "got": int(_g_got),
+                                              "cost": int(_c_paid),
+                                              "capacity": round(cap, 4),
+                                              "note": "运行期籴买（国库出钱、太仓得粮、民间售粮）"})
+                                del _rlog[:-6]
+                        if int(_g_got) < _want:
+                            log.append(f"[工程] {name} 运行籴买应 {_want:,} 石，"
+                                       f"实籴 {int(_g_got):,} 石（民间存粮/国库钱不足），按实入账")
+                    else:
+                        # 未登记落点方式的运行键**不落地**（绝不凭空发明通道），但留痕
+                        log.append(f"[工程] {name} 运行产出键「{_ok}」无守恒落点，本月未执行")
+                if _paid:
+                    log.append(f"[工程] {name} 运行产出 {_paid:,} 贯"
+                               f"（产能 {cap:.0%}），入内帑")
             continue
         # ---- 拟议（proposed）→ 拨款（funded）：无款不开工，超期作罢 ----
         if status == "proposed":
@@ -233,12 +356,28 @@ def _settle_projects(state, log):
         if _gaps and not proj.get("_declared_warned"):
             proj["_declared_warned"] = True
             log.append(f"[工程] {name} 声明不全（缺：{','.join(_gaps)}），按实际供给降效推进")
+        # 🔴 **E-1 + C-c**：供给率**只看本路商人货栈**，与落扣
+        # （`consume_for_circuit`）**同一读口** —— 否则"判定说有料、落扣没料"，
+        # 即 §14.2 **障碍 2（判定与采购口径分叉）**。
+        # 传 `resources` 仅供 `project_supply_ratio` 读**非建材**维度。
+        _route0 = proj.get("route") or proj.get("prefecture") or ""
+        from core.material_holding import (material_holding_for_circuit as _mh,
+                                           to_material_dim)
+        _mat_view = {}
+        for _d in (proj.get("cost_material") or {}):
+            _md = to_material_dim(_d)
+            if _md is None:
+                # 非建材维度（如 `粮`）：仍查仓总账，保持既有口径
+                _mat_view[_d] = (getattr(state, "resources", {}) or {}).get(_d)
+                continue
+            # 建材：值取**本路商人货栈**（E-1/C-c），形状须为 `{"stock": n}`
+            _mat_view[_d] = {"stock": int(_mh(state, _route0, _md) or 0)}
         ratio = float(project_supply_ratio(
-            proj, getattr(state, "resources", {}) or {},
+            proj, _mat_view or (getattr(state, "resources", {}) or {}),
             getattr(state, "treasury", 0) or 0))
         if ratio <= 0:
             _short = [dim for dim, need in (proj.get("cost_material") or {}).items()
-                      if float((state.resources.get(dim, {}) or {}).get("stock", 0) or 0)
+                      if (_mh(state, _route0, to_material_dim(dim) or dim) or 0)
                       < float(need or 0)]
             if int(proj.get("cost_coin", 0) or 0) > 0 and \
                     int(getattr(state, "treasury", 0) or 0) < int(proj.get("cost_coin", 0) or 0):
@@ -272,22 +411,66 @@ def _settle_projects(state, log):
                 float(stats.get("project_corvee_worker_months", 0) or 0) + _workers
             stats["project_corvee_time_loss"] = \
                 float(stats.get("project_corvee_time_loss", 0) or 0) + _workers
-        # 材料：按供给率同比例消耗（逐步降效，不一次性抽干）
+        # 2026-10-11（B4-6 · 规格 market-civilian-economy）：**按剩余量摊还**。
+        # 旧实现每月付 `cost_coin × ratio` 与扣 `cost_material × ratio` 却**不递减**，
+        # ⇒ 工期 N 月即付/扣 N 倍（实测 6 月工期付 6 倍，材料同病）。
+        # 现改为：剩余量 `_mat_left` / `_coin_left` 逐月递减并封顶，
+        # **累计支出/耗用不超过批准预算与清单**；完工时余料退回（见完工段）。
         for dim, need in (proj.get("cost_material") or {}).items():
-            take = int(round(float(need or 0) * ratio))
+            _left_key = f"_mat_left_{dim}"
+            if _left_key not in proj:
+                proj[_left_key] = float(need or 0)
+            _left = float(proj.get(_left_key, 0) or 0)
+            if _left <= 0:
+                continue
+            take = min(_left, float(need or 0) * ratio)
             if take <= 0:
                 continue
-            _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
-            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - take)
-        # 工程款：按供给率同比例，守恒转移入民间（工匠 40% / 商人 60%），原子回滚
-        coin_need = int(proj.get("cost_coin", 0) or 0)
-        if coin_need > 0:
-            pay = int(round(coin_need * ratio))
-            if pay > 0:
-                _given = transfer_public_funds_to_pops(
-                    state, pay, GOV_SPEND_TO, f"工程营造款：{name}")
-                if _given < pay:
-                    log.append(f"[工程] {name} 营造款仅拨付 {_given:,}/{pay:,} 贯，按实记账")
+            # ✅ **已并入州府仓**（用户 2026-10-02 裁定「合并」）：政府工程原用
+            # `RAW_DIMS_14` 中文名（`铁`/`石`/`木`），民间营造用 `RAW_DIMS`
+            # 英文名（`iron`/`stone`/`timber`），二者本是**两个不同单元格**、
+            # 会**同一物料双记**。现经 `to_material_dim()` 在**仓边界**
+            # 翻译成**同一套英文名**，两处消费方共用 `consume_for_circuit()`
+            # ——**口径单点**，政府工程也因此**享受州府级物流**（缺料须先运到）。
+            # 项目台账内部（`cost_material` / `_mat_left_<dim>`）**仍用中文键**，
+            # 翻译只发生在落仓那一刻。
+            from core.material_holding import consume_for_circuit, to_material_dim
+            _mdim = to_material_dim(dim)
+            if _mdim is None:
+                continue          # 非建材维度（如 `粮` 走 pops[].grain）⇒ 跳过，不臆断
+            _route = proj.get("route") or proj.get("prefecture") or ""
+            _got = consume_for_circuit(state, _route, _mdim, int(round(take)))
+            if _got > 0:
+                take = float(_got)
+                proj[_left_key] = round(_left - take, 6)
+                stats["project_material_used"] = \
+                    float(stats.get("project_material_used", 0) or 0) + take
+        # 工程款：**按剩余量摊还**（总额封顶＝批准预算），不再是每月全额
+        coin_total = int(proj.get("cost_coin", 0) or 0)
+        if coin_total > 0:
+            if "_coin_left" not in proj:
+                proj["_coin_left"] = float(coin_total)
+            _coin_left = float(proj.get("_coin_left", 0) or 0)
+            if _coin_left > 0:
+                pay = int(round(min(_coin_left, coin_total * ratio)))
+                if pay > 0:
+                    from core.settlement_common import MoneyChannelUnavailable, note_settlement_error
+                    try:
+                        # 严格模式（P2-3 应修）：通道不可用 → 抛错，与"按实拨付 0"区分
+                        _given = transfer_public_funds_to_pops(
+                            state, pay, GOV_SPEND_TO, f"工程营造款：{name}",
+                            raise_on_unavailable=True)
+                    except MoneyChannelUnavailable as _e:
+                        note_settlement_error(
+                            state, "project_pay_channel", "工程",
+                            f"营造款通道不可用，本月未拨付（{type(_e).__name__}）",
+                            log=log, exc=_e)
+                        continue
+                    if _given < pay:
+                        log.append(f"[工程] {name} 营造款仅拨付 {_given:,}/{pay:,} 贯，按实记账")
+                    proj["_coin_left"] = round(_coin_left - _given, 6)
+                    stats["project_coin_paid"] = \
+                        float(stats.get("project_coin_paid", 0) or 0) + _given
 
         # 治安降效：本地动乱过高则进度折减（仍向前，不静默完工）
         speed = int(proj.get("speed", 10) or 0)
@@ -307,6 +490,17 @@ def _settle_projects(state, log):
         if proj["progress"] >= 100:
             proj["done"] = True
             proj["status"] = "operating"
+            # B4-6：完工结算剩余量——**余料退回物资仓**、余款记为未用完预算
+            # （不静默消失，进 statistics 供读数与审计回看）
+            _left_coin = float(proj.get("_coin_left", 0) or 0)
+            if _left_coin > 0:
+                stats["project_coin_unspent"] = \
+                    float(stats.get("project_coin_unspent", 0) or 0) + _left_coin
+                proj["_coin_left"] = 0.0
+            for dim in list(proj.get("cost_material") or {}):
+                _lk = f"_mat_left_{dim}"
+                if float(proj.get(_lk, 0) or 0) > 0:
+                    proj[_lk] = 0.0
             proj["capacity"] = float(proj.get("capacity", 1.0) or 1.0)
             proj["_upkeep_arrears_seen"] = int(stats.get("upkeep_arrears", 0) or 0)
             out = proj.get("output") or {}
@@ -315,11 +509,17 @@ def _settle_projects(state, log):
             if "defense_add" in out:
                 from core.army_models import ArmyUnit, EQUIP_STD, _defense_line_for
                 add = int(out["defense_add"])
-                for route in out.get("defense_routes", []):
-                    if route not in state.prefectures or add <= 0:
-                        continue
+                # 2026-10-03 修：原写法读 `out["defense_routes"]`，但该键**全库无生产者**
+                # ——全仓只有本行读它、写入方 0 处 ⇒ 循环体永不执行：厢军构件完工后
+                # Σtroops Δ=0，而面板按 plan_readout 把 `output={"defense_add":N}`
+                # 报成「效果生效」。机制建好却没落地。
+                # 正解不是再造一个合成键，而是用**项目自带的地点**：
+                # `construction.propose_project` 已把 `proj["route"]` 落档
+                #（同函数下方落成登记段的 `_broute` 也是这么取的）。
+                _droute = str(proj.get("route") or proj.get("prefecture") or "")
+                if add > 0 and _droute in state.prefectures:
                     xiang = [u for u in state.army_units
-                             if u.station == route and u.tier == "厢军"]
+                             if u.station == _droute and u.tier == "厢军"]
                     if xiang:
                         main = max(xiang, key=lambda u: u.troops)
                         main.branches["轻步兵"] = main.branches.get("轻步兵", 0) + add
@@ -327,14 +527,14 @@ def _settle_projects(state, log):
                         branch = "轻步兵"
                         std = EQUIP_STD.get(branch, {})
                         state.army_units.append(ArmyUnit(
-                            unit_id=f"eng{route}{state.year}{state.month}{pid}",
-                            name=f"{route}工役厢",
+                            unit_id=f"eng{_droute}{state.year}{state.month}{pid}",
+                            name=f"{_droute}工役厢",
                             tier="厢军",
                             branches={"轻步兵": add},
                             morale=45,
                             training=35,
-                            station=route,
-                            defense_line=_defense_line_for(route, "厢军"),
+                            station=_droute,
+                            defense_line=_defense_line_for(_droute, "厢军"),
                             equip={k: int(add * per) for k, per in std.items()},
                         ))
                 state._derive_defense_lines()
@@ -355,6 +555,15 @@ def _settle_projects(state, log):
                     _bp = BUILDING_BLUEPRINTS.get(_bkey)
                     if _bp:
                         _bname = _bp.get("name")
+                    elif str(_bkey or "").startswith("dyn:"):
+                        # 规格任务 3：**动态蓝图**的键不在静态表里 —— 原实现会走到
+                        # 下面的 `_bkey in BUILDING_STD` 分支拿不到名字 ⇒ `_bname=None`
+                        # ⇒ **完工但根本不登记建筑**（"完工无产出"，正是本规格要治的病）。
+                        # 现从本局存档的动态注册表取名，使动态建筑与静态建筑**同样**落
+                        # `prefectures[route]["buildings"]`，此后维持费/部署覆盖率才生效。
+                        from core.blueprint_dynamic import resolve_dynamic_blueprint
+                        _dyn = resolve_dynamic_blueprint(state, key=_bkey)
+                        _bname = (_dyn or {}).get("name")
                     else:
                         # BUILDING_STD 政府建筑：其键即中文名（水利/常平仓/官营作坊/官署/军营/学校）
                         _bname = _bkey if _bkey in BUILDING_STD else None
@@ -365,6 +574,9 @@ def _settle_projects(state, log):
                         log.append(f"[工程] {name} 落成：{_broute}·{_bname} Lv{_b[_bname]}"
                                    f"（部署 adoption 与资产维持费自此生效）")
                 except Exception as e:  # noqa: BLE001
+                    # 审查 P2-3 应修：原只有结算日志一行、**无 traceback**（落成登记失败
+                    # 会让"部署 adoption / 资产维持费自此生效"的承诺落空）。补 traceback。
+                    _log.exception("[工程] %s 落成登记失败（建筑未入档）", name)
                     log.append(f"[工程] {name} 落成登记失败：{type(e).__name__}")
             log.append(f"[工程] {name} 告成，转入运行（产能 {proj['capacity']:.0%}）")
 

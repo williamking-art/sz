@@ -32,7 +32,7 @@ maxTurns: 80
 
 ## 输出规范
 - 机制说明 + 变量表（单位/范围/上下限/修改者/消费者）。
-- 结算流程（12 步流水线插入步位，交 `settlement-engineering` 落地）。
+- 结算流程（按当前实现定位插入步位，交 `settlement-engineering` 落地；不依赖固定步骤数）。
 - 平衡矩阵与极端场景测试建议。
 
 ## SendMessage 回传

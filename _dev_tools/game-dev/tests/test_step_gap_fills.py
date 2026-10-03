@@ -23,6 +23,21 @@ from core import focus_mechanic as fm  # noqa: E402
 
 
 # ---------------------------------------------------------------- legacy_mechanic
+
+def _mg(s, route="京畿路"):
+    """取某路**商人 POP `goods`**（E-1 后建材在这里）。"""
+    return s.prefectures[route]["pops"]["商人"]["goods"]
+
+
+def _stock_local(s, dim14, qty, route="京畿路"):
+    """往**本地商人货栈**放建材（E-1）。"""
+    from core.material_holding import to_material_dim
+    mdim = to_material_dim(dim14)
+    assert mdim, f"{dim14!r} 应能翻译为建材维度"
+    _mg(s, route)[mdim] = int(qty)
+    return mdim
+
+
 def test_legacy_effects_do_not_corrupt_cumulative_statistics():
     """帝国修正是**纯叙事标签**：不得改累计收支统计（否则面板/AI 拿到注水数字）。
 
@@ -180,9 +195,11 @@ def test_project_coin_is_conserving_transfer():
 
     s = GameState("史实")
     s.treasury = 5_000_000
-    s.resources.setdefault("铁", {"stock": 10_000, "cap": 100_000})
+    mdim = _stock_local(s, "铁", 10_000)
     s.projects["p1"] = {
         "name": "测试工程", "progress": 90, "speed": 20, "done": False,
+        # 🔴 C-c：工程必须带 route，否则取料找不到州府（无从扣料）
+        "route": "京畿路",
         "cost_material": {"铁": 100}, "cost_coin": 500_000,
         "output": {"granary_cap_add": 100_000},
     }
@@ -193,7 +210,7 @@ def test_project_coin_is_conserving_transfer():
     assert tre0 - s.treasury == 500_000, "财政成本丢失（国库未扣）"
     assert _pop_wealth(s) - w0 == 500_000, "工程款未回流民间（无对手方销毁）"
     assert _money.m_all(s) - m0 == 0, "工程款破坏了货币守恒"
-    assert s.resources["铁"]["stock"] == 9_900, "材料未扣"
+    assert _mg(s)[mdim] == 9_900, "材料未扣"
 
 
 def test_emperor_action_cost_is_conserving_transfer():

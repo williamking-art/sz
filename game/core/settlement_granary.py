@@ -4,6 +4,7 @@
 `_settle_granary` / `_settle_disaster` 及相关守恒配对。"""
 from __future__ import annotations
 
+import logging
 import random
 
 from content.data import (
@@ -17,12 +18,21 @@ from content.data import (
     GRAIN_CONSUME_PER_CAPITA,
     HIDDEN_CONSUME_PER_CAPITA,
     GOODS_CONSUME_RATE,
+    GOODS_PRICE,
     FARMER_SELL_FLOOR,
     BOOM_MULT,
     FARMER_STORE_CAP,
     FARMER_SPOIL_RATE,
     DISASTER_RELIEF_GRAIN,
 )
+
+# 2026-10-11（规格 market-civilian-economy B1）：商品成交**唯一入口**（口径单点）。
+from core.market import sellable_stock, trade_goods
+# B2-4/B2-5：价格发现与四类价格口径分离（买入价 ≠ 外销价）
+from core.market_price import (discover_price, effective_buy_price,
+                               record_trade_price, pref_good_key)
+# B2-1/2/3：需求分层（温饱线 × 余量释放）
+from core.demand import basic_need, demand_release
 
 from core.settlement_common import (
     _avg_corruption,
@@ -75,7 +85,17 @@ def _settle_granary(state, log):
     # 三运制：漕运非月月进行——一年分春(3月)/夏(6月)/秋(9月)三个运期，
     # 运期当月发纲集中上供，其余月份不发纲（史实纲运节奏：岁漕三运）。
     if state.month in (3, 6, 9):
-        canal_eff = CANAL_MONTHLY_RATE * (1.0 - block / 100.0) * inflow_mult
+        # B2-R4 接线：漕运阻断率可被水利/疏浚工程降低（`transport_relief` 效果）。
+        # **`None` 表示"未定义"→ 用原阻断率**，不得回落 0（回落 0＝运力全通，凭空增粮）。
+        _block_eff = block
+        try:
+            from core.settlement_agri import effective_canal_block
+            _rb = effective_canal_block(state, block)
+            if _rb is not None:
+                _block_eff = _rb
+        except Exception as _cb_e:      # noqa: BLE001 — 钩子失败用原值，不阻断
+            log.append(f"[漕运][WARN] 农业运力钩子不可用：{_cb_e!r}")
+        canal_eff = CANAL_MONTHLY_RATE * (1.0 - _block_eff / 100.0) * inflow_mult
     else:
         canal_eff = 0.0
 
@@ -255,68 +275,157 @@ def _settle_granary(state, log):
         _settle_stabilizer_recycle(state, log)
 
     # ---- 商品交易（多商品）+ 粮市交易 + 各 POP 消费 ----
-    # 工匠产不同商品、各 POP 按阶级买不同商品（钱→工匠/商人，钱守恒；新增商品经 register_finished_good 扩展）
+    # 2026-10-11（B2-R5 审查发现 · P0）：**当月流量键按月清零**。
+    # `statistics` 全库无清零点，`price_demand` / `goods_spend` / `goods_traded` /
+    # `goods_unmet` / `basics_unmet` 会被逐月累加；而 `discover_price` 把
+    # **累计期望需求**与**当月末可售量**配对 ⇒ 价格压力被系统性放大
+    # （实测京畿路|布 1814→7923 单调累加）。这些键的语义是**当月流量**，
+    # 必须在月初归零。累加值若需长期保留，另设独立 `*_cum` 键。
+    _stats_m = getattr(state, "statistics", None)
+    if isinstance(_stats_m, dict):
+        for _k in ("price_demand", "goods_spend", "goods_traded",
+                   "goods_unmet", "basics_unmet"):
+            _stats_m.pop(_k, None)
+    # 工匠产不同商品、各POP 按阶级买不同商品（钱→工匠/商人，钱守恒；新增商品经 register_finished_good 扩展）
     _eco = getattr(state, "_economy_ai", None) or {}
     # 全游戏级强制 AI（拒绝式）：无经济推演 → 景气消费倍率中性 1.0（不伪造景气档位）
     _boom = BOOM_MULT.get(_eco.get("景气", "中"), 1.0) if _eco else 1.0
     _prod = {"无": 0.0, "微": 0.5, "小": 0.75, "中": 1.0, "大": 1.3, "巨": 1.6, "极": 1.9}.get(_eco.get("生产", "中"), 1.0)  # 生产力度（审查 P1-3：7 档闭合）
     for name, p in state.prefectures.items():
         artisan, merchant = p["pops"]["工匠"], p["pops"]["商人"]
-        # 1) 商品单通道（批 4 S2）：成品唯一产出是作坊 PM（`_settle_workshops` 已在
-        #    Step 4.5 跑过，产出入 resources/工匠 goods）。原「工匠 size 直产布/绸」
-        #    删除；**不断供护栏**：若本月 goods 池为空（作坊缺料停滞），回退旧直产
-        #    口径补产，保证成交率 ≥ 改造前 90%。
-        _goods_empty = all(int(v or 0) <= 0 for v in artisan.get("goods", {}).values()) \
-            if isinstance(artisan, dict) else True
-        if _goods_empty:
-            from core.production_chain import goods_direct_production_backup
-            goods_direct_production_backup(artisan, merchant, prod_mult=_prod)
-        # 2) 各 POP 按阶级买商品（有钱就消费，wealth 弹性收敛；买家支出全额入工匠/商人，钱守恒）
+        # 1) 商品供给（**真实来源**：作坊成品 → 工匠 goods 池）
+        # 2026-10-11（B1-5，用户裁定「移除兜底直产，让消费无货则不买」）：
+        #   原 `goods_direct_production_backup` 兜底直产**已移除**——它按工匠 size 直接
+        #   凭空补布/绸，是"虚拟供给"的另一来源。供给改由 `_settle_workshops`
+        #   （麻坊/丝坊 → 工匠 goods 池）提供；无货则**不买**，记未满足。
+        # 2) 各 POP 按阶级买商品（**真实成交**：扣钱 ⇄ 扣工匠库存，无货不买）
+        # 2026-10-11（规格 market-civilian-economy B1-5，用户裁定）：
+        #   原实现 `pop["wealth"] -= spend; pop["goods"][g] += spend*share`
+        #   **扣钱后凭空给货**（虚拟供给），已改为经`core/market.trade_goods` 真成交：
+        #   卖方＝工匠 goods 池（`purpose="resale"`），成交量受**真实可售量**约束。
+        #   无货 → 记未满足（`no_stock_local`），**不产生凭空商品**。
         for pop_name, pop in p["pops"].items():
             base_rate = GOODS_CONSUME_RATE.get(pop_name, 0.01)   # Phase B 定稿：商品消费率（单一权威源）
             _per_capita = pop["wealth"] / max(pop["size"], 1)
             _elastic = min(3.0, max(1.0, _per_capita / 5.0))
-            spend = int(pop["wealth"] * base_rate * _elastic * _boom)
-            if spend > 0:
-                pop["wealth"] -= spend
-                for gdim, share in GOODS_DEMAND.get(pop_name, {"布": 1.0}).items():
-                    if share > 0:
-                        pop["goods"][gdim] = pop["goods"].get(gdim, 0) + int(spend * share)
-                # 尾差归商人（守恒修正）：int(0.7x)+int(0.3x) ≤ x，截断差是无对手方销毁
-                # （逐月 ~百贯级残差漂移主源）；改为商人收余款，保证 Σcredit == spend。
-                _art_share = int(spend * 0.7)
-                artisan["wealth"] += _art_share
-                merchant["wealth"] += spend - _art_share
+            # B2-2：**余量释放**（阶层需求 × 财富余量，用户 2026-10-01 定论）。
+            # 温饱线以下 → 释放 0（不买）；温饱线未配置该阶层 → 1.0（现状口径）。
+            _rel = demand_release(pop_name, _per_capita)
+            if _rel is None or _rel <= 0:
+                if _rel is not None:
+                    # 温饱线以下：基本需求未满足**如实记录**（不是"没需求"）
+                    _st_u = getattr(state, "statistics", None)
+                    if isinstance(_st_u, dict):
+                        _bu = _st_u.setdefault("basics_unmet", {})
+                        for _d0 in (GOODS_DEMAND.get(pop_name, {}) or {}):
+                            _q0 = basic_need(pop_name, _d0, pop["size"])
+                            if _q0:
+                                _bu[_d0] = _bu.get(_d0, 0) + int(_q0)
+                continue
+            _want_spend = int(pop["wealth"] * base_rate * _elastic * _boom * _rel)
+            if _want_spend <= 0:
+                continue
+            for gdim, share in GOODS_DEMAND.get(pop_name, {"布": 1.0}).items():
+                if share <= 0:
+                    continue
+                # B2-R2：价格按**本路**读取（不再全局共享）。
+                _px = effective_buy_price(dim=gdim, state=state, pref=name)
+                _price = float(_px.get("price") or 0.0)
+                if _price <= 0:
+                    continue
+                _want_qty = int(_want_spend * share / _price)
+                if _want_qty <= 0:
+                    continue
+                _r = trade_goods(state, dim=gdim, qty=_want_qty, price=_price,
+                                 buyer=pop, seller=artisan,
+                                 purpose="resale", trade_id=None)
+                _stats = getattr(state, "statistics", None)
+                if isinstance(_stats, dict):
+                    _stats["goods_spend"] = float(_stats.get("goods_spend", 0) or 0) \
+                        + float(_r.get("paid", 0) or 0)
+                    _gtr = _stats.setdefault("goods_traded", {})
+                    _gtr[gdim] = _gtr.get(gdim, 0) + int(_r.get("traded", 0) or 0)
+                    # 未满足原因四分解（与 B0-3 读数口径一致）：零需求单列，
+                    # 涨价导致的买不起归入购买力不足，不另计一类。
+                    if int(_r.get("unmet_qty", 0) or 0) > 0:
+                        _un = _stats.setdefault("goods_unmet", {})
+                        _un[_r["reason"]] = _un.get(_r["reason"], 0) + int(_r["unmet_qty"])
+                    # B2-R2：需求键统一为 `(route, good)`；**记录期望需求**（`_want_qty`）
+                    # 而非仅成交量——高未满足需求必须反映在价格压力里。
+                    _pd = _stats.setdefault("price_demand", {})
+                    _pdk = pref_good_key(name, gdim)
+                    _pd[_pdk] = _pd.get(_pdk, 0) + int(_want_qty)
+                # 登记**本路**动态成交均价（**不改基准表**，B2-5；路级键 B2-R2）
+                if int(_r.get("traded", 0) or 0) > 0:
+                    record_trade_price(state, gdim, pref=name,
+                                       paid=float(_r.get("paid", 0) or 0),
+                                       qty=float(_r.get("traded", 0) or 0))
         # 3) 商品折旧（各 POP 持有商品每月 5% 消耗，商品有使用寿命、用完再买，防只增不耗）
+        # 2026-10-03：`goods` 含 `治所→{dim:n}` 州府桶，须只对**商品维**折旧，
+        # 否则会对 dict 做乘法（旧写法直接炸 `unsupported operand *: 'dict' and 'float'`）。
+        from core.material_holding import commodity_dims
         for _pop in p["pops"].values():
-            for _gdim in _pop.get("goods", {}):
+            for _gdim in commodity_dims(_pop.get("goods")):
                 _pop["goods"][_gdim] = int(_pop["goods"][_gdim] * 0.95)
-        # 3.5) 存货外销变现（蔡权衡裁决：goods 存量 > 库存上限（月产×12）→ 外销
-        #      min(存量-上限, 月产×0.3) × GOODS_PRICE 入工匠 wealth；goods 出 == 外部钱入，
-        #      守恒（来源=外销，非凭空）；记 statistics["export_income"]）
+        # 3.1) **价格发现（B2-4 ＋ B2-R2 路级修正）**：
+        # 供需**同域**——需求取**本路** `(route, good)`，供给取**本路**工匠可售库存，
+        # 上期价取**本路**动态价。原实现把多路累计需求与"循环中当前一路"的库存配对，
+        # 且动态价全局共享 ⇒ 甲路短缺会带着乙路一起跳价（B2-R2 指控，已修）。
+        # `price_demand` 记的是**期望需求**（含未满足），故高未满足会推高价格压力。
         try:
-            from content.data import GOODS_PRICE, EXPORT_STOCK_MONTHS, EXPORT_RATE
-            for _gdim, _gprice in GOODS_PRICE.items():
+            _stats_g = getattr(state, "statistics", None)
+            _pd_all = (_stats_g or {}).get("price_demand") or {}
+            if _pd_all:
+                _dyn_slot = getattr(state, "dynamic_prices", None)
+                if not isinstance(_dyn_slot, dict):
+                    _dyn_slot = {}
+                    state.dynamic_prices = _dyn_slot
+                for _gdim in GOODS_DEMAND.get("农", {"布": 1.0}).keys() | \
+                        GOODS_DEMAND.get("士绅", {"绸": 1.0}).keys():
+                    _pdk = pref_good_key(name, _gdim)
+                    _dq = _pd_all.get(_pdk)
+                    if not _dq:
+                        continue        # 本路本月无需求 → 不定价（不是"价格为 0"）
+                    _sup_q = sellable_stock(seller=artisan, dim=_gdim)
+                    _res = discover_price(
+                        dim=_gdim, demand_qty=_dq, supply_qty=_sup_q,
+                        prev_price=_dyn_slot.get(_pdk))
+                    _pv = _res.get("price")
+                    if _pv is not None:
+                        _dyn_slot[_pdk] = float(_pv)
+        except Exception as _pe:      # noqa: BLE001 — 价格发现失败不阻断结算
+            (getattr(state, "statistics", None) or {}).setdefault(
+                "price_discovery_error", str(_pe)[:200])
+        # 3.5) 存货外销变现（B2-R6 · 2026-10-11 接线：换单点，**不改参数**）
+        #      口径：`core/export_policy.py` 是外销决策**唯一入口**——
+        #      `free=max(0, 存量−国内承诺需求预留)` → `surplus=max(0, free−月产×12)`
+        #      → `qty=min(surplus, 月产×0.3, 存量)` → `income=qty×GOODS_PRICE`。
+        #      **不重复出售是结构性保证**：只认**内销真成交后**的存量，
+        #      从不读内销前库存，也不自行扣内销量。
+        #      ⚠️ 累计键 `export_income` **不得**在无外销时写 0——`statistics` 整局不清零，
+        #      累计 0 ＝"整局从未外销"≠"本月无外销"；本月 0 走 `export_month` 读数。
+        try:
+            from core.export_policy import (apply_export_decision, export_decision,
+                                            export_unit_price, read_artisan_stock)
+            _st = getattr(state, "statistics", None) or {}
+            for _gdim in GOODS_PRICE:
+                # 月产重估留在**结算层**（属结算估算，不复制进模块）
                 _month_prod = int(artisan["size"] * (0.10 if _gdim == "绸" else 0.20) * _prod)
-                _cap = _month_prod * EXPORT_STOCK_MONTHS
-                _stock = artisan["goods"].get(_gdim, 0)
-                if _stock > _cap and _month_prod > 0:
-                    _export = min(_stock - _cap, int(_month_prod * EXPORT_RATE))
-                    if _export > 0:
-                        artisan["goods"][_gdim] = _stock - _export
-                        _income = int(_export * _gprice)
-                        artisan["wealth"] += _income
-                        state.statistics["export_income"] = state.statistics.get("export_income", 0) + _income
-                        # 阶段 B-2：外销变现是**真实体外注入**（goods 出、外部钱入），
-                        # 登记入货币台账，使对账残差不再把它误算成"凭空造币"。
-                        # 见 core/money.py 的 register_flow 与 货币口径规范 §4.2。
-                        try:
-                            from core.money import register_flow as _reg_flow
-                            _reg_flow(state, "external", _income, f"外销变现·{_gdim}")
-                        except Exception:  # noqa: BLE001 — 台账登记失败不影响结算
-                            pass
-        except Exception:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
-            log.append("[外销] 外销变现失败，本月未变现（goods/wealth 未变）")
+                _dec = export_decision(
+                    dim=_gdim,
+                    stock=read_artisan_stock(state, name, _gdim),   # 内销后的真实存量
+                    month_prod=_month_prod,
+                    price=export_unit_price(_gdim),
+                    pref=name,
+                    domestic_sold_qty=int((_st.get("goods_traded") or {}).get(_gdim, 0) or 0),
+                    # domestic_commitment_qty=待 `goods_unmet` 升级为 (路,商品) 后补
+                )
+                apply_export_decision(state, _dec, seller=artisan, log=log)
+        except Exception as e:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
+            # 审查 P2-3 应修：原只有结算日志一行、**无 traceback**。补 logging.exception。
+            logging.getLogger("settlement").exception("[外销] 外销变现失败（goods/wealth 未变）")
+            log.append("[外销] 外销变现失败，本月未变现（goods/wealth 未变）"
+                       f"（{type(e).__name__}）")
         # 4) 士绅奢侈消费（蓄养奴婢/园林/宴饮/香火/收藏），消耗财富、钱流向工匠商人（服务），体现"富而奢"
         # Phase B 定稿：奢侈品 = 士绅wealth × 0.01 × 景气倍率（景气驱动，繁荣挥霍、萧条收缩）
         _genty = p["pops"]["士绅"]
@@ -420,28 +529,48 @@ def _settle_granary(state, log):
                     _left -= _c
                 pops[sname]["wealth"] += _c
         # 4) 口粮消费（按职业）：不足则饥荒（农逃荒）
+        # 判据**单点**：`food_insecure_headcount`（自有粮 ＋ 购粮能力 = 能吃到几成）。
+        # 用户 2026-10-01 定稿：逃荒人数由**实际吃不上饭的人数**1:1 派生，
+        # 不再用「size × 0.2%」这类比例魔数（上限仍作爆版保护，见 FLEE_CAP_PER_ROUTE）。
+        from core.settlement_common import FLEE_CAP_PER_ROUTE, food_insecure_headcount
+        _hungry_map = food_insecure_headcount(pops, price)
+        _famine_total = 0
         for pn, pop in pops.items():
             need = need_of[pn]
+            # 实际消费：先扣自有粮（粮账必须真扣，否则 Σ粮 不守恒）
             if pop["grain"] >= need:
                 pop["grain"] -= need
-            else:
-                pop["grain"] = 0
-                # 兵口粮由军粮段（太仓本色）单独保障与惩罚（训练/士气/民心），
-                # 本色半折+俸禄折钞、不靠粮市买粮——此处不重复计入民间饥荒 _famine，
-                # 防兵永远缺粮→每月 _famine→民心持续 -1（P0 崩盘链一部分）。
+            # 缺粮判定（单点 `food_insecure_headcount`：自有粮 ＋ 购粮能力）
+            hungry = int(_hungry_map.get(pn, 0) or 0)
+            if hungry > 0:
+                # 兵口粮由军粮段（太仓本色）单独保障与惩罚，本色半折+俸禄折钞、不靠粮市买粮
+                # ——此处**不**重复计入民间饥荒 `_famine`，防兵永远缺粮→每月 _famine
+                # → 民心持续 -1（P0 崩盘链的一部分）。
                 if pn != "兵":
                     _famine = True
-                if pn == "农":                    # 农民缺粮 → 逃荒为流民（POP 人数减、本地流民池增）
-                    # P0-④ 逃荒降档（0.01 → 0.002）并设单路上限 5 万/月，
-                    # 防粮市冲击下农缺粮触发海量流民 → 起义压力爆炸。
-                    _flee = min(int(pop["size"] * 0.002), 50_000)
-                    pop["size"] -= _flee
-                    p["refugees"] = p.get("refugees", 0) + _flee
+                    _famine_total += hungry
+                if pn == "农":       # 农缺粮 → 逃荒为流民（人数＝缺粮人数，1:1）
+                    _flee = min(hungry, FLEE_CAP_PER_ROUTE, int(pop["size"]))
+                    if _flee > 0:
+                        pop["size"] -= _flee
+                        p["refugees"] = p.get("refugees", 0) + _flee
+        state.statistics["grain_hungry"] = state.statistics.get("grain_hungry", 0) + _famine_total
         # 5) 农储粮上限+霉耗（加消耗兜底·自然消耗）：农 grain > 12石/人 → 超出按 2%/月霉耗核销（收敛 ~12石/人）
         _nong_g = pops["农"]
         _cap_g = _nong_g["size"] * FARMER_STORE_CAP
         if _nong_g["grain"] > _cap_g:
-            _spoil = int((_nong_g["grain"] - _cap_g) * FARMER_SPOIL_RATE)
+            # B2-R4 接线：霉耗率可被农业投资（常平仓储/谷仓设施）降低。
+            # **返回 `None` 表示"未定义"→ 按原始基率处理，不得回落 0**
+            # （回落 0 会凭空取消霉耗，凭空增粮）。
+            _spoil_rate = FARMER_SPOIL_RATE
+            try:
+                from core.settlement_agri import effective_spoil_rate
+                _r = effective_spoil_rate(state, name, FARMER_SPOIL_RATE)
+                if _r is not None:
+                    _spoil_rate = _r
+            except Exception as _se_e:      # noqa: BLE001 —钩子失败用基率，不阻断
+                log.append(f"[霉耗][WARN] 农业霉耗钩子不可用：{_se_e!r}")
+            _spoil = int((_nong_g["grain"] - _cap_g) * _spoil_rate)
             if _spoil > 0:
                 _nong_g["grain"] -= _spoil
                 state.granary_stats["farmer_spoil"] = state.granary_stats.get("farmer_spoil", 0) + _spoil
@@ -458,8 +587,19 @@ def _settle_granary(state, log):
             _rest = _hidden_feed - _from_self
             if _rest > 0:
                 _g0 = pops["士绅"]
-                _g0["grain"] = max(0, _g0["grain"] - _rest)
-            state.granary_stats["hidden_feed"] = state.granary_stats.get("hidden_feed", 0) + _hidden_feed
+                # 审查 O3：士绅兜底量原被 `max(0, …)` **静默截断**，但统计仍记**全额**
+                # `_hidden_feed` → 「喂了多少粮」与「实际扣了多少粮」不同源（同 S3/S4 类）。
+                # 现记**实扣额**；士绅无粮则实喂 < 应喂，如实反映为差额（不粉饰）。
+                _g0_before = max(0, int(_g0.get("grain", 0) or 0))
+                _g0["grain"] = max(0, _g0.get("grain", 0) - _rest)
+                _rest = min(_rest, _g0_before - max(0, int(_g0["grain"])))
+            _fed = _from_self + _rest
+            state.granary_stats["hidden_feed"] = state.granary_stats.get("hidden_feed", 0) + _fed
+            if _fed < _hidden_feed:
+                state.granary_stats["hidden_feed_short"] = (
+                    state.granary_stats.get("hidden_feed_short", 0) + (_hidden_feed - _fed))
+                log.append(f"[隐户] 本路隐户应喂 {_hidden_feed}石，仅实喂 {_fed}石"
+                           f"（士绅兜底不足，缺 {_hidden_feed - _fed}石）")
     if _famine:
         state.population_satisfaction = max(0, state.population_satisfaction - 1)
 

@@ -365,3 +365,8 @@ _dev_tools/game-dev/scripts/*
 # （git 以最后匹配的规则为准，本项目其它豁免规则同样放末尾）。
 # 不放行 → 协议不随仓库分发，新克隆/其他机器上的 agent 无从接手。
 !/AGENTS.md
+
+# --- scratch/ 下的 Electron 打包产物（2026-10-03：139MB asar 曾被误暂存）---
+# app.asar 是 electron-builder 生成物，可由 game/frontend 随时重建，不入库。
+scratch/*.asar
+

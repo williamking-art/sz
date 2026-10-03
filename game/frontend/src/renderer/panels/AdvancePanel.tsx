@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../store/gameStore";
 import { getApiClient, subscribeRichPoll } from "../api/client";
 import { humanizeCoin } from "../utils/format";
+import { SectionHead, StatCard, GoldDivider, SceneCard } from "../components/PanelKit";
 
 // 回合推演结果面板：本月损益（▲▼）+ 叙事报告 + 事件 + 朝报（逐行揭示，可跳过）
 // 迁移补齐：对齐 Tk game/ui/panels_meta.py::_settle_show——
@@ -20,6 +21,12 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
   // 众生相分幕（P0）：AI 月报 6~10 幕场景
   const rawScenes = Array.isArray(props?.scenes) ? props.scenes : [];
   const scenes = rawScenes.filter(
+    (s): s is { scene: string; text: string } =>
+      !!s && typeof s === "object" && typeof (s as Record<string, unknown>).text === "string"
+  );
+  // ④ 民间反应分幕（农人/士绅/商贾）
+  const rawCivScenes = Array.isArray(props?.civilian_scenes) ? props.civilian_scenes : [];
+  const civScenes = rawCivScenes.filter(
     (s): s is { scene: string; text: string } =>
       !!s && typeof s === "object" && typeof (s as Record<string, unknown>).text === "string"
   );
@@ -96,21 +103,28 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
   return (
     <div className="space-y-4">
       {deltas.length > 0 && (
-        <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
-          <p className="font-kai text-sm font-bold tracking-widest text-red">本 月 损 益</p>
-          <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div>
+          <SectionHead text="本 月 损 益" hint="结算前后对比" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {deltas.map((d) => {
               const up = d.v > 0;
               const flat = d.v === 0;
-              const tone = flat ? "text-dim" : up ? "text-emerald-700" : "text-red";
-              const mark = flat ? "—" : up ? "▲" : "▼";
               return (
-                <div key={d.label} className="rounded border border-gold/30 bg-card p-2 text-center">
-                  <p className="text-xs text-dim">{d.label}</p>
-                  <p className={`mt-0.5 font-sans text-sm font-bold ${tone}`}>
-                    {mark} {flat ? "持平" : d.coin ? humanizeCoin(Math.abs(d.v)) : Math.abs(d.v).toFixed(0)}
-                  </p>
-                </div>
+                <StatCard
+                  key={d.label}
+                  label={d.label}
+                  tone={flat ? "ink" : up ? "emerald" : "red"}
+                  value={
+                    <>
+                      {flat ? "—" : up ? "▲" : "▼"}{" "}
+                      {flat
+                        ? "持平"
+                        : d.coin
+                          ? humanizeCoin(Math.abs(d.v))
+                          : Math.abs(d.v).toFixed(0)}
+                    </>
+                  }
+                />
               );
             })}
           </div>
@@ -118,7 +132,7 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
       )}
 
       {report && (
-        <div className="rounded-lg border border-gold/40 bg-paper/60 p-4">
+        <div className="sz-card rounded-lg p-4">
           <p className="whitespace-pre-wrap font-kai text-[15px] leading-relaxed text-ink">{report}</p>
           {showRichNotice && (
             <p className="mt-2 border-t border-gold/20 pt-2 text-xs text-dim">
@@ -130,20 +144,33 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
 
       {/* 众生相分幕（P0）：AI 月报 6~10 幕场景卡片 */}
       {scenes.length > 0 && (
-        <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
-          <p className="mb-2 font-kai text-sm font-bold tracking-widest text-red">
-            众 生 相 · 分 幕
-          </p>
-          <div className="space-y-2">
+        <div>
+          <SectionHead text="众 生 相 · 分 幕" hint="朝野百态" />
+          <div className="space-y-1.5">
             {scenes.map((s, i) => (
-              <div key={i} className="border-l-2 border-red/40 pl-3">
-                <p className="font-kai text-[13px] font-bold text-ink">
-                  【{s.scene || `其${"一二三四五六七八九十"[i] || i + 1}`}】
-                </p>
-                <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-light">
-                  {s.text}
-                </p>
-              </div>
+              <SceneCard
+                key={i}
+                scene={s.scene || `其${"一二三四五六七八九十"[i] || i + 1}`}
+                text={s.text}
+                tone="red"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ④ 民间反应分幕（农人/士绅/商贾） */}
+      {civScenes.length > 0 && (
+        <div>
+          <SectionHead text="民 间 反 应 · 分 幕" hint="农人士绅商贾" tone="emerald" />
+          <div className="space-y-1.5">
+            {civScenes.map((s, i) => (
+              <SceneCard
+                key={i}
+                scene={s.scene || `其${"一二三"[i] || i + 1}`}
+                text={s.text}
+                tone="emerald"
+              />
             ))}
           </div>
         </div>
@@ -151,7 +178,7 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
 
       {events.length > 0 && (
         <div>
-          <h3 className="mb-2 font-kai text-base tracking-widest text-red">事件</h3>
+          <SectionHead text="事 件" hint="待陛下圣裁" />
           <ul className="space-y-2">
             {events.map((ev, i) => {
               const title = typeof ev === "string" ? ev : String((ev as Record<string, unknown>)?.title ?? "");
@@ -173,7 +200,7 @@ export default function AdvancePanel({ props }: { props?: Record<string, unknown
       {log.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-kai text-base tracking-widest text-red">朝报</h3>
+            <SectionHead text="朝 报" hint="有司逐条录" />
             {revealed < log.length && !skipped && (
               <button
                 onClick={() => {

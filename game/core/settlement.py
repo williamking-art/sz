@@ -93,7 +93,21 @@ def _settle_mechanisms(state, log):
                 for proj in state.tech.get("projects", {}).values():
                     proj["masters"] = proj.get("masters", 0) + 1
         elif eff == "maritime_tax_up":
-            state.statistics["total_income"] += int(state.calc_commerce() * 0.01)
+            # 「市舶抽解」= **提高市舶税率**，由 `_settle_finance` 的**唯一**关税入账通道
+            # （从商人 POP wealth 实征入 actual_tax → 国库，钱守恒）于下月增收。
+            # 审查 S3：旧实现 `statistics["total_income"] += commerce * 1%` **无任何对手方**
+            # （国库未动、商人未扣）→ 凭空记一笔收入（实测 +3,500,010/月），且与关税
+            # 唯一通道重复计账（与本段下方 B1 修复属同类）。值域/幅度取单点权威源
+            # `content.data.FINANCE_DECIDE_BASE["tariff"]`，不另立数值。
+            if state.maritime.get("open"):
+                from content.data import FINANCE_DECIDE_BASE as _FDB
+                _tf_cfg = _FDB["tariff"]
+                _old_tariff = float(state.maritime.get("tariff", 0.10))
+                _new_tariff = min(float(_tf_cfg["max"]),
+                                  max(float(_tf_cfg["min"]), _old_tariff + float(_tf_cfg["cap"])))
+                state.maritime["tariff"] = round(_new_tariff, 4)
+                log.append(f"[市舶抽解] 市舶税率 {_old_tariff:.2%} → {_new_tariff:.2%}"
+                           f"（关税由户部按实征入国库）")
 
 
 def _settle_tech(state, log):
@@ -105,15 +119,32 @@ def _settle_tech(state, log):
         if proj.get("done"):
             continue
         masters = proj.get("masters", 0)
-        monthly = proj.get("monthly_cost", 0)
-        if monthly <= 0:
+        # 审查 O1：`monthly <= 0` 对 NaN **恒为 False**（任何比较与 NaN 都返回 False）
+        # → NaN 会穿过这道闸门，到 `:129 int(monthly or 0)` 抛 ValueError、inf 抛
+        # OverflowError，**整月结算中断**。现先剔非有限值（缺失/坏值 → 不拨付并留痕）。
+        from core.numeric import parse_number as _pn
+        monthly = _pn(proj.get("monthly_cost", 0), 0.0)
+        if not (monthly > 0):
+            if proj.get("monthly_cost") is not None and proj.get("monthly_cost") != monthly:
+                log.append(f"[科技] 项目「{pname}」月费读数非法（{proj.get('monthly_cost')!r}），本月不拨付")
             continue
         # 研发月费：国库 → 学者/工匠 POP 的**守恒转移**（整改④.2；不得无对手方销毁）
         from content.data import TECH_RESEARCH_PAY_TO
         from core.settlement_steps import transfer_public_funds_to_pops
+        from core.settlement_common import MoneyChannelUnavailable, note_settlement_error
         _need = int(monthly or 0)
-        _paid = transfer_public_funds_to_pops(
-            state, _need, TECH_RESEARCH_PAY_TO, f"研发月费：{pname}")
+        try:
+            # 严格模式（P2-3 应修）：通道不可用 → 抛错，与"合法 0 拨付"区分开，
+            # 不得把"写入通道坏了"记成"月费不济"（那是两件完全不同的事）。
+            _paid = transfer_public_funds_to_pops(
+                state, _need, TECH_RESEARCH_PAY_TO, f"研发月费：{pname}",
+                raise_on_unavailable=True)
+        except MoneyChannelUnavailable as _e:
+            note_settlement_error(
+                state, "tech_layer3_channel", "研发",
+                f"经费通道不可用，本月进度停滞（{type(_e).__name__}）",
+                log=log, exc=_e)
+            continue
         if _paid >= _need:
             talent = 1.0 + min(masters, 20) * 0.1
             proj["progress"] = proj.get("progress", 0) + int(50 * talent)
@@ -164,11 +195,11 @@ def _settle_org_economy(state, log):
     if _back:
         state.change_treasury(_back)              # 结余回缴 / 超支补拨
     if total_out:
-        try:
-            from core.money import register_flow as _reg_flow
-            _reg_flow(state, "burn", total_out, "机构运营支出（预算实付）")
-        except Exception:  # noqa: BLE001
-            pass
+        # 审查 P2-3 / M8：原为 `except Exception: pass  # 台账登记失败不影响结算`——
+        # 注释是误导：未登记的销毁额会被 `core/money.reconcile` 算成**残差**，
+        # 面板于是显示"存在无对手方的造币/销毁"，把登记 bug 说成造币 bug。
+        from core.settlement_common import register_money_flow
+        register_money_flow(state, "burn", total_out, "机构运营支出（预算实付）")
     org_net = sum(o.get("net", 0) for o in state.central_orgs.values() if not o.get("abolished"))
     state.statistics.setdefault("org_net", 0)
     state.statistics["org_net"] = round(org_net, 2)
@@ -180,12 +211,20 @@ def _settle_legacies(state, log):
 
     参考《明末：捞金模拟器》的帝国修正机制。开局即存在的条件式长期修正符，
     带明确消除条件，让开局有历史包袱与破局目标。AI 缺失时程序兜底不伪造。
+
+    审查 P2-3 / M7：原实现 `except Exception: pass` —— 整步不生效而日志一字无，
+    玩家看到的是"这个月什么也没发生"。现改为**结算日志一行（玩家可见）＋
+    `logging` traceback（开发者可定位）**，并按步位命名（防与其它步混淆）。
     """
     try:
         from core.legacy_mechanic import settle_legacies
         settle_legacies(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 — 不得静默跳过整步
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "legacies", "帝国修正",
+            f"本月帝国修正未结算：{type(e).__name__}（效果未施加、消除条件未判定）",
+            log=log, exc=e, level="exception")
 
 
 def _settle_focus(state, log):
@@ -193,12 +232,18 @@ def _settle_focus(state, log):
 
     参考《明末：捞金模拟器》的国策树机制。五大分支（政务/军事/科学/内卫/税务），
     带权力等级、互斥分支、解锁建筑与长期效果。AI 缺失时程序兜底不伪造。
+
+    审查 P2-3 / M7：同上——国策长期效果整步不生效必须可见，不得静默跳过。
     """
     try:
         from core.focus_mechanic import settle_focus
         settle_focus(state, log)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 — 不得静默跳过整步
+        from core.settlement_common import note_settlement_error
+        note_settlement_error(
+            state, "focus", "国策",
+            f"本月国策长期效果未结算：{type(e).__name__}（进度/度支/分支效果未施加）",
+            log=log, exc=e, level="exception")
 
 
 # ============================================================
@@ -447,6 +492,19 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- [生产] Step 3.5: 田亩与地方州县 ----
     _settle_land_local(state, log)
 
+    # ---- [生产] Step 3.5.2: 农业投资效果（B2-R4 · 2026-10-11 接线）----
+    # 放在 `_settle_land_local` 之后、`_settle_region_deepen` 之前：
+    # ① 紧随收获分配/田赋 ⇒ 增产**不二次计税**（与"田赋按核定田亩"不冲突）；
+    # ② 早于 Step 4.5 的粮市撮合 ⇒ 同月即形成可售粮与农户收入；
+    # ③ 晚于 `_settle_economy` ⇒ 人口/阶层流动先于增产落账。
+    # 口径：增产只落 `pops["农"]["grain"]`；四项成本（土地/材料/工时/维护）
+    # **先扣后产**，最短板降效，**不存在零成本增产**；从不给 POP 加 wealth。
+    try:
+        from core.settlement_agri import apply_agri_effects
+        apply_agri_effects(state, log)
+    except Exception as _ae_e:      # noqa: BLE001 — 农业效果失败不阻断结算
+        log.append(f"[农业][WARN] 投资效果结算失败：{_ae_e!r}")
+
     # ---- [生产] Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
     _settle_region_deepen(state, log)
 
@@ -467,8 +525,61 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
         settle_production_chain(state, log)
     except Exception as _pc_e:  # noqa: BLE001
         log.append(f"[产出链][WARN] 原料入仓失败：{_pc_e!r}")
+
+    # ---- [建材供给] Step 4.45: 建材**入商人货栈**（口径 E-1）----
+    # 排在 Step 4.4 产出链之后 ⇒ 搬的是**已含本月产出**的全国仓总量；
+    # 排在 Step 3.85 民间营造与 Step 4.5 工程之前 ⇒ 消费侧读到的是**已配货**的商人。
+    #
+    # 🔴 E-1（用户 2026-10-02「建材也是商品啊」）：建材是**商品**，存量落在
+    # **商人 POP `goods`**（POP 挂载律），商人因此有囤货与定价动机；
+    # 施工侧（C-c）仍**只从本地取、取不到即缺料** ⇒ 物流仍有意义。
+    # 本步只把 `state.resources[dim]["stock"]` **搬到商人**，**总量守恒、不凭空增物**。
+    try:
+        from core.material_holding import supply_merchant_materials
+        supply_merchant_materials(state)
+    except Exception as _mh_e:  # noqa: BLE001
+        log.append(f"[建材供给][WARN] 商人配货失败：{_mh_e!r}")
+
+    # ---- [建材在途] Step 4.46: 本月到期的建材批次入账（P0 · 2026-10-02）----
+    # 🔴 C-c「只从本地取、取不到即缺料」要成立，**必须能观测"运没运到"** ⇒ 需要在途。
+    # 排在 Step 4.45 配货**之后**：这样"本月新发货"与"本月到货"都能被读到；
+    # 排在消费侧（Step 3.85 / 4.5）**之前** ⇒ 当月到货当月即可用。
+    try:
+        from core.transport import arrive_due
+        _arrived = arrive_due(state)
+        if _arrived:
+            _tot = sum(int(b.get("qty", 0) or 0) for b in _arrived)
+            log.append(f"[建材在途] 本月到货 {_tot} 件（{len(_arrived)} 批）")
+    except Exception as _tr_e:  # noqa: BLE001
+        log.append(f"[建材在途][WARN] 到货结算失败：{_tr_e!r}")
+
+    # ---- [建材采购] Step 4.47: 商人**补货下单**（E-1 的囤货动机落地）----
+    # 排在 4.46 到货**之后**：先把本月到的算进存量，再判断还缺不缺。
+    # 🔴 建材是商品（E-1）⇒ 商人有囤货动机；C-c ⇒ 货必须**走在途**，不能瞬移。
+    # 每月只跑一次；失败只记 WARN，不阻断结算。
+    try:
+        from core.material_trade import procure_materials
+        _proc = procure_materials(state)
+        if _proc.get("bought"):
+            _b = sum(int(x["qty"]) for x in _proc["bought"])
+            log.append(f"[建材采购] 本月下单 {_b} 件（{len(_proc['bought'])} 笔，均为在途）")
+    except Exception as _pm_e:  # noqa: BLE001
+        log.append(f"[建材采购][WARN] 补货下单失败：{_pm_e!r}")
+
     _settle_projects(state, log)
     _settle_workshops(state, log)
+
+    # ---- [民间营造] Step 3.85: B4-7 民间自发造房（2026-11 接线）----
+    # 排在 Step 4.4 产出链之后 ⇒ 本月入仓的建材当月可用；
+    # 排在 Step 3.9 `_settle_upkeep` 之前 ⇒ 新造民居/货栈**当月即进资产维持费**
+    # （否则出现"造完当月免维护"的漏洞）。
+    # 口径：料真扣 `state.resources`、钱经`transfer_money` 由出资阶层划转本路工匠
+    #（**有付款对手方**）、工时只记 `statistics`；**全程不写任何 POP `size`**。
+    try:
+        from core.civil_building import apply_civil_construction
+        apply_civil_construction(state, log)
+    except Exception as _cb_e:      # noqa: BLE001 — 民间营造失败不阻断结算
+        log.append(f"[营造][WARN] 民间营造触发结算失败：{_cb_e!r}")
 
     # ---- [工程运行维护] Step 3.9: 资产维持费（L1 money sink，B-3）----
     _settle_upkeep(state, log)

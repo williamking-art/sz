@@ -48,38 +48,136 @@ export const STATE: Dict = {
     changping: 400_000, capacity: 3_000_000
   },
   treasury: 1_250_000,
-  imperial_treasury: 320_000,
-  army_units: [
-    {
-      unit_id: "u0001", name: "两浙路·殿前第15军", army_name: "殿前第15军", tier: "禁军",
-      station: "两浙路", defense_line: "沿海", org_arm: "殿前司", scale: "军", serial: 15,
-      branches: { 重骑兵: 10_500, 轻骑兵: 4_500, 弓弩手: 7_500, 长枪手: 9_000, 轻步兵: 19_350, 器械兵: 3_600, 战船兵: 6_150 },
-      equip: { 枪刀: 26_000, 盔甲: 12_000, 战马: 3_000 },
-      morale: 55, training: 42, arrears: 0, commander: "吕颐浩"
-    },
-    {
-      unit_id: "u0002", name: "两浙路·厢军造船", army_name: "造船厢军", tier: "厢军",
-      station: "两浙路", defense_line: "", org_arm: "", scale: "厢", serial: 3,
-      branches: { 轻步兵: 8_000, 器械兵: 2_000 },
-      equip: { 枪刀: 6_000 },
-      morale: 41, training: 18, arrears: 1_200, commander: ""
-    },
-    {
-      unit_id: "u0003", name: "两浙路·乡兵弓手", army_name: "两浙乡兵弓手", tier: "乡兵",
-      station: "两浙路", defense_line: "", org_arm: "", scale: "乡", serial: 7,
-      branches: { 弓弩手: 5_000, 轻步兵: 8_000 },
-      equip: {},
-      morale: 48, training: 12, arrears: 0, commander: ""
-    },
-    {
-      unit_id: "u0011", name: "京畿路·殿前第1军", army_name: "殿前第1军", tier: "禁军",
-      station: "京畿路", defense_line: "京畿", org_arm: "殿前司", scale: "军", serial: 1,
-      branches: { 重骑兵: 18_000, 轻骑兵: 6_000, 弓弩手: 10_000, 长枪手: 14_000, 轻步兵: 12_000 },
-      equip: { 枪刀: 40_000, 盔甲: 24_000, 战马: 6_000 },
-      morale: 62, training: 55, arrears: 0, commander: "韩世忠"
-    }
-  ]
+  imperial_treasury: 320_000
 };
+
+// 2026-10-01 审查 M8：编制单位**不在** STATE 里 —— 生产 `/api/state` 经
+//   `_state_to_dict` 会剔除 `army_units`（ArmyUnit 为对象、不可JSON 序列化），
+//   单位级数据只由 `/api/readouts::army` 下发。把 army_units 塞进 STATE 会让
+//   「面板取不到部队 → 军令静默失效」这类缺陷在截图里看不见（假绿）。
+export const ARMY: Dict[] = [
+  {
+    unit_id: "u0001", name: "两浙路·殿前第15军", army_name: "殿前第15军", tier: "禁军",
+    station: "两浙路", defense_line: "沿海", org_arm: "殿前司", scale: "军", serial: 15,
+    branches: { 重骑兵: 10_500, 轻骑兵: 4_500, 弓弩手: 7_500, 长枪手: 9_000, 轻步兵: 19_350, 器械兵: 3_600, 战船兵: 6_150 },
+    equip: { 枪刀: 26_000, 盔甲: 12_000, 战马: 3_000 },
+    morale: 55, training: 42, arrears: 0, commander: "吕颐浩"
+  },
+  {
+    unit_id: "u0002", name: "两浙路·厢军造船", army_name: "造船厢军", tier: "厢军",
+    station: "两浙路", defense_line: "", org_arm: "", scale: "厢", serial: 3,
+    branches: { 轻步兵: 8_000, 器械兵: 2_000 },
+    equip: { 枪刀: 6_000 },
+    morale: 41, training: 18, arrears: 1_200, commander: ""
+  },
+  {
+    unit_id: "u0003", name: "两浙路·乡兵弓手", army_name: "两浙乡兵弓手", tier: "乡兵",
+    station: "两浙路", defense_line: "", org_arm: "", scale: "乡", serial: 7,
+    branches: { 弓弩手: 5_000, 轻步兵: 8_000 },
+    equip: {},
+    morale: 48, training: 12, arrears: 0, commander: ""
+  },
+  {
+    unit_id: "u0011", name: "京畿路·殿前第1军", army_name: "殿前第1军", tier: "禁军",
+    station: "京畿路", defense_line: "京畿", org_arm: "殿前司", scale: "军", serial: 1,
+    branches: { 重骑兵: 18_000, 轻骑兵: 6_000, 弓弩手: 10_000, 长枪手: 14_000, 轻步兵: 12_000 },
+    equip: { 枪刀: 40_000, 盔甲: 24_000, 战马: 6_000 },
+    morale: 62, training: 55, arrears: 0, commander: "韩世忠"
+  }
+];
+
+// 在办长期事务（P1-1 支持模型）：刻意覆盖三种关键状态，供 TodoPanel 截图核对
+//   ① 支持/阻力与执行能力齐备、下月可预判（正常在办）
+//   ② 吏治读数缺失 → defined=false（必须显式写"未定义"，不得显示成 0/完美）
+//   ③ 未命中任何 POP 得失声明 → declared=false（必须写"未声明立场"，不得编造支持者）
+//   ④ 密令：走密旨通道，不支持调兵督行
+const TASK_SURVEY: Dict = {
+  id: "ltp1", task_name: "方田均税·清丈隐田", title: "方田均税·清丈隐田",
+  months: 18, progress: 42.5, minister: "章惇", org_hint: "户部", outcome: "在办",
+  readout: {
+    id: "ltp1", name: "方田均税·清丈隐田",
+    goal: "清丈各路隐田、均平赋税，使隐漏稍抑、赋役均平",
+    success_condition: "成效满 100%（按月由支持方/阻力方与执行能力推进，非按时间自动完成）",
+    org_hint: "户部", minister: "章惇", topic: "land_survey", topic_label: "方田均税（清丈隐田）",
+    kind: "民政", stage: "成效渐著", progress: 42.5, months: 18,
+    supporters: [{ name: "新党", influence: 34, reason: "户部主责，本派（按 YAMEN_INFO 声明）力主" }],
+    opposers: [
+      { name: "旧党", influence: 26, reason: "基本盘 士绅 受损（隐田蔽课被括、形势户受损）——按《方田均税（清丈隐田）》POP 得失声明" },
+      { name: "中立派", influence: 18, reason: "基本盘 士绅 受损——按《方田均税（清丈隐田）》POP 得失声明" }
+    ],
+    stance_declared: true, support_net: 0.18, support_bonus: 0.12, stance_mult: 1.09,
+    obstruction: {
+      defined: true, clerks_mult: 0.86, clerks_quality: "吏胥弄权", civil_mult: 0.92,
+      literacy: 18.4, kind: "民政", military_applies: false, army_mult: null,
+      blockers: [
+        "吏治（强关联）折扣 ×0.86（吏胥弄权）",
+        "民心/识字率（弱关联）×0.92",
+        "军队不参与（民政事务，未调兵）",
+        "旧党 反对（影响力 26）：基本盘 士绅 受损"
+      ],
+      note: "吏治（强）折扣 ×0.86；民心/识字率（弱）×0.92；军队不参与（民政诏令，未调兵）"
+    },
+    forecast: {
+      advance_pct: 4.83,
+      text: "按本月读数，下月约推进 4.83%（基数 5.56% × 难度 1.20 × 执行 0.79 × 立场 1.09）"
+    },
+    last_change: "本月推进 4.83%（37.7% → 42.5%）：执行 ×0.79（吏治 ×0.86 · 民心/识字率 ×0.92）"
+      + " × 立场 ×1.09（净支持 +0.18；支持方 新党，阻力方 旧党、中立派）",
+    decree_history: [{
+      turn: 3, title: "督行「方田均税·清丈隐田」", kind: "督行", target: "章惇",
+      executed: true, rate: 0.71, support_delta: 0.12,
+      note: "督行诏已施行（执行率 71%），支持 +0.12"
+    }],
+    decree_count: 1, stall_months: 0, outcome: "在办"
+  }
+};
+
+const TASK_UNDEFINED: Dict = {
+  id: "ltp2", task_name: "修葺河堤", title: "修葺河堤", months: 12, progress: 8.0,
+  minister: "郑居中", org_hint: "工部", outcome: "在办",
+  readout: {
+    id: "ltp2", name: "修葺河堤", goal: "修葺黄河堤防，免决口之患",
+    success_condition: "成效满 100%", org_hint: "工部", minister: "郑居中",
+    topic: null, topic_label: null, kind: "民政", stage: "推行中", progress: 8.0, months: 12,
+    supporters: [], opposers: [], stance_declared: false,
+    stance_note: "未声明立场：本事务未命中任何既有 POP 得失声明（不编造支持者），仅按官场配合度与执行能力推进",
+    support_net: 0.0, support_bonus: 0.0, stance_mult: 1.0,
+    obstruction: {
+      defined: false, clerks_mult: null, clerks_quality: null, civil_mult: null,
+      literacy: null, kind: "民政", military_applies: false, army_mult: null,
+      blockers: ["吏治读数缺失（未定义）→ 政令无法评估执行能力", "军队不参与（民政事务，未调兵）"],
+      note: "吏治读数缺失"
+    },
+    forecast: { advance_pct: null, text: "吏治读数缺失（未定义）→ 无法预判，本月不推进（不伪造）" },
+    last_change: "吏治读数缺失（未定义）→ 本月不推进，成效未变（不伪造）",
+    decree_history: [], decree_count: 0, stall_months: 2, outcome: "在办"
+  }
+};
+
+const TASK_SECRET: Dict = {
+  id: "lts1", task_name: "密查诸路截留", title: "密查诸路截留", months: 10, progress: 20.0,
+  minister: "李纲", outcome: "在办",
+  readout: {
+    id: "lts1", name: "密查诸路截留", goal: "密查各路漕粮截留情弊",
+    success_condition: "成效满 100%", org_hint: "政府", minister: "李纲",
+    topic: null, topic_label: null, kind: "民政", stage: "推行中", progress: 20.0, months: 10,
+    supporters: [{ name: "皇党集团", influence: 8, reason: "承办大臣 李纲 出身该派（按 MINISTERS 声明）" }],
+    opposers: [], stance_declared: true,
+    stance_note: "支持/阻力取自既有声明表（FACTION_POP_BASIS / REFORM_POP_BASIS / YAMEN_INFO）",
+    support_net: 0.08, support_bonus: 0.0, stance_mult: 1.04,
+    obstruction: {
+      defined: true, clerks_mult: 0.9, clerks_quality: "吏习其事", civil_mult: 0.93,
+      literacy: 17.2, kind: "民政", military_applies: false, army_mult: null,
+      blockers: ["吏治（强关联）折扣 ×0.90（吏习其事）", "军队不参与（民政事务，未调兵）"], note: ""
+    },
+    forecast: { advance_pct: 9.1, text: "按本月读数，下月约推进 9.10%" },
+    last_change: "本月推进 9.10%（10.9% → 20.0%）",
+    decree_history: [], decree_count: 0, stall_months: 0, outcome: "在办"
+  }
+};
+
+STATE.longterm_public = [TASK_SURVEY, TASK_UNDEFINED];
+STATE.longterm_secret = [TASK_SECRET];
 
 const ROUTE_ZXL = {
   name: "两浙路", display_name: "两浙路", controlled_by: "宋",
@@ -104,6 +202,7 @@ const ROUTE_JJL = {
 };
 
 export const READOUTS = {
+  army: ARMY,
   regions: {
     routes: [ROUTE_ZXL, ROUTE_JJL],
     prefectures: [

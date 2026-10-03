@@ -57,7 +57,10 @@ def test_goods_supply_not_cut():
     total_goods = 0
     for p in s.prefectures.values():
         for pop in (p.get("pops") or {}).values():
+            # 2026-10-03：`goods` 含 `治所→{dim:n}` 州府桶，只累加**商品维**的数值项。
             for v in (pop.get("goods") or {}).values():
+                if isinstance(v, bool) or not isinstance(v, (int, float)):
+                    continue
                 total_goods += int(v or 0)
     # 旧直产删除 + 作坊产出后，商品存量或消费后残余应 > 0（不断供护栏兜底）
     assert total_goods >= 0  # 基线：不炸
@@ -66,7 +69,10 @@ def test_goods_supply_not_cut():
     total2 = 0
     for p in s.prefectures.values():
         for pop in (p.get("pops") or {}).values():
+            # 同上：只累加商品维的数值项，跳过州府桶（dict）。
             for v in (pop.get("goods") or {}).values():
+                if isinstance(v, bool) or not isinstance(v, (int, float)):
+                    continue
                 total2 += int(v or 0)
     assert total2 >= 0
 

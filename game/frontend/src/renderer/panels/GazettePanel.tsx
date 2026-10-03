@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useGameStore, pick } from "../store/gameStore";
+import { SectionHead, GoldDivider, SceneCard, Badge } from "../components/PanelKit";
 
 // 朝报 —— 批 3 月度奏章八章（明末经验）：诏书核销 / 指令核销 / 长期局势 / 密令动向 /
 // 讣闻登场 / 人物历练 / 军事 / 邦交 + 章末七言联 + ▲▼ 差值摘要。
@@ -51,7 +52,12 @@ function ChapterBlock({ ch }: { ch: GazetteChapter }) {
   const tone = CHAPTER_TONE[ch.title] ?? "border-l-gold";
   return (
     <div className={`border-l-2 ${tone} pl-2.5`}>
-      <p className="font-kai text-[13px] font-bold tracking-[0.2em] text-red">{ch.title}</p>
+      <div className="flex items-center gap-2">
+        <span className="font-kai text-[13px] font-bold tracking-[0.2em] text-red">{ch.title}</span>
+        {ch.lines.length > 0 && ch.lines[0] !== "本月无" + ch.title + "可记。" && (
+          <Badge text="有记" tone="gold" />
+        )}
+      </div>
       {ch.lines.length === 0 ? (
         <p className="py-0.5 text-xs text-dim">（本月无事）</p>
       ) : (
@@ -61,12 +67,9 @@ function ChapterBlock({ ch }: { ch: GazetteChapter }) {
       )}
       {/* ⑤ 分幕小剧场 */}
       {(ch.scenes?.length ?? 0) > 0 && (
-        <div className="mt-1 space-y-1 border-t border-gold/20 pt-1">
+        <div className="mt-1.5 space-y-1 border-t border-gold/20 pt-1.5">
           {ch.scenes!.map((s, i) => (
-            <div key={i} className="pl-2">
-              <span className="font-kai text-[11px] text-dim">【{s.scene}】</span>
-              <span className="ml-1 text-xs leading-relaxed text-ink-light">{s.text}</span>
-            </div>
+            <SceneCard key={i} scene={s.scene} text={s.text} tone="gold" />
           ))}
         </div>
       )}
@@ -192,26 +195,30 @@ export default function GazettePanel() {
   return (
     <div className="space-y-3">
       {uiLogBlock}
-      <div className="rounded-lg border border-gold/40 bg-card p-4">
-        <p className="mb-2 text-center font-kai text-base tracking-[0.3em] text-red">大 宋 邸 报</p>
-        <p className="mb-2 text-center text-[11px] text-dim">
-          八章：诏书核销 · 指令核销 · 长期局势 · 密令动向 · 讣闻登场 · 人物历练 · 军事 · 邦交
-        </p>
-        <div className="max-h-[52vh] space-y-3 overflow-y-auto">
-          {gazettes.length > 0
-            ? gazettes.map((g, i) => <GazetteMonthCard key={`${g.year}-${g.month}-${i}`} g={g} />)
-            : blocks.map((b, i) => (
-                <div key={`${b.year}-${b.month}-${i}`}>
-                  <p className="font-kai text-sm font-bold text-ink">〔{b.year}年{b.month}月〕</p>
-                  {b.lines.length === 0 ? (
-                    <p className="pl-3 text-xs text-dim">（本月无事可记）</p>
-                  ) : (
-                    b.lines.map((l, j) => (
-                      <p key={j} className="py-0.5 pl-3 text-sm leading-relaxed text-ink">· {l}</p>
-                    ))
-                  )}
-                </div>
-              ))}
+      <div className="sz-panel rounded-lg">
+        <div className="sz-panel-header">
+          <p className="sz-panel-title">大 宋 邸 报</p>
+        </div>
+        <div className="sz-panel-body">
+          <p className="mb-3 text-center text-[11px] tracking-wider text-dim">
+            八章：诏书核销 · 指令核销 · 长期局势 · 密令动向 · 讣闻登场 · 人物历练 · 军事 · 邦交
+          </p>
+          <div className="max-h-[52vh] space-y-3 overflow-y-auto">
+            {gazettes.length > 0
+              ? gazettes.map((g, i) => <GazetteMonthCard key={`${g.year}-${g.month}-${i}`} g={g} />)
+              : blocks.map((b, i) => (
+                  <div key={`${b.year}-${b.month}-${i}`}>
+                    <p className="font-kai text-sm font-bold text-ink">〔{b.year}年{b.month}月〕</p>
+                    {b.lines.length === 0 ? (
+                      <p className="pl-3 text-xs text-dim">（本月无事可记）</p>
+                    ) : (
+                      b.lines.map((l, j) => (
+                        <p key={j} className="py-0.5 pl-3 text-sm leading-relaxed text-ink">· {l}</p>
+                      ))
+                    )}
+                  </div>
+                ))}
+          </div>
         </div>
       </div>
     </div>

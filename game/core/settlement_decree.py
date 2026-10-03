@@ -4,7 +4,11 @@
 含 `_settle_decrees` / `_apply_decree_effect` / `_settle_longterm_decrees`。"""
 from __future__ import annotations
 
+import logging
+import math
 import random
+
+_log = logging.getLogger("settlement_decree")
 
 from content.data import (
     CHANGPING_HIGH,
@@ -24,6 +28,55 @@ from core.settlement_common import (
 # ------------------------------------------------------------
 # Step 1: 诏令执行
 # ------------------------------------------------------------
+
+
+def _ensure_decree_id(state, decree: dict) -> str:
+    """为旨意补 `decree_id`——**转发 `core/decree_confirm.ensure_decree_id`（口径单点）**。
+
+    背景（2026-11 实测缺陷）：`commands_decree` 的四条下旨路径从不写
+    `decree_id`/`id` ⇒ B5-5 分支 `if _did:` 恒假、**密令泄露推演从未执行**，
+    `_secret_contacts` 恒返回 `[]`，去重集合恒空。
+    实现归 `decree_confirm`（它是幂等锚的所有者），此处只做**薄转发**，
+    避免两个口径分叉。缺失或模块不可用时返回 `""`（**不编造 id**）。
+    """
+    try:
+        from core.decree_confirm import ensure_decree_id
+        return ensure_decree_id(state, decree)
+    except Exception:                # noqa: BLE001 — 模块不可用不阻断结算
+        return str((decree or {}).get("decree_id") or "").strip()
+
+
+def _secret_contacts(state, decree):
+    """本月该密令的**接触途径**（B5-5 接线用；全部由既有读数派生，不新增名单）。
+
+    途径口径：
+    - 承办者＝`knowledge_of` 里的授权人（他们**必然**接触到）；
+    - 本月有`朝议` 记忆者＝同场廷议者（真同场，不是"在朝就算"）；
+    - `decree["抄送"]` 列名者＝公文抄送；
+    - 承办者在野且 `state.oversight` 高 → 被监听（已听见＝事实，非概率）。
+
+    读数缺失一律**如实返回空**并让下游判`undefined`，**不按"无人接触"结案**。
+    """
+    out = []
+    did = decree.get("decree_id")
+    if not did:
+        return out
+    try:
+        from core.decree_confidential import knowledge_of
+        from core.minister_agent import recall
+        auth = (knowledge_of(state, did) or {}).get("authorized") or []
+    except Exception:                # noqa: BLE001 — 读数不可用 ⇒ 接触面不可判定
+        return out
+    for aid in auth:
+        out.append({"actor_id": aid, "channel": "奏对", "freq": 1})
+        try:
+            if recall(state, aid, kind="朝议"):
+                out.append({"actor_id": aid, "channel": "廷议", "freq": 1})
+        except Exception:            # noqa: BLE001
+            pass
+    for aid in (decree.get("抄送") or []):
+        out.append({"actor_id": aid, "channel": "公文抄送", "freq": 1})
+    return out
 
 def _settle_decrees(state, log):
     """执行本月诏令（12 步 agent 化 P2+：诏令执行契约接线）"""
@@ -46,19 +99,45 @@ def _settle_decrees(state, log):
     failed = 0
     longterm_this_turn = []
 
-    # 吏治把持度对本轮所有诏令的执行折扣（§16.4；只读派生，见 core/clerks.py）
-    try:
-        from core.clerks import decree_execution_mult as _dem
-        _grip_mult = _dem(state)
-    except Exception:  # noqa: BLE001 — 吏制不可用时不得阻断诏令结算
-        _grip_mult = 1.0
-    if _grip_mult < 0.98:
-        log.append(f"[吏治] 吏胥把持，政令执行率 ×{_grip_mult:.2f}")
+    # ---- 效果口径**单点**（用户 2026-10-01 定稿 (a)）----
+    # 一次性诏令此前**从不**调用 `core.decree_effect.decree_effect_mult`（探针实测调用次数 = 0），
+    # 只用 `clerks.decree_execution_mult`（吏治腿），导致：
+    #   ① 口径单点被破——民心/识字率弱关联与军队督行加成对一次性诏令**完全缺失**；
+    #   ② 读数缺失时**回落 1.0** ＝「吏治完美」（注释与实现相反）。
+    # 现改为：逐道诏令调用单点 `decree_effect_mult(...)`（含 `enforce_troops` 调兵强制施行），
+    # `None`（读数未定义）时**挂起该诏令并标明原因**，**不回落 1.0、不用默认值假装执行**，
+    # 待数据可用后再由后续回合结算。
+    from core.decree_effect import decree_effect_mult as _eff_mult
+    _undefined_suspended = 0
 
-    active_ids = {d.get("id") for d in state.active_decrees if d.get("id")}
+    def _resolve_effect_mult(d: dict, org: str) -> "tuple[float | None, str]":
+        """→ (效果系数, 挂起原因)。`None` = 读数未定义（须挂起，不得回落 1.0）。"""
+        try:
+            m = _eff_mult(
+                state,
+                org_hint=org,
+                text=str(d.get("title") or ""),
+                enforce_troops=bool(d.get("enforce_troops", False)),
+            )
+        except Exception as e:  # noqa: BLE001 — 读数缺失不得阻断结算，也不得假装有值
+            log.warning("[诏令] 效果系数读取失败（挂起本诏令，不按 1.0 假装执行）: %s", e,
+                        exc_info=True)
+            return None, f"读数异常（{type(e).__name__}）"
+        if m is None:
+            return None, "吏治读数未定义"
+        return float(m), ""
+
+    # B5-4：去重集合改用**统一 `decree_id`**。原`{d.get("id")}` 恒为空集
+    # （全仓从不写 `id`），该守卫实际从未生效。
+    active_ids = {str(d.get("decree_id") or "").strip()
+                  for d in (getattr(state, "active_decrees", None) or [])
+                  if isinstance(d, dict) and str(d.get("decree_id") or "").strip()}
 
     remaining = []
     for decree in state.pending_decrees[:]:
+        # B5-4/B5-5：先补确定性 `decree_id`（幂等与知情范围的锚）。
+        # 原实现全仓从不写该键⇒ B5-5 分支恒假、泄露推演从未执行。
+        _ensure_decree_id(state, decree)
         # 局势意图（规范 §5.2）：诏令可选携带 `situation_intent`；无则该诏行为不变。
         # 此处**只登记**（运行时态，不落档），校验与消费由 Step 8.5 局势结算负责——
         # 校验依据是**本回合 state_applier 事务记录**，不得由最终 state 反推。
@@ -92,15 +171,36 @@ def _settle_decrees(state, log):
         # 官三年一任、回避本籍；吏世代本地、掌握簿书 → 政令必须经吏才能落地。
         # 这是给审计 J-2「叙事说办了、数值没动」一个有原因、可诊断、可治理的载体：
         # 回执仍是"已施行"，但效果打折，而原因可在面板查到吏治状态。
-        rate = rate * _grip_mult
+        # **效果系数走单点**（吏治强关联 × 民心/识字弱关联，调兵强制施行再补缺口）。
+        _eff_mult_v, _why_undef = _resolve_effect_mult(decree, org_hint)
+        if _eff_mult_v is None:
+            # 读数未定义 → **挂起**：本月不执行、不生效，退回待办，待数据可用后再结算。
+            # 不回落 1.0、不用默认值假装执行（硬约束 #3）。
+            remaining.append(decree)
+            _undefined_suspended += 1
+            log.append(f"[诏令] 「{decree.get('title', '（无题）')}」**挂起**："
+                       f"效果系数未定义（{_why_undef}），本月不执行，待读数可用后另行结算。")
+            continue
+        if _eff_mult_v < 0.98:
+            log.append(f"[吏治] 「{decree.get('title', '（无题）')}」执行率 ×{_eff_mult_v:.2f}"
+                       f"（吏治折扣 × 民心/识字弱关联"
+                       f"{'，已调兵强制施行' if decree.get('enforce_troops') else ''}）")
+        rate = rate * _eff_mult_v
         rate = min(0.95, rate + ai_boost)  # 封顶 95%
 
         if random.random() < rate:
             _apply_decree_effect(state, decree, log)
             executed += 1
+            _ok = True
         else:
             log.append(f"[诏令] 「{decree['title']}」执行受阻，部分落实")
             failed += 1
+            _ok = False
+        # 长期事务关联诏（P1-1）：把**本次结算结果**回写到事务支持与因果留痕。
+        # 执行受阻 → 支持增量为 0（"颁旨 ≠ 成功"），见 core/longterm_task.apply_decree_to_task。
+        if decree.get("task_id"):
+            from core.longterm_task import apply_decree_to_task
+            apply_decree_to_task(state, decree, _ok, log, rate=rate)
 
         did = decree.get("id")
         if decree.get("duration", 0) > 0:
@@ -118,6 +218,9 @@ def _settle_decrees(state, log):
     state.pending_decrees = remaining
 
     for decree in state.pending_secret_decrees[:]:
+        # B5-5：密令必须有 `decree_id` 才能界定知情范围并推演泄露。
+        # 原实现全仓从不写该键 ⇒ 下方 `if _did:` 恒假、泄露推演从未执行过。
+        _ensure_decree_id(state, decree)
         rate = state.calc_decree_execution_rate(
             decree.get("faction_stances", {}),
             is_secret=True,
@@ -125,24 +228,87 @@ def _settle_decrees(state, log):
             is_zhongzhi=decree.get("is_zhongzhi", False),
             org_hint=decree.get("org_hint", "政府"),
         )
-        rate = rate * _grip_mult          # 密旨亦须经吏手，同受把持度折扣
+        # 密旨亦走同一效果单点；读数未定义同样**挂起**（不回落 1.0 假装执行）
+        _eff_s, _why_s = _resolve_effect_mult(decree, decree.get("org_hint", "政府"))
+        if _eff_s is None:
+            state.pending_secret_decrees.remove(decree)
+            state.pending_secret_decrees.append(decree)   # 退回待办，次月再议
+            _undefined_suspended += 1
+            log.append(f"[密旨] 「{decree.get('title', '密令')}」**挂起**："
+                       f"效果系数未定义（{_why_s}），本月不执行。")
+            continue
+        rate = rate * _eff_s
         if random.random() < rate:
             _apply_decree_effect(state, decree, log)
             log.append(f"[密旨] 「{decree.get('title','密令')}」暗中推行")
             executed += 1
+            _sok = True
         else:
-            if random.random() < 0.2:
-                log.append(f"[密旨泄露] 「{decree.get('title','密令')}」被台谏察觉！")
-                state.change_prestige(-3, "密旨泄露")
+            # B5-5（2026-11 接线）：密令泄露改由**真实知情范围/传递路径**推演，
+            # 替代原 `random.random() < 0.2` 固定概率。
+            # 读数未定义（知情范围不可判定）时**不按"无人泄"结案**，显式记未决。
+            _did = decree.get("decree_id")
+            _leaked = _detected = False
+            if _did:
+                try:
+                    from core.decree_confidential import simulate_leak
+                    _lk = simulate_leak(state, _did,
+                                        contacts=_secret_contacts(state, decree),
+                                        turn=state.turn)
+                    _detected = bool(_lk.get("detected"))
+                    _leaked = bool(_lk.get("leaked"))
+                    if _detected:
+                        log.append(f"[密旨泄露] 「{decree.get('title','密令')}」"
+                                   f"被{'、'.join(_lk.get('detected_by') or [])}察觉！")
+                        state.change_prestige(-3, "密旨泄露")
+                    elif _leaked:
+                        _c = (_lk.get("chain") or [{}])[0]
+                        log.append(f"[密旨走漏] 「{decree.get('title','密令')}」"
+                                   f"经{_c.get('channel','?')}传至{_c.get('witness','?')}，"
+                                   f"{'并闻其文' if _c.get('carried') == 'body' else '只闻其声'}")
+                    elif _lk.get("outcome") in ("undefined", "undefined_partial"):
+                        log.append("[密旨] 知情范围读数未定义，泄露与否**未决**"
+                                   "（不按『无人泄』结案）")
+                except Exception as _lke:     # noqa: BLE001 — 推演失败不阻断密旨结算
+                    log.append(f"[密旨][WARN] 泄露推演不可用：{type(_lke).__name__}")
+            _sok = False
+        if decree.get("task_id"):
+            from core.longterm_task import apply_decree_to_task
+            apply_decree_to_task(state, decree, _sok, log, rate=rate)
         state.pending_secret_decrees.remove(decree)
 
     if executed > 0:
         log.append(f"[本月] 诏令执行 {executed} 项，{failed} 项受阻")
+    if _undefined_suspended > 0:
+        # 可诊断读数（缺失≠静默）：本月因"效果系数未定义"而挂起的诏令数
+        state.statistics["decree_effect_undefined"] = \
+            int(state.statistics.get("decree_effect_undefined", 0) or 0) + _undefined_suspended
+        log.append(f"[诏令] 本月 {_undefined_suspended} 道诏令因效果系数未定义而**挂起**"
+                   f"（未执行、未生效；待读数可用后另行结算）")
 
 
 def _apply_decree_effect(state, decree, log):
-    """应用诏令效果"""
-    effects = decree.get("effects", {})
+    """应用诏令效果
+
+    审查 M4（**结算侧兜底**）：AI 侧已丢弃非有限值，但诏令也可能来自存档/其它写入方。
+    此处对每个效果键做 `int()`/`float()` 前先剔非有限值 —— 旧实现直接
+    `int(effects["treasury"])`，遇 NaN 抛 ValueError、遇 Inf 抛 OverflowError，
+    **整月结算被打断**；`commerce_tax` 的 min/max 钳位遇 NaN 会返回下界（=最高税）。
+    """
+    _raw = decree.get("effects", {})
+    effects = {}
+    if isinstance(_raw, dict):
+        for _k, _v in _raw.items():
+            if isinstance(_v, bool):
+                continue
+            try:
+                if not math.isfinite(float(_v)):
+                    log.append(f"[诏令·守恒] 效果 {_k} 为非有限值，已丢弃（缺失≠0，不猜值）")
+                    continue
+            except (TypeError, ValueError):
+                log.append(f"[诏令·守恒] 效果 {_k} 非数值，已丢弃：{_v!r}")
+                continue
+            effects[_k] = _v
     if "prestige" in effects:
         state.change_prestige(effects["prestige"], decree.get("title", ""))
     if "treasury" in effects:
@@ -251,7 +417,15 @@ def _apply_decree_effect(state, decree, log):
         state.change_granary(-relief)
         state.granary_stats["relief"] += relief
         state.population_satisfaction = max(0, min(100, state.population_satisfaction + 3))
-        log.append(f"[赈济] 开太仓发粟 {int(effects['relief'])*10000}石，饥民得食")
+        # 审查 S5：日志原记**请求额**（`int(effects['relief'])*10000`），与实际发放额
+        # （`relief`，受太仓存量 `min()` 钳位）不符 → 太仓空时面板仍报"发粟 N 石"，
+        # 玩家无法解释"仓里明明没粮却记了赈济"。改为如实记实发额，缺口另注。
+        _asked = int(effects["relief"]) * 10000
+        if relief < _asked:
+            log.append(f"[赈济] 请发 {_asked}石，太仓仅存 {int(state.granary) + relief}石，"
+                       f"实发 {relief}石，饥民得食")
+        else:
+            log.append(f"[赈济] 开太仓发粟 {relief}石，饥民得食")
     if "he_mi" in effects:
         amount = int(effects["he_mi"]) * 10000   # 万石 → 石
         cost = int(amount * state.grain_price)   # 石 × (贯/石) = 贯
@@ -384,34 +558,93 @@ def _apply_decree_effect(state, decree, log):
 
 
 def _settle_longterm_decrees(state, log):
-    """按月推进所有长期政务（公开事务 + 密令），满进度核销。"""
-    presets = state.difficulty_presets.get(state.difficulty, {})
-    growth = presets.get("external_growth", 1.0)
+    """按月推进所有长期政务（公开事务 + 密令）。
 
-    def _progress(queue, label):
-        for task in list(queue):
-            months = max(1, int(task.get("task", {}).get("months", task.get("months", 18)) if isinstance(task.get("task"), dict) else task.get("months", 18)))
-            rate = (100 / months) * (0.8 + 0.4 * growth)
-            task["progress"] = min(100, task.get("progress", 0) + rate)
-            if random.random() < 0.5:
-                task["last_log"] = f"诸司奉行，事有进境（进度 {int(task['progress'])}%）。"
-            # 记忆知识库（Phase 3a）：任务推进写入图谱（progresses）
+    P1-1（审查整改，2026-09-27）：进度**不再**由「月数 × 难度」固定增长，改由
+    `core.longterm_task.monthly_advance` 按
+    **支持方 / 阻力方 × 执行能力（吏治强关联、民心·识字率弱关联、军队加成）** 推进；
+    告成与罢废（连续 `STALL_MONTHS_FAIL` 月无实质推进）都有可解释原因与日志。
+    旧存档缺字段由 `normalize_tasks` 幂等补齐，坏条目隔离而不拒档；
+    单件结算异常按件隔离并**显式上报**，不伪报推进、不中断整月结算。
+    """
+    from core.longterm_task import normalize_tasks, monthly_advance
+
+    nm = normalize_tasks(state, log)
+    if nm["migrated"] or nm["isolated"]:
+        log.append(f"[事务] 旧档迁移：补齐字段 {nm['migrated']} 件、隔离坏条目 {nm['isolated']} 件。")
+
+    for is_secret, label in ((False, "公开事务"), (True, "密令")):
+        queue = getattr(state, "longterm_secret" if is_secret else "longterm_public", None)
+        if not isinstance(queue, list):
+            continue
+        keep = []
+        for i, task in enumerate(list(queue)):
+            name = str(task.get("task_name") or task.get("title") or "政务")
             try:
-                tname = task.get("task_name", "政务")
-                state.memory.add_entity(f"task_{tname}", "task", tname, turn=state.turn)
-                state.memory.add_relation(f"task_{tname}", f"progress_{int(task['progress'])}",
-                                          "progresses", weight=1.0, turn=state.turn,
-                                          note=f"{label}进度{int(task['progress'])}%")
-            except Exception:
-                pass
-            if task["progress"] >= 100:
-                queue.remove(task)
-                log.append(f"[{label}] {task.get('task_name', '政务')} 告成，钦此。")
-
-    _progress(getattr(state, "longterm_public", []), "公开事务")
-    _progress(getattr(state, "longterm_secret", []), "密令")
+                res = monthly_advance(state, task, log, is_secret=is_secret, index=i)
+            except Exception as e:  # noqa: BLE001 — 单件异常按件隔离，但必须可见、不得伪报
+                _log.warning("[事务] 结算异常已隔离（%s / %s）：%s", label, name, e,
+                             exc_info=True)
+                task["last_change"] = (f"结算异常（已隔离）：{type(e).__name__}"
+                                       f"——本月未推进，详见服务端日志")
+                task["readout"] = None
+                log.append(f"[{label}] {name} 本月结算异常（已隔离，未伪报推进）。")
+                keep.append(task)
+                continue
+            if res["status"] == "ongoing":
+                keep.append(task)
+                _record_task_memory(state, task, label)
+                continue
+            if res["status"] == "unsupported":
+                # 规格任务 4：满进度但**未绑定程序侧落点** → 待支持（不宣告成、不改数值）。
+                # 计入可诊断读数，供面板逐条展示"哪些旨意议毕却无从落地"。
+                state.statistics["task_unsupported"] = \
+                    int(state.statistics.get("task_unsupported", 0) or 0) + 1
+                _ul = state.statistics.setdefault("task_unsupported_list", [])
+                if isinstance(_ul, list) and len(_ul) < 20:
+                    _ul.append({"name": name, "turn": getattr(state, "turn", 0),
+                                "reason": res.get("reason", "")})
+                log.append(f"[{label}] {name}：议毕但**未绑定程序侧落点 → 待支持**"
+                           f"（不计为告成，未改任何数值）。")
+                try:
+                    state.memory.add_entity(f"task_{name}", "task", name, turn=state.turn)
+                    state.memory.add_relation(f"task_{name}", "unsupported", "待支持",
+                                              weight=1.0, turn=state.turn,
+                                              note=(f"{label}待支持（无程序侧落点）"
+                                                    f"（{task.get('last_change', '')}）"))
+                except Exception as e:  # noqa: BLE001
+                    _log.debug("[事务] 记忆图谱写入失败（%s）：%s", name, e)
+                continue          # 移出在办队列（政治轨道已议毕），但不写"completed"
+            done = res["status"] == "done"
+            log.append(f"[{label}] {name}{'告成，钦此。' if done else '受阻罢废，销案。'}")
+            try:
+                state.memory.add_entity(f"task_{name}", "task", name, turn=state.turn)
+                state.memory.add_relation(f"task_{name}", "completed" if done else "aborted",
+                                          "完成" if done else "中止", weight=1.0,
+                                          turn=state.turn,
+                                          note=(f"{label}{'告成' if done else '罢废'}"
+                                                f"（{task.get('last_change', '')}）"))
+            except Exception as e:  # noqa: BLE001 — 记忆图谱为可选旁路，失败不阻断结算
+                _log.debug("[事务] 记忆图谱写入失败（%s）：%s", name, e)
+        queue[:] = keep
     # free_effect 长期制度（言枢密 v3 契约）：「长期诏」步位旁月度结算
     from core.free_effect import _settle_free_effects  # 延迟导入，避免顶层环
     _settle_free_effects(state, log)
+
+
+def _record_task_memory(state, task, label):
+    """事务推进写入记忆图谱（Phase 3a，原有行为保留）。
+
+    P2-3：原 `except Exception: pass` 是纯静默；现记 debug（记忆图谱属可选旁路，
+    失败确实无害，但不得无痕）。
+    """
+    try:
+        tname = task.get("task_name", "政务")
+        state.memory.add_entity(f"task_{tname}", "task", tname, turn=state.turn)
+        state.memory.add_relation(f"task_{tname}", f"progress_{int(task.get('progress', 0))}",
+                                  "progresses", weight=1.0, turn=state.turn,
+                                  note=f"{label}进度{int(task.get('progress', 0))}%")
+    except Exception as e:  # noqa: BLE001
+        _log.debug("[事务] 记忆图谱写入失败（%s）：%s", task.get("task_name", ""), e)
 
 

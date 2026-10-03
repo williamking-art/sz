@@ -18,7 +18,16 @@ from core.era_mechanic import (  # noqa: E402
 
 
 def _new_state():
-    return GameState("史实")
+    """新局，**清空各路 `buildings`**。
+
+    2026-10-11：开局 `buildings` 不再为空——B2-R4 接线补缺配置了农业资产类建筑
+    （水利/常平仓/肥料局），使农业投资有可作用对象。产业规模读数是**全路合计**，
+    故本文件需显式清零以隔离"仅由测试设定的建筑"这一意图。
+    """
+    s = GameState("史实")
+    for p in s.prefectures.values():
+        p["buildings"] = {}
+    return s
 
 
 def test_industry_class():

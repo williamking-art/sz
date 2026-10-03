@@ -6,6 +6,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 //   ① 治安正极性（显示的是后端 security，不是 unrest）；② 未清丈只显**约值**（不显"已清丈"）；
 //   ③ 在地阶级 7 类齐全；④ 军令按钮：5 键可点、3 键（拆分/合并/换帅）禁用；
 //   ⑤ 点「整编」确实发出 issue_military_order（带选中编制单位 unit_id）。
+//
+// 2026-10-01 审查 M8：夹具对齐生产口径 —— 编制单位**不再**放进 `state.army_units`
+//   （`/api/state` 经 `_state_to_dict` 会剔除该键，ArmyUnit 为对象不可序列化），
+//   改由 `/api/readouts::army` 提供。旧夹具把单位塞进 state，使"面板取不到部队 →
+//   军令全部静默失效"这一缺陷在测试里不可见（假绿），截图台 fixtures.ts 同病。
 const h = vi.hoisted(() => ({
   readouts: vi.fn(),
   action: vi.fn(),
@@ -26,24 +31,7 @@ const h = vi.hoisted(() => ({
           兵: { size: 220_000 }
         }
       }
-    },
-    army_units: [
-      {
-        unit_id: "u1", name: "两浙路·殿前第15军", army_name: "殿前第15军", tier: "禁军",
-        station: "两浙路", defense_line: "沿海", branches: { 轻步兵: 20_000, 弓弩手: 5_000 },
-        morale: 55, training: 30, arrears: 0, org_arm: "殿前司"
-      },
-      {
-        unit_id: "u2", name: "两浙路·厢军造船", army_name: "造船厢军", tier: "厢军",
-        station: "两浙路", defense_line: "", branches: { 轻步兵: 8_000 },
-        morale: 40, training: 10, arrears: 1_200, org_arm: ""
-      },
-      {
-        unit_id: "u9", name: "京畿路·殿前第1军", army_name: "殿前第1军", tier: "禁军",
-        station: "京畿路", defense_line: "", branches: { 重骑兵: 9_000 },
-        morale: 60, training: 50, arrears: 0, org_arm: "殿前司"
-      }
-    ]
+    }
   }
 }));
 
@@ -89,10 +77,32 @@ const MILITARY = {
   nation: { routes: 1, units: 2, troops: 33_000, arrears: 1_200, cash_month: 1_000, grain_month: 2_000 }
 };
 
+/** 编制单位：走 `/api/readouts::army`（生产口径；快照不含 army_units）。 */
+const ARMY = [
+  {
+    unit_id: "u1", name: "两浙路·殿前第15军", army_name: "殿前第15军", tier: "禁军",
+    station: "两浙路", defense_line: "沿海", branches: { 轻步兵: 20_000, 弓弩手: 5_000 },
+    morale: 55, training: 30, arrears: 0, org_arm: "殿前司"
+  },
+  {
+    unit_id: "u2", name: "两浙路·厢军造船", army_name: "造船厢军", tier: "厢军",
+    station: "两浙路", defense_line: "", branches: { 轻步兵: 8_000 },
+    morale: 40, training: 10, arrears: 1_200, org_arm: ""
+  },
+  {
+    unit_id: "u9", name: "京畿路·殿前第1军", army_name: "殿前第1军", tier: "禁军",
+    station: "京畿路", defense_line: "", branches: { 重骑兵: 9_000 },
+    morale: 60, training: 50, arrears: 0, org_arm: "殿前司"
+  }
+];
+
 beforeEach(() => {
   h.readouts.mockReset();
   h.action.mockReset();
-  h.readouts.mockResolvedValue({ regions: { routes: [ROUTE], prefectures: PREFECTURES, military: MILITARY } });
+  h.readouts.mockResolvedValue({
+    army: ARMY,
+    regions: { routes: [ROUTE], prefectures: PREFECTURES, military: MILITARY }
+  });
   h.action.mockResolvedValue({ message: "批红：禁军·殿前第15军·整编（档 3）已饬行。", state: h.state });
 });
 
@@ -148,18 +158,36 @@ describe("省级军政（编制单位 + 军令）", () => {
   });
 
   it("拆分后「合并」变为可用（同军籍出现第二支）", async () => {
-    // 让拆分返回后 state 里多出一支同路同军籍单位 → 合并按钮应解禁
-    const extra = { ...h.state.army_units[0], unit_id: "u1s1", army_name: "殿前第15军·别部",
+    // 让拆分返回后 readouts.army 里多出一支同路同军籍单位 → 合并按钮应解禁
+    const extra = { ...ARMY[0], unit_id: "u1s1", army_name: "殿前第15军·别部",
                     name: "两浙路·殿前第15军·别部", branches: { 轻步兵: 10_000 } };
-    const before = h.state.army_units.slice();
-    h.state.army_units = [...before, extra];
+    h.readouts.mockResolvedValue({
+      army: [...ARMY, extra],
+      regions: { routes: [ROUTE], prefectures: PREFECTURES, military: MILITARY }
+    });
     try {
       render(<ProvinceMilitaryPanel props={{ route: "两浙路" }} />);
       await waitFor(() => expect(screen.getAllByText("殿前第15军·别部").length).toBeGreaterThan(0));
       expect((screen.getByRole("button", { name: "合并" }) as HTMLButtonElement).disabled).toBe(false);
     } finally {
-      h.state.army_units = before;
+      h.readouts.mockResolvedValue({
+        army: ARMY,
+        regions: { routes: [ROUTE], prefectures: PREFECTURES, military: MILITARY }
+      });
     }
+  });
+
+  // 审查 M8 回归：快照（state）**不含** army_units 时，编制单位仍须来自 readouts.army
+  // （旧实现从 state.army_units 取 → 生产恒空 → 军令全部早退且无提示）。
+  it("state 无 army_units 时仍能列出编制单位并发出军令", async () => {
+    expect((h.state as Record<string, unknown>).army_units).toBeUndefined();
+    render(<ProvinceMilitaryPanel props={{ route: "两浙路" }} />);
+    await waitFor(() => expect(screen.getAllByText("殿前第15军").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("button", { name: "整编" }));
+    await waitFor(() => expect(h.action).toHaveBeenCalledWith(
+      "issue_military_order",
+      expect.objectContaining({ unit_id: "u1", button: "整编" })
+    ));
   });
 
   it("点「整编」发出 issue_military_order，并带上选中的编制单位", async () => {

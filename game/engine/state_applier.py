@@ -28,6 +28,13 @@ log = logging.getLogger("state_applier")
 # ---------------------------------------------------------------------------
 VALID_PATHS: List[str] = [
     "treasury", "imperial_treasury", "granary", "prestige",
+    # 审查 M2（用户 2026-10-01 定稿 (a)）：`payraise_budget` 升级为**真实分账基金**——
+    # 「拨帑」时国库拨入、每月发放时**池扣款 → 官吏 POP 实际收到**，走本受管管线。
+    # 它本就是 `money.ACCOUNTS` 的 M_ALL 账户（"由国库拨入、随后发放给官僚/吏"），
+    # 但此前**不在**白名单，导致「池 → POP」这条腿无法经applier 划转，
+    # 只好在结算里裸写 `state.payraise_budget -= used` 并同时计入 `total_out`
+    # ⇒同一笔钱扣两次（实测月残差 −2×消耗）。现登记为可写路径，使资金流全程受管。
+    "payraise_budget",
     "population_satisfaction", "art_mastery", "era_state.",
     "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
     "prefectures.*.grain", "prefectures.*.storage",
@@ -78,6 +85,8 @@ RANGE_100_FIELDS: List[str] = [
 # 非负字段（数值不能为负数）
 NON_NEG_PREFIXES: List[str] = [
     "treasury", "imperial_treasury", "granary", "prefectures.*.grain",
+    # 审查 M2：加俸预算池是钱，余额不得为负（发放腿按 `min(池, 缺口)` 实付、只按实付扣）。
+    "payraise_budget",
     "prefectures.*.storage", "prefectures.*.pops.*.wealth",
     "prefectures.*.pops.*.grain",
     # 审查 P1-4：百分制 / 规模 / 进度类字段同样非负（防 AI 写负数）
@@ -367,8 +376,11 @@ def apply_cascade(state, merged_changes: List[dict]) -> List[dict]:
 # ---------------------------------------------------------------------------
 # 守恒分组：钱组 / 粮组（AI changes 的钱粮变动必须组内 ΣΔ==0）
 # T2：补 官僚/兵（俸禄接收方）——俸禄/俸给变动需同组成对
+# 审查 M2（用户 2026-10-01 定稿 (a)）：`payraise_budget` 是 `money.ACCOUNTS` 的
+# 真实分账基金，其**发放腿**（池 −X ＋ 官僚 POP wealth +X）必须成对才能过守恒校验。
+# 此前池不在本组 ⇒ 发放被拒（"缺来源"）⇒ 只能退回裸写+重复计账。纳入本组即由管线兜住。
 MONEY_PATHS = [
-    "treasury", "imperial_treasury",
+    "treasury", "imperial_treasury", "payraise_budget",
     "prefectures.*.pops.农.wealth", "prefectures.*.pops.士绅.wealth",
     "prefectures.*.pops.工匠.wealth", "prefectures.*.pops.商人.wealth",
     "prefectures.*.pops.官僚.wealth", "prefectures.*.pops.兵.wealth",

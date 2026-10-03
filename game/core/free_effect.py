@@ -10,9 +10,12 @@ AI 自由动作（free_edict 推演）产出的效果契约，程序侧**拒绝�
   duration 递减、0=永久、到期核销）。
 - AI 只有叙事/提议权，数值换算封顶归程序（与全游戏 AI 档位封顶同源）。
 """
+import logging
 import math
 
 from content.data import FREE_EFFECT_FIELD_WHITELIST, FREE_EFFECT_CAP, FREE_EFFECT_COST_REJECT_RATIO
+
+_log = logging.getLogger("free_effect")
 
 
 def _is_finite_number(v) -> bool:
@@ -101,16 +104,23 @@ def _apply_money_delta(state, d: int) -> bool:
     if not pools:
         return False
     if d > 0:
+        # **原子**：先算摊扣方案，不足则**整体不动**（旧实现先扣了池、再发现不够就
+        # `return False`，钱已被扣但调用方按"未落地"处理 → 凭空销毁，且与docstring
+        # 承诺的"零副作用"相悖）。
+        ordered = sorted(pools, key=lambda x: -int(x.get("wealth", 0) or 0))
+        plan = []
         remain = d
-        for pp in sorted(pools, key=lambda x: -int(x.get("wealth", 0) or 0)):
+        for pp in ordered:
             if remain <= 0:
                 break
             w = int(pp.get("wealth", 0) or 0)
             take = min(remain, w)
-            pp["wealth"] = w - take
+            plan.append((pp, w, take))
             remain -= take
-        if remain > 0:  # 预检已挡；防御兜底——不半落地
+        if remain > 0:          # 民间钱池不足以摊满 → 不动任何池（零副作用）
             return False
+        for pp, w, take in plan:
+            pp["wealth"] = w - take
         state.change_treasury(d)
         return True
     spend = -d
@@ -353,7 +363,7 @@ def _cost_balanced(effects, cost) -> bool:
     return cost_total <= max(1, value * FREE_EFFECT_COST_REJECT_RATIO)
 
 
-def _money_effects_feasible(state, effects, cost) -> bool:
+def _money_effects_feasible(state, effects, cost):
     """前置可行性（审查 P0-5 / B6 修复）：effects 的 treasury/finance 增减**与 cost 出账**
     按**合计**校验，任一不足 → 整单不执行（原子拒绝，不部分落地）。
 
@@ -368,6 +378,16 @@ def _money_effects_feasible(state, effects, cost) -> bool:
         净出账时要求 `treasury >= |净出账|`；
       - 自民间征收合计（Σ 正项）须 ≤ 民间总持钱（征收先于 cost 的发放）；
       - cost.granary 须 ≤ 太仓存粮。
+
+    **三态返回（审查 P2-3 / M6）**：
+      · `True`  = 可行；
+      · `False` = **资财不足**（合法判定，游戏内原因）；
+      · `None`  = **预检自身异常**（读不到 wealth/treasury 等），**不得**与"资财不足"
+        混为一谈 —— 原实现 `except Exception: return False`，上层于是把任何异常都
+        报成"国库/民间资财不足，整单不执行"，`_settle_free_effects` 更把它写成
+        「[制度] X 资财不足，本月暂缓」并**保留 duration 不递减** →
+        **只要异常持续，该制度就永久暂缓**（玩家永远等不到它生效，也不知道为什么）。
+        现异常路径：WARNING + traceback，返回 None，由调用方分别出文案并记 `last_error`。
     """
     try:
         effects = effects or {}
@@ -389,8 +409,11 @@ def _money_effects_feasible(state, effects, cost) -> bool:
                 return False
         if _safe_int(cost.get("granary", 0) or 0) > getattr(state, "granary", 0):
             return False
-    except Exception:
-        return False
+    except Exception as e:  # noqa: BLE001
+        # 预检异常 ≠ 资财不足：独立哨兵 None + 可定位记录（不得伪装成游戏内拒绝）。
+        _log.warning("free_effect 资财预检异常（已拒绝并记录，非「资财不足」）：%s", e,
+                     exc_info=True)
+        return None
     return True
 
 
@@ -409,7 +432,11 @@ def _apply_free_effect(state, contract) -> list:
         return [f"[自由动作] 成本不足，整单不执行（需 {cost}）"]
     if not _cost_balanced(contract.get("effects", {}), cost):
         return ["[自由动作] 成本失衡拒绝（cost 远超效果价值）"]
-    if not _money_effects_feasible(state, contract.get("effects", {}), cost):
+    _feasible = _money_effects_feasible(state, contract.get("effects", {}), cost)
+    if _feasible is None:
+        # 审查 P2-3 / M6：预检**异常**不得报成"资财不足"（那是把人往错方向引）。
+        return ["[自由动作] 预检异常（已拒绝并记录），整单不执行：资财可行性无法判定"]
+    if not _feasible:
         return ["[自由动作] 国库/民间资财不足，整单不执行（守恒拒绝，防凭空造灭）"]
     log = []
     mode = contract.get("mode", "once")
@@ -434,7 +461,16 @@ def _apply_free_effect(state, contract) -> list:
 
 def _settle_free_effects(state, log) -> None:
     """12 步流水线「长期诏」步位：月度结算 longterm_effects（effects/cost 每月 apply、
-    duration 递减、0=永久、到期核销）。"""
+    duration 递减、0=永久、到期核销）。
+
+    审查 P2-3 / M6：原实现把"预检异常"与"资财不足"合成同一个 `applied=False`
+    → 一律输出「[制度] X 资财不足，本月暂缓」并**保留 duration 不递减**。
+    而 `_money_effects_feasible` 的 `except Exception: return False` 会把任何
+    读数异常都变成"资财不足" ⇒ **只要异常持续，该制度就永久暂缓**（玩家永远
+    等不到它生效，也不知道真正原因，且 duration 永不消耗 = 无限期挂着）。
+    现分开处置：异常 → 单独文案 + 条目上记 `last_error`（可诊断），仍不推进；
+    资财不足 → 原文案（游戏内合法原因）。
+    """
     if not getattr(state, "longterm_effects", None):
         return
     keep = []
@@ -442,13 +478,21 @@ def _settle_free_effects(state, log) -> None:
         effects = item.get("effects", {})
         cost = item.get("cost", {})
         # 审查 P0-5：成本承受 + 国库/民间资财可行性（money 效果成对划转）
-        applied = bool(_cost_affordable(state, cost)
-                       and _money_effects_feasible(state, effects, cost))
-        if applied:
+        _afford = bool(_cost_affordable(state, cost))
+        _feas = _money_effects_feasible(state, effects, cost) if _afford else False
+        if _feas is None:
+            applied = False
+            item["last_error"] = (f"预检异常（{int(getattr(state, 'turn', 0) or 0)} 回合）："
+                                  f"资财可行性无法判定，已拒绝并记录")
+            log.append(f"[制度] {item.get('name', '')} 预检异常（已拒绝并记录），本月暂缓")
+        elif _afford and _feas:
+            applied = True
+            item.pop("last_error", None)      # 恢复正常 → 清掉陈旧错误标记
             log += _apply_effect_to_state(state, effects, item.get("executor"))
             _pay_cost(state, cost, log)
             log.append(f"[制度] {item.get('name', '')} 本月生效")
         else:
+            applied = False
             log.append(f"[制度] {item.get('name', '')} 资财不足，本月暂缓")
         dur = int(item.get("duration", 0))
         if dur == 0:

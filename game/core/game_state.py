@@ -121,7 +121,13 @@ def _build_pops(info: dict, p_type: str) -> dict:
     #   故开局 wealth 需乘 `_stock` 以保人均现金（否则农被"保底线"挤出、农税通道重回死账）。
     _stock = PERSONS_PER_HOUSEHOLD / 4.0
     # 商品种类（成品，多商品支持；后期玩家新增商品经 register_finished_good 加入）
-    _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
+    # 🔴 **E-1（用户 2026-10-02 裁定「建材也是商品啊」）**：建材
+    # `timber`/`stone`/`iron` **也进 POP `goods`**，由商人持有与出售——
+    # 否则建材只是"仓里的料"而非**商品**，商人没有囤货/定价动机。
+    # 由此 `material_holding` 的州府级明细改由**本路商人 POP `goods`** 承载，
+    # 原 `state.resources[dim]["by_pref"]` 明细**不再作为建材来源**（见 material_holding）。
+    _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS] + \
+        ["timber", "stone", "iron"]
     _g0 = lambda: {d: 0 for d in _goods_dims}
     return {
         # 隐户（不落籍）＝ `农` POP 的**加法**子池 `hidden`（口）—— POP 挂载律条 1/4：
@@ -171,6 +177,42 @@ def _init_local_refugees(info: dict) -> int:
     if info.get("is_capital") or p_type == PREFECTURE_TYPE_CAPITAL:
         base = max(0, base - 300)        # 京畿吸纳力强，基数更低
     return max(0, base)
+
+
+def _init_agri_buildings(info: dict, p_type: str) -> dict:
+    """开局**农业基础设施**存量（2026-10-11 · B2-R4 接线补缺）。
+
+    起因：`core/settlement_agri.py` 的 7 条农业效果挂在**建筑/科技**上，
+    而开局 `buildings == {}` ⇒ 宋境无可作用实体、增产恒 0。
+
+    **只给存量实体，不给产出**：真正的增产必须走 `apply_agri_effects` 的
+    「四项成本先扣后产」（土地真实转移 / 材料真扣 / 工时 / 维护），
+    不存在零成本增产；此处仅让投资**有可作用对象**。
+
+    ⚠️ **只配非岗位类、且无科技节点绑定的建筑**：
+    ① `POP_BUILDING_TYPES`（农田/商铺/地主农庄/工坊/庄园/自耕农庄）是**岗位类**，
+       开局配它们会引入就业岗，改变人口与岗位流动基线
+       （`test_employment_flow_song` 明确守护"新局无岗位流动漂移"）；
+    ② **不得配"肥料局"**——它是科技节点 `C4_fertilizer` 的**部署建筑**
+       （`TECH_NODE_DEPLOY`），开局即配会使该科技一解锁 adoption 即达上限、
+       科技树形同虚设（`test_projects_tech_review` 守护此点）。
+    故只配 `水利`（增产+降损耗+疏浚运力）与 `常平仓`（降储粮损耗）。
+    农田/庄园/肥料局类属**玩家可建设施**，应由 B4-7 民间营造或玩家决策产生。
+    """
+    from content.data import (PREFECTURE_TYPE_CAPITAL, PREFECTURE_TYPE_COASTAL,
+                              PREFECTURE_TYPE_FRONTIER)
+    if p_type == PREFECTURE_TYPE_CAPITAL or info.get("is_capital"):
+        lv = 2               # 京畿：水利基础较好
+    elif p_type in PREFECTURE_TYPE_COASTAL:
+        lv = 2               # 沿海：圩田水利
+    elif p_type in PREFECTURE_TYPE_FRONTIER:
+        lv = 1               # 边镇：开发较浅
+    else:
+        lv = 1
+    return {
+        "水利": lv,          # 匹配注册表「水利」：提 yield_mult + 降损耗 + 疏浚漕运
+        "常平仓": lv,        # 匹配「常平仓」：降储粮损耗
+    }
 
 
 def _init_city_defense(p_type: str) -> int:
@@ -496,13 +538,26 @@ class GameState(GameStateEconMixin):
         self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
         # 工程系统（玩家手动发起，逐月推进）：{pid: {...}}
         self.projects: dict = {}
+        # 🔴 建材**在途批次**（P0，2026-10-02）：`core/transport.dispatch` 写入。
+        # **在途即"货已离源、尚未到"**，它是 C-c「只从本地取、取不到即缺料」
+        # 能够成立的前提——没有在途，"运没运到"就不可观测，物流便无意义。
+        # ⚠️ 缺货/缺坐标时**不产生凭空在途**（钱货两清或两不做）。
+        self.material_transit: list = []
         # 制作/作坊系统（配方：粮→酒/肉 等）：{wid: {...}}
         # 加消耗修正·加工型消耗依托建筑：开局每路 2 酒坊 + 2 畜栏（各 ×5万石/月太仓粮耗 → 120万石/月），
         # 酒坊产酒增 wine_tax、畜栏产肉折钱入内帑（玩家可建更多；存档已序列化 workshops）
         from content.data import WORKSHOP_RECIPES
         self.workshops = {}
         _widx = 0
-        for _rname in PREFECTURE_INFO:
+        # 2026-10-11（用户裁定 · 规格 market-civilian-economy B1）：补 **麻坊/丝坊**。
+        # 起因：移除 `goods_direct_production_backup` 兜底直产后，宋境布/绸**无生产者**
+        # （开局作坊全是酒坊/畜栏；`麻坊`/`丝坊` 只在配方表里、无建造入口），
+        # 而消费端已改为"无货不买" ⇒ 布绸消费将立即归零。故开局即配置纺织作坊，
+        # 使 `state.resources` 的 hemp/silk（原料）→ 作坊 → 工匠 goods 池（成品）
+        # → 民间成交 这条链**有真实生产来源**（《建议》§5.1「每种商品应声明…生产配方」）。
+        # 数量口径：每路 1 麻坊（产布，全阶层日用）＋ 每 3 路 1 丝坊（产绸，富阶层）；
+        # 单坊月耗 1 万原料 vs 每路年产 hemp 50 万 / silk 100 万，供需匹配。
+        for _r_idx, _rname in enumerate(PREFECTURE_INFO):
             for _ in range(2):
                 _jw = WORKSHOP_RECIPES["酒坊"]
                 self.workshops[f"酒坊_{_rname}_{_widx}"] = {
@@ -512,6 +567,18 @@ class GameState(GameStateEconMixin):
                 self.workshops[f"畜栏_{_rname}_{_widx}"] = {
                     "name": "畜栏", "recipe": dict(_jc["recipe"]), "output_dim": _jc["output_dim"],
                     "yield": _jc["yield"], "active": True}
+                _widx += 1
+            # —— 纺织作坊（布/绸供给；B1 起为民间消费的真实卖方来源）——
+            _jm = WORKSHOP_RECIPES["麻坊"]
+            self.workshops[f"麻坊_{_rname}_{_widx}"] = {
+                "name": "麻坊", "recipe": dict(_jm["recipe"]), "output_dim": _jm["output_dim"],
+                "yield": _jm["yield"], "active": True}
+            _widx += 1
+            if _r_idx % 3 == 0:      # 绸属富阶层消费品，产量与需求匹配，勿过量
+                _js = WORKSHOP_RECIPES["丝坊"]
+                self.workshops[f"丝坊_{_rname}_{_widx}"] = {
+                    "name": "丝坊", "recipe": dict(_js["recipe"]), "output_dim": _js["output_dim"],
+                    "yield": _js["yield"], "active": True}
                 _widx += 1
         # 内帑（甲口径）：imperial_treasury = 国库净结余抽成 + 榷酒课，与国库分理
         # 对话口谕内帑调拨（商量确认式）：皇帝谕发内帑入国库，大臣商量回奏、当场点「准」才守恒移库
@@ -547,6 +614,26 @@ class GameState(GameStateEconMixin):
         self.investments: dict = {}
         # 加俸预算（厚禄养廉政令投入，逐月驱动 pay_ratio 上升）
         self.payraise_budget: int = 0
+        # 动态蓝图注册表（规格 decree-action-chain 任务 3）：`{dyn:xxxx: 蓝图dict}`。
+        # 由 `core/blueprint_dynamic.register_dynamic_blueprint` 写入，随存档持久化；
+        # `construction.resolve_blueprint` 优先查它 → 动态蓝图与静态蓝图走同一套
+        # can_build / propose_project / 五态状态机 / 完工落成路径。
+        self.dynamic_blueprints: dict = {}
+        # 行动提交登记表（规格任务 2「跨提交幂等」）：`{action_id: {pid, turn, route, schema_version}}`。
+        # 由 `core/plan_commit.commit_plan` 写入；**跨提交**按 action id 拒绝重复立项。
+        self.plan_actions: dict = {}
+        # 商品**动态成交价**槽（规格 market-civilian-economy B2-4/5）：
+        # 与 `content.data.MATERIAL_PRICE_BASE`（基准价，**只读锚**）分开的运行价。
+        # 由 `core.market_price.record_trade_price` 写入；**不得就地改写基准表**。
+        self.dynamic_prices: dict = {}
+        # B2-R2 存档迁移用：旧格式的**全局**商品价（无路归属，不可反推）。
+        # 读侧作全局回退；该路首次成交后被路级价覆盖。**不臆造归属路**。
+        self.dynamic_prices_legacy: dict = {}
+        # 官员个体 Agent 运行态（规格 market-civilian-economy B5·§3.3七项最小状态）：
+        # `{actor_id: {status, posts, authority, memory, intents, known_info}}`。
+        # **复用** `content.ministers.data.MINISTERS`（43 名具名人物），**不另造人物表**；
+        # 记忆与意图**逐人隔离**（甲的私话不是乙亲闻），领域契约不得写入此处。
+        self.minister_agents: dict = {}
         # 监察力度（整顿吏治提升，压缩贪腐扣减）
         self.oversight: float = 0.30
 
@@ -820,7 +907,20 @@ class GameState(GameStateEconMixin):
                 "pops": _build_pops(info, p_type),
                 # POP 建筑（言枢密设计）：{农田/工坊/商铺/庄园: Lv1-5}，阶层 wealth 出资；
                 # 效果乘数对既有公式（×0.05/Lv 封顶 ×2.0），守恒走既有路径；存档迁移缺省 {}
-                "buildings": {},
+                #
+                # 2026-10-11（规格 market-civilian-economy B2-R4 接线补缺）：
+                # 开局原本**全空`{}`**，而 `core/settlement_agri.py` 的 7 条农业效果
+                # （水利/常平仓/肥料局/农田/自耕农庄/地主农庄/水排筒车）全部挂在
+                # **建筑或科技**上 ⇒ 宋境**无任何可作用实体**，`agri_grain_produced`
+                # 实测恒为 0（接线正确但无对象）。故开局配置**农业基础设施**。
+                #
+                # 口径（避免"凭空调高产量"）：
+                # · **只给存量实体，不给产出**——增产必须经`apply_agri_effects`
+                #   走「四项成本先扣后产」（土地真实转移/材料真扣/工时/维护），
+                #   不存在零成本增产；这里仅让投资**有可作用对象**；
+                # · 等级按路等差（都城略高、边镇略低），与 `route_mult` 一致；
+                # · 名称与 `AGRI_UPGRADE_EFFECTS` 的键**逐字一致**（匹配靠名字）。
+                "buildings": _init_agri_buildings(info, p_type),
                 "pay_ratio": 0.5,                                              # 俸给充足率初值
                 "gap": 0,                                                      # 俸给缺口初值
                 # 开局区域米价：按"京畿边镇贵、膏腴贱"原则给变量（避免开局全 1.00 平庸），
@@ -963,6 +1063,9 @@ class GameState(GameStateEconMixin):
         src/dst 取值：
           - "treasury" / "imperial_treasury"
           - "pop:<路>:<阶层>"  如 "pop:两浙路:农"
+
+        审查 M3：**目标不可写时不动 src 并返回 0**（旧实现销毁钱却报成功）。
+        调用方据返回值记欠征/欠饷，故「返回 0」即「这笔没成交」。
         """
         amount = int(amount)
         if amount <= 0:
@@ -995,7 +1098,23 @@ class GameState(GameStateEconMixin):
                 if isinstance(pp, dict):
                     pp["wealth"] = max(0, int(val))
 
+        def _writable(key):
+            """目标是否**可写**（审查 M3）：原实现只判 src 可付，`_write(dst, …)` 在
+            目标 POP 不存在时静默 no-op —— 钱被销毁却仍返回 `moved`，调用方据此记
+            "已入库"。现先判 dst 可写，不可写则**不动 src**、返回 0。"""
+            if key in ("treasury", "imperial_treasury"):
+                return True
+            if key.startswith("pop:"):
+                _, road, pop = key.split(":", 2)
+                p = self.prefectures.get(road)
+                if not isinstance(p, dict):
+                    return False
+                return isinstance((p.get("pops") or {}).get(pop), dict)
+            return False
+
         have = _read(src)
+        if have <= 0 or not _writable(dst):
+            return 0
         moved = min(have, amount)
         if moved <= 0:
             return 0

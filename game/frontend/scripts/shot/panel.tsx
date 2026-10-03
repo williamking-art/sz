@@ -10,7 +10,7 @@
 import React, { Component, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/renderer/styles/theme.css";
-import { READOUTS } from "./fixtures";
+import { READOUTS, STATE } from "./fixtures";
 import { useGameStore } from "./storeMock";
 
 // ⚠️ 必须排除 *.test.tsx：曾把同目录的测试一并 eager 导入，vitest 在导入期抛错
@@ -26,6 +26,15 @@ const name = rawName === "localarchive" ? "LocalArchivePanel"
   : rawName === "provincemilitary" ? "ProvinceMilitaryPanel" : rawName;
 const route = q.get("route") ?? "两浙路";
 const kind = q.get("kind") ?? "circuit";
+// 页签/子视图选择（如 TodoPanel 的 `tab=secret`）——统一经 props 传给真实组件，
+// 避免为截图另写一份 mock 视图（那会让截图失去"就是玩家看到的那份组件"这一价值）。
+const tab = q.get("tab") ?? undefined;
+// `empty=1`：清空在办事务，用于拍**空状态**（P2-1 要求核对的四场景之一）。
+// 刻意改的是同一份 fixture 对象，故面板走的仍是真实分支，不是另写的示意视图。
+if (q.get("empty") === "1") {
+  STATE.longterm_public = [];
+  STATE.longterm_secret = [];
+}
 const width = Number(q.get("w") ?? 920);
 
 // ---- 网络 mock：拦 /api/**，其余原样放行 ----
@@ -90,7 +99,7 @@ createRoot(document.getElementById("root")!).render(
     </div>
     <Boundary>
       {Panel
-        ? <Panel props={{ kind, name: route, route }} />
+        ? <Panel props={{ kind, name: route, route, tab }} />
         : (
           <pre style={{ color: "#a00", fontSize: 13 }}>
             【截图台】无此面板：{name}

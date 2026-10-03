@@ -18,6 +18,7 @@ from core.settlement_common import (
     _P1_ARM_DELTA,
     _P1_TRAIN_DELTA,
     _P1_LEVY_COST,
+    register_money_flow,
 )
 
 def _settle_factions(state, log):
@@ -75,9 +76,12 @@ def _settle_factions(state, log):
             log.append(f"[清算] {desc}")
             state.change_prestige(-5, "派系清算")
 
-    infs = [(name, f["influence"]) for name, f in state.factions.items()]
+    infs = [(name, f["influence"]) for name, f in state.factions.items()
+            if isinstance(f, dict) and isinstance(f.get("influence"), (int, float))]
     infs.sort(key=lambda x: x[1], reverse=True)
-    if infs[0][1] - infs[-1][1] > 40:
+    # 审查 O2：原式直接取 `infs[0]` / `infs[-1]`，`state.factions` 为空（或全非数值）
+    # 时抛 IndexError **打断整月结算**。现先判空、且不足两派时无"悬殊"可言。
+    if len(infs) >= 2 and infs[0][1] - infs[-1][1] > 40:
         log.append("[党争] 朝堂势力悬殊，暗流涌动")
         state.change_prestige(-1, "党争")
 
@@ -155,6 +159,11 @@ def _settle_military_diplomacy(state, log):
         levy = _P1_LEVY_COST.get(_mil.get("levy", "微"), 100000)
         if getattr(state, "treasury", 0) >= levy:
             state.change_treasury(-levy)     # 征发 cost 守恒扣款（程序，非 agent 直写）
+            # 审查 M5：原先只扣国库、不登记台账 → `money.reconcile` 把这笔算成
+            # **无对手方的销毁**（实测月度残差 −200,000、burned 记 0，面板误报"造币/销毁"）。
+            # 军资是真实支出（离账burned），此处补登记，对账才闭合。
+            register_money_flow(state, "burn", int(levy),
+                                f"枢密院征发军资（{_mil.get('levy', '微')}档）", log=log)
             log.append(f"[枢密] 征发军资 {levy} 贯")
 
 

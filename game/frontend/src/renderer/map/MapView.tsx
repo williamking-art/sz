@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { feature } from "topojson-client";
 import { MapController, MAP_BASE_URL, type MapView as MapViewData } from "./mapController";
+import { PREFECTURE_BORDERS_ENABLED, PREFECTURE_BORDERS_MIN_ZOOM } from "./layers";
 import { MarkerManager } from "./markers";
 import { deriveMapState } from "./state";
 import { useGameStore } from "../store/gameStore";
@@ -34,6 +35,12 @@ export default function MapView() {
   const dataRef = useRef<GeoData | null>(null);
   const debounceRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
+  // P2-3（M10）：地图资源错误必须有**玩家可见**的失败态，不能只 console.error；
+  // 且瓦片/几何错误只汇总打印一次，避免 404 刷屏掩盖真实错误。
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const mapErrLoggedRef = useRef(false);
+  const prefLoadStartedRef = useRef(false);
+  const prefLoadedRef = useRef(false);
   const state = useGameStore((s) => s.state);
   const setSelected = useGameStore((s) => s.setSelected);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
@@ -88,9 +95,13 @@ export default function MapView() {
   async function loadGeoData() {
     const controller = controllerRef.current;
     if (!controller) return;
+    setGeoError(null);
     // 地基（2026-09-27）：**把首帧成本变成产品自己报的数**。
     // 实测（Node/V8，scripts/shot/bench-map.mjs）：regions.topojson 13.0 MB，
     // JSON.parse 130.7 ms + 4 次 feature() 11.5 ms ≈ **142 ms 主线程阻塞/每次挂载**。
+    // **⚠ 基线已过期（审查 2026-10-01）**：`frontend/public/map/` 现为 **18.3 MB / 7 文件**
+    // （实测，含 topojson 与 geojson），较上述 13.0 MB 增长 **+41%** → 按比例外推，
+    // 首次挂载的主线程阻塞量级约 **~200 ms**（未复测，`bench-map.mjs` 可重跑取准确值）。
     // 该量级不做侵入式改造（迁 Worker / 降几何精度会推翻 :121 的"全精度注入"设计），
     // 但必须**可观测**：留 performance mark，并把耗时挂到 window 供基准/诊断读取。
     try { performance.mark("songzuo:geo:start"); } catch { /* 非浏览器环境 */ }
@@ -138,12 +149,23 @@ export default function MapView() {
       controller.setData(data);
       buildLabels();
       const map = controller.getMap()!;
+      // P2-3（M10）：地图资源错误汇总（只打一次）——原先全前端无 error 监听，
+      // 缺瓦片/几何时只有满控制台 404，玩家与开发者都无法定位。
+      map.on("error", (ev) => {
+        if (mapErrLoggedRef.current) return;
+        mapErrLoggedRef.current = true;
+        const msg = String((ev as unknown as { error?: { message?: string } }).error?.message ?? ev);
+        console.warn(`[map] 地图资源错误（同类后续不再重复打印）：${msg}`);
+      });
+      // 府级边界懒加载：仅在玩家放大到可见档位时才取，避免推高首屏成本。
+      void ensurePrefectureData();
       // 视口稳定后标签显隐避让(防抖)
       map.on("moveend", () => {
         if (debounceRef.current) window.clearTimeout(debounceRef.current);
         debounceRef.current = window.setTimeout(() => {
           markersRef.current?.refresh(map.getZoom());
           markersRef.current?.avoid();
+          void ensurePrefectureData();
         }, 120);
       });
 
@@ -158,7 +180,47 @@ export default function MapView() {
         }
       });
     } catch (e) {
+      // P2-3（M10）：原实现只 console.error → `onMapReady` 早已触发，玩家看到的是
+      // 一张"正常"的空白舆图，无从判断是加载失败还是本就没有要素。
+      const msg = e instanceof Error ? e.message : String(e);
       console.error("[map] 数据加载失败", e);
+      if (!cancelledRef.current) {
+        setGeoError(`舆图数据加载失败：${msg}（路界/政权/城市均未载入）`);
+      }
+    }
+  }
+
+  /** 府级（州府）边界 **懒加载**（P1-2 接入；`PREFECTURE_BORDERS_ENABLED=false` 时直接返回）。
+   *
+   * 独立文件 `prefecture_borders.topojson`（不并入 regions.topojson，避免推高首帧解析成本）；
+   * 只在 zoom ≥ `PREFECTURE_BORDERS_MIN_ZOOM` 时取，失败不影响路界/填充，也**不**阻塞首屏。
+   */
+  async function ensurePrefectureData() {
+    if (!PREFECTURE_BORDERS_ENABLED || prefLoadedRef.current || prefLoadStartedRef.current) return;
+    const controller = controllerRef.current;
+    const map = controller?.getMap();
+    if (!controller || !map) return;
+    if ((map.getZoom() ?? 0) < PREFECTURE_BORDERS_MIN_ZOOM) return;
+    prefLoadStartedRef.current = true;
+    try {
+      const res = await fetch(`${MAP_BASE_URL}/prefecture_borders.topojson`);
+      if (!res.ok) throw new Error(`prefecture_borders.topojson → HTTP ${res.status}`);
+      const topo = (await res.json()) as TopoJSON.Topology;
+      const obj = topo.objects.prefecture_borders ?? Object.values(topo.objects)[0];
+      const fc = feature(topo, obj) as GeoJSON.FeatureCollection;
+      fc.features.forEach((f, j) => { f.id = j; });
+      if (cancelledRef.current) return;
+      controller.setPrefectureData(fc);
+      prefLoadedRef.current = true;
+      if (import.meta.env.DEV) {
+        console.info(`[map] 府级边界就绪：${fc.features.length} 段（zoom ≥ ${PREFECTURE_BORDERS_MIN_ZOOM}）`);
+      }
+    } catch (e) {
+      // 府界是**可选增强层**：失败只记一次并允许下次 moveend 重试，不污染路界/填充，
+      // 也不弹错误遮罩（那是给"整张舆图没数据"用的）。
+      prefLoadStartedRef.current = false;
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[map] 府级边界未载入（不影响路界与填色）：${msg}`);
     }
   }
 
@@ -293,14 +355,15 @@ export default function MapView() {
         if (f) {
           foundFeature = f;
           foundProps = (f.properties || {}) as Record<string, unknown>;
-          foundCoord = centerOf(f);
+          // centerOf 现可能返回 null（几何无环）→ 归一为 undefined（`Selected.coordinate` 是可选配）
+          foundCoord = centerOf(f) ?? undefined;
         }
       } else if (kind === "regime") {
         const f = data.regimes.features.find((r) => r.properties?.name === name);
         if (f) {
           foundFeature = f;
           foundProps = (f.properties || {}) as Record<string, unknown>;
-          foundCoord = centerOf(f);
+          foundCoord = centerOf(f) ?? undefined;
         }
       }
     }
@@ -417,7 +480,29 @@ export default function MapView() {
     return () => window.removeEventListener("sz:map-focus", handleFocus);
   }, []);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0" />
+      {/* P2-3（M10）：可观测失败态——原先加载失败只有控制台一行，界面与"空地图"无法区分 */}
+      {geoError && (
+        <div className="pointer-events-auto absolute left-1/2 top-1/2 z-30 w-[min(420px,86vw)] -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-red bg-card/95 px-5 py-4 text-center shadow-paper">
+          <p className="font-kai text-[16px] font-bold text-red">舆图数据加载失败</p>
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-light">{geoError}</p>
+          <button
+            onClick={() => {
+              prefLoadedRef.current = false;
+              prefLoadStartedRef.current = false;
+              markersRef.current?.clearAll();
+              void loadGeoData();
+            }}
+            className="mt-3 rounded border border-gold px-3.5 py-1 font-kai text-[13px] text-ink transition hover:bg-gold-light"
+          >
+            重试载入
+          </button>
+        </div>
+      )}
+    </>
+  );
 }
 
 // ---- 工具 ----
@@ -432,7 +517,7 @@ function bboxOfRing(ring: number[][]): [number, number, number, number] {
   return [x0, y0, x1, y1];
 }
 
-function centerOf(feature: GeoJSON.Feature): [number, number] {
+function centerOf(feature: GeoJSON.Feature): [number, number] | null {
   const g = feature.geometry;
   if (g.type === "Point") return g.coordinates as [number, number];
   const rings: number[][][] = [];
@@ -447,5 +532,8 @@ function centerOf(feature: GeoJSON.Feature): [number, number] {
     const a = (b[2] - b[0]) * (b[3] - b[1]);
     if (a > bestArea) { bestArea = a; best = b; }
   }
-  return best ? [(best[0] + best[2]) / 2, (best[1] + best[3]) / 2] : [0, 0];
+  // 无环几何（缺失/异常）→ 返回 null 让调用方跳过聚焦。
+  // P2-3（M10）：原回落 `[0, 0]`（几内亚湾）会让 flyTo/pulseAt **静默飞到错误坐标**，
+  // 而调用方 `if (c)` 的判断对数组恒真，等于把"没有中心"伪装成"中心在 0,0"。
+  return best ? [(best[0] + best[2]) / 2, (best[1] + best[3]) / 2] : null;
 }

@@ -116,11 +116,17 @@ export default function PopPanel() {
       {/* 六民阶层详尽大表 */}
       <div className="flex-1 space-y-2.5 overflow-y-auto pr-1">
         {Object.entries(POP_PROFILES).map(([popKey, prof]) => {
-          const it = displayPops[popKey] || { size: 0, wealth: 0, grain: 0 };
-          const size = it.size || 0;
-          const wealth = it.wealth || 0;
-          const grain = it.grain || 0;
-          const pct = totalPopSize > 0 ? ((size / totalPopSize) * 100).toFixed(1) : "0";
+          // 审查 D2：该阶层读数缺失时**不**回落 `{size:0}`（会被读成"该阶层为 0 人"）
+          const raw = displayPops[popKey];
+          const defined = raw !== undefined && raw !== null;
+          const it = (raw ?? {}) as { size?: number; wealth?: number; grain?: number };
+          const size = typeof it.size === "number" && Number.isFinite(it.size) ? it.size : 0;
+          const wealth = typeof it.wealth === "number" && Number.isFinite(it.wealth) ? it.wealth : 0;
+          const grain = typeof it.grain === "number" && Number.isFinite(it.grain) ? it.grain : 0;
+          // 占比只在**该阶层有读数且总人口>0** 时显示，否则"未定义"（不参与占比）
+          const pct = !defined || totalPopSize <= 0
+            ? "未定义"
+            : ((size / totalPopSize) * 100).toFixed(1);
 
           return (
             <div
@@ -134,7 +140,7 @@ export default function PopPanel() {
                       【{popKey}】{prof.label}
                     </span>
                     <span className="rounded bg-card px-1.5 py-0.5 font-kai text-[10px] text-dim border border-border">
-                      占生齿 {pct}%
+                      {pct === "未定义" ? "占生齿 未定义" : `占生齿 ${pct}%`}
                     </span>
                   </div>
                   <p className="mt-1 font-kai text-xs text-dim leading-relaxed">

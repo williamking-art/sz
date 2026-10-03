@@ -88,6 +88,27 @@ def _official_support_proxy(state) -> Dict[str, Any]:
             "min_faction": worst_name}
 
 
+def _literacy_channel(state, route: Optional[str] = None) -> Optional[float]:
+    """该路（或全国）**派生识字率**，取不到/非有限时返回 `None`（**不伪造、不回落 0**）。
+
+    审查 S2：旧实现在读数缺失时用 `calc_arrival_rate() * 100` 兜底（实测造出 58.75）
+    或 `50.0` 兜底 —— 那是**凭空造一个读数**，违反"缺失 ≠ 0 ≠ 1.0"。
+    现按 `core.numeric.finite_or_undefined` 的"未定义"语义处理（单点口径）：
+    缺失或 NaN/±Inf 一律 `None`，由调用方**显式标注该维度未定义**并只按已有项计算。
+    """
+    from core.numeric import finite_or_undefined as _fu
+    lit = None
+    try:
+        from core.literacy import national_literacy, route_literacy
+        lit = _fu(route_literacy(state, route) if route else national_literacy(state))
+    except Exception as e:  # noqa: BLE001
+        log.debug("decree_effect 取派生识字率失败：%s", e)
+        lit = None
+    if lit is None:
+        lit = _fu(getattr(state, "literacy", None))
+    return None if lit is None else _clamp(lit, 0.0, 100.0)
+
+
 def _civil_mult(state, route: Optional[str] = None) -> Optional[float]:
     """**弱关联**通道（0.85–1.0）：民心 ＋ **识字率**。
 
@@ -96,6 +117,10 @@ def _civil_mult(state, route: Optional[str] = None) -> Optional[float]:
       （`core.literacy.route_literacy`；全国则 `national_literacy`）——
       故 POP 结构/文教变化会立刻反映，无需等结算回写 `state.literacy`。
     幅度刻意压小：吏治才是强关联，民心/识字率不该主导诏令成败。
+
+    审查 S2：识字率缺失时**不再伪造**（旧实现回落 `calc_arrival_rate()*100`）；
+    该维度权重本就极小（`CIVIL_LITERACY_W = 0.05`），故缺失时只计民心项，
+    并由 `effect_channels` 输出 `literacy_defined=False` 显式标注"该维度未定义"。
     """
     sat = None
     if route:
@@ -105,26 +130,11 @@ def _civil_mult(state, route: Optional[str] = None) -> Optional[float]:
     if sat is None:
         sat = _num(getattr(state, "population_satisfaction", 50), 50.0)
 
-    lit = None
-    try:
-        from core.literacy import national_literacy, route_literacy
-        lit = route_literacy(state, route) if route else national_literacy(state)
-    except Exception as e:  # noqa: BLE001
-        log.debug("decree_effect 取派生识字率失败：%s", e)
-    if lit is None:
-        v = getattr(state, "literacy", None)
-        lit = _num(v) if v is not None else None
-    if lit is None:
-        # 兜底：识字率读数缺失（旧档尚未迁移）→ 用既有到账效率代表"文书之行"
-        try:
-            lit = _num(state.calc_arrival_rate(), 0.5) * 100.0
-        except Exception:  # noqa: BLE001
-            lit = 50.0
-        log.debug("decree_effect 识字率读数缺失，回落 calc_arrival_rate")
-    return round(_clamp(CIVIL_FLOOR
-                        + CIVIL_SAT_W * _clamp(sat, 0.0, 100.0) / 100.0
-                        + CIVIL_LITERACY_W * _clamp(lit, 0.0, 100.0) / 100.0,
-                        CIVIL_FLOOR, 1.0), 4)
+    lit = _literacy_channel(state, route)
+    val = CIVIL_FLOOR + CIVIL_SAT_W * _clamp(sat, 0.0, 100.0) / 100.0
+    if lit is not None:
+        val += CIVIL_LITERACY_W * lit / 100.0
+    return round(_clamp(val, CIVIL_FLOOR, 1.0), 4)
 
 
 def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
@@ -182,6 +192,7 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
             military["reason"] = reason + "；但无驻军读数（未计入）"
 
     civil = _civil_mult(state, route)
+    lit_read = _literacy_channel(state, route)     # 审查 S2：不再伪造，缺失即 None
     # **缺失 ≠ 完美**（2026-09-19 报告评审修正）：吏治折扣取不到时不得回落 1.0
     # （那等于默认"吏治完美"，与用户口径"缺失值禁止回落 0/1.0 假装无事"冲突）。
     # 此时 `defined=False` 且 `effect_mult=None`，由调用方决定是否按"无折扣"结算**并留痕**。
@@ -207,6 +218,8 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
                    "quality": clerks_view.get("quality")},
         "official_support": _official_support_proxy(state),
         "civil_mult": civil,
+        # 审查 S2：识字率维度是否**有读数**（False = 未定义，面板应显示"未定义"而非伪造值）
+        "literacy_defined": lit_read is not None,
         "literacy": _literacy_of(state, route),
         "military": military,
         "effect_mult": None if mult is None else round(_clamp(mult, 0.0, 2.0), 4),
@@ -215,13 +228,15 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
 
 
 def _literacy_of(state, route: Optional[str]):
-    """该路（或全国）识字率读数（只读；缺失为 None，不伪造）。"""
+    """该路（或全国）识字率读数（只读；**缺失或非有限为 None**，不伪造、不回落 0）。"""
+    from core.numeric import finite_or_undefined as _fu
     if route:
         p = (getattr(state, "prefectures", None) or {}).get(route)
         if isinstance(p, dict) and p.get("literacy") is not None:
-            return round(_num(p.get("literacy")), 2)
-    v = getattr(state, "literacy", None)
-    return None if v is None else round(_num(v), 2)
+            v = _fu(p.get("literacy"))
+            return None if v is None else round(v, 2)
+    v = _fu(getattr(state, "literacy", None))
+    return None if v is None else round(v, 2)
 
 
 def _note(kind: str, clerks_mult, civil, military, army_mult, route) -> str:

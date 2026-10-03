@@ -7,7 +7,5 @@
 - 界面实际使用的书法字体放在前端工程：`game/frontend/src/renderer/styles/MaShanZheng.ttf`（随前端打包进 `app.asar`）。
 
 ## 注意
-字体体积大且**每改一次就新增一份 git blob**（仓库膨胀主因之一）。
-新增字体前先评估体积与授权（见根 README「体积与历史」节的 LFS 建议）。
+新增字体前确认实际消费者、授权和打包路径；体积较大的新资源按 `game/assets/README.md` 的资产规则处理。
 ---
-最后更新：2026-09-27（补目录文档）

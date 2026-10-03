@@ -47,6 +47,17 @@ def _slot_path(slot: int) -> str:
     return os.path.join(SAVE_DIR, f"slot_{slot}.json")
 
 
+def _plan_schema_versions() -> dict:
+    """三个行动计划相关子 schema 的**当前**版本（延迟导入，避免顶层环）。"""
+    try:
+        from core.blueprint_dynamic import DYNAMIC_BLUEPRINT_SCHEMA_VERSION as _d
+        from core.decree_plan import DECREE_PLAN_SCHEMA_VERSION as _p
+        from core.plan_commit import PLAN_ACTION_SCHEMA_VERSION as _a
+        return {"decree_plan": _p, "dynamic_blueprint": _d, "plan_action": _a}
+    except Exception:  # noqa: BLE001 — 版本自述失败不得阻断存档
+        return {"decree_plan": 1, "dynamic_blueprint": 1, "plan_action": 1}
+
+
 def save_game(state, slot: int = 1) -> bool:
     """保存游戏到指定槽位（含记忆知识库同步写盘）。
 
@@ -93,7 +104,9 @@ def save_game(state, slot: int = 1) -> bool:
 
         "prestige": state.prestige,
         # 识字率（2026-09-19 新增设定）：全国 POP 加权派生值；逐路值随 prefectures 往返
-        "literacy": getattr(state, "literacy", 0.0),
+        # 审查 O10（缺失 ≠ 0）：旧式 `getattr(..., 0.0)` 缺失时写 **0.0**，与"真的没人识字"
+        # 无法区分。改为写 `None`（载入侧仅作诊断、以 POP 派生为权威，故影响面很小）。
+        "literacy": getattr(state, "literacy", None),
         "arrival_rate_base": state.arrival_rate_base,
         "treasury": state.treasury,
         # 累计亏空深度（B3）：破产两档线判据，须随档持久化
@@ -224,8 +237,36 @@ def save_game(state, slot: int = 1) -> bool:
         "payraise_budget": getattr(state, "payraise_budget", 0),
         "oversight": getattr(state, "oversight", 0.30),
         "resources": getattr(state, "resources", {}),
+        # 动态蓝图注册表（规格任务 3）：不落档则读档后动态蓝图全部消失，
+        # 已在办/已完工的动态建筑会变成"无图纸可依"的孤儿工程。
+        "dynamic_blueprints": getattr(state, "dynamic_blueprints", {}) or {},
+        # 行动提交登记表（规格任务 2 跨提交幂等）：不落档则读档后同一动作可被重复提交。
+        "plan_actions": getattr(state, "plan_actions", {}) or {},
+        # 商品动态成交价（B2-4/5）：运行价槽，与基准价表分开落档
+        "dynamic_prices": getattr(state, "dynamic_prices", {}) or {},
+        # B2-R2：旧格式全局价（无路归属），单独落档以免与路级键混淆
+        "dynamic_prices_legacy": getattr(state, "dynamic_prices_legacy", {}) or {},
+        # 官员个体 Agent 运行态（B5）：记忆/意图/权限，**逐人隔离**落档
+        "minister_agents": getattr(state, "minister_agents", {}) or {},
+        # 规格任务 7：**显式子 schema 版本**，读档据此迁移/拒绝（见 load_game）。
+        "plan_schemas": {
+            "decree_plan": _plan_schema_versions()["decree_plan"],
+            "dynamic_blueprint": _plan_schema_versions()["dynamic_blueprint"],
+            "plan_action": _plan_schema_versions()["plan_action"],
+        },
+        # 审查 M7：利益集团「立场占比」此前**根本没进存档字典** → 读档必然拿不到，
+        # `ensure_faction_split` 回退开局锚点、`split_of` 静默兜底 ⇒ 每次读档都把
+        # 党争演化（自第 2 月起逐月漂移）清回开局，且无任何提示。
+        "faction_split": getattr(state, "faction_split", {}) or {},
         "projects": getattr(state, "projects", {}),
         "workshops": getattr(state, "workshops", {}),
+        # 🔴 建材**在途批次**（P0 · 2026-10-02）：不存则读档后批次消失，
+        # 而货已从卖方扣掉 ⇒ **凭空消失**（货损而无人负责）。
+        # 列表里是纯 dict（含 from/to/dim/qty/arrive_month/days），可安全序列化。
+        "material_transit": [
+            dict(b) for b in (getattr(state, "material_transit", None) or [])
+            if isinstance(b, dict)
+        ],
         # 注（2026-09-18 全审 F601）：本键在 `:101` 已写过一次（`state.defense_lines`），
         # 此处原为重复键（`getattr(state, "defense_lines", {})`，读同一属性，值等价），
         # 属无声重复定义 —— 已删除。详见 review_2026-09-18.md 与 ruff `--select F601`。
@@ -515,7 +556,10 @@ def load_game(slot: int = 1):
                 pass
     except Exception as e:  # noqa: BLE001  局势载入失败不得阻断读档
         import logging as _lg3
-        _lg3.getLogger("save_load").warning("存档 situations 载入异常，按空表继续：%s", e)
+        # 审查 P2-3 / M9：原 warning 缺 slot（多槽并发排查时分不清坏的是哪一档）。
+        _lg3.getLogger("save_load").warning(
+            "迁移失败：situations 载入异常 slot=%s：%s（按空表继续，不拒档）",
+            slot, e, exc_info=True)
         state.situations = []
 
     # 恢复诏令
@@ -602,7 +646,9 @@ def load_game(slot: int = 1):
                 "（顶层仅作迁移诊断）", _saved_lit, _derived_lit)
     except Exception as e:  # noqa: BLE001  识字率载入失败不得阻断读档
         import logging as _lg4
-        _lg4.getLogger("save_load").warning("识字率载入异常：%s", e)
+        _lg4.getLogger("save_load").warning(
+            "迁移失败：识字率载入异常 slot=%s：%s：%s（POP 读数按默认补齐）",
+            slot, type(e).__name__, e, exc_info=True)
     # 利益集团「立场占比」：旧档无 → 幂等补齐开局锚点；坏值 → 归一 Σ=1
     try:
         state.faction_split = data.get("faction_split") or getattr(state, "faction_split", None)
@@ -610,7 +656,9 @@ def load_game(slot: int = 1):
         ensure_faction_split(state)
     except Exception as e:  # noqa: BLE001
         import logging as _lg5
-        _lg5.getLogger("save_load").warning("立场占比载入异常：%s", e)
+        _lg5.getLogger("save_load").warning(
+            "迁移失败：立场占比载入异常 slot=%s：%s：%s（沿用默认锚点）",
+            slot, type(e).__name__, e, exc_info=True)
     # 集团改名后的**残留键清理**（用户定稿：不迁移；但绝不留 KeyError 隐患）——
     # 旧档的 `faction_split` 与各诏令 `faction_stances` 里可能仍是旧名，而
     # `calc_decree_execution_rate` 会 `self.factions[名]` 取值 → 不清则读档即崩。
@@ -622,6 +670,22 @@ def load_game(slot: int = 1):
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
+    # 长期事务（P1-1）：**载入即迁移**——旧档事务无 `id`/支持模型字段，坏条目（非 dict）
+    # 必须隔离而不是让面板/圣旨通道崩。幂等；任何异常都不得阻断读档。
+    try:
+        from core.longterm_task import normalize_tasks
+        _lt = normalize_tasks(state)
+        if _lt["migrated"] or _lt["isolated"]:
+            import logging as _lg8
+            _lg8.getLogger("save_load").info(
+                "长期事务迁移 slot=%s：补齐字段 %d 件、隔离坏条目 %d 件",
+                slot, _lt["migrated"], _lt["isolated"])
+    except Exception as e:  # noqa: BLE001  迁移失败不得拒档
+        import logging as _lg9
+        # P2-3 口径：可定位的上下文（槽位 + 异常类型 + traceback）——否则"读档后事务字段怪异"
+        # 这类问题只能靠猜。
+        _lg9.getLogger("save_load").warning("长期事务迁移异常 slot=%s：%s", slot, e,
+                                            exc_info=True)
     # 四大机制改良（旧档缺省兼容）：开局邸报 / 帝国修正 / 国策树
     state.opening_gazette = data.get("opening_gazette", {}) or {}
     state.legacies = data.get("legacies", {}) or {}
@@ -721,18 +785,176 @@ def load_game(slot: int = 1):
     try:
         from core.estate_mechanic import sync_estate_slices
         sync_estate_slices(state)
-    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
-        pass
+    except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
+        # 审查 P2-3 / M9：原静默 `pass` → 家产子池未物化，`士绅.estate` 与具名镜像
+        # 不一致（钱对不上）而无人知。现记 warning（含 slot + traceback），**不拒档**。
+        import logging as _lg_est
+        _lg_est.getLogger("save_load").warning(
+            "迁移失败：sync_estate_slices（家产入 POP 子池）slot=%s：%s", slot, e,
+            exc_info=True)
     # 经济全浮动重构状态字段缺省兼容
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))
     state.oversight = data.get("oversight", getattr(state, "oversight", 0.30))
+    # 规格任务 3：动态蓝图注册表。只接受 dict，且**逐条重过校验器**（读档不信任存档，
+    # 防旧档/改档塞入未注册构件或非声明式字段）；坏项**丢弃并留痕**，不整档失败。
+    _dyn_saved = data.get("dynamic_blueprints")
+    state.dynamic_blueprints = {}
+    import logging as _lg2
+    _dlog = _lg2.getLogger("save_load")
+    # ---- 规格任务 7：子 schema 版本迁移 ----
+    # 旧档（无 `plan_schemas`）视为 v1 并**逐条重过校验器**（等价于迁移）；
+    # 版本**高于**本程序支持 → **拒绝载入该段**（不猜、不降级解释），主档继续。
+    _supported = _plan_schema_versions()
+    _saved_ver = data.get("plan_schemas")
+    if isinstance(_saved_ver, dict):
+        for _k, _v in _saved_ver.items():
+            _sup = _supported.get(_k)
+            if _sup is None:
+                continue
+            try:
+                _vn = int(_v)
+            except (TypeError, ValueError):
+                _dlog.warning("[读档] plan_schemas.%s 非法（%r），按当前版本 %s 处理",
+                              _k, _v, _sup)
+                continue
+            if _vn > int(_sup):
+                _dlog.warning("[读档] 存档 %s schema v%s 高于本程序支持的 v%s，"
+                              "该段拒绝载入（请升级程序）", _k, _vn, _sup)
+                if _k == "dynamic_blueprint":
+                    _dyn_saved = None          # 拒绝该段 → 下面按空表处理
+                elif _k == "plan_action":
+                    data = dict(data)
+                    data.pop("plan_actions", None)
+    if isinstance(_dyn_saved, dict):
+        try:
+            from core.blueprint_dynamic import register_dynamic_blueprint
+            _dropped = 0
+            for _dk, _dv in _dyn_saved.items():
+                _r = register_dynamic_blueprint(state, _dv)
+                if not _r.get("ok"):
+                    _dropped += 1
+                    _dlog.warning("[读档] 动态蓝图 %s 未通过校验，已丢弃：%s",
+                                  _dk, _r.get("errors"))
+            if _dropped:
+                _dlog.warning("[读档] 共丢弃 %d 条非法动态蓝图", _dropped)
+        except Exception:  # noqa: BLE001 — 迁移失败不得阻断读档
+            _dlog.exception("[读档] 动态蓝图迁移失败，按空表继续")
+            state.dynamic_blueprints = {}
+    # 行动提交登记表（任务 2 跨提交幂等）：只接受 dict，且逐条要求有 schema_version 与 pid/turn。
+    # 非法条目**丢弃并留痕**（不猜），坏表整体按空表处理——宁可失去幂等身份，不伪造历史。
+    _acts_saved = data.get("plan_actions")
+    state.plan_actions = {}
+    if isinstance(_acts_saved, dict):
+        _bad_acts = 0
+        for _aid, _rec in _acts_saved.items():
+            if not isinstance(_aid, str) or not isinstance(_rec, dict):
+                _bad_acts += 1
+                continue
+            try:
+                _ver = int(_rec.get("schema_version", 1))
+            except (TypeError, ValueError):
+                _bad_acts += 1
+                continue
+            if _ver > int(_supported.get("plan_action", 1)):
+                _bad_acts += 1
+                continue
+            state.plan_actions[_aid] = {
+                "schema_version": _ver,
+                "pid": _rec.get("pid"),
+                "turn": _rec.get("turn"),
+                "route": str(_rec.get("route") or ""),
+            }
+        if _bad_acts:
+            _dlog.warning("[读档] 丢弃 %d 条非法行动登记（跨提交幂等对其失效）", _bad_acts)
+    # 商品动态成交价（B2-4/5 ＋ B2-R2 路级键）：只接受正数，非法值丢弃并留痕
+    # ——**不回落基准价**伪装成"读档后无动态价"。
+    # **B2-R2 存档迁移**：旧档键只有商品名（全局共享），新格式为 `"<route>|<good>"`。
+    # 旧全局价**无法反推所属路**（全域共用一个值），故**保留原键**并记入
+    # `dynamic_prices_legacy` ——读侧`_lookup_dynamic` 会把它当"全局回退价"使用，
+    # 等该路首次成交后自然被路级价覆盖。**不臆造归属路**。
+    _dyn_prices = data.get("dynamic_prices")
+    state.dynamic_prices = {}
+    state.dynamic_prices_legacy = {}
+    if isinstance(_dyn_prices, dict):
+        _bad_price = 0
+        for _dim, _pv in _dyn_prices.items():
+            try:
+                _f = float(_pv)
+            except (TypeError, ValueError):
+                _bad_price += 1
+                continue
+            if _f != _f or _f <= 0 or _f in (float("inf"), float("-inf")):
+                _bad_price += 1
+                continue
+            _k = str(_dim)
+            if "|" in _k:
+                state.dynamic_prices[_k] = _f        # 新格式：路级键，原样保留
+            else:
+                state.dynamic_prices_legacy[_k] = _f  # 旧格式：全局价，标注来源
+        if _bad_price:
+            _dlog.warning("[读档] 丢弃 %d 条非法商品动态价", _bad_price)
+        if state.dynamic_prices_legacy:
+            _dlog.info("[读档] 迁移 %d 条旧格式全局商品价（无路归属，待路级成交覆盖）",
+                       len(state.dynamic_prices_legacy))
+    # 官员 Agent 运行态（B5）：逐条校验；坏条目丢弃留痕——**不伪造他人记忆**
+    _agents_saved = data.get("minister_agents")
+    state.minister_agents = {}
+    if isinstance(_agents_saved, dict):
+        _bad_agent = 0
+        for _aid, _av in _agents_saved.items():
+            if not isinstance(_aid, str) or not isinstance(_av, dict):
+                _bad_agent += 1
+                continue
+            _mem = _av.get("memory")
+            _int = _av.get("intents")
+            if not isinstance(_mem, list) or not isinstance(_int, list):
+                _bad_agent += 1
+                continue
+            state.minister_agents[_aid] = {
+                "schema_version": _av.get("schema_version", 1),
+                "actor_id": _aid,
+                "status": _av.get("status") or "in_office",
+                "posts": list(_av.get("posts") or []),
+                "authority": _av.get("authority"),
+                "memory": [m for m in _mem if isinstance(m, dict)],
+                "intents": [i for i in _int if isinstance(i, dict)],
+                "known_info": _av.get("known_info") if isinstance(_av.get("known_info"), dict) else {},
+            }
+        if _bad_agent:
+            _dlog.warning("[读档] 丢弃 %d 条非法官员 Agent 运行态", _bad_agent)
+    # 审查 M6：**先从存档恢复 `resources` 数值**，再补缺省维度。
+    # 原实现只对 `state.resources`（GameState 新建时的默认骨架）做 setdefault，
+    # 全程没有 `state.resources = data["resources"]` —— 存档里写好的库存/上限
+    # 读档后一律归零（实测 `salt` 424242 → 0），且面板与仓廪读数与存档不符。
+    # 口径：只接受 dict 且逐维度取 {stock, cap}，坏值退回缺省（不臆造）。
+    _res_saved = data.get("resources")
     if not isinstance(state.resources, dict):
-        state.resources = {d: {"stock": 0, "cap": 5000} for d in RESOURCE_DIMS}
+        state.resources = {}
+    if isinstance(_res_saved, dict):
+        for _d, _v in _res_saved.items():
+            if _d not in RESOURCE_DIMS:
+                continue
+            if isinstance(_v, dict):
+                _stock = _safe_int(_v.get("stock", 0), 0)
+                _cap = _safe_int(_v.get("cap", 5000), 5000)
+                state.resources[_d] = {"stock": max(0, _stock), "cap": max(0, _cap)}
     for d in RESOURCE_DIMS:
         state.resources.setdefault(d, {"stock": 0, "cap": 5000})
     state.projects = data.get("projects", getattr(state, "projects", {}))
     state.workshops = data.get("workshops", getattr(state, "workshops", {}))
+    # 🔴 建材在途批次（读侧）：旧档无此键 ⇒ 读成**空列表**（不拒档）。
+    # ⚠️ 非 list（脏档）也回落空列表，但**如实**记 warning，不静默当"没有在途"。
+    _mt = data.get("material_transit")
+    if _mt is None:
+        state.material_transit = []
+    elif isinstance(_mt, list):
+        state.material_transit = [dict(b) for b in _mt if isinstance(b, dict)]
+    else:
+        state.material_transit = []
+        _log = __import__("logging").getLogger(__name__)
+        _log.warning("存档 material_transit 非 list（%s），已按空在途读取",
+                     type(_mt).__name__)
     if data.get("defense_lines"):
         state.defense_lines = data.get("defense_lines")
     state._derive_defense_lines() if hasattr(state, "_derive_defense_lines") else None
@@ -747,14 +969,24 @@ def load_game(slot: int = 1):
     try:
         from core.settlement_imperial import ensure_hidden_in_pops
         ensure_hidden_in_pops(state)
-    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
-        pass
+    except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
+        # 审查 P2-3 / M9：原静默 `pass` → 隐户口数未注入 `农.hidden`，
+        # 「总口 = 在籍 + 隐户」在旧档上凭空少 2000 万口而无人知。
+        import logging as _lg_hid
+        _lg_hid.getLogger("save_load").warning(
+            "迁移失败：ensure_hidden_in_pops（隐户入 农.hidden 子池）slot=%s：%s",
+            slot, e, exc_info=True)
     # 农职位/丁口子池的旧档迁移（B1a）：幂等补齐（**只改子池，不改 size**）
     try:
         from core.pop_structure import ensure_farm_slices
         ensure_farm_slices(state)
-    except Exception:  # noqa: BLE001  迁移失败不得阻断读档
-        pass
+    except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
+        # 审查 P2-3 / M9：原静默 `pass` → 农的「Σ职位 == size」「ding+kou == size」
+        # 不变量在旧档上不成立，后续月份被月度兜底反复修补却查不到根因。
+        import logging as _lg_farm
+        _lg_farm.getLogger("save_load").warning(
+            "迁移失败：ensure_farm_slices（农职位/丁口子池）slot=%s：%s",
+            slot, e, exc_info=True)
     state.jiaozi = data.get("jiaozi", state.jiaozi)
     state.maritime = data.get("maritime", state.maritime)
     state.coin = data.get("coin", state.coin)
@@ -785,18 +1017,44 @@ def load_game(slot: int = 1):
         state.ensure_finance_fields()
     except Exception as e:  # noqa: BLE001  金融字段迁移失败不得阻断读档（core.money 有防御式兜底）
         import logging as _lg6
-        _lg6.getLogger("save_load").warning("金融字段迁移异常：%s", e)
+        # 审查 P2-3 / M9：原 warning 缺 slot 与异常类型（多槽/多类异常时无法定位）。
+        _lg6.getLogger("save_load").warning(
+            "迁移失败：金融字段迁移 slot=%s：%s：%s（core.money 有防御式兜底）",
+            slot, type(e).__name__, e, exc_info=True)
     # B1 持久化：重建「聊出来的发明」节点表
     # 生成节点随存档保存（generated_nodes[*]["node"] 为完整元组），
     # 读档时重新注册进 content.data 全局表，保证 get_tech_node 能查到。
+    #
+    # 审查 P2-3 / M9·M13：原实现整段 `except Exception: pass`（连注释都没有）——
+    # **玩家聊出来的发明在读档后凭空消失**，而玩家只看到"我的发明没了"。且一个节点
+    # 注册失败会连带后面所有节点都不注册（整段共用一个 try）。现改为：逐节点 try，
+    # 失败节点 gid 落 `state.tech["failed_nodes"]`（供 UI 标注），**仍返回 state 不拒档**。
+    _reg_node = None
     try:
-        from core.asset_context import _register_generated_node_global
+        from core.asset_context import _register_generated_node_global as _reg_node
+    except Exception as e:  # noqa: BLE001
+        import logging as _lg_imp
+        _lg_imp.getLogger("save_load").warning(
+            "迁移失败：生成科技节点注册器不可用 slot=%s：%s（发明节点本月无法恢复）",
+            slot, e, exc_info=True)
+    if _reg_node is not None:
         for gid, ginfo in (state.tech.get("generated_nodes") or {}).items():
             node = ginfo.get("node") if isinstance(ginfo, dict) else None
-            if isinstance(node, (list, tuple)) and len(node) >= 10:
-                _register_generated_node_global(gid, tuple(node))
-    except Exception:
-        pass
+            if not (isinstance(node, (list, tuple)) and len(node) >= 10):
+                continue
+            try:
+                _reg_node(gid, tuple(node))
+            except Exception as e:  # noqa: BLE001
+                import logging as _lg_node
+                _lg_node.getLogger("save_load").warning(
+                    "迁移失败：生成科技节点重注册 slot=%s gid=%s：%s（该发明读档后不可见，"
+                    "gid 已记入 tech.failed_nodes 供 UI 标注）", slot, gid, e, exc_info=True)
+                try:
+                    _failed = state.tech.setdefault("failed_nodes", [])
+                    if isinstance(_failed, list) and gid not in _failed:
+                        _failed.append(gid)
+                except Exception:  # noqa: BLE001 — 标注失败不得反噬读档
+                    pass
     state.diplomacy_log = data.get("diplomacy_log", [])
     state.alliance_jin_liao = data.get("alliance_jin_liao", False)
 
@@ -816,6 +1074,12 @@ def get_save_slots() -> list:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     d = json.load(f)
+                # 审查 P2-3 / M13（**反向缺口**）：原只捕获 (OSError, ValueError)。
+                # 槽文件内容是**数组/字符串**时 `d.get(...)` 抛 AttributeError **穿透**，
+                # 整个槽位列表调用直接 500 —— 一个坏档让玩家连"哪个档坏了"都看不到。
+                # 现解析后即校验顶层类型，并入既有损坏槽分支（标 corrupt，不隐藏槽位）。
+                if not isinstance(d, dict):
+                    raise ValueError(f"顶层非对象（{type(d).__name__}）")
                 slots.append({
                     "slot": i,
                     "time": d.get("save_time_str", "未知"),

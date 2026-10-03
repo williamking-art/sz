@@ -195,7 +195,8 @@ class MiscContractMixin:
             except Exception:
                 _ranges = None
         raw = self._cached_call("event", event_context, sys_p, "", 0.8, 700)
-        out = self._postprocess(raw, validate, lambda: _narrative_fallback("event"), ranges=_ranges)
+        out = self._postprocess(raw, validate, lambda: _narrative_fallback("event"),
+                               ranges=_ranges, state=state)
         # C6 修复（人物护栏空转）：validate 命中已故/已黜人物时只写 o["_char_violation"]，
         # 而全库无任何读取方 → narrative_guard 文档所称「命中已故/已黜 → 标记回喂」
         # 从未发生，AI 仍可让亡者出场。现按文档意图**回喂一次**：以订正要求重发；
@@ -208,7 +209,8 @@ class MiscContractMixin:
             try:
                 _raw2 = self._cached_call("event", event_context, _retry_sys, "",
                                           0.8, 700, input_key="charfix")
-                _out2 = self._postprocess(_raw2, validate, lambda: out, ranges=_ranges)
+                _out2 = self._postprocess(_raw2, validate, lambda: out,
+                                          ranges=_ranges, state=state)
                 if isinstance(_out2, dict) and not _out2.get("_char_violation"):
                     return _out2
             except Exception:

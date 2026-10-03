@@ -115,7 +115,7 @@ export default function MainMenu() {
       />
       {/* 轮换过渡层：切换期间淡入新图，完成后主层已同步为新图 */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none transition-opacity duration-[1500ms]"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none transition-opacity duration-1500"
         style={{
           backgroundImage: `url('${BG_POOL[(bgIndex + 1) % BG_POOL.length]}')`,
           opacity: bgFading ? 1 : 0

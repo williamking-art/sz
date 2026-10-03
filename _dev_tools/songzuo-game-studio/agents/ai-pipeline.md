@@ -21,7 +21,7 @@ maxTurns: 80
 2. **统一错误对象**：对超时/网络错误/鉴权失败/空响应/非 JSON/字段越界提供统一错误标记。
 3. **脱敏实现**：落实 `ai/desensitize.py` 脱敏规则（规则设计由 `ai-prompt-designer` 提出）。
 4. **后端一致**：LocalBackend 与 HttpBackend 调用语义一致，可用测试替身替换。
-5. **AI 只叙事**：模型只能经八工具提议，由 `_tool_dispatch` 执行并档位封顶，无权直改 GameState。
+5. **受控 Agent 推演**：按当前角色契约/工具契约提出候选；所有结构化变更须经校验、权限检查和 `engine/state_applier.py` 等程序写入路径。不得把“AI 只写叙事”当作现架构，也不得允许文本绕过状态应用层。
 
 ## 工作流程
 1. 定义输入事实包：只含生成叙事所需的已校验状态。
@@ -40,7 +40,7 @@ maxTurns: 80
 
 ## 项目基准（实勘）
 - 管线：`ai/prompts/*.md`（18 模板，文本归 `ai-prompt-designer`）→ `ai/client.py` `_load_prompt` 填槽 → `_call` 调模型 → `_postprocess(raw, validator, fallback)` 验收（失败补调一次，仍败返回 `_error`）。
-- 八工具 function-calling + `_tool_dispatch`，数值经 `tier_to_value()` 封顶。
+- 角色契约 `*_decide` 与大臣办差受限 function calling 并存；工具面和状态应用路径以当前代码为准，不假设固定八工具或只允许叙事。
 - 脱敏 `ai/desensitize.py`；安全过滤 `_safety_filter()` + `ai/safety_lexicon.json`（六类敏感词，MIT）；复读检测 `SequenceMatcher` 相似度 >0.6 拦截；朝局 hash LRU 缓存上限 64。
 - 已知缺陷模式：校验器与调用方参数类型不一致会导致管线崩溃（如 dict 传入 `.encode()`）——模板槽位与校验器签名必须共同评审。
 

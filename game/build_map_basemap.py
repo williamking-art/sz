@@ -13,8 +13,23 @@
     circuits.geojson          宋路实界：地级政区按质心归属并入各路（属性兼容旧路层）
     circuit_borders.geojson   路级外框（并集边界线，含 label_at）
     prefectures.geojson       州/府级实界：同一归属再按治所切一刀，州/府独立成块
-                              （可单独选中、可由圣旨改名；并集恒等于所在路）
+                              （并集恒等于所在路）
     prefecture_borders.geojson 州/府级外框（并集边界线，含 label_at）
+    circuit_seat_ledger.json  治所台账：历史治所 → 府块 / **省级归入** 的账目
+                              （含各路省级残留 demog_residual）；恒等式
+                              `seats_total == seats_blocked + seats_merged_count`、
+                              `Σ府块 + 省级残留 == 路级总量`（逐维）
+
+**省级归入口径（用户 2026-09-29 裁决）**：历史治所表共 137 席，其中 10 席
+（荆湖北路·澧州、京西路·唐州、荆湖南路·永州、成都府路·蜀州/彭州、淮南东路·真州、
+利州路·剑州、京东东路·莱州、京东西路·郓州/濮州）在现代地级质心最近邻判定下拿不到府块。
+处理方式：**不硬切府块**，按历史数据归入省级——其史实权重份额不从邻府分得、也不摊给
+邻府，而是留在路级；故 127 府块 + 10 省级归入 = 137 席，且逐维守恒可复算。
+（修复前：这 10 席被静默漏掉，份额隐式摊给邻府，府级数字虚高且无迹可查。）
+
+> ⚠️ 府块仍**不可单独选中、也还不能由圣旨改名**——fill/命中层未接线；
+> 已接入前端的只有府级**边界线**（zoom ≥ 5.2 细线层）。修它要改本文件归属算法，
+> 会改变逐府人口/田亩/月税摊派（属核心模拟），须先定口径 + 加回归保护。
 
 归属算法：地级政区质心 → 最近治所（CIRCUIT_INFO members 的经纬度，游戏
 真值）所在路与治所；距离 > SEED_CAP 视为游戏未建模区域（如京东东路）不归属。
@@ -291,6 +306,39 @@ def build_circuits() -> None:
     for _pname, _t in PROVINCE_WHOLE_SEAT.items():
         seat_at.setdefault((_t[0], _t[1]), list(_t[2]))
 
+    # ---- 治所账目（历史数据 → 府块 / 省级归入 / 表外直挂）----
+    # `CIRCUIT_INFO.members` = 历史治所表：137 条（路, 治所），元素为 [治所名, 等级(府/州), 经度, 纬度]。
+    #   · 有块者进府级摊派；
+    #   · 无块者按用户 2026-09-29 裁决**归入省级**（不硬切府块、份额留路级）；
+    #   · `PROVINCE_WHOLE_SEAT`（台湾省→福建路·台湾府）是**历史表外的直挂块**——
+    #     它有块但不在 members 里，须单独登记，不得混进"省级归入"或"有块席数"。
+    hist_pairs = {(c, str(m[0])) for c, info in CIRCUIT_INFO.items()
+                  for m in (info.get("members") or [])}
+    hist_seats = {c: [(str(m[0]), str(m[1]), m[2], m[3])
+                      for m in (info.get("members") or [])]
+                  for c, info in CIRCUIT_INFO.items()}
+    offtable = {(_t[0], _t[1]) for _t in PROVINCE_WHOLE_SEAT.values()}
+    blocked_hist = hist_pairs & set(by_seat)          # 历史席位→有府块
+    merged_pairs = hist_pairs - set(by_seat)          # 历史席位→省级归入
+    extra_blocks = set(by_seat) - hist_pairs          # 表外直挂块
+    blocked_by_circuit: dict[str, set] = {}
+    for (cname, sname) in blocked_hist:
+        blocked_by_circuit.setdefault(cname, set()).add(sname)
+    merged_by_circuit = {
+        c: [m for m in seats if m[0] not in blocked_by_circuit.get(c, set())]
+        for c, seats in hist_seats.items()
+    }
+    _hist_total = len(hist_pairs)
+    _blocked_total = len(blocked_hist)
+    _merged_total = len(merged_pairs)
+    assert _hist_total == _blocked_total + _merged_total, (
+        f"治所账目不自洽：历史 {_hist_total} ≠ 有块 {_blocked_total} + 省级归入 {_merged_total}")
+    assert extra_blocks == offtable, (
+        f"表外直挂块与 PROVINCE_WHOLE_SEAT 声明不一致：多出 {sorted(extra_blocks - offtable)}，"
+        f"缺少 {sorted(offtable - extra_blocks)}——新表外块必须显式登记进台账")
+    assert len(by_seat) == _blocked_total + len(offtable), (
+        f"府块数({len(by_seat)}) ≠ 历史有块({_blocked_total}) + 表外直挂({len(offtable)})")
+
     road_features = []
     border_features = []
 
@@ -300,8 +348,11 @@ def build_circuits() -> None:
         u = u.buffer(0.0015).buffer(-0.0015)
         at = u.representative_point()
         p_info = by_info[name]
+        _merged = merged_by_circuit.get(name, [])
+        _seats = hist_seats.get(name, [])
 
         # 1. circuits.geojson: 20 大省完整板块
+        #    附治所账目：历史席数 / 有府块席数 / **归入省级**的治所名单（可见、可复算）。
         road_features.append({
             "type": "Feature",
             "properties": {
@@ -313,6 +364,10 @@ def build_circuits() -> None:
                 "member_count": p_info.get("member_count", 0),
                 "prefecture": "、".join(x for x in by_prefectures.get(name, []) if x),
                 "label_at": [round(at.x, 4), round(at.y, 4)],
+                "seats_total": len(_seats),
+                "seats_blocked": len(_seats) - len(_merged),
+                "seats_merged_count": len(_merged),
+                "seats_merged_to_circuit": [m[0] for m in _merged],
             },
             "geometry": mapping(u),
         })
@@ -352,12 +407,27 @@ def build_circuits() -> None:
 
     # 人口经济摊派：路级总量(PREFECTURE_INFO) × 州府块面积占比 × 史实锚点
     # → 拆到每一治所（Σ守恒；尾差并入最大块）。构建期注入属性，运行时不依赖 raw。
-    from content.demography import split_circuit_demog
+    #
+    # **省级归入口径（用户 2026-09-29 裁决）**：历史治所表（`CIRCUIT_INFO.members`，137 席）
+    # 中有 10 席在现代地级质心最近邻判定下拿不到府块（澧州/唐州/永州/蜀州/彭州/真州/
+    # 剑州/莱州/郓州/濮州）。它们**不硬切府块**，而是按历史数据**归入省级**：
+    #   · 其史实权重份额**不从邻府分得、也不摊给邻府**，留在路级（`circuit_seat_ledger.json`
+    #     的 `demog_residual`）→ 逐维恒等式 `Σ府块 + 省级残留 == 路级总量`；
+    #   · 恒等式 `137 席 = 127 府块 + 10 省级归入`，由生成期断言 + 回归测试双重守住；
+    #   · 修复前行为：这 10 席被静默漏掉，份额隐式摊给邻府（府级数字虚高、无迹可查）。
+    from content.demography import split_circuit_demog_scoped
     circ_areas: dict[str, dict[str, float]] = {}
     for cname, sname, u, _at in seat_units:
         circ_areas.setdefault(cname, {})[sname] = u.area
-    demog_by = {cname: split_circuit_demog(cname, amap)
-                for cname, amap in circ_areas.items()}
+
+    demog_by: dict[str, dict] = {}
+    residual_by: dict[str, dict] = {}
+    for cname, amap in circ_areas.items():
+        merged_names = [m[0] for m in merged_by_circuit.get(cname, [])]
+        by_seat_demog, residual = split_circuit_demog_scoped(cname, amap, merged_names)
+        demog_by[cname] = by_seat_demog
+        if residual:
+            residual_by[cname] = residual
 
     seat_features = []
     for cname, sname, u, at in seat_units:
@@ -398,6 +468,52 @@ def build_circuits() -> None:
               {"type": "FeatureCollection", "features": seat_features})
     _save_web("prefecture_borders.geojson",
               {"type": "FeatureCollection", "features": seat_border_features})
+
+    # 4. 治所台账：把「137 席 = 127 府块 + 10 省级归入」写成**可复算**的凭证。
+    #    口径（用户 2026-09-29）：无府块的治所按历史数据（CIRCUIT_INFO.members）
+    #    归入省级——其史实份额不从邻府分得、也不摊给邻府，留在路级（demog_residual）。
+    #    回归：_dev_tools/game-dev/tests/test_map_prefecture_geometry.py
+    ledger = {
+        "kind": "circuit_seat_ledger",
+        "note": ("历史治所（CIRCUIT_INFO.members）→ 府块 / 省级归入 的账目。"
+                 "口径：无现代地级质心归属的治所不硬切府块，按历史数据归入省级；"
+                 "其史实份额留在路级（demog_residual），不从邻府分得也不摊给邻府。"
+                 "恒等式：Σ府块 + 省级残留 == 路级总量（逐维）；"
+                 "席数恒等式：seats_total == seats_blocked + seats_merged_count。"),
+        "totals": {
+            "seats": _hist_total,
+            "blocked": _blocked_total,
+            "merged": _merged_total,
+            "offtable_blocks": len(offtable),
+            "prefecture_blocks": len(seat_features),
+            "circuits": len(by),
+        },
+        "circuits": {},
+    }
+    for cname in sorted(by):
+        _seats = hist_seats.get(cname, [])
+        _merged = merged_by_circuit.get(cname, [])
+        _off = [{"name": s, "note": "历史表外直挂（PROVINCE_WHOLE_SEAT）"}
+                for (c, s) in sorted(extra_blocks) if c == cname]
+        ledger["circuits"][cname] = {
+            "seat": (CIRCUIT_INFO.get(cname, {}) or {}).get("seat", ""),
+            "game_unit": (CIRCUIT_INFO.get(cname, {}) or {}).get("game_unit", cname),
+            "seats_total": len(_seats),
+            "seats_blocked": len(_seats) - len(_merged),
+            "seats_merged_count": len(_merged),
+            "seats_merged": [
+                {"name": m[0], "type": m[1], "lon": m[2], "lat": m[3]} for m in _merged
+            ],
+            "blocks_offtable": _off,
+            "demog_residual": residual_by.get(cname, {}),
+        }
+    _save_web("circuit_seat_ledger.json", ledger)
+    if _merged_total:
+        _names = "、".join(
+            f"{c}·{m[0]}" for c in sorted(merged_by_circuit) for m in merged_by_circuit[c])
+        print(f"[seat-ledger] {_hist_total} 席 = {_blocked_total} 有块 + {_merged_total} 省级归入"
+              f"（{_names}）；另 {len(offtable)} 个表外直挂块 "
+              f"（{ '、'.join(f'{c}·{s}' for c, s in sorted(offtable)) }）")
 
 
 def main() -> int:

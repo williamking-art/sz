@@ -35,6 +35,7 @@ Electron 前端经 HTTP 调用）与测试。**Tkinter GUI 已废弃删除**—�
 #      def    conclude   —— 生成结局评定，返回 (eval_result, ai_eval_text)。
 #      def    approve_ai_action   —— 批红一条 AI 待批行动；按 kind 落地。返回叙述。
 #      def    reject_ai_action   
+#      def    issue_task_decree   —— 对某在办长期事务颁旨（督行/调兵督行/御笔中旨）；单一实现在 core/longterm_task
 #      def    _apply_military_dispatch   —— 批红军令：先校验钱粮，增募钱不够则整单拒绝。
 #      def    _prefilter_rules   —— 预过滤规则：(关键词组, 模板, 意图词)。模板用 {m} 占位大臣名。
 #      def    _prefilter_intent_hint   —— 预过滤命中后的意图词（供后续拟诏 AI 上下文，降低模板与 AI 割裂）。
@@ -79,6 +80,17 @@ from core.commands_decree import (
 def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
     """创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。"""
     state = GameState(difficulty=difficulty)
+    # 清空对话记忆库（slot_{n}_dialogue.db）：新游戏不得残留旧局召对留档
+    try:
+        import os as _os
+        from memory.dialogue_memory import _dialogue_path
+        _dp = _dialogue_path(state.memory_slot)
+        for _suffix in ("", "-wal", "-shm"):
+            _p = _dp + _suffix
+            if _os.path.exists(_p):
+                _os.remove(_p)
+    except Exception:
+        pass
     # 开局邸报（参考《明末：捞金模拟器》）：文言局势 + 待办三事，注入 state.opening_gazette
     try:
         from content.legacy_gazette import build_opening_gazette
@@ -435,20 +447,58 @@ def _ai_prelude(state, ai_client):
     except Exception:
         pass
 
+    # 局势推进档位（规范 §7）：审查 S9 —— `AIClient.situations_grade_decide` 早已实现
+    #   （只给档位与叙事、数值程序算、非法条目丢弃），`core/situation_settle.py:191`
+    #   也确实消费 `state._situation_grades`，但**全库无任何生产调用方** →
+    #   该字典恒空 → 局势评分**永远走程序 inertia 兜底**，AI 通道 100% 死码
+    #   （前次审查 A.4 记为 P1 未修）。现按契约 docstring 的既定设计接线：
+    #   仅当「有活跃局势」且「AI 可用」时调用；失败/不可用 → 保持空 dict，
+    #   由 Step 8.5 走 inertia（**不伪造** AI 评分）。
+    try:
+        if (getattr(ai_client, "available", False)
+                and any(isinstance(r, dict) and r.get("status") == "active"
+                        for r in (getattr(state, "situations", None) or []))):
+            _sg = ai_client.situations_grade_decide(state=state)
+            if isinstance(_sg, dict) and not _sg.get("_error"):
+                _grades = _sg.get("grades")
+                if isinstance(_grades, list) and _grades:
+                    # 只落"档位 + 叙事"，数值仍由程序算（situation_settle 的效果契约）
+                    state._situation_grades = {
+                        str(g.get("situation_id")): g
+                        for g in _grades if isinstance(g, dict) and g.get("situation_id")
+                    }
+    except Exception as _e:  # noqa: BLE001 — 局势评分失败不得阻断结算
+        log.warning("[settle] 局势档位推演失败（回落程序 inertia）: %s", _e)
+
 
 def _snapshot_state(state) -> dict:
     """结算前状态快照（供失败回滚）：深拷贝各状态字段，不可拷贝对象（SQLite 连接/锁等）跳过。
 
     另记录 `__mem_turn__` 记忆水位（审查 A2）：记忆库含 SQLite 连接，深拷贝必被
     跳过，无法随字段一并还原，故单独记回合号，由 `_restore_state` 按水位截断。
+
+    审查 P2-3 应修：被跳过的字段名落 `snap["__skipped__"]`（**可诊断**）——
+    原实现 `continue` 后无任何痕迹，"哪些字段没进快照"完全不可查，
+    一旦这些字段参与结算就成了"回滚回不干净"的隐形来源。
     """
     import copy
+    import logging as _lg
     snap: dict = {}
+    _skipped = []
     for k, v in list(getattr(state, "__dict__", {}).items()):
         try:
             snap[k] = copy.deepcopy(v)
-        except Exception:  # noqa: BLE001
-            continue  # 不可深拷贝（连接/锁等）→ 保持原引用，回滚时不动该字段
+        except Exception as e:  # noqa: BLE001
+            _skipped.append(k)      # 不可深拷贝（连接/锁等）→ 保持原引用，回滚时不动该字段
+            _lg.getLogger("commands").debug("快照跳过不可深拷贝字段 %s：%s", k, e)
+    snap["__skipped__"] = _skipped
+    if _skipped:
+        # 只记 DEBUG：`memory`（含 SQLite 连接）等**每回合都会**被跳过，属正常，
+        # 记 WARNING 会变成每回合一条的无意义噪声（P2-3「正常路径不产生噪声」）。
+        # 字段名随快照保存（`snap["__skipped__"]`），回滚不完整时由 `_restore_state`
+        # 连同失败字段一并 ERROR 报出 → 需要时可定位，平时不吵。
+        _lg.getLogger("commands").debug(
+            "状态快照跳过 %d 个不可深拷贝字段：%s", len(_skipped), _skipped[:10])
     snap["__mem_turn__"] = int(getattr(state, "turn", 0) or 0)
     return snap
 
@@ -460,14 +510,26 @@ def _restore_state(state, snap: dict) -> None:
     已写入**的关系/召对/总结。缺此步则重试结算时同一事实被重复 upsert，关系权重
     叠加（不可逆）；召对残留还会污染「卿前番之言」注入。记忆库不可深拷贝故不能
     走字段还原，只能按水位截断（各库 `rollback_after`）。
+
+    审查 P2-3 应修：`setattr` 失败原为静默 `continue` —— **回滚失败了自己不说**，
+    玩家与开发者都以为状态已完整还原。现统一 `logging.error` 并统计失败字段数
+    （回滚不完整必须可见，否则"重试结算"会建立在半回滚的状态上）。
     """
+    import logging as _lg
+    _rlog = _lg.getLogger("commands")
+    _snap_skipped = list(snap.get("__skipped__") or [])
+    _failed = []
     for k, v in snap.items():
         if k.startswith("__"):
             continue          # 内部水位标记不可 setattr 回 state
         try:
             setattr(state, k, v)
-        except Exception:  # noqa: BLE001
-            continue
+        except Exception as e:  # noqa: BLE001
+            _failed.append(k)
+            _rlog.error("状态回滚失败：字段 %s 未能还原：%s", k, e, exc_info=True)
+    if _failed:
+        _rlog.error("状态回滚**不完整**：%d 个字段失败（%s）；另有 %d 个字段未进快照（%s）",
+                    len(_failed), _failed[:10], len(_snap_skipped), _snap_skipped[:10])
     _turn = snap.get("__mem_turn__")
     if _turn is None:
         return
@@ -475,15 +537,21 @@ def _restore_state(state, snap: dict) -> None:
     try:
         from memory.dialogue_memory import get_dialogue_memory
         _objs.append(get_dialogue_memory(state))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        # 取不到对话库 → 该库**不会**被回滚（失败回合的召对残留会留下），必须可见。
+        _rlog.warning("状态回滚：对话记忆库不可达，其水位未截断（召对可能残留）：%s", e)
     for _obj in _objs:
         _fn = getattr(_obj, "rollback_after", None)
         if callable(_fn):
             try:
                 _fn(int(_turn))
-            except Exception:  # noqa: BLE001
-                pass          # 记忆回滚失败不阻断状态回滚（已记录于自身日志）
+            except Exception as e:  # noqa: BLE001
+                # P2-3 应修：原注释称"已记录于自身日志"与事实不符 ——
+                # `memory/memory_graph.py::rollback_after` 内并**无** warning。
+                # 该文件不在本次授权范围，故此处据实补记（注释同步更正），
+                # 使"记忆回滚失败"确实留下痕迹，而不是只留一句不成立的注释。
+                _rlog.error("状态回滚：记忆库水位截断失败（rollback_after(%s)）：%s",
+                            _turn, e, exc_info=True)
 
 
 def advance_and_settle(state, ai_client=None) -> tuple:
@@ -746,11 +814,22 @@ def finish_turn(state) -> None:
         _flog.warning("记忆库落盘异常（不阻断结算）：%s", e)
     # 自动存档：每年正月（1 月）自动写入槽 0（自动槽），游戏结束也存一份最终档
     if state.month == 1 or state.game_over:
+        # 审查 P2-3 / M2：原 `save_game(state, slot=0)` 的**异常被 pass**、返回的
+        # `False` 也被忽略 —— 自动存档静默失败，玩家以为"每年都有自动档"，
+        # 真要用时才发现没有（或一直是个陈旧档）。现：ERROR + traceback，
+        # 并把可读说明挂到 `state.save_error` 供 UI 一次性提示；`False` 同样记 error。
         try:
             from core.save_load import save_game
-            save_game(state, slot=0)
-        except Exception:
-            pass  # 自动存档失败不阻断结算
+            _ok = save_game(state, slot=0)
+            if not _ok:
+                _flog.error("自动存档失败 slot=0（save_game 返回 False，未落盘）")
+                state.save_error = ("自动存档失败：本年正月的自动档未能写入槽 0"
+                                    "（请手动存档）")
+            else:
+                state.save_error = ""
+        except Exception as e:  # noqa: BLE001 — 不得静默，也不得中断结算收尾
+            _flog.error("自动存档失败 slot=0：%s", e, exc_info=True)
+            state.save_error = f"自动存档失败（{type(e).__name__}）：请手动存档"
 
 
 def monthly_report_args(state) -> tuple:
@@ -997,6 +1076,21 @@ def reject_ai_action(state: GameState, action_id: str) -> str:
         return "无此待批条目（或已处置）。"
     state.set_ai_pending_status(action_id, "rejected")
     return f"已驳回：「{item.get('title', '')}」。"
+
+
+# ============================================================
+# 长期事务（P1-1）：事务—圣旨闭环的玩家入口
+# ============================================================
+def issue_task_decree(state: GameState, task_id: str, kind: str = "督行",
+                      target: str = "", title: str = "") -> str:
+    """对某在办事务颁旨（`督行` / `调兵督行` / `御笔中旨`），返回叙述。
+
+    命令层**只转发**：支持模型与三通道差异的单一实现在 `core/longterm_task.py`
+    （不得在此复制算法）。供 `backend/client.py` 动作分派表
+    （`action("issue_task_decree", …)`）与测试消费。
+    """
+    from core.longterm_task import issue_task_decree as _impl
+    return _impl(state, task_id, kind, target, title)
 
 
 def enqueue_finance_proposal(state: GameState, title: str, summary: str,
@@ -1802,10 +1896,11 @@ def audience_dialogue_prepare(state: GameState, minister_name: str,
 def audience_dialogue_apply(state: GameState, minister_name: str, obj) -> str:
     """召对落定（主线程）：解出回奏并写入史册/意向，返回回奏文本。
 
-    无回奏（AI 不可用/失败标记）时不写史册，返回空串，由调用方拒绝式处理。
+    无回奏（AI 不可用/失败标记）时**或回奏过短**（<10 字，如「臣谨奏」占位）
+    不写史册，返回空串，由调用方走 fallback。
     """
     reply = obj.get("reply", "") if isinstance(obj, dict) else str(obj or "")
-    if not reply:
+    if not reply or len(reply.strip()) < 4:
         return ""
     # 把大臣倾向记下来，供拟诏时喂给 AI
     intent_hint = obj.get("intent_hint", "") if isinstance(obj, dict) else ""

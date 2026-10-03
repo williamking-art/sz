@@ -20,18 +20,38 @@ def _strip_unknown_faction_keys(state) -> list:
     都以集团名为键，而 `GameState.calc_decree_execution_rate` 会 `self.factions[名]`
     直接取值 → 旧名残留会让**读档即崩**。故此处按当前 `FACTION_NAMES` 白名单删键，
     只删已废弃的键、不动其余值；返回被删名单（供日志诊断）。
+
+    审查 M7（层级修正）：`faction_split` 的真实结构是**两层**
+    `{"兵": {"军功集团": 1.0}, "士绅": {"中立派": 0.45, …}}` —— 外层键是 **POP 阶层**。
+    原实现对整个表单层清洗，把 POP 阶层名（兵/商人/士绅/官僚…）误判为废弃集团名删掉，
+    导致读档后 `faction_split == {}`（日志亦打印 `已清理：['兵','商人','士绅','官僚']`），
+    叠加"存档字典没写 faction_split"，读档必然退回开局锚点。
+    现改为：**外层 POP 阶层不动，只清洗内层的集团名键**。
     """
     known = FACTION_NAME_SET
     dropped: set = set()
 
     def _clean(d) -> None:
+        """清洗「集团名 → 数值」的单层字典。"""
         if not isinstance(d, dict):
             return
         for k in [k for k in list(d.keys()) if str(k) not in known]:
             d.pop(k, None)
             dropped.add(str(k))
 
-    _clean(getattr(state, "faction_split", None))
+    # faction_split：两种历史形态都要处理
+    #  ① **两层（现行）** `{"兵": {"军功集团": 1.0}, …}`：外层键是 POP 阶层 → 只清内层集团名；
+    #  ② **扁平（2026-09-19 改名前旧档）** `{"东南士人": 0.5, "新党": 0.2}`：顶层键就是集团名
+    #     （`ensure_faction_split` 会把 POP 类锚点补进来，两类键混在同一层）→ 顶层非白名单键清理。
+    fs = getattr(state, "faction_split", None)
+    if isinstance(fs, dict):
+        for k in list(fs.keys()):
+            v = fs[k]
+            if isinstance(v, dict):
+                _clean(v)                       # 两层：清内层集团名
+            elif str(k) not in known:            # 扁平旧档：清顶层废弃集团名
+                fs.pop(k, None)
+                dropped.add(str(k))
     for attr in ("pending_decrees", "active_decrees", "longterm_public", "longterm_secret",
                  "pending_secret_decrees", "pending_public_decrees"):
         for dec in (getattr(state, attr, None) or []):

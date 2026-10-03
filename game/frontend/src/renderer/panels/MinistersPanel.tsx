@@ -313,7 +313,11 @@ function MinisterCard({
         <div className="mt-2 space-y-0.5 border-t border-gold/30 pt-2 text-xs text-dim">
           <p>职掌：{asStr(yamen.duty, "—")}</p>
           <p>
-            效率 {String(yamen.efficiency ?? "—")}　积压 {String(yamen.backlog ?? 0)}
+            效率 {String(yamen.efficiency ?? "—")}　积压{" "}
+            {/* 审查 D2：缺失不回落0（"积压 0"会被读成"没有积压"） */}
+            {yamen.backlog === null || yamen.backlog === undefined
+              ? <span className="text-dim">未定义</span>
+              : String(yamen.backlog)}
           </p>
           {(yamen.acts as string[] | undefined)?.length ? (
             <p className="leading-relaxed">可为：{(yamen.acts as string[]).join("、")}</p>

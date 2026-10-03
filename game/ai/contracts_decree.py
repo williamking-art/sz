@@ -77,7 +77,14 @@ class DecreeContractMixin:
                 from ai.desensitize import desensitize_for_ai
                 _ctx = desensitize_for_ai(state)
             except Exception:
-                pass
+                # L5（审查 P2-3）：脱敏失败**即中止本次契约**，绝不降级把未脱敏上下文
+                # （或粗粒度哨兵）继续发给 provider。拒绝式返回失败结构并留痕。
+                import logging as _lg
+                _lg.getLogger("ai.client").error(
+                    "拟诏上下文脱敏失败，已中止本次 draft_decree（不发送未脱敏上下文）",
+                    exc_info=True)
+                return _ai_unavailable("draft_decree", code="AI_CONTRACT_FAILED",
+                                       detail="脱敏层异常，本次拟诏未发起请求")
         raw = self._cached_call("draft", _ctx, sys_p,
                                 f"【朝局】{_ctx}", 0.3, 700,
                                 json_mode=True,
@@ -243,6 +250,111 @@ class DecreeContractMixin:
     # ============================================================
     # P2+ 步位：其余 12 步 agent 化
     # ============================================================
+    # ============================================================
+    # 圣旨行动闭环：拆解为行动链（规格 specs/decree-action-chain 任务 2）
+    # ============================================================
+    def decree_action_plan(self, edict_text, routes=None, decree_id=""):
+        """把一道圣旨拆成**多动作计划**（知制诰 · 行动拆解契约）。
+
+        契约（`plan`）：
+          {
+            "decree_id": "与 state 关联的旨意 id（必填，缺则整单失败）",
+            "actions": [{
+                "id": "动作 id（可空，由程序算）",
+                "source_fragment": "圣旨原文里对应的**片段**（必填）",
+                "title": "动作题名（必填）",
+                "kind": "营建|军政|财政|民生|制度",
+                "location_id": "注册路名（如『两浙路』；不得写城市自由文本）",
+                "org": "承办机构（可空）",
+                "prereq": {...} | [...],          # 前置条件（可空）
+                "budget": {"treasury":贯,"granary":石,"labor":人,"materials":件},
+                "deadline": 月数 | null,
+                "effects": [{"op": "构件名", "params": {...}}],   # 只能引用已知构件名
+                "blueprint_proposal": {...}      # 仅『营建』类可带
+            }],
+            "unresolved": [{"source_fragment": "...", "reason": "哪里歧义/缺信息"}],
+            "narrative": "推演按语"
+          }
+
+        **AI 只有提议权**（规格硬要求，勿改）：
+          · 不填最终生效数值、不写状态路径、不生成表达式/代码；
+          · 金额与时限只是**提案**，由 `core/decree_plan.py` 校验并封顶；
+          · 构件名只能引用系统已知的；不许发明新构件。
+        拒绝式：缺 `decree_id` / 结构非法 → 整单失败（不默认补、不降级）。
+        """
+        sys_p = (
+            "你是北宋徽宗的辅政推演。把陛下的圣旨**拆解为可执行的行动清单**，只输出 JSON：\n"
+            '{"decree_id": "旨意 id",'
+            '"actions": [{"id": "", "source_fragment": "圣旨原文片段", "title": "动作题名",'
+            ' "kind": "营建|军政|财政|民生|制度", "location_id": "注册路名",'
+            ' "org": "承办机构", "prereq": null,'
+            ' "budget": {"treasury": 贯, "granary": 石, "labor": 人},'
+            ' "deadline": 月数或 null,'
+            ' "effects": [{"op": "构件名", "params": {}}],'
+            ' "blueprint_proposal": null}],'
+            '"unresolved": [{"source_fragment": "...", "reason": "..."}],'
+            '"narrative": "推演按语"}\n'
+            "规则：① 一个动作只做一件事，**不得**把多条合成一条；\n"
+            "② location_id 只能填已登记的**路**名（如『两浙路』），"
+            "拿不准或涉及城市就放进 unresolved，**不要猜**；\n"
+            "③ effects.op 只能引用系统已知构件名，想不出来就留空数组；\n"
+            "④ 严禁输出最终生效数值、状态字段路径、公式或代码；\n"
+            "⑤ 地点或前置不明确的，放进 unresolved 并写明原因，不要臆造。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            did = o.get("decree_id")
+            if not isinstance(did, str) or not did.strip():
+                return None      # 拒绝式：缺 decree_id → 整单失败（否则 id 不稳、幂等无从保证）
+            o["decree_id"] = did.strip()[:64] if decree_id in (None, "") else str(decree_id)[:64]
+            acts = o.get("actions")
+            if not isinstance(acts, list) or not acts:
+                return None      # 拒绝式：至少要有一个动作（不默认空计划）
+            out_acts = []
+            for a in acts:
+                if not isinstance(a, dict):
+                    continue
+                frag = _clean_text(str(a.get("source_fragment") or ""))
+                title = _clean_text(str(a.get("title") or ""))[:40]
+                if not frag or not title:
+                    continue    # 缺片段或题名 → 逐条丢弃（不编造）
+                rec = {
+                    "id": str(a.get("id") or "")[:32],
+                    "source_fragment": frag[:200],
+                    "title": title,
+                    "kind": str(a.get("kind") or "")[:6],
+                    "location_id": _clean_text(str(a.get("location_id") or ""))[:20],
+                    "org": _clean_text(str(a.get("org") or ""))[:20],
+                    "prereq": a.get("prereq") if isinstance(a.get("prereq"), (dict, list)) else None,
+                    "budget": a.get("budget") if isinstance(a.get("budget"), dict) else None,
+                    "deadline": a.get("deadline"),
+                    "effects": a.get("effects") if isinstance(a.get("effects"), list) else [],
+                    "blueprint_proposal": (a.get("blueprint_proposal")
+                                           if isinstance(a.get("blueprint_proposal"), dict) else None),
+                }
+                out_acts.append(rec)
+            if not out_acts:
+                return None
+            o["actions"] = out_acts
+            unres = []
+            for u in (o.get("unresolved") if isinstance(o.get("unresolved"), list) else []):
+                if isinstance(u, dict):
+                    f2 = _clean_text(str(u.get("source_fragment") or ""))[:200]
+                    r2 = _clean_text(str(u.get("reason") or ""))[:200]
+                    if f2 or r2:
+                        unres.append({"source_fragment": f2, "reason": r2})
+            o["unresolved"] = unres
+            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:400]
+            return o
+
+        known = "、".join(routes) if isinstance(routes, (list, tuple)) and routes else "（未提供路表）"
+        user_p = (f"【圣旨】{edict_text or ''}\n【可用路名】{known}\n"
+                  "请拆解为行动清单（不要填最终生效数值，构件名不确定就留空）。")
+        raw = self._call(sys_p, user_p, temperature=0.3, max_tokens=900, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_action_plan"))
+
     def decree_execute_decide(self, posture, state=None):
         """诏令执行契约（知制诰/六部）：把玩家下达的诏书按机构归属拆解为可执行任务。
         输出：{"tasks": [{"org": "户部|工部|兵部|...", "action": "执行摘要", "priority": "高|中|低", "cost_tier": "微|小|中|大"}], "narrative": "执行叙事"}"""
@@ -305,3 +417,40 @@ class DecreeContractMixin:
 
         raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=400, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_execute"))
+
+    def decree_narrative_decide(self, readout_text, edict_text="", title=""):
+        """工程/事务**叙事契约**（规格任务 5）：AI 只能给**档位词 ＋ 叙事**。
+
+        输入是 `core/plan_readout.render_briefing_text()` 的**真实**读数；输出固定为
+        `{"tier": 无|微|小|中|大, "narrative": "..."}`——**不许给数字**、不许宣称
+        未告成的工程已完工（程序侧另有
+        `ai.narrative_guard._validate_completion_claims` 二次核对）。
+
+        拒绝式：`tier` 缺失或非法 → 整单失败（不默认填充档位）。
+        """
+        sys_p = (
+            "你是北宋徽宗的辅政推演。依据**真实**工程/事务读数，为陛下写一段推演按语。"
+            "只输出 JSON："
+            '{"tier": "无|微|小|中|大", "narrative": "不超过120字的按语"}\n'
+            "规则：① tier 只填档位词，**不得**给具体数字；\n"
+            "② 读数里**未告成**的工程不得说成完工；标为「待支持」的事务不得说成已生效；\n"
+            "③ 只准引用读数里出现过的工程/事务，不得虚构进度与产出；\n"
+            "④ 不确定就写「尚在进行」，不要拔高。"
+        )
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            tier = o.get("tier")
+            if tier not in ("无", "微", "小", "中", "大"):
+                return None          # 拒绝式：不默认填充档位
+            nar = _clean_text(str(o.get("narrative") or ""))[:120]
+            if not nar:
+                return None
+            return {"tier": tier, "narrative": nar}
+
+        user_p = (f"【圣旨】{title or ''}\n{edict_text or ''}\n"
+                  f"【真实读数】\n{readout_text or '（本期无工程在案）'}\n"
+                  "请按契约给出档位与按语（不给数字，未告成不得说成完工）。")
+        raw = self._call(sys_p, user_p, temperature=0.4, max_tokens=300, json_mode=True)
+        return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_narrative"))

@@ -21,11 +21,15 @@ BackendClient 与游戏逻辑交互，不直接 import / 调用 core.commands。
 import os
 import sys
 import json
+import logging
 import time
 import urllib.request
 import urllib.error
 
 from core import commands as cmd
+
+#: 审查 P2-3：反序列化/存档失败必须可诊断（前端 GUI 无 stdout 语义，一律走 logging）
+_lg = logging.getLogger("backend.client")
 
 # 云托管冷启动参数（服务按需拉起、不常驻：MinNum=0）。与 Electron 端
 # `game/frontend/src/renderer/api/client.ts` 同口径、同判据：
@@ -227,6 +231,12 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: (cmd.approve_ai_action(s, p.get("action_id", "")), s),
             "reject_ai_action":
                 lambda s, p, ai: (cmd.reject_ai_action(s, p.get("action_id", "")), s),
+            # P1-1 长期事务—圣旨闭环：对某在办事务颁旨（督行/调兵督行/御笔中旨）。
+            # 单一实现在 core/longterm_task；此处仅分派（HttpBackend 走 /api/action 同一实现）。
+            "issue_task_decree":
+                lambda s, p, ai: (cmd.issue_task_decree(
+                    s, p.get("task_id", ""), p.get("kind", "督行"),
+                    p.get("target", ""), p.get("title", "")), s),
             "issue_kouyu":
                 lambda s, p, ai: (cmd.issue_kouyu(s, p), s),
             "propose_inner_transfer":
@@ -440,16 +450,37 @@ class HttpBackend(BackendClient):
                                    ConnectionResetError, ConnectionAbortedError,
                                    ConnectionError))
 
+    #: 反序列化失败即判"档不可用"的关键字段（渲染/结算的支点）。
+    #: 这些字段 setattr 失败说明服务端快照与本端 GameState 结构不符，静默 `pass`
+    #: 会让前端拿着**半成品状态**继续渲染/结算（隐蔽的状态不一致）。
+    _CRITICAL_STATE_FIELDS = frozenset({
+        "turn", "year", "month", "treasury", "granary", "prestige",
+        "prefectures", "army_units", "difficulty",
+    })
+
     @staticmethod
     def _to_state(d):
-        """把后端返回的状态字典重建为 GameState 副本（前端渲染用）。"""
+        """把后端返回的状态字典重建为 GameState 副本（前端渲染用）。
+
+        审查 P2-3（应修）：原先 `setattr` 失败一律 `pass`（无字段名、无日志）→
+        快照字段悄悄丢失而界面莫名空白。现逐个记字段名；**关键字段**失败直接抛错
+        （宁可明确失败，也不拿状态不一致的副本继续跑）。
+        """
         s = GameState(d.get("difficulty", "史实"))
+        _failed = []
         for k, v in d.items():
             if hasattr(s, k):
                 try:
                     setattr(s, k, v)
                 except Exception:
-                    pass
+                    _failed.append(k)
+                    _lg.warning("重建状态时字段赋值失败（已跳过）：%s（%s）",
+                                k, type(v).__name__, exc_info=True)
+        _critical_failed = [k for k in _failed if k in HttpBackend._CRITICAL_STATE_FIELDS]
+        if _critical_failed:
+            raise RuntimeError(
+                "后端状态快照不兼容：关键字段无法重建（"
+                + "、".join(sorted(_critical_failed)) + "），已中止以避免状态不一致")
         return s
 
     def new_game(self, difficulty, ai_client):
@@ -478,19 +509,33 @@ class HttpBackend(BackendClient):
         return r.get("message", ""), self._to_state(r["state"])
 
     def save(self, state, slot=1):
-        self._post("/api/save", {"slot": slot})
-        return True
+        # M2（审查 P2-3）：原实现无条件 `return True`——服务端 500/存档未写入时
+        # 前端仍显示「已保存至槽位 N」。现回传服务端 `ok`（`/api/save` 失败会抛
+        # HTTPException，`_post` 已经把它变成异常；此处覆盖"服务端明确回 ok:false"）。
+        r = self._post("/api/save", {"slot": slot})
+        if not isinstance(r, dict):
+            _lg.warning("存档响应非对象（slot=%s）：按失败处理", slot)
+            return False
+        ok = bool(r.get("ok", False))
+        if not ok:
+            _lg.error("服务端回报存档失败（slot=%s，resp=%r）", slot, r)
+        return ok
 
     def load(self, slot=1):
         r = self._post("/api/load", {"slot": slot})
         return self._to_state(r["state"])
 
     def save_slots(self):
-        # 后端持有存档列表；Rust 侧暂未实现 /api/save_slots，先回退本地读取
+        # M2（审查 P2-3）：原先异常 → `return []`，把"读不到槽位"**误报为空槽**
+        # （与 core/save_load.get_save_slots 已修的"损坏槽要显示存档损坏"契约相反，
+        # 且 SavePanel 会把所有槽位显示成空的）。现**抛错**，由 UI 明确提示读取失败。
+        # 选"抛错"而非改返回结构：`core/commands.py::save_slots` 的调用方不在本次
+        # 授权范围，抛错可避免跨文件改动（前端 SavePanel 已 catch 并显示"槽位读取失败"）。
         try:
             return cmd.save_slots()
-        except Exception:
-            return []
+        except Exception as e:  # noqa: BLE001
+            _lg.warning("存档槽位列表读取失败（不回落空表）：%s", e, exc_info=True)
+            raise RuntimeError("存档槽位列表读取失败：存档目录不可读或已损坏") from e
 
     def conclude(self, state, ai_client=None):
         # 优先走远程 Rust 后端；若后端未实现 /api/conclude 或不可达，

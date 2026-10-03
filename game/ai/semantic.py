@@ -16,9 +16,12 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import threading
+
+log = logging.getLogger("ai.semantic")
 
 # 2026-09-27 修正：原列表声明了**并不存在**的 `MODEL_DIR`（ruff F822，全库唯一一处）；
 # 实际常量为 `MODEL_DIR_NAME`（见下）。若日后需要路径助手，请新增 `MODEL_DIR = ...` 并同时登记。
@@ -32,6 +35,18 @@ _REPETITION_THRESHOLD = 0.92  # 语义复读阈值（字面 0.6 抓不到的换�
 _lock = threading.Lock()
 _backend = None            # (session, tokenizer) 缓存
 _probe_done = False
+#: 进程级「已告警」标记（审查 P2-3）：异常回落与"未安装"在返回值上不可区分
+#: （embed→None / semantic_repetition_hit→False），复读检测会**静默漏检**；
+#: 故每类故障**只告警一次**（防每回合刷屏），并带 exc_info 供定位。
+_warned: set = set()
+
+
+def _warn_once(key: str, msg: str) -> None:
+    """进程级去重告警（同一 key 只出一次，含栈）。"""
+    if key in _warned:
+        return
+    _warned.add(key)
+    log.warning("%s（后续同类不再重复告警）", msg, exc_info=True)
 
 
 def model_dir() -> str:
@@ -91,7 +106,10 @@ def _get_backend():
             tok.enable_truncation(max_length=_MAX_INPUTS)
             _backend = (sess, tok)
         except Exception:
+            # 「未装」（available()==False）与「装了但跑坏」必须在日志上可区分，
+            # 否则复读检测静默漏检而无人知晓；此处一次告警 + 栈，返回值语义不变（None）。
             _backend = None
+            _warn_once("backend_init", "语义嵌入后端初始化失败，复读语义检测不可用")
     return _backend
 
 
@@ -131,6 +149,8 @@ def embed(texts) -> list:
         out = sess.run(None, feed)[0]  # (batch, seq, hidden)
         return _cls_pool(out, attention)
     except Exception:
+        # 「跑坏」≠「未装」：返回值同为 None（调用方忽略），故必须留痕（一次 + 栈）
+        _warn_once("embed", "语义嵌入计算失败，本次语义相似度不可用")
         return None
 
 
@@ -176,4 +196,6 @@ def semantic_repetition_hit(text: str, prev_texts, threshold: float = _REPETITIO
         v0 = vecs[0]
         return any(cosine(v0, v) >= threshold for v in vecs[1:])
     except Exception:
+        # 语义复读判定失败 → False（"不判为复读"）＝**静默漏检**，必须留痕（一次 + 栈）
+        _warn_once("repetition_hit", "语义复读检测执行失败，已回落字面检测")
         return False

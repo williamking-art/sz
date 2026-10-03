@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>宋祚 · HUD 截图台（dev-only）</title>
+    <script>
+      // 与 panel.html 同款引导期错误可视化（空白页无法诊断）。
+      (function () {
+        function show(tag, msg) {
+          var el = document.createElement("pre");
+          el.style.color = "#a00";
+          el.style.fontSize = "13px";
+          el.style.whiteSpace = "pre-wrap";
+          el.style.padding = "8px";
+          el.textContent = "【HUD 截图台·" + tag + "】" + msg;
+          document.body.appendChild(el);
+        }
+        window.addEventListener("error", function (e) {
+          show("引导期错误", (e.message || String(e.error || "")) +
+            "\n" + (e.filename || "") + ":" + (e.lineno || 0));
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          show("未处理拒绝", String((e.reason && (e.reason.stack || e.reason.message)) || e.reason || ""));
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./hud.tsx"></script>
+  </body>
+</html>

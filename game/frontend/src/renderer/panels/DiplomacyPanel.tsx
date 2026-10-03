@@ -30,6 +30,13 @@ const DIPLO_GROUPS: { title: string; keys: string[] }[] = [
   }
 ];
 
+/** 审查 D2：数值读数缺失 →"—"（**不**回落 0）。 */
+function numOrDash(v: unknown): string {
+  if (v === undefined || v === null) return "—";
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString() : "—";
+}
+
 function attitudeText(att: number): { text: string; color: string } {
   if (att >= 80) return { text: "藩属恭顺", color: "text-emerald-700" };
   if (att >= 60) return { text: "和睦通好", color: "text-emerald-600" };
@@ -224,8 +231,11 @@ export default function DiplomacyPanel() {
                   {cur && (
                     <div className="space-y-1 font-sans text-[11px] text-ink-light">
                       <p>
-                        人口：在籍 {Number(cur.population || 0).toLocaleString()} 口　占国{" "}
-                        {Math.round(Number(cur.weight || 0) * 100)}%
+                        {/* 审查 D2：缺失不回落 0（"在籍 0 口 / 占国 0%"会被读成真实值） */}
+                        人口：在籍 {numOrDash(cur.population)} 口　占国{" "}
+                        {cur.weight === undefined || cur.weight === null
+                          ? "未定义"
+                          : `${Math.round(Number(cur.weight) * 100)}%`}
                       </p>
                       {(() => {
                         const armies = Array.isArray(cur.armies)
@@ -242,7 +252,7 @@ export default function DiplomacyPanel() {
                                 .join("、");
                               return (
                                 <p key={i}>
-                                  {String(a.name || "")}　员 {Number(a.troops || 0).toLocaleString()}　
+                                  {String(a.name || "")}　员 {numOrDash(a.troops)}　
                                   气 {String(a.morale ?? "—")}　训 {String(a.training ?? "—")}
                                   {btxt ? `　${btxt}` : ""}
                                 </p>

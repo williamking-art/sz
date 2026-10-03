@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """整改①（经济与物价）+ 联动（第五节）专项测试。
 
 覆盖：
@@ -41,6 +41,26 @@ from content.data import (  # noqa: E402
 
 def _new_state():
     return GameState("史实")
+
+
+def _mg(s, route="京畿路"):
+    """取某路**商人 POP `goods`**（E-1 后建材在这里）。"""
+    return s.prefectures[route]["pops"]["商人"]["goods"]
+
+
+def _stock_local(s, dim14, qty, route="京畿路"):
+    """往**本地商人货栈**放建材。
+
+    🔴 E-1（用户 2026-10-02「建材也是商品啊」）：建材是**商品**，存量落在
+    **商人 POP `goods`**（POP 挂载律），不再在仓里。
+    施工侧（C-c）仍**只从本地取、取不到即缺料** ⇒ 物流仍有意义。
+    """
+    from core.material_holding import to_material_dim
+    mdim = to_material_dim(dim14)
+    assert mdim, f"{dim14!r} 应能翻译为建材维度"
+    goods = s.prefectures[route]["pops"]["商人"]["goods"]
+    goods[mdim] = int(qty)
+    return mdim
 
 
 def _pop_wealth(s):
@@ -222,10 +242,12 @@ def test_project_material_shortage_degrades_not_silently_stalls():
     """材料不足 → 按最短板同比例消耗与推进（逐步降效），且缺声明可诊断。"""
     s = _new_state()
     s.treasury = 1_000_000
-    s.resources.setdefault("铁", {"stock": 50, "cap": 100_000})
-    s.resources["铁"]["stock"] = 50
+    # 🔴 口径 C-c + 合并后统一命名空间：工程料**只从本地州府仓取**，
+    # 且工程必须带 `route`（否则取料找不到州府 ⇒ 无从扣料）。
+    mdim = _stock_local(s, "铁", 50)
     s.projects["p1"] = {
         "name": "测试工程", "progress": 0, "speed": 20, "done": False,
+        "route": "京畿路",
         "cost_material": {"铁": 100}, "cost_coin": 0, "output": {},
     }
     log = []
@@ -233,15 +255,16 @@ def test_project_material_shortage_degrades_not_silently_stalls():
     p1 = s.projects["p1"]
     assert p1["progress"] == 10, f"应按供给率 0.5 降效推进，实际 {p1['progress']}"
     assert not p1["done"], "降效不得静默完工"
-    assert s.resources["铁"]["stock"] == 0, "材料应按供给率同比例消耗"
+    assert _mg(s)[mdim] == 0, "材料应按供给率同比例消耗"
     assert any("声明不全" in m for m in log), "缺声明必须可诊断（不得静默成功）"
 
     # 完全无料 → 停滞，且必须留痕
     s.projects["p2"] = {
         "name": "测试工程2", "progress": 5, "speed": 20, "done": False,
+        "route": "京畿路",
         "cost_material": {"铁": 100}, "cost_coin": 0, "output": {},
     }
-    s.resources["铁"]["stock"] = 0
+    _stock_local(s, "铁", 0)
     log2 = []
     _settle_projects(s, log2)
     assert s.projects["p2"]["progress"] == 5, "完全无料应停滞"

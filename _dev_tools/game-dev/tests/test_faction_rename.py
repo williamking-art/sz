@@ -74,7 +74,22 @@ def test_legacy_named_save_loads_without_crash_and_without_migration(tmp_path, m
     # ② 旧名键被清理（否则 calc_decree_execution_rate 会 KeyError）
     assert "东南士人" not in (st.faction_split or {})
     assert "西军集团" not in (st.faction_split or {})
-    assert set(st.faction_split or {}) <= set(FACTION_NAMES)
+    # 2026-10-01 审查 M7：原断言 `set(st.faction_split) <= set(FACTION_NAMES)`
+    #   **本身就是缺陷的镜像** —— `faction_split` 的现行结构是**两层**
+    #   `{"兵": {"军功集团": 1.0}, …}`（外层键 = POP 阶层），旧实现单层清洗把
+    #   POP 阶层键误当废弃集团名删光，该断言才得以通过；实为"读档即清空立场占比"。
+    #   现按真实契约断言：**任意层级都不含旧集团名**，且两层结构完整可被 `split_of` 读取。
+    from core.faction_split import split_of
+    from content.data import FACTION_SPLIT_INIT
+    for cls in FACTION_SPLIT_INIT:
+        got = split_of(st, cls)
+        assert got, f"{cls} 读档后应有立场占比"
+        assert set(got) <= set(FACTION_NAMES), f"{cls} 内层残留旧集团名：{set(got) - set(FACTION_NAMES)}"
+    # 扁平旧档遗留的顶层集团名键（若保留）也必须是合法集团名
+    for k, v in (st.faction_split or {}).items():
+        if isinstance(v, dict):
+            continue
+        assert k in FACTION_NAMES, f"顶层残留旧集团名键：{k}"
     for dec in st.pending_decrees or []:
         if isinstance(dec, dict):
             assert set(dec.get("faction_stances") or {}) <= set(FACTION_NAMES)

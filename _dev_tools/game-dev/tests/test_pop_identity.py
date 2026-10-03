@@ -13,7 +13,9 @@
   P = Σ六类POP size + Σrefugees
 
 明确科目（设计内，非闭合，已计入断言/报告）：
-  - 财政净流出（三冗 expenditure / 贪腐 corruption / 岁币 sui_gong / 加俸 payraise）：钱出系统
+  - 财政净流出（三冗 expenditure / 贪腐 corruption / 岁币 sui_gong）：钱出系统
+  - **加俸 payraise 已于M2 定稿 (a) 移出"非闭合"清单**：池为真实分账基金，
+    发放只从池扣并同额落入**官僚 POP**（受管管线 ΣΔ==0），不再是"钱出系统"
   - 榷酒课 wine_coin：内帑凭空收入（wine_tax × (1+0.01×(tech.level-50))）
   - 机构预算 org_net：国库凭空收支（每机构 budget_in-budget_out）
   - 士绅囤抛：市场撮合（钱粮按价互换；任务点名"士绅卖粮造钱"）

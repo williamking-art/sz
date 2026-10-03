@@ -3,17 +3,22 @@ import { Loader2 } from "lucide-react";
 import { getApiClient, type ReadoutsResult, type ArmyUnitReadout } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import { wan } from "../utils/format";
+import constants from "../data/constants.json";
 
-// 军政机务 —— 对齐 game/ui/panels_economy.py::_panel_military_affairs（L644）
-// 诸军实体/边防要线/战事动态/中央武库，全部只读（Tk 版亦无施政按钮）。
+// 军政机务 —— 诸军实体/边防要线/战事动态/中央武库，全部只读（Tk 版亦无施政按钮）。
 // 军队/武库/防线为后端对象，经 /api/readouts 派生读数取。
 type Dict = Record<string, unknown>;
 
-// panels_military.py::EQUIP_KEYS
-const EQUIP_KEYS: [string, string][] = [
-  ["枪刀", "件"], ["弓弩", "件"], ["火器", "件"],
-  ["战马", "匹"], ["盔甲", "件"], ["舟船", "艘"], ["器械", "件"]
-];
+// 审查 D1：装备**键名**取导出面（`core/army_models.py::EQUIP_KEYS` →
+//   `export_constants.py` → `constants.json`），前端不再复制字面量。
+//   注：计量词（件/匹/艘）是**纯展示**关注点，core 不涉及，故保留本地映射。
+const EQUIP_KEY_NAMES = (constants.equip_keys ?? []) as string[];
+const EQUIP_UNITS: Record<string, string> = {
+  枪刀: "件", 弓弩: "件", 火器: "件", 战马: "匹", 盔甲: "件", 舟船: "艘", 器械: "件"
+};
+const EQUIP_KEYS: [string, string][] = EQUIP_KEY_NAMES.map(
+  (k) => [k, EQUIP_UNITS[k] ?? "件"] as [string, string]
+);
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};

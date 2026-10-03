@@ -84,8 +84,14 @@ def test_propose_refuses_duplicate_and_bad_tech_treasury():
 
 
 def test_completion_lands_building_into_prefecture():
+    """工程完工才把建筑落进该路（完工前无、完工后 = 1）。
+
+    2026-10-11：开局 `buildings` 不再为空（B2-R4 接线补缺配置了农业资产类建筑），
+    故显式清空该路，以隔离"仅由本次工程产生建筑"这一意图。
+    """
     s = _s()
     r = next(iter(s.prefectures))
+    s.prefectures[r]["buildings"] = {}
     res = propose_project(s, r, "水利", levels=1)
     assert res["ok"], res["errors"]
     assert (s.prefectures[r].get("buildings") or {}) == {}

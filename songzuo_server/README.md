@@ -13,12 +13,10 @@
 | `Cargo.toml` / `Cargo.lock` | crate 定义与锁定 |
 | `src/` | 源码（见 `src/README.md`） |
 | `Dockerfile` / `.dockerignore` / `cloudbaserc.json` | 云端构建（CloudBase）相关 |
-| `target/` | Rust 构建缓存（**≈1.1 GB**，已 gitignore；可 `cargo build` 重建） |
+| `target/` | Rust 构建缓存（可通过 Cargo 重建；是否生成由本机环境决定） |
 
 ## 常用命令
 ```powershell
 cd D:\codebuddy\sz\songzuo_server
-& "$env:USERPROFILE\.cargo\bin\cargo.exe" test --offline     # 当前 8 个用例通过
+& "$env:USERPROFILE\.cargo\bin\cargo.exe" test --offline
 ```
----
-最后更新：2026-09-27（补目录文档）

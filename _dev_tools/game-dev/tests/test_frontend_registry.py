@@ -89,10 +89,9 @@ def test_required_panels_have_entry_and_implementation():
     assert "situation" in keys, "局势面板必须可从 Dock 打开（本轮新增入口）"
 
 
-def test_prefecture_panel_accepts_picked_prop():
-    """州县面板必须支持 `props.picked`（局势面板「跳州路」联动依赖它）。"""
-    src = _read(os.path.join(_FE, "panels", "PrefecturePanel.tsx"))
-    assert "picked" in src, "PrefecturePanel 应支持 picked 参数（跳转到指定路）"
-    sit = _read(os.path.join(_FE, "panels", "SituationPanel.tsx"))
-    assert 'kind: "prefecture"' in sit and "picked" in sit, \
-        "局势面板应能把 region_hint 跳到州县面板（双向联动）"
+# 2026-10-01 审查：原`test_prefecture_panel_accepts_picked_prop` 是**源码文本断言**
+#   （`assert "picked" in src`）：改文案/重构即失败，而"跳转真断"抓不到。已按 skill §5.1
+#   判定为**应删**，替代保障改为真实渲染用例：
+#     game/frontend/src/renderer/panels/__tests__/regionLinkage.test.tsx
+#       · 渲染 PrefecturePanel 并传 `props.picked` → 断言定位到该路
+#       · 点击 SituationPanel 的 region_hint → 断言 pushOverlay({kind:"prefecture", props.picked})

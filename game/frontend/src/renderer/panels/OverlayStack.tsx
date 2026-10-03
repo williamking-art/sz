@@ -90,29 +90,40 @@ export default function OverlayStack() {
               onClick={canClose ? () => popTo(i) : undefined}
             />
             {/* 弹窗实体卡片 (必须置于遮罩之上 z-10，完全捕获鼠标与键盘事件) */}
-            <div className="relative z-10 pointer-events-auto flex max-h-[88vh] w-[min(720px,94vw)] flex-col sz-panel select-text animate-card-in">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={ov.title}
+              className="sz-overlay-shell relative z-10 pointer-events-auto flex max-h-[92dvh] w-[min(1080px,96vw)] flex-col sz-panel select-text animate-card-in"
+            >
               {/* 题头 */}
-              <div className="sz-panel-header">
+              <div className="sz-panel-header sz-overlay-header">
                 <div className="flex items-center gap-2 min-w-0">
                   <img src="/images/seal_imperial.png" alt="" className="sz-seal shrink-0" />
-                  <span className="sz-panel-title truncate">{ov.title}</span>
+                  <div className="min-w-0">
+                    <p className="sz-overlay-kicker">{sectionFor(ov.kind)} · 建中靖国年间</p>
+                    <span className="sz-panel-title block truncate">{ov.title}</span>
+                  </div>
                 </div>
-                {canClose && (
-                  <button
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="sz-overlay-edition">御览文牍</span>
+                  {canClose && <button
                     onClick={() => {
                       audioEngine.playClick();
                       popTo(i);
                     }}
                     aria-label="关闭"
-                    className="rounded p-1.5 text-ink-light transition hover:bg-gold-light hover:text-ink"
+                    className="sz-overlay-close rounded p-1.5 text-ink-light transition hover:bg-gold-light hover:text-ink"
                   >
                     <X size={20} />
-                  </button>
-                )}
+                  </button>}
+                </div>
               </div>
               {/* 内容 */}
-              <div className="sz-panel-body flex-1 overflow-y-auto text-[14.5px]">
+              <div className="sz-panel-body sz-overlay-body flex-1 overflow-y-auto text-[14.5px]">
+                <div className="sz-overlay-content">
                 <PanelBody kind={ov.kind} props={ov.props} />
+                </div>
               </div>
             </div>
           </div>
@@ -199,4 +210,14 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
     default:
       return <PlaceholderPanel kind={kind} />;
   }
+}
+
+function sectionFor(kind: PanelKind): string {
+  if (["court", "ministers", "audience", "centralorg", "governance", "pending"].includes(kind)) return "朝廷中枢";
+  if (["decree", "secretdecree", "focus", "engineering", "tech", "personal", "todo"].includes(kind)) return "政令施为";
+  if (["prefecture", "pop", "land", "granary", "accounting", "military", "provincemilitary", "diplomacy", "situation"].includes(kind)) return "天下诸务";
+  if (["gazette", "dailylog", "memory", "codex", "localarchive", "meter"].includes(kind)) return "邸报典籍";
+  if (["settings", "save", "conclude", "newgame", "intro"].includes(kind)) return "御前事务";
+  if (["advance", "event", "detail"].includes(kind)) return "本月纪事";
+  return "御览文牍";
 }
