@@ -25,6 +25,15 @@
 | `design.md` | 数据结构、因果口径、失败语义与模块边界 |
 | `tasks.md` | 实施拆分、任务状态、验证证据和遗留事项 |
 
+### 规格内的附加台账（非模板三件套，2026-10-03 补录）
+
+| 文件 | 所属 | 内容 |
+|---|---|---|
+| [`market-civilian-economy/b0-inventory-ledger.md`](market-civilian-economy/b0-inventory-ledger.md) | market-civilian-economy | B0 批次逐持有人/地点/用途的库存台账（开工地基） |
+| [`market-civilian-economy/demand-layer-calibration.md`](market-civilian-economy/demand-layer-calibration.md) | market-civilian-economy | 需求分层与校准口径（B2 购��力/缺货可区分） |
+| [`unified-civilian-market/inventory-building.md`](unified-civilian-market/inventory-building.md) | unified-civilian-market | 建筑域台账（开工门产物之二） |
+| [`unified-civilian-market/inventory-market.md`](unified-civilian-market/inventory-market.md) | unified-civilian-market | 市场域台账（开工门产物之一） |
+
 若某专题暂缺其中一份，应在专题目录中说明，不根据模板虚构状态。
 
 跨目录冲突和改善优先级见 [`../文档整体审校与改善建议.md`](../文档整体审校与改善建议.md)。

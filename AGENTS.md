@@ -15,7 +15,7 @@
 | `game/ai/` | AI 契约（**只出档位/叙事**，数值一律程序算） |
 | `game/backend/` | FastAPI 薄壳（`/api/action` 等；`client.py` 是动作分派表） |
 | `game/frontend/` | Electron + React（`src/renderer/` 地图/HUD/面板） |
-| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-03 实测 2159 passed + 1 skipped） |
+| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-03 实测 **2178 passed + 1 skipped + 1 xfailed**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
 | `_dev_tools/game-docs/docs/` | **权威机制文档**（见 §2） |
 | `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、CloudBase 检查、Rust 实验后端）——**不接游戏运行时** |
 
@@ -78,7 +78,8 @@ cd D:\codebuddy\sz
 $py   = "D:\codebuddy\.audit-venv\Scripts\python.exe"
 $node = "D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe"
 
-# 后端全量测试（最近 2026-10-03 实测 2159 passed + 1 skipped；用例数会变，以本次输出为准；
+# 后端全量测试（最近 2026-10-03 实测 2178 passed + 1 skipped + 1 xfailed；用例数会变，以本次输出为准；
+#            唯一基线出处见 _dev_tools/game-docs/README.md §验证基线（各文档内的用例数多为历史快照）；
 #            先清 shim，否则 pytest tmp_path 会 PermissionError）
 $env:PYTHONPATH=""; $env:CODEBUDDY_SAFE_DELETE_ENABLED="0"
 cd D:\codebuddy\sz

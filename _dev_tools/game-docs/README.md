@@ -29,6 +29,21 @@
 - [`AI推演与民间经济营造市场落地建议.md`](docs/AI推演与民间经济营造市场落地建议.md)：AI Agent、事务流程与市场的整合建议；属于设计依据，具体生效范围仍看代码和任务表。
 - [`开发服务器与回归测试说明.md`](docs/开发服务器与回归测试说明.md)：本地开发、回归与发行操作说明。
 
+## 验证基线 · 唯一出处（2026-10-03 确立）
+
+历史文档中散落着数十个不同的测试用例数（那是**各文档编写当时的快照**，正文按证据保留、不追改）。
+**当前真值只有一个出处**，以本节为准：
+
+| 项 | 当前值 | 复跑命令 |
+|---|---|---|
+| pytest 全量 | **2178 passed / 1 skipped / 1 xfailed / 0 failed** | `cd D:\codebuddy\sz; $env:PYTHONPATH=""; & "D:\codebuddy\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider` |
+| 提交 | `d6dc6b5ee9`（docs） / `96766ea123`（G-1 目录） / `865cc251d6`（物料中文化+州府级） | `git log --oneline` |
+| tsc / vitest / build | 本轮**未复跑**，不得引用旧值 | 见 `docs/开发服务器与回归测试说明.md` |
+
+⚠️ 引用别处文档里的用例数时，**须核对是否晚于/早于本表**；早于本表的一律视为历史快照。
+⚠️ 物料维已于 `865cc251d6` **全中文化**（`盐/茶/丝/麻/蔗/果/木/石/铁/金/铜/银/牲畜/马/药材`），
+文档中残留的 `salt`/`timber`/`stone`/`iron`/`tea` 等**英文维已失效**（归档文档按原样存真，不追改）。
+
 ## 当前实施状态
 
 - [`decree-action-chain`](specs/decree-action-chain/tasks.md)：圣旨行动链的实施记录；顶层完成声明与局部历史快照有冲突，复核后以任务状态表和代码/测试证据为准。
