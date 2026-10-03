@@ -1522,6 +1522,42 @@ def _settle_civilian_hoard(state, log):
             p["pops"]["商人"]["wealth"] += int(_draw * 0.5)
 
 
+def _input_scale(got_dims: dict, got_grain: float, recipe: dict) -> float:
+    """实得料 ÷ 应需料（0~1）——欠产同比例缩放，杜绝「少拿料却满产」。
+
+    无投入（纯产能型工坊）⇒ 返回 1.0（不缩放）。任一必需维实得为 0 ⇒ 0（停产）。
+    """
+    need_tot = 0.0
+    got_tot = 0.0
+    for dim, need in (recipe or {}).items():
+        if dim in ("grain_feed", "ration_weight"):
+            continue
+        n = float(need or 0)
+        if n > 0:
+            need_tot += n
+            got_tot += float(got_dims.get(dim, 0.0) or 0.0)
+    gf = float((recipe or {}).get("grain_feed", 0) or 0)
+    if gf > 0:
+        need_tot += gf
+        got_tot += float(got_grain or 0.0)
+    if need_tot <= 0:
+        return 1.0
+    return max(0.0, min(1.0, got_tot / need_tot))
+
+
+def _pool_dims_any(got_dims: dict, got_grain: float, pool_dims, ws: dict) -> bool:
+    """缺料时是否仍产出可交易/可折钱成品：任一实得投入 > 0 即继续（按比例减产）。
+
+    全额缺料（所有实得皆 0）⇒ 返回 False ⇒ `continue` 停产。
+    """
+    if float(got_grain or 0.0) > 0:
+        return True
+    for v in (got_dims or {}).values():
+        if float(v or 0.0) > 0:
+            return True
+    return False
+
+
 def _settle_workshops(state, log):
     """作坊月度推进：配方消耗 inputs（如粮→酒），产出 outputs 入 resources/内帑。"""
     _wine_bonus = 0     # 本月酒课**加成**汇总；下方据此**重算** wine_tax（不做月度累加，见 A-5）
@@ -1536,34 +1572,86 @@ def _settle_workshops(state, log):
     # ⚠️ 2026-10-04：`meat` 已登记进 `FINISHED_DIMS`，但它**不可交易** ——
     # 若沿用旧的「排除 wine」写法，`meat` 会自动进池，改变「畜栏产肉折钱入内帑」的业务语义。
     _POOL_DIMS = tuple(d for d in _FIN_DIMS if d not in _FIN_TAX_DIMS)
-    for wid, ws in list(state.workshops.items()):
+    # 🔴 **L1′ 同源争抢仲裁**（2026-10-04）：此前按 `state.workshops` 字典序逐坊「先到先得」——
+    # 绢坊/绫罗坊/紬坊共读同一味「丝」时，谁先跑谁拿满，后跑的全额缺料停产，
+    # **产出结构随字典/注册顺序漂移**（不可预期，且换注册顺序就换结果）。
+    # 现改为**两阶段配给**：①先收集全路在营工坊对每个原料维的需求；
+    # ②按**显式权重**分配当月可用量，不足时**同比例欠产**（而非随机全停）。
+    # 权重来源：`recipe` 的可选 `ration_weight`（缺省 1.0）——未声明即等权，不臆造偏好。
+    _demands: Dict[str, List[Tuple[str, float, float]]] = {}   # dim -> [(wid, need, weight)]
+    _grain_demands: List[Tuple[str, float, float]] = []        # (wid, need, weight)
+    _order: List[str] = []                                    # 稳定的工坊顺序（按 wid 排序）
+    for wid in sorted(state.workshops.keys()):
+        ws = state.workshops.get(wid) or {}
         if not ws.get("active"):
             continue
+        _order.append(wid)
         recipe = ws.get("recipe") or {}
-        lack = []
         # 用 get 而非 pop：recipe 是存档持久 dict，pop 会销毁 grain_feed 键，
         # 导致次月起作坊不再耗粮、白嫖产出。
-        grain_feed = recipe.get("grain_feed", 0)
-        if grain_feed and state.granary < grain_feed:
-            lack.append("太仓粮")
+        w = float(recipe.get("ration_weight", 1.0) or 1.0)
+        if w <= 0:
+            w = 1.0
+        gf = float(recipe.get("grain_feed", 0) or 0)
+        if gf > 0:
+            _grain_demands.append((wid, gf, w))
         for dim, need in recipe.items():
-            if dim == "grain_feed":
-                continue  # 粮耗已按太仓粮单独检查，不作为资源维度
-            if state.resources.get(dim, {}).get("stock", 0) < need:
+            if dim == "grain_feed" or dim == "ration_weight":
+                continue
+            n = float(need or 0)
+            if n > 0:
+                _demands.setdefault(dim, []).append((wid, n, w))
+    # 配给表：dim -> {wid: 实发量}。Σ实发 ≤ 可用量，差额为未领余量（不凭空造料）。
+    _alloc: Dict[str, Dict[str, float]] = {}
+    for dim, wants in _demands.items():
+        avail = float((state.resources.get(dim) or {}).get("stock", 0) or 0)
+        tw = sum(x[2] for x in wants)
+        got: Dict[str, float] = {}
+        if avail > 0 and tw > 0:
+            for wid, need, w in wants:
+                got[wid] = min(need, avail * w / tw)
+        _alloc[dim] = got
+    _grain_alloc: Dict[str, float] = {}
+    if _grain_demands:
+        gavail = float(state.granary)
+        gtw = sum(x[2] for x in _grain_demands)
+        for wid, need, w in _grain_demands:
+            _grain_alloc[wid] = min(need, gavail * w / gtw) if (gavail > 0 and gtw > 0) else 0.0
+    # 按**欠产比例**缩放产出：拿到 60% 料就只产 60%，不允许「少拿料却满产」。
+    for dim, wants in _demands.items():
+        for wid, need, _w in wants:
+            got = _alloc[dim].get(wid, 0.0)
+            if got > 0:
+                _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
+                _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - int(round(got)))
+    for wid, g in _grain_alloc.items():
+        if g > 0:
+            state.change_granary(-int(round(g)))
+            state.granary_stats["workshop_feed"] = (
+                state.granary_stats.get("workshop_feed", 0) + int(round(g)))
+    for wid in _order:
+        ws = state.workshops.get(wid) or {}
+        recipe = ws.get("recipe") or {}
+        # 本坊实际拿到的各维量（粮另计）
+        got_dims = {d: _alloc.get(d, {}).get(wid, 0.0) for d in _demands}
+        got_grain = _grain_alloc.get(wid, 0.0)
+        lack = []
+        for dim, need in recipe.items():
+            if dim in ("grain_feed", "ration_weight"):
+                continue
+            if got_dims.get(dim, 0.0) < float(need or 0) - 1e-9:
                 lack.append(dim)
+        if recipe.get("grain_feed", 0) and got_grain < float(recipe.get("grain_feed", 0) or 0) - 1e-9:
+            lack.append("太仓粮")
         if lack:
-            log.append(f"[作坊] {ws.get('name','作坊')} 缺料停滞（缺：{','.join(lack)}）")
-            continue
-        if grain_feed:
-            state.change_granary(-grain_feed)
-            state.granary_stats["workshop_feed"] = state.granary_stats.get("workshop_feed", 0) + grain_feed
-        for dim, need in recipe.items():
-            if dim == "grain_feed":
-                continue  # 粮耗已单独从太仓扣，不作为资源维度
-            _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
-            _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - need)
+            log.append(f"[作坊] {ws.get('name','作坊')} 缺料减产/停产（缺：{','.join(lack)}）")
+            if not _pool_dims_any(got_dims, got_grain, _POOL_DIMS, ws):
+                continue
+        # 产出按**实得料占比**缩放（欠产同比例），杜绝「少拿料满产」。
+        _scale = _input_scale(got_dims, got_grain, recipe)
         out_dim = ws.get("output_dim")
-        yld = float(ws.get("yield", 0))
+        # 欠产同比例缩放：拿到 60% 料只产 60%（L1′ 核心约束）
+        yld = float(ws.get("yield", 0)) * _scale
         if out_dim == "wine":
             # 酒坊产能 → 酒课**加成**（汇入下方重算，**不在此累加**）
             # 审查 A-5 修复（2026-09-18 阶段 B-1 实测：内帑 +2.91M/月、民间 −2.28M/月、
