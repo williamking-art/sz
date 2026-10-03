@@ -97,6 +97,9 @@ game/frontend/**/*.bak
 # --- 开发工具（仅专家团目录入库，其余开发脚本不参与版本管理） ---
 _dev_tools/*
 !_dev_tools/songzuo-game-studio/
+# 外部史料原文与派生数据集：G-2「按产地落州府桶」的依据，须随仓库分发
+# （干净 clone 否则拿不到 songshi/gong_prefecture.json）。见 sources/README.md。
+!_dev_tools/sources/
 !_dev_tools/agnes_gen.py
 !_dev_tools/dev-env.ps1
 # 开发期交接：把 CloudBase 交接状态（state/context/worklog）拉到本地镜像 tmp/mcp_sync/，
