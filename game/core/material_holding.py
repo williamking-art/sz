@@ -38,7 +38,7 @@ Step 4.45 的 `supply_merchant_materials()` 把其中的料**搬进商人货栈*
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 #: 州府主键分隔符（`路|治所`）。商品维键恒不含它 —— 迁移期据此判别桶与扁平项。
 SEAT_SEP = "|"
@@ -49,6 +49,8 @@ SEAT_SLOT = "建材"
 
 __all__ = [
     "MATERIAL_DIMS", "to_material_dim",
+    "seat_yield_weights_of_circuit",
+    "seat_weights_for", "supply_goods_to_seats",
     "circuit_seats", "merchant_of", "merchant_goods",
     "material_holding_for_circuit", "consume_for_circuit",
     "supply_merchant_materials", "trade_material",
@@ -258,7 +260,139 @@ def holder_pops_of_circuit(state, circuit: str) -> List[dict]:
             if isinstance(p, dict) and isinstance(p.get("goods"), dict)]
 
 
-def _attribute_to_seats(pop: Optional[dict], circuit: str, dim: str, qty: int) -> int:
+def seat_yield_weights_of_circuit(
+        circuit: str, dim: str) -> List[Tuple[str, float]]:
+    """**州府级产地权重**：该路各治所对 `dim` 的产出份额（G-2 新增）。
+
+    与 `seat_weights_of_circuit`（人口权重）是**两种口径**，用途不同，不可互换：
+
+    · **产地权重**：治所自己产多少 → 货理应先落在**产它的那个治所**；
+    · **人口权重**：治所人多多少 → **无产地信息时**的兜底分摊（如国家配给）。
+
+    ⚠️ **负产不参与加权**：`yields` 里负值表示该治所**消耗/亏损**（如京畿路盐为负，
+    即本路输入而非产出），把它当权重会造出负的货量。负值一律跳过；若全路皆负 ⇒
+    返回空列表，交由调用方回退人口权重（**不臆造归属**）。
+
+    无 `yields` 数据（`None`）同样返回空 ⇒ 调用方回退人口权重。
+    """
+    from core.prefecture_entity import seats_of
+    try:
+        seats = seats_of(circuit, include_merged=False)
+    except Exception:
+        return []
+    out: List[Tuple[str, float]] = []
+    for s in seats:
+        # `all_seats()` 产出的条目已自带 `seat_id`（形如 `路|治所`），直接取用
+        sid = str(s.get("seat_id") or "")
+        if not sid:
+            continue
+        demog = s.get("demog") or {}
+        yields = demog.get("yields")
+        if not isinstance(yields, dict):
+            continue
+        v = _num(yields.get(dim))
+        if v is None or v <= 0:
+            continue
+        out.append((sid, float(v)))
+    return out
+
+
+SEAT_W = Tuple[str, float]
+
+
+def seat_weights_for(state, circuit: str, dim: str) -> List[SEAT_W]:
+    """**州府分桶权重**（G-2 骨架）：优先**产地**证据，无则回退**人口**。
+
+    🔴 **当前两口径数值等价，故接口必须分开**（2026-10-04 实测）：
+    治所级 `yields` 是**路级总量按人口等比拆分**（`demography.py` 的 `_split_dim_scoped`），
+    各治所「某维/人」比值恒定 ⇒ **治所间无真实产地差异**。故现阶段走人口权重。
+
+    待《宋史·地理志》**州级贡物**（195 条，见 `sources/songshi/`）接入后，
+    `seat_yield_weights_of_circuit` 才会给出真实差异，届时**无需改调用方**。
+
+    **不臆造归属**：两条都空 ⇒ 返回 `[]`，调用方据此不做分摊（份额留总账）。
+    """
+    w = seat_yield_weights_of_circuit(circuit, dim)
+    if w:
+        return w
+    return seat_weights_of_circuit(circuit)
+
+
+def _attribute_by_weights(pop: Optional[dict], weights: List[SEAT_W],
+                        dim: str, qty: int) -> int:
+    """按**给定权重**把 `qty` 拆进州府桶；尾差归权重最大者，Σ 精确等于 qty。
+
+    与 `_attribute_to_seats`（固定人口权重）同手法，只是权重来源可外部给定。
+    """
+    if not weights or qty <= 0:
+        return 0
+    goods = pop.get("goods") if isinstance(pop, dict) else None
+    if not isinstance(goods, dict):
+        return 0
+    tw = sum(x for _s, x in weights)
+    if tw <= 0:
+        return 0
+    anchor = max(weights, key=lambda kv: kv[1])[0]
+    parts = {s: int(round(qty * x / tw)) for s, x in weights}
+    parts[anchor] += qty - sum(parts.values())
+    for sid, v in parts.items():
+        if v:
+            goods_add(goods, dim, int(v), sid)
+    return int(sum(parts.values()))
+
+
+def supply_goods_to_seats(state, total: Optional[Dict[str, int]] = None,
+                          dims: Optional[Sequence[str]] = None) -> Dict[str, int]:
+    """🔴 **G-2 骨架 · 全商品供给入州府桶**（取代只服务建材三维的旧入口）。
+
+    · **维度**：默认 `GOODS_DIMS`（全商品目录）；`dims` 可限定子集（首批只验证既有维）。
+    · **归属**：按 `seat_weights_for()` —— 有产地证据用产地，无则人口。
+    · **守恒**：只是**搬运**，`state.resources[dim]` 总量不变；差额为未领余量。
+    · **幂等**：按「库存 − 已持有」补足，重复调用不膨胀。
+
+    ⚠️ 只做**供给侧落桶**；工坊投料走市场采购属 G-4，不在此。
+    """
+    from content.data import GOODS_DIMS as _ALL
+    use_dims = list(dims) if dims else list(_ALL)
+    prefs = getattr(state, "prefectures", {}) or {}
+    res = getattr(state, "resources", None) or {}
+    out: Dict[str, int] = {}
+    for dim in use_dims:
+        stock = int((res.get(dim) or {}).get("stock", 0) or 0) \
+            if total is None else int(total.get(dim, 0) or 0)
+        if stock <= 0:
+            continue
+        held = 0
+        holders = []
+        for route in prefs:
+            goods = merchant_goods(state, route)
+            if goods is None:
+                continue
+            cur = goods_amount(goods, dim)
+            if cur is None:
+                continue
+            m = merchant_of(state, route)
+            holders.append([route, max(1.0, float(m.get("size", 0) or 0))])
+            held += int(cur)
+        need = stock - held
+        if need <= 0 or not holders:
+            continue
+        wsum = sum(h[1] for h in holders)
+        for route, w in holders:
+            give = int(round(need * w / wsum))
+            if give <= 0:
+                continue
+            goods = merchant_goods(state, route)
+            if goods is None:
+                continue
+            put = _attribute_by_weights(goods,
+                                       seat_weights_for(state, route, dim), dim, give)
+            out[dim] = out.get(dim, 0) + put
+    return out
+
+
+def _attribute_to_seats(pop: Optional[dict], circuit: str, dim: str, qty: int
+                        ) -> int:
     """把本路新到手的 `qty` 按**州府人口**拆进州府子槽；返回归属量（== qty）。
 
     尾差归权重最大的治所（与 `supply_merchant_materials` 的路级处理同一手法），
@@ -448,6 +582,9 @@ def supply_merchant_materials(state, total: Optional[Dict[str, int]] = None
 
     分配依据：**商人 POP 规模**（代表商业容量）；无商人的路不参与分配
     （其份额留在总账，**不按比例代填**）。
+
+    ⚠️ **G-2 起**：本函数仅保留建材三维的历史入口；全商品供给走
+    `supply_goods_to_seats()`（可限定维度、可按产地证据归属）。
     """
     prefs = getattr(state, "prefectures", {}) or {}
     res = getattr(state, "resources", None) or {}
