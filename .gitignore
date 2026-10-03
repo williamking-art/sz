@@ -372,3 +372,8 @@ _dev_tools/game-dev/scripts/*
 # app.asar 是 electron-builder 生成物，可由 game/frontend 随时重建，不入库。
 scratch/*.asar
 
+# --- 仓库根目录的一次性批量替换/调试脚本（2026-10-03：fx*.py/dbg*.py 曾被误提交）---
+# 这类脚本是一次性文本替换与临时探针，跑完即废；根锚定，不影响子目录同名文件。
+/fx*.py
+/dbg*.py
+
