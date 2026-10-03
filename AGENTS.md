@@ -188,14 +188,12 @@ cd frontend
 > `_dev_tools/sync_mcp_state.py` 同理经 `!_dev_tools/...` 白名单放行（`.gitignore:102`）。
 > **规则层面完好**（`git check-ignore -v AGENTS.md` 命中末尾否定规则）。
 >
-> ⚠️ **但截至 2026-10-03，这两个文件仍是未跟踪状态**：`git ls-files --error-unmatch AGENTS.md` 与
-> `... sync_mcp_state.py` 均返回 rc=1，`git status` 显示 `??`。**即规则备好了、文件没 `git add`**，
-> 干净 clone 仍然拿不到协议与同步脚本——「已入库」的原记载与事实不符，此处更正。
-> 另：`sz/README.md`（`.gitignore:264`）与 `game/frontend/README.md`（`:268`）也被排除，
-> 而入库的 `game/README.md:16` 恰恰外链后者，构成**断链**。
+> ✅ **已入库（2026-10-03 实测更正）**：`AGENTS.md` 与 `_dev_tools/sync_mcp_state.py` **现已 `git add` 入库**
+> （`git ls-files --error-unmatch` 返回 rc=0），干净 clone 可取得协议与同步脚本。
+> ⚠️ 前一版本此处曾记「两文件仍是未跟踪状态」——那是 2026-09-29 的事实，**已于同日提交中解决，此处更正以免误导**。
 >
-> **落地方式**：`git add AGENTS.md _dev_tools/sync_mcp_state.py .gitignore` 并与 `.gitignore` **同一次提交**；
-> 验收：干净 clone 后 `test -f AGENTS.md` 为真，且 `git check-ignore -v AGENTS.md` 仍输出末尾否定规则。
+> 另注：`sz/README.md`（`.gitignore:264`）与 `game/frontend/README.md`（`:268`）**仍被排除**，
+> 而入库的 `game/README.md:16` 恰恰外链后者，构成**断链** —— **此项仍未处理**（低优先，属仓库分发范围问题）。
 
 ## 9. 共享记忆（跨项目，2026-10-01 接入）
 
