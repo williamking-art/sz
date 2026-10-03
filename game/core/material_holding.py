@@ -439,6 +439,14 @@ def consume_for_circuit(state, circuit: str, dim: str, amount: int) -> int:
     return taken
 
 
+def supply_merchant_materials(state, total: Optional[Dict[str, int]] = None
+                             ) -> Dict[str, int]:
+    """把 `state.resources[dim]["stock"]` 的料**搬进各路商人货栈**（Step 4.45）。
+
+    ⚠️ **只是搬运，总量守恒、不凭空增物**：每次按
+    `stock − Σ(商人已持有)` 的**差额**补足，因此重复调用**幂等**、
+    不会因"每月都跑一次"而无限膨胀。
+
     分配依据：**商人 POP 规模**（代表商业容量）；无商人的路不参与分配
     （其份额留在总账，**不按比例代填**）。
     """
