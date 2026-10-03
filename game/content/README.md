@@ -14,6 +14,8 @@
 | `data_geo_tables.py`、`geo_admin.py` | 路级地理经济数据与路/府等行政归属。地图几何资源另见 `game/assets/map/`。<br>⚠️ `geo_admin.CIRCUIT_INFO.members` 是**州府实体清单的权威来源**（136 席，主键 `路\|治所`）；`REGIME_DEMOG` 的道/区域总量为**游戏设定值**（辽已于 2026-10-02 按《辽史》对齐为 55 万户）。 |
 | `demography.py` | 地区人口/经济派生读数；按实际调用方确认用途，不作为独立人口账本。<br>⚠️ 外邦州府级 `regime_prefecture_demog()` **强制带口径标注**：`historical_ub`（辽，史料上限+分摊）／`setting`（西夏·吐蕃·大理，**玩法设定/未有可靠总量**），并附 `source`／`is_historical` 回答"谁报告、依据是什么"；**禁止**标成 `historical`。宋侧崇宁户口见 `data_households_hist.py`。 |
 | `data_households_hist.py` | **宋州府级史料户口**（《宋史·地理志》崇宁户），已录 96 席、13/21 路成路。<br>纪律：**只收「崇宁户」**——「元丰户」（万州/施州）与**无年号**者（汉州/兴化军）**一律不入表**；同名不同府须查原文「本X州」映射（常德府本鼎州、宝庆府本邵州、赣州本虔州、瑞州本筠州…）。 |
+| `seat_products.py` | **《宋史·地理志》州级贡物 → 物料维映射表**（卡1.4 · 2026-10-04）。66 条显式映射，`validate_map()` 自校验防拼写错误落维。⚠️ **贡物是存在性证据、不含数量** ⇒ 只用于产地权重，**不可当产量**；无记录 ≠ 不产，**不得归零**。未映射 149 种**如实登记，不臆造商品凑数**（AGENTS §3-7）。 |
+| `seat_aliases.py` | （**未落地**）治所别名对照表 —— 游戏简体名与《宋史》完整地名精确匹配仅 7/126，子串匹配已否决。待人工考据，**不臆造**。 |
 | `data_prefecture_demog.py` | **生成物，勿手改**。由 `build_prefecture_demog.py` 生成，把路级总量拆到 136 州府，`basis` 四态（`historical`/`area_x_anchor`/`area_only`/`merged`）**写在表内作单一来源**。 |
 | `build_prefecture_demog.py` | 州府人口经济表生成器。**含恒等式自检，`Σ子+residual==父级` 不成立即拒写**；已录史料且该路席位齐全者按**崇宁户比例**分配，否则回退"面积×锚点"（部分覆盖不启用，避免同路掺两种口径）。 |
 | `build_map_geo.py` | 舆图数据构建工具；资源生成和前端消费路径见 `game/assets/map/README.md`。 |
