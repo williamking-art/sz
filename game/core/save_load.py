@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """宋祚 · 存档系统
 
 工具函数（_safe_int/_safe_float/_slot_path/_strip_unknown_faction_keys）已拆至
@@ -347,6 +347,44 @@ def _load_situations(raw) -> tuple:
             continue
         kept.append(norm)
     return kept, bad
+
+
+# ══ 方案乙旧档迁移（2026-10-04） ══
+def _migrate_pops_to_seats(state) -> int:
+    """把**旧档**（路级 `pops` 有账、`seats` 缺失）迁移为州府级真账。
+
+    背景：方案乙裁定 POP 实体下沉州府级，真账在 `prefectures[路]["seats"][治所]["pops"][类]`，
+    路级 `pops` 降为**只读派生聚合**。新档开箱即带 `seats`；**旧档没有**，
+    若不迁移则载入后处于**半迁移状态**（桥接全部回落 legacy ⇒ 行为等价但未下沉）。
+
+    做法：对每个缺 `seats` 的路调 `split_pops_to_seats`（按治所人口权重拆分，
+    尾差归权重最大者 ⇒ Σ治所与路级原值**逐字段精确相等**）。
+
+    **保守**：只处理**完全缺失**的 `seats`；已下沉的档**绝不覆盖**（避免二次拆分）。
+    无治所或人口全缺 ⇒ `split_pops_to_seats` 返回 0，该路保持原样（不臆造归属）。
+
+    返回实际迁移的路数。
+    """
+    try:
+        from core.pop_bridge import split_pops_to_seats, sync_route_pops
+    except Exception:               # noqa: BLE001 — 桥接层不可用时不得阻断载入
+        return 0
+    prefs = getattr(state, "prefectures", None)
+    if not isinstance(prefs, dict):
+        return 0
+    migrated = 0
+    for route, pdata in prefs.items():
+        if not isinstance(pdata, dict) or not isinstance(pdata.get("pops"), dict):
+            continue
+        if pdata.get("seats"):
+            continue                      # 已下沉：绝不覆盖
+        if split_pops_to_seats(pdata, route):
+            migrated += 1
+            try:
+                sync_route_pops(pdata)
+            except Exception:           # noqa: BLE001 — 镜像刷新失败不影响真账
+                pass
+    return migrated
 
 
 def load_game(slot: int = 1):
@@ -778,6 +816,16 @@ def load_game(slot: int = 1):
                 # 家产迁移（2026-09-27）：士绅 POP 的家产子池（钱的真实所在）
                 _pop.setdefault("estate", 0)
                 _pop.setdefault("estate_hoard", 0)
+    # 🔴 方案乙旧档迁移（2026-10-04）：POP 实体下沉州府级。真账在 `seats`，
+    # 路级 `pops` 为只读派生聚合。**必须在本循环（含 `_build_pops` 重建）之后**执行，
+    # 否则重建出的路级 `pops` 会把拆分结果盖掉。只迁 `seats` 缺失的路，已下沉的绝不覆盖。
+    _mig = _migrate_pops_to_seats(state)
+    if _mig:
+        try:
+            state.statistics["pops_seats_migrated"] = int(
+                (state.statistics or {}).get("pops_seats_migrated", 0) or 0) + _mig
+        except Exception:               # noqa: BLE001 — 统计字段缺失不得阻断载入
+            pass
     # 家产入 POP 的旧档迁移：旧档只有具名镜像 `minister_estate`、钱记在独立账户
     # estate_wealth/estate_hoard（已从 ACCOUNTS 移除）→ 载入后按镜像**物化**到
     # `士绅.estate` / `士绅.estate_hoard` 子池。注入量正好等于旧口径里被计入 M_ALL 的那部分，

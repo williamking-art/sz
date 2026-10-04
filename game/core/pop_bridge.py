@@ -24,7 +24,12 @@ from typing import Dict, List, Optional
 POP_CLASSES = ("农", "士绅", "商人", "官僚", "兵", "工匠")
 
 #: 拆分时需**逐字段守恒**的数值字段（尾差归权重最大者）
-SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "literacy", "hidden",
+#: **均值类**字段：拆分与还原都按 `size` 加权（**不可求和**）。
+#: `literacy`（识字率）本质是比率，若像其余字段一样求和，聚合后会翻数倍。
+MEAN_FIELDS = ("literacy",)
+
+#: **可加类**字段：拆分与还原都按人数权重求和。
+SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
                  "欠税", "自耕农", "佃农", "富农", "贫农", "窖银")
 
 
@@ -91,11 +96,36 @@ def split_pops_to_seats(pdata: dict, circuit: str) -> int:
                 v = src.get(f)
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
                     row[f] = _split_int(int(v), w).get(sid, 0)
+            # 均值类（识字率）**原样复制**到每个治所：它本就是均值，按人口拆会引入
+            # 取整误差；复制后聚合时按 size 加权即可**精确**还原路级原值。
+            for f in MEAN_FIELDS:
+                v = src.get(f)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    row[f] = float(v)          # 比率类保留浮点，取整会永久丢精度
             gd = src.get("goods")
             if isinstance(gd, dict):
-                row["goods"] = {k: _split_int(int(v), w).get(sid, 0)
-                                for k, v in gd.items()
-                                if isinstance(v, (int, float)) and not isinstance(v, bool)}
+                # 🔴 goods 已是「扁平标量 + 州府桶」双形态（见 material_holding.goods_bucket）。
+                # 扁平标量按人口权重拆分；**已有的州府桶原样归位**到对应治所——
+                # 早期版本直接忽略 dict 值，会把已州府化的建材**整体丢掉**。
+                _flat = {}
+                for k, v in gd.items():
+                    if isinstance(v, dict):
+                        continue
+                    if isinstance(v, (int, float)) and not isinstance(v, bool):
+                        _flat[k] = int(v)
+                _b = {}
+                for _dk, _dv in _flat.items():
+                    for _sid2, _v2 in _split_int(_dv, w).items():
+                        if _v2:
+                            _b.setdefault(_sid2, {})[_dk] = int(_v2)
+                for _bk, _bv in gd.items():
+                    if not isinstance(_bv, dict):
+                        continue
+                    _tgt = _b.setdefault(_bk, {})
+                    for _dk, _dv in _bv.items():
+                        if isinstance(_dv, (int, float)) and not isinstance(_dv, bool):
+                            _tgt[_dk] = int(_tgt.get(_dk, 0)) + int(_dv)
+                row["goods"] = _b
             seat_pops[cls] = row
         seats[sid] = {"pops": seat_pops}
     pdata["seats"] = seats
@@ -120,6 +150,12 @@ def aggregate_seat_pops(pdata: dict, cls: str) -> Optional[dict]:
     for f in SPLIT_FIELDS:
         if any(isinstance(r.get(f), (int, float)) for r in rows):
             out[f] = sum(int(r.get(f, 0) or 0) for r in rows)
+    for f in MEAN_FIELDS:
+        # 🔴 均值类**按 size 加权还原**，不可求和（求和会让识字率翻数倍）。
+        if any(isinstance(r.get(f), (int, float)) for r in rows):
+            _num = sum(float(r.get(f, 0) or 0) * int(r.get("size", 0) or 0) for r in rows)
+            _den = sum(int(r.get("size", 0) or 0) for r in rows)
+            out[f] = (_num / _den) if _den > 0 else float(rows[0].get(f, 0) or 0)
     goods = {}
     for r in rows:
         for k, v in (r.get("goods") or {}).items():
@@ -144,11 +180,13 @@ def survey_pops(state) -> Dict[str, object]:
             agg = aggregate_seat_pops(pdata, cls)
             if not isinstance(src, dict) or not isinstance(agg, dict):
                 continue
-            for f in SPLIT_FIELDS:
+            for f in SPLIT_FIELDS + MEAN_FIELDS:
                 a1 = src.get(f)
                 a2 = agg.get(f)
-                if isinstance(a1, (int, float)) and isinstance(a2, (int, float)) \
-                        and int(a1) != int(a2):
+                if not (isinstance(a1, (int, float)) and isinstance(a2, (int, float))):
+                    continue
+                _bad = abs(float(a1) - float(a2)) > 0.5 if f in MEAN_FIELDS else int(a1) != int(a2)
+                if _bad:
                     out["字段失配"].append("%s/%s/%s: %s != %s" % (route, cls, f, a1, a2))
     return out
 
@@ -180,7 +218,15 @@ def sync_route_pops(pdata: dict) -> bool:
     pops = pdata.setdefault("pops", {})
     for cls in POP_CLASSES:
         agg = aggregate_seat_pops(pdata, cls)
-        if isinstance(agg, dict):
+        if not isinstance(agg, dict):
+            continue
+        row = pops.get(cls)
+        if isinstance(row, dict):
+            # 🔴 **合并而非替换**：`agg` 只含 SPLIT_FIELDS+goods，直接 `pops[cls] = agg`
+            # 会**抹掉** `estate`/`estate_hoard`/`officials`/`clerks`/`on_post` 等
+            # 不参与拆分的字段（实测导致 literacy 派生值漂移、存档往返后家产丢失）。
+            row.update(agg)
+        else:
             pops[cls] = agg
     return True
 
