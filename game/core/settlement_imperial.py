@@ -11,6 +11,8 @@ from content.data import (
     TIER_RANGE,
 )
 
+# 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层；未下沉时回落原写法
+from core.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement_common import (
     _distribute_cash,
 )
@@ -162,11 +164,13 @@ def _settle_hidden_pop(state, log):
             _sz = int(_slot.get("size", 0) or 0)
             _t = min(_left, _sz)
             if _t > 0:
-                _slot["size"] = _sz - _t
+                if _pop_obj_add(state, _slot, "size", -_t) is None:
+                    _slot["size"] = _sz - _t
                 _left -= _t
         _got = _want - _left
         if _got > 0:
-            _nong["hidden"] = int(_nong.get("hidden", 0) or 0) + _got
+            if _pop_obj_add(state, _nong, "hidden", _got) is None:
+                _nong["hidden"] = int(_nong.get("hidden", 0) or 0) + _got
             _flee_actual += _got
     state.statistics["hidden_flee_actual"] = _flee_actual
     if _flee_actual > 0:
@@ -188,8 +192,10 @@ def _settle_hidden_pop(state, log):
             _t = min(_hid, int(_hid * _back_rate))
             if _t <= 0:
                 continue
-            _nong["hidden"] = _hid - _t
-            _nong["size"] = int(_nong.get("size", 0) or 0) + _t
+            if _pop_obj_add(state, _nong, "hidden", -_t) is None:
+                _nong["hidden"] = _hid - _t
+            if _pop_obj_add(state, _nong, "size", _t) is None:
+                _nong["size"] = int(_nong.get("size", 0) or 0) + _t
             _back_people += _t
     if _back_people > 0:
         log.append(f"[隐户] {'清丈' if _survey else '招抚'}，{_back_people:,} 口归籍复业（回本路 农 POP）")

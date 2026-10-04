@@ -61,6 +61,8 @@ from content.data import (
 )
 
 from core.game_state import GameState
+# 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层；未下沉时回落原写法
+from core.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.evaluation import evaluate_game, check_game_over
@@ -1196,13 +1198,17 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
             if from_ref:
                 p["refugees"] = max(0, int(p.get("refugees", 0)) - from_ref)
             if from_farm:
-                p["pops"]["农"]["size"] = max(0, int(p["pops"]["农"]["size"]) - from_farm)
+                _far = p["pops"]["农"]
+                if _pop_obj_add(state, _far, "size", -from_farm) is None:
+                    _far["size"] = max(0, int(_far["size"]) - from_farm)
             if u.branches:
                 bk = next(iter(u.branches))
                 u.branches[bk] = u.branches.get(bk, 0) + taken
             else:
                 u.branches["轻步兵"] = taken
-            p["pops"]["兵"]["size"] = p["pops"]["兵"].get("size", 0) + taken
+            _bin = p["pops"]["兵"]
+            if _pop_obj_add(state, _bin, "size", taken) is None:
+                _bin["size"] = _bin.get("size", 0) + taken
             u.training = max(0, min(100, u.training + scale))
         # 守恒：国库 → 兵 wealth
         paid = 0
@@ -1385,8 +1391,12 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
                 u.branches[key] = u.branches[key] - take
                 left -= take
             u.branches = {k: v for k, v in u.branches.items() if v > 0}
-            p["pops"]["兵"]["size"] = pop_bing - want
-            p["pops"]["农"]["size"] = int(p["pops"]["农"].get("size", 0) or 0) + want
+            _cb = p["pops"]["兵"]
+            _cf = p["pops"]["农"]
+            if _pop_obj_add(state, _cb, "size", (pop_bing - want) - int(_cb.get("size", 0) or 0)) is None:
+                _cb["size"] = pop_bing - want
+            if _pop_obj_add(state, _cf, "size", -want) is None:
+                _cf["size"] = int(_cf.get("size", 0) or 0) + want
             cut_total += want
         if cut_total <= 0:
             state.set_ai_pending_status(action_id, "rejected")

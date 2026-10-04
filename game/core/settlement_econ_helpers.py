@@ -6,6 +6,10 @@
 """
 from __future__ import annotations
 
+# 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层
+# （先落州府真账、再刷路级派生镜像）；未下沉时桥接返回 None，调用方回落原写法。
+from core.pop_bridge import pop_obj_add as _pop_obj_add
+
 
 def _distribute_pop_wealth(state, lump, cls, total):
     """把 lump 贯按各府 cls POP 的 size 比例分摊入 wealth，**尾差归最大府**。
@@ -30,7 +34,9 @@ def _distribute_pop_wealth(state, lump, cls, total):
         return 0
     shares[big_key] += lump - sum(shares.values())
     for rk, c in shares.items():
-        state.prefectures[rk]["pops"][cls]["wealth"] += c
+        _pw = state.prefectures[rk]["pops"][cls]
+        if _pop_obj_add(state, _pw, "wealth", c) is None:
+            _pw["wealth"] += c
     return lump
 
 
@@ -86,7 +92,9 @@ def _settle_mint(state, log, amount: int = 0):
             continue
         _shares[_big] += _half - sum(_shares.values())
         for _rk, _c in _shares.items():
-            state.prefectures[_rk]["pops"][_cls]["wealth"] += _c
+            _pw2 = state.prefectures[_rk]["pops"][_cls]
+            if _pop_obj_add(state, _pw2, "wealth", _c) is None:
+                _pw2["wealth"] += _c
     state.statistics["minted"] = state.statistics.get("minted", 0) + _net
     # 对账：矿料（resources，不在 M_ALL）→ 货币 = external_in；熔铜池出资 = 池侧离账，
     # 其中未变成钱的部分（熔耗）记 burn，使 residual 归零。
