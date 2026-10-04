@@ -283,4 +283,42 @@ def assert_pops_consistent(pdata: dict) -> List[str]:
 __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "seat_pop_weights",
            "split_pops_to_seats", "aggregate_seat_pops", "survey_pops",
            "sync_route_pops", "pop_get", "pop_set", "pop_add",
-           "assert_pops_consistent"]
+           "assert_pops_consistent", "locate_pops",
+           "pop_obj_set", "pop_obj_add"]
+
+
+def locate_pops(state, pop_obj) -> tuple:
+    """**按 pop 对象反查**其所属 `(pdata, cls)`。找不到 ⇒ `(None, None)`。
+
+    存在的理由：多数写入点手上只有 pop 对象（如 `for pop in p["pops"].values()`），
+    没有 route dict 与类名。没有本入口时，每次调用都得手工传递，迁移成本被严重低估。
+
+    O(路由×类) 扫描；财政/工坊这类每月只跑几次的路径足够。
+    """
+    prefs = getattr(state, "prefectures", {}) or {}
+    for _route, pdata in prefs.items():
+        if not isinstance(pdata, dict):
+            continue
+        pops = pdata.get("pops") or {}
+        if not isinstance(pops, dict):
+            continue
+        for cls, row in pops.items():
+            if row is pop_obj:
+                return pdata, cls
+    return None, None
+
+
+def pop_obj_set(state, pop_obj, field: str, value) -> Optional[int]:
+    """**写**真账（按 pop 对象定位）：先落州府、再刷镜像。未下沉 ⇒ `None`。"""
+    pdata, cls = locate_pops(state, pop_obj)
+    if pdata is None:
+        return None
+    return pop_set(pdata, cls, field, value)
+
+
+def pop_obj_add(state, pop_obj, field: str, delta) -> Optional[int]:
+    """**写**真账（按 pop 对象定位的增量）。未下沉 ⇒ `None`。"""
+    pdata, cls = locate_pops(state, pop_obj)
+    if pdata is None:
+        return None
+    return pop_add(pdata, cls, field, delta)

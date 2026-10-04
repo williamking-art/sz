@@ -24,6 +24,15 @@ from core.settlement_econ_helpers import (
     _distribute_pop_wealth,
 )
 
+# 🔴 方案乙（2026-10-04 用户裁定：POP 实体下沉州府级）：POP **写入**一律走桥接层，
+# 由它先落州府真账、再刷新路级派生镜像，杜绝「镜像与真账漂移」。
+# 存量**读取**仍走路级 `pops`（它是由桥接维护的镜像，无需逐处改写）。
+# ⚠️ 若本模块的州府级 `seats` 尚未建立（未下沉），桥接返回 None 并回落原写法。
+from core.pop_bridge import (pop_add as _pop_add, pop_set as _pop_set,
+                             pop_obj_add as _pop_obj_add, pop_obj_set as _pop_obj_set)
+# 粮写入同样走 G-3 桥接（写只落一个载体，绝不双写）
+from core.grain_bridge import grain_add as _grain_add
+
 _fin_log = logging.getLogger("settlement")
 
 def _refresh_jiaozi_credit(state, log):
@@ -153,7 +162,9 @@ def _settle_bank_credit(state, log):
         for slot in pools:
             w = int(slot.get("wealth", 0) or 0)
             take = min(int(deposit * w / max(total_w, 1)), w)
-            slot["wealth"] = w - take
+            _nw = w - take
+            if _pop_obj_set(state, slot, "wealth", _nw) is None:
+                slot["wealth"] = _nw
             _taken += take
         if _taken > 0:
             reserve += _taken
@@ -176,7 +187,9 @@ def _settle_bank_credit(state, log):
             for slot in pools:
                 w = int(slot.get("wealth", 0) or 0)
                 add = int(_want * w / _pool_now)
-                slot["wealth"] = w + add
+                _nw = w + add
+                if _pop_obj_set(state, slot, "wealth", _nw) is None:
+                    slot["wealth"] = _nw
                 _lent += add
             if _lent > 0:
                 loan = _lent
@@ -195,7 +208,9 @@ def _settle_bank_credit(state, log):
             for slot in pools:
                 w = int(slot.get("wealth", 0) or 0)
                 take = min(int(_want * w / _pool_now), w)
-                slot["wealth"] = w - take
+                _nw = w - take
+                if _pop_obj_set(state, slot, "wealth", _nw) is None:
+                    slot["wealth"] = _nw
                 interest += take
             if interest > 0:
                 reserve += interest
@@ -270,7 +285,9 @@ def _settle_coin_melt(state, log):
             if w > 0:
                 _take = int(w * MELT_RATE)
                 if _take > 0:
-                    pop["wealth"] = max(0, w - _take)
+                    _nw = max(0, w - _take)
+                    if _pop_obj_set(state, pop, "wealth", _nw) is None:
+                        pop["wealth"] = _nw
                     _melted += _take
     if _melted > 0:
         # 熔铜池：钱变铜料（守恒），不在 money 公式（退出流通）
@@ -431,16 +448,24 @@ def _settle_tax_grain_sale(state, p, need: int) -> int:
         pay = max(0, min(pay, int(b.get("wealth", 0) or 0)))
         g = (grain - gave) if i == n - 1 else int(grain * int(b.get("wealth", 0) or 0) / max(1, avail))
         g = max(0, g)
-        b["wealth"] = int(b.get("wealth", 0) or 0) - pay
-        b["grain"] = int(b.get("grain", 0) or 0) + g
+        _bw = int(b.get("wealth", 0) or 0) - pay
+        if _pop_obj_set(state, b, "wealth", _bw) is None:
+            b["wealth"] = _bw
+        _bg = int(b.get("grain", 0) or 0) + g
+        if _grain_add(b, _bg - int(b.get("grain", 0) or 0)) is None:
+            b["grain"] = _bg
         paid += pay
         gave += g
 
     # 若因逐户封顶导致实际成交少于计划：以实际为准（粮随钱走，双向精确守恒）
     if gave > grain:
         gave = grain
-    farm["grain"] = int(farm.get("grain", 0) or 0) - gave
-    farm["wealth"] = int(farm.get("wealth", 0) or 0) + paid
+    _fg = int(farm.get("grain", 0) or 0) - gave
+    if _grain_add(farm, -gave) is None:
+        farm["grain"] = _fg
+    _fw = int(farm.get("wealth", 0) or 0) + paid
+    if _pop_obj_set(state, farm, "wealth", _fw) is None:
+        farm["wealth"] = _fw
     state.statistics["tax_grain_sale"] = state.statistics.get("tax_grain_sale", 0) + paid
     state.granary_stats["tax_grain_sold"] = \
         state.granary_stats.get("tax_grain_sold", 0) + gave
@@ -497,7 +522,8 @@ def _settle_arrears_repayment(state, log):
     for _i, (_pop, _w) in enumerate(_receivers):
         _gv = (amount - _given) if _i == len(_receivers) - 1 else int(amount * _w / _tot_w)
         _gv = max(0, _gv)
-        _pop["wealth"] = int(_pop.get("wealth", 0) or 0) + _gv
+        if _pop_obj_add(state, _pop, "wealth", _gv) is None:
+            _pop["wealth"] = int(_pop.get("wealth", 0) or 0) + _gv
         _given += _gv
 
     # 冲减各军欠饷（同源同减；军饷欠额大，按剩余欠饷比例摊还）
@@ -591,15 +617,19 @@ def _settle_finance(state, log):
             _short = _deduct - _paid
             if _short > 0:
                 # A1：缺口记入欠税科目（替代原直接蒸发），后续逐月追缴；存档兼容见 save_load 迁移
-                _pop["欠税"] = _pop.get("欠税", 0) + _short
-            _pop["wealth"] -= _paid
+                if _pop_obj_add(state, _pop, "欠税", _short) is None:
+                    _pop["欠税"] = _pop.get("欠税", 0) + _short
+            if _pop_obj_add(state, _pop, "wealth", -_paid) is None:
+                _pop["wealth"] -= _paid
             actual_tax += _paid   # 累计实际到库税额（保底豁免部分不入库，钱不凭空生）
             # A1 追缴段：紧随税征，按「可支付余力（wealth - 保底线）× ARREARS_COLLECT_RATE」回收欠税
             _recoverable = max(0, _pop["wealth"] - _min_wealth)
             _recover = min(_pop.get("欠税", 0), int(_recoverable * ARREARS_COLLECT_RATE))
             if _recover > 0:
-                _pop["wealth"] -= _recover
-                _pop["欠税"] = _pop.get("欠税", 0) - _recover
+                if _pop_obj_add(state, _pop, "wealth", -_recover) is None:
+                    _pop["wealth"] -= _recover
+                if _pop_obj_add(state, _pop, "欠税", -_recover) is None:
+                    _pop["欠税"] = _pop.get("欠税", 0) - _recover
                 actual_tax += _recover
 
     wr = getattr(state, "waste_reform", None) or {}
@@ -738,10 +768,13 @@ def _settle_finance(state, log):
 
     # 兵 POP size 重聚合（兵额唯一真账 = army_units.troops 求和，避免增募/伤亡后 POP 漂移）
     for _p in state.prefectures.values():
-        _p["pops"]["兵"]["size"] = 0
+        if _pop_set(_p, "兵", "size", 0) is None:
+            _p["pops"]["兵"]["size"] = 0
     for _u in state.army_units:
         if _u.station in state.prefectures and _u.troops > 0:
-            state.prefectures[_u.station]["pops"]["兵"]["size"] += _u.troops
+            _sd = state.prefectures[_u.station]
+            if _pop_add(_sd, "兵", "size", _u.troops) is None:
+                _sd["pops"]["兵"]["size"] += _u.troops
     # 收支双向落地：国库俸禄钱 → 兵/官僚 POP 钱（闭环，不凭空消失）
     _total_soldiers = sum(p["pops"]["兵"]["size"] for p in state.prefectures.values()) or 1
     _total_guan = sum(p["pops"]["官僚"]["size"] for p in state.prefectures.values()) or 1
@@ -798,7 +831,9 @@ def _settle_finance(state, log):
             if _p["pops"]["官僚"]["size"] > 0:
                 _take = int(official_service_tax * _p["pops"]["官僚"]["size"] / max(_total_guan, 1))
                 _take = min(_take, int(_p["pops"]["官僚"]["wealth"]))
-                _p["pops"]["官僚"]["wealth"] = max(0, _p["pops"]["官僚"]["wealth"] - _take)
+                _nw = max(0, _p["pops"]["官僚"]["wealth"] - _take)
+                if _pop_set(_p, "官僚", "wealth", _nw) is None:
+                    _p["pops"]["官僚"]["wealth"] = _nw
                 _tax_left -= _take
         actual_tax += official_service_tax - max(0, _tax_left)
         # 助役钱实收额入账（原先只并入 actual_tax、无科目，玩家看不到"官户也在纳钱"）
@@ -857,12 +892,16 @@ def _settle_finance(state, log):
                 # P0 修复（蔡权衡·工匠 wealth 归零）：扣缴上限 = 工匠 wealth 的 5%/月
                 # （超时代酒课膨胀时扣缴抽干工匠 → 税基崩；上限保工匠生存底线）
                 _take = min(_take, int(_art["wealth"] * 0.05))
-                _art["wealth"] = max(0, _art["wealth"] - _take)
+                _nw = max(0, _art["wealth"] - _take)
+                if _pop_obj_set(state, _art, "wealth", _nw) is None:
+                    _art["wealth"] = _nw
                 _wine_left -= _take
             if _mer["size"] > 0:
                 _take = int(_wine_tax_cash * 0.4 * _mer["size"] / _mer_total)
                 _take = min(_take, int(_mer["wealth"] * 0.10))
-                _mer["wealth"] = max(0, _mer["wealth"] - _take)
+                _nw = max(0, _mer["wealth"] - _take)
+                if _pop_obj_set(state, _mer, "wealth", _nw) is None:
+                    _mer["wealth"] = _nw
                 _wine_left -= _take
         # 实征入账（审查 P0：禁止全额入内帑造币）——短征不记入内帑
         _wine_tax_cash = max(0, _wine_tax_cash - max(0, _wine_left))
@@ -988,7 +1027,9 @@ def _settle_bank_stock(state, log) -> None:
             w = int(slot.get("wealth", 0) or 0)
             add = (give - returned) if _idx == len(pools) - 1 else int(give * w / max(1, w_final))
             add = max(0, min(add, give - returned))
-            slot["wealth"] = w + add
+            _nw = w + add
+            if _pop_obj_set(state, slot, "wealth", _nw) is None:
+                slot["wealth"] = _nw
             returned += add
         if returned > 0:
             b["reserve"] = reserve - returned
