@@ -268,6 +268,18 @@ def _external_province_lonlats(regime_key: str, provs_src: list):
     return _out
 
 
+def _pop_add(state, pop, field: str, delta):
+    """**方案乙** POP 写入桥接的**延迟导入**入口。
+
+    本模块是**最底层**（被几乎所有模块导入），顶层 `from core.pop_bridge import …`
+    有循环依赖风险，故统一走函数内延迟导入。
+
+    返回 `None` 表示该路**尚未下沉**（无 `seats`），调用方必须据此回落原写法。
+    """
+    from core.pop_bridge import pop_obj_add
+    return pop_obj_add(state, pop, field, delta)
+
+
 class GameState(GameStateEconMixin):
     """宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）"""
 
@@ -954,7 +966,9 @@ class GameState(GameStateEconMixin):
         # 兵额回填到各路 POP：兵 POP.size = 该路 army_units 兵额合计（兵额唯一真账）
         for u in self.army_units:
             if u.station in self.prefectures and u.troops > 0:
-                self.prefectures[u.station]["pops"]["兵"]["size"] += u.troops
+                _bs = self.prefectures[u.station]["pops"]["兵"]
+                if _pop_add(self, _bs, "size", u.troops) is None:
+                    _bs["size"] += u.troops
 
         # 识字率（2026-09-19 新增）：**必须在 POP 建成、兵额回填之后**——
         # 目标值由 POP 结构（士绅+官僚占比、工匠+商人占比）派生，逐路各不相同。
@@ -977,7 +991,9 @@ class GameState(GameStateEconMixin):
         if _boost > 0 and _total_w > 0:
             for _p in self.prefectures.values():
                 for pop in _p["pops"].values():
-                    pop["wealth"] += int(_boost * pop.get("wealth", 0) / _total_w)
+                    _bw = int(_boost * pop.get("wealth", 0) / _total_w)
+                    if _pop_add(self, pop, "wealth", _bw) is None:
+                        pop["wealth"] += _bw
 
         # 家产入 POP（2026-09-27，POP 挂载律条 4 迁移）：把 `minister_estate` 镜像的开局存量
         # **物化**到 `士绅` POP 的 `estate` 子池，此后"家产的钱"只存在于 POP 内、镜像与其恒等。
@@ -1096,7 +1112,9 @@ class GameState(GameStateEconMixin):
                     return
                 pp = (p.get("pops") or {}).get(pop)
                 if isinstance(pp, dict):
-                    pp["wealth"] = max(0, int(val))
+                    _nw = max(0, int(val))
+                    if _pop_add(self, pp, "wealth", _nw - int(pp.get("wealth", 0) or 0)) is None:
+                        pp["wealth"] = _nw
 
         def _writable(key):
             """目标是否**可写**（审查 M3）：原实现只判 src 可付，`_write(dst, …)` 在
@@ -1142,7 +1160,8 @@ class GameState(GameStateEconMixin):
         taken = 0
         for slot, w in pools:
             take = min(int(amount * w / total), int(slot.get("wealth", 0)))
-            slot["wealth"] = int(slot.get("wealth", 0)) - take
+            if _pop_add(self, slot, "wealth", -take) is None:
+                slot["wealth"] = int(slot.get("wealth", 0)) - take
             taken += take
         return taken
 

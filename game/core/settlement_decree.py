@@ -20,6 +20,11 @@ from content.data import (
 # 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）
 from core import officialdom as _officialdom
 
+# 🔴 方案乙 / G-3（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
+# 粮走 `grain_bridge`（写只落一个载体）；size/窖银走 `pop_bridge`（先落州府真账再刷派生镜像）。
+# 未下沉时桥接返回 None，调用方回落原写法。
+from core.grain_bridge import grain_add as _grain_add
+from core.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement_common import (
     _state_grain_trade,
     _levy_men,
@@ -394,7 +399,9 @@ def _apply_decree_effect(state, decree, log):
             for _p in state.prefectures.values():
                 _guan = _p["pops"]["官僚"]
                 _cut = _officialdom.remove_officials(_p, int(_guan["size"] * 0.05))
-                _p["pops"]["士绅"]["size"] += _cut
+                _sh = _p["pops"]["士绅"]
+                if _pop_obj_add(state, _sh, "size", _cut) is None:
+                    _sh["size"] += _cut
         log.append(f"[变法] 诏{ '裁汰冗员' if kind=='reduce_office' else '省浮费' }，期以{state.waste_reform['months_left']}月渐省浮费，然官僚梗阻、怨声渐起")
     # 粮量单位约定：decree effect 中的粮额（he_mi/military_supply/relief/grain_stabilize/granary_reform）
     # 语义为「万石」，转到后台「石」需 ×10000；日志仍按设计语义显示「万石」。
@@ -457,12 +464,16 @@ def _apply_decree_effect(state, decree, log):
             _p["self_farm_land"] = _p.get("self_farm_land", 0) + _gentry_reduce
             # 士绅囤粮吐出给农 POP（清丈打击囤积）
             _genty = _p["pops"]["士绅"]
-            _release = int(_genty["grain"] * _hidden_mult)
-            _genty["grain"] -= _release
-            _p["pops"]["农"]["grain"] += _release
+            _release = int(_genty.get("grain", 0) * _hidden_mult)
+            _ng = _p["pops"]["农"]
+            if _grain_add(_genty, -_release) is None:
+                _genty["grain"] -= _release
+            if _grain_add(_ng, _release) is None:
+                _ng["grain"] += _release
             # 抄没士绅窖银（清丈/抑兼并时抄家，窖银掏出回国库）
             _confiscate = int(_genty.get("窖银", 0) * _hidden_mult)
-            _genty["窖银"] = _genty.get("窖银", 0) - _confiscate
+            if _pop_obj_add(state, _genty, "窖银", -_confiscate) is None:
+                _genty["窖银"] = _genty.get("窖银", 0) - _confiscate
             state.treasury += _confiscate
         for fn in ("旧党", "中立派"):
             if fn in state.factions:
@@ -489,7 +500,9 @@ def _apply_decree_effect(state, decree, log):
                     continue
                 avail = min(share, p.get("refugees", 0))
                 p["refugees"] = max(0, p["refugees"] - avail)
-                p["pops"]["农"]["size"] += avail                  # 流民安置回农 POP（人口回流）
+                _rf = p["pops"]["农"]                          # 流民安置回农 POP（人口回流）
+                if _pop_obj_add(state, _rf, "size", avail) is None:
+                    _rf["size"] += avail
                 wl = p.get("wasteland")
                 if wl is not None:
                     reclaim = avail * 2  # 每流民垦 2 亩

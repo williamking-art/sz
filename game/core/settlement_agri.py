@@ -63,6 +63,10 @@
 """
 from __future__ import annotations
 
+# 🔴 G-3（2026-10-04）：POP 粮写入走 `grain_bridge`（写只落一个载体，绝不双写）。
+# 未下沉时桥接返回 None，调用方回落原写法。
+from core.grain_bridge import grain_add as _grain_add
+
 import math
 from typing import Any, Dict, List, Optional
 
@@ -830,7 +834,8 @@ def apply_agri_effects(state, log: Optional[list] = None, *,
                               * ratio * AGRI_HARVEST_SHARE))
             if extra > 0:
                 nong = p["pops"]["农"]
-                nong["grain"] = int(nong.get("grain", 0) or 0) + extra
+                if _grain_add(nong, extra) is None:
+                    nong["grain"] = int(nong.get("grain", 0) or 0) + extra
                 summary["grain_produced"] += extra
                 _stat_add(state, "agri_grain_produced", extra)
         summary["routes_with_effect"] += 1
