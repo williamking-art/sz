@@ -34,6 +34,13 @@ from core.market_price import (discover_price, effective_buy_price,
 # B2-1/2/3：需求分层（温饱线 × 余量释放）
 from core.demand import basic_need, demand_release
 
+# 🔴 方案乙 / G-3（2026-10-04）：POP 写入走桥接层 ——
+#   · 粮写 `grain_bridge`（写只落一个载体，绝不双写）；
+#   · size/wealth 等写 `pop_bridge`（先落州府真账、再刷路级派生镜像）。
+# 存量**读取**仍走路级 `pops`（它是桥接维护的镜像）。未下沉时桥接返回 None，调用方回落原写法。
+from core.grain_bridge import grain_add as _grain_add
+from core.pop_bridge import pop_obj_add as _pop_obj_add
+
 from core.settlement_common import (
     _avg_corruption,
     _recalc_region_price,
@@ -167,7 +174,9 @@ def _settle_granary(state, log):
                 continue
             _shares[_big] += _lump_i - sum(_shares.values())
             for _rk, _c in _shares.items():
-                state.prefectures[_rk]["pops"][_cls]["grain"] += _c
+                _tg = state.prefectures[_rk]["pops"][_cls]
+                if _grain_add(_tg, _c) is None:
+                    _tg["grain"] += _c
     # 贪腐本色损耗实发受剩余太仓约束：change_granary 有 0 下限，
     # 先截断再出账，保证下方太仓恒等断言在枯竭时仍闭合（不因 clamp 断裂）。
     corr_actual = min(corr_grain, state.granary)
@@ -431,10 +440,14 @@ def _settle_granary(state, log):
         _genty = p["pops"]["士绅"]
         _lux = int(_genty["wealth"] * 0.01 * _boom)
         if _lux > 0:
-            _genty["wealth"] -= _lux
+            if _pop_obj_add(state, _genty, "wealth", -_lux) is None:
+                _genty["wealth"] -= _lux
             _lux_art = int(_lux * 0.5)
-            artisan["wealth"] += _lux_art
-            merchant["wealth"] += _lux - _lux_art   # 尾差归商人（守恒修正，奇数 _lux 不再丢 1 贯）
+            if _pop_obj_add(state, artisan, "wealth", _lux_art) is None:
+                artisan["wealth"] += _lux_art
+            _lux_mer = _lux - _lux_art   # 尾差归商人（守恒修正，奇数 _lux 不再丢 1 贯）
+            if _pop_obj_add(state, merchant, "wealth", _lux_mer) is None:
+                merchant["wealth"] += _lux_mer
     # ---- 士绅囤粮操作（AI 推演档位优先，无 AI 按粮价方向兜底；钱粮守恒）----
     # B1（A1）出清顺序裁决：士绅先售、农售余量——士绅囤抛先于下方"非农缺粮买农粮"执行，
     # 与农售粮共用同一批缺粮 POP（工匠/商人/官僚/兵）的 wealth 池：先扣士绅粮款，
@@ -513,21 +526,25 @@ def _settle_granary(state, log):
             _paid_total = 0
             for bname, q in _buy_q.items():
                 if q > 0:
-                    pops[bname]["grain"] += q
+                    if _grain_add(pops[bname], q) is None:
+                        pops[bname]["grain"] += q
                     _c = int(q * price)
-                    pops[bname]["wealth"] -= _c
+                    if _pop_obj_add(state, pops[bname], "wealth", -_c) is None:
+                        pops[bname]["wealth"] -= _c
                     _paid_total += _c
             _seller_items = [(sname, q) for sname, q in _sell_q.items() if q > 0]
             _qtot = sum(q for _, q in _seller_items) or 1
             _left = _paid_total
             for _j, (sname, q) in enumerate(_seller_items):
-                pops[sname]["grain"] -= q
+                if _grain_add(pops[sname], -q) is None:
+                    pops[sname]["grain"] -= q
                 if _j == len(_seller_items) - 1:
                     _c = _left
                 else:
                     _c = int(_paid_total * q / _qtot)
                     _left -= _c
-                pops[sname]["wealth"] += _c
+                if _pop_obj_add(state, pops[sname], "wealth", _c) is None:
+                    pops[sname]["wealth"] += _c
         # 4) 口粮消费（按职业）：不足则饥荒（农逃荒）
         # 判据**单点**：`food_insecure_headcount`（自有粮 ＋ 购粮能力 = 能吃到几成）。
         # 用户 2026-10-01 定稿：逃荒人数由**实际吃不上饭的人数**1:1 派生，
@@ -538,8 +555,9 @@ def _settle_granary(state, log):
         for pn, pop in pops.items():
             need = need_of[pn]
             # 实际消费：先扣自有粮（粮账必须真扣，否则 Σ粮 不守恒）
-            if pop["grain"] >= need:
-                pop["grain"] -= need
+            if (pop.get("grain") or 0) >= need:
+                if _grain_add(pop, -need) is None:
+                    pop["grain"] -= need
             # 缺粮判定（单点 `food_insecure_headcount`：自有粮 ＋ 购粮能力）
             hungry = int(_hungry_map.get(pn, 0) or 0)
             if hungry > 0:
@@ -572,7 +590,8 @@ def _settle_granary(state, log):
                 log.append(f"[霉耗][WARN] 农业霉耗钩子不可用：{_se_e!r}")
             _spoil = int((_nong_g["grain"] - _cap_g) * _spoil_rate)
             if _spoil > 0:
-                _nong_g["grain"] -= _spoil
+                if _grain_add(_nong_g, -_spoil) is None:
+                    _nong_g["grain"] -= _spoil
                 state.granary_stats["farmer_spoil"] = state.granary_stats.get("farmer_spoil", 0) + _spoil
         # 6) 隐户消费（B1c）：隐户**自产自食**——先扣本路 `农` POP 的粮，不足部分才由该路
         #    士绅/地主兜底（庇护关系）。B1a 起隐户按路存在 → 逐路按**本路隐户口**计，
@@ -583,7 +602,9 @@ def _settle_granary(state, log):
             _nong_g = pops["农"]
             _from_self = min(_hidden_feed, max(0, int(_nong_g.get("grain", 0) or 0)))
             if _from_self > 0:
-                _nong_g["grain"] = int(_nong_g["grain"]) - _from_self
+                _ns = int(_nong_g.get("grain", 0) or 0) - _from_self
+                if _grain_add(_nong_g, -_from_self) is None:
+                    _nong_g["grain"] = _ns
             _rest = _hidden_feed - _from_self
             if _rest > 0:
                 _g0 = pops["士绅"]
@@ -591,8 +612,10 @@ def _settle_granary(state, log):
                 # `_hidden_feed` → 「喂了多少粮」与「实际扣了多少粮」不同源（同 S3/S4 类）。
                 # 现记**实扣额**；士绅无粮则实喂 < 应喂，如实反映为差额（不粉饰）。
                 _g0_before = max(0, int(_g0.get("grain", 0) or 0))
-                _g0["grain"] = max(0, _g0.get("grain", 0) - _rest)
-                _rest = min(_rest, _g0_before - max(0, int(_g0["grain"])))
+                _g0_after = max(0, _g0_before - _rest)
+                if _grain_add(_g0, _g0_after - _g0_before) is None:
+                    _g0["grain"] = _g0_after
+                _rest = min(_rest, _g0_before - _g0_after)
             _fed = _from_self + _rest
             state.granary_stats["hidden_feed"] = state.granary_stats.get("hidden_feed", 0) + _fed
             if _fed < _hidden_feed:
@@ -665,7 +688,9 @@ def _settle_disaster(state, log):
                 state.prefectures[region]["refugees"] = max(0, local - used)
                 # 人口守恒（QA 定位修复）：本地安置流民回流农 POP（流民→自耕农/佃户），
                 # 防止"流民减少但人口凭空消失"；人口守恒：本地 used + 邻路 Σadd == 流民减少 == 农 POP 增加。
-                state.prefectures[region]["pops"]["农"]["size"] += used
+                _f = state.prefectures[region]["pops"]["农"]
+                if _pop_obj_add(state, _f, "size", used) is None:
+                    _f["size"] += used
                 spill = relieved - used
             else:
                 used = 0
@@ -681,7 +706,9 @@ def _settle_disaster(state, log):
                         if add > 0:
                             state.prefectures[k]["refugees"] = max(0, state.prefectures[k]["refugees"] - add)
                             # 人口守恒（QA 定位修复）：溢邻路安置流民回流该路农 POP
-                            state.prefectures[k]["pops"]["农"]["size"] += add
+                            _fk = state.prefectures[k]["pops"]["农"]
+                            if _pop_obj_add(state, _fk, "size", add) is None:
+                                _fk["size"] += add
             log.append(f"[赈济·{region}] 开太仓发粟 {relief}石赈灾，本地流民稍安，余者溢邻路")
         else:
             state.population_satisfaction = max(0, state.population_satisfaction - 3)
@@ -703,8 +730,10 @@ def _settle_disaster(state, log):
             # flee 受 add_ref、流民 cap 余量与农 POP size 三重约束；
             # 受灾农 POP 减少 flee（逃荒为流民），流民增加 flee，人口不凭空增减。
             room = max(0, cap - p.get("refugees", 0))
-            flee = min(add_ref, room, p["pops"]["农"]["size"])
-            p["pops"]["农"]["size"] -= flee
+            _fp = p["pops"]["农"]
+            flee = min(add_ref, room, _fp["size"])
+            if _pop_obj_add(state, _fp, "size", -flee) is None:
+                _fp["size"] -= flee
             p["refugees"] = p.get("refugees", 0) + flee
             # 灾荒减产：受灾路年产减产（8%/级），下次收获即少粮，体现"灾年减产"而非只涨价
             p["grain"] = int(p.get("grain", 0) * (1 - 0.08 * severity))
