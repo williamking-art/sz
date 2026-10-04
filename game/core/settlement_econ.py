@@ -745,7 +745,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         # 旧静态产出（简单模拟 38 政权 / 旧档无 lv 结构）
         if isinstance(_nong, dict) and int(_nong.get("size", 0) or 0) > 0:
             _g = int(int(_nong["size"]) * gy)
-            _nong["grain"] = int(_nong.get("grain", 0) or 0) + _g
+            _grain_add(_nong, _g)
             produced += _g
         if isinstance(_art, dict):
             _ag = _art.setdefault("goods", {})
@@ -912,7 +912,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         _paid_total = 0
         for kl, q in _buy_q.items():
             if q > 0:
-                pop[kl]["grain"] = int(pop[kl].get("grain", 0) or 0) + q
+                _grain_add(pop[kl], q)
                 _c = int(q * price)
                 pop[kl]["wealth"] = int(pop[kl].get("wealth", 0) or 0) - _c
                 _paid_total += _c
@@ -920,7 +920,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         _qtot = sum(q for _, q in _items) or 1
         _left = _paid_total
         for j, (kl, q) in enumerate(_items):
-            pop[kl]["grain"] = int(pop[kl].get("grain", 0) or 0) - q
+            _grain_set(pop[kl], max(0, (_grain_get(pop[kl]) or 0) - q))
             if j == len(_items) - 1:
                 _c = _left
             else:
@@ -932,14 +932,14 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         if not isinstance(v, dict):
             continue
         need = need_of.get(kl, 0)
-        _gr = int(v.get("grain", 0) or 0)
+        _gr = _grain_get(v) or 0
         if _gr >= need:
-            v["grain"] = _gr - need
+            _grain_set(v, _gr - need)
             eaten += need
         else:
             eaten += _gr
             famine_units += need - _gr
-            v["grain"] = 0
+            _grain_set(v, 0)
     # ---- Phase C2 省域随机灾害（2026-09-22，镜像宋 Step 8 天灾相位）----
     # 本月若受灾：产粮已按减产系数打过折（调用侧传入 gy 已折），粮价上浮（粮需比
     # 失衡触发），unrest + 逃散（农 size 小比例流失，ΣPOP 守恒记为自然减员）。
@@ -1052,7 +1052,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
             if isinstance(_nong_g, dict):
                 _take = min(_g_tax, int(_nong_g.get("grain", 0) or 0))
                 if _take > 0:
-                    _nong_g["grain"] = int(_nong_g.get("grain", 0) or 0) - _take
+                    _grain_set(_nong_g, max(0, (_grain_get(_nong_g) or 0) - _take))
                     _gr_stock += _take
                     _grain_pay["grain_tax_in_kind"] = _take
         # ② 本色兵粮/禄米：官仓 → 兵/官僚 POP grain（硬通货发饷）
@@ -1068,9 +1068,9 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
         _s_give = int(_s_need * (_g_give / _g_need)) if _g_need > 0 else 0
         _o_give = _g_give - _s_give
         if isinstance(_bs, dict) and _s_give > 0:
-            _bs["grain"] = int(_bs.get("grain", 0) or 0) + _s_give
+            _grain_add(_bs, _s_give)
         if isinstance(_os, dict) and _o_give > 0:
-            _os["grain"] = int(_os.get("grain", 0) or 0) + _o_give
+            _grain_add(_os, _o_give)
         _grain_pay["soldier"] = _s_give
         _grain_pay["official"] = _o_give
         _grain_pay["arrears_grain"] = _g_arrears
@@ -1085,7 +1085,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
                 _gr_stock -= _release
                 _nong = pop.get("农")
                 if isinstance(_nong, dict):
-                    _nong["grain"] = int(_nong.get("grain", 0) or 0) + _release
+                    _grain_add(_nong, _release)
                 _grain_pay["ping_tiao_out"] = _release
         elif price < _lo:
             _nong = pop.get("农")
@@ -1093,7 +1093,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
                 _surplus = max(0, int(_nong.get("grain", 0) or 0) - need_of.get("农", 0) * 2)
                 _buy = min(_surplus, max(50, int(_gr_stock * 0.1))) if _surplus > 0 else 0
                 if _buy > 0:
-                    _nong["grain"] = int(_nong.get("grain", 0) or 0) - _buy
+                    _grain_set(_nong, max(0, (_grain_get(_nong) or 0) - _buy))
                     _gr_stock += _buy
                     _grain_pay["ping_tiao_in"] = _buy
         _write_grain(_gr_stock)
@@ -1276,7 +1276,7 @@ def _settle_external_economy(state, log):
                         continue
                     _slot = _aggv.setdefault(_kl, {"wealth": 0, "grain": 0})
                     _slot["wealth"] += int(_v.get("wealth", 0) or 0)
-                    _slot["grain"] += int(_v.get("grain", 0) or 0)
+                    _slot["grain"] += _grain_get(_v) or 0
             _reg_pop = ex.setdefault("pop", {})
             for _kl, _v in _aggv.items():
                 _slot = _reg_pop.setdefault(_kl, {"size": 0, "wealth": 0, "grain": 0})
@@ -1396,7 +1396,7 @@ def _sell_to_buyers(p, seller, qty, price, copper_share=1.0):
         # 逐户封顶：绝不扣穿当前 wealth（实收不足部分由卖方按实收记账，钱不进不出）
         share = max(0, min(share, int(pop.get("wealth", 0))))
         pop["wealth"] -= share              # 钱出
-        pop["grain"] = pop.get("grain", 0) + grain_share   # 粮进（缺口被填补）
+        _grain_add(pop, grain_share)   # 粮进（缺口被填补）
         paid += share
         grain_given += grain_share
     # 用户关键修正：**窖银只囤银**——铜钱/交子（钞）均不入窖，全部进 wealth（流通）；
@@ -1474,7 +1474,7 @@ def _settle_civilian_hoard(state, log):
             # 原式 wealth // price_wen 少乘 1000 → 可购量被低估千倍，囤粮机制实质失效
             # （例：26 万贯、1 贯/石 时只能买 260 石）。统一为贯→文换算。
             afford = genty["wealth"] * 1000 // price_wen     # 资金能买多少石（文级精度）
-            room = max(0, _soft_cap - genty["grain"])       # 囤粮余量（软上限约束）
+            room = max(0, _soft_cap - (_grain_get(genty) or 0))       # 囤粮余量（软上限约束）
             src = max(0, int(p.get("grain", 0) / 12.0))     # 粮源上限：本路在库粮的月产部分
             buy = min(buy, afford, room, src)
             if buy > 0:
@@ -1487,26 +1487,26 @@ def _settle_civilian_hoard(state, log):
                     genty["wealth"] -= cost
                     farmers["wealth"] = farmers.get("wealth", 0) + cost
                 # 无农户接收方时不划钱（宁可不流转，也不凭空灭币）
-                genty["grain"] += buy
+                _grain_add(genty, buy)
                 p["grain"] = max(0, int(p.get("grain", 0)) - buy)
         elif act == "抛":
-            sell = int(genty["grain"] * mult)
+            sell = int((_grain_get(genty) or 0) * mult)
             if sell > 0:
                 # B1：抛粮买方化——卖给该路缺粮 POP 可支付财富池，不卖给虚空；
                 # 未售部分继续囤（囤积维持，不造币）。窖银只藏铜钱（copper_share）。
                 sold = _sell_to_buyers(p, genty, sell, price, _copper_share)
                 if sold > 0:
-                    genty["grain"] -= sold
+                    _grain_add(genty, -sold)
         # 超软上限：先售买方池，未售保留（不压回、不核销）——囤积居奇机制保留
-        if genty["grain"] > _soft_cap:
-            sold = _sell_to_buyers(p, genty, genty["grain"] - _soft_cap, price, _copper_share)
+        if (_grain_get(genty) or 0) > _soft_cap:
+            sold = _sell_to_buyers(p, genty, (_grain_get(genty) or 0) - _soft_cap, price, _copper_share)
             if sold > 0:
-                genty["grain"] -= sold
+                _grain_add(genty, -sold)
         # 仅超硬上限：强制出清，未售按损耗核销（不凭空变钱；粮压回硬上限，防无限囤积）
-        if genty["grain"] > _hard_cap:
-            _excess = genty["grain"] - _hard_cap
+        if (_grain_get(genty) or 0) > _hard_cap:
+            _excess = (_grain_get(genty) or 0) - _hard_cap
             sold = _sell_to_buyers(p, genty, _excess, price, _copper_share)
-            genty["grain"] = _hard_cap
+            _grain_set(genty, _hard_cap)
             _unsold = _excess - sold
             if _unsold > 0:
                 # 未售部分**全部**按损耗核销（雀鼠耗/霉变）：`genty["grain"]` 已被压回
