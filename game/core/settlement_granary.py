@@ -221,7 +221,7 @@ def _settle_granary(state, log):
             ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5)
             sell = max(1, int(cp_stock * ratio))
             sell = min(sell, cp_stock)
-            _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平")
+            _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平", state)
             if _g > 0:
                 _recycled_total += _recycled
                 # 对账统计：平粜回收（买家钱入地方府库）
@@ -239,7 +239,7 @@ def _settle_granary(state, log):
             room = max(0, int(cap - cp_stock))
             buy = min(int(budget / max(price, 0.4)), int(monthly_supply * 0.5), room)
             if buy > 0:
-                _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平")
+                _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平", state)
                 if _g > 0:
                     # 收粮出市 → 当地粮价回升（常平托市的正确触发）
                     p["grain_price"] = _recalc_region_price(state, name, extra_supply=-_g)
@@ -258,7 +258,7 @@ def _settle_granary(state, log):
                 ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
                 sell = max(1, int(cp_stock * ratio))
                 sell = min(sell, cp_stock)
-                _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平·AI")
+                _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平·AI", state)
                 if _g > 0:
                     _recycled_total += _recycled
                     state.statistics["changping_recycled"] = (
@@ -273,7 +273,7 @@ def _settle_granary(state, log):
                 room = max(0, int(cap - cp_stock))
                 buy = min(int(budget / max(price, 0.4)), int(monthly_supply * 0.5), room)
                 if buy > 0:
-                    _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平·AI")
+                    _g, _ = _changping_trade(p, name, buy, "buy", price, log, "常平·AI", state)
                     if _g > 0:
                         p["grain_price"] = _recalc_region_price(state, name, extra_supply=-_g)
                         changping_acted = True

@@ -15,6 +15,13 @@ from __future__ import annotations
 
 import logging
 
+# 🔴 方案乙 / G-3（2026-10-04）：POP 写入走桥接层 ——
+#   · 粮写 `grain_bridge`（写只落一个载体，绝不双写）；
+#   · size/wealth 写 `pop_bridge`（先落州府真账、再刷路级派生镜像）。
+# 存量**读取**仍走路级 `pops`（桥接维护的镜像）。未下沉时桥接返回 None，调用方回落原写法。
+from core.grain_bridge import grain_add as _grain_add
+from core.pop_bridge import pop_obj_add as _pop_obj_add
+
 from content.data import (
     GRAIN_PRICE_MIN,
     GRAIN_PRICE_MAX,
@@ -158,9 +165,11 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
                 take = int((_cash_cap - money_paid) / p)
                 if take <= 0:
                     break
-            pp["grain"] = avail - take
+            if _grain_add(pp, -take) is None:
+                pp["grain"] = avail - take
             _pay = int(take * p)
-            pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
+            if _pop_obj_add(state, pp, "wealth", _pay) is None:
+                pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
             remain -= take
             total += take
             money_paid += _pay
@@ -190,8 +199,10 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
         if _alloc <= 0:
             continue
         _cost = int(_alloc * p)
-        pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
-        pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
+        if _pop_obj_add(state, pp, "wealth", -_cost) is None:
+            pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
+        if _grain_add(pp, _alloc) is None:
+            pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
         total += _alloc
         money_in += _cost
         want -= _alloc
@@ -203,7 +214,7 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
     return total, money_in
 
 
-def _changping_trade(pref, name, grain_amt, direction, price, log, tag):
+def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=None):
     """州县常平仓粜籴的守恒配对（与 _state_grain_trade 同构；钱腿为本路府库）。
 
     审查修复背景：常平仓原实现只动 `changping_stock` / `local_treasury` 两个
@@ -246,8 +257,10 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag):
                 _pay = int(take * _price)
             if take <= 0:
                 continue
-            pp["grain"] = avail - take
-            pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
+            if _grain_add(pp, -take) is None:
+                pp["grain"] = avail - take
+            if _pop_obj_add(state, pp, "wealth", _pay) is None:
+                pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
             remain -= take
             total += take
             money += _pay
@@ -274,8 +287,10 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag):
         if _alloc <= 0:
             continue
         _cost = int(_alloc * _price)
-        pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
-        pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
+        if _pop_obj_add(state, pp, "wealth", -_cost) is None:
+            pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
+        if _grain_add(pp, _alloc) is None:
+            pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
         total += _alloc
         money += _cost
         want -= _alloc
@@ -428,7 +443,8 @@ def _distribute_cash(state, amount: int, shares: dict, applied: list = None) -> 
             given += g
         paid += given
     for x, _new, g in writes:                        # 阶段②：纯赋值，不再可能抛错
-        x["wealth"] = _new
+        if _pop_obj_add(state, x, "wealth", _new - int(x.get("wealth", 0) or 0)) is None:
+            x["wealth"] = _new
         if applied is not None:
             applied.append(g)
     return paid
