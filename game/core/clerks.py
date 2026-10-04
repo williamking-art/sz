@@ -35,7 +35,10 @@ from content.data import (
     W_OFFICIAL_BASE, W_GARRISON_BASE,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
-from core.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移**带财富/粮**（人均连续）
+from core.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移，带财富/粮粮**（人均连续）
+# 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
+# 存量读取仍走路级 `pops`（桥接维护的派生镜像）；未下沉时回落原写法。
+from core.pop_bridge import pop_obj_add as _pop_obj_add
 
 HEREDITARY_BASE = 0.4           # 世袭比例基准（`hereditary_mult` 作用于此）
 MUSTER_GRIP_W = 0.08            # 募吏占比对把持度的影响（募吏较专业、可裁，把持度略低）
@@ -161,12 +164,12 @@ def _adjust_staffing(state, log: List[str]) -> int:
             step = min(step, int(nong.get("size", 0)))            # 来源：农户
             if step <= 0:
                 continue
-            move_pop_people(nong, pop, step)                      # B1d-b：农户 → 吏（带财富/粮）
+            move_pop_people(nong, pop, step, state)                # B1d-b：农户 → 吏（带财富/粮）
         else:
             step = max(step, -actual)                              # 不得裁到负数
             if step == 0:
                 continue
-            move_pop_people(pop, nong, -step)                     # B1d-b：吏 → 农户（带财富/粮）
+            move_pop_people(pop, nong, -step, state)               # B1d-b：吏 → 农户（带财富/粮）
         pop["clerks"] = actual + step
         # `pop["size"]` 由 `move_pop_people` 同步（不再手动 ±step，避免双重计数）
         net += step
@@ -223,9 +226,11 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
         q = p["pops"][k]
         share = (take - given) if i == len(keys) - 1 else int(take * pools[k] / max(1, total_pool))
         share = max(0, min(share, int(q.get("wealth", 0) or 0)))
-        q["wealth"] = int(q.get("wealth", 0) or 0) - share
+        if _pop_obj_add(state, q, "wealth", -share) is None:
+            q["wealth"] = int(q.get("wealth", 0) or 0) - share
         given += share
-    pop["wealth"] = int(pop.get("wealth", 0) or 0) + given
+    if _pop_obj_add(state, pop, "wealth", given) is None:
+        pop["wealth"] = int(pop.get("wealth", 0) or 0) + given
 
     coverage = given / max(1.0, desired)
     d["extortion"] = given
