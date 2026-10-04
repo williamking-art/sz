@@ -153,5 +153,134 @@ def survey_pops(state) -> Dict[str, object]:
     return out
 
 
+# ── 派生镜像与字段级桥接（2026-10-04 增补） ──
+#
+# 设计要点：`pops` 直访 197 处中**绝大多数是读取**（跨路求和 sum(size)、读 wealth 等）。
+# 若要求全部改写为治所级遍历，工作量与出错面都不可控。
+#
+# 因此采用**派生镜像**方案：
+#   · **真账**仍是 `seats[治所]["pops"]`；
+#   · 路级 `pops` 是桥接层**维护的派生镜像**，供存量读取代码使用；
+#   · **所有写入必须走** `pop_set` / `pop_add`，由它们先落州府、再刷新镜像，
+#     从根上杜绝「镜像与真账漂移」。
+#
+# ⚠️ 一致性由 `assert_pops_consistent` 锁定（回归测试兜底）；直访清零后镜像即可退役。
+
+_NUM_FIELDS = ("size", "kou", "ding", "wealth", "literacy", "hidden",
+               "欠税", "自耕农", "佃农", "富农", "贫农")
+
+
+def sync_route_pops(pdata: dict) -> bool:
+    """刷新路级 `pops` 派生镜像 = Σ治所。返回是否真的刷新了（有 seats 时）。"""
+    if not isinstance(pdata, dict):
+        return False
+    seats = pdata.get("seats") or {}
+    if not seats:
+        return False
+    pops = pdata.setdefault("pops", {})
+    for cls in POP_CLASSES:
+        agg = aggregate_seat_pops(pdata, cls)
+        if isinstance(agg, dict):
+            pops[cls] = agg
+    return True
+
+
+def pop_get(pdata: dict, cls: str, field: str = "size"):
+    """**读**真账（治所级聚合）。未下沉时回落路级原账；都没有 ⇒ `None`（缺失≠0）。"""
+    if not isinstance(pdata, dict):
+        return None
+    agg = aggregate_seat_pops(pdata, cls)
+    if isinstance(agg, dict):
+        return agg.get(field)
+    row = (pdata.get("pops") or {}).get(cls)
+    if isinstance(row, dict):
+        v = row.get(field)
+        return v if isinstance(v, (int, float)) else None
+    return None
+
+
+def _field_weights(pdata: dict, cls: str, field: str) -> List[tuple]:
+    """写 delta 时的分摊权重：优先该字段在治所间的现有分布，缺失则用人口。
+
+    例：征税扣的是 `wealth` ⇒ 按各治所 `wealth` 占比分摊，**比按人口更贴近真实承担**。
+    """
+    seats = (pdata or {}).get("seats") or {}
+    if seats:
+        out = []
+        for sid, s in seats.items():
+            row = ((s or {}).get("pops") or {}).get(cls) or {}
+            v = row.get(field)
+            if isinstance(v, (int, float)) and v > 0:
+                out.append((sid, float(v)))
+        if out:
+            return out
+    return seat_pop_weights(str((pdata or {}).get("name") or ""))
+
+
+def pop_set(pdata: dict, cls: str, field: str, value) -> Optional[int]:
+    """**写**真账：按当前治所分布把 `value` 铺到各治所，再刷新镜像。
+
+    铺分而非「全给一个治所」是 POP 挂载律的要求（人只落 6 类 size，不得凭空造人）。
+    返回写后真账合计；未下沉时返回 `None`。
+    """
+    if not isinstance(pdata, dict):
+        return None
+    seats = pdata.get("seats") or {}
+    if not seats:
+        return None
+    w = _field_weights(pdata, cls, field)
+    if not w:
+        return None
+    if field == "goods":
+        gd = {k: int(v or 0) for k, v in (value or {}).items()}
+        for sid, s in seats.items():
+            rows = (s or {}).setdefault("pops", {})
+            rows[cls] = rows.get(cls) or {}
+            rows[cls]["goods"] = dict(gd)
+        sync_route_pops(pdata)
+        return int(sum(gd.values()))
+    parts = _split_int(int(value or 0), w)
+    for sid, s in seats.items():
+        rows = (s or {}).setdefault("pops", {})
+        rows[cls] = rows.get(cls) or {}
+        rows[cls][field] = parts.get(sid, 0)
+    sync_route_pops(pdata)
+    return int(sum(parts.values()))
+
+
+def pop_add(pdata: dict, cls: str, field: str, delta) -> Optional[int]:
+    """**写**真账（增量）：读真账 → 加 → 按治所现有分布铺分 → 刷新镜像。"""
+    if not isinstance(pdata, dict):
+        return None
+    if not (pdata.get("seats") or {}):
+        return None
+    cur = pop_get(pdata, cls, field)
+    if not isinstance(cur, (int, float)):
+        return None
+    return pop_set(pdata, cls, field, max(0, int(cur) + int(delta or 0)))
+
+
+def assert_pops_consistent(pdata: dict) -> List[str]:
+    """断言路级镜像 == Σ治所（逐字段）。返回失配列表（空 = 通过）。"""
+    bad = []
+    if not isinstance(pdata, dict):
+        return ["pdata 非 dict"]
+    if not (pdata.get("seats") or {}):
+        return []
+    pops = pdata.get("pops") or {}
+    for cls in POP_CLASSES:
+        agg = aggregate_seat_pops(pdata, cls)
+        row = pops.get(cls)
+        if not isinstance(agg, dict) or not isinstance(row, dict):
+            continue
+        for f in _NUM_FIELDS:
+            a1, a2 = agg.get(f), row.get(f)
+            if isinstance(a1, (int, float)) and isinstance(a2, (int, float)) \
+                    and int(a1) != int(a2):
+                bad.append("%s/%s: 镜像 %s != 真账 %s" % (cls, f, a2, a1))
+    return bad
+
 __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "seat_pop_weights",
-           "split_pops_to_seats", "aggregate_seat_pops", "survey_pops"]
+           "split_pops_to_seats", "aggregate_seat_pops", "survey_pops",
+           "sync_route_pops", "pop_get", "pop_set", "pop_add",
+           "assert_pops_consistent"]
