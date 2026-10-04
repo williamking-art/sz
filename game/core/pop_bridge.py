@@ -216,18 +216,20 @@ def sync_route_pops(pdata: dict) -> bool:
     if not seats:
         return False
     pops = pdata.setdefault("pops", {})
-    for cls in POP_CLASSES:
-        agg = aggregate_seat_pops(pdata, cls)
-        if not isinstance(agg, dict):
-            continue
-        row = pops.get(cls)
-        if isinstance(row, dict):
-            # 🔴 **合并而非替换**：`agg` 只含 SPLIT_FIELDS+goods，直接 `pops[cls] = agg`
-            # 会**抹掉** `estate`/`estate_hoard`/`officials`/`clerks`/`on_post` 等
-            # 不参与拆分的字段（实测导致 literacy 派生值漂移、存档往返后家产丢失）。
-            row.update(agg)
-        else:
-            pops[cls] = agg
+    # 镜像刷新是**由真账派生的合法写入**，豁免守卫记账（否则会被误判成绕过桥接的直写）。
+    with _pops_write_exempt():
+        for cls in POP_CLASSES:
+            agg = aggregate_seat_pops(pdata, cls)
+            if not isinstance(agg, dict):
+                continue
+            row = pops.get(cls)
+            if isinstance(row, dict):
+                # 🔴 **合并而非替换**：`agg` 只含 SPLIT_FIELDS+goods，直接 `pops[cls] = agg`
+                # 会**抹掉** `estate`/`estate_hoard`/`officials`/`clerks`/`on_post` 等
+                # 不参与拆分的字段（实测导致 literacy 派生值漂移、存档往返后家产丢失）。
+                row.update(agg)
+            else:
+                pops[cls] = agg
     return True
 
 
@@ -326,11 +328,155 @@ def assert_pops_consistent(pdata: dict) -> List[str]:
                 bad.append("%s/%s: 镜像 %s != 真账 %s" % (cls, f, a2, a1))
     return bad
 
-__all__ = ["POP_CLASSES", "SPLIT_FIELDS", "seat_pop_weights",
+# ── 路级 pops 只读守卫（2026-10-04 · 5b 退役路级 pops） ──
+#
+# 背景：路级 `pops` 是**派生镜像**（真账 = `seats[治所]["pops"]`）。所有**写入**已
+# 桥接化，但「不再有人写路级 pops」此前只是一句**声明**，没有机制保证 —— 任何人新增
+# 一行 `p["pops"]["农"]["size"] -= 1` 都不会被察觉，镜像会静默漂移。
+#
+# 做法：把路级 `pops` 与其各 POP 行包成 dict 子类，写入即**记账**；
+# 再由测试跑长局断言**零违规**。这把声明变成了**可证明的不变量**。
+
+_VIOLATIONS = []
+_GUARD_INSTALLED = False
+
+#: 豁免深度 > 0 时守卫**只记账不计数** —— `sync_route_pops` 的镜像刷新属合法写入，
+#: 不能算作「绕过桥接的直写」。用 try/finally 保证一定复位。
+_EXEMPT = []
+
+
+class _pops_write_exempt:
+    """上下文管理器：在其内部，守卫**不记账**。
+
+    用于 `sync_route_pops` 这类「由真账刷新派生镜像」的合法写入，
+    以免把镜像刷新误判成绕过桥接的直写。
+    """
+
+    __slots__ = ()
+
+    def __enter__(self):
+        _EXEMPT.append(1)
+        return self
+
+    def __exit__(self, *exc):
+        if _EXEMPT:
+            _EXEMPT.pop()
+        return False
+
+
+def _charging() -> bool:
+    return not _EXEMPT
+class _GuardedPops(dict):
+    """路级 `pops` 只读守卫：任何**直接写入**都会记录到 `_VIOLATIONS`。"""
+
+    __slots__ = ("_label",)
+
+    def _rec(self, key, val):
+        if not _charging():
+            return
+        if len(_VIOLATIONS) < 500:
+            _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
+
+    def __setitem__(self, key, value):
+        self._rec(key, value)
+        return dict.__setitem__(self, key, value)
+
+    def update(self, *a, **k):
+        self._rec("*update*", (a, k))
+        return dict.update(self, *a, **k)
+
+    def pop(self, *a, **k):
+        self._rec("*pop*", a)
+        return dict.pop(self, *a, **k)
+
+    def popitem(self, *a, **k):
+        self._rec("*popitem*", a)
+        return dict.popitem(self, *a, **k)
+
+    def clear(self):
+        self._rec("*clear*", None)
+        return dict.clear(self)
+
+
+class _GuardedRow(dict):
+    """单个 POP 行守卫（`pops[cls]`）：写入同样记账。"""
+
+    __slots__ = ("_label",)
+
+    def _rec(self, key, val):
+        if not _charging():
+            return
+        if len(_VIOLATIONS) < 500:
+            _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
+
+    def __setitem__(self, key, value):
+        self._rec(key, value)
+        return dict.__setitem__(self, key, value)
+
+    def update(self, *a, **k):
+        self._rec("*update*", (a, k))
+        return dict.update(self, *a, **k)
+
+    def pop(self, *a, **k):
+        self._rec("*pop*", a)
+        return dict.pop(self, *a, **k)
+
+    def popitem(self, *a, **k):
+        self._rec("*popitem*", a)
+        return dict.popitem(self, *a, **k)
+
+    def clear(self):
+        self._rec("*clear*", None)
+        return dict.clear(self)
+
+
+def install_pops_guard(pdata: dict, label: str = "") -> bool:
+    """给一路装上只读守卫。**必须在该路已下沉（有 `seats`）之后**调用。"""
+    if not isinstance(pdata, dict) or not pdata.get("seats"):
+        return False
+    pops = pdata.get("pops")
+    if not isinstance(pops, dict):
+        return False
+    if not isinstance(pops, _GuardedPops):
+        g = _GuardedPops(pops)
+        g._label = label or "pops"
+        pdata["pops"] = g
+        for cls, row in list(g.items()):
+            if isinstance(row, dict) and not isinstance(row, _GuardedRow):
+                r = _GuardedRow(row)
+                r._label = "%s/%s" % (g._label, cls)
+                dict.__setitem__(g, cls, r)
+    return True
+
+
+def install_all_guards(state) -> int:
+    """给 `state` 全部已下沉的路装守卫，返回装了几路。"""
+    global _GUARD_INSTALLED
+    n = 0
+    for route, pdata in (getattr(state, "prefectures", None) or {}).items():
+        if install_pops_guard(pdata, str(route)):
+            n += 1
+    _GUARD_INSTALLED = True
+    return n
+
+
+def pops_guard_violations() -> list:
+    """返回守卫记录的**直接写入**列表（空 = 路级 `pops` 全程只读）。"""
+    return list(_VIOLATIONS)
+
+
+def reset_pops_guard() -> None:
+    """清空守卫记账（测试用）。"""
+    del _VIOLATIONS[:]
+
+__all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
            "split_pops_to_seats", "aggregate_seat_pops", "survey_pops",
            "sync_route_pops", "pop_get", "pop_set", "pop_add",
            "assert_pops_consistent", "locate_pops",
-           "pop_obj_set", "pop_obj_add"]
+           "pop_obj_set", "pop_obj_add",
+           # 路级 pops 只读守卫（5b 退役）
+           "install_pops_guard", "install_all_guards",
+           "pops_guard_violations", "reset_pops_guard"]
 
 
 def locate_pops(state, pop_obj) -> tuple:
