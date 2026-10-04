@@ -26,6 +26,12 @@ from core.settlement_common import (
     _collect_from_pops,
 )
 
+# G-3 粮迁移（2026-10-04 · H 裁定为甲）：POP 存粮的读写统一走桥接层，
+# 写只落一个载体（`goods[米]` 或旧 `.grain`），**绝不双写**。
+# ⚠️ 迁移分片推进中：`pops[].grain` 仍有 390 处触点未改，
+# 本文件内**已改的段落**与**未改段落**共用桥接，故两种载体可并存而不会双写。
+from core.grain_bridge import grain_add as _grain_add, grain_get as _grain_get, grain_set as _grain_set
+
 from core.settlement_finance import (  # 跨域互调
     _refresh_jiaozi_credit,
     _settle_jiaozi_term,
@@ -218,9 +224,9 @@ def _settle_land_local(state, log):
         _nong, _shen = p["pops"]["农"], p["pops"]["士绅"]
         if _harvest:
             produce = int(p["grain"] / 3.0)
-            _nong["grain"] += int(produce * p.get("self_farm_land", 0) / _land)          # 自耕田→自耕农
+            _grain_add(_nong, int(produce * p.get("self_farm_land", 0) / _land))          # 自耕田→自耕农
             _gp = int(produce * p.get("gentry_land", 0) / _land)
-            _nong["grain"] += _gp // 2; _shen["grain"] += _gp // 2                      # 地主田→佃户半+士绅半
+            _grain_add(_nong, _gp // 2); _grain_add(_shen, _gp // 2)                      # 地主田→佃户半+士绅半
             _op = int(produce * p.get("official_land", 0) / _land)
             # 官田→佃户半 + 太仓半。
             # 审查修复（静默丢粮）：change_granary 有 cap 封顶，原未先查余量
@@ -230,19 +236,19 @@ def _settle_land_local(state, log):
             _room = max(0, int(getattr(state, "granary_cap", 1 << 30))
                         - int(getattr(state, "granary", 0) or 0))
             _op_in = min(_op_half, _room)
-            _nong["grain"] += _op_half - _op_in
+            _grain_add(_nong, _op_half - _op_in)
             if _op_in > 0:
                 state.change_granary(_op_in)
                 state.granary_stats["official"] = (
                     state.granary_stats.get("official", 0) + _op_in)
             _ip = int(produce * p.get("imperial_land", 0) / _land)
-            _nong["grain"] += _ip // 2; state.imperial_granary += _ip // 2              # 皇庄→佃户半+内帑粮
+            _grain_add(_nong, _ip // 2); state.imperial_granary += _ip // 2              # 皇庄→佃户半+内帑粮
             # 隐田（不籍）产出（B1c）：**隐户自产 70% / 庇护士绅 30%** —— 修正"隐户只有消费
             # 没有生产"与文档 §3.7"隐户全产归己"的冲突；两份额之和 == 原全额 ⇒ Σ粮守恒不变。
             _hp = int(produce * p.get("hidden_land", 0) / _land)
             _hp_own = int(_hp * HIDDEN_LAND_TENANT_SHARE)
-            _nong["grain"] += _hp_own
-            _shen["grain"] += _hp - _hp_own
+            _grain_add(_nong, _hp_own)
+            _grain_add(_shen, _hp - _hp_own)
             if _hp_own:
                 state.statistics["hidden_produce"] = (
                     state.statistics.get("hidden_produce", 0) + _hp_own)
@@ -269,12 +275,13 @@ def _settle_land_local(state, log):
             # 名义税额，却把**名义全额**记入 `storage` → 存粮不足时凭空多出等额仓粮
             # （实测 +899,480 石/月）。现改为：扣多少、入库多少，缺口如实记账但不并入
             # `欠税`（该科目单位为贯且有逐月追缴段，粮缺口以石计，混入会污染单位语义）。
-            _avail_n = int(_nong.get("grain", 0) or 0)
-            _avail_s = int(_shen.get("grain", 0) or 0)
+            # 🔴 G-3：读走桥接层（缺失 ⇒ 视作 0 石存粮，按实征入库，缺口如实记账）
+            _avail_n = _grain_get(_nong) or 0
+            _avail_s = _grain_get(_shen) or 0
             _got_n = min(_st, _avail_n)
             _got_s = min(_gt, _avail_s)
-            _nong["grain"] = _avail_n - _got_n
-            _shen["grain"] = _avail_s - _got_s
+            _grain_set(_nong, _avail_n - _got_n)
+            _grain_set(_shen, _avail_s - _got_s)
             p["storage"] = p.get("storage", 0) + _got_n + _got_s
             _tax_grain_short = (_st - _got_n) + (_gt - _got_s)
             if _tax_grain_short > 0:
@@ -286,7 +293,7 @@ def _settle_land_local(state, log):
         # 从农存粮扣（农户备种，真实粮耗不造币；口粮已改「纯口粮」口径防双计）
         _seed = int(p.get("land", 0) * SEED_GRAIN_PER_MU / 12.0)
         if _seed > 0:
-            _nong["grain"] = max(0, _nong["grain"] - _seed)
+            _grain_set(_nong, max(0, (_grain_get(_nong) or 0) - _seed))
             state.granary_stats["seed_grain"] = state.granary_stats.get("seed_grain", 0) + _seed
     if state.single_whip:
         if land_grain > 0:
