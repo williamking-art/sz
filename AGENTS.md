@@ -68,7 +68,7 @@ cd D:\codebuddy\sz
      `prefectures[路]["seats"][治所]["pops"][类]`（每治所一个独立 POP）；
      **路级 `prefectures[路]["pops"]` 降为只读派生聚合（Σ 治所）**，任何写入必须落州府，
      否则即构成「与 POP 平行的账本」。这与粮迁移（`grain` → `goods[米]` 派生）是同一模式。
-   - **当前状态**：`pops` 的**全部写入点已桥接化**（约 130 处，覆盖 `settlement_finance`/`granary`/`officialdom`/`econ`/`common`/`imperial`/`decree`/`commands`/`clerks`/`game_state`/`agri`/`econ_helpers`）。**存量读取仍走路级 `pops`**（它是桥接维护的派生镜像，故读取不必逐处改写）。**退役路级 `pops` 的前置条件尚未满足** —— 旧档 `save_load` 迁移（载入旧档时补出 `seats`）还没做，桥接层是过渡期**唯一允许的写入口**；补齐 `save_load` 迁移后，路级 `pops` 方可退役。
+   - **当前状态**：`pops` 的**全部写入点已桥接化**（约 130 处，覆盖 `settlement_finance`/`granary`/`officialdom`/`econ`/`common`/`imperial`/`decree`/`commands`/`clerks`/`game_state`/`agri`/`econ_helpers`）。**存量读取仍走路级 `pops`**（它是桥接维护的派生镜像，故读取不必逐处改写）。**旧档 `save_load` 迁移已落地**（`_migrate_pops_to_seats`：载入时对 `seats` 缺失的路补拆分；已下沉档绝不覆盖）。**退役路级 `pops` 的前置条件已满足**，待确认后摘除路级写入通路。⚠️ **均值类字段**（`MEAN_FIELDS`，如识字率）是比率，拆分/聚合都**不可求和**（复制 + 按 size 加权）；⚠️ `sync_route_pops` **合并**而非替换，否则抹掉 `estate`/`officials` 等不参与拆分的字段。
 2. **口径单点**：算法在 `core/`；HTTP 端点只做薄壳；**前端不复制算法**。
 3. **缺失 ≠ 0 ≠ 1.0**：缺失一律 `None` → 界面显示"未定义"；禁止回落 0/1.0 假装无事。
 4. **核心模拟**（经济/人口/税收/随机数/长期结算）任何改动：**先说明口径与影响 + 加定向回归**。
