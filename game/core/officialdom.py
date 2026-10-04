@@ -48,7 +48,30 @@ from core import institution as _inst       # 编制参数单一权威源（阶�
 from core.pop_structure import move_pop_people   # B1d-b：跨 POP 流动**带财富/粮**（人均连续）
 # 利益集团二期：人员进出口只改 `state.faction_split` 占比（唯一写入点 set_split），
 # 人仍在同一 POP 的 size 里 —— 不新开人口账本。
-from core.faction_split import blend_entrants, exit_faction_members, split_of
+# 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层
+from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.faction_split import (blend_entrants, exit_faction_members,
+                                split_of)
+
+#: 路级 pref id → state 弱引用。由 `register_pref_state` 登记、`_state_of` 反查。
+#: 存在的理由：`add_officials(pref, …)` 这类公共辅助函数签名里只有 `pref`，
+#: 没有 state 就用不了 `pop_obj_add` 的反查入口。查不到时返回 None（调用方回落原写法）。
+_PREF_STATE: Dict[int, Any] = {}
+
+
+def register_pref_state(pref: Dict[str, Any], state) -> None:
+    """登记路级 `pref` 所属 `state`，供无 state 参数的辅助函数桥接反查。"""
+    try:
+        import weakref
+        _PREF_STATE[id(pref)] = weakref.ref(state)
+    except Exception:
+        pass
+
+
+def _state_of(pref: Dict[str, Any]):
+    """由路级 pref 反查 state；未登记 ⇒ `None`（调用方必须据此回落原写法）。"""
+    ref = _PREF_STATE.get(id(pref))
+    return ref() if ref is not None else None
 
 POP_CLASS = "官僚"
 GENTRY_CLASS = "士绅"
@@ -196,7 +219,9 @@ def recruit_by_recommendation(state, pref: Dict[str, Any], n: int, patron: Any,
         return 0
     fac = _minister_faction(patron) or _examiner_faction(state)
     base = _officials_total(state)
-    shen["size"] = int(shen.get("size", 0)) - take
+    if _pop_obj_add(state, shen, "size", -take) is None:
+        shen["size"] = int(shen.get("size", 0)) - take
+    register_pref_state(pref, state)
     add_officials(pref, take, "waiting")
     if fac:
         blend_entrants(state, POP_CLASS, base, {fac: take})
@@ -417,7 +442,8 @@ def add_officials(pref: Dict[str, Any], n: int, pool: str = "waiting") -> int:
         pool = "waiting"
     pop["officials"] = int(pop["officials"]) + n
     pop[pool] = int(pop[pool]) + n
-    pop["size"] = int(pop["size"]) + n
+    if _pop_obj_add(_state_of(pref), pop, "size", n) is None:
+        pop["size"] = int(pop["size"]) + n
     return n
 
 
@@ -442,7 +468,8 @@ def remove_officials(pref: Dict[str, Any], n: int, prefer=("sinecure", "waiting"
             pop[key] = int(pop[key]) - room
             cut += room
     pop["officials"] = int(pop["officials"]) - cut
-    pop["size"] = max(0, int(pop["size"]) - cut)
+    if _pop_obj_add(_state_of(pref), pop, "size", -cut) is None:
+        pop["size"] = max(0, int(pop["size"]) - cut)
     return cut
 
 
@@ -594,8 +621,8 @@ def _annual_retire(state, log) -> int:
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if isinstance(shen, dict):
             # B1d-b：致仕者**带本派立场回士绅**，并按人头**带走财富/粮**（人均连续）
-            move_pop_people(pop, shen, n)
-        else:
+            move_pop_people(pop, shen, n, state)
+        elif _pop_obj_add(state, pop, "size", -n) is None:
             pop["size"] = max(0, int(pop["size"]) - n)
         total += n
     if total:
@@ -638,7 +665,8 @@ def _annual_clan(state, log) -> int:
         add = int(clan * CLAN_GROWTH_ANNUAL)
         if add > 0:
             shen["clan"] = clan + add
-            shen["size"] = int(shen.get("size", 0)) + add     # 新增人丁（非转移）
+            if _pop_obj_add(state, shen, "size", add) is None:
+                shen["size"] = int(shen.get("size", 0)) + add   # 新增人丁（非转移）
             # **必须同步人口总账**：POP 挂载律 条 3 要求阶层变动「ΣPOP 守恒**或显式记为
             # 人口自然增减**」。只加 ΣPOP 而不加 state.population，会让身份式
             # `ΣPOP + 流民 == population` 在月内破裂（月尾 Step 10.5 的重对齐会把它掩盖成
@@ -656,11 +684,12 @@ def _annual_clan(state, log) -> int:
                 guan = (p.get("pops") or {}).get(POP_CLASS)
                 if isinstance(guan, dict):
                     ensure_subpools(p)
-                    move_pop_people(shen, guan, n)
+                    move_pop_people(shen, guan, n, state)
                     guan["officials"] = int(guan["officials"]) + n
                     guan["waiting"] = int(guan["waiting"]) + n
-                else:
+                elif _pop_obj_add(state, shen, "size", -n) is None:
                     shen["size"] = int(shen["size"]) - n
+                    register_pref_state(p, state)
                     add_officials(p, n, "waiting")
                 entered += n
     if births:
@@ -729,15 +758,18 @@ def _triennial_exam(state, log) -> int:
         if isinstance(guan, dict):
             ensure_subpools(p)
             if hard > 0:
-                move_pop_people(nong, guan, hard)        # 转移：农 → 官僚
+                move_pop_people(nong, guan, hard, state)   # 转移：农 → 官僚
             if elite > 0:
-                move_pop_people(shen, guan, elite)       # 转移：士绅 → 官僚
+                move_pop_people(shen, guan, elite, state)  # 转移：士绅 → 官僚
             _added = hard + elite
             guan["officials"] = int(guan["officials"]) + _added
             guan["waiting"] = int(guan["waiting"]) + _added   # 新科进士先待阙（§13.5）
         else:
-            nong["size"] = int(nong["size"]) - hard
-            shen["size"] = int(shen["size"]) - elite
+            if _pop_obj_add(state, nong, "size", -hard) is None:
+                nong["size"] = int(nong["size"]) - hard
+            if _pop_obj_add(state, shen, "size", -elite) is None:
+                shen["size"] = int(shen["size"]) - elite
+            register_pref_state(p, state)
             add_officials(p, hard + elite, "waiting")
         taken += hard + elite
         hard_total += hard
@@ -779,7 +811,9 @@ def _triennial_yinben(state, log) -> int:
         if n <= 0:
             continue
         n = min(n, int(shen.get("size", 0)))
-        shen["size"] = int(shen["size"]) - n
+        if _pop_obj_add(state, shen, "size", -n) is None:
+            shen["size"] = int(shen["size"]) - n
+        register_pref_state(p, state)
         add_officials(p, n, "waiting")
         total += n
     if total:
