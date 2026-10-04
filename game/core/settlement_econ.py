@@ -32,6 +32,12 @@ from core.settlement_common import (
 # 本文件内**已改的段落**与**未改段落**共用桥接，故两种载体可并存而不会双写。
 from core.grain_bridge import grain_add as _grain_add, grain_get as _grain_get, grain_set as _grain_set
 
+# 🔴 方案乙（2026-10-04 用户裁定：POP 实体下沉州府级）：POP **写入**走桥接层，
+# 由它先落州府真账、再刷新路级派生镜像，杜绝漂移。存量**读取**仍走路级 `pops`（派生镜像）。
+# ⚠️ 未下沉（无 `seats`）时桥接返回 None，调用方回落原写法。
+from core.pop_bridge import (pop_add as _pop_add, pop_obj_add as _pop_obj_add,
+                             pop_obj_set as _pop_obj_set)
+
 from core.settlement_finance import (  # 跨域互调
     _refresh_jiaozi_credit,
     _settle_jiaozi_term,
@@ -567,7 +573,9 @@ def _settle_extensions(state, log):
                         _mp_big, _mp_big_sz = _rk, _sz
             _mp_shares[_mp_big] += _merchant_profit - sum(_mp_shares.values())
             for _rk, _c in _mp_shares.items():
-                state.prefectures[_rk]["pops"]["商人"]["wealth"] += _c
+                _mp = state.prefectures[_rk]["pops"]["商人"]
+                if _pop_obj_add(state, _mp, "wealth", _c) is None:
+                    _mp["wealth"] += _c
             # 审查 P2-3 / M8：原 `except Exception: pass  # 台账登记失败不影响结算`
             # —— 未登记的体外注入会被对账算成残差（面板误报"凭空造币"）。统一走
             # `register_money_flow`：WARNING + traceback + `money_audit["flow_errors"]`。
@@ -1525,8 +1533,13 @@ def _settle_civilian_hoard(state, log):
         _draw = int(genty.get("窖银", 0) * _draw_rate)
         if _draw > 0:
             genty["窖银"] = genty.get("窖银", 0) - _draw
-            p["pops"]["工匠"]["wealth"] += int(_draw * 0.5)
-            p["pops"]["商人"]["wealth"] += int(_draw * 0.5)
+            _half = int(_draw * 0.5)
+            _art = p["pops"]["工匠"]
+            _mer = p["pops"]["商人"]
+            if _pop_obj_add(state, _art, "wealth", _half) is None:
+                _art["wealth"] += _half
+            if _pop_obj_add(state, _mer, "wealth", _half) is None:
+                _mer["wealth"] += _half
 
 
 def _input_scale(got_dims: dict, got_grain: float, recipe: dict) -> float:

@@ -25,7 +25,7 @@ POP_CLASSES = ("农", "士绅", "商人", "官僚", "兵", "工匠")
 
 #: 拆分时需**逐字段守恒**的数值字段（尾差归权重最大者）
 SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "literacy", "hidden",
-                 "欠税", "自耕农", "佃农", "富农", "贫农")
+                 "欠税", "自耕农", "佃农", "富农", "贫农", "窖银")
 
 
 def seat_pop_weights(circuit: str) -> List[tuple]:
@@ -167,7 +167,7 @@ def survey_pops(state) -> Dict[str, object]:
 # ⚠️ 一致性由 `assert_pops_consistent` 锁定（回归测试兜底）；直访清零后镜像即可退役。
 
 _NUM_FIELDS = ("size", "kou", "ding", "wealth", "literacy", "hidden",
-               "欠税", "自耕农", "佃农", "富农", "贫农")
+               "欠税", "自耕农", "佃农", "富农", "贫农", "窖银")
 
 
 def sync_route_pops(pdata: dict) -> bool:
