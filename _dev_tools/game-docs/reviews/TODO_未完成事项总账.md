@@ -25,7 +25,24 @@
 
 ## 二、未完成 —— 可直接开工（不需裁定）
 
-### P0 · G-5 州府级价格发现
+### P0 · G-5 治所级价格发现 ✅ 基座已落地（接线待做）
+
+**⚠️ 2026-10-04 实测诊断推翻了本节原措辞**（原写「`GOODS_DEMAND` 扩到州府」）：
+
+- 🔴 `GOODS_DEMAND` 在 `settlement_econ` **出现 0 次** —— 只存在于外邦口径；
+- ✅ **路级价格发现早已存在**：B2-R2 键 `"路|商品"`（`pref_good_key`），
+  `material_market` / `settlement_granary` / `export_policy` 三处在用；
+- 🔴 `market_price.py` 里「治所」命中 **0 次** —— 州府桶里的货**共用本路一个价**，
+  「运没运到」对价格**不可观测**。
+
+⇒ **真实缺口是「治所这一段」**，不是缺一个「州府价格函数」。
+按原措辞做会造出与 `material_market` 并行的**第二条价格线**（违反口径单点 §3-2）。
+
+**✅ 已落地（基座）**：同模块内扩键 `"路|治所|商品"` —— `seat_good_key` /
+`record_seat_trade_price` / `discover_seat_price`；旧键 `"路|商品"` 仍可读（**旧档不必迁移**）；
+治所无成交则**回落本路价而非填 0**。提交 `c0fca23f90` + 10 条回归。
+
+**⬜ 未做**：调用侧（`material_market` 成交记账）改传 `seat` —— 那才是 G-5 的实际落地。
 
 **现状**：`settlement_econ.py` 里 `GOODS_DEMAND` **出现 0 次**；无州府级商品价格函数。
 路线粮价走 `game_state_econ.calc_region_grain_price`，建材/商品仍是**路级单一价**。
