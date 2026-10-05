@@ -71,6 +71,109 @@ def _split_int(total: int, weights: List[tuple]) -> Dict[str, int]:
     return parts
 
 
+# ══ economic_affiliation 子池（G-3/T1 · 2026-10-05） ══
+#
+# 🔴 **命名纪律**：经济经营关系**不得**叫 `faction` —— 该名已被**政治派系**占用
+#    （`state.factions` + `FACTION_POP_BASIS` / `FACTION_SPEC`：新党/旧党/皇党/军功/中立）。
+#    见 `reviews/POP改良方案_2026-10-05.md`。政治派系**跨阶层且可重叠**，
+#    经济归属是**互斥子池**，两者语义不同、不可共用键。
+#
+# **为什么需要独立通道**：子池是**嵌套 dict**（`关系键 -> {size,wealth,goods}`），
+# 而 `SPLIT_FIELDS` 的拆分逻辑是「逐字段求和」，嵌套值会被跳过。
+# ⇒ 不能塞进该列表，否则拆分时整块丢失。
+#
+# **挂载律**（与 POP 挂载律一致）：子池是父 POP 的**分区**，不是并行账本；
+#    `Σ child.size == parent.size`；不适用时**不造空池**；缺依据保 `unclassified`。
+
+AFFILIATION_FIELDS = ("size", "kou", "ding", "wealth", "grain", "窖银", "欠税")
+
+
+def split_affiliation_to_seats(src: dict, weights: List[tuple]) -> dict:
+    """把路级 POP 的 `economic_affiliation` 子池**拆入**各治所。
+
+    - 按**人口权重**拆分（与扁平字段同权重，保证 `Σ 治所 == 路级`）；
+    - 嵌套 `goods` 按「扁平 + 州府桶」双形态处理（同 `split_pops_to_seats`）；
+    - **无权重或无子池 ⇒ 返回 {}**（不臆造归属，不造空池）。
+    """
+    aff = src.get("economic_affiliation")
+    if not isinstance(aff, dict) or not aff:
+        return {}
+    if not weights:
+        return {}
+    out = {}
+    for sid, _p in weights:
+        local = {}
+        for rel, row in aff.items():
+            if not isinstance(row, dict):
+                continue
+            seg = {}
+            for f in AFFILIATION_FIELDS:
+                v = row.get(f)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    seg[f] = _split_int(int(v), weights).get(sid, 0)
+            gd = row.get("goods")
+            if isinstance(gd, dict):
+                _b = {}
+                for _dk, _dv in gd.items():
+                    if isinstance(_dv, dict) or not isinstance(_dv, (int, float)) or isinstance(_dv, bool):
+                        continue
+                    for _sid2, _v2 in _split_int(int(_dv), weights).items():
+                        if _v2:
+                            _b.setdefault(_sid2, {})[_dk] = int(_v2)
+                for _bk, _bv in gd.items():
+                    if not isinstance(_bv, dict):
+                        continue
+                    _tgt = _b.setdefault(_bk, {})
+                    for _dk, _dv in _bv.items():
+                        if isinstance(_dv, (int, float)) and not isinstance(_dv, bool):
+                            _tgt[_dk] = int(_tgt.get(_dk, 0) or 0) + int(_dv)
+                if _b:
+                    seg["goods"] = _b
+            if seg:
+                local[rel] = seg
+        if local:
+            out[sid] = local
+    return out
+
+
+def aggregate_affiliation(seat_pops: dict) -> Optional[dict]:
+    """**派生聚合**：Σ 各治所子池 ⇒ 路级 `economic_affiliation`。
+
+    与扁平字段同口径（求和），`goods` 按州府桶累加。
+    **缺失 ≠ 0**：无任何治所带子池 ⇒ 返回 `None`（表示「未下沉」），不回落空账。
+    """
+    if not isinstance(seat_pops, dict) or not seat_pops:
+        return None
+    total = {}
+    for sid, pops in seat_pops.items():
+        if not isinstance(pops, dict):
+            continue
+        for row in pops.values():
+            if not isinstance(row, dict):
+                continue
+            aff = row.get("economic_affiliation")
+            if not isinstance(aff, dict) or not aff:
+                continue
+            for rel, seg in aff.items():
+                if not isinstance(seg, dict):
+                    continue
+                tgt = total.setdefault(rel, {})
+                for f in AFFILIATION_FIELDS:
+                    v = seg.get(f)
+                    if isinstance(v, (int, float)) and not isinstance(v, bool):
+                        tgt[f] = int(tgt.get(f, 0) or 0) + int(v)
+                gd = seg.get("goods")
+                if isinstance(gd, dict):
+                    tg = tgt.setdefault("goods", {})
+                    for _bk, _bv in gd.items():
+                        if not isinstance(_bv, dict):
+                            continue
+                        t2 = tg.setdefault(_bk, {})
+                        for _dk, _dv in _bv.items():
+                            if isinstance(_dv, (int, float)) and not isinstance(_dv, bool):
+                                t2[_dk] = int(t2.get(_dk, 0) or 0) + int(_dv)
+    return total or None
+
 def split_pops_to_seats(pdata: dict, circuit: str) -> int:
     """把路级 POP 聚合**就地拆入** `pdata["seats"][治所]["pops"]`。返回拆出的治所数。
 
@@ -128,6 +231,10 @@ def split_pops_to_seats(pdata: dict, circuit: str) -> int:
                         if isinstance(_dv, (int, float)) and not isinstance(_dv, bool):
                             _tgt[_dk] = int(_tgt.get(_dk, 0)) + int(_dv)
                 row["goods"] = _b
+            # economic_affiliation 子池（互斥分区，**独立通道**：嵌套 dict 不能进 SPLIT_FIELDS）
+            _aff = split_affiliation_to_seats(src, w)
+            if _aff:
+                row["economic_affiliation"] = _aff
             seat_pops[cls] = row
         seats[sid] = {"pops": seat_pops}
     pdata["seats"] = seats
@@ -190,6 +297,10 @@ def survey_pops(state) -> Dict[str, object]:
                 _bad = abs(float(a1) - float(a2)) > 0.5 if f in MEAN_FIELDS else int(a1) != int(a2)
                 if _bad:
                     out["字段失配"].append("%s/%s/%s: %s != %s" % (route, cls, f, a1, a2))
+    # economic_affiliation 子池：各治所汇总（独立通道，不走 SPLIT_FIELDS）
+    _aff = aggregate_affiliation([(s.get("pops") or {}) for s in seats.values()])
+    if _aff:
+        out["economic_affiliation"] = _aff
     return out
 
 
