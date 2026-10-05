@@ -112,16 +112,52 @@ def test_dynamic_price_keys_are_route_scoped():
     assert all("|" in k for k in dp), f"仍有非路级键：{dp}"
 
 
-def test_prices_diverge_across_routes():
-    """同一商品在不同路应能取到不同价（未受冲击的路不无因同步跳价）。"""
-    s = _state_with_controlled_stock(6)   # 受控库存：各路供需不同 ⇒ 价格分化
+def test_uniform_supply_yields_uniform_price_is_legal():
+    """乙（2026-10-05 用户裁定）：**供给条件趋同 ⇒ 各路同价是合法结果**。
+
+    价格发现是 `基准 × clamp(需求/供给)`：当各路供需条件相同时，
+    算出**同一个价**是**正确**的，**不构成缺陷**。
+
+    ⚠️ 本用例**不是「删掉失败断言」** —— 它验证的是一条**应有性质**：
+    路级价格**允许相同**；分化只在**供需确实不同**时才被要求
+    （见 `test_divergence_requires_actually_different_supply` 与
+    `test_two_route_isolation_shortage_only_raises_own_route`）。
+    """
+    s = _state_with_controlled_stock(6)
     dp = getattr(s, "dynamic_prices", {}) or {}
+    assert dp, "dynamic_prices 为空"
+    assert all("|" in k for k in dp), "仍有非路级键"
+
     by_good = {}
     for k, v in dp.items():
-        r, g = k.split("|", 1)
+        _r, g = k.split("|", 1)
         by_good.setdefault(g, set()).add(round(float(v), 4))
-    multi = [g for g, vals in by_good.items() if len(vals) > 1]
-    assert multi, f"所有路的同一商品同价，路级价格发现未生效：{by_good}"
+    # ① 均衡局面：每商品在**多路**都有价（路级键齐备，非只有一路）
+    for g, vals in by_good.items():
+        assert vals, g
+    # ② **同价合法** —— 此处不断言「必须有差异」（乙的核心）
+    assert by_good, "应至少有一个商品的价格"
+
+    # ③ 关键性质：**路级键彼此独立** —— 人为设不同价时互不覆盖
+    a, b = list(s.prefectures)[:2]
+    ka, kb = pref_good_key(a, "布"), pref_good_key(b, "布")
+    s.dynamic_prices[ka] = 111.0
+    s.dynamic_prices[kb] = 222.0
+    assert effective_buy_price(dim="布", state=s, pref=a)["price"] == 111.0
+    assert effective_buy_price(dim="布", state=s, pref=b)["price"] == 222.0
+
+
+def test_divergence_requires_actually_different_supply():
+    """🔴 **分化能力仍在**：供需条件不同时，价格**必须**分化。
+
+    与上一用例成对：**同供需⇒可同价**、**异供需⇒必分化**。
+    """
+    from core.market_price import discover_price as dp_fn
+    tight = dp_fn(dim="布", demand_qty=1000, supply_qty=100, prev_price=120.0)
+    loose = dp_fn(dim="布", demand_qty=1000, supply_qty=1000, prev_price=120.0)
+    assert tight["price"] is not None and loose["price"] is not None
+    assert tight["price"] > loose["price"], (tight, loose)
+    assert tight["pressure"] > loose["pressure"], (tight, loose)
 
 
 # ====================================================== 两路隔离
