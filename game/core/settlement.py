@@ -535,10 +535,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 施工侧（C-c）仍**只从本地取、取不到即缺料** ⇒ 物流仍有意义。
     # 本步只把 `state.resources[dim]["stock"]` **搬到商人**，**总量守恒、不凭空增物**。
     try:
-        from core.material_holding import supply_merchant_materials
-        supply_merchant_materials(state)
+        # 🔴 G-2 收口：走 `supply_goods_to_seats`（**全商品**入州府桶），
+        # 取代只服务建材三维的旧入口 `supply_merchant_materials`。
+        # 旧入口保留为**历史 API**（外部若有引用不致断裂），但不再走流水线。
+        from core.material_holding import supply_goods_to_seats
+        supply_goods_to_seats(state)
     except Exception as _mh_e:  # noqa: BLE001
-        log.append(f"[建材供给][WARN] 商人配货失败：{_mh_e!r}")
+        log.append(f"[供给][WARN] 商品配货失败：{_mh_e!r}")
 
     # ---- [建材在途] Step 4.46: 本月到期的建材批次入账（P0 · 2026-10-02）----
     # 🔴 C-c「只从本地取、取不到即缺料」要成立，**必须能观测"运没运到"** ⇒ 需要在途。
