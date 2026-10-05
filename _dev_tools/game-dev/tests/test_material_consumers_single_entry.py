@@ -143,6 +143,12 @@ def test_single_entry_points_are_the_only_write_path():
     s = GameState("史实")
     init_legacies(s)
     settle_production_chain(s, [])
+    # 6.33：未裁定维（含木石）落**归属待定槽**，不得采购；
+    # 故显式准备**已确权、可用的库存**，供营造/施工用例使用。
+    for _d in ("木", "石"):
+        _sl = s.resources.setdefault(_d, {"stock": 0, "cap": 50_000})
+        if int(_sl.get("stock", 0) or 0) <= 0:
+            _sl["stock"] = 10_000
     supply_merchant_materials(s)
 
     assert material_holding_for_circuit(s, "京畿路", "木") is not None

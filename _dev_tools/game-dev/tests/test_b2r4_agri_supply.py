@@ -55,6 +55,13 @@ def _state():
     s = GameState("史实")
     init_legacies(s)
     settle_production_chain(s, [])
+    # 6.33：未裁定维落**归属待定槽**（不得采购），而农资物料是**真扣**
+    # resources[dim]["stock"]；故显式准备已确权库存，否则「最短板降效」
+    # 会让增产恒为 0。
+    for _d in ("木", "石", "牲畜"):
+        _sl = s.resources.setdefault(_d, {"stock": 0, "cap": 50_000})
+        if int(_sl.get("stock", 0) or 0) <= 0:
+            _sl["stock"] = 50_000
     supply_merchant_materials(s)
     s.treasury = 50_000_000
     s.statistics.setdefault("upkeep_arrears", 0)

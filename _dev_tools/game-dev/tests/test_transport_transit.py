@@ -39,6 +39,12 @@ def _state():
     s = GameState("史实")
     init_legacies(s)
     settle_production_chain(s, [])
+    # 6.33：产出链的未裁定维（**含木石**）落**归属待定槽**，
+    # 不得采购/发运；故此处**显式准备已确权、可用的库存**，供运输用例使用。
+    for _d in ("木", "石"):
+        _sl = s.resources.setdefault(_d, {"stock": 0, "cap": 50_000})
+        if int(_sl.get("stock", 0) or 0) <= 0:
+            _sl["stock"] = 10_000
     supply_merchant_materials(s)
     return s
 

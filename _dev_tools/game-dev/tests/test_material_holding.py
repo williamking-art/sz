@@ -43,6 +43,13 @@ def _state(with_stock=True):
     if with_stock:
         settle_production_chain(s, [])
         supply_merchant_materials(s)
+        # 6.33：产出链的未裁定维落**归属待定槽**（不得采购/消费），
+        # 故本夹具**显式准备已确权、可用的库存**，供取料类用例使用。
+        for _d in ("木", "石"):
+            _slot = s.resources.setdefault(_d, {"stock": 0, "cap": 50_000})
+            if int(_slot.get("stock", 0) or 0) <= 0:
+                _slot["stock"] = 1000
+        supply_merchant_materials(s)
     return s
 
 

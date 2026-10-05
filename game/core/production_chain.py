@@ -54,14 +54,20 @@ def _building_mult(p: dict) -> float:
     return 1.0 + PRODUCTION_BUILDING_MULT * max(0, best_lv - 1)
 
 
-def _write_warehouse(resources: dict, dim: str, add: int) -> None:
-    """入国家仓（既有口径，**总量守恒的默认去向**）。"""
+def _write_warehouse(resources: dict, dim: str, add: int) -> int:
+    """入国家仓（既有口径）。**返回实际入账量**（cap 截断后可能少于 `add`）。
+
+    🔴 账实一致：调用方**只能按返回值**记 `produced`，否则会出现
+    「记了产量但实物没入账」，破坏实物守恒对账。
+    """
     slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
     cap = int(slot.get("cap", 50_000) or 50_000)
     stock = int(slot.get("stock", 0) or 0)
     n = min(int(add), max(0, cap - stock))
     if n > 0:
         slot["stock"] = stock + n
+    return n
+
 
 
 def _pick_seat(p: dict, dim: str) -> Optional[str]:
@@ -77,7 +83,7 @@ def _pick_seat(p: dict, dim: str) -> Optional[str]:
         return max(w, key=lambda kv: kv[1])[0]
     except Exception:                                   # noqa: BLE001
         return None
-def _write_pending(state, route: str, dim: str, add: int) -> None:
+def _write_pending(state, route: str, dim: str, add: int) -> int:
     """写入**归属待定槽**（用户裁定 6.33）。
 
     🔴 该槽**不并入** `state.resources` —— 后者被五处消费者当作**国库资产**。
@@ -93,7 +99,7 @@ def _write_pending(state, route: str, dim: str, add: int) -> None:
                                 "owner_status": "\u5f52\u5c5e\u5f85\u5b9a",
                                 "evidence_ref": None})
     ent["qty"] = int(ent.get("qty", 0) or 0) + int(add)
-
+    return int(add)
 
 def pending_total(state, dim: Optional[str] = None) -> int:
     """Σ 归属待数量（**实物守恒对账用**；不含已确权）。"""
@@ -166,8 +172,8 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
             _holder = _resolve(dim)
             _to_pop = bool(_holder) and _holder.startswith("pop:")
             _to_state = _holder in ("state_treasury", "imperial_treasury")
-            if _to_pop:
-                add = q                      # 农户/切片容器不受国库 cap 限制
+            if _to_state:
+                add = q                      # 待定/POP 各有独立容器，不得被国库 cap 截断（6.33）
             else:
                 add = min(q, max(0, cap - stock))
             if add > 0:
@@ -177,9 +183,11 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                 # **Missing（未裁定/证据不足）=> 归属待定槽**（6.33）：
                 #   存放地 != 货主，**不并入 resources**，不得出售/采购/计税。
                 if not _to_pop:
-                    _write_pending(state, name, dim, add) if not _to_state else _write_warehouse(resources, dim, add)
-                    produced[dim] = produced.get(dim, 0) + add
-                    continue
+                    # 6.33 账实一致：**按实际入账量**记 produced（国库 cap 可能截断）
+                    _in = (_write_warehouse(resources, dim, add) if _to_state
+                           else _write_pending(state, name, dim, add))
+                    if _in > 0:
+                        produced[dim] = produced.get(dim, 0) + int(_in)
                     continue
                 try:
                     _cls = _holder.split(":")[1]

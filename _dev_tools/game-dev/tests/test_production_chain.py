@@ -21,20 +21,38 @@ if _GAME_ROOT not in sys.path:
 from core.game_state import GameState  # noqa: E402
 from core.production_chain import (  # noqa: E402
     settle_production_chain, goods_direct_production_backup,
+    pending_total,
 )
 from core.settlement import run_monthly_settlement  # noqa: E402
 
 
-def test_production_chain_fills_resources():
-    """产出链：yields 年额/12 入 state.resources（stock 有增项）。"""
-    s = GameState("史实")
+def test_production_chain_conserves_across_all_destinations():
+    """产出链（6.33）：每次实际产出必落入**国库 / POP / 归属待定**之一。
+
+    🔴 **存放地 ≠ 货主**：未裁定维落 `pending_stock`，**不并入 `resources`**，
+    也不得被出售/采购/计税。旧用例假定「一切入 resources」，已随口径变更重写。
+    """
+    s = GameState("\u53f2\u5b9e")
     before = {d: int((s.resources.get(d) or {}).get("stock", 0) or 0)
               for d in s.resources}
+    p_before = pending_total(s)
     produced = settle_production_chain(s, log=[])
-    assert produced, "应有原料产出"
-    for dim, q in produced.items():
-        after = int((s.resources.get(dim) or {}).get("stock", 0) or 0)
-        assert after == before.get(dim, 0) + q, f"{dim} 入仓断裂"
+    assert produced, "\u5e94\u6709\u539f\u6599\u4ea7\u51fa"
+    # 已确权国库维（盐/铁）：入仓量必须与 produced 一致
+    res_after = {d: int((s.resources.get(d) or {}).get("stock", 0) or 0)
+                 for d in s.resources}
+    for dim in ("\u76d0", "\u94c1"):
+        if dim in produced:
+            assert res_after[dim] == before.get(dim, 0) + produced[dim], dim
+    # 未裁定维：**不得**入仓
+    for dim in ("\u4e1d", "\u9ebb", "\u679c", "\u6728", "\u77f3"):
+        if dim in produced:
+            assert res_after[dim] == before.get(dim, 0), (dim, res_after[dim])
+    # 实物守恒：总产出 == 国库增量 + 待定增量
+    res_delta = sum(res_after[d] - before.get(d, 0) for d in before)
+    p_delta = pending_total(s) - p_before
+    assert sum(produced.values()) == res_delta + p_delta, (
+        sum(produced.values()), res_delta, p_delta)
 
 
 def test_no_more_resources_only_out():
