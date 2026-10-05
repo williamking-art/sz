@@ -15,14 +15,28 @@ from core.material_holding import (HOLDER_IMPERIAL, HOLDER_MAP, HOLDER_TREASURY,
 
 
 def test_map_is_intentionally_unset():
-    """🔴 `HOLDER_MAP` 当前**刻意留空** —— 维→归属是史料+玩法双重判断，未裁定前不得填。"""
+    """`HOLDER_MAP` 只登记**已裁定**的维；未裁定的维一律缺席（调用时得 Missing）。"""
     assert isinstance(HOLDER_MAP, dict)
+    assert set(HOLDER_MAP) == {'盐', '铁', '丝', '麻', '蔗'}, sorted(HOLDER_MAP)
 
 
 def test_unmapped_dim_returns_none():
     """未裁定的维 ⇒ Missing（`None`），**不回落**为任何一方。"""
-    for dim in ('麻', '丝', '蔗', '铁', '盐', '随便一个不存在的维'):
+    # 山泽类（木/石/药材）与果/茶/金/银/铜/马/牲畜 均**刻意未裁定**
+    for dim in ('木', '石', '药材', '果', '茶', '金', '银', '铜', '马',
+                '牲畜', '随便一个不存在的维'):
+        assert dim not in HOLDER_MAP, ('不应已裁定：%s' % dim)
         assert resolve_holder(dim) is None, dim
+
+
+def test_trade_dims_need_evidence_not_bare_dim():
+    """已裁定为户内自营的维，**无切片证据时仍是 Missing**。"""
+    for dim in ('丝', '麻', '蔗'):
+        assert HOLDER_MAP.get(dim) == 'household_self', dim
+        assert resolve_holder(dim) is None, dim
+        r = resolve_holder(dim, producer_id='农',
+                           economic_affiliation={'household_self': {'size': 9}})
+        assert r == 'pop:农:household_self', (dim, r)
 
 
 def test_treasury_mapping():

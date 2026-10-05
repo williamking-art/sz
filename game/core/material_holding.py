@@ -85,7 +85,26 @@ MATERIAL_DIMS = ("木", "石", "铁")
 #    裁定后按 `HOLDER_MAP[dim] = <关系键>` 逐维填入；
 #    填入前本模块**只提供机制，不产出任何归属结论**。
 
-HOLDER_MAP: Dict[str, str] = {}
+HOLDER_MAP: Dict[str, str] = {
+    # ══ 已裁定（史实明确，见 reviews/POP家计与赋税体系设计_2026-10-04 §6.25）══
+    # 🧂 榷盐、官冶铁冶：**专卖即国家专营**，不在商人手中。
+    "盐": "state_operator",
+    "铁": "state_operator",
+    # 🧵 蚕桑纺麻为**农户家庭手工业**（「男耕女织」）⇒ 户内自营。
+    #    ⚠️ 此为**倾向**：官营佃种应另判 `state_operator`（官仓），
+    #    须按该路的田亩权利人/契约判定，本表不预断。
+    "丝": "household_self",
+    "麻": "household_self",
+    # 🍬 蔗糖为**农家副业**（家庭自营），非官营。
+    "蔗": "household_self",
+    # 🔴 **刻意留空**（Missing，不得臆断）：
+    #   木/石/药材 —— 山泽之利归官、皇室经内诸司掌控，但**具体归国库还是内帑**
+    #     取决于是否御苑/内诸司所辖，属**数据事实**，不由本表判定；
+    #   果/茶 —— 庄园与自产并存，归属随路而异；
+    #   金/银/铜 —— 金属≠钱，是实物存量，货权另议；
+    #   马/牲畜 —— 蕃部与马监并存。
+    #   ⇒ 未裁定即 Missing，调用方不得回落（POP改良方案 §2.1 第 5 条）。
+}
 
 HOLDER_TREASURY = "state_treasury"
 HOLDER_IMPERIAL = "imperial_treasury"
