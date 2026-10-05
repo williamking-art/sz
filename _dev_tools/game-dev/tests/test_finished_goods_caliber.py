@@ -43,7 +43,11 @@ def test_tax_dims_are_registered_but_not_tradeable():
 def test_pool_dims_exclude_tax_dims():
     """契约3：工匠货栈可交易维 = 成品维 − 即产即销维（settlement_econ._POOL_DIMS 口径）。"""
     pool = tuple(d for d in FINISHED_DIMS if d not in FINISHED_TAX_DIMS)
-    assert set(pool) == {"绸", "布"}, f"可交易成品维应恰为绸/布，实得 {pool}"
+    # 契约守护的是「**排除即产即销维**」，不是固定成员名单
+    # （G-6 产业链扩充已新增 纸/糖 两条可交易链，成员名单会随内容扩充增长）。
+    assert {"绸", "布", "纸", "糖"} <= set(pool), f"缺少可交易成品维，实得 {pool}"
+    assert not (set(pool) & set(FINISHED_TAX_DIMS)), f"即产即销维不得进池：{pool}"
+    assert set(pool) == set(FINISHED_DIMS) - set(FINISHED_TAX_DIMS)
     for d in FINISHED_TAX_DIMS:
         assert d not in pool, f"{d} 不得进工匠货栈"
 
