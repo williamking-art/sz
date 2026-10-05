@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """宋祚 · 存档系统
 
 工具函数（_safe_int/_safe_float/_slot_path/_strip_unknown_faction_keys）已拆至
@@ -366,6 +366,7 @@ def _migrate_pops_to_seats(state) -> int:
     返回实际迁移的路数。
     """
     try:
+        from core.grain_bridge import backfill_grain_to_seats
         from core.pop_bridge import split_pops_to_seats, sync_route_pops
     except Exception:               # noqa: BLE001 — 桥接层不可用时不得阻断载入
         return 0
@@ -381,6 +382,9 @@ def _migrate_pops_to_seats(state) -> int:
         if split_pops_to_seats(pdata, route):
             migrated += 1
             try:
+                # 🔴 G-3 片5：下沉后**立即回填粮**到州府（按治所人口权重，Σ治所 == 路级原值），
+                # 再刷路级镜像 —— 路级 `grain` 此后是**派生**，不再是载体。
+                backfill_grain_to_seats(pdata, route)
                 sync_route_pops(pdata)
             except Exception:           # noqa: BLE001 — 镜像刷新失败不影响真账
                 pass

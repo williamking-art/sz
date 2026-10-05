@@ -29,8 +29,10 @@ POP_CLASSES = ("农", "士绅", "商人", "官僚", "兵", "工匠")
 MEAN_FIELDS = ("literacy",)
 
 #: **可加类**字段：拆分与还原都按人数权重求和。
+#: 🔴 `grain` 于 2026-10-04 加入（G-3 片5 回填）：粮是**总量**（石/ding），可加；
+#:   它此前只在路级，导致「运没运到」对粮**不可观测** —— 裁定甲要求粮走州府桶。
 SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
-                 "欠税", "自耕农", "佃农", "富农", "贫农", "窖银")
+                 "欠税", "自耕农", "佃农", "富农", "贫农", "窖银", "grain")
 
 
 def seat_pop_weights(circuit: str) -> List[tuple]:
