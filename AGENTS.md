@@ -31,6 +31,31 @@
 | DSH | 已在 `~/.dsh/profiles/desktop/cordis.patch.yml` 配 `mcp-cloudbase` → 重启后得 `mcp__cloudbase__*` |
 | 其他 agent | 通用 `mcpServers` 片段见 §7 |
 
+
+### 🔀 多 Agent 协同（2026-10-04 定，跨会话必读）
+
+本仓库**存在多个并发 agent 会话**（DSH / Codex / …），同一文件可能同时被改。
+实测已发生 **3 次并发覆盖**（`game_state.py`、`pop_bridge.py`、计划文档）与 **1 次记忆库覆盖**。
+
+**云端 MCP 键位布局**（`project=songzuo`）：
+
+| 键 | 语义 | 约定 |
+|---|---|---|
+| `agents` | agent 注册表 + **文件归属** + 协议 | 共享，改前先读 |
+| `phase_<名>` | 各 agent **独占**的当前阶段 | ⚠️ 服务端会把 `:` 规范化为 `_` |
+| `decisions` | 待裁定项登记（含 `blocks`） | 共享，**决策一律进这里，不写 phase** |
+| `tasks` | 任务板（含 `claimedBy`） | 共享，**先认领再动手** |
+| `worklog` | 追加式日志 | ✅ **唯一可靠**（追加语义，不丢条目）|
+
+**三条硬规矩**：
+
+1. **先认领再动手** —— `state_get("tasks")` 看 `claimedBy`，非空且非自己就不碰；
+2. **改共享文件先声明** —— `log_append` 一行「我要改 X」；
+3. **决策不进 phase** —— 登记 `decisions`，phase 只写「我现在在做什么」。
+
+🔴 **跨会话结论必须落进仓库文件**：`state_set` 是覆盖、`context_save` 是快照，都会丢。
+云端只做**索引与认领**，**不做唯一存储**。
+
 **没有 MCP 的 agent** → 直接读**本地镜像**（普通文件，read 工具即可）：
 
 ```
@@ -123,8 +148,10 @@ cd frontend
 
 三件事，缺一不可：
 
-1. **state**：`state_set project=songzuo key=phase`，值形如
-   `{phase, updatedAt, agent, verification:{pytest,tsc,vitest,build}, openDecisions:[], blocked:[]}`
+1. **state**：`state_set project=songzuo key=phase_<你的agent名>`（⚠️ **不要写共用键 `phase`** ——
+   多 agent 会互相覆盖，见 §1「多 Agent 协同」）。值形如
+   `{phase, updatedAt, agent, verification:{pytest,tsc,vitest,build}, next}`。
+   待裁定项**另登记** `key=decisions`，任务认领**另登记** `key=tasks`。
 2. **context**：`context_save project=songzuo summary="一句话现状" data={delivered,newFiles,artifacts,next}`
 3. **worklog**：`log_append project=songzuo` 消息格式
    `YYYY-MM-DD <agent> <做了什么> <验证数字>`（例：`2026-09-29 DSH 完成审查整改 5 项；pytest 1291 / tsc 0 错 / vitest 62`）
