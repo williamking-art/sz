@@ -68,6 +68,72 @@ __all__ = [
 MATERIAL_DIMS = ("木", "石", "铁")
 
 
+# ══ 持有者解析 T2（2026-10-05） ══
+#
+# 🔴 **命名纪律**：经济经营关系键为 `economic_affiliation`（**不是** `faction` ——
+#    该名已被政治派系 `state.factions` 占用）。政治派系决定政治支持，
+#    **不决定货权**；「旧党能形成影响」≠「旧党是库存账户或收商税主体」。
+#
+# **解析必须只落到一个账户**（Codex《未完成设计对齐与改良方案_2026-10-05》）：
+#     pop_slice | state_treasury | imperial_treasury | 经营主体账户
+# 依契约分属多方时**不得**整笔归一方 —— 返回 None（`Missing`）交调用方归因。
+#
+# 🔴 **本表刻意留空**：`HOLDER_MAP` 尚未裁定任何维。
+#    「维 → 经济归属关系」是**史料+玩法双重判断**，未裁定时**一律 Missing**，
+#    绝不均摊、绝不默认民营、绝不从政治派系反推（见 POP改良方案 §2.1 第 5 条）。
+#
+#    裁定后按 `HOLDER_MAP[dim] = <关系键>` 逐维填入；
+#    填入前本模块**只提供机制，不产出任何归属结论**。
+
+HOLDER_MAP: Dict[str, str] = {}
+
+HOLDER_TREASURY = "state_treasury"
+HOLDER_IMPERIAL = "imperial_treasury"
+
+
+def resolve_holder(dim: str, producer_id: Any = None,
+                   economic_affiliation: Any = None,
+                   contract_id: Any = None,
+                   pdata: Optional[dict] = None) -> Optional[str]:
+    """解析某物料维的**唯一货权账户**。返回载体键，未定/不适用 ⇒ `None`。
+
+    返回值三选一（皆为**载体键**，非 POP 对象）：
+      - `'pop:<阶层>:<关系键>'` —— POP 经济切片（经 `economic_affiliation` 确认）；
+      - `'state_treasury'` —— 国库/官仓；
+      - `'imperial_treasury'` —— 内帑/内库（山泽、内诸司、皇庄御苑）。
+
+    `None` = **Missing**：该维归属未裁定、或证据不足。**不回落**为某一方，
+    亦不按人口比例伪拆（POP改良方案 §2.1 第 5 条）。
+
+    ⚠️ `economic_affiliation` 传入时**只接受已登记的关系键**；
+    未登记（含 `unclassified`）⇒ 一律 Missing，不得据此定货权。
+    """
+    if not isinstance(dim, str) or not dim:
+        return None
+    rel = HOLDER_MAP.get(dim)
+    if not rel:
+        return None                                  # 归属未裁定 ⇒ Missing
+    if contract_id is not None:
+        # 依契约分属多方 ⇒ 本函数**无权**归并，返回 Missing 交调用方按契约拆分
+        return None
+    # 严禁：`unclassified` 一律 Missing —— 「不允许自动售卖」（POP改良方案）。
+    if rel == "unclassified":
+        return None
+    if rel in ("imperial_operator", HOLDER_IMPERIAL):
+        return HOLDER_IMPERIAL
+    if rel in ("state_operator", HOLDER_TREASURY):
+        return HOLDER_TREASURY
+    if rel == HOLDER_IMPERIAL:
+        return HOLDER_IMPERIAL
+    if not isinstance(economic_affiliation, dict):
+        return None
+    if rel not in economic_affiliation:
+        return None                                  # 该切片无此关系 ⇒ 证据不足
+    _cls = producer_id if isinstance(producer_id, str) and producer_id else None
+    if not _cls:
+        return None
+    return "pop:%s:%s" % (_cls, rel)
+
 def to_material_dim(dim: str) -> Optional[str]:
     """物料维度**恒等**闸门（2026-10-03 起不再翻译）。
 
