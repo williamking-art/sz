@@ -548,6 +548,16 @@ class GameState(GameStateEconMixin):
         # ---- 经济全浮动重构新增状态 ----
         # 七维物资仓：{dim: {"stock": 现有, "cap": 容量}}
         self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
+        # === 归属待定库存（2026-10-05 用户裁定 6.33） ===
+        # 未归属原料（resolve_holder 缺失或证据不足）的**物理存放槽**。
+        #
+        # 存放地 != 货主：pending_stock **不并入** resources（后者被五处消费者
+        # 当作**国库资产**：供给搬运/工坊投料/营造真扣/仓储读数/守恒自检）。
+        # 本槽物料：不得出售、不得供工坊采购、不得计税；仅计入**实物守恒**。
+        #
+        # 结构：{路: {维: {qty, owner, owner_status, evidence_ref}}}
+        # 缺 owner 或 owner_status != 已确权 => 一律视为**待定**。
+        self.pending_stock: dict = {}
         # 工程系统（玩家手动发起，逐月推进）：{pid: {...}}
         self.projects: dict = {}
         # 🔴 建材**在途批次**（P0，2026-10-02）：`core/transport.dispatch` 写入。

@@ -165,17 +165,49 @@ def inventory_ledger(state, *, max_items: int = 60) -> Dict[str, Any]:
     # ---- 汇总（读视图，不重复持货）
     wh_total = sum(r["stock"] for r in warehouses if r["stock"] is not None)
     pop_total = sum(r["qty"] for r in pop_holdings if r["qty"] is not None)
+    # ---- ② 归属待定（6.33）：**存放地 != 货主**，不计入国库资产/可用库存 ----
+    pending: List[Dict[str, Any]] = []
+    _ps = getattr(state, "pending_stock", None)
+    if isinstance(_ps, dict):
+        for _rk, _slot in _ps.items():
+            if not isinstance(_slot, dict):
+                continue
+            for _pd, _ent in _slot.items():
+                if not isinstance(_ent, dict):
+                    continue
+                _pq = _int(_ent.get("qty"))
+                if _pq <= 0:
+                    continue
+                pending.append({
+                    "holder_type": "pending",      # 归属待定（非国库资产）
+                    "holder_id": None,             # 货主未定
+                    "owner": _ent.get("owner"),
+                    "owner_status": _ent.get("owner_status"),
+                    "evidence_ref": _ent.get("evidence_ref"),
+                    "route": _rk,                   # 存放地（产地所在路）
+                    "dim": _pd,
+                    "purpose": "unattributed",     # 不得出售/采购/计税
+                    "stock": _pq,
+                })
+
     return {
         "schema_version": MARKET_READOUT_SCHEMA_VERSION,
         "warehouses": warehouses[:max_items],
         "pop_holdings": pop_holdings[:max_items],
+        # 6.33：归属待定**单列**，不计入 warehouse_stock / pop_goods_qty
+        "pending": pending[:max_items],
         "granary": granary,
         "in_transit": in_transit,
-        "dimensions": sorted({r["dim"] for r in warehouses} | {r["dim"] for r in pop_holdings}),
+        "dimensions": sorted({r["dim"] for r in warehouses} | {r["dim"] for r in pop_holdings} | {r["dim"] for r in pending}),
         "totals": {
             "warehouse_stock": wh_total,
             "pop_goods_qty": pop_total,
-            "note": "汇总为读视图；仓储与 POP 持货是**不同载体**，不可相加当总量",
+              "pending_qty": sum(int(e.get("qty", 0) or 0)
+                                for s_ in (getattr(state, "pending_stock", None) or {}).values()
+                                if isinstance(s_, dict)
+                                for e in s_.values()
+                                if isinstance(e, dict) and e.get("owner_status") != "已确权"),
+              "note": "汇总为读视图；仓储/POP/归属待定是**不同载体**，不可相加当总量。归属待定**不计入国库资产**（6.33）",
         },
         "truncated": {"warehouses": max(0, len(warehouses) - max_items),
                       "pop_holdings": max(0, len(pop_holdings) - max_items)},

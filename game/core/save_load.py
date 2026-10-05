@@ -237,6 +237,8 @@ def save_game(state, slot: int = 1) -> bool:
         "payraise_budget": getattr(state, "payraise_budget", 0),
         "oversight": getattr(state, "oversight", 0.30),
         "resources": getattr(state, "resources", {}),
+        # 6.33：归属待定库存**必须随档持久化**（否则读档即灭失、破坏实物守恒）
+        "pending_stock": getattr(state, "pending_stock", {}) or {},
         # 动态蓝图注册表（规格任务 3）：不落档则读档后动态蓝图全部消失，
         # 已在办/已完工的动态建筑会变成"无图纸可依"的孤儿工程。
         "dynamic_blueprints": getattr(state, "dynamic_blueprints", {}) or {},
@@ -980,6 +982,31 @@ def load_game(slot: int = 1):
     # 全程没有 `state.resources = data["resources"]` —— 存档里写好的库存/上限
     # 读档后一律归零（实测 `salt` 424242 → 0），且面板与仓廪读数与存档不符。
     # 口径：只接受 dict 且逐维度取 {stock, cap}，坏值退回缺省（不臆造）。
+    # 6.33：还原归属待定库存（旧档无此字段 ⇒ 空 dict，**不是 0 存量**）
+    _ps_saved = data.get("pending_stock")
+    if isinstance(_ps_saved, dict):
+        _ps_new = {}
+        for _rk2, _slot2 in _ps_saved.items():
+            if not isinstance(_slot2, dict):
+                continue
+            _m2 = {}
+            for _d2, _e2 in _slot2.items():
+                if not isinstance(_e2, dict):
+                    continue
+                _q2 = max(0, int(_e2.get("qty", 0) or 0))
+                if _q2 <= 0:
+                    continue
+                _m2[_d2] = {
+                    "qty": _q2,
+                    "owner": _e2.get("owner"),
+                    "owner_status": _e2.get("owner_status") or "归属待定",
+                    "evidence_ref": _e2.get("evidence_ref"),
+                }
+            if _m2:
+                _ps_new[_rk2] = _m2
+        state.pending_stock = _ps_new
+    else:
+        state.pending_stock = {}
     _res_saved = data.get("resources")
     if not isinstance(state.resources, dict):
         state.resources = {}

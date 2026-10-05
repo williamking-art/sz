@@ -77,6 +77,43 @@ def _pick_seat(p: dict, dim: str) -> Optional[str]:
         return max(w, key=lambda kv: kv[1])[0]
     except Exception:                                   # noqa: BLE001
         return None
+def _write_pending(state, route: str, dim: str, add: int) -> None:
+    """写入**归属待定槽**（用户裁定 6.33）。
+
+    🔴 该槽**不并入** `state.resources` —— 后者被五处消费者当作**国库资产**。
+    物料在此**不得出售、不得供工坊采购、不得计税**，仅计入**实物守恒**。
+    """
+    ps = getattr(state, "pending_stock", None)
+    if not isinstance(ps, dict):
+        ps = {}
+        state.pending_stock = ps
+    rk = str(route or "")
+    slot = ps.setdefault(rk, {})
+    ent = slot.setdefault(dim, {"qty": 0, "owner": None,
+                                "owner_status": "\u5f52\u5c5e\u5f85\u5b9a",
+                                "evidence_ref": None})
+    ent["qty"] = int(ent.get("qty", 0) or 0) + int(add)
+
+
+def pending_total(state, dim: Optional[str] = None) -> int:
+    """Σ 归属待数量（**实物守恒对账用**；不含已确权）。"""
+    ps = getattr(state, "pending_stock", None)
+    if not isinstance(ps, dict):
+        return 0
+    tot = 0
+    for slot in ps.values():
+        if not isinstance(slot, dict):
+            continue
+        for d, ent in slot.items():
+            if dim is not None and d != dim:
+                continue
+            if not isinstance(ent, dict):
+                continue
+            if ent.get("owner_status") == "\u5df2\u786e\u6743":
+                continue                      # 已确权不计入待定
+            tot += int(ent.get("qty", 0) or 0)
+    return tot
+
 def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]:
     """S1 原料产出链：各路 `yields` 年额 ÷ 12 × 建筑乘数 → `state.resources`。
 
@@ -126,29 +163,35 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
             slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
             cap = int(slot.get("cap", 50_000) or 50_000)
             stock = int(slot.get("stock", 0) or 0)
-            add = min(q, max(0, cap - stock))
+            _holder = _resolve(dim)
+            _to_pop = bool(_holder) and _holder.startswith("pop:")
+            _to_state = _holder in ("state_treasury", "imperial_treasury")
+            if _to_pop:
+                add = q                      # 农户/切片容器不受国库 cap 限制
+            else:
+                add = min(q, max(0, cap - stock))
             if add > 0:
-                # ══ T3（2026-10-05）按归属分派 ══
-                # 料不再一律进国家仓：`resolve_holder` 判给 POP 切片则落该路径农户；
-                # 判给国库/内帑则**维持原行为**（零风险）；**Missing 也不阻断供给**。
-                # 🔴 守恒：仓库存量转出多少、农户 holdings 就增多少，**总量不变**。
-                _holder = _resolve(dim)
-                if not _holder or not _holder.startswith("pop:"):
-                    # 国库 / 内帑 / Missing ⇒ 走既有入仓路径（口径不变）
-                    _write_warehouse(resources, dim, add)
+                # ══ T3 + 6.33（2026-10-05）按归属分派 ══
+                # `resolve_holder` 判给 POP 切片 => 落该路径该阶层 goods；
+                # 判给国库/内帑 => 入国家仓（口径不变）；
+                # **Missing（未裁定/证据不足）=> 归属待定槽**（6.33）：
+                #   存放地 != 货主，**不并入 resources**，不得出售/采购/计税。
+                if not _to_pop:
+                    _write_pending(state, name, dim, add) if not _to_state else _write_warehouse(resources, dim, add)
                     produced[dim] = produced.get(dim, 0) + add
+                    continue
                     continue
                 try:
                     _cls = _holder.split(":")[1]
                 except IndexError:
-                    _write_warehouse(resources, dim, add)
+                    _write_pending(state, name, dim, add)
                     produced[dim] = produced.get(dim, 0) + add
                     continue
                 _pops = p.get("pops") or {}
                 _tgt = _pops.get(_cls) if isinstance(_pops, dict) else None
                 if not isinstance(_tgt, dict):
                     # 该路无此阶层 ⇒ 证据不足，**不臆造持有人**，如实回落国家仓
-                    _write_warehouse(resources, dim, add)
+                    _write_pending(state, name, dim, add)
                     produced[dim] = produced.get(dim, 0) + add
                     continue
                 _goods = _tgt.get("goods")
@@ -161,7 +204,7 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                     produced[dim] = produced.get(dim, 0) + add
                 except Exception:                       # noqa: BLE001
                     # 归属分派失败 ⇒ **如实回落国家仓**，不吞料、不造钱
-                    _write_warehouse(resources, dim, add)
+                    _write_pending(state, name, dim, add)
                     produced[dim] = produced.get(dim, 0) + add
     if produced:
         top = sorted(produced.items(), key=lambda kv: -kv[1])[:4]
