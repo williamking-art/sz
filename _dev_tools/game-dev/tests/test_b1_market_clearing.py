@@ -202,9 +202,35 @@ def test_missing_seller_reads_as_zero_stock_not_unknown():
 
 
 # ====================================================== 集成：真实结算
+def _seed_sellable_finished(s, per_route=5000):
+    """**受控库存场景**：给各路工匠 POP 备**已确权、可售**的成品货。
+
+    6.33 之后，产出链的**未裁定物料**落 `pending_stock`（归属待定），
+    按裁定**不得出售/采购**；故凡需要「真实成交」或「路级价格发现」的用例，
+    必须**显式**准备可售成品。
+
+    ⚠️ 本函数仅供本文件需要成交的用例调用，**不并入共享 `_state()`** ——
+    否则会破坏同文件其他用例的「初始无货」断言。
+    """
+    from core.material_holding import goods_add
+    for _i, _pref in enumerate(s.prefectures.values()):
+        _art = (_pref.get("pops") or {}).get("工匠")
+        if not isinstance(_art, dict):
+            continue
+        _g = _art.setdefault("goods", {})
+        for _dim in ("布", "绸"):
+            goods_add(_g, _dim, per_route + _i * 200)
+    return s
+
+
 def test_settlement_records_real_trade_and_unmet():
-    """真实结算：钱货双向、statistics 记录成交与未满足原因。"""
+    """真实结算：钱货双向、statistics 记录成交与未满足原因。
+
+    **受控库存场景**：显式备已确权可售成品（见 `_seed_sellable_finished`），
+    与产出链的待定库存守恒测试分离。
+    """
     s = _state()
+    _seed_sellable_finished(s)
     s.treasury = max(getattr(s, "treasury", 0), 50_000_000)
     run_monthly_settlement(s)
     st = s.statistics

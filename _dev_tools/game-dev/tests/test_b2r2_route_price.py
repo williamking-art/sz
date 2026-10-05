@@ -40,6 +40,55 @@ def _state(months=4):
 
 
 # ====================================================== 键的统一
+def _state_with_controlled_stock(months=4, seed=5000, step=337):
+    """**受控库存场景**：先备已确权可售成品，**再**跑结算。
+
+    与共享 `_state()` 分开（后者不备货，供「初始无货」断言使用）。
+    6.33：产出链未裁定物料落 `pending_stock`（不得出售），
+    故路级价格发现必须有**显式构造**的可售成品才有真实成交。
+    """
+    from core.material_holding import goods_add
+    s = GameState("史实")
+    init_legacies(s)
+    for _i, _rk in enumerate(s.prefectures):
+        _art = ((s.prefectures[_rk] or {}).get("pops") or {}).get("工匠")
+        if not isinstance(_art, dict):
+            continue
+        _g = _art.setdefault("goods", {})
+        for _dim in ("布", "绸"):
+            goods_add(_g, _dim, seed + _i * step)   # 各路不同 ⇒ 供需条件相异
+    s.treasury = 50_000_000
+    for _ in range(months):
+        s.treasury = max(s.treasury, 50_000_000)
+        run_monthly_settlement(s)
+    return s
+
+def _seed_route_finished(s, overrides=None):
+    """**受控库存场景**：给指定路的工匠（卖方）POP 备**已确权、可售**的成品。
+
+    6.33 之后，产出链的**未裁定物料**落 `pending_stock`（归属待定），
+    按裁定**不得出售/采购/计税**；而路级价格发现**必须有真实成交**才产生路级键。
+    故本函数**显式**构造可售成品 —— 这是**测试夹具**，不是游戏默认库存。
+
+    `overrides`：`{路名: {维: 数量}}`，用于**制造供需差异** ⇒ 价格分化。
+    ⚠️ 仅供需要成交/价格发现的用例调用，**不并入共享 `_state()`**。
+    """
+    from core.material_holding import goods_add
+    routes = list(s.prefectures)
+    for i, rk in enumerate(routes):
+        pref = s.prefectures.get(rk) or {}
+        art = (pref.get("pops") or {}).get("工匠")
+        if not isinstance(art, dict):
+            continue
+        g = art.setdefault("goods", {})
+        for dim in ("布", "绸"):
+            qty = 5000 + i * 337          # 各路基数不同 ⇒ 供需条件各异
+            if overrides and rk in overrides and dim in overrides[rk]:
+                qty = int(overrides[rk][dim])
+            if qty > 0:
+                goods_add(g, dim, qty)
+    return s
+
 def test_pref_good_key_format():
     assert pref_good_key("京畿路", "布") == "京畿路|布"
 
@@ -52,7 +101,7 @@ def test_price_demand_keys_are_route_scoped():
 
 
 def test_dynamic_price_keys_are_route_scoped():
-    s = _state(4)
+    s = _state_with_controlled_stock(4)   # 受控库存：需真实成交才有路级价
     dp = getattr(s, "dynamic_prices", {}) or {}
     assert dp, "dynamic_prices 为空"
     assert all("|" in k for k in dp), f"仍有非路级键：{dp}"
@@ -60,7 +109,7 @@ def test_dynamic_price_keys_are_route_scoped():
 
 def test_prices_diverge_across_routes():
     """同一商品在不同路应能取到不同价（未受冲击的路不无因同步跳价）。"""
-    s = _state(6)
+    s = _state_with_controlled_stock(6)   # 受控库存：各路供需不同 ⇒ 价格分化
     dp = getattr(s, "dynamic_prices", {}) or {}
     by_good = {}
     for k, v in dp.items():
