@@ -54,6 +54,29 @@ def _building_mult(p: dict) -> float:
     return 1.0 + PRODUCTION_BUILDING_MULT * max(0, best_lv - 1)
 
 
+def _write_warehouse(resources: dict, dim: str, add: int) -> None:
+    """入国家仓（既有口径，**总量守恒的默认去向**）。"""
+    slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
+    cap = int(slot.get("cap", 50_000) or 50_000)
+    stock = int(slot.get("stock", 0) or 0)
+    n = min(int(add), max(0, cap - stock))
+    if n > 0:
+        slot["stock"] = stock + n
+
+
+def _pick_seat(p: dict, dim: str) -> Optional[str]:
+    """按**产地证据**挑一个治所；无证据 ⇒ `None`（扁平区，**不伪拆**）。"""
+    try:
+        from core.material_holding import seat_weights_for
+        w = seat_weights_for(p.get("name") or "", dim)
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not w:
+        return None
+    try:
+        return max(w, key=lambda kv: kv[1])[0]
+    except Exception:                                   # noqa: BLE001
+        return None
 def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]:
     """S1 原料产出链：各路 `yields` 年额 ÷ 12 × 建筑乘数 → `state.resources`。
 
@@ -62,9 +85,15 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
     logs = log if isinstance(log, list) else []
     produced: Dict[str, int] = {}
     _no_merchant_goods: list = []
+
+
     resources = getattr(state, "resources", None)
     if not isinstance(resources, dict):
         return produced
+    # 归属解析：未裁定 ⇒ None ⇒ 维持原入仓口径
+    def _resolve(_dim):
+        from core.material_holding import resolve_holder as _rh
+        return _rh(_dim)
     from content.data import RAW_DIMS
     for name, p in (getattr(state, "prefectures", None) or {}).items():
         if not isinstance(p, dict):
@@ -99,8 +128,41 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
             stock = int(slot.get("stock", 0) or 0)
             add = min(q, max(0, cap - stock))
             if add > 0:
-                slot["stock"] = stock + add
-                produced[dim] = produced.get(dim, 0) + add
+                # ══ T3（2026-10-05）按归属分派 ══
+                # 料不再一律进国家仓：`resolve_holder` 判给 POP 切片则落该路径农户；
+                # 判给国库/内帑则**维持原行为**（零风险）；**Missing 也不阻断供给**。
+                # 🔴 守恒：仓库存量转出多少、农户 holdings 就增多少，**总量不变**。
+                _holder = _resolve(dim)
+                if not _holder or not _holder.startswith("pop:"):
+                    # 国库 / 内帑 / Missing ⇒ 走既有入仓路径（口径不变）
+                    _write_warehouse(resources, dim, add)
+                    produced[dim] = produced.get(dim, 0) + add
+                    continue
+                try:
+                    _cls = _holder.split(":")[1]
+                except IndexError:
+                    _write_warehouse(resources, dim, add)
+                    produced[dim] = produced.get(dim, 0) + add
+                    continue
+                _pops = p.get("pops") or {}
+                _tgt = _pops.get(_cls) if isinstance(_pops, dict) else None
+                if not isinstance(_tgt, dict):
+                    # 该路无此阶层 ⇒ 证据不足，**不臆造持有人**，如实回落国家仓
+                    _write_warehouse(resources, dim, add)
+                    produced[dim] = produced.get(dim, 0) + add
+                    continue
+                _goods = _tgt.get("goods")
+                if not isinstance(_goods, dict):
+                    _goods = {}
+                    _tgt["goods"] = _goods
+                try:
+                    from core.material_holding import goods_add as _gadd
+                    _gadd(_goods, dim, add, _pick_seat(p, dim))
+                    produced[dim] = produced.get(dim, 0) + add
+                except Exception:                       # noqa: BLE001
+                    # 归属分派失败 ⇒ **如实回落国家仓**，不吞料、不造钱
+                    _write_warehouse(resources, dim, add)
+                    produced[dim] = produced.get(dim, 0) + add
     if produced:
         top = sorted(produced.items(), key=lambda kv: -kv[1])[:4]
         logs.append("[产出链] 诸路原料产出：" + "、".join(f"{d}+{q}" for d, q in top))
