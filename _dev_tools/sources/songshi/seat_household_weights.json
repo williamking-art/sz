@@ -1,12 +1,16 @@
 {
- "_note": "治所层权重：《宋史·地理志》卷085-090 戶数（史料原文）",
+ "_note": "治所层人口权重：《宋史·地理志》卷085-090 戶数（史料原文）",
  "_purpose": "史料给比例、游戏给总量：用各治所史实戶数作权重，把路级设定总量按比例拆入治所（取代 SONG_SEAT_WEIGHTS）",
- "_era_mix": "卷085-089 崇寧；卷090（广南）元豐 —— 已逐条标 era，不得混称",
- "_missing_policy": "未匹配治所保持 null，**不填 0、不均摊**（缺失≠0）",
+ "_era_mix": "崇寧/元豐/无年代三类 —— 已逐条标 era，不得混称",
+ "_era_counts": {
+  "崇寧": 94,
+  "无年代": 3,
+  "元豐": 20
+ },
  "_coverage": {
-  "matched": 110,
+  "matched": 117,
   "total": 117,
-  "fully_covered_routes": 13
+  "fully_covered_routes": 20
  },
  "routes": {
   "京畿路": {
@@ -118,26 +122,26 @@
    ]
   },
   "京东西路": {
-   "hist_sum": 136207,
-   "fully_covered": false,
+   "hist_sum": 186925,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "兖州",
      "hist_households": 71777,
      "era": "崇寧",
-     "share": 0.52697
+     "share": 0.383988
     },
     {
      "seat": "徐州",
      "hist_households": 64430,
      "era": "崇寧",
-     "share": 0.47303
+     "share": 0.344684
     },
     {
      "seat": "济州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 50718,
+     "era": "无年代",
+     "share": 0.271328
     }
    ]
   },
@@ -286,110 +290,110 @@
    ]
   },
   "两浙路": {
-   "hist_sum": 1282205,
-   "fully_covered": false,
+   "hist_sum": 1398345,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "杭州",
      "hist_households": 213574,
      "era": "崇寧",
-     "share": 0.166568
+     "share": 0.152733
     },
     {
      "seat": "苏州",
      "hist_households": 152821,
      "era": "崇寧",
-     "share": 0.119186
+     "share": 0.109287
     },
     {
      "seat": "越州",
      "hist_households": 279306,
      "era": "崇寧",
-     "share": 0.217833
+     "share": 0.19974
     },
     {
      "seat": "润州",
      "hist_households": 63657,
      "era": "崇寧",
-     "share": 0.049647
+     "share": 0.045523
     },
     {
      "seat": "明州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 116140,
+     "era": "崇寧",
+     "share": 0.083055
     },
     {
      "seat": "湖州",
      "hist_households": 162335,
      "era": "崇寧",
-     "share": 0.126606
+     "share": 0.116091
     },
     {
      "seat": "婺州",
      "hist_households": 134080,
      "era": "崇寧",
-     "share": 0.10457
+     "share": 0.095885
     },
     {
      "seat": "台州",
      "hist_households": 156792,
      "era": "崇寧",
-     "share": 0.122283
+     "share": 0.112127
     },
     {
      "seat": "温州",
      "hist_households": 119640,
      "era": "崇寧",
-     "share": 0.093308
+     "share": 0.085558
     }
    ]
   },
   "江南东路": {
-   "hist_sum": 791737,
-   "fully_covered": false,
+   "hist_sum": 910053,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "江宁府",
      "hist_households": 120713,
      "era": "崇寧",
-     "share": 0.152466
+     "share": 0.132644
     },
     {
      "seat": "宣州",
      "hist_households": 147040,
      "era": "崇寧",
-     "share": 0.185718
+     "share": 0.161573
     },
     {
      "seat": "歙州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 118316,
+     "era": "崇寧",
+     "share": 0.13001
     },
     {
      "seat": "池州",
      "hist_households": 135059,
      "era": "崇寧",
-     "share": 0.170586
+     "share": 0.148408
     },
     {
      "seat": "饶州",
      "hist_households": 181300,
      "era": "崇寧",
-     "share": 0.22899
+     "share": 0.199219
     },
     {
      "seat": "信州",
      "hist_households": 154364,
      "era": "崇寧",
-     "share": 0.194969
+     "share": 0.169621
     },
     {
      "seat": "太平州",
      "hist_households": 53261,
      "era": "崇寧",
-     "share": 0.067271
+     "share": 0.058525
     }
    ]
   },
@@ -466,86 +470,86 @@
    ]
   },
   "淮南西路": {
-   "hist_sum": 422757,
-   "fully_covered": false,
+   "hist_sum": 551107,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "庐州",
      "hist_households": 83056,
      "era": "崇寧",
-     "share": 0.196463
+     "share": 0.150708
     },
     {
      "seat": "寿州",
      "hist_households": 126383,
      "era": "崇寧",
-     "share": 0.29895
+     "share": 0.229326
     },
     {
      "seat": "舒州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 128350,
+     "era": "崇寧",
+     "share": 0.232895
     },
     {
      "seat": "黄州",
      "hist_households": 86953,
      "era": "崇寧",
-     "share": 0.205681
+     "share": 0.157779
     },
     {
      "seat": "蕲州",
      "hist_households": 114097,
      "era": "崇寧",
-     "share": 0.269888
+     "share": 0.207032
     },
     {
      "seat": "光州",
      "hist_households": 12268,
      "era": "崇寧",
-     "share": 0.029019
+     "share": 0.022261
     }
    ]
   },
   "荆湖北路": {
-   "hist_sum": 312149,
-   "fully_covered": false,
+   "hist_sum": 370446,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "江陵府",
      "hist_households": 85801,
      "era": "崇寧",
-     "share": 0.274872
+     "share": 0.231615
     },
     {
      "seat": "岳州",
      "hist_households": 97791,
      "era": "崇寧",
-     "share": 0.313283
+     "share": 0.263982
     },
     {
      "seat": "鼎州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 58297,
+     "era": "崇寧",
+     "share": 0.15737
     },
     {
      "seat": "鄂州",
      "hist_households": 96769,
      "era": "崇寧",
-     "share": 0.310009
+     "share": 0.261223
     },
     {
      "seat": "归州",
      "hist_households": 21058,
      "era": "崇寧",
-     "share": 0.067461
+     "share": 0.056845
     },
     {
      "seat": "辰州",
      "hist_households": 10730,
      "era": "崇寧",
-     "share": 0.034375
+     "share": 0.028965
     }
    ]
   },
@@ -586,86 +590,86 @@
    ]
   },
   "福建路": {
-   "hist_sum": 931008,
-   "fully_covered": false,
+   "hist_sum": 994165,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "福州",
      "hist_households": 211552,
      "era": "崇寧",
-     "share": 0.227229
+     "share": 0.212794
     },
     {
      "seat": "泉州",
      "hist_households": 211406,
      "era": "崇寧",
-     "share": 0.227072
+     "share": 0.212647
     },
     {
      "seat": "建州",
      "hist_households": 196566,
      "era": "崇寧",
-     "share": 0.211132
+     "share": 0.19772
     },
     {
      "seat": "漳州",
      "hist_households": 110469,
      "era": "崇寧",
-     "share": 0.118655
+     "share": 0.111117
     },
     {
      "seat": "汀州",
      "hist_households": 81454,
      "era": "崇寧",
-     "share": 0.08749
+     "share": 0.081932
     },
     {
      "seat": "南剑州",
      "hist_households": 119561,
      "era": "崇寧",
-     "share": 0.128421
+     "share": 0.120263
     },
     {
      "seat": "兴化军",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 63157,
+     "era": "无年代",
+     "share": 0.063528
     }
    ]
   },
   "成都府路": {
-   "hist_sum": 449466,
-   "fully_covered": false,
+   "hist_sum": 570366,
+   "fully_covered": true,
    "seats": [
     {
      "seat": "成都府",
      "hist_households": 182090,
      "era": "崇寧",
-     "share": 0.405125
+     "share": 0.319251
     },
     {
      "seat": "眉州",
      "hist_households": 72809,
      "era": "崇寧",
-     "share": 0.16199
+     "share": 0.127653
     },
     {
      "seat": "绵州",
      "hist_households": 122915,
      "era": "崇寧",
-     "share": 0.273469
+     "share": 0.215502
     },
     {
      "seat": "汉州",
-     "hist_households": null,
-     "era": null,
-     "share": null
+     "hist_households": 120900,
+     "era": "无年代",
+     "share": 0.211969
     },
     {
      "seat": "嘉州",
      "hist_households": 71652,
      "era": "崇寧",
-     "share": 0.159416
+     "share": 0.125625
     }
    ]
   },
