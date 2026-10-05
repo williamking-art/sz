@@ -8,8 +8,13 @@ B0 阶段的契约是"**先看见，不改模型**"——本模块只做观测�
 
 台账见同目录 `b0-inventory-ledger.md`：
 
-1. 库存有**四个载体**（`state.resources` 仓储／`pop["goods"]` 持有／
-   `state.granary` 太仓／在途未实现），语义各异，**不可合并成一个字典**；
+1. 库存有**五个载体**（`state.resources` **已确权**仓储／`pop["goods"]` 持有／
+   `state.granary` 太仓／在途／🔴 **`state.pending_stock` 归属待定**），语义各异，
+   **不可合并成一个字典**；
+   - ⚠️ **归属待定**（6.33 用户裁定）：**存放地 ≠ 货主**，
+     未取得田权/租佃证据前**货主未定**；故其物料**不得**计入可用库存、
+     国库资产、可售量或合计库存，**不得**触发采购/投料/出售/计税；
+     本模块对它的处置**一律「单列」**（`pending`），不并入任何合计。
 2. 宋境 POP 购买走 `settlement_granary.py:280-285`——**扣钱后凭空给货**，
    与 `_settle_econ` 的真扣货路径（外邦）语义不同；
 3. 因此"到底有没有成交、谁卖给了谁、库存怎么变的"**当前无任何读数**，
@@ -240,6 +245,21 @@ def demand_diagnosis(state) -> Dict[str, Any]:
     resources = getattr(state, "resources", None) or {}
     any_stock = any((_int((s or {}).get("stock")) or 0) > 0
                     for s in resources.values() if isinstance(s, dict))
+    # 🔴 归属待定（6.33）：**单列**，**不并入** `any_stock` ——
+    # 待定料存放地 != 货主，不得算作可用库存，也不得触发采购/投料。
+    # 此处单列的唯一用途：当「仓储全空」时解释「料其实在，只是归属未定」。
+    _ps = getattr(state, "pending_stock", None)
+    pending_qty = 0
+    if isinstance(_ps, dict):
+        for _slot in _ps.values():
+            if not isinstance(_slot, dict):
+                continue
+            for _ent in _slot.values():
+                if not isinstance(_ent, dict):
+                    continue
+                if _ent.get("owner_status") == "已确权":
+                    continue                  # 已确权不计入待定
+                pending_qty += int(_ent.get("qty", 0) or 0)
 
     buckets = {
         "no_demand": 0,                 # 有效需求为 0（单列，非未满足原因）
@@ -265,12 +285,22 @@ def demand_diagnosis(state) -> Dict[str, Any]:
             warnings.append(
                 "仓储全空却发生商品支出：指向 `settlement_granary.py:280-285` "
                 "的无卖方路径（须在 B1 修）")
+        if pending_qty > 0:
+            # ⚠️ 措辞须**不臆断仓储状态**：此处只陈述待定事实，
+            # 不断言「仓储是否为空」（那由 `warehouse_any_stock` 回答）。
+            warnings.append(
+                "另有 %d 单位物料在**归属待定**槽（6.33）：存放地 != 货主，"
+                "未确权前不得采购/投料/出售/计税，故**不计入**可用库存；"
+                "这是数据阻塞（待田权/租佃/庄园证据），**不是读数缺失**。"
+                % pending_qty)
 
     return {
         "schema_version": MARKET_READOUT_SCHEMA_VERSION,
         "buckets": buckets,
         "observed": {"goods_spend": spend, "export_income": export_income,
-                     "warehouse_any_stock": any_stock},
+                     "warehouse_any_stock": any_stock,
+                     # 6.33：**单列**，不并入上述任何项；仅供解释「为何无货可用」
+                     "pending_qty": pending_qty},
         "unimplemented_reasons": [
             "运输未到（在途未实现，台账 §2.4）",
             "配给/市场容量限制（当前无此机制）",

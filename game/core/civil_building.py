@@ -802,9 +802,28 @@ def route_civil_trigger(state, pref: str, building: str, *,
 
     labor_short = None if remaining_labor is None else max(0.0, labor_hours - remaining_labor)
     coin_short = max(0, wage - payer_pool)
+    # 🔴 归属待定（6.33）：**只读单列**，**不并入** `material_short` ——
+    # 下一行 `not material_short` 会决定 `no_build`（L841），若把待定料算进去
+    # 就等于让「归属未定」的料**触发立项采购**，违反 6.33「不得采购/投料」。
+    # 本字段仅用于向玩家**解释**「为什么缺料」：料其实在，只是货主未定。
+    _pend_unavail: Dict[str, int] = {}
+    _ps_all = getattr(state, "pending_stock", None)
+    if isinstance(_ps_all, dict):
+        for _slot_all in _ps_all.values():
+            if not isinstance(_slot_all, dict):
+                continue
+            for _d_all, _e_all in _slot_all.items():
+                if not isinstance(_e_all, dict):
+                    continue
+                if _e_all.get("owner_status") == "已确权":
+                    continue
+                if _d_all in materials:
+                    _pend_unavail[_d_all] = _pend_unavail.get(_d_all, 0) + int(_e_all.get("qty", 0) or 0)
     afford = {
         "materials_ok": not material_short,
         "material_short": {d: round(v, 4) for d, v in material_short.items()},
+        # 6.33：单列「有量但归属待定、不可用」的料（**不参与任何判定**）
+        "pending_unavailable": dict(_pend_unavail),
         "labor_ok": labor_short <= 0,
         "labor_available": None if remaining_labor is None else round(remaining_labor, 4),
         "labor_short": None if labor_short is None else round(labor_short, 4),
