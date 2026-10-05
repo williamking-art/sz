@@ -9,8 +9,14 @@
 立即回退到旧直产，保证成交率 ≥ 改造前 90%）。
 
 纪律：
-- 产量是唯一增量；**建材三材落本路`商人` POP 的 `goods`**（B4-1 收窄版 B），
-  其余原料仍只写 `state.resources[dim]["stock"]`；全程不碰钱/POP wealth；
+- 产量是唯一增量；按 `resolve_holder` 分派到**三类去向**：
+    ① `state.resources[dim]["stock"]`（**已确权国库/内帑**，受 cap 约束）；
+    ② 本路该阶层 POP 的 `goods`（**已确权 POP 切片**，不受国库 cap 约束）；
+    ③ `state.pending_stock`（**归属待定**，6.33 用户裁定）。
+  ⚠️ 待定料**存放地 ≠ 货主**：不得被采购/出售/投料/计税，
+  仅计入实物守恒（`Σ 产出 == 国库 + POP + 待定`）；全程不碰钱/POP wealth；
+- 🔴 **账实一致**：两个写入函数均返回**实际入账量**，`produced` **只能按返回值**记；
+  否则会出现「记了产量但实物没入账」（曾实测守恒破裂：21917891 vs 5516234）；
 - 旧档缺 yields 键 → `setdefault` 幂等跳过，不抛异常；
 - `test_pop_identity._STEPS` 镜像须同步新步（调用侧在 settlement.py 接线时登记）。
 """

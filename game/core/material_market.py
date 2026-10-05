@@ -296,7 +296,13 @@ def convert_market_to_stock(dim: str, market_qty: Any) -> Optional[float]:
 
 # ====================================================== 存量与可售（纯派生）
 def material_stock(state, dim: str) -> Optional[int]:
-    """`state.resources[dim]["stock"]`（**唯一的实物持有记录**）。
+    """**已确权**仓储存量（`state.resources[dim]["stock"]`）。
+
+    ⚠️ **不含归属待定库存**（`state.pending_stock`，6.33 用户裁定）：
+    待定料**存放地 ≠ 货主**，按裁定**不得**被采购/出售/投料/计税，
+    故本函数（市场采购与可售判定的入口）**刻意不读它**。
+    待定实物量另行由 `production_chain.pending_total(state, dim)` 读取，
+    并在 `market_readout.inventory_ledger` 中以 `pending` 单列呈现。
 
     - `state.resources` 非 dict、或该 dim 槽缺失、或槽内无 `stock` 键
       ⇒ 返回 `None`（**未定义**，**不是 0**；也不自动建槽、不凭空生成库存）。
