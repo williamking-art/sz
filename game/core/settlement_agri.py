@@ -834,7 +834,7 @@ def apply_agri_effects(state, log: Optional[list] = None, *,
                               * ratio * AGRI_HARVEST_SHARE))
             if extra > 0:
                 nong = p["pops"]["农"]
-                if _grain_add(nong, extra) is None:
+                if _grain_add(nong, extra, state) is None:
                     nong["grain"] = int(nong.get("grain", 0) or 0) + extra
                 summary["grain_produced"] += extra
                 _stat_add(state, "agri_grain_produced", extra)

@@ -272,7 +272,7 @@ def allocate_employment(pops: dict, buildings: dict, cfg: dict,
 
 
 def produce_grain_track(pops: dict, buildings: dict, cfg: dict,
-                        gy: float, rtype: str = "") -> int:
+                        gy: float, rtype: str = "", state=None) -> int:
     """轨 A——生计轨（粮，全员有效，不占岗）：农 size × 人均粮 × 粮田效率乘数。
 
     返回本月产粮（int）；写入农 POP `grain`（调用侧负责 eaten/市场，本函数只产）。
@@ -292,7 +292,9 @@ def produce_grain_track(pops: dict, buildings: dict, cfg: dict,
     farm_lv = _lv((buildings or {}).get("粮田", 1))
     eff = 1.0 + float(cfg.get("FARM_LV_EFF", 0.05)) * max(0, farm_lv - 1)
     g = int(sz * float(gy) * eff)
-    nong["grain"] = int(nong.get("grain", 0) or 0) + g
+    # 🔴 G-3：粮写入走 `grain_bridge`（给 `state` 即下沉州府真账）；无 state 回落原写法。
+    from core.grain_bridge import grain_add as _grain_add
+    _grain_add(nong, g, state)
     return g
 
 

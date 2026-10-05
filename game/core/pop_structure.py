@@ -220,9 +220,9 @@ def move_pop_people(src: dict, dst: dict, n: int, state=None) -> int:
         take = max(0, min(take, max(0, total)))
         if key == "grain":
             from core.grain_bridge import grain_add as _gadd
-            if _gadd(src, -take) is None:
+            if _gadd(src, -take, state) is None:
                 src[key] = total - take
-            if _gadd(dst, take) is None:
+            if _gadd(dst, take, state) is None:
                 dst[key] = int(dst.get(key, 0) or 0) + take
             continue
         if _pb is not None:

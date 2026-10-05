@@ -175,7 +175,7 @@ def _settle_granary(state, log):
             _shares[_big] += _lump_i - sum(_shares.values())
             for _rk, _c in _shares.items():
                 _tg = state.prefectures[_rk]["pops"][_cls]
-                if _grain_add(_tg, _c) is None:
+                if _grain_add(_tg, _c, state) is None:
                     _tg["grain"] += _c
     # 贪腐本色损耗实发受剩余太仓约束：change_granary 有 0 下限，
     # 先截断再出账，保证下方太仓恒等断言在枯竭时仍闭合（不因 clamp 断裂）。
@@ -526,7 +526,7 @@ def _settle_granary(state, log):
             _paid_total = 0
             for bname, q in _buy_q.items():
                 if q > 0:
-                    if _grain_add(pops[bname], q) is None:
+                    if _grain_add(pops[bname], q, state) is None:
                         pops[bname]["grain"] += q
                     _c = int(q * price)
                     if _pop_obj_add(state, pops[bname], "wealth", -_c) is None:
@@ -536,7 +536,7 @@ def _settle_granary(state, log):
             _qtot = sum(q for _, q in _seller_items) or 1
             _left = _paid_total
             for _j, (sname, q) in enumerate(_seller_items):
-                if _grain_add(pops[sname], -q) is None:
+                if _grain_add(pops[sname], -q, state) is None:
                     pops[sname]["grain"] -= q
                 if _j == len(_seller_items) - 1:
                     _c = _left
@@ -556,7 +556,7 @@ def _settle_granary(state, log):
             need = need_of[pn]
             # 实际消费：先扣自有粮（粮账必须真扣，否则 Σ粮 不守恒）
             if (pop.get("grain") or 0) >= need:
-                if _grain_add(pop, -need) is None:
+                if _grain_add(pop, -need, state) is None:
                     pop["grain"] -= need
             # 缺粮判定（单点 `food_insecure_headcount`：自有粮 ＋ 购粮能力）
             hungry = int(_hungry_map.get(pn, 0) or 0)
@@ -590,7 +590,7 @@ def _settle_granary(state, log):
                 log.append(f"[霉耗][WARN] 农业霉耗钩子不可用：{_se_e!r}")
             _spoil = int((_nong_g["grain"] - _cap_g) * _spoil_rate)
             if _spoil > 0:
-                if _grain_add(_nong_g, -_spoil) is None:
+                if _grain_add(_nong_g, -_spoil, state) is None:
                     _nong_g["grain"] -= _spoil
                 state.granary_stats["farmer_spoil"] = state.granary_stats.get("farmer_spoil", 0) + _spoil
         # 6) 隐户消费（B1c）：隐户**自产自食**——先扣本路 `农` POP 的粮，不足部分才由该路
@@ -603,7 +603,7 @@ def _settle_granary(state, log):
             _from_self = min(_hidden_feed, max(0, int(_nong_g.get("grain", 0) or 0)))
             if _from_self > 0:
                 _ns = int(_nong_g.get("grain", 0) or 0) - _from_self
-                if _grain_add(_nong_g, -_from_self) is None:
+                if _grain_add(_nong_g, -_from_self, state) is None:
                     _nong_g["grain"] = _ns
             _rest = _hidden_feed - _from_self
             if _rest > 0:
@@ -613,7 +613,7 @@ def _settle_granary(state, log):
                 # 现记**实扣额**；士绅无粮则实喂 < 应喂，如实反映为差额（不粉饰）。
                 _g0_before = max(0, int(_g0.get("grain", 0) or 0))
                 _g0_after = max(0, _g0_before - _rest)
-                if _grain_add(_g0, _g0_after - _g0_before) is None:
+                if _grain_add(_g0, _g0_after - _g0_before, state) is None:
                     _g0["grain"] = _g0_after
                 _rest = min(_rest, _g0_before - _g0_after)
             _fed = _from_self + _rest

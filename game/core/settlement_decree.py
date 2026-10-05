@@ -466,9 +466,9 @@ def _apply_decree_effect(state, decree, log):
             _genty = _p["pops"]["士绅"]
             _release = int(_genty.get("grain", 0) * _hidden_mult)
             _ng = _p["pops"]["农"]
-            if _grain_add(_genty, -_release) is None:
+            if _grain_add(_genty, -_release, state) is None:
                 _genty["grain"] -= _release
-            if _grain_add(_ng, _release) is None:
+            if _grain_add(_ng, _release, state) is None:
                 _ng["grain"] += _release
             # 抄没士绅窖银（清丈/抑兼并时抄家，窖银掏出回国库）
             _confiscate = int(_genty.get("窖银", 0) * _hidden_mult)

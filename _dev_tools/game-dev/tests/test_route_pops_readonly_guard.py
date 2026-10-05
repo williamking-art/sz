@@ -58,7 +58,7 @@ def test_guard_ignores_bridge_refresh():
 #: 已知仍在直写的字段（尚未下沉）。空 => 全部字段已走桥接。
 #: grain      → G-3 待办：粮尚未回填 goods[\u7c73]，pops[].grain 仍是真载体
 #: 其余        → 官制身份子池 / 宗族（计划 §6.11 未裁定项）
-KNOWN_LEGACY_WRITES = {'grain', 'officials', 'clerks', 'on_post',
+KNOWN_LEGACY_WRITES = {'officials', 'clerks', 'on_post',
                        'waiting', 'sinecure', 'clan'}
 
 

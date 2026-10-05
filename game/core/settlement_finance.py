@@ -452,7 +452,7 @@ def _settle_tax_grain_sale(state, p, need: int) -> int:
         if _pop_obj_set(state, b, "wealth", _bw) is None:
             b["wealth"] = _bw
         _bg = int(b.get("grain", 0) or 0) + g
-        if _grain_add(b, _bg - int(b.get("grain", 0) or 0)) is None:
+        if _grain_add(b, _bg - int(b.get("grain", 0) or 0), state) is None:
             b["grain"] = _bg
         paid += pay
         gave += g
@@ -461,7 +461,7 @@ def _settle_tax_grain_sale(state, p, need: int) -> int:
     if gave > grain:
         gave = grain
     _fg = int(farm.get("grain", 0) or 0) - gave
-    if _grain_add(farm, -gave) is None:
+    if _grain_add(farm, -gave, state) is None:
         farm["grain"] = _fg
     _fw = int(farm.get("wealth", 0) or 0) + paid
     if _pop_obj_set(state, farm, "wealth", _fw) is None:

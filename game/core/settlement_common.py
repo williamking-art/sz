@@ -165,7 +165,7 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
                 take = int((_cash_cap - money_paid) / p)
                 if take <= 0:
                     break
-            if _grain_add(pp, -take) is None:
+            if _grain_add(pp, -take, state) is None:
                 pp["grain"] = avail - take
             _pay = int(take * p)
             if _pop_obj_add(state, pp, "wealth", _pay) is None:
@@ -201,7 +201,7 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
         _cost = int(_alloc * p)
         if _pop_obj_add(state, pp, "wealth", -_cost) is None:
             pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
-        if _grain_add(pp, _alloc) is None:
+        if _grain_add(pp, _alloc, state) is None:
             pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
         total += _alloc
         money_in += _cost
@@ -257,7 +257,7 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=No
                 _pay = int(take * _price)
             if take <= 0:
                 continue
-            if _grain_add(pp, -take) is None:
+            if _grain_add(pp, -take, state) is None:
                 pp["grain"] = avail - take
             if _pop_obj_add(state, pp, "wealth", _pay) is None:
                 pp["wealth"] = int(pp.get("wealth", 0) or 0) + _pay
@@ -289,7 +289,7 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=No
         _cost = int(_alloc * _price)
         if _pop_obj_add(state, pp, "wealth", -_cost) is None:
             pp["wealth"] = int(pp.get("wealth", 0) or 0) - _cost
-        if _grain_add(pp, _alloc) is None:
+        if _grain_add(pp, _alloc, state) is None:
             pp["grain"] = int(pp.get("grain", 0) or 0) + _alloc
         total += _alloc
         money += _cost
