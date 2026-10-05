@@ -24,6 +24,12 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
+#: 🔴 **玩法参数**（2026-10-05 首轮供料模拟调参）：原料仓容量上限。
+#: 原为 50_000，而各路月产约 50-90 万/维 ⇒ **单月产出即被截断 94%**，
+#: 原料几乎无法积累、工坊必然缺料。改为 3_000_000（约容 3-4 个月产出）。
+#: ⚠️ 属**玩法设定**，非史实数据；可调。
+_DEFAULT_CAP = 3_000_000
+
 __all__ = ["settle_production_chain", "goods_direct_production_backup",
            "PRODUCTION_BUILDING_MULT", "BUILDING_MATERIAL_DIMS"]
 
@@ -66,8 +72,8 @@ def _write_warehouse(resources: dict, dim: str, add: int) -> int:
     🔴 账实一致：调用方**只能按返回值**记 `produced`，否则会出现
     「记了产量但实物没入账」，破坏实物守恒对账。
     """
-    slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
-    cap = int(slot.get("cap", 50_000) or 50_000)
+    slot = resources.setdefault(dim, {"stock": 0, "cap": _DEFAULT_CAP})
+    cap = int(slot.get("cap", _DEFAULT_CAP) or _DEFAULT_CAP)
     stock = int(slot.get("stock", 0) or 0)
     n = min(int(add), max(0, cap - stock))
     if n > 0:
@@ -172,8 +178,8 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                 # B4-1 的"本地市场"仍为**未接线**（见 tasks.md 三选项与阻塞说明）——
                 # 保留本常量为将来收窄版实现预留口径单点。
                 pass
-            slot = resources.setdefault(dim, {"stock": 0, "cap": 50_000})
-            cap = int(slot.get("cap", 50_000) or 50_000)
+            slot = resources.setdefault(dim, {"stock": 0, "cap": _DEFAULT_CAP})
+            cap = int(slot.get("cap", _DEFAULT_CAP) or _DEFAULT_CAP)
             stock = int(slot.get("stock", 0) or 0)
             _holder = _resolve(dim)
             _to_pop = bool(_holder) and _holder.startswith("pop:")

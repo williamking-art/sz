@@ -44,10 +44,10 @@ def test_production_chain_conserves_across_all_destinations():
     for dim in ("\u76d0", "\u94c1"):
         if dim in produced:
             assert res_after[dim] == before.get(dim, 0) + produced[dim], dim
-    # 未裁定维：**不得**入仓
-    for dim in ("\u4e1d", "\u9ebb", "\u679c", "\u6728", "\u77f3"):
+    # Y 轨（2026-10-05）：逐维有货主 ⇒ 应入国库/内帑（不再落待定）
+    for dim in ("丝", "麻", "果", "木", "石"):
         if dim in produced:
-            assert res_after[dim] == before.get(dim, 0), (dim, res_after[dim])
+            assert res_after[dim] >= before.get(dim, 0), (dim, res_after[dim])
     # 实物守恒：总产出 == 国库增量 + 待定增量
     res_delta = sum(res_after[d] - before.get(d, 0) for d in before)
     p_delta = pending_total(s) - p_before

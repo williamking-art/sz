@@ -56,7 +56,12 @@ def _state_with_controlled_stock(months=4, seed=5000, step=337):
             continue
         _g = _art.setdefault("goods", {})
         for _dim in ("布", "绸"):
-            goods_add(_g, _dim, seed + _i * step)   # 各路不同 ⇒ 供需条件相异
+            # 🔴 2026-10-05：上游货主规则上线后原料**入仓**，
+            # 仓库供给充足会把各路供需比拉平 ⇒ 同价。
+            # 故需制造**强烈的路间不对称**：首路极稀（涨价），
+            # 其余路充足（持平）。仍由供需条件产生价差，非写死价格。
+            _amt = (seed // 1000) if _i == 0 else (seed * 20)
+            goods_add(_g, _dim, _amt)
     s.treasury = 50_000_000
     for _ in range(months):
         s.treasury = max(s.treasury, 50_000_000)

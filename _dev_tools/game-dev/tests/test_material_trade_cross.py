@@ -88,8 +88,20 @@ def _prep(s, dim, qty_seller, qty_buyer, wealth_buyer):
     g2 = merchant_goods(s, R2)
     # 🔴 2026-10-03：建材按 `goods[治所][dim]` 州府桶存放，「布置成 N」必须**先清该维桶**，
     # 否则真实库存留在桶里，测试前提（如「R2 缺料」）不成立。
-    for g in (g1, g2):
-        _clear_buckets(g)
+    # 🔴 2026-10-05（Y 轨货主规则上线后）：
+    # ① 原料现在**入仓**，而 `material_holding_for_circuit` **也读仓库**；
+    # ② `supply_merchant_materials` 已把仓料分摊给**所有路**的商人。
+    # ⇒ 若只清 R1/R2 的桶，「R2 缺料」前提不成立，且卖家选择会挑到
+    #   其他有货路而失败。故本夹具须**清空全路同维桶 + 归零仓库**，
+    #   确保「只有 R1 有货」这一受控场景成立。
+    for _rk in s.prefectures:
+        _g = merchant_goods(s, _rk)
+        if isinstance(_g, dict):
+            _clear_buckets(_g)
+            _g.pop(dim, None)
+    _slot = s.resources.get(dim)
+    if isinstance(_slot, dict):
+        _slot["stock"] = 0
     g1[dim] = int(qty_seller)
     g2[dim] = int(qty_buyer)
     s.prefectures[R1]["pops"]["商人"]["wealth"] = 0.0

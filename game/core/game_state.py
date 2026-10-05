@@ -81,6 +81,12 @@ from content.ministers import (
 )
 from core.game_state_econ import GameStateEconMixin
 
+#: 🔴 **玩法参数**（2026-10-05 首轮供料模拟调参）：原料仓容量上限。
+#: 原为 50_000，而各路月产约 50-90 万/维 ⇒ **单月产出即被截断约 94%**，
+#: 原料无法积累、工坊必然缺料。改为 3_000_000（约容 3-4 个月）。
+#: ⚠️ 属**玩法设定**，非史实；与 `production_chain._DEFAULT_CAP` 保持一致。
+RAW_STORE_CAP = 3_000_000
+
 
 def _next_month(year: int, month: int):
     """推进一个月份，返回新的 (year, month)。作为模块级纯函数，供 commands 与 settlement 共用。"""
@@ -547,7 +553,7 @@ class GameState(GameStateEconMixin):
 
         # ---- 经济全浮动重构新增状态 ----
         # 七维物资仓：{dim: {"stock": 现有, "cap": 容量}}
-        self.resources: dict = {d: {"stock": 0, "cap": 50_000} for d in RESOURCE_DIMS}
+        self.resources: dict = {d: {"stock": 0, "cap": RAW_STORE_CAP} for d in RESOURCE_DIMS}
         # === 归属待定库存（2026-10-05 用户裁定 6.33） ===
         # 未归属原料（resolve_holder 缺失或证据不足）的**物理存放槽**。
         #
