@@ -1,0 +1,1405 @@
+{
+ "_note": "《宋史·地理志》卷085-090 逐州府崇寧年间戶口（史料原文）",
+ "source_files": [
+  "songshi_085.txt",
+  "songshi_086.txt",
+  "songshi_087.txt",
+  "songshi_088.txt",
+  "songshi_089.txt",
+  "songshi_090.txt"
+ ],
+ "records": [
+  {
+   "name": null,
+   "households": 261117,
+   "population": 442940,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "靑州",
+   "households": 95158,
+   "population": 162837,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "密州",
+   "households": 144567,
+   "population": 327340,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "濟南府",
+   "households": 133321,
+   "population": 214067,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "沂州",
+   "households": 82893,
+   "population": 165230,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "登州",
+   "households": 81273,
+   "population": 173484,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "萊州",
+   "households": 97427,
+   "population": 198908,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "濰州",
+   "households": 44677,
+   "population": 119549,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "淄州",
+   "households": 61152,
+   "population": 98610,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "淮陽軍",
+   "households": 76887,
+   "population": 154130,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "應天府",
+   "households": 79741,
+   "population": 157404,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "襲慶府",
+   "households": 71777,
+   "population": 217734,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "徐州",
+   "households": 64430,
+   "population": 152237,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "興仁府",
+   "households": 35980,
+   "population": 66931,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "東平府",
+   "households": 130305,
+   "population": 396063,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "單州",
+   "households": 61409,
+   "population": 116969,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "濮州",
+   "households": 31747,
+   "population": 52681,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "襄陽府",
+   "households": 87307,
+   "population": 192605,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "鄧州",
+   "households": 114127,
+   "population": 297550,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "隨州",
+   "households": 30804,
+   "population": 67021,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "金州",
+   "households": 39636,
+   "population": 65674,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "房州",
+   "households": 33151,
+   "population": 47941,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "均州",
+   "households": 30107,
+   "population": 44796,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "郢州",
+   "households": 47281,
+   "population": 78727,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "唐州",
+   "households": 89955,
+   "population": 212172,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "河南府",
+   "households": 127767,
+   "population": 233280,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "潁昌府",
+   "households": 66041,
+   "population": 160193,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "鄭州",
+   "households": 30976,
+   "population": 41848,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "滑州",
+   "households": 26522,
+   "population": 81988,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "孟州",
+   "households": 33481,
+   "population": 70169,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "蔡州",
+   "households": 98502,
+   "population": 185013,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "淮寧府",
+   "households": 32094,
+   "population": 159617,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "順昌府",
+   "households": 78174,
+   "population": 160628,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "汝州",
+   "households": 41587,
+   "population": 141495,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "信陽軍",
+   "households": 9954,
+   "population": 20050,
+   "source": "songshi_085.txt"
+  },
+  {
+   "name": "大名府",
+   "households": 155253,
+   "population": 568976,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "開德府",
+   "households": 31878,
+   "population": 82826,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "滄州",
+   "households": 65851,
+   "population": 118218,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "冀州",
+   "households": 66244,
+   "population": 111030,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "河間府",
+   "households": 31930,
+   "population": 60206,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "博州",
+   "households": 46492,
+   "population": 91333,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "棣州",
+   "households": 39137,
+   "population": 57234,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "莫州",
+   "households": 14560,
+   "population": 31992,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "雄州",
+   "households": 13013,
+   "population": 52967,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "霸州",
+   "households": 15918,
+   "population": 21516,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "德州",
+   "households": 44591,
+   "population": 82025,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "濱州",
+   "households": 49991,
+   "population": 114984,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "恩州",
+   "households": 51342,
+   "population": 85986,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "永靜軍",
+   "households": 34193,
+   "population": 39022,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "淸州",
+   "households": 6619,
+   "population": 12078,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "信安軍",
+   "households": 715,
+   "population": 1437,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "保定軍",
+   "households": 1029,
+   "population": 2484,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "眞定府",
+   "households": 92353,
+   "population": 163197,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "相州",
+   "households": 36340,
+   "population": 71635,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "中山府",
+   "households": 65935,
+   "population": 186305,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "信德府",
+   "households": 53613,
+   "population": 95552,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "浚州",
+   "households": 3176,
+   "population": 3202,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "懷州",
+   "households": 32311,
+   "population": 88185,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "衞州",
+   "households": 33204,
+   "population": 46365,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "洺州",
+   "households": 38817,
+   "population": 73600,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "深州",
+   "households": 38036,
+   "population": 83710,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "磁州",
+   "households": 36491,
+   "population": 96922,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "祁州",
+   "households": 24484,
+   "population": 49975,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "慶源府",
+   "households": 34141,
+   "population": 60137,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "保州",
+   "households": 27456,
+   "population": 230234,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "安肅軍",
+   "households": 7197,
+   "population": 14751,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "廣信軍",
+   "households": 4445,
+   "population": 8738,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 8605,
+   "population": 16578,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 155263,
+   "population": 1241768,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 52997,
+   "population": 133146,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 75908,
+   "population": 185254,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 59903,
+   "population": 94237,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 44133,
+   "population": 91852,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 33258,
+   "population": 159857,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 18186,
+   "population": 42232,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 51697,
+   "population": 185698,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 2722,
+   "population": 7444,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 13269,
+   "population": 66224,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 15809,
+   "population": 72929,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 38284,
+   "population": 138439,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 3482,
+   "population": 8684,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 1242,
+   "population": 3185,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 153,
+   "population": 411,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 19962,
+   "population": 37726,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 9306,
+   "population": 28607,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 2917,
+   "population": 6720,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 1718,
+   "population": 3821,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 5045,
+   "population": 9480,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "順安軍",
+   "households": 963,
+   "population": 4050,
+   "source": "songshi_086.txt"
+  },
+  {
+   "name": "京兆府",
+   "households": 234699,
+   "population": 537288,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "河中府",
+   "households": 79964,
+   "population": 227030,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "解州",
+   "households": 32356,
+   "population": 113321,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "陝州",
+   "households": 47806,
+   "population": 135701,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "商州",
+   "households": 73129,
+   "population": 162534,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "虢州",
+   "households": 22490,
+   "population": 47563,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "同州",
+   "households": 81011,
+   "population": 233965,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "華州",
+   "households": 94750,
+   "population": 269380,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "耀州",
+   "households": 112667,
+   "population": 347535,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "延安府",
+   "households": 50926,
+   "population": 169216,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "鄜州",
+   "households": 35401,
+   "population": 92415,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "坊州",
+   "households": 13408,
+   "population": 40191,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "保安軍",
+   "households": 2042,
+   "population": 6931,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "慶陽府",
+   "households": 27853,
+   "population": 96433,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "環州",
+   "households": 7183,
+   "population": 15532,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "邠州",
+   "households": 58255,
+   "population": 162161,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "寧州",
+   "households": 37558,
+   "population": 122041,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "秦州",
+   "households": 48648,
+   "population": 123022,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "鳳翔府",
+   "households": 143374,
+   "population": 322378,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "隴州",
+   "households": 28370,
+   "population": 89750,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "成州",
+   "households": 12964,
+   "population": 33995,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "鳳州",
+   "households": 37796,
+   "population": 61145,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "階州",
+   "households": 20674,
+   "population": 49520,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "渭州",
+   "households": 26584,
+   "population": 63512,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "涇州",
+   "households": 28411,
+   "population": 88699,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "原州",
+   "households": 23036,
+   "population": 63499,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "德順軍",
+   "households": 29269,
+   "population": 126241,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "鎭戎軍",
+   "households": 1961,
+   "population": 8057,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "熙州",
+   "households": 1893,
+   "population": 5254,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "河州",
+   "households": 1061,
+   "population": 3895,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "鞏州",
+   "households": 4878,
+   "population": 11857,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "岷州",
+   "households": 40570,
+   "population": 67731,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": "蘭州",
+   "households": 395,
+   "population": 981,
+   "source": "songshi_087.txt"
+  },
+  {
+   "name": null,
+   "households": 213574,
+   "population": 296615,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 279306,
+   "population": 367390,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 152821,
+   "population": 448312,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 63657,
+   "population": 164566,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 162335,
+   "population": 361698,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 134080,
+   "population": 261678,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 116140,
+   "population": 220017,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 165116,
+   "population": 246909,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 119640,
+   "population": 262710,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 156792,
+   "population": 351955,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 118523,
+   "population": 160536,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 117903,
+   "population": 288858,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 82341,
+   "population": 117521,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 122813,
+   "population": 228676,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "揚州",
+   "households": 56485,
+   "population": 117579,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "亳州",
+   "households": 130119,
+   "population": 183581,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "宿州",
+   "households": 91483,
+   "population": 167379,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "楚州",
+   "households": 78549,
+   "population": 217202,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "海州",
+   "households": 54830,
+   "population": 99750,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "泰州",
+   "households": 56972,
+   "population": 117274,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "泗州",
+   "households": 63632,
+   "population": 157351,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "滁州",
+   "households": 40026,
+   "population": 97089,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "眞州",
+   "households": 24242,
+   "population": 82043,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "通州",
+   "households": 27527,
+   "population": 43189,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "髙郵軍",
+   "households": 20813,
+   "population": 38751,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "安東州",
+   "households": 19579,
+   "population": 40785,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "壽春府",
+   "households": 126383,
+   "population": 246381,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "廬州",
+   "households": 83056,
+   "population": 178359,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "蘄州",
+   "households": 114097,
+   "population": 193116,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "和州",
+   "households": 34104,
+   "population": 66371,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "安慶府",
+   "households": 128350,
+   "population": 341866,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "濠州",
+   "households": 64570,
+   "population": 153457,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "光州",
+   "households": 12268,
+   "population": 156460,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "黃州",
+   "households": 86953,
+   "population": 135916,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "無爲軍",
+   "households": 60138,
+   "population": 112199,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "江寧府",
+   "households": 120713,
+   "population": 210276,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "寧國府",
+   "households": 147040,
+   "population": 470749,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "徽州",
+   "households": 118316,
+   "population": 167896,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "池州",
+   "households": 135059,
+   "population": 216932,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "饒州",
+   "households": 181300,
+   "population": 336845,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "信州",
+   "households": 154364,
+   "population": 334097,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "太平州",
+   "households": 53261,
+   "population": 80137,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "南康軍",
+   "households": 70615,
+   "population": 112343,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "廣德軍",
+   "households": 41500,
+   "population": 110722,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "隆興府",
+   "households": 261105,
+   "population": 532446,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "江州",
+   "households": 84569,
+   "population": 138590,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "贛州",
+   "households": 272432,
+   "population": 712127,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "吉州",
+   "households": 335710,
+   "population": 957256,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "袁州",
+   "households": 132299,
+   "population": 324353,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "撫州",
+   "households": 161480,
+   "population": 373652,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "瑞州",
+   "households": 111421,
+   "population": 214564,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "興國軍",
+   "households": 63422,
+   "population": 115356,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "南安軍",
+   "households": 37721,
+   "population": 55582,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "臨江軍",
+   "households": 91699,
+   "population": 212656,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "建昌軍",
+   "households": 112887,
+   "population": 185036,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "江陵府",
+   "households": 85801,
+   "population": 223284,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "鄂州",
+   "households": 96769,
+   "population": 240767,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "德安府",
+   "households": 59186,
+   "population": 143892,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "常德府",
+   "households": 58297,
+   "population": 130865,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "澧州",
+   "households": 81673,
+   "population": 236921,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "峽州",
+   "households": 40980,
+   "population": 116400,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "岳州",
+   "households": 97791,
+   "population": 128450,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "歸州",
+   "households": 21058,
+   "population": 52147,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "辰州",
+   "households": 10730,
+   "population": 23350,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "沅州",
+   "households": 9659,
+   "population": 19157,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "潭州",
+   "households": 439988,
+   "population": 962853,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "衡州",
+   "households": 168095,
+   "population": 318253,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "道州",
+   "households": 41535,
+   "population": 86553,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "永州",
+   "households": 89387,
+   "population": 243322,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "郴州",
+   "households": 39392,
+   "population": 138599,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "寶慶府",
+   "households": 98861,
+   "population": 218160,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "全州",
+   "households": 34663,
+   "population": 116432,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": "桂陽軍",
+   "households": 40476,
+   "population": 115900,
+   "source": "songshi_088.txt"
+  },
+  {
+   "name": null,
+   "households": 182090,
+   "population": 589930,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 72809,
+   "population": 192384,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 67835,
+   "population": 273050,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 122915,
+   "population": 230409,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 71652,
+   "population": 210472,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 79279,
+   "population": 193032,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 41888,
+   "population": 95619,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 2722,
+   "population": 9080,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 27464,
+   "population": 62378,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 568,
+   "population": 1377,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 2020,
+   "population": 3013,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 32853,
+   "population": 114545,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 119609,
+   "population": 447565,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 49132,
+   "population": 112555,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 55493,
+   "population": 130313,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 32287,
+   "population": 47219,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 32118,
+   "population": 73221,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 36456,
+   "population": 92055,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 16448,
+   "population": 36668,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 44611,
+   "population": 95410,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 48277,
+   "population": 84484,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 16667,
+   "population": 52087,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 32877,
+   "population": 63830,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 29625,
+   "population": 174985,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 47057,
+   "population": 111754,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 11241,
+   "population": 23716,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 60284,
+   "population": 123540,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 25373,
+   "population": 51539,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 45490,
+   "population": 98567,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 43936,
+   "population": 110907,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 35023,
+   "population": 117573,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 23337,
+   "population": 41516,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 12531,
+   "population": 22078,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 12430,
+   "population": 19673,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 27827,
+   "population": 51472,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 3523,
+   "population": 9294,
+   "source": "songshi_089.txt"
+  },
+  {
+   "name": null,
+   "households": 6075,
+   "population": 10891,
+   "source": "songshi_089.txt"
+  }
+ ]
+}
