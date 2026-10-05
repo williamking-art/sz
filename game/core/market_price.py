@@ -33,7 +33,8 @@ from typing import Any, Dict, Optional
 __all__ = [
     "PRICE_SCHEMA_VERSION", "PRICE_BOUNDS", "price_pressure",
     "discover_price", "record_trade_price", "effective_buy_price",
-    "pref_good_key",
+    "pref_good_key", "seat_good_key",
+    "record_seat_trade_price", "discover_seat_price",
 ]
 
 #: 价格发现结构版本
@@ -215,6 +216,95 @@ def record_trade_price(state, dim: str, *, paid: float, qty: float,
     prev = _num(slot.get(dkey))
     slot[dkey] = round(avg if prev is None else (prev + avg) / 2.0, 6)
     return slot[dkey]
+
+
+# ── 治所级价格发现（G-5 · 2026-10-04） ──
+#
+# 现状（实测）：价格发现已有**路级**实现（B2-R2 键 `"路|商品"`，见 `pref_good_key`），
+# 但 `market_price` 里「治所」命中 0 次 ⇒ **州府桶里的货共用本路一个价**，
+# 「运没运到」对价格**不可观测**。
+#
+# 做法：键再扩一段 ⇒ `"路|治所|商品"`。
+#   · 治所段缺失的旧键 `"路|商品"` 仍可读（**向后兼容**，旧档不必迁移）；
+#   · 写入一律带治所段（新口径），符合「写入只走新载体」的既有纪律；
+#   · 州府没成交过 ⇒ 该治所**无键** ⇒ 回落本路价（回落而非填 0，缺失≠0）。
+#
+# 命名纪律沿用 `pref_good_key`：本仓库的 `route` 指外邦行军路线，与行政区无关，勿混用。
+
+SEAT_KEY_SEP = "|"
+
+
+def seat_good_key(pref: Any, seat: Any, dim: str) -> str:
+    """**治所级商品键**：`"<路>|<治所>|<商品>"`，如 `"京畿路|开封府|木"`。
+
+    `seat` 传完整治所 id（`"京畿路|开封府"`）或**只传治所名**（`"开封府"`）都可用 ——
+    内部只取最后一段，避免同一治所因传法不同产生两个键。
+    """
+    if seat is None:
+        return pref_good_key(pref, dim)
+    s = str(seat).split(SEAT_KEY_SEP)[-1] if SEAT_KEY_SEP in str(seat) else str(seat)
+    return "%s%s%s%s%s" % (pref, SEAT_KEY_SEP, s, SEAT_KEY_SEP, dim)
+
+
+def _lookup_seat_price(state, pref: Any, seat: Any, dim: str) -> Optional[float]:
+    """读治所级动态价：先治所键，再**回落本路键**（旧档兼容）；都没有 ⇒ `None`。
+
+    回落而非填 0：治所本月无成交**不代表**没有价格，属「缺失≠0」。
+    """
+    if state is None or seat is None:
+        return None
+    slot = getattr(state, "dynamic_prices", None)
+    if not isinstance(slot, dict):
+        return None
+    v = _num(slot.get(seat_good_key(pref, seat, dim)))
+    if v is not None:
+        return v
+    return _lookup_dynamic(state, pref, dim)
+
+
+def record_seat_trade_price(state, dim: str, *, paid: float, qty: float,
+                             pref: Any, seat: Any,
+                             key: str = "dynamic_prices") -> Optional[float]:
+    """登记**治所级**成交均价 → `state.dynamic_prices["路|治所|商品"]`。
+
+    与 `record_trade_price` 同口径：成交额/量为 0 ⇒ `None`（不写 0 冒充均价）；
+    **不得改写 `MATERIAL_PRICE_BASE`**（基准表是长期锚）。
+    """
+    p = _num(paid)
+    q = _num(qty)
+    if p is None or q is None or q <= 0:
+        return None
+    avg = p / q
+    if avg <= 0:
+        return None
+    slot = getattr(state, key, None)
+    if not isinstance(slot, dict):
+        slot = {}
+        setattr(state, key, slot)
+    dkey = seat_good_key(pref, seat, dim)
+    prev = _num(slot.get(dkey))
+    slot[dkey] = round(avg if prev is None else (prev + avg) / 2.0, 6)
+    return slot[dkey]
+
+
+def discover_seat_price(*, dim: str, pref: Any, seat: Any,
+                        demand_qty: Optional[float], supply_qty: Optional[float],
+                        prev_price: Optional[float],
+                        monthly_cap: float = DEFAULT_MONTHLY_CAP) -> Dict[str, Any]:
+    """**治所级**价格发现：`discover_price` 的治所版（同一压力模型与边界）。
+
+    `prev_price` 缺省时依次回落：治所成交均价 → 本路动态价 → 基准价。
+    返回结构与 `discover_price` 一致（含 `seat`），便于同一套断言复用。
+    """
+    prev = prev_price
+    if prev is None:
+        prev = _lookup_seat_price(None, pref, seat, dim)
+    r = discover_price(dim=dim, demand_qty=demand_qty, supply_qty=supply_qty,
+                       prev_price=prev, monthly_cap=monthly_cap)
+    r["pref"] = pref
+    r["seat"] = seat
+    r["key"] = seat_good_key(pref, seat, dim)
+    return r
 
 
 def effective_buy_price(*, dim: str, state=None,
