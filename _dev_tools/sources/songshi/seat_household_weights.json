@@ -1,0 +1,715 @@
+{
+ "_note": "治所层权重：《宋史·地理志》崇宁年间戶数（史料原文）",
+ "_purpose": "用史料戶数作权重，将路级设定总量按比例拆入治所（取代 SONG_SEAT_WEIGHTS）",
+ "_coverage": {
+  "matched": 75,
+  "total": 117
+ },
+ "routes": {
+  "京畿路": {
+   "hist_sum": 350709,
+   "hist_sum_full": 350709,
+   "seats": [
+    {
+     "seat": "开封府",
+     "hist_households": 261117,
+     "share": 0.74454
+    },
+    {
+     "seat": "郑州",
+     "hist_households": 30976,
+     "share": 0.088324
+    },
+    {
+     "seat": "滑州",
+     "hist_households": 26522,
+     "share": 0.075624
+    },
+    {
+     "seat": "陈州",
+     "hist_households": 32094,
+     "share": 0.091512
+    }
+   ]
+  },
+  "京西路": {
+   "hist_sum": 158571,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "河南府",
+     "hist_households": 127767,
+     "share": 0.80574
+    },
+    {
+     "seat": "颍昌府",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "襄阳府",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "邓州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "随州",
+     "hist_households": 30804,
+     "share": 0.19426
+    }
+   ]
+  },
+  "京东东路": {
+   "hist_sum": 465043,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "青州",
+     "hist_households": 95158,
+     "share": 0.204622
+    },
+    {
+     "seat": "密州",
+     "hist_households": 144567,
+     "share": 0.310868
+    },
+    {
+     "seat": "沂州",
+     "hist_households": 82893,
+     "share": 0.178248
+    },
+    {
+     "seat": "登州",
+     "hist_households": 81273,
+     "share": 0.174764
+    },
+    {
+     "seat": "潍州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "淄州",
+     "hist_households": 61152,
+     "share": 0.131498
+    }
+   ]
+  },
+  "京东西路": {
+   "hist_sum": 64430,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "兖州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "徐州",
+     "hist_households": 64430,
+     "share": 1.0
+    },
+    {
+     "seat": "济州",
+     "hist_households": null,
+     "share": null
+    }
+   ]
+  },
+  "河北路": {
+   "hist_sum": 509826,
+   "hist_sum_full": 509826,
+   "seats": [
+    {
+     "seat": "大名府",
+     "hist_households": 155253,
+     "share": 0.304522
+    },
+    {
+     "seat": "真定府",
+     "hist_households": 92353,
+     "share": 0.181146
+    },
+    {
+     "seat": "河间府",
+     "hist_households": 31930,
+     "share": 0.062629
+    },
+    {
+     "seat": "定州",
+     "hist_households": 65935,
+     "share": 0.129328
+    },
+    {
+     "seat": "澶州",
+     "hist_households": 31878,
+     "share": 0.062527
+    },
+    {
+     "seat": "沧州",
+     "hist_households": 65851,
+     "share": 0.129164
+    },
+    {
+     "seat": "邢州",
+     "hist_households": 53613,
+     "share": 0.105159
+    },
+    {
+     "seat": "雄州",
+     "hist_households": 13013,
+     "share": 0.025524
+    }
+   ]
+  },
+  "河东路": {
+   "hist_sum": 275513,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "太原府",
+     "hist_households": 155263,
+     "share": 0.563541
+    },
+    {
+     "seat": "潞州",
+     "hist_households": 52997,
+     "share": 0.192358
+    },
+    {
+     "seat": "平阳府",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "代州",
+     "hist_households": 33258,
+     "share": 0.120713
+    },
+    {
+     "seat": "忻州",
+     "hist_households": 18186,
+     "share": 0.066008
+    },
+    {
+     "seat": "石州",
+     "hist_households": 15809,
+     "share": 0.05738
+    }
+   ]
+  },
+  "陕西路": {
+   "hist_sum": 533977,
+   "hist_sum_full": 533977,
+   "seats": [
+    {
+     "seat": "京兆府",
+     "hist_households": 234699,
+     "share": 0.43953
+    },
+    {
+     "seat": "延安府",
+     "hist_households": 50926,
+     "share": 0.095371
+    },
+    {
+     "seat": "凤翔府",
+     "hist_households": 143374,
+     "share": 0.268502
+    },
+    {
+     "seat": "秦州",
+     "hist_households": 48648,
+     "share": 0.091105
+    },
+    {
+     "seat": "渭州",
+     "hist_households": 26584,
+     "share": 0.049785
+    },
+    {
+     "seat": "庆州",
+     "hist_households": 27853,
+     "share": 0.052161
+    },
+    {
+     "seat": "熙州",
+     "hist_households": 1893,
+     "share": 0.003545
+    }
+   ]
+  },
+  "两浙路": {
+   "hist_sum": 1282205,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "杭州",
+     "hist_households": 213574,
+     "share": 0.166568
+    },
+    {
+     "seat": "苏州",
+     "hist_households": 152821,
+     "share": 0.119186
+    },
+    {
+     "seat": "越州",
+     "hist_households": 279306,
+     "share": 0.217833
+    },
+    {
+     "seat": "润州",
+     "hist_households": 63657,
+     "share": 0.049647
+    },
+    {
+     "seat": "明州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "湖州",
+     "hist_households": 162335,
+     "share": 0.126606
+    },
+    {
+     "seat": "婺州",
+     "hist_households": 134080,
+     "share": 0.10457
+    },
+    {
+     "seat": "台州",
+     "hist_households": 156792,
+     "share": 0.122283
+    },
+    {
+     "seat": "温州",
+     "hist_households": 119640,
+     "share": 0.093308
+    }
+   ]
+  },
+  "江南东路": {
+   "hist_sum": 610437,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "江宁府",
+     "hist_households": 120713,
+     "share": 0.197748
+    },
+    {
+     "seat": "宣州",
+     "hist_households": 147040,
+     "share": 0.240877
+    },
+    {
+     "seat": "歙州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "池州",
+     "hist_households": 135059,
+     "share": 0.22125
+    },
+    {
+     "seat": "饶州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "信州",
+     "hist_households": 154364,
+     "share": 0.252875
+    },
+    {
+     "seat": "太平州",
+     "hist_households": 53261,
+     "share": 0.087251
+    }
+   ]
+  },
+  "江南西路": {
+   "hist_sum": 1274447,
+   "hist_sum_full": 1274447,
+   "seats": [
+    {
+     "seat": "洪州",
+     "hist_households": 261105,
+     "share": 0.204877
+    },
+    {
+     "seat": "吉州",
+     "hist_households": 335710,
+     "share": 0.263416
+    },
+    {
+     "seat": "虔州",
+     "hist_households": 272432,
+     "share": 0.213765
+    },
+    {
+     "seat": "抚州",
+     "hist_households": 161480,
+     "share": 0.126706
+    },
+    {
+     "seat": "袁州",
+     "hist_households": 132299,
+     "share": 0.103809
+    },
+    {
+     "seat": "筠州",
+     "hist_households": 111421,
+     "share": 0.087427
+    }
+   ]
+  },
+  "淮南东路": {
+   "hist_sum": 219533,
+   "hist_sum_full": 219533,
+   "seats": [
+    {
+     "seat": "扬州",
+     "hist_households": 56485,
+     "share": 0.257296
+    },
+    {
+     "seat": "楚州",
+     "hist_households": 78549,
+     "share": 0.3578
+    },
+    {
+     "seat": "泰州",
+     "hist_households": 56972,
+     "share": 0.259515
+    },
+    {
+     "seat": "通州",
+     "hist_households": 27527,
+     "share": 0.125389
+    }
+   ]
+  },
+  "淮南西路": {
+   "hist_sum": 221707,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "庐州",
+     "hist_households": 83056,
+     "share": 0.374621
+    },
+    {
+     "seat": "寿州",
+     "hist_households": 126383,
+     "share": 0.570045
+    },
+    {
+     "seat": "舒州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "黄州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "蕲州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "光州",
+     "hist_households": 12268,
+     "share": 0.055334
+    }
+   ]
+  },
+  "荆湖北路": {
+   "hist_sum": 312149,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "江陵府",
+     "hist_households": 85801,
+     "share": 0.274872
+    },
+    {
+     "seat": "岳州",
+     "hist_households": 97791,
+     "share": 0.313283
+    },
+    {
+     "seat": "鼎州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "鄂州",
+     "hist_households": 96769,
+     "share": 0.310009
+    },
+    {
+     "seat": "归州",
+     "hist_households": 21058,
+     "share": 0.067461
+    },
+    {
+     "seat": "辰州",
+     "hist_households": 10730,
+     "share": 0.034375
+    }
+   ]
+  },
+  "荆湖南路": {
+   "hist_sum": 787871,
+   "hist_sum_full": 787871,
+   "seats": [
+    {
+     "seat": "潭州",
+     "hist_households": 439988,
+     "share": 0.558452
+    },
+    {
+     "seat": "衡州",
+     "hist_households": 168095,
+     "share": 0.213353
+    },
+    {
+     "seat": "道州",
+     "hist_households": 41535,
+     "share": 0.052718
+    },
+    {
+     "seat": "郴州",
+     "hist_households": 39392,
+     "share": 0.049998
+    },
+    {
+     "seat": "邵州",
+     "hist_households": 98861,
+     "share": 0.125479
+    }
+   ]
+  },
+  "福建路": {
+   "hist_sum": 0,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "福州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "泉州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "建州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "漳州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "汀州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "南剑州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "兴化军",
+     "hist_households": null,
+     "share": null
+    }
+   ]
+  },
+  "成都府路": {
+   "hist_sum": 449466,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "成都府",
+     "hist_households": 182090,
+     "share": 0.405125
+    },
+    {
+     "seat": "眉州",
+     "hist_households": 72809,
+     "share": 0.16199
+    },
+    {
+     "seat": "绵州",
+     "hist_households": 122915,
+     "share": 0.273469
+    },
+    {
+     "seat": "汉州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "嘉州",
+     "hist_households": 71652,
+     "share": 0.159416
+    }
+   ]
+  },
+  "利州路": {
+   "hist_sum": 129593,
+   "hist_sum_full": 129593,
+   "seats": [
+    {
+     "seat": "兴元府",
+     "hist_households": 60284,
+     "share": 0.465179
+    },
+    {
+     "seat": "利州",
+     "hist_households": 25373,
+     "share": 0.19579
+    },
+    {
+     "seat": "阆州",
+     "hist_households": 43936,
+     "share": 0.339031
+    }
+   ]
+  },
+  "夔州路": {
+   "hist_sum": 0,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "夔州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "忠州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "万州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "达州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "涪州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "黔州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "施州",
+     "hist_households": null,
+     "share": null
+    }
+   ]
+  },
+  "广南东路": {
+   "hist_sum": 0,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "广州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "韶州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "潮州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "惠州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "端州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "英州",
+     "hist_households": null,
+     "share": null
+    }
+   ]
+  },
+  "广南西路": {
+   "hist_sum": 0,
+   "hist_sum_full": null,
+   "seats": [
+    {
+     "seat": "桂州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "柳州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "梧州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "邕州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "容州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "琼州",
+     "hist_households": null,
+     "share": null
+    },
+    {
+     "seat": "雷州",
+     "hist_households": null,
+     "share": null
+    }
+   ]
+  }
+ }
+}
