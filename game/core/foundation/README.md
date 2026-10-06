@@ -77,8 +77,8 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| `material_holding` | 🔵 **丙批两半全部完成** | 账本 42 符号已在 `foundation/ledger/`（丙批一 `cdc7af3933`）；交易 3 项已迁 `domains/economy/material_trade_ops.py`、core 收敛纯桩（丙批二）。旧「拆分失败残留」两份产物定性过期，留档 `_scratch/mh_residue_2026-10-06/`。**`read_models` 未新增**：读数/守恒接口按甲批归属留在 ledger，非第三批 |
-| 其余子包与 `domains/*` 十域 | ⬜ 空骨架 | **均无实现** |
+| `material_holding` | ✅ **已完成（移出本表的历史项，留此一行指路）** | 丙批一账本 42 符号入 `ledger/`（`cdc7af3933`）、丙批二交易 3 项入 `domains/economy/material_trade_ops.py`、core 收敛纯桩（`53d0a0c5d5`）；旧失败残留定性过期留档 `_scratch/mh_residue_2026-10-06/`。**`read_models` 有意不建**：读数/守恒接口按甲批归属留在 ledger，无"第三批" |
+| `state/`、`persistence/` 与其余 `domains/*` | ⬜ 空骨架 | **除 `domains/economy`（已有 `material_trade_ops`）外均无实现**；结算域迁移属阶段 3，前置=12 条反向边接口化（阶段 1 文档 §五） |
 | 依赖图（§8 阶段 1）| ✅ **已做**（2026-10-06 补齐）| 实测 **SCC=2**（18 模块环 + faction 2）与 12 条反向边登记，见 `specs/cross-cutting/阶段1_依赖图与循环依赖.md`；更正阶段 0「循环=0」错误结论 |
 
 ## 四、🔴 与架构方案的偏离（自查）
@@ -89,10 +89,14 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 | §8 阶段 2 | **每一小批只迁一个业务包；当轮只处理一个职责域** | 第一批一次迁了 **3 个模块** |
 | §8 阶段 1 | 先产出 import 图与循环依赖 | **跳过**，直接进阶段 2 |
 
-### `material_holding` 拆分失败的直接原因（✅ 已解除）
+### `material_holding` 拆分冲突点与执行结果（✅ 已闭环）
 
 测试 `test_seat_products_tribute.py` 曾**直接访问私有符号** `_TRIBUTE_BY_CIRCUIT`；
 转发桩若只导出公开符号即 `AttributeError`。
 ⇒ 该 §6-6 冲突点**已裁定并解决**（2026-10-06 `2135e29f68`）：补公开读口
-`tribute_circuits()`，测试改用它。拆分可重启，但按 §8 **必须分两批**
-（先 29 项账本接口 → `ledger/`，再只读读数 → `domains/economy/read_models/`）。
+`tribute_circuits()`，测试改用它。
+⇒ **两批拆分已按 §8 执行完毕**（丙批一 `cdc7af3933` 账本侧 / 丙批二 `53d0a0c5d5` 交易侧）。
+与原计划 29 项的差异（实测修订，详见甲批文档 §六）：中间新增 `tribute_circuits`/
+`HOLDER_MAP`/`HOLDER_PROVENANCE` 等公开符号、私有 helper 与常量不可跨文件拆分，
+账本侧实为 **42 实义符号**；交易 3 项归 `domains/economy/material_trade_ops.py`；
+"只读读数"不另立第三批（归属判据留在 ledger）。
