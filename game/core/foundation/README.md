@@ -22,8 +22,12 @@
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
 | 已迁入新结构的模块 | **8** | money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding |
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
-| `foundation/state` 实现文件 | **0** | — |
-| `foundation/persistence` 实现文件 | **0** | — |
+| `foundation/state` 实现文件 | **0** | 目录存在但空 |
+| `foundation/persistence` 实现文件 | **0** | 目录存在但空 |
+| `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
+| `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
+| `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
+| `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
 | `domains/` 十子域有实现的 | **1/10** | 仅 `economy`，且只有 `material_trade_ops.py` 一个文件 |
 | 外部业务调用方接入新路径 | **0 个文件** | 可核分解见 §二 末：新路径 16 个引用文件 = 转发桩自身 8 + 包内互引 5 + 验收用例 3 |
 

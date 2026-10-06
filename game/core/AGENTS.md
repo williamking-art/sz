@@ -5,6 +5,12 @@
 > 模块导航与「修改本目录前」清单 = [README.md](README.md)；迁移实测状态 = [foundation/README.md](foundation/README.md)。
 > 全局硬约束（POP 挂载律 / 口径单点 / 缺失≠0 等）见仓库根 [AGENTS.md](../../AGENTS.md) §3，
 > 对本目录同样生效；**冲突以根文件为准**。
+>
+> **已抽出的实现（别在本目录里找）**：回合收尾 `commands.py::finish_turn` 现为**薄代理**，
+> 真实现在 [`game/application/turn_lifecycle.py`](../../application/turn_lifecycle.py)
+> 与 [`game/application/memory_lifecycle.py`](../../application/memory_lifecycle.py)
+> （架构方案 §5.2；回归 `test_turn_lifecycle.py`）。改回合生命周期去改应用层，
+> 不要往代理里塞实现——那会让"生命周期已抽出"变成假的。
 
 ## 验证路径（最直接）
 

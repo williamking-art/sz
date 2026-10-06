@@ -771,67 +771,17 @@ def settle_local(state) -> list:
 
 
 def finish_turn(state) -> None:
-    """结算收尾（主线程）：终局判定 + 记忆库压缩/总结/落盘 + 对话记忆库每 3 回合总结去重。"""
-    import logging as _lg
-    _flog = _lg.getLogger("finish_turn")
-    if check_game_over(state):
-        state.game_over = True
-    # 主记忆库（审查 P1-5 修复接线）：每 6 回合压缩、每 12 回合周期总结（不动旧数据）
-    try:
-        mg = state.memory
-        mg.turn = state.turn
-        if state.turn > 0 and state.turn % 6 == 0:
-            mg.compress(state.turn)
-        if state.turn > 0 and state.turn % 12 == 0:
-            mg.summarize_period(state.turn)
-            # 容量治理（补接线 memory_graph._ARCHIVE_INTERVAL=12）：归档 w_eff 低于阈值的
-            # 旧史——只打 archived 标记、不物理删除，检索不再注入陈旧关系。原实现 archive()
-            # 零调用方 → 关系/实体只增不减，而 save() 每回合 DELETE 后全量重写，IO 随历史
-            # 线性放大。顺序：先总结（概要已覆盖本轮）再降权。
-            _aslot = getattr(mg, "_slot", None)
-            if _aslot is None:
-                _aslot = getattr(state, "memory_slot", None)
-            if _aslot is not None:
-                mg.archive(_aslot)
-    except Exception as e:  # noqa: BLE001
-        _flog.warning("记忆库压缩/总结失败（不阻断结算）：%s", e)
-    # 对话记忆库：每 3 回合总结去重（防记忆漂移/膨胀；不动旧数据）
-    try:
-        from memory.dialogue_memory import get_dialogue_memory
-        dm = get_dialogue_memory(state)
-        dm.turn = state.turn
-        if state.turn % 3 == 0:
-            dm.summarize_dialogues(state.turn)
-    except Exception as e:  # noqa: BLE001
-        _flog.warning("对话总结失败（不阻断结算）：%s", e)
-    # 审查 P1-5/P2-2 修复：每回合落盘记忆库（防中途崩溃丢失；失败记日志而非静默吞）
-    try:
-        mg = state.memory
-        _slot = getattr(mg, "_slot", None) or getattr(state, "memory_slot", None)
-        if _slot is not None:
-            ok = mg.save(_slot)
-            if not ok:
-                _flog.warning("记忆库写盘失败（slot=%s），本轮记忆未持久化", _slot)
-    except Exception as e:  # noqa: BLE001
-        _flog.warning("记忆库落盘异常（不阻断结算）：%s", e)
-    # 自动存档：每年正月（1 月）自动写入槽 0（自动槽），游戏结束也存一份最终档
-    if state.month == 1 or state.game_over:
-        # 审查 P2-3 / M2：原 `save_game(state, slot=0)` 的**异常被 pass**、返回的
-        # `False` 也被忽略 —— 自动存档静默失败，玩家以为"每年都有自动档"，
-        # 真要用时才发现没有（或一直是个陈旧档）。现：ERROR + traceback，
-        # 并把可读说明挂到 `state.save_error` 供 UI 一次性提示；`False` 同样记 error。
-        try:
-            from core.save_load import save_game
-            _ok = save_game(state, slot=0)
-            if not _ok:
-                _flog.error("自动存档失败 slot=0（save_game 返回 False，未落盘）")
-                state.save_error = ("自动存档失败：本年正月的自动档未能写入槽 0"
-                                    "（请手动存档）")
-            else:
-                state.save_error = ""
-        except Exception as e:  # noqa: BLE001 — 不得静默，也不得中断结算收尾
-            _flog.error("自动存档失败 slot=0：%s", e, exc_info=True)
-            state.save_error = f"自动存档失败（{type(e).__name__}）：请手动存档"
+    """结算收尾的**薄代理**（架构方案 §5.2：迁移期保留同名入口）。
+
+    实现已抽到 `game/application/turn_lifecycle.py`（终局判定 → 记忆生命周期三步 →
+    自动存档），本处只维持 `from core.commands import finish_turn` 的既有调用面
+    （`backend/client.py`、`settle_turn`、`__all__`）。
+
+    契约不变：不抛错、返回 `None`。用延迟导入而非顶层导入，避免
+    `core.commands ← application ← core.evaluation/save_load` 在导入期互锁。
+    """
+    from application.turn_lifecycle import finish_turn as _finish_turn
+    _finish_turn(state)
 
 
 def monthly_report_args(state) -> tuple:
