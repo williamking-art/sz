@@ -32,8 +32,9 @@ __all__ = [
     "land_freight", "sea_freight", "export_quote", "import_quote",
     "WATER_FREIGHT", "OVER_TAX_SHARE", "STAY_TAX_SHARE",
     "condition_mult", "road_condition", "canal_condition",
+    "ROUTE_WATERWAY", "WATERWAY_TIER_MULT", "waterway_tier", "water_freight_tiered",
     "water_freight", "tax_split", "tax_cost", "trade_total_cost", "trade_net",
-    "run_checks", "run_checks2",
+    "run_checks", "run_checks2", "run_checks3",
 ]
 
 #: 陆路物流费率（贯/万单位/趟）—— **复用既有口径**（`data_external.EXTERNAL_ECON` 同值）。
@@ -385,5 +386,82 @@ def run_checks2():
     n2 = trade_net(10500, 10000, 100, tax_rate=0.06)
     add("20 税后净利判定", n1["ok"] and not n2["ok"],
         "净%d ok=%s / 净%d ok=%s" % (n1["net"], n1["ok"], n2["net"], n2["ok"]))
+
+    return out
+
+#: 逐路可航性三档（**依史实漕运水道**，非空间计算所得）。
+#: 依据见 `_dev_tools/game-docs/specs/ROUTE_WATERWAY逐路可航性.md`（理由逐路注明）。
+#: ⚠️ 「强」⇒ 水运可完全替代陆运；「有」⇒ 部分可用；「弱」⇒ 通航受限。
+ROUTE_WATERWAY: Dict[str, Tuple[str, ...]] = {
+    "强": ("京畿路", "京东西路", "两浙路", "江南东路", "淮南东路",
+           "荆湖北路", "夔州路"),
+    "有": ("京东东路", "京西路", "河北路", "江南西路", "淮南西路",
+           "荆湖南路", "福建路", "成都府路", "利州路",
+           "广南东路", "广南西路"),
+    "弱": ("河东路", "陕西路", "黔中路"),
+}
+
+#: 可航档 → 水运成本倍数（弱档水道淤浅/礁险 ⇒ 优势变小）。
+WATERWAY_TIER_MULT: Dict[str, float] = {"强": 1.0, "有": 1.3, "弱": 1.8}
+
+
+def waterway_tier(route: str) -> Optional[str]:
+    """该路可航档；**未登记 ⇒ None**（承「缺失≠0」⇒ 不可水运）。"""
+    for tier, routes in ROUTE_WATERWAY.items():
+        if route in routes:
+            return tier
+    return None
+
+
+def water_freight_tiered(qty: int, cond: float, route: str) -> Optional[Dict[str, float]]:
+    """带**可航档**的水运报价。
+
+    - 路未登记可航 ⇒ **None**（不臆造水路）；
+    - 成本 = 基础费率 × 交通状况系数 × **档位倍数**（弱档更贵）。
+    """
+    tier = waterway_tier(route)
+    if tier is None:
+        return None
+    base = water_freight(qty, cond)
+    m = WATERWAY_TIER_MULT.get(tier, 1.0)
+    fee = float(round(base["fee"] * m, 2))
+    return {"fee": fee, "cond": float(cond), "tier": tier}
+
+
+def run_checks3():
+    """可航性自检（第三批）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    # 21 三档覆盖 21 路，无重复无遗漏
+    allr = [r for rs in ROUTE_WATERWAY.values() for r in rs]
+    add("21 三档无重无漏", len(allr) == len(set(allr)) == 21,
+        "共 %d 路（去重 %d）" % (len(allr), len(set(allr))))
+
+    # 22 京畿路 = 强（汴河漕运四河之首）
+    add("22 京畿路强", waterway_tier("京畿路") == "强", str(waterway_tier("京畿路")))
+
+    # 23 两浙路 = 强（江南运河/太湖）
+    add("23 两浙路强", waterway_tier("两浙路") == "强", str(waterway_tier("两浙路")))
+
+    # 24 河东路 = 弱（壶口龙门礁险）
+    add("24 河东路弱", waterway_tier("河东路") == "弱", str(waterway_tier("河东路")))
+
+    # 25 未登记路 ⇒ None（缺失≠0，不可水运）
+    add("25 未登记不可水运", water_freight_tiered(10000, 1.0, "不存在路") is None, "None")
+
+    # 26 档位倍率生效：强 < 有 < 弱
+    a = water_freight_tiered(1_000_000, 1.0, "京畿路")
+    b = water_freight_tiered(1_000_000, 1.0, "河北路")
+    c = water_freight_tiered(1_000_000, 1.0, "河东路")
+    add("26 档位倍率生效", a["fee"] < b["fee"] < c["fee"],
+        "强%.0f < 有%.0f < 弱%.0f" % (a["fee"], b["fee"], c["fee"]))
+
+    # 27 水运×交通状况 与 档位 独立可叠加
+    d = water_freight_tiered(1_000_000, 0.0, "京畿路")
+    add("27 失修翻倍(带档)", abs(d["fee"] - a["fee"] * 2) < 1e-6,
+        "%.1f -> %.1f" % (a["fee"], d["fee"]))
 
     return out
