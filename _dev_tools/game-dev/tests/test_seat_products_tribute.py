@@ -39,13 +39,14 @@ def test_mapping_covers_significant_share():
 
 def test_circuit_tribute_index_loaded():
     """贡物索引应从入库的 JSON 载入（`_dev_tools/sources/songshi/`）。"""
-    assert mh._TRIBUTE_BY_CIRCUIT, "贡物索引为空 —— 数据文件缺失或路径错"
-    assert len(mh._TRIBUTE_BY_CIRCUIT) >= 10
+    _TRIB = mh.tribute_circuits()
+    assert _TRIB, "贡物索引为空 —— 数据文件缺失或路径错"
+    assert len(_TRIB) >= 10
 
 
 def test_absent_record_is_not_zero():
     """缺失 ≠ 0：无贡物记录的维度不得把权重压成 0。"""
-    rt = next(iter(mh._TRIBUTE_BY_CIRCUIT))
+    rt = next(iter(mh.tribute_circuits()))
     w = mh.seat_weights_for(None, rt, "药材")
     if not w:
         return
@@ -55,7 +56,7 @@ def test_absent_record_is_not_zero():
 def test_differentiation_actually_differs():
     """有贡物证据的路，权重应高于同路无证据的维（差异化真实生效）。"""
     found = False
-    for rt, dims in mh._TRIBUTE_BY_CIRCUIT.items():
+    for rt, dims in mh.tribute_circuits().items():
         if "药材" not in dims:
             continue
         hit = mh.seat_weights_for(None, rt, "药材")

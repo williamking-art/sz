@@ -529,6 +529,18 @@ def circuit_tribute_dims(circuit: str) -> frozenset:
     return _TRIBUTE_BY_CIRCUIT.get(name) or frozenset()
 
 
+def tribute_circuits() -> Dict[str, frozenset]:
+    """已建立贡物证据的**路** -> 进贡物料维（只读视图）。
+
+    本函数是这套数据的**公开读口**（架构方案 §6-6：公共接口小而稳）：
+    调用方**不应直接依赖 `_TRIBUTE_BY_CIRCUIT` 等私有字符串**。
+
+    空数据不得伪装成有效：无记录的路不在本视图里，
+    且**不得**用它反推「该路无贡物证据」（缺失 ≠ 0）。
+    """
+    return dict(_TRIBUTE_BY_CIRCUIT)
+
+
 __all_TAIL__ = None
 
 def _attribute_by_weights(pop: Optional[dict], weights: List[SEAT_W],
