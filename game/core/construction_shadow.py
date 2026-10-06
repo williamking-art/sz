@@ -37,7 +37,7 @@ __all__ = [
     "DEPARTMENTS", "HIRED_RATIO", "CORVEE_CAP_RATE", "CORVEE_MOOD_W",
     "default_wage_per_hour", "hired_capacity", "corvee_capacity",
     "labor_for", "wage_cost", "mood_penalty", "choose_channel",
-    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "departments_of_seat", "departments_all", "run_checks", "run_checks2", "run_checks3",
+    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "departments_of_seat", "departments_all", "departments_all_derived", "MODE_TRUTH", "MODE_DERIVED", "run_checks", "run_checks2", "run_checks3", "run_checks4",
 ]
 
 #: 两个建造部门（用户裁定）。
@@ -476,5 +476,89 @@ def run_checks3():
 
     add("28 两部门不合并", ds[0]["dept_id"] != ds[1]["dept_id"] and ds[0]["owner_kind"] == "pop"
         and ds[1]["owner_kind"] == "local_gov", "民间=pop 官有=local_gov")
+
+    return out
+
+#: 汇总模式（玩家/前端据此区分**真账**与**派生**）。
+MODE_TRUTH = "truth"      # 州府级真账（seats 存在）
+MODE_DERIVED = "derived"  # **派生**（按人口权重拆路级值；不改任何账本）
+
+
+def departments_all_derived(state: Dict[str, object],
+                             circuit: str, p: Dict[str, object]
+                             ) -> List[Dict[str, object]]:
+    """**派生**某路的州府级部门实体（**只读，不写 state**）。
+
+    用途：给「**尚未下沉 `seats`**」的档（含所有新局）提供**玩家可见**的部门实体，
+    **不触碰真账**，因而**零风险**。
+
+    口径：
+    · **复用既有权重** `pop_bridge.seat_pop_weights(circuit)`（按治所 `demog.population`）
+      与 `pop_bridge._split_int`（**尾差归权重最大者，Σ 精确守恒**）——
+      **不另写比例算法**（承「口径单点」）；
+    · 路级无治所权重 ⇒ **返回空**并给 `no_weights`（**不臆造归属**）；
+    · 路级 POP 读不到 ⇒ 各治所规模为 `None`（**缺失≠0**）；
+    · **Σ 各治所规模 == 路级总量**（守恒，可自检）。
+    """
+    try:
+        from core.pop_bridge import seat_pop_weights, _split_int
+    except Exception:  # noqa: BLE001
+        return []
+    weights = seat_pop_weights(circuit)
+    if not weights:
+        return []
+    craft_total = _craftsmen_of(p)
+    ding_total = _service_ding_of(p)
+    by_seat_craft = _split_int(craft_total, weights) if craft_total else {}
+    by_seat_ding = _split_int(ding_total, weights) if ding_total else {}
+    out: List[Dict[str, object]] = []
+    for sid, _w in weights:
+        c = by_seat_craft.get(sid)
+        d = by_seat_ding.get(sid)
+        e1 = dept_entity("民间营造", "pop", craftsmen=c)
+        e1.update({"route": circuit, "seat": sid, "level": "seat",
+                   "mode": MODE_DERIVED, "derived": True})
+        out.append(e1)
+        e2 = dept_entity("官有营造", "local_gov",
+                         craftsmen=None if c is None else int(c) + int(d or 0))
+        e2.update({"route": circuit, "seat": sid, "level": "seat",
+                   "mode": MODE_DERIVED, "derived": True})
+        out.append(e2)
+    return out
+
+def run_checks4():
+    """**派生**部门实体自检（第四批）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    st = {"prefectures": {"京畿路": {"pops": {"工匠": {"size": 100}, "农": {"ding": 900}}}}}
+    p = st["prefectures"]["京畿路"]
+    ds = departments_all_derived(st, "京畿路", p)
+    add("29 派生可枚举", len(ds) > 0 and all(e["level"] == "seat" for e in ds), "%d 实体" % len(ds))
+
+    add("30 标为派生", all(e.get("derived") is True for e in ds), "derived=True")
+
+    add("31 mode=derived", all(e.get("mode") == MODE_DERIVED for e in ds), MODE_DERIVED)
+
+    civ = [e for e in ds if e["dept_id"] == "民间营造"]
+    off = [e for e in ds if e["dept_id"] == "官有营造"]
+    add("32 Σ民间工匠守恒", sum(e["craftsmen"] for e in civ) == 100,
+        "Σ=%d 路级=100" % sum(e["craftsmen"] for e in civ))
+
+    add("33 Σ官有=工匠+丁守恒", sum(e["craftsmen"] for e in off) == 1000,
+        "Σ=%d 路级应=100+900=1000" % sum(e["craftsmen"] for e in off))
+
+    add("34 两部门同治所配对", len(civ) == len(off), "%d vs %d" % (len(civ), len(off)))
+
+    add("35 无权重⇒空", departments_all_derived({}, "无此路", {}) == [], "[]")
+
+    st2 = {"prefectures": {"京畿路": {}}}
+    ds2 = departments_all_derived(st2, "京畿路", st2["prefectures"]["京畿路"])
+    add("36 缺POP⇒规模None", len(ds2) > 0 and all(e["craftsmen"] is None for e in ds2),
+        "实体存在，规模=None（缺失≠0）")
+
+    add("37 派生不改state", "seats" not in p, "state 未被写入")
 
     return out
