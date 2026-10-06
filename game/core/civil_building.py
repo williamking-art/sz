@@ -1164,8 +1164,16 @@ def apply_civil_construction(state, log: Optional[list] = None, *,
                     "decision": "no_build", "reason": trig["reason"]}
                 blocked_count[trig["reason"]] = blocked_count.get(trig["reason"], 0) + 1
                 continue
+            # 🔴 2026-10-05 劳役启用（承《建造部门_民间与官有》）：按**建筑所属部门**
+            #    决定是否派劳役。民间营造**只用雇工**（ratio=0）；官有营造可派劳役
+            #    （免工钱、扰民）。默认 `dept` 缺失 ⇒ 民间 ⇒ **ratio=0**，
+            #    故对现有全部登记建筑**行为完全不变**。
+            _spec = CIVIL_BUILDING_SPECS.get(name) or {}
+            _dept = str(_spec.get("dept") or DEPT_CIVIL)
+            _cr = CORVEE_RATIO_BY_DEPT.get(_dept, 0.0)
             out = build_civil_building(state, pref, name, month=month,
-                                       allow_job_class=allow_job_class, log=logs)
+                                       allow_job_class=allow_job_class, log=logs,
+                                       corvee_ratio=_cr)
             if not out.get("ok"):
                 summary["blocked"].setdefault(pref, {})[name] = {
                     "decision": "no_build", "reason": out.get("reason")}
@@ -1199,3 +1207,23 @@ def apply_civil_construction(state, log: Optional[list] = None, *,
     if summary["undefined_routes"]:
         _stat_add(state, "civil_undefined_routes", summary["undefined_routes"])
     return summary
+
+
+# ============================================================
+# 营造部门与**劳役派工开关**（2026-10-05）
+#
+# 口径：
+#   · 建筑规格 `CIVIL_BUILDING_SPECS[名]["dept"]` 决定所属部门；
+#     **缺失 ⇒ 民间营造** ⇒ `corvee_ratio=0` ⇒ **行为与旧版完全一致**；
+#   · 民间营造**只用雇工**（付工钱、不扰民）；
+#   · 官有营造可派**劳役**（**免工钱**、**扰民** `mood` ↓）。
+#
+# ⚠️ 当前 `CIVIL_BUILDING_SPECS` 登记的 3 个建筑（民居/货栈/商铺）**均无 dept**
+#    ⇒ 全为民间 ⇒ **本开关暂不生效**（这是**如实状态**，不是缺陷）。
+#    待**官有营造建筑清单**确定后，登记 `dept="官有营造"` 即自动生效。
+# ============================================================
+DEPT_CIVIL = "\u6c11\u95f4\u8425\u9020"
+DEPT_OFFICIAL = "\u5b98\u6709\u8425\u9020"
+
+#: 部门 → 劳役比例（**玩法设定，待裁**；民间恒 0）。
+CORVEE_RATIO_BY_DEPT: Dict[str, float] = {DEPT_CIVIL: 0.0, DEPT_OFFICIAL: 0.5}
