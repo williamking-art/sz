@@ -14,8 +14,8 @@
 | 规格 | 范围 | 状态入口 |
 |---|---|---|
 | [`decree-action-chain/`](decree-action-chain/tasks.md) | 圣旨/事务、行动拆解、蓝图、地点工程、月结算因果、AI/UI 读数与存档迁移 | `tasks.md` 的“0–7 完成”总声明与局部历史快照/遗留项需一并核对；以任务末尾状态、代码路径和对应回归共同判断，不能据总声明推断所有旨意动作都有执行器。 |
-| [`market-civilian-economy/`](market-civilian-economy/tasks.md) | POP 消费、商品市场、粮食、官民仓储/经营、营造材料与官员 Agent | 按任务表区分已实现、已接线、平衡放行和未关闭建模决策；其中多时间点状态须以最新收口表并结合当前代码复核。**B4-1 建材已于 2026-10-02 裁决 C/C-c/E-1 并接线**（商人 POP 持料＋只从本地取＋跨路在途＋补货下单）。 |
-| [`unified-civilian-market/`](unified-civilian-market/tasks.md) | 统一设计后续落地路线（P0–P6）：市场空间、州府经济、建筑经营、边境/远方市场、界面与质量门 | 州府实体/人口地基不等于州府级市场已经运行；市场、建材及 P0–P6 进度看任务表最新状态。本专题刻意不设 `requirements.md`/`design.md`，设计仍指向 `docs/`。 |
+| [`market-civilian-economy/`](decree-action-chain/tasks.md) | POP 消费、商品市场、粮食、官民仓储/经营、营造材料与官员 Agent | 按任务表区分已实现、已接线、平衡放行和未关闭建模决策；其中多时间点状态须以最新收口表并结合当前代码复核。**B4-1 建材已于 2026-10-02 裁决 C/C-c/E-1 并接线**（商人 POP 持料＋只从本地取＋跨路在途＋补货下单）。 |
+| [`unified-civilian-market/`](decree-action-chain/tasks.md) | 统一设计后续落地路线（P0–P6）：市场空间、州府经济、建筑经营、边境/远方市场、界面与质量门 | 州府实体/人口地基不等于州府级市场已经运行；市场、建材及 P0–P6 进度看任务表最新状态。本专题刻意不设 `requirements.md`/`design.md`，设计仍指向 `docs/`。 |
 
 ## 架构提案
 
@@ -35,12 +35,12 @@
 
 | 文件 | 所属 | 内容 |
 |---|---|---|
-| [`market-civilian-economy/b0-inventory-ledger.md`](market-civilian-economy/b0-inventory-ledger.md) | market-civilian-economy | B0 批次逐持有人/地点/用途的库存台账（开工地基） |
-| [`market-civilian-economy/demand-layer-calibration.md`](market-civilian-economy/demand-layer-calibration.md) | market-civilian-economy | 需求分层与校准口径（B2 购��力/缺货可区分） |
-| [`unified-civilian-market/inventory-building.md`](unified-civilian-market/inventory-building.md) | unified-civilian-market | 建筑域台账（开工门产物之二） |
-| [`unified-civilian-market/inventory-market.md`](unified-civilian-market/inventory-market.md) | unified-civilian-market | 市场域台账（开工门产物之一） |
+| [`market-civilian-economy/b0-inventory-ledger.md`](../economy/market-civilian-economy/b0-inventory-ledger.md) | market-civilian-economy | B0 批次逐持有人/地点/用途的库存台账（开工地基） |
+| [`market-civilian-economy/demand-layer-calibration.md`](../economy/market-civilian-economy/demand-layer-calibration.md) | market-civilian-economy | 需求分层与校准口径（B2 购��力/缺货可区分） |
+| [`unified-civilian-market/inventory-building.md`](../economy/unified-civilian-market/inventory-building.md) | unified-civilian-market | 建筑域台账（开工门产物之二） |
+| [`unified-civilian-market/inventory-market.md`](../economy/unified-civilian-market/inventory-market.md) | unified-civilian-market | 市场域台账（开工门产物之一） |
 
 若某专题暂缺其中一份，应在专题目录中说明，不根据模板虚构状态。
 
-跨目录冲突和改善优先级见 [`../文档整体审校与改善建议.md`](../文档整体审校与改善建议.md)。
-跨专题未完成设计的最新状态导航见 [`../reviews/未完成设计对齐与改良方案_2026-10-05.md`](../reviews/未完成设计对齐与改良方案_2026-10-05.md)；任务表较早状态快照与当前交接不一致时，应先复核而不是照旧重复实施。
+跨目录冲突和改善优先级见 [`../文档整体审校与改善建议.md`](../../文档整体审校与改善建议.md)。
+跨专题未完成设计的最新状态导航见 [`../reviews/未完成设计对齐与改良方案_2026-10-05.md`](../../reviews/未完成设计对齐与改良方案_2026-10-05.md)；任务表较早状态快照与当前交接不一致时，应先复核而不是照旧重复实施。
