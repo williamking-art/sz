@@ -12,16 +12,17 @@
 - `trade_material(state, ...)` —— 同路市集成交薄适配器，复用 `market.trade_goods`，
   🔴 跨州府**拒绝**（C-c 护栏：建材不得瞬移）。
 
-⚠️ **迁移期已知妥协**：本模块使用 ledger 私有符号（`_attribute_to_seats` / `_route_of`）。
-阶段 4 退役前应把它们提升为显式接口（§6-2），届时本批注记即销。
+✅ **§6 规则 2 偏离已销账（第十包，2026-10-07）**：本模块不再借用 ledger 私有符号，
+   改用显式接口 `attribute_to_seats` / `route_of`（旧私有名在 ledger 里仅作兼容别名保留，
+   供 `core/material_holding.py` 薄桩守恒其公开面；跨模块**不得**再取用下划线名）。
 """
 from __future__ import annotations
 
 from typing import Dict, List, Optional
 
 from core.foundation.ledger.material_holding import (
-    MATERIAL_DIMS, _attribute_to_seats, _route_of, goods_add, goods_amount,
-    merchant_goods, merchant_of,
+    MATERIAL_DIMS, attribute_to_seats, goods_add, goods_amount,
+    merchant_goods, merchant_of, route_of,
 )
 
 __all__ = ["commodity_dims", "supply_merchant_materials", "trade_material"]
@@ -90,7 +91,7 @@ def supply_merchant_materials(state, total: Optional[Dict[str, int]] = None
             # 2026-10-03（州府桶）：新到手的量**按州府人口拆进 `goods[治所]` 桶**。
             # 🔴 **只写一处** —— 桶是权威，扁平区仅作「无州府归属」的如实单列；
             # 两处都写会**双计**（`goods_amount` 会把两者相加）。
-            attributed = _attribute_to_seats(merchant_of(state, route), route, dim, int(qty))
+            attributed = attribute_to_seats(merchant_of(state, route), route, dim, int(qty))
             if attributed <= 0:
                 # 该路无治所人口权重（如无地图府块）⇒ **不臆造归属**，如实落扁平区
                 goods_add(goods, dim, int(qty))
@@ -125,8 +126,8 @@ def trade_material(state, *, buyer_pop: dict, seller_pop: dict,
     # "运没运到"就不可观测，物流便没有意义。
     # ⇒ 同路（市集内）走本函数；**跨路请用 `transport.dispatch`**。
     prefs = getattr(state, "prefectures", {}) or {}
-    bc = _route_of(prefs, buyer_pop)
-    sc = _route_of(prefs, seller_pop)
+    bc = route_of(prefs, buyer_pop)
+    sc = route_of(prefs, seller_pop)
     if bc and sc and bc != sc:
         raise ValueError(
             f"跨州府建材成交不得瞬移（买方 {bc} / 卖方 {sc}）："

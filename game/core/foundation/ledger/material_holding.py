@@ -60,6 +60,7 @@ __all__ = [
     "SEAT_SLOT",
     "SEAT_W",
     "TRIBUTE_WEIGHT_BONUS",
+    "attribute_to_seats",
     "circuit_seats",
     "circuit_tribute_dims",
     "consume_for_circuit",
@@ -76,6 +77,7 @@ __all__ = [
     "merchant_goods",
     "merchant_of",
     "resolve_holder",
+    "route_of",
     "seat_holding_report",
     "seat_slot",
     "seat_tribute_dims",
@@ -595,7 +597,7 @@ def _attribute_by_weights(pop: Optional[dict], weights: List[SEAT_W],
                         dim: str, qty: int) -> int:
     """按**给定权重**把 `qty` 拆进州府桶；尾差归权重最大者，Σ 精确等于 qty。
 
-    与 `_attribute_to_seats`（固定人口权重）同手法，只是权重来源可外部给定。
+    与 `attribute_to_seats`（旧私有名 `_attribute_to_seats` 仍为兼容别名，固定人口权重）同手法，只是权重来源可外部给定。
     """
     if not weights or qty <= 0:
         return 0
@@ -666,12 +668,15 @@ def supply_goods_to_seats(state, total: Optional[Dict[str, int]] = None,
 
 
 
-def _attribute_to_seats(pop: Optional[dict], circuit: str, dim: str, qty: int
-                        ) -> int:
+def attribute_to_seats(pop: Optional[dict], circuit: str, dim: str, qty: int
+                       ) -> int:
     """把本路新到手的 `qty` 按**州府人口**拆进州府子槽；返回归属量（== qty）。
 
     尾差归权重最大的治所（与 `supply_merchant_materials` 的路级处理同一手法），
     保证 `Σ(治所) == qty` **精确成立**，不产生无法归因的零头。
+
+    第十包（2026-10-07）由 `_attribute_to_seats` **提升为显式接口**：
+    `domains/economy/material_trade_ops.py` 是跨模块调用方，按 §6 规则 2 不得借用私有符号。
     """
     w = seat_weights_of_circuit(circuit)
     if not w or qty <= 0:
@@ -855,13 +860,24 @@ def consume_for_circuit(state, circuit: str, dim: str, amount: int) -> int:
 
 
 
-def _route_of(prefs: Dict[str, Any], pop: dict) -> Optional[str]:
-    """某个 POP 属于哪一路（按对象同一性匹配）；匹配不到 ⇒ `None`。"""
+def route_of(prefs: Dict[str, Any], pop: dict) -> Optional[str]:
+    """某个 POP 属于哪一路（按**对象同一性**匹配）；匹配不到 ⇒ `None`（不猜）。
+
+    第十包（2026-10-07）由 `_route_of` 提升为显式接口。
+    ⚠️ 另注：`core/material_trade.py:143` 有一份**逐字相同的私有副本**（同一实现第三处同名问题），
+    收敛它属重复代码清理、另立批次，本包不顺手删。
+    """
     for route, info in (prefs or {}).items():
         pops = (info or {}).get("pops") or {}
         if isinstance(pops, dict) and any(v is pop for v in pops.values()):
             return route
     return None
+
+
+# 迁移期兼容别名（旧私有名）。`core/material_holding.py` 薄桩仍按这两个名字转发，
+# 其 `dir()` 公开面必须守恒 ⇒ 只能留别名、不能改名了事；新代码请用公开名。
+_attribute_to_seats = attribute_to_seats
+_route_of = route_of
 
 
 

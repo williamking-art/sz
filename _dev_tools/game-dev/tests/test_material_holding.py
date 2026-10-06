@@ -388,13 +388,36 @@ def test_seat_level_change_does_not_alter_other_circuits():
 
 # ====================================================== 丙批一拆分验收（2026-10-06）
 def test_ledger_split_stub_is_same_objects():
-    """旧路径 `core.material_holding` 对 ledger 侧符号是**纯转发**（同一对象、无副本）。"""
+    """旧路径 `core.material_holding` 对 ledger 侧符号是**纯转发**（同一对象、无副本）。
+
+    方向要判对（第十包改到此）：不变量是「**桩面 ⊆ 实现面且逐名同一对象**」，
+    不是「实现面 ⊆ 桩面」。第十包把 `_attribute_to_seats`/`_route_of` 提升为显式接口
+    `attribute_to_seats`/`route_of` 后，实现面**合理地**长出 2 个旧路径从未有过的名字；
+    要求桩也跟着暴露它们＝扩大旧路径公开面，违反 dir() 守恒。
+    """
     from core import material_holding as OLD
     from core.foundation.ledger import material_holding as NEW
-    names = sorted(n for n in dir(NEW) if not n.startswith('__'))
-    assert len(names) == 49, f"ledger dir() 符号数变化（拆分桩需同步）：{len(names)}"
-    for n in names:
-        assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
+    impl_names = sorted(n for n in dir(NEW) if not n.startswith('__'))
+    # 49（丙批一冻结面）+ 2（第十包新增显式接口）
+    assert len(impl_names) == 51, f"ledger dir() 符号数变化（拆分桩需同步）：{len(impl_names)}"
+    # 桩**分两个家**（账本项在 ledger，丙批二 3 个交易项在 domains/economy），
+    # 所以不能拿单一 NEW 模块去比全部桩名——每个名字按桩自己的转发语句找家。
+    import ast as _ast
+    import importlib as _il
+    import io as _io
+    home = {}
+    for n in _ast.walk(_ast.parse(_io.open(OLD.__file__, encoding='utf-8').read())):
+        if isinstance(n, _ast.ImportFrom) and (n.module or '').startswith('core.'):
+            for a in n.names:
+                home[a.name] = n.module
+    for name in [x for x in dir(OLD) if not x.startswith('__')]:
+        assert name in home, f"桩名 {name} 没有转发来源"
+        mod = _il.import_module(home[name])
+        assert getattr(OLD, name) is getattr(mod, name), (
+            f"符号 {name} 非同一实现（疑似副本；家={home[name]}）")
+    # 新接口名**不得**回流到旧路径
+    for n in ("attribute_to_seats", "route_of"):
+        assert not hasattr(OLD, n), f"新接口 {n} 泄漏进旧路径，公开面被扩大"
 
 
 def test_ledger_split_keeps_52_public_surface():
@@ -409,11 +432,33 @@ def test_ledger_split_keeps_52_public_surface():
 
 # ====================================================== 丙批二拆分验收（2026-10-06）
 def test_trade_ops_split_stub_is_same_objects():
-    """`core.domains.economy.material_trade_ops` 的符号经旧路径为**同一对象**。"""
+    """`core.domains.economy.material_trade_ops` 的符号经旧路径为**同一对象**。
+
+    第十包例外：`attribute_to_seats` / `route_of` 是 ledger 的**显式接口名**，
+    被 import 进本模块后自然出现在 `dir()` 里，但旧路径从来没有过它们 ⇒ 不在转发闭包内。
+    （判据仍是"桩面 ⊆ 模块面 + 同对象"，例外必须点名，不许整体放宽。）
+    """
     from core import material_holding as OLD
     from core.domains.economy import material_trade_ops as TR
+    IMPORTED_INTERFACE = {"attribute_to_seats", "route_of"}
     for n in [x for x in dir(TR) if not x.startswith('__')]:
+        if n in IMPORTED_INTERFACE:
+            continue
         assert getattr(OLD, n) is getattr(TR, n), f"符号 {n} 非同一实现（疑似副本）"
+
+
+def test_trade_ops_no_longer_borrows_ledger_privates():
+    """§6 规则 2 偏离已销：本模块不得再 import ledger 的下划线私有符号。"""
+    import ast as _ast
+    import io as _io
+    from core.domains.economy import material_trade_ops as TR
+    src = _io.open(TR.__file__, encoding='utf-8').read()
+    borrowed = []
+    for n in _ast.walk(_ast.parse(src)):
+        if isinstance(n, _ast.ImportFrom) and (n.module or '').startswith('core.foundation.'):
+            borrowed += [a.name for a in n.names if a.name.startswith('_')
+                         and a.name != '__future__']
+    assert not borrowed, f"仍在借用 ledger 私有符号：{sorted(set(borrowed))}"
 
 
 def test_trade_ops_functions_defined_in_economy():

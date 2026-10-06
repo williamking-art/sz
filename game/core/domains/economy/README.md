@@ -12,8 +12,10 @@
 |---|---|---|---|
 | `material_trade_ops.py` | `core/material_holding.py` 交易侧（丙批二 2026-10-06）| `commodity_dims` `supply_merchant_materials` `trade_material` | 搬运/成交规则，非账本接口；向下依赖 `foundation/ledger/material_holding`；`trade_material` 复用 `core.market.trade_goods`（函数内延迟导入）；`supply_merchant_materials` **生产零调用但测试依赖、不得删**（甲批 §五 实测）|
 
-⚠️ 迁移期已知妥协：`material_trade_ops` 暂用 ledger 私有符号 `_attribute_to_seats`/`_route_of`，
-阶段 4 前应提升为显式接口（§6-2）。
+✅ **已销账（第十包，2026-10-07）**：`material_trade_ops` 改用 ledger 显式接口
+`attribute_to_seats` / `route_of`（旧私有名在 ledger 内仅作兼容别名保留，供 `core/material_holding.py`
+薄桩守恒其公开面）。跨包借用私有符号已由 `test_ledger_interface_b10.py` 常驻拦截，
+同包内已知欠账 `grain_bridge → pop_bridge._split_int` 单列登记、只减不增。
 
 ## 现有代码候选（**候选归属，迁移前须以符号调用图核实**）
 
