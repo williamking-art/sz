@@ -37,7 +37,7 @@ __all__ = [
     "DEPARTMENTS", "HIRED_RATIO", "CORVEE_CAP_RATE", "CORVEE_MOOD_W",
     "default_wage_per_hour", "hired_capacity", "corvee_capacity",
     "labor_for", "wage_cost", "mood_penalty", "choose_channel",
-    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "departments_of_seat", "departments_all", "departments_all_derived", "MODE_TRUTH", "MODE_DERIVED", "run_checks", "run_checks2", "run_checks3", "run_checks4",
+    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "departments_of_seat", "departments_all", "departments_all_derived", "MODE_TRUTH", "MODE_DERIVED", "run_checks", "run_checks2", "run_checks3", "run_checks4", "run_checks5",
 ]
 
 #: 两个建造部门（用户裁定）。
@@ -267,6 +267,9 @@ def dept_entity(department: str, owner_kind: str,
     if monthly is not None:
         out["monthly"] = {k: monthly.get(k) for k in
                            ("built", "hired_hours", "corvee_days", "coin", "mood_cost")}
+        # 归属基准（承 §五「口径」）：保留上游标注，前端/测试可核对派生依据
+        if "attribution" in monthly:
+            out["monthly"]["attribution"] = monthly.get("attribution")
         out["built"] = monthly.get("built")
         out["hired_hours"] = monthly.get("hired_hours")
         out["corvee_days"] = monthly.get("corvee_days")
@@ -515,7 +518,8 @@ def departments_all_derived(state: Dict[str, object],
     for sid, _w in weights:
         c = by_seat_craft.get(sid)
         d = by_seat_ding.get(sid)
-        e1 = dept_entity("民间营造", "pop", craftsmen=c)
+        e1 = dept_entity("民间营造", "pop", craftsmen=c,
+                         monthly=_seat_monthly(p, sid, c, craft_total))
         e1.update({"route": circuit, "seat": sid, "level": "seat",
                    "mode": MODE_DERIVED, "derived": True})
         out.append(e1)
@@ -525,6 +529,35 @@ def departments_all_derived(state: Dict[str, object],
                    "mode": MODE_DERIVED, "derived": True})
         out.append(e2)
     return out
+
+
+def _seat_monthly(p: Dict[str, object], seat_id: str,
+                  seat_craft: Optional[int], route_craft: Optional[int]
+                  ) -> Optional[Dict[str, object]]:
+    """把**路级本月营造产出**按**该治所工匠占比**派生到治所。
+
+    口径：
+    · 路级 `dept_monthly` 缺失 ⇒ `None`（**缺失≠0**，不伪造「本月 0 产出」）|
+    · 归属基准 = **工匠占比**（与规模拆分同源，口径一致）；
+    · Σ 各治所 == 路级（**守恒**）|
+    · **官有营造不派产出**：营造引擎目前只跑**民间**建筑
+      （`dept_monthly.dept="民间营造"`），官有产出为 `None` 而**非 0**
+      （避免把「未实现」显示成「没干活」）。
+    """
+    dm = p.get("dept_monthly")
+    if not isinstance(dm, dict):
+        return None
+    if str(dm.get("dept")) != "民间营造":
+        return None
+    if not seat_craft or not route_craft:
+        return None
+    share = float(seat_craft) / float(route_craft)
+    hours = float(dm.get("hired_hours") or 0.0) * share
+    coin = int(round(float(dm.get("coin") or 0) * share))
+    built = float(dm.get("built") or 0) * share
+    return {"built": round(built, 3), "hired_hours": round(hours, 3),
+            "coin": coin, "corvee_days": None, "mood_cost": None,
+            "attribution": "craftsmen_share"}
 
 def run_checks4():
     """**派生**部门实体自检（第四批）。"""
@@ -560,5 +593,46 @@ def run_checks4():
         "实体存在，规模=None（缺失≠0）")
 
     add("37 派生不改state", "seats" not in p, "state 未被写入")
+
+    return out
+
+def run_checks5():
+    """**月度产出**入实体自检（第五批，含非零验证）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    st = {"prefectures": {"京畿路": {
+        "pops": {"工匠": {"size": 100}, "农": {"ding": 900}},
+        "dept_monthly": {"built": 10, "hired_hours": 5000.0, "coin": 3000,
+                         "corvee_days": None, "mood_cost": None, "dept": "民间营造"},
+    }}}
+    p = st["prefectures"]["京畿路"]
+    ds = departments_all_derived(st, "京畿路", p)
+    civ = [e for e in ds if e["dept_id"] == "民间营造" and e["monthly"]]
+    add("38 非零产出派发", len(civ) > 0 and any(e["monthly"]["hired_hours"] > 0 for e in civ),
+        "%d 治所有产出" % len(civ))
+
+    sh = sum(e["monthly"]["hired_hours"] for e in civ)
+    add("39 工时Σ守恒", abs(sh - 5000.0) < 0.5, "Σ=%.3f 路级=5000" % sh)
+
+    sc = sum(e["monthly"]["coin"] for e in civ)
+    add("40 工钱Σ近似守恒", abs(sc - 3000) <= max(2, len(civ)), "Σ=%d 路级=3000" % sc)
+
+    sb = sum(e["monthly"]["built"] for e in civ)
+    add("41 建成Σ守恒", abs(sb - 10.0) < 0.05, "Σ=%.3f 路级=10" % sb)
+
+    add("42 归属基准标注", all(e["monthly"]["attribution"] == "craftsmen_share" for e in civ),
+        "craftsmen_share")
+
+    off = [e for e in ds if e["dept_id"] == "官有营造"]
+    add("43 官有产出=None", all(e["monthly"] is None for e in off),
+        "None（未实现，非 0）")
+
+    st2 = {"prefectures": {"京畿路": {"pops": {"工匠": {"size": 100}, "农": {"ding": 900}}}}}
+    ds2 = departments_all_derived(st2, "京畿路", st2["prefectures"]["京畿路"])
+    add("44 无产出⇒None", all(e["monthly"] is None for e in ds2),
+        "缺失≠0")
 
     return out

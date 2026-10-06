@@ -1135,10 +1135,19 @@ def apply_civil_construction(state, log: Optional[list] = None, *,
                      "no_pressure": 0, "at_level_cap": 0,
                      "job_class_opt_in_required": 0}
 
+    # ---- 2026-10-05 逐路**月度营造产出**（承《营造部门实体的治理语义与落点》）----
+    # 目的：让玩家感知到「部门本月干了什么」，而不只是一张静态名单。
+    # 口径：
+    #   · **纯统计累计**，**不动钱粮、不动 POP**（`coin_paid`/`labor_hours` 取自既有汇总）；
+    #   · **每月重置**（本函数就是月度入口）⇒ 字段语义 = **本月**；
+    #   · **劳役字段现恒为 0/None**（`corvee_ratio` 默认 0，机制已通电但未启用）；
+    #   · 写 `p["dept_monthly"]`，供 `construction_shadow` 的部门实体读取。
     for pref, p in prefs.items():
         if not isinstance(p, dict):
             summary["undefined_routes"] += 1
             continue
+        p["dept_monthly"] = {"built": 0, "hired_hours": 0.0, "coin": 0,
+                             "corvee_days": None, "mood_cost": None, "dept": "\u6c11\u95f4\u8425\u9020"}
         labor_used = 0.0
         for name in CIVIL_BUILDING_SPECS:
             trig = route_civil_trigger(state, pref, name, month=month,
@@ -1178,6 +1187,11 @@ def apply_civil_construction(state, log: Optional[list] = None, *,
                 "drivers": trig["drivers"], "pressure": trig["pressure"],
             })
             summary["routes_with_build"] += 1
+            _dm = p.get("dept_monthly")
+            if isinstance(_dm, dict):
+                _dm["built"] = int(_dm.get("built") or 0) + int(out["delta_lv"])
+                _dm["hired_hours"] = float(_dm.get("hired_hours") or 0.0) + float(out["labor_hours"])
+                _dm["coin"] = int(_dm.get("coin") or 0) + int(out["coin_paid"])
 
     for reason, key in CIVIL_BLOCKED_STAT.items():
         if blocked_count.get(reason):
