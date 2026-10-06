@@ -60,3 +60,26 @@ def test_survey_is_consistent_after_manual_bucket():
     r = survey_grain(s)
     assert r["Σgoods[米麦]"] == 777, r
     assert r["迁移状态"] == "部分迁移", r
+
+
+# ====================================================== 迁移批次验收（阶段 2 · 第六包 · 2026-10-06）
+def test_stub_reexports_same_objects_as_new_module():
+    """旧路径为**薄转发**：每个符号与新实现**同一对象**（无复制实现）。"""
+    from core import grain_ledger as OLD
+    from core.foundation.ledger import grain_ledger as NEW
+    assert OLD.__file__ != NEW.__file__
+    names = sorted(n for n in dir(NEW) if not n.startswith('__'))
+    assert len(names) == 7, f"dir() 符号数变化（迁移桩需同步）：{len(names)}"
+    for n in names:
+        assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
+
+
+def test_grain_bridge_imports_ledger_via_new_path():
+    """`grain_bridge` 的顶层 import 已改指新路径：模块可导入且引用同一实现。
+
+    顶层 import 断链会在 collection 期直接炸（非静默），此处再锁**对象同一性**。
+    """
+    from core.foundation.ledger import grain_bridge as GB
+    from core.foundation.ledger import grain_ledger as NEW
+    assert GB.GRAIN_MIGRATION_DIM is NEW.GRAIN_MIGRATION_DIM
+    assert GB.has_grain_bucket is NEW.has_grain_bucket

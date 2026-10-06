@@ -8,7 +8,7 @@
 ## 子包
 
 - `state/` GameState、初始状态构建与状态字段注册 —— ⬜ **空**
-- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 5 个**
+- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 6 个**
 - `persistence/` 存档读写与版本迁移 —— ⬜ **空**
 - `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个**
 
@@ -22,31 +22,37 @@
 | `numeric` | `foundation/common/numeric.py` | 2.7 KB | 8 |
 | `pop_structure` | `foundation/ledger/pop_structure.py` | 12.6 KB | 19 |
 | `prefecture_entity` | `foundation/ledger/prefecture_entity.py` | 11.2 KB | 24（dir() 口径）|
+| `grain_ledger` | `foundation/ledger/grain_ledger.py` | 4.0 KB | 7（dir() 口径）|
 
 旧路径 `core/money.py` `core/pop_bridge.py` `core/grain_bridge.py` `core/pop_structure.py`
-`core/numeric.py` `core/prefecture_entity.py` 均为**薄转发桩**（11–26 行），**不复制实现**。
+`core/numeric.py` `core/prefecture_entity.py` `core/grain_ledger.py`
+均为**薄转发桩**（11–26 行），**不复制实现**。
 
-✅ `pop_bridge` 对 `prefecture_entity` 的跨包反向依赖已在第五包**同批闭合**
-（改指新路径；阶段 1 标注的 ledger 缺口之一清零，余 `grain_ledger`）。
+✅ 阶段 1 标注的 ledger 两处跨包残余依赖（`pop_bridge→prefecture_entity`、
+`grain_bridge→grain_ledger`）已随第五、六包**全部闭合**（新实现均在 `ledger/` 内、
+import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `content/*` 与 stdlib）。
 ⚠️ `pop_bridge.seat_pop_weights` 的 lazy import 包在 `try/except` 里**静默返回 []**，
 路径断链不会炸 import —— 断言**权重非空**才算接通（回归已守）。
 
 ## 二、🔴 尚未接入：生产调用点仍走旧路径
 
 **计数口径（可复现）**：`game/` + `_dev_tools/game-dev/tests/` 中 import 该模块的
-**文件数**（不含薄转发桩与实现自身）。
+**文件数**（仅排除该模块自身的转发桩与新实现；两种形态
+`from core.X import` / `from core.foundation.ledger import X` 均计入；脚本 `_scratch/pe_refcount.py`）。
+⚠️ 第五包当轮曾把 `_dev_tools/` 全目录扫入导致虚高（如 money 38），本表已按声明口径校正。
 
 | 模块 | 旧路径引用文件 | 新路径引用文件 |
 |---|---:|---:|
-| `money` | **38** | 0 |
+| `money` | **26** | 0 |
 | `pop_bridge` | **21** | 3 |
-| `grain_bridge` | **12** | 1 |
+| `grain_bridge` | **12** | 2 |
 | `pop_structure` | **15** | 0 |
 | `numeric` | **15** | 0 |
-| `prefecture_entity` | **8** | 1 |
+| `prefecture_entity` | **8** | 2 |
+| `grain_ledger` | **2** | 2 |
 
-⇒ 新路径引用目前**全部来自 `foundation/` 包内部**（甲批规则 1「新迁入模块彼此用新
-规范路径」）；外部调用方仍 100% 走旧路径。
+⇒ 新路径引用目前**全部来自 `foundation/` 包内部与迁移验收用例**（甲批规则 1
+「新迁入模块彼此用新规范路径」）；外部业务调用方仍 100% 走旧路径。
 ⇒ 符合迁移期设计，但**必须显式记录**，避免后人误以为已切换。
 
 ## 三、未完成 / 受阻
@@ -55,7 +61,7 @@
 |---|---|---|
 | `material_holding` | ❌ **拆分失败，已回退** | 产物 `foundation/ledger/material_holding.py`（38.2 KB）与 `domains/economy/read_models/` 为**未提交残留**，**未接入** |
 | 其余子包与 `domains/*` 十域 | ⬜ 空骨架 | **均无实现** |
-| 依赖图（§8 阶段 1）| ❌ **未做** | 只做过粗粒度 import 扫描，**无符号级依赖图** |
+| 依赖图（§8 阶段 1）| ✅ **已做**（2026-10-06 补齐）| 实测 **SCC=2**（18 模块环 + faction 2）与 12 条反向边登记，见 `specs/cross-cutting/阶段1_依赖图与循环依赖.md`；更正阶段 0「循环=0」错误结论 |
 
 ## 四、🔴 与架构方案的偏离（自查）
 
@@ -65,8 +71,10 @@
 | §8 阶段 2 | **每一小批只迁一个业务包；当轮只处理一个职责域** | 第一批一次迁了 **3 个模块** |
 | §8 阶段 1 | 先产出 import 图与循环依赖 | **跳过**，直接进阶段 2 |
 
-### `material_holding` 拆分失败的直接原因
+### `material_holding` 拆分失败的直接原因（✅ 已解除）
 
-测试 `test_seat_products_tribute.py` **直接访问私有符号** `_TRIBUTE_BY_CIRCUIT`；
+测试 `test_seat_products_tribute.py` 曾**直接访问私有符号** `_TRIBUTE_BY_CIRCUIT`；
 转发桩若只导出公开符号即 `AttributeError`。
-⇒ 这是 §6-6「**公共接口小而稳**」与「测试依赖内部结构」之间的冲突点，**待裁定**。
+⇒ 该 §6-6 冲突点**已裁定并解决**（2026-10-06 `2135e29f68`）：补公开读口
+`tribute_circuits()`，测试改用它。拆分可重启，但按 §8 **必须分两批**
+（先 29 项账本接口 → `ledger/`，再只读读数 → `domains/economy/read_models/`）。

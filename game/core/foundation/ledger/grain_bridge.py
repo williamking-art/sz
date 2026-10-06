@@ -18,7 +18,7 @@
 """
 from typing import Optional
 
-from core.grain_ledger import GRAIN_MIGRATION_DIM, has_grain_bucket
+from core.foundation.ledger.grain_ledger import GRAIN_MIGRATION_DIM, has_grain_bucket
 
 #: 🔴 G-3 片5（2026-10-04）：`grain` 已列入 `pop_bridge.SPLIT_FIELDS`（可加：粮是总量），
 #: 故路级 POP 的粮写入必须**下沉到州府**，否则路级值会与 Σ治所**静默分叉**。
