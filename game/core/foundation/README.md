@@ -8,7 +8,7 @@
 ## 子包
 
 - `state/` GameState、初始状态构建与状态字段注册 —— ⬜ **空**
-- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 3 个**
+- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 4 个**
 - `persistence/` 存档读写与版本迁移 —— ⬜ **空**
 - `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个**
 
@@ -20,9 +20,10 @@
 | `pop_bridge` | `foundation/ledger/pop_bridge.py` | 25.7 KB | 32 |
 | `grain_bridge` | `foundation/ledger/grain_bridge.py` | 5.6 KB | 6 |
 | `numeric` | `foundation/common/numeric.py` | 2.7 KB | 8 |
+| `pop_structure` | `foundation/ledger/pop_structure.py` | 12.6 KB | 19 |
 
-旧路径 `core/money.py` `core/pop_bridge.py` `core/grain_bridge.py` `core/numeric.py`
-均为**薄转发桩**（11–23 行），**不复制实现**。
+旧路径 `core/money.py` `core/pop_bridge.py` `core/grain_bridge.py` `core/pop_structure.py` `core/numeric.py`
+均为**薄转发桩**（11–26 行），**不复制实现**。
 
 ## 二、🔴 尚未接入：生产调用点 **100% 仍走旧路径**
 
@@ -31,6 +32,7 @@
 | `money` | **16** | **0** |
 | `pop_bridge` | **15** | **0** |
 | `grain_bridge` | **10** | **0** |
+| `pop_structure` | **11** | **0** |
 | `numeric` | **17** | **0** |
 
 ⇒ **当前形态：旧路径是唯一被使用的入口**，转发桩承全部流量。
