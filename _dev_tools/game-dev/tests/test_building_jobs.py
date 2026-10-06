@@ -27,7 +27,11 @@ from core.building_jobs import (  # noqa: E402
     allocate_employment, evolve_building_levels, jobs_of,
     produce_grain_track, produce_job_track, job_flow_unemployed,
     pay_wages_from_revenue, pay_construction_cost, apply_bankruptcy,
+    _upgrade_cost,
 )
+
+#: 🔴 造价充足金额（D 裁定后 `surplus` 是**金额**，不再是布尔）
+_RICH = 10 ** 9
 from core.settlement import run_monthly_settlement  # noqa: E402
 
 CFG = EXTERNAL_ECON
@@ -132,9 +136,15 @@ def test_evolve_famine_downgrades_and_surplus_upgrades():
         def choice(self, seq):
             return seq[0]
 
-    chg2 = evolve_building_levels(prov2, CFG, surplus=True, famine=False,
+    # 🔴 2026-10-06 D 裁定：`surplus` 由**布尔**改为**金额**；升级须付得起造价。
+    # 旧写法 `surplus=True`（==1）远小于造价 ⇒ 会静默不升级，故必须给足金额。
+    chg2 = evolve_building_levels(prov2, CFG, surplus=_RICH, famine=False,
                                    arrears=False, rng=_AlwaysUp())
     assert chg2 and chg2[0]["delta_lv"] == +1
+    # 造价必须被记账进变更记录（供调用方从政权库藏扣减）
+    assert chg2[0]["cost"] == _upgrade_cost(CFG, chg2[0]["type"],
+                                              prov2["buildings"][chg2[0]["type"]]["lv"])
+    assert chg2[0]["cost"] > 0
 
 
 def test_job_flow_conserves_total_pop():
@@ -236,7 +246,8 @@ def test_closed_building_is_never_upgraded():
     cfg = dict(CFG)
     cfg["BUILDING_UPGRADE_PROB"] = 1.0          # 必定尝试升级，确保走到判据
     prov = {"buildings": {"粮田": {"lv": 0, "closed": True}, "工坊": {"lv": 1}}}
-    changes = evolve_building_levels(prov, cfg, surplus=True, famine=False, arrears=False,
+    # ⚠️ 必须给**充足**金额：否则本测试会因「钱不够」而通过，测不到倒闭守卫。
+    changes = evolve_building_levels(prov, cfg, surplus=_RICH, famine=False, arrears=False,
                                      staffed={"粮田": 0, "工坊": 100},
                                      idle_streak={}, rng=random.Random(7))
     closed = prov["buildings"]["粮田"]
@@ -244,3 +255,43 @@ def test_closed_building_is_never_upgraded():
     assert closed.get("closed") is True, "closed 标记不得被清除"
     assert all(c["type"] != "粮田" for c in changes), "升级机会应落在未倒闭建筑上"
     assert prov["buildings"]["工坊"]["lv"] == 2, "未倒闭建筑应正常升级"
+
+
+
+def test_upgrade_requires_sufficient_surplus():
+    """🔴 2026-10-06 D 裁定：**升级必须付得起造价**，否则不升级（不免费增产能）。"""
+    from core.building_jobs import _upgrade_cost
+    need = _upgrade_cost(CFG, "粮田", 2)
+    assert need is not None and need > 0, "造价必须可判定"
+
+    # ① 钱不够 ⇒ 不升级，且不挂账
+    prov = {"buildings": {"粮田": {"lv": 1}}}
+
+    class _AlwaysUp:
+        def random(self):
+            return 0.0
+
+        def choice(self, seq):
+            return seq[0]
+
+    chg = evolve_building_levels(prov, CFG, surplus=need - 1, famine=False,
+                                  arrears=False, rng=_AlwaysUp())
+    assert prov["buildings"]["粮田"]["lv"] == 1, "造价不足却升级了 => 免费增产能"
+    assert not chg, "未升级不应产生变更记录"
+
+    # ② 恰好够 ⇒ 升级，且造价入账
+    prov2 = {"buildings": {"粮田": {"lv": 1}}}
+    chg2 = evolve_building_levels(prov2, CFG, surplus=need, famine=False,
+                                   arrears=False, rng=_AlwaysUp())
+    assert prov2["buildings"]["粮田"]["lv"] == 2
+    assert chg2 and chg2[0]["cost"] == need
+
+    # ③ 造价不可判定（表缺该项）⇒ **不升级**，且**不按 0 假装**
+    cfg_bad = dict(CFG)
+    cfg_bad["BUILDING_COST"] = {}
+    prov3 = {"buildings": {"粮田": {"lv": 1}}}
+    assert _upgrade_cost(cfg_bad, "粮田", 2) is None
+    chg3 = evolve_building_levels(prov3, cfg_bad, surplus=_RICH, famine=False,
+                                   arrears=False, rng=_AlwaysUp())
+    assert prov3["buildings"]["粮田"]["lv"] == 1, "造价不可判定却升级"
+    assert not chg3

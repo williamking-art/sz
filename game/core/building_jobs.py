@@ -334,7 +334,28 @@ def produce_job_track(pops: dict, buildings: dict, cfg: dict,
     return produced
 
 
-def evolve_building_levels(prov: dict, cfg: dict, *, surplus: bool = False,
+def _upgrade_cost(cfg: dict, btype: str, new_lv: int) -> Optional[int]:
+    """升级至 `new_lv` 的造价 = `BUILDING_COST[btype] × BUILDING_COST_GROWTH^(lv-1)`。
+
+    🔴 **缺失 ≠ 0**（AGENTS.md §3-3）：表项或增长率缺失 ⇒ 返回 `None`（**不可判定**），
+    调用方须据此**不升级**，**不得**按 0 假装造价为零。
+
+    ⚠️ **增长率必须取 `cfg` 里的权威值**，不设默认（2026-10-06 用户裁定 §4：
+    旧的 `1.35` 缺省口径已废止，不得作为默认）。
+    """
+    tbl = cfg.get("BUILDING_COST") or {}
+    g = cfg.get("BUILDING_COST_GROWTH")
+    if not isinstance(tbl, dict) or btype not in tbl or g is None:
+        return None
+    try:
+        base = float(tbl[btype])
+        growth = float(g)
+    except (TypeError, ValueError):
+        return None
+    return int(base * (growth ** max(0, int(new_lv) - 1)))
+
+
+def evolve_building_levels(prov: dict, cfg: dict, *, surplus: float = 0.0,
                            famine: bool = False, arrears: bool = False,
                            staffed: Optional[Dict[str, int]] = None,
                            idle_streak: Optional[Dict[str, int]] = None,
@@ -342,7 +363,9 @@ def evolve_building_levels(prov: dict, cfg: dict, *, surplus: bool = False,
                            ) -> List[dict]:
     """建筑等级演化（§3.4 · 去折旧）：升级/降级都是事件，不是时间衰减。
 
-    - 升级：省域上月结余 > 0 且当月无饥荒 → 月 `BUILDING_UPGRADE_PROB` 概率择一类 lv+1；
+    - 升级：**上月结余金额 ≥ 该建筑升至 lv+1 的造价**且当月无饥荒 →
+      月 `BUILDING_UPGRADE_PROB` 概率择一类 lv+1，并从结余中扣减造价；
+      **结余不足 ⇒ 不升级**（不默认透支、不挂账）。
     - 降级：① 灾荒 → 随机一类 lv−1；② 欠饷 → 牧场/工坊优先 lv−1；
             ③ 持续空置（在岗率 <40% 连续 3 月）→ 该类 lv−1；
     - 节流：同一州/府同月最多 1 次降级事件；
@@ -408,14 +431,24 @@ def evolve_building_levels(prov: dict, cfg: dict, *, surplus: bool = False,
                 _set(bt, _cur(bt) - 1, "欠饷", -1)
                 break
 
-    # 升级（结余>0 且无饥荒；月 5% 概率择一类）
-    if surplus and not famine and R.random() < float(cfg.get("BUILDING_UPGRADE_PROB", 0.05)):
+    # 升级（🔴 2026-10-06 D 裁定：**须付造价**，不再免费增产能）
+    # 触发需同时满足：① 有结余金额 ② 无饥荒 ③ 命中概率 ④ **结余 ≥ 造价**
+    try:
+        _budget = float(surplus)
+    except (TypeError, ValueError):
+        _budget = 0.0
+    if _budget > 0 and not famine and R.random() < float(cfg.get("BUILDING_UPGRADE_PROB", 0.05)):
         # 只升「存在且未倒闭」的建筑：`_cur` 对倒闭返回 0，故 0 < lv 天然排除倒闭项
         # （2026-09-27 修复：原判据 `_lv(...) < lv_max` 会把倒闭建筑当成 lv=1 而升级）
         cands = [bt for bt in buildings if 0 < _cur(bt) < lv_max]
         if cands:
             bt = R.choice(cands)
-            _set(bt, _cur(bt) + 1, "结余营造", +1)
+            _cost = _upgrade_cost(cfg, bt, _cur(bt) + 1)
+            # 造价不可判定（None）⇒ 不升级；结余不足 ⇒ 不升级。二者都**不挂账**。
+            if _cost is not None and _budget >= _cost:
+                _set(bt, _cur(bt) + 1, "结余营造", +1)
+                changes[-1]["cost"] = _cost
+                _budget -= _cost
 
     return changes
 

@@ -1233,15 +1233,37 @@ def _settle_external_economy(state, log):
                     try:
                         from core.building_jobs import (
                             evolve_building_levels, job_flow_unemployed, apply_bankruptcy)
+                        # 🔴 2026-10-06 D 裁定：升级**须付造价**，不得免费增产能。
+                        #   `surplus` 由布尔改为**金额**（结余真值，非「是否 >0」）；
+                        #   付款主体是**该政权自有中央库藏 `treasury`**，
+                        #   **不扣宋的国库、不扣任何 POP 账户**（主要国家按「底层一致」与宋对齐）。
+                        _surplus_amt = int(st["tax"]) - _pa - _po
                         _chg = evolve_building_levels(
                             _p, cfg,
-                            surplus=(int(st["tax"]) - _pa - _po) > 0,
+                            surplus=_surplus_amt,
                             famine=int(st["famine"]) > 0,
                             arrears=_arrears > 0,
                             idle_streak=_p.get("building_idle_streak"),
                         )
                         if _chg:
                             pa["building_lv_changes"] = _chg
+                            # 建造支出从政权库藏实扣（守恒：库藏减、营造方得）
+                            _build_spend = sum(int(c.get("cost", 0) or 0) for c in _chg)
+                            if _build_spend:
+                                # 🔴 **钱守恒**：建造支出必须**落到政权内的 Σwealth**，
+                                #   与宋侧 `pay_wages_from_revenue` 同一口径（营建造价→工匠）。
+                                #   只扣不放会凭空销毁钱（实测差 -3225）。
+                                _builder = ppop.get("工匠")
+                                _paid = 0
+                                if isinstance(_builder, dict):
+                                    _paid = _build_spend
+                                    _builder["wealth"] = int(_builder.get("wealth", 0) or 0) + _paid
+                                else:
+                                    # ⚠️ 无工匠载体 ⇒ **不得凭空销毁**；退回库藏并记账
+                                    _paid = 0
+                                    pa["construction_unpaid"] = _build_spend
+                                treasury = max(0, treasury - _paid)
+                                pa["construction_spend"] = _paid
                         _flow = job_flow_unemployed(
                             ppop, st.get("staffed") or {}, cfg, _blds, rtype=rtype)
                         if any(_flow.values()):
