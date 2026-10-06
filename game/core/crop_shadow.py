@@ -39,6 +39,7 @@ __all__ = [
     "JOBS_PER_LEVEL", "CROP_BASE_RATE", "FARM_EMPLOY_SHARE_MAX",
     "STATUS_OK", "STATUS_NOT_SUITABLE", "STATUS_NO_ROUTE_DATA", "crop_status",
     "HIDDEN_HOUSEHOLD_RATE", "HIDDEN_HOUSEHOLD_PROVENANCE",
+    "DIM_BUILDING", "DIM_JOBS_PER_LEVEL", "DIM_BASE_RATE", "YIELD_ANOMALY_DIMS", "coverage_gap",
     "allocate_farm_pop", "climate_coef", "is_plantable", "crop_output",
     "land_tax_base", "corvee_base", "run_checks",
 ]
@@ -293,3 +294,48 @@ def run_checks() -> List[Tuple[str, bool, str]]:
     add("10 \u4e0d\u81ea\u52a8\u6539\u79cd", not w, "\u6a21\u5757\u65e0 state \u53c2\u6570\u3001\u65e0\u5199\u5165\u51fd\u6570")
 
     return out
+
+# ============================================================
+# 九维建筑定义（覆盖 yields 的全部 9 个维）
+# ============================================================
+
+#: 维 -> 建筑名（一作物一建）。
+#: 覆盖 yields 的全部 9 维，否则停用 production_chain 时会断供。
+DIM_BUILDING: Dict[str, str] = {
+    "丝": "桑田", "麻": "麻田", "果": "果园",
+    "蔗": "蔗田", "茶": "茶园", "木": "林场",
+    "石": "石场", "铁": "矿场", "盐": "盐场",
+}
+
+#: 维 -> 每级在岗（路级规模）。
+DIM_JOBS_PER_LEVEL: Dict[str, int] = {
+    "丝": 100_000, "麻": 100_000, "果": 60_000, "蔗": 60_000,
+    "茶": 80_000, "木": 80_000, "石": 60_000, "铁": 120_000,
+    "盐": 80_000,
+}
+
+#: 维 -> 单位产出基数（人/月）。
+#: 校准方法：使最紧的路占可上岗上限 <= 80%。
+#: 全为玩法设定，非史料。
+DIM_BASE_RATE: Dict[str, float] = {
+    "丝": 0.1586, "麻": 0.1864, "果": 0.2027, "蔗": 0.2974,
+    "茶": 0.3389, "木": 0.2719, "石": 0.0906, "铁": 0.1677,
+    "盐": 4.2272,
+}
+
+#: 异常维：盐 在 yields 中有负值（京畿路 = -100000）。
+#: 它混了净流量，不是纯生产量，不宜直接建模为建筑产出。
+#: 需先裁定其口径（见 接入条件5_6事实核查 第七节）。
+YIELD_ANOMALY_DIMS = ("盐",)
+
+
+def coverage_gap() -> List[str]:
+    """检查 yields 的维是否都有对应建筑；返回缺口维。
+
+    用于验证「停用 production_chain 不会断供」。
+    """
+    missing = []
+    for d in DIM_BUILDING:
+        if d not in DIM_JOBS_PER_LEVEL or d not in DIM_BASE_RATE:
+            missing.append(d)
+    return missing
