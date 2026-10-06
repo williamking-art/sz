@@ -30,7 +30,10 @@ __all__ = [
     "LOGISTICS_FEE", "TERRAIN_MULT", "WAR_MULT", "SEA_FREIGHT",
     "DISTANCE_BAND", "REGIME_IMPORTS", "ABSTRACT_TRADERS",
     "land_freight", "sea_freight", "export_quote", "import_quote",
-    "run_checks",
+    "WATER_FREIGHT", "OVER_TAX_SHARE", "STAY_TAX_SHARE",
+    "condition_mult", "road_condition", "canal_condition",
+    "water_freight", "tax_split", "tax_cost", "trade_total_cost", "trade_net",
+    "run_checks", "run_checks2",
 ]
 
 #: 陆路物流费率（贯/万单位/趟）—— **复用既有口径**（`data_external.EXTERNAL_ECON` 同值）。
@@ -106,13 +109,13 @@ def sea_freight(qty: int, storm: bool = False) -> Dict[str, float]:
 
 def export_quote(merchant_have: int, warehouse_have: int, buyer_demand: int,
                  unit_price: float, buyer_wealth: float,
-                 freight: Optional[int]) -> Dict[str, object]:
+                 freight: Optional[int], tax_rate: float = 0.0) -> Dict[str, object]:
     """出口报价（**商人优先**）。返回成交量 / 扣货构成 / 需付金额。
 
     口径：
       · 货源 = **商人 goods 优先**，不足才取**官仓**；
-      · 成交量 = min(供得上, 对方需求, 对方付得起)；
-      · 运费由**买方**承担（计入应付）；
+      · 成交量 = min(供得上, 对方需求, **税后**付得起)；
+      · 应付 = 货款 + 运费 + **税**（`tax_rate` = `commerce_tax_rate`）；
       · 任何一项不足 ⇒ 不成交（**不凭空给货**）。
     """
     if freight is None:
@@ -124,29 +127,35 @@ def export_quote(merchant_have: int, warehouse_have: int, buyer_demand: int,
     if supply <= 0:
         return {"ok": False, "reason": "no_stock"}
     want = min(int(buyer_demand), supply)
-    # 对方付得起：货款 + 运费
-    affordable = int(max(0.0, float(buyer_wealth) - float(freight)) / up)
+    # 税后付得起：货款 + 运费 + 税（税率作用于成交额）
+    _r = max(0.0, float(tax_rate or 0.0))
+    affordable = int(max(0.0, float(buyer_wealth) - float(freight)) / (up * (1.0 + _r)))
     qty = min(want, affordable)
     if qty <= 0:
         return {"ok": False, "reason": "insufficient_purchasing_power"}
     from_merchant = min(int(qty), int(merchant_have))
     from_warehouse = int(qty) - from_merchant
+    _gv = int(round(qty * up))
+    _tax = tax_cost(_gv, _r)
     return {
         "ok": True,
         "qty": int(qty),
         "from_merchant": int(from_merchant),
         "from_warehouse": int(from_warehouse),
-        "goods_value": int(round(qty * up)),
+        "goods_value": _gv,
         "freight": int(freight),
-        "payable": int(round(qty * up)) + int(freight),
+        "tax": _tax,
+        "payable": _gv + int(freight) + _tax,
     }
 
 
 def import_quote(merchant_room: int, buyer_wealth: float, unit_price: float,
-                 seller_supply: int, freight: Optional[int]) -> Dict[str, object]:
+                 seller_supply: int, freight: Optional[int],
+                 tax_rate: float = 0.0) -> Dict[str, object]:
     """进口报价（**商人优先**：进口货入商人 goods）。
 
-    成交量 = min(对方可供, 商人容量, 宋方付得起)；运费由**宋方买方**承担。
+    成交量 = min(对方可供, 商人容量, 宋方**税后**付得起)；
+    应付 = 货款 + 运费 + **税**。
     """
     if freight is None:
         return {"ok": False, "reason": "no_freight_band"}
@@ -159,16 +168,20 @@ def import_quote(merchant_room: int, buyer_wealth: float, unit_price: float,
     room = int(merchant_room)
     if room <= 0:
         return {"ok": False, "reason": "no_room"}
-    affordable = int(max(0.0, float(buyer_wealth) - float(freight)) / up)
+    _r = max(0.0, float(tax_rate or 0.0))
+    affordable = int(max(0.0, float(buyer_wealth) - float(freight)) / (up * (1.0 + _r)))
     qty = min(supply, room, affordable)
     if qty <= 0:
         return {"ok": False, "reason": "insufficient_purchasing_power"}
+    _gv = int(round(qty * up))
+    _tax = tax_cost(_gv, _r)
     return {
         "ok": True,
         "qty": int(qty),
-        "goods_value": int(round(qty * up)),
+        "goods_value": _gv,
         "freight": int(freight),
-        "payable": int(round(qty * up)) + int(freight),
+        "tax": _tax,
+        "payable": _gv + int(freight) + _tax,
     }
 
 
@@ -237,5 +250,140 @@ def run_checks():
     i2 = import_quote(1000, 1e9, 3.0, 1000, 77)
     add("12 应付含运费", i2["payable"] == i2["goods_value"] + i2["freight"],
         "%d = %d + %d" % (i2["payable"], i2["goods_value"], i2["freight"]))
+
+    return out
+
+# ============================================================
+# 水运 / 交通状况 / 税务（2026-10-05 用户补充）
+# ============================================================
+
+#: 水运费率（贯/万单位）。**平坦低费率**（不按距离档）—— 内河/运河是「廉价大宗通道」。
+#: ⚠️ 玩法设定，待标定。
+WATER_FREIGHT = {"per_wan": 1.0}
+
+#: 过税 : 住税 分解比例（**宋代史实 2% : 3%**）。
+#: 二者之和 == commerce_tax_rate（**不新增税率旋钮**）。
+OVER_TAX_SHARE = 0.4     # 过税（流通）
+STAY_TAX_SHARE = 0.6     # 住税（销地）
+
+#: 交通状况 → 成本倍数的下限/上限（完好 ×1.0，失修 ×2.0）。
+COND_MULT_BEST = 1.0
+COND_MULT_WORST = 2.0
+
+
+def condition_mult(cond: float) -> float:
+    """交通状况 → 成本倍数。`cond∈[0,1]`，1=完好、0=失修。
+
+    - 完好 ⇒ ×1.0；
+    - 失修 ⇒ ×2.0（`1/(0.5+0.5*0)`）；
+    - 越修越便宜（**玩家修缮动机的数学来源**）。
+    """
+    c = max(0.0, min(1.0, float(cond)))
+    return 1.0 / (0.5 + 0.5 * c)
+
+
+def road_condition(road_lv: int = 0) -> float:
+    """陆运交通状况（由**道路等级**给）。现无 `道路` 状态 ⇒ 默认 0（失修）。"""
+    lv = max(0, int(road_lv))
+    return max(0.0, min(1.0, lv / 5.0))
+
+
+def canal_condition(canal_block: int = 0, water_lv: int = 0,
+                    canal_efficiency: float = 0.0) -> float:
+    """水运交通状况 = `1 − 阻塞/100` + 水利等级加成 + `canal_efficiency` 科技。
+
+    - `canal_block`：**既有状态**（0 通畅 ~ 100 阻塞，`game_state.canal_block`）|
+    - `water_lv`：**既有**「水利」建筑等级（`game_state.py:219`「疏浚漕运」）|
+    - `canal_efficiency`：**既有科技效果**（`data_tech.py` 授予，**此前无人读**）。
+    """
+    base = 1.0 - max(0.0, min(100.0, float(canal_block))) / 100.0
+    bonus = 0.05 * max(0, int(water_lv)) + max(0.0, float(canal_efficiency))
+    return max(0.0, min(1.0, base + bonus))
+
+
+def water_freight(qty: int, cond: float) -> Dict[str, float]:
+    """水运运费（**平坦低费率 × 交通状况系数**）。"""
+    base = int(qty) / 10000.0 * WATER_FREIGHT["per_wan"]
+    return {"fee": float(round(base * condition_mult(cond), 2)), "cond": float(cond)}
+
+
+def tax_split(tax_rate: float) -> Dict[str, float]:
+    """把 `commerce_tax_rate` 按 **过税 : 住税 = 2 : 3**（史实）分解。"""
+    r = max(0.0, float(tax_rate or 0.0))
+    return {"over": r * OVER_TAX_SHARE, "stay": r * STAY_TAX_SHARE, "total": r}
+
+
+def tax_cost(goods_value: int, tax_rate: float) -> int:
+    """税务成本 = 成交额 × 税率（过税 + 住税）。**不新增旋钮**，复用 `commerce_tax_rate`。"""
+    return int(round(int(goods_value) * max(0.0, float(tax_rate or 0.0))))
+
+
+def trade_total_cost(goods_value: int, freight: int, tax_rate: float = 0.0) -> Dict[str, int]:
+    """**贸易总成本三要素**：货款 + 运输 + 税务。"""
+    tax = tax_cost(goods_value, tax_rate)
+    return {"goods": int(goods_value), "freight": int(freight), "tax": tax,
+            "total": int(goods_value) + int(freight) + tax}
+
+
+def trade_net(sale_value: int, goods_value: int, freight: int,
+              tax_rate: float = 0.0, threshold: int = 0) -> Dict[str, object]:
+    """税后净利与**是否成交**（净利 ≤ 门槛 ⇒ 不走）。
+
+    ⇒ **贸易决策从「税前」变为「税后」**（真实商人会做的判断）。
+    """
+    c = trade_total_cost(goods_value, freight, tax_rate)
+    net = int(sale_value) - c["total"]
+    return {"ok": net > int(threshold), "net": net, "cost": c}
+
+def run_checks2():
+    """水运 / 交通状况 / 税务 自检（第二批）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    # 13 交通状况系数：完好 ×1.0 / 失修 ×2.0
+    add("13 交通系数 完好1.0失修2.0",
+        abs(condition_mult(1.0) - COND_MULT_BEST) < 1e-9
+        and abs(condition_mult(0.0) - COND_MULT_WORST) < 1e-9,
+        "cond1=%.2f cond0=%.2f" % (condition_mult(1.0), condition_mult(0.0)))
+
+    # 14 水运：失修 ⇒ 运费翻倍（玩家修缮动机）
+    f_good = water_freight(1_000_000, 1.0)["fee"]
+    f_bad = water_freight(1_000_000, 0.0)["fee"]
+    add("14 失修水运翻倍", abs(f_bad - f_good * 2) < 1e-6, "%.1f -> %.1f" % (f_good, f_bad))
+
+    # 15 水运状况受 block/水利/科技 影响
+    c_bad = canal_condition(canal_block=100)
+    c_ok = canal_condition(canal_block=0, water_lv=5, canal_efficiency=0.3)
+    add("15 水运状况三因素", c_bad == 0.0 and c_ok == 1.0,
+        "阻塞100=%.2f 通畅+水利5+科技0.3=%.2f" % (c_bad, c_ok))
+
+    # 16 过税:住税 = 2:3 且合计 == 税率
+    sp = tax_split(0.06)
+    add("16 过税:住税=2:3", abs(sp["over"] / sp["total"] - OVER_TAX_SHARE) < 1e-9
+        and abs(sp["total"] - 0.06) < 1e-9,
+        "over=%.3f stay=%.3f total=%.3f" % (sp["over"], sp["stay"], sp["total"]))
+
+    # 17 税务成本 = 成交额 × 税率
+    add("17 税务成本线性", tax_cost(10000, 0.06) == 600, str(tax_cost(10000, 0.06)))
+
+    # 18 税后应付 = 货款 + 运费 + 税
+    q = export_quote(1000, 0, 1000, 10.0, 1e9, 50, tax_rate=0.06)
+    add("18 应付三要素", q["payable"] == q["goods_value"] + q["freight"] + q["tax"],
+        "%d = %d + %d + %d" % (q["payable"], q["goods_value"], q["freight"], q["tax"]))
+
+    # 19 拉弗效应：税率高 ⇒ 成交量低
+    w = 10000.0
+    q_lo = export_quote(10**9, 0, 10**9, 10.0, w, 0, tax_rate=0.05)
+    q_hi = export_quote(10**9, 0, 10**9, 10.0, w, 0, tax_rate=0.40)
+    add("19 税率高则量低", q_lo["qty"] > q_hi["qty"],
+        "5%%→%d  40%%→%d" % (q_lo["qty"], q_hi["qty"]))
+
+    # 20 税后净利与成交判定
+    n1 = trade_net(12000, 10000, 100, tax_rate=0.06)
+    n2 = trade_net(10500, 10000, 100, tax_rate=0.06)
+    add("20 税后净利判定", n1["ok"] and not n2["ok"],
+        "净%d ok=%s / 净%d ok=%s" % (n1["net"], n1["ok"], n2["net"], n2["ok"]))
 
     return out
