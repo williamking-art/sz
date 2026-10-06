@@ -1,78 +1,67 @@
-# 🔴 甲方案批次 3 诊断结果：`seats` 下沉的**根因已查明**（2026-10-05）
-
-> 用户裁定：「**不用在意旧档，这是开发阶段**」⇒ 解除迁移/兼容约束，重上批次 3。
-> 本文记录**首次真正诊断**的结果（此前只看过失败**名字**，没看过**原因**）。
+# 🔴 甲方案批次 3：**确切根因**（已复现到断言行）
 
 ---
 
-## 一、功能面**完全正常**
+## 一、复现的失败断言
 
 ```
-seats_initialized = 117   errors = []
-route 京畿路 has seats = True
-seat keys = ['京畿路|开封府', '京畿路|郑州', ...]
-seat pops = ['兵', '农', '商人', '士绅', '官僚', '工匠']
-农 subpools = [ding, goods, grain, hidden, kou, literacy, size, wealth,
-              佃农, 富农, 欠税, 自耕农]
+def test_retirement_keeps_official_subpool_invariants():
+    …
+    g = p["pops"]["官僚"]
+    assert int(g["size"]) == int(g["officials"]) + int(g["clerks"]), f"{name}: 官员子池不符"
+E   AssertionError: 京畿路: 官员子池不符
+E   assert 16944 == (1851 + 14808)
 ```
 
-⇒ **拆分本身没问题**：117 治所、6 类 POP 齐全、农的 12 个子池齐全。
+测试自述：「**官员**只改「在地 `size`」，不随迁转；由 `move_pop_people` 同步双改
+⇒ **任一边漏改即失败**」。
 
-## 二、🔴 根因：**钱写在派生镜像上，真账收不到**
-
-### 2.1 失败现象（实测）
+## 二、🔴 根因：**身份子池不在 `SPLIT_FIELDS`**
 
 ```
-test_pop_flow_wealth.py:63
-  AssertionError: 钱流失衡：Σ … and 14808 = int(14808)
+size       16944   ← 在 SPLIT_FIELDS ⇒ 下沉治所并聚合回来
+officials   1851   ← **不在** SPLIT_FIELDS ⇒ 留路级
+clerks     14808   ← **不在** SPLIT_FIELDS ⇒ 留路级
 ```
 
-⇒ 是**钱账本失衡**，不是 POP 结构问题。
+⇒ 下沉后 `size` 与 `officials`/`clerks` **分叉**：
+前者由桥接维护（Σ 治所），后者仍是路级单值 ⇒ **恒等式不成立**。
 
-### 2.2 机制
+> ⚠️ **`AGENTS.md §3-1` 早已记录此事**（属已知未完成项）：
+> 「`officials`/`clerks`/`on_post`/`waiting`/`sinecure`（身份子池）、
+> `clan`（宗族）仍**不在 `SPLIT_FIELDS`**」。
+⇒ **本次是它第一次被具体失败暴露出来**。
 
-`game_state.transfer_money` 的 `_write`：
+## 三、排除项（**已实测排除**，不是原因）
 
-```python
-if _pop_add(self, pp, "wealth", _nw - int(pp.get("wealth", 0) or 0)) is None:
-    pp["wealth"] = _nw          # ← 兜底**直写路级 pops**
-```
-
-路级 `pops` 下沉后是**只读派生镜像**（守卫维护）⇒ `_pop_add` 返回 `None`
-⇒ **走进兜底分支** ⇒ 钱被写进**派生副本** ⇒
-**治所真账 `seats[*]["pops"][*]["wealth"]` 从未收到** ⇒ **钱凭空消失**。
-
-⇒ 这就是 **18 项失败的共同根因**（`officialdom` 10 · `pop_identity` 3 ·
-`step_gap_fills` 2 · `tuning_fixes` 1 · `pop_flow_wealth` 1 · `not_sunk` 2）。
-
-## 三、正确改法
-
-```python
-# 兜底分支**不得**直写路级 pops；应委派**桥接**（写入下沉州府）
-if _pop_add(self, pp, "wealth", delta) is None:
-    pp["wealth"] = _nw        # ❌ 写派生副本 → 钱丢
-    # ✅ 应改为：走 pop_bridge / grain_bridge（传 state），使写入落到治所真账
-```
-
-⚠️ **注意**：这与 AGENTS.md §3-1 记的**同类漏网**完全一致 ——
-`grain_bridge` 的函数都支持**可选 `state`**：**给了就委派桥接**，没给就沿用旧载体。
-**`_write` 的兜底分支正是「没给 state」的等价物**。
-
-## 四、影响面（修复需动的点）
-
-| # | 项 | 难度 |
+| 项 | 实测 | 结论 |
 |---|---|---|
-| 1 | `_write` 兜底改走桥接（**核心**）| 中 |
-| 2 | 排查其余「直写路级 pops」的兜底分支 | 中 |
-| 3 | 2 项 `not_sunk` 测试改断言（**旧意图已作废**，用户已明确）| 低 |
-| 4 | 修复后重跑全量 + **钱账本恒等式断言** | 低 |
+| `split_pops_to_seats` 本身 | `seats=117`、`errors=[]`、6 类 POP 齐全、农 12 子池齐全 | ✅ **正常** |
+| `pop_bridge.pop_obj_add` 桥接 | `+100 ⇒ 570220`；`Σ seats = 570220 = 路级` | ✅ **正常、且守恒** |
+| `transfer_money._write` 兜底 | **未触发**（桥接未返回 None）| ❌ **不是根因** |
 
-## 五、本轮状态
+⇒ 上一版诊断文档把 `_write` 兜底列为根因，**该判断已被实测推翻**，此处更正。
 
-| 项 | 状态 |
-|---|---|
-| `seats` 下沉补丁 | ❌ **已回退**（保树绿）|
-| **根因** | ✅ **已查明**（本文件）|
-| 修复 | ⏸ 下一轮 |
+## 四、正确修法
+
+| # | 项 | 说明 |
+|---|---|---|
+| 1 | 把 `officials`/`clerks`/`on_post`/`waiting`/`sinecure` 加入 **`SPLIT_FIELDS`** | 它们是**计数**，可求和（同 `size`），**不是** `MEAN_FIELDS` 的比率 |
+| 2 | `clan`（宗族）单独判定 | 宗族是**互斥归属**，可能需走 `split_affiliation` 通道而非直接求和 |
+| 3 | 2 项 `not_sunk` 测试改断言 | 旧意图「新局不下沉」已作废（用户明确「开发阶段，不必在意旧档」）|
+| 4 | 修复后跑**钱账本恒等式** + 全量 | 见 §五 |
+
+## 五、预期影响
+
+`SPLIT_FIELDS` 是**求和拆分**；身份子池若按同一权重拆分，
+则治所级恒等式 `Σ治所.size == Σ治所.officials + Σ治所.clerks` 成立，
+聚合回路级亦成立 ⇒ `officialdom` 10 项与 `pop_identity` 3 项应一并转绿。
+
+⚠️ **须逐项验证**：身份子池与 `size` 的**权重是否同一套**（治所人口权重），
+若 `move_pop_people` 迁转的是**具体治所**而非按比例，则需**按迁转路径**同步拆分。
+
+## 六、本文性质
+
+**根因诊断（已复现到断言行）**，**未改代码**（补丁已回退）。
 
 最后更新：2026-10-05
