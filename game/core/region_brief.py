@@ -372,6 +372,9 @@ def build_region_brief(state) -> Dict[str, Any]:
             "grain_stock": round(stock, 0),
             "grain_months": months,
             "tax_month": round(raw_tax, 2),                                # 展示值（诊断用求和）
+            # 州府级**营造部门**（2026-10-05）：玩家可感知的「民间营造/官有营造」实体；
+            # 优先真账（seats），否则派生（人口权重拆路级值）；`mode` 标明口径。
+            "departments": _route_departments(state, name, p),
             "army_cash_month": round(max(0.0, _num(army_cash_by_route.get(name))), 2),
             "army_grain_month": round(army_grain, 1),
         }
@@ -504,3 +507,41 @@ def route_military_summary(state, route: str | None = None) -> Dict[str, Any]:
             "nation": nation,
         }
     return {"route": None, "routes": route_rows, "nation": nation}
+
+
+# ============================================================
+# 州府级**营造部门**（玩家可见；承《营造部门实体的治理语义与落点》）
+# ============================================================
+def _route_departments(state, route: str, p: Dict[str, Any]) -> Dict[str, Any]:
+    """该路的**州府级营造部门**（供玩家面板消费）。
+
+    取值顺序：
+      1. **真账** —— `seats` 存在时走 `departments_all`（甲方案口径）；
+      2. **派生** —— 否则走 `departments_all_derived`（按治所人口权重拆路级值）。
+
+    ⚠️ 两种结果都带 `mode` 标记（`truth`/`derived`），前端据此显示口径，
+    **未来切换真账时前端结构无需改动**。
+    ⚠️ 取不到 ⇒ `departments=[]` 且 `mode=None`（**缺失≠0**，不伪造）。
+    """
+    out: Dict[str, Any] = {"mode": None, "seats_covered": 0, "departments": []}
+    if not isinstance(p, dict):
+        return out
+    try:
+        from core.construction_shadow import (MODE_DERIVED, MODE_TRUTH,
+                                             departments_all,
+                                             departments_all_derived)
+        seats = p.get("seats")
+        if isinstance(seats, dict) and seats:
+            res = departments_all({"prefectures": {route: p}})
+            if res.get("ok"):
+                return {"mode": MODE_TRUTH,
+                        "seats_covered": res.get("seats_covered"),
+                        "departments": res.get("departments") or []}
+        ds = departments_all_derived({"prefectures": {route: p}}, route, p)
+        if ds:
+            return {"mode": MODE_DERIVED,
+                    "seats_covered": len(ds) // 2,
+                    "departments": ds}
+    except Exception:  # noqa: BLE001 取不到就报「无」，不伪造，也不阻断面板
+        return out
+    return out
