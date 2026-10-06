@@ -286,6 +286,28 @@ def _pop_add(state, pop, field: str, delta):
     return pop_obj_add(state, pop, field, delta)
 
 
+def _init_regime_tech(regime_type: str = "") -> dict:
+    """外邦/主要国家政权的**科技树初始状态**（批 A：只建结构，不推进）。
+
+    结构对齐宋侧 `state.tech` 的**字段口径**（`TECH_INFO` 的键 + 各科技项进度），
+    但**数值独立**（承「底层一致，数值不同」）。
+
+    🔴 **缺失 ≠ 0 ≠ 1.0**：只写**已知起点**，未研究的项**不写入**，
+    由读侧显示「未定义」，不回落 0 假装已研究。
+    """
+    from content.data import TECH_INFO
+    t = {"level": int(TECH_INFO.get("level", 0) or 0)}
+    for _k, _v in (TECH_INFO or {}).items():
+        if _k == "level":
+            continue
+        t[_k] = 0 if isinstance(_v, (int, float)) else _v
+    t["researching"] = None      # 正在研究的节点 id；未开工为 None（不是 ""）
+    t["unlocked"] = []           # 已解锁科技节点 id 列表
+    t["deployed"] = []           # 已部署的科技建筑节点 id（TECH_NODE_DEPLOY 的子集）
+    t["regime_type"] = regime_type
+    return t
+
+
 class GameState(GameStateEconMixin):
     """宋祚游戏主状态（经济计算族继承自 GameStateEconMixin）"""
 
@@ -319,6 +341,11 @@ class GameState(GameStateEconMixin):
             # setdefault 兜底。
             _wealth0 = sum(int(v.get("wealth", 0) or 0) for v in item["pop"].values())
             item["treasury"] = max(0, int(_wealth0 * float(EXTERNAL_ECON["treasury_ratio"])))
+            # 🔴 2026-10-06 用户裁定：主要国家**跟宋一样机制**，科技树挂钩的建筑也一样。
+            #   政策实体**各自持有**自己的 `tech`（**不得**引用宋的 `state.tech` ——
+            #   那是两个平行账本，违反 POP 挂载律律条 4）。
+            #   首批只**建结构不推进**（批 A）；推进在 `_settle_external_economy`（批 B）。
+            item["tech"] = _init_regime_tech(regime_type)
             item["grain_price"] = float(EXTERNAL_ECON["grain_price0"].get(
                 regime_type, EXTERNAL_ECON["grain_price0"]["default"]))
             # 省份独立运行态：每省带 人口(口)/兵力(人)/权重 + 中心坐标 + 默认建筑 + 归省军队
