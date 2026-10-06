@@ -37,7 +37,7 @@ __all__ = [
     "DEPARTMENTS", "HIRED_RATIO", "CORVEE_CAP_RATE", "CORVEE_MOOD_W",
     "default_wage_per_hour", "hired_capacity", "corvee_capacity",
     "labor_for", "wage_cost", "mood_penalty", "choose_channel",
-    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "run_checks", "run_checks2",
+    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "departments_of_seat", "departments_all", "run_checks", "run_checks2", "run_checks3",
 ]
 
 #: 两个建造部门（用户裁定）。
@@ -365,5 +365,116 @@ def run_checks2():
 
     # 20 空输入安全
     add("20 空输入安全", departments_of({}) == [] and departments_of({"prefectures": 1}) == [], "[]")
+
+    return out
+
+# ============================================================
+# 部门实体 · **州府（治所）级**
+#
+# 用户裁定（2026-10-05）：「**要落到州府，而州府一级是自造，**
+# 因为玩家是中央一级，一般不会管州府一级的事务」。
+#
+# => 治理语义：
+#   · **玩家/中央**：直管**国家营建**与政令；**不碰**州府与民间；
+#   · **州府（治所）**：**自造** —— 自行决定建什么/出资/产权，**只上报汇总**；
+#   · **民间**：**自造** —— 自筹自发。
+#
+# => 故州府级部门实体是**汇总/呈现层**，**不是玩家指令层**。
+# ============================================================
+
+def departments_of_seat(seat: Dict[str, object], route: str,
+                         seat_name: str) -> List[Dict[str, object]]:
+    """**单个州府（治所）**的部门实体。
+
+    - 两个部门（民间营造 / 官有营造）**各自独立**，**不按路汇总**；
+    - 归属：民间＝`pop`；官有＝`local_gov`（州府自办）；
+    - 规模：民间＝工匠；官有＝工匠 + 应役丁（**均为治所级**）；
+    - 缺失 ⇒ `None`（**缺失≠0**，不借路级数据填充）。
+
+    ⚠️ 若该治所无 POP 数据 ⇒ 仍返回两个实体，但规模为 `None`
+    （**实体本身存在** ≠ **规模已知**，二者不可混）。
+    """
+    if not isinstance(seat, dict):
+        return []
+    crafts = _craftsmen_of(seat)
+    ding = _service_ding_of(seat)
+    out = [dept_entity("民间营造", "pop", craftsmen=crafts)]
+    out.append(dept_entity("官有营造", "local_gov",
+                           craftsmen=None if crafts is None else crafts + (ding or 0)))
+    for e in out:
+        e["route"] = route
+        e["seat"] = seat_name
+        e["level"] = "seat"
+    return out
+
+
+def departments_all(state: Dict[str, object]) -> Dict[str, object]:
+    """全境**州府级**部门实体汇总（玩家面板消费）。
+
+    返回 `{ok, seats_covered, departments, reason}`：
+
+    - `seats_covered`：实际覆盖的**治所数**（无 `seats` ⇒ **0**，**不回落路级**）；
+    - `departments`：每治所 2 个实体；
+    - `reason`：无 `seats` 时给 `no_seats`（**缺失≠0，不伪造**）。
+
+    🔴 **不回落路级**：甲方案要求州府为真账，路级实体与本口径冲突，
+    故宁可返回空并说明原因。
+    """
+    prefs = state.get("prefectures") if isinstance(state, dict) else None
+    if not isinstance(prefs, dict):
+        return {"ok": False, "reason": "no_prefectures",
+                "seats_covered": 0, "departments": []}
+    depts: List[Dict[str, object]] = []
+    covered = 0
+    for route, p in prefs.items():
+        if not isinstance(p, dict):
+            continue
+        seats = p.get("seats")
+        if not isinstance(seats, dict) or not seats:
+            continue
+        for seat_name, seat in seats.items():
+            got = departments_of_seat(seat, route, seat_name)
+            if got:
+                covered += 1
+                depts.extend(got)
+    if covered == 0:
+        return {"ok": False, "reason": "no_seats",
+                "seats_covered": 0, "departments": []}
+    return {"ok": True, "reason": "", "seats_covered": covered,
+            "departments": depts}
+
+def run_checks3():
+    """州府级部门实体自检（第三批）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    st = {"prefectures": {"A": {"seats": {"s1": {"pops": {"工匠": {"size": 8}, "农": {"ding": 90}}}}}}}
+    r = departments_all(st)
+    add("21 州府级枚举", r["ok"] and r["seats_covered"] == 1 and len(r["departments"]) == 2,
+        "1 治所 x 2 = %d" % len(r["departments"]))
+
+    e0, e1 = r["departments"][0], r["departments"][1]
+    add("22 带治所坐标", e0["route"] == "A" and e0["seat"] == "s1" and e0["level"] == "seat",
+        "route=%s seat=%s level=%s" % (e0["route"], e0["seat"], e0["level"]))
+
+    add("23 官有规模=工匠+丁", e0["craftsmen"] == 8 and e1["craftsmen"] == 98,
+        "民间=%s 官有=%s" % (e0["craftsmen"], e1["craftsmen"]))
+
+    n = departments_all({"prefectures": {"A": {}}})
+    add("24 无seats⇒空且说明", (not n["ok"]) and n["reason"] == "no_seats" and n["seats_covered"] == 0,
+        "reason=%s（**不回落路级**）" % n["reason"])
+
+    add("25 无prefectures⇒空", departments_all({})["reason"] == "no_prefectures", "no_prefectures")
+
+    ds = departments_of_seat({}, "B", "s9")
+    add("26 空治所仍有两实体", len(ds) == 2 and ds[0]["craftsmen"] is None,
+        "实体存在但规模未知 ⇒ None")
+
+    add("27 非dict治所⇒空", departments_of_seat(None, "B", "s9") == [], "[]")
+
+    add("28 两部门不合并", ds[0]["dept_id"] != ds[1]["dept_id"] and ds[0]["owner_kind"] == "pop"
+        and ds[1]["owner_kind"] == "local_gov", "民间=pop 官有=local_gov")
 
     return out
