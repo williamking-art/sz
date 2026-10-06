@@ -1115,6 +1115,16 @@ class GameState(GameStateEconMixin):
                 if not isinstance(pp, dict):
                     return 0
                 return int(pp.get("wealth", 0))
+            # 🔴 2026-10-05 **地方府库账户**（用户裁定「地方库优先」）：
+            #   `local:<路>` 映射到**既有字段** `prefectures[路]["local_treasury"]`
+            #   —— **不是新建账户**，故 `money.ACCOUNTS` 的聚合投影
+            #   （`local_treasury_total` = Σ 各路字段）**不变、不双计**。
+            if key.startswith("local:"):
+                _, road = key.split(":", 1)
+                p = self.prefectures.get(road)
+                if not isinstance(p, dict):
+                    return 0
+                return int(p.get("local_treasury", 0) or 0)
             return 0
 
         def _write(key, val):
@@ -1132,6 +1142,13 @@ class GameState(GameStateEconMixin):
                     if _pop_add(self, pp, "wealth", _nw - int(pp.get("wealth", 0) or 0)) is None:
                         pp["wealth"] = _nw
 
+            # 🔴 地方府库写入（承 `_read` 同注释：映射**既有字段**，**非新建账户**）
+            if key.startswith("local:"):
+                _, road = key.split(":", 1)
+                p = self.prefectures.get(road)
+                if isinstance(p, dict):
+                    p["local_treasury"] = max(0, int(val))
+                    return
         def _writable(key):
             """目标是否**可写**（审查 M3）：原实现只判 src 可付，`_write(dst, …)` 在
             目标 POP 不存在时静默 no-op —— 钱被销毁却仍返回 `moved`，调用方据此记
@@ -1144,6 +1161,16 @@ class GameState(GameStateEconMixin):
                 if not isinstance(p, dict):
                     return False
                 return isinstance((p.get("pops") or {}).get(pop), dict)
+            # 🔴 2026-10-05 **地方府库账户**（用户裁定「地方库优先」）：
+            #   `local:<路>` 映射到**既有字段** `prefectures[路]["local_treasury"]`
+            #   —— **不是新建账户**，故 `money.ACCOUNTS` 的聚合投影
+            #   （`local_treasury_total` = Σ 各路字段）**不变、不双计**。
+            if key.startswith("local:"):
+                _, road = key.split(":", 1)
+                p = self.prefectures.get(road)
+                if not isinstance(p, dict):
+                    return False
+                return True
             return False
 
         have = _read(src)
