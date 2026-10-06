@@ -395,7 +395,11 @@ RANDOM_EVENTS = [
         "prob": 0.03,
         "desc": "市舶司奏：海外番商贡犀象、香药，请开市舶以广财源",
         "choices": [
-            {"text": "广开市舶", "effects": {"prestige": 2, "treasury": 200000, "tech": 1}},
+            # 🔴 2026-10-05 接线：原此项宣称「广开市舶」却**不改状态**，
+            #    致 `state.maritime["open"]` 全库无人置真、市舶从不结算。
+            #    现补 `maritime_open`，令该选择**真的**广开市舶。
+            {"text": "广开市舶", "effects": {"prestige": 2, "treasury": 200000,
+                                             "tech": 1, "maritime_open": 1}},
             {"text": "仅受贡物", "effects": {"prestige": 1, "treasury": 100000}},
         ],
     },
@@ -655,6 +659,20 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
     log = []
 
     log.append(f"选择：{choice['text']}")
+
+    # 市舶开关（2026-10-05 接线）
+    # 原「广开市舶」政令/事件只产出文本，**不改状态** ⇒ `maritime["open"]` 恒 False、
+    # 市舶从不结算（`calc_maritime_trade` 恒 0）。此处补上真正的开关。
+    # 默认仍为 False（专项测试 `test_maritime_trade_ledger_closed` 显式开启验证机制），
+    # 故本项只影响**玩家选择「广开市舶」之后**。
+    if "maritime_open" in effects:
+        _mo = bool(effects["maritime_open"])
+        _mar = getattr(state, "maritime", None)
+        if isinstance(_mar, dict):
+            _mar["open"] = _mo
+            log.append("市舶" + ("广开" if _mo else "停罢"))
+        else:
+            log.append("市舶 未落地：state.maritime 缺失")
 
     # 皇威
     if "prestige" in effects:
