@@ -996,7 +996,7 @@ def load_game(slot: int = 1):
             slot, e, exc_info=True)
     # 农职位/丁口子池的旧档迁移（B1a）：幂等补齐（**只改子池，不改 size**）
     try:
-        from core.pop_structure import ensure_farm_slices
+        from core.foundation.ledger.pop_structure import ensure_farm_slices
         ensure_farm_slices(state)
     except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
         # 审查 P2-3 / M9：原静默 `pass` → 农的「Σ职位 == size」「ding+kou == size」

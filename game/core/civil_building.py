@@ -361,7 +361,7 @@ def _validate_spec(key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
         # （如测试用的 `未定价材`，用于验证"基准价缺失 ⇒ 读数未定义"口径）
         # **不在此拦**——那不是拼写错误，而是**故意**引入的未知维度。
         # ⇒ 拦"疑似拼错"，不拦"明知故犯"，两者语义不同。
-        from core.material_holding import MATERIAL_DIMS
+        from core.foundation.ledger.material_holding import MATERIAL_DIMS
         if dim not in MATERIAL_DIMS and dim not in UNKNOWN_MATERIAL_DIM_ALLOWLIST:
             raise CivilRegistryError(
                 f"注册表条目 {key!r} 的材料维度 {dim!r} 不在 MATERIAL_DIMS "
@@ -992,7 +992,7 @@ def build_civil_building(state, pref: str, building: str, *,
     # 🔴 **不再直读 `state.resources[dim]["stock"]`**（那是全国总账，读它等于
     # "料可凭空调用"）⇒ 物流失去意义。判定与扣料**共用同一个读口**
     # `material_holding_for_circuit()`，杜绝 §14.2 障碍 2 的口径分叉。
-    from core.material_holding import material_holding_for_circuit
+    from core.foundation.ledger.material_holding import material_holding_for_circuit
     take: Dict[str, int] = {}
     for dim, need_q in materials.items():
         have = material_holding_for_circuit(state, pref, dim)
@@ -1021,7 +1021,7 @@ def build_civil_building(state, pref: str, building: str, *,
     if corvee_ratio > 0 and _labor_total > 0:
         try:
             from core.construction_shadow import corvee_capacity, mood_penalty
-            from core.pop_structure import service_ding_of
+            from core.foundation.ledger.pop_structure import service_ding_of
             _pf = (state.prefectures or {}).get(pref) or {}
             _ding = int(service_ding_of(_pf) or 0)
             _cap = corvee_capacity(_ding)
@@ -1048,7 +1048,7 @@ def build_civil_building(state, pref: str, building: str, *,
             _pf3["mood"] = max(0.0, float(_pf3.get("mood", 55) or 55) - _mood_pen)
 
     # ---- 落料：从**本地州府仓**实扣（不再动全国总账）----
-    from core.material_holding import consume_for_circuit
+    from core.foundation.ledger.material_holding import consume_for_circuit
     for dim, qty in take.items():
         got = consume_for_circuit(state, pref, dim, qty)
         if got < qty:

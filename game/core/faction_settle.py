@@ -24,7 +24,7 @@ from content.data import FACTION_POP_BASIS
 from core.faction_basis import basis_routes, emerging_from_reforms
 from core.faction_metrics import all_faction_power, faction_power, faction_slice
 from core.faction_split import defect_toward_satisfaction
-from core.numeric import clamp as _clamp, parse_number as _num
+from core.foundation.common.numeric import clamp as _clamp, parse_number as _num
 
 log = logging.getLogger("faction_settle")
 

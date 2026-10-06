@@ -48,7 +48,7 @@ PROCURE_MAX_TREASURY_SHARE = 0.5
 
 def _take_goods(goods: dict, dim: str, qty: int) -> int:
     """\u4ece `goods`\uff08\u6241\u5e73 + \u5dde\u5e9c\u6876\u53cc\u5f62\u6001\uff09\u53d6\u51fa `qty`\uff0c\u8fd4\u56de**\u5b9e\u9645\u53d6\u51fa\u91cf**\u3002"""
-    from core.material_holding import goods_amount, goods_set
+    from core.foundation.ledger.material_holding import goods_amount, goods_set
     have = int(goods_amount(goods, dim) or 0)
     take = min(int(qty), have)
     if take <= 0:
@@ -124,7 +124,7 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             goods = nong.get("goods")
             if not isinstance(goods, dict):
                 continue
-            from core.material_holding import goods_amount
+            from core.foundation.ledger.material_holding import goods_amount
             have = int(goods_amount(goods, dim) or 0)
             if have <= 0:
                 continue
@@ -175,7 +175,7 @@ def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
     **\u6210\u4ea4\u53d7\u5546\u4eba\u8d44\u91d1\u7ea6\u675f** \u21d2 \u81ea\u9650\uff08\u4e0d\u4f1a\u65e0\u9650\u627f\u63a5\u519c\u6237\u4f59\u6599\uff09\u3002
     """
     from content.data import MATERIAL_PRICE_BASE
-    from core.material_holding import goods_amount, goods_bucket
+    from core.foundation.ledger.material_holding import goods_amount, goods_bucket
     logs = log if isinstance(log, list) else []
     prefs = getattr(state, "prefectures", None) or {}
     out: Dict[str, Dict[str, int]] = {}

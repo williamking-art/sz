@@ -62,7 +62,7 @@ def apply_treaty(state, target: str, type_: str, terms: dict = None,
         # 属货币规范的"真实销毁"通道，必须 `register_flow(burn)` 登记 ——
         # 否则月度对账会把它报成"未解释残差"（同 `_settle_finance` 里岁币的处理）。
         try:
-            from core.money import register_flow as _reg_flow
+            from core.foundation.ledger.money import register_flow as _reg_flow
             _reg_flow(state, "burn", dowry, f"和亲嫁妆外流·{target}")
         except Exception:  # noqa: BLE001 — 登记失败不得阻断外交结算
             pass

@@ -28,10 +28,10 @@ from core.settlement_econ_helpers import (
 # 由它先落州府真账、再刷新路级派生镜像，杜绝「镜像与真账漂移」。
 # 存量**读取**仍走路级 `pops`（它是由桥接维护的镜像，无需逐处改写）。
 # ⚠️ 若本模块的州府级 `seats` 尚未建立（未下沉），桥接返回 None 并回落原写法。
-from core.pop_bridge import (pop_add as _pop_add, pop_set as _pop_set,
+from core.foundation.ledger.pop_bridge import (pop_add as _pop_add, pop_set as _pop_set,
                              pop_obj_add as _pop_obj_add, pop_obj_set as _pop_obj_set)
 # 粮写入同样走 G-3 桥接（写只落一个载体，绝不双写）
-from core.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add
 
 _fin_log = logging.getLogger("settlement")
 
@@ -88,8 +88,8 @@ def _settle_bank_credit(state, log):
         BANK_RESERVE_RATIO_MIN,
     )
 
-    from core.money import m_all as _m_all
-    from core.money import register_flow as _reg_flow
+    from core.foundation.ledger.money import m_all as _m_all
+    from core.foundation.ledger.money import register_flow as _reg_flow
     from core import institution as _inst
     b = state.bank
     if not bool(b.get("established", False)):
@@ -109,7 +109,7 @@ def _settle_bank_credit(state, log):
     # `overdue_rate`（存量延续，不凭空造出一个有利读数）＋WARNING/traceback。
     trust_conf = None
     try:
-        from core.money import jiaozi_run_pressure as _jz_run
+        from core.foundation.ledger.money import jiaozi_run_pressure as _jz_run
         trust_conf = 1.0 - max(0.0, min(1.0, float(_jz_run(state))))
     except Exception:  # noqa: BLE001 — 只读派生失败不阻断结算，但**不得**伪造"无压力"
         _fin_log.warning("[银行] 交子挤兑压力读数失败，本月沿用上月逾期率"
@@ -566,7 +566,7 @@ def _settle_finance(state, log):
     # 役钱（徭役代役钱）：税基＝**应役丁**（B1b）——农的丁 × (1 − 佃农占比)；
     # 佃农（客户）无国税/摊派、坊郭户（工匠/商人）不服乡村差役、官户（士绅/官僚）免役、兵免；
     # 坊郭户的科配负担并入工商税（commerce_tax）；隐户不落籍（既不在 size、也不在 ding）。
-    from core.pop_structure import service_ding_total
+    from core.foundation.ledger.pop_structure import service_ding_total
     _service_ding = service_ding_total(state)
     poll_tax = int((_service_ding * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
     maritime_tax = int((state.calc_maritime_trade() / 12.0) *

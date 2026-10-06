@@ -361,7 +361,7 @@ def _settle_projects(state, log):
         # 即 §14.2 **障碍 2（判定与采购口径分叉）**。
         # 传 `resources` 仅供 `project_supply_ratio` 读**非建材**维度。
         _route0 = proj.get("route") or proj.get("prefecture") or ""
-        from core.material_holding import (material_holding_for_circuit as _mh,
+        from core.foundation.ledger.material_holding import (material_holding_for_circuit as _mh,
                                            to_material_dim)
         _mat_view = {}
         for _d in (proj.get("cost_material") or {}):
@@ -434,7 +434,7 @@ def _settle_projects(state, log):
             # ——**口径单点**，政府工程也因此**享受州府级物流**（缺料须先运到）。
             # 项目台账内部（`cost_material` / `_mat_left_<dim>`）**仍用中文键**，
             # 翻译只发生在落仓那一刻。
-            from core.material_holding import consume_for_circuit, to_material_dim
+            from core.foundation.ledger.material_holding import consume_for_circuit, to_material_dim
             _mdim = to_material_dim(dim)
             if _mdim is None:
                 continue          # 非建材维度（如 `粮` 走 pops[].grain）⇒ 跳过，不臆断

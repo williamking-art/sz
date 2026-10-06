@@ -18,7 +18,7 @@ import logging
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from content.data import GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST
-from core.numeric import parse_number as _finite, clamp as _clamp
+from core.foundation.common.numeric import parse_number as _finite, clamp as _clamp
 
 log = logging.getLogger("situation_metrics")
 

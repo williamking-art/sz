@@ -104,7 +104,7 @@ def _seat_index() -> Dict[str, Dict[str, Any]]:
     ⚠️ 缓存以 **`prefecture_entity` 模块里的席位表对象身份**为键；模块重载
     （测试里 `importlib.reload`）会换对象 ⇒ 自动重建，**不会读到过期数据**。
     """
-    import core.prefecture_entity as pe
+    import core.foundation.ledger.prefecture_entity as pe
     key = str(id(pe))
     hit = _SEAT_INDEX_CACHE.get(key)
     if hit is not None:
@@ -150,7 +150,7 @@ def transport_links(circuit: Optional[str] = None) -> List[Dict[str, Any]]:
     由市场决定，此处只暴露"地理上可算"的事实。
     """
     from content.geo_admin import CIRCUIT_INFO
-    from core.prefecture_entity import seat_id_of
+    from core.foundation.ledger.prefecture_entity import seat_id_of
     out: List[Dict[str, Any]] = []
     for ck, info in CIRCUIT_INFO.items():
         if circuit and ck != circuit:
@@ -186,7 +186,7 @@ def dispatch(state, *, frm: str, to: str, dim: str, qty: int,
 
     🔴 **钱货两清或两不做**：扣不到货就**不建批次**，不产生"凭空在途"。
     """
-    from core.material_holding import consume_for_circuit
+    from core.foundation.ledger.material_holding import consume_for_circuit
     idx = _seat_index()
     a = idx.get(frm)
     if not a:
@@ -229,7 +229,7 @@ def arrive_due(state) -> List[Dict[str, Any]]:
     ⚠️ 只处理 `arrive_month <= 当前月`；**未到期的绝不入账**
     （这是"运没运到"可观测的关键）。
     """
-    from core.material_holding import merchant_goods
+    from core.foundation.ledger.material_holding import merchant_goods
     idx = _seat_index()
     now = _now(state)
     if now is None:

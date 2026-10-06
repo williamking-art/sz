@@ -52,7 +52,7 @@ def procure_materials(state, *, stock_floor: int = STOCK_FLOOR
 
     ⚠️ 每月只跑一次（结算 Step 4.46），**不逐建筑各跑一次**。
     """
-    from core.material_holding import MATERIAL_DIMS, material_holding_for_circuit
+    from core.foundation.ledger.material_holding import MATERIAL_DIMS, material_holding_for_circuit
     from core.transport import in_transit, route_days
 
     prefs = getattr(state, "prefectures", {}) or {}
@@ -133,7 +133,7 @@ def procure_materials(state, *, stock_floor: int = STOCK_FLOOR
 def _circuit_of_seat(seat_id: str) -> Optional[str]:
     """限定名 `路|治所` ⇒ 路名。"""
     try:
-        from core.prefecture_entity import split_seat_id
+        from core.foundation.ledger.prefecture_entity import split_seat_id
         circuit, _ = split_seat_id(seat_id)
         return circuit
     except Exception:              # noqa: BLE001
@@ -165,7 +165,7 @@ def sell_material_across(state, *, seller_route: str, buyer_route: str,
     · **钱**：成交即由 `transfer_money` 从买方商人划到卖方商人（守恒）；
     · **货**：立刻离源进**在途**，`arrive_month` 才计入买方货栈。
     """
-    from core.material_holding import MATERIAL_DIMS
+    from core.foundation.ledger.material_holding import MATERIAL_DIMS
     from core.transport import dispatch
 
     if dim not in MATERIAL_DIMS:
@@ -191,7 +191,7 @@ def sell_material_across(state, *, seller_route: str, buyer_route: str,
 
     # 2026-10-03：建材按 `goods[治所][dim]` 州府桶存放，裸取 `goods.get(dim)`
     # 会把已入库（在桶里）的料读成 0，导致明明有货却报 `no_stock_local`。
-    from core.material_holding import goods_amount
+    from core.foundation.ledger.material_holding import goods_amount
     have = int(goods_amount(seller.get("goods"), dim) or 0)
     if have <= 0:
         return {"ok": False, "reason": "no_stock_local", "shipped": 0}
@@ -256,7 +256,7 @@ def _seat_of(state, circuit: str) -> str:
     用它当跨路锚点会把 84% 的相邻关系误判成"不通"。
     跨路请用 `_bridge_seats()`。
     """
-    from core.material_holding import circuit_seats
+    from core.foundation.ledger.material_holding import circuit_seats
     seats = circuit_seats(circuit)
     if not seats:
         raise KeyError(f"{circuit} 查不到治所（无法锚定运输起点/终点）")
@@ -278,7 +278,7 @@ def _bridge_seats(circuit_a: str, circuit_b: str) -> Optional[tuple]:
     · ⚠️ **结果按路对缓存**——治所表是静态的，而补货循环每月都要问同一批路对，
       不缓存会重复做 O(席数²) 的邻接扫描。
     """
-    from core.material_holding import circuit_seats
+    from core.foundation.ledger.material_holding import circuit_seats
     from core.transport import haversine_km, is_adjacent
     ck = (circuit_a, circuit_b) if circuit_a <= circuit_b else (circuit_b, circuit_a)
     if ck in _BRIDGE_CACHE:
@@ -322,8 +322,8 @@ def _refund_batch(state, res: Dict[str, Any]) -> None:
             break
     src = tgt.get("from")
     if src:
-        from core.prefecture_entity import split_seat_id
-        from core.material_holding import goods_add, merchant_goods
+        from core.foundation.ledger.prefecture_entity import split_seat_id
+        from core.foundation.ledger.material_holding import goods_add, merchant_goods
         circuit, _ = split_seat_id(src)
         goods = merchant_goods(state, circuit)
         if goods is not None:

@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from content.data import FACTION_POP_BASIS
 from core.faction_basis import basis_routes
 from core.faction_split import split_of
-from core.numeric import clamp as _clamp, parse_number as _num
+from core.foundation.common.numeric import clamp as _clamp, parse_number as _num
 
 log = logging.getLogger("faction_metrics")
 

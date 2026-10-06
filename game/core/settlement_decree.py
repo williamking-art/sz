@@ -23,8 +23,8 @@ from core import officialdom as _officialdom
 # 🔴 方案乙 / G-3（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
 # 粮走 `grain_bridge`（写只落一个载体）；size/窖银走 `pop_bridge`（先落州府真账再刷派生镜像）。
 # 未下沉时桥接返回 None，调用方回落原写法。
-from core.grain_bridge import grain_add as _grain_add
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement_common import (
     _state_grain_trade,
     _levy_men,

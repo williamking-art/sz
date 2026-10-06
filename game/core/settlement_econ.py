@@ -30,12 +30,12 @@ from core.settlement_common import (
 # 写只落一个载体（`goods[米]` 或旧 `.grain`），**绝不双写**。
 # ⚠️ 迁移分片推进中：`pops[].grain` 仍有 390 处触点未改，
 # 本文件内**已改的段落**与**未改段落**共用桥接，故两种载体可并存而不会双写。
-from core.grain_bridge import grain_add as _grain_add, grain_get as _grain_get, grain_set as _grain_set
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add, grain_get as _grain_get, grain_set as _grain_set
 
 # 🔴 方案乙（2026-10-04 用户裁定：POP 实体下沉州府级）：POP **写入**走桥接层，
 # 由它先落州府真账、再刷新路级派生镜像，杜绝漂移。存量**读取**仍走路级 `pops`（派生镜像）。
 # ⚠️ 未下沉（无 `seats`）时桥接返回 None，调用方回落原写法。
-from core.pop_bridge import (pop_add as _pop_add, pop_obj_add as _pop_obj_add,
+from core.foundation.ledger.pop_bridge import (pop_add as _pop_add, pop_obj_add as _pop_obj_add,
                              pop_obj_set as _pop_obj_set)
 
 from core.settlement_finance import (  # 跨域互调
@@ -51,7 +51,7 @@ from core.building_jobs import (  # 宋侧岗位口径 + 就业驱动阶层流�
     song_job_cfg,
     apply_employment_flow,
 )
-from core.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
+from core.foundation.ledger.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
 
 # 宋侧岗位配置：模块级构建一次（`song_job_cfg()` 返回新 dict，不污染外邦 `EXTERNAL_ECON`
 # 全局表；只需改 `core/building_jobs.song_job_cfg` 一处即可换口径）。
@@ -612,7 +612,7 @@ def _settle_extensions(state, log):
             _wdown = min(int(_br_cfg["cap"]), int(state.bank.get("reserve", 0) or 0))
             if _wdown > 0:
                 state.bank["reserve"] = int(state.bank.get("reserve", 0) or 0) - _wdown
-                from core.money import register_flow as _reg_flow
+                from core.foundation.ledger.money import register_flow as _reg_flow
                 _reg_flow(state, "burn", _wdown, "银行减资核销准备金")
         # ---- 第二节§3：存款 / 放贷 / 收息 / 坏账月度结算（全部守恒转移）----
         _settlement_steps._settle_bank_credit(state, log)

@@ -35,10 +35,10 @@ from content.data import (
     W_OFFICIAL_BASE, W_GARRISON_BASE,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
-from core.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移，带财富/粮粮**（人均连续）
+from core.foundation.ledger.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移，带财富/粮粮**（人均连续）
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
 # 存量读取仍走路级 `pops`（桥接维护的派生镜像）；未下沉时回落原写法。
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 HEREDITARY_BASE = 0.4           # 世袭比例基准（`hereditary_mult` 作用于此）
 MUSTER_GRIP_W = 0.08            # 募吏占比对把持度的影响（募吏较专业、可裁，把持度略低）

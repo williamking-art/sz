@@ -20,7 +20,7 @@ import logging
 from math import log1p as _log1p
 from typing import Any, Dict, Optional, Tuple
 
-from core.numeric import clamp as _clamp
+from core.foundation.common.numeric import clamp as _clamp
 
 log = logging.getLogger("faction_voice")
 

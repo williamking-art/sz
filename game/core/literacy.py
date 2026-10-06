@@ -33,7 +33,7 @@ prefectures[路]["pops"][阶层]["literacy"]     # 0–100 的比率指标
 **唯一写入点** `settle_literacy`（只写 `pops.*.literacy` 与派生值 `state.literacy`）。
 """
 from __future__ import annotations
-from core.numeric import parse_number as _num, clamp as _clamp
+from core.foundation.common.numeric import parse_number as _num, clamp as _clamp
 
 import logging
 from typing import Any, Dict, Optional, Tuple

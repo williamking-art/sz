@@ -32,7 +32,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from content.data import FACTION_POP_BASIS, REFORM_POP_BASIS, YAMEN_INFO
-from core.numeric import clamp as _clamp, parse_number as _num
+from core.foundation.common.numeric import clamp as _clamp, parse_number as _num
 
 log = logging.getLogger("longterm_task")
 

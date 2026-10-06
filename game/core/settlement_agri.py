@@ -65,7 +65,7 @@ from __future__ import annotations
 
 # 🔴 G-3（2026-10-04）：POP 粮写入走 `grain_bridge`（写只落一个载体，绝不双写）。
 # 未下沉时桥接返回 None，调用方回落原写法。
-from core.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add
 
 import math
 from typing import Any, Dict, List, Optional
@@ -300,7 +300,7 @@ def _validate_entry(key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
         # 🔴 配置里的维度名**必须**取自 `material_holding.MATERIAL_DIMS`
         # （建材口径 E-1）。配置表自然要写维度名（那是数据不是算法），
         # 但**拼错必须报错**，否则该升级会永远走"缺料"分支而**静默失效**。
-        from core.material_holding import MATERIAL_DIMS
+        from core.foundation.ledger.material_holding import MATERIAL_DIMS
         if dim not in MATERIAL_DIMS:
             raise AgriUpgradeError(
                 f"注册表条目 {key!r} 的物料维度 {dim!r} 不在 MATERIAL_DIMS "
@@ -637,7 +637,7 @@ def _coverage(state, p: Dict[str, Any], material: Dict[str, float],
     # 🔴 口径 C-c（2026-10-02）：只从**本地州府仓**取料，取不到即缺料。
     # 不再直读 `state.resources[dim]["stock"]`——那是全国总账，读它等于
     # "料可凭空调用"，**物流便失去意义**。判定与落扣**共用**同一个读口。
-    from core.material_holding import material_holding_for_circuit
+    from core.foundation.ledger.material_holding import material_holding_for_circuit
     mat_cover = 1.0
     circuit = p.get("name") or p.get("circuit") or ""
     for dim, need in material.items():
@@ -786,7 +786,7 @@ def apply_agri_effects(state, log: Optional[list] = None, *,
                 continue
             # 🔴 口径 C-c：从**本地州府仓**实扣（`consume_for_circuit` 与
             # `_coverage` 的判定**共用同一读口**，杜绝口径分叉）。
-            from core.material_holding import consume_for_circuit
+            from core.foundation.ledger.material_holding import consume_for_circuit
             take = consume_for_circuit(state, route, dim, int(round(want)))
             if take > 0:
                 summary["material_used"][dim] = \

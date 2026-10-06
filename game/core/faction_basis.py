@@ -24,7 +24,7 @@ from content.data import (
     FACTION_DISPLAY_NAMES, FACTION_KINDS, FACTION_NAMES, FACTION_POP_BASIS,
     GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST, POP_POOLS_VALID, REFORM_POP_BASIS,
 )
-from core.numeric import parse_number as _num
+from core.foundation.common.numeric import parse_number as _num
 
 log = logging.getLogger("faction_basis")
 

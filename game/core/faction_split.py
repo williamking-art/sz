@@ -15,7 +15,7 @@ import logging
 from typing import Any, Dict, List
 
 from content.data import FACTION_NAMES, FACTION_SPLIT_INIT
-from core.numeric import parse_number as _num
+from core.foundation.common.numeric import parse_number as _num
 
 log = logging.getLogger("faction_split")
 

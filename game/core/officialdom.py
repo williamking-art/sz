@@ -45,11 +45,11 @@ from content.data import (
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
 from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
-from core.pop_structure import move_pop_people   # B1d-b：跨 POP 流动**带财富/粮**（人均连续）
+from core.foundation.ledger.pop_structure import move_pop_people   # B1d-b：跨 POP 流动**带财富/粮**（人均连续）
 # 利益集团二期：人员进出口只改 `state.faction_split` 占比（唯一写入点 set_split），
 # 人仍在同一 POP 的 size 里 —— 不新开人口账本。
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.faction_split import (blend_entrants, exit_faction_members,
                                 split_of)
 

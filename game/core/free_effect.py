@@ -148,7 +148,7 @@ def _grant_grain(state, amount: int) -> bool:
     n = len(pools)
     base, extra = amount // n, amount % n
     # 🔴 G-3：粮写入走 `grain_bridge`（给 `state` 即下沉州府真账）。
-    from core.grain_bridge import grain_add as _grain_add
+    from core.foundation.ledger.grain_bridge import grain_add as _grain_add
     for i, pp in enumerate(pools):
         _grain_add(pp, base + (1 if i < extra else 0), state)
     return True

@@ -509,7 +509,7 @@ def departments_all_derived(state: Dict[str, object],
     · **Σ 各治所规模 == 路级总量**（守恒，可自检）。
     """
     try:
-        from core.pop_bridge import seat_pop_weights, _split_int
+        from core.foundation.ledger.pop_bridge import seat_pop_weights, _split_int
     except Exception:  # noqa: BLE001
         return []
     weights = seat_pop_weights(circuit)

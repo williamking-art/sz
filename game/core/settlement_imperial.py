@@ -12,7 +12,7 @@ from content.data import (
 )
 
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层；未下沉时回落原写法
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement_common import (
     _distribute_cash,
 )

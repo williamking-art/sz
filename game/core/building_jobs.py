@@ -15,7 +15,7 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
+from core.foundation.ledger.pop_structure import move_pop_people  # B1d-b：跨 POP 迁移**带财富/粮**（人均连续）
 
 __all__ = [
     "jobs_of", "allocate_employment", "produce_grain_track",
@@ -293,7 +293,7 @@ def produce_grain_track(pops: dict, buildings: dict, cfg: dict,
     eff = 1.0 + float(cfg.get("FARM_LV_EFF", 0.05)) * max(0, farm_lv - 1)
     g = int(sz * float(gy) * eff)
     # 🔴 G-3：粮写入走 `grain_bridge`（给 `state` 即下沉州府真账）；无 state 回落原写法。
-    from core.grain_bridge import grain_add as _grain_add
+    from core.foundation.ledger.grain_bridge import grain_add as _grain_add
     _grain_add(nong, g, state)
     return g
 

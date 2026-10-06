@@ -85,7 +85,7 @@ def _write_warehouse(resources: dict, dim: str, add: int) -> int:
 def _pick_seat(p: dict, dim: str) -> Optional[str]:
     """按**产地证据**挑一个治所；无证据 ⇒ `None`（扁平区，**不伪拆**）。"""
     try:
-        from core.material_holding import seat_weights_for
+        from core.foundation.ledger.material_holding import seat_weights_for
         w = seat_weights_for(p.get("name") or "", dim)
     except Exception:                                   # noqa: BLE001
         return None
@@ -151,8 +151,8 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
         # **用聚合 POP 作为生产者即可，不必伪造户级田契**」。
         # 故 `household_self` 直接解为本路 `农` POP（聚合），
         # 不要求 `economic_affiliation` 证据（那是**户级**要求，与裁定相悖）。
-        from core.material_holding import HOLDER_MAP as _HM
-        from core.material_holding import resolve_holder as _rh
+        from core.foundation.ledger.material_holding import HOLDER_MAP as _HM
+        from core.foundation.ledger.material_holding import resolve_holder as _rh
         if _HM.get(_dim) == "household_self":
             return "pop:农:household_self"
         return _rh(_dim)
@@ -226,7 +226,7 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                     _goods = {}
                     _tgt["goods"] = _goods
                 try:
-                    from core.material_holding import goods_add as _gadd
+                    from core.foundation.ledger.material_holding import goods_add as _gadd
                     _gadd(_goods, dim, add, _pick_seat(p, dim))
                     produced[dim] = produced.get(dim, 0) + add
                 except Exception:                       # noqa: BLE001
@@ -255,7 +255,7 @@ def goods_direct_production_backup(artisan: dict, merchant: dict,
     added: Dict[str, int] = {}
     # 2026-10-03：`goods` 已含 `治所→{dim:n}` 州府桶，**只有数值键才是商品维**。
     # 旧写法 `for gdim in list(goods)` 无过滤，会把桶（dict）当维名参与算术并覆写它。
-    from core.material_holding import commodity_dims
+    from core.domains.economy.material_trade_ops import commodity_dims
     if isinstance(artisan, dict):
         for gdim in commodity_dims(artisan.get("goods")):
             _add = int(artisan.get("size", 0) * (0.10 if gdim == "绸" else 0.20) * prod_mult)

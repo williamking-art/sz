@@ -28,7 +28,7 @@ import math
 from typing import Any, Dict, List, Tuple
 
 from content.data import GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST
-from core.numeric import parse_number as _num, clamp as _clamp
+from core.foundation.common.numeric import parse_number as _num, clamp as _clamp
 
 log = logging.getLogger("region_brief")
 

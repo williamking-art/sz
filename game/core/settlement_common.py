@@ -19,8 +19,8 @@ import logging
 #   · 粮写 `grain_bridge`（写只落一个载体，绝不双写）；
 #   · size/wealth 写 `pop_bridge`（先落州府真账、再刷路级派生镜像）。
 # 存量**读取**仍走路级 `pops`（桥接维护的镜像）。未下沉时桥接返回 None，调用方回落原写法。
-from core.grain_bridge import grain_add as _grain_add
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 from content.data import (
     GRAIN_PRICE_MIN,
@@ -95,7 +95,7 @@ def register_money_flow(state, kind: str, amount: int, reason: str = "",
     返回是否登记成功。
     """
     try:
-        from core.money import register_flow as _reg_flow
+        from core.foundation.ledger.money import register_flow as _reg_flow
         _reg_flow(state, kind, amount, reason)
         return True
     except Exception as e:  # noqa: BLE001 — 登记失败必须留痕，但不得中断资金主流程

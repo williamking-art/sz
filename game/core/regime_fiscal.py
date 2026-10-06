@@ -24,7 +24,7 @@
 """
 from typing import Any, Dict, List
 
-from core.pop_structure import move_pop_people
+from core.foundation.ledger.pop_structure import move_pop_people
 
 
 #: 连续欠饷达到多少月才开始动作

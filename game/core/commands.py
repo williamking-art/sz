@@ -62,7 +62,7 @@ from content.data import (
 
 from core.game_state import GameState
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层；未下沉时回落原写法
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.evaluation import evaluate_game, check_game_over

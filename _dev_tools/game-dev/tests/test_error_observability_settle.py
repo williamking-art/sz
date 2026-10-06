@@ -261,7 +261,7 @@ def test_m7_normal_path_has_no_warn_noise(caplog):
 # M8 · 货币台账登记失败必须可见（不得伪装成"对账残差/造币 bug"）
 # =====================================================================
 def test_m8_org_burn_flow_register_failure_is_visible(monkeypatch, caplog):
-    import core.money as money
+    import core.foundation.ledger.money as money   # 判据④改道后：patch 必须打在真提供方
     from core.settlement import _settle_org_economy
 
     monkeypatch.setattr(money, "register_flow", _boom)
@@ -276,7 +276,7 @@ def test_m8_org_burn_flow_register_failure_is_visible(monkeypatch, caplog):
 
 
 def test_m8_mint_flow_register_failure_is_visible(monkeypatch, caplog):
-    import core.money as money
+    import core.foundation.ledger.money as money   # 判据④改道后：patch 必须打在真提供方
     from core.settlement_econ_helpers import _settle_mint
 
     monkeypatch.setattr(money, "register_flow", _boom)
@@ -309,7 +309,7 @@ def test_m8_register_money_flow_helper_contract():
 @pytest.mark.parametrize("target,attr,marker", [
     ("core.estate_mechanic", "sync_estate_slices", "sync_estate_slices"),
     ("core.settlement_imperial", "ensure_hidden_in_pops", "ensure_hidden_in_pops"),
-    ("core.pop_structure", "ensure_farm_slices", "ensure_farm_slices"),
+    ("core.foundation.ledger.pop_structure", "ensure_farm_slices", "ensure_farm_slices"),
 ])
 def test_m9_migration_failure_warns_with_slot_and_still_returns_state(
         monkeypatch, caplog, target, attr, marker):
@@ -448,7 +448,7 @@ def test_m14_truly_unregistered_node_is_still_cleaned():
 # M15 · 银行信心缺失不得回落"完美"
 # =====================================================================
 def test_m15_bank_trust_unreadable_keeps_previous_overdue(monkeypatch, caplog):
-    import core.money as money
+    import core.foundation.ledger.money as money   # 判据④改道后：patch 必须打在真提供方
     from core.settlement_finance import _settle_bank_credit
 
     s = _state()

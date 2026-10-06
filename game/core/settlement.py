@@ -122,7 +122,7 @@ def _settle_tech(state, log):
         # 审查 O1：`monthly <= 0` 对 NaN **恒为 False**（任何比较与 NaN 都返回 False）
         # → NaN 会穿过这道闸门，到 `:129 int(monthly or 0)` 抛 ValueError、inf 抛
         # OverflowError，**整月结算中断**。现先剔非有限值（缺失/坏值 → 不拨付并留痕）。
-        from core.numeric import parse_number as _pn
+        from core.foundation.common.numeric import parse_number as _pn
         monthly = _pn(proj.get("monthly_cost", 0), 0.0)
         if not (monthly > 0):
             if proj.get("monthly_cost") is not None and proj.get("monthly_cost") != monthly:
@@ -552,7 +552,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
         # 🔴 G-2 收口：走 `supply_goods_to_seats`（**全商品**入州府桶），
         # 取代只服务建材三维的旧入口 `supply_merchant_materials`。
         # 旧入口保留为**历史 API**（外部若有引用不致断裂），但不再走流水线。
-        from core.material_holding import supply_goods_to_seats
+        from core.foundation.ledger.material_holding import supply_goods_to_seats
         supply_goods_to_seats(state)
     except Exception as _mh_e:  # noqa: BLE001
         log.append(f"[供给][WARN] 商品配货失败：{_mh_e!r}")
@@ -702,7 +702,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # `farm_slice_fixes > 0` 长期出现 ⇒ 有通道漏挂钩（可观测、不阻断）；`farm_slice_violations`
     # 用于记录兜底后仍不成立的异常（应为空）。
     try:
-        from core.pop_structure import check_farm_invariants, sync_all_farm_slices
+        from core.foundation.ledger.pop_structure import check_farm_invariants, sync_all_farm_slices
         _audit = getattr(state, "settlement_audit", None)
         if not isinstance(_audit, dict):
             _audit = {}
@@ -728,7 +728,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # A-4（畜栏产肉无买方）、A-5（酒课无上限累加）、D-6（常费转负）长期存活的根因——
     # 此前游戏没有货币总量口径，无处可查。见 core/money.py 与 货币口径规范_M0M1M2.md。
     try:
-        from core.money import audit_step as _money_audit_step
+        from core.foundation.ledger.money import audit_step as _money_audit_step
         _money_audit_step(state)
     except Exception as _money_err:  # noqa: BLE001 — 对账崩溃不拖垮结算，但必须响亮可见
         # P1-19：原静默「跳过」→ 对账可连续数月失效而无人知。现 ERROR 落档 + 持久计数。

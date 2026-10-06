@@ -128,7 +128,7 @@ def inventory_ledger(state, *, max_items: int = 60) -> Dict[str, Any]:
                     continue
                 # 2026-10-03：只遍历**商品维**（`goods` 另含 `治所→{dim:n}` 州府桶，
                 # 桶是 dict，不应出现在逐维持仓清单里）。
-                from core.material_holding import commodity_dims
+                from core.domains.economy.material_trade_ops import commodity_dims
                 for dim in commodity_dims(goods):
                     q = _int(goods.get(dim))
                     if q is None:
@@ -327,7 +327,7 @@ def flow_classification(state) -> Dict[str, Any]:
 
     # 内部转移 vs 外部注入：M_ALL 口径由 money.py 单点提供，此处**不重算**
     try:
-        from core.money import m_all as _m_all
+        from core.foundation.ledger.money import m_all as _m_all
         money_total = _m_all(state)
     except Exception as exc:                      # noqa: BLE001 — 读数失败不阻断
         money_total = None

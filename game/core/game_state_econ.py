@@ -206,7 +206,7 @@ class GameStateEconMixin:
         #  ③ **国库封桩分层**：物价 = M1(working)，即国库/内帑只按"周转金"计入
         #     （3×月常费；内帑 1/3），超出部分视为封桩（M2 沉淀），
         #     使"囤钱不流通的玩家不会凭空制造通胀"（规范 §12.2、§13.3）。
-        from core.money import (m1 as _m1_working, pop_money as _pop_money,
+        from core.foundation.ledger.money import (m1 as _m1_working, pop_money as _pop_money,
                                 copper_share as _copper_share)
         _cs = _copper_share(self)
         _melt = float(self.coin.get("private_melt", 0.2) or 0)
@@ -346,7 +346,7 @@ class GameStateEconMixin:
         # 役钱（徭役代役钱）：与 `_settle_finance` 同源——税基＝**应役丁**（B1b，
         # 佃农（客户）无国税/摊派、坊郭户（工匠/商人）不服乡村差役、官户（士绅/官僚）免役、兵免；
         # 隐户不落籍，既不在 `size` 也不在 `ding`）。
-        from core.pop_structure import service_ding_total
+        from core.foundation.ledger.pop_structure import service_ding_total
         poll_tax = int((service_ding_total(self) * TAX_POLL_RATIO / 12) * arrival * tax_coeff)
         maritime_trade = self.calc_maritime_trade()
         maritime_tax = int((maritime_trade / 12.0) *
@@ -643,7 +643,7 @@ class GameStateEconMixin:
         役钱与助役钱实收、冗官数。
         """
         from core import officialdom as _od
-        from core.pop_structure import service_ding_total
+        from core.foundation.ledger.pop_structure import service_ding_total
 
         pops = {}
         for p in self.prefectures.values():

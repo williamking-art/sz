@@ -38,8 +38,8 @@ from core.demand import basic_need, demand_release
 #   · 粮写 `grain_bridge`（写只落一个载体，绝不双写）；
 #   · size/wealth 等写 `pop_bridge`（先落州府真账、再刷路级派生镜像）。
 # 存量**读取**仍走路级 `pops`（它是桥接维护的镜像）。未下沉时桥接返回 None，调用方回落原写法。
-from core.grain_bridge import grain_add as _grain_add
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 from core.settlement_common import (
     _avg_corruption,
@@ -372,7 +372,7 @@ def _settle_granary(state, log):
         # 3) 商品折旧（各 POP 持有商品每月 5% 消耗，商品有使用寿命、用完再买，防只增不耗）
         # 2026-10-03：`goods` 含 `治所→{dim:n}` 州府桶，须只对**商品维**折旧，
         # 否则会对 dict 做乘法（旧写法直接炸 `unsupported operand *: 'dict' and 'float'`）。
-        from core.material_holding import commodity_dims
+        from core.domains.economy.material_trade_ops import commodity_dims
         for _pop in p["pops"].values():
             for _gdim in commodity_dims(_pop.get("goods")):
                 _pop["goods"][_gdim] = int(_pop["goods"][_gdim] * 0.95)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层
 # （先落州府真账、再刷路级派生镜像）；未下沉时桥接返回 None，调用方回落原写法。
-from core.pop_bridge import pop_obj_add as _pop_obj_add
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 
 def _distribute_pop_wealth(state, lump, cls, total):

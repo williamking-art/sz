@@ -373,7 +373,7 @@ def _slot_workshop(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[str
     per_dim: Dict[str, Any] = {}
     vals: List[float] = []
     # 2026-10-03：只遍历**商品维**（`goods` 另含 `治所→{dim:n}` 州府桶）。
-    from core.material_holding import commodity_dims
+    from core.domains.economy.material_trade_ops import commodity_dims
     for dim in sorted(commodity_dims(goods)):
         qty = sellable_stock(seller=pop, dim=dim)
         px = effective_buy_price(dim=dim, state=state, pref=route).get("price")

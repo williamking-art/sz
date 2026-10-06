@@ -22,7 +22,7 @@ from content.data import (
     BUILDING_BLUEPRINTS, BUILDING_COST_GROWTH, BUILDING_STD,
     blueprint_region_ok,
 )
-from core.numeric import parse_number as _num
+from core.foundation.common.numeric import parse_number as _num
 
 log = logging.getLogger("construction")
 

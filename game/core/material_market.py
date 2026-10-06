@@ -342,7 +342,7 @@ def _pop_stock(pop: Optional[dict], dim: str) -> Optional[int]:
     goods = pop.get("goods")
     if not isinstance(goods, dict):
         return None
-    from core.material_holding import goods_amount
+    from core.foundation.ledger.material_holding import goods_amount
     v = goods_amount(goods, dim)
     return _read_int(v if v is not None else 0)
 
@@ -700,7 +700,7 @@ def buy_material(state, *, pref: Any, dim: str, qty: Any,
             return _reject(out, MaterialReason.UNKNOWN_STOCK,
                            f"卖方 {pref!r}/{seller_pop!r} 无 goods 槽（旧档缺失≠0）")
         # POP 持货同样是**库存单位**（RAW_UNITS 口径）⇒ 同样先换算再成交
-        from core.material_holding import goods_amount
+        from core.foundation.ledger.material_holding import goods_amount
         _sv = goods_amount(goods, dim)
         sp_qty = convert_stock_to_market(dim, _read_int(_sv if _sv is not None else 0))
         if sp_qty is None:

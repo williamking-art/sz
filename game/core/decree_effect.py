@@ -25,7 +25,7 @@
 **绝不把代理当成执行率**。
 """
 from __future__ import annotations
-from core.numeric import parse_number as _num, clamp as _clamp
+from core.foundation.common.numeric import parse_number as _num, clamp as _clamp
 
 import logging
 from typing import Any, Dict, Optional
@@ -96,7 +96,7 @@ def _literacy_channel(state, route: Optional[str] = None) -> Optional[float]:
     现按 `core.numeric.finite_or_undefined` 的"未定义"语义处理（单点口径）：
     缺失或 NaN/±Inf 一律 `None`，由调用方**显式标注该维度未定义**并只按已有项计算。
     """
-    from core.numeric import finite_or_undefined as _fu
+    from core.foundation.common.numeric import finite_or_undefined as _fu
     lit = None
     try:
         from core.literacy import national_literacy, route_literacy
@@ -229,7 +229,7 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
 
 def _literacy_of(state, route: Optional[str]):
     """该路（或全国）识字率读数（只读；**缺失或非有限为 None**，不伪造、不回落 0）。"""
-    from core.numeric import finite_or_undefined as _fu
+    from core.foundation.common.numeric import finite_or_undefined as _fu
     if route:
         p = (getattr(state, "prefectures", None) or {}).get(route)
         if isinstance(p, dict) and p.get("literacy") is not None:

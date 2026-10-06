@@ -31,7 +31,7 @@ def _settle_factions(state, log):
     “本月发生的事”（党争/联姻/分裂/和解/清算、AI 契约档位）记成 `_event_delta`，
     由派生步在读完 POP 之后一次性消化。
     """
-    from core.numeric import parse_number as _num
+    from core.foundation.common.numeric import parse_number as _num
     # 12 步 agent 化 P2+：读取派系 AI 契约
     _faction_ai = getattr(state, "_faction_ai", None)
     ai_factions = {}
