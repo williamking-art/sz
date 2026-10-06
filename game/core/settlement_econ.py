@@ -1322,6 +1322,19 @@ def _settle_external_economy(state, log):
                     log.append(f"[外邦经济·{rk}·{_p.get('name')}] ⚠ 省域守恒断裂 "
                                f"money={pa['money_residual']:+d} grain={pa['grain_residual']:+d}")
             ex["treasury"] = treasury
+            # 🔴 2026-10-06 用户裁定：「全局都要有，宋不用」——
+            #   AI 政权欠饷**自会削减开销**（裁军/减官/加税阶梯）；
+            #   宋侧财政处置权在玩家手里，**不做任何自动处置**。
+            #   裁减走 `move_pop_people`（ΣPOP 守恒），并须在本函数刷新
+            #   `ex["pop"]` 聚合视图**之前**执行，保证政级读数与省域一致。
+            try:
+                from core.regime_fiscal import apply_fiscal_response
+                _fisc = apply_fiscal_response(ex, provinces, int(agg.get("arrears", 0) or 0))
+                if _fisc and (_fisc.get("streak", 0) or _fisc.get("cut_army")
+                              or _fisc.get("cut_officials") or _fisc.get("surcharge_steps")):
+                    agg["fiscal_response"] = _fisc
+            except Exception:  # noqa: BLE001 财政处置失败不得阻断政权结算
+                pass
             ex["econ_audit"] = agg
             # ex["pop"] 汇总视图刷新（size 由 _simulate_external 对齐；wealth/grain
             # 从省域权威账加和——面板/岁币/审计读 ex["pop"] 始终与省域一致，不双账）
