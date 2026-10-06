@@ -31,6 +31,8 @@ MIGRATED_OLD = [
     'core.money', 'core.pop_bridge', 'core.grain_bridge', 'core.pop_structure',
     'core.prefecture_entity', 'core.grain_ledger', 'core.material_holding',
     'core.numeric',
+    # 第十一包补入：core/errors.py 的实现已迁 foundation/common/errors.py
+    'core.errors',
 ]
 
 
@@ -107,7 +109,7 @@ def test_old_stubs_forward_to_same_objects():
     """
     stubs = ['core.money', 'core.pop_bridge', 'core.grain_bridge', 'core.pop_structure',
              'core.prefecture_entity', 'core.grain_ledger', 'core.material_holding',
-             'core.numeric']
+             'core.numeric', 'core.errors']
     bad = []
     n = 0
     for old in stubs:

@@ -1015,7 +1015,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             system_prompt,
             *[m.get("content") for m in (messages or []) if isinstance(m, dict)])
         if _miss:
-            from core.errors import AIRuntimeError as _AIRE
+            from core.foundation.common.errors import AIRuntimeError as _AIRE
             log.error("提示词资源缺失，已中止本次 AI 调用（不发送占位文本）：%s", _miss)
             raise _AIRE(
                 f"AI 提示词资源缺失（{_PROMPT_MISSING_MARK}{_miss}]）：安装包不完整，已中止本次推演。",
@@ -1062,7 +1062,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 # 审查 P2-45：网络层瞬时错误退避重试（原 URLError 直接抛出，无重试）
                 status, data, _ = self._post_with_retry(payload, timeout=30)
             except urllib.error.URLError as e:
-                from core.errors import AIRuntimeError as _AIRE
+                from core.foundation.common.errors import AIRuntimeError as _AIRE
                 reason = getattr(e, "reason", e)
                 if isinstance(reason, TimeoutError):
                     # 审查 P2-43：超时码具备真实生产者（原 AI_TIMEOUT 仅定义、无产出）
@@ -1070,7 +1070,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                                 code="AI_TIMEOUT") from e
                 raise _AIRE(f"AI 服务连接失败：{reason}") from e
             except Exception as e:  # noqa: BLE001
-                from core.errors import AIRuntimeError as _AIRE
+                from core.foundation.common.errors import AIRuntimeError as _AIRE
                 raise _AIRE(f"AI 调用异常（{type(e).__name__}）：{e}") from e
             if status < 400:
                 break
@@ -1092,7 +1092,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             # L1（审查 P2-3）：provider 错误正文可能回显 key 片段/请求参数，属技术细节，
             # 只入服务端日志；对上游（503 detail.message → 界面）只下发中文通用文案 + 状态码。
             log.warning("provider 报错（HTTP %s）：%s", status, err)
-            from core.errors import AIRuntimeError as _AIRE
+            from core.foundation.common.errors import AIRuntimeError as _AIRE
             # 审查 P2-43：鉴权失败给明确错误码（原仅把状态码拼进文本，无法诊断）
             if status in (401, 403):
                 raise _AIRE(f"AI 鉴权失败（HTTP {status}）：请检查 api_key 与 base_url。",
@@ -1103,7 +1103,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
         try:
             msg = data["choices"][0]["message"]
         except (KeyError, TypeError, IndexError) as e:
-            from core.errors import AIRuntimeError as _AIRE
+            from core.foundation.common.errors import AIRuntimeError as _AIRE
             raise _AIRE(f"AI 返回格式异常（HTTP {status}）：{e}") from e
         usage = data.get("usage", {})
         if isinstance(usage, dict) and usage:

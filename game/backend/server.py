@@ -41,7 +41,7 @@ from ai.client_utils import (
     _ai_config_path as _ai_config_path_impl, resolve_ai_config_path, validate_outbound_url,
 )
 from backend.client import LocalBackend
-from core.errors import AIRuntimeError
+from core.foundation.common.errors import AIRuntimeError
 
 from fastapi.middleware.cors import CORSMiddleware
 

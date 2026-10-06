@@ -3,7 +3,7 @@
 import logging
 import random
 from core.game_state import GameState
-from core.errors import AIRuntimeError
+from core.foundation.common.errors import AIRuntimeError
 from content.data import (
     DIRECT_DECREE_MAX,
     FACTION_NAMES,

@@ -67,7 +67,7 @@ from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.evaluation import evaluate_game, check_game_over
 from core.events import get_historical_event, get_random_event, apply_event_choice, get_strategic_branch, get_pending_break_event
-from core.errors import AIRuntimeError
+from core.foundation.common.errors import AIRuntimeError
 
 
 # ============================================================

@@ -11,9 +11,10 @@
 - `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 7 个**（含 `material_holding` 账本侧拆分）
 - `persistence/` 存档读写与版本迁移 —— ✅ **已迁入 2 个**（第七包：`slots.py` + `migrations.py`，
   只取实测无业务依赖的部分；`save_game`/`load_game` **有意留下**，原因见 §五）
-- `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个模块**（`numeric`；
+- `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 2 个模块**（`numeric` + `errors`；
   第八包又向该模块**并入 2 个符号** `_safe_int`/`_safe_float`，仍是 1 个文件，别误数成 2 个）；
-  ⚠️ `errors` **未迁**——它本来就是 20 行的真小模块，不是转发桩，别按"行少"误判成已迁）
+  ⚠️ 计数教训保留：先前用"`≤30 行`即薄转发桩"数模块，会把 `errors.py` 这类**本来就小的真模块**误收为已迁——
+  `errors` 直到第十一包才**真的**迁入 `foundation/common/errors.py`（见 §九），别把"小"当"已迁"）
 
 ## 〇、完成度实测（2026-10-07，脚本口径见下）
 
@@ -22,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **8 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **9 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -53,7 +54,8 @@
 | `pop_structure` | `foundation/ledger/pop_structure.py` | 12.6 KB | 19 |
 | `prefecture_entity` | `foundation/ledger/prefecture_entity.py` | 11.2 KB | 24（dir() 口径）|
 | `grain_ledger` | `foundation/ledger/grain_ledger.py` | 4.0 KB | 7（dir() 口径）|
-| `material_holding`（账本侧）| `foundation/ledger/material_holding.py` | 36.8 KB | 49（dir()；42 实义符号含私有，7 为 typing/future 名）|
+| `material_holding`（账本侧）| `foundation/ledger/material_holding.py` | 36.8 KB | 51（dir()；第十包起含 `attribute_to_seats`/`route_of` 两个显式接口，旧私有名留作别名，**桩面仍 52**）|
+| `errors` | `foundation/common/errors.py` | 1.1 KB | 1（`AIRuntimeError`；第十一包，模块内**零 import**）|
 | `save_load`（**部分**·槽位机械）| `foundation/persistence/slots.py` | 3.7 KB | `SLOT_MIN` `_slot_ok` `_slot_path` `get_save_slots`（4 符号，原文逐字等价）|
 | `save_load`（**部分**·旧档迁移）| `foundation/persistence/migrations.py` | 4.0 KB | `_merge_regions` `_migrate_pops_to_seats`（2 符号；仅桥导入改指新路径）|
 
@@ -366,3 +368,30 @@ collected 由 2376 → **2380**（守卫 4 条）。
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2386** = 批次前 2380 + 本批 6 例
 （b10 5 条 + `test_material_holding.py` 新增 1 条）；SCC 仍 **2 环**、成员同基线；
 "指错家"静态复扫 **0**；ledger/桩/交易三侧子集回绿。
+
+## 九、第十一包：`errors` 迁入 `foundation/common/`（2026-10-07）
+
+§106 点名 `common/` 该装 "numeric、errors 等真正跨域且无业务归属的基础工具"。
+`numeric` 早在第二批就进去了，`errors` 一直是**未迁**状态——
+README 原先那句"别按行少误判成已迁"就是为它写的（它 20 行是真小模块，不是桩）。本包完成迁入。
+
+| 项 | 处置 | 实测 |
+|---|---|---|
+| `AIRuntimeError` | ✅ 原文迁入 `foundation/common/errors.py` | 对 `git show HEAD:game/core/errors.py` 取原文比 `ast.dump` ⇒ **等价**（第一次写入把 `newline=''` 漏在写侧，`\r\n` 变成 `\r\r\n` ⇒ 等价校验直接红，改回两侧同参后通过） |
+| `core/errors.py` | ✅ 收敛为显式转发桩 | `dir()` 公开面**恰好** `{AIRuntimeError}`，不多不少 |
+| 生产侧 8 处 import | ✅ **同批**改指新路径（`ai/client.py` 5、`backend/server.py` 1、`core/commands.py` 1、`core/commands_decree.py` 1） | 复扫生产侧 `core.errors` 引用 = 0（判据④同批达成，不留半成品） |
+| 测试侧 5 处 | 保留旧路径 | 兼容门面生效面 |
+| `core.errors` 纳入常驻守卫 | ✅ 加进 `test_newpath_imports_b9.py` 的 `MIGRATED_OLD` 与桩面清单 | 判据④从此对 9 个模块持续生效 |
+
+**新增守卫 `test_common_errors_b11.py`（5 条）**
+1. 桩公开面**恰好**等于 `{AIRuntimeError}`（防"顺手多转发一个名字"）；
+2. 旧路径 `is` 新实现（两份异常类会让上层 `except` 漏捕——这是本迁移唯一的真风险）；
+3. 🔴 **新模块内 `import` 语句必须为 0**：`errors` 存在的理由就是"不导入任何业务模块，供各层共享"，
+   迁移时手滑加一行 `from content.data import AI_ERROR_CODES` 不会报错，但会把依赖引进基础层；
+4. 异常语义逐条锁：默认构造 `code=''`、传 `None` 回落空串、`isinstance(RuntimeError)`、
+   按 `RuntimeError` 捕获路径仍在、可再子类化；
+5. 生产侧不得再 import `core.errors`（AST 扫，桩自身除外）。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2391** = 批次前 2386 + 本批 5 例；
+SCC 仍 **2 环**、成员与阶段 1 基线**逐字一致**，扫描模块数 123 → **124**（新增 `errors.py`），
+新文件未进任何环；`core.errors` 语义实测（raise/except/`.code`/子类化）全部通过。
