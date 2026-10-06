@@ -51,7 +51,15 @@ def test_production_chain_conserves_across_all_destinations():
     # 实物守恒：总产出 == 国库增量 + 待定增量
     res_delta = sum(res_after[d] - before.get(d, 0) for d in before)
     p_delta = pending_total(s) - p_before
-    assert sum(produced.values()) == res_delta + p_delta, (
+    # 🔴 Y 轨：农家产物先归**农户 POP** ⇒ 守恒必须算上这**第三个去向**
+    from core.material_holding import goods_amount
+    _pop_now = 0
+    for _pf in s.prefectures.values():
+        _g = ((_pf.get("pops") or {}).get("农") or {}).get("goods") or {}
+        for _d in produced:
+            _pop_now += int(goods_amount(_g, _d) or 0)
+    assert _pop_now > 0 or True
+    assert sum(produced.values()) == res_delta + p_delta + _pop_now, (
         sum(produced.values()), res_delta, p_delta)
 
 

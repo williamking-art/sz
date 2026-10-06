@@ -523,6 +523,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     try:
         from core.production_chain import settle_production_chain
         settle_production_chain(state, log)
+        # 🔴 Y 轨（用户 2026-10-05 裁定）：农家产物先归农户，官府**和买**后方入官仓供工坊。
+        # 钱货同时转移；未买走的仍归农户（不无偿入库）。
+        try:
+            from core.farm_procurement import procure_from_farmers
+            procure_from_farmers(state, log)
+        except Exception as _fp_e:  # noqa: BLE001
+            log.append("[和买][WARN] 采购失败：%r" % (_fp_e,))
     except Exception as _pc_e:  # noqa: BLE001
         log.append(f"[产出链][WARN] 原料入仓失败：{_pc_e!r}")
 

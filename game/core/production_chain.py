@@ -147,7 +147,14 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
         return produced
     # 归属解析：未裁定 ⇒ None ⇒ 维持原入仓口径
     def _resolve(_dim):
+        # 🔴 用户 2026-10-05 裁定：「产出先归农户生产主体；
+        # **用聚合 POP 作为生产者即可，不必伪造户级田契**」。
+        # 故 `household_self` 直接解为本路 `农` POP（聚合），
+        # 不要求 `economic_affiliation` 证据（那是**户级**要求，与裁定相悖）。
+        from core.material_holding import HOLDER_MAP as _HM
         from core.material_holding import resolve_holder as _rh
+        if _HM.get(_dim) == "household_self":
+            return "pop:农:household_self"
         return _rh(_dim)
     from content.data import RAW_DIMS
     for name, p in (getattr(state, "prefectures", None) or {}).items():

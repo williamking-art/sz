@@ -100,18 +100,18 @@ HOLDER_MAP: Dict[str, str] = {
     "石": "imperial_operator",
     "药材": "imperial_operator",
     # 🧵 农家生产物（蚕桑、纺麻、园圃）。
-    #    🔴 **首轮模拟调参（2026-10-05）**：原设 `household_self`（归农 POP），
+    #    🔴 **回归农户（2026-10-05 用户裁定）**：产出先归**农户**（协商生产主体），
     #    实测**工坊全线停产** —— 因工坊投料只读 `state.resources`，
     #    **POP `goods` 对投料路径不可达**。故改为 `state_operator`（入官仓），
-    #    名义依据：宋代**和买**（官府收购绢帛等农家产物）—— **定性有据，定量无据**，
+    #    农户用时**按玩法定价采购**（宋代**和买**，定性有据、定量无据），
     #    仍属**玩法设定**，可调。
     #    ⚠️ 未实现「和买付款腿」（农户应得钱）；当前仅改变产出**归属**，
     #    不涉及既有货物转移，故**不破坏守恒**。
     #    ⚠️ 「玩法设定」：按**现有路级土地模型简化分配**（不追户/田块契约）。
-    "丝": "state_operator",
-    "麻": "state_operator",
-    "蔗": "state_operator",
-    "果": "state_operator",
+    "丝": "household_self",
+    "麻": "household_self",
+    "蔗": "household_self",
+    "果": "household_self",
     "牲畜": "household_self",
     # 🍵 榷茶 ⇒ 官营入国库；🐴 马监 ⇒ 官营。
     "茶": "state_operator",
