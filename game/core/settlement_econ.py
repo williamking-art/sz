@@ -1248,6 +1248,32 @@ def _settle_external_economy(state, log):
                         if _chg:
                             pa["building_lv_changes"] = _chg
                             # 建造支出从政权库藏实扣（守恒：库藏减、营造方得）
+                        # 🔴 2026-10-06 批 B/C 接线：科技推进 + 科技建筑
+                        #   （⚠️ 此处曾遗漏接线——模块已存在但无人调用；
+                        #    现由 `test_regime_tech_wired_into_settlement` 守住）
+                        try:
+                            from core.regime_tech import (advance_regime_tech,
+                                                        deployable_nodes,
+                                                        deploy_regime_building,
+                                                        charge_maintenance)
+                            _tech_res = advance_regime_tech(ex)
+                            if _tech_res and (_tech_res.get("spent")
+                                              or _tech_res.get("unlocked")):
+                                pa["tech"] = _tech_res
+                            _techb = ex.get("tech") or {}
+                            if isinstance(_techb, dict):
+                                for _nid in deployable_nodes(_techb):
+                                    if _nid not in (_techb.get("deployed") or []):
+                                        _dep = deploy_regime_building(ex, _nid)
+                                        if _dep.get("ok"):
+                                            pa.setdefault("tech_buildings", []).append(
+                                                {"node": _nid, "name": _dep["name"],
+                                                 "cost": _dep["cost"]})
+                                _maint = charge_maintenance(ex)
+                                if _maint.get("due"):
+                                    pa["tech_maintenance"] = _maint
+                        except Exception:  # noqa: BLE001 科技不得阻断政权经济结算
+                            pass
                             _build_spend = sum(int(c.get("cost", 0) or 0) for c in _chg)
                             if _build_spend:
                                 # 🔴 **钱守恒**：建造支出必须**落到政权内的 Σwealth**，

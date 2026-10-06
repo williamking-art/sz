@@ -206,3 +206,36 @@ def test_multigoods_market_conserves():
                 f"{rk}·{p['name']} 皮毛总存量 {total_fur} > 产量 {prod_fur}（凭空造货）"
             assert total_herb <= prod_herb, \
                 f"{rk}·{p['name']} 药材总存量 {total_herb} > 产量 {prod_herb}（凭空造货）"
+
+
+def test_regime_tech_wired_into_settlement():
+    """🔴 2026-10-06：科技推进与科技建筑**必须真正接进月结算**。
+
+    ⚠️ 本测试是为堵一个**真实漏网**而加：批 B 的 `regime_tech` 模块已实现且
+    单测通过，但**结算里根本没调用它** —— 科技树静默失效，
+    而当时「全量 EXIT=0」完全掩盖了这一点。
+
+    ⇒ 光测模块不够；**必须从 `run_monthly_settlement` 端到端验证**。
+    """
+    from core.game_state import GameState
+    from core.settlement import run_monthly_settlement
+    from content.data_external import EXTERNAL_ECONOMY_REGIMES as RE
+    s = GameState("shiji")
+    for ex in s.external_regimes.values():
+        if isinstance(ex, dict):
+            ex["treasury"] = 50_000_000
+    # ⚠️ 必须**深拷贝列表**：`dict(...)` 是浅拷贝，`unlocked` 会按引用共享，
+    #   两边一起增长 ⇒ 断言恒为 False（本测试第一版就栽在这里）。
+    before = {rk: set((s.external_regimes[rk].get("tech") or {}).get("unlocked") or [])
+              for rk in RE}
+    for _ in range(6):
+        run_monthly_settlement(s, seed_offset=7)
+    for rk in RE:
+        tech = s.external_regimes[rk].get("tech") or {}
+        b = before.get(rk) or set()
+        now = set(tech.get("unlocked") or [])
+        assert now > b, (
+            f"{rk}: 月结算未推进科技（unlocked 未新增）=> 科技推进**没接线**"
+            f" before={len(b)} after={len(now)}")
+        assert int(tech.get("progress_months", 0) or 0) > 0 or tech.get("researching"), \
+            f"{rk}: 研究进度既未推进也无进行中节点"
