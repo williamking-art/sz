@@ -385,3 +385,35 @@ def test_seat_level_change_does_not_alter_other_circuits():
     assert material_holding_for_circuit(s, R1, "木") == r1_before - 7
     assert holding_report(s)["ok"] is True, "搬运守恒被破坏"
     assert seat_holding_report(s)["ok"] is True
+
+# ====================================================== 丙批一拆分验收（2026-10-06）
+def test_ledger_split_stub_is_same_objects():
+    """旧路径 `core.material_holding` 对 ledger 侧符号是**纯转发**（同一对象、无副本）。"""
+    from core import material_holding as OLD
+    from core.foundation.ledger import material_holding as NEW
+    names = sorted(n for n in dir(NEW) if not n.startswith('__'))
+    assert len(names) == 49, f"ledger dir() 符号数变化（拆分桩需同步）：{len(names)}"
+    for n in names:
+        assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
+
+
+def test_ledger_split_keeps_52_public_surface():
+    """拆分对外**零可见变化**：旧路径 dir() 仍 52 名；交易 3 项实现暂住 core。"""
+    from core import material_holding as OLD
+    assert len([n for n in dir(OLD) if not n.startswith('__')]) == 52
+    for n in ("trade_material", "supply_merchant_materials", "commodity_dims"):
+        assert getattr(OLD, n).__module__ == "core.material_holding", n
+
+
+def test_ledger_split_real_channel_nonempty():
+    """真实通道非空断言：经旧路径调 ledger 的 `circuit_seats`（内含已改道的
+    prefecture lazy import），断链会被 try/except 型调用方静默吞掉，必须验非空。
+
+    同时锁 `tribute_circuits` 非空 —— `_build_tribute_index` 用 **`__file__` 相对路径**
+    读 `_dev_tools/sources/songshi/gong_prefecture.json`（缺文件**静默返回空表**）；
+    模块挪层级后路径必须同步补深，本断言即该耦合的哨兵（丙批一实测踩过）。
+    """
+    from core.material_holding import circuit_seats, tribute_circuits
+    seats = circuit_seats("京畿路")
+    assert seats and all("|" in s for s in seats), f"circuit_seats 异常：{seats!r}"
+    assert len(tribute_circuits()) > 0, "贡物索引为空 ⇒ songshi 数据相对路径解析失败"
