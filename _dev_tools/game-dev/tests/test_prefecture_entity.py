@@ -229,3 +229,28 @@ def test_layer_is_read_only_no_state_touched():
                PE.circuit_aggregate, PE.coverage_report):
         src = inspect.getsource(fn)
         assert "state." not in src, f"{fn.__name__} 不得触碰 state"
+
+
+# ====================================================== 5 · 迁移批次验收（阶段 2 · 第五包 · 2026-10-06）
+def test_stub_reexports_same_objects_as_new_module():
+    """旧路径为**薄转发**：每个符号与新实现**同一对象**（无复制实现）。"""
+    from core import prefecture_entity as OLD
+    from core.foundation.ledger import prefecture_entity as NEW
+    assert OLD.__file__ != NEW.__file__
+    names = sorted(n for n in dir(NEW) if not n.startswith('__'))
+    assert len(names) == 24, f"dir() 符号数变化（迁移桩需同步）：{len(names)}"
+    for n in names:
+        assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
+
+
+def test_pop_bridge_seat_weights_resolves_via_new_path():
+    """`pop_bridge.seat_pop_weights` 的 lazy import 已改指新路径。
+
+    ⚠️ 该函数把 import 包在 `try/except` 里**静默返回 []**——断路径不会炸 import，
+    只会让拆分权重变空，故必须**断言非空**才算接通。
+    """
+    from core.foundation.ledger.pop_bridge import seat_pop_weights
+    w = seat_pop_weights("京畿路")
+    assert w, "权重为空 ⇒ lazy import 断链被 try/except 吞掉"
+    assert all(isinstance(sid, str) and "|" in sid for sid, _pop in w)
+    assert any(pop > 0 for _sid, pop in w)

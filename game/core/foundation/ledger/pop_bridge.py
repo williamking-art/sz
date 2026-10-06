@@ -41,7 +41,7 @@ def seat_pop_weights(circuit: str) -> List[tuple]:
     无治所或人口全缺 ⇒ 返回 []，调用方据此**不做拆分**（不臆造归属）。
     """
     try:
-        from core.prefecture_entity import seats_of
+        from core.foundation.ledger.prefecture_entity import seats_of
         seats = seats_of(circuit, include_merged=False)
     except Exception:
         return []
