@@ -26,7 +26,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 __all__ = ["FARM_PROCURE_DIMS", "FARM_PRICE_RATIO", "PROCURE_TARGET_MONTHS",
-           "procure_from_farmers"]
+           "MERCHANT_BUY_RATIO", "MERCHANT_SPEND_SHARE",
+           "procure_from_farmers", "sell_surplus_to_merchants"]
 
 #: \u53c2\u4e0e\u548c\u4e70\u7684\u519c\u5bb6\u4ea7\u7269\uff08\u5bf9\u5e94 HOLDER_MAP \u4e2d household_self \u7684\u90a3\u4e9b\uff09
 FARM_PROCURE_DIMS = ("\u4e1d", "\u9ebb", "\u8517", "\u679c")
@@ -147,3 +148,92 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             out[dim] = {"qty": qty, "paid": paid}
             logs.append("[\u548c\u4e70] %s +%d\uff08\u4ed8 %d \u8d2f\uff09" % (dim, qty, paid))
     return out
+
+
+#: \ud83d\udd34 **\u73a9\u6cd5\u8bbe\u5b9a**\uff1a\u519c\u6237\u5411\u5546\u4eba\u552e\u6599\u7684**\u6536\u8d2d\u4ef7** = \u57fa\u51c6\u4ef7 \u00d7 \u6b64\u7cfb\u6570\u3002
+#: \u4f4e\u4e8e\u5b98\u5e9c\u548c\u4e70\u4ef7\uff080.9\uff09\u2014\u2014 \u7b26\u5408\u300c\u6c11\u95f4\u6536\u8d2d\u4ef7\u4f4e\u4e8e\u5b98\u5e9c\u300d\u7684\u5e38\u8bc6\uff0c\u4f46**\u4ecd\u4e3a\u73a9\u6cd5\u53c2\u6570**\u3002
+MERCHANT_BUY_RATIO = 0.7
+
+#: \ud83d\udd34 **\u73a9\u6cd5\u8bbe\u5b9a**\uff1a\u5546\u4eba\u5355\u6708\u6700\u591a\u52a8\u7528\u5176 wealth \u7684\u6bd4\u4f8b\u7528\u4e8e\u6536\u8d2d\u3002
+#: \u26a0\u26a0 \u672c\u4fa7\u9650\u5236\u4f7f\u6210\u4ea4**\u5929\u7136\u81ea\u9650**\uff08\u5546\u4eba\u94b1\u6709\u9650\uff09\uff0c
+#: \u907f\u514d\u53ea\u662f\u628a\u519c\u6237\u7684\u6ce1\u6cab\u539f\u6837\u8f6c\u7ed9\u5546\u4eba\u3002
+MERCHANT_SPEND_SHARE = 0.3
+
+
+# 本函数尚未接线，且已知有守恒 bug（2026-10-05 实测）。
+# 实测：接线后「农户 + 商人」的丝麻合计比基线多 408 万（第 3 月）
+#       ⇒ 货物被凭空创造，守恒破裂。
+# 怀疑点：_take_goods 在本场景下未真正移除（桶键/_seat_of 口径），
+#         而商人侧又已入账 ⇒ 双重计数。
+# 接线前必须先修守恒并建定向回归。（用户 2026-10-05 裁定「丙」，实现待修）
+#
+# 玩法参数（已定）：收购价 = 基准价 × 0.7；商人单月最多动用 wealth 的 30%。
+def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
+    """\u519c\u6237\u5411\u672c\u8def**\u5546\u4eba**\u552e\u51fa\u4f59\u6599\uff08\u73a9\u6cd5\u8bbe\u5b9a\uff0c\u66f4\u8d34\u53f2\u5b9e\uff1a\u519c\u5bb6\u4ea7\u7269\u5165\u5e02\uff09\u3002
+
+    \u94b1\u8d27\u540c\u65f6\uff1a`\u5546\u4eba wealth \u2192 \u519c POP wealth`\uff0c`\u519c goods \u2192 \u5546\u4eba goods`\uff0c\u540c\u8def\u3002
+    **\u6210\u4ea4\u53d7\u5546\u4eba\u8d44\u91d1\u7ea6\u675f** \u21d2 \u81ea\u9650\uff08\u4e0d\u4f1a\u65e0\u9650\u627f\u63a5\u519c\u6237\u4f59\u6599\uff09\u3002
+    """
+    from content.data import MATERIAL_PRICE_BASE
+    from core.material_holding import goods_amount, goods_bucket
+    logs = log if isinstance(log, list) else []
+    prefs = getattr(state, "prefectures", None) or {}
+    out: Dict[str, Dict[str, int]] = {}
+    for route, pf in prefs.items():
+        if not isinstance(pf, dict):
+            continue
+        pops = pf.get("pops") or {}
+        nong = pops.get("\u519c"); shang = pops.get("\u5546\u4eba")
+        if not isinstance(nong, dict) or not isinstance(shang, dict):
+            continue
+        ng = nong.get("goods"); sg = shang.get("goods")
+        if not isinstance(ng, dict) or not isinstance(sg, dict):
+            continue
+        wealth = int(shang.get("wealth", 0) or 0)
+        if wealth <= 0:
+            continue
+        budget = int(wealth * MERCHANT_SPEND_SHARE)
+        for dim in FARM_PROCURE_DIMS:
+            base = float(MATERIAL_PRICE_BASE.get(dim, 0) or 0)
+            if base <= 0 or budget <= 0:
+                continue
+            unit = base * MERCHANT_BUY_RATIO
+            if unit <= 0:
+                continue
+            have = int(goods_amount(ng, dim) or 0)
+            if have <= 0:
+                continue
+            want = min(have, int(budget / unit))
+            if want <= 0:
+                continue
+            pay = int(round(want * unit))
+            # \u94b1\u8d77\uff1a\u5546\u4eba -> \u519c\uff08\u540c\u8def\uff09
+            got = state.transfer_money("pop:%s:\u5546\u4eba" % route,
+                                       "pop:%s:\u519c" % route, pay)
+            if got <= 0:
+                continue
+            take = _take_goods(ng, dim, want)
+            if take <= 0:
+                state.transfer_money("pop:%s:\u519c" % route,
+                                     "pop:%s:\u5546\u4eba" % route, got)  # \u56de\u9000
+                continue
+            # \u8d27\u843d\uff1a\u8fdb\u5546\u4eba goods\uff08\u6309\u672c\u8def\u6700\u5927\u6cbb\u6240\u6876\uff0c\u540c\u519c\u6237\u53e3\u5f84\uff09
+            b = goods_bucket(sg, "%s|%s" % (route, _seat_of(pf)), create=True)
+            if b is not None:
+                b[dim] = int(b.get(dim, 0) or 0) + take
+            else:
+                sg[dim] = int(sg.get(dim, 0) or 0) + take
+            budget -= got
+            d = out.setdefault(dim, {"qty": 0, "paid": 0})
+            d["qty"] += take; d["paid"] += got
+    for dim, v in out.items():
+        logs.append("[\u6c11\u95f4\u552e\u6599] %s %d\uff08\u6536 %d \u8d2f\uff09" % (dim, v["qty"], v["paid"]))
+    return out
+
+
+def _seat_of(pf: dict) -> str:
+    """\u53d6\u8be5\u8def\u4e00\u4e2a\u6cbb\u6240\u540d\uff08\u4f9b\u5546\u4eba goods \u6876\u7528\uff09\uff1b\u65e0\u5219\u56de\u7a7a\u4e32\u3002"""
+    seats = (pf or {}).get("seats") or {}
+    if isinstance(seats, dict) and seats:
+        return str(sorted(seats)[0]).split("|")[-1]
+    return "",
