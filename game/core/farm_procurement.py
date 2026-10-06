@@ -193,9 +193,15 @@ def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
         if wealth <= 0:
             continue
         budget = int(wealth * MERCHANT_SPEND_SHARE)
+        # 🔴 预算需在各维间**均分**：若用单一递减预算，
+        # 排在 `FARM_PROCURE_DIMS` 前面的维（丝）会把预算吃光，
+        # 后面的（麻/蔗/果）**被饿死**（实测麻仅 138）。
+        _dims_here = [d for d in FARM_PROCURE_DIMS
+                      if goods_amount(ng, d) and float(MATERIAL_PRICE_BASE.get(d, 0) or 0) > 0]
+        _per_dim = int(budget / len(_dims_here)) if _dims_here else 0
         for dim in FARM_PROCURE_DIMS:
             base = float(MATERIAL_PRICE_BASE.get(dim, 0) or 0)
-            if base <= 0 or budget <= 0:
+            if base <= 0 or _per_dim <= 0:
                 continue
             unit = base * MERCHANT_BUY_RATIO
             if unit <= 0:
@@ -203,7 +209,7 @@ def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
             have = int(goods_amount(ng, dim) or 0)
             if have <= 0:
                 continue
-            want = min(have, int(budget / unit))
+            want = min(have, int(_per_dim / unit))
             if want <= 0:
                 continue
             pay = int(round(want * unit))
@@ -228,7 +234,7 @@ def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
             else:
                 # 无治所名（新建局未下沉）⇒ 落**扁平**存储，不造假桶
                 sg[dim] = int(sg.get(dim, 0) or 0) + take
-            budget -= got
+
             d = out.setdefault(dim, {"qty": 0, "paid": 0})
             d["qty"] += take; d["paid"] += got
     for dim, v in out.items():
