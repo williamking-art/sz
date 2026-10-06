@@ -54,7 +54,7 @@ ROUTE_CLIMATE: Dict[str, str] = {
     "\u4eac\u4e1c\u4e1c\u8def": "\u6e29\u5e26", "\u4eac\u4e1c\u897f\u8def": "\u6e29\u5e26",
     "\u9655\u897f\u8def": "\u6e29\u5e26", "\u4e24\u6d59\u8def": "\u6e29\u5e26",
     "\u6c5f\u5357\u4e1c\u8def": "\u6e29\u5e26", "\u6c5f\u5357\u897f\u8def": "\u6e29\u5e26",
-    "\u6dee\u5357\u4e1c\u8def": "\u6e29\u5e26", "\u6e29\u5357\u897f\u8def": "\u6e29\u5e26",
+    "\u6dee\u5357\u4e1c\u8def": "\u6e29\u5e26", "\u6dee\u5357\u897f\u8def": "\u6e29\u5e26",
     "\u8346\u6e56\u5317\u8def": "\u6e29\u5e26", "\u8346\u6e56\u5357\u8def": "\u6e29\u5e26",
     "\u6210\u90fd\u5e9c\u8def": "\u6e29\u5e26", "\u5229\u5dde\u8def": "\u6e29\u5e26",
     "\u798f\u5efa\u8def": "\u70ed\u5e26", "\u5914\u5dde\u8def": "\u70ed\u5e26",
@@ -82,14 +82,18 @@ JOBS_PER_LEVEL: Dict[str, int] = {
 #: \u5355\u4f4d\u4ea7\u51fa\u57fa\u6570\uff08\u4eba/\u6708\uff09\uff1a\u7531**\u5168\u56fd yields \u53cd\u63a8**\uff08\u6821\u9a8c\u57fa\u51c6\uff0c\u76ee\u6807\u5360\u6bd4 15%\uff09\u3002
 #: \u26a0\ufe0f **\u73a9\u6cd5\u8bbe\u5b9a**\uff0c\u975e\u53f2\u6599\u3002
 CROP_BASE_RATE: Dict[str, float] = {
-    "\u4e1d": 0.1586, "\u9ebb": 0.1248, "\u679c": 0.1125,
-    "\u8517": 0.0978, "\u8336": 0.2398,
+    "\u4e1d": 0.1586, "\u9ebb": 0.1864, "\u679c": 0.2027,
+    "\u8517": 0.2974, "\u8336": 0.3389,
 }
 
-#: \u519c POP **\u53ef\u4e0a\u5c97\u6bd4\u4f8b\u4e0a\u9650**\u3002
-#: \u26a0\ufe0f \u4e0e\u65e2\u6709 `building_jobs.SONG_JOB_SHARE_DEFAULT` **\u4e00\u81f4**\uff08=0.35\uff09\uff0c
-#: \u8be5\u503c\u4e5f\u662f `POP.ding` \u7684\u6765\u6e90\uff08`ding = size \u00d7 0.35`\uff09\u3002
-#: \u26a0\ufe0f **\u975e\u53f2\u6599\u4e01\u53e3\u6298\u7b97** \u2014\u2014 \u5c55\u793a\u65f6\u5fc5\u987b\u6807\u6ce8\u6b64\u6765\u6e90\u3002
+#: 校准方法：使**最紧的路**占可上岗上限 ≤ 80%。
+#: ⚠️ **玩法设定**；丝无需调整（1.00x），蔗需 3.04x
+#: （蔗仅产于广南/福建，全部产量压在少数路）。
+
+#: 农 POP **可上岗比例上限**。
+#: ⚠️ 与既有 `building_jobs.SONG_JOB_SHARE_DEFAULT` **一致**（=0.35），
+#: 该值也是 `POP.ding` 的来源（`ding = size × 0.35`）。
+#: ⚠️ **非史料丁口折算** —— 展示时必须标注此来源。
 FARM_EMPLOY_SHARE_MAX = 0.35
 
 #: \u9690\u6237\u7387\uff08**\u6309\u8def**\uff09\u3002
