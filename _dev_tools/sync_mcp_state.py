@@ -11,7 +11,7 @@
     $py _dev_tools/sync_mcp_state.py                      # 拉取并写镜像（默认）
     $py _dev_tools/sync_mcp_state.py summary              # 只打印摘要
     $py _dev_tools/sync_mcp_state.py log "消息"            # 往云端 worklog 追加一条
-    $py _dev_tools/sync_mcp_state.py push-state  文件.json  # 回写 state[key=phase]
+    $py _dev_tools/sync_mcp_state.py push-state  文件.json [key]  # 回写阶段状态（默认 phase_<agent>）
     $py _dev_tools/sync_mcp_state.py push-context 文件.json # 回写 context 快照
 
 退出码（R4 起，**0 才代表已落地**）：
@@ -23,7 +23,8 @@
 `push-state` 的 JSON 形如
 `{"phase": "...", "updatedAt": "...", "agent": "...", "verification": {...},
   "openDecisions": [...], "blocked": [...]}`
-（整体作为 `key=phase` 的值存下——与 AGENTS.md §6 的约定一致）
+默认存到 `state[key=phase_<agent>]`（agent 取环境变量 `CLOUDBASE_MCP_AGENT`，或命令行显式传 key）——
+**§6 明令不要写共用键 `phase`**，多 agent 会互相覆盖；本脚本对 `key == "phase"` 直接拒绝。
 `push-context` 的 JSON 形如 `{"summary": "...", "data": {...}}`
 
 凭据：URL 见下方 DEFAULT_URL（非机密）；token **只从环境变量** `CLOUDBASE_MCP_TOKEN`
@@ -353,6 +354,24 @@ def main(argv) -> int:
         return 4
 
 
+def _state_key_and_platform(argv, env) -> tuple:
+    """§6 明规：**不要写共用键 `phase`**（多 agent 互相覆盖）。
+
+    旧实现把键硬编码成 `"phase"`、platform 硬编码 `"dsh"` —— 等于每个 agent 都在
+    冲掉别人的阶段状态，正是 §1/§6 警告的那个共用键。现默认 `phase_<agent>`。
+    """
+    agent = (env.get("CLOUDBASE_MCP_AGENT") or "").strip()
+    key = argv[3] if len(argv) > 3 else (f"phase_{agent}" if agent else "")
+    if key == "phase":
+        sys.exit("拒绝写共用键 phase：§6 规定各 agent 写自己的 phase_<agent>，"
+                 "否则互相覆盖。确需改共用键请人工确认后手工调用。")
+    if not key:
+        sys.exit("未指定键：请设环境变量 CLOUDBASE_MCP_AGENT（推荐，键自动取 phase_<agent>）"
+                 "或在命令行显式传 key。用法：sync_mcp_state.py push-state 文件.json [key]\n"
+                 "（§6：不要写共用键 phase）")
+    return key, (agent or "unknown")
+
+
 def _dispatch(cmd: str, project: str, argv) -> int:
     if cmd == "log":
         if len(argv) < 3:
@@ -371,9 +390,10 @@ def _dispatch(cmd: str, project: str, argv) -> int:
             sys.exit("用法：sync_mcp_state.py push-state 文件.json")
         with open(argv[2], encoding="utf-8") as f:
             value = json.load(f)
+        key, platform = _state_key_and_platform(argv, os.environ)
         call = _client()
-        r = set_state(call, project, "phase", value, "dsh")
-        print("PUSH_STATE verdict=%s" % r["verdict"])
+        r = set_state(call, project, key, value, platform)
+        print("PUSH_STATE verdict=%s key=%s platform=%s" % (r["verdict"], key, platform))
         if r["verdict"] != "match":
             print("  回读值与提交值不一致（疑并发覆盖或陈旧副本）。"
                   "不要盲目重写——先 summary 复查，确认不是别人的键被顶掉", file=sys.stderr)
