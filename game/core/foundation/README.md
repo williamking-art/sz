@@ -28,9 +28,9 @@
 旧路径 `core/money.py` `core/pop_bridge.py` `core/grain_bridge.py` `core/pop_structure.py`
 `core/numeric.py` `core/prefecture_entity.py` `core/grain_ledger.py`
 均为**薄转发桩**（11–26 行），**不复制实现**。
-⚠️ `core/material_holding.py` **不是纯桩**（7.9 KB）：账本 42 符号**显式转发**自 ledger，
-交易 3 项（`trade_material`/`supply_merchant_materials`/`commodity_dims`）**暂住其中**，
-目标批次迁 `domains/economy/material_trade_ops.py`（丙批二）；对外 dir() 仍 52 名不变。
+✅ `core/material_holding.py` 自**丙批二**起同为**纯转发桩**：账本 42 名转发
+`foundation/ledger/material_holding`、交易 3 名转发 `domains/economy/material_trade_ops`，
+对外 dir() 仍 52 名（42+3 实现名 + typing/future 7 名）。
 
 🔴 **搬模块必查 `__file__` 相对路径耦合**（丙批一实测踩坑）：
 `_build_tribute_index` 按 `dirname(__file__)/../../_dev_tools/sources/songshi/gong_prefecture.json`
@@ -60,19 +60,24 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 | `numeric` | **15** | 0 |
 | `prefecture_entity` | **6** | 3 |
 | `grain_ledger` | **2** | 2 |
-| `material_holding` | **34** | 1 |
+| `material_holding` | **34** | 2 |
+| `material_trade_ops`（丙批二新模块）| 0 | 2 |
 
-⇒ 新路径引用目前**全部来自 `foundation/` 包内部与迁移验收用例**（甲批规则 1
+⇒ 新路径引用目前**全部来自 `foundation/`/`domains/` 包内部与迁移验收用例**（甲批规则 1
 「新迁入模块彼此用新规范路径」）；外部业务调用方仍 100% 走旧路径。
-⇒ `material_holding` 行统计的是**入口模块**引用；其账本符号的另一半实现身份
-在 `foundation/ledger/material_holding.py`（dir() 49 名 `is` 同一性已断言）。
+⇒ `material_holding` 行统计**入口模块**引用；账本实现 `foundation/ledger/material_holding.py`、
+交易实现 `domains/economy/material_trade_ops.py`（dir() 同一性断言已覆盖两侧）。
+
+**循环依赖扫描口径（丙批二起升级）**：`_scratch/mh_scc_scan_v2.py` 用**全路径节点名**
+（桩与实现不再因同尾名折叠成假环），实测 **SCC=2、成员与阶段 1 基线一致**，
+`foundation.*`/`domains.*` 均为叶子链不成环；旧 v1 尾名折叠口径保留作对照，两口径结论目前一致。
 ⇒ 符合迁移期设计，但**必须显式记录**，避免后人误以为已切换。
 
 ## 三、未完成 / 受阻
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| `material_holding` | 🔵 **丙批一已完成（账本侧拆入 ledger/）** | 上次失败拆分的两个残留产物（`ledger/material_holding.py` 旧稿与 `domains/economy/read_models/`）经逐文件定性**判定过期**（交易函数错放 ledger、缺 `tribute_circuits`），已移入 `_scratch/mh_residue_2026-10-06/` 留档、未删除。丙批二待做：交易 3 项 → `domains/economy/material_trade_ops.py`，只读读数另入 `read_models/`（分两批之第二批，遵守 §8 一批一包）|
+| `material_holding` | 🔵 **丙批两半全部完成** | 账本 42 符号已在 `foundation/ledger/`（丙批一 `cdc7af3933`）；交易 3 项已迁 `domains/economy/material_trade_ops.py`、core 收敛纯桩（丙批二）。旧「拆分失败残留」两份产物定性过期，留档 `_scratch/mh_residue_2026-10-06/`。**`read_models` 未新增**：读数/守恒接口按甲批归属留在 ledger，非第三批 |
 | 其余子包与 `domains/*` 十域 | ⬜ 空骨架 | **均无实现** |
 | 依赖图（§8 阶段 1）| ✅ **已做**（2026-10-06 补齐）| 实测 **SCC=2**（18 模块环 + faction 2）与 12 条反向边登记，见 `specs/cross-cutting/阶段1_依赖图与循环依赖.md`；更正阶段 0「循环=0」错误结论 |
 

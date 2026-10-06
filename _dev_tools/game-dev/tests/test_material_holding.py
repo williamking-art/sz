@@ -398,11 +398,29 @@ def test_ledger_split_stub_is_same_objects():
 
 
 def test_ledger_split_keeps_52_public_surface():
-    """拆分对外**零可见变化**：旧路径 dir() 仍 52 名；交易 3 项实现暂住 core。"""
+    """拆分对外**零可见变化**：旧路径 dir() 仍 52 名。
+
+    （丙批一起交易 3 项暂住 core；丙批二后其实现归
+    `domains.economy.material_trade_ops`，见下方 `test_trade_ops_split_*`。）
+    """
     from core import material_holding as OLD
     assert len([n for n in dir(OLD) if not n.startswith('__')]) == 52
+
+
+# ====================================================== 丙批二拆分验收（2026-10-06）
+def test_trade_ops_split_stub_is_same_objects():
+    """`core.domains.economy.material_trade_ops` 的符号经旧路径为**同一对象**。"""
+    from core import material_holding as OLD
+    from core.domains.economy import material_trade_ops as TR
+    for n in [x for x in dir(TR) if not x.startswith('__')]:
+        assert getattr(OLD, n) is getattr(TR, n), f"符号 {n} 非同一实现（疑似副本）"
+
+
+def test_trade_ops_functions_defined_in_economy():
+    """交易 3 项实现唯一位置已移入经济域（非 core 桩）。"""
+    from core import material_holding as OLD
     for n in ("trade_material", "supply_merchant_materials", "commodity_dims"):
-        assert getattr(OLD, n).__module__ == "core.material_holding", n
+        assert getattr(OLD, n).__module__ == "core.domains.economy.material_trade_ops", n
 
 
 def test_ledger_split_real_channel_nonempty():

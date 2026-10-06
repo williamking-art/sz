@@ -1,10 +1,19 @@
 # domains/economy — 财政与市场
 
-> 2026-10-06 · 阶段 0（架构基线）· 本包为空骨架：未移动实现、未改 import
+> 2026-10-06 · 丙批二起**已有首个实现**（`material_trade_ops.py`）；其余仍为候选归属，未移动。
 
 ## 拥有的规则
 
 财政、税务、粮政、市场、价格、需求与商品流转
+
+## 已迁入实现
+
+| 模块 | 来源 | 符号 | 说明 |
+|---|---|---|---|
+| `material_trade_ops.py` | `core/material_holding.py` 交易侧（丙批二 2026-10-06）| `commodity_dims` `supply_merchant_materials` `trade_material` | 搬运/成交规则，非账本接口；向下依赖 `foundation/ledger/material_holding`；`trade_material` 复用 `core.market.trade_goods`（函数内延迟导入）；`supply_merchant_materials` **生产零调用但测试依赖、不得删**（甲批 §五 实测）|
+
+⚠️ 迁移期已知妥协：`material_trade_ops` 暂用 ledger 私有符号 `_attribute_to_seats`/`_route_of`，
+阶段 4 前应提升为显式接口（§6-2）。
 
 ## 现有代码候选（**候选归属，迁移前须以符号调用图核实**）
 
@@ -25,4 +34,5 @@ dynamic_price.py
 
 ## 迁移状态
 
-**未开始**（阶段 0 仅建骨架与 README）。
+**已开始**：丙批二（2026-10-06）迁入 `material_trade_ops.py`（交易 3 项）；
+其余候选文件（market/demand/settlement_* 等）**未开始**，结算域受阶段 3 前置（12 条反向边）约束。
