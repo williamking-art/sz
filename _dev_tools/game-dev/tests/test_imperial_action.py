@@ -384,6 +384,10 @@ def _patch_save_dir(tmp_path, monkeypatch):
     from core import save_load
     monkeypatch.setattr(save_load, "SAVE_DIR", str(tmp_path))
     monkeypatch.setattr("memory.memory_graph.SAVE_DIR", str(tmp_path))
+    # 第七包：`_slot_path` 已迁入 persistence，落盘目录由**那个模块**的 SAVE_DIR 决定；
+    # 下面两例手工拼 `tmp_path/slot_N.json`，不补这一刀就会读到 conftest 的临时目录外。
+    monkeypatch.setattr("core.foundation.persistence.slots.SAVE_DIR", str(tmp_path),
+                        raising=False)
 
 
 def test_save_load_roundtrip(tmp_path, monkeypatch):

@@ -9,7 +9,8 @@
 
 - `state/` GameState、初始状态构建与状态字段注册 —— ⬜ **空（0 个实现文件）**
 - `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 7 个**（含 `material_holding` 账本侧拆分）
-- `persistence/` 存档读写与版本迁移 —— ⬜ **空（0 个实现文件）**
+- `persistence/` 存档读写与版本迁移 —— ✅ **已迁入 2 个**（第七包：`slots.py` + `migrations.py`，
+  只取实测无业务依赖的部分；`save_game`/`load_game` **有意留下**，原因见 §五）
 - `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个**（`numeric`；
   ⚠️ `errors` **未迁**——它本来就是 20 行的真小模块，不是转发桩，别按"行少"误判成已迁）
 
@@ -20,10 +21,10 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **8** | money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding |
+| 已迁入新结构的模块 | **8 整模块 + 1 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding；部分：`save_load` 的 **6 个符号**（第七包，见 §五） |
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
-| `foundation/persistence` 实现文件 | **0** | 目录存在但空 |
+| `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
 | `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
@@ -50,6 +51,8 @@
 | `prefecture_entity` | `foundation/ledger/prefecture_entity.py` | 11.2 KB | 24（dir() 口径）|
 | `grain_ledger` | `foundation/ledger/grain_ledger.py` | 4.0 KB | 7（dir() 口径）|
 | `material_holding`（账本侧）| `foundation/ledger/material_holding.py` | 36.8 KB | 49（dir()；42 实义符号含私有，7 为 typing/future 名）|
+| `save_load`（**部分**·槽位机械）| `foundation/persistence/slots.py` | 3.7 KB | `SLOT_MIN` `_slot_ok` `_slot_path` `get_save_slots`（4 符号，原文逐字等价）|
+| `save_load`（**部分**·旧档迁移）| `foundation/persistence/migrations.py` | 4.0 KB | `_merge_regions` `_migrate_pops_to_seats`（2 符号；仅桥导入改指新路径）|
 
 旧路径 `core/money.py` `core/pop_bridge.py` `core/grain_bridge.py` `core/pop_structure.py`
 `core/numeric.py` `core/prefecture_entity.py` `core/grain_ledger.py`
@@ -109,7 +112,7 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 | 项 | 状态 | 说明 |
 |---|---|---|
 | `material_holding` | ✅ **已完成（移出本表的历史项，留此一行指路）** | 丙批一账本 42 符号入 `ledger/`（`cdc7af3933`）、丙批二交易 3 项入 `domains/economy/material_trade_ops.py`、core 收敛纯桩（`53d0a0c5d5`）；旧失败残留定性过期留档 `_scratch/mh_residue_2026-10-06/`。**`read_models` 有意不建**：读数/守恒接口按甲批归属留在 ledger，无"第三批" |
-| `state/`、`persistence/` 与其余 `domains/*` | ⬜ 空骨架 | **除 `domains/economy`（已有 `material_trade_ops`）外均无实现**；结算域迁移属阶段 3，前置=12 条反向边接口化（阶段 1 文档 §五） |
+| `state/` 与其余 `domains/*` | ⬜ 空骨架 | **除 `domains/economy`（已有 `material_trade_ops`）与 `persistence`（第七包起有 `slots`/`migrations`）外均无实现**；结算域迁移属阶段 3，前置=12 条反向边**接口倒置**（阶段 1 文档 §五，2026-10-07 已校正其形态） |
 | 依赖图（§8 阶段 1）| ✅ **已做**（2026-10-06 补齐）| 实测 **SCC=2**（18 模块环 + faction 2）与 12 条反向边登记，见 `specs/cross-cutting/阶段1_依赖图与循环依赖.md`；更正阶段 0「循环=0」错误结论 |
 
 ## 四、🔴 与架构方案的偏离（自查）
@@ -131,3 +134,83 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 `HOLDER_MAP`/`HOLDER_PROVENANCE` 等公开符号、私有 helper 与常量不可跨文件拆分，
 账本侧实为 **42 实义符号**；交易 3 项归 `domains/economy/material_trade_ops.py`；
 "只读读数"不另立第三批（归属判据留在 ledger）。
+
+## 五、第七包：`save_load` 为什么是"部分迁入"（2026-10-07）
+
+按 §4.1 该搬 `save_load` → `foundation/persistence/`。**实测不允许整搬**——
+逐函数扫非本层 import（脚本 `_scratch/slice7.py`）：
+
+| 符号 | 处置 | 依据 |
+|---|---|---|
+| `SLOT_MIN` `_slot_ok` `_slot_path` `get_save_slots` | ✅ 迁入 `persistence/slots.py` | 自由名只有 `json/os/SAVE_DIR/builtins`，纯叶子 |
+| `_merge_regions` `_migrate_pops_to_seats` | ✅ 迁入 `persistence/migrations.py` | 前者零依赖；后者只用 `foundation/ledger/` 的两个桥（**方向合法**：POP 只能走桥，ledger 不反向依赖 persistence）|
+| `save_game` | ❌ 留下 | 本体无上层 import，但**调用** `_plan_schema_versions` ⇒ 间接携带 2 条反向边 |
+| `load_game`（749 行，占全文 63%）| ❌ 留下 | `army_models` `blueprint_dynamic` `game_state` `longterm_task` `ministers` `settlement_imperial` —— 登记表 12 条反向边里 4 条在此 |
+| `_plan_schema_versions` / `_load_situations` | ❌ 留下 | 本身就是登记在案的反向边 |
+| `_safe_int` / `_safe_float` | ❌ 留下一批 | 属 `foundation/common/` 域（`_safe_int` 有 4 个跨域调用方），按 §8「一批一包」不混入 |
+| `_strip_unknown_faction_keys` | ❌ 留下一批 | 引用 util 的 `FACTION_NAME_SET`，搬它会新造 `foundation → core` 反向导入 |
+| `migrate_army_units` | ❌ 留下 | `core.army_models`（业务）|
+
+⇒ **整搬等于把反向边搬进基础层**（正是阶段 1 文档警告的"把环搬个位置"）。所以本批只取叶子，
+`persistence` 由此从零变成"有实现且方向干净"的包，剩下的按接缝逐批推进。
+
+**等价性与不变量（全部机器校验）**
+- AST 原文切片：**漂移符号 1 个 / 漂移点 2 处**。独立复核脚本
+  `_scratch/b7_equiv_recheck.py`（直接从 `git show HEAD:game/core/save_load.py` 重取原文逐节点比
+  `ast.dump`，不复用生成脚本）实测：6 个搬迁符号中 **5 个逐字等价**，
+  唯一漂移的 `_migrate_pops_to_seats` 内含 **两处** 差异：
+  ① 两处桥导入 `core.pop_bridge`/`core.grain_bridge` 改指 `core.foundation.ledger.*`（声明的机械改道）；
+  ② docstring 末尾追加"⚠️ 已知静默点"一段——**不改运行时语义，但确实进 `ast.dump`**，
+  所以本批的声明漂移是 **2 处而不是 1 处**，别按"只改了 import"理解。
+  （`_slot_path` 第一版曾被顺手改 docstring 造成额外漂移，已还原，纠正内容改写成函数上方的
+  "迁移注记"——注释不进 `ast.dump`。）
+- `dir(core.save_load)` 与改动前快照求差集 = **空**。独立复核脚本
+  `_scratch/b7_surface_recheck.py`（把 `git show HEAD:game/core/save_load.py` 落成临时模块
+  再导入比对，不依赖改动前留存的快照）实测 **20 个非 dunder 名 / 含 dunder 共 28 名，
+  lost=none、added=none**；6 个搬迁符号 `旧路径 is 新实现` **6/6 同一对象**；
+  `_safe_int` 等 re-export 面未受损。
+- 非空哨兵**三条**，且**都被证明会红**：① 桥路径故意写错 → `_migrate_pops_to_seats` 的
+  `except: return 0` 吞掉 → 2 条用例立刻红（"没报错"证明不了接通）；恢复后与备份逐字节一致；
+  ② `SAVE_DIR` 重定向同源断言（防污染玩家真档）；③ 建目录/写入路径同源断言（见下条）。
+- ⚠️ 本批**未修**、仅登记：`_migrate_pops_to_seats` 与 `pop_bridge.seat_pop_weights` 同属
+  "断链静默返回空/0" 形态，修它属口径变更，另立批次。
+- 🔴 **本批踩中的真雷（全量实测红 3 例，不是纸面推演）**：`_slot_path` 原文 docstring 写着
+  "刻意留在本模块，抽走会让 `SAVE_DIR` patch 失效"。**本批把它抽走了，这句话就成真了**——
+  首跑全量 `EXIT=1`，3 例 `FileNotFoundError`（`test_m6_resources_bad_shape_falls_back`、
+  `test_m7_faction_split_persisted`、`test_legacy_personal_action_migration`）：
+  这些用例只 patch `core.save_load.SAVE_DIR` 再手工拼 `tmp_path/slot_N.json`，
+  而 `_slot_path` 迁走后读的是**属主模块**的 `SAVE_DIR`，两边分叉。
+  - **根因不是用例写错，是旧路径留了第二份真相**：`save_game` 的 `os.makedirs(SAVE_DIR)`
+    读 `core.save_load` 的模块级 `SAVE_DIR`，而真正写入的路径由
+    `foundation/persistence/slots.SAVE_DIR` 决定 ⇒ "建了 A 目录、写进 B 目录"。
+  - **修的是生产代码那行**（本批**唯一一处函数体改动**，超出"只搬原文"，故显式声明）：
+    `os.makedirs(os.path.dirname(_slot_path(slot)), exist_ok=True)`——建的就是写的。
+    `core.save_load.SAVE_DIR` 仍在（`dir()` 公开面要求），但降级为**只为公开面保留**，
+    源码注释已点名真正的开关在属主模块。
+  - **用例侧**：`test_audit_batch1_fixes.tmp_save_dir` / `test_imperial_action._patch_save_dir`
+    补 patch 属主模块（**不改断言、不改口径**，只补重定向目标）；
+    `conftest._CRITICAL_SAVE_DIR_MODULES` 补入 `core.foundation.persistence.slots`
+    ——同源自检必须点名真写入路径，否则补丁漏覆盖会**写进玩家真实存档目录**。
+  - **新守卫 `test_save_game_creates_the_dir_it_writes_into` 已被证明会红**：把 `makedirs`
+    改回 `SAVE_DIR` 形式 → `FileNotFoundError ... owner_dir\slot_4.json.tmp`（EXIT=1），
+    恢复后与备份 `cmp` 逐字节一致、定向 47 例回绿。
+  - 由此纠正原"前提"式写法：先前只写"依赖 conftest blanket 重定向 + session 末跳闸"，
+    **实测证明该前提不足以覆盖显式 patch 单一模块的用例**。这条已落成硬断言，不再靠假设。
+- 实测纠正一处假设：**新局 `GameState` 各路也没有 `seats`**（20 路全需迁移），
+  所以该迁移并非只作用于旧档；docstring 的"新档开箱即带 seats"指的是首月结算/落盘之后。
+
+引用计数（口径同 §二，`_scratch/b7_refcount.py`）：旧路径 `core.save_load` **36** 个文件、
+新路径 `core.foundation.persistence` **5** 个。这 5 个**全不是业务调用方**，分解：
+`game/core/save_load.py`（转发桩自身，`from` 形态 2 行）+ 本批回归用例
+`test_persistence_split_b7.py`（`import … as` 形态 2 行）+ 因 `_slot_path` 搬家而必须点名属主模块的
+`conftest.py`／`test_audit_batch1_fixes.py`／`test_imperial_action.py`（**只是 monkeypatch 的字符串目标，不是 import**）。
+⇒ 外部业务调用方仍 100% 走旧路径。
+
+SCC 复扫：仍 **2 环**、成员与阶段 1 基线**逐字一致**；扫描模块数 121 → **123**，
+新增两个 persistence 文件**未进任何环**（`save_load` 仍在 18 模块环内，符合"只迁叶子"的预期）。
+
+**全量验证（本批最终数，串行 + `>file 2>&1; echo EXIT=$?` 取真实退出码）**
+- 首跑 `EXIT=1`：3 例红，全因 `_slot_path` 搬家导致的 `SAVE_DIR` 不同源（见上条 🔴）。
+- 修后复跑 `EXIT=0`、`FAILED/ERROR` 计数 **0**、1 例 skip。
+- collected **2346**（`--collect-only -q` 按文件行求和，192 个文件；脚本
+  `_scratch/b7_collected.py`）＝ 批次前 **2338** + 本批新增 `test_persistence_split_b7.py` **8** 例。

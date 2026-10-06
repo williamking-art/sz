@@ -21,8 +21,8 @@
 | [`construction/`](./construction/) | 建筑、营造部门、劳役、产权 | 9 |
 | [`transport/`](./transport/) | 陆运/水运/海运、可航性、物流 | 2 |
 | [`diplomacy/`](./diplomacy/) | 外邦、市舶、外贸、外交 | 5 |
-| [`cross-cutting/`](./cross-cutting/) | 跨机制：架构方案、州府级真账总计划、政令链路、治理语义核对 | 6 |
-| **合计** | | **31** |
+| [`cross-cutting/`](./cross-cutting/) | 跨机制：架构方案、依赖图与循环、符号归属表、存档版本实况、州府级真账总计划、政令链路、治理语义核对 | 10 |
+| **合计** | | **35** |
 
 ## 明细
 
@@ -74,9 +74,20 @@
 - [`README.md`](./cross-cutting/README.md)
 - [`decree-action-chain/`](./cross-cutting/decree-action-chain/)
 - [`代码层机制模块化架构方案_2026-10-06.md`](./cross-cutting/代码层机制模块化架构方案_2026-10-06.md)
+- [`阶段1_依赖图与循环依赖.md`](./cross-cutting/阶段1_依赖图与循环依赖.md)
+- [`甲批_符号归属与新旧路径表.md`](./cross-cutting/甲批_符号归属与新旧路径表.md)
+- [`存档schema版本消费实况_2026-10-07.md`](./cross-cutting/存档schema版本消费实况_2026-10-07.md)
+- [`中立表结构与势力配置_迁移计划.md`](./cross-cutting/中立表结构与势力配置_迁移计划.md)
 - [`州府级真账总批计划.md`](./cross-cutting/州府级真账总批计划.md)
 - [`州府级真账计划_深化版.md`](./cross-cutting/州府级真账计划_深化版.md)
 - [`语义核对_public_support与gentry_resistance.md`](./cross-cutting/语义核对_public_support与gentry_resistance.md)
+
+> **索引与实际脱节（2026-10-07 实测登记，未擅自修）**：上表「文档数」按明细条目数计，
+> 而实际 `.md` 文件数已不一致 —— `economy` 4 条 vs 11 文件、`construction` 9 vs 13、
+> `cross-cutting` 10 vs 12（含 `decree-action-chain/` 内 3 份）。
+> 另有本轮补入的 4 份此前**完全未进索引**。其余域的计数**不在本轮改动范围**：
+> 「设计文档对齐与旧台账校准」已由任务板 `D1-设计文档对齐`（Codex，in-progress）认领，
+> 同时改会互相覆盖。此处只登记事实与归属，避免下一个 agent 以为索引是准的。
 
 ## 每个专题的文件
 

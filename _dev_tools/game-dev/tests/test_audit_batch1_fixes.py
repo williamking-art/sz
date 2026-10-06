@@ -163,7 +163,11 @@ def test_m5_long_run_residual_zero(state):
 # ---------------------------------------------------------------- M6/M7 存档往返
 @pytest.fixture()
 def tmp_save_dir(tmp_path, monkeypatch):
+    # 第七包起 `_slot_path` 住在 `core.foundation.persistence.slots`，它读的是**那个模块**的
+    # 模块级 `SAVE_DIR`；只 patch `core.save_load` 已不再决定落盘目录（全量实测红过 3 例）。
     monkeypatch.setattr(SL, "SAVE_DIR", str(tmp_path), raising=False)
+    monkeypatch.setattr("core.foundation.persistence.slots.SAVE_DIR", str(tmp_path),
+                        raising=False)
     return str(tmp_path)
 
 

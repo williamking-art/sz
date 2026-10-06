@@ -20,31 +20,23 @@ import json
 import os
 from datetime import datetime
 
-from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, CHANGPING_INIT_MONTHLY_SHARE
+# `SAVE_DIR` 在此**只为保持 `dir(core.save_load)` 公开面**而保留（第七包）；
+# 真正决定槽位文件位置的是 `core.foundation.persistence.slots.SAVE_DIR`。
+# 要重定向存档目录，patch 那个模块（或让 conftest 的 blanket 补丁覆盖它）。
+from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, CHANGPING_INIT_MONTHLY_SHARE  # noqa: F401
 from core.save_load_util import (  # noqa: F401 — re-export 兼容
     FACTION_NAME_SET, _safe_float, _safe_int, _strip_unknown_faction_keys,
 )
 
-
-#: 槽位约定（勿擅自收窄）：0 = **自动存档槽**（`finish_turn` 每年正月与终局写入，
-#: 见 core/commands.py）；1–5 = 玩家可见槽（`get_save_slots` 只列这些）；
-#: >5 = 测试/临时槽（多个回归用例刻意用 6/7/8/9/99 做隔离）。
-#: 故 save/load **只校验「非负整数」**，不做 1–5 钳制 —— 钳制会打断自动存档并炸掉一批用例。
-SLOT_MIN = 0
-
-
-def _slot_ok(slot) -> bool:
-    """槽位合法性：非负整数（HTTP 层的 Pydantic 已挡住类型注入，此处兜住内部调用）。"""
-    return isinstance(slot, int) and not isinstance(slot, bool) and slot >= SLOT_MIN
-
-
-def _slot_path(slot: int) -> str:
-    """存档槽位文件路径（save/load/slots 三处共用，避免硬编码漂移）。
-
-    刻意留在本模块：读模块级 `SAVE_DIR`，测试 monkeypatch.setattr(save_load, "SAVE_DIR")
-    才能重定向；抽到 save_load_util 会让 patch 失效。
-    """
-    return os.path.join(SAVE_DIR, f"slot_{slot}.json")
+# ↓ 第七包（2026-10-07）：以下 6 个符号已迁入 `foundation/persistence/`，此处显式转发，
+#   保证 `from core.save_load import X` 旧路径与 dir() 公开面不变（同一性由回归断言）。
+#   注意**不引入新的模块级名字**（哪怕下划线名）——`dir()` 差集必须为空。
+from core.foundation.persistence.slots import (  # noqa: F401
+    SLOT_MIN, _slot_ok, _slot_path, get_save_slots,
+)
+from core.foundation.persistence.migrations import (  # noqa: F401
+    _merge_regions, _migrate_pops_to_seats,
+)
 
 
 def _plan_schema_versions() -> dict:
@@ -69,7 +61,10 @@ def save_game(state, slot: int = 1) -> bool:
     if not _slot_ok(slot):
         _slog.error("存档槽位非法（slot=%r），拒绝写盘", slot)
         return False
-    os.makedirs(SAVE_DIR, exist_ok=True)
+    # 第七包修正：建的是**本槽实际写入路径的目录**，不再读本模块的 `SAVE_DIR`。
+    # `_slot_path` 迁入 persistence 后，模块级 `SAVE_DIR` 与真写入目录可能不同源
+    # （用例常只 patch `save_load.SAVE_DIR`）；留着会造成"建了 A 目录、写进 B 目录"。
+    os.makedirs(os.path.dirname(_slot_path(slot)), exist_ok=True)
     # 记忆知识库（Phase 3a）：回合末原子写盘到 slot_{slot}.db
     # 审查 P2-2 修复：写盘失败记日志而非静默吞（防崩溃后无感知丢失记忆）
     try:
@@ -310,23 +305,6 @@ def save_game(state, slot: int = 1) -> bool:
     return True
 
 
-def _merge_regions(target: dict, saved) -> None:
-    """把存档中的政权数据并入新版默认结构。
-
-    旧存档缺失新增字段（name/population/unrest/... ）时保留默认值，
-    从而保证读档后详情面板与舆图标签不会缺字段。
-    """
-    if not isinstance(saved, dict):
-        return
-    for key, val in saved.items():
-        if not isinstance(val, dict):
-            continue
-        if key in target and isinstance(target[key], dict):
-            target[key].update(val)
-        else:
-            target[key] = val
-
-
 def _load_situations(raw) -> tuple:
     """载入校验（规范 §9）：返回 `(kept, bad)`。
 
@@ -349,48 +327,6 @@ def _load_situations(raw) -> tuple:
             continue
         kept.append(norm)
     return kept, bad
-
-
-# ══ 方案乙旧档迁移（2026-10-04） ══
-def _migrate_pops_to_seats(state) -> int:
-    """把**旧档**（路级 `pops` 有账、`seats` 缺失）迁移为州府级真账。
-
-    背景：方案乙裁定 POP 实体下沉州府级，真账在 `prefectures[路]["seats"][治所]["pops"][类]`，
-    路级 `pops` 降为**只读派生聚合**。新档开箱即带 `seats`；**旧档没有**，
-    若不迁移则载入后处于**半迁移状态**（桥接全部回落 legacy ⇒ 行为等价但未下沉）。
-
-    做法：对每个缺 `seats` 的路调 `split_pops_to_seats`（按治所人口权重拆分，
-    尾差归权重最大者 ⇒ Σ治所与路级原值**逐字段精确相等**）。
-
-    **保守**：只处理**完全缺失**的 `seats`；已下沉的档**绝不覆盖**（避免二次拆分）。
-    无治所或人口全缺 ⇒ `split_pops_to_seats` 返回 0，该路保持原样（不臆造归属）。
-
-    返回实际迁移的路数。
-    """
-    try:
-        from core.grain_bridge import backfill_grain_to_seats
-        from core.pop_bridge import split_pops_to_seats, sync_route_pops
-    except Exception:               # noqa: BLE001 — 桥接层不可用时不得阻断载入
-        return 0
-    prefs = getattr(state, "prefectures", None)
-    if not isinstance(prefs, dict):
-        return 0
-    migrated = 0
-    for route, pdata in prefs.items():
-        if not isinstance(pdata, dict) or not isinstance(pdata.get("pops"), dict):
-            continue
-        if pdata.get("seats"):
-            continue                      # 已下沉：绝不覆盖
-        if split_pops_to_seats(pdata, route):
-            migrated += 1
-            try:
-                # 🔴 G-3 片5：下沉后**立即回填粮**到州府（按治所人口权重，Σ治所 == 路级原值），
-                # 再刷路级镜像 —— 路级 `grain` 此后是**派生**，不再是载体。
-                backfill_grain_to_seats(pdata, route)
-                sync_route_pops(pdata)
-            except Exception:           # noqa: BLE001 — 镜像刷新失败不影响真账
-                pass
-    return migrated
 
 
 def load_game(slot: int = 1):
@@ -1142,38 +1078,3 @@ def load_game(slot: int = 1):
     state.victory = data.get("victory", False)
 
     return state
-
-
-def get_save_slots() -> list:
-    """获取所有存档槽位信息"""
-    slots = []
-    for i in range(1, 6):
-        path = _slot_path(i)
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                # 审查 P2-3 / M13（**反向缺口**）：原只捕获 (OSError, ValueError)。
-                # 槽文件内容是**数组/字符串**时 `d.get(...)` 抛 AttributeError **穿透**，
-                # 整个槽位列表调用直接 500 —— 一个坏档让玩家连"哪个档坏了"都看不到。
-                # 现解析后即校验顶层类型，并入既有损坏槽分支（标 corrupt，不隐藏槽位）。
-                if not isinstance(d, dict):
-                    raise ValueError(f"顶层非对象（{type(d).__name__}）")
-                slots.append({
-                    "slot": i,
-                    "time": d.get("save_time_str", "未知"),
-                    "year": d.get("year", 0),
-                    "month": d.get("month", 1),
-                    "era": d.get("era_name", ""),
-                    "turn": d.get("turn", 0),
-                })
-            except (OSError, ValueError) as e:
-                # 审查 P3：裸 except 会吞掉一切且静默丢槽。改为具名异常 + 记日志 +
-                # 显式标记损坏槽（UI 显示「存档损坏」而非误报空槽/槽位消失）。
-                import logging as _lg
-                _lg.getLogger("save_load").warning("存档槽 %s 读取失败：%s", i, e)
-                slots.append({"slot": i, "corrupt": True, "time": "存档损坏",
-                              "year": 0, "month": 1, "era": "", "turn": 0})
-        else:
-            slots.append({"slot": i, "empty": True})
-    return slots

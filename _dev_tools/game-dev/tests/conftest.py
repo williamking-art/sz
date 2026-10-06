@@ -44,7 +44,11 @@ for _p in (_GAME_DEV_ROOT, _GAME_ROOT):
         sys.path.insert(0, _p)
 
 # 必须与写入同源的关键消费点（自检用）
-_CRITICAL_SAVE_DIR_MODULES = ("core.save_load", "memory.memory_graph")
+# 第七包（2026-10-07）补入 `core.foundation.persistence.slots`：`_slot_path` 已从
+# `core.save_load` 迁入该模块，**槽位文件落在哪由它的模块级 `SAVE_DIR` 决定**，
+# 所以同源自检必须点名它，否则补丁漏覆盖时会写进玩家真实存档目录而不报错。
+_CRITICAL_SAVE_DIR_MODULES = ("core.save_load", "memory.memory_graph",
+                              "core.foundation.persistence.slots")
 
 # 会话开始时捕获的真实存档路径（唯一还原目标）
 _SESSION_REAL_SAVE_DIR: str | None = None
