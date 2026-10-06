@@ -212,16 +212,21 @@ def sell_surplus_to_merchants(state, log: Optional[List[str]] = None):
                                        "pop:%s:\u519c" % route, pay)
             if got <= 0:
                 continue
-            take = _take_goods(ng, dim, want)
+            # 按**实付金额**折算取货量，保证「付钱 == 取货×价」严格成立
+            want2 = int(got / unit) if unit > 0 else 0
+            take = _take_goods(ng, dim, min(want, want2))
+
             if take <= 0:
                 state.transfer_money("pop:%s:\u519c" % route,
                                      "pop:%s:\u5546\u4eba" % route, got)  # \u56de\u9000
                 continue
             # \u8d27\u843d\uff1a\u8fdb\u5546\u4eba goods\uff08\u6309\u672c\u8def\u6700\u5927\u6cbb\u6240\u6876\uff0c\u540c\u519c\u6237\u53e3\u5f84\uff09
-            b = goods_bucket(sg, "%s|%s" % (route, _seat_of(pf)), create=True)
-            if b is not None:
+            _sid = _seat_of(pf)
+            b = goods_bucket(sg, "%s|%s" % (route, _sid), create=True) if _sid else None
+            if isinstance(b, dict):
                 b[dim] = int(b.get(dim, 0) or 0) + take
             else:
+                # 无治所名（新建局未下沉）⇒ 落**扁平**存储，不造假桶
                 sg[dim] = int(sg.get(dim, 0) or 0) + take
             budget -= got
             d = out.setdefault(dim, {"qty": 0, "paid": 0})
@@ -236,4 +241,4 @@ def _seat_of(pf: dict) -> str:
     seats = (pf or {}).get("seats") or {}
     if isinstance(seats, dict) and seats:
         return str(sorted(seats)[0]).split("|")[-1]
-    return "",
+    return ""

@@ -528,6 +528,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
         try:
             from core.farm_procurement import procure_from_farmers
             procure_from_farmers(state, log)
+            # 丙（用户 2026-10-05 裁定）：农户余料向本路商人售出（民间售料）。
+            # 钱货同时；成交受商人资金约束 ⇒ 自限。
+            try:
+                from core.farm_procurement import sell_surplus_to_merchants
+                sell_surplus_to_merchants(state, log)
+            except Exception as _ms_e:  # noqa: BLE001
+                log.append("[民间售料] [WARN] %r" % (_ms_e,))
         except Exception as _fp_e:  # noqa: BLE001
             log.append("[和买][WARN] 采购失败：%r" % (_fp_e,))
     except Exception as _pc_e:  # noqa: BLE001
