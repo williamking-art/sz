@@ -240,7 +240,8 @@ OFFICIAL_OWNERS = ("local_gov", "state")
 
 
 def dept_entity(department: str, owner_kind: str,
-                  craftsmen: Optional[int] = None,
+                  labor: Optional[int] = None,
+                  artisans: Optional[int] = None,
                   monthly: Optional[Dict[str, float]] = None) -> Dict[str, object]:
     """**部门实体**（只读构造，不写 state）。
 
@@ -259,7 +260,7 @@ def dept_entity(department: str, owner_kind: str,
         return {"ok": False, "reason": "unknown_owner_kind"}
     out: Dict[str, object] = {
         "ok": True, "dept_id": department, "label": DEPT_LABELS[department],
-        "owner_kind": owner_kind, "craftsmen": craftsmen,
+        "owner_kind": owner_kind, "labor": labor, "artisans": artisans,
         "official": department == "官有营造",
         "monthly": None, "built": None, "hired_hours": None,
         "corvee_days": None, "coin": None, "mood_cost": None,
@@ -292,11 +293,13 @@ def departments_of(state: Dict[str, object]) -> List[Dict[str, object]]:
     for route, p in prefs.items():
         if not isinstance(p, dict):
             continue
-        crafts = _craftsmen_of(p)
+        lab = _labor_of(p)
+        art = _artisans_of(p)
         ding = _service_ding_of(p)
-        out.append(dept_entity("民间营造", "pop", craftsmen=crafts))
-        out.append(dept_entity("官有营造", "local_gov",
-                               craftsmen=None if crafts is None else crafts + (ding or 0)))
+        out.append(dept_entity("民间营造", "pop", labor=lab, artisans=art))
+        _off = dept_entity("官有营造", "local_gov", labor=lab, artisans=art)
+        _off["corvee_base"] = ding
+        out.append(_off)
         out[-1]["route"] = route
         out[-2]["route"] = route
     return out
@@ -335,9 +338,9 @@ def run_checks2():
         out.append((n, bool(ok), note))
 
     # 13 实体四要素齐全
-    e = dept_entity("官有营造", "local_gov", craftsmen=100, monthly={"built": 2})
-    add("13 实体四要素", all(k in e for k in ("dept_id", "label", "owner_kind", "craftsmen", "monthly")),
-        "label=%s owner=%s craft=%s" % (e["label"], e["owner_kind"], e["craftsmen"]))
+    e = dept_entity("官有营造", "local_gov", labor=100, monthly={"built": 2})
+    add("13 实体四要素", all(k in e for k in ("dept_id", "label", "owner_kind", "labor", "monthly")),
+        "label=%s owner=%s craft=%s" % (e["label"], e["owner_kind"], e["labor"]))
 
     # 14 官有标记
     c = dept_entity("民间营造", "pop")
@@ -348,23 +351,23 @@ def run_checks2():
         and dept_entity("民间营造", "山寨")["ok"] is False, "unknown_department/owner")
 
     # 16 月度产出缺失 ⇒ None（不伪造 0）
-    n = dept_entity("民间营造", "pop", craftsmen=None)
-    add("16 产出缺失≠0", n["built"] is None and n["monthly"] is None and n["craftsmen"] is None,
+    n = dept_entity("民间营造", "pop", labor=None)
+    add("16 产出缺失≠0", n["built"] is None and n["monthly"] is None and n["labor"] is None,
         "built=None monthly=None craft=None")
 
     # 17 逐路枚举（2 路 x 2 部门）
-    st = {"prefectures": {"A": {"pops": {"工匠": {"size": 10}, "农": {"ding": 100}}},
-                              "B": {"pops": {"工匠": {"size": 5}, "农": {"ding": 50}}}}}
+    st = {"prefectures": {"A": {"pops": {"工匠": {"size": 4}, "农": {"size": 10, "ding": 100}}},
+                              "B": {"pops": {"工匠": {"size": 2}, "农": {"size": 5, "ding": 50}}}}}
     ds = departments_of(st)
     add("17 逐路枚举", len(ds) == 4 and ds[0]["route"] == "A", "2 路 x 2 = %d" % len(ds))
 
     # 18 官有规模 = 工匠 + 应役丁
-    add("18 官有含丁", ds[0]["craftsmen"] == 10 and ds[1]["craftsmen"] == 110,
-        "民间=%s 官有=%s（工匠+丁）" % (ds[0]["craftsmen"], ds[1]["craftsmen"]))
+    add("18 劳力取农·官有单列劳役基", ds[0]["labor"] == 10 and ds[1]["labor"] == 10
+         and ds[1]["corvee_base"] == 100, "民间labor=%s 官有labor=%s corvee=%s" % (ds[0]["labor"], ds[1]["labor"], ds[1]["corvee_base"]))
 
     # 19 缺 POP ⇒ 规模 None
     ds2 = departments_of({"prefectures": {"C": {}}})
-    add("19 缺数据⇒None", ds2[0]["craftsmen"] is None and ds2[1]["craftsmen"] is None, "C 路无 POP")
+    add("19 缺数据⇒None", ds2[0]["labor"] is None and ds2[1]["labor"] is None, "C 路无 POP")
 
     # 20 空输入安全
     add("20 空输入安全", departments_of({}) == [] and departments_of({"prefectures": 1}) == [], "[]")
@@ -399,11 +402,13 @@ def departments_of_seat(seat: Dict[str, object], route: str,
     """
     if not isinstance(seat, dict):
         return []
-    crafts = _craftsmen_of(seat)
+    lab = _labor_of(seat)
+    art = _artisans_of(seat)
     ding = _service_ding_of(seat)
-    out = [dept_entity("民间营造", "pop", craftsmen=crafts)]
-    out.append(dept_entity("官有营造", "local_gov",
-                           craftsmen=None if crafts is None else crafts + (ding or 0)))
+    out = [dept_entity("民间营造", "pop", labor=lab, artisans=art)]
+    _off = dept_entity("官有营造", "local_gov", labor=lab, artisans=art)
+    _off["corvee_base"] = ding
+    out.append(_off)
     for e in out:
         e["route"] = route
         e["seat"] = seat_name
@@ -453,7 +458,7 @@ def run_checks3():
     def add(n, ok, note=""):
         out.append((n, bool(ok), note))
 
-    st = {"prefectures": {"A": {"seats": {"s1": {"pops": {"工匠": {"size": 8}, "农": {"ding": 90}}}}}}}
+    st = {"prefectures": {"A": {"seats": {"s1": {"pops": {"工匠": {"size": 3}, "农": {"size": 8, "ding": 90}}}}}}}
     r = departments_all(st)
     add("21 州府级枚举", r["ok"] and r["seats_covered"] == 1 and len(r["departments"]) == 2,
         "1 治所 x 2 = %d" % len(r["departments"]))
@@ -462,8 +467,8 @@ def run_checks3():
     add("22 带治所坐标", e0["route"] == "A" and e0["seat"] == "s1" and e0["level"] == "seat",
         "route=%s seat=%s level=%s" % (e0["route"], e0["seat"], e0["level"]))
 
-    add("23 官有规模=工匠+丁", e0["craftsmen"] == 8 and e1["craftsmen"] == 98,
-        "民间=%s 官有=%s" % (e0["craftsmen"], e1["craftsmen"]))
+    add("23 劳力两部门同值+官有单列劳役基", e0["labor"] == 8 and e1["labor"] == 8
+         and e1["corvee_base"] == 90, "民间=%s 官有=%s corvee=%s" % (e0["labor"], e1["labor"], e1["corvee_base"]))
 
     n = departments_all({"prefectures": {"A": {}}})
     add("24 无seats⇒空且说明", (not n["ok"]) and n["reason"] == "no_seats" and n["seats_covered"] == 0,
@@ -472,7 +477,7 @@ def run_checks3():
     add("25 无prefectures⇒空", departments_all({})["reason"] == "no_prefectures", "no_prefectures")
 
     ds = departments_of_seat({}, "B", "s9")
-    add("26 空治所仍有两实体", len(ds) == 2 and ds[0]["craftsmen"] is None,
+    add("26 空治所仍有两实体", len(ds) == 2 and ds[0]["labor"] is None,
         "实体存在但规模未知 ⇒ None")
 
     add("27 非dict治所⇒空", departments_of_seat(None, "B", "s9") == [], "[]")
@@ -510,21 +515,24 @@ def departments_all_derived(state: Dict[str, object],
     weights = seat_pop_weights(circuit)
     if not weights:
         return []
-    craft_total = _craftsmen_of(p)
+    labor_total = _labor_of(p)
+    art_total = _artisans_of(p)
     ding_total = _service_ding_of(p)
-    by_seat_craft = _split_int(craft_total, weights) if craft_total else {}
+    by_seat_labor = _split_int(labor_total, weights) if labor_total else {}
+    by_seat_art = _split_int(art_total, weights) if art_total else {}
     by_seat_ding = _split_int(ding_total, weights) if ding_total else {}
     out: List[Dict[str, object]] = []
     for sid, _w in weights:
-        c = by_seat_craft.get(sid)
+        lb = by_seat_labor.get(sid)
+        ab = by_seat_art.get(sid)
         d = by_seat_ding.get(sid)
-        e1 = dept_entity("民间营造", "pop", craftsmen=c,
-                         monthly=_seat_monthly(p, sid, c, craft_total))
+        e1 = dept_entity("民间营造", "pop", labor=lb, artisans=ab,
+                         monthly=_seat_monthly(p, sid, lb, labor_total))
         e1.update({"route": circuit, "seat": sid, "level": "seat",
                    "mode": MODE_DERIVED, "derived": True})
         out.append(e1)
-        e2 = dept_entity("官有营造", "local_gov",
-                         craftsmen=None if c is None else int(c) + int(d or 0))
+        e2 = dept_entity("官有营造", "local_gov", labor=lb, artisans=ab)
+        e2["corvee_base"] = d
         e2.update({"route": circuit, "seat": sid, "level": "seat",
                    "mode": MODE_DERIVED, "derived": True})
         out.append(e2)
@@ -557,7 +565,7 @@ def _seat_monthly(p: Dict[str, object], seat_id: str,
     built = float(dm.get("built") or 0) * share
     return {"built": round(built, 3), "hired_hours": round(hours, 3),
             "coin": coin, "corvee_days": None, "mood_cost": None,
-            "attribution": "craftsmen_share"}
+            "attribution": "labor_share"}
 
 def run_checks4():
     """**派生**部门实体自检（第四批）。"""
@@ -566,7 +574,7 @@ def run_checks4():
     def add(n, ok, note=""):
         out.append((n, bool(ok), note))
 
-    st = {"prefectures": {"京畿路": {"pops": {"工匠": {"size": 100}, "农": {"ding": 900}}}}}
+    st = {"prefectures": {"京畿路": {"pops": {"工匠": {"size": 30}, "农": {"size": 100, "ding": 900}}}}}
     p = st["prefectures"]["京畿路"]
     ds = departments_all_derived(st, "京畿路", p)
     add("29 派生可枚举", len(ds) > 0 and all(e["level"] == "seat" for e in ds), "%d 实体" % len(ds))
@@ -577,11 +585,11 @@ def run_checks4():
 
     civ = [e for e in ds if e["dept_id"] == "民间营造"]
     off = [e for e in ds if e["dept_id"] == "官有营造"]
-    add("32 Σ民间工匠守恒", sum(e["craftsmen"] for e in civ) == 100,
-        "Σ=%d 路级=100" % sum(e["craftsmen"] for e in civ))
+    add("32 Σ民间劳力守恒", sum(e["labor"] for e in civ) == 100,
+        "Σ=%d 路级=100" % sum(e["labor"] for e in civ))
 
-    add("33 Σ官有=工匠+丁守恒", sum(e["craftsmen"] for e in off) == 1000,
-        "Σ=%d 路级应=100+900=1000" % sum(e["craftsmen"] for e in off))
+    add("33 Σ官有劳力守恒", sum(e["labor"] for e in off) == 100,
+        "Σ=%d 路级应=100+900=1000" % sum(e["labor"] for e in off))
 
     add("34 两部门同治所配对", len(civ) == len(off), "%d vs %d" % (len(civ), len(off)))
 
@@ -589,7 +597,7 @@ def run_checks4():
 
     st2 = {"prefectures": {"京畿路": {}}}
     ds2 = departments_all_derived(st2, "京畿路", st2["prefectures"]["京畿路"])
-    add("36 缺POP⇒规模None", len(ds2) > 0 and all(e["craftsmen"] is None for e in ds2),
+    add("36 缺POP⇒规模None", len(ds2) > 0 and all(e["labor"] is None for e in ds2),
         "实体存在，规模=None（缺失≠0）")
 
     add("37 派生不改state", "seats" not in p, "state 未被写入")
@@ -604,13 +612,13 @@ def run_checks5():
         out.append((n, bool(ok), note))
 
     st = {"prefectures": {"京畿路": {
-        "pops": {"工匠": {"size": 100}, "农": {"ding": 900}},
+        "pops": {"工匠": {"size": 30}, "农": {"size": 100, "ding": 900}},
         "dept_monthly": {"built": 10, "hired_hours": 5000.0, "coin": 3000,
                          "corvee_days": None, "mood_cost": None, "dept": "民间营造"},
     }}}
     p = st["prefectures"]["京畿路"]
     ds = departments_all_derived(st, "京畿路", p)
-    civ = [e for e in ds if e["dept_id"] == "民间营造" and e["monthly"]]
+    civ = [e for e in ds if e["dept_id"] == "民间营造"]
     add("38 非零产出派发", len(civ) > 0 and any(e["monthly"]["hired_hours"] > 0 for e in civ),
         "%d 治所有产出" % len(civ))
 
@@ -623,8 +631,8 @@ def run_checks5():
     sb = sum(e["monthly"]["built"] for e in civ)
     add("41 建成Σ守恒", abs(sb - 10.0) < 0.05, "Σ=%.3f 路级=10" % sb)
 
-    add("42 归属基准标注", all(e["monthly"]["attribution"] == "craftsmen_share" for e in civ),
-        "craftsmen_share")
+    add("42 归属基准标注", all(e["monthly"]["attribution"] == "labor_share" for e in civ),
+        "labor_share")
 
     off = [e for e in ds if e["dept_id"] == "官有营造"]
     add("43 官有产出=None", all(e["monthly"] is None for e in off),
@@ -636,3 +644,54 @@ def run_checks5():
         "缺失≠0")
 
     return out
+
+
+
+# ============================================================
+# 语义更正（2026-10-05，用户指出）
+#
+# 用户：「工匠可不止建筑工」「宋代匠人可不是一般建筑工，一般建筑工都属于劳力」
+#        「通常由贫民务工」。
+#
+# 查证（building_jobs.py）：L38 SONG_JOB_CLASSES = (农, 工匠, 商人)；
+#   L42 「工匠约 40 万 vs 一座工坊 160 岗」；L58 "工坊": {"工匠": 160}
+#   => 本作「工匠」= **工坊里的手工业者**，**不是营造劳力**。
+#
+# => 本模块原以 工匠.size 作营造部门规模，**口径错误**，已更正：
+#   劳力 = 农.size（贫民务工，营造主力）
+#   匠人 = 工匠.size（约 40 万，工坊精细活，非营造劳力）
+#   劳役 = service_ding_of（农的丁，原口径已正确）
+# ============================================================
+
+def _labor_of(p: Dict[str, object]) -> Optional[int]:
+    """**劳力**（营造劳力）：取自 `农.size`（贫民/常民务工）。
+
+    ⚠️ **不是** `工匠`（匠人是工坊手工业者，承用户 2026-10-05 更正）。
+    """
+    pops = p.get("pops")
+    if not isinstance(pops, dict):
+        return None
+    nong = pops.get("农")
+    if not isinstance(nong, dict):
+        return None
+    v = nong.get("size")
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return int(max(0, v))
+
+
+def _artisans_of(p: Dict[str, object]) -> Optional[int]:
+    """**匠人**（工坊手工业者）：`工匠.size`。
+
+    ⚠️ **不是营造劳力**；营造部门可请匠人做精细活，但**规模基准仍是劳力**。
+    """
+    pops = p.get("pops")
+    if not isinstance(pops, dict):
+        return None
+    c = pops.get("工匠")
+    if not isinstance(c, dict):
+        return None
+    v = c.get("size")
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return int(max(0, v))
