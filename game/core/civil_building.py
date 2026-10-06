@@ -954,7 +954,8 @@ def _pay_wage(state, pref: str, payers: tuple, pay_to: str, wage: int
 def build_civil_building(state, pref: str, building: str, *,
                          month: Optional[int] = None,
                          allow_job_class: bool = False,
-                         log: Optional[list] = None) -> Dict[str, Any]:
+                         log: Optional[list] = None,
+                         corvee_ratio: float = 0.0) -> Dict[str, Any]:
     """**建成**一路某民间建筑：先真实扣料、再真付工钱、最后落既有建筑槽位。
 
     纪律：
@@ -1007,10 +1008,44 @@ def build_civil_building(state, pref: str, building: str, *,
     # 故这里只剩工钱一笔，**不会与出资阶层抢钱**（§14.2 障碍 1 消解）。
     wage = int(trigger["afford"]["wage"])
     pay_to = CIVIL_WAGE_RECIPIENT          # 工钱收款方恒为本路工匠（营造/修缮服务）
+    # ---- 🔴 2026-10-05 劳役通道（用户裁定：建造部门分民间/官有，让劳役有落点）----
+    # 口径：
+    #   · `corvee_ratio` 默认 0.0 ⇒ **行为与旧版完全一致**（零行为变化）；
+    #   · 官有营造可传 >0：该比例工时由**劳役**承担（**不付工钱**）；
+    #   · 代价：**扰民**（本路 `mood` 下降，承 `clerks.MUSTER_MOOD_W` 同思路）；
+    #   · 劳役量**受应役丁上限约束**（`construction_shadow.corvee_capacity`）；
+    #   · 任何异常 ⇒ 回退纯雇工并**留痕**（不静默）。
+    _labor_total = float(trigger["cost"]["labor_hours"] or 0.0)
+    _corvee_used = 0.0
+    _mood_pen = 0.0
+    if corvee_ratio > 0 and _labor_total > 0:
+        try:
+            from core.construction_shadow import corvee_capacity, mood_penalty
+            from core.pop_structure import service_ding_of
+            _pf = (state.prefectures or {}).get(pref) or {}
+            _ding = int(service_ding_of(_pf) or 0)
+            _cap = corvee_capacity(_ding)
+            if _cap:
+                _corvee_used = min(_labor_total * float(corvee_ratio), float(_cap))
+            if _corvee_used > 0:
+                wage = int(round(wage * max(0.0, 1.0 - _corvee_used / _labor_total)))
+                _mood_pen = float(mood_penalty(_corvee_used, _ding) or 0.0)
+        except Exception as _e:  # noqa: BLE001
+            from core.settlement_common import note_settlement_error
+            note_settlement_error(state, "civil_corvee", "营造劳役",
+                                  f"劳役通道计算失败，回退为纯雇工（{type(_e).__name__}）",
+                                  log=logs, exc=_e)
+            _corvee_used = 0.0
+            _mood_pen = 0.0
     paid, legs = _pay_wage(state, pref, tuple(spec["payers"]), pay_to, wage)
     if paid < wage:
         return {"ok": False, "reason": "coin_short", "trigger": trigger,
                 "pref": pref, "building": building}
+    # 劳役扰民：真实写本路 `mood`（承 `clerks.py:244` 差役扰民同通道）
+    if _mood_pen > 0:
+        _pf3 = (state.prefectures or {}).get(pref)
+        if isinstance(_pf3, dict):
+            _pf3["mood"] = max(0.0, float(_pf3.get("mood", 55) or 55) - _mood_pen)
 
     # ---- 落料：从**本地州府仓**实扣（不再动全国总账）----
     from core.material_holding import consume_for_circuit
