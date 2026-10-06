@@ -203,3 +203,34 @@ def test_hidden_land_split_ratio_is_tunable(monkeypatch):
     full = _produce(1.0)
     zero = _produce(0.0)
     assert full > 0 and zero == 0, f"分成比例未生效：自留 1.0={full}，自留 0.0={zero}"
+
+
+# ---------------------------------------------------------------
+# 可观测性：开局隐户注入失败**必须留痕**（原为静默 `pass`）
+# ---------------------------------------------------------------
+def test_hidden_init_failure_is_logged_not_silent(monkeypatch, caplog):
+    """`ensure_hidden_in_pops` 在开局抛错时：不阻断开局，但必须记 warning + 带堆栈。
+
+    锁定 `game_state.py` 隐户入 POP 那段 except 的形态。此前它是 `except Exception: pass`，
+    失败后开局照常成功、隐户口归零，「总口 = 在籍 + 隐户」凭空少 2500 万口而**运行时零信号**
+    （守恒断言只在测试里红，救不了线上）。
+    """
+    import logging
+    import core.settlement_imperial as si
+
+    def _boom(_state):
+        raise RuntimeError("故意失败：模拟隐户注入中断")
+
+    monkeypatch.setattr(si, "ensure_hidden_in_pops", _boom)
+
+    with caplog.at_level(logging.WARNING):
+        s = GameState("史实")          # 开局不得抛错（设计：失败不阻断）
+
+    hits = [r for r in caplog.records
+            if "ensure_hidden_in_pops" in r.getMessage() and "隐户" in r.getMessage()]
+    assert hits, "隐户注入失败又被静默吞掉（应有 warning 留痕）"
+    assert any(r.exc_info for r in hits), "warning 未带异常堆栈，事后无法定位原因"
+    # 且不阻断：状态照常建成，隐户锚仍在 land 上（子池未注入是本用例故意造成的）
+    assert s.land["hidden_households"] == 5_000_000
+    assert _hidden_total(s) == 0, "桩未生效，本用例没有真正测到失败分支"
+
