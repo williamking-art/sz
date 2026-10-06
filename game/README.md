@@ -7,6 +7,7 @@
 | 目录/文件 | 职责 | 说明入口 |
 |---|---|---|
 | `core/` | 游戏状态、命令、人口/财政/市场/营造/外交、月度结算、存档 | [`core/README.md`](core/README.md) |
+| `application/` | 应用流程层：回合生命周期与记忆协调的编排（不含业务规则、不运行月结算） | [`application/README.md`](application/README.md) |
 | `engine/` | AI 结构化变更的校验、应用与状态写入边界 | [`engine/README.md`](engine/README.md) |
 | `ai/` | 模型客户端、角色契约、提示词、输出校验和叙事护栏 | [`ai/README.md`](ai/README.md) |
 | `backend/` | 本地/HTTP 后端适配和 FastAPI 服务 | [`backend/README.md`](backend/README.md) |
