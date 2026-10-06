@@ -31,13 +31,13 @@
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 __all__ = [
     "DEPARTMENTS", "HIRED_RATIO", "CORVEE_CAP_RATE", "CORVEE_MOOD_W",
     "default_wage_per_hour", "hired_capacity", "corvee_capacity",
     "labor_for", "wage_cost", "mood_penalty", "choose_channel",
-    "run_checks",
+    "DEPT_LABELS", "OFFICIAL_OWNERS", "dept_entity", "departments_of", "run_checks", "run_checks2",
 ]
 
 #: 两个建造部门（用户裁定）。
@@ -225,5 +225,145 @@ def run_checks():
     # 12 省下的钱 = 劳役顶替的工钱
     add("12 劳役省钱", ch["corvee"]["hours"] > 0 and wage_cost(ch["corvee"]["hours"]) > 0,
         "劳役 %.1f 工时 ⇒ 省 %d 贯" % (ch["corvee"]["hours"], wage_cost(ch["corvee"]["hours"])))
+
+    return out
+
+# ============================================================
+# 建造部门**实体**（用户裁定：部门要有实体，让玩家感知得到）
+# ============================================================
+
+#: 部门实体的实体名（玩家面板显示用）。
+DEPT_LABELS = {"民间营造": "民间营造", "官有营造": "官有营造"}
+
+#: 官有营造的归属主体（部门本身也有归属）。
+OFFICIAL_OWNERS = ("local_gov", "state")
+
+
+def dept_entity(department: str, owner_kind: str,
+                  craftsmen: Optional[int] = None,
+                  monthly: Optional[Dict[str, float]] = None) -> Dict[str, object]:
+    """**部门实体**（只读构造，不写 state）。
+
+    玩家可感知的最小完整单元：
+      · **名字**（`dept_id` + `label`）——
+      · **归属**（`owner_kind`：民产/地方公产/国家公产）——
+      · **规模**（`craftsmen`：归属工匠数；缺失 ⇒ `None`，**缺失≠0**）——
+      · **月度产出**（`monthly`：完工/雇工工时/征役人日/工钱支出）。
+
+    ⚠️ `monthly` 缺失 ⇒ 各产出字段为 `None`（**不伪造 0**）。
+    """
+    if department not in DEPARTMENTS:
+        return {"ok": False, "reason": "unknown_department"}
+    ok_owner = owner_kind in ("pop",) + OFFICIAL_OWNERS
+    if not ok_owner:
+        return {"ok": False, "reason": "unknown_owner_kind"}
+    out: Dict[str, object] = {
+        "ok": True, "dept_id": department, "label": DEPT_LABELS[department],
+        "owner_kind": owner_kind, "craftsmen": craftsmen,
+        "official": department == "官有营造",
+        "monthly": None, "built": None, "hired_hours": None,
+        "corvee_days": None, "coin": None, "mood_cost": None,
+    }
+    if monthly is not None:
+        out["monthly"] = {k: monthly.get(k) for k in
+                           ("built", "hired_hours", "corvee_days", "coin", "mood_cost")}
+        out["built"] = monthly.get("built")
+        out["hired_hours"] = monthly.get("hired_hours")
+        out["corvee_days"] = monthly.get("corvee_days")
+        out["coin"] = monthly.get("coin")
+        out["mood_cost"] = monthly.get("mood_cost")
+    return out
+
+
+def departments_of(state: Dict[str, object]) -> List[Dict[str, object]]:
+    """读出一路（或全国）的**部门实体列表**，供玩家面板消费。
+
+    - 民间营造：`owner_kind="pop"`，规模＝该路 `工匠` POP；
+    - 官有营造：`owner_kind="local_gov"`，规模＝该路工匠 + 应役丁；
+    - **月度产出缺失时各字段为 None**（不伪造 0）。
+    """
+    prefs = state.get("prefectures") if isinstance(state, dict) else None
+    if not isinstance(prefs, dict):
+        return []
+    out: List[Dict[str, object]] = []
+    for route, p in prefs.items():
+        if not isinstance(p, dict):
+            continue
+        crafts = _craftsmen_of(p)
+        ding = _service_ding_of(p)
+        out.append(dept_entity("民间营造", "pop", craftsmen=crafts))
+        out.append(dept_entity("官有营造", "local_gov",
+                               craftsmen=None if crafts is None else crafts + (ding or 0)))
+        out[-1]["route"] = route
+        out[-2]["route"] = route
+    return out
+
+
+def _craftsmen_of(p: Dict[str, object]) -> Optional[int]:
+    pops = p.get("pops")
+    if not isinstance(pops, dict):
+        return None
+    c = pops.get("工匠")
+    if not isinstance(c, dict):
+        return None
+    try:
+        return int(c.get("size", 0) or 0)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _service_ding_of(p: Dict[str, object]) -> Optional[int]:
+    pops = p.get("pops")
+    if not isinstance(pops, dict):
+        return None
+    a = pops.get("农")
+    if not isinstance(a, dict):
+        return None
+    try:
+        return int(a.get("ding", 0) or 0)
+    except Exception:  # noqa: BLE001
+        return None
+
+def run_checks2():
+    """部门实体自检（第二批）。"""
+    out = []
+
+    def add(n, ok, note=""):
+        out.append((n, bool(ok), note))
+
+    # 13 实体四要素齐全
+    e = dept_entity("官有营造", "local_gov", craftsmen=100, monthly={"built": 2})
+    add("13 实体四要素", all(k in e for k in ("dept_id", "label", "owner_kind", "craftsmen", "monthly")),
+        "label=%s owner=%s craft=%s" % (e["label"], e["owner_kind"], e["craftsmen"]))
+
+    # 14 官有标记
+    c = dept_entity("民间营造", "pop")
+    add("14 官有标记", e["official"] is True and c["official"] is False, "民间=False 官有=True")
+
+    # 15 未知部门/归属被拒
+    add("15 非法输入被拒", dept_entity("野部门", "pop")["ok"] is False
+        and dept_entity("民间营造", "山寨")["ok"] is False, "unknown_department/owner")
+
+    # 16 月度产出缺失 ⇒ None（不伪造 0）
+    n = dept_entity("民间营造", "pop", craftsmen=None)
+    add("16 产出缺失≠0", n["built"] is None and n["monthly"] is None and n["craftsmen"] is None,
+        "built=None monthly=None craft=None")
+
+    # 17 逐路枚举（2 路 x 2 部门）
+    st = {"prefectures": {"A": {"pops": {"工匠": {"size": 10}, "农": {"ding": 100}}},
+                              "B": {"pops": {"工匠": {"size": 5}, "农": {"ding": 50}}}}}
+    ds = departments_of(st)
+    add("17 逐路枚举", len(ds) == 4 and ds[0]["route"] == "A", "2 路 x 2 = %d" % len(ds))
+
+    # 18 官有规模 = 工匠 + 应役丁
+    add("18 官有含丁", ds[0]["craftsmen"] == 10 and ds[1]["craftsmen"] == 110,
+        "民间=%s 官有=%s（工匠+丁）" % (ds[0]["craftsmen"], ds[1]["craftsmen"]))
+
+    # 19 缺 POP ⇒ 规模 None
+    ds2 = departments_of({"prefectures": {"C": {}}})
+    add("19 缺数据⇒None", ds2[0]["craftsmen"] is None and ds2[1]["craftsmen"] is None, "C 路无 POP")
+
+    # 20 空输入安全
+    add("20 空输入安全", departments_of({}) == [] and departments_of({"prefectures": 1}) == [], "[]")
 
     return out
