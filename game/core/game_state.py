@@ -302,7 +302,10 @@ def _init_regime_tech(regime_type: str = "") -> dict:
             continue
         t[_k] = 0 if isinstance(_v, (int, float)) else _v
     t["researching"] = None      # 正在研究的节点 id；未开工为 None（不是 ""）
-    t["unlocked"] = []           # 已解锁科技节点 id 列表
+    # 🔴 免费起点（tier-0，银与时长皆 0）**开局即有**，与宋侧一致：
+    #   否则所有 tier-1 节点的前置永远不满足 ⇒ 科技树彻底卡死（实测 next=None）。
+    from core.regime_tech import _starter_node_ids
+    t["unlocked"] = sorted(_starter_node_ids())
     t["deployed"] = []           # 已部署的科技建筑节点 id（TECH_NODE_DEPLOY 的子集）
     t["regime_type"] = regime_type
     return t
