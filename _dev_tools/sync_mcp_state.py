@@ -14,6 +14,12 @@
     $py _dev_tools/sync_mcp_state.py push-state  文件.json  # 回写 state[key=phase]
     $py _dev_tools/sync_mcp_state.py push-context 文件.json # 回写 context 快照
 
+退出码（R4 起，**0 才代表已落地**）：
+    0  landed / match / 拉取写盘成功
+    2  unconfirmed：服务端称已写但 60s 内回读未见（疑 CDN 陈旧窗）——**不要重发**，稍后 summary 复查
+    3  lost / failed / mismatch
+    4  MCP_FAIL：传输或协议层失败（含函数 20s 超时的 HTTP 433 + ret_code 200401）
+
 `push-state` 的 JSON 形如
 `{"phase": "...", "updatedAt": "...", "agent": "...", "verification": {...},
   "openDecisions": [...], "blocked": [...]}`
@@ -25,9 +31,11 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
+import time
 from datetime import datetime
 
 DEFAULT_URL = "https://william-1-d5grtya3z0b5e143d-1440445995.ap-singapore.app.tcloudbase.com/mcp"
@@ -36,6 +44,41 @@ DEFAULT_PROJECT = "songzuo"
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # …/sz
 OUT_DIR = os.path.join(REPO, "tmp", "mcp_sync")
 WORKLOG_LIMIT = 20
+
+# 回读节奏：CDN 陈旧窗实测可达分钟级，所以"读不到"绝不能直接判成"没写进去"。
+LOG_READ_TRIES = 12
+LOG_READ_GAP = 5.0
+
+
+class McpError(RuntimeError):
+    """服务端明确给出的失败（JSON-RPC error / isError）。"""
+
+
+class McpTransportError(McpError):
+    """HTTP 或解析层失败：**业务结果未知**，既不能当成功，也不能当"云端为空"。
+
+    2026-10-07 实测教训：函数 20s 超时时平台回 HTTP 433 + `{"ret_code":200401,...}`
+    （不是 JSON-RPC 信封），旧客户端把它解析成 None/`{}`，`or "ok"` 于是把失败报成成功，
+    并让 pull 误判"云端工作日志为空"。真丢的 2 条日志就是这样被掩盖的。
+    """
+
+
+def _describe_body(r: str) -> str:
+    """把平台层错误体翻成人话；SCF 超时的 ret_msg 是 base64。"""
+    s = (r or "").strip()[:300]
+    try:
+        j = json.loads(s)
+    except Exception:
+        return s
+    if isinstance(j, dict) and j.get("ret_code"):
+        msg = j.get("ret_msg") or ""
+        try:
+            msg = base64.b64decode(msg).decode("utf-8", "replace")
+        except Exception:
+            pass
+        return "ret_code=%s ret_msg=%s duration=%sms" % (
+            j["ret_code"], msg, j.get("duration_in_ms"))
+    return s
 
 
 def _client():
@@ -60,31 +103,59 @@ def _client():
                    "Authorization": "Bearer " + token}
         if state["sid"]:
             headers["Mcp-Session-Id"] = state["sid"]
-        r = requests.post(url, headers=headers,
-                          data=json.dumps(body, ensure_ascii=False).encode("utf-8"), timeout=45)
+        try:
+            r = requests.post(url, headers=headers,
+                              data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                              timeout=(10, 50))
+        except requests.RequestException as e:
+            raise McpTransportError("请求未送达：%s" % e)
         if r.headers.get("mcp-session-id"):
             state["sid"] = r.headers["mcp-session-id"]
-        if r.status_code == 202 or not r.text.strip():
-            return None
+
+        if rid is None:                      # 通知：无响应体是合法的
+            if r.status_code in (200, 202, 204):
+                return None
+            raise McpTransportError("通知 %s 返回 HTTP %s：%s" % (method, r.status_code, _describe_body(r.text)))
+
+        if r.status_code != 200 or not (r.text or "").strip():
+            raise McpTransportError("HTTP %s，无有效响应：%s" % (r.status_code, _describe_body(r.text)))
+
         if "text/event-stream" in r.headers.get("content-type", ""):
+            m = None
             for line in r.text.splitlines():
-                if line.startswith("data:"):
-                    try:
-                        return json.loads(line[5:].strip())
-                    except ValueError:
-                        pass
-            return None
-        return r.json()
+                if not line.startswith("data:"):
+                    continue
+                try:
+                    ev = json.loads(line[5:].strip())
+                except ValueError:
+                    continue
+                if isinstance(ev, dict) and (ev.get("result") is not None or ev.get("error") is not None):
+                    if m is None or ev.get("id") == rid:
+                        m = ev          # 优先取本请求 id；否则留住第一个有效事件
+            if m is None:
+                raise McpTransportError("SSE 无有效 JSON-RPC 事件：%s" % _describe_body(r.text))
+            return m
+
+        try:
+            m = r.json()
+        except ValueError:
+            raise McpTransportError("响应非 JSON：%s" % _describe_body(r.text))
+        if not isinstance(m, dict) or (m.get("result") is None and m.get("error") is None):
+            raise McpTransportError("响应不是 JSON-RPC 信封：%s" % _describe_body(r.text))
+        return m
 
     def call(name, args):
         m = rpc("tools/call", {"name": name, "arguments": args}, 3)
-        if m is None:
-            return None
+        if m.get("error") is not None:
+            e = m["error"]
+            raise McpError("%s：JSON-RPC error %s %s" % (name, e.get("code"), e.get("message")))
         res = m.get("result") or {}
         if res.get("isError"):
-            raise RuntimeError(f"{name} 调用失败：{res}")
+            raise McpError("%s 调用失败：%s" % (name, res.get("content")))
         parts = res.get("content") or []
         txt = "\n".join(p.get("text", "") for p in parts if p.get("type") == "text")
+        if not txt.strip():
+            raise McpTransportError("%s 返回空 content，结果未知" % name)
         try:
             return json.loads(txt)
         except ValueError:
@@ -111,6 +182,92 @@ def _existing_entries(path: str) -> int:
         return 0
 
 
+def _latest_entries(call, project: str, limit: int = 60) -> list:
+    """回读；单次回读本身可能撞超时/陈旧副本，吞掉当"本轮没看到"，由上层轮询决定。"""
+    try:
+        r = call("log_read", {"project": project, "limit": limit}) or {}
+        return r.get("entries") or []
+    except McpError:
+        return []
+
+
+def _await_message(call, project: str, message: str, tries: int = LOG_READ_TRIES,
+                   gap: float = LOG_READ_GAP):
+    """轮询到目标消息可见为止。返回 (landed, 该消息出现的次数)。"""
+    seen_count = 0
+    for _ in range(tries):
+        time.sleep(gap)
+        c = sum(1 for e in _latest_entries(call, project) if e.get("message") == message)
+        seen_count = max(seen_count, c)
+        if c:
+            return True, seen_count
+    return False, seen_count
+
+
+def append_log(call, project: str, message: str) -> dict:
+    """R4：追加 + 强制回读。两个不许：不许把"无响应"报成成功，不许在状态未知时盲目重发。
+
+    verdict：
+      landed        回读已见 —— 唯一可当成功的形态（exit 0）
+      unconfirmed   服务端称 verified:true 但我方 60s 内回读未见（疑陈旧窗）→ **不重发**，exit 2
+      failed        写入本身明确失败（exit 3）
+      lost          写完回读未见且服务端未确认（exit 3）—— 重发前先人工复查
+    """
+    resp = None
+    err = None
+    attempts = 0
+
+    def once():
+        nonlocal resp, err, attempts
+        attempts += 1
+        resp, err = None, None
+        try:
+            resp = call("log_append", {"project": project, "message": message})
+        except McpTransportError as e:
+            # 结果未知（如平台 433 超时）：写入可能已落地，必须靠回读判定，不能当失败
+            err = e
+        except McpError as e:
+            err = e
+
+    once()
+    landed, dups = _await_message(call, project, message)
+    if not landed and isinstance(err, McpTransportError):
+        once()                       # 状态未知才补发一次；重复条目比丢条目良性
+        landed, dups = _await_message(call, project, message)
+
+    confirmed = isinstance(resp, dict) and resp.get("verified") is True
+    if landed:
+        verdict, code = "landed", 0
+    elif confirmed:
+        verdict, code = "unconfirmed", 2
+    elif err is not None:
+        verdict, code = "failed", 3
+    else:
+        verdict, code = "lost", 3
+    return {"verdict": verdict, "confirmed": confirmed, "dups": dups,
+            "attempts": attempts, "error": str(err) if err else None, "exit_code": code}
+
+
+def set_state(call, project: str, key: str, value, platform: str) -> dict:
+    """state_set 后回读比对（整键写同样是 RMW，写成功不等于写对了）。"""
+    call("state_set", {"project": project, "key": key, "value": value, "platform": platform})
+    stored = None
+    verdict = "mismatch"
+    for i in range(4):
+        if i:
+            time.sleep(5)
+        try:
+            got = call("state_get", {"project": project, "key": key}) or {}
+        except McpError:
+            continue
+        stored = got.get("value", got)
+        if stored == value:
+            verdict = "match"
+            break
+    return {"verdict": verdict, "stored": stored,
+            "exit_code": 0 if verdict == "match" else 3}
+
+
 def pull(project: str) -> dict:
     call = _client()
     projects = call("project_list", {}) or []
@@ -124,12 +281,11 @@ def pull(project: str) -> dict:
     context = call("context_load", {"project": project}) or {}
     worklog = call("log_read", {"project": project, "limit": WORKLOG_LIMIT}) or {}
 
-    # --- 防毁兜底（2026-10-03 加）----------------------------------------------------
-    # 上游超时会话失效时 call() 返回 None，上面的 `or {}` 会把失败伪装成「云端为空」，
-    # 而紧接着的 _write 是无条件写盘 —— 结果就是**把本地镜像清空**。
-    # 镜像是没有 MCP 的 agent 唯一入口（见 AGENTS.md §1），清空等于让交接断链，故此处宁可不写。
-    # 实测事故：云端连续 20s 超时后 worklog.json 被写成 {}（32.8KB→2B）、
-    # SUMMARY.md 从 37.9KB 掉到 6KB。
+    # --- 防毁兜底（2026-10-03 加，2026-10-07 R4 改口径）-------------------------------
+    # 旧版失败形态：上游超时/433 时 call() 返回 None，`or {}` 把失败伪装成「云端为空」，
+    # 而紧接着的 _write 无条件写盘 —— 结果就是**把本地镜像清空**（实测事故：worklog.json
+    # 32.8KB→2B、SUMMARY.md 37.9KB→6KB）。R4 起传输/解析层失败一律抛 McpTransportError，
+    # 所以这两道守卫现在只在「确认云端为空」时触发；仍保留，因为云端为空同样不该毁镜像。
     if not keys and not state and not context and not worklog.get("entries"):
         raise RuntimeError(
             "云端返回全空（疑似超时或 MCP 会话失效），已放弃写盘以免清空本地镜像。"
@@ -146,7 +302,7 @@ def pull(project: str) -> dict:
     _write(os.path.join(OUT_DIR, "context.json"), context)
     _write(os.path.join(OUT_DIR, "worklog.json"), worklog)
     _write_summary(project, state, context, worklog)
-    return {"project": project, "keys": keys, "context": context, "worklog": worklog}
+    return {"project": project, "keys": keys, "state": state, "context": context, "worklog": worklog}
 
 
 def _now() -> str:
@@ -189,21 +345,40 @@ def _write_summary(project, state, context, worklog) -> None:
 def main(argv) -> int:
     cmd = argv[1] if len(argv) > 1 else "pull"
     project = os.environ.get("CLOUDBASE_MCP_PROJECT", DEFAULT_PROJECT)
+    try:
+        return _dispatch(cmd, project, argv)
+    except McpError as e:
+        # 失败必须显眼：非 0 退出 + 明说这是"结果未知/失败"，不再打印 ok
+        print("MCP_FAIL %s" % e, file=sys.stderr)
+        return 4
+
+
+def _dispatch(cmd: str, project: str, argv) -> int:
     if cmd == "log":
         if len(argv) < 3:
             sys.exit("用法：sync_mcp_state.py log \"消息\"")
         call = _client()
-        print(call("log_append", {"project": project, "message": argv[2]}) or "ok")
-        return 0
+        r = append_log(call, project, argv[2])
+        print("LOG_APPEND verdict=%s confirmed=%s dups=%d attempts=%s%s" % (
+            r["verdict"], r["confirmed"], r["dups"], r["attempts"],
+            (" err=" + r["error"]) if r["error"] else ""))
+        if r["verdict"] in ("unconfirmed", "lost"):
+            print("  别重发（整文件 RMW + CDN 陈旧窗会造重复/覆盖）；"
+                  "稍后用 sync_mcp_state.py summary 复查", file=sys.stderr)
+        return r["exit_code"]
     if cmd == "push-state":
         if len(argv) < 3:
             sys.exit("用法：sync_mcp_state.py push-state 文件.json")
         with open(argv[2], encoding="utf-8") as f:
             value = json.load(f)
         call = _client()
-        print(call("state_set", {"project": project, "key": "phase",
-                                 "value": value, "platform": "dsh"}) or "ok")
-        return 0
+        r = set_state(call, project, "phase", value, "dsh")
+        print("PUSH_STATE verdict=%s" % r["verdict"])
+        if r["verdict"] != "match":
+            print("  回读值与提交值不一致（疑并发覆盖或陈旧副本）。"
+                  "不要盲目重写——先 summary 复查，确认不是别人的键被顶掉", file=sys.stderr)
+            print("  stored=%s" % str(r["stored"])[:300], file=sys.stderr)
+        return r["exit_code"]
     if cmd == "push-context":
         if len(argv) < 3:
             sys.exit("用法：sync_mcp_state.py push-context 文件.json（需含 summary，可选 data）")
@@ -213,8 +388,11 @@ def main(argv) -> int:
             sys.exit("该 JSON 必须含非空 summary 字段")
         call = _client()
         print(call("context_save", {"project": project, "summary": payload["summary"],
-                                    "data": payload.get("data") or {}}) or "ok")
-        return 0
+                                    "data": payload.get("data") or {}}))
+        got = call("context_load", {"project": project}) or {}
+        same = got.get("summary") == payload["summary"]
+        print("PUSH_CONTEXT verdict=%s id=%s" % ("match" if same else "mismatch", got.get("id", "-")))
+        return 0 if same else 3
     if cmd == "summary":
         r = pull(project)
         phase = r["state"].get("phase")
