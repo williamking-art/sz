@@ -147,7 +147,7 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 | `save_game` | ❌ 留下 | 本体无上层 import，但**调用** `_plan_schema_versions` ⇒ 间接携带 2 条反向边 |
 | `load_game`（749 行，占全文 63%）| ❌ 留下 | `army_models` `blueprint_dynamic` `game_state` `longterm_task` `ministers` `settlement_imperial` —— 登记表 12 条反向边里 4 条在此 |
 | `_plan_schema_versions` / `_load_situations` | ❌ 留下 | 本身就是登记在案的反向边 |
-| `_safe_int` / `_safe_float` | ❌ 留下一批 | 属 `foundation/common/` 域（`_safe_int` 有 4 个跨域调用方），按 §8「一批一包」不混入 |
+| `_safe_int` / `_safe_float` | ❌ 留下一批 | **本批未迁，但留下的理由已按实测改写**：它们其实是**纯叶子**（`_safe_int` 只用 builtins，`_safe_float` 只多用 `math`），真正阻塞的是"和第八包混批"。先前写的"有 4 个跨域调用方"**是错的**——全项目只有 `core/save_load.py` 一处 import（内部 10 个调用点）；`ai/client_utils.py:708` 与 `core/free_effect.py:30` 是**各自另写的同名 `_safe_int`（签名不同）**，`settlement_econ.py:1765` 只在注释里提到它 |
 | `_strip_unknown_faction_keys` | ❌ 留下一批 | 引用 util 的 `FACTION_NAME_SET`，搬它会新造 `foundation → core` 反向导入 |
 | `migrate_army_units` | ❌ 留下 | `core.army_models`（业务）|
 
