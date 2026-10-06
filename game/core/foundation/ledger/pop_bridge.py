@@ -58,8 +58,14 @@ def seat_pop_weights(circuit: str) -> List[tuple]:
     return out
 
 
-def _split_int(total: int, weights: List[tuple]) -> Dict[str, int]:
-    """按权重拆整数，**尾差归权重最大者**，Σ 精确等于 `total`。"""
+def split_int(total: int, weights: List[tuple]) -> Dict[str, int]:
+    """按权重拆整数，**尾差归权重最大者**，Σ 精确等于 `total`。
+
+    第十二包（2026-10-07）由 `_split_int` 提升为显式接口：本包其他模块与
+    `grain_bridge` 都要用它，按 §6 规则 2 不得借用私有符号。
+    ⚠️ `total == 0` 或权重和 `<= 0` 时返回**每个治所 0**（不是 `{}`）——
+    调用方据此区分"拆了但都是 0"与"没有治可拆"，别顺手改成返回空表。
+    """
     if total == 0 or not weights:
         return {sid: 0 for sid, _w in weights}
     tw = sum(w for _s, w in weights)
@@ -69,6 +75,10 @@ def _split_int(total: int, weights: List[tuple]) -> Dict[str, int]:
     parts = {sid: int(round(total * w / tw)) for sid, w in weights}
     parts[anchor] += total - sum(parts.values())
     return parts
+
+# 迁移期兼容别名（旧私有名）。`core/pop_bridge.py` 薄桩的 dir()/__all__ 含 `_split_int`，
+# 公开面必须守恒 ⇒ 只能留别名，不能改名了事；新代码请用 `split_int`。
+_split_int = split_int
 
 
 # ══ economic_affiliation 子池（G-3/T1 · 2026-10-05） ══
@@ -110,14 +120,14 @@ def split_affiliation_to_seats(src: dict, weights: List[tuple]) -> dict:
             for f in AFFILIATION_FIELDS:
                 v = row.get(f)
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    seg[f] = _split_int(int(v), weights).get(sid, 0)
+                    seg[f] = split_int(int(v), weights).get(sid, 0)
             gd = row.get("goods")
             if isinstance(gd, dict):
                 _b = {}
                 for _dk, _dv in gd.items():
                     if isinstance(_dv, dict) or not isinstance(_dv, (int, float)) or isinstance(_dv, bool):
                         continue
-                    for _sid2, _v2 in _split_int(int(_dv), weights).items():
+                    for _sid2, _v2 in split_int(int(_dv), weights).items():
                         if _v2:
                             _b.setdefault(_sid2, {})[_dk] = int(_v2)
                 for _bk, _bv in gd.items():
@@ -200,7 +210,7 @@ def split_pops_to_seats(pdata: dict, circuit: str) -> int:
             for f in SPLIT_FIELDS:
                 v = src.get(f)
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    row[f] = _split_int(int(v), w).get(sid, 0)
+                    row[f] = split_int(int(v), w).get(sid, 0)
             # 均值类（识字率）**原样复制**到每个治所：它本就是均值，按人口拆会引入
             # 取整误差；复制后聚合时按 size 加权即可**精确**还原路级原值。
             for f in MEAN_FIELDS:
@@ -220,7 +230,7 @@ def split_pops_to_seats(pdata: dict, circuit: str) -> int:
                         _flat[k] = int(v)
                 _b = {}
                 for _dk, _dv in _flat.items():
-                    for _sid2, _v2 in _split_int(_dv, w).items():
+                    for _sid2, _v2 in split_int(_dv, w).items():
                         if _v2:
                             _b.setdefault(_sid2, {})[_dk] = int(_v2)
                 for _bk, _bv in gd.items():
@@ -400,7 +410,7 @@ def pop_set(pdata: dict, cls: str, field: str, value) -> Optional[int]:
             rows[cls]["goods"] = dict(gd)
         sync_route_pops(pdata)
         return int(sum(gd.values()))
-    parts = _split_int(int(value or 0), w)
+    parts = split_int(int(value or 0), w)
     for sid, s in seats.items():
         rows = (s or {}).setdefault("pops", {})
         rows[cls] = rows.get(cls) or {}
@@ -583,6 +593,7 @@ def reset_pops_guard() -> None:
     del _VIOLATIONS[:]
 
 __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
+    "split_int",
            "split_pops_to_seats", "aggregate_seat_pops", "survey_pops",
            "sync_route_pops", "pop_get", "pop_set", "pop_add",
            "assert_pops_consistent", "locate_pops",

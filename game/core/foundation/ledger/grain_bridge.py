@@ -97,7 +97,7 @@ def backfill_grain_to_seats(pdata: dict, circuit: str) -> int:
     **幂等**：治所已有粮（`grain` 键存在且非 None）时**跳过**该治所 ⇒ 二次调用不会重复加。
     返回本次回填的治所数。
     """
-    from core.foundation.ledger.pop_bridge import (POP_CLASSES, _split_int, seat_pop_weights)
+    from core.foundation.ledger.pop_bridge import (POP_CLASSES, seat_pop_weights, split_int)
     seats = (pdata or {}).get("seats") or {}
     if not seats:
         return 0
@@ -113,7 +113,7 @@ def backfill_grain_to_seats(pdata: dict, circuit: str) -> int:
         if not isinstance(legacy, (int, float)) or isinstance(legacy, bool):
             continue                   # 缺失 ≠ 0：无存量可回填
         legacy = int(legacy)
-        parts = _split_int(legacy, w)
+        parts = split_int(legacy, w)
         for sid, _pop in w:
             row = ((seats.get(sid) or {}).get("pops") or {}).get(cls)
             if not isinstance(row, dict):

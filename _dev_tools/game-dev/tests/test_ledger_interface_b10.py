@@ -42,12 +42,11 @@ def test_stub_surface_unchanged():
 
 
 # ── ③ 跨包不得借用他模块私有符号（规则 2 的常驻守卫） ─────────────
-# 同包内的私有借用**单独登记为已知欠账**，只要求"不得新增"：
-# 本批实测扫出 `grain_bridge.py:100` 借 `pop_bridge._split_int`（同为 `ledger/` 包内），
-# 它不属于 §6 规则 2 说的"跨域"，但也不该被忘掉——销账属另一批接口化工作。
-KNOWN_SAME_PKG_DEBT = {
-    'core/foundation/ledger/grain_bridge.py:100 from core.foundation.ledger.pop_bridge import _split_int',
-}
+# 同包内的私有借用**单独登记为已知欠账**，只要求"不得新增"。
+# 第十二包（2026-10-07）已把唯一一条销干净：`grain_bridge` 改读 `pop_bridge.split_int`
+# （`_split_int` 仅作兼容别名保留）。清单留空**本身就是验收判据**——
+# 将来谁再借同包私有符号，这条用例会直接红。
+KNOWN_SAME_PKG_DEBT = set()
 
 
 def test_no_cross_package_private_imports():

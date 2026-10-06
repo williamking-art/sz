@@ -48,7 +48,7 @@
 | 模块 | 新位置 | 大小 | 公开符号 |
 |---|---|---:|---:|
 | `money` | `foundation/ledger/money.py` | 35.2 KB | 50 |
-| `pop_bridge` | `foundation/ledger/pop_bridge.py` | 25.7 KB | 32 |
+| `pop_bridge` | `foundation/ledger/pop_bridge.py` | 25.7 KB | 桩 32 / 实现顶层 35→36（第十二包加 `split_int` 显式接口；旧私有名留别名但**不外泄到桩面**）|
 | `grain_bridge` | `foundation/ledger/grain_bridge.py` | 5.6 KB | 6 |
 | `numeric` | `foundation/common/numeric.py` | 2.7 KB | 8 |
 | `pop_structure` | `foundation/ledger/pop_structure.py` | 12.6 KB | 19 |
@@ -395,3 +395,25 @@ README 原先那句"别按行少误判成已迁"就是为它写的（它 20 行�
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2391** = 批次前 2386 + 本批 5 例；
 SCC 仍 **2 环**、成员与阶段 1 基线**逐字一致**，扫描模块数 123 → **124**（新增 `errors.py`），
 新文件未进任何环；`core.errors` 语义实测（raise/except/`.code`/子类化）全部通过。
+
+## 十、第十二包：`_split_int` 提升为显式接口，同包私有欠账清零（2026-10-07）
+
+第十包销的是**跨包**借用（§6 规则 2），当时把唯一一条**同包**借用
+（`grain_bridge.py:100` 借 `pop_bridge._split_int`）登记进守卫的"只减不增"清单。本包把它销干净。
+
+| 项 | 处置 | 说明 |
+|---|---|---|
+| `split_int` | ✅ 新公开名，**进 impl `__all__`** | 守恒基元：按权重拆整数、**尾差归权重最大者**、Σ 精确等于 total |
+| `_split_int` | ⚠️ 保留为兼容别名（同一对象） | `core/pop_bridge.py` 桩的 `dir()` 与 `__all__` **各 32 名**，迁移前后**逐字相等**——改名不许缩桩面 |
+| impl 内 5 处自用 | ✅ 改读公开名 | impl 里 `def split_int` 仅 1 处、无 `_split_int` 的 def（防双实现，用例锁住） |
+| `grain_bridge` 借用 | ✅ 改读 `split_int` | AST 复查：`grain_bridge` 从 `pop_bridge` 导入的名字里**不再有下划线名** |
+| `KNOWN_SAME_PKG_DEBT` | ✅ **清空** | 留空本身就是判据——今后再借同包私有符号，`test_ledger_interface_b10.py` 直接红 |
+
+**`split_int` 的返回形状有语义，接口化时逐条钉死**（`test_pop_bridge_interface_b12.py`）：
+`total == 0` 或权重和 `<= 0` ⇒ **每个治所 0**；**没有治可拆** ⇒ `{}`。
+调用方靠这个区分"拆了但都是 0"与"无治可拆"，后续重构**不得**顺手统一成空表。
+另锁：`Σ == total` 对多组权重/额度遍历成立、`split_int(10,[(a,1),(b,2)]) == {a:3,b:7}`（尾差进 b）。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2395** = 批次前 2391 + 本批 4 例；
+SCC 仍 **2 环**、成员与阶段 1 基线一致；桩面快照（迁移前落盘
+`_scratch/b12_stub_surface_before.json`）与迁移后**完全相等**。
