@@ -19,6 +19,10 @@
 | `_dev_tools/game-docs/docs/` | **权威机制文档**（见 §2） |
 | `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、CloudBase 检查、Rust 实验后端）——**不接游戏运行时** |
 
+🔴 **模块级 scoped 指令（薄路由层）**：改 `game/core/` 或 `game/frontend/` 前先分别读
+`game/core/AGENTS.md`、`game/frontend/AGENTS.md`——只放各自的范围/验证路径/禁区指针，
+**现行事实仍以各目录 README 与本文件为准**；内容冲突以本文件为准。
+
 ## 1. 先读云端交接状态（别凭猜测开工）
 
 交接状态放在 CloudBase 上的 MCP（`cloudbase-state-mcp`），**project = `songzuo`**：
