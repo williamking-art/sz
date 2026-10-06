@@ -24,8 +24,11 @@ from datetime import datetime
 # 真正决定槽位文件位置的是 `core.foundation.persistence.slots.SAVE_DIR`。
 # 要重定向存档目录，patch 那个模块（或让 conftest 的 blanket 补丁覆盖它）。
 from content.data import SAVE_DIR, ROUTE_MULT_DEFAULT, CHANGPING_INIT_MONTHLY_SHARE  # noqa: F401
+from core.foundation.common.numeric import (  # noqa: F401 — 第八包：数值件改指新路径（少一跳）
+    _safe_float, _safe_int,
+)
 from core.save_load_util import (  # noqa: F401 — re-export 兼容
-    FACTION_NAME_SET, _safe_float, _safe_int, _strip_unknown_faction_keys,
+    FACTION_NAME_SET, _strip_unknown_faction_keys,
 )
 
 # ↓ 第七包（2026-10-07）：以下 6 个符号已迁入 `foundation/persistence/`，此处显式转发，

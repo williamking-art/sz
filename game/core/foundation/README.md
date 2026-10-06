@@ -11,7 +11,8 @@
 - `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 7 个**（含 `material_holding` 账本侧拆分）
 - `persistence/` 存档读写与版本迁移 —— ✅ **已迁入 2 个**（第七包：`slots.py` + `migrations.py`，
   只取实测无业务依赖的部分；`save_game`/`load_game` **有意留下**，原因见 §五）
-- `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个**（`numeric`；
+- `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 1 个模块**（`numeric`；
+  第八包又向该模块**并入 2 个符号** `_safe_int`/`_safe_float`，仍是 1 个文件，别误数成 2 个）；
   ⚠️ `errors` **未迁**——它本来就是 20 行的真小模块，不是转发桩，别按"行少"误判成已迁）
 
 ## 〇、完成度实测（2026-10-07，脚本口径见下）
@@ -21,7 +22,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **8 整模块 + 1 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding；部分：`save_load` 的 **6 个符号**（第七包，见 §五） |
+| 已迁入新结构的模块 | **8 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -214,3 +215,57 @@ SCC 复扫：仍 **2 环**、成员与阶段 1 基线**逐字一致**；扫描�
 - 修后复跑 `EXIT=0`、`FAILED/ERROR` 计数 **0**、1 例 skip。
 - collected **2346**（`--collect-only -q` 按文件行求和，192 个文件；脚本
   `_scratch/b7_collected.py`）＝ 批次前 **2338** + 本批新增 `test_persistence_split_b7.py` **8** 例。
+## 六、第八包：`save_load_util` 的两个数值件并入 `common/numeric`（2026-10-07）
+
+`_safe_int` / `_safe_float` 原文迁入 `foundation/common/numeric.py`（该模块本来就是"数值工具
+单一权威"），`core/save_load_util.py` 改显式转发，`core/save_load.py` 的取用改指新路径（少一跳）。
+
+**为什么落 `common/` 而不是 `persistence/`**：这两个函数体**零存档语义**（只按类型/可转换性判定），
+符合架构方案 §106「跨域且无业务归属」；留在 persistence 会把通用件锁进专用目录（§196 禁垃圾桶，
+也禁"通用件藏在专用层"）。⚠️ 刻意**不进 `__all__`**、不进 `core.numeric` 公开面（下划线名按模块私有，
+调用方显式 import），由 `test_not_added_to_numeric_public_api` 锁住。
+
+| 符号 | 处置 | 依据（全部实测） |
+|---|---|---|
+| `_safe_int` `_safe_float` | ✅ 并入 `common/numeric.py` | 函数体自由名只有 builtins（+ `_safe_float` 的 `math`），零存档语义 |
+| `_strip_unknown_faction_keys` | ❌ 留下 | 引用同文件 `FACTION_NAME_SET`（由 `content.data.FACTION_NAMES` 造），单搬它要拆一对耦合符号 |
+| `FACTION_NAME_SET` / `FACTION_NAMES` | ❌ 留下 | 集团名是**业务口径**，不属 `common`；搬进基础层就是把业务词汇下沉 |
+| `migrate_army_units` | ❌ 留下 | 函数内 `from core.army_models import …`，构成 persistence/common→业务 反向边 |
+| `math`（`save_load_util` 顶层名） | ⚠️ **保留但已无使用者** | 只为 `dir(core.save_load_util)` 公开面（8 名）不掉而留着；源码注释已点名"别按未使用删" |
+
+**等价性与不变量（机器校验，脚本都落盘可复跑）**
+- `_scratch/b8_equiv_check.py`：对 `git show HEAD:game/core/save_load_util.py` 重取原文比 `ast.dump`
+  ⇒ **漂移 0 处**（本批无任何声明改道）；旧文件**不残留同名 def**，只剩一条转发 `ImportFrom`。
+- `_scratch/b8_surface_recheck.py`：`core.save_load_util` / `core.save_load` /
+  `core.numeric` 三条旧路径 `dir()` 与迁移前冻结快照（`_scratch/b8_surface_before.json`）
+  **完全一致**；只有新落点 `core.foundation.common.numeric` 多出 `_safe_int`/`_safe_float`（预期）。
+- 同一性：`save_load_util._safe_int is numeric._safe_int is save_load._safe_int`（`_safe_float` 同）
+  ⇒ 2/2 三路径同对象。
+- **三类"会红证明"都跑过**（`_scratch/b8_mutation_proof.py`）：语义真值表 / 同一性 / 公开面
+  各造一次破坏，三次 `EXIT=1`，还原后逐字节一致且全文件 `EXIT=0`。
+  ⚠️ 变异 B 一开始差点做成**假证明**：把复制实现插到转发 import **之前**，import 会把名字绑回真实现、
+  断言根本不红；改成追加到文件末尾才真验出。
+
+**新登记的两条事实（不是本批修的）**
+1. `_safe_int` 与 `parse_number` 是**刻意并存的两套口径**，实测三处差异：
+   缺失回 `None` vs `0.0`；`_safe_int("2.7")` → **`None`（判为缺失，不是截断）** vs `2.7`；
+   `_safe_int(2.7)` → `2`（截断）。⇒ 存档里整数字段被写成小数串时**静默按缺失处理**，
+   这一条此前无人写过。合并属口径变更，另立批次。
+2. `_safe_int` 在仓库里有**三处同名不同实现**（`save_load_util.py:63` 权威份、
+   `ai/client_utils.py:708` 带区间夹取、`core/free_effect.py:30` 无区间）。
+   按名字 grep 会得跨实现假命中——本包写引用计数时就是这么踩的（注释里的
+   `test_persistence_safety` 被文本正则误判成 `_safe` 导入），最终改 **AST 按导入来源**判定。
+
+**引用计数（`_scratch/b8_refcount.py`，AST 按导入来源判定）**
+- `from core.save_load_util import` **2** 个文件（`core/save_load.py` + 审计用例）；
+  `import core.save_load_util` **1** 个（本批回归用例）。
+- `from core.foundation.common.numeric import` **3** 个文件：`core/numeric.py`（转发桩）、
+  `core/save_load_util.py`（本批新转发）、`core/save_load.py`（改指新路径）。
+- **按导入来源**真正取用 `_safe_*` 的只有 `core/save_load.py` 一个业务文件 ⇒ 外部业务接入仍为 0。
+
+**全量验证（串行 + `>file 2>&1; echo EXIT=$?`）**
+- `EXIT=0`、`FAILED/ERROR` 计数 **0**、1 例 skip；**本批无回归**（第七包那类红没再出现）。
+- collected **2376** = 批次前 **2346** + 本批新增 `test_common_numeric_split_b8.py` **30** 例
+  （求和脚本 `_scratch/b7_collected.py`，`--collect-only -q` 按文件行相加；汇总行本机不可信）。
+- SCC 复扫：仍 **2 环**、成员与阶段 1 基线一致，扫描模块数 **123**（本批未新增文件，
+  只是把两个符号搬进既有模块）⇒ **无新环**。

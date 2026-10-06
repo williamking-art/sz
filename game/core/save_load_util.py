@@ -9,6 +9,15 @@ import math
 
 from content.data import FACTION_NAMES
 
+# 第八包（2026-10-07）：`_safe_int` / `_safe_float` 已**原文**迁入
+# `core.foundation.common.numeric`，此处显式转发，保证
+# `from core.save_load_util import _safe_int` 旧路径与 `dir()` 公开面不变（同一性由回归断言）。
+# ⚠️ `math` 如今只为维持公开面而保留（`_safe_float` 的 `math.isfinite` 跟着搬走了），
+#   别按"未使用"删——删了 `dir(core.save_load_util)` 就少一个名字。
+from core.foundation.common.numeric import (  # noqa: F401
+    _safe_float, _safe_int,
+)
+
 #: 当前合法集团名（改名后：新党/旧党/皇党集团/军功集团/中立派）
 FACTION_NAME_SET = frozenset(FACTION_NAMES)
 
@@ -60,47 +69,11 @@ def _strip_unknown_faction_keys(state) -> list:
     return sorted(dropped)
 
 
-def _safe_int(value, default=None):
-    """宽松取整：空值 / 布尔 / 数字串可转则转；非法字符串、容器、NaN/inf → `default`。
-
-    审查 P2-10：存档字段被写坏成对象/列表/乱码字符串时，`int()` 会抛未处理异常
-    （经 UI/后端 → 500）。统一走此入口，把「档损坏」交给既有损坏档路径，
-    而不是让异常冒泡。
-    """
-    if isinstance(value, bool):
-        return int(value)
-    if value is None or isinstance(value, (dict, list, tuple, set, bytes, bytearray)):
-        return default
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return default
-    try:
-        return int(value)
-    except (TypeError, ValueError, OverflowError):
-        return default
-
-
-def _safe_float(value, default=None):
-    """宽松取浮点：语义同 `_safe_int`，并剔除 NaN / ±inf。"""
-    if isinstance(value, bool):
-        return float(value)
-    if value is None or isinstance(value, (dict, list, tuple, set, bytes, bytearray)):
-        return default
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return default
-    try:
-        f = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return default
-    return f if math.isfinite(f) else default
-
-
 # 注意：`_slot_path` 刻意留在 save_load.py——它读模块级 SAVE_DIR，
 # 测试通过 monkeypatch.setattr(save_load, "SAVE_DIR", ...) 重定向路径；
 # 抽到本模块会让 patch 失效（读到 save_load_util.SAVE_DIR）。
+# （2026-10-07 第七包实测：`_slot_path` 已迁入 `foundation/persistence/slots.py`，
+#  这条警告**应验了**——只 patch `core.save_load.SAVE_DIR` 不再决定落盘目录。）
 
 
 def migrate_army_units(data: dict):
