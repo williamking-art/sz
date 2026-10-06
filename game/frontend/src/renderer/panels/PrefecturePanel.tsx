@@ -224,7 +224,59 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
           ["财政档", <>{<Bar value={r.fiscal} tone={toneOf(r.fiscal)} />} {r.fiscal.toFixed(1)}</>]
         ]
       },
-      { title: "归属", items: [["控制势力", r.controlled_by]] }
+      { title: "归属", items: [["控制势力", r.controlled_by]] },
+      {
+        title: "州府营造部门",
+        items: ((): [string, React.ReactNode][] => {
+          // 口径纪律（承 AGENTS.md §3-3 缺失≠0）：mode=null ⇒ 显示「未定义」，
+          // **不得**显示成「无部门」或 0。
+          const d = r.departments;
+          if (!d || d.mode === null) {
+            return [["部门读数", <span className="text-xs italic text-dim">未定义</span>]];
+          }
+          const out: [string, React.ReactNode][] = [];
+          const fmt = (v?: number | null) =>
+            v === null || v === undefined
+              ? <span className="text-xs italic text-dim">未定义</span>
+              : wan(v, "");
+          const civ = d.departments.filter((x) => !x.official);
+          const off = d.departments.filter((x) => x.official);
+          for (const g of [
+            { name: "民间营造", list: civ },
+            { name: "官有营造", list: off },
+          ]) {
+            const n = g.list.length;
+            if (n === 0) {
+              out.push([g.name, <span className="text-xs italic text-dim">未定义</span>]);
+              continue;
+            }
+            const lab = g.list.reduce((a, x) => a + (x.labor ?? 0), 0);
+            const art = g.list.reduce((a, x) => a + (x.artisans ?? 0), 0);
+            const corv = g.list.reduce((a, x) => a + (x.corvee_base ?? 0), 0);
+            const mon = g.list.find((x) => x.monthly)?.monthly ?? null;
+            out.push([
+              `${g.name}（${n} 州府）`,
+              <div className="space-y-0.5 text-xs">
+                <div>劳力 {fmt(lab)}　匠人 {fmt(art)}{g.name === "官有营造" ? `　役基 ${fmt(corv)}` : ""}</div>
+                <div>
+                  {mon
+                    ? <>本月　建 {fmt(mon.built)}　雇工 {fmt(mon.hired_hours)} 工时　工钱 {fmt(mon.coin)}</>
+                    : <span className="italic text-dim">本月产出未定义</span>}
+                </div>
+              </div>,
+            ]);
+          }
+          out.push([
+            "口径",
+            <span className="text-xs text-dim">
+              {d.mode === "truth"
+                ? `州府真账（覆盖 ${d.seats_covered ?? 0} 州府）`
+                : `州府派生（覆盖 ${d.seats_covered ?? 0} 州府）`}
+            </span>,
+          ]);
+          return out;
+        })(),
+      }
     ];
     return (
       <div className="space-y-3">

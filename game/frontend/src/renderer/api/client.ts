@@ -301,6 +301,47 @@ export interface SituationReadoutResult {
   readout_errors?: string[];
 }
 
+/** 州府级营造部门实体（对齐 core/construction_shadow.py::dept_entity） */
+export interface RegionDepartment {
+  /** 部门 id：民间营造 / 官有营造 */
+  dept_id: string;
+  /** 显示名 */
+  label: string;
+  /** 归属：pop（民产）/ local_gov（地方公产）/ state（国家公产） */
+  owner_kind: string;
+  /** **劳力**（营造主力，取自「农」；缺失为 null —— **不是 0**） */
+  labor?: number | null;
+  /** **匠人**（工坊手工业者，取自「工匠」；缺失为 null） */
+  artisans?: number | null;
+  /** **劳役基**（官有营造才有；应役丁。缺失为 null） */
+  corvee_base?: number | null;
+  /** 是否官有部门（UI 分组用） */
+  official?: boolean;
+  /** 本月产出；未实现/缺失为 null（**不得显示成 0**） */
+  monthly?: {
+    built?: number | null;
+    hired_hours?: number | null;
+    corvee_days?: number | null;
+    coin?: number | null;
+    mood_cost?: number | null;
+    /** 归属基准标注（如 labor_share） */
+    attribution?: string;
+  } | null;
+  /** 治所坐标 */
+  route?: string;
+  seat?: string;
+  level?: string;
+  /** 口径：truth（真账）/ derived（派生） */
+  mode?: string | null;
+  derived?: boolean;
+}
+
+export interface RegionDepartments {
+  mode: string | null;
+  seats_covered: number | null;
+  departments: RegionDepartment[];
+}
+
 /** 州路简报单条（对齐 core/region_brief.py::build_region_brief） */
 export interface RegionRoute {
   name: string;
@@ -338,6 +379,10 @@ export interface RegionRoute {
   grain_months: number | null;
   /** 本路到账后月税（贯/月，二税折色实收口径） */
   tax_month: number;
+  /** 州府级**营造部门**（承 core/construction_shadow；2026-10-05）
+   *  - `mode="truth"` 州府级真账 / `"derived"` 按人口权重派生；前端须显示口径
+   *  - 缺失时 `mode=null`、`departments=[]`（**缺失≠0**，不得显示成「无部门」）*/
+  departments?: RegionDepartments;
   /** 占全国月税比 0~1 */
   tax_share: number;
   /** 驻军月饷（贯/月） */
