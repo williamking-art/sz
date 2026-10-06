@@ -28,7 +28,7 @@
 ## 阅读约定
 
 - 本目录区分**现行机制**、**已定设计但未全面实施**和**实施路线**；文件标题或旧段落中的“已完成/未实施”不能单独代表当前状态。
-- 市场/营造实现与验收状态以 [`../specs/market-civilian-economy/tasks.md`](../specs/market-civilian-economy/tasks.md) 为准；统一设计后续阶段以 [`../specs/unified-civilian-market/tasks.md`](../specs/unified-civilian-market/tasks.md) 为准；圣旨行动链以 [`../specs/decree-action-chain/tasks.md`](../specs/decree-action-chain/tasks.md) 为准。
+- 市场/营造实现与验收状态以 [`../specs/market-civilian-economy/tasks.md`](../specs/cross-cutting/decree-action-chain/tasks.md) 为准；统一设计后续阶段以 [`../specs/unified-civilian-market/tasks.md`](../specs/cross-cutting/decree-action-chain/tasks.md) 为准；圣旨行动链以 [`../specs/decree-action-chain/tasks.md`](../specs/cross-cutting/decree-action-chain/tasks.md) 为准。
 - 历史实测数字须连同日期、种子、时长和运行命令引用；本轮未复跑的测试数不可表述为本轮实测。
 - 跨目录冲突和改善优先级见 [`../文档整体审校与改善建议.md`](../文档整体审校与改善建议.md)。
 - 跨专题未完成设计与当前决策建议见 [`../reviews/未完成设计对齐与改良方案_2026-10-05.md`](../reviews/未完成设计对齐与改良方案_2026-10-05.md)；该方案不替代本目录的机制口径。

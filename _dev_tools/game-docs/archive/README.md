@@ -11,5 +11,5 @@
 ## 当前权威入口
 
 - 当前机制：[`../docs/README.md`](../docs/README.md)
-- 专题实施与验收：[`../specs/README.md`](../specs/README.md)
+- 专题实施与验收：[`../specs/README.md`](../README.md)
 - 当前冲突和改进建议：[`../文档整体审校与改善建议.md`](../文档整体审校与改善建议.md)
