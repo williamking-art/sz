@@ -65,3 +65,69 @@ artisan["wealth"] = int(artisan.get("wealth", 0) or 0) + cost   # 直写
 - 官有营造付款渠道：[`官有营造付款渠道_未完成.md`](./官有营造付款渠道_未完成.md)
 
 最后更新：2026-10-06
+
+---
+
+## 更正（2026-10-06 二次核查）：升级不是「钱消失」，是「产能凭空增加」
+
+本文件上方 §四 的「`BUILDING_COST` 升级费是凭空消失的钱」**方向说反了，特此更正**。
+
+### 实测证据：`evolve_building_levels` 零金钱操作
+
+```python
+# building_jobs.py:411-418  升级分支
+if surplus and not famine and R.random() < 0.05:
+    bt = R.choice(cands)
+    _set(bt, _cur(bt) + 1, "结余营造", +1)   # ← 只写 entry["lv"]
+
+# _set 实现（371-380）只有：entry["lv"] = new_lv + 记录 changes
+# 全函数无任何 wealth / treasury / transfer_money 操作
+```
+
+调用侧（`settlement_econ.py:1236`）同样**不补扣款**：
+
+```python
+evolve_building_levels(_p, cfg,
+    surplus=(int(st["tax"]) - _pa - _po) > 0)   # 只传布尔，无金额
+```
+
+### 真实机制：这是**结构性通胀源**，不破坏守恒
+
+| 环节 | 是否花钱 |
+|---|---|
+| 等级升级 `evolve_building_levels` | 否 |
+| 产出增加 `produce_job_track` | 放大分子 |
+| 工钱支出 `pay_wages_from_revenue` | 是（从营收出）|
+| 建造/升级**造价** | **无人承担** |
+
+=> 升级在「营收 -> 工钱」链路上**只放大分子（产出），分母（造价）为零**
+=> 长期效果是**产能无成本扩张**。
+=> 这**不是**钱账本失衡（不破坏守恒），而是**经济平衡门缺一道成本**。
+
+### 附带查出：两份 `BUILDING_COST_GROWTH` 不一致
+
+| 位置 | 值 | 状态 |
+|---|---|---|
+| `content/data.py:999` | **1.8** | 权威（`construction` / `blueprint_dynamic` 走它）|
+| `building_jobs.py:728` | `1.35`（缺省回落）| **不一致** |
+
+=> 目前**未生效**（`pay_construction_cost` 零调用），属**潜伏口径分歧**；
+=> 若照 §四 建议接线，**必须**显式传权威值，否则会用到 1.35。
+
+### 修正后的建议（替代 §四 的结论）
+
+| 选项 | 修订后判断 |
+|---|---|
+| ~~C 存在漏接线~~ | **排除**：升级链完整，缺的不是接线，而是**成本口径本身** |
+| **B 已被替代** | 仍成立 |
+| **新增 D** | **真正的缺口是「升级/建造造价无人承担」**，属经济平衡问题，不是代码缺陷 |
+
+=> **须你裁定的是 D**：`BUILDING_COST` 升级造价是否应当承担？
+  - 若**承担** -> 需要新口径，且 `pay_construction_cost` 需**重写**（不能直接接线，见 §二 账本通道不合规）；
+  - 若**不承担**（升级为纯事件驱动）-> 该函数可**直接删除**，并把 `BUILDING_COST` 标注为仅蓝图用。
+
+---
+
+**教训**：上一轮我只读了 `pay_construction_cost` 自身，**没顺调用链查升级实际发生处**，
+就断言「钱消失」—— **又一次是「读了数据没查口径就下结论」**。
+本次先查 `evolve_building_levels` 与调用侧，才把方向纠正过来。
