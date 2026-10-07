@@ -69,7 +69,7 @@
 
 | 落什么 | 落在哪 | 为什么是它 |
 |---|---|---|
-| **复述记录**（他说了什么） | `state.minister_agents[aid].memory` 里 `kind="复述"`、`source="旨意:<id>·复述"` 的条目——**只经 `core.minister_agent.remember/recall`** | 逐人隔离（甲的复述不是乙亲闻）；`save_load` 逐条保留 `memory` 原样，读档后仍在 |
+| **复述记录**（他说了什么） | `state.minister_agents[aid].memory` 里 `kind="复述"`、`source="旨意:<id>·复述"` 的条目——**只经 `core.domains.administration.minister_agent.remember/recall`** | 逐人隔离（甲的复述不是乙亲闻）；`save_load` 逐条保留 `memory` 原样，读档后仍在 |
 | **执行台账**（这道旨执行过没有、执行成什么样） | `state.statistics["decree_exec_ledger"]`：`{decree_id: {turn, by, digest, outcome, …}}` | `statistics` 在存档白名单内且**逐字往返**（`save_load:213` 存 / `:612` 读），无需改 `save_load.py` |
 
 `core/minister_agent.py` **只读复用**（`can_act` / `recall` / `remember`）：
@@ -110,7 +110,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from content.ministers.data import MINISTERS
-from core.minister_agent import can_act, recall, remember
+from core.domains.administration.minister_agent import can_act, recall, remember
 
 __all__ = [
     "DECREE_CONFIRM_SCHEMA_VERSION", "LEDGER_STAT_KEY",

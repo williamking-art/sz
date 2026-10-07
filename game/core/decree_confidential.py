@@ -84,7 +84,7 @@ import math
 from typing import Any, Dict, Iterable, List, Optional
 
 from content.ministers.data import MINISTERS
-from core.minister_agent import actor_ids_of, can_act, recall, remember
+from core.domains.administration.minister_agent import actor_ids_of, can_act, recall, remember
 
 __all__ = [
     "CHANNEL_AUDIENCE", "CHANNEL_COUNCIL", "CHANNEL_PRIVATE",

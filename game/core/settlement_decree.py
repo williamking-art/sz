@@ -68,7 +68,7 @@ def _secret_contacts(state, decree):
         return out
     try:
         from core.decree_confidential import knowledge_of
-        from core.minister_agent import recall
+        from core.domains.administration.minister_agent import recall
         auth = (knowledge_of(state, did) or {}).get("authorized") or []
     except Exception:                # noqa: BLE001 — 读数不可用 ⇒ 接触面不可判定
         return out

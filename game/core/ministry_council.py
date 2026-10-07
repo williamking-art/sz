@@ -11,7 +11,7 @@
 | 依据 | 读数来源 | 缺失时 |
 |---|---|---|
 | **职权** `posts` / 所掌事权 | `state.central_orgs` 反查（权限跟官职、不跟人），复用 `core.institution` 同口径 | 无官职 → 该项 `0.0`（真零：不在此位） |
-| **权限** `authority` | `core.minister_agent` 的 `authority` | `None` → 意见照发（权限不定 ≠ 没意见），但标 `basis_undefined` 并另判 `may_carry` |
+| **权限** `authority` | `core.domains.administration.minister_agent` 的 `authority` | `None` → 意见照发（权限不定 ≠ 没意见），但标 `basis_undefined` 并另判 `may_carry` |
 | **记忆** | **只读他自己**的 `recall()`（甲的私话绝不进乙的意见） | 无记忆 → `0.0`（真零：无前科） |
 | **立场** | `MINISTERS[人]` 的 `faction`/`loyalty`/`corruption`/`trait_ids` | 名册查无此人 → 该项 `None` |
 
@@ -84,7 +84,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from content.ministers.data import MINISTERS
 from core.decree_confidential import holds_matter, posts_of
-from core.minister_agent import (
+from core.domains.administration.minister_agent import (
     MINISTER_STATUS_IN_OFFICE,
     actor_view,
     can_act,
@@ -416,7 +416,7 @@ def _roster_candidates(state) -> List[str]:
             out.update(str(h).strip() for h in (org.get("holders") or {}).values()
                        if str(h or "").strip())
     try:
-        from core.minister_agent import actor_ids_of
+        from core.domains.administration.minister_agent import actor_ids_of
         out.update(actor_ids_of(state))
     except Exception:  # noqa: BLE001
         pass
