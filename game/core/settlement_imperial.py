@@ -448,67 +448,37 @@ def _apply_imperial_effects(state, effects, cell, log, name):
 # ------------------------------------------------------------
 
 def _settle_hidden(state, log):
-    """隐藏状态结算（灾害、政令累积效果等）"""
-    # 隐户动态（用户指示：隐户是动态人口池，与六类 POP 转换，非静态）——月度逃户/归籍
+    """隐藏状态结算。本函数已降为**薄编排**：三段逻辑已按域拆开（2026-10-07 用户裁定「拆开」），
+
+    调用顺序 a→b→c→d **与拆分前完全一致**（策略规则：结算步序是玩法规则，不得调整）。
+
+    a) 隐户归籍 + b) 民怨骚乱 → core.domains.population.settlement_hidden
+    c) 金军南侵             → core.domains.military.settlement_front
+    d) 皇帝健康衰减         → core.domains.politics.settlement_imperial
+    """
+    from core.domains.military.settlement_front import _settle_front_battle
+    from core.domains.politics.settlement_imperial import _settle_emperor_health_decay
+    from core.domains.population.settlement_hidden import _settle_hidden_pop
+
+    # a) 隐户归籍（失败必须可见：记入结算日志）
     try:
         _settle_hidden_pop(state, log)
     except Exception as e:  # noqa: BLE001 — 已改为记入结算日志（失败可见）
         _log.exception("[归籍] 隐户结算失败（本月未归籍，POP 未变）")
         log.append("[归籍] 隐户归籍结算失败，本月未归籍（POP 未变）"
                    f"（{type(e).__name__}）")
+
+    # b) 民怨骚乱
     if state.population_satisfaction < 30:
         if random.random() < 0.15:
             # 审查 P2-21：补下限钳制（其余结算处均已 max(0,…)，此处漏）
             state.population_satisfaction = max(0, state.population_satisfaction - 1)
             log.append("[激变] 民怨沸腾，偶有骚乱")
 
-    jin = state.external["金"]
-    if jin.get("invasion_will", 0) >= 90 and state.year >= 1122:
-        if random.random() < 0.08:
-            from core.domains.military.army_models import army_power, army_power_total, resolve_battle
-            jin["invasion_will"] = 80
-            gunpowder = state.tech.get("gunpowder", 20)
-            front_routes = ("河北路", "河东路", "陕西路")
-            front_units = [u for u in state.army_units if u.station in front_routes]
-            my_power = army_power_total(front_units, gunpowder)
-            jin_power = state.external["金"]["power"]
-            win, loss_power, breach = resolve_battle(my_power, jin_power)
-            # 按各 unit 战力占比把 loss_power 分摊成真实伤亡（向下取整，余数归主将部）
-            casualty = 0
-            if my_power > 0 and loss_power > 0 and front_units:
-                powers = [army_power(u, gunpowder) for u in front_units]
-                total_p = sum(powers)
-                # 总伤亡人数 = 沿线总兵力 × (loss_power/my_power)
-                total_troops = sum(u.troops for u in front_units)
-                total_cas = int(total_troops * (loss_power / my_power))
-                assigned = 0
-                # 主将部 = 战力最大的 unit（余数归它）
-                main_idx = max(range(len(front_units)), key=lambda i: powers[i])
-                for i, u in enumerate(front_units):
-                    if i == main_idx:
-                        continue
-                    part = int(total_cas * (powers[i] / total_p)) if total_p > 0 else 0
-                    part = min(part, u.troops)
-                    u.add_troops(-part)
-                    assigned += part
-                rest = min(total_cas - assigned, front_units[main_idx].troops)
-                front_units[main_idx].add_troops(-max(0, rest))
-                casualty = assigned + max(0, rest)
-            if breach:
-                for line in ("北线_太原真定", "北线_陕西"):
-                    if line in state.defense_lines:
-                        f0 = state.defense_lines[line].get("fortification", 0)
-                        state.defense_lines[line]["fortification"] = max(0, min(100, int(f0 * 0.5)))
-            if win:
-                log.append(f"[紧急] 金军大举南下！沿边诸军力战却敌，伤亡约{casualty}人")
-            else:
-                log.append(f"[紧急] 金军大举南下！沿边诸军败绩，防线告破，伤亡约{casualty}人")
-            state._derive_defense_lines()
+    # c) 金军南侵
+    _settle_front_battle(state, log)
 
-    if state.pleasure_leaning > 80 and random.random() < 0.05:
-        state.emperor_health -= 3
-
-    if state.emperor_health > 0 and random.random() < 0.02:
-        state.emperor_health -= 1
+    # d) 皇帝健康衰减
+    _settle_emperor_health_decay(state, log)
 
 
