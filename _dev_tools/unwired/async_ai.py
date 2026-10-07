@@ -239,7 +239,7 @@ def run_settlement_ai(client, posture, state, woken, ui, on_success, on_error):
                          ("_relief_ai", "relief_decide"))
             else:
                 try:
-                    from core.agent_router import AGENT_DEFS
+                    from application.agent_router import AGENT_DEFS
                 except Exception:
                     AGENT_DEFS = {}
                 tasks = []
