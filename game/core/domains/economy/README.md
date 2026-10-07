@@ -4,7 +4,9 @@
 > 2026-10-07 第十五包迁入 `dynamic_price.py`、`demand.py`；第十八包再迁入 `market.py`、
 > `hoard_settle.py`、`regime_fiscal.py` ⇒ **本包现共 6 个实现文件**；
 > 其余（`settlement_finance` / `settlement_granary` / `settlement_econ` / `market*` 等）
-> 仍为候选归属、**未移动**——它们的被调方在 16 模块环内，属阶段 3 裁定项，不是本包能机械搬的。
+> 仍为候选归属、**未移动**——它们的被调方在平铺大环（v3 口径 **[17]**；旧记录写 16 是 v2 漏计
+> `from core import X` 形态所致，见 `阶段1_依赖图与循环依赖.md` §一之补）内，
+> 属阶段 3 裁定项，不是本包能机械搬的。
 
 ## 拥有的规则
 

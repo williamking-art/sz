@@ -13,7 +13,7 @@
 | 通道 | 强度 | 来源（唯一权威） |
 |---|---|---|
 | 吏治 | **强**（唯一强关联） | 会签执行率 `GameState.calc_decree_execution_rate`（逐诏）＋ 吏胥折扣 `core/clerks.decree_execution_mult` |
-| 民心 / 识字率 | 弱（幅度 ≤15%） | `state.population_satisfaction`（民心）＋ `state.literacy` / `prefectures[路]["literacy"]`（**识字率**，`core/literacy.py`） |
+| 民心 / 识字率 | 弱（幅度 ≤15%） | `state.population_satisfaction`（民心）＋ `state.literacy` / `prefectures[路]["literacy"]`（**识字率**，`core/domains/culture/literacy.py`） |
 | 军队 | **条件加成** | `core/army_models.military_channels`：军政类**天然参与**；民政类**玩家调兵强制施行时**参与 |
 
 **军队的精确口径（用户再修正 2026-09-19）**：`kind == "军政"` → 军队天然参与；
@@ -99,7 +99,7 @@ def _literacy_channel(state, route: Optional[str] = None) -> Optional[float]:
     from core.foundation.common.numeric import finite_or_undefined as _fu
     lit = None
     try:
-        from core.literacy import national_literacy, route_literacy
+        from core.domains.culture.literacy import national_literacy, route_literacy
         lit = _fu(route_literacy(state, route) if route else national_literacy(state))
     except Exception as e:  # noqa: BLE001
         log.debug("decree_effect 取派生识字率失败：%s", e)
@@ -114,7 +114,7 @@ def _civil_mult(state, route: Optional[str] = None) -> Optional[float]:
 
     - 民心：逐路用该路 `public_support`（缺失回落全国 `population_satisfaction`）；
     - 识字率：**由该路各地各类 POP 自有 literacy 按人口加权派生**
-      （`core.literacy.route_literacy`；全国则 `national_literacy`）——
+      （`core.domains.culture.literacy.route_literacy`；全国则 `national_literacy`）——
       故 POP 结构/文教变化会立刻反映，无需等结算回写 `state.literacy`。
     幅度刻意压小：吏治才是强关联，民心/识字率不该主导诏令成败。
 

@@ -406,14 +406,14 @@ def _settle_econ_prices(state, log=None):
 
 
 def _settle_literacy(state, log=None):
-    """识字率结算步（2026-09-19 新增设定）——薄壳，口径单点在 `core/literacy.py`。
+    """识字率结算步（2026-09-19 新增设定）——薄壳，口径单点在 `core/domains/culture/literacy.py`。
 
     教育是慢变量：每月只走 6% 的差距（缓动），故太平与文教投入**长期**抬高识字率，
     而识字率又是**诏令实际效果的弱关联项**（强关联只有吏治，见 `core/decree_effect.py`）。
     零守恒风险：只写 `prefectures[路]["literacy"]` 与派生值 `state.literacy`，不碰钱粮人口。
     """
     try:
-        from core.literacy import settle_literacy as _impl
+        from core.domains.culture.literacy import settle_literacy as _impl
         return _impl(state, log)
     except Exception as e:  # noqa: BLE001  文教步失败不得影响结算主流程
         # 审查 P2-3 应修：原只有结算日志一行、**无 traceback** → 玩家知道"跳过了"，

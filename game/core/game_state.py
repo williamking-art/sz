@@ -905,7 +905,7 @@ class GameState(GameStateEconMixin):
         # `_situation_intents_this_turn`。
         self._situation_grades: dict = {}
         self._situation_intents_this_turn: list = []
-        # 识字率（2026-09-19 新增设定，core/literacy.py）：全国 POP 加权派生值；
+        # 识字率（2026-09-19 新增设定，core/domains/culture/literacy.py）：全国 POP 加权派生值；
         # 逐路值 `prefectures[路]["literacy"]` 在州县/POP 建成后初始化（见下）
         self.literacy: float = 0.0
 
@@ -1019,7 +1019,7 @@ class GameState(GameStateEconMixin):
         # 识字率（2026-09-19 新增）：**必须在 POP 建成、兵额回填之后**——
         # 目标值由 POP 结构（士绅+官僚占比、工匠+商人占比）派生，逐路各不相同。
         try:
-            from core.literacy import init_literacy
+            from core.domains.culture.literacy import init_literacy
             init_literacy(self)
             # 利益集团「立场占比」（给 POP 加政治派系标签；比率，非人口账本）——
             # 与识字率同批初始化：皆由 POP 结构派生，失败不得阻断开局。

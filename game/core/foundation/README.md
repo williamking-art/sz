@@ -23,15 +23,15 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94**（含 `__init__.py`）⇒ 有效平铺模块 **93** | `ls game/core/*.py \| wc -l`；分母口径见 `_scratch/b19_completion.py` |
-| 已迁入新结构的模块 | **21 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，入 `domains/economy`）+ **`institution`**（第十九包，入 `domains/administration`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
-| ⇒ 平铺层还剩多少实现 | **72 / 93 = 77.4%**（纯转发桩 21）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（21 == 21，零差集）|
+| 已迁入新结构的模块 | **22 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，入 `domains/economy`）+ `institution`（第十九包，入 `domains/administration`）+ **`literacy`**（第二十包，入 `domains/culture`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| ⇒ 平铺层还剩多少实现 | **71 / 93 = 76.3%**（纯转发桩 22）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（22 == 22，零差集）|
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
 | `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **5/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)；其余 5 个子域仍空 |
+| `domains/` 十子域有实现的 | **6/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)、`culture`(1，第二十包)；其余 4 个子域仍空 |
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -116,6 +116,14 @@ import 改指新路径）——**ledger 包现已自足**（对外仅依赖 `con
 （桩与实现不再因同尾名折叠成假环），实测 **SCC=2、成员与阶段 1 基线一致**，
 `foundation.*`/`domains.*` 均为叶子链不成环；旧 v1 尾名折叠口径保留作对照，两口径结论目前一致。
 ⇒ 符合迁移期设计，但**必须显式记录**，避免后人误以为已切换。
+
+> 🔴 **第十九包（2026-10-07）再升级：v2 本身有两处盲区，已被 `mh_scc_scan_v3.py` 取代。**
+> ① `from core import X` 形态一条都不计；② 节点名用斜杠、边名用点分，
+> 所有指向 `foundation.*` / `domains.*` 的边在 DFS 里被丢 ⇒ **v2 只在 core 顶层平铺子图上找环**。
+> v3 实测平铺大环成员 **[16] → [17]**（`settlement_military` 一直在环内）。
+> ⇒ 本文件各批次记录（§六~§十六）里写的 `SCC [16]+[2]` 是**当时 v2 口径下的测量**，
+> 保留不追改；**当前事实以 v3 的 `[17]+[2]` 为准**，跨批比较数字必须先确认同口径。
+> 成因、逐条边与纪律见 `阶段1_依赖图与循环依赖.md` §一之补。
 
 ## 三、未完成 / 受阻
 
@@ -647,3 +655,60 @@ SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落�
 **顺手修的文档不实之处**（§6.1）：`domains/production`、`domains/politics`、`domains/economy`
 三份 README 的「迁移状态」还写着**未开始**，而三包分别自第十六/十七/十八包起就有实现；
 `domains/economy/__init__.py` 仍写"阶段 0 空骨架"（实有 6 个模块）。四处已按实测改写。
+
+## 十八、第二十包：开 `domains/culture/`（`literacy`，2026-10-07）
+
+识字率（198 行 / 7 函数）AST 实测是叶子：顶层只 `__future__` + typing + logging
++ `core.foundation.common.numeric` 的**公开名** `parse_number`/`clamp`，连 `content` 都不引
+（阶级基准表 `POP_LITERACY_BASE` 就定义在本模块里）。桩面 **27 名**（37 去 10 个 dunder，
+含 `annotations` 与 `__all__`——后者按 skill 纪律**原样拷贝**，不是重生成，
+用例 `test___all__is_a_verbatim_copy_not_a_regeneration` 把"内容相等但不是同一份 list"钉住，
+防止将来有人改成动态生成而悄悄扩大公开面）。
+
+判据④同批：生产 **5 文件 / 6 引用点**改指新路径（全部函数内延迟导入），旧路径生产引用 **0**；
+测试侧 3 文件 / 4 点保留旧桩。`_scratch/b21_refcount.py`（通用版，三形态全计）。
+
+### 🔴 提供方打桩随迁，并且**用反向变异证明它是必需的**
+
+`test_error_observability_settle.py:379` 原本 `import core.literacy as lit`
+再 `monkeypatch.setattr(lit, "init_literacy", _boom)`。消费者 `save_load.py:617` 改直认真实家后，
+这枚 patch 落在没人读的名字上 ⇒ **用例照绿、异常根本没注入**（第十七包预防过同一类，这次是实打实存在的）。
+改指实现后，把这一行**退回旧桩**跑一次 ⇒ 该用例立刻红。
+这才是"红得起来"的证明：不是断言写得凶，而是**改回去会失败**。
+另加常驻禁令 `test_no_test_patches_the_old_literacy_stub`（AST 解析别名，`import core.literacy as lit`
+与 `from core import literacy as lit` 两种形态都算）。
+
+### 等价性用真实调用证，不是只比文本
+
+`_scratch/b20_equiv_check.py`：`git show HEAD:game/core/literacy.py` 重取迁移前原文 →
+落成临时模块 → 同一 `GameState` 上 **10 项函数输出逐项相等**，再**连跑 12 个月结算**
+逐月比 `out` 与每个 POP 的 `literacy`（轨迹全等，终值 8.41）。
+逐顶层节点比 `ast.dump`，**已声明漂移 1 处**：模块 docstring 原文写
+"阶级基准（content.data.POP_LITERACY_BASE）"，实测 `content` 里**没有**这张表（定义在本模块 `:57`）
+⇒ 按 §6.1 顺手改正，纯注释级、不改任何计算。
+
+### 🔴 我又犯了一次第十四/十五包那个错（机制断言必须先量后写）
+
+首版 `test_missing_reads_are_none_not_zero` 写了
+`assert settle_literacy(清空 literacy 的 state)["national"] is None`——
+理由是"缺失就是缺失，不许回落 0"。**实测是 8.41**：`settle_literacy` 对缺失行走的是
+`pop["literacy"] = target; changed += 1; continue` 分支，先补值再算全国，
+而且这些行**不计进 `out["pops"]`**（`continue` 在计数之前）。
+⇒ 口径（缺失≠0）推不出函数返回值；写机制断言前必须先跑一遍量实测。已按实测改写，
+并把"补齐 120 / changed 120 / national 8.41"这三件真实事实写成断言。
+
+**完成度**（`_scratch/b19_completion.py`）：平铺有效模块 **93**、纯转发桩 **22**、仍持实现 **71**（**76.3%**）；
+桩集合与 b9 `MIGRATED_OLD` 交叉核对 **22 == 22**（零差集）。
+**SCC（v3 口径）**：`[17] + [2]`，成员与第十九包基线**逐字相同**（扫描模块 136 → **137**，新落点未入环）。
+
+**顺手清的四处口径引用**（"文档里带日期的断言会腐烂"——改一条要 grep 同文档全部引用）：
+`game/core/AGENTS.md` 的"12 条反向边 12/12 函数内"补上第 13 条是**顶层**；
+`domains/economy/README.md`、`domains/production/README.md` 的"16 模块环"改 [17] 并指路；
+`specs/cross-cutting/README.md` 索引行加"当前口径以 §一之补为准"的指针；
+本文件 §二 扫描口径段声明 **v3 取代 v2**、各批写的 `[16]` 是当时 v2 口径下的测量（保留不追改）。
+
+**验证**：全量串行 `FULL_EXIT=0`、`FAILED/ERROR=0`（docstring 改正后**重跑过一次**）；
+collected **2448** = 批次前 2435 + 本批 13 例（`test_domains_culture_b20.py`，205 个文件）。
+变异 3 组均可红：桩漏转发 `_num` ⇒ 桩面用例红；调用方退回旧路径 ⇒ b9 红；
+patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字节恢复。
+

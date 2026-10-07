@@ -22,7 +22,8 @@
 ## 禁区（高频坑在此留目，细节去 README）
 
 - 🔴 **延迟装配/降级现场的 `except` 不得静默 `pass`**：失败必须 `logging.warning(..., exc_info=True)` 留痕。
-  本目录这些边全是函数内 import（12 条反向边 12/12 如此），就近常配 `try/except`，静默就等于
+  本目录这些边全是函数内 import（§五登记的 12 条 12/12 如此；第十九包补登的第 13 条
+  `game_state_econ → core.officialdom`（`:44`）**是顶层**），就近常配 `try/except`，静默就等于
   「照常跑通、账面却少一大块」而零信号——实测 `game_state.py` 10 个处理体里 **6 个纯 `pass`、0 个记日志**，
   `save_load.py` 31 个里 11 静默 / 15 已留痕。已修：`game_state.py:1068` 隐户入 POP（POP 挂载律条 1/4）。
   配套要求：光留痕不够，要有**"结果非空/守恒成立"的哨兵断言**（同一问题在

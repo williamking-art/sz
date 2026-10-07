@@ -610,12 +610,12 @@ def load_game(slot: int = 1):
     _merge_regions(state.prefectures, data.get("prefectures"))
     # 识字率（2026-09-19 新增设定；P2-11 修复）：遵守 POP 挂载律——全国识字率是
     # **POP 派生视图**，唯一权威是 `prefectures[路].pops[阶层].literacy`。载入后**始终**
-    # 由逐路 POP 加权重算（core.literacy.national_literacy）；存档顶层 `literacy` 字段
+    # 由逐路 POP 加权重算（core.domains.culture.literacy.national_literacy）；存档顶层 `literacy` 字段
     # 仅作**迁移诊断**，不得覆盖派生值。旧档缺逐路值 → init_literacy 幂等补齐（保留兼容），
     # 仅补齐 POP 读数，不新增任何独立账本。
     try:
-        from core.literacy import init_literacy as _init_lit
-        from core.literacy import national_literacy as _nat_lit
+        from core.domains.culture.literacy import init_literacy as _init_lit
+        from core.domains.culture.literacy import national_literacy as _nat_lit
         _init_lit(state)
         _derived_lit = _nat_lit(state)
         if _derived_lit is not None:

@@ -39,7 +39,7 @@ __all__ = ["build_region_brief", "route_risk", "build_prefecture_brief",
 def _route_literacy(state, name: str):
     """该路识字率（派生自**各地 POP 自有** literacy；取不到 → None，**不伪造**）。"""
     try:
-        from core.literacy import route_literacy
+        from core.domains.culture.literacy import route_literacy
         return route_literacy(state, name)
     except Exception:  # noqa: BLE001
         return None
@@ -365,7 +365,7 @@ def build_region_brief(state) -> Dict[str, Any]:
             "security": _security(p.get("unrest")),
             "security_label": _security_label(p.get("unrest")),
             "fiscal": round(_clamp(_num(p.get("fiscal"), 50.0), 0, 100), 1),
-            # 识字率（2026-09-19 新增，core/literacy.py）：**各地 POP 自有**识字率按
+            # 识字率（2026-09-19 新增，core/domains/culture/literacy.py）：**各地 POP 自有**识字率按
             # 人口加权的派生读——政令能否"写下去、读得懂"的弱关联项
             "literacy": (round(_clamp(_num(_lit, 0.0), 0, 100), 1) if _lit is not None else None),
             "grain_year": round(max(0.0, _num(p.get("grain"))), 0),

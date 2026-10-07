@@ -9,7 +9,7 @@
 
 | 项 | 来源（唯一权威） |
 |---|---|
-| 执行能力（吏治强 / 民心·识字率弱 / 军队加成） | `core/decree_effect.effect_channels`（含 `core/clerks`、`core/literacy`、`core/army_models`） |
+| 执行能力（吏治强 / 民心·识字率弱 / 军队加成） | `core/decree_effect.effect_channels`（含 `core/clerks`、`core/domains/culture/literacy`、`core/army_models`） |
 | 支持方 / 阻力方 | 既有**声明表**：`FACTION_POP_BASIS`（集团 ⊆ POP 阶级）＋ `REFORM_POP_BASIS`（改革 → POP 得失）＋ `YAMEN_INFO`（衙署主责派系） |
 | 承办大臣 → 派系 | `core.officialdom.minister_faction`（查 `content.ministers.data.MINISTERS`，查不到 = None，不编造） |
 
