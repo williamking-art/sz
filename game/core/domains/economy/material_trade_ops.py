@@ -114,7 +114,7 @@ def trade_material(state, *, buyer_pop: dict, seller_pop: dict,
     ③ 自成交由 `trade_goods` 自身 `buyer is seller` **拒绝**；
     ④ `unmet_qty` **原样返回**，调用方须归因，**不静默丢弃**。
     """
-    from core.market import trade_goods
+    from core.domains.economy.market import trade_goods
 
     if dim not in MATERIAL_DIMS:
         raise KeyError(f"非建材维度：{dim!r}")

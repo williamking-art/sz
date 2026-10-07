@@ -119,7 +119,7 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.market import sellable_stock, trade_goods
+from core.domains.economy.market import sellable_stock, trade_goods
 from core.market_price import (
     discover_price, effective_buy_price, pref_good_key, record_trade_price,
 )

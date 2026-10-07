@@ -67,7 +67,7 @@
 ## 口径单点（不重算既有算法）
 
 - 可选品需求的余量释放 → **读** `core.domains.economy.demand.demand_release`（本模块**不改** `demand.py`）；
-- 可售量 → **读** `core.market.sellable_stock`（B1 唯一成交入口的同源口径）；
+- 可售量 → **读** `core.domains.economy.market.sellable_stock`（B1 唯一成交入口的同源口径）；
 - 买入价 → **读** `core.market_price.effective_buy_price`（四类价格分离）；
 - 吃不上饭的人数 → **读** `core.settlement_common.food_insecure_headcount`
   （经 `core.population_readout.famine_attribution`）；
@@ -126,7 +126,7 @@ INCOME_SOURCES: Tuple[Tuple[str, str, str], ...] = (
      "core.domains.economy.dynamic_price.civil_logistics / gov_logistics（运费结算）"),
     ("workshop_agriculture_job", "作坊/农业岗位收入",
      "core.settlement_econ:_settle_workshops 成品维 → 工匠 goods 池 → "
-     "core.market.trade_goods 成交"),
+     "core.domains.economy.market.trade_goods 成交"),
     ("public_grant_relief", "官府给付/赈济",
      "core.settlement_common:distribute_cash / transfer_public_funds_to_pops；"
      "core.free_effect._apply_money_delta(工赈)；granary_stats['relief']（粮，非钱）"),
@@ -363,7 +363,7 @@ def _slot_logistics(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[st
 
 def _slot_workshop(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[str, Any]:
     """作坊/农业岗位收入：工匠侧读**可售成品池**（容量上限）；其余阶层如实不可判定。"""
-    from core.market import sellable_stock
+    from core.domains.economy.market import sellable_stock
     from core.market_price import effective_buy_price
     route = None
     if isinstance(pref, dict):
@@ -770,7 +770,7 @@ def _reentry_row(state, route: str, cls: str, pop: dict, income: Optional[float]
                  ) -> Dict[str, Any]:
     """单个 (路, 阶层) 的再进入判定（**纯反事实**：不改 state）。"""
     from core.domains.economy.demand import demand_release, resolve_purchase_plan
-    from core.market import sellable_stock
+    from core.domains.economy.market import sellable_stock
     from core.market_price import effective_buy_price
 
     size = _int(pop.get("size"), None)
@@ -911,7 +911,7 @@ def market_reentry(state, *, routes: Optional[Sequence[str]] = None,
         "note": ("需求响应口径**完全委托** `core.domains.economy.demand.demand_release` / "
                  "`resolve_purchase_plan`（本模块**不改** `demand.py`）；"
                  "买入价读 `core.market_price.effective_buy_price`（本路路级价），"
-                 "可售量读 `core.market.sellable_stock`。"
+                 "可售量读 `core.domains.economy.market.sellable_stock`。"
                  "`income` 是**反事实**假设值，不落 state。"),
     }
 
@@ -1113,6 +1113,6 @@ def build_income_readout(state, *, routes: Optional[Sequence[str]] = None,
     out["warnings"] = warnings
     out["read_only"] = True
     out["note"] = ("B2-R5 收入来源与市场再进入读数（**纯派生、不新建账本**）；"
-                   "口径单点：`core.demand` / `core.market` / `core.market_price` / "
+                   "口径单点：`core.domains.economy.demand` / `core.domains.economy.market` / `core.market_price` / "
                    "`core.population_readout` 均只被**读取**，本模块不改它们。")
     return out

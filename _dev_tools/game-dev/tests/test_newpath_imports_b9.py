@@ -41,6 +41,8 @@ MIGRATED_OLD = [
     'core.production_chain', 'core.farm_procurement',
     # 第十七包补入：政治域两模块实现已迁 core/domains/politics/
     'core.faction_split', 'core.faction_voice',
+    # 第十八包补入：经济域三模块实现已迁 core/domains/economy/
+    'core.market', 'core.hoard_settle', 'core.regime_fiscal',
 ]
 
 
@@ -121,7 +123,8 @@ def test_old_stubs_forward_to_same_objects():
              'core.diplomacy_treaty', 'core.external_view',
              'core.dynamic_price', 'core.demand',
              'core.production_chain', 'core.farm_procurement',
-             'core.faction_split', 'core.faction_voice']
+             'core.faction_split', 'core.faction_voice',
+             'core.market', 'core.hoard_settle', 'core.regime_fiscal']
     bad = []
     n = 0
     for old in stubs:

@@ -1328,7 +1328,7 @@ def _settle_external_economy(state, log):
             #   裁减走 `move_pop_people`（ΣPOP 守恒），并须在本函数刷新
             #   `ex["pop"]` 聚合视图**之前**执行，保证政级读数与省域一致。
             try:
-                from core.regime_fiscal import apply_fiscal_response
+                from core.domains.economy.regime_fiscal import apply_fiscal_response
                 _fisc = apply_fiscal_response(ex, provinces, int(agg.get("arrears", 0) or 0))
                 if _fisc and (_fisc.get("streak", 0) or _fisc.get("cut_army")
                               or _fisc.get("cut_officials") or _fisc.get("surcharge_steps")):

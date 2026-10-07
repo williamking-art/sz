@@ -372,7 +372,7 @@ def _settle_treasury(state, log):
     「帑藏充溢」事件压力（Step 7 事件步之前当月生效）。占位步由此转正为
     「库存结算」语义，步骤编号与 _STEPS 镜像不变。
     """
-    from core.hoard_settle import settle_hoard  # 延迟导入（避免顶层环）
+    from core.domains.economy.hoard_settle import settle_hoard  # 延迟导入（避免顶层环）
     settle_hoard(state, log)
     return None
 

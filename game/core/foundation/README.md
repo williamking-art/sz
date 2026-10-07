@@ -23,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **17 整模块 + 2 部分** | 整模块：…（前 15 个见 §十二~§十四）+ **faction_split** / **faction_voice**（第十七包，入 `domains/politics`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **20 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ **market** / **hoard_settle** / **regime_fiscal**（第十八包，入 `domains/economy`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -31,7 +31,7 @@
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **4/10** | `economy`(3)、`diplomacy`(2)、`production`(2)、**`politics`**(2，第十七包) |
+| `domains/` 十子域有实现的 | **4/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)；其余 6 个子域仍空 |
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -568,3 +568,19 @@ SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落�
 
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2421** = 批次前 2417 + 本批 4 例；SCC 仍 `[16]+[2]`、**faction 环成员未扩大**（这是本批的关键判据），扫描模块 130 → **132**；生产侧旧路径引用 0 文件 / 0 引用点（17 个已迁模块口径）；测试侧 56 文件仍走旧路径。
 ⚠️ 一处自我修正：本轮曾把一次全量误启动成后台任务又差点重跑，靠**先查日志体积/进度**确认在跑才没造成两份并发全量（§9 禁并发争内存）。
+
+## 十六、第十八包：`market` + `hoard_settle` + `regime_fiscal` 并入 `domains/economy/`（2026-10-07）
+
+三个模块 AST 实测都是叶子：`market`（210 行，顶层 import 只有 `__future__`/typing，**连 `content` 都不引**）、`hoard_settle`（137 行，`random`/typing + 函数内 `content.data`）、`regime_fiscal`（110 行，typing + `core.foundation.ledger.pop_structure` 公开名——人口写入走桥接，符合 POP 挂载律）。桩面 **15 / 13 / 11 名**与迁移前快照逐字相等。
+
+判据④同批：生产 **7 处** import 改指新路径（`material_market`、`settlement_granary`、`settlement_econ`、`settlement_finance`、`income_readout` ×2、**`domains/economy/material_trade_ops.py`** ——最后这条意味着经济域内部不再绕 `core` 平铺）。复扫生产侧旧路径引用 **0 文件 / 0 引用点**（20 个已迁模块口径）。
+
+### 🔴 `market` 带来一类新状态：桩背后的**模块级可变台账**
+
+`market` 有 `_TRADE_LEDGER`（防同一 `trade_id` 重复成交）。放在桩后面有两种失效方式，都被写成断言（`test_trade_ledger_is_one_shared_dict`）：
+① 桩与实现各持一份 dict ⇒ 防重形同虚设，重复成交会被放行；
+② 测试在**桩**上重绑 `_TRADE_LEDGER = {}` ⇒ 实现看不见，"清台账"变假动作。
+实测：台账是同一个对象、经桩 `reset_trade_ledger()` 能清掉实现侧状态；另加防重真实通道用例（一次成交货与钱都动、同 `trade_id` 二次被拒且不再改库存）。
+⇒ 这条与第七包（`SAVE_DIR`）、第十三包（提供方 patch）同型：**桩保住的只是"名字与对象"，不保住"谁持有可变状态"**——可变状态必须有专门的断言。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2426** = 批次前 2421 + 本批 5 例；SCC 仍 `[16]+[2]`、成员与基线一致（扫描模块 132 → **135**，三个新落点未入环）；测试侧 58 文件仍走旧路径。

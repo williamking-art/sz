@@ -27,7 +27,7 @@ from content.data import (
 )
 
 # 2026-10-11（规格 market-civilian-economy B1）：商品成交**唯一入口**（口径单点）。
-from core.market import sellable_stock, trade_goods
+from core.domains.economy.market import sellable_stock, trade_goods
 # B2-4/B2-5：价格发现与四类价格口径分离（买入价 ≠ 外销价）
 from core.market_price import (discover_price, effective_buy_price,
                                record_trade_price, pref_good_key)
