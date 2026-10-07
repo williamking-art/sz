@@ -1,8 +1,14 @@
 # domains/military — 军事机制
 
+> **2026-10-07 阶段 3 第二包（DSH）**：由 `core/settlement_imperial.py` 按域拆入 `settlement_front.py`（金军南侵战役）。
 > 2026-10-06 · 阶段 0 建骨架。
 > **2026-10-07 第二十一包：本包已有实现**（`army_models.py`，`git mv` 自 `core/`，历史保留）。
 > `settlement_military.py` 仍在 `core/`（它在平铺大环内，属阶段 3 裁定项）。
+
+## 已迁入实现（阶段 3 第二包，2026-10-07）
+
+| `settlement_front.py` | 由 `core/settlement_imperial.py` 按域拆出（2026-10-07 用户裁定「拆开」，阶段 3 第二包）| `_settle_front_battle` |
+| | | 边关战役：金军南侵（战场结算 / 伤亡按战力占比分摊、**尾差归主将部** / 防线告破）。`army_models` 仍在本域 |
 
 ## 拥有的规则
 
