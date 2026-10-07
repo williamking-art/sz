@@ -27,6 +27,7 @@ import os
 import random
 import sys
 
+import io
 import pytest
 
 _GAME_ROOT = os.path.normpath(os.path.join(
@@ -206,10 +207,29 @@ def test_m6_genuinely_insufficient_still_says_insufficient():
 # =====================================================================
 # M7 · 整步结算被静默跳过
 # =====================================================================
-@pytest.mark.parametrize("mod,fn,tag,call", [
-    ("core.legacy_mechanic", "settle_legacies", "[帝国修正][WARN]", "legacies"),
+_M7_PARAMS = [
+    ("core.domains.politics.legacy_mechanic", "settle_legacies", "[帝国修正][WARN]", "legacies"),
     ("core.focus_mechanic", "settle_focus", "[国策][WARN]", "focus"),
-])
+]
+
+def test_m7_params_point_at_real_implementation_not_stub():
+    """防呆：M7 参数化的模块必须是**实现**模块，不能是迁移期转发桩。
+
+    若指向旧桩，monkeypatch 会打在桩上，而生产侧已改指新路径 ⇒ 打空、用例静默失效。
+    （此类坑已实际发生过一次：legacy_mechanic 迁移后 M7 用例转红。）
+    """
+    import ast as _ast
+    import importlib
+
+    for mod, fn, _tag, _call in _M7_PARAMS:
+        m = importlib.import_module(mod)
+        assert hasattr(m, fn), f"{mod} does not define {fn}"
+        tree = _ast.parse(io.open(m.__file__, encoding="utf-8").read())
+        has_def = any(isinstance(n, (_ast.FunctionDef, _ast.ClassDef)) and n.name == fn for n in tree.body)
+        assert has_def, (mod + '.' + fn + ' is a non-implementing forwarding stub => monkeypatch would '
+                        'land on the stub and silently no-op; point the param at the real module')
+
+@pytest.mark.parametrize("mod,fn,tag,call", _M7_PARAMS)
 def test_m7_whole_step_failure_is_visible(monkeypatch, caplog, mod, fn, tag, call):
     import importlib
     import core.settlement as settlement

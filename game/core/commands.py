@@ -101,7 +101,7 @@ def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
         state.opening_gazette = {}
     # 帝国修正（legacies）：开局即存在的条件式长期修正符
     try:
-        from core.legacy_mechanic import init_legacies
+        from core.domains.politics.legacy_mechanic import init_legacies
         init_legacies(state)
     except Exception:
         state.legacies = {}

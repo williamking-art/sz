@@ -13,6 +13,10 @@
 |---|---|---|---|
 | `split.py` | `core/faction_split.py` | 20 名（含 `_` 私有与 typing/logging 绑定名）| 顶层 import 只有 logging/typing/content 与 `core.foundation.common.numeric` **公开名** |
 | `voice.py` | `core/faction_voice.py` | 19 名 | 同上，另函数内引 `content.ministers.data` |
+| `legacy_mechanic.py` | `core/legacy_mechanic.py` | 18 名（含 10 个 `_` 私有）| 真叶子：**零 import**（无任何顶层依赖）|
+
+> **2026-10-07 第二十二包（DSH）**：新增 `legacy_mechanic`（帝国修正机制）。
+> 生产侧旧路径引用已改指新路径（`commands.py` / `settlement.py`），复扫为 **0**。
 
 # 未随批搬的候选（各有明确理由，不是遗漏）
 

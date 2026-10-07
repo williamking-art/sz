@@ -217,7 +217,7 @@ def _settle_legacies(state, log):
     `logging` traceback（开发者可定位）**，并按步位命名（防与其它步混淆）。
     """
     try:
-        from core.legacy_mechanic import settle_legacies
+        from core.domains.politics.legacy_mechanic import settle_legacies
         settle_legacies(state, log)
     except Exception as e:  # noqa: BLE001 — 不得静默跳过整步
         from core.settlement_common import note_settlement_error
