@@ -46,7 +46,7 @@ from content.data import (  # noqa: F401
 )
 from core import officialdom as _officialdom  # noqa: F401
 
-from core.settlement_econ_helpers import (  # noqa: F401 — re-export 兼容
+from core.domains.economy.settlement_econ_helpers import (  # noqa: F401 — re-export 兼容
     _distribute_pop_wealth, _settle_mint,
 )
 

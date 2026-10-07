@@ -20,7 +20,7 @@ from content.data import (
     OFFICIAL_SERVICE_TAX_RATIO,
 )
 
-from core.settlement_econ_helpers import (
+from core.domains.economy.settlement_econ_helpers import (
     _distribute_pop_wealth,
 )
 
