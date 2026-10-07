@@ -369,6 +369,21 @@ def _state_key_and_platform(argv, env) -> tuple:
         sys.exit("未指定键：请设环境变量 CLOUDBASE_MCP_AGENT（推荐，键自动取 phase_<agent>）"
                  "或在命令行显式传 key。用法：sync_mcp_state.py push-state 文件.json [key]\n"
                  "（§6：不要写共用键 phase）")
+    # 子叶子键大小写防呆：历史上因 `CLOUDBASE_MCP_AGENT` 大小写不一致生成了
+    # `phase_qoder` 与 `phase_Qoder` 并存，互相看不到。
+    # 本脚本**不会**自动小写化键（无 .lower() 调用），因此只能提醒。
+    if key.startswith("phase_"):
+        suffix = key[len("phase_"):]
+        if suffix and suffix != suffix.strip():
+            sys.exit("键名不得含首尾空白：%r" % key)
+        if suffix and suffix != suffix.lower():
+            print(
+                "WARN: 键名 %s 的 agent 部分含大写字母。" % suffix +
+                "若已有只差大小写的同名键，会形成**两个独立键**，后者将永久漏掉前者。",
+                file=sys.stderr)
+            print(
+                "      本脚本不会自动修正；请确认你想要的大小写形式，再手工删除错误的那个键。",
+                file=sys.stderr)
     return key, (agent or "unknown")
 
 
