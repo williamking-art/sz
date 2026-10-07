@@ -417,3 +417,42 @@ SCC 仍 **2 环**、成员与阶段 1 基线**逐字一致**，扫描模块数 1
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2395** = 批次前 2391 + 本批 4 例；
 SCC 仍 **2 环**、成员与阶段 1 基线一致；桩面快照（迁移前落盘
 `_scratch/b12_stub_surface_before.json`）与迁移后**完全相等**。
+
+## 十一、第十三包：两条反向边真被拆出环（阶段 3 第一刀，2026-10-07）
+
+阶段 1 文档 §五 把 12 条反向边的"替代接口方向"**按文件名猜**，实测抓到两处错标：
+`asset_context:176` 与 `focus_mechanic:445` 被写成"读数应从读数服务取"，
+实际取用的是 `settlement_common` 的**守恒写通道**
+（`transfer_public_funds_to_pops` / `_distribute_cash`）。
+按错标签去做只读服务 ⇒ 直接破 `ΣΔ == 0`。⇒ 先逐站点判性（**写 11 / 只读 5**，
+实测表见 `阶段1_依赖图与循环依赖.md` §五之补），再决定动哪条。
+
+**本批实际改动**（只动这 2 个站点，不做需要裁定的注册表设计）：
+
+| 项 | 处置 | 说明 |
+|---|---|---|
+| `distribute_cash` | ✅ `_distribute_cash` 提升为显式接口 | 别名保留同一对象；`settlement_steps` 的再导出面不变 |
+| `asset_context:176` | ✅ 改直认 `core.settlement_common` | 原来绕道 `settlement_steps`（结算**编排器**）取写原语 |
+| `focus_mechanic:445` | ✅ 同上 | 现场在 `try/except` 内，失败全额退库——语义未动 |
+| `settlement_imperial` / `settlement_officialdom` | ✅ 同批改读公开名 | 同一对象，守恒不变 |
+| 测试打桩目标 | ✅ `si._distribute_cash` → `si.distribute_cash` | ⚠️ **不改就是废用例**：patch 打在消费者绑定上，改名后旧目标不存在（`AttributeError` 实测先红过一次） |
+
+### 🔴 我上一轮的判断错了，这里按实测更正
+
+我先前说"这刀**不减少 18 模块环**，只是消掉写原语由编排器宿主"。**实测推翻**：
+`mh_scc_scan_v2.py` 复扫结果是 **环数仍 2，但大环成员 18 → 16**，
+脱离环的正是 `asset_context` 与 `focus_mechanic`，**无新成员加入、faction 环不变**。
+机制：这两个模块此前是"业务模块 → 环内编排器 → … → 回到自己"的一环；
+改指**环外**的 `settlement_common` 后该回路断开，它们就不再属于强连通分量。
+
+⇒ 结论要改写：**反向边不是"一条都拆不动"**，而是"能拆的那几条恰好是
+*调用方在环内、被调方其实在环外* 的形态"。剩下 11 个写站点里，
+`commands_decree` / `save_load` / `settlement_steps→settlement` / `game_state` 的
+被调方本身就在环内（`settlement`、`settlement_decree`、`settlement_imperial`），
+所以那些仍需①依赖注入或②归位，**仍是裁定项**。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2400** = 批次前 2395 + 本批 5 例
+（`test_edge_path_b13.py`）；SCC `[16] + [2]`（历史基线 18 模块环见阶段 1 文档，本批起为 16）；
+守恒语义直接实测：`distribute_cash(10000, {工匠 .4, 商人 .6})` ⇒
+`Σ POP wealth 增量 == 分发额 == sum(applied)`；无接收池 ⇒ 返回 0 不凭空记数。
+守卫含一条**读文档表行**的用例：那两行若再被写回"读数"，CI 直接红。

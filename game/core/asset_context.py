@@ -173,7 +173,7 @@ def start_research(state, node_id: str, silver_in: int = 0,
     # 立项首月经费：**守恒转移**（国库/内帑 → 学者·工匠 POP wealth），
     # 不再是无对手方的 `change_treasury(-silver)` 销毁（整改④.2 / POP 挂载律）。
     from content.data import TECH_RESEARCH_PAY_TO
-    from core.settlement_steps import transfer_public_funds_to_pops
+    from core.settlement_common import transfer_public_funds_to_pops   # 真实家；settlement_steps 只是再导出
     _acct = "imperial_treasury" if fund == "inner" else "treasury"
     # 立项**不以"钱够"为前提**（2026-09-19 用户定稿："**研究只卡前置**"）：
     # 钱与人才只影响**速率**；经费不足 → 立案但本月缓行（保留进度，见 _settle_tech_research），

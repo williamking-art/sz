@@ -442,9 +442,9 @@ def settle_focus(state, log) -> None:
         if _paid:
             state.change_treasury(-cost)
             try:
-                from core.settlement_steps import _distribute_cash
+                from core.settlement_common import distribute_cash   # 真实家；不再绕道结算编排器
                 from content.data import GOV_SPEND_TO
-                _given = _distribute_cash(state, cost, GOV_SPEND_TO)
+                _given = distribute_cash(state, cost, GOV_SPEND_TO)
                 if _given != cost:            # 无接收方时的兜底：退回国库，不静默销毁
                     state.change_treasury(cost - _given)
             except Exception:                 # noqa: BLE001 — 回流失败不得阻断国策推进

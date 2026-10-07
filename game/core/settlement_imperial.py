@@ -14,7 +14,7 @@ from content.data import (
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层；未下沉时回落原写法
 from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement_common import (
-    _distribute_cash,
+    distribute_cash,
 )
 from content.data_constants import PERSONS_PER_HOUSEHOLD
 
@@ -325,10 +325,10 @@ def _apply_imperial_action(state, act, log):
         #
         # 审查 P2-3 / M3 修复（**部分分发后全额退款 = 造币 + 日志谎报**）：
         # 原实现 `except Exception: _given = 0` → 退 `paid - 0` **全额**回国库/内帑，
-        # 而 `_distribute_cash` 是边算边写各 POP `wealth` 的（非原子）——先入账的 POP
+        # 而 `distribute_cash`（旧名 `_distribute_cash`）是边算边写各 POP `wealth` 的（非原子）——先入账的 POP
         # 留下、国库又全退 ⇒ 净扣 0 而民间多钱（ΣΔ>0，凭空造币）；随后日志仍写
         # 「支 {paid} 贯」把没花出去的钱说成花出去了。
-        # 现口径：① `_distribute_cash` 两阶段（构造完才写，异常时零写入）；
+        # 现口径：① `distribute_cash` 两阶段（构造完才写，异常时零写入）；
         #          ② 退款额用**实际已分发额**（`_applied` 逐笔累加，不信任"0"）；
         #          ③ 日志打印**实扣额**（= 已分发额），异常另补一行可见说明＋traceback。
         _applied = []
@@ -341,7 +341,7 @@ def _apply_imperial_action(state, act, log):
                 state.imperial_treasury = max(0, state.imperial_treasury - paid)
             try:
                 from content.data import GOV_SPEND_TO
-                _given = _distribute_cash(state, paid, GOV_SPEND_TO, applied=_applied)
+                _given = distribute_cash(state, paid, GOV_SPEND_TO, applied=_applied)
             except Exception as e:            # noqa: BLE001 — 必须可见，且按实际已分发额退款
                 _given = sum(_applied)        # ← 实际已分发额（不得按 0 全额退）
                 _dist_err = e

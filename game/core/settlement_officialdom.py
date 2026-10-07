@@ -8,7 +8,7 @@ from __future__ import annotations
 from core import officialdom as _officialdom
 
 from core.settlement_common import (
-    _distribute_cash,
+    distribute_cash,
 )
 
 def _settle_clan(state, log):
@@ -93,7 +93,7 @@ def _settle_upkeep(state, log):
 
     守恒与纪律（POP 挂载律）：
       · 支出从**国库**出账（`change_treasury(-paid)`）；
-      · 全额**支付给民间**（营造/修缮服务：工匠 40% ＋ 商人 60%，`_distribute_cash` 精确守恒）；
+      · 全额**支付给民间**（营造/修缮服务：工匠 40% ＋ 商人 60%，`distribute_cash` 精确守恒）；
       · 国库不足时**只按实付**（不穿底、不造币），缺口记 `statistics["upkeep_arrears"]`
         —— 与军俸的「欠饷」、税收的「欠税」科目同构。
     返回本月实付额。
@@ -153,7 +153,7 @@ def _settle_upkeep(state, log):
         return 0
 
     state.change_treasury(-paid)
-    _given = _distribute_cash(state, paid, UPKEEP_PAY_TO)
+    _given = distribute_cash(state, paid, UPKEEP_PAY_TO)
     if _given != paid:                      # 极端兜底：无工匠/商人池时余额退回国库
         state.change_treasury(paid - _given)
     log.append(f"[维持] 资产维持费 {paid:,} 贯（资产折算 {asset_value:,.0f} 贯 ×"

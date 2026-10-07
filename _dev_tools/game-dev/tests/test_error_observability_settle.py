@@ -94,7 +94,7 @@ def test_m3_imperial_partial_distribution_refunds_only_actual(monkeypatch, caplo
             applied.append(1000)                              # 如实上报"实际已分发"
         raise RuntimeError("mid-way boom")                    # 中途抛错
 
-    monkeypatch.setattr(si, "_distribute_cash", _fake_dist)
+    monkeypatch.setattr(si, "distribute_cash", _fake_dist)   # 第十三包：消费者绑定的已是公开名
     act = {"location": "宫里", "mode": "公开", "action": "崇道修醮"}   # base_cost 50000
     with caplog.at_level(logging.WARNING, logger="settlement"):
         si._apply_imperial_action(s, act, log)

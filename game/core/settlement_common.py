@@ -396,8 +396,11 @@ def _collect_from_pops(state, amount: int) -> int:
     return taken
 
 
-def _distribute_cash(state, amount: int, shares: dict, applied: list = None) -> int:
+def distribute_cash(state, amount: int, shares: dict, applied: list = None) -> int:
     """把 `amount` 贯按 `shares` {阶层: 占比} 精确分发给各路该阶层 POP wealth。
+
+    第十三包（2026-10-07）由 `_distribute_cash` 提升为显式接口：`focus_mechanic` 等
+    **非结算模块**也要用它，按 §6 规则 2 不该借用私有符号、更不该绕道结算编排器再导出。
 
     末位（最后一个阶层 × 最后一支池）吃尾差，保证 **Σ入账 == amount**（精确守恒），
     从而与 `state.change_treasury(-paid)` 构成 `ΣΔ==0` 的守恒转移。
@@ -449,6 +452,10 @@ def _distribute_cash(state, amount: int, shares: dict, applied: list = None) -> 
             applied.append(g)
     return paid
 
+# 兼容别名（旧私有名）。`core/settlement_steps.py` 的再导出面与既有调用仍用旧名，
+# 公开面守恒优先于好看；新代码请用 `distribute_cash`。
+_distribute_cash = distribute_cash
+
 
 def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
                                   source_account: str = "treasury",
@@ -468,7 +475,7 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
     现由 `raise_on_unavailable` 显式选择：授权范围内的调用方传 True 并捕获
     `MoneyChannelUnavailable` 自行区分；范围外调用方保持旧行为（不擅自改变其语义）。
 
-    ⚠️ 本函数是**第三处**"公共资金 → POP"通道（另两处：`_distribute_cash` 末位吃尾差、
+    ⚠️ 本函数是**第三处**"公共资金 → POP"通道（另两处：`distribute_cash` 末位吃尾差、
     `settlement_econ_helpers._distribute_pop_wealth` 尾差归最大府）；三者的**分摊与尾差处理
     各不相同**，2026-09-27 审查确认**不可盲目合并**（§8.2-#8）。
     """

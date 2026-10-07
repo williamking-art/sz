@@ -128,7 +128,7 @@ INCOME_SOURCES: Tuple[Tuple[str, str, str], ...] = (
      "core.settlement_econ:_settle_workshops 成品维 → 工匠 goods 池 → "
      "core.market.trade_goods 成交"),
     ("public_grant_relief", "官府给付/赈济",
-     "core.settlement_common:_distribute_cash / transfer_public_funds_to_pops；"
+     "core.settlement_common:distribute_cash / transfer_public_funds_to_pops；"
      "core.free_effect._apply_money_delta(工赈)；granary_stats['relief']（粮，非钱）"),
 )
 
@@ -435,7 +435,7 @@ def _slot_public(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[str, 
         record_key=None,
         record_window=None,
         reason=("官府给付实发额**无按路按阶层权威记录**：营造/修缮服务费、工赈、加俸、"
-                "宗室俸禄分别走 `_distribute_cash` / `free_effect._apply_money_delta` / "
+                "宗室俸禄分别走 `distribute_cash` / `free_effect._apply_money_delta` / "
                 "`transfer_public_funds_to_pops`，均**只写 POP wealth，不落统计**。"
                 "赈济是**粮**不是钱：`granary_stats['relief']` 为累计发粮（石），"
                 "且经 `settlement_granary._settle_disaster` 主要回补**流民/农户**"
