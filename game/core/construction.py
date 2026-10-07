@@ -140,7 +140,7 @@ def can_build(state, route: str, name: str,
     # 蓝图材料含**未解锁的新材**（水泥/钢筋等架空后世材料）⇒ 拒绝立项。
     # 口径：**不可用 ≠ 缺料排队**——未解锁是"此世尚未有此物"，不是"存货不足"。
     try:
-        from core.material_tech import material_availability, resolve_material_tech
+        from core.domains.construction.material_tech import material_availability, resolve_material_tech
         for _dim in (bp.get("materials") or {}):
             if resolve_material_tech(_dim) is None:
                 continue                       # 非登记新材，沿用既有材料口径

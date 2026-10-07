@@ -199,7 +199,7 @@ def _settle_tech_research(state, log):
             # 水泥/钢筋是**架空后世材料**（北宋无），未解锁 ⇒ 不可用、不可定价。
             # `skipped` **保留 reason 写日志**，不静默吞掉。
             try:
-                from core.material_tech import unlock_materials_for_node
+                from core.domains.construction.material_tech import unlock_materials_for_node
                 _mt = unlock_materials_for_node(state, node_id, log=log)
                 for _sk in (_mt.get("skipped") or []):
                     log.append(f"[建材] {_sk.get('material')} 未解锁"

@@ -76,7 +76,7 @@ def _base_price(dim: str, state=None) -> Optional[float]:
     base = _num((MATERIAL_PRICE_BASE or {}).get(dim), None)
     if state is not None:
         try:
-            from core.material_tech import (effective_material_price,
+            from core.domains.construction.material_tech import (effective_material_price,
                                             resolve_material_tech)
             if resolve_material_tech(dim) is not None:
                 # **仅对已登记的新材**做解锁检查（水泥/钢筋等架空后世材料）。

@@ -1,6 +1,12 @@
 # domains/construction — 建设机制
 
+> **2026-10-07 第三十一包（DSH）**：迁入 material_tech.py（建材科技解锁注册表）。
 > 2026-10-06 · 阶段 0（架构基线）· 本包为空骨架：未移动实现、未改 import
+
+# 已迁入实现（第三十一包，2026-10-07）
+
+| `material_tech.py` | `core/material_tech.py`（第三十一包 2026-10-07，`git mv`）| 桩 **47** 名 | ✓ 只 import `__future__`/`content.data`/`typing` ⇒ 零 `core` 依赖；3 个生产调用方（`construction.py` / `market_price.py` / `settlement_tech.py`）已同批改指新路径 |
+| | | | 📌 **本批顺手修正的文档-代码不符**：原 docstring 写「本模块**尚未接线**到 `settlement.py`」，实测**已被 3 个生产模块调用** ⇒ 已按实测改写，不再声称未接线（`AGENTS.md §6.1` 要求发现不符顺手改） |
 
 ## 拥有的规则
 
