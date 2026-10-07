@@ -152,7 +152,7 @@ def test_effect_mult_matches_channels():
 
 def test_military_mult_is_clamped_for_display(monkeypatch):
     """显示值与公式值**同源**：军队可靠度越界时必须先钳位（否则面板显示 ×1.4 对不上账）。"""
-    import core.army_models as am
+    import core.domains.military.army_models as am   # 第二十一包：桩上打 patch 已不影响消费者
 
     s = _state()
     monkeypatch.setattr(am, "military_channels",
@@ -168,7 +168,7 @@ def test_military_mult_is_clamped_for_display(monkeypatch):
 
 def test_army_bonus_capped_at_thirty_percent(monkeypatch):
     """军队**补缺口**上限：`base + (1−base)×30%×可靠度`，不得变成独立倍率。"""
-    import core.army_models as am
+    import core.domains.military.army_models as am   # 第二十一包：桩上打 patch 已不影响消费者
     from core.decree_effect import ARMY_ENFORCE_BONUS
 
     s = _state()
@@ -200,7 +200,7 @@ def test_official_support_proxy_never_enters_calculation():
 
 def test_army_bonus_never_reduces_effect(monkeypatch):
     """军队是**加成**：无论可靠度多低，调兵后的效果都不得低于不调兵。"""
-    import core.army_models as am
+    import core.domains.military.army_models as am   # 第二十一包：桩上打 patch 已不影响消费者
 
     s = _state()
     plain = effect_channels(s, text="赈济陕西流民")["effect_mult"]

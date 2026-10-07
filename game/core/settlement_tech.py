@@ -507,7 +507,7 @@ def _settle_projects(state, log):
             if "granary_cap_add" in out:
                 state.change_granary_cap(int(out["granary_cap_add"]))
             if "defense_add" in out:
-                from core.army_models import ArmyUnit, EQUIP_STD, _defense_line_for
+                from core.domains.military.army_models import ArmyUnit, EQUIP_STD, defense_line_for
                 add = int(out["defense_add"])
                 # 2026-10-03 修：原写法读 `out["defense_routes"]`，但该键**全库无生产者**
                 # ——全仓只有本行读它、写入方 0 处 ⇒ 循环体永不执行：厢军构件完工后
@@ -534,7 +534,7 @@ def _settle_projects(state, log):
                             morale=45,
                             training=35,
                             station=_droute,
-                            defense_line=_defense_line_for(_droute, "厢军"),
+                            defense_line=defense_line_for(_droute, "厢军"),
                             equip={k: int(add * per) for k, per in std.items()},
                         ))
                 state._derive_defense_lines()

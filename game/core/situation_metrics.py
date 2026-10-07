@@ -138,7 +138,7 @@ class SnapshotContext:
         self.army_routes: Dict[str, Dict[str, Any]] = {}
         self.army_nation: Optional[Dict[str, Any]] = None
         try:
-            from core.army_models import military_channels
+            from core.domains.military.army_models import military_channels
             self.army_nation = military_channels(state)
             for route in (prefectures or {}):
                 row = military_channels(state, str(route))

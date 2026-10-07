@@ -465,18 +465,18 @@ def _settle_hidden(state, log):
     jin = state.external["金"]
     if jin.get("invasion_will", 0) >= 90 and state.year >= 1122:
         if random.random() < 0.08:
-            from core.army_models import _army_power, _army_power_total, _resolve_battle
+            from core.domains.military.army_models import army_power, army_power_total, resolve_battle
             jin["invasion_will"] = 80
             gunpowder = state.tech.get("gunpowder", 20)
             front_routes = ("河北路", "河东路", "陕西路")
             front_units = [u for u in state.army_units if u.station in front_routes]
-            my_power = _army_power_total(front_units, gunpowder)
+            my_power = army_power_total(front_units, gunpowder)
             jin_power = state.external["金"]["power"]
-            win, loss_power, breach = _resolve_battle(my_power, jin_power)
+            win, loss_power, breach = resolve_battle(my_power, jin_power)
             # 按各 unit 战力占比把 loss_power 分摊成真实伤亡（向下取整，余数归主将部）
             casualty = 0
             if my_power > 0 and loss_power > 0 and front_units:
-                powers = [_army_power(u, gunpowder) for u in front_units]
+                powers = [army_power(u, gunpowder) for u in front_units]
                 total_p = sum(powers)
                 # 总伤亡人数 = 沿线总兵力 × (loss_power/my_power)
                 total_troops = sum(u.troops for u in front_units)

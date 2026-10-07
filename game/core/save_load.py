@@ -510,7 +510,7 @@ def load_game(slot: int = 1):
     state.external = data.get("external", state.external)
     # 军队真账：兵额已迁移到 army_units（list[ArmyUnit]），central_arsenal 为央级实物库
     # 迁移逻辑拆至 save_load_util.migrate_army_units（零行为变更）
-    from core.army_models import build_army_units, CentralArsenal  # 延迟导入，避免顶层互引
+    from core.domains.military.army_models import build_army_units, CentralArsenal  # 延迟导入，避免顶层互引
     if "army_units" not in data:
         # 旧档兼容：无 army_units 字段，从 state 重建
         state.army_units = build_army_units(state)

@@ -48,6 +48,8 @@ MIGRATED_OLD = [
     'core.institution',
     # 第二十包补入：识字率实现已迁 core/domains/culture/
     'core.literacy',
+    # 第二十一包补入：军队模型实现已迁 core/domains/military/
+    'core.army_models',
 ]
 
 
@@ -130,7 +132,7 @@ def test_old_stubs_forward_to_same_objects():
              'core.production_chain', 'core.farm_procurement',
              'core.faction_split', 'core.faction_voice',
              'core.market', 'core.hoard_settle', 'core.regime_fiscal',
-             'core.institution', 'core.literacy']
+             'core.institution', 'core.literacy', 'core.army_models']
     bad = []
     n = 0
     for old in stubs:

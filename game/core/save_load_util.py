@@ -84,7 +84,7 @@ def migrate_army_units(data: dict):
       ② 混合版（branches 键「军籍:兵种」复合键）→ 按军籍拆分（每支单一军籍），兵额守恒。
     返回 (army_units: list[ArmyUnit], central_arsenal: CentralArsenal)。
     """
-    from core.army_models import ArmyUnit, CentralArsenal
+    from core.domains.military.army_models import ArmyUnit, CentralArsenal
     if "army_units" not in data:
         # 旧档兼容：无 army_units 字段，由调用方从 state 重建
         return None, CentralArsenal()

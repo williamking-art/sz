@@ -23,15 +23,15 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94**（含 `__init__.py`）⇒ 有效平铺模块 **93** | `ls game/core/*.py \| wc -l`；分母口径见 `_scratch/b19_completion.py` |
-| 已迁入新结构的模块 | **22 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，入 `domains/economy`）+ `institution`（第十九包，入 `domains/administration`）+ **`literacy`**（第二十包，入 `domains/culture`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
-| ⇒ 平铺层还剩多少实现 | **71 / 93 = 76.3%**（纯转发桩 22）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（22 == 22，零差集）|
+| 已迁入新结构的模块 | **23 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，`domains/economy`）+ `institution`（第十九包，`domains/administration`）+ `literacy`（第二十包，`domains/culture`）+ **`army_models`**（第二十一包，`domains/military`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| ⇒ 平铺层还剩多少实现 | **70 / 93 = 75.3%**（纯转发桩 23）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（23 == 23，零差集）|
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
 | `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **6/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)、`culture`(1，第二十包)；其余 4 个子域仍空 |
+| `domains/` 十子域有实现的 | **7/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)、`culture`(1，第二十包)、`military`(1，第二十一包)；其余 3 个子域仍空 |
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -711,4 +711,47 @@ SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落�
 collected **2448** = 批次前 2435 + 本批 13 例（`test_domains_culture_b20.py`，205 个文件）。
 变异 3 组均可红：桩漏转发 `_num` ⇒ 桩面用例红；调用方退回旧路径 ⇒ b9 红；
 patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字节恢复。
+
+
+## 十九、第二十一包：开 `domains/military/`（`army_models`，2026-10-07）
+
+本批**先做了一次全仓"真叶子"实测**再选目标：脚本 `_scratch/b21_leaf_survey.py` 按四种导入形态
+（`import a.b` / `from a.b import c` / `from a import b [as c]` / 相对导入）扫 71 个仍在原地
+持实现的平铺模块，**顶层与函数内分开统计**，只把"零 `core` 平铺依赖且零上层依赖"的算叶子
+⇒ 实测 **15 个**。原候选 `officialdom` 有平铺依赖 `core.faction_basis`（在 faction [2] 环内）
+⇒ 不是叶子，改排后批；本批取 §7 点名的 `army_models`（518 行，零 `core` import，只引 content）。
+
+桩面 **36 名**（45 去 9 个 dunder）。判据④：生产 **11 文件 / 11 引用点**改指新路径，
+旧路径生产引用 **0**；测试侧 5 文件 / 8 点保留旧桩。
+
+### 销账一笔 §6 规则2：4 个私有名提升为显式接口（同批，非另立批次）
+
+实测 4 个生产点跨模块取用私有名（`evaluation` / `settlement_imperial` ×3 名 /
+`settlement_steps` / `settlement_tech`）——**搬迁会把这些边变成"跨域私有访问"**，
+所以本批必须一并处理，否则新落点一落地就带 4 处违例。做法：实现末尾加 4 行公开别名
+（同一对象，非包装）+ 消费者 import 与 6 处调用点改公开名 + 旧 `_` 名留兼容别名。
+两条常驻断言：别名同一性、扫全 `game/` 禁从新路径取 `_` 名。
+
+### 提供方打桩又被红抓到一次（这次是真实用例，不是预防）
+
+`test_decree_effect.py` 三个用例 patch `core.army_models.military_channels` 喂假可靠度。
+消费者改道后 patch 落到旧桩上 ⇒ `test_military_mult_is_clamped_for_display` 当场红
+（期望 1.0 / 实测 0.8118＝真实通道值）。三处已改指实现，并做反向变异证明随迁必需。
+⇒ 连续三批（十七预防、十九、二十、二十一）都命中同一类，说明**"提供方 patch 要随消费方走"
+应当作为搬迁流水线的固定步骤**：开工前 `grep -n "setattr(<模块别名>"`，而不是等测试红。
+
+### 等价性实测
+
+`_scratch/b21_equiv_check.py`：原文 vs 新实现，同 state（深拷贝两份）比 **12 项**
+——含会改状态的 `reorganize_xiang_to_jin`/`distribute_arsenal`，比输出**并比 state 快照**
+（部队序列 + 武库库存），全等；逐节点 `ast.dump` **0 漂移**，追加节点正是 4 个公开别名。
+
+**完成度**（`_scratch/b19_completion.py`）：平铺有效模块 **93**、纯转发桩 **23**、仍持实现 **70**（**75.3%**）；
+桩集合与 b9 `MIGRATED_OLD` 交叉核对 **23 == 23**。
+**SCC（v3 口径）**：`[17] + [2]`，成员与第二十包基线**逐字相同**（扫描模块 137 → **138**，
+新落点未入环）。产物 `_scratch/b21_scc_v3.txt`。
+
+**验证**：全量串行 `FULL_EXIT=0`、`FAILED/ERROR=0`；collected = 批次前 2448 + 本批 9 例
+（`test_domains_military_b21.py`）。变异 4 组均可红（桩漏转发 / 别名改成包装 / 消费者退回私有名 /
+提供方 patch 退回旧桩），跑完 `cmp` 逐字节恢复。
 

@@ -177,7 +177,7 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
     army_mult = None
     if applies:
         try:
-            from core.army_models import military_channels
+            from core.domains.military.army_models import military_channels
             row = military_channels(state, route) if route else military_channels(state)
             if row:
                 # **统一钳位**（2026-09-19 测试项审查）：显示值与公式值必须同源，

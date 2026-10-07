@@ -28,9 +28,9 @@ def evaluate_game(state) -> dict:
     if state.statistics["total_wars"] == 0:
         wu -= 10  # 毫无战事也算不上武功
     # 军队综合强度：以实体层 army_units 的单兵战力均值折算为 0~100 强度百分
-    from core.army_models import _army_power
+    from core.domains.military.army_models import army_power
     gun = state.tech.get("gunpowder", 20)
-    powers = [_army_power(u, gun) for u in state.army_units] if state.army_units else [0]
+    powers = [army_power(u, gun) for u in state.army_units] if state.army_units else [0]
     avg_army = sum(powers) / len(powers) if powers else 0
     avg_army = max(0, min(100, avg_army / 1000.0))
     wu += (avg_army - 50) * 0.5

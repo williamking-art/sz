@@ -262,8 +262,8 @@ def _evaluate_timeline_breaks(state, log):
         pb["liao_ally"] = {"year": state.year, "label": "辽主示好，可许盟南北夹击"}
         log.append("[军机] 辽主亲善，枢密院已具密奏，候陛下朱批定夺")
 
-    from core.army_models import _army_power_total
-    army_str = int(_army_power_total(state.army_units, state.tech.get("gunpowder", 20)) / 1000.0)
+    from core.domains.military.army_models import army_power_total
+    army_str = int(army_power_total(state.army_units, state.tech.get("gunpowder", 20)) / 1000.0)
     if ("no_jingkang" not in tl and "no_jingkang" not in pb
             and "jin_crushed" not in tl and "jin_crushed" not in pb
             and state.prestige >= 70 and army_str >= 280

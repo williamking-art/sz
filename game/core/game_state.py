@@ -802,7 +802,7 @@ class GameState(GameStateEconMixin):
         # 旧 self.armies（质量参数 dict）已废弃：质量并入 UNIT_TIER，战力由 _army_power 派生。
         # 旧各路 prefectures[路]["garrisons"] 已删除：兵额改由各路 army_units.troops 求和派生。
         # 延迟导入：core 不得顶层依赖 ui（避免潜伏环），见 TEAM.md 工程约束
-        from core.army_models import build_army_units, CentralArsenal
+        from core.domains.military.army_models import build_army_units, CentralArsenal
         self.army_units: list = build_army_units(self)
         # 中央武库
         self.central_arsenal: CentralArsenal = CentralArsenal()

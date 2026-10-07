@@ -1213,7 +1213,7 @@ def _apply_military_dispatch(state, action_id, payload, title) -> str:
         if sum(u.branches.values()) < 2:
             state.set_ai_pending_status(action_id, "rejected")
             return "批红驳回：兵额不足，无可拆分。"
-        from core.army_models import ArmyUnit as _AU
+        from core.domains.military.army_models import ArmyUnit as _AU
         _new_br, _new_eq = {}, {}
         for _k, _v in list(u.branches.items()):
             _half = int(_v) // 2

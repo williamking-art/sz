@@ -25,7 +25,7 @@ from content.data_imperial import (
     IMPERIAL_RISK_PROB, IMPERIAL_ROUTE_DISTANCE, IMPERIAL_DISTANCE_MONTHS,
     IMPERIAL_EFFECT_DIM,
 )
-from core.army_models import EQUIP_KEYS
+from core.domains.military.army_models import EQUIP_KEYS
 
 out = {
     "faction_names": list(FACTION_NAMES),
