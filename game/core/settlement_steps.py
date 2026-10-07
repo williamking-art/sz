@@ -119,7 +119,7 @@ from core.settlement_tech import (  # noqa: F401 — re-export 兼容
     _settle_projects,
 )
 
-from core.settlement_officialdom import (  # noqa: F401 — re-export 兼容
+from core.domains.administration.settlement_officialdom import (  # noqa: F401 — re-export 兼容
     _settle_officialdom,
     _settle_clerks,
     _settle_clan,

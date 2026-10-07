@@ -5,6 +5,7 @@
 > **2026-10-07 第二十五包（DSH）**：迁入 monthly_gazette.py（月度奏章九章）。
 > **2026-10-07 第二十六包（DSH）**：迁入 minister_agent.py（官员个体 Agent 状态机）。
 > **2026-10-07 第三十三包（DSH，收尾）**：迁入 estate_mechanic.py（大臣家产/建筑/投资）。
+> **2026-10-07 阶段 3 首包（DSH）**：迁入 settlement_officialdom.py（官制吏制 4 个结算步骤）。
 > 2026-10-06 · 阶段 0 建骨架。
 > **2026-10-07 第十九包：本包已有实现**（`institution.py`，`git mv` 自 `core/`，历史保留）。
 > `officialdom.py` / `clerks.py` / `minister_*.py` **仍在 `core/`**，理由见「未随批搬的候选」。
@@ -22,6 +23,7 @@
 | `monthly_gazette.py` | `core/monthly_gazette.py` | 桩 **23** 名 | ✓ 只 import `__future__`+`typing`，**零 core/content import**；`settlement.py` 是唯一生产调用方，已同批改指新路径 |
 | `minister_agent.py` | `core/minister_agent.py` | 桩 **19** 名 | ✓ 只 import `__future__`+`typing`，**零 core 依赖**；4 个生产调用方（`decree_confidential` / `decree_confirm` / `ministry_council` / `settlement_decree`）已同批改指新路径 |
 | `estate_mechanic.py` | `core/estate_mechanic.py`（第三十三包 2026-10-07，`git mv`）| 桩 **31** 名 | ✓ 只 import `content.data` / `content.ministers.*` ⇒ 零 `core` 依赖；6 个消费方（`game_state` / `save_load` / `settlement_econ` / `backend/server` / `content/ministers/persona` / `foundation/ledger/money`（docstring 引用））已同批改指新路径。⚠️ M7 + M9 两处 monkeypatch 已改指实现模块，否则会打在旧桩上静默失效 |
+| `settlement_officialdom.py` | `core/settlement_officialdom.py`（**阶段 3 首包** 2026-10-07，`git mv`）| 桩 **7** 名 | ✓ 4 个结算步骤（`_settle_officialdom`/`_settle_clerks`/`_settle_clan`/`_settle_upkeep`）**同属官制吏制一域**，无跨域混入；自身依赖仅 `officialdom`/`clerks`/`domains.administration.institution`/`building_jobs`/`settlement_common`；唯一调用方 `settlement_steps.py`（编排器）已同批改指新路径。⚠️ 该模块**原不在 [17] 大环内**（是挂环外的叶子）⇒ 本包不减环，收益在「结算步骤归属业务部」本身 |
 
 职责边界（本模块自己的口径，不是本次迁移新增）：**改制＝移动参数，不是新建系统**——
 只做三件事：单点约束参数值域、给结算提供 `get()`/`set_param()`、给 `free_effect`
