@@ -1955,7 +1955,7 @@ def apply_minister_departure(state: GameState, name: str, reason: str) -> list:
     # 只改「立场占比」，**不动 POP size**（人头侧由官制步负责），Σ 占比仍为 1。
     if _fac and reason in ("贬黜", "处死", "战殁"):
         try:
-            from core.faction_split import exit_faction_members, split_of
+            from core.domains.politics.split import exit_faction_members, split_of
             cur = split_of(state, "官僚")
             if _fac in cur and cur[_fac] > 0:
                 exit_faction_members(state, "官僚", _fac, cur[_fac] * 0.05)

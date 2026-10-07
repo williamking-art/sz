@@ -255,7 +255,7 @@ def test_defection_is_zero_sum_over_all_classes():
 
 def test_settle_factions_triggers_defection_only_through_set_split(monkeypatch):
     """转投必须经唯一写入点 set_split；不得绕过它直改 state.faction_split。"""
-    import core.faction_split as FS
+    import core.domains.politics.split as FS   # 第十七包：patch 必须打在实现模块上
     s = _s()
     calls = []
     orig = FS.set_split

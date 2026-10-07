@@ -23,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **15 整模块 + 2 部分** | 整模块：…（前 13 个见 §十二/§十三）+ **production_chain** / **farm_procurement**（第十六包，入 `domains/production`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **17 整模块 + 2 部分** | 整模块：…（前 15 个见 §十二~§十四）+ **faction_split** / **faction_voice**（第十七包，入 `domains/politics`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -31,7 +31,7 @@
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **3/10** | `economy`（3 文件）、`diplomacy`（2 文件）、**`production`**（2 文件，第十六包）|
+| `domains/` 十子域有实现的 | **4/10** | `economy`(3)、`diplomacy`(2)、`production`(2)、**`politics`**(2，第十七包) |
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -557,3 +557,14 @@ SCC 仍 `[16]+[2]`、成员未变（扫描模块 126 → **128**，两个新落�
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2417** = 批次前 2412 + 本批 5 例；
 SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落点不在环内）；
 生产侧旧路径引用 0 文件 / 0 引用点（`b9_scope_measure.py`，现覆盖 15 个已迁模块）；测试侧 50 文件。
+
+## 十五、第十七包：开 `domains/politics/`（2026-10-07）
+
+§3.1 把 `faction_*` / `situation_*` / `events` 定为**跨机制能力**，应作独立域并经接口协作。本批取两个实测零反向边模块：`faction_split`（235 行 / 桩面 20 名）、`faction_voice`（166 行 / 19 名）。
+
+**主动预防了第九包那类失效**：开工前扫出 **2 处打在提供方桩上的 `monkeypatch`**（`test_error_observability_settle.py:385` 注 `ensure_faction_split`、`test_faction_flows.py:267` spy `set_split`）。消费者都是 `from core.faction_split import …`在**调用时**解析模块属性 ⇒ 若不同批改指，patch 会落到桩上、注入静默失效（第九包是被红抓到的，这次是提前查出来的）。两处已同批改指实现模块，且**两个用例跑完全绿**——绿本身不说明注入有效，所以另加一条常驻断言`test_stub_is_not_a_behavior_switch`：**桩不是行为开关**（在桩上改名不影响实现模块），任何行为类 patch 必须打实现。
+
+**未随批搬的（各有理由，不是遗漏）**：`faction_basis` + `faction_metrics` 自身构成 faction 环，搬它们=把环换个位置；`faction_settle` **不是叶子**（顶层 import 那两个环内模块）；`situation_*` / `events` 需要先设计稳定读写接口（§3.1 原话）。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2421** = 批次前 2417 + 本批 4 例；SCC 仍 `[16]+[2]`、**faction 环成员未扩大**（这是本批的关键判据），扫描模块 130 → **132**；生产侧旧路径引用 0 文件 / 0 引用点（17 个已迁模块口径）；测试侧 56 文件仍走旧路径。
+⚠️ 一处自我修正：本轮曾把一次全量误启动成后台任务又差点重跑，靠**先查日志体积/进度**确认在跑才没造成两份并发全量（§9 禁并发争内存）。

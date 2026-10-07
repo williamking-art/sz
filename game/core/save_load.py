@@ -635,7 +635,7 @@ def load_game(slot: int = 1):
     # 利益集团「立场占比」：旧档无 → 幂等补齐开局锚点；坏值 → 归一 Σ=1
     try:
         state.faction_split = data.get("faction_split") or getattr(state, "faction_split", None)
-        from core.faction_split import ensure_faction_split
+        from core.domains.politics.split import ensure_faction_split
         ensure_faction_split(state)
     except Exception as e:  # noqa: BLE001
         import logging as _lg5

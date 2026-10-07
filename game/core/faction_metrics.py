@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from content.data import FACTION_POP_BASIS
 from core.faction_basis import basis_routes
-from core.faction_split import split_of
+from core.domains.politics.split import split_of
 from core.foundation.common.numeric import clamp as _clamp, parse_number as _num
 
 log = logging.getLogger("faction_metrics")
@@ -207,7 +207,7 @@ def faction_power(state, name: str, spec: Any = None) -> Dict[str, Any]:
     pop_share = (sl["population"] / nat["population"]) if nat["population"] > 0 else 0.0
     res_share = (sl["resources"] / nat["resources"]) if nat["resources"] > 0 else 0.0
     try:
-        from core.faction_voice import voice_norm
+        from core.domains.politics.voice import voice_norm
         voice = _clamp(voice_norm(state, name), 0.0, 1.0)
     except Exception as e:  # noqa: BLE001
         log.debug("faction_power 取声量失败：%s", e)

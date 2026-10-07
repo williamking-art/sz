@@ -1,18 +1,24 @@
 # domains/politics — 政治与世界状态
 
-> 2026-10-06 · 阶段 0（架构基线）· 本包为空骨架：未移动实现、未改 import
+> 2026-10-06 · 阶段 0 建骨架。  
+> **2026-10-07 第十七包：本包已有实现**（`split.py`、`voice.py`，`git mv` 自 `core/`）。`faction_settle` / `faction_basis` / `faction_metrics` / `situation_*` / `events` **仍在 `core/`**，理由见下。
 
 ## 拥有的规则
 
 派系、局势、事件及跨机制政治状态（**独立域，经接口协作**）
 
-## 现有代码候选（**候选归属，迁移前须以符号调用图核实**）
+# 已迁入实现（第十七包，2026-10-07）
 
-```
-faction_*.py
-situation_*.py
-events.py
-```
+| 文件 | 来源旧路径 | 公开面（桩面实测） | 叶子资格 |
+|---|---|---|---|
+| `split.py` | `core/faction_split.py` | 20 名（含 `_` 私有与 typing/logging 绑定名）| 顶层 import 只有 logging/typing/content 与 `core.foundation.common.numeric` **公开名** |
+| `voice.py` | `core/faction_voice.py` | 19 名 | 同上，另函数内引 `content.ministers.data` |
+
+# 未随批搬的候选（各有明确理由，不是遗漏）
+
+- `faction_basis.py`、`faction_metrics.py`：**二者自身构成 faction 环**（SCC 第二个环），搬它们=把环搬个位置；须先按 §5 反向边接口倒置。
+- `faction_settle.py`：**不是叶子**——顶层 import `core.faction_basis` / `core.faction_metrics`（环内模块）。本批已把它的 `faction_split` 调用改指新路径，其余留待阶段 3。
+- `situation_*.py`、`events.py`：未在本批判责范围内，§3.1 要求它们"提供稳定读写接口"，属接口设计工作。
 
 ## 边界
 

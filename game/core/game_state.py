@@ -1023,7 +1023,7 @@ class GameState(GameStateEconMixin):
             init_literacy(self)
             # 利益集团「立场占比」（给 POP 加政治派系标签；比率，非人口账本）——
             # 与识字率同批初始化：皆由 POP 结构派生，失败不得阻断开局。
-            from core.faction_split import ensure_faction_split
+            from core.domains.politics.split import ensure_faction_split
             ensure_faction_split(self)
         except Exception:  # noqa: BLE001  识字率/立场占比初始化失败不得阻断开局
             pass

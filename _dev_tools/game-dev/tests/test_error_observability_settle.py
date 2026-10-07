@@ -375,7 +375,7 @@ def test_m13_get_save_slots_string_top_level_is_corrupt():
 
 def test_m9_literacy_split_finance_warnings_carry_slot_and_type(monkeypatch, caplog):
     """识字率 / 立场占比 / 金融字段迁移的 warning 必须带 `slot=` 与异常类型。"""
-    import core.faction_split as fs
+    import core.domains.politics.split as fs   # 第十七包：桩上打 patch 已不影响消费者
     import core.literacy as lit
 
     slot = 333

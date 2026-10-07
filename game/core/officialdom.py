@@ -50,7 +50,7 @@ from core.foundation.ledger.pop_structure import move_pop_people   # B1d-b：跨
 # 人仍在同一 POP 的 size 里 —— 不新开人口账本。
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层
 from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
-from core.faction_split import (blend_entrants, exit_faction_members,
+from core.domains.politics.split import (blend_entrants, exit_faction_members,
                                 split_of)
 
 #: 路级 pref id → state 弱引用。由 `register_pref_state` 登记、`_state_of` 反查。
@@ -147,7 +147,7 @@ def _examiner_faction(state) -> Optional[str]:
     if not cur:
         return None
     try:
-        from core.faction_voice import voice_seats
+        from core.domains.politics.voice import voice_seats
         seats = voice_seats(state)
     except Exception:  # noqa: BLE001 — 声量不可得时退化为纯占比
         seats = {}
