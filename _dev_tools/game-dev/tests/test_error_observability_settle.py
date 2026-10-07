@@ -432,7 +432,8 @@ def test_m9_situations_load_failure_warns_with_slot(monkeypatch, caplog):
 # M14 · 在研究进度不得被静默丢弃
 # =====================================================================
 def test_m14_research_lookup_exception_keeps_entry(monkeypatch, caplog):
-    import core.registries as registries
+    # MIGRATE-NOTE: 打桩必须指向**实现模块**：消费方是 from-import 延迟导入，每次重新取；若打在旧转发桩上会静默失效。
+    import core.foundation.registries as registries
     from core.settlement_tech import _settle_tech_research
 
     s = _state()

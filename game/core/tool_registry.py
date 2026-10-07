@@ -9,7 +9,7 @@
 - 执行：走 _tool_dispatch 式程序映射（effect_template → free_effect 契约落地）。
 """
 from content.data import FREE_EFFECT_CAP
-from core.registries import soft_cost_mult, dup_name_ok, sanity_effect
+from core.foundation.registries import soft_cost_mult, dup_name_ok, sanity_effect
 
 # 参数 schema 键白名单（工具参数只能声明这些——参数约束保留，非效果）
 PARAM_KEYS = ("scope", "region", "rate", "months", "amount", "target")

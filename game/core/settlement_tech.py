@@ -113,7 +113,7 @@ def _settle_tech_research(state, log):
         if node is None:
             # 承接模式：玩家注册节点兼容
             try:
-                from core.registries import node_entry
+                from core.foundation.registries import node_entry
                 node = node_entry(state, node_id)
             except Exception as e:  # noqa: BLE001
                 _lookup_err = e
@@ -138,7 +138,7 @@ def _settle_tech_research(state, log):
         if int(node[2]) >= 4:
             _n = sum(1 for nid in tech.get("unlocked", [])
                      if (lambda nd: nd and int(nd[2]) >= 4)(get_tech_node(nid)))
-            from core.registries import soft_cost_mult
+            from core.foundation.registries import soft_cost_mult
             _mult = soft_cost_mult(_n)
             cost = {k: (int(v * _mult) if isinstance(v, (int, float)) else v)
                     for k, v in cost.items()}

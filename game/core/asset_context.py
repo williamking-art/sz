@@ -387,7 +387,7 @@ def settle_adoption(state, log=None) -> dict:
         node = get_tech_node(nid)
         if node is None:
             try:
-                from core.registries import node_entry
+                from core.foundation.registries import node_entry
                 node = node_entry(state, nid)
             except Exception:
                 node = None
@@ -452,7 +452,7 @@ def unlock_node(state, node_id: str, narrative: str = "") -> str:
     if node is None:
         # 承接模式：玩家注册节点（tech_registry）兼容
         try:
-            from core.registries import node_entry
+            from core.foundation.registries import node_entry
             node = node_entry(state, node_id)
         except Exception:
             node = None

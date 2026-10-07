@@ -1,6 +1,7 @@
 # foundation — 基础与账本层
 
 > 迁移状态文档。承架构方案 §9-5：「**代码在新目录**」**不等于**「生产调用已接入」。
+> **2026-10-07 第三十二包（DSH）**：`registries.py`（玩家自设内容注册表）迁入 **`foundation/` 顶层**，理由见下。
 > 本文件记录**实测**状态，不写计划。
 
 ---
@@ -55,6 +56,7 @@
 | `prefecture_entity` | `foundation/ledger/prefecture_entity.py` | 11.2 KB | 24（dir() 口径）|
 | `grain_ledger` | `foundation/ledger/grain_ledger.py` | 4.0 KB | 7（dir() 口径）|
 | `material_holding`（账本侧）| `foundation/ledger/material_holding.py` | 36.8 KB | 51（dir()；第十包起含 `attribute_to_seats`/`route_of` 两个显式接口，旧私有名留作别名，**桩面仍 52**）|
+| `registries.py` | `core/registries.py`（第三十二包 2026-10-07，`git mv`）| 桩 **25** 名 | ✓ 只 import `content.data` ⇒ 零 `core` 依赖；4 个消费方（`asset_context` / `settlement_tech` / `tool_registry` / `ai/contracts_settle`）已同批改指新路径。⚠️ 归 `foundation/` 顶层而非 `common/`：它是**领域注册表**（科技节点/兵种/蓝图软约束），放 `common/` 违 §6-5「common 只留真正无领域语义的共享工具」 |
 | `errors` | `foundation/common/errors.py` | 1.1 KB | 1（`AIRuntimeError`；第十一包，模块内**零 import**）|
 | `save_load`（**部分**·槽位机械）| `foundation/persistence/slots.py` | 3.7 KB | `SLOT_MIN` `_slot_ok` `_slot_path` `get_save_slots`（4 符号，原文逐字等价）|
 | `save_load`（**部分**·旧档迁移）| `foundation/persistence/migrations.py` | 4.0 KB | `_merge_regions` `_migrate_pops_to_seats`（2 符号；仅桥导入改指新路径）|
