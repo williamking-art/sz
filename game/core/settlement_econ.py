@@ -43,7 +43,7 @@ from core.settlement_finance import (  # 跨域互调
     _settle_jiaozi_term,
 )
 
-from core.settlement_tech import (  # 跨域互调
+from core.domains.construction.settlement_tech import (  # 跨域互调
     _settle_tech_research,
 )
 

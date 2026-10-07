@@ -113,7 +113,7 @@ from core.settlement_granary import (  # noqa: F401 — re-export 兼容
     _settle_disaster,
 )
 
-from core.settlement_tech import (  # noqa: F401 — re-export 兼容
+from core.domains.construction.settlement_tech import (  # noqa: F401 — re-export 兼容
     _research_rate_mult,
     _settle_tech_research,
     _settle_projects,

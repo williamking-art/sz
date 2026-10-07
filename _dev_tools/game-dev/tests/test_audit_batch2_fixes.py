@@ -161,7 +161,7 @@ def test_s8_missing_literacy_logged_not_faked(state):
 def test_s8_research_fee_channel_strict(state):
     """S8：研发月费通道与settlement.py 同为**严格模式**（通道坏≠经费不济）。"""
     import inspect
-    from core import settlement_tech as ST
+    from core.domains.construction import settlement_tech as ST
     src = inspect.getsource(ST)
     assert "raise_on_unavailable=True" in src, "研发月费必须开启严格模式"
     # 且严格模式异常不得被吞成 idle_months（须经note_settlement_error 留痕）
