@@ -749,7 +749,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- Step 11.5: 月度奏章八章（批 3 · 明末经验）----
     # 固定八章 + 章末七言联 + ▲▼ 差值摘要；只读组装，失败不阻断回合推进。
     try:
-        from core.monthly_gazette import build_monthly_gazette
+        from core.domains.administration.monthly_gazette import build_monthly_gazette
         _gaz = build_monthly_gazette(state, year=state.year, month=state.month)
         _hist = getattr(state, "monthly_gazette", None)
         if not isinstance(_hist, list):
