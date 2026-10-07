@@ -90,7 +90,7 @@ def _settle_bank_credit(state, log):
 
     from core.foundation.ledger.money import m_all as _m_all
     from core.foundation.ledger.money import register_flow as _reg_flow
-    from core import institution as _inst
+    from core.domains.administration import institution as _inst
     b = state.bank
     if not bool(b.get("established", False)):
         return {"ok": True, "skipped": "银行未设"}
@@ -999,7 +999,7 @@ def _settle_bank_stock(state, log) -> None:
     b = getattr(state, "bank", None)
     if not isinstance(b, dict) or not b.get("established"):
         return
-    from core import institution as _inst
+    from core.domains.administration import institution as _inst
     target = str(b.get("target") or "")
     pop_name = target if target in ("农", "士绅", "工匠", "商人", "官僚", "兵") else "商人"
     pools = []

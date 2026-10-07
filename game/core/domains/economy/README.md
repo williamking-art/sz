@@ -46,4 +46,7 @@ dynamic_price.py
 ## 迁移状态
 
 **已开始**：丙批二（2026-10-06）迁入 `material_trade_ops.py`（交易 3 项）；
-其余候选文件（market/demand/settlement_* 等）**未开始**，结算域受阶段 3 前置（12 条反向边）约束。
+第十五包迁入 `dynamic_price.py` + `demand.py`；第十八包迁入 `market.py` + `hoard_settle.py` +
+`regime_fiscal.py` ⇒ **本包现有 6 个实现文件**。
+其余候选（`settlement_finance`/`settlement_granary`/`settlement_econ` 等结算域文件）**未开始**，
+受阶段 3 前置（反向边**接口倒置**）约束。

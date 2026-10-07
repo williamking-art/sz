@@ -28,4 +28,5 @@
 
 ## 迁移状态
 
-**未开始**（阶段 0 仅建骨架与 README）。
+**已开始**（第十七包，2026-10-07）：`split.py`（派系立场占比）+ `voice.py`（话语权）已迁入；
+`faction_basis` / `faction_metrics` / `faction_settle` 仍在 `core/`（前两者自不成环，属阶段 3 裁定项）。

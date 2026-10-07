@@ -257,7 +257,7 @@ def _apply_effect_to_state(state, effects, executor=None):
             # 阶段 C-7：编制参数（§12.3 六杠杆 ＋ §17.4 参数清单 ＋ S-D6 维持费）。
             # 值域由 INSTITUTION_PARAM_SPEC 单点约束；逐项钳制，未知键逐项拒绝。
             # 受事权约束的参数（spec 带 authority）须 executor 掌权才落地。
-            from core import institution as _inst
+            from core.domains.administration import institution as _inst
             log += _inst.apply_reform(state, v, executor)
             continue
         if k == "prestige":

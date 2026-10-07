@@ -102,7 +102,7 @@ def _settle_upkeep(state, log):
                               EQUIP_UNIT_VALUE, FORT_VALUE, POP_BUILDING_VALUE,
                               ASSET_MAINTAIN_RATE, UPKEEP_PAY_TO)
     # 编制参数（阶段 C-7 / 财力消耗设计 S-D6）：玩家可经政令**主动降维持费**（裁汰冗费）。
-    from core import institution as _inst
+    from core.domains.administration import institution as _inst
     _maintain_rate = float(ASSET_MAINTAIN_RATE) * _inst.get(state, "asset_maintain_mult")
 
     def _lv_cost(std: dict, lv: int) -> float:

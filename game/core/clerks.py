@@ -34,7 +34,7 @@ from content.data import (
     W_POP_BASE, W_LITIGATION_BASE, W_LITIGATION_UNREST_W, W_LAND_BASE, W_ORG_EACH,
     W_OFFICIAL_BASE, W_GARRISON_BASE,
 )
-from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+from core.domains.administration import institution as _inst       # 编制参数单一权威源（阶段 C-7）
 from core.foundation.ledger.pop_structure import move_pop_people   # B1d-b：农 ↔ 吏迁移，带财富/粮粮**（人均连续）
 # 🔴 方案乙（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
 # 存量读取仍走路级 `pops`（桥接维护的派生镜像）；未下沉时回落原写法。

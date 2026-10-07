@@ -44,7 +44,7 @@ from content.data import (
     SINECURE_PAY_RATIO, WAITING_PAY_RATIO, WAITING_SINECURE_MULT,
     YINBEN_PER_JIAOSI, YINBEN_PRESTIGE_REF,
 )
-from core import institution as _inst       # 编制参数单一权威源（阶段 C-7）
+from core.domains.administration import institution as _inst       # 编制参数单一权威源（阶段 C-7）
 from core.foundation.ledger.pop_structure import move_pop_people   # B1d-b：跨 POP 流动**带财富/粮**（人均连续）
 # 利益集团二期：人员进出口只改 `state.faction_split` 占比（唯一写入点 set_split），
 # 人仍在同一 POP 的 size 里 —— 不新开人口账本。

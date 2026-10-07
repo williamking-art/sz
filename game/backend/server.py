@@ -846,7 +846,7 @@ def api_readouts(request: Request):
         # 编制参数（阶段 C-7，§12.3/§17.4）：面板据此渲染"改革完成度"读数；
         # AI 经 free_effect 的 `institution` 字段提议改动（值域由 core/institution 单点约束）。
         try:
-            from core.institution import describe as _inst_describe
+            from core.domains.administration.institution import describe as _inst_describe
             institution = _json_safe(_inst_describe(s))
         except Exception:
             institution = {}

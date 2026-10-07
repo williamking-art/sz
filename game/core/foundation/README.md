@@ -22,16 +22,16 @@
 
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
-| `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **20 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ **market** / **hoard_settle** / **regime_fiscal**（第十八包，入 `domains/economy`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
-| ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
+| `core/*.py` 文件总数 | **94**（含 `__init__.py`）⇒ 有效平铺模块 **93** | `ls game/core/*.py \| wc -l`；分母口径见 `_scratch/b19_completion.py` |
+| 已迁入新结构的模块 | **21 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，入 `domains/economy`）+ **`institution`**（第十九包，入 `domains/administration`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| ⇒ 平铺层还剩多少实现 | **72 / 93 = 77.4%**（纯转发桩 21）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（21 == 21，零差集）|
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
 | `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **4/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)；其余 6 个子域仍空 |
+| `domains/` 十子域有实现的 | **5/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)；其余 5 个子域仍空 |
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -584,3 +584,66 @@ SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落�
 ⇒ 这条与第七包（`SAVE_DIR`）、第十三包（提供方 patch）同型：**桩保住的只是"名字与对象"，不保住"谁持有可变状态"**——可变状态必须有专门的断言。
 
 **验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2426** = 批次前 2421 + 本批 5 例；SCC 仍 `[16]+[2]`、成员与基线一致（扫描模块 132 → **135**，三个新落点未入环）；测试侧 58 文件仍走旧路径。
+
+## 十七、第十九包：开 `domains/administration/`（`institution`，2026-10-07）
+
+§7 行政与官制域的第一个候选。`institution.py`（312 行 / 16 函数）AST 实测是**零 `core` import 的真叶子**：
+顶层只 `typing` + `content.data.INSTITUTION_PARAM_SPEC`，函数内只 `content.data.normalize_tier`
+与 `content.ministers.data`（事权/机构表）。桩面 **23 名**（31 去 8 个 dunder）与迁移前快照逐字相等。
+
+**一批一包（§8 硬纪律）**：原计划同批再迁 `literacy` → `domains/culture/`，那是**两个包**，
+已拆分为第二十包（云端 `M23`）。本批只交 administration 一个包。
+
+### 🔴 本批最大产出不是搬文件，而是查出既有扫描器的两处口径盲区
+
+勘察调用方时，第一版脚本按 `from core.institution import …` 形态只量到 **1 个**生产消费方，
+实际是 **7 处 / 6 个文件**——另有 6 处写作 `from core import institution as _inst`。
+按名字 grep 同样会漏（`_inst` 是别名）。修正后的判定必须覆盖三种形态：
+`import core.X` / `from core.X import …` / `from core import X [as Y]`（脚本 `_scratch/b19_consumers.py`）。
+
+顺着这条去查常驻 SCC 扫描器 `mh_scc_scan_v2.py`，发现**同一个盲区它一直就有**：
+
+| 盲区 | 后果 |
+|---|---|
+| ① 它只认 `node.module.startswith('core.')`，所以 `from core import X`（module 恰为 `core`）**一条都不计** | 实测 core 内有 **13 条**这类边被漏 |
+| ② 节点名用 `relpath` 的**斜杠**形式，边名却是**点分**形式 | 所有指向 `foundation.*` / `domains.*` 的边在 DFS 里被 `w not in mods` 丢弃 ⇒ v2 实际只在 core 顶层平铺子图上找环 |
+
+用 `mh_scc_scan_v3.py`（点分节点名 + 三形态全计）重扫，平铺大环成员 **16 → 17**：
+`settlement_military` **早就在环内**（靠 `settlement_military -> core.events`，:251 的 `from core import` 形态），
+是 v2 漏了它，不是本批造出来的。⇒ **更正第十二~十六包记录的 `[16]+[2]`：那是 v2 口径下的下界，
+按 v3 口径大环是 `[17]+[2]`。** 少算边只会漏环、不会造出假环，所以此前"无新增环"的结论方向仍成立。
+
+**本批未造环的证据（同口径前后对比，不动工作树）**：用 `git archive HEAD game/core` 解出批次前只读副本，
+对副本跑 v3 ⇒ 环成员 **17 个逐字相同**，新增/移出皆空集（`_scratch/b19_scc_v3_pre.txt` vs `_scratch/b19_scc_v3.txt`）。
+同时 `from core import X` 形态边 **13 → 7**，差值正好等于本批改道的 6 处 institution 引用——
+两条独立数字互相咬合，才敢说改道完整。
+
+### 判据④与完成度（脚本口径，非手算）
+
+- 新路径生产消费方 **6 文件 / 7 引用点**；旧路径 `core.institution` 生产引用 **0**；测试侧 **5 文件**保留旧桩（阶段 4 兼容面）。`_scratch/b19_refcount.py`
+- 完成度换成更硬的口径：`game/core/*.py` 有效平铺模块 **93**（不含 `__init__.py`），
+  其中**纯转发桩 21**、**实现仍在原地 72** ⇒ 仍有 **77.4%** 的平铺模块持实现。`_scratch/b19_completion.py`
+- 同一脚本做**双台账交叉核对**：AST 判出的桩集合必须等于 b9 守卫用例里声明的 `MIGRATED_OLD`
+  ⇒ 实测 21 = 21，两侧零差集（本批把 `core.institution` 同时补进 b9 的 `MIGRATED_OLD` 与 `stubs` 两张表）。
+
+### 本批钉住的断言（`test_domains_administration_b19.py`，9 例）
+
+除桩面/同一性/桩无自带实现外，三条是本批新挣来的：
+① `_SPEC` 是 `content.data.INSTITUTION_PARAM_SPEC` 的**别名**，桩与实现必须指向同一份字典
+（第十八包 `_TRADE_LEDGER` 同型：桩只保住"名字与对象"，不保住"谁持有可变状态"）；
+② 常驻扫描全测试目录，**禁止任何用例把 `core.institution` 当 `monkeypatch` 提供方**
+（第十三/十七包都是这类失效，这次做成机器守着的禁令而不是口头纪律）；
+③ `_org_table` 的回退分支 `except Exception: return {}` 会**静默吞断链** ⇒ 必须实测
+"机构表非空且含户部、户部事权含官营放贷"，只断言 import 成功不算接通。
+另有事权约束的行为用例（无主体拒、非掌权者拒、经`{post: 抵当所提举}`放行、不受约束参数不看主体、
+`didang_loan_rate` 加档被值域上限 0.05 钳住）——机制类断言全部先实测再写（第十四/十五包教训）。
+
+**变异实验 3 组**（证明断言非空跑，跑完 `cmp` 逐字节恢复）：桩漏转发 `TIER_STEP` ⇒ 2 条红；
+桩内自带 `def clamp` ⇒ 1 条红；`clerks.py` 退回旧路径 ⇒ b9 生产改道用例红。
+
+**验证**：全量串行 `FULL_EXIT=0`、`FAILED/ERROR=0`；collected **2435** = 批次前 2426 + 本批 9 例
+（`--collect-only` 按文件行求和，204 个文件）。
+
+**顺手修的文档不实之处**（§6.1）：`domains/production`、`domains/politics`、`domains/economy`
+三份 README 的「迁移状态」还写着**未开始**，而三包分别自第十六/十七/十八包起就有实现；
+`domains/economy/__init__.py` 仍写"阶段 0 空骨架"（实有 6 个模块）。四处已按实测改写。

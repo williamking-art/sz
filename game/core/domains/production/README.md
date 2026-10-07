@@ -1,7 +1,7 @@
 # domains/production — 生产机制
 
 > 2026-10-06 · 阶段 0 建骨架。  
-> **2026-10-07 第十六包：本包已有实现**（`production_chain.py`、`farm_procurement.py`，
+> **2026-10-07 第十六包：本包已有实现**（`production_chain.py`、`farm_procurement.py`，
 > 均 `git mv` 自 `core/`）。`building_jobs.py` 与 `settlement_agri.py` **仍在 `core/`**，理由见下。
 
 ## 拥有的规则
@@ -29,4 +29,5 @@
 
 ## 迁移状态
 
-**未开始**（阶段 0 仅建骨架与 README）。
+**已开始**（第十六包，2026-10-07）：`production_chain.py`、`farm_procurement.py` 已迁入并完成生产改道；
+`building_jobs.py` / `settlement_agri.py` 见上表「未随批搬的候选」。
