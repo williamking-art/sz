@@ -816,7 +816,7 @@ def api_readouts(request: Request):
         # 迁移补齐（原 Tk 大臣卡片信息密度）：群臣档案（年龄/职衔/派系/性格一句话/生平）
         # —— 单一权威源 core/minister_profile.py（Tk 废弃后由面板与后端内联下沉而来）
         try:
-            from core.minister_profile import build_minister_profiles
+            from core.domains.administration.read_models.minister_profile import build_minister_profiles
             ministers = build_minister_profiles(s)
         except Exception:
             ministers = {}

@@ -1,5 +1,7 @@
 # domains/administration — 行政与官制
 
+> **2026-10-07 第二十四包（DSH）**：新增 `read_models/` 子包，迁入 `minister_profile.py`
+> （群臣档案，纯派生**读数**、只读不写 state ⇒ 按架构方案 §3.1 归 `read_models/`）。
 > 2026-10-06 · 阶段 0 建骨架。
 > **2026-10-07 第十九包：本包已有实现**（`institution.py`，`git mv` 自 `core/`，历史保留）。
 > `officialdom.py` / `clerks.py` / `minister_*.py` **仍在 `core/`**，理由见「未随批搬的候选」。
@@ -13,6 +15,7 @@
 | 文件 | 来源旧路径 | 公开面（dir() 实测） | 叶子资格 |
 |---|---|---|---|
 | `institution.py` | `core/institution.py` | 桩 **23** 名（31 去掉 8 个 dunder；含私有 `_SPEC`/`_matter_of`/`_org_table`/`_executor_by_*`/`_EXECUTOR_KEYS` 与 typing 绑定名 `Any`/`Dict`/`Tuple`）| 🔴 **零 `core` import**：顶层只 `typing` + `content.data.INSTITUTION_PARAM_SPEC`，函数内只 `content.data.normalize_tier` / `content.ministers.data`。由 `test_new_home_is_a_leaf` 钉住 |
+| `read_models/minister_profile.py` | `core/minister_profile.py` | 桩 **3** 名（含私有 `_portrait_url`；`test_portrait_*` 直接取该私有名，故桩面必须含之）| ✅ 对 `core` 平铺零反向边 |
 
 职责边界（本模块自己的口径，不是本次迁移新增）：**改制＝移动参数，不是新建系统**——
 只做三件事：单点约束参数值域、给结算提供 `get()`/`set_param()`、给 `free_effect`
