@@ -630,7 +630,7 @@ def _settle_extensions(state, log):
     # 审查 P2-3 / M7：整步静默 `pass` → 家产月循环不生效而日志一字无（家产是钱的
     # 真实所在，静默跳过会让"大臣家产不变"被误读成"本月无家产活动"）。现按步位告警。
     try:
-        from core.estate_mechanic import settle_minister_estate
+        from core.domains.administration.estate_mechanic import settle_minister_estate
         settle_minister_estate(state, log)
     except Exception as e:  # noqa: BLE001
         from core.settlement_common import note_settlement_error
@@ -640,7 +640,7 @@ def _settle_extensions(state, log):
             log=log, exc=e, level="exception")
     # 投资分期回报（国库/内帑回流，守恒）
     try:
-        from core.estate_mechanic import settle_investments
+        from core.domains.administration.estate_mechanic import settle_investments
         settle_investments(state, log)
     except Exception as e:  # noqa: BLE001
         from core.settlement_common import note_settlement_error

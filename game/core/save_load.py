@@ -776,7 +776,7 @@ def load_game(slot: int = 1):
     # `士绅.estate` / `士绅.estate_hoard` 子池。注入量正好等于旧口径里被计入 M_ALL 的那部分，
     # 故 M_ALL 与迁移前一致（不产生对账残差）。幂等。
     try:
-        from core.estate_mechanic import sync_estate_slices
+        from core.domains.administration.estate_mechanic import sync_estate_slices
         sync_estate_slices(state)
     except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
         # 审查 P2-3 / M9：原静默 `pass` → 家产子池未物化，`士绅.estate` 与具名镜像

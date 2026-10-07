@@ -4,6 +4,7 @@
 > （群臣档案，纯派生**读数**、只读不写 state ⇒ 按架构方案 §3.1 归 `read_models/`）。
 > **2026-10-07 第二十五包（DSH）**：迁入 monthly_gazette.py（月度奏章九章）。
 > **2026-10-07 第二十六包（DSH）**：迁入 minister_agent.py（官员个体 Agent 状态机）。
+> **2026-10-07 第三十三包（DSH，收尾）**：迁入 estate_mechanic.py（大臣家产/建筑/投资）。
 > 2026-10-06 · 阶段 0 建骨架。
 > **2026-10-07 第十九包：本包已有实现**（`institution.py`，`git mv` 自 `core/`，历史保留）。
 > `officialdom.py` / `clerks.py` / `minister_*.py` **仍在 `core/`**，理由见「未随批搬的候选」。
@@ -20,6 +21,7 @@
 | `read_models/minister_profile.py` | `core/minister_profile.py` | 桩 **3** 名（含私有 `_portrait_url`；`test_portrait_*` 直接取该私有名，故桩面必须含之）| ✅ 对 `core` 平铺零反向边 |
 | `monthly_gazette.py` | `core/monthly_gazette.py` | 桩 **23** 名 | ✓ 只 import `__future__`+`typing`，**零 core/content import**；`settlement.py` 是唯一生产调用方，已同批改指新路径 |
 | `minister_agent.py` | `core/minister_agent.py` | 桩 **19** 名 | ✓ 只 import `__future__`+`typing`，**零 core 依赖**；4 个生产调用方（`decree_confidential` / `decree_confirm` / `ministry_council` / `settlement_decree`）已同批改指新路径 |
+| `estate_mechanic.py` | `core/estate_mechanic.py`（第三十三包 2026-10-07，`git mv`）| 桩 **31** 名 | ✓ 只 import `content.data` / `content.ministers.*` ⇒ 零 `core` 依赖；6 个消费方（`game_state` / `save_load` / `settlement_econ` / `backend/server` / `content/ministers/persona` / `foundation/ledger/money`（docstring 引用））已同批改指新路径。⚠️ M7 + M9 两处 monkeypatch 已改指实现模块，否则会打在旧桩上静默失效 |
 
 职责边界（本模块自己的口径，不是本次迁移新增）：**改制＝移动参数，不是新建系统**——
 只做三件事：单点约束参数值域、给结算提供 `get()`/`set_param()`、给 `free_effect`

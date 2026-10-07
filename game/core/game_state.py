@@ -1046,7 +1046,7 @@ class GameState(GameStateEconMixin):
         # 旧口径下这批钱记在独立账户 `estate_wealth` 里且已被计入 M_ALL，故此处注入（而非从
         # 士绅 wealth 抽走）→ M_ALL 与迁移前一致，不产生对账残差。
         try:
-            from core.estate_mechanic import sync_estate_slices
+            from core.domains.administration.estate_mechanic import sync_estate_slices
             sync_estate_slices(self)
         except Exception:  # noqa: BLE001  家产切片初始化失败不得阻断开局
             pass

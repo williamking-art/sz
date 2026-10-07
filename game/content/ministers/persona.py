@@ -280,7 +280,7 @@ def danger_rating(state, name: str) -> float:
          * (0.5 + 1.5 * p["权谋"] / 100.0))
     # 大臣家产阈值（家产≥100万 → 危险度 +0.15，怕抄没）
     try:
-        from core.estate_mechanic import estate_persona_mod
+        from core.domains.administration.estate_mechanic import estate_persona_mod
         d += estate_persona_mod(state, name)["danger_bonus"]
     except Exception:
         pass

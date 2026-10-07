@@ -188,7 +188,7 @@ def estate_wealth(state) -> float:
 
     真钱在 `士绅` POP 的 `estate` 子池里（已由 `pop_money()` 计入），本函数只按具名镜像求和，
     **不得**再入 `ACCOUNTS`/M0/M_ALL（否则双计）。镜像与子池恒等由
-    `core.estate_mechanic.sync_estate_slices()` 保证，并有回归测试钉住。
+    `core.domains.administration.estate_mechanic.sync_estate_slices()` 保证，并有回归测试钉住。
     """
     me = getattr(state, "minister_estate", None)
     if not isinstance(me, dict):

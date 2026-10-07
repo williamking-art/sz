@@ -322,7 +322,7 @@ def _corruption_band_word(v) -> str:
 def _estate_band_word(e) -> str:
     """大臣家产 → 档位词（铁律 6：真值不外泄，只见档位）。"""
     try:
-        from core.estate_mechanic import estate_tier
+        from core.domains.administration.estate_mechanic import estate_tier
         return estate_tier(int((e or {}).get("wealth", 0)) if isinstance(e, dict) else 0)
     except Exception:
         return "清贫"

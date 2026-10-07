@@ -28,6 +28,7 @@ import random
 import sys
 
 import io
+import io
 import pytest
 
 _GAME_ROOT = os.path.normpath(os.path.join(
@@ -246,7 +247,8 @@ def test_m7_whole_step_failure_is_visible(monkeypatch, caplog, mod, fn, tag, cal
 
 
 def test_m7_estate_and_investment_steps_are_visible(monkeypatch, caplog):
-    import core.estate_mechanic as em
+    # MIGRATE-NOTE: 上面这两处 monkeypatch 必须指向**实现模块**：若打在 core/estate_mechanic 转发桩上，消费方已改指 core.domains.administration，补丁会**静默失效**。
+    import core.domains.administration.estate_mechanic as em
     import core.settlement_econ as se
 
     monkeypatch.setattr(em, "settle_minister_estate", _boom)
@@ -326,11 +328,29 @@ def test_m8_register_money_flow_helper_contract():
 # =====================================================================
 # M9 / M13 · 读档迁移失败可见、发明节点不静默消失、槽位列表不 500
 # =====================================================================
-@pytest.mark.parametrize("target,attr,marker", [
-    ("core.estate_mechanic", "sync_estate_slices", "sync_estate_slices"),
+_M9_PARAMS = [
+    ("core.domains.administration.estate_mechanic", "sync_estate_slices", "sync_estate_slices"),
     ("core.settlement_imperial", "ensure_hidden_in_pops", "ensure_hidden_in_pops"),
     ("core.foundation.ledger.pop_structure", "ensure_farm_slices", "ensure_farm_slices"),
-])
+]
+
+def test_m9_params_point_at_real_implementation_not_stub():
+    """防呆：M9 参数化里的模块必须是**实现**模块，不能是迁移期转发桩。
+
+    与 M7 同理：monkeypatch 打在被调方实际使用的对象上，打在旧桩上会静默失效。
+    """
+    import ast as _ast
+    import importlib
+
+    for target, attr, _marker in _M9_PARAMS:
+        m = importlib.import_module(target)
+        assert hasattr(m, attr), target + ' does not define ' + attr
+        tree = _ast.parse(io.open(m.__file__, encoding='utf-8').read())
+        has_def = any(isinstance(n, (_ast.FunctionDef, _ast.ClassDef)) and n.name == attr for n in tree.body)
+        assert has_def, (target + '.' + attr + ' is a non-implementing forwarding stub => monkeypatch would '
+                        'land on the stub and silently no-op; point the param at the real module')
+
+@pytest.mark.parametrize("target,attr,marker", _M9_PARAMS)
 def test_m9_migration_failure_warns_with_slot_and_still_returns_state(
         monkeypatch, caplog, target, attr, marker):
     import importlib
