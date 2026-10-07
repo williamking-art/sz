@@ -1,5 +1,6 @@
 # domains/economy — 财政与市场
 
+> 2026-10-07 第二十三包（DSH）新增 `read_models/` 子包并迁入 `flow_summary.py`。
 > 2026-10-06 · 丙批二起**已有首个实现**（`material_trade_ops.py`）。
 > 2026-10-07 第十五包迁入 `dynamic_price.py`、`demand.py`；第十八包再迁入 `market.py`、
 > `hoard_settle.py`、`regime_fiscal.py` ⇒ **本包现共 6 个实现文件**；
@@ -23,6 +24,7 @@
 | `market.py` | `core/market.py`（第十八包 2026-10-07，`git mv`）| `trade_goods` `sellable_stock` `reset_trade_ledger` `TRADE_PURPOSES` `TRADE_SCHEMA_VERSION` `TradeOutcome`（+私有 `_num`/`_int`/`_TRADE_LEDGER`/`_ledger_key`）| **唯一商品成交入口**；🔴 模块级可变台账 `_TRADE_LEDGER` 在桩后必须仍是**同一个 dict**（用例锁死：经桩 reset 要能清实现侧，且禁止在桩上重绑） |
 | `hoard_settle.py` | `core/hoard_settle.py`（第十八包）| `settle_hoard` `hoard_readout`（+私有 `_drain_into_clerks` 与 6 个常量） | 叶子：stdlib `random`/typing + 函数内 `content.data` |
 | `regime_fiscal.py` | `core/regime_fiscal.py`（第十八包）| `apply_fiscal_response`（+私有 `_cut` 与 7 个阈值常量） | 叶子：typing + `core.foundation.ledger.pop_structure` 公开名（人口写入走桥接，符合 POP 挂载律）|
+| `read_models/flow_summary.py` | `core/flow_summary.py`（第二十三包 2026-10-07，`git mv`）| `build_flow_summary` `_parse_finance_line` `_extract_one_off`（+3 私有）| 纯派生**读数**（只读 GameState、不写 state）⇒ 归 `read_models/` 子包（架构方案 §3.1）。与 `material_trade_ops.py` 的平铺形式不同，待统一；本批已用**真实通道非空**验证（调 `build_flow_summary(s)` 返回 `{treasury, imperial}`，非空壳）。|
 ✅ **已销账（第十包，2026-10-07）**：`material_trade_ops` 改用 ledger 显式接口
 `attribute_to_seats` / `route_of`（旧私有名在 ledger 内仅作兼容别名保留，供 `core/material_holding.py`
 薄桩守恒其公开面）。跨包借用私有符号已由 `test_ledger_interface_b10.py` 常驻拦截，

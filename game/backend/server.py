@@ -775,7 +775,7 @@ def api_readouts(request: Request):
             log.warning("readouts：会计读数（finance_readout）派生失败，面板将显示空白",
                         exc_info=True)
         try:
-            from core.flow_summary import build_flow_summary
+            from core.domains.economy.read_models.flow_summary import build_flow_summary
             flow = _json_safe(build_flow_summary(s))
         except Exception:
             flow = {}
