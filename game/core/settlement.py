@@ -506,7 +506,7 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 口径：增产只落 `pops["农"]["grain"]`；四项成本（土地/材料/工时/维护）
     # **先扣后产**，最短板降效，**不存在零成本增产**；从不给 POP 加 wealth。
     try:
-        from core.settlement_agri import apply_agri_effects
+        from core.domains.production.settlement_agri import apply_agri_effects
         apply_agri_effects(state, log)
     except Exception as _ae_e:      # noqa: BLE001 — 农业效果失败不阻断结算
         log.append(f"[农业][WARN] 投资效果结算失败：{_ae_e!r}")

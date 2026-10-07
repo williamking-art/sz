@@ -28,7 +28,9 @@ _GAME = os.path.normpath(os.path.join(
 if _GAME not in sys.path:
     sys.path.insert(0, _GAME)
 
-from core import civil_building, construction_cost, settlement_agri, settlement_tech  # noqa: E402
+from core import civil_building, construction_cost  # noqa: E402
+from core.domains.construction import settlement_tech  # noqa: E402
+from core.domains.production import settlement_agri  # noqa: E402
 from core.material_holding import (                                    # noqa: E402
     consume_for_circuit, material_holding_for_circuit, supply_merchant_materials,
 )

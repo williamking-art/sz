@@ -96,7 +96,7 @@ def _settle_granary(state, log):
         # **`None` 表示"未定义"→ 用原阻断率**，不得回落 0（回落 0＝运力全通，凭空增粮）。
         _block_eff = block
         try:
-            from core.settlement_agri import effective_canal_block
+            from core.domains.production.settlement_agri import effective_canal_block
             _rb = effective_canal_block(state, block)
             if _rb is not None:
                 _block_eff = _rb
@@ -582,7 +582,7 @@ def _settle_granary(state, log):
             # （回落 0 会凭空取消霉耗，凭空增粮）。
             _spoil_rate = FARMER_SPOIL_RATE
             try:
-                from core.settlement_agri import effective_spoil_rate
+                from core.domains.production.settlement_agri import effective_spoil_rate
                 _r = effective_spoil_rate(state, name, FARMER_SPOIL_RATE)
                 if _r is not None:
                     _spoil_rate = _r
