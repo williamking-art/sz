@@ -1688,14 +1688,14 @@ def envoy_diplomacy(state: GameState, target: str, speech: str, ai_client) -> st
     """遣使通谕一轮：AI 扮国主应答 → 达成协议则落地（apply_treaty）。
 
     审查补齐（「条约」页恒空的根因）：`ai_client.diplomacy_dialogue` 与
-    `core.diplomacy_treaty.apply_treaty` 均已实现且带 T5 测试，却**全库无生产调用方**
+    `core.domains.diplomacy.treaty.apply_treaty`（旧路径 `core.diplomacy_treaty`）均已实现且带 T5 测试，却**全库无生产调用方**
     —— 前端「遣使」原走 `audience_dialogue`（把外国君主当大臣召对），于是协议永不
     落地、`state.treaties` 恒空。
 
     拒绝式纪律（与召对同级）：AI 未接入或校验不过 → 不伪造国主应答与协议，只记外交
     纪事；`apply_treaty` 自身校验对象/类型/内帑，不通过则如实回奏而不写 treaties。
     """
-    from core.diplomacy_treaty import apply_treaty
+    from core.domains.diplomacy.treaty import apply_treaty   # 第十四包：直认真实家
 
     target = str(target or "").strip()
     speech = str(speech or "").strip()

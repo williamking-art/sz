@@ -265,7 +265,7 @@ class CourtContractMixin:
         输出 {target, stance, agreement, terms, narrative}——拒绝式校验
         （target∈辽/金/西夏、stance 6 姿态、agreement 6 类型、terms 按类型白名单）。"""
         from content.data import MONARCH_PERSONAS
-        from core.diplomacy_treaty import TREATY_TYPES
+        from core.domains.diplomacy.treaty import TREATY_TYPES   # 第十四包：直认真实家
         persona = MONARCH_PERSONAS.get(target, "外国国主")
         sys_p = (
             f"你是{target}国主。{persona}\n"

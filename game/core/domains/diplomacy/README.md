@@ -6,12 +6,15 @@
 
 外交协议、外邦交互和外事读数
 
-## 现有代码候选（**候选归属，迁移前须以符号调用图核实**）
+## 已迁入的实现（第十四包，2026-10-07）
 
-```
-diplomacy_treaty.py
-external_view.py
-```
+| 文件 | 来源旧路径 | 符号（= 旧路径公开面，含私有） | 叶子资格判据 |
+|---|---|---|---|
+| `treaty.py` | `core/diplomacy_treaty.py` | `TREATY_TYPES` `_att_delta` `apply_treaty` + 6 个 content 常量 | AST 实测顶层 import 只有 `content.data`，**零反向边** |
+| `external_view.py` | `core/external_view.py` | `external_pop_view` `external_provinces` + 3 个 content 表名 | 同上，**零反向边** |
+
+⚠️ 两条旧路径都保留 `dir()` 显式转发桩（**含私有名**），迁移前后名字集合逐字相等。
+⚠️ `external_view` 生产侧被引 **0** 次：本批只搬代码，**不得据此声称外邦视图已接入**，也不得按死代码删。
 
 ## 边界
 
@@ -21,4 +24,5 @@ external_view.py
 
 ## 迁移状态
 
-**未开始**（阶段 0 仅建骨架与 README）。
+**🔵 已开始**（第十四包：2 个零反向边叶子入包，生产侧 2 处调用改指新路径）。
+**未做**：§7 同域候选里的外贸/市舶规则尚未盘点；外交**协议数据**的真账归属未定（现仍挂 `state` 字段）。

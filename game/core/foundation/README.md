@@ -23,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **9 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **11 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors / **diplomacy_treaty** / **external_view**（后两个属 `domains/diplomacy`，第十四包）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -31,7 +31,7 @@
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **1/10** | 仅 `economy`，且只有 `material_trade_ops.py` 一个文件 |
+| `domains/` 十子域有实现的 | **2/10** | `economy`（`material_trade_ops.py`）+ **`diplomacy`**（`treaty.py`、`external_view.py`，第十四包）|
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -456,3 +456,45 @@ SCC 仍 **2 环**、成员与阶段 1 基线一致；桩面快照（迁移前落
 守恒语义直接实测：`distribute_cash(10000, {工匠 .4, 商人 .6})` ⇒
 `Σ POP wealth 增量 == 分发额 == sum(applied)`；无接收池 ⇒ 返回 0 不凭空记数。
 守卫含一条**读文档表行**的用例：那两行若再被写回"读数"，CI 直接红。
+
+## 十二、第十四包：开 `domains/diplomacy/`（2026-10-07）
+
+候选**按 AST 实测叶子资格**筛（`_scratch/b14_leaf_survey.py` 给每个未迁模块量反向边数、生产被引数、
+符号数三件事），不按文件名猜——第十三包刚因为"按名字判"写错过文档。零反向边候选 24 个，本批取
+其中符号最少且同属一个机制域的两个：`diplomacy_treaty`（124 行 / 3 实义符号）与 `external_view`（62 行 / 2 符号），
+两者顶层 import **只有 `content.data`**。
+
+| 项 | 处置 | 实测 |
+
+|---|---|---|
+
+| `game/core/domains/diplomacy/treaty.py` | ✅ `git mv`（保留历史） | `TREATY_TYPES` `_att_delta` `apply_treaty` + 6 个 content 常量绑定 |
+
+| `game/core/domains/diplomacy/external_view.py` | ✅ `git mv` | `external_pop_view` `external_provinces` + 3 个表名 |
+
+| 两条旧路径 | ✅ 收敛为 `dir()` 显式转发桩 | 桩面 9 名 / 5 名，与迁移前冻结快照**逐字相等**；**含私有名** `_DIPLO_ATT` `_att_delta` `_EXTERNAL_PROVINCES_DEFAULT` |
+
+| 生产侧 2 处调用 | ✅ 同批改指新路径（判据④） | `ai/contracts_court.py:268`、`core/commands.py:1698`；复扫生产侧旧路径引用 **0 文件 / 0 引用点** |
+
+| 测试侧 3 处 | 保留旧路径 | 兼容门面生效面（阶段 4 允许）|
+
+
+**两条如实声明**
+
+- ⚠️ `external_view` 生产侧被引 **0** 次（迁移前后都是 0）：本批只搬代码，
+  **不得据此说外邦视图已接入界面**，也不得按"零调用"删（`test_uncovered_modules.py` 依赖它）。
+- ⚠️ `_att_delta` 是私有符号，桩面**必须**照转：本仓有测试直取私有名的先例，漏一个就是静默断链。
+
+**新增 `test_domains_diplomacy_b14.py`（6 条）**：桩面等集 / 全部 14 个名字（含私有）旧路径 `is` 新实现 /
+新落点仍无业务 import（叶子资格常驻）/ 生产不得再引旧路径 /
+`apply_treaty` 真实通道（返回契约 `{ok,msg,attitude_delta,cost}`、和亲被接受且外邦状态真变、
+未知协议必须**拒绝**不静默成功）/ `external_provinces`+`external_pop_view` 非空与字段形状。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2406** = 批次前 2400 + 本批 6 例；
+SCC 仍 **2 环**（`[16] + [2]`），扫描模块 124 → **126**，两个新落点未入环；
+生产侧旧路径引用（10 个已迁模块合计）**0 文件 / 0 引用点**，测试侧 46 文件仍走旧路径。
+
+**一处未解释的差异，不留成第二个真相**：`_scratch/b9_newpath_count.py` 的"业务侧真实消费"由第九包的 41
+涨到 45，但本批只新增 2 个消费文件（另 2 个未能逐文件归因）。
+⇒ 因此本 README 的接入进度**以 `b9_scope_measure.py` 的"生产侧旧路径引用 = 0"为准**，
+该口径可逐文件复核；41/45 那个分桶数暂不作完成度宣称，待有人把差值归因清楚再启用。
