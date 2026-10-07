@@ -244,7 +244,7 @@ class SettleContractMixin:
                 if not nid:
                     return None
                 from core.asset_context import get_tech_node
-                from core.registries import node_entry
+                from core.foundation.registries import node_entry
                 ok = get_tech_node(nid) is not None or (state is not None and node_entry(state, nid) is not None)
                 if not ok:
                     return None
@@ -840,7 +840,7 @@ class SettleContractMixin:
         node 存在（官方 TECH_NODES 或玩家 tech_registry）、三档 ∈ 7 档词、拒绝式；
         程序换算（invest→拨款额守恒、talent→masters 加成、risk→失败概率程序随机）。"""
         from core.asset_context import get_tech_node
-        from core.registries import node_entry
+        from core.foundation.registries import node_entry
         sys_p = (
             "你是承接研发的工部侍郎。把本期攻关量化为 JSON 契约：\n"
             '{"node": "节点id（官方或玩家注册）", "invest": "微|小|中|大",'
@@ -884,7 +884,7 @@ class SettleContractMixin:
         branch_name 任意名≤12字 + lineage 7 系（equipment/training/mobility 特化 +
         position 场景）+ specialization 档位 + equip_focus（可选）+ narrative；
         拒绝式（不重名/合法档位/不超科技由 register_branch 复核）。"""
-        from core.registries import SPECIALIZATION_TIERS
+        from core.foundation.registries import SPECIALIZATION_TIERS
         from content.data import BRANCH_BASE
         sys_p = (
             "你是北宋枢密院。把陛下设立新兵种的提案量化为 JSON 契约：\n"
