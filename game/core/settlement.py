@@ -521,17 +521,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # Step 4.4 产出链（批 4 S1）：原料 yields 年额/12 × 建筑乘数 → state.resources
     # （消除「原料只出不进」缺口；须在作坊耗料之前入仓）。
     try:
-        from core.production_chain import settle_production_chain
+        from core.domains.production.production_chain import settle_production_chain
         settle_production_chain(state, log)
         # 🔴 Y 轨（用户 2026-10-05 裁定）：农家产物先归农户，官府**和买**后方入官仓供工坊。
         # 钱货同时转移；未买走的仍归农户（不无偿入库）。
         try:
-            from core.farm_procurement import procure_from_farmers
+            from core.domains.production.farm_procurement import procure_from_farmers
             procure_from_farmers(state, log)
             # 丙（用户 2026-10-05 裁定）：农户余料向本路商人售出（民间售料）。
             # 钱货同时；成交受商人资金约束 ⇒ 自限。
             try:
-                from core.farm_procurement import sell_surplus_to_merchants
+                from core.domains.production.farm_procurement import sell_surplus_to_merchants
                 sell_surplus_to_merchants(state, log)
             except Exception as _ms_e:  # noqa: BLE001
                 log.append("[民间售料] [WARN] %r" % (_ms_e,))

@@ -37,6 +37,8 @@ MIGRATED_OLD = [
     'core.diplomacy_treaty', 'core.external_view',
     # 第十五包补入：经济域两模块实现已迁 core/domains/economy/
     'core.dynamic_price', 'core.demand',
+    # 第十六包补入：生产域两模块实现已迁 core/domains/production/
+    'core.production_chain', 'core.farm_procurement',
 ]
 
 
@@ -115,7 +117,8 @@ def test_old_stubs_forward_to_same_objects():
              'core.prefecture_entity', 'core.grain_ledger', 'core.material_holding',
              'core.numeric', 'core.errors',
              'core.diplomacy_treaty', 'core.external_view',
-             'core.dynamic_price', 'core.demand']
+             'core.dynamic_price', 'core.demand',
+             'core.production_chain', 'core.farm_procurement']
     bad = []
     n = 0
     for old in stubs:

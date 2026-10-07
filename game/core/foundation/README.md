@@ -23,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **13 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors / diplomacy_treaty / external_view（第十四包）/ **dynamic_price** / **demand**（第十五包，入 `domains/economy`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **15 整模块 + 2 部分** | 整模块：…（前 13 个见 §十二/§十三）+ **production_chain** / **farm_procurement**（第十六包，入 `domains/production`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -31,7 +31,7 @@
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **2/10** | `economy`（3 个文件：`material_trade_ops` + 第十五包的 `dynamic_price`/`demand`）+ `diplomacy`（`treaty`、`external_view`）|
+| `domains/` 十子域有实现的 | **3/10** | `economy`（3 文件）、`diplomacy`（2 文件）、**`production`**（2 文件，第十六包）|
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -533,3 +533,27 @@ SCC 仍 **2 环**（`[16] + [2]`），扫描模块 124 → **126**，两个新�
 SCC 仍 `[16]+[2]`、成员未变（扫描模块 126 → **128**，两个新落点不在环内）；
 生产侧旧路径引用 **0 文件 / 0 引用点**（`_scratch/b9_scope_measure.py`，现覆盖 13 个已迁模块），
 测试侧 48 文件仍走旧路径。
+
+## 十四、第十六包：开 `domains/production/`（2026-10-07）
+
+§7 把"农业、岗位、配方、生产链"列为生产域候选。本批取两个实测**零反向边**模块：`production_chain`（273 行 / 公开面 14 名）、`farm_procurement`（250 行 / 15 名），函数内 import 只有 `content` 与 `core.foundation` / `core.domains` 的**公开名**。`building_jobs.py` **不随批搬**——它引 `pop_bridge`/`grain_bridge` 且被结算多步分别调用，要先定"岗位/就业归生产域还是行政域"，那是判责不是搬家。
+
+| 项 | 处置 | 实测 |
+
+|---|---|---|
+| 两模块 | ✅ `git mv` 入 `domains/production/` | 桩面 14 / 15 名与迁移前快照**逐字相等**（含 `_pick_seat`/`_write_pending`/`_take_goods` 等私有名与 typing 绑定名）|
+| 生产 3 处 import | ✅ 同批改指新路径 | 全部在 `settlement.py` 的函数内延迟导入；复扫生产侧旧路径引用 **0 文件 / 0 引用点**（15 个已迁模块口径）|
+| 测试侧 | 保留旧路径 | `production_chain` 11 文件、`farm_procurement` 0 文件（本就没有测试直接 import 它）|
+| 跨域边 | ⚠️ **登记不改** | `production_chain` 引 `domains/economy.material_trade_ops.commodity_dims`：跨域但**走公开名**，符合 §6 规则2；新增用例锁"跨域 import 里不得出现下划线名"|
+
+### 一条我凭想象写错、被实测纠正的断言
+
+我第一版给生产链写了"`pending_total` 要与本轮产出读数同源"的断言，跑出来 `0 == 16,205,802` 直接红。读码后事实是三条，与我的想象无关：
+① `settle_production_chain` 返回的 `{dim: 本月产量}` 是**封顶前**口径，写仓被 `cap` 截断 ⇒    `Σproduced (16,205,802) > ΔΣresources.stock (9,433,738)`，**拿返回值当入仓量会多出 677 万**；
+② `pending_stock` 是**归属待定**槽，按用户裁定 6.33 **不并入** `state.resources`（后者被五处消费者当国库资产），   所以生产了不代表在途有数——新局在途保持 0；
+③ 写仓不击穿 `cap`、库存不倒退（盐 300 万即顶在 cap 上）。
+⇒ 用例改成钉这三条实测事实。**教训同第十三包**：机制类断言必须先量后写，不能按"应该怎么设计"写。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2417** = 批次前 2412 + 本批 5 例；
+SCC 仍 `[16]+[2]`、成员未变（扫描模块 128 → **130**，两个新落点不在环内）；
+生产侧旧路径引用 0 文件 / 0 引用点（`b9_scope_measure.py`，现覆盖 15 个已迁模块）；测试侧 50 文件。
