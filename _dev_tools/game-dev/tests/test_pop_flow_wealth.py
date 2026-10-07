@@ -67,7 +67,7 @@ def test_retirement_keeps_official_subpool_invariants():
 
 def test_exam_carries_wealth_into_bureaucrats(monkeypatch):
     """科举（农/士绅 → 官僚）应**带入财富**：跑一次科次后官僚 POP wealth 增加、Σwealth 不凭空增减。"""
-    import core.officialdom as od
+    import core.domains.administration.officialdom as od
 
     s = GameState("史实")
     # 直接跑一次科次（离散科次，避免 36 月长跑）

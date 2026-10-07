@@ -420,7 +420,7 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
     t = totals(state)
     # 吏额在本步发生了变化 → 必须刷新**派生镜像**（`p["clerks"]` 的唯一写入点仍是
     # `officialdom.sync_legacy_mirror`；此处只是让它晚一步再刷一次，避免镜像落后 1 个月）。
-    from core.officialdom import sync_legacy_mirror
+    from core.domains.administration.officialdom import sync_legacy_mirror
     sync_legacy_mirror(state)
     state.statistics["clerks_total"] = t["clerks"]
     state.statistics["clerks_quota"] = t["quota"]

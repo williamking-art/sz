@@ -11,7 +11,7 @@
 |---|---|
 | 执行能力（吏治强 / 民心·识字率弱 / 军队加成） | `core/decree_effect.effect_channels`（含 `core/clerks`、`core/domains/culture/literacy`、`core/army_models`） |
 | 支持方 / 阻力方 | 既有**声明表**：`FACTION_POP_BASIS`（集团 ⊆ POP 阶级）＋ `REFORM_POP_BASIS`（改革 → POP 得失）＋ `YAMEN_INFO`（衙署主责派系） |
-| 承办大臣 → 派系 | `core.officialdom.minister_faction`（查 `content.ministers.data.MINISTERS`，查不到 = None，不编造） |
+| 承办大臣 → 派系 | `core.domains.administration.officialdom.minister_faction`（查 `content.ministers.data.MINISTERS`，查不到 = None，不编造） |
 
 ## POP 挂载律（本模块不得违反）
 
@@ -393,7 +393,7 @@ def stance_of(state, task: dict) -> Dict[str, Any]:
     minister = str(task.get("minister") or "").strip()
     if minister:
         try:
-            from core.officialdom import minister_faction
+            from core.domains.administration.officialdom import minister_faction
             mf = minister_faction(minister)
         except Exception as e:  # noqa: BLE001  派系查不到不得阻断事务结算
             log.debug("[事务] 承办大臣派系解析失败：%s", e)

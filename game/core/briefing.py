@@ -214,7 +214,7 @@ def build_weighing_note(state) -> str:
         import logging as _lg
         _lg.getLogger("briefing").warning("build_weighing_note 取效果通道失败：%s", e)
     try:
-        from core.officialdom import totals as _off_totals
+        from core.domains.administration.officialdom import totals as _off_totals
         o = _off_totals(state) or {}
         pool = int(o.get("officials", 0) or 0)
         quota = int(o.get("posts_quota", 0) or 0)

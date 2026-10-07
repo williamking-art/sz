@@ -128,7 +128,7 @@ class SnapshotContext:
         # 官制（官员）非经济维度：待阙堆积 / 冗官 / 定员（core/officialdom 为唯一权威）
         self.officials: Dict[str, Any] = {}
         try:
-            from core.officialdom import totals as _off_totals
+            from core.domains.administration.officialdom import totals as _off_totals
             raw_off = _off_totals(state) or {}
             self.officials = {str(k): v for k, v in raw_off.items()}
         except Exception as e:  # noqa: BLE001

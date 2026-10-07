@@ -115,7 +115,7 @@ def test_official_pay_ratios_are_pinned():
 
 def test_officialdom_module_docstring_cites_constants_not_numbers():
     """模块注释只许引用常量名，不许写死权数（防止注释再次漂移成 0.5/0.5）。"""
-    import core.officialdom as _od
+    import core.domains.administration.officialdom as _od
 
     doc = _od.__doc__ or ""
     for name in ("WAITING_PAY_RATIO", "SINECURE_PAY_RATIO"):
