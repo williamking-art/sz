@@ -1252,7 +1252,7 @@ def _settle_external_economy(state, log):
                         #   （⚠️ 此处曾遗漏接线——模块已存在但无人调用；
                         #    现由 `test_regime_tech_wired_into_settlement` 守住）
                         try:
-                            from core.regime_tech import (advance_regime_tech,
+                            from core.domains.economy.regime_tech import (advance_regime_tech,
                                                         deployable_nodes,
                                                         deploy_regime_building,
                                                         charge_maintenance)
