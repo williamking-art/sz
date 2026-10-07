@@ -31,6 +31,12 @@ from content.data import (  # noqa: E402
 from core.commands import choose_imperial_action, do_personal_action  # noqa: E402
 from core.settlement_steps import _settle_emperor_personal  # noqa: E402
 from core.events import get_imperial_risk_event, IMPERIAL_RISK_EVENTS  # noqa: E402
+import pytest as _pytest
+
+pytestmark = _pytest.mark.skip(
+    reason="imperial action disabled by user ruling 2026-10-07 (not yet settled); remove this skip and set settlement.IMPERIAL_ACTION_ENABLED = True to restore"
+)
+
 
 
 def _new_state():

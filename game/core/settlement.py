@@ -44,6 +44,12 @@ from core.situation_settle import settle_situations as _settle_situations  # noq
 # 使其与其它 `_settle_*` 步同形——`test_pop_identity.py::_STEPS` 镜像据此逐步比对。
 from core.faction_settle import settle_factions_from_pop as _settle_faction_metrics  # noqa: E402
 
+# 🔴 帝王行动开关（2026-10-07 用户裁定，已登记 decisions:IMPERIAL-ACTION-停用）
+#   False = 已停用（当前值）；True = 恢复。
+#   停用原因：帝王行动尚未定型（「行动矩阵契约 v2」尚无完整玩法口径）。
+#   恢复方法：本常量改 True，并去掉 tests/test_imperial_action.py 的 module 级 skip 标记。
+IMPERIAL_ACTION_ENABLED = False
+
 # 兼容旧调用方可能直接引用这些符号
 __all__ = [
     "run_monthly_settlement",
@@ -679,7 +685,11 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     _settle_situations(state, log, _situation_journal_base)
 
     # ---- Step 9: 皇帝个人 ----
-    _settle_emperor_personal(state, log)
+    # 🔴 2026-10-07 用户裁定（选甲）：「帝王行动」此时尚未定型，从结算中**暂时停用**。
+    # 幂等性：改一个常量（settlement.IMPERIAL_ACTION_ENABLED）即可恢复；代码与 16 个专用用例均原样保留。
+    # 🔴 旧档：已开局存的档不会自动获得帝王行动，且报告中的动作记录仍在。
+    if IMPERIAL_ACTION_ENABLED:
+        _settle_emperor_personal(state, log)
 
     # ---- Step 10: 隐藏状态 ----
     _settle_hidden(state, log)
