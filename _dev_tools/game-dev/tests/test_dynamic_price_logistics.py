@@ -122,7 +122,8 @@ def test_metal_not_money():
         assert dim in RAW_DIMS_14
     # 边界声明在模块 docstring / RAW_DIMS_14 注释（代码事实）
     import inspect
-    import core.dynamic_price as dp
+    # getsource 必须指向**实现模块**：桩里只有转发语句，不含"金属 ≠ 钱"那段边界声明。
+    import core.domains.economy.dynamic_price as dp
     src = inspect.getsource(dp)
     assert "金属" in src and "treasury" in src, "金属 ≠ 钱边界声明须在代码中"
 

@@ -9,7 +9,7 @@
 2. **消费退出不会被误报成饥饿** → `consumption_exit_vs_hunger` 两口径并列，
    各自单一来源（`demand_release` / `food_insecure_headcount`），互不推导。
 3. **重新获得收入后需求能响应** → `market_reentry` 口径**完全委托**
-   `core.demand.demand_release` / `resolve_purchase_plan`（本模块不改 `demand.py`）。
+   `core.domains.economy.demand.demand_release` / `resolve_purchase_plan`（本模块不改 `demand.py`）。
 
 锁定的项目硬约束：
 - **POP 挂载律**：读数是**派生视图**，不改 `state`、不改 `statistics`、
@@ -398,13 +398,13 @@ def test_demand_module_is_not_reexported_with_own_algorithm():
     s = _state()
     r = _route(s, 0)
     pp = _rows(purchasing_power_readout(s, routes=[r]), r)["by_class"]["农"]
-    assert pp["release_source"] == "core.demand.demand_release"
+    assert pp["release_source"] == "core.domains.economy.demand.demand_release"
     row = _rows(market_reentry(s, routes=[r], classes=["农"], income=1_000), r)["by_class"]["农"]
-    assert row["release_source"] == "core.demand.demand_release"
+    assert row["release_source"] == "core.domains.economy.demand.demand_release"
 
 
 def test_release_matches_demand_release_exactly():
-    """余量释放与 `core.demand.demand_release` **完全同源**（数值逐条相等）。"""
+    """余量释放与 `core.domains.economy.demand.demand_release` **完全同源**（数值逐条相等）。"""
     s = _state(1)
     r = _route(s, 0)
     d = purchasing_power_readout(s, routes=[r])

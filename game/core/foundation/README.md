@@ -23,7 +23,7 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94** | `ls game/core/*.py \| wc -l` |
-| 已迁入新结构的模块 | **11 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors / **diplomacy_treaty** / **external_view**（后两个属 `domains/diplomacy`，第十四包）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
+| 已迁入新结构的模块 | **13 整模块 + 2 部分** | 整模块：money / pop_bridge / grain_bridge / numeric / pop_structure / prefecture_entity / grain_ledger / material_holding / errors / diplomacy_treaty / external_view（第十四包）/ **dynamic_price** / **demand**（第十五包，入 `domains/economy`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
 | ⇒ 按模块数的进度 | **8/94 ≈ 9%** | 仅作量级参考，不是"完成度"指标 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
@@ -31,7 +31,7 @@
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **2/10** | `economy`（`material_trade_ops.py`）+ **`diplomacy`**（`treaty.py`、`external_view.py`，第十四包）|
+| `domains/` 十子域有实现的 | **2/10** | `economy`（3 个文件：`material_trade_ops` + 第十五包的 `dynamic_price`/`demand`）+ `diplomacy`（`treaty`、`external_view`）|
 | 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
@@ -498,3 +498,38 @@ SCC 仍 **2 环**（`[16] + [2]`），扫描模块 124 → **126**，两个新�
 涨到 45，但本批只新增 2 个消费文件（另 2 个未能逐文件归因）。
 ⇒ 因此本 README 的接入进度**以 `b9_scope_measure.py` 的"生产侧旧路径引用 = 0"为准**，
 该口径可逐文件复核；41/45 那个分桶数暂不作完成度宣称，待有人把差值归因清楚再启用。
+
+## 十三、第十五包：`dynamic_price` + `demand` 并入 `domains/economy/`（2026-10-07）
+
+§7 把 `market*.py`、`demand.py` 列为经济域候选。本批取两个**实测零反向边**的叶子：
+`dynamic_price`（顶层 import 只有 `__future__`/typing，连 `content` 都不引）、`demand`（顶层 typing + 函数内 `from content import data`）。
+**其余经济域候选未随批搬**：`settlement_finance` / `settlement_granary` / `settlement_econ` 的被调方在 16 模块环内，属阶段 3 裁定项，不是机械搬迁。
+
+| 项 | 处置 | 实测 |
+
+|---|---|---|
+| 两模块 | ✅ `git mv` 入 `domains/economy/` | 桩面 10 名 / 12 名与迁移前快照**逐字相等**（含 `Dict`/`Optional`/`Tuple`/`Any`/`annotations` 这些公开面上的绑定名，和私有 `_clamp`/`_num`/`_cfg`）|
+| 生产 5 处 import | ✅ 同批改指新路径 | `income_readout.py` ×3、`settlement_econ.py` ×1、`settlement_granary.py` ×1；复扫生产侧旧路径引用 **0 文件 / 0 引用点**（13 个已迁模块口径）|
+| 测试侧 | 保留旧路径为主 | `test_dynamic_price_logistics.py` 的 **getsource 目标改指实现**（见下）|
+| 48 个测试文件 | 仍走旧路径 | 兼容门面生效面 |
+
+### 🔴 本批扫出的**新隐患类型**：测试读源码散文
+
+`test_dynamic_price_logistics.py:125` 用 `inspect.getsource(core.dynamic_price)` 断言**模块里写了那句话**（"金属 ≠ 钱"的边界声明须出现在代码中）。这类断言不吃 import、不吃对象同一性，只看**文本**——实现搬走后桩里只剩转发语句，断言要么假红、要么被人在桩里补一段话糊过去。处置：① 把 `getsource` 指向实现模块（比指向桩更忠实）；② 新增**常驻扫描**`test_no_getsource_on_migrated_stub_anywhere`——任何文件对已迁模块的旧桩取源码都直接红，别名解析走 AST（与第十三包那条"按名字判不可信"的教训一致）。
+
+> **本批直接证据**：把这两个新桩纳入 b9 清单后，守卫**立刻抓到我自己的桩写歪了**——
+> 我让桩自己 `from typing import ...` / `from __future__ import annotations`，
+> 而既有桩范式是"公开面上每个名字都从**实现模块**转发"。判据是
+> "`dir()` 里每个名字都得能在桩的转发语句里找到来源"，本地 import 不算来源 ⇒ 直接红
+> （`core.dynamic_price.Dict/.Optional/.Tuple` 三条）。**改桩不改判据**。
+> 这类偏离不会报错、也不影响功能，只会在下次比对时留下"两份真相"，所以必须有机器判据兜。
+**已证明会响**：临时放一个 `getsource(core.demand)` 的探针文件，守卫立即点出`_tmp_b15_mutprobe.py:8`，探针随后删除。
+
+### 顺带量到的两条代码事实（本批未改，只是别再误以为它们存在）
+1. `logistics_rate()` 的地形/战乱系数**只在显式传 `cfg` 时**才乘，默认 `cfg=None` ⇒    战乱**不会**抬高运费。我一开始按"战乱应更贵"写断言，实测 `0.5 vs 0.5` 才发现是预期无依据。
+2. `update_goods_prices()` 按 `cfg["GOODS_BASE_PRICE"]` 迭代 ⇒ 无基准价的品**被跳过而非编造**   （正是"缺失不臆造"）；月涨跌 ±20% 会把带内目标价再削一层（盐 100→150→**120**、茶 50→25→**40**）。   两条都已钉进用例，断言值按推导写死，不留区间。
+
+**验证**：全量串行 `EXIT=0`、`FAILED/ERROR=0`；collected **2412** = 批次前 2406 + 本批 6 例；
+SCC 仍 `[16]+[2]`、成员未变（扫描模块 126 → **128**，两个新落点不在环内）；
+生产侧旧路径引用 **0 文件 / 0 引用点**（`_scratch/b9_scope_measure.py`，现覆盖 13 个已迁模块），
+测试侧 48 文件仍走旧路径。

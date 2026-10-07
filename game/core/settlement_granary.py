@@ -32,7 +32,7 @@ from core.market import sellable_stock, trade_goods
 from core.market_price import (discover_price, effective_buy_price,
                                record_trade_price, pref_good_key)
 # B2-1/2/3：需求分层（温饱线 × 余量释放）
-from core.demand import basic_need, demand_release
+from core.domains.economy.demand import basic_need, demand_release
 
 # 🔴 方案乙 / G-3（2026-10-04）：POP 写入走桥接层 ——
 #   · 粮写 `grain_bridge`（写只落一个载体，绝不双写）；

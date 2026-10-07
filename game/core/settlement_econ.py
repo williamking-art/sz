@@ -1011,7 +1011,7 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
     # 批 7 动态商品价（§8.1）：基准 × clamp(demand/supply, 0.5, 1.5)，月涨跌 ±20%
     _goods_prices = {}
     try:
-        from core.dynamic_price import update_goods_prices
+        from core.domains.economy.dynamic_price import update_goods_prices
         _demand = {}
         _supply = {}
         _produced_g = {}

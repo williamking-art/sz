@@ -66,7 +66,7 @@
 
 ## 口径单点（不重算既有算法）
 
-- 可选品需求的余量释放 → **读** `core.demand.demand_release`（本模块**不改** `demand.py`）；
+- 可选品需求的余量释放 → **读** `core.domains.economy.demand.demand_release`（本模块**不改** `demand.py`）；
 - 可售量 → **读** `core.market.sellable_stock`（B1 唯一成交入口的同源口径）；
 - 买入价 → **读** `core.market_price.effective_buy_price`（四类价格分离）；
 - 吃不上饭的人数 → **读** `core.settlement_common.food_insecure_headcount`
@@ -83,7 +83,7 @@
 
 ## 代码事实快照（截至本文件落地时实测，随代码演进须复核）
 
-1. `core.dynamic_price.civil_logistics` / `gov_logistics`（运费结算，宋/外邦通用签名）
+1. `core.domains.economy.dynamic_price.civil_logistics` / `gov_logistics`（运费结算，宋/外邦通用签名）
    在 `game/` 下**无调用方** ⇒ 运输/仓储服务收入通道**已定义但未接线**；
 2. `core.building_jobs.pay_wages_from_revenue` 的唯一调用方是
    `core/settlement_econ.py:849`（**外邦 regime** 路径），宋境
@@ -123,7 +123,7 @@ INCOME_SOURCES: Tuple[Tuple[str, str, str], ...] = (
      "core.building_jobs.pay_wages_from_revenue（唯一调用方 core.settlement_econ:849，"
      "属外邦 regime 路径）"),
     ("logistics_service", "运输/仓储服务收入",
-     "core.dynamic_price.civil_logistics / gov_logistics（运费结算）"),
+     "core.domains.economy.dynamic_price.civil_logistics / gov_logistics（运费结算）"),
     ("workshop_agriculture_job", "作坊/农业岗位收入",
      "core.settlement_econ:_settle_workshops 成品维 → 工匠 goods 池 → "
      "core.market.trade_goods 成交"),
@@ -352,7 +352,7 @@ def _slot_logistics(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[st
         realized=None,
         record_key=None,
         record_window=None,
-        reason=("运费收入**无按路/按阶层权威记录**：`core.dynamic_price.civil_logistics / "
+        reason=("运费收入**无按路/按阶层权威记录**：`core.domains.economy.dynamic_price.civil_logistics / "
                 "gov_logistics` 需要 `distance_km × terrain × war` 算费率，"
                 "宋境路级**无距离字段**；且该两函数在 `game/` 下**无调用方**"
                 "（通道已定义但未接线）⇒ 本路实发额不可判定，报 `None` 而非 0。"
@@ -638,11 +638,11 @@ def purchasing_power_readout(state, *, routes: Optional[Sequence[str]] = None,
     grain_price, monthly_grain_need_stone, own_grain_stone,
     grain_self_sufficiency, food_purchasing_ability_stone, income_channels_open}`。
 
-    - `release` 口径**完全委托** `core.demand.demand_release`（本模块不改 `demand.py`）；
+    - `release` 口径**完全委托** `core.domains.economy.demand.demand_release`（本模块不改 `demand.py`）；
     - `size ≤ 0` ⇒ `per_capita_wealth=None`、`release=None`（**不除零**）；
     - `monthly_grain_need_stone ≤ 0` ⇒ `grain_self_sufficiency=None`（不是"完全自给"）。
     """
-    from core.demand import demand_release
+    from core.domains.economy.demand import demand_release
     prefs, sel_routes, sel_classes = _check_scope(state, routes, classes)
     warnings: List[str] = []
     if prefs is None:
@@ -689,7 +689,7 @@ def purchasing_power_readout(state, *, routes: Optional[Sequence[str]] = None,
                 "subsistence_configured": cls in (_cfg("SUBSISTENCE_LINE", {}) or {}),
                 "gap_to_subsistence": None if gap is None else round(gap, 4),
                 "release": rel,
-                "release_source": "core.demand.demand_release",
+                "release_source": "core.domains.economy.demand.demand_release",
                 "above_subsistence": (None if rel is None else bool(rel > 0)),
                 "grain_price": price,
                 "monthly_grain_need_stone": need,
@@ -744,7 +744,7 @@ def purchasing_power_readout(state, *, routes: Optional[Sequence[str]] = None,
         "by_route": by_route,
         "by_class_totals": tot_out,
         "warnings": warnings,
-        "note": ("`release` 口径**完全委托** `core.demand.demand_release`"
+        "note": ("`release` 口径**完全委托** `core.domains.economy.demand.demand_release`"
                  "（温饱线 × 余量释放）；本读数**不改** `demand.py`。"
                  "`per_capita_wealth` 在 size ≤ 0 时为 None（**不除零**）。"),
     }
@@ -769,7 +769,7 @@ def _check_income(income: Any) -> Optional[float]:
 def _reentry_row(state, route: str, cls: str, pop: dict, income: Optional[float]
                  ) -> Dict[str, Any]:
     """单个 (路, 阶层) 的再进入判定（**纯反事实**：不改 state）。"""
-    from core.demand import demand_release, resolve_purchase_plan
+    from core.domains.economy.demand import demand_release, resolve_purchase_plan
     from core.market import sellable_stock
     from core.market_price import effective_buy_price
 
@@ -836,7 +836,7 @@ def _reentry_row(state, route: str, cls: str, pop: dict, income: Optional[float]
         "per_capita_wealth_after": per_cap_after,
         "release_now": rel_now,
         "release_after": rel_after,
-        "release_source": "core.demand.demand_release",
+        "release_source": "core.domains.economy.demand.demand_release",
         "plan_now": (None if plan_now is None else {
             "release": plan_now.get("release"), "no_demand": plan_now.get("no_demand"),
             "reason": plan_now.get("reason"),
@@ -908,7 +908,7 @@ def market_reentry(state, *, routes: Optional[Sequence[str]] = None,
         "by_route": by_route,
         "verdicts": verdicts,
         "warnings": warnings,
-        "note": ("需求响应口径**完全委托** `core.demand.demand_release` / "
+        "note": ("需求响应口径**完全委托** `core.domains.economy.demand.demand_release` / "
                  "`resolve_purchase_plan`（本模块**不改** `demand.py`）；"
                  "买入价读 `core.market_price.effective_buy_price`（本路路级价），"
                  "可售量读 `core.market.sellable_stock`。"
@@ -977,7 +977,7 @@ def consumption_exit_vs_hunger(state, *, routes: Optional[Sequence[str]] = None
             wealth = _int(pop.get("wealth"), None)
             per_cap = (None if (size is None or size <= 0 or wealth is None)
                        else wealth / float(size))
-            from core.demand import demand_release
+            from core.domains.economy.demand import demand_release
             rel = demand_release(cls, per_cap)
             slot = exit_rows.setdefault(cls, {
                 "routes_total": 0, "routes_withheld": 0, "routes_released": 0,
