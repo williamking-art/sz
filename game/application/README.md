@@ -13,6 +13,7 @@
 |---|---|---|
 | `turn_lifecycle.py` | `finish_turn` / `check_terminal_state` / `auto_save_if_due` | 回合收尾编排：终局判定 → 记忆三步 → 自动存档 |
 | `memory_lifecycle.py` | `on_turn_finished` / `compress_memory_if_needed` / `summarize_dialogue_if_due` / `persist_memory` | 记忆治理间隔：压缩 6、周期总结+归档 12、对话 3 |
+| `agent_router.py` | `route_agents` / `inject_work` 等（桩面 **15** 名）| **第二十七包 DSH 2026-10-07**，`git mv` 自 `core/agent_router.py`。按需唤醒 Agent 的路由层：唤醒条件（关键词/状态触发/上轮 diff 路径），未唤醒的 Agent 不消耗任何开销。自身只 import `__future__`/`concurrent.futures`/`typing` ⇒ 零 `core` 依赖；唯一生产调用方 `commands.py` 已同批改指新路径 |
 
 ## 已知的既有语义（抽取时原样保留，勿"顺手修正"）
 

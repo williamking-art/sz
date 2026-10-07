@@ -414,7 +414,7 @@ def _ai_prelude(state, ai_client):
     # 12 步 agent 化：按需唤醒注入（route_agents 结合关键词/状态触发/上轮 diff；
     # 未唤醒的 Agent 不消耗任何 token；economy 始终唤醒为核心推演）
     try:
-        from core.agent_router import route_agents, inject_woken_agents
+        from application.agent_router import route_agents, inject_woken_agents
         # 玩家本回合政令摘要（作为关键词路由输入；无则空）
         _player_hint = ""
         try:

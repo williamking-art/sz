@@ -481,7 +481,7 @@ def settle_investments(state, log):
         # 审查 P2-19 标注：投资回报属**外部经营收益**（与市舶关税 / 榷场月入同源的
         # 「外部钱入」），非国库→国库自增；此处按外部来源记账（statistics.invest_return）
         # 以便审计。⚠️ 接线前置条件：`invest()` 目前无生产调用方（见
-        # core.agent_router.PENDING_CONTRACTS「_invest_ai」），接线前须先落实
+        # application.agent_router.PENDING_CONTRACTS「_invest_ai」），接线前须先落实
         # 「回报来源上限」或明确外部收益口径。
         if inv["fund"] == "treasury":
             state.change_treasury(per)
