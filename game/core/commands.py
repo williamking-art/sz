@@ -81,7 +81,11 @@ from core.commands_decree import (
 
 def new_game(difficulty: str = "史实", ai_client=None) -> GameState:
     """创建新游戏（含记忆知识库开局基线：大臣/机构/派系实体）。"""
-    state = GameState(difficulty=difficulty)
+    # 🔴 2026-10-07 用户裁定（M25）：**新局不再直接构造 GameState**，
+    #   始终委托 application/game_init.new_game（同为用例层横移，与 commands.finish_turn
+    #   → application.turn_lifecycle 同一先例），确保隐户口数完成物化。
+    from application.game_init import new_game as _new_game
+    state = _new_game(difficulty)
     # 清空对话记忆库（slot_{n}_dialogue.db）：新游戏不得残留旧局召对留档
     try:
         import os as _os

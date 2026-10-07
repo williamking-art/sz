@@ -1062,18 +1062,9 @@ class GameState(GameStateEconMixin):
         # 之后** —— `state.land`（含 500 万户设计锚）在那里才建立（`:359`）。把它物化为各路
         # `农.hidden`（口）子池；此后隐户人口只存在于 POP 内，`land.hidden_households` 降为派生镜像。
         # 注意：隐户**不计入在籍** `state.population`（不落籍、不纳税）。
-        try:
-            from core.settlement_imperial import ensure_hidden_in_pops
-            ensure_hidden_in_pops(self)
-        except Exception as e:  # noqa: BLE001  隐户子池初始化失败不得阻断开局
-            # 不阻断开局，但**必须留痕**：此处原为静默 `pass`，失败时隐户口未注入
-            # `农.hidden`，开局照常成功而「总口 = 在籍 + 隐户」凭空少 2500 万口——
-            # 测试侧守恒断言会红，但生产侧此前无任何信号。
-            # 口径与 save_load 的同一迁移点一致（`logging.warning(..., exc_info=True)`）。
-            import logging as _lg_hid
-            _lg_hid.getLogger("game_state").warning(
-                "开局隐户入 POP 失败：ensure_hidden_in_pops（农.hidden 子池未注入）：%s",
-                e, exc_info=True)
+        # 🔴 隐户入 POP（2026-10-07 M25 裁定）：**移出 GameState**。
+        #   初始化职责归人口域（ensure_hidden_in_pops），改由 application/game_init.py
+        #   在 GameState 构造**之后**直接调用。本模块不再依赖人口业务域（§6-1。
 
         # 农的**职位子池**与**丁口子池**（B1a，2026-09-27 用户口径"一建筑多职位"＋"户"）：
         # `自耕农+富农+贫农+佃农 == 农.size`、`ding+kou == 农.size`（逐路，幂等；不改 size）。

@@ -35,7 +35,7 @@ _GAME_ROOT = os.path.normpath(os.path.join(
 if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
-from core.game_state import GameState  # noqa: E402
+from application.game_init import new_game
 from content.data import (  # noqa: E402
     MONTHLY_EXP_CIVIL_BASE, SUI_GONG_ANNUAL, PER_CAPITA_MONTH_GRAIN,
 )
@@ -109,7 +109,7 @@ _STEPS = [
 
 
 def _new_state():
-    return GameState("史实")
+    return new_game()
 
 
 def _pop_total(s):

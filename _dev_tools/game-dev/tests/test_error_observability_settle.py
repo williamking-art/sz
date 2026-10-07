@@ -330,7 +330,8 @@ def test_m8_register_money_flow_helper_contract():
 # =====================================================================
 _M9_PARAMS = [
     ("core.domains.administration.estate_mechanic", "sync_estate_slices", "sync_estate_slices"),
-    ("core.settlement_imperial", "ensure_hidden_in_pops", "ensure_hidden_in_pops"),
+    # 🔴 2026-10-07 M25 裁定：`ensure_hidden_in_pops` 的**读档**迁移块已移除
+    #   （新局初始化改由 application/game_init.py 负责），故不再是读档路径。
     ("core.foundation.ledger.pop_structure", "ensure_farm_slices", "ensure_farm_slices"),
 ]
 

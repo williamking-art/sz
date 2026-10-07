@@ -23,7 +23,7 @@ if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
 from content.data_constants import PERSONS_PER_HOUSEHOLD as PPH  # noqa: E402
-from core.game_state import GameState  # noqa: E402
+from application.game_init import new_game
 from core.settlement import run_monthly_settlement  # noqa: E402
 from core.settlement_imperial import (  # noqa: E402
     _hidden_people, _settle_hidden_pop, ensure_hidden_in_pops,
@@ -97,7 +97,7 @@ def _full_pressure(s):
 
 def test_new_game_materializes_hidden_into_pops():
     """开局：镜像户数被物化进 `农.hidden`；`hidden_rem` 余数科目消灭；在籍口径不变。"""
-    s = GameState("史实")
+    s = new_game()
     assert _hidden_total(s) == 5_000_000 * PPH, "设计锚：隐户 2500 万口（500 万户 × 户均 5 口）"
     assert s.land["hidden_households"] == 5_000_000
     assert "hidden_rem" not in s.land, "以口记账后不再需要户↔口余数科目"
@@ -110,7 +110,7 @@ def test_new_game_materializes_hidden_into_pops():
 
 def test_flee_is_route_local_and_pop_conserving():
     """逃籍：来源池 size 减、同路 `农.hidden` 增；总口守恒；在籍 population 不被本步改写。"""
-    s = GameState("史实")
+    s = new_game()
     sizes0, hidden0, pop0 = _pops_total(s), _hidden_total(s), s.population
     _full_pressure(s)
     _settle_hidden_pop(s, [])
@@ -124,7 +124,7 @@ def test_flee_is_route_local_and_pop_conserving():
 
 def test_return_to_registry_moves_hidden_back_to_farm():
     """归籍（清丈）：`农.hidden` 减、`农.size` 增，两侧同额，总口不变。"""
-    s = GameState("史实")
+    s = new_game()
     _full_pressure(s)
     _settle_hidden_pop(s, [])                 # 先造出一批隐户
     _no_pressure(s)                           # 关掉逃户一侧，隔离归籍
@@ -143,13 +143,13 @@ def test_mirror_matches_subsystem_and_is_not_ai_writable():
     from engine.state_applier import VALID_PATHS
     assert "land.hidden_households" not in VALID_PATHS
     assert "land.hidden_rate" in VALID_PATHS, "税率隐漏率与人口无关，保留可写"
-    s = GameState("史实")
+    s = new_game()
     assert s.land["hidden_households"] == _hidden_total(s) // PPH
 
 
 def test_legacy_save_migration_is_idempotent():
     """旧档（只有镜像、无子池）→ 幂等注入；重复调用不再变。"""
-    s = GameState("史实")
+    s = new_game()
     for p in s.prefectures.values():
         p["pops"]["农"]["hidden"] = 0          # 模拟旧档：人口未落在 POP 里
     s.land["hidden_households"] = 4_000_000
@@ -161,7 +161,7 @@ def test_legacy_save_migration_is_idempotent():
 
 def test_demand_side_equivalent_to_old_household_mirror():
     """需求侧口径（总口 = 在籍 + 隐户口）与"镜像 × 户均口数"等价，差仅来自户取整。"""
-    s = GameState("史实")
+    s = new_game()
     hp = _hidden_total(s)
     assert hp > 0
     assert abs(hp - s.land["hidden_households"] * PPH) <= PPH - 1
@@ -169,7 +169,7 @@ def test_demand_side_equivalent_to_old_household_mirror():
 
 def test_monthly_settlement_absorbs_registry_into_population():
     """整月结算：Step 10.5 把归籍/逃籍净额吸收进在籍口径（`population == Σsize + 流民`）。"""
-    s = GameState("史实")
+    s = new_game()
     _full_pressure(s)
     run_monthly_settlement(s, 0)
     assert s.population == _pops_total(s) + s.refugee_count
@@ -180,7 +180,7 @@ def test_monthly_settlement_absorbs_registry_into_population():
 # ---------------------------------------------------------------
 def test_hidden_has_production_and_self_feeds():
     """跑 12 个月：隐户产出与消费都必须进台账（修"隐户只有消费没有生产"）。"""
-    s = GameState("史实")
+    s = new_game()
     s.treasury = 10 ** 9
     for _ in range(12):
         run_monthly_settlement(s, 0)
@@ -194,7 +194,7 @@ def test_hidden_land_split_ratio_is_tunable(monkeypatch):
 
     def _produce(share: float) -> int:
         monkeypatch.setattr(dc, "HIDDEN_LAND_TENANT_SHARE", share)
-        s = GameState("史实")
+        s = new_game()
         s.treasury = 10 ** 9
         for _ in range(12):
             run_monthly_settlement(s, 0)
@@ -208,29 +208,26 @@ def test_hidden_land_split_ratio_is_tunable(monkeypatch):
 # ---------------------------------------------------------------
 # 可观测性：开局隐户注入失败**必须留痕**（原为静默 `pass`）
 # ---------------------------------------------------------------
-def test_hidden_init_failure_is_logged_not_silent(monkeypatch, caplog):
-    """`ensure_hidden_in_pops` 在开局抛错时：不阻断开局，但必须记 warning + 带堆栈。
+def test_hidden_init_failure_aborts_with_context(monkeypatch):
+    """隐户初始化失败 → **明确中止**，必须带 new_game 上下文而不是记睡警。
 
-    锁定 `game_state.py` 隐户入 POP 那段 except 的形态。此前它是 `except Exception: pass`，
-    失败后开局照常成功、隐户口归零，「总口 = 在籍 + 隐户」凭空少 2500 万口而**运行时零信号**
-    （守恒断言只在测试里红，救不了线上）。
+    2026-10-07 用户裁定（M25）：隐户初始化失败。
+    意生侧零信号。
     """
-    import logging
-    import core.settlement_imperial as si
+    import pytest
+    from application.game_init import GameInitError, new_game
+    import core.domains.population.settlement_hidden as SH
 
     def _boom(_state):
         raise RuntimeError("故意失败：模拟隐户注入中断")
 
-    monkeypatch.setattr(si, "ensure_hidden_in_pops", _boom)
+    monkeypatch.setattr(SH, "ensure_hidden_in_pops", _boom)
 
-    with caplog.at_level(logging.WARNING):
-        s = GameState("史实")          # 开局不得抛错（设计：失败不阻断）
-
-    hits = [r for r in caplog.records
-            if "ensure_hidden_in_pops" in r.getMessage() and "隐户" in r.getMessage()]
-    assert hits, "隐户注入失败又被静默吞掉（应有 warning 留痕）"
-    assert any(r.exc_info for r in hits), "warning 未带异常堆栈，事后无法定位原因"
-    # 且不阻断：状态照常建成，隐户锚仍在 land 上（子池未注入是本用例故意造成的）
-    assert s.land["hidden_households"] == 5_000_000
-    assert _hidden_total(s) == 0, "桩未生效，本用例没有真正测到失败分支"
+    with pytest.raises(GameInitError) as ei:
+        new_game()
+    err = ei.value
+    assert err.site == "new_game", 必须带站点名
+    assert err.channel == "ensure_hidden_in_pops", 必须带通道名
+    assert isinstance(err.__cause__, RuntimeError), "cause 应为原始异常"
+    assert "new_game" in str(err) and "ensure_hidden_in_pops" in str(err)
 

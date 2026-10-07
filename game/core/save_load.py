@@ -653,22 +653,10 @@ def load_game(slot: int = 1):
     _merge_regions(state.external_regimes, data.get("external_regimes"))
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
-    # 长期事务（P1-1）：**载入即迁移**——旧档事务无 `id`/支持模型字段，坏条目（非 dict）
-    # 必须隔离而不是让面板/圣旨通道崩。幂等；任何异常都不得阻断读档。
-    try:
-        from core.longterm_task import normalize_tasks
-        _lt = normalize_tasks(state)
-        if _lt["migrated"] or _lt["isolated"]:
-            import logging as _lg8
-            _lg8.getLogger("save_load").info(
-                "长期事务迁移 slot=%s：补齐字段 %d 件、隔离坏条目 %d 件",
-                slot, _lt["migrated"], _lt["isolated"])
-    except Exception as e:  # noqa: BLE001  迁移失败不得拒档
-        import logging as _lg9
-        # P2-3 口径：可定位的上下文（槽位 + 异常类型 + traceback）——否则"读档后事务字段怪异"
-        # 这类问题只能靠猜。
-        _lg9.getLogger("save_load").warning("长期事务迁移异常 slot=%s：%s", slot, e,
-                                            exc_info=True)
+      # 🔴 长期事务（2026-10-07 M25 裁定）：**移除读档侧 normalize_tasks 迁移块**。
+      #   理由：创建侧已完整（GameState.__init__ 建 longterm_public/longterm_secret），
+      #   保存端已序列化（save_load.py:217-218），读档侧已直接赋值（:654-655）
+      #   ⇒ 旧档专用的迁移在当前格式下**纯冗余**。
     # 四大机制改良（旧档缺省兼容）：开局邸报 / 帝国修正 / 国策树
     state.opening_gazette = data.get("opening_gazette", {}) or {}
     state.legacies = data.get("legacies", {}) or {}
@@ -984,16 +972,9 @@ def load_game(slot: int = 1):
     # 隐户入 POP 的旧档迁移（2026-09-27 方案 A）：旧档只有镜像户数、人口未落在 POP 里 →
     # 按各路 `population` 比例把 ×4 口注入本路 `农.hidden` 子池；幂等（已有子池则不动）。
     # 守恒：这是把"账外人口"记入 POP 口径，**不改在籍**（`state.population` 仍不含隐户）。
-    try:
-        from core.settlement_imperial import ensure_hidden_in_pops
-        ensure_hidden_in_pops(state)
-    except Exception as e:  # noqa: BLE001  迁移失败不得阻断读档
-        # 审查 P2-3 / M9：原静默 `pass` → 隐户口数未注入 `农.hidden`，
-        # 「总口 = 在籍 + 隐户」在旧档上凭空少 2000 万口而无人知。
-        import logging as _lg_hid
-        _lg_hid.getLogger("save_load").warning(
-            "迁移失败：ensure_hidden_in_pops（隐户入 农.hidden 子池）slot=%s：%s",
-            slot, e, exc_info=True)
+      # 🔴 隐户入 POP（2026-10-07 M25 裁定）：**移除读档侧 ensure_hidden_in_pops 迁移块**。
+      #   新局隐户由 application/game_init.py 在 GameState 构造后直接调用人口域服务；
+      #   读档侧不再对隐户口数做兼容补注。
     # 农职位/丁口子池的旧档迁移（B1a）：幂等补齐（**只改子池，不改 size**）
     try:
         from core.foundation.ledger.pop_structure import ensure_farm_slices
@@ -1005,6 +986,9 @@ def load_game(slot: int = 1):
         _lg_farm.getLogger("save_load").warning(
             "迁移失败：ensure_farm_slices（农职位/丁口子池）slot=%s：%s",
             slot, e, exc_info=True)
+    # 🔴 隐户口数（2026-10-07 用户裁定，M25）：**不在读档处设格式门**。
+    #   旧档兼容不作为约束。真实玩家的档由 application/game_init 注入隐户，
+    #   往返因而自然保留隐户；事先加门只会误伤测试自造的伪档。
     state.jiaozi = data.get("jiaozi", state.jiaozi)
     state.maritime = data.get("maritime", state.maritime)
     state.coin = data.get("coin", state.coin)

@@ -9,12 +9,12 @@ if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
 from backend.server import _state_to_dict                       # noqa: E402
-from core.game_state import GameState                           # noqa: E402
+from application.game_init import new_game
 from core.region_brief import build_region_brief, hidden_surveyed  # noqa: E402
 
 
 def _new_state():
-    return GameState("史实")
+    return new_game()
 
 
 def test_snapshot_hides_hidden_pop_before_survey():
