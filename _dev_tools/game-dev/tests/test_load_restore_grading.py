@@ -13,6 +13,7 @@
 玩家所有合法蓝图；后者继续下去只会得到一个残缺档案。
 """
 import json
+import sys
 
 import pytest
 
@@ -139,3 +140,38 @@ def test_current_format_roundtrip_keeps_blueprints():
     assert s2 is not None
     assert len(s2.dynamic_blueprints or {}) == 1, "合法蓝图往返必须保留"
     assert bp["name"] in {v.get("name") for v in s2.dynamic_blueprints.values()}
+
+
+# ====================================================== 版本常量：不得静默回落
+def test_schema_version_import_failure_is_logged_not_silent(caplog, monkeypatch):
+    """版本常量导入失败 → **记 error + 回落值为 0**，**不得静默回落到 1**。
+
+    原实现回落到 1，会让**本程序写的档被自己当成旧 schema 读回**，
+    超版本门（高于支持版本则拒载该段）形同虚设。回落 0 < 任何真实版本，使门保持生效。
+    """
+    import importlib
+    import sys
+    import core.save_load as sl
+
+    for name in ("core.blueprint_dynamic", "core.decree_plan", "core.plan_commit"):
+        monkeypatch.setitem(sys.modules, name, None)
+    importlib.reload(sl)
+
+    with caplog.at_level("ERROR", logger="save_load"):
+        v = sl._plan_schema_versions()
+
+    assert v == {"decree_plan": 0, "dynamic_blueprint": 0, "plan_action": 0}, v
+    assert any(r.levelname == "ERROR" for r in caplog.records), "必须记 error（静默回落禁止）"
+    assert any(r.exc_info for r in caplog.records), "error 必须带堆栈，事后可定位"
+
+    importlib.reload(sl)
+
+
+def test_real_schema_versions_are_positive():
+    """实际常量必须为**正整数**（否则超版本门会误拒合法档）。"""
+    from core.save_load import _plan_schema_versions
+
+    v = _plan_schema_versions()
+    assert v, "版本表不应为空"
+    for k, ver in v.items():
+        assert isinstance(ver, int) and ver > 0, f"{k} 版本非正整数：{ver!r}"

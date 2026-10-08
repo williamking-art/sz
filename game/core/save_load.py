@@ -43,14 +43,23 @@ from core.foundation.persistence.migrations import (  # noqa: F401
 
 
 def _plan_schema_versions() -> dict:
-    """三个行动计划相关子 schema 的**当前**版本（延迟导入，避免顶层环）。"""
+    """三个计划行动相关子 schema 的**当前**版本（延迟导入，避免顶层环）。
+
+    🔴 **不得静默回落到 1**（2026-10-07 用户指出）：若某常量未来自本模块，
+    回落会让**本程序写的档被自己当成旧 schema 读回**，超版本门（高于支持版本则拒载该段）形同虚设。
+    故失败时**记 error 并将回落值抬升为 0**（低于任何真实版本），使超版本门保持生效。
+    """
     try:
         from core.blueprint_dynamic import DYNAMIC_BLUEPRINT_SCHEMA_VERSION as _d
         from core.decree_plan import DECREE_PLAN_SCHEMA_VERSION as _p
         from core.plan_commit import PLAN_ACTION_SCHEMA_VERSION as _a
         return {"decree_plan": _p, "dynamic_blueprint": _d, "plan_action": _a}
-    except Exception:  # noqa: BLE001 — 版本自述失败不得阻断存档
-        return {"decree_plan": 1, "dynamic_blueprint": 1, "plan_action": 1}
+    except Exception:
+        import logging
+        logging.getLogger("save_load").error(
+            "[存档] 子 schema 版本常量导入失败，回落为 0（低于任何真实版本，超版本门仍生效）",
+            exc_info=True)
+        return {"decree_plan": 0, "dynamic_blueprint": 0, "plan_action": 0}
 
 
 def save_game(state, slot: int = 1) -> bool:
