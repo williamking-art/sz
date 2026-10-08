@@ -332,17 +332,17 @@ def _load_situations(raw) -> tuple:
     return kept, bad
 
 
-def load_game(slot: int = 1):
+def _load_with_data(slot: int = 1):
     """从指定槽位读取存档，返回 GameState 或 None（损坏档返回 None 并备份 .corrupt）
 
     非法槽位（负数/非整数）与「档不存在」同口径返回 None（不抛、不记错误日志）：
     读档是高频探测路径，缺档属正常。
     """
     if not _slot_ok(slot):
-        return None
+        return None, None
     path = _slot_path(slot)
     if not os.path.exists(path):
-        return None
+        return None, None
 
     # 审查 P1-9 修复（损坏恢复）：原实现裸 json.load，损坏档抛 JSONDecodeError 穿到
     # UI 造成崩溃式失败。现捕获解析/IO 异常，备份损坏档（便于事后排查）后返回 None，
@@ -358,7 +358,7 @@ def load_game(slot: int = 1):
             os.replace(path, path + ".corrupt")
         except OSError:
             pass
-        return None
+        return None, None
     if not isinstance(data, dict):
         import logging as _lg
         _lg.getLogger("save_load").error("存档结构非法（slot=%s）：顶层非对象", slot)
@@ -366,7 +366,7 @@ def load_game(slot: int = 1):
             os.replace(path, path + ".corrupt")
         except OSError:
             pass
-        return None
+        return None, None
 
     # P2-10：schema_version 不得因非法类型抛异常 —— 安全解析失败即走损坏档路径
     # （日志 + .corrupt 备份 + None），由调用方按「读档失败/存档可能已损坏」处理。
@@ -380,12 +380,12 @@ def load_game(slot: int = 1):
             os.replace(path, path + ".corrupt")
         except OSError:
             pass
-        return None
+        return None, None
     if _ver > 3:
         import logging
         logging.getLogger("save_load").error(
             "存档 schema_version=%s 高于本程序支持的 3，拒绝加载", _ver)
-        return None
+        return None, None
 
     # 延迟导入避免循环
     from core.game_state import GameState
@@ -777,53 +777,27 @@ def load_game(slot: int = 1):
     from content.data import RESOURCE_DIMS
     state.payraise_budget = data.get("payraise_budget", getattr(state, "payraise_budget", 0))
     state.oversight = data.get("oversight", getattr(state, "oversight", 0.30))
-    # 规格任务 3：动态蓝图注册表。只接受 dict，且**逐条重过校验器**（读档不信任存档，
-    # 防旧档/改档塞入未注册构件或非声明式字段）；坏项**丢弃并留痕**，不整档失败。
-    _dyn_saved = data.get("dynamic_blueprints")
-    state.dynamic_blueprints = {}
+    # ↑ 上述本行变量仍被后续分段使用（行动登记 / 动态价 / 官员 Agent / 子 schema 版本门）。
+    #   它们不属于动态蓝图，故仍留在基础层（只是日志器与版本表，无业务依赖）。
     import logging as _lg2
     _dlog = _lg2.getLogger("save_load")
-    # ---- 规格任务 7：子 schema 版本迁移 ----
-    # 旧档（无 `plan_schemas`）视为 v1 并**逐条重过校验器**（等价于迁移）；
-    # 版本**高于**本程序支持 → **拒绝载入该段**（不猜、不降级解释），主档继续。
     _supported = _plan_schema_versions()
-    _saved_ver = data.get("plan_schemas")
-    if isinstance(_saved_ver, dict):
-        for _k, _v in _saved_ver.items():
-            _sup = _supported.get(_k)
-            if _sup is None:
-                continue
-            try:
-                _vn = int(_v)
-            except (TypeError, ValueError):
-                _dlog.warning("[读档] plan_schemas.%s 非法（%r），按当前版本 %s 处理",
-                              _k, _v, _sup)
-                continue
-            if _vn > int(_sup):
-                _dlog.warning("[读档] 存档 %s schema v%s 高于本程序支持的 v%s，"
-                              "该段拒绝载入（请升级程序）", _k, _vn, _sup)
-                if _k == "dynamic_blueprint":
-                    _dyn_saved = None          # 拒绝该段 → 下面按空表处理
-                elif _k == "plan_action":
-                    data = dict(data)
-                    data.pop("plan_actions", None)
-    if isinstance(_dyn_saved, dict):
-        try:
-            from core.blueprint_dynamic import register_dynamic_blueprint
-            _dropped = 0
-            for _dk, _dv in _dyn_saved.items():
-                _r = register_dynamic_blueprint(state, _dv)
-                if not _r.get("ok"):
-                    _dropped += 1
-                    _dlog.warning("[读档] 动态蓝图 %s 未通过校验，已丢弃：%s",
-                                  _dk, _r.get("errors"))
-            if _dropped:
-                _dlog.warning("[读档] 共丢弃 %d 条非法动态蓝图", _dropped)
-        except Exception:  # noqa: BLE001 — 迁移失败不得阻断读档
-            _dlog.exception("[读档] 动态蓝图迁移失败，按空表继续")
-            state.dynamic_blueprints = {}
+    # 🔴 动态蓝图恢复（2026-10-07 用户裁定，M25）：**已迁到应用层**。
+    #   基础持久化层只做反序列化，不再引用业务域（§6-1）。
+    #   调用方：`application.load_game.load_game` → `_load_with_data` → 蓝图域校验与登记。
+    #   失败语义：恢复失败→ 读档调用失败，**不返回半恢复的 state**。
     # 行动提交登记表（任务 2 跨提交幂等）：只接受 dict，且逐条要求有 schema_version 与 pid/turn。
     # 非法条目**丢弃并留痕**（不猜），坏表整体按空表处理——宁可失去幂等身份，不伪造历史。
+    # 🔴 行动登记子段版本门（2026-10-07 用户裁定，M25）：**超版本只拒绝该子段**。
+    #   与动态蓝图子段同规（拒绝该段、整档继续），不拒绝整档。
+    if isinstance(data.get("plan_schemas"), dict):
+        _sup_a = _supported.get("plan_action")
+        _sa_ver = data["plan_schemas"].get("plan_action")
+        if _sup_a is not None and isinstance(_sa_ver, int) and _sa_ver > int(_sup_a):
+            _dlog.warning("[读档] 存档 plan_action schema v%s 高于支持的 v%s，该段拒绝载入",
+                          _sa_ver, _sup_a)
+            data = dict(data)
+            data.pop("plan_actions", None)
     _acts_saved = data.get("plan_actions")
     state.plan_actions = {}
     if isinstance(_acts_saved, dict):
@@ -1064,4 +1038,15 @@ def load_game(slot: int = 1):
     state.game_result = data.get("game_result", "")
     state.victory = data.get("victory", False)
 
-    return state
+    return state, data
+
+
+
+def load_game(slot: int = 1):
+    """读档兼容 API：**薄转发**到应用层编排。
+
+真实实现在 `application/load_game.py`（基础反序列化 + 蓝图域恢复）。
+本函数**不做反序列化也不做业务恢复**（2026-10-07 用户裁定）。
+    """
+    from application.load_game import load_game as _load
+    return _load(slot)

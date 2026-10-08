@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+"""宋祚 · 读档编排（应用层）。
+
+> **为什么在这里**：2026-10-07 用户裁定（M25）要求动态蓝图恢复
+> 从基础持久化层 `core/save_load.py` **迁到应用层**，使其不再引用业务域（§6-1）。
+>
+> 分工：基础层 `_load_with_data` 只做**反序列化**（字段回填）；蓝图的
+> **校验与登记**属于业务域，由本模块编排。
+"""
+from __future__ import annotations
+
+
+class RestoreServiceError(RuntimeError):
+    """**恢复服务自身失败**（整档级）⇒ 读档必须失败，不返回部分恢复的 state。
+
+    覆盖：读档编排本身出错、蓝图域服务不可用、版本表不可得等
+    「继续下去会得到一个残缺档案」的情形。
+    """
+
+    def __init__(self, slot, stage, cause):
+        self.slot = slot
+        self.stage = stage
+        self.cause = cause
+        super().__init__(
+            f"存档 slot={slot} 恢复失败 @ {stage}：{type(cause).__name__}: {cause}"
+        )
+
+
+def restore_dynamic_blueprints(state, data, slot):
+    """恢复动态蓝图注册表并逐条重过校验器。
+
+    **失败分级**（2026-10-07 用户裁定）：
+
+    | 层级 | 处理 |
+    |---|---|
+    | 整档结构 / 必需状态损坏、恢复服务自身失败 | **fail-fast**，读档失败，不返回部分恢复的 state |
+    | **单条**动态蓝图校验失败（内容非法） | **只丢弃该条**并留痕，其余合法蓝图继续恢复 |
+    | 子段 schema 高于支持版本 | **只拒绝该子段**并留痕，整档继续 |
+
+    🔴 **内容校验失败 ≠ 恢复服务故障** —— 前者是数据问题（可能只错一条），
+    整档丢弃会连带废掉玩家所有合法蓝图；后者是服务问题，继续只会得到残缺档案。
+    """
+    import logging
+    from core.blueprint_dynamic import register_dynamic_blueprint
+    from core.save_load import _plan_schema_versions
+
+    _dlog = logging.getLogger("save_load")
+    state.dynamic_blueprints = {}
+    _dyn_saved = data.get("dynamic_blueprints")
+
+    # ---- 子 schema 版本门：超版本只拒绝该子段（留痕），整档继续 ----
+    try:
+        _supported = _plan_schema_versions()
+    except Exception as e:  # noqa: BLE001 — 版本表取不到 = 服务故障，非内容问题
+        raise RestoreServiceError(slot, "plan_schema_versions", e) from e
+    _saved_ver = data.get("plan_schemas")
+    if isinstance(_saved_ver, dict):
+        for _k, _v in _saved_ver.items():
+            _sup = _supported.get(_k)
+            if _sup is None:
+                continue
+            try:
+                _vn = int(_v)
+            except (TypeError, ValueError):
+                _dlog.warning("[读档] plan_schemas.%s 非法（%r），按当前版本 %s 处理",
+                              _k, _v, _sup)
+                continue
+            if _vn > int(_sup):
+                _dlog.warning("[读档] 存档 %s schema v%s 高于本程序支持的 v%s，该段拒绝载入",
+                              _k, _vn, _sup)
+                if _k == "dynamic_blueprint":
+                    _dyn_saved = None
+
+    if not isinstance(_dyn_saved, dict):
+        return 0
+
+    _n = 0
+    _dropped = 0
+    for _dk, _dv in _dyn_saved.items():
+        try:
+            _r = register_dynamic_blueprint(state, _dv)
+        except Exception as e:  # noqa: BLE001 — 服务自身故障 ⇒ 整档 fail-fast
+            raise RestoreServiceError(slot, "register_dynamic_blueprint", e) from e
+        if not _r.get("ok"):
+            _dropped += 1
+            _dlog.warning("[读档] 动态蓝图 %s 未通过校验，已丢弃：%s",
+                          _dk, _r.get("errors"))
+            continue
+        _n += 1
+    if _dropped:
+        _dlog.warning("[读档] 共丢弃 %d 条非法动态蓝图", _dropped)
+    return _n
+
+
+def load_game(slot: int = 1):
+    """读档入口：基础反序列化 → 业务域恢复。
+
+    整档级失败（结构损坏 / 恢复服务故障）⇒ 直接抛出，**不返回半恢复的 state**。
+    """
+    from core.save_load import _load_with_data
+
+    state, data = _load_with_data(slot)
+    if state is None:
+        return None
+    restore_dynamic_blueprints(state, data, slot)
+    return state
