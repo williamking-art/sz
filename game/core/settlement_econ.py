@@ -15,7 +15,7 @@ from content.data import (
     TIER_RANGE,
     FINANCE_DECIDE_BASE,
     SEED_GRAIN_PER_MU,
-    MEAT_PRICE,
+
     HOARD_SPOIL_RATE,
     HOARD_DRAW_RATE,
     HOARD_CAP_MULT,

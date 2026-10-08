@@ -220,8 +220,18 @@ def test_s10_json_safe_still_serializable(state):
         {"n": Foo(), "deep": [{"k": (1,)}]},
         {"sets": {3, 1, 2}},
     ]
+    # 2026-10-08 审查补强：原为「不抛即通过」（0 assert）。
+    #   改为**显式断言**，并校验关键结构而非仅「没炸」：
+    #   ① json.dumps 必须真的返回字符串；② tuple/set 必须被 _json_safe 降级为可序列化形态；
+    #   ③ 自定义对象的 repr 必须出现（未被静默丢弃）。
     for c in cases:
-        json.dumps(_json_safe(c), ensure_ascii=False)      # 不得抛
+        out = _json_safe(c)
+        dumped = json.dumps(out, ensure_ascii=False)          # 不得抛
+        assert isinstance(dumped, str) and dumped, f"序列化结果非空字符串：{c!r}"
+    # tuple/set 降级：集合类字段不得仍以 set 形态存在（否则 json 会抛，此处是显式钉住）
+    assert not isinstance(_json_safe({"sets": {3, 1, 2}})["sets"], set), "set 未被降级"
+    assert "<Foo>" in json.dumps(_json_safe({"n": Foo()}), ensure_ascii=False), "自定义对象 repr 丢失"
+    assert _json_safe((1, "x")) == [1, "x"], "tuple 未降级为 list"
 
 
 def test_s10_no_redundant_dumps_probe():

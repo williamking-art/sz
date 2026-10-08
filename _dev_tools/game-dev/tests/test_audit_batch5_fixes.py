@@ -92,7 +92,16 @@ def test_o2_non_numeric_influence_filtered(state):
     names = list(state.factions)[:2]
     state.factions = {names[0]: {"influence": "很多"}, names[1]: {"influence": 90}}
     log = []
-    SM._settle_factions(state, log)     # 不抛即通过
+    SM._settle_factions(state, log)
+    # 2026-10-08 审查补强：原为「不抛即通过」（0 assert）。
+    #   显式钉住**过滤结果**而非仅「没炸」：非数值 influence 的派系不得留在参与派系里，
+    #   且另一派系的数值不得被污染（非有限）。
+    import math as _m
+    kept = [k for k, v in state.factions.items()
+            if isinstance(v.get("influence"), (int, float)) and not isinstance(v.get("influence"), bool)]
+    assert names[0] not in kept, f"非数值 influence 未被过滤：{state.factions[names[0]]}"
+    assert names[1] in kept, f"数值 influence 派系被误删：{state.factions[names[1]]}"
+    assert _m.isfinite(float(state.factions[names[1]]["influence"])), "influence 非有限值"
 
 
 def test_o2_normal_disparity_still_triggers(state):
