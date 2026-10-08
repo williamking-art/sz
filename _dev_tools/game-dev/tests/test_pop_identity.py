@@ -257,8 +257,11 @@ def test_exam_promotion_conservation():
 def test_famine_flee_conservation():
     """农缺粮逃荒闭合：ΣΔ农 size == -ΣΔrefugees（_settle_granary 消费段）。"""
     s = _new_state()
+    # 🔴 2026-10-08：改走桥接。新局已下沉，路级 `pops` 是**派生镜像**，
+    #   直写它不会真清空粮（会被 `sync_route_pops` 刷回），缺粮前提不成立。
+    from core.foundation.ledger.pop_bridge import pop_set as _pop_set
     for p in s.prefectures.values():
-        p["pops"]["农"]["grain"] = 0
+        _pop_set(p, "农", "grain", 0)
     random.seed(7)
     f0 = sum(p["pops"]["农"]["size"] for p in s.prefectures.values())
     r0 = s.refugee_count

@@ -31,13 +31,23 @@ def test_no_orphan_workshop_output():
 
 
 def test_tax_dims_are_registered_but_not_tradeable():
-    """契约2：即产即销维已登记，但**不在商品目录**内（登记 ≠ 可交易）。"""
+    """契约2：即产即销维已登记，但**不进物资仓**（登记 ≠ 进仓）。
+
+    🔴 **2026-10-08 用户裁定修订**：`meat` 已从「即产即销、按人口摊派折钱」
+    改为**商品**（畜栏产出走市场成交）。原断言 `"meat" not in GOODS_DIMS`
+    锁定的正是「肉不是商品」这一旧口径，故随之改写。
+
+    `wine` 仍是即产即销（酒课当月折钱入内帑），不进物资仓、不进工匠货栈，
+    但因有价格读数故在商品目录内。
+    """
     for d in FINISHED_TAX_DIMS:
         assert d in FINISHED_DIMS, f"{d} 应已登记为成品"
         assert d not in RESOURCE_DIMS, f"{d} 走内帑，不应进物资仓"
-    # wine 有价格读数故在商品目录；meat 从不以货物流转，故不在。
-    assert "wine" in GOODS_DIMS
-    assert "meat" not in GOODS_DIMS, "meat 即产即销，不应作为可流转商品"
+    assert "wine" in GOODS_DIMS, "wine 有价格读数，故在商品目录"
+    # 🔴 meat 已改为商品：必须在商品目录与物资仓内，产出才有处可落。
+    assert "meat" in GOODS_DIMS, "meat 已改为商品，应在商品目录"
+    assert "meat" in RESOURCE_DIMS, "meat 已改为商品，产出须有仓可落"
+    assert "meat" not in FINISHED_TAX_DIMS, "meat 已移出即产即销维"
 
 
 def test_pool_dims_exclude_tax_dims():

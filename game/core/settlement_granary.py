@@ -570,7 +570,11 @@ def _settle_granary(state, log):
                 if pn == "农":       # 农缺粮 → 逃荒为流民（人数＝缺粮人数，1:1）
                     _flee = min(hungry, FLEE_CAP_PER_ROUTE, int(pop["size"]))
                     if _flee > 0:
-                        pop["size"] -= _flee
+                        # U0001f534 2026-10-08：改走桥接。路级 `size` 在已下沉档中是**派生镜像**，
+                        #   直写会被 `sync_route_pops` 撤销（流民增了但农不减 → 人口平白增长）。
+                        #   未下沉时返回 None → 回退原路径，行为不变。
+                        if _pop_obj_add(state, pop, "size", -_flee) is None:
+                            pop["size"] -= _flee
                         p["refugees"] = p.get("refugees", 0) + _flee
         state.statistics["grain_hungry"] = state.statistics.get("grain_hungry", 0) + _famine_total
         # 5) 农储粮上限+霉耗（加消耗兜底·自然消耗）：农 grain > 12石/人 → 超出按 2%/月霉耗核销（收敛 ~12石/人）

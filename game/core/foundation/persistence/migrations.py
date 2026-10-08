@@ -75,3 +75,15 @@ def _migrate_pops_to_seats(state) -> int:
             except Exception:           # noqa: BLE001 — 镜像刷新失败不影响真账
                 pass
     return migrated
+
+
+def sink_pops_to_seats(state) -> int:
+    """把**路级 pops 实体下沉**到州府级 seats（方案乙）。
+
+无条件的下沉入口：**新局**（application/game_init.py）与
+**读档**（save_load）共用。两者差别只在调用时机，逻辑完全一致。
+
+本函数幂等（已下沉的路直接跳过），**新局与读档都可安全调用**。
+返回实际下沉的路数。
+    """
+    return _migrate_pops_to_seats(state)

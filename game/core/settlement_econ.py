@@ -84,7 +84,13 @@ def _settle_economy(state, log):
         # 1) 人口自然增长/萎缩落到各路农 POP（农民为主，按各路人口比例摊）
         if growth != 0:
             share = p.get("population", 1) / _pop_base_total
-            pops["农"]["size"] = max(0, pops["农"]["size"] + int(growth * share))
+            # U0001f534 2026-10-08：改走桥接（新局已下沉，路级 `size` 是**派生镜像**）。
+            #   原直写路级会被 `sync_route_pops` 撤销（人口增长**丢失**）。
+            #   未下沉时 `pop_obj_add` 返回 None → 回退原路径，行为不变。
+            _fld = "农"
+            _delta = int(growth * share)
+            if _pop_obj_add(state, pops[_fld], "size", _delta) is None:
+                pops[_fld]["size"] = max(0, pops[_fld]["size"] + _delta)
         # 2) POP 职业流动（AI 化·Phase B 定稿）：城市化/回乡档位 → 程序换算速率，net 流守恒。
         #    全游戏级强制 AI（拒绝式）：无 _economy_ai（经济推演未注入）→ 城市化/回乡/科举
         #    一律「无」（不流动、不伪造档位）；有推演才按档位流动。
@@ -1742,19 +1748,11 @@ def _settle_workshops(state, log):
             # 使财政步每月从工匠/商人 wealth **超额扣缴**进内帑，是"钱荒"的直接推手。
             # 现改为按月**重算**：酒课 = 保底 WINE_COIN_BASE ＋ Σ各酒坊产能加成。
             _wine_bonus += int(yld * MATERIAL_PRICE_BASE.get("wine", 0) * 0.1)
-        elif out_dim == "meat":
-            # 畜栏产肉折钱入内帑（加消耗修正·依托建筑；耗粮已在 grain_feed 从太仓扣）
-            # 审查 A-4 修复（阶段 B-1 实测的残差主源）：原 `imperial_treasury += 收入`
-            # **无买方** → 凭空造币。肉是消费品，收入须由买家（民间 POP wealth）支付：
-            # 现按人口比例向六类 POP 征收，**只把实收额**入内帑（不足则按实收计）。
-            _meat_gain = int(yld * MEAT_PRICE)
-            _meat_taken = _collect_from_pops(state, _meat_gain)
-            if _meat_taken < _meat_gain:
-                log.append(f"[作坊] 畜栏产品滞销：应售 {_meat_gain:,} 贯，"
-                           f"民间仅能支付 {_meat_taken:,} 贯（民穷则肉卖不动）")
-            state.imperial_treasury += _meat_taken
-            state.granary_stats["meat_revenue"] = \
-                state.granary_stats.get("meat_revenue", 0) + _meat_taken
+        # U0001f534 2026-10-08 用户裁定：肉是**商品**，不再「按人口摊派折钱」。
+        #   原分支用 `_collect_from_pops` 向六类 POP 等比例扣钱，无对应买方（等价于税），
+        #   且与 `goods` 成品通道双记账。现与「绢/布/纸/糖」同路：落 `resources` + 工匠 `goods` 池，
+        #   由民间成交付钱。排除下方 `elif out_dim in RESOURCE_DIMS` 保留分支。
+
         elif out_dim in RESOURCE_DIMS:
             # 审查防御：同上（缺槽即 KeyError）；且 cap<=0 时原式 min(0, …) 会把
             # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。

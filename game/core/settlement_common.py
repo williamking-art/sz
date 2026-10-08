@@ -381,7 +381,11 @@ def _collect_from_pops(state, amount: int) -> int:
         avail = int(pp.get("wealth", 0) or 0)
         got = min(want, avail)
         if got > 0:
-            pp["wealth"] = avail - got
+            # U0001f534 2026-10-08：改走桥接。路级 `wealth` 在已下沉档中是**派生镜像**，
+            #   直写会被 `sync_route_pops` 撤销（银子**永远收不到**，即创钱缺口）。
+            #   未下沉时返回 None → 回退原路径，行为不变。
+            if _pop_obj_add(state, pp, "wealth", -got) is None:
+                pp["wealth"] = avail - got
             taken += got
             remaining -= got
     for pp, _sz in pools:                       # 第二轮：补齐 int 截断余额
@@ -390,7 +394,11 @@ def _collect_from_pops(state, amount: int) -> int:
         avail = int(pp.get("wealth", 0) or 0)
         got = min(remaining, avail)
         if got > 0:
-            pp["wealth"] = avail - got
+            # U0001f534 2026-10-08：改走桥接。路级 `wealth` 在已下沉档中是**派生镜像**，
+            #   直写会被 `sync_route_pops` 撤销（银子**永远收不到**，即创钱缺口）。
+            #   未下沉时返回 None → 回退原路径，行为不变。
+            if _pop_obj_add(state, pp, "wealth", -got) is None:
+                pp["wealth"] = avail - got
             taken += got
             remaining -= got
     return taken

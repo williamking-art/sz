@@ -41,13 +41,29 @@ def init_population(state):
         raise GameInitError("new_game", "ensure_hidden_in_pops", e) from e
 
 
-def new_game(mode: str = "史实"):
-    """开局入口：`GameState` 构造 → 人口域初始化。
+def init_pops_seats(state):
+    """把 POP 实体**下沉到州府级**（方案乙）：路级 `pops` → 各治所 `seats`。
 
-    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入。
+    🔴 **为什么新局也必须下沉**：此前只有**读档**触发下沉，导致新局长期停在
+    「路级是真账」状态 —— 而桥接层在无 `seats` 时会**回落到旧载体**，
+    写法形同虚设。2026-10-08 用户指出「要求的是数据下沉，改描述算什么」。
+
+    ⚠️ **顺序**：必须在 `init_population` **之后**调用 —— `hidden` 属 `SPLIT_FIELDS`，
+    先下沉再写路级会让它落进派生镜像而与治所真账**分叉**。
+    """
+    from core.foundation.persistence.migrations import sink_pops_to_seats
+
+    return sink_pops_to_seats(state)
+
+
+def new_game(mode: str = "史实"):
+    """开局入口：`GameState` 构造 → 人口域初始化 → **POP 下沉州府级**。
+
+    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、POP 也不会下沉。
     """
     from core.game_state import GameState
 
     state = GameState(mode)
-    init_population(state)
+    init_population(state)     # 先注隐户（hidden 在 SPLIT_FIELDS 内）
+    init_pops_seats(state)      # 再下沉，避免路级写落进派生镜像
     return state

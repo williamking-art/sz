@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 # 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core import officialdom as _officialdom
 
 from core.settlement_common import (
@@ -51,7 +52,11 @@ def _settle_clan(state, log):
         shen = p["pops"]["士绅"]
         g = (paid - given) if i == len(_clan_by_route) - 1 else int(paid * n / total_clan)
         g = max(0, int(g))
-        shen["wealth"] = int(shen.get("wealth", 0) or 0) + g
+        # U0001f534 2026-10-08：改走桥接。路级 `wealth` 在已下沉档中是**派生镜像**，
+        #   直写会被 `sync_route_pops` 撤销（赋福钱**收不到**）。
+        #   未下沉时返回 None → 回退原路径，行为不变。
+        if _pop_obj_add(state, shen, "wealth", g) is None:
+            shen["wealth"] = int(shen.get("wealth", 0) or 0) + g
         given += g
     if given != paid:                       # 极端兜底：分配残差退回内帑
         state.imperial_treasury += paid - given
