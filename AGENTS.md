@@ -103,7 +103,42 @@ cd D:\codebuddy\sz
      `prefectures[路]["seats"][治所]["pops"][类]`（每治所一个独立 POP）；
      **路级 `prefectures[路]["pops"]` 降为只读派生聚合（Σ 治所）**，任何写入必须落州府，
      否则即构成「与 POP 平行的账本」。这与粮迁移（`grain` → `goods[米]` 派生）是同一模式。
-   - **当前状态**：`pops` 的**全部写入点已桥接化**（约 130 处，覆盖 `settlement_finance`/`granary`/`officialdom`/`econ`/`common`/`imperial`/`decree`/`commands`/`clerks`/`game_state`/`agri`/`econ_helpers`）。**存量读取仍走路级 `pops`**（它是桥接维护的派生镜像，故读取不必逐处改写）。**旧档 `save_load` 迁移已落地**（`_migrate_pops_to_seats`：载入时对 `seats` 缺失的路补拆分；已下沉档绝不覆盖）。**路级 `pops` 已由「只读守卫」强制**（`pop_bridge._GuardedPops`/`_GuardedRow` + `_pops_write_exempt` 豁免）：新增绕过桥接的直写会被 `test_route_pops_readonly_guard.py` **当场炸掉**。守卫量出的**剩余直写基线**（`KNOWN_LEGACY_WRITES`）：`grain` 已于 G-3 片5 沉入州府并**从守卫基线清零**（348→0，调用点全部改传 `state`），`officials`/`clerks`/`on_post`/`waiting`/`sinecure`（身份子池）、`clan`（宗族）仍**不在 `SPLIT_FIELDS`**。⚠️ `grain_bridge` 的四个函数都支持**可选 `state`**：给了就委派 `pop_bridge`（写入下沉州府），没给则沿用旧载体 —— **改调用点时务必传 `state`**，否则会继续写路级、造成分叉（§6.18 有三处漏网实例）。⚠️ 存量**读取**仍走路级 `pops`（约 210 处），**这是刻意保留**：镜像是 `seats` 的纯函数，重写读取对正确性零收益、风险极高。⚠️ **均值类字段**（`MEAN_FIELDS`，如识字率）是比率，拆分/聚合都**不可求和**（复制 + 按 size 加权）；⚠️ `sync_route_pops` **合并**而非替换，否则抹掉 `estate`/`officials` 等不参与拆分的字段。
+   - ✅ **下沉已覆盖新局与读档（2026-10-08 落地）**：`migrations.sink_pops_to_seats(state)`
+     是**无条件幂等入口**（已下沉则跳过），`new_game`（`application/game_init.init_pops_seats`）与读档共用。
+     **实测 `commands.new_game()`：20 路 `seats` 有值 = 20 / 20**；生产连跑 3 回合，逐字段
+     （`size`/`wealth`/`grain`/`hidden`/`kou`/`ding` 等）路级 == Σ 治所，**差恒为 0**。
+
+     ⚠️ **顺序不可调换**：`hidden` 在 `SPLIT_FIELDS` 内 ⇒ `new_game` 必须**先注隐户再下沉**，
+     否则路级写会落进派生镜像造成分叉。
+
+   - 🔴 **路级 `pops` 已下沉档里是派生镜像 ⇒ 直写 = 写丢失**。`sync_route_pops` 每次从治所真账
+     **重算覆盖** `SPLIT_FIELDS`，所以直写路级会被**静默撤销**。实测：
+
+     | 写法 | 治所真账 |
+     |---|---|
+     | 直写路级 `+1000` | **不变**（写进镜像，随后被 sync 刷回）|
+     | 桥接 `pop_obj_add(..., "size", 1000)` | `6,217,964 → 6,218,964` ✅ |
+
+     ⇒ **所有写点必须走桥接**（惯例：`if _pop_obj_add(state, obj, fld, d) is None: <原写法>`；
+     未下沉时返回 `None` 走原路径，行为不变）。**测试构造前置同样要桥接**（直写镜像清不掉真粮）。
+
+   - 🔴 **读路级 `pops` 是对的，写才是错**。存量读取（42 文件 / 133 处）**刻意保留**读镜像
+     （镜像是 `seats` 的纯函数）。区分判据：**读镜像 / 写必须桥接**。
+
+   - 🔴 **守卫只对已安装守卫的路生效**（`pop_bridge._GuardedPops`，`install_all_guards`）；
+     **生产未启用** ⇒ 测试未覆盖的写点仍可能静默丢失。待办：装守卫跑完整结算序列 + 后端动作，
+     按字段分类（`SPLIT_FIELDS` 补桥接 / 其它补 `_pops_write_exempt` 白名单）。
+
+     🔴 `grain_bridge` 的四个函数都支持**可选 `state`**：给了就委派 `pop_bridge`（写入下沉州府），没给则沿用旧载体
+     —— **改调用点时务必传 `state`，否则会继续写路级、造成分叉**。依赖它的四个函数中已有三处漏网实例。
+
+   - ✅ **身份/家产子池已下沉（2026-10-08）**：`estate`/`estate_hoard`/`officials`/`clerks`/`on_post`/`waiting`/`sinecure`
+     加入 `SPLIT_FIELDS`。此前它们**不在**该表 ⇒ `sync_route_pops` 把路级值**原样复制**到每个治所 ⇒
+     **Σ治所 == 路级 × 治所数**（实测 `estate` 6.4×、`officials` 6.1×），按治所读会算错。现已相等。
+
+     ⚠️ **均值类例外**：`literacy` 属 `MEAN_FIELDS`（比率，**不可求和**）——拆分侧「原样复制」+ 聚合侧
+     「按 `size` 加权」是**成对设计**，实测 112/120 精确还原；余 8 为 `size = 0` 的良性边界
+     （`aggregate_seat_pops` 有 `_den > 0` 保护）。**不是缺陷，勿按「Σ治所≠路级」判错。**
 2. **口径单点**：算法在 `core/`；HTTP 端点只做薄壳；**前端不复制算法**。
 3. **缺失 ≠ 0 ≠ 1.0**：缺失一律 `None` → 界面显示"未定义"；禁止回落 0/1.0 假装无事。
 4. **核心模拟**（经济/人口/税收/随机数/长期结算）任何改动：**先说明口径与影响 + 加定向回归**。
