@@ -819,7 +819,8 @@ patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字�
 `global` 重绑缓存**且**显式登记在册**的两个名字跳过。
 
 **验证数字（2026-10-09 实测，同一次运行）**：`FULL_EXIT=0`；junit 声明
-`tests=2446 failures=0 errors=0 skipped=4`；SCC v3 `[12]+[2]` 与批次前只读副本成员逐字相同；
+`tests=2446 failures=0 errors=0 **skipped=2**（原文误记 4：计数脚本把 `testsuite` 属性与逐 `testcase`
+> 各计一次 ⇒ 双计；DSH 独立实测 2 正确，脚本已改为两路分开互证）`；SCC v3 `[12]+[2]` 与批次前只读副本成员逐字相同；
 `b19_completion.py` 桩集合 == `MIGRATED_OLD`（40 == 40，零差集）。
 
 **M27 计数口径已定**：当前唯一可复现基线 = 同一次运行的 junit `tests=2446`（= `--collect-only`

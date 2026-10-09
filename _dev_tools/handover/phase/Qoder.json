@@ -6,13 +6,16 @@
   "handover_selfcheck": "11 项目标全部 OK（两个 skill + 三处 AGENTS + _dev_tools README + 脚本停用注 + README/NOTICE/INDEX/.gitignore）",
   "tool_test": "log 落地、抢他人条目被拒(EXIT=3)、claim/finish 往返、临时条目已清；check tasks=8 decisions=13 worklog=21 问题=0",
   "import": "import-cloud 幂等（复跑 0 重写）；云端存量 state 8 键 / tasks 7 / decisions 12 / worklog 20 / context 1 全导入，原始 JSON 逐字节归档",
-  "pytest": "本批不动 game/ 与 tests/ 代码，上一批（3ba2d5fa59）全量 FULL_EXIT=0、junit tests=2446 failures=0 errors=0 skipped=4 仍是现行基线"
+  "pytest": "全量 FULL_EXIT=0，FAILED/ERROR=0；junit 同一次运行 tests=2446 / failures=0 / errors=0 / skipped=2（订正：先前记的 skipped=4 是计数脚本双计，DSH 实测 2 正确）"
  },
  "found_and_fixed": [
   "Windows 大小写不敏感卷：phase/qoder.json（退役墓碑）静默覆盖 phase/Qoder.json ⇒ 加 _case_clash() 拒绝 + 墓碑改存 _retired.<名>.json",
   "check 曾把正则串当 str.endswith 参数 ⇒ 扫到 0 条还报『问题=0』⇒ 修判据并加下限断言（计数 0 = 失效）",
   "我一次把替换结果赋给临时变量没写回 s ⇒ skill §10/description 首次保存是空改动（已重做并复验）"
  ],
- "next": "通道不再阻塞：第二十二包（候选 clerks → domains/administration/）可用 handover.py claim 正常认领后开工；M25 写站点裁定仍在 decisions 等用户。",
- "updatedAt": "2026-10-09T07:48:30Z"
+ "next": "第二十二包＝`evaluation`(205 行) → `game/application/`（开工前在板上认领）。`clerks` 归 DSH。M25 已裁定（路径①、注入面只限 C 类底层反向写站点），板上 open 的是**落地剩余**：其余 C 类站点 + `settlement_common`（含随机边界）。仍待用户裁：`MIG-COMPAT-RETENTION`、`A-粮价`、`M30-rebind-cache-debt` 销账方式。",
+ "updatedAt": "2026-10-09T07:48:30Z",
+ "corrections": [
+  "2026-10-09：skipped 4→2（自脚本双计）；M25 由「待裁」改为「已裁定，剩落地」；clerks 归 DSH，Qoder 改取 evaluation→application"
+ ]
 }

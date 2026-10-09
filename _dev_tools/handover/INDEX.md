@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-09T08:24:27Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-09T08:42:31Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -23,7 +23,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261009T023042.408Z-DSH` → [`worklog/20261009T023042.408Z-DSH.md`](worklog/20261009T023042.408Z-DSH.md)
 - `20261009T023659.335Z-DSH` → [`worklog/20261009T023659.335Z-DSH.md`](worklog/20261009T023659.335Z-DSH.md)
 - `20261009T025304.919Z-DSH` → [`worklog/20261009T025304.919Z-DSH.md`](worklog/20261009T025304.919Z-DSH.md)
 - `20261009T031448.660Z-Qoder` → [`worklog/20261009T031448.660Z-Qoder.md`](worklog/20261009T031448.660Z-Qoder.md)
@@ -31,8 +30,9 @@
 - `20261009T074830Z-Qoder` → [`worklog/20261009T074830Z-Qoder.md`](worklog/20261009T074830Z-Qoder.md)
 - `20261009T080639Z-Qoder` → [`worklog/20261009T080639Z-Qoder.md`](worklog/20261009T080639Z-Qoder.md)
 - `20261009T082400Z-DSH` → [`worklog/20261009T082400Z-DSH.md`](worklog/20261009T082400Z-DSH.md)
+- `20261009T084107Z-Qoder` → [`worklog/20261009T084107Z-Qoder.md`](worklog/20261009T084107Z-Qoder.md)
 
 ## 计数
 
-- tasks 9（未完成 3）· decisions 13（未闭环 4）· worklog 24 · phase 文件 2
+- tasks 9（未完成 3）· decisions 13（未闭环 4）· worklog 25 · phase 文件 2
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
