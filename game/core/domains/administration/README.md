@@ -86,3 +86,17 @@ game/backend/server.py:849                  from core.domains.administration.ins
 
 **已开始**（第十九包，2026-10-07）：`institution` 已迁入并完成生产改道；
 包内其余候选见上表，均为**待判责/待排序**，不是未完成的本批工作。
+
+## 官僧子池写入纪律（2026-10-08 定）
+
+两条不变量（由 `_norm_subpool_row` 单点维护，**州府级与路级共用同一口径**）：
+
+1. `officials + clerks == size`
+2. `on_post + waiting + sinecure == officials`
+
+- `ensure_subpools(pref)` 已下沉 ⇒ **逐治所**维护（各治所以自身 `size` 为权威）；
+  未下沉 ⇒ 原路级路径（回退分支）。
+- **分配依据**：若路级已有官/史总数，按各治所 `size` 加权拆分；
+  无依据时回落 `CLERK_PER_OFFICIAL`（**不捣造比例**）。
+
+实施：批 1-A `f5d2e5c3da`。
