@@ -44,7 +44,11 @@ SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
                  "欠税", "自耕农", "佃农", "富农", "贫农", "窖银", "grain",
                  # 身份与家产子池（可加类：均为计数或总量）
                  "estate", "estate_hoard",
-                 "officials", "clerks", "on_post", "waiting", "sinecure")
+                 "officials", "clerks", "on_post", "waiting", "sinecure",
+                 # 🔴 2026-10-08 用户裁定补入：宗族子池 `clan`（原 6 项清单**漏了它**，
+                 #   2026-10-08 复核发现时才补上——「已下沉」的结论一度不成立）。
+                 #   宗族挂 `士绅.clan`（AGENTS §3-1 推论），与身份子池同形：计数型、可按 size 权重拆分。
+                 "clan")
 
 
 def seat_pop_weights(circuit: str) -> List[tuple]:
