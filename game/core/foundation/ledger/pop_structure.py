@@ -38,24 +38,94 @@ def _ding_ratio() -> float:
     return float(DING_RATIO)
 
 
+def _sync_seated(p: dict) -> None:
+    """逐治所写入后刷新路级派生镜像（仅已下沉档）。
+
+    🔴 **为什么只在结算侧 `adjust_farm_slices` 调**（批 1-B 实测结论）：
+    `ensure_farm_slices` 在**读档路径**（`save_load.py`）也会调；若在那里刷新路级，
+    会改变读档时的路级口径（测试依赖它校验派生口径）⇒ 等于给读档**加门**。
+    用户裁定：「**不兼容 = 不要加门**」。故只在结算侧刷新。
+    """
+    if not ((p or {}).get("seats") or {}):
+        return
+    from core.foundation.ledger.pop_bridge import sync_route_pops
+    sync_route_pops(p)
+
+
+def _farm_rows(p: dict):
+    """产出本路的农 POP 行集合。已下沉 ⇒ **逐治所**；未下沉 ⇒ 单条路级行。
+
+    🔴 2026-10-08（批 1-B）：目标是「**州府级是真账，省路级是派生汇总**」。
+    原实现只写路级 ⇒ 在已下沉档上会被 `sync_route_pops` **静默撤销**。
+    """
+    seats = (p or {}).get("seats") or {}
+    if seats:
+        out = []
+        for _st in seats.values():
+            _row = ((_st or {}).get("pops") or {}).get("农")
+            if isinstance(_row, dict):
+                out.append(_row)
+        return out
+    row = _nong_of(p)
+    return [row] if isinstance(row, dict) else []
+
+
+def _size_of(row: dict) -> int:
+    v = row.get("size", 0)
+    return max(0, int(v)) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
+def _norm_farm_row(row: dict, size: int, force_seed: bool = False) -> bool:
+    """按 `size` 维护**单个农 POP 行**的两条恒等式；返回是否写入。
+
+    A：`自耕农+富农+贫农+佃农 == size`（缺或 `force_seed` ⇒ 按初值比例；
+    否则按**现有比例缩放**，保留结构信息）
+    B：`ding + kou == size`（丁率保持 `DING_RATIO`）
+    尾差归自耕农（余数不凭空消失）。
+
+    🔴 与路级**共用同一口径**（不在此重写一套）。
+    """
+    changed = False
+    _vals = [row.get(k) for k in FARM_POSITIONS]
+    _num = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in _vals)
+    old_sum = sum(max(0, int(v)) for v in _vals) if _num else 0
+    if force_seed or old_sum <= 0:
+        alloc = {k: int(size * FARM_POSITION_SHARE[k]) for k in FARM_POSITIONS}
+    else:
+        alloc = {k: int(max(0, int(row.get(k, 0) or 0)) * size / old_sum)
+                 for k in FARM_POSITIONS}
+    alloc[FARM_POSITIONS[0]] += size - sum(alloc.values())     # 尾差归自耕农
+    for k, v in alloc.items():
+        nv = max(0, int(v))
+        if row.get(k) != nv:
+            row[k] = nv
+            changed = True
+    ding = max(0, int(size * _ding_ratio()))
+    if row.get(_DING_KEY) != ding:
+        row[_DING_KEY] = ding
+        changed = True
+    kou = max(0, size - ding)
+    if row.get(_KOU_KEY) != kou:
+        row[_KOU_KEY] = kou
+        changed = True
+    return changed
+
+
 def seed_farm_slices(p: dict) -> int:
     """按比例把 `农.size` 划入四个职位子池，并按 `DING_RATIO` 二分丁/口。
 
-    **只改子池，不改 `size`**（守恒）；尾差归"自耕农"（余数不凭空消失）。
+    **只改子池，不改 `size`**（守恒）；尾差归"自耕农"。
     返回该路农的口数（= 分配总额）。
+
+    🔴 已下沉 ⇒ **逐治所**按各自 `size` 初始化（批 1-B）。
     """
+    rows = _farm_rows(p)
+    changed = False
+    for row in rows:
+        if _norm_farm_row(row, _size_of(row), force_seed=True):
+            changed = True
     nong = _nong_of(p)
-    if not isinstance(nong, dict):
-        return 0
-    size = max(0, int(nong.get("size", 0) or 0))
-    alloc = {k: int(size * FARM_POSITION_SHARE[k]) for k in FARM_POSITIONS}
-    alloc[FARM_POSITIONS[0]] += size - sum(alloc.values())      # 尾差归自耕农
-    for k, v in alloc.items():
-        nong[k] = max(0, v)
-    ding = int(size * _ding_ratio())
-    nong[_DING_KEY] = max(0, ding)
-    nong[_KOU_KEY] = max(0, size - ding)
-    return size
+    return max(0, int((nong or {}).get("size", 0) or 0))
 
 
 def adjust_farm_slices(p: dict) -> None:
@@ -63,44 +133,48 @@ def adjust_farm_slices(p: dict) -> None:
 
     - 职位：按现有子池比例缩放到新 `size`（保留结构信息，不重置为初值比例）；
     - 丁口：丁率保持 `DING_RATIO`（迁移是"整体人口"移动，不改变户内年龄结构）；
-    - 子池缺失或原和 <= 0 → 退回 `seed_farm_slices` 初值分配。
+    - 子池缺失或原和 <= 0 → 退回初值分配。
+
+    🔴 已下沉 ⇒ **逐治所**按各自 `size` 缩放（批 1-B）。
     """
-    nong = _nong_of(p)
-    if not isinstance(nong, dict):
-        return
-    size = max(0, int(nong.get("size", 0) or 0))
-    old_sum = sum(max(0, int(nong.get(k, 0) or 0)) for k in FARM_POSITIONS)
-    if old_sum <= 0:
-        seed_farm_slices(p)
-        return
-    alloc = {k: int(max(0, int(nong.get(k, 0) or 0)) * size / old_sum) for k in FARM_POSITIONS}
-    alloc[FARM_POSITIONS[0]] += size - sum(alloc.values())
-    for k, v in alloc.items():
-        nong[k] = max(0, v)
-    ding = int(size * _ding_ratio())
-    nong[_DING_KEY] = max(0, ding)
-    nong[_KOU_KEY] = max(0, size - ding)
+    rows = _farm_rows(p)
+    changed = False
+    for row in rows:
+        if _norm_farm_row(row, _size_of(row)):
+            changed = True
+    _sync_seated(p)
+
+
+def _farm_row_ok(row: dict) -> bool:
+    """单个农 POP 行是否满足两条恒等式。"""
+    size = _size_of(row)
+    if not all(isinstance(row.get(x), (int, float)) for x in FARM_POSITIONS):
+        return False
+    if sum(max(0, int(row.get(x, 0) or 0)) for x in FARM_POSITIONS) != size:
+        return False
+    if not isinstance(row.get(_DING_KEY), (int, float)) or not isinstance(row.get(_KOU_KEY), (int, float)):
+        return False
+    return int(row.get(_DING_KEY, 0) or 0) + int(row.get(_KOU_KEY, 0) or 0) == size
 
 
 def ensure_farm_slices(state) -> int:
-    """逐路**幂等**补齐职位/丁口子池（开局与读档统一入口）。
+    """逐治所**幂等**补齐职位/丁口子池（开局与读档统一入口）。
 
-    返回被修整的路数（0 = 已一致）。**只改子池，不改 `size`/`hidden`**。
+    返回被修整的**路数**（0 = 已一致）。**只改子池，不改 `size`/`hidden`**。
+    已下沉 ⇒ **逐治所**校验与补齐（批 1-B）。
     """
     fixed = 0
     for p in (getattr(state, "prefectures", None) or {}).values():
-        nong = _nong_of(p)
-        if not isinstance(nong, dict):
+        rows = _farm_rows(p)
+        if not rows:
             continue
-        size = max(0, int(nong.get("size", 0) or 0))
-        pos_ok = (all(k in nong for k in FARM_POSITIONS)
-                  and sum(int(nong.get(k, 0) or 0) for k in FARM_POSITIONS) == size)
-        dk_ok = (_DING_KEY in nong and _KOU_KEY in nong
-                 and int(nong.get(_DING_KEY, 0) or 0) + int(nong.get(_KOU_KEY, 0) or 0) == size)
-        if pos_ok and dk_ok:
+        if all(_farm_row_ok(r) for r in rows):
             continue
-        seed_farm_slices(p)
-        fixed += 1
+        changed = False
+        for row in rows:
+            if _norm_farm_row(row, _size_of(row), force_seed=not _farm_row_ok(row)):
+                changed = True
+            fixed += 1
     return fixed
 
 
@@ -121,6 +195,46 @@ def check_farm_invariants(state) -> List[str]:
         if ding + kou != size:
             bad.append(f"{name}: 丁+口 {ding + kou} != 农.size {size}")
         if any(int(nong.get(k, 0) or 0) < 0 for k in FARM_POSITIONS + (_DING_KEY, _KOU_KEY)):
+            bad.append(f"{name}: 职位/丁口子池出现负数")
+    return bad
+
+
+def check_farm_invariants(state) -> List[str]:
+    """逐治所校验两条恒等式，返回违规描述（空列表 = 全部通过）。
+
+    🔴 已下沉 ⇒ 逐治所（批 1-B）；未下沉 ⇒ 路级单条。
+    """
+    bad: List[str] = []
+    for name, p in (getattr(state, "prefectures", None) or {}).items():
+        seats = (p or {}).get("seats") or {}
+        if seats:
+            for sid, st in seats.items():
+                row = ((st or {}).get("pops") or {}).get("农")
+                if not isinstance(row, dict):
+                    bad.append(f"{name}/{sid}: 缺 `农` POP")
+                    continue
+                if not _farm_row_ok(row):
+                    sz = _size_of(row)
+                    pos = sum(max(0, int(row.get(x, 0) or 0)) for x in FARM_POSITIONS)
+                    dg = int(row.get(_DING_KEY, 0) or 0)
+                    kk = int(row.get(_KOU_KEY, 0) or 0)
+                    bad.append(f"{name}/{sid}: Σ职位 {pos} / 丁+口 {dg + kk} != size {sz}")
+                if any(int(row.get(x, 0) or 0) < 0 for x in FARM_POSITIONS + (_DING_KEY, _KOU_KEY)):
+                    bad.append(f"{name}/{sid}: 职位/丁口子池出现负数")
+            continue
+        nong = _nong_of(p)
+        if not isinstance(nong, dict):
+            bad.append(f"{name}: 缺 `农` POP")
+            continue
+        size = int(nong.get("size", 0) or 0)
+        pos = sum(int(nong.get(x, 0) or 0) for x in FARM_POSITIONS)
+        dg = int(nong.get(_DING_KEY, 0) or 0)
+        kk = int(nong.get(_KOU_KEY, 0) or 0)
+        if pos != size:
+            bad.append(f"{name}: Σ职位 {pos} != 农.size {size}")
+        if dg + kk != size:
+            bad.append(f"{name}: 丁+口 {dg + kk} != 农.size {size}")
+        if any(int(nong.get(x, 0) or 0) < 0 for x in FARM_POSITIONS + (_DING_KEY, _KOU_KEY)):
             bad.append(f"{name}: 职位/丁口子池出现负数")
     return bad
 
