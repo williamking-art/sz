@@ -1,7 +1,7 @@
 {
  "phase": "交接通道迁移完成：CloudBase MCP 停用，改用仓库内本机交接层 _dev_tools/handover/（用户裁定，登记 decisions/LOCAL-HANDOVER）。",
  "agent": "Qoder",
- "commit": "待补（本次提交）",
+ "commit": "b455018ebb",
  "verification": {
   "handover_selfcheck": "11 项目标全部 OK（两个 skill + 三处 AGENTS + _dev_tools README + 脚本停用注 + README/NOTICE/INDEX/.gitignore）",
   "tool_test": "log 落地、抢他人条目被拒(EXIT=3)、claim/finish 往返、临时条目已清；check tasks=8 decisions=13 worklog=21 问题=0",
