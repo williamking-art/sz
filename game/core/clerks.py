@@ -170,7 +170,13 @@ def _adjust_staffing(state, log: List[str]) -> int:
             if step == 0:
                 continue
             move_pop_people(pop, nong, -step, state)               # B1d-b：吏 → 农户（带财富/粮）
-        pop["clerks"] = actual + step
+        # U0001f534 2026-10-08（批 1-D）：**已下沉档不再直写路级 `clerks`**。
+        #   `clerks` 属**派生字段**（`pop_bridge._DERIVED_SEAT_FIELDS`：`clerks = size - officials`），
+        #   `move_pop_people` 提升了官僧治所的 `size` ⇒ `clerks` **由 `sync_route_pops` 自动重算**。
+        #   直写不仅冗余，还会被后续 sync **静默撤销**（实测 20 处/月）。
+        #   未下沉档保留原写法（**回退分支**）。
+        if not (p.get("seats") or {}):
+            pop["clerks"] = actual + step
         # `pop["size"]` 由 `move_pop_people` 同步（不再手动 ±step，避免双重计数）
         net += step
     if net:

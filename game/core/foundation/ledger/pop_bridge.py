@@ -210,6 +210,40 @@ def aggregate_affiliation(seat_pops: dict) -> Optional[dict]:
                                 t2[_dk] = int(t2.get(_dk, 0) or 0) + int(_dv)
     return total or None
 
+def rederive_seat_fields(pdata: dict) -> int:
+    """按 `_DERIVED_SEAT_FIELDS` 逐治所**重算派生字段**；返回被修正的治所数。
+
+    U0001f534 2026-10-08（批 1-D）为何提到 `sync_route_pops` 里：派生字段（如 `clerks = size - officials`）
+    的**不变量应在每次刷镜像时被强制**，而不是只在下沉当刻。否则任何改
+    `size`/`officials` 的写入路径都会让派生字段**变陈旧**。
+    """
+    if not isinstance(pdata, dict):
+        return 0
+    seats = pdata.get("seats") or {}
+    if not seats:
+        return 0
+    fixed = 0
+    for _seat in seats.values():
+        _sp = (_seat or {}).get("pops") or {}
+        for _cls in POP_CLASSES:
+            _row = _sp.get(_cls)
+            if not isinstance(_row, dict):
+                continue
+            _ch = False
+            for _d, _base, _tot in _DERIVED_SEAT_FIELDS:
+                _tv = _row.get(_tot)
+                _bv = _row.get(_base)
+                if (isinstance(_tv, (int, float)) and not isinstance(_tv, bool)
+                        and isinstance(_bv, (int, float)) and not isinstance(_bv, bool)):
+                    _want = max(0, int(_tv) - int(_bv))
+                    if _row.get(_d) != _want:
+                        _row[_d] = _want
+                        _ch = True
+            if _ch:
+                fixed += 1
+    return fixed
+
+
 def split_pops_to_seats(pdata: dict, circuit: str) -> int:
     """把路级 POP 聚合**就地拆入** `pdata["seats"][治所]["pops"]`。返回拆出的治所数。
 
@@ -386,6 +420,9 @@ def sync_route_pops(pdata: dict) -> bool:
     seats = pdata.get("seats") or {}
     if not seats:
         return False
+    # U0001f534 2026-10-08（批 1-D）先强制**逐治所派生字段**，再聚合 ⇒
+    #   任何改 `size`/`officials` 的写入都自动保持派生不变量。
+    rederive_seat_fields(pdata)
     pops = pdata.setdefault("pops", {})
     # 镜像刷新是**由真账派生的合法写入**，豁免守卫记账（否则会被误判成绕过桥接的直写）。
     with _pops_write_exempt():
