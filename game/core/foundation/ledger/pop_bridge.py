@@ -28,6 +28,16 @@ POP_CLASSES = ("农", "士绅", "商人", "官僚", "兵", "工匠")
 #: `literacy`（识字率）本质是比率，若像其余字段一样求和，聚合后会翻数倍。
 MEAN_FIELDS = ("literacy",)
 
+#: U0001f534 2026-10-08（批 1-A）**派生型子池**：拆分后按 (派生字段, 基准字段, 总量字段) 逐治所**重算**。
+#:
+#:   为什么：`officials` 与 `clerks` 若**各自独立按权重拆分**，各自总和虽守恒，
+#:   但**逐治所** `officials + clerks` 会与该治所 `size` 偏移 ±1（各自取整）。
+#:   实测新局：**23 个治所**不满足 `officials + clerks == size`。
+#:
+#:   修法：拆分后以**总量字段（size）为权威**重算派生字段 ⇒ 不变量**构造即成立**，
+#:   无需在新局/读档各插一次修正（也避免给伪档“加门”）。
+_DERIVED_SEAT_FIELDS = (("clerks", "officials", "size"),)
+
 #: **可加类**字段：拆分与还原都按人数权重求和。
 #: 🔴 `grain` 于 2026-10-04 加入（G-3 片5 回填）：粮是**总量**（石/ding），可加；
 #:   它此前只在路级，导致「运没运到」对粮**不可观测** —— 裁定甲要求粮走州府桶。
@@ -264,9 +274,21 @@ def split_pops_to_seats(pdata: dict, circuit: str) -> int:
             seat_pops[cls] = row
         seats[sid] = {"pops": seat_pops}
     pdata["seats"] = seats
+        # U0001f534 2026-10-08（批 1-A）派生子池逐治所重算：以总量字段为权威，
+    #   保证不变量在**拆分当刻**就成立（而非靠后续结算跟修）。
+    for _seat in seats.values():
+        _sp = (_seat or {}).get("pops") or {}
+        for _cls in POP_CLASSES:
+            _row = _sp.get(_cls)
+            if not isinstance(_row, dict):
+                continue
+            for _d, _base, _tot in _DERIVED_SEAT_FIELDS:
+                _tv = _row.get(_tot)
+                _bv = _row.get(_base)
+                if (isinstance(_tv, (int, float)) and not isinstance(_tv, bool)
+                        and isinstance(_bv, (int, float)) and not isinstance(_bv, bool)):
+                    _row[_d] = max(0, int(_tv) - int(_bv))
     return len(seats)
-
-
 def aggregate_seat_pops(pdata: dict, cls: str) -> Optional[dict]:
     """**派生聚合**：Σ 各治所该类 POP ⇒ 路级视图。`seats` 不存在 ⇒ 返回 None。
 
@@ -282,15 +304,25 @@ def aggregate_seat_pops(pdata: dict, cls: str) -> Optional[dict]:
     if not rows:
         return None
     out = dict(rows[0])
+    # 🔴 2026-10-08（批 1-A）**强度归一**：逐行**只累加数值项**，非数值（伪档/损坏档里的
+    #   dict）**跳过而不崩**。原写法 `any(isinstance(...))` 只查“有没有一行是数”，
+    #   随后 `sum(int(r.get(f,0) or 0))` 会对**另一行的 dict** 抛 `TypeError` ⇒ 避免了整档拒载。
+    def _nums(_f, _cast=int):
+        return [_cast(r.get(_f)) for r in rows
+                if isinstance(r.get(_f), (int, float)) and not isinstance(r.get(_f), bool)]
     for f in SPLIT_FIELDS:
-        if any(isinstance(r.get(f), (int, float)) for r in rows):
-            out[f] = sum(int(r.get(f, 0) or 0) for r in rows)
+        _vals = _nums(f, int)
+        if _vals:
+            out[f] = sum(_vals)
     for f in MEAN_FIELDS:
         # 🔴 均值类**按 size 加权还原**，不可求和（求和会让识字率翻数倍）。
-        if any(isinstance(r.get(f), (int, float)) for r in rows):
-            _num = sum(float(r.get(f, 0) or 0) * int(r.get("size", 0) or 0) for r in rows)
-            _den = sum(int(r.get("size", 0) or 0) for r in rows)
-            out[f] = (_num / _den) if _den > 0 else float(rows[0].get(f, 0) or 0)
+        _pv = [(float(r.get(f)), int(r.get("size", 0) or 0)) for r in rows
+               if isinstance(r.get(f), (int, float)) and not isinstance(r.get(f), bool)
+               and isinstance(r.get("size", 0), (int, float))]
+        if _pv:
+            _num = sum(v * sz for v, sz in _pv)
+            _den = sum(sz for _v, sz in _pv)
+            out[f] = (_num / _den) if _den > 0 else float(_pv[0][0])
     goods = {}
     for r in rows:
         for k, v in (r.get("goods") or {}).items():

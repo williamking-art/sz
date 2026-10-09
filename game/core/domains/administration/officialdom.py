@@ -233,39 +233,37 @@ def recruit_by_recommendation(state, pref: Dict[str, Any], n: int, patron: Any,
 
 
 # ---------------------------------------------------------------- 初始化 / 修复
-def ensure_subpools(pref: Dict[str, Any]) -> bool:
-    """幂等地补齐某路的官僚 POP 子池（旧档迁移 / 缺字段修复）。
+def _norm_subpool_row(row: Dict[str, Any], size: int,
+                      seed_off: int = None) -> bool:
+    """按 `size` 维护**单个 POP 行**的两条官僧子池不变量；返回是否写入。
 
-    返回是否发生过写入。迁移口径（§六）：
-      `officials = 旧 p["officials"]`（无则 `round(size / (1+CLERK_PER_OFFICIAL))`）
-      `clerks    = size - officials`（优先取旧 `p["clerks"]`，再钳到非负）
-      `on_post = officials`，`waiting = sinecure = 0`（旧档无待阙/祠禄概念）
+    不变量① 官僧子池之和 == `size`（`officials + clerks == size`）
+    不变量② 三池之和 == `officials`（`on_post + waiting + sinecure == officials`）
+
+    🔴 2026-10-08（批 1-A）：本助手从 `ensure_subpools` 抽出，使**州府级与路级共用**同一口径。
+    州府级为真账 ⇒ 每个治所**以自身 `size` 为权威**独立维护，
+    而不是先写路级再被 `sync_route_pops` 覆盖。
     """
-    pops = pref.get("pops") or {}
-    pop = pops.get(POP_CLASS)
-    if not isinstance(pop, dict):
-        return False
-
-    size = max(0, int(pop.get("size", 0) or 0))
+    # 🔴 2026-10-08（批 1-A）**强度归一**：子池键若持**非数值**（如伪档/损坏档里的 dict），
+    #   按「缺失 ≠ 0」视为**缺失**并重播种，而不是抛 `TypeError` 拒掉整档
+    #   （用户裁定：不做“不兼容就加门”；只修壮字段，不拒档）。
+    def _isnum(v):
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+    for _k in ("officials", "clerks", "on_post", "waiting", "sinecure"):
+        if _k in row and not _isnum(row.get(_k)):
+            row.pop(_k, None)
     changed = False
-
-    if "officials" not in pop:
-        legacy = pref.get("officials")
-        if legacy is None:
-            legacy = round(size / (1 + CLERK_PER_OFFICIAL))
-        pop["officials"] = max(0, int(legacy))
+    if "officials" not in row:
+        row["officials"] = max(0, int(seed_off) if seed_off is not None
+                               else round(size / (1 + CLERK_PER_OFFICIAL)))
         changed = True
-    if "clerks" not in pop:
-        legacy = pref.get("clerks")
-        if legacy is None:
-            legacy = size - int(pop["officials"])
-        pop["clerks"] = max(0, int(legacy))
+    if "clerks" not in row:
+        row["clerks"] = max(0, size - int(row["officials"]))
         changed = True
 
-    off = int(pop["officials"])
-    cle = int(pop["clerks"])
-
-    # size 是权威；子池之和若与 size 不符，以 size 为准重新分摊（保持官/吏比例）
+    off = int(row["officials"])
+    cle = int(row["clerks"])
+    # 不变量①：`size` 是权威；不符则以 `size` 为准重摊（保持官/史比例）
     if off + cle != size:
         tot = off + cle
         if tot > 0:
@@ -273,25 +271,72 @@ def ensure_subpools(pref: Dict[str, Any]) -> bool:
         else:
             new_off = round(size / (1 + CLERK_PER_OFFICIAL))
         new_off = max(0, min(size, int(new_off)))
-        pop["officials"], pop["clerks"] = new_off, size - new_off
-        off, cle = pop["officials"], pop["clerks"]
+        row["officials"], row["clerks"] = new_off, size - new_off
+        off = int(row["officials"])
         changed = True
 
     for key in ("on_post", "waiting", "sinecure"):
-        if key not in pop:
-            pop[key] = off if key == "on_post" else 0
+        if key not in row:
+            row[key] = off if key == "on_post" else 0
             changed = True
 
-    # 不变量 ②：三池之和 == officials。以 officials 为准重摊。
-    s = int(pop["on_post"]) + int(pop["waiting"]) + int(pop["sinecure"])
+    # 不变量②：三池之和 == `officials`。以 `officials` 为准重摊。
+    s = int(row["on_post"]) + int(row["waiting"]) + int(row["sinecure"])
     if s != off:
-        pop["on_post"], pop["waiting"], pop["sinecure"] = off, 0, 0
+        row["on_post"], row["waiting"], row["sinecure"] = off, 0, 0
         changed = True
     for key in OFFICIAL_SUB_KEYS:
-        if int(pop.get(key, 0)) < 0:
-            pop[key] = 0
+        if int(row.get(key, 0)) < 0:
+            row[key] = 0
             changed = True
     return changed
+
+
+def ensure_subpools(pref: Dict[str, Any]) -> bool:
+    """幂等地补齐某路的官僧 POP 子池（旧档迁移 / 缺字段修复）。返回是否发生过写入。
+
+    🔴 **2026-10-08（批 1-A）州府级化**：目标是「**州府级是真账，省路级是派生汇总**」。
+    已下沉档 ⇒ **逐治所**维护两条不变量（各治所以自身 `size` 为权威），再刷新路级镜像。
+    未下沉档 ⇒ 走原路级路径（**回退分支**，行为与迁移前一致）。
+    """
+    seats = pref.get("seats") or {}
+    if seats:
+        # ── 州府级真账：逐治所 ───────────────────────────────
+        from core.foundation.ledger.pop_bridge import sync_route_pops as _sync
+        changed = False
+        # 初始分配依据：若路级已有官/史总数，按各治所 `size` 加权拆分；
+        # 无依据时回落 `CLERK_PER_OFFICIAL`（不捣造比例）。
+        _rp = (pref.get("pops") or {}).get(POP_CLASS) or {}
+        _r_off = int(_rp.get("officials")) if isinstance(_rp.get("officials"), (int, float)) else None
+        _r_cle = int(_rp.get("clerks")) if isinstance(_rp.get("clerks"), (int, float)) else None
+        _r_tot = (_r_off or 0) + (_r_cle or 0)
+        for _seat in seats.values():
+            row = ((_seat or {}).get("pops") or {}).get(POP_CLASS)
+            if not isinstance(row, dict):
+                continue
+            _sz_v = row.get("size", 0)
+            _size = max(0, int(_sz_v)) if isinstance(_sz_v, (int, float)) and not isinstance(_sz_v, bool) else 0
+            _seed = None
+            if _r_tot > 0 and _r_off is not None:
+                _seed = max(0, min(_size, int(round(_size * _r_off / _r_tot))))
+            if _norm_subpool_row(row, _size, _seed):
+                changed = True
+        # 路级退回**纯派生镜像**（否则子池的写入会被后续 sync 覆盖）
+        _sync(pref)
+        return changed
+
+    # ── 未下沉：回退分支（原路级路径）──────────────────────────
+    pops = pref.get("pops") or {}
+    pop = pops.get(POP_CLASS)
+    if not isinstance(pop, dict):
+        return False
+
+    size = max(0, int(pop.get("size", 0) or 0))
+    # 旧档迁移：优先取路级旧字段 `pref["officials"]`
+    _legacy_off = None
+    if "officials" not in pop and pref.get("officials") is not None:
+        _legacy_off = max(0, int(pref.get("officials") or 0))
+    return _norm_subpool_row(pop, size, _legacy_off)
 
 
 def ensure_all(state) -> int:
