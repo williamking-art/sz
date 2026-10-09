@@ -1,0 +1,5 @@
+{
+ "schema": 2,
+ "note": "共享登记表；每个决策独立成键，agent 可读全部；裁定后由裁定人写 verdict",
+ "_source": "cloud:decisions"
+}

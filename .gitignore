@@ -104,7 +104,15 @@ _dev_tools/*
 !_dev_tools/dev-env.ps1
 # 开发期交接：把 CloudBase 交接状态（state/context/worklog）拉到本地镜像 tmp/mcp_sync/，
 # 供没有 MCP 的 agent 直接读——与 cloudbase-check.ps1 / verify-all.ps1 同类，故放行入库。
+# ⚠️ 2026-10-09 起交接通道已从云端 MCP 换成本机文件（见 _dev_tools/handover/NOTICE.md）；
+# 本脚本保留只作历史与将来恢复用，现行工具是 `_dev_tools/handover.py`。
 !_dev_tools/sync_mcp_state.py
+# 本机交接层：phase/tasks/decisions/worklog **一条一文件** + 云端存量归档 JSON，
+# 全部入库——AGENTS.md §1 直接把它当唯一权威入口，不入库就等于"跨会话结论只存在本机"。
+!_dev_tools/handover/
+!_dev_tools/handover/**
+# 交接工具本体（AGENTS.md 与 NOTICE.md 都按路径引用它）
+!_dev_tools/handover.py
 # 开发辅助工具链自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，可 -Fix 自动修可修项）
 !_dev_tools/cloudbase-check.ps1
 # 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：

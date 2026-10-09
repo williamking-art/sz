@@ -1,0 +1,248 @@
+{
+ "phase": "M25 裁定全部落地（隐户初始化移出 GameState + 动态蓝图迁应用层 + 失败分级）；POP 真账州府级下沉完成（新局+子池）；肉改商品。本会话累计 20 提交。",
+ "updatedAt": "2026-10-08",
+ "agent": "DSH",
+ "verification": {
+  "pytest": "全量串行 F=0 E=0 · 2470 passed + 216 skipped",
+  "scc": "SCC 仍 = [17] + [2]",
+  "POP下沉": "新局 seats 20/20；生产 3 回合逐字段路级==Σ治所 差恒为 0；子池相等；literacy 112/120 加权还原精确",
+  "桥接验证": "直写路级 +1000 治所真账不变；桥接 +1000 真账 6,217,964→6,218,964"
+ },
+ "delivered": {
+  "状态治理": [
+   "补登记 Qoder 进 agents/tasks（此前未登记，违反 AGENTS.md §1）",
+   "fileOwnership 语义修订为『按目标包认领』（平铺路径已降级为桩，独占无意义）",
+   "本地镜像 token 继承修复：需 [Environment]::GetEnvironmentVariable(...,'User') 注入",
+   "sync_mcp_state.py 加叶子键大小写告警护栏（f02e12dedb），并更正『脚本有 .lower() 缺陷』的误判（实测调用数 0，真实原因是 CLOUDBASE_MCP_AGENT 大小写不一致）",
+   "phase_qoder 重复键更正根因并标记删除；M29 记 wont-fix + reviveWhen",
+   "state_delete 实现（cloudbase-state-mcp 364469b）但裁定不部署，README 登记未上线状态（466253b）"
+  ],
+  "迁移九包": [
+   {
+    "包": 22,
+    "模块": "legacy_mechanic",
+    "落点": "core/domains/politics/",
+    "符号": 18,
+    "commit": "e7b02bcf20"
+   },
+   {
+    "包": 23,
+    "模块": "flow_summary",
+    "落点": "core/domains/economy/read_models/",
+    "符号": 7,
+    "commit": "2a781746f1"
+   },
+   {
+    "包": 24,
+    "模块": "minister_profile",
+    "落点": "core/domains/administration/read_models/",
+    "符号": 3,
+    "commit": "0812fa0526"
+   },
+   {
+    "包": 25,
+    "模块": "monthly_gazette",
+    "落点": "core/domains/administration/",
+    "符号": 23,
+    "commit": "450226105f"
+   },
+   {
+    "包": 26,
+    "模块": "minister_agent",
+    "落点": "core/domains/administration/",
+    "符号": 19,
+    "commit": "025010e632"
+   },
+   {
+    "包": 27,
+    "模块": "agent_router",
+    "落点": "game/application/",
+    "符号": 15,
+    "commit": "6889e8283d"
+   },
+   {
+    "包": 28,
+    "模块": "regime_tech",
+    "落点": "core/domains/economy/",
+    "符号": 18,
+    "commit": "52ff578f26"
+   },
+   {
+    "包": 29,
+    "模块": "crop_shadow",
+    "落点": "core/domains/production/",
+    "符号": 31,
+    "commit": "c6b6be53c3"
+   },
+   {
+    "包": 30,
+    "模块": "trade_shadow",
+    "落点": "core/domains/economy/",
+    "符号": 36,
+    "commit": "466509acf6"
+   }
+  ],
+  "迁移十包": [
+   {
+    "包": 31,
+    "模块": "material_tech",
+    "落点": "core/domains/construction/",
+    "符号": 47,
+    "commit": "f6e162537f",
+    "附带": "修正 docstring『尚未接线』与实测不符——实际已被 construction/market_price/settlement_tech 三处调用（只改说明文字，未动逻辑）"
+   },
+   {
+    "包": 32,
+    "模块": "registries",
+    "落点": "core/foundation/",
+    "符号": 25,
+    "commit": "5245406054",
+    "附带": "归 foundation 顶层而非 common（§6-5 common 只留无领域语义工具）；M14 打桩改指实现"
+   },
+   {
+    "包": 33,
+    "模块": "estate_mechanic",
+    "落点": "core/domains/administration/",
+    "符号": 31,
+    "commit": "2dbc08fc32",
+    "附带": "阶段2收尾；M7+M9 两处打桩同时改指实现；新增 M9 防呆用例（填补护栏盲区）"
+   }
+  ],
+  "迁移十二包": [
+   {
+    "包": 31,
+    "模块": "material_tech",
+    "落点": "core/domains/construction/",
+    "符号": 47,
+    "commit": "f6e162537f",
+    "附带": "修正 docstring『尚未接线』与实测不符——实际已被 construction/market_price/settlement_tech 三处调用（只改说明文字，未动逻辑）"
+   },
+   {
+    "包": 32,
+    "模块": "registries",
+    "落点": "core/foundation/",
+    "符号": 25,
+    "commit": "5245406054",
+    "附带": "归 foundation 顶层而非 common（§6-5 common 只留无领域语义工具）；M14 打桩改指实现"
+   },
+   {
+    "包": 33,
+    "模块": "estate_mechanic",
+    "落点": "core/domains/administration/",
+    "符号": 31,
+    "commit": "2dbc08fc32",
+    "附带": "阶段2收尾；M7+M9 两处打桩同时改指实现；新增 M9 防呆用例（填补护栏盲区）"
+   }
+  ],
+  "阶段3": [
+   {
+    "包": 1,
+    "模块": "settlement_officialdom",
+    "落点": "core/domains/administration/",
+    "符号": 7,
+    "commit": "0555fbb1f0",
+    "注意": "原不在[17]大环内（挂环外叶子）⇒ 不减环，收益在『结算步骤归属业务部』本身"
+   },
+   {
+    "包": 2,
+    "模块": "settlement_imperial 拆分",
+    "落点": "core/domains/{population,military,politics}/",
+    "commit": "9940db5ade",
+    "拆成": {
+     "population": "settlement_hidden.py（_hidden_people/ensure_hidden_in_pops/_settle_hidden_pop）",
+     "military": "settlement_front.py（_settle_front_battle 金军南侵）",
+     "politics": "settlement_imperial.py（帝王行动5函数 + _settle_emperor_health_decay）"
+    },
+    "编排": "_settle_hidden 降为薄编排，按 a→b→c→d 原顺序调三步（结算步序是玩法规则，不得调整）",
+    "README": "aaf0f10430"
+   },
+   {
+    "名称": "帝王行动暂时停用",
+    "commit": "d9fe0e41eb",
+    "verdict": "甲·可回退不删除",
+    "做法": "settlement.IMPERIAL_ACTION_ENABLED=False 单一开关 + Step9 包 if + test_imperial_action module级skip(16用例保留)",
+    "恢复": "常量改 True + 删 module 级 skip，仅此两处"
+   }
+  ],
+  "本轮(README+复扫修正)": {
+   "README": "补 13 份：foundation/{ledger,common,persistence,state} + specs/6 目录 + domains/*/read_models ×2 + content/data_factions。行数按 PowerShell 实测全部修正（AST 口径曾差最多 168 行）",
+   "复扫修正": "第32包 registries 迁移漏扫 game/ai ⇒ contracts_settle.py 残留至今才随 git add -A 入库。全量复扫后生产侧 0 命中",
+   "修复": "build_exe.py hiddenimports（替换2+补11，会静默漏模块）；econ_observer.py / async_ai.py 两处 import"
+  },
+  "本轮(死代码处置)": {
+   "build_exe": "已删除（49217631bb）。三重失效：HERE 硬编码 G 盘 / ui·ui.gui·ui.map·audio.player 4 个依赖缺失 / 9 处 ui.*。README 已声明其为历史辅助文件",
+   "订正": "efdf2a2ce0 把死脚本改动描述成有效修复 = 报告失真，已用 49217631bb 追加订正（不改写 git 历史）",
+   "有效修复": "econ_observer.py 与 async_ai.py 经实测确为活脚本（导入成功），那两处 import 修复有效",
+   "撤回": "dbg2.py/dbg3.py 无需清理 —— .gitignore 末行 /dbg*.py 是故意忽略调试文件，先前列为待清理属多虑"
+  },
+  "本轮(前端README)": {
+   "数量": "14 份：renderer 根 + map/hud/utils/audio/store/api/data/main-menu/types + main/preload/types + scripts/shot",
+   "要点": "每份都标了**该目录特有**的纪律而非通用套话：舆图产物不入库须按序重建；token 不进渲染进程(main/webRequest 注入)；format.ts 是前后端数值第二轨；portrait.ts 须同处理开发态与 app:// 打包态；data/ 是显示用副本非权威源；scripts/shot 是 dev-only",
+   "行数核对": "11 项抽查 10 项精确（preload 一条为检查脚本假阴性，非表格行）",
+   "纠错": "曾误判 frontend/README.md 的 src/README.md、scripts/README.md 为断链，实际都存在（Test-Path 路径解析差异），未据此改动"
+  },
+  "前端README": "14 份（8e8fa4e5d5）：renderer 根 / map / hud / utils / audio / store / api / data / main-menu / types / main / preload / types / scripts-shot。每份标该目录特有纪律（舆图产物不入库、token 不进渲染进程、format.ts 是前后端第二轨、data 是显示用副本等）。README 总计 27 份（后端 13 + 前端 14）",
+  "阶段3第三包(失败已回滚)": {
+   "尝试": "拆 settlement_military(283行) → domains/{military,politics,events}",
+   "结果": "🔴 F=34 E=32 真实回归，已回滚（git status 干净，全量 2463 passed 恢复）",
+   "根因": "用『按需挑选 import』代替『整体搬运模块头』，三个子模块只拿到各自函数体、顶部 import 缺失。已排除『提供方打桩随迁』（test_agent_p1 中无 monkeypatch）",
+   "对比": "settlement_imperial 那次成功是因为我做了整段搬运，两者做法不一致",
+   "教训": "①拆文件时模块头必须整体搬运(import+模块级常量) ②本地只验『符号 is 同一』不够，测试跑的路径依赖原模块模块级状态 ③提交前必须跑全量"
+  },
+  "阶段3第三包": "settlement_tech(584行/9符号)→domains/construction（e8730073a3），全量 2463 passed。关键=先扫 random 边界：含随机的 settlement_* 一律不拆；踩中第四种模式 inspect.getsource 读源码文本（桩化必红，全仓 21 处地雷）。上批 settlement_military F=33E38 已回滚（根因=拆分改变 random 调用序列）",
+  "阶段3四包": "首包 settlement_officialdom(0555fbb1f0) ✅ / 第二包 settlement_imperial 拆三域(9940db5ade) ✅ / 第三包 settlement_tech→construction(e8730073a3) ✅踩第4种inspect.getsource已修 / 第四包 settlement_econ_helpers→economy(25c3260050) ✅一次过无需改测试 / settlement_military 🔴F=33E38已回滚(含随机)。本会话累计16包。**第四包一次过印证『迁前先扫四类破坏模式』有效**：①random ②monkeypatch落点 ③inspect.getsource ④桩面用dir()",
+  "阶段3六包": [
+   "首包 settlement_officialdom→administration(0555fbb1f0)",
+   "二 settlement_imperial 拆三域 population/military/politics(9940db5ade)，薄编排保持 a→b→c→d 原序",
+   "三 settlement_tech→construction(e8730073a3)",
+   "四 settlement_econ_helpers→economy(25c3260050) 一次过",
+   "五 officialdom→administration(fde00dffb9) 64符号",
+   "六 settlement_agri→production(b72c7ff07e) 零随机部分收尾",
+   "✗ settlement_military 含random F=33E38 已回滚"
+  ],
+  "累计": "18 包（阶段2十二包 + 阶段3六包）；README 27 份（后端13+前端14）；全量复扫 484 个 .py 确认生产侧 0 命中；删除死脚本 build_exe.py",
+  "M25裁定落地": "①9b8c2bed26 隐户初始化从 GameState 移出 + 读档旧档迁移块移除；②257ce5f0b2 A3 动态蓝图迁 application/load_game.py + 失败分级。新增 application/game_init.py 与 application/load_game.py。commands.new_game 委托应用层。两条规格测试原样保留，新增 test_load_restore_grading.py 6 例。",
+  "POP下沉与肉改商品": "①6fb19a3eba 子池下沉（estate/officials/clerks/on_post 等 7 项，修「治所侧虚高 N 倍」）；②5cdbc38184 新局下沉 + 肉改商品 + 桥接化 5 处写点",
+  "下沉边界": "新局与读档均已下沉（无条件幂等入口）；未下沉的路级写入仍可用回退分支（pop_obj_add 返回 None）"
+ },
+ "metrics": {
+  "coreFlat": 93,
+  "corePureStubs": 35,
+  "coreStillHolders": 60,
+  "stage2Pct": "62.4%",
+  "scc": "[17]+[2]",
+  "pytest": "F=0 E=0 · 2470 passed + 216 skipped",
+  "packages": 18,
+  "readmes": 27,
+  "note": "62.4% 是阶段2口径；§10 禁止以目录树改完宣称完成"
+ },
+ "knownTraps": [
+  "转发桩必须用运行时 dir() 枚举，不能用 AST 定义清单——会漏掉 re-export 进来的名字（我踩过 3 次：AFFILIATION_FIELDS / clamp / 私有符号）",
+  "『提供方打桩随迁』：测试若按模块对象名参数化 + monkeypatch，迁移后打空且静默失效。已在 test_error_observability_settle.py 加常驻防呆用例",
+  "game/core/AGENTS.md 禁区条：延迟装配的 except 不得静默 pass，且要有『结果非空/守恒』哨兵断言，不止留痕",
+  "我脚本里标『反向』的列统计的是 fan-in（谁引用它）而非真反向边（它依赖谁）——本会话早期犯过同方向错误，该列不能用于判叶子资格",
+  "game_state.py 取私有 _starter_node_ids、test_portrait_* 取私有 _portrait_url ⇒ 桩面必须含私有符号",
+  "影子模块（crop_shadow/trade_shadow）刻意零生产调用、零 pytest 用例 ⇒『全量没红』不足以证明行为未变；应拿自带 run_checks() 做迁移前后逐字节比对（本会话已立为范式）",
+  "打桩风险分级（迁前必查 test_error_observability_settle.py）：①最危险＝参数化元组里的模块名字符串（estate_mechanic L330）②次之＝import X as Y 后 setattr（registries L435）③安全＝仅普通 from import（无命中即安全，material_tech 命中 0 次）",
+  "pytest 参数化防呆用例必须放在 @parametrize 装饰器**之前**且不能被它套住，否则收集期报 function uses no argument（本会话踩了 3 次）",
+  "打桩风险分级实操：①参数化元组里的模块名字符串 ②import X as Y 后 setattr ③仅普通 from import。迁前必查 test_error_observability_settle.py 的 M7 与 M9 两处",
+  "🔴 M25 的①（注册注入）从『可选』变『必要』：settlement_imperial 拆分后，game_state:1066 / save_load:988 会 import core.domains.population ⇒ foundation→domains 的 §6-1 向上依赖由隐蔽变明示。这两处正是 M25 C 类，本轮只登记未擅改",
+  "拆分 settlement_imperial 时 _settle_hidden 原是四合一（隐户归籍/民怨/金军南侵/皇帝健康），实测分类才没把它当纯 population",
+  "本轮教训：改函数体内代码时误用 edit 插模块级 def 造成 IndentationError（已当场修复未提交）；脚本 ast.parse 失败会回滚整次写入 ⇒ 大改前先备份（本次备份在 _scratch/settlement_imperial.BAK.py）",
+  "🔴 正则类脚本必须自检（SELFTEST：断言正则能匹配已知串，不通过就 abort）——否则『没发现问题』与『检查器坏了』无法区分。我本轮踩过：JS 转义把 \\b 变成退格符，报出假的『0 命中』",
+  "🔴 脚本在 print 处崩 ≠ 写入没生效。以 git diff + 回读校验为准，不以退出前 print 为准",
+  "🔴 迁移复扫必须覆盖 game/ai、game/application、_dev_tools，只扫 core/content/backend 会漏",
+  "🔴 _dev_tools/game-dev/build_exe.py 与 _dev_tools/analysis-shots/* 被 .gitignore 排除（.gitignore:137 / :98）⇒ PyInstaller 配置不在版本控制内，改动不随 clone 传递",
+  "🔴 写 commit message 前须核实目标是否真的活着（是否还能运行/依赖是否还在）。本轮顺序错了：先修 build_exe.py、后做失效分析，于是把死代码的改动包装成了『修复』。顺序应是 先分析存活、再决定改不改",
+  "🔴 .gitignore 末行的 /dbg*.py 是故意忽略调试文件；_dev_tools/game-dev/* 与 _dev_tools/* 被排除也可能是**有意**（如 build_exe.py 已死），不要默认『该入库』",
+  "🔴 README 里提到某个文件 ≠ 该文件还活着；判存活要看 _GAME_ROOT/HERE 是否硬编码、依赖模块是否仍存在",
+  "🔴🔴 拆文件时模块头必须**整体搬运**（import + 模块级常量 + 延迟导入），不能凭猜挑需要的。settlement_military 拆分失败(F=34 E=32)即因此；对比 settlement_imperial 成功=整段搬运",
+  "🔴 本地『符号 is 同一』验证**不足以**证明拆分安全——测试跑的路径可能依赖原模块的模块级状态。拆分后必须跑全量"
+ ],
+ "decisions": [
+  "§6-6 冲突（测试依赖私有符号）按用户裁定走『改测试』：新增公开读口 tribute_circuits()，不用通配 re-export 掩盖",
+  "state_delete 不部署（用户裁定丙）：线上仍 8 工具，phase_qoder 保留为 {retired:true, seeAlso} 空壳占位"
+ ],
+ "next": "遗留：42 文件/133 处访问路级 pops，绝大多数是读（读派生镜像是对的，AGENTS.md 明说存量读取刻意保留）。本批只修账本断言能看见的写点；**守卫生产未启用** ⇒ 未覆盖的写点仍可能静默丢失。下一步：装守卫跑完整结算序列 + 后端动作，按字段分类（SPLIT_FIELDS 补桥接 / 非下沉子池补 _pops_write_exempt 白名单）。",
+ "noBusinessChange": "七包迁移均未改业务口径、结算步序、存档 schema。第28包触及 settlement_econ.py 的 import 一行（结构迁移必需），财政自适应逻辑未触碰，用户裁定的『财政文件不纳入迁移提交』指不擅自修其逻辑"
+}

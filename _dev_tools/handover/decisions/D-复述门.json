@@ -1,0 +1,9 @@
+{
+ "title": "复述门『复述的产生方』补不补",
+ "status": "open",
+ "raisedBy": "DSH",
+ "blocks": [],
+ "id": "D-复述门",
+ "_source": "cloud:decisions.items",
+ "measuredNote": "2026-10-09 实测：10-08 裁决=暂不接主链（decree_confirm API 已在，confirm_decree 零生产调用者）。本项 status 仍 open，未替裁定人写 verdict"
+}

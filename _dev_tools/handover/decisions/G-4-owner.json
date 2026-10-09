@@ -1,0 +1,13 @@
+{
+ "title": "G-4 工坊营运资金：owner 归属与账内出资",
+ "status": "open",
+ "raisedBy": "DSH",
+ "ruling": "方向=甲（独立营运资金）；owner 归属与出资腿尚未定",
+ "blocker": "出资腿必须从既有守恒体系转移，不得凭空开池",
+ "blocks": [
+  "G-4",
+  "G-5接线"
+ ],
+ "id": "G-4-owner",
+ "_source": "cloud:decisions.items"
+}

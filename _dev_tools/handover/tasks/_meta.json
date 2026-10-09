@@ -1,0 +1,6 @@
+{
+ "schema": 2,
+ "updatedAt": "2026-10-07",
+ "protocol": "认领即写 claimedBy；他人见到非空 claimedBy 应先 log_append 协商，不硬抢。迁移期认领粒度＝目标包。",
+ "note": "M24 已于 2026-10-07 由 DSH 实测更正：原候选 officialdom 非叶子（依赖 core.faction_basis，在 [2] 环内），前提不成立。替换为实测真叶子清单。"
+}

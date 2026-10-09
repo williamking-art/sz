@@ -1,0 +1,12 @@
+{
+ "title": "11 个写站点裁定（①依赖注入 vs ②横向域依赖）",
+ "claimedBy": "DSH",
+ "status": "open-registered",
+ "blocks": "阶段 3 收尾",
+ "registeredTo": "decisions:M25-写站点拆环（status=open，未替裁定人下 verdict）",
+ "实测结论": "A 类 2 条已直认真实家 ⇒②无路可做；B 类 4 条②可做但不减环；C 类 5 条属 foundation→上层 违反 §6-1 只有①适用。阶段1 实测：12 条边无一条能靠机械改动拆出大环",
+ "dsh建议顺序": "①先做阶段3主体：迁 settlement_* 步骤到 domains/ ②B 类迁完自动变合法 ③剩 C 类 5 条才是①适用面 ④定①硬失败判据（建议乙=留痕+哨兵）后再上",
+ "note": "原记录『Qoder 11 个』未登记 decisions（违 AGENTS.md §1），本轮已补登记",
+ "id": "M25-blocked-writesites",
+ "_source": "cloud:tasks.board"
+}

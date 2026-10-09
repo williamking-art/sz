@@ -1,0 +1,7 @@
+{
+ "retired": true,
+ "deletedAt": "2026-10-07",
+ "deletedBy": "DSH",
+ "seeAlso": "phase_Qoder",
+ "note": "本键已退役并清理。根因更正见提交 f02e12dedb 及 AGENTS.md §1：并非 .lower() 缺陷，而是 CLOUDBASE_MCP_AGENT 大小写不一致。"
+}

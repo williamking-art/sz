@@ -1,0 +1,11 @@
+{
+ "title": "旧粮价是否与全局人口解耦",
+ "status": "open",
+ "raisedBy": "DSH",
+ "detail": "calc_region_grain_price 仍耦合 total_pop/factor/wine_share/_gran_share 四处",
+ "blocks": [
+  "F-P1P6"
+ ],
+ "id": "A-粮价",
+ "_source": "cloud:decisions.items"
+}

@@ -1,0 +1,10 @@
+{
+ "title": "原料付款人由实际持有人/供给链位置决定",
+ "status": "open",
+ "raisedBy": "DSH",
+ "ruling": "已定原则",
+ "detail": "料在政府仓⇒付国库；山泽之利⇒内帑；农/士绅自产⇒付 POP。不可混两个钱袋",
+ "blocks": [],
+ "id": "G-4-holder",
+ "_source": "cloud:decisions.items"
+}

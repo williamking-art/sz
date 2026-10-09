@@ -41,5 +41,8 @@
 
 ## 归属认领（多 agent）
 
-改本目录共享文件前：云端 `state_get("tasks")` 看 `claimedBy`（非空且非己不碰），
-`log_append` 一行声明再动手；协议见根 AGENTS.md §1，云端通道读空时的定性纪律见 foundation 交接记录。
+改本目录共享文件前：**本机交接层** `_dev_tools/handover/` ——
+`python _dev_tools/handover.py board` 看 `claimedBy`（非空且非己不碰），
+`... claim claim <ID> --agent <名字>` 认领，`... log "…"` 一行声明再动手。
+协议见根 AGENTS.md §1。**2026-10-09 起 CloudBase 交接 MCP 已停用**（`/mcp` 路由 410），
+云端读空/重试那套定性纪律只对 `archive/cloud_2026-10-09/` 里的历史存量有意义。

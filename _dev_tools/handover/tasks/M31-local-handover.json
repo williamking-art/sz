@@ -1,0 +1,10 @@
+{
+ "id": "M31-local-handover",
+ "title": "交接层：CloudBase MCP 停用 → 本机 _dev_tools/handover/（入库）",
+ "status": "done",
+ "claimedBy": "Qoder",
+ "commit": "本次提交",
+ "measuredAt": "2026-10-09",
+ "内容": "工具 handover.py（import-cloud/log/phase/claim/decide/board/check/summary，原子写+回读+退出码）；存量导入 tasks 7/decisions 12/worklog 20/agents/phase；README+NOTICE+INDEX；AGENTS §0/§1/§6/§7/§8、game/core/AGENTS、_dev_tools/README、计划文档、两 skill 同步",
+ "blocks": "无"
+}

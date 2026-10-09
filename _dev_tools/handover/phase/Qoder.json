@@ -1,0 +1,18 @@
+{
+ "phase": "交接通道迁移完成：CloudBase MCP 停用，改用仓库内本机交接层 _dev_tools/handover/（用户裁定，登记 decisions/LOCAL-HANDOVER）。",
+ "agent": "Qoder",
+ "commit": "待补（本次提交）",
+ "verification": {
+  "handover_selfcheck": "11 项目标全部 OK（两个 skill + 三处 AGENTS + _dev_tools README + 脚本停用注 + README/NOTICE/INDEX/.gitignore）",
+  "tool_test": "log 落地、抢他人条目被拒(EXIT=3)、claim/finish 往返、临时条目已清；check tasks=8 decisions=13 worklog=21 问题=0",
+  "import": "import-cloud 幂等（复跑 0 重写）；云端存量 state 8 键 / tasks 7 / decisions 12 / worklog 20 / context 1 全导入，原始 JSON 逐字节归档",
+  "pytest": "本批不动 game/ 与 tests/ 代码，上一批（3ba2d5fa59）全量 FULL_EXIT=0、junit tests=2446 failures=0 errors=0 skipped=4 仍是现行基线"
+ },
+ "found_and_fixed": [
+  "Windows 大小写不敏感卷：phase/qoder.json（退役墓碑）静默覆盖 phase/Qoder.json ⇒ 加 _case_clash() 拒绝 + 墓碑改存 _retired.<名>.json",
+  "check 曾把正则串当 str.endswith 参数 ⇒ 扫到 0 条还报『问题=0』⇒ 修判据并加下限断言（计数 0 = 失效）",
+  "我一次把替换结果赋给临时变量没写回 s ⇒ skill §10/description 首次保存是空改动（已重做并复验）"
+ ],
+ "next": "通道不再阻塞：第二十二包（候选 clerks → domains/administration/）可用 handover.py claim 正常认领后开工；M25 写站点裁定仍在 decisions 等用户。",
+ "updatedAt": "2026-10-09T07:48:30Z"
+}

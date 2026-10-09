@@ -1,0 +1,10 @@
+{
+ "title": "sync_mcp_state.py 读不到用户级 token",
+ "claimedBy": "DSH",
+ "status": "completed",
+ "doneAt": "2026-10-07",
+ "commit": "f02e12dedb",
+ "result": "根因=DSH 进程未继承用户级 env；修法=调用前 [Environment]::GetEnvironmentVariable(...,'User') 注入。同时更正『脚本有 .lower() 缺陷』的误判（实测调用数为 0，真实原因是 CLOUDBASE_MCP_AGENT 大小写不一致），并加告警护栏",
+ "id": "M28-sync-mirror-token",
+ "_source": "cloud:tasks.board"
+}

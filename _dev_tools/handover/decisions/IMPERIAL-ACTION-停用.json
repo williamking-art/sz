@@ -1,0 +1,24 @@
+{
+ "title": "「帝王行动」暂时停用（选甲·可回退）",
+ "status": "decided",
+ "verdict": "甲 —— 停用，不删除",
+ "raisedBy": "DSH",
+ "decidedBy": "用户",
+ "decidedAt": "2026-10-07",
+ "裁定依据": "用户裁定原话：「都可以清空帝王行动，现在的帝王行动有点不知所谓」；在被告知牵连 7 个测试文件约 26 处断言后，选定可回退的甲方案",
+ "做法": [
+  "settlement.py 新增模块级常量 IMPERIAL_ACTION_ENABLED = False（唯一开关入口）",
+  "Step 9 由 _settle_emperor_personal(state, log) 直调改为 if IMPERIAL_ACTION_ENABLED: 包裹",
+  "tests/test_imperial_action.py 加 module 级 pytestmark skip（16 个用例原样保留，不删）",
+  "AI 契约 _emperor_ai 的 5 处引用一律不动"
+ ],
+ "恢复方法": "①settlement.IMPERIAL_ACTION_ENABLED 改 True ②去掉 test_imperial_action.py 的 module 级 skip。三处以外无需改动。",
+ "已知副作用": [
+  "旧档：已开局的存档不会自动获得帝王行动（state.imperial_action 字段仍在，报告中旧动作记录仍在）",
+  "step_gap_fills / pop_identity / frontend_constants_parity / error_observability 四处用例未 skip，实测仍全绿 ⇒ 不依赖帝王行动被调用"
+ ],
+ "验证": "全量串行 F=0 E=0 · 2463 passed + 216 skipped（停用前基线 2483 passed；差额 16 = 本次转 skip 的用例，另 4 为既有 skip）",
+ "与拆分计划的关系": "拆开 settlement_imperial 的裁定不变（用户裁定乙：帝王行动 / 隐户 / 金军南侵 分属 politics / population / military）。停用后帝王行动已无运行时成本，拆分可安全进行；但**重做帝王行动时应连同新域归属一起定**，否则会拆两次。",
+ "id": "IMPERIAL-ACTION-停用",
+ "_source": "cloud:decisions.items"
+}

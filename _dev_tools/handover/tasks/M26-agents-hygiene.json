@@ -1,0 +1,9 @@
+{
+ "title": "补登记 Qoder 到 agents/fileOwnership",
+ "claimedBy": "DSH",
+ "status": "completed",
+ "doneAt": "2026-10-07",
+ "result": "已写入并回读校验；本地镜像 token 继承问题一并修复（用户级注入）",
+ "id": "M26-agents-hygiene",
+ "_source": "cloud:tasks.board"
+}

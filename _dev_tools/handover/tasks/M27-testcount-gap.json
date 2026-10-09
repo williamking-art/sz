@@ -1,0 +1,11 @@
+{
+ "title": "查清测试数 2457(Qoder日志) vs 2481(DSH实测) 差异",
+ "claimedBy": "Qoder",
+ "status": "done",
+ "note": "差 24 例；疑似统计口径不同（collected vs passed）或其后有未记录改动",
+ "id": "M27-testcount-gap",
+ "_source": "cloud:tasks.board",
+ "commit": "3ba2d5fa59",
+ "finishedAt": "2026-10-09",
+ "结论": "同一次运行 junit 定标：tests=2446 failures=0 errors=0 skipped=4，与 --collect-only 逐文件求和 2446 一致。历史差完全可解释：10-07 的 2457 −20（7bbbeda224 删 test_imperial_action.py）+9（批1回归）=2446。快照「2470 passed + 216 skipped」与 7bbbeda224 自述「全项目 skip 只有 21」矛盾 ⇒ 不可复现，后续以 junit 为准。"
+}

@@ -1,0 +1,12 @@
+{
+ "id": "LOCAL-HANDOVER",
+ "title": "交接通道：放弃 CloudBase MCP，改用仓库内本机交接层",
+ "status": "decided",
+ "raisedBy": "Qoder",
+ "decidedBy": "用户",
+ "decidedAt": "2026-10-09",
+ "verdict": "本机交接；载体=_dev_tools/handover/（入库），一条一文件；云端存量一次性导出归档",
+ "原因": "/mcp 路由在网关侧 410（带/不带 token 一致，同域其他路径结构化 404）⇒ 函数/触发器 Gone，非凭据问题",
+ "工具": "python _dev_tools/handover.py {import-cloud|log|phase|claim|decide|board|check|summary}",
+ "blocks": []
+}

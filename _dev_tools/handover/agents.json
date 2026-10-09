@@ -1,0 +1,82 @@
+{
+ "schema": 2,
+ "updatedAt": "2026-10-07",
+ "note": "按 agent 分键；phase:<name>/task:<name> 各自独占，decisions/* 与 log 为共享。fileOwnership 语义已于 2026-10-07 修订（见 migrationNote）。",
+ "migrationNote": "模块化迁移期为「按目标包认领」，不再按平铺文件独占——平铺路径已降级为转发桩，独占它无意义且易冲突。真账冲突面看『新落点 + 生产调用点』。",
+ "registered": {
+  "DSH": {
+   "focus": "经济结算/G-4 工坊采买/POP 家计与赋税设计；2026-10-07 起负责 agents 键维护",
+   "lastSeen": "2026-10-07",
+   "writes": [
+    "game/core/settlement_econ.py",
+    "game/core/game_state.py",
+    "game/core/market_price.py",
+    "game/content/data_constants.py"
+   ]
+  },
+  "Codex": {
+   "focus": "跨专题设计对齐与文档校准",
+   "lastSeen": "2026-10-05",
+   "writes": [
+    "_dev_tools/game-docs/reviews/*"
+   ]
+  },
+  "Qoder": {
+   "focus": "代码层机制模块化迁移（架构方案 §8 阶段 2/3）—— 已完成 21 包",
+   "lastSeen": "2026-10-07",
+   "writes": [
+    "game/core/foundation/**",
+    "game/core/domains/**",
+    "game/core/<23 个转发桩>.py",
+    "_dev_tools/game-docs/specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md"
+   ],
+   "toolDir": ".qoder/（未跟踪）",
+   "verifiedAt": "2026-10-07 DSH 实测：平铺 93 / 纯桩 23 / 仍持实现 70；全量 F=0 E=0 · 2481 passed"
+  }
+ },
+ "fileOwnership": {
+  "_dev_tools/game-docs/reviews/": "Codex 主写；他人追加需先 log 声明",
+  "game/core/settlement_econ.py": "DSH",
+  "game/core/game_state.py": "DSH",
+  "game/core/market_price.py": "DSH",
+  "game/core/domains/**": "Qoder（迁移期按包认领；他人动前先 log_append 声明）",
+  "game/core/foundation/**": "Qoder（同上）",
+  "_dev_tools/game-docs/specs/cross-cutting/": "Qoder 维护架构方案演进；DSH 可追加裁定记录"
+ },
+ "migratedStubs": {
+  "count": 23,
+  "measuredAt": "2026-10-07",
+  "names": [
+   "army_models",
+   "demand",
+   "diplomacy_treaty",
+   "dynamic_price",
+   "errors",
+   "external_view",
+   "faction_split",
+   "faction_voice",
+   "farm_procurement",
+   "grain_bridge",
+   "grain_ledger",
+   "hoard_settle",
+   "institution",
+   "literacy",
+   "market",
+   "material_holding",
+   "money",
+   "numeric",
+   "pop_bridge",
+   "pop_structure",
+   "prefecture_entity",
+   "production_chain",
+   "regime_fiscal"
+  ]
+ },
+ "protocol": [
+  "动手前 state_get('tasks:<id>') 查 claimedBy，非空且非自己则不碰",
+  "认领写 state_set('tasks:<id>', {claimedBy, claimedAt})",
+  "共享文件改动前 log_append 一行声明，避免并发覆盖",
+  "决策一律登记 decisions:<id>，不写进 phase 正文",
+  "模块化迁移期：认领粒度＝目标包，不是平铺旧路径"
+ ]
+}

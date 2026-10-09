@@ -1,0 +1,56 @@
+{
+ "title": "11 个写站点的接口归属",
+ "status": "decided",
+ "verdict": "路径①依赖注入，但注入面**只限 C 类底层反向写站点**；不建覆盖全部 11 站点的通用注册体系",
+ "decidedBy": "用户",
+ "decidedAt": "2026-10-07",
+ "补充裁定": {
+  "旧档兼容": "不作为约束。纯旧档兼容的迁移调用**移除**，不加回去；缺隐户子池的老档按旧行为处理（不额外加格式门）",
+  "动态蓝图": "当前存档格式的必要行为，**不能删**，但从基础 save_load 移到应用层读档编排",
+  "隐户初始化": "新局由 application/game_init.py 在 GameState 构造后**直接调用**人口域服务，**不建通用注册表或可选回调**",
+  "生产入口": "commands.new_game **必须**委托 application.game_init；只新增应用层模块但不接生产入口**不算完成**",
+  "测试范围": "只改确实受影响的测试；**不要为消除失败而放宽断言**",
+  "兼容API": "core.save_load.load_game 可保留为**薄转发**，不得在其中实现反序列化或业务恢复"
+ },
+ "落地状态": {
+  "commits": [
+   "9b8c2bed26 隐户初始化移出 GameState + 旧档迁移块移除",
+   "257ce5f0b2 A3 动态蓝图迁应用层 + 失败分级"
+  ],
+  "新模块": [
+   "application/game_init.py",
+   "application/load_game.py"
+  ],
+  "依赖方向": "application → domains/population ✅向下；game_state / save_load **不再引 domains/** ✅§6-1 已解",
+  "生产实测": "commands.new_game 隐户 25,000,000 口；保存→读档往返仍 25,000,000；population 100,000,000 不含隐户",
+  "测试": "新增 test_load_restore_grading.py 6 例；两条规格测试**原样保留**；全量 F=0 E=0 · 2468 passed + 227 skipped"
+ },
+ "失败分级规则": {
+  "原则": "**内容校验失败 ≠ 恢复服务故障**。前者可能只错一条，整档丢弃会连带废掉玩家所有合法蓝图；后者继续下去只会得到残缺档案。",
+  "整档级": "恢复服务自身故障（蓝图域不可用、版本表不可得）⇒ 抛 RestoreServiceError(slot, stage, cause)，**不返回部分恢复的 state**",
+  "单条级": "动态蓝图内容非法（改档）⇒ **只丢该条**并留痕，其余合法蓝图继续恢复（规格任务 3）",
+  "子段级": "schema 版本高于支持版本 ⇒ **只拒绝该子段**并留痕，整档继续（规格任务 7）"
+ },
+ "零随机边界": {
+  "结论": "含随机的 settlement_* 一律不搬（拆/迁改 random 全局调用序列 ⇒ 破坏结算可复现性）",
+  "含随机": "econ(11) granary(10) decree(5) settlement(4) imperial(3) steps(1) finance(1)",
+  "已搬": "settlement_officialdom / tech / econ_helpers / agri / officialdom / imperial(拆三域)",
+  "未搬": "settlement_common(659) 共享写原语"
+ },
+ "后续教训": [
+  "🔴 **不兼容 = 不要加门**：把「旧档不得静默加载」实现成读档处格式门，会**误伤测试自造的伪档**（实测 F=151 E=89），删门后回到 F=15",
+  "🔴 只建应用层模块**不接生产入口不算完成**：须自查出所有生产调用方并接上，否则玩家开局就缺初始化",
+  "🔴 删代码块时注意**被删块内定义的变量是否被后续使用**：本次误删 _dlog/_supported ⇒ 5 处 NameError",
+  "🔴 测试样本应**走真实校验器生成**而非手写，否则测的是自己的假样本（本次手写样本因缺 requires_region 等字段被误判非法）"
+ ],
+ "口径订正（2026-10-07 审查后）": [
+  "动态蓝图的校验与登记已迁到应用层；基础层仍负责存档字段回填，并保留其他业务相关读档逻辑。**不得说「基础层不含业务恢复逻辑」**（过于宽泛）",
+  "基础层仍保留两根细线：save_load.py:48 读 DYNAMIC_BLUEPRINT_SCHEMA_VERSION、PLAN_ACTION_SCHEMA_VERSION。延迟导入取常量，**导入失败不得静默回落到 1**（会让本程序写的档被自己当成旧 schema 读回，超版本门形同虚设）。已修：回落值 0 + error + exc_info，commit 06e1ebf6ec",
+  "域引用数量未增（5→5）只能证明数量，不能证明恢复逻辑已迁出；迁出事实由 register_dynamic_blueprint 现在 application/load_game.py 调用证明",
+  "延迟导入**仍是依赖边**，依赖扫描会计入环。core/ 非档实现共 29 处 domains/ 引用（含顶层 clerks.py:37），本次未新增，按已登记规则暂予保留",
+  "支持范围：读档后 state 是否含隐户 —— 新局保证含（2500 万口，已实测）；新局→保存→读档往返保留（已实测）；**旧档不在支持范围，读档流程不会补注隐户**"
+ ],
+ "审查后修复": "06e1ebf6ec：_plan_schema_versions 静默回落 1 → 0 + error（与禁区节对齐）；阶段1 文档标为迁移前快照 + 附处置表；新增 2 例验证。全量 F=0 E=0 · 2470 passed + 216 skipped",
+ "id": "M25-写站点拆环",
+ "_source": "cloud:decisions.items"
+}

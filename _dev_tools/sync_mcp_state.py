@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""把 CloudBase 交接状态（state / context / worklog）拉到本地镜像，供**没有 MCP 的 agent/离线场景**读取。
+"""【已停用 · 2026-10-09】交接通道已换成本机文件层 `_dev_tools/handover/`（根 AGENTS.md §1）。
+本脚本原样保留只作两件事：① 历史留档（其输出快照已归档进 `handover/archive/cloud_2026-10-09/`）；
+② 将来真要恢复云端时的现成客户端。**不要再拿它当交接入口**——
+它的 `/mcp` 端点现在返回 HTTP 410（带/不带 token 一致，同域其他路径是结构化 404）。
+
+（以下原文保留）把 CloudBase 交接状态（state / context / worklog）拉到本地镜像，供**没有 MCP 的 agent/离线场景**读取。
 
 为什么需要它：交接状态在云端 MCP（`cloudbase-state-mcp`）里，但并非每个 agent
 都能配 MCP。本脚本把 `project=<name>` 的

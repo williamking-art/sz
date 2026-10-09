@@ -1,0 +1,13 @@
+{
+ "title": "清理 phase_qoder 重复键",
+ "claimedBy": "DSH",
+ "status": "wont-fix",
+ "decidedAt": "2026-10-07",
+ "decision": "用户裁定**丙＝暂不部署**。state_delete 已实现（cloudbase-state-mcp 提交 364469b）但**未上线**，线上仍 8 个工具。",
+ "reason": "① 收益=清一个空壳键；② 风险=动线上交接服务；③ phase_qoder 现为 {retired:true, seeAlso:'phase_Qoder'}，无内容、无人读，不影响任何读取方。",
+ "blockedBy": "环境权限：当期凭据只见 ap-shanghai 的 cloud1-d8g6nwyv37693de9b，listFunctions 无 mcp-state（它在 william-1-d5grtya3z0b5e143d / ap-singapore）；叠加该地域不支持云托管、tcb 未登录。",
+ "reviveWhen": "拿到可访问 william-1 的部署通道后，部署 state_delete 再删键；源码已就绪，node --check 通过。",
+ "docs": "cloudbase-state-mcp README 运维段已登记（提交 466253b），防后人误以为已上线",
+ "id": "M29-phase-qoder-dup",
+ "_source": "cloud:tasks.board"
+}

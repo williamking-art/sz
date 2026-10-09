@@ -1,0 +1,26 @@
+{
+ "title": "第二十二包候选：自实测真叶子清单挑一个",
+ "claimedBy": "",
+ "status": "pending",
+ "replaces": "M24-administration-officials（前提不成立，已废）",
+ "measuredAt": "2026-10-07 DSH 实测（判据：对 core 平铺零反向边）",
+ "trueLeaves": [
+  "minister_profile 4.0KB",
+  "flow_summary 5.8KB",
+  "regime_tech 8.3KB",
+  "minister_agent 8.6KB",
+  "legacy_mechanic 11.8KB",
+  "monthly_gazette 14.7KB",
+  "registries 15.7KB",
+  "agent_router 16.3KB",
+  "crop_shadow 18.5KB",
+  "trade_shadow 20.1KB",
+  "estate_mechanic 23.2KB",
+  "decree_plan 23.2KB",
+  "material_tech 53.2KB"
+ ],
+ "count": 13,
+ "caution": "🔴 decree_plan 已实测**不可进 workflows/**（四层反向调用，违 §6 硬规则 1），前置已写进架构方案 §2。registries 可能混合业务注册（§7 备注），迁前需逐符号定归属。",
+ "id": "M24-leaf-candidates",
+ "_source": "cloud:tasks.board"
+}

@@ -23,66 +23,62 @@
 `game/core/AGENTS.md`、`game/frontend/AGENTS.md`——只放各自的范围/验证路径/禁区指针，
 **现行事实仍以各目录 README 与本文件为准**；内容冲突以本文件为准。
 
-## 1. 先读云端交接状态（别凭猜测开工）
+## 1. 先读本机交接层（别凭猜测开工）
 
-交接状态放在 CloudBase 上的 MCP（`cloudbase-state-mcp`），**project = `songzuo`**：
+**2026-10-09 起交接通道换成本机文件**（用户裁定，登记 `_dev_tools/handover/decisions/LOCAL-HANDOVER.json`）。
+CloudBase 交接 MCP 已停用：它的 `/mcp` 路由在网关侧返回 410（带/不带 token 一致，同域其它路径是结构化 404
+⇒ 函数/触发器 Gone，不是凭据问题），换 key、重试、等陈旧窗都不会自愈。
 
-| 项 | 值 |
-|---|---|
-| URL | `https://william-1-d5grtya3z0b5e143d-1440445995.ap-singapore.app.tcloudbase.com/mcp` |
-| Header | `Authorization: Bearer $CLOUDBASE_MCP_TOKEN`（本机已设**用户级**环境变量，token 不入库） |
-| 工具 | `state_get` `state_set` `context_load` `context_save` `log_read` `log_append` `project_list` `project_create` |
-| DSH | 已在 `~/.dsh/profiles/desktop/cordis.patch.yml` 配 `mcp-cloudbase` → 重启后得 `mcp__cloudbase__*` |
-| 其他 agent | 通用 `mcpServers` 片段见 §7 |
+```
+sz/_dev_tools/handover/INDEX.md     ← 先读这个（各 agent 阶段 / 未完成板 / 待裁决策 / 最近日志）
+sz/_dev_tools/handover/NOTICE.md    ← 通道变更说明 + 需要 DSH 自查的 split-brain 风险点
+sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令表、为什么一条一文件）
+```
 
-
-### 🔀 多 Agent 协同（2026-10-04 定，跨会话必读）
-
-本仓库**存在多个并发 agent 会话**（DSH / Codex / …），同一文件可能同时被改。
-实测已发生 **3 次并发覆盖**（`game_state.py`、`pop_bridge.py`、计划文档）与 **1 次记忆库覆盖**。
-
-**云端 MCP 键位布局**（`project=songzuo`）：
-
-| 键 | 语义 | 约定 |
+| 载体 | 语义 | 约定 |
 |---|---|---|
-| `agents` | agent 注册表 + **文件归属** + 协议 | 共享，改前先读 |
-| `phase_<名>` | 各 agent **独占**的当前阶段 | ⚠️ 服务端会把 `:` 规范化为 `_` |
-| `decisions` | 待裁定项登记（含 `blocks`） | 共享，**决策一律进这里，不写 phase** |
-| `tasks` | 任务板（含 `claimedBy`） | 共享，**先认领再动手** |
-| `worklog` | 追加式日志 | ✅ **2026-10-07 起改 PG 表 `mcp_work_log` 逐行追加**（R2-A），不再有整文件覆盖窗；`log_append` 返回 `verified` 是真实写确认（insert 后回取 `seq`）。历史成因仍值得记：旧实现是整文件 RMW，CDN 陈旧窗可达分钟级，窗内顺序两次追加后者覆盖前者（真丢过 2 条），且函数 20s 超时会让平台回 **HTTP 433 + `ret_code 200401`**（非 JSON-RPC），响应丢失但写入可能已落地 |
-| `state` / `context` / `tasks` / `decisions` | JSON 存储，**worklog 的修复没覆盖它们** | 🔴 读源码定形态（2026-10-07）：值文件是**按键独立**的（`states/<p>/<key>.json`），所以跨键不互相覆盖；风险在两处——①**同一个键**的"读-改-写"发生在**客户端层**（`tasks` 共享板最典型：两边各取全量、各改、各写回 ⇒ 后写覆盖先写，服务端不做合并），②**新建键**时会对 `states/<p>/__index.json` 做整文件 RMW（CDN 分钟级陈旧窗内会丢其中一个键的索引，值文件还在但列举会漏）。纪律不变：**写后必回读校验**，且**读不到不等于没写进去 ⇒ 不要盲目重发**；改共享键前先 `log_append` 认领。客户端 `sync_mcp_state.py` 自 R4 起对 `log`/`push-state`/`push-context` 已内置回读与退出码判定（**0 才算已落地**）|
+| `tasks/<ID>.json` | 任务板，含 `claimedBy` / `status` | **先认领再动手**；一条一文件 ⇒ 并发双方改的是不同文件，结构上不可能互相覆盖 |
+| `decisions/<ID>.json` | 待裁定项（含 `blocks`） | **决策一律进这里，不写 phase**；`verdict` 只由裁定人写 |
+| `phase/<Agent>.json` | 各 agent **独占**的当前阶段 | 只写「我现在在做什么」 |
+| `worklog/<UTC>-<agent>.md` | 追加式日志（新写=新建文件） | 改共享文件前先 `log` 一行声明 |
+| `agents.json` | agent 注册表 + **文件归属** | 共享，改前先读 |
+| `archive/cloud_2026-10-09/` | 云端原始 JSON | **只读留档**，勿改勿删 |
+| `INDEX.md` | 派生索引 | 由 `summary` 重建，**勿手改** |
 
-**三条硬规矩**：
-
-1. **先认领再动手** —— `state_get("tasks")` 看 `claimedBy`，非空且非自己就不碰；
-2. **改共享文件先声明** —— `log_append` 一行「我要改 X」；
-3. **决策不进 phase** —— 登记 `decisions`，phase 只写「我现在在做什么」。
-
-🔧 **交接 MCP 本体**：HTTP 云函数 `mcp-state`（william-1 环境）。源码已版本化于
-`D:\workbuddy\cloudbase-state-mcp`（git，README「运维」节含部署/回退路径与 R1 已上线、R2 待办状态）。
-
-🔴 **跨会话结论必须落进仓库文件**：`state_set` 是覆盖、`context_save` 是快照，都会丢。
-云端只做**索引与认领**，**不做唯一存储**。
-
-**没有 MCP 的 agent** → 直接读**本地镜像**（普通文件，read 工具即可）：
-
-```
-sz/tmp/mcp_sync/SUMMARY.md      ← 先读这个（阶段/验证/待裁决/阻塞/最近日志）
-sz/tmp/mcp_sync/state.json      ← 全部 state 键值
-sz/tmp/mcp_sync/context.json    ← 最近上下文快照（交付明细、新文件、产物指纹）
-sz/tmp/mcp_sync/worklog.json    ← 工作日志
-```
-
-刷新镜像（需 `CLOUDBASE_MCP_TOKEN`）：
+工具与退出码（仓库根执行，`$py` 见 §4）：
 
 ```powershell
-$py = "D:\codebuddy\.audit-venv\Scripts\python.exe"
-cd D:\codebuddy\sz
-& $py _dev_tools\sync_mcp_state.py            # 拉取并写镜像
-& $py _dev_tools\sync_mcp_state.py log "…"    # 追加一条云端日志（内置回读）
+& $py _dev_tools\handover.py board                 # 看板
+& $py _dev_tools\handover.py summary               # 重建 INDEX.md
+& $py _dev_tools\handover.py check                 # 自检（含下限断言：计数为 0 = 扫描失效，不是干净）
+& $py _dev_tools\handover.py claim claim <ID> --agent <名字>     # 认领（他人已占会返回 blocked）
+& $py _dev_tools\handover.py claim finish <ID> --agent <名字> --commit <hash>
+& $py _dev_tools\handover.py log "YYYY-MM-DD <agent> 做了什么 <验证数字>"
+& $py _dev_tools\handover.py phase <Agent> --file <json>
+& $py _dev_tools\handover.py decide <ID> --status <s> [--verdict "..." --ruler <裁定人>]
 ```
-> 退出码：**0 才算已落地**；2=服务端称已写但回读未见（疑陈旧窗，**勿重发**，稍后 `summary` 复查）；
-> 3=lost/failed/回读不一致；4=传输层失败（含 433 超时）。非 0 一律当"状态未知"处理，不当成功。
+> 退出码沿用旧纪律：**0 才算已落地**（写后回读逐字比对 + 再解析一次 JSON），2=用法错，3=校验不一致/认领被拒。
+
+**三条硬规矩**（语义与云端时代一致，只是换载体）：
+
+1. **先认领再动手** —— `board` 看 `claimedBy`，非空且非自己就不碰；`claim` 会程序化拒绝抢单。
+2. **改共享文件先声明** —— 动手前 `log` 一行「我要改 X」，声明与改动尽量进同一个 commit。
+3. **决策不进 phase** —— 待裁项写 `decisions/<ID>.json`；phase 只写「我现在在做什么」。
+
+🔴 **跨会话结论必须落进仓库文件**（这条在本地化后更重要）：交接层本身已入库，但
+`phase` 是覆盖、`context` 是快照，**机制/口径/坑的正文必须写进 `game-docs` 或对应 README**，
+交接层只做索引与认领，不做唯一存储。
+
+**历史成因（保留，别再踩）**：云端旧协议的整份 JSON「读-改-写」真丢过数据 ——
+`worklog` 旧实现是整文件 RMW，CDN 分钟级陈旧窗内顺序两次追加后者覆盖前者（丢过 2 条）；
+函数 20s 超时会让平台回 HTTP 433 + `ret_code 200401`（非 JSON-RPC），响应丢了但写入可能已落地；
+`tasks` 共享板两边各取全量各写回 ⇒ 后写覆盖先写。本地化若仍用单文件，只是把竞态从 CDN 搬到磁盘，
+所以**一条一文件**是设计要点。另有两次同型教训：Windows 大小写不敏感卷会让 `phase/Qoder.json`
+被 `phase/qoder.json`（退役墓碑）静默覆盖，现由 `_case_clash()` 直接拒绝写；
+`check` 曾把正则串当 `endswith` 参数用 ⇒ 扫到 0 条还报"问题=0"，现加下限断言。
+
+> `_dev_tools/sync_mcp_state.py` 保留在原处并加了停用注释；`tmp/mcp_sync/`（gitignored）
+> 不再是权威，可留作历史缓存。云端恢复部署后也**只作单向只读镜像**，禁止双向写。
 
 ## 2. 再读权威文档（按任务挑，别全读）
 
@@ -191,18 +187,24 @@ cd frontend
 
 ## 6. 收工必须回写（否则下一个 agent 只能重新考古）
 
-三件事，缺一不可：
+四件事，缺一不可（载体见 §1，全部走 `_dev_tools/handover.py`）：
 
-1. **state**：`state_set project=songzuo key=phase_<你的agent名>`（⚠️ **不要写共用键 `phase`** ——
-   多 agent 会互相覆盖，见 §1「多 Agent 协同」）。值形如
+1. **phase（独占）**：把值写成一份 JSON 文件后执行
+   `& $py _dev_tools\handover.py phase <你的agent名> --file <json>`
+   → 落到 `_dev_tools/handover/phase/<Agent>.json`。值形如
    `{phase, updatedAt, agent, verification:{pytest,tsc,vitest,build}, next}`。
-   待裁定项**另登记** `key=decisions`，任务认领**另登记** `key=tasks`。
-2. **context**：`context_save project=songzuo summary="一句话现状" data={delivered,newFiles,artifacts,next}`
-3. **worklog**：`log_append project=songzuo` 消息格式
-   `YYYY-MM-DD <agent> <做了什么> <验证数字>`（例：`2026-09-29 DSH 完成审查整改 5 项；pytest 1291 / tsc 0 错 / vitest 62`）
+   ⚠️ **不要写共享的 `phase`**（云端时代就多 agent 互相覆盖，本地同理）；
+   待裁定项**另登记** `decisions/<ID>.json`（`decide`），任务状态**另登记** `tasks/<ID>.json`（`claim`）。
+2. **context（可选快照）**：`_dev_tools/handover/context/<snapshotId>.json`，
+   形如 `{summary, data:{delivered,newFiles,artifacts,next}}`。只作快照，**结论正文必须进文档**（§6.1）。
+3. **worklog**：`& $py _dev_tools\handover.py log "YYYY-MM-DD <agent> <做了什么> <验证数字>"`
+   （例：`2026-09-29 DSH 完成审查整改 5 项；pytest 1291 / tsc 0 错 / vitest 62`）。
+   改共享文件前也要用同一命令**先声明**（§1 硬规矩 2）。
 4. **文档**：**每轮结束前必须更新文档**，见 §6.1。
 
-最后刷新本地镜像（§1），让没有 MCP 的 agent 也看得到。
+收尾两步：`& $py _dev_tools\handover.py summary`（重建 `INDEX.md`，别手改）
++ `& $py _dev_tools\handover.py check`（自检；计数为 0 会被判成扫描失效而非干净）。
+交接层与代码**一起提交**最稳——同一台机器上共用工作树时不提交也立刻可见，但换工作树就取不到了。
 
 ### 6.1 文档回写（每轮必做 · 用户 2026-10-01 定规）
 
@@ -225,7 +227,10 @@ cd frontend
   （实例：engine README 原把 `NON_NEG_PREFIXES` 写成 `NON_NEGATIVE_PATHS`；core README
   说 `construction.py` 是"只读纯函数"，而它自 2026-10-01 起已是立项写入点。）
 
-## 7. 其他 agent 的连接片段（通用 MCP 格式）
+## 7. 交接 MCP 连接片段（**已停用，仅留作恢复参考**）
+
+> 2026-10-09 起交接走本机文件（§1）。下面这段**不要再接**——它的 URL 现在对 `/mcp`
+> 返回 HTTP 410（函数/触发器 Gone）。保留只为将来真要恢复云端通道时不必重新考古。
 
 ```json
 {
@@ -233,7 +238,8 @@ cd frontend
     "cloudbase": {
       "type": "streamable-http",
       "url": "https://william-1-d5grtya3z0b5e143d-1440445995.ap-singapore.app.tcloudbase.com/mcp",
-      "headers": { "Authorization": "Bearer ${CLOUDBASE_MCP_TOKEN}" }
+      "headers": { "Authorization": "Bearer ${CLOUDBASE_MCP_TOKEN}" },
+      "_status": "DEPRECATED 2026-10-09：交接改走 _dev_tools/handover/，本端点 /mcp 返回 410"
     }
   }
 }
@@ -254,15 +260,18 @@ cd frontend
 |---|---|
 | 旧环境 `william-1-d6genf4wb9988a74a` + 云托管 `songzuo-server` + 其域名 | **已删除**——任何引用都别照抄（2026-09-29 已修 2 处，见下） |
 | `.cloudbase/project.json`（sz 根 与 `D:\codebuddy\.cloudbase`） | `site: domestic` + `region: ap-singapore` 是**实测可用的组合**（国内账号 + 新加坡地域体验版），**不是**冲突；此前把它当"site/region 冲突"是误判，**不要改** |
-| `~/.codebuddy/integration/tcb.json` | CodeBuddy 内置连接器：`projectId` 已由死环境改为当前环境、失效 `previewUrl` 置空、加 `_note`（变更前副本：`%TEMP%\tcb.integration.json.bak`） |
+| `~/.codebuddy/integration/tcb.json` | 🔴 **2026-10-09 实测：该文件已不存在**（本行原记 2026-09-29 的改法，已随文件删除而失效）。要用 CodeBuddy 内置连接器得重新配置，别照抄本行 |
 | `songzuo_server/cloudbaserc.json` | `envId` 已改为当前环境并加 `_note`（提示该地域不支持云托管）。注意**该文件被 `.gitignore:59 cloudbaserc.json` 全局忽略**，改动只在本机生效 |
-| `tcb` CLI | **未登录**（`.cloudbase/login.out`：设备码过期；官方建议 `tcb login --key`）。要用 CLI 管环境/PG 需先登录 |
-| CloudBase 官方管理面 MCP | 本项目**未接**；当前接的是自定义 `cloudbase-state-mcp`（交接状态库，见 §1）。要管环境/PG 走 `tcb` CLI，或按 §7 另配官方远端 MCP |
+| `tcb` CLI | **未登录**，且 2026-10-09 实测 **本机连 `~/.tcb` 目录都不存在**（= 从未在这台机器登录过，不只是设备码过期）。要管环境/PG 需 `tcb login --key` 或给 william-1 建环境级 API Key |
+| CloudBase 官方管理面 MCP | 本项目**未接入可用登录**：2026-10-09 实测插件为账号级 device 登录，但 `queryEnv(list, region=ap-singapore)` 返回 `EnvList: []`（该登录账号看不到 william-1），且 william-1 的环境级 key 未在本机任何凭据位出现（`settings.json` 里只有 cloud1 环境的 AI provider key）。管环境/PG 需先补 william-1 凭据 |
+| **交接状态库 `cloudbase-state-mcp`** | 🔴 **2026-10-09 停用**：`/mcp` 网关侧 410（带/不带 token 一致，同域其他路径为结构化 404 ⇒ 不是凭据问题）。存量已导出到 `_dev_tools/handover/`（含 `archive/cloud_2026-10-09/` 原始 JSON），现行协议见 §1 与 `_dev_tools/handover/NOTICE.md` |
 
 > **交接协议「解封规则已就位，但文件尚未入库」（2026-10-03 复核更正）**：
 > 2026-09-29 用户决定让协议随仓库分发，`.gitignore` **末尾**的 `!/AGENTS.md` 覆盖了上方
 > "根文件忽略"块里的 `/AGENTS.md`（git 以最后匹配为准，**该行必须留在文件末尾**），
-> `_dev_tools/sync_mcp_state.py` 同理经 `!_dev_tools/...` 白名单放行（`.gitignore:102`）。
+> `_dev_tools/sync_mcp_state.py` 同理经 `!_dev_tools/...` 白名单放行（现已加停用注释，保留作恢复用）；
+> 2026-10-09 起本机交接层同样放行入库：`!_dev_tools/handover/` + `!_dev_tools/handover/**` +
+> `!_dev_tools/handover.py`（规则必须排在 `_dev_tools/*` 之后，git 以最后匹配为准）。
 > **规则层面完好**（`git check-ignore -v AGENTS.md` 命中末尾否定规则）。
 >
 > ✅ **已入库（2026-10-03 实测更正）**：`AGENTS.md` 与 `_dev_tools/sync_mcp_state.py` **现已 `git add` 入库**
