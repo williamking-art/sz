@@ -1,9 +1,12 @@
 {
  "title": "复述门『复述的产生方』补不补",
- "status": "open",
+ "status": "decided",
  "raisedBy": "DSH",
  "blocks": [],
  "id": "D-复述门",
  "_source": "cloud:decisions.items",
- "measuredNote": "2026-10-09 实测：10-08 裁决=暂不接主链（decree_confirm API 已在，confirm_decree 零生产调用者）。本项 status 仍 open，未替裁定人写 verdict"
+ "measuredNote": "2026-10-09 实测：10-08 裁决=暂不接主链（decree_confirm API 已在，confirm_decree 零生产调用者）。本项 status 仍 open，未替裁定人写 verdict",
+ "verdict": "用户 2026-10-08 裁定：机制已在 core/decree_confirm.py 实现，但**没有接入生产执行链**；**暂不接入主链**。接入设计采用“受命承办者在承办前复述”；AI 可生成候选，但不能自动照抄原旨并当作承办者已复述。缺失=待复述、不执行、可补录重试；不匹配=拒绝本次承办、可更正重试。",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-09T08:17:16Z"
 }

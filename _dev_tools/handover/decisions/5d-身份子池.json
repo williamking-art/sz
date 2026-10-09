@@ -1,10 +1,13 @@
 {
  "title": "身份子池与宗族 clan 是否下沉州府级",
- "status": "open",
+ "status": "decided",
  "raisedBy": "DSH",
  "detail": "守卫基线剩 officials/clerks/on_post/waiting/sinecure + clan",
  "blocks": [],
  "id": "5d-身份子池",
  "_source": "cloud:decisions.items",
- "measuredNote": "2026-10-09 实测：子池下沉已落地（6fb19a3eba 7 项 + 972bfb4374 clan），本项 status 仍 open 未由裁定人改写；裁决文档见 reviews/裁决落地与分批计划_2026-10-08.md"
+ "measuredNote": "2026-10-09 实测：子池下沉已落地（6fb19a3eba 7 项 + 972bfb4374 clan），本项 status 仍 open 未由裁定人改写；裁决文档见 reviews/裁决落地与分批计划_2026-10-08.md",
+ "verdict": "用户 2026-10-08 裁定：“正确的修法不是拆分到州府级吗”—— 身份/家产子池与宗族 clan **均下沉州府级**；不得因现有写入方写路级就裁成路级独占。实测已落地：6fb19a3eba（7 项）+ 972bfb4374（补 clan）。",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-09T08:17:16Z"
 }

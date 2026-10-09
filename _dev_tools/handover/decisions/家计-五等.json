@@ -1,9 +1,12 @@
 {
  "title": "家计五等阈值取值 + 三税三基改造",
- "status": "needs-impact-report",
+ "status": "decided",
  "raisedBy": "DSH",
  "note": "改税基/阶层流动/民心，按 AGENTS §3-4 须先出影响面与回放校准",
  "blocks": [],
  "id": "家计-五等",
- "_source": "cloud:decisions.items"
+ "_source": "cloud:decisions.items",
+ "verdict": "用户 2026-10-08 裁定：采用现有《POP家计与赋税体系设计》口径——**等第只影响赋役**；田赋按**占田亩数**；商税按**真实交易额和货物税率**；五等按**等价家庭可支配家计相对基本生活篮子**划分。数据缺项时**等第未定义，不当作零**。**档线先影子校准，校准前不接正式税收结算**。",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-09T08:17:17Z"
 }

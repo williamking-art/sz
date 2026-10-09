@@ -1,9 +1,9 @@
 {
- "phase": "M25 裁定全部落地（隐户初始化移出 GameState + 动态蓝图迁应用层 + 失败分级）；POP 真账州府级下沉完成（新局+子池）；肉改商品。本会话累计 20 提交。",
- "updatedAt": "2026-10-08",
+ "phase": "批 1（POP 写入下沉）进行中：**1-A/1-B/1-C/1-D 已完成**（守卫违规 7112→843→551；逐月字段不符 140→20；不变量① 23→0）；交接层已转本机 `_dev_tools/handover/`，已完成 split-brain 自查与 5 项决策收口。",
+ "updatedAt": "2026-10-09",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 F=0 E=0 · 2470 passed + 216 skipped",
+  "pytest": "junit 权威计数（2026-10-09 本会话实测）：**tests=2446 / failures=0 / errors=0 / skipped=2**（Qoder 同日实测 skipped=4，差 2，疑环境差异，待后续对齐）",
   "scc": "SCC 仍 = [17] + [2]",
   "POP下沉": "新局 seats 20/20；生产 3 回合逐字段路级==Σ治所 差恒为 0；子池相等；literacy 112/120 加权还原精确",
   "桥接验证": "直写路级 +1000 治所真账不变；桥接 +1000 真账 6,217,964→6,218,964"
@@ -203,18 +203,23 @@
   "累计": "18 包（阶段2十二包 + 阶段3六包）；README 27 份（后端13+前端14）；全量复扫 484 个 .py 确认生产侧 0 命中；删除死脚本 build_exe.py",
   "M25裁定落地": "①9b8c2bed26 隐户初始化从 GameState 移出 + 读档旧档迁移块移除；②257ce5f0b2 A3 动态蓝图迁 application/load_game.py + 失败分级。新增 application/game_init.py 与 application/load_game.py。commands.new_game 委托应用层。两条规格测试原样保留，新增 test_load_restore_grading.py 6 例。",
   "POP下沉与肉改商品": "①6fb19a3eba 子池下沉（estate/officials/clerks/on_post 等 7 项，修「治所侧虚高 N 倍」）；②5cdbc38184 新局下沉 + 肉改商品 + 桥接化 5 处写点",
-  "下沉边界": "新局与读档均已下沉（无条件幂等入口）；未下沉的路级写入仍可用回退分支（pop_obj_add 返回 None）"
+  "下沉边界": "新局与读档均已下沉（无条件幂等入口）；未下沉的路级写入仍可用回退分支（pop_obj_add 返回 None）",
+  "批1-POP写入下沉": "2026-10-08/09：1-A `ensure_subpools` 逐州府化 `f5d2e5c3da`；1-B 农职位/丁口子池 `9b27e888b2`；1-C `settle_literacy` `866f88a8fa`；1-D `clerks._adjust_staffing` + `sync` 强制派生 `b0301c178e`。文档：`reviews/批1_POP字段拆分依据与写点盘点_2026-10-08.md`、`reviews/裁决落地与分批计划_2026-10-08.md`；三个域 README 补写入纪律。",
+  "交接层本机化": "2026-10-09 用户裁定废用 CloudBase 交接 MCP（/mcp 410），改本机 `_dev_tools/handover/`（一条一文件）。DSH 完成：split-brain 自查（无数据缺口）、`phase/DSH.json` 更新、**5 项决策收口**（5d-身份子池 / D-复述门 / G-4-owner / G-4-holder / 家计-五等）。"
  },
  "metrics": {
   "coreFlat": 93,
-  "corePureStubs": 35,
-  "coreStillHolders": 60,
-  "stage2Pct": "62.4%",
-  "scc": "[17]+[2]",
-  "pytest": "F=0 E=0 · 2470 passed + 216 skipped",
+  "corePureStubs": 40,
+  "coreStillHolders": 53,
+  "stage2Pct": "57.0%",
+  "scc": "[12]+[2]",
+  "pytest": "tests=2446 failures=0 errors=0 skipped=2 (junit)",
   "packages": 18,
   "readmes": 27,
-  "note": "62.4% 是阶段2口径；§10 禁止以目录树改完宣称完成"
+  "note": "2026-10-09 更新：桩/实现计数与 SCC 采 Qoder 实测（b19_completion.py / mh_scc_scan_v3.py 口径）；旧值 35/60/62.4%/[17]+[2] 为 v2 SCC 口径下的下界，不可与新值直接比。",
+  "popGuardViolations15m": 551,
+  "popFieldMismatchPerMonth": 20,
+  "popInvariant1Violations": 0
  },
  "knownTraps": [
   "转发桩必须用运行时 dir() 枚举，不能用 AST 定义清单——会漏掉 re-export 进来的名字（我踩过 3 次：AFFILIATION_FIELDS / clamp / 私有符号）",
@@ -237,12 +242,17 @@
   "🔴 .gitignore 末行的 /dbg*.py 是故意忽略调试文件；_dev_tools/game-dev/* 与 _dev_tools/* 被排除也可能是**有意**（如 build_exe.py 已死），不要默认『该入库』",
   "🔴 README 里提到某个文件 ≠ 该文件还活着；判存活要看 _GAME_ROOT/HERE 是否硬编码、依赖模块是否仍存在",
   "🔴🔴 拆文件时模块头必须**整体搬运**（import + 模块级常量 + 延迟导入），不能凭猜挑需要的。settlement_military 拆分失败(F=34 E=32)即因此；对比 settlement_imperial 成功=整段搬运",
-  "🔴 本地『符号 is 同一』验证**不足以**证明拆分安全——测试跑的路径可能依赖原模块的模块级状态。拆分后必须跑全量"
+  "🔴 本地『符号 is 同一』验证**不足以**证明拆分安全——测试跑的路径可能依赖原模块的模块级状态。拆分后必须跑全量",
+  "审计与补测优先级按**可达回合数**排，不按代码是否存在排（用户 2026-10-08）。",
+  "**验证月度行为必须用 `run_monthly_settlement`**：`finish_turn` 只做终局判定/记忆/存档，**不推进月份**，用它会得假阴性。",
+  "**不要数进度点**：本机 pytest 吞末尾汇总行、PowerShell 重定向吞字符；一律用 `--junitxml` / `--collect-only`。",
+  "**镜像刷新只放结算侧**：在**读档路径**（`save_load`）调用的函数里 `sync` 会改变读档口径 ⇒ 等于给读档加门（用户：不兼容 = 不要加门）。",
+  "派生字段不变量（`clerks = size - officials`）**在每次刷镜像时被强制**（`sync_route_pops` → `rederive_seat_fields`），否则任何改 size/officials 的写入都会让派生变陈旧。"
  ],
  "decisions": [
   "§6-6 冲突（测试依赖私有符号）按用户裁定走『改测试』：新增公开读口 tribute_circuits()，不用通配 re-export 掩盖",
   "state_delete 不部署（用户裁定丙）：线上仍 8 工具，phase_qoder 保留为 {retired:true, seeAlso} 空壳占位"
  ],
- "next": "遗留：42 文件/133 处访问路级 pops，绝大多数是读（读派生镜像是对的，AGENTS.md 明说存量读取刻意保留）。本批只修账本断言能看见的写点；**守卫生产未启用** ⇒ 未覆盖的写点仍可能静默丢失。下一步：装守卫跑完整结算序列 + 后端动作，按字段分类（SPLIT_FIELDS 补桥接 / 非下沉子池补 _pops_write_exempt 白名单）。",
+ "next": "批 1 剩：**1-E** 年度/三年函数（`clan` 20/月）、**1-F** `wealth` ~32/月与 `size`/`grain` 大额字段。然后**批 2 守卫**（先补齐写点 → 启用记录型守卫 → 验证镜像一致 → 结算入口安装 → 连续零违规纳入放行门）。批 3~8 见 `reviews/裁决落地与分批计划_2026-10-08.md`。",
  "noBusinessChange": "七包迁移均未改业务口径、结算步序、存档 schema。第28包触及 settlement_econ.py 的 import 一行（结构迁移必需），财政自适应逻辑未触碰，用户裁定的『财政文件不纳入迁移提交』指不擅自修其逻辑"
 }
