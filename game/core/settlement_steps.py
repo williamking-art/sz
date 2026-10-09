@@ -44,7 +44,7 @@ from content.data import (  # noqa: F401
     HOARD_SUPPLY_SQUEEZE, HOARD_SPOIL_RATE, HOARD_DRAW_RATE,
     HOARD_CAP_MULT, HOARD_COPPER_RATIO_BASE,
 )
-from core import officialdom as _officialdom  # noqa: F401
+from core.domains.administration import officialdom as _officialdom  # noqa: F401
 
 from core.domains.economy.settlement_econ_helpers import (  # noqa: F401 — re-export 兼容
     _distribute_pop_wealth, _settle_mint,

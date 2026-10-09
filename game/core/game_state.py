@@ -160,7 +160,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
                   # 身份子池（宋代官制设计 §13.3/§13.4）：官/吏分账，官再分在岗/待阙/祠禄。
                   # 不变量：size == officials + clerks；officials == on_post + waiting + sinecure。
                   # 权威源是这里的子池；`prefectures[].officials/clerks` 只是派生镜像
-                  # （唯一写入点 `core/officialdom.sync_legacy_mirror`，供 Rust 后端与旧档读取）。
+                  # （唯一写入点 `core.domains.administration.officialdom.sync_legacy_mirror`，供 Rust 后端与旧档读取）。
                   "officials": _off, "clerks": _off * 8,
                   "on_post": _off, "waiting": 0, "sinecure": 0,
                   # 注意：官僚人数由**户数**派生（`households × 0.00135`，不随"户均口数"变化），
@@ -712,7 +712,7 @@ class GameState(GameStateEconMixin):
         #   不承载任何货币账户，权威源仍是 POP wealth 与国库/内帑。
         self.silver_stock: int = 0
         self.money_audit: dict = {}
-        # ---- 官制（阶段 C，见 core/officialdom.py 与宋代官制设计 §六②/§七）----
+        # ---- 官制（阶段 C，见 core/domains/administration/officialdom.py 与宋代官制设计 §六②/§七）----
         # posts_quota：差遣定员（**岗位**数，不是人）——这是唯一合法的非 POP 官制存量。
         #   0 = 尚未初始化，由 officialdom.ensure_quota() 按「中央机构岗位 ＋ 路级定员」重算。
         # official_rank_index：磨勘指数（品阶上浮 → 人均俸禄涨）。1.0 = 开局品阶结构。

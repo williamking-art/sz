@@ -133,7 +133,7 @@ TASK_HANDLERS: Dict[str, Dict[str, Any]] = {
     "reduce_office": {
         "applied_at": "issue+monthly",
         "landing": "state.waste_reform ＋ 官僚 POP 裁 5% 转士绅（ΣPOP 守恒）",
-        "code": "core/settlement_decree.py::_apply_decree_effect + core/officialdom.remove_officials",
+        "code": "core/settlement_decree.py::_apply_decree_effect + core/domains/administration/officialdom.remove_officials",
     },
     "reform": {
         "applied_at": "issue",

@@ -41,7 +41,7 @@ from content.data import (
 from content.data import clamp as _clamp  # noqa: E402
 
 # 官制 × POP 的单一权威源（官额/吏额/子池付款权数一律经此读取，杜绝 officials 双账复活）
-from core import officialdom as _officialdom  # noqa: E402
+from core.domains.administration import officialdom as _officialdom  # noqa: E402
 
 
 
@@ -642,7 +642,7 @@ class GameStateEconMixin:
         返回：纳税人口（**应役丁**）、免役人口与占比、农总口/佃农口（对照读数）、
         役钱与助役钱实收、冗官数。
         """
-        from core import officialdom as _od
+        from core.domains.administration import officialdom as _od
         from core.foundation.ledger.pop_structure import service_ding_total
 
         pops = {}
@@ -671,7 +671,7 @@ class GameStateEconMixin:
             "awaiting_posts": t["waiting"],
         }
 
-    # ---- 官俸（Σ官×人均；官额与子池计价一律取自 POP，见 core/officialdom.py）----
+    # ---- 官俸（Σ官×人均；官额与子池计价一律取自 POP，见 core/domains/administration/officialdom.py）----
     # POP 挂载律：`p["officials"]` 只是派生镜像，**不得**作为俸禄依据（否则双账复活：
     # 科举让官僚 POP 涨、镜像不涨 → "养更多官、一分钱不多花"，30 月实证 +23.1% vs +0.0%）。
     def calc_official_grain(self):

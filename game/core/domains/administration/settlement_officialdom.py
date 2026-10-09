@@ -6,7 +6,7 @@ from __future__ import annotations
 
 # 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）
 from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
-from core import officialdom as _officialdom
+from core.domains.administration import officialdom as _officialdom
 
 from core.settlement_common import (
     distribute_cash,
@@ -75,7 +75,7 @@ def _settle_clerks(state, log):
 
 
 def _settle_officialdom(state, log):
-    """Step 3.95 官制结算（薄封装，实现在 `core/officialdom.py`——单一权威源）。
+    """Step 3.95 官制结算（薄封装，实现在 `core/domains/administration/officialdom.py`——单一权威源）。
 
     职责：旧档子池迁移修复 → 不变量校验（size == officials + clerks；
     officials == on_post + waiting + sinecure）→ 派生镜像同步（`p["officials"]`/`["clerks"]`

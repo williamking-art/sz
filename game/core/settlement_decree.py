@@ -18,7 +18,7 @@ from content.data import (
 )
 
 # 官制 × POP 的受控流动入口（官额/吏额/在岗/待阙/祠禄；禁止直接改 pops["官僚"]["size"]）
-from core import officialdom as _officialdom
+from core.domains.administration import officialdom as _officialdom
 
 # 🔴 方案乙 / G-3（2026-10-04 POP 实体下沉州府级）：POP 写入走桥接层。
 # 粮走 `grain_bridge`（写只落一个载体）；size/窖银走 `pop_bridge`（先落州府真账再刷派生镜像）。
@@ -393,7 +393,7 @@ def _apply_decree_effect(state, decree, log):
         }
         state.change_prestige(-2, "省浮费/裁冗员阻力")
         # 政策 → POP：裁汰冗员裁减官僚 POP 人数（裁 5%，钱粮随之减少，体现三冗之减）
-        # 裁冗**先从冗处裁**：优先祠禄 → 待阙 → 在岗（见 core/officialdom.remove_officials）。
+        # 裁冗**先从冗处裁**：优先祠禄 → 待阙 → 在岗（见 core/domains/administration/officialdom.remove_officials）。
         # 返乡去向：裁下的官重回士绅（ΣPOP 守恒，§13.5 出口轴）。
         if kind == "reduce_office":
             for _p in state.prefectures.values():

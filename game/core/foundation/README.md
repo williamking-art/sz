@@ -17,27 +17,31 @@
   ⚠️ 计数教训保留：先前用"`≤30 行`即薄转发桩"数模块，会把 `errors.py` 这类**本来就小的真模块**误收为已迁——
   `errors` 直到第十一包才**真的**迁入 `foundation/common/errors.py`（见 §九），别把"小"当"已迁"）
 
-## 〇、完成度实测（2026-10-07，脚本口径见下）
+## 〇、完成度实测（2026-10-09 重测，脚本口径见下）
 
 > 目的：防止"批次都做完了"被误读成"重组快完了"。**交接单候选（甲/乙/丙）做完 ≠ 阶段 2 做完。**
 
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94**（含 `__init__.py`）⇒ 有效平铺模块 **93** | `ls game/core/*.py \| wc -l`；分母口径见 `_scratch/b19_completion.py` |
-| 已迁入新结构的模块 | **23 整模块 + 2 部分** | 整模块：…（前 17 个见 §十二~§十五）+ `market` / `hoard_settle` / `regime_fiscal`（第十八包，`domains/economy`）+ `institution`（第十九包，`domains/administration`）+ `literacy`（第二十包，`domains/culture`）+ **`army_models`**（第二十一包，`domains/military`）；部分：`save_load` 的 **6 个符号**（第七包，§五）+ `save_load_util` 的 **2 个符号**（第八包，§六）|
-| ⇒ 平铺层还剩多少实现 | **70 / 93 = 75.3%**（纯转发桩 23）| 取代此前写的"8/94 ≈ 9%"（那是早期快照，且分母含 `__init__.py`）。口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（23 == 23，零差集）|
+| 已迁出平铺的模块（按桩数计） | **40 个整模块 + 2 部分** | 口径 = `game/core/*.py` 里 AST 判为**纯转发桩**的模块数（2026-10-09 实测）。逐包明细**不在本表复制**：第 7~21 包见本文 §五~§十九，第 22~33 包与阶段 3 六包见各自提交与各包 README（防第二台账漂移）。部分迁入仍是 `save_load` 6 符号 + `save_load_util` 2 符号 |
+| ⇒ 平铺层还剩多少实现 | **53 / 93 = 57.0%**（纯转发桩 40）| 口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（**40 == 40，零差集**）。⚠️ 2026-10-09 对齐前该核对是**断的**（实测 40 桩 vs 声明 23），见 §二十 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
 | `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
-| `game/application/` 实现文件 | **2** | 2026-10-07 按 §5.2 新建：`turn_lifecycle.py` + `memory_lifecycle.py`；`commands.finish_turn` 已改薄代理 |
-| `domains/` 十子域有实现的 | **7/10** | `economy`(**6**)、`diplomacy`(2)、`production`(2)、`politics`(2)、`administration`(1，第十九包)、`culture`(1，第二十包)、`military`(1，第二十一包)；其余 3 个子域仍空 |
-| 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
+| `game/application/` 实现文件 | **5** | `turn_lifecycle` + `memory_lifecycle`（§5.2）+ `game_init` + `load_game` + `agent_router`（后三者由 M25 裁定与第 27 包迁入应用层）|
+| `domains/` 子域有实现的 | **9/11** | `economy`(9+子包1)、`administration`(6+1)、`politics`(4)、`production`(4)、`construction`(2)、`diplomacy`(2)、`military`(2)、`culture`(1)、`population`(1)；仍空的是 `transport`(0) 与 `events`(0，后建的空目录，尚无归属定案) |
+| 外部业务调用方接入新路径 | **41 个文件 / 90 引用点**（第九包，2026-10-07 当时口径，未含后续包） | 此前为 **0**；判据④达成过程、口径与踩坑见 §七。计数脚本 `_scratch/b9_newpath_count.py`（AST）；生产侧旧桩路径引用点已归零（`_scratch/b9_scope_measure.py`） |
 
 **§8 五阶段定位**：阶段 0 ✅ / 阶段 1 ✅（SCC=2 + 12 反向边，2026-10-07 已校正其真实形态）/
-**阶段 2 🔶 进行中**（已迁模块的四条判据**全部成立**，含 ④ 生产改道；但阶段 2 的范围是"所有低耦合叶子"，
-`save_load` 只剩反向边阻塞、其余未迁叶子仍在原地）/ 阶段 3 ⬜（前置=反向边**接口倒置**）/
+**阶段 2 🔶 进行中**（四判据对**已登记进常驻守卫的模块**成立；⚠️ 2026-10-09 实测发现
+"已迁模块"与"被守卫覆盖的模块"当时不是同一集合 ⇒ 见 §二十）/
+**阶段 3 🔵 进行中**（阶段 3 六包已交付：`settlement_officialdom`、`settlement_imperial` 拆三块、
+`settlement_tech`、`settlement_econ_helpers`、`officialdom`、`settlement_agri` 已出平铺；
+平铺大环成员 **17 → 12**，v3 口径实测 `_scratch/b22_scc_v3.txt`。
+剩余 gate = 板上 `M25-blocked-writesites` **仍 open**，blocks 阶段 3 收尾）/
 **阶段 4 🔶 已开始**（2026-10-07 第九包：生产侧旧路径引用清零；测试侧仍走旧桩=兼容门面生效面，
 "旧入口退役"仍未做）。
 
@@ -756,6 +760,75 @@ patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字�
 **验证**：全量串行 `FULL_EXIT=0`、`FAILED/ERROR=0`；collected = 批次前 2448 + 本批 9 例
 （`test_domains_military_b21.py`）。变异 4 组均可红（桩漏转发 / 别名改成包装 / 消费者退回私有名 /
 提供方 patch 退回旧桩），跑完 `cmp` 逐字节恢复。
+
+
+## 二十、2026-10-09 台账对齐批（非迁移包）：判据④曾对 17 个模块**无人看守**
+
+起因是接手板上 `M27-testcount-gap` 时顺手跑了一次桩/声明交叉核对，结果断言直接失败：
+
+| 事实 | 数字 |
+|---|---|
+| `game/core/*.py` 里 AST 判为纯转发桩 | **40** |
+| `test_newpath_imports_b9.py` 的 `MIGRATED_OLD` 声明 | **23**（停在第 21 包）|
+| ⇒ 判据④（生产侧不得再引用旧桩）**没有守卫覆盖**的模块 | **17 个** |
+
+第 22~33 包与阶段 3 六包把实现迁走了，但没往常驻守卫里登记 ⇒ **"迁了"≠"迁完且不回退"**。
+补录后立即抓到一处真实回退：`officialdom`（阶段 3 第五包 `fde00dffb9` 迁进
+`domains/administration/`）仍有 **5 个生产点引用旧桩**，其中
+
+- `game/core/game_state_econ.py:44` 是**顶层** `from core import officialdom as _officialdom`
+  ——正是第十九包补登的"第 13 条反向边候选"那条站点；
+- `game/core/domains/administration/settlement_officialdom.py:9` 是**已迁入包内的模块绕回 core 平铺**
+  ——违反甲批规则 2「新模块不得导入旧转发桩」的精神。
+
+处置（本批，行为不变）：5 处 import 改直认真实家 + 6 处仍写旧路径的注释/溯源登记字符串改正
+（`longterm_task.py` 的 `"code"` 字段实测**不是**运行时解析的导入路径，无 importlib/getattr 消费方）。
+另两处判据自身的修正：① 判据③的对象集合改为**直接取 `MIGRATED_OLD`**（同一文件两份清单就是漂移源）；
+② 新家前缀补 `application.`（`core/agent_router.py` 桩指向 `game/application/`，按 §1 目标代码树与
+§5.2 是合法落点，旧前缀会把它误判成"无转发来源"）。
+
+**同口径前后对照证明本批不造环**：`git archive HEAD game/core` 解出批次前只读副本跑 v3
+⇒ 前后都是 `[12]+[2]`、成员**逐字相同**（`_scratch/b22_scc_v3_pre.txt` vs `_scratch/b22_scc_v3.txt`）。
+环从 17 缩到 12 是第 22~33 包 + 阶段 3 六包 + M25 裁定的累计结果，**不是本批贡献**。
+
+### 补录守卫同时抓到第二类真实隐患：`global` 重绑型惰性缓存（顺序依赖，可绿可红）
+
+判据③（"桩名与实现名必须同一对象"）在全量里报红两条，单跑却不报——查下来是：
+
+| 事实 | 证据（2026-10-09 实测）|
+|---|---|
+| `material_tech._ALIAS_INDEX` / `settlement_agri._ALIAS_INDEX` 以 `global X; X = 新建 dict` 惰性构建 | 实现 `:248` / `:237`，`_build_alias_index()` 与 `invalidate_*()` 都整体重绑 |
+| 桩在 `import` 那一刻绑定的只是**当时的值**（多为 `None`）| 构建后 `桩 is 实现 = False`（agri 侧实测），实现侧 dict 有 8 键 |
+| ⇒ **是否报红取决于谁先被导入** | 同一次探测里 `material_tech` 当时还同一、`settlement_agri` 已分叉；全量顺序下两条一起红 |
+
+这与第十八包的 `_TRADE_LEDGER` 是**两种不同形态**：那个是原地改（桩与实现永远同一个对象，
+所以经桩清空台账能生效）；这个是整体重绑（桩侧必然拿到过期绑定）。
+
+处置：**登记 + 静态判据**（`REBIND_CACHE_DEBT` + `_is_global_rebind_cache()` 要求该名字在实现里
+确实被 `global` 声明且整体赋值过），把"碰运气的绿"变成"确定性豁免"。
+真正的修法是另立批次的**口径/实现变更**（① 原地 `clear()/update()`；② 从旧路径转发面撤名——会改
+`dir()` 公开面，需先裁定）。现况生产风险为零：判据②已确认**没有任何生产模块引用这两个旧桩**。
+
+### 本批的"会红证明"就是首跑那一次红
+
+补录后**第一次全量**（`--junitxml`）报 1 条失败：
+`test_newpath_imports_b9.py::test_old_stubs_forward_to_same_objects`，
+消息正是 `core.material_tech._ALIAS_INDEX` / `core.settlement_agri._ALIAS_INDEX` 不是同一对象。
+登记欠账 + 加静态判据后，同一棵树的第二次全量 `FULL_EXIT=0`、`failures=0 errors=0`。
+⇒ 不是"把断言放宽到恒绿"：判据对其他 1000+ 个名字照常生效，只有**被静态证明是
+`global` 重绑缓存**且**显式登记在册**的两个名字跳过。
+
+**验证数字（2026-10-09 实测，同一次运行）**：`FULL_EXIT=0`；junit 声明
+`tests=2446 failures=0 errors=0 skipped=4`；SCC v3 `[12]+[2]` 与批次前只读副本成员逐字相同；
+`b19_completion.py` 桩集合 == `MIGRATED_OLD`（40 == 40，零差集）。
+
+**M27 计数口径已定**：当前唯一可复现基线 = 同一次运行的 junit `tests=2446`（= `--collect-only`
+逐文件求和 2446）。与本仓自己的提交对照可完全解释历史差：
+10-07 记的 2457 − 20（`7bbbeda224` 删 `test_imperial_action.py`）+ 9（批 1 系列新增回归）= 2446。
+而快照里的"2470 passed + 216 skipped"与 `7bbbeda224` 自述"全项目 skip 只有 21"直接矛盾
+⇒ 那对数字**不可复现**，后续一律以 junit 口径为准。
+
+纪律回写：**每迁一个模块必须同批把旧路径登记进 `MIGRATED_OLD`**，否则阶段 2 判据④只是口径口号。
 
 ## POP 写入纪律（2026-10-08 定）
 
