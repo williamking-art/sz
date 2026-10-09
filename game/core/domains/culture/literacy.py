@@ -172,24 +172,49 @@ def settle_literacy(state, log: Optional[list] = None) -> Dict[str, Any]:
     for route, p in prefs.items():
         if not isinstance(p, dict):
             continue
-        pops = p.get("pops")
-        if not isinstance(pops, dict):
+        # 🔴 2026-10-08（批 1-C）**逐治所**：州府级是真账，路级 `pops` 是派生镜像。
+        #   原实现只缓动路级 ⇒ 在已下沉档上会被 `sync_route_pops` **静默撤销**。
+        #   目标值按 **(路, 类)** 复用：同路各治所目标相同（同区域修饰），
+        #   但**当前值各自缓动**（各治所可能起点不同）。
+        _rows = []
+        _seats = (p.get("seats") or {})
+        if _seats:
+            for _st in _seats.values():
+                _sp = (_st or {}).get("pops") or {}
+                for cls, pop in _sp.items():
+                    if isinstance(pop, dict) and cls in POP_LITERACY_BASE:
+                        _rows.append((cls, pop))
+        else:
+            pops = p.get("pops")
+            if isinstance(pops, dict):
+                for cls, pop in pops.items():
+                    if isinstance(pop, dict) and cls in POP_LITERACY_BASE:
+                        _rows.append((cls, pop))
+        if not _rows:
             continue
-        for cls, pop in pops.items():
-            if not isinstance(pop, dict) or cls not in POP_LITERACY_BASE:
-                continue
-            target = literacy_target(state, route, cls, p)
+        _targets: Dict[str, float] = {}
+        _route_changed = 0
+        for cls, pop in _rows:
+            if cls not in _targets:
+                _targets[cls] = literacy_target(state, route, cls, p)
+            target = _targets[cls]
             cur = pop.get("literacy")
             if cur is None:
                 pop["literacy"] = target
                 out["changed"] += 1
+                _route_changed += 1
                 continue
             new = _clamp(_num(cur) + (target - _num(cur)) * LITERACY_CONVERGE,
                          LITERACY_FLOOR, LITERACY_CAP)
             if abs(new - _num(cur)) > 1e-9:
                 pop["literacy"] = round(new, 2)
                 out["changed"] += 1
+                _route_changed += 1
             out["pops"] += 1
+        # 已下沉档：治所写完后刷新路级镜像（B 类按 `size` 加权还原）
+        if _route_changed and _seats:
+            from core.foundation.ledger.pop_bridge import sync_route_pops
+            sync_route_pops(p)
     nat = national_literacy(state)
     if nat is not None:
         state.literacy = out["national"] = nat
