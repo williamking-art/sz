@@ -1,21 +1,21 @@
 {
- "phase": "交接通道迁移完成：CloudBase MCP 停用，改用仓库内本机交接层 _dev_tools/handover/（用户裁定，登记 decisions/LOCAL-HANDOVER）。",
+ "phase": "阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）",
+ "updatedAt": "2026-10-09T23:58:31Z",
  "agent": "Qoder",
- "commit": "b455018ebb",
  "verification": {
-  "handover_selfcheck": "11 项目标全部 OK（两个 skill + 三处 AGENTS + _dev_tools README + 脚本停用注 + README/NOTICE/INDEX/.gitignore）",
-  "tool_test": "log 落地、抢他人条目被拒(EXIT=3)、claim/finish 往返、临时条目已清；check tasks=8 decisions=13 worklog=21 问题=0",
-  "import": "import-cloud 幂等（复跑 0 重写）；云端存量 state 8 键 / tasks 7 / decisions 12 / worklog 20 / context 1 全导入，原始 JSON 逐字节归档",
-  "pytest": "全量 FULL_EXIT=0，FAILED/ERROR=0；junit 同一次运行 tests=2446 / failures=0 / errors=0 / skipped=2（订正：先前记的 skipped=4 是计数脚本双计，DSH 实测 2 正确）"
+  "pytest": "全量串行 FULL_EXIT=0；junit 同一次运行 tests=2458 / failures=0 / errors=0 / skipped=2（两路互证一致；= 对齐批基线 2446 + 本批新增 12 例守卫）",
+  "targeted": "b22(12 例) + test_turn_lifecycle + test_core_logic + b9 四文件 EXIT=0",
+  "scc": "v3 [12]+[2]；成员与 `git archive HEAD game/core` 只读副本逐字相同；扫描模块 159→160",
+  "equivalence": "新家 vs HEAD：9 顶层节点 ast.dump 0 漂移 + 5 组同状态场景输出与 state 快照全等",
+  "mutations": "6 组全部咬住（判据=junit 内该 testcase status=failed，不看退出码）；改后逐字节 cmp 恢复",
+  "refcount": "game/ 旧桩 0、新路径 2 文件；tests/ 旧桩 1、新路径 1（_scratch/b22_refcount.py）",
+  "completion": "core 平铺 93 / 纯转发桩 41 / 仍持实现 52 = 55.9%；MIGRATED_OLD 41==41 零差集",
+  "measured_at": "全量/junit/SCC/等价性/变异 全部实测于 2026-10-09 09:32Z（本地钟 17:32）；会话跨夜后续（回写与提交）在 2026-10-09 23:5Z（本地 10-10 07:5）——代码状态未变，本条只标注取证时刻"
  },
- "found_and_fixed": [
-  "Windows 大小写不敏感卷：phase/qoder.json（退役墓碑）静默覆盖 phase/Qoder.json ⇒ 加 _case_clash() 拒绝 + 墓碑改存 _retired.<名>.json",
-  "check 曾把正则串当 str.endswith 参数 ⇒ 扫到 0 条还报『问题=0』⇒ 修判据并加下限断言（计数 0 = 失效）",
-  "我一次把替换结果赋给临时变量没写回 s ⇒ skill §10/description 首次保存是空改动（已重做并复验）"
+ "decided_this_batch": "落点=core/workflows/（不是 application/）。交接单初稿那句已作废并在原处标注。",
+ "found_and_not_fixed": [
+  "EVAL_OUTCOMES 最低档 (0,'身死国灭') ⇒ evaluate_game 的兜底值 '社稷倾覆' 不可达；且 _get_outcome_desc 无 '身死国灭' 条目 ⇒ 该结局拿到空描述。属玩法口径，另立批次。",
+  "_scratch/b22_scc_v3_pre.txt（对齐批 §二十 引用的证据）被本批同名输出覆盖；本批三份改名为 b22pkg_scc_*，并已把『scratch 不能当证据源』写进 §廿一 注记。"
  ],
- "next": "第二十二包＝`evaluation`(205 行) → `game/application/`（开工前在板上认领）。`clerks` 归 DSH。M25 已裁定（路径①、注入面只限 C 类底层反向写站点），板上 open 的是**落地剩余**：其余 C 类站点 + `settlement_common`（含随机边界）。仍待用户裁：`MIG-COMPAT-RETENTION`、`A-粮价`、`M30-rebind-cache-debt` 销账方式。",
- "updatedAt": "2026-10-09T07:48:30Z",
- "corrections": [
-  "2026-10-09：skipped 4→2（自脚本双计）；M25 由「待裁」改为「已裁定，剩落地」；clerks 归 DSH，Qoder 改取 evaluation→application"
- ]
+ "next": "候选（真叶子剩余）：`decree_plan`(485，方向阻塞，见架构方案 §2 注记) / `construction_shadow`(697) / `decree_confidential`(809) / `decree_confirm`(832) / `building_jobs`(833，待判责) / `game_state_econ`(804，待判责=§7 双候选落点，牵动第 13 条反向边定性)。`clerks` 归 DSH。仍待用户裁：MIG-COMPAT-RETENTION、A-粮价、M30 销账方式。"
 }

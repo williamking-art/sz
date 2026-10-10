@@ -1,7 +1,7 @@
 {
  "title": "第二十二包候选：自实测真叶子清单挑一个",
- "claimedBy": "",
- "status": "pending",
+ "claimedBy": "Qoder",
+ "status": "done",
  "replaces": "M24-administration-officials（前提不成立，已废）",
  "measuredAt": "2026-10-07 DSH 实测（判据：对 core 平铺零反向边）",
  "trueLeaves": [
@@ -22,5 +22,6 @@
  "count": 13,
  "caution": "🔴 decree_plan 已实测**不可进 workflows/**（四层反向调用，违 §6 硬规则 1），前置已写进架构方案 §2。registries 可能混合业务注册（§7 备注），迁前需逐符号定归属。",
  "id": "M24-leaf-candidates",
- "_source": "cloud:tasks.board"
+ "_source": "cloud:tasks.board",
+ "claimedAt": "2026-10-09T08:43:53Z"
 }

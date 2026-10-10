@@ -232,14 +232,21 @@ def test_autosave_attempted_on_january_and_on_game_over(monkeypatch):
 
 
 def test_terminal_check_never_unsets_game_over(monkeypatch):
-    import core.evaluation as ev
+    # 🔴 第二十二包（2026-10-09）：实现已迁 `core.workflows.evaluation`，消费者按新路径
+    # 延迟导入 ⇒ **打桩目标必须同步随迁**。若仍打旧桩 `core.evaluation`，patch 会静默失效
+    # （桩只转发名字，改它不影响消费者），本用例就变成空跑——所以这里加 `fired` 断言，
+    # 让"桩没接上"当场红，而不是继续绿着什么都没测。常驻扫描见
+    # `test_workflows_evaluation_b22.py::test_no_test_patches_the_old_evaluation_stub`。
+    import core.workflows.evaluation as ev
     s = _state(turn=1, month=2)
     s.game_over = True
     _spy_memory(s)
     _spy_dialogue(monkeypatch)
     _spy_save(monkeypatch)
-    monkeypatch.setattr(ev, "check_game_over", lambda _s: False)
+    fired = []
+    monkeypatch.setattr(ev, "check_game_over", lambda _s: fired.append(1) or False)
     app_finish_turn(s)
+    assert fired, "桩没被调用 ⇒ 消费者的导入与打桩目标不同家（本用例会退化成空跑）"
     assert s.game_over is True, "只允许把 game_over 置 True，不得反向冲掉"
 
 

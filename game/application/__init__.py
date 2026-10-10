@@ -4,7 +4,7 @@
 定位：位于「前端/API/Backend」与「core 业务机制」之间，负责**跨机制的流程编排**
 （回合生命周期、记忆协调等），不拥有业务规则，也不持有第二份账本。
 
-依赖方向（§6-1）：`backend/UI → application → core.evaluation / core.save_load / memory`。
+依赖方向（§6-1）：`backend/UI → application → core.workflows.evaluation / core.save_load / memory`。
 允许的唯一反向边是**兼容门面**：`core.commands.finish_turn` 薄代理到这里（§5.2）。
 两条禁令，勿增勿破：
   ① `application` **不得** import `core.commands`——否则门面与服务层互引成新环；

@@ -65,7 +65,7 @@ from core.game_state import GameState
 from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
-from core.evaluation import evaluate_game, check_game_over
+from core.workflows.evaluation import evaluate_game, check_game_over
 from core.events import get_historical_event, get_random_event, apply_event_choice, get_strategic_branch, get_pending_break_event
 from core.foundation.common.errors import AIRuntimeError
 
@@ -782,7 +782,7 @@ def finish_turn(state) -> None:
     （`backend/client.py`、`settle_turn`、`__all__`）。
 
     契约不变：不抛错、返回 `None`。用延迟导入而非顶层导入，避免
-    `core.commands ← application ← core.evaluation/save_load` 在导入期互锁。
+    `core.commands ← application ← core.workflows.evaluation/save_load` 在导入期互锁。
     """
     from application.turn_lifecycle import finish_turn as _finish_turn
     _finish_turn(state)

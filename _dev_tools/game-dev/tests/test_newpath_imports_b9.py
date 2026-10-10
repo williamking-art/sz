@@ -25,8 +25,9 @@ if _GAME_ROOT not in sys.path:
 
 BASE = os.path.dirname(_GAME_ROOT)          # 仓库根 sz/
 # 新家前缀：`core.foundation.` / `core.domains.` 之外，`application.`（§1 目标代码树 + §5.2
-# 应用层，如 `agent_router` 桩）同样是合法落点，必须一起认，否则 ③ 会把合法桩误判成"无来源"。
-NEW_PREFIX = ('core.foundation.', 'core.domains.', 'application.')
+# 应用层，如 `agent_router` 桩）与 `core.workflows.`（§1 流程编排层，第二十二包起有实现）
+# 同样是合法落点，必须一起认，否则 ③ 会把合法桩误判成"无来源"。
+NEW_PREFIX = ('core.foundation.', 'core.domains.', 'application.', 'core.workflows.')
 
 # 已迁模块的旧桩路径（生产侧一律不得再引用）
 MIGRATED_OLD = [
@@ -52,6 +53,8 @@ MIGRATED_OLD = [
     'core.literacy',
     # 第二十一包补入：军队模型实现已迁 core/domains/military/
     'core.army_models',
+    # 第二十二包补入：结算评价/终局判定实现已迁 core/workflows/（流程编排层首个实现）
+    'core.evaluation',
     # ── 2026-10-09 台账对齐补录（非迁移批，Qoder）────────────────────────
     # 阶段 2 第 22~33 包 + 阶段 3 六包已把下列模块的实现迁出平铺（逐包细节见各自提交与
     # 各包 README，本表**只列模块名**，不复制第二份台账）。

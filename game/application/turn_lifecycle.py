@@ -2,7 +2,7 @@
 """回合收尾生命周期（《代码层机制模块化架构方案》§5.2 目标接口的实现）。
 
     finish_turn(state)
-      ├── check_terminal_state(state)          → core.evaluation
+      ├── check_terminal_state(state)          → core.workflows.evaluation
       ├── memory_lifecycle.on_turn_finished(state)
       └── auto_save_if_due(state)              → core.save_load
 
@@ -32,10 +32,10 @@ def check_terminal_state(state) -> bool:
     """终局判定：命中则置 `state.game_over`。
 
     与抽取前一致——**只会把 game_over 置 True，绝不反向覆写**（存档读回的 True
-    不能被一次判定冲掉）。依赖 `core.evaluation`（§5.2 指定的归属），
-    不绕 `core.commands`，避免应用层与命令入口互引成新环。
+    不能被一次判定冲掉）。依赖 `core.workflows.evaluation`（第二十二包落流程编排层，
+    §5.2 指定的归属口径不变），不绕 `core.commands`，避免应用层与命令入口互引成新环。
     """
-    from core.evaluation import check_game_over
+    from core.workflows.evaluation import check_game_over
     over = bool(check_game_over(state))
     if over:
         state.game_over = True

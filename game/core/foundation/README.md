@@ -24,11 +24,11 @@
 | 度量 | 实测值 | 口径 |
 |---|---:|---|
 | `core/*.py` 文件总数 | **94**（含 `__init__.py`）⇒ 有效平铺模块 **93** | `ls game/core/*.py \| wc -l`；分母口径见 `_scratch/b19_completion.py` |
-| 已迁出平铺的模块（按桩数计） | **40 个整模块 + 2 部分** | 口径 = `game/core/*.py` 里 AST 判为**纯转发桩**的模块数（2026-10-09 实测）。逐包明细**不在本表复制**：第 7~21 包见本文 §五~§十九，第 22~33 包与阶段 3 六包见各自提交与各包 README（防第二台账漂移）。部分迁入仍是 `save_load` 6 符号 + `save_load_util` 2 符号 |
-| ⇒ 平铺层还剩多少实现 | **53 / 93 = 57.0%**（纯转发桩 40）| 口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（**40 == 40，零差集**）。⚠️ 2026-10-09 对齐前该核对是**断的**（实测 40 桩 vs 声明 23），见 §二十 |
+| 已迁出平铺的模块（按桩数计） | **41 个整模块 + 2 部分** | 口径 = `game/core/*.py` 里 AST 判为**纯转发桩**的模块数（2026-10-09 第二十二包后实测）。逐包明细**不在本表复制**：第 7~22 包见本文 §五~§廿一，第 22~33 包与阶段 3 六包见各自提交与各包 README（防第二台账漂移）。部分迁入仍是 `save_load` 6 符号 + `save_load_util` 2 符号 |
+| ⇒ 平铺层还剩多少实现 | **52 / 93 = 55.9%**（纯转发桩 41）| 口径：AST 判"模块体有无 FunctionDef/ClassDef"，脚本 `_scratch/b19_completion.py`；**同脚本交叉核对**桩集合 == b9 守卫声明的 `MIGRATED_OLD`（**41 == 41，零差集**）。⚠️ 2026-10-09 对齐前该核对是**断的**（实测 40 桩 vs 声明 23），见 §二十 |
 | `foundation/state` 实现文件 | **0** | 目录存在但空 |
 | `foundation/persistence` 实现文件 | **2** | 第七包（2026-10-07）：`slots.py`、`migrations.py`；`save_game`/`load_game` 未搬，见 §五 |
-| `core/workflows/` 实现文件 | **0** | 目录存在但空（§2 提案/校验/执行三段尚未落包） |
+| `core/workflows/` 实现文件 | **1** | 第二十二包（2026-10-09）：`evaluation.py`（结算评价 + 终局判定）迁入，该包**从空骨架变成有实现**；落层判据与被排除的四个候选见 `core/workflows/README.md` |
 | `core/settlement/` 目录 | **不存在** | 编排仍在 `core/settlement*.py` 平铺 |
 | `core/compatibility/` 实现文件 | **0** | 预留位；兼容路线已定为"旧路径薄桩"，不用集中兼容包 |
 | `game/application/` 实现文件 | **5** | `turn_lifecycle` + `memory_lifecycle`（§5.2）+ `game_init` + `load_game` + `agent_router`（后三者由 M25 裁定与第 27 包迁入应用层）|
@@ -830,6 +830,74 @@ patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字�
 ⇒ 那对数字**不可复现**，后续一律以 junit 口径为准。
 
 纪律回写：**每迁一个模块必须同批把旧路径登记进 `MIGRATED_OLD`**，否则阶段 2 判据④只是口径口号。
+
+## 廿一、第二十二包：`evaluation` 迁入 `core/workflows/`（2026-10-09，流程编排层首份实现）
+
+交接单候选里 `clerks` 归 DSH（批 1-D 刚改过该文件），Qoder 取 `evaluation`（205 行）。
+**落点最终不是应用层**——§7 对该文件写的是"基础或应用支持域（逐项定）"，实测后排掉三个候选，
+理由全部落在具体行号上（详表见 `game/core/workflows/README.md`）：
+
+| 候选 | 判定 | 实测证据 |
+|---|---|---|
+| `foundation/` | ❌ | `evaluate_game` 取用业务域符号 `core.domains.military.army_models.army_power`（`:31` 函数内）⇒ 基础层引业务域，违 §6-1 依赖只向下 |
+| `game/application/` | ❌ | ① `application/__init__.py:7` 把 `core.evaluation` 列为**应用层向下依赖的对象**；② 主要生产消费者是 `core/commands.py:68` 的**顶层** import ⇒ 搬上去等于让 `core` 顶层引 `application`，正是该文件禁令② 挡的边；③ 既有 `commands → application` 三处（`:87 :421 :787`）**全是函数内延迟**，§5.2 注记写明是避导入期互锁 |
+| 新建 `domains/outcome/` | ❌ | 为单个模块在 §1 的 9 域之外预设新业务域，与"模块数量由实际机制边界决定，不预设固定数量"相反 |
+| `core/workflows/` | ✅ | 出边只 `content.data` + `core.domains.military.*`（向下）；入边来自 `core.commands`（接口适配）与 `application.turn_lifecycle`（应用层），方向都合法 ⇒ 原先"平铺 core 引业务域"这条可疑边，落层后方向才成立 |
+
+阶段 2 四判据齐备：
+
+- **位置**：`git mv` 保历史；新家文件与 `git show HEAD:game/core/evaluation.py` **CRLF 归一后逐字节相同**
+  （9 个顶层节点 `ast.dump` **0 漂移**）。旧路径留 `dir()` 显式转发桩 **10 名**（含 2 个 `_` 私有名、
+  1 个私有常量，以及 3 个从 `content.data` 转引的常量绑定）。迁移前**没有** `__all__` ⇒ 桩也**不补**
+  （补了等于收窄旧路径星号公开面），由用例钉住"两侧都必须没有"。
+- **范围**：生产 2 文件 / 2 引用点改指新路径（`commands.py:68` 顶层、`application/turn_lifecycle.py:38`
+  函数内延迟），另 **4 处** docstring/注释里的旧路径指针同批改直（`application/__init__.py:7`、
+  `turn_lifecycle.py:5`、`turn_lifecycle.py:35`、`commands.py:785`）；`game/` 侧旧桩引用 **0**。
+  测试侧 1 文件保留旧桩（`test_core_logic.py:22`，兼容门面生效面）。
+- **守卫**：`test_workflows_evaluation_b22.py` 12 例。除桩面/同一性/非空外，两条是本批特色：
+  **落层判据**（AST 扫新家的全部 import，引上层或引 `core` 平铺即红，并反向哨兵要求
+  `content.data` 与 `army_models` 两条边**必须还在**，防空跑）；
+  **两套防线阈值语义不得合并**（退位=任一边防空虚 阈值 20 无年份约束 / 京城陷落=指定线阈值 10 且年 ≥1126；
+  缺 `garrison` 默认 **100 不是 0**）。
+- 🔴 **提供方打桩又被抓到（连续第四批命中）**：`test_turn_lifecycle.py` 用
+  `import core.evaluation as ev` + `monkeypatch.setattr(ev, "check_game_over", …)` 喂假终局，
+  而消费者的延迟导入改指新家后，**patch 会静默失效**——原用例的断言（`game_over` 仍为 True）
+  在 patch 失效时**照样绿**（真实 `check_game_over` 对新局返回 False），属于最阴的一种：
+  绿色但什么都没测。做法=打桩目标随迁到实现模块，并加 `fired` 断言让"桩没接上"当场红；
+  常驻扫描 `test_no_test_patches_the_old_evaluation_stub` 禁止回潮（AST 解析别名，不看名字 grep）。
+- **同批登记守卫**：`MIGRATED_OLD` +`core.evaluation` ⇒ 声明 **41** 条，与实测纯桩 **41** 零差集；
+  `NEW_PREFIX` 补 `core.workflows.`（否则判据③ 会把新家的合法桩误判成"无转发来源"）。
+- **等价性实测**（`_scratch/b22_equiv_check.py`）：AST 0 漂移之外，把 HEAD 原文装成临时模块，
+  与新家**同一份 state** 比 5 组场景（新局 / 亏空 / 民怨+皇威 / 京城破 / 空部队）的
+  `evaluate_game` + `check_abdication` + `check_game_over` 输出**与状态快照**，全等。
+- **数字先量后写**：新局七维 `文治 53.6 / 武功 32.396 / 民生 55 / 财政 50 / 艺术造诣 85 /
+  声望 56.2 / 百姓口碑 68.495`，`total 56.8` ⇒ 结局"治平"；开局四防线兵额
+  `130000 / 260000 / 290000 / 70000`（`_DEF_GARRISON_SCORE_BASE=200000` 归一）。
+  ⚠️ 本批**只搬不改**，其中一条既有事实登记但不处置：`EVAL_OUTCOMES` 最低档是 `(0, '身死国灭')`，
+  ⇒ 代码里的兜底值 `"社稷倾覆"` **实际不可达**，且 `descs` 表没有"身死国灭"条目（该结局拿到空描述）。
+  修法属玩法口径，另立批次。
+
+验证数字（全量/junit/SCC/等价性/变异**同一批实测**于 2026-10-09 本地钟 17:32 = 09:32Z；
+会话跨夜后回写与提交在次日早晨，代码状态未变——取证时刻按用户纪律显式标注）：
+串行全量 `FULL_EXIT=0`；junit
+`tests=2458 / failures=0 / errors=0 / skipped=2`（两路互证一致：testsuite 属性 vs 逐 testcase 合计），
+= 台账对齐批基线 `2446` + 本批新增 **12** 例，增量与用例数**逐一对上**。
+定向回归（b22 + turn_lifecycle + core_logic + b9 四文件）`EXIT=0`。
+SCC v3 `[12]+[2]`，成员与批次前 HEAD 只读副本**逐字相同**。
+引用计数（`_scratch/b22_refcount.py`，README 口径）：`game/` 旧桩 **0** / 新路径 2 文件，
+`tests/` 旧桩 1 / 新路径 1。完成度 平铺 93 / 纯桩 **41** / 仍持实现 **52 = 55.9%**，
+`MIGRATED_OLD` 交叉核对 **41 == 41 零差集**。
+**6 组变异全部咬住**（junit 里指定 testcase 必须 `status=failed`，不看退出码猜——
+本批第一版就因把 pytest 用法错误 `rc=4` 当成"红"而差点交出假证明），
+改后逐文件 `cmp` 恢复逐字节一致。
+
+> ⚠️ **scratch 证据被覆盖的事实（登记，不悄悄修）**：§二十 引用的
+> `_scratch/b22_scc_v3_pre.txt` / `b22_scc_v3.txt` 与第二十二包同名输出撞车，本批一次扫盘
+> 还误覆盖了 `b22_scc_v3_pre.txt` 的对齐批原件。`_scratch/` **不在仓库内，本来就不能当证据源**；
+> 为可复核，本批前后与 HEAD 只读副本三份改用不撞名文件：
+> `_scratch/b22pkg_scc_pre_159.txt`、`b22pkg_scc_post_160.txt`、`b22pkg_scc_head_readonly.txt`
+> （HEAD 副本由 `git archive HEAD game/core` 解出，只读、不碰工作树；实测同为 `[12]+[2]`）。
+
 
 ## POP 写入纪律（2026-10-08 定）
 
