@@ -55,9 +55,9 @@ def test_guard_ignores_bridge_refresh():
     assert not pops_guard_violations(), pops_guard_violations()[:3]
 
 
-#: 已知仍在直写的字段（尚未下沉）。空 => 全部字段已走桥接。
-#: grain      → G-3 待办：粮尚未回填 goods[\u7c73]，pops[].grain 仍是真载体
-#: 其余        → 官制身份子池 / 宗族（计划 §6.11 未裁定项）
+#: 当前守卫覆盖的结算子步没有获准的遗留路级直写；新增字段必须继续保持空基线。
+#: grain      → POP 真账已在 seats；路级 pops[].grain 是派生兼容镜像。
+#: 身份子池、宗族已桥接；路级产粮基数不属于 POP 写账。
 KNOWN_LEGACY_WRITES = set()
 
 
@@ -78,7 +78,7 @@ def test_no_unexpected_direct_writes():
 
 
 def test_identity_subpools_and_clan_have_no_direct_writes():
-    """记录当前真实剩余面（粮 + 身份子池 + 宗族），防止"\u9759\u9ed8\u5931\u8d25"\u3002"""
+    """断言已知 POP 字段在结算子步中无未桥接直写（当前遗留直写基线为空），防止"\u9759\u9ed8\u5931\u8d25"\u3002"""
     s = _sunk_with_guard()
     _run(s, 3)
     v = pops_guard_violations()
@@ -87,3 +87,22 @@ def test_identity_subpools_and_clan_have_no_direct_writes():
         if "['" in item:
             hit.add(item.split("['", 1)[1].split("']", 1)[0])
     assert hit <= KNOWN_LEGACY_WRITES, sorted(hit)
+
+
+def test_full_monthly_settlement_keeps_route_pops_derived():
+    """真实新局跑月结全管线：守卫零直写、路级镜像与州府真账一致。"""
+    from core.commands import new_game
+    from core.settlement import run_monthly_settlement
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent
+    from core.domains.administration.officialdom import check_invariants
+
+    state = new_game()
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+    for _ in range(3):
+        run_monthly_settlement(state)
+        assert not pops_guard_violations(), pops_guard_violations()[:10]
+        assert all(not assert_pops_consistent(p)
+                   for p in state.prefectures.values())
+        ok, bad = check_invariants(state)
+        assert ok, bad[:10]

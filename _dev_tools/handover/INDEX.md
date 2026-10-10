@@ -1,11 +1,11 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-10T02:45:25Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-10T03:44:50Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
-- **DSH**（updatedAt=2026-10-09）：批 1（POP 写入下沉）进行中：**1-A/1-B/1-C/1-D 已完成**（守卫违规 7112→843→551；逐月字段不符 140→20；不变量① 23→0）；交接层已转本机 `_dev_tools/handover/`，已完成 split-brain 自查与 5 项决策收口。
+- **DSH**（updatedAt=2026-10-10）：POP 州府真账迁移维护：批 1-A～1-E、批 2-1/2-2 已完成；本轮补齐真实月结全管线守卫回归。
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -22,16 +22,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261010T004829Z-DSH` → [`worklog/20261010T004829Z-DSH.md`](worklog/20261010T004829Z-DSH.md)
-- `20261010T005807Z-DSH` → [`worklog/20261010T005807Z-DSH.md`](worklog/20261010T005807Z-DSH.md)
-- `20261010T011710Z-DSH` → [`worklog/20261010T011710Z-DSH.md`](worklog/20261010T011710Z-DSH.md)
 - `20261010T012725Z-DSH` → [`worklog/20261010T012725Z-DSH.md`](worklog/20261010T012725Z-DSH.md)
 - `20261010T015821Z-DSH` → [`worklog/20261010T015821Z-DSH.md`](worklog/20261010T015821Z-DSH.md)
 - `20261010T021556Z-DSH` → [`worklog/20261010T021556Z-DSH.md`](worklog/20261010T021556Z-DSH.md)
 - `20261010T023121Z-DSH` → [`worklog/20261010T023121Z-DSH.md`](worklog/20261010T023121Z-DSH.md)
 - `20261010T023924Z-DSH` → [`worklog/20261010T023924Z-DSH.md`](worklog/20261010T023924Z-DSH.md)
+- `20261010T032446Z-DSH` → [`worklog/20261010T032446Z-DSH.md`](worklog/20261010T032446Z-DSH.md)
+- `20261010T034239Z-DSH` → [`worklog/20261010T034239Z-DSH.md`](worklog/20261010T034239Z-DSH.md)
+- `20261010T034450Z-DSH` → [`worklog/20261010T034450Z-DSH.md`](worklog/20261010T034450Z-DSH.md)
 
 ## 计数
 
-- tasks 9（未完成 2）· decisions 13（未闭环 4）· worklog 36 · phase 文件 2
+- tasks 9（未完成 2）· decisions 13（未闭环 4）· worklog 39 · phase 文件 2
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
