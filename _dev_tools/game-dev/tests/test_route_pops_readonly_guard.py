@@ -58,8 +58,7 @@ def test_guard_ignores_bridge_refresh():
 #: 已知仍在直写的字段（尚未下沉）。空 => 全部字段已走桥接。
 #: grain      → G-3 待办：粮尚未回填 goods[\u7c73]，pops[].grain 仍是真载体
 #: 其余        → 官制身份子池 / 宗族（计划 §6.11 未裁定项）
-KNOWN_LEGACY_WRITES = {'officials', 'clerks', 'on_post',
-                       'waiting', 'sinecure', 'clan'}
+KNOWN_LEGACY_WRITES = set()
 
 
 def test_no_unexpected_direct_writes():
@@ -78,7 +77,7 @@ def test_no_unexpected_direct_writes():
     assert not unexpected, '出现基线外的直写字段：%s' % sorted(unexpected)
 
 
-def test_identity_subpools_and_clan_are_the_remaining_ones():
+def test_identity_subpools_and_clan_have_no_direct_writes():
     """记录当前真实剩余面（粮 + 身份子池 + 宗族），防止"\u9759\u9ed8\u5931\u8d25"\u3002"""
     s = _sunk_with_guard()
     _run(s, 3)
@@ -87,5 +86,4 @@ def test_identity_subpools_and_clan_are_the_remaining_ones():
     for item in v:
         if "['" in item:
             hit.add(item.split("['", 1)[1].split("']", 1)[0])
-    assert hit, '预期仍有未下沉字段的直写；若为空说明基线该更新了'
     assert hit <= KNOWN_LEGACY_WRITES, sorted(hit)

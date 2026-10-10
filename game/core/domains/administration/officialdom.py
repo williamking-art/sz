@@ -507,8 +507,10 @@ def add_officials(pref: Dict[str, Any], n: int, pool: str = "waiting") -> int:
     ensure_subpools(pref)
     if pool not in ("on_post", "waiting", "sinecure"):
         pool = "waiting"
-    pop["officials"] = int(pop["officials"]) + n
-    pop[pool] = int(pop[pool]) + n
+    if _pop_obj_add(_state_of(pref), pop, "officials", n) is None:
+        pop["officials"] = int(pop["officials"]) + n
+    if _pop_obj_add(_state_of(pref), pop, pool, n) is None:
+        pop[pool] = int(pop[pool]) + n
     if _pop_obj_add(_state_of(pref), pop, "size", n) is None:
         pop["size"] = int(pop["size"]) + n
     return n
@@ -532,9 +534,11 @@ def remove_officials(pref: Dict[str, Any], n: int, prefer=("sinecure", "waiting"
             break
         room = min(int(pop.get(key, 0)), n - cut)
         if room > 0:
-            pop[key] = int(pop[key]) - room
+            if _pop_obj_add(_state_of(pref), pop, key, -room) is None:
+                pop[key] = int(pop[key]) - room
             cut += room
-    pop["officials"] = int(pop["officials"]) - cut
+    if _pop_obj_add(_state_of(pref), pop, "officials", -cut) is None:
+        pop["officials"] = int(pop["officials"]) - cut
     if _pop_obj_add(_state_of(pref), pop, "size", -cut) is None:
         pop["size"] = max(0, int(pop["size"]) - cut)
     return cut
@@ -551,8 +555,10 @@ def post_officials(pref: Dict[str, Any], n: int) -> int:
     ensure_subpools(pref)
     move = min(n, int(pop.get("waiting", 0)))
     if move > 0:
-        pop["waiting"] = int(pop["waiting"]) - move
-        pop["on_post"] = int(pop["on_post"]) + move
+        if _pop_obj_add(_state_of(pref), pop, "waiting", -move) is None:
+            pop["waiting"] = int(pop["waiting"]) - move
+        if _pop_obj_add(_state_of(pref), pop, "on_post", move) is None:
+            pop["on_post"] = int(pop["on_post"]) + move
     return move
 
 
@@ -567,8 +573,10 @@ def to_sinecure(pref: Dict[str, Any], n: int) -> int:
     ensure_subpools(pref)
     move = min(n, int(pop.get("waiting", 0)))
     if move > 0:
-        pop["waiting"] = int(pop["waiting"]) - move
-        pop["sinecure"] = int(pop["sinecure"]) + move
+        if _pop_obj_add(_state_of(pref), pop, "waiting", -move) is None:
+            pop["waiting"] = int(pop["waiting"]) - move
+        if _pop_obj_add(_state_of(pref), pop, "sinecure", move) is None:
+            pop["sinecure"] = int(pop["sinecure"]) + move
     return move
 
 
@@ -683,8 +691,10 @@ def _annual_retire(state, log) -> int:
         if n <= 0:
             continue
         n = min(n, int(pop["on_post"]))
-        pop["on_post"] = int(pop["on_post"]) - n
-        pop["officials"] = int(pop["officials"]) - n
+        if _pop_obj_add(state, pop, "on_post", -n) is None:
+            pop["on_post"] = int(pop["on_post"]) - n
+        if _pop_obj_add(state, pop, "officials", -n) is None:
+            pop["officials"] = int(pop["officials"]) - n
         shen = (p.get("pops") or {}).get(GENTRY_CLASS)
         if isinstance(shen, dict):
             # B1d-b：致仕者**带本派立场回士绅**，并按人头**带走财富/粮**（人均连续）
@@ -754,8 +764,10 @@ def _annual_clan(state, log) -> int:
                 if isinstance(guan, dict):
                     ensure_subpools(p)
                     move_pop_people(shen, guan, n, state)
-                    guan["officials"] = int(guan["officials"]) + n
-                    guan["waiting"] = int(guan["waiting"]) + n
+                    if _pop_obj_add(state, guan, "officials", n) is None:
+                        guan["officials"] = int(guan["officials"]) + n
+                    if _pop_obj_add(state, guan, "waiting", n) is None:
+                        guan["waiting"] = int(guan["waiting"]) + n
                 elif _pop_obj_add(state, shen, "size", -n) is None:
                     shen["size"] = int(shen["size"]) - n
                     register_pref_state(p, state)
@@ -831,8 +843,10 @@ def _triennial_exam(state, log) -> int:
             if elite > 0:
                 move_pop_people(shen, guan, elite, state)  # 转移：士绅 → 官僚
             _added = hard + elite
-            guan["officials"] = int(guan["officials"]) + _added
-            guan["waiting"] = int(guan["waiting"]) + _added   # 新科进士先待阙（§13.5）
+            if _pop_obj_add(state, guan, "officials", _added) is None:
+                guan["officials"] = int(guan["officials"]) + _added
+            if _pop_obj_add(state, guan, "waiting", _added) is None:
+                guan["waiting"] = int(guan["waiting"]) + _added   # 新科进士先待阙（§13.5）
         else:
             if _pop_obj_add(state, nong, "size", -hard) is None:
                 nong["size"] = int(nong["size"]) - hard
