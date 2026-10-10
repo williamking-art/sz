@@ -793,32 +793,23 @@ patch 提供方退回旧桩 ⇒ M2 可观测性用例红。跑完 `cmp` 逐字�
 ⇒ 前后都是 `[12]+[2]`、成员**逐字相同**（`_scratch/b22_scc_v3_pre.txt` vs `_scratch/b22_scc_v3.txt`）。
 环从 17 缩到 12 是第 22~33 包 + 阶段 3 六包 + M25 裁定的累计结果，**不是本批贡献**。
 
-### 补录守卫同时抓到第二类真实隐患：`global` 重绑型惰性缓存（顺序依赖，可绿可红）
+### 已销账：迁移桩惰性别名缓存的 `global` 重绑
 
 判据③（"桩名与实现名必须同一对象"）在全量里报红两条，单跑却不报——查下来是：
 
 | 事实 | 证据（2026-10-09 实测）|
 |---|---|
-| `material_tech._ALIAS_INDEX` / `settlement_agri._ALIAS_INDEX` 以 `global X; X = 新建 dict` 惰性构建 | 实现 `:248` / `:237`，`_build_alias_index()` 与 `invalidate_*()` 都整体重绑 |
-| 桩在 `import` 那一刻绑定的只是**当时的值**（多为 `None`）| 构建后 `桩 is 实现 = False`（agri 侧实测），实现侧 dict 有 8 键 |
-| ⇒ **是否报红取决于谁先被导入** | 同一次探测里 `material_tech` 当时还同一、`settlement_agri` 已分叉；全量顺序下两条一起红 |
+| 两个实现曾以 `global _ALIAS_INDEX = 新建 dict` 构造惰性索引 | 旧桩在 import 时绑定旧对象，构造/失效后缓存已分叉 |
+| 现行实现以原地 `clear()/update()` 构建并以 `clear()` 失效 | `core.domains.construction.material_tech` / `core.domains.production.settlement_agri`；新旧路径一直共享同一 dict |
+| 回归覆盖 | `test_alias_cache_stays_live_through_legacy_facades` 先构建、再失效、再重建，逐步断言引用同一对象 |
 
-这与第十八包的 `_TRADE_LEDGER` 是**两种不同形态**：那个是原地改（桩与实现永远同一个对象，
-所以经桩清空台账能生效）；这个是整体重绑（桩侧必然拿到过期绑定）。
+该问题现已按选项①修复：别名索引对象身份稳定，缓存重建原地 `clear()/update()`，失效只 `clear()`；旧薄桩和新实现看到同一状态，无需改动其公开面。生产调用无需特殊迁移，旧路径测试也验证构建/失效/重建后同一 dict 保持存活。只剩 `core.pop_bridge._GUARD_INSTALLED` 私有 bool 快照的显式豁免：它不是 `_ALIAS_INDEX` 任务的一部分，且无生产消费者。
 
-处置：**登记 + 静态判据**（`REBIND_CACHE_DEBT` + `_is_global_rebind_cache()` 要求该名字在实现里
-确实被 `global` 声明且整体赋值过），把"碰运气的绿"变成"确定性豁免"。
-真正的修法是另立批次的**口径/实现变更**（① 原地 `clear()/update()`；② 从旧路径转发面撤名——会改
-`dir()` 公开面，需先裁定）。现况生产风险为零：判据②已确认**没有任何生产模块引用这两个旧桩**。
+### 验证与剩余兼容面
 
-### 本批的"会红证明"就是首跑那一次红
+原始缺陷曾由 `test_newpath_imports_b9.py::test_old_stubs_forward_to_same_objects` 捕获；现新增真实旧桩引用回归，验证构建、失效、重建始终使用同一缓存字典，迁移兼容面已恢复对象身份一致。
 
-补录后**第一次全量**（`--junitxml`）报 1 条失败：
-`test_newpath_imports_b9.py::test_old_stubs_forward_to_same_objects`，
-消息正是 `core.material_tech._ALIAS_INDEX` / `core.settlement_agri._ALIAS_INDEX` 不是同一对象。
-登记欠账 + 加静态判据后，同一棵树的第二次全量 `FULL_EXIT=0`、`failures=0 errors=0`。
-⇒ 不是"把断言放宽到恒绿"：判据对其他 1000+ 个名字照常生效，只有**被静态证明是
-`global` 重绑缓存**且**显式登记在册**的两个名字跳过。
+当前兼容面只剩 `core.pop_bridge._GUARD_INSTALLED` 私有 bool 快照：基础实现安装守卫会整体重绑，但生产不通过旧桩读取此私有标志。该符号仍登记为显式的 global-rebind 例外，不影响 POP 守卫或数据写入语义；如未来退役该私有旧路径，再移除豁免。
 
 **验证数字（2026-10-09 实测，同一次运行）**：`FULL_EXIT=0`；junit 声明
 `tests=2446 failures=0 errors=0 **skipped=2**（原文误记 4：计数脚本把 `testsuite` 属性与逐 `testcase`

@@ -234,7 +234,7 @@ AGRI_UPGRADE_EFFECTS: Dict[str, Dict[str, Any]] = {
 }
 
 #: 别名 → 规范键（`resolve_agri_upgrade` 用；由 `_build_alias_index` 惰性构建）
-_ALIAS_INDEX: Optional[Dict[str, str]] = None
+_ALIAS_INDEX: Dict[str, str] = {}  # 原地失效/重建，兼容旧桩持有的同一 dict 引用
 
 
 class AgriUpgradeError(ValueError):
@@ -246,16 +246,16 @@ class AgriUpgradeError(ValueError):
 # =============================================================================
 
 def _build_alias_index() -> Dict[str, str]:
-    global _ALIAS_INDEX
-    if _ALIAS_INDEX is not None:
+    if _ALIAS_INDEX:
         return _ALIAS_INDEX
     idx: Dict[str, str] = {}
     for key, entry in AGRI_UPGRADE_EFFECTS.items():
         idx[str(key)] = key
         for a in (entry.get("aliases") or ()):
             idx[str(a)] = key
-    _ALIAS_INDEX = idx
-    return idx
+    _ALIAS_INDEX.clear()
+    _ALIAS_INDEX.update(idx)
+    return _ALIAS_INDEX
 
 
 def _num(value: Any, field: str, key: str) -> float:
@@ -333,8 +333,7 @@ def register_agri_upgrade(key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _invalidate_alias_index() -> None:
-    global _ALIAS_INDEX
-    _ALIAS_INDEX = None
+    _ALIAS_INDEX.clear()
 
 
 def resolve_agri_upgrade(key: Any) -> Optional[Dict[str, Any]]:

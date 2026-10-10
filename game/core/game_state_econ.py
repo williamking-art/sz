@@ -251,28 +251,26 @@ class GameStateEconMixin:
 
         整改①-3（路线物价）：全国 PRICE_LEVEL 只是**加权读数**，路线价才是权威
         派生入口（`_settle_econ_prices` 每月调用）。因子：
-          - 供需：需求 = 在籍口 × 人均月耗 × 隐户系数 + 酒耗；供给 = 田产月均 +
-            POP 存粮释放 − 士绅囤积挤压；
-          - 库存：本路太仓（按人口摊）+常平存粮充足时抑价；
+          - 供需：需求 = (本路在籍口 + 本路农.hidden) × 人均月耗 + 全国酒耗按在籍口分摊；
+            供给 = 田产月均 + POP 存粮释放 − 士绅囤积挤压；
+          - 库存：本路太仓（按在籍口份额分摊）+ 常平存粮充足时抑价；本地隐户只增本路需求，不缩放中央粮份额；
           - 运输：漕运阻塞越高，外粮难入 → 加价；
           - 货币有效供给：M1/实物产出偏离基准 → 加价。
         """
         p = self.prefectures.get(name)
         if not p:
             return self.grain_price
-        # 隐户也吃粮（不落籍、不纳税，但真实消耗），按在籍比例摊入各路需求。
-        # 2026-09-27 方案 A：人口已并入 `农` POP 的加法子池 `hidden`（口），此处直接取子池，
-        # 与旧口径 `hidden_households × 4` 数值等价但无 ÷4 舍入（该镜像已降为派生读数）。
-        _hidden_people = sum(
-            int((((q.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0)
-            for q in self.prefectures.values())
-        total_pop = self.population + _hidden_people
-        factor = total_pop / max(self.population, 1)
-        # 酒耗粮：酿酒消耗粮食（总酒课 × WINE_GRAIN_PER_GUAN），按该路在籍人口比例摊入当地需求
+        # 隐户也吃粮（不落籍、不纳税），直接计入其所在路的本地需求。
+        # 旧式全国隐户/全国在籍比例会把甲路隐户增长扩散到乙路价格，违反地区供需粒度；
+        # 真值已有 prefecture POP `农.hidden`，无需全国估比例。
+        route_pop = max(0.0, float(p.get("population", 0) or 0))
+        route_hidden = max(0, int((((p.get("pops") or {}).get("农")) or {}).get("hidden", 0) or 0))
+        route_demand_people = route_pop + route_hidden
+        # 全国酒耗是全国总量，按本路在籍人口份额分配；仅作全国流量分摊，不缩放本地口粮需求。
         from content.data import WINE_TAX_SHARE, WINE_GRAIN_PER_GUAN
         wine_grain_monthly = self.wine_tax / WINE_TAX_SHARE * WINE_GRAIN_PER_GUAN
-        wine_share = wine_grain_monthly * (p.get("population", 0) / max(self.population, 1))
-        need = p.get("population", 0) * PER_CAPITA_MONTH_GRAIN * factor + wine_share   # 月需求（石）
+        wine_share = wine_grain_monthly * (route_pop / max(float(self.population), 1.0))
+        need = route_demand_people * PER_CAPITA_MONTH_GRAIN + wine_share   # 月需求（石）
         grain = float(p.get("grain", 0))
         total_grain = grain
         from content.data import HOARD_SUPPLY_SQUEEZE
@@ -282,8 +280,9 @@ class GameStateEconMixin:
         ratio = max(0.5, min(2.0, need / max(supply, 0.01)))
         price = self.grain_price * ratio
         # 库存抑价：本路太仓（按人口摊）+常平存粮相对月需求越充足，价越低
+        # 全国太仓仍按各路在籍口份额分粮，这是中央库存的分摊规则；不要拿它来缩放本地隐户需求。
         _gran_share = float(getattr(self, "granary", 0) or 0) * (
-            p.get("population", 0) / max(self.population, 1))
+            route_pop / max(float(self.population), 1.0))
         stock = (float(p.get("changping_stock", 0) or 0)
                  + float(p.get("storage", 0) or 0) + _gran_share)
         _months = stock / max(need, 1.0)

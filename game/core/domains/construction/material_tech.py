@@ -245,7 +245,7 @@ MATERIAL_TECH_UNLOCKS: Dict[str, Dict[str, Any]] = {
 }
 
 #: 别名 → 规范键（惰性构建；`register_material_tech` / `invalidate_material_tech_cache` 失效）
-_ALIAS_INDEX: Optional[Dict[str, str]] = None
+_ALIAS_INDEX: Dict[str, str] = {}  # 原地失效/重建，兼容旧桩持有的同一 dict 引用
 
 
 class MaterialTechError(ValueError):
@@ -258,8 +258,7 @@ class MaterialTechError(ValueError):
 
 def _build_alias_index() -> Dict[str, str]:
     """惰性构建别名索引；**规范键/别名重复即 raise**（防止一条材被两条登记）。"""
-    global _ALIAS_INDEX
-    if _ALIAS_INDEX is not None:
+    if _ALIAS_INDEX:
         return _ALIAS_INDEX
     idx: Dict[str, str] = {}
     for key, entry in MATERIAL_TECH_UNLOCKS.items():
@@ -269,14 +268,14 @@ def _build_alias_index() -> Dict[str, str]:
                 raise MaterialTechError(
                     f"别名 {a!r} 重复：已指向 {idx[str(a)]!r}，又被 {key!r} 占用")
             idx[str(a)] = key
-    _ALIAS_INDEX = idx
-    return idx
+    _ALIAS_INDEX.clear()
+    _ALIAS_INDEX.update(idx)
+    return _ALIAS_INDEX
 
 
 def invalidate_material_tech_cache() -> None:
-    """**缓存失效钩子**：动态注册材料 / 内容表热更后必须调用。"""
-    global _ALIAS_INDEX
-    _ALIAS_INDEX = None
+    """**缓存失效钩子**：原地清空，保证旧路径兼容引用不会变成陈旧快照。"""
+    _ALIAS_INDEX.clear()
 
 
 def resolve_material_tech(key: Any) -> Optional[Dict[str, Any]]:

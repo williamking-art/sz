@@ -213,6 +213,60 @@ def test_route_grain_price_derives_from_transport_stock_money():
     assert _money_up > _mid, f"货币有效供给增加未抬升路线粮价：{_mid} -> {_money_up}"
 
 
+def test_route_grain_price_depends_on_local_hidden_not_other_routes():
+    """本路粮价只计本路在籍/隐户需求；别路隐藏人口增减不应传染本地粮价。"""
+    s = _new_state()
+    route = "京畿路"
+    other = next(n for n in s.prefectures if n != route)
+    s.price_level = 1.1
+    s.grain_price = 1.0
+    local = s.prefectures[route]
+    base = s.calc_region_grain_price(route)
+
+    s.prefectures[other]["pops"]["农"]["hidden"] += 2_000_000
+    after_other_hidden = s.calc_region_grain_price(route)
+    assert after_other_hidden == base, (
+        "别路隐户不能通过全国 hidden/pop 比率改变本路需求价")
+
+    local["pops"]["农"]["hidden"] += 2_000_000
+    after_local_hidden = s.calc_region_grain_price(route)
+    assert after_local_hidden > base, "本路隐户增加应提高本路需求与粮价"
+
+
+def test_ai_economic_choice_creates_measurable_long_run_divergence():
+    """同一真实月结初局仅改变 AI 城市化档位，12 月后 POP 阶层分布应可测地分歧。"""
+    from application.game_init import new_game
+    from core.settlement import run_monthly_settlement
+    from core.foundation.ledger.pop_bridge import pop_get
+
+    def _run(city_tier):
+        state = new_game()
+        for _ in range(12):
+            # 除城市化档位外其它经济选择一致，确保对照只改一个 AI 旋钮。
+            state._economy_ai = {
+                "景气": "中", "城市化": city_tier, "回乡": "无", "科举": "无",
+                "窖银": "无", "士绅": "观望", "士绅力度": "无",
+            }
+            run_monthly_settlement(state)
+        sizes = {
+            cls: sum(int(pop_get(pdata, cls, "size") or 0)
+                     for pdata in state.prefectures.values())
+            for cls in ("农", "工匠", "商人")
+        }
+        prices = {name: float(pdata["grain_price"])
+                  for name, pdata in state.prefectures.items()}
+        return sizes, prices
+
+    baseline, baseline_prices = _run("无")
+    high_urbanization, high_prices = _run("极")
+    assert high_urbanization["农"] < baseline["农"]
+    assert high_urbanization["工匠"] + high_urbanization["商人"] \
+        > baseline["工匠"] + baseline["商人"]
+    assert high_urbanization["工匠"] != baseline["工匠"]
+    assert any(abs(high_prices[name] - baseline_prices[name]) > 1e-9
+               for name in baseline_prices), "AI 城市化选择应沿本地供需链改变路线粮价"
+
+
 def test_over_issuance_raises_price_level():
     """联动⑤：过度发行（交子超发）→ 货币有效供给↑ → 物价↑。"""
     s = _new_state()

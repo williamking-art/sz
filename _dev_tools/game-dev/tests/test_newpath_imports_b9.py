@@ -178,28 +178,41 @@ def test_old_stubs_forward_to_same_objects():
     assert n > 50, f"仅比对 {n} 个名字，疑比对面过窄"
 
 
-# 🔴 **已登记欠账**：桩背后的 `global` 重绑型惰性缓存。
-# 这类名字在实现里以 `global X; X = 新建对象` 惰性赋值（不是原地改），
-# 所以桩里那份转发绑定**必然停在导入时的旧值**（这里是 `None`）——
-# 与第十八包 `_TRADE_LEDGER`（原地改，桩与实现同一个对象）是两种不同的失效形态。
-# ⚠️ 实测（2026-10-09，`_scratch/b22_rebind_probe.txt`）这处漂移**依赖导入顺序**：
-#   · 若实现先被别的模块导入且缓存已建 ⇒ 桩再绑定时拿到同一个 dict ⇒ 判据**假绿**；
-#   · 若桩先绑、缓存后建 ⇒ 桩永远停在 `None` ⇒ 判据红。
-#   同一次全量里 material_tech 与 settlement_agri 两个桩的表现就不一致（前者当时还同、后者已分叉）。
-#   ⇒ 这正是本登记存在的理由：**把它变成确定性豁免 + 显式静态判据**，而不是靠顺序碰运气。
-# 销账动作（择一，属实现/口径变更，另立批次）：
-#   ① 实现改原地更新 `_ALIAS_INDEX.clear()/update()`，让"同一对象"恒成立；
-#   ② 或把该名字从旧路径转发面撤下（会改 `dir()` 公开面，需先裁定）。
-# 现况风险面：生产侧已无任何模块引用这两个旧桩（判据②覆盖），
-# 所以危害限于"测试经旧路径读缓存会拿到 None"——正因如此这条必须显式登记而不是放宽断言。
-# core.pop_bridge._GUARD_INSTALLED is a third verified global-rebind bool: install_pops_guard
-# rebinds False→True, leaving the legacy forwarding stub with the import-time False snapshot.
-# It is private/diagnostic only and has no production readers; removing the facade surface is separate work.
+# 🔴 已登记的单个兼容面欠账：旧 POP 桥接桩导出的 `_GUARD_INSTALLED` 是私有 bool 快照。
+# foundation 实现安装守卫时会 False→True 重绑；生产代码不读取旧桩此值，留作兼容/诊断表面。
+# material_tech / settlement_agri 的 `_ALIAS_INDEX` 已改为原地清空/更新，不再是欠账。
 REBIND_CACHE_DEBT = {
-    ('core.material_tech', '_ALIAS_INDEX'),      # domains/construction/material_tech.py:248
-    ('core.settlement_agri', '_ALIAS_INDEX'),    # domains/production/settlement_agri.py:237
     ('core.pop_bridge', '_GUARD_INSTALLED'),     # foundation/ledger/pop_bridge.py:554,695
 }
+
+
+def test_alias_cache_stays_live_through_legacy_facades():
+    """迁移前路径持有的同一缓存对象，在惰性构建/失效后仍实时可用。"""
+    from core import material_tech as old_mt
+    from core import settlement_agri as old_agri
+    from core.domains.construction import material_tech as new_mt
+    from core.domains.production import settlement_agri as new_agri
+
+    mt_index = old_mt._ALIAS_INDEX
+    agri_index = old_agri._ALIAS_INDEX
+    assert mt_index is new_mt._ALIAS_INDEX
+    assert agri_index is new_agri._ALIAS_INDEX
+
+    mt_key = next(iter(new_mt.MATERIAL_TECH_UNLOCKS))
+    agri_key = next(iter(new_agri.AGRI_UPGRADE_EFFECTS))
+    assert new_mt.resolve_material_tech(mt_key) is not None
+    assert new_agri.resolve_agri_upgrade(agri_key) is not None
+    assert mt_index and mt_index is new_mt._ALIAS_INDEX
+    assert agri_index and agri_index is new_agri._ALIAS_INDEX
+
+    new_mt.invalidate_material_tech_cache()
+    new_agri._invalidate_alias_index()
+    assert mt_index == {} and mt_index is old_mt._ALIAS_INDEX is new_mt._ALIAS_INDEX
+    assert agri_index == {} and agri_index is old_agri._ALIAS_INDEX is new_agri._ALIAS_INDEX
+    assert new_mt.resolve_material_tech(mt_key) is not None
+    assert new_agri.resolve_agri_upgrade(agri_key) is not None
+    assert mt_index is new_mt._ALIAS_INDEX and agri_index is new_agri._ALIAS_INDEX
+
 
 
 def _is_global_rebind_cache(mod, name):

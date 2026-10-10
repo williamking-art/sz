@@ -1,11 +1,14 @@
 {
  "title": "旧粮价是否与全局人口解耦",
- "status": "open",
+ "status": "decided",
  "raisedBy": "DSH",
- "detail": "calc_region_grain_price 仍耦合 total_pop/factor/wine_share/_gran_share 四处",
- "blocks": [
-  "F-P1P6"
- ],
+ "detail": "已落地：本地需求仅计本路在籍人口 + 农.hidden；全国酒耗、中央太仓按在籍人口份额分摊，保留月度涨跌限制及人均0.5石参数。",
+ "blocks": [],
+ "implementation": "game_state_econ.calc_region_grain_price",
+ "verification": "路线局部性测试：本地+200万隐户使京畿路价约+0.293，别路+200万不改变京畿路价；同新局AI城市化无/极对照12月通过；60月极档相对无档：农-11,413,123、工匠+5,774,996、商人+3,850,794，20/20路粮价不同（平均绝对差约0.0244）。参数基准未重调。",
  "id": "A-粮价",
- "_source": "cloud:decisions.items"
+ "_source": "cloud:decisions.items",
+ "verdict": "解耦全局隐户比例：区域粮食消费需求仅按本路在籍人口 + 本路农.hidden计算；全国酒耗和中央太仓仍按本路在籍人口份额分摊（它们是全国总量，不是本地需求倍数）。本地隐户变化仅影响本路粮价。维持月度涨跌上限及人均0.5石参数，后续用固定初局/同档AI对照长局校准，不直接重调基准。",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-10T12:02:19Z"
 }

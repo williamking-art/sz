@@ -1,11 +1,13 @@
 {
  "id": "M30-rebind-cache-debt",
  "title": "销账：material_tech / settlement_agri 的 _ALIAS_INDEX 是 global 重绑型惰性缓存 ⇒ 旧桩侧绑定过期且顺序依赖",
- "claimedBy": "",
- "status": "open-registered",
+ "claimedBy": "DSH",
+ "status": "done",
  "raisedBy": "Qoder",
  "measuredAt": "2026-10-09",
  "证据": "_scratch/b22_rebind_probe.txt + foundation/README.md §二十 + test_newpath_imports_b9.REBIND_CACHE_DEBT（带静态判据）",
  "修法二选一": "① 实现改原地 _ALIAS_INDEX.clear()/update()（公开面不变，推荐）② 从旧路径转发面撤该名字（改 dir() 公开面，需裁定）",
- "blocks": "无（生产侧零引用这两个旧桩；风险限于测试经旧路径读缓存拿到 None）"
+ "blocks": "无（生产侧零引用这两个旧桩；风险限于测试经旧路径读缓存拿到 None）",
+ "claimedAt": "2026-10-10T11:43:52Z",
+ "commit": "pending"
 }
