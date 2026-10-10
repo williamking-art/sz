@@ -1,10 +1,10 @@
 {
- "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1/2-2 已完成；本轮补齐真实月结全管线守卫回归。",
+ "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1/2-2 已完成；真实月结全管线守卫回归已扩为 15 月。",
  "updatedAt": "2026-10-10",
  "agent": "DSH",
  "verification": {
   "pytest": "全量 --junitxml：tests=2459 / failures=0 / errors=0 / skipped=2；test_route_pops_readonly_guard.py 定向 5 passed",
-  "popGuard": "run_monthly_settlement 15 月累计直接写 0；新集成回归真实 new_game 全管线 3 月逐月 0，路级镜像一致，官制不变量成立",
+  "popGuard": "真实 new_game() + run_monthly_settlement 连跑15月：每月零直接写、路级 POP 镜像一致、官制子池不变量成立",
   "popLedger": "POP 真账在 seats[*].pops[*]；wealth、身份子池、clan 已桥接；POP grain 调用均传 state，路级 pops 为派生镜像",
   "handover": "summary/check 通过，问题=0"
  },
@@ -12,7 +12,7 @@
   "批 1-A～1-E",
   "批 2-1 wealth 字段级归因与桥接",
   "批 2-2 官制身份子池/clan 桥接",
-  "真实 run_monthly_settlement 全管线 guard 回归"
+  "真实月结全管线守卫回归15月"
  ],
  "next": "盘点并补齐守卫对非月结入口（commands/后端动作）的覆盖；只对观测到的未桥接写点改造，不盲扫修改。"
 }

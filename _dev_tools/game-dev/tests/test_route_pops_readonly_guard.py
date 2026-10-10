@@ -99,7 +99,7 @@ def test_full_monthly_settlement_keeps_route_pops_derived():
     state = new_game()
     assert install_all_guards(state) > 0
     reset_pops_guard()
-    for _ in range(3):
+    for _ in range(15):
         run_monthly_settlement(state)
         assert not pops_guard_violations(), pops_guard_violations()[:10]
         assert all(not assert_pops_consistent(p)
