@@ -4,14 +4,14 @@
  "claimedBy": "Cline",
  "claimedAt": "2026-10-10T18:34:20Z",
  "status": "in-progress",
- "verdict": "V1.3 全部裁决关闭（2026-10-11）。**P1 财政真账已落地**：双层税基（tax_base×collection_rate=0.625 标定，应征≈旧实付×1.064）＋ finance 四率 state 化 ＋ normalize_finance_split 单点（保护顺序 div→keep→transfer）＋ 三分落点（transfer→国库/keep→local_treasury/div→官僚 POP）＋ 田赋折色独立征收器；旧 arrival 分段保留（非田赋税种兼容·Q3 甲）。守恒测试 10 例全绿；同种子 12 月财政校准门通过（国库/人口/民生/粮价/地方库 五项不劣化）。",
- "scope": "设计终稿 V1.3 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账✅→P2 账面→P3 发现→P4 改革），每批带守恒测试+财政校准门",
+ "verdict": "V1.3 全部裁决关闭（2026-10-11）。**P1 财政真账已落地**（双层税基/四率/归一化/三分落点；校准门 12 月五项不劣化；commit e87c1355ca）。**P2 账面系统已落地**（tax_loss_report 四类目掩护＋finance_readout land_tax/tax_loss＋月报「度支录」章＋信息差一/二级 oversight 闸门；全量 2495 passed；commit 8ec5026831）。",
+ "scope": "设计终稿 V1.3 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账✅→P2 账面✅→P3 发现→P4 改革），每批带守恒测试+财政校准门",
  "prereq": [
-  "裁决已全部关闭（Q1-Q12）；仅余校准项 C1/C2（P1 内实测——已出首版标定与校准门记录）与 C3（P3 内实测）",
+  "裁决已全部关闭（Q1-Q12）；C1/C2 已出首版标定与校准门记录；C3（保真度参数）随 P3 实测",
   "seats 阻塞已解除（实测 new_game() 20/20 路开箱带 seats）——本定义不再需要州府真账",
   "A-粮价 用户 2026-10-10 已 decided——非本任务阻塞"
  ],
  "risk": "🟠 中高：改钱账守恒口径 + 双层税基标定（需财政校准门五项指标），分批落地 + 每批 money.ACCOUNTS 守恒测试",
- "next": "P2 账面系统：statistics[\"tax_loss_report\"]（4 类目＋total）＋ 账面读取点（econ summary/月报）＋ 信息差三级；读数口径统一（econ summary/region_brief 转向新模型读数）随 P2 改造；旧 arrival 剩余消费点 P4 评估迁移",
+ "next": "P3 发现系统：audit_cases 案卷容器（＋迁移）／audit_route 勾校诏令效果键／保真度三档（执行者 corruption×route.grip×spy_network×密查，C3 参数）／四级阶梯读数；AI 奏报钩子（prompt 层）随 P3 评估",
  "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（V1.3·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
 }
