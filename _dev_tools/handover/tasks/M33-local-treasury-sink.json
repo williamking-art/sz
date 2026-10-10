@@ -1,16 +1,17 @@
 {
  "id": "M33-local-treasury-sink",
- "title": "地方府库下沉州府真账（local_treasury 路级派生 → 治所真账）",
+ "title": "上供留州分层与贪吏做账（真账三分·账面分离·发现调查改革）——原「下沉州府」定义作废",
  "claimedBy": "Cline",
  "claimedAt": "2026-10-10T16:48:43Z",
  "status": "open-registered",
- "verdict": "已裁定 2026-10-11 暂不排期：重大钱账口径变更，先钉状态不闷头改",
- "scope": "prefectures[路][seats][治所] 建 local_treasury 真账，路级改派生镜像；涉及 10 文件 ~30 读写点（settlement_econ / settlement_finance / settlement_granary / settlement_common / save_load / income_readout 等）",
+ "verdict": "定义已升级 2026-10-11：原「local_treasury 下沉州府真账」作废（史实上账在路级转运司、州是支出执行单元；下沉反而失真）。现行定义见设计终稿：真账三分（上供/留州/侵渔）+ 账面分离（火耗科目）+ 四级发现 + 调查四件套 + 三改革轴。",
+ "scope": "设计终稿 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；Phase 1-4 分批，每批带守恒测试",
  "prereq": [
-  "seats 阻塞已解除：实测 new_game() 20/20 路开箱带 seats（见阻塞记录 2026-10-11 复核）",
-  "A-粮价 已于 2026-10-10 用户 decided（本地隐户仅影响本路粮价）——非本任务阻塞"
+  "设计终稿 §14 待裁/待校准清单（Q3/Q6/Q7/Q10/Q11/Q12 + C1/C2）裁完即开工",
+  "seats 阻塞已解除（实测 new_game() 20/20 路开箱带 seats）——本定义不再需要州府真账",
+  "A-粮价 用户 2026-10-10 已 decided——非本任务阻塞"
  ],
- "risk": "🔴 高：改钱账守恒口径，需分批落地 + 每批 money.ACCOUNTS 守恒测试；阻塞记录 §五 自评高难度",
- "next": "用户明确排期后再开工；开工前先出「字段归属/读写点清单/守恒口径」开工门台账",
- "related": "decisions/A-粮价.json（已裁）｜specs/economy/地方府库下沉州府级_阻塞记录.md（阻塞已解除）"
+ "risk": "🟠 中高：改钱账守恒口径 + 税基重标定（需校准门），分批落地 + 每批 money.ACCOUNTS 守恒测试",
+ "next": "用户裁 §14 清单 → 按 Phase 1 开工（actual_G + state.finance 三旋钮 state 化 + 三分落点 + 税基重标定）",
+ "related": "specs/economy/财政流向与贪吏做账_设计终稿.md（V1.1·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
 }
