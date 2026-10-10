@@ -1,0 +1,17 @@
+{
+ "title": "_GUARD_INSTALLED 全局重绑跨测污染：install_all_guards 调完不 reset",
+ "status": "open-registered",
+ "claimedBy": "DSH",
+ "raisedAt": "2026-10-11",
+ "detail": "pop_bridge 的 _GUARD_INSTALLED 是 global 重绑型 flag。install_all_guards 在测试里被调用后把全局 _GUARD_INSTALLED 重绑为 True 且不复位，污染其后运行的测试：test_newpath_imports_b9::test_old_stubs_forward_to_same_objects 按字母序跑不现、倒序/随机序可现（test_route_pops_readonly_guard 全管线调 install_all_guards 触发）。与 M30-rebind-cache-debt 的 _ALIAS_INDEX 同类（惰性缓存 global 重绑跨作用域泄漏）。",
+ "impact": "测试序不稳定 = CI 隐患（-p no:randomly 隐藏，随机/倒序即红）。非玩家可见，纯测试工程缺陷。",
+ "fix_options": {
+  "甲·豁免登记": "在 M30 豁免表登记 ('core.pop_bridge','_GUARD_INSTALLED')——但该 flag 的重绑无设计意图，纯副作用泄漏，登记等于给 bug 发良民证，不推荐。",
+  "乙·原地治本（推荐）": "install_all_guards（或守卫安装逻辑）自身维护状态、调用后自动 reset_pops_guard()，从源头杜绝 global flag 泄漏。属 Qoder 领地（game/core/foundation/**），需协调或由其改。"
+ },
+ "recommended": "乙·原地治本",
+ "blocks": [],
+ "note": "主线 A（守卫生产化）不依赖本项，已单独提交 9c7fa04bda。本项治本修复留给 Qoder 协调窗口或下次 DSH 会话（如获 Qoder 授权）。",
+ "id": "M32-guard-installed-rebind",
+ "claimedAt": "2026-10-10T16:33:11Z"
+}
