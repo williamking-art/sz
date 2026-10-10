@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-10T18:11:44Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-10T18:24:32Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -22,7 +22,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261010T133911Z-DSH` → [`worklog/20261010T133911Z-DSH.md`](worklog/20261010T133911Z-DSH.md)
 - `20261010T140033Z-DSH` → [`worklog/20261010T140033Z-DSH.md`](worklog/20261010T140033Z-DSH.md)
 - `20261010T143320Z-DSH` → [`worklog/20261010T143320Z-DSH.md`](worklog/20261010T143320Z-DSH.md)
 - `20261010T160525Z-DSH` → [`worklog/20261010T160525Z-DSH.md`](worklog/20261010T160525Z-DSH.md)
@@ -30,8 +29,9 @@
 - `20261010T162859Z-DSH` → [`worklog/20261010T162859Z-DSH.md`](worklog/20261010T162859Z-DSH.md)
 - `20261010T163917Z-DSH` → [`worklog/20261010T163917Z-DSH.md`](worklog/20261010T163917Z-DSH.md)
 - `20261010T181138Z-Cline` → [`worklog/20261010T181138Z-Cline.md`](worklog/20261010T181138Z-Cline.md)
+- `20261010T182432Z-Cline` → [`worklog/20261010T182432Z-Cline.md`](worklog/20261010T182432Z-Cline.md)
 
 ## 计数
 
-- tasks 11（未完成 2）· decisions 13（未闭环 3）· worklog 81 · phase 文件 3
+- tasks 11（未完成 2）· decisions 13（未闭环 3）· worklog 82 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
