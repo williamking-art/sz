@@ -1,0 +1,16 @@
+{
+ "id": "M34-finance-followups",
+ "title": "财政治理系统遗留项（V1.3 后置）：地方支出 V2／巡按／AI 奏报接线／读数口径统一",
+ "claimedBy": "",
+ "claimedAt": "",
+ "status": "open-registered",
+ "verdict": "P1–P4 已全部落地（M33 done，commit a912af8fd2）；以下四项为**设计明确后置/待接**，非缺陷。",
+ "scope": "① 地方支出（V2：local_treasury 的行政/治安/水利/救灾/粮仓支出通道；现状只进不出）② 巡按（Phase 4+ 后置：需巡察 AI/官员移动/地图事件）③ AI 奏报接线（ai 层把大臣奏报写入 state.discovery_suspicions，供 discovery_readout 二级；现为只读注入点）④ 读数口径统一（finance_readout/region_brief 的 arrival_ratio_* 族转向新模型读数；P1/P2 暂留旧径并已注明）",
+ "prereq": [
+  "无阻塞；四项可独立开工",
+  "①④ 开工前先出小台账（口径/守恒/读写点），复跑财政校准门（同种子 ≥12 月五项）"
+ ],
+ "risk": "🟡 低-中：①④ 涉及钱账口径与平衡（须复跑校准门）；②③ 涉及 ai 层 prompt 与 UI",
+ "next": "按需取项开工；建议顺序：③（轻，纯接线）→ ④（口径统一，需回归）→ ①（V2 支出，需台账）→ ②（巡按，最重）",
+ "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜tasks/M33-local-treasury-sink.json（done）"
+}

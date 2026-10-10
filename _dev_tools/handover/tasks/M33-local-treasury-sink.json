@@ -3,7 +3,7 @@
  "title": "上供留州分层与贪吏做账（真账三分·账面分离·发现调查改革）——原「下沉州府」定义作废",
  "claimedBy": "Cline",
  "claimedAt": "2026-10-10T18:34:20Z",
- "status": "in-progress",
+ "status": "done",
  "verdict": "V1.3 全部裁决关闭（2026-10-11）。**P1 财政真账已落地**（双层税基/四率/归一化/三分落点；校准门 12 月五项不劣化；commit e87c1355ca）。**P2 账面系统已落地**（tax_loss_report 四类目掩护＋finance_readout land_tax/tax_loss＋月报「度支录」章＋信息差一/二级 oversight 闸门；全量 2495 passed；commit 8ec5026831）。",
  "scope": "设计终稿 V1.3 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账✅→P2 账面✅→P3 发现→P4 改革），每批带守恒测试+财政校准门",
  "prereq": [
@@ -13,5 +13,6 @@
  ],
  "risk": "🟠 中高：改钱账守恒口径 + 双层税基标定（需财政校准门五项指标），分批落地 + 每批 money.ACCOUNTS 守恒测试",
  "next": "P3 发现系统：audit_cases 案卷容器（＋迁移）／audit_route 勾校诏令效果键／保真度三档（执行者 corruption×route.grip×spy_network×密查，C3 参数）／四级阶梯读数；AI 奏报钩子（prompt 层）随 P3 评估",
- "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（V1.3·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
+ "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（V1.3·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）",
+ "commit": "a912af8fd2"
 }

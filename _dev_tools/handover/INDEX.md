@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-10T18:53:33Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-10T23:57:08Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -12,7 +12,7 @@
 ## 任务板（未完成）
 
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
-- `M33-local-treasury-sink` 上供留州分层与贪吏做账（真账三分·账面分离·发现调查改革）——原「下沉州府」定义作废 ｜status=**in-progress**｜claimedBy=Cline
+- `M34-finance-followups` 财政治理系统遗留项（V1.3 后置）：地方支出 V2／巡按／AI 奏报接线／读数口径统一 ｜status=**open-registered**｜claimedBy=（未认领）
 
 ## 待裁 / 未闭环决策
 
@@ -22,16 +22,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261010T160525Z-DSH` → [`worklog/20261010T160525Z-DSH.md`](worklog/20261010T160525Z-DSH.md)
-- `20261010T161056Z-DSH` → [`worklog/20261010T161056Z-DSH.md`](worklog/20261010T161056Z-DSH.md)
 - `20261010T162859Z-DSH` → [`worklog/20261010T162859Z-DSH.md`](worklog/20261010T162859Z-DSH.md)
 - `20261010T163917Z-DSH` → [`worklog/20261010T163917Z-DSH.md`](worklog/20261010T163917Z-DSH.md)
 - `20261010T181138Z-Cline` → [`worklog/20261010T181138Z-Cline.md`](worklog/20261010T181138Z-Cline.md)
 - `20261010T182432Z-Cline` → [`worklog/20261010T182432Z-Cline.md`](worklog/20261010T182432Z-Cline.md)
 - `20261010T182931Z-Cline` → [`worklog/20261010T182931Z-Cline.md`](worklog/20261010T182931Z-Cline.md)
 - `20261010T185333Z-Cline` → [`worklog/20261010T185333Z-Cline.md`](worklog/20261010T185333Z-Cline.md)
+- `20261010T190344Z-Cline` → [`worklog/20261010T190344Z-Cline.md`](worklog/20261010T190344Z-Cline.md)
+- `20261010T235708Z-Cline` → [`worklog/20261010T235708Z-Cline.md`](worklog/20261010T235708Z-Cline.md)
 
 ## 计数
 
-- tasks 11（未完成 2）· decisions 13（未闭环 3）· worklog 84 · phase 文件 3
+- tasks 12（未完成 2）· decisions 13（未闭环 3）· worklog 86 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
