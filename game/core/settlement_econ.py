@@ -1522,7 +1522,8 @@ def _settle_civilian_hoard(state, log):
             if _silver > 0 and _mar.get("open"):
                 _silver_share = int(_silver * HOARD_COPPER_RATIO_BASE / max(len(state.prefectures), 1))
                 if _silver_share > 0:
-                    genty["窖银"] = genty.get("窖银", 0) + _silver_share
+                    if _pop_obj_add(state, genty, "窖银", _silver_share) is None:
+                        genty["窖银"] = genty.get("窖银", 0) + _silver_share
                     _mar["silver_in"] = max(0, _mar["silver_in"] - _silver_share)  # 银入窖退出流通
                     state.statistics["hoard_growth"] = state.statistics.get("hoard_growth", 0) + _silver_share
         except Exception:
@@ -1568,8 +1569,10 @@ def _settle_civilian_hoard(state, log):
                 cost = int(buy * price)                     # 贯（整数）
                 farmers = (p.get("pops") or {}).get("农")
                 if isinstance(farmers, dict):
-                    genty["wealth"] -= cost
-                    farmers["wealth"] = farmers.get("wealth", 0) + cost
+                    if _pop_obj_add(state, genty, "wealth", -cost) is None:
+                        genty["wealth"] -= cost
+                    if _pop_obj_add(state, farmers, "wealth", cost) is None:
+                        farmers["wealth"] = farmers.get("wealth", 0) + cost
                 # 无农户接收方时不划钱（宁可不流转，也不凭空灭币）
                 _grain_add(genty, buy, state)
                 p["grain"] = max(0, int(p.get("grain", 0)) - buy)

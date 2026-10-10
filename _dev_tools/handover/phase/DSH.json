@@ -1,17 +1,17 @@
 {
- "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-3 已完成；覆盖月结与两个非月结/条件入口。",
+ "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-4 已完成；覆盖默认月结、玩家命令及经济条件支路。",
  "updatedAt": "2026-10-10",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量 --junitxml：tests=2461 / failures=0 / errors=0 / skipped=2；POP guard 定向 7 passed",
-  "popGuard": "默认真实月结15月零直写、镜像一致、不变量成立；single_whip真实月结15月同样零直写/失配/不变量；收获月折银欠税与玩家扩编非月结命令均已接入定向回归",
-  "popLedger": "追查并桥接 settlement_econ._settle_land_local 一条鞭分支对农/士绅欠税的两处路级直接写；桥接后欠税计入州府真账、同步路级派生镜像",
+  "pytest": "全量 --junitxml：tests=2463 / failures=0 / errors=0 / skipped=2；家产/POP定向 19 passed",
+  "popGuard": "默认月结和 single_whip 模式15月守卫均零违规、镜像失配与官制不变量为0；非月结扩编、折银欠税、家产循环、士绅囤粮/市舶窖银均有守卫回归",
+  "estate": "settle_minister_estate 和 _settle_civilian_hoard 的 POP 写均经 pop_obj_add / grain bridge；estate mirror = seat slices，士绅囤粮财富总和守恒",
   "handover": "summary/check 通过，问题=0"
  },
  "delivered": [
-  "批2-3 single_whip欠税两写点桥接",
-  "玩家扩编命令真账/守卫回归",
-  "真实全管线及特殊single_whip 15月守卫验证"
+  "批2-3 single_whip欠税桥接",
+  "批2-4家产收入/支出/窖藏子池桥接",
+  "士绅囤粮与市舶银入窖写点桥接及守卫回归"
  ],
- "next": "继续按字段/入口实测剩余守卫直写；优先扫命令、事件、单条诏令等非月结状态变更，并仅修复命中的已下沉 POP 写点。"
+ "next": "继续审计守卫实测命中的其他结算支路，并审查事件、诏令等状态动作中按用户目标需下沉的 POP 写入；先验证真实触发，再定向修改。"
 }

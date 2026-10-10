@@ -176,3 +176,95 @@ def test_single_whip_tax_arrears_keeps_pop_truth_on_seats():
     assert int(r0["pops"]["农"]["欠税"]) == nong_arrears
     assert int(r0["pops"]["士绅"]["欠税"]) == shen_arrears
     assert not assert_pops_consistent(r0)
+
+
+def test_estate_settlement_keeps_pop_truth_on_seats():
+    """启用家产经济循环：各转移/窖藏都写州府真账，不直写路级镜像。"""
+    from application.game_init import new_game
+    from core.domains.administration.estate_mechanic import (
+        estate_slice_total, settle_minister_estate,
+    )
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent
+
+    state = new_game()
+    from core import money
+
+    state._economy_ai = {"景气": "中"}
+    money_before = money.m_all(state)
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+
+    result = settle_minister_estate(state, [])
+    assert set(result) == {"luxury", "rent", "hoard"}
+    assert not pops_guard_violations(), pops_guard_violations()[:20]
+
+    for pdata in state.prefectures.values():
+        assert not assert_pops_consistent(pdata)
+    seat_estate = sum(
+        int(((seat.get("pops") or {}).get("士绅") or {}).get("estate", 0) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+    )
+    seat_hoard = sum(
+        int(((seat.get("pops") or {}).get("士绅") or {}).get("estate_hoard", 0) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+    )
+    assert seat_estate == estate_slice_total(state, "estate")
+    assert seat_hoard == estate_slice_total(state, "estate_hoard")
+    assert seat_estate == sum(int((row or {}).get("wealth", 0) or 0)
+                              for row in state.minister_estate.values())
+    assert seat_hoard == sum(int((row or {}).get("窖银", 0) or 0)
+                             for row in state.minister_estate.values())
+    assert money.m_all(state) == money_before, "家产月循环的 POP 内部转移不得改变 M_ALL"
+
+
+def test_civilian_hoard_transfers_keep_pop_truth_on_seats():
+    """士绅囤粮与市舶窖银：wealth/grain/窖银均只改州府真账。"""
+    from application.game_init import new_game
+    from core.settlement_econ import _settle_civilian_hoard
+    from core.foundation.ledger.grain_bridge import grain_get
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent, pop_get
+
+    state = new_game()
+    state._economy_ai = {"士绅": "囤", "士绅力度": "大", "窖银": "无"}
+    state.maritime = {"open": True, "silver_in": 10_000_000}
+    for pdata in state.prefectures.values():
+        pdata["grain_price"] = 0.2
+
+    money_before = sum(
+        int(((seat.get("pops") or {}).get(cls) or {}).get("wealth", 0) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+        for cls in (seat.get("pops") or {})
+    )
+    grain_before = sum(
+        int(grain_get((seat.get("pops") or {}).get("士绅") or {}) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+    )
+    silver_before = int(state.maritime["silver_in"])
+
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+    _settle_civilian_hoard(state, [])
+    assert not pops_guard_violations(), pops_guard_violations()[:20]
+
+    money_after = sum(
+        int(((seat.get("pops") or {}).get(cls) or {}).get("wealth", 0) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+        for cls in (seat.get("pops") or {})
+    )
+    grain_after = sum(
+        int(grain_get((seat.get("pops") or {}).get("士绅") or {}) or 0)
+        for pdata in state.prefectures.values()
+        for seat in (pdata.get("seats") or {}).values()
+    )
+    silver_after = int(state.maritime["silver_in"])
+
+    assert money_after == money_before, "士绅囤粮买入只转移 POP 财富，不造币/灭币"
+    assert grain_after > grain_before, "士绅囤粮应收到商品粮"
+    assert silver_after < silver_before, "已开市舶时银入窖应从银池扣减"
+    for pdata in state.prefectures.values():
+        assert not assert_pops_consistent(pdata)

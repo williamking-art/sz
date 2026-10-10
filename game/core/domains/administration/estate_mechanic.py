@@ -15,6 +15,8 @@
 """
 import random
 
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
+
 from content.data import (
     BUILDING_STD, BUILDING_LEVEL_MULT, BUILDING_COST_GROWTH,
     BUILDING_EFFECT_CAP, POP_BUILDING_TYPES, POP_BUILDING_EFFECT,
@@ -30,6 +32,17 @@ from content.data import (
 # 事件判定用，**不是账本**；唯一写入点就是本模块的这几个助手。
 # `sync_estate_slices()` 负责让「Σ镜像 == Σ子池」恒成立（开局物化 / 旧档迁移 / 外部直改兜底）。
 _GENTRY = "士绅"
+
+
+def _add_pop(state, pop, field: str, delta: int) -> int:
+    """经桥接修改 POP 真账；旧档尚未下沉时保留原对象写法。"""
+    delta = int(delta)
+    updated = _pop_obj_add(state, pop, field, delta)
+    if updated is not None:
+        return int(updated)
+    value = int(pop.get(field, 0) or 0) + delta
+    pop[field] = max(0, value) if field != "wealth" else value
+    return int(pop[field])
 
 
 def _prefs(state):
@@ -87,10 +100,10 @@ def _inject_slice(state, amount: int, key="estate") -> int:
         part = amount - got if i == len(rows) - 1 else int(amount * weights[i] / total)
         if part <= 0:
             continue
-        g[key] = int(g.get(key, 0) or 0) + part
+        _add_pop(state, g, key, part)
         got += part
     if got != amount:      # 拾整尾差并入权重最大路，保证 Σ == amount
-        rows[top][1][key] = int(rows[top][1].get(key, 0) or 0) + (amount - got)
+        _add_pop(state, rows[top][1], key, amount - got)
         got = amount
     return got
 
@@ -112,7 +125,7 @@ def _withdraw_slice(state, amount: int, key="estate") -> int:
                    else int(amount * have / pool))
         if part <= 0:
             continue
-        g[key] = have - part
+        _add_pop(state, g, key, -part)
         taken += part
     return taken
 
@@ -161,8 +174,8 @@ def _estate_income(state, name, src_class: str, want: int) -> int:
         take = min(have, want - got)
         if take <= 0:
             continue
-        src["wealth"] = have - take
-        g["estate"] = int(g.get("estate", 0) or 0) + take
+        _add_pop(state, src, "wealth", -take)
+        _add_pop(state, g, "estate", take)
         got += take
     if got:
         e["wealth"] = int(e.get("wealth", 0) or 0) + got
@@ -202,8 +215,8 @@ def _estate_spend(state, name, want: int, mode: str = "luxury") -> int:
             take = min(int(g.get("estate", 0) or 0), want - spent)
             if take <= 0:
                 continue
-            g["estate"] = int(g.get("estate", 0) or 0) - take
-            g["estate_hoard"] = int(g.get("estate_hoard", 0) or 0) + take
+            _add_pop(state, g, "estate", -take)
+            _add_pop(state, g, "estate_hoard", take)
             spent += take
             if spent >= want:
                 break
@@ -225,7 +238,7 @@ def _estate_spend(state, name, want: int, mode: str = "luxury") -> int:
         take = min(int(g.get("estate", 0) or 0), want - spent)
         if take <= 0:
             continue
-        g["estate"] = int(g.get("estate", 0) or 0) - take
+        _add_pop(state, g, "estate", -take)
         if mode == "treasury":
             state.change_treasury(take)
         else:
@@ -236,7 +249,7 @@ def _estate_spend(state, name, want: int, mode: str = "luxury") -> int:
             for target, got in plan:
                 slot = pops.get(target)
                 if isinstance(slot, dict) and got > 0:
-                    slot["wealth"] = int(slot.get("wealth", 0) or 0) + got
+                    _add_pop(state, slot, "wealth", got)
                     paid += got
             if paid < take:      # 接收方缺失 → 退回国库（钱不凭空消失）
                 state.change_treasury(take - paid)

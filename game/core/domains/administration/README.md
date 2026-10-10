@@ -101,7 +101,10 @@ game/backend/server.py:849                  from core.domains.administration.ins
 - 结算写入（新增/裁减官、授职、转祠禄、致仕、宗室入官、科举入官）必须通过 `pop_obj_add`
   先改州府真账，再由 `sync_route_pops` 刷新路级镜像；只有未下沉时才执行旧路级回退。
 - 长局守卫基线为零直接写；测试覆盖精选官制结算子步、真实 `run_monthly_settlement` 全管线（15 月），
-  玩家扩编命令 `issue_military_order` 的非月结 POP 写入，以及一条鞭法收获月折银欠税路径；
-  均断言零守卫违规、真账镜像一致与两条不变量。
+  玩家扩编命令 `issue_military_order` 的非月结 POP 写入、一条鞭法收获月折银欠税，以及士绅囤粮/市舶窖银路径；
+  均断言零守卫违规与真账镜像一致，家产循环另核对不变量。
 
-实施：子池规范化批 1-A（`f5d2e5c3da`）；结算写点桥接批 2-2（`559c44e0df`）。
+- 家产机制的 `estate`/`estate_hoard`、来源 POP wealth 与奢侈消费收款均经 `_add_pop` → `pop_obj_add`；`state.minister_estate` 仍是与 POP 子池核对的展示镜像。不可直接改路级槽。
+- `settlement_econ._settle_civilian_hoard` 的士绅囤粮（wealth→农户 wealth、路级粮仓→士绅 grain）与市舶银入窖（`窖银`）也须分别走 POP/粮桥；不得把州府 POP 写回路级。
+
+实施：子池规范化批 1-A（`f5d2e5c3da`）；结算写点桥接批 2-2（`559c44e0df`）；家产写点桥接批 2-4。
