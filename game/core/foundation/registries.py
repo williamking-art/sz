@@ -16,6 +16,10 @@ from content.data import (
     BRANCH_BASE, ARMY_RATE, EQUIP_STD, EQUIP_RATE,
 )
 
+# U0001f534 2026-10-10 全审：`_pay_equip_and_grain` 的兵 POP 粮饷分配须走下沉桥接，
+#   否则路级直写会在下沉局被 `sync_route_pops` 撤销（粮食饷凭空丢失）。
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
+
 # ============================================================
 # 一、注册器共用软约束（原 register_common.py）
 # ============================================================
@@ -297,7 +301,11 @@ def _pay_equip_and_grain(state, contract: dict, troops: int, cost: int) -> None:
         for name in paths:
             pops = state.prefectures[name].get("pops", {})
             if "兵" in pops:
-                pops["兵"]["wealth"] = pops["兵"].get("wealth", 0) + per
+                # U0001f534 2026-10-10 全审：改走桥接（下沉局路级 `wealth` 是派生镜像），
+                #   原直写会被 `sync_route_pops` 撤销（兵粮饷凭空丢失）。未下沉返回 None
+                #   → 回落原路径，行为不变。
+                if _pop_obj_add(state, pops["兵"], "wealth", per) is None:
+                    pops["兵"]["wealth"] = pops["兵"].get("wealth", 0) + per
 
 
 def build_branch_std(state, branch: str, base_branch: str = "轻步兵",

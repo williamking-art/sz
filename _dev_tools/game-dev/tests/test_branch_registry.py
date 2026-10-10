@@ -52,6 +52,58 @@ def test_register_ok_conservation():
     assert pop_gain > 0
 
 
+def test_register_branch_sunk_seats_conservation():
+    """U0001f534 下沉局：`register_branch` 兵粮饷必须落**州府真账**，路级仅派生镜像。
+
+    这是 `test_register_ok_conservation` 的下沉版——后者用未下沉的 `GameState("史实")`，
+    路级 `pops` 本身即真账，直写也能"守恒通过"，故缺陷逃逸。本测试跑 `new_game()`（已下沉
+    seats）+ `install_all_guards`，证明兵粮饷**进州府账、不进路级直写**，路级镜像与 Σ治所
+    恒等，且守卫零直写（否则 `sync_route_pops` 会把直写撤销，粮饷凭空丢失）。
+    """
+    from core.commands import new_game
+    from core.foundation.ledger.pop_bridge import (
+        install_all_guards, pops_guard_violations, reset_pops_guard,
+    )
+
+    state = new_game()
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+
+    # Σ治所兵 wealth（含初始存量）
+    def _seat_bing_wealth(s):
+        tot = 0
+        for pdata in s.prefectures.values():
+            for seat in (pdata.get("seats") or {}).values():
+                row = (seat.get("pops") or {}).get("兵")
+                if isinstance(row, dict):
+                    tot += int(row.get("wealth", 0) or 0)
+        return tot
+
+    before_seat = _seat_bing_wealth(state)
+    before_route = sum(int(p["pops"]["兵"].get("wealth", 0) or 0)
+                       for p in state.prefectures.values())
+    # 下沉局路级是派生镜像：应等于 Σ治所
+    assert before_route == before_seat, "下沉局路级 pops 应为 Σ治所派生镜像"
+
+    state.treasury = max(state.treasury, 10_000_000)
+    state.tech["level"] = 70  # 确保科技门槛过（弓弩系）
+    r = register_branch(state, _contract(), created_by="枢密院")
+    assert r["ok"] is True, r.get("msg")
+
+    after_seat = _seat_bing_wealth(state)
+    after_route = sum(int(p["pops"]["兵"].get("wealth", 0) or 0)
+                      for p in state.prefectures.values())
+
+    # 1) 州府真账：粮饷确实入账（不减不丢）
+    assert after_seat > before_seat, "兵粮饷未进州府真账（下沉桥接失败）"
+    # 2) 路级镜像与 Σ治所恒等（直写若残留会被 sync 撤销 → 二者分叉）
+    assert after_route == after_seat, (
+        "路级兵 wealth 与 Σ治所分叉——存在未桥接直写被 sync_route_pops 撤销")
+    # 3) 守卫零直写：全程无绕过桥接的路级写
+    v = pops_guard_violations()
+    assert not v, v[:5]
+
+
 def test_register_duplicate_and_cap():
     """重名拒绝 + 软约束（第 N 个成本递增，不硬拒）。"""
     s = _new_state()
