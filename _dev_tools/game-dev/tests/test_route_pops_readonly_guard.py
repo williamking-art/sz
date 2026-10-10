@@ -144,3 +144,35 @@ def test_player_military_recruitment_keeps_pop_truth_on_seats():
     for cls in ("农", "兵"):
         assert int(pdata["pops"][cls]["size"]) == after[cls]
         assert not assert_pops_consistent(pdata)
+
+
+def test_single_whip_tax_arrears_keeps_pop_truth_on_seats():
+    """一条鞭法田赋折银欠税：真账落治所，路级镜像一致，守卫零直写。"""
+    from core.commands import new_game
+    from core.settlement_steps import _settle_land_local
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent, pop_get
+
+    state = new_game()
+    state.single_whip = True
+    state.month = 3  # 收获月田赋结算
+    r0 = next(iter(state.prefectures.values()))
+    r0["pops"]["农"]["wealth"] = 0
+    r0["pops"]["士绅"]["wealth"] = 0
+    for seat in r0.get("seats", {}).values():
+        seat["pops"]["农"]["wealth"] = 0
+        seat["pops"]["士绅"]["wealth"] = 0
+
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+
+    log = []
+    _settle_land_local(state, log)
+    assert not pops_guard_violations(), pops_guard_violations()[:10]
+
+    nong_arrears = pop_get(r0, "农", "欠税")
+    shen_arrears = pop_get(r0, "士绅", "欠税")
+    assert nong_arrears > 0, "农户现金不足应产生欠税"
+    assert shen_arrears > 0, "士绅现金不足应产生欠税"
+    assert int(r0["pops"]["农"]["欠税"]) == nong_arrears
+    assert int(r0["pops"]["士绅"]["欠税"]) == shen_arrears
+    assert not assert_pops_consistent(r0)

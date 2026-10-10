@@ -280,8 +280,13 @@ def _settle_land_local(state, log):
             short = (silver_nong + silver_shen) - (got_nong + got_shen)
             _silver_actual += (got_nong + got_shen)
             if short > 0:
-                _nong["欠税"] = int(_nong.get("欠税", 0)) + (silver_nong - got_nong)
-                _shen["欠税"] = int(_shen.get("欠税", 0)) + (silver_shen - got_shen)
+                # 🔴 一条鞭短收的「欠税」也是 POP 真账：桥接后落治所，再刷新路级镜像。
+                _dn = silver_nong - got_nong
+                if _pop_obj_add(state, _nong, "欠税", _dn) is None:
+                    _nong["欠税"] = int(_nong.get("欠税", 0)) + _dn
+                _ds = silver_shen - got_shen
+                if _pop_obj_add(state, _shen, "欠税", _ds) is None:
+                    _shen["欠税"] = int(_shen.get("欠税", 0)) + _ds
         else:
             # 本色征粮：**只按实征入库**（审查 M1）。原实现按 `max(0, …)` 从农/士绅存粮扣
             # 名义税额，却把**名义全额**记入 `storage` → 存粮不足时凭空多出等额仓粮

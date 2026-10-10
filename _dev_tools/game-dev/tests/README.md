@@ -33,7 +33,7 @@ $env:CODEBUDDY_SAFE_DELETE_ENABLED = "0"
 - `fake_ai_backend.py`：离线测试使用的假 AI 后端。
 - `test_*.py`：Python 测试。前端 Vitest 用例位于 `game/frontend/`，不在本目录统计。
 - 新增测试时覆盖真实调用链或状态转换；只测试未被生产调用的纯函数，不能证明功能已接线。
-- `test_route_pops_readonly_guard.py` 覆盖精选结算子步、真实 15 月月结和玩家扩编命令入口；守卫应零直写且逐字段镜像一致。
+- `test_route_pops_readonly_guard.py` 覆盖精选结算子步、真实 15 月月结、玩家扩编命令及一条鞭田赋折银欠税入口；守卫应零直写且逐字段镜像一致。
 - 经济与人口回归应分别检查账本守恒、需求/供给和长局民生指标；残差为零不能代替平衡验收。
 
 按专题查找审查整改、圣旨闭环或市场用例时，以当前文件名和相应 `specs/*/tasks.md` 为准；批次文件会增删，不在此重复维护静态清单。

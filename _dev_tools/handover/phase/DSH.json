@@ -1,18 +1,17 @@
 {
- "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1/2-2 已完成；真实月结全管线守卫回归已扩为 15 月。",
+ "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-3 已完成；覆盖月结与两个非月结/条件入口。",
  "updatedAt": "2026-10-10",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量 --junitxml：tests=2459 / failures=0 / errors=0 / skipped=2；test_route_pops_readonly_guard.py 定向 5 passed",
-  "popGuard": "真实 new_game() + run_monthly_settlement 连跑15月：每月零直接写、路级 POP 镜像一致、官制子池不变量成立",
-  "popLedger": "POP 真账在 seats[*].pops[*]；wealth、身份子池、clan 已桥接；POP grain 调用均传 state，路级 pops 为派生镜像",
+  "pytest": "全量 --junitxml：tests=2461 / failures=0 / errors=0 / skipped=2；POP guard 定向 7 passed",
+  "popGuard": "默认真实月结15月零直写、镜像一致、不变量成立；single_whip真实月结15月同样零直写/失配/不变量；收获月折银欠税与玩家扩编非月结命令均已接入定向回归",
+  "popLedger": "追查并桥接 settlement_econ._settle_land_local 一条鞭分支对农/士绅欠税的两处路级直接写；桥接后欠税计入州府真账、同步路级派生镜像",
   "handover": "summary/check 通过，问题=0"
  },
  "delivered": [
-  "批 1-A～1-E",
-  "批 2-1 wealth 字段级归因与桥接",
-  "批 2-2 官制身份子池/clan 桥接",
-  "真实月结全管线守卫回归15月"
+  "批2-3 single_whip欠税两写点桥接",
+  "玩家扩编命令真账/守卫回归",
+  "真实全管线及特殊single_whip 15月守卫验证"
  ],
- "next": "盘点并补齐守卫对非月结入口（commands/后端动作）的覆盖；只对观测到的未桥接写点改造，不盲扫修改。"
+ "next": "继续按字段/入口实测剩余守卫直写；优先扫命令、事件、单条诏令等非月结状态变更，并仅修复命中的已下沉 POP 写点。"
 }
