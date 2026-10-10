@@ -1,17 +1,17 @@
 {
- "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-4 已完成；覆盖默认月结、玩家命令及经济条件支路。",
+ "phase": "POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-5 已完成；默认和条件化经济结算、命令入口有守卫回归。",
  "updatedAt": "2026-10-10",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量 --junitxml：tests=2463 / failures=0 / errors=0 / skipped=2；家产/POP定向 19 passed",
-  "popGuard": "默认月结和 single_whip 模式15月守卫均零违规、镜像失配与官制不变量为0；非月结扩编、折银欠税、家产循环、士绅囤粮/市舶窖银均有守卫回归",
-  "estate": "settle_minister_estate 和 _settle_civilian_hoard 的 POP 写均经 pop_obj_add / grain bridge；estate mirror = seat slices，士绅囤粮财富总和守恒",
+  "pytest": "全量 --junitxml：tests=2464 / failures=0 / errors=0 / skipped=2；POP guard + employment JUnit 30/30 passed；家产/囤粮/POP JUnit 20/20 passed",
+  "popGuard": "默认月结、single_whip 和高城市化各15月全管线：零直接写、镜像失配及官制不变量违规为0；另覆盖玩家扩编、折银欠税、家产循环、囤粮窖银",
+  "popLedger": "补桥 estate 流转、市舶窖银、士绅囤粮以及 AI 城市化/回乡/宋侧就业的 state 透传；remaining AST move_pop_people 无state仅外邦 regime_fiscal省域路径，路径与州府宋侧实体不同",
   "handover": "summary/check 通过，问题=0"
  },
  "delivered": [
-  "批2-3 single_whip欠税桥接",
-  "批2-4家产收入/支出/窖藏子池桥接",
-  "士绅囤粮与市舶银入窖写点桥接及守卫回归"
+  "批2-3折银欠税桥接",
+  "批2-4家产与消费囤粮桥接",
+  "批2-5高城市化与就业流动透传state"
  ],
- "next": "继续审计守卫实测命中的其他结算支路，并审查事件、诏令等状态动作中按用户目标需下沉的 POP 写入；先验证真实触发，再定向修改。"
+ "next": "继续把守卫安装到更多真实经济/事件动作入口，按结构划分宋侧州府 POP 与外邦省域 POP，避免对外邦实体误桥接。"
 }

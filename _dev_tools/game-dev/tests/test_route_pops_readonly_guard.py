@@ -268,3 +268,34 @@ def test_civilian_hoard_transfers_keep_pop_truth_on_seats():
     assert silver_after < silver_before, "已开市舶时银入窖应从银池扣减"
     for pdata in state.prefectures.values():
         assert not assert_pops_consistent(pdata)
+
+
+def test_ai_urbanization_and_job_flow_keep_pop_truth_on_seats():
+    """AI 城市化与宋侧岗位空缺流动均传 state，复合结算不改路级 POP 真账。"""
+    from application.game_init import new_game
+    from core.settlement_econ import _settle_economy
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent, pop_get, pop_set
+
+    state = new_game()
+    route, pdata = next(iter(state.prefectures.items()))
+    pdata["buildings"] = {"工坊": {"lv": 2}}
+    for cls, size in (("农", 200_000), ("工匠", 100), ("商人", 2_500)):
+        assert pop_set(pdata, cls, "size", size) is not None
+    state._economy_ai = {
+        "景气": "大", "城市化": "大", "回乡": "无", "科举": "无", "窖银": "无",
+    }
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+
+    _settle_economy(state, [])
+    assert not pops_guard_violations(), pops_guard_violations()[:20]
+    job_flow = (pdata.get("econ_audit") or {}).get("job_flow") or {}
+    assert job_flow.get("moved_to_artisan", 0) > 0, "工坊空缺应触发农→工匠流动"
+    for cls in ("农", "工匠", "商人"):
+        seat_size = sum(
+            int(((seat.get("pops") or {}).get(cls) or {}).get("size", 0) or 0)
+            for seat in pdata["seats"].values()
+        )
+        assert pop_get(pdata, cls, "size") == seat_size
+        assert int(pdata["pops"][cls]["size"]) == seat_size
+    assert not assert_pops_consistent(pdata)

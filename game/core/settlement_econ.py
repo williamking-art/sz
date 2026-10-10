@@ -114,18 +114,18 @@ def _settle_economy(state, log):
             _to_art = int(net * URBAN_SPLIT["工匠"])
             _to_mer = net - _to_art
             if _to_art > 0:
-                move_pop_people(pops["农"], pops["工匠"], _to_art)
+                move_pop_people(pops["农"], pops["工匠"], _to_art, state)
             if _to_mer > 0:
-                move_pop_people(pops["农"], pops["商人"], _to_mer)
+                move_pop_people(pops["农"], pops["商人"], _to_mer, state)
         elif net < 0:
             _out = min(-net, pops["工匠"]["size"] + pops["商人"]["size"])  # 钳制：工/商不减负
             _art_out = min(int(_out * URBAN_SPLIT["工匠"]), pops["工匠"]["size"])
             # B1d-b：回乡同样**带财富/粮**（否则"回乡者两手空空"= 人均假信号）
             if _art_out > 0:
-                move_pop_people(pops["工匠"], pops["农"], _art_out)
+                move_pop_people(pops["工匠"], pops["农"], _art_out, state)
             _mer_out = _out - _art_out
             if _mer_out > 0:
-                move_pop_people(pops["商人"], pops["农"], _mer_out)
+                move_pop_people(pops["商人"], pops["农"], _mer_out, state)
         # 2b) 就业驱动的阶层流动（宋侧接线）：**岗位缺口驱动**的农 ↔ 工匠/商人。
         #     与 2) 的关系＝协同而不双计：2) 是「景气驱动」的量（AI 城市化/回乡档位），
         #     本段**串行于其后**，只补「建筑岗位缺口」的差额，且按当月真实就业安排
@@ -133,7 +133,7 @@ def _settle_economy(state, log):
         #     （农→工/商 与 工/商→农 互斥），故不存在同一人的两次迁移。
         #     新局 `buildings` 为空 → `apply_employment_flow` 直接返回零迁移，基线不漂移。
         #     守恒：只改 农/工匠/商人 三类 size，Σ六类 size 逐字不变（另见回归测试）。
-        _emp_flow = apply_employment_flow(p, pops, p.get("buildings"), _SONG_JOB_CFG)
+        _emp_flow = apply_employment_flow(p, pops, p.get("buildings"), _SONG_JOB_CFG, state=state)
         if _emp_flow["moved_to_artisan"] or _emp_flow["moved_to_merchant"] \
                 or _emp_flow["returned_to_farm"]:
             p.setdefault("econ_audit", {})["job_flow"] = dict(_emp_flow)

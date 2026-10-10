@@ -551,8 +551,8 @@ def live_job_buildings(buildings: Optional[dict], cfg: dict,
 
 
 def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
-                          cfg: dict, rng: Optional[random.Random] = None
-                          ) -> Dict[str, int]:
+                          cfg: dict, rng: Optional[random.Random] = None,
+                          state=None) -> Dict[str, int]:
     """宋侧「岗位缺口驱动」阶层流动：农 ↔ 工匠/商人，逐路执行（ΣPOP 守恒）。
 
     设计依据：`外邦省域产业链设计_2026-09-22.md` §3.6 与 §15.1 决策 #6
@@ -659,9 +659,9 @@ def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
             return stats
         # B1d-b：空岗拉**带财富/粮**（人均连续）——迁移不是"净身出户"
         if to_art > 0:
-            move_pop_people(nong, art, to_art)
+            move_pop_people(nong, art, to_art, state)
         if to_mer > 0:
-            move_pop_people(nong, mer, to_mer)
+            move_pop_people(nong, mer, to_mer, state)
         stats["moved_to_artisan"] = to_art
         stats["moved_to_merchant"] = to_mer
         return stats
@@ -691,9 +691,9 @@ def apply_employment_flow(p: dict, pops: dict, buildings: Optional[dict],
         return stats
     # B1d-b：回流同样**带财富/粮**（否则"回乡者两手空空"＝人均假信号）
     if from_art > 0:
-        move_pop_people(art, nong, from_art)
+        move_pop_people(art, nong, from_art, state)
     if from_mer > 0:
-        move_pop_people(mer, nong, from_mer)
+        move_pop_people(mer, nong, from_mer, state)
     stats["returned_to_farm"] = applied
     return stats
 
