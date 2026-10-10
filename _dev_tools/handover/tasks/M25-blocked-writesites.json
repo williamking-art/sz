@@ -3,7 +3,7 @@
  "claimedBy": "DSH",
  "status": "open-registered",
  "blocks": "阶段 3 收尾（架构工作，不阻塞本轮经济规则/账本修复）",
- "registeredTo": "decisions:M25-写站点拆环（status=open，未替裁定人下 verdict）",
+ "registeredTo": "decisions:M25-写站点拆环（status=decided，用户已裁定；本任务仅追踪架构阶段3收尾实现）",
  "实测结论": "A 类 2 条已直认真实家 ⇒②无路可做；B 类 4 条②可做但不减环；C 类 5 条属 foundation→上层 违反 §6-1 只有①适用。阶段1 实测：12 条边无一条能靠机械改动拆出大环",
  "dsh建议顺序": "①先做阶段3主体：迁 settlement_* 步骤到 domains/ ②B 类迁完自动变合法 ③剩 C 类 5 条才是①适用面 ④定①硬失败判据（建议乙=留痕+哨兵）后再上",
  "note": "11 个写站点的接口归属已由用户 2026-10-07 裁定，详见 decisions/M25-写站点拆环.json：仅 C 类底层反向写站点允许有限依赖注入，不建 11 站点通用注册体系。此任务保留为架构阶段3收尾项；与经济玩法的 AI 档位、路线粮价和 POP 真账任务分开，不要求本轮改军事业务。",
