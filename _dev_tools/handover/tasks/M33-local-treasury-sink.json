@@ -4,14 +4,14 @@
  "claimedBy": "Cline",
  "claimedAt": "2026-10-10T16:48:43Z",
  "status": "open-registered",
- "verdict": "定义已升级 2026-10-11：原「local_treasury 下沉州府真账」作废（史实上账在路级转运司、州是支出执行单元；下沉反而失真）。现行定义见设计终稿：真账三分（上供/留州/侵渔）+ 账面分离（火耗科目）+ 四级发现 + 调查四件套 + 三改革轴。",
- "scope": "设计终稿 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；Phase 1-4 分批，每批带守恒测试",
+ "verdict": "V1.2 终裁完成（2026-10-11 用户：三角＝甲、keep＝A 平铺、开局 0.94/0.04/0.02）。定义：双层税基（tax_base→actual_collection→归一三分：上供/留州/侵渔）+ 账面 tax_loss_report + 四级发现 + 调查四件套（审计优先·巡按后置）+ 三改革轴（transfer/local_keep/diversion 三率）。原「下沉州府」定义作废（史实不成立）。",
+ "scope": "设计终稿 V1.2 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账→P2 账面→P3 发现→P4 改革），每批带守恒测试+财政校准门",
  "prereq": [
-  "设计终稿 §14 待裁/待校准清单（Q3/Q6/Q7/Q10/Q11/Q12 + C1/C2）裁完即开工",
+  "设计终稿 §14.2 剩余待裁 4 项（Q3 范围/Q7 直白度/Q11 成案/Q12 按路）+ §14.3 校准项（C1 税基标定/C2 派生系数/C3 保真度）——裁完即开工",
   "seats 阻塞已解除（实测 new_game() 20/20 路开箱带 seats）——本定义不再需要州府真账",
   "A-粮价 用户 2026-10-10 已 decided——非本任务阻塞"
  ],
- "risk": "🟠 中高：改钱账守恒口径 + 税基重标定（需校准门），分批落地 + 每批 money.ACCOUNTS 守恒测试",
- "next": "用户裁 §14 清单 → 按 Phase 1 开工（actual_G + state.finance 三旋钮 state 化 + 三分落点 + 税基重标定）",
- "related": "specs/economy/财政流向与贪吏做账_设计终稿.md（V1.1·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
+ "risk": "🟠 中高：改钱账守恒口径 + 双层税基标定（需财政校准门五项指标），分批落地 + 每批 money.ACCOUNTS 守恒测试",
+ "next": "用户裁 §14.2 四项 → 按 P1 开工（tax_base×collection_rate + finance 四率 state 化 + 归一化单点 + 三分落点 + 旧 arrival 退役）",
+ "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.2.md（V1.2·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
 }
