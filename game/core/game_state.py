@@ -564,6 +564,18 @@ class GameState(GameStateEconMixin):
         # ---- 到账率 ----
         self.arrival_rate_base: float = diff["arrival_base"]
 
+        # ---- 财政四率容器（P1 双层税基；V1.3 终稿 §11）----
+        # 默认值取自 content.data（单一权威源）；旧档缺省由 save_load._migrate_finance 幂等补值。
+        from content.data import (FIN_COLLECTION_BASE, FIN_TRANSFER_RATE,
+                                  FIN_KEEP_BASE, FIN_DIV_RATE)
+        self.finance: dict = {
+            "tax_version": 1,
+            "collection_rate": FIN_COLLECTION_BASE,
+            "transfer_rate": FIN_TRANSFER_RATE,
+            "local_keep_rate": FIN_KEEP_BASE,
+            "diversion_rate": FIN_DIV_RATE,
+        }
+
         # ---- 国库 ----
         self.treasury: int = TREASURY_START
         # 累计亏空深度（贯，B3 修复）：国库全程禁止穿底（见 change_treasury 的

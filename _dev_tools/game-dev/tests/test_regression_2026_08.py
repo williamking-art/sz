@@ -88,8 +88,11 @@ def test_population_ledger_aligned_every_month():
 def test_pay_indexation_conservation():
     """P1-1：粮价 > 1.5 时俸禄指数化无货币黑洞（国库扣 == POP 收）。"""
     def _wealth(s):
+        # P1（V1.3 双层税基）：货币合计须含州库（local_treasury）——田赋折色「留州份额」
+        # 的落点在此；缺项会把留州额误判为货币黑洞（2026-10 实测 -63,143 vs 阈值 -50,000）。
         return (sum(pop.get("wealth", 0) for p in s.prefectures.values() for pop in p["pops"].values())
                 + s.treasury + s.imperial_treasury
+                + sum(p.get("local_treasury", 0) or 0 for p in s.prefectures.values())
                 + s.jiaozi["issued"] * max(0.0, min(1.0, s.jiaozi["trust"] / 100.0))
                 + sum(p["pops"]["士绅"].get("窖银", 0) for p in s.prefectures.values()))
 

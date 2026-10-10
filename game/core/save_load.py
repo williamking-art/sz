@@ -62,6 +62,28 @@ def _plan_schema_versions() -> dict:
         return {"decree_plan": 0, "dynamic_blueprint": 0, "plan_action": 0}
 
 
+def _migrate_finance(raw) -> dict:
+    """财政四率容器迁移（P1 双层税基；V1.3 终稿 §11）：缺省／坏值**幂等补默认**。
+
+    - 旧档（schema < 4）无 `finance` 键 → 全默认；
+    - 部分缺失／非数值 → 逐键补默认（不因单键坏值丢整容器）；
+    - `tax_version` 取整；比率项取浮点（bool 拒收，防 True==1 混入）。
+    """
+    from content.data import (FIN_COLLECTION_BASE, FIN_TRANSFER_RATE,
+                              FIN_KEEP_BASE, FIN_DIV_RATE)
+    defaults = {"tax_version": 1, "collection_rate": FIN_COLLECTION_BASE,
+                "transfer_rate": FIN_TRANSFER_RATE, "local_keep_rate": FIN_KEEP_BASE,
+                "diversion_rate": FIN_DIV_RATE}
+    out = dict(defaults)
+    if isinstance(raw, dict):
+        for _k, _v in raw.items():
+            if _k not in defaults or isinstance(_v, bool):
+                continue
+            if isinstance(_v, (int, float)):
+                out[_k] = int(_v) if _k == "tax_version" else float(_v)
+    return out
+
+
 def save_game(state, slot: int = 1) -> bool:
     """保存游戏到指定槽位（含记忆知识库同步写盘）。
 
@@ -90,7 +112,7 @@ def save_game(state, slot: int = 1) -> bool:
 
     data = {
         "version": "0.1.0",
-        "schema_version": 3,  # v3：局势系统（state.situations / SituationRecord，规范 §9）
+        "schema_version": 4,  # v4：财政四率容器 state.finance（P1 双层税基，V1.3 终稿 §11）
         "save_time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "slot": slot,
 
@@ -115,6 +137,8 @@ def save_game(state, slot: int = 1) -> bool:
         # 无法区分。改为写 `None`（载入侧仅作诊断、以 POP 派生为权威，故影响面很小）。
         "literacy": getattr(state, "literacy", None),
         "arrival_rate_base": state.arrival_rate_base,
+        # 财政四率容器（P1 双层税基；V1.3 终稿 §11）——读档侧由 _migrate_finance 幂等补值
+        "finance": dict(getattr(state, "finance", None) or {}),
         "treasury": state.treasury,
         # 累计亏空深度（B3）：破产两档线判据，须随档持久化
         "treasury_deficit": getattr(state, "treasury_deficit", 0),
@@ -390,10 +414,10 @@ def _load_with_data(slot: int = 1):
         except OSError:
             pass
         return None, None
-    if _ver > 3:
+    if _ver > 4:
         import logging
         logging.getLogger("save_load").error(
-            "存档 schema_version=%s 高于本程序支持的 3，拒绝加载", _ver)
+            "存档 schema_version=%s 高于本程序支持的 4，拒绝加载", _ver)
         return None, None
 
     # 延迟导入避免循环
@@ -439,6 +463,8 @@ def _load_with_data(slot: int = 1):
     # 恢复系统状态
     state.prestige = data.get("prestige", 55)
     state.arrival_rate_base = data.get("arrival_rate_base", 0.45)
+    # 财政四率容器（P1 双层税基；V1.3 终稿 §11）：旧档缺省／坏值幂等补默认
+    state.finance = _migrate_finance(data.get("finance"))
     state.treasury = data.get("treasury", 5000000)
     # 累计亏空深度（B3）：旧档缺省为 0（兼容）
     state.treasury_deficit = _safe_int(data.get("treasury_deficit", 0), 0)

@@ -547,6 +547,100 @@ def _settle_arrears_repayment(state, log):
     return amount
 
 
+def _settle_land_tax_color(state, log) -> dict:
+    """田赋折色（P1 双层税基·三率分流；Q3 甲：**仅此税种**换新模型）。
+
+    流程：应征 assessed（全额税基 × 征收率）→ 逐户实收（`[农×自耕份额]＋[士绅×地主份额]`，
+    与旧扣缴同规则：保底豁免／欠税／农粜粮完税）→ 按该路**归一三率**三分：
+
+      中央 ＝ paid × transfer   （返回给调用方 → 并入 actual_tax → 国库）
+      留州 ＝ paid × keep       （直接入 `prefectures[路]["local_treasury"]`）
+      侵渔 ＝ paid × div        （直接入该路官僚 POP wealth；无官僚池时转归中央并留痕）
+
+    尾差（≤2 贯/路）归中央（保护 transfer，V1.3 §3.4）。欠税**追缴段**仍在其余税种
+    的逐户扣缴循环内统一运行（本函数不重复追缴，防双收）。
+
+    守恒：`Δ(POP wealth) ＋ 留州 ＋ 侵渔 ＋ 中央(返回) ≡ 0`（纯转移；粜粮完税为钱粮互换）。
+    """
+    from content.data import MIN_WEALTH_FLOOR_RATIO, PER_CAPITA_MONTH_GRAIN
+    chan = state.calc_land_tax_channels()
+    assessed = int(chan["assessed_total"])
+    paid_by_route = {_rk: 0 for _rk in state.prefectures}
+    if assessed > 0 and state.prefectures:
+        _tot_land = sum(p.get("land", 1) for p in state.prefectures.values()) or 1
+        _self_share = (sum(p.get("self_farm_land", 0) for p in state.prefectures.values())
+                       / _tot_land)
+        _gentry_share = (sum(p.get("gentry_land", 0) for p in state.prefectures.values())
+                         / _tot_land)
+        # 税从 POP 征（钱守恒）：二税折色按田亩归属拆分——农担自耕田、士绅担地主田
+        _agent_charge = {"农": int(assessed * _self_share),
+                         "士绅": int(assessed * _gentry_share)}
+        for _agent, _tc_total in _agent_charge.items():
+            if _tc_total <= 0:
+                continue
+            _total_wealth = sum(p["pops"][_agent]["wealth"]
+                                for p in state.prefectures.values())
+            if _total_wealth <= 0:
+                continue
+            for _rk, _p in state.prefectures.items():
+                _pop = _p["pops"][_agent]
+                _deduct = int(_tc_total * (_pop["wealth"] / _total_wealth))
+                _min_wealth = int(_pop["size"] * PER_CAPITA_MONTH_GRAIN * state.grain_price)
+                _min_wealth = int(_min_wealth * MIN_WEALTH_FLOOR_RATIO)
+                _paid = min(_deduct, max(0, _pop["wealth"] - _min_wealth))
+                if _agent == "农" and _deduct - _paid > 0:
+                    # 农「粜粮完税」（与旧扣缴同规则；本路士绅/商人买粮，钱粮双向守恒）
+                    _paid += _settle_tax_grain_sale(state, _p, _deduct - _paid)
+                _short = _deduct - _paid
+                if _short > 0:
+                    if _pop_obj_add(state, _pop, "欠税", _short) is None:
+                        _pop["欠税"] = _pop.get("欠税", 0) + _short
+                if _paid > 0:
+                    if _pop_obj_add(state, _pop, "wealth", -_paid) is None:
+                        _pop["wealth"] -= _paid
+                    paid_by_route[_rk] += _paid
+    central = local_total = div_total = 0
+    local_by_route, div_by_route = {}, {}
+    for _rk, _paid in paid_by_route.items():
+        if _paid <= 0:
+            continue
+        _t, _k, _d = state.finance_split(_rk)
+        _l = int(_paid * _k)
+        _dv = int(_paid * _d)
+        _c = _paid - _l - _dv                       # 尾差归中央（保护 transfer）
+        _pd = state.prefectures.get(_rk) or {}
+        if _l > 0:
+            _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _l
+            local_total += _l
+            local_by_route[_rk] = _l
+        if _dv > 0:
+            _guan = (_pd.get("pops") or {}).get("官僚")
+            if isinstance(_guan, dict):
+                if _pop_obj_add(state, _guan, "wealth", _dv) is None:
+                    _guan["wealth"] = int(_guan.get("wealth", 0) or 0) + _dv
+                div_total += _dv
+                div_by_route[_rk] = _dv
+            else:
+                # 无接收池：不得销毁 → 转归中央并留痕（可诊断）
+                _c += _dv
+                log.append(f"[田赋] {_rk} 侵渔无接收池（官僚 POP 缺失），该路侵渔份额转归中央")
+        central += _c
+    _st = state.statistics
+    _collected = sum(paid_by_route.values())
+    _st["land_tax_assessed"] = int(_st.get("land_tax_assessed", 0) or 0) + assessed
+    _st["land_tax_collected"] = int(_st.get("land_tax_collected", 0) or 0) + _collected
+    _st["land_tax_central"] = int(_st.get("land_tax_central", 0) or 0) + central
+    _st["land_tax_local"] = int(_st.get("land_tax_local", 0) or 0) + local_total
+    _st["land_tax_diverted"] = int(_st.get("land_tax_diverted", 0) or 0) + div_total
+    log.append(f"[田赋] 折色应征 {assessed:,}贯 → 实收 {_collected:,}贯；三分："
+               f"上供 {central:,}／留州 {local_total:,}／侵渔 {div_total:,}"
+               + (f"（豁免/欠税 {assessed - _collected:,}）" if _collected < assessed else ""))
+    return {"assessed": assessed, "collected": _collected, "central": central,
+            "local": local_total, "diverted": div_total,
+            "by_route": paid_by_route, "local_by_route": local_by_route,
+            "div_by_route": div_by_route}
+
+
 def _settle_finance(state, log):
     """月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
     田赋本色为实物入粮仓。支出含折色俸禄（随 pay_system）与岁币岁赐。"""
@@ -576,24 +670,28 @@ def _settle_finance(state, log):
     state.tax_breakdown = {"commerce": commerce_tax, "poll": poll_tax, "maritime": maritime_tax,
                            "official_service": 0}
 
-    tax_color_total, tax_color_by = state.calc_monthly_tax_income(tax_coeff)
+    # ---- 田赋折色（P1 双层税基·三率分流；Q3 甲：仅此税种换新模型）----
+    # 旧径：`calc_monthly_tax_income` 把 arrival 乘进税基——POP 少付、国库少收、截留无落点。
+    # 新径：全额税基 → 征收率 → 实收 → 归一三率三分（上供／留州／侵渔，各有落点）。
+    # 读数（econ summary / region_brief）暂留旧径，P2「账面系统」统一改造（终稿附 A.2）。
+    _land_tax = _settle_land_tax_color(state, log)
+    tax_color_total = int(_land_tax["assessed"])      # 展示/日志口径＝应征
     salt_coin = state.calc_salt_coin(arrival)
     material_coin = 0.0
     monthly_tax_full = monthly_tax + tax_color_total + salt_coin + material_coin  # 目标收入（展示/预期）
 
-    # 税从 POP 征（钱守恒）：役钱→农；二税折色按田亩归属拆分（农担自耕田、士绅担地主田）；工商税→工匠60%+商人40%；盐课+市舶→商人
+    # 其余税种征收（旧路径不变·Q3 甲）：役钱→农；工商税→工匠60%+商人40%；盐课+市舶→商人。
+    # 士绅保留 0 额条目：让「欠税追缴段」对士绅 POP 照旧运行（行为等价）。
     from content.data import PER_CAPITA_MONTH_GRAIN
-    _tot_land = sum(p.get("land", 1) for p in state.prefectures.values()) or 1
-    _self_share = sum(p.get("self_farm_land", 0) for p in state.prefectures.values()) / _tot_land
-    _gentry_share = sum(p.get("gentry_land", 0) for p in state.prefectures.values()) / _tot_land
     _tax_agents = {
-        "农": poll_tax + int(tax_color_total * _self_share),
-        "士绅": int(tax_color_total * _gentry_share),
+        "农": poll_tax,
+        "士绅": 0,
         # 蔡权衡裁决（工匠外销收入源）：工商税工匠份额 0.6→0.5（工匠税负减轻，配合外销变现防破产）
         "工匠": int(commerce_tax * 0.5),
         "商人": int(commerce_tax * 0.5) + int(salt_coin) + maritime_tax,
     }
-    actual_tax = 0.0
+    # 田赋折色中央份额先入账；其余税种在下方逐户扣缴中累加（实收→国库管道不变）
+    actual_tax = float(_land_tax["central"])
     for _agent, _tax_total in _tax_agents.items():
         _total_wealth = sum(p["pops"][_agent]["wealth"] for p in state.prefectures.values())
         if _total_wealth <= 0:

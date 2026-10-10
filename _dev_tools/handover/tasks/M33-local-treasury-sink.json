@@ -2,16 +2,16 @@
  "id": "M33-local-treasury-sink",
  "title": "上供留州分层与贪吏做账（真账三分·账面分离·发现调查改革）——原「下沉州府」定义作废",
  "claimedBy": "Cline",
- "claimedAt": "2026-10-10T16:48:43Z",
- "status": "open-registered",
- "verdict": "V1.3 全部裁决关闭（2026-10-11）：三角＝甲、keep＝A 平铺、开局 0.94/0.04/0.02、Q3＝甲（田赋折色先行）、Q7＝甲（数值显示·来源隐藏）、Q11＝甲（抄没须成案）、Q12＝乙（按路 grip）。定义：双层税基（tax_base→actual_collection→归一三分）+ 账面 tax_loss_report + 四级发现 + 案件链 + 三改革轴。原「下沉州府」定义作废。",
- "scope": "设计终稿 V1.3 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账→P2 账面→P3 发现→P4 改革），每批带守恒测试+财政校准门",
+ "claimedAt": "2026-10-10T18:34:20Z",
+ "status": "in-progress",
+ "verdict": "V1.3 全部裁决关闭（2026-10-11）。**P1 财政真账已落地**：双层税基（tax_base×collection_rate=0.625 标定，应征≈旧实付×1.064）＋ finance 四率 state 化 ＋ normalize_finance_split 单点（保护顺序 div→keep→transfer）＋ 三分落点（transfer→国库/keep→local_treasury/div→官僚 POP）＋ 田赋折色独立征收器；旧 arrival 分段保留（非田赋税种兼容·Q3 甲）。守恒测试 10 例全绿；同种子 12 月财政校准门通过（国库/人口/民生/粮价/地方库 五项不劣化）。",
+ "scope": "设计终稿 V1.3 §2-§13：game_state_econ / settlement_finance / settlement_decree / free_effect / longterm_task / save_load / income_readout / clerks / monthly_gazette 等；四阶段（P1 真账✅→P2 账面→P3 发现→P4 改革），每批带守恒测试+财政校准门",
  "prereq": [
-  "裁决已全部关闭（Q1-Q12）；仅余校准项 C1/C2（P1 内实测）与 C3（P3 内实测）",
+  "裁决已全部关闭（Q1-Q12）；仅余校准项 C1/C2（P1 内实测——已出首版标定与校准门记录）与 C3（P3 内实测）",
   "seats 阻塞已解除（实测 new_game() 20/20 路开箱带 seats）——本定义不再需要州府真账",
   "A-粮价 用户 2026-10-10 已 decided——非本任务阻塞"
  ],
  "risk": "🟠 中高：改钱账守恒口径 + 双层税基标定（需财政校准门五项指标），分批落地 + 每批 money.ACCOUNTS 守恒测试",
- "next": "按 P1 开工（田赋折色先行）：tax_base×collection_rate + finance 四率 state 化 + 归一化单点 + 三分落点 + 旧 arrival 分段退役 + 守恒测试（断言 1-6/10）+ 财政校准门",
+ "next": "P2 账面系统：statistics[\"tax_loss_report\"]（4 类目＋total）＋ 账面读取点（econ summary/月报）＋ 信息差三级；读数口径统一（econ summary/region_brief 转向新模型读数）随 P2 改造；旧 arrival 剩余消费点 P4 评估迁移",
  "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（V1.3·开发基线）｜贪吏做账_设计稿.md（历史草稿）｜上供留州分层_开工门台账.md（历史台账）"
 }

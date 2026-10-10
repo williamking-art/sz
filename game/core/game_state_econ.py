@@ -10,6 +10,10 @@ from content.data import (
     # 到账率公式常量（2026-09-19 质量全检回收：此前 `calc_arrival_rate` 内硬编码同值）
     ARRIVAL_AUDIT_WEIGHT, ARRIVAL_AUTHORITY_WEIGHT, ARRIVAL_DIVERSION_WEIGHT,
     ARRIVAL_MIN, ARRIVAL_MAX,
+    # P1 双层税基·四率（V1.3 终稿 §3；Q3 甲：先作用于田赋折色）
+    FIN_COLLECTION_BASE, FIN_COLLECTION_GOVERN_W, FIN_COLLECTION_MIN, FIN_COLLECTION_MAX,
+    FIN_TRANSFER_RATE, FIN_TRANSFER_CAP, FIN_KEEP_BASE, FIN_KEEP_GOVERN_ANCHOR,
+    FIN_KEEP_GOVERN_W, FIN_KEEP_MIN, FIN_KEEP_MAX, FIN_KEEP_CAP, FIN_DIV_RATE,
     PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
     SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
@@ -48,6 +52,38 @@ from core.domains.administration import officialdom as _officialdom  # noqa: E40
 # ============================================================
 # 整改①-2 / ①-3：价格月度上限 + 生产/工程声明契约
 # ============================================================
+def normalize_finance_split(transfer: float, keep: float, div: float) -> tuple:
+    """财政分流三率归一（**全库唯一单点**；V1.3 终稿 §3.4）。
+
+    输入三率意图值 → 输出保证 `t + k + d ≡ 1` 的三率：
+    - 修正**自最低保护等级起**：① diversion（残差吸收）→ ② keep → ③ transfer
+      （最后才动 transfer：中央稳定是系统核心）；
+    - 钳制：`transfer ≤ FIN_TRANSFER_CAP`、`keep ≤ FIN_KEEP_CAP`、各率 ≥ 0。
+    纯函数（不读 state）；结算侧唯一出口为 `GameStateEconMixin.finance_split`。
+    """
+    t = _clamp(float(transfer), 0.0, FIN_TRANSFER_CAP)
+    k = _clamp(float(keep), 0.0, FIN_KEEP_CAP)
+    d = max(0.0, float(div))
+    delta = 1.0 - (t + k + d)
+    if abs(delta) <= 1e-12:
+        return t, k, d
+    # ① diversion 先吸收（残差）
+    nd = max(0.0, d + delta)
+    delta -= (nd - d)
+    d = nd
+    if abs(delta) <= 1e-12:
+        return t, k, d
+    # ② keep 其次
+    nk = _clamp(k + delta, 0.0, FIN_KEEP_CAP)
+    delta -= (nk - k)
+    k = nk
+    if abs(delta) <= 1e-12:
+        return t, k, d
+    # ③ transfer 最后（极端输入兜底；正常值域不可达）
+    t = _clamp(t + delta, 0.0, FIN_TRANSFER_CAP)
+    return t, k, d
+
+
 def cap_monthly_price(prev: float, target: float, cap: float) -> float:
     """把 target 钳制到相对 prev 的单月变动上限内（整改①-3「价格有月度上限」）。
 
@@ -548,6 +584,61 @@ class GameStateEconMixin:
             - diversion * ARRIVAL_DIVERSION_WEIGHT
         )
         return max(ARRIVAL_MIN, min(ARRIVAL_MAX, rate))
+
+    # ================================================================
+    # P1 双层税基 · 四率（V1.3 终稿 §2-§3；Q3 甲：先作用于田赋折色）
+    # ================================================================
+    def calc_collection_rate(self, route: str) -> float:
+        """征收率（P1 首版·C2 小权重起步）：基线 ＋ 治理微调（全域约 ±0.02）。
+
+        征收侧唯一出口（原由 `arrival` 一并承担，P1 拆出）；灾/逃项留 P4 小权重接入。
+        """
+        p = self.prefectures.get(route) or {}
+        gov = float(p.get("govern", FIN_KEEP_GOVERN_ANCHOR) or FIN_KEEP_GOVERN_ANCHOR)
+        base = float((getattr(self, "finance", None) or {}).get(
+            "collection_rate", FIN_COLLECTION_BASE))
+        rate = base + (gov - FIN_KEEP_GOVERN_ANCHOR) * FIN_COLLECTION_GOVERN_W
+        return _clamp(rate, FIN_COLLECTION_MIN, FIN_COLLECTION_MAX)
+
+    def finance_split(self, route: str) -> tuple:
+        """该路归一三率 `(transfer, keep, div)`（保证 t+k+d≡1）。
+
+        结算侧唯一出口；归一化单点见 `normalize_finance_split`（保护顺序 div→keep→transfer）。
+        """
+        fin = getattr(self, "finance", None) or {}
+        p = self.prefectures.get(route) or {}
+        gov = float(p.get("govern", FIN_KEEP_GOVERN_ANCHOR) or FIN_KEEP_GOVERN_ANCHOR)
+        keep = _clamp(float(fin.get("local_keep_rate", FIN_KEEP_BASE))
+                      + (gov - FIN_KEEP_GOVERN_ANCHOR) * FIN_KEEP_GOVERN_W,
+                      FIN_KEEP_MIN, FIN_KEEP_MAX)
+        return normalize_finance_split(
+            float(fin.get("transfer_rate", FIN_TRANSFER_RATE)), keep,
+            float(fin.get("diversion_rate", FIN_DIV_RATE)))
+
+    def calc_land_tax_channels(self) -> dict:
+        """田赋折色「双层税基＋三率」读数（只读；P1·Q3 甲：**仅折色**走新模型）。
+
+        返回 `{"assessed_total": int, "by_route": {路: {tax_base, assessed, transfer, keep, div}}}`
+        - `tax_base`：全额税基（贯/月；＝旧公式去 arrival 折扣）；
+        - `assessed`：应征 ＝ `int(tax_base × collection_rate)`；
+        - 三率为**归一后**值（assessed 可被完整三分，无残差）。
+        """
+        hyd = self.tech.get("hydraulics", 40) / 100.0
+        hidden = self.land.get("hidden_rate", 0.35)
+        harvest = self.land.get("yield", 1.0)
+        by_route = {}
+        total = 0
+        for name, p in self.prefectures.items():
+            gy = float(p.get("grain", 0))                    # 年总产（石/年）
+            tax_base = (gy * LAND_TAX_RATE_BENEFIT * harvest * (1 - hidden)
+                        * (0.8 + 0.4 * hyd) * TAX_COLOR_RATE
+                        * self.grain_price / 12.0)           # 年折色总额按月 1/12
+            assessed = int(tax_base * self.calc_collection_rate(name))
+            transfer, keep, div = self.finance_split(name)
+            by_route[name] = {"tax_base": tax_base, "assessed": assessed,
+                              "transfer": transfer, "keep": keep, "div": div}
+            total += assessed
+        return {"assessed_total": int(total), "by_route": by_route}
 
     # ================================================================
     # 经济全浮动重构：派生函数族（纯函数风格，返回 (total, by_route) 或 float）
