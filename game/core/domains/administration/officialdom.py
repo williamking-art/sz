@@ -432,9 +432,32 @@ def ensure_clan(state) -> int:
     """初始化士绅 POP 的 `clan`（宗室人口）子池；旧档按士绅 0.3% 一次性给初值（≈3,000）。
 
     宗室 ⊆ 士绅（官户/形势户一类），**不新开第 7 类 POP**（POP 挂载律 条 1）。
+
+    U0001f534 2026-10-08（批 1-E）**逐治所播种**：`clan` 虽在 `SPLIT_FIELDS` 内，但**治所行从未播种**
+    ⇒ `sync_route_pops` 聚合不到该字段 ⇒ 路级也拿不到值 ⇒ 本函数每月判定「路级缺 clan」
+    又路级直写 ⇒ 下月被 sync 抹掉 ⇒ **20 处/月 永久往返**（实测）。
+    正确修法是**按治所 `size` 比例在真账层播种**（与 `clan` 的拆分依据一致），之后桥接才能生效。
     """
     total = 0
     for p in state.prefectures.values():
+        _seats = p.get("seats") or {}
+        if _seats:
+            _ch = False
+            for _st in _seats.values():
+                _row = ((_st or {}).get("pops") or {}).get(GENTRY_CLASS)
+                if not isinstance(_row, dict):
+                    continue
+                if "clan" not in _row:
+                    _sv = _row.get("size", 0)
+                    _sz = (max(0, int(_sv)) if isinstance(_sv, (int, float))
+                           and not isinstance(_sv, bool) else 0)
+                    _row["clan"] = int(_sz * 0.003)
+                    _ch = True
+                total += max(0, int(_row.get("clan", 0) or 0))
+            if _ch:
+                from core.foundation.ledger.pop_bridge import sync_route_pops
+                sync_route_pops(p)
+            continue
         pop = (p.get("pops") or {}).get(GENTRY_CLASS)
         if not isinstance(pop, dict):
             continue
@@ -442,7 +465,6 @@ def ensure_clan(state) -> int:
             pop["clan"] = int(int(pop.get("size", 0) or 0) * 0.003)
         total += max(0, int(pop.get("clan", 0) or 0))
     return total
-
 
 def clan_total(state) -> int:
     return sum(max(0, int(((p.get("pops") or {}).get(GENTRY_CLASS) or {}).get("clan", 0) or 0))
@@ -709,7 +731,9 @@ def _annual_clan(state, log) -> int:
             continue
         add = int(clan * CLAN_GROWTH_ANNUAL)
         if add > 0:
-            shen["clan"] = clan + add
+            # U0001f534 2026-10-08（批 1-E）走桥接：`clan` 在 `SPLIT_FIELDS` 内，路级直写会被 sync 静默撤销
+            if _pop_obj_add(state, shen, "clan", add) is None:
+                shen["clan"] = clan + add
             if _pop_obj_add(state, shen, "size", add) is None:
                 shen["size"] = int(shen.get("size", 0)) + add   # 新增人丁（非转移）
             # **必须同步人口总账**：POP 挂载律 条 3 要求阶层变动「ΣPOP 守恒**或显式记为
