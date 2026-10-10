@@ -1,19 +1,13 @@
 {
- "phase": "经济核心决策已落地：路线粮价需求按本地人口与隐户；AI档位对照验证历史分歧；M30 alias cache identity债务已修复。用户要求暂停的兵种注册修复仍保留未提交工作区，不继续军事行为修改。",
+ "phase": "非军事经济目标已完成：路线粮价本地化、AI经济档位长局分歧验证、M30缓存债务关闭；用户暂停的兵种注册桥接仍未提交。",
  "updatedAt": "2026-10-11",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量 --junitxml tests=2470/failures=0/errors=0/skipped=2；经济/价格/缓存定向117 passed",
-  "localGrain": "calc_region_grain_price 本路需求只计本路population + 农.hidden；跨路hidden干预本路价 delta=0，本地+200万隐户使本地价约+0.293；全国酒耗/中央太仓仍按在籍人口份额分摊",
-  "aiDivergence": "同一新局城市化无/极对照12月和60月均可测分歧；60月极档对无档：农-11,413,123、工匠+5,774,996、商人+3,850,794；路线粮价20/20不同，平均绝对差约0.0244",
-  "cacheDebt": "material_tech/settlement_agri alias dict 改为原地 clear/update，facade引用存活；M30目标已实现，pop_bridge._GUARD_INSTALLED 例外独立保留",
-  "militaryScope": "兵种注册兵粮饷桥接与测试仍为既有未提交改动；按用户明确要求本轮不处理/提交该军队事项",
-  "handover": "交接 summary/check 通过，问题=0"
+  "pytest": "本轮完整 --junitxml tests=2470 / failures=0 / errors=0 / skipped=2；经济+缓存定向117 passed；兵种注册与经济价格定向21 passed",
+  "grain": "本路需求=本路在籍人口+农.hidden；本地新增200万隐户使本路价约+0.293，外路同增对本路价格delta=0；全国酒耗/太仓按在籍人口权重",
+  "ai": "城市化无/极同初局12月回归；60月量化农-11,413,123，工匠+5,774,996，商人+3,850,794；20/20路线价有差",
+  "handover": "A-粮价 decided/blocks清空；M30 done；M25保留架构阶段3跟进且不阻塞经济改动；handover check 问题=0",
+  "paused": "兵种注册粮饷桥接和下沉守卫回归仍在两个未提交文件；遵守用户‘军队的事情等一下’，不提交。"
  },
- "delivered": [
-  "A-粮价本地化裁决与实现",
-  "AI经济档位长局差异回归",
-  "M30缓存身份兼容修复与回归"
- ],
- "next": "先向用户报告未提交军队改动仍留在工作区；待允许后单独收口。经济核心事项已验证，后续再校准市场平衡，不改人均耗粮/价格上限基准。"
+ "next": "等待用户恢复军队范围后，提交已完成的兵种注册 POP 真账桥接；其它经济目标均已完成。"
 }
