@@ -139,6 +139,8 @@ def save_game(state, slot: int = 1) -> bool:
         "arrival_rate_base": state.arrival_rate_base,
         # 财政四率容器（P1 双层税基；V1.3 终稿 §11）——读档侧由 _migrate_finance 幂等补值
         "finance": dict(getattr(state, "finance", None) or {}),
+        # 勾校案卷（P3；V1.3 §7）：随档持久化，读档侧缺省补 {}
+        "audit_cases": dict(getattr(state, "audit_cases", None) or {}),
         "treasury": state.treasury,
         # 累计亏空深度（B3）：破产两档线判据，须随档持久化
         "treasury_deficit": getattr(state, "treasury_deficit", 0),
@@ -465,6 +467,9 @@ def _load_with_data(slot: int = 1):
     state.arrival_rate_base = data.get("arrival_rate_base", 0.45)
     # 财政四率容器（P1 双层税基；V1.3 终稿 §11）：旧档缺省／坏值幂等补默认
     state.finance = _migrate_finance(data.get("finance"))
+    # 勾校案卷（P3；V1.3 §7）：旧档缺省 → {}（缺省不臆造）
+    _cases = data.get("audit_cases")
+    state.audit_cases = _cases if isinstance(_cases, dict) else {}
     state.treasury = data.get("treasury", 5000000)
     # 累计亏空深度（B3）：旧档缺省为 0（兼容）
     state.treasury_deficit = _safe_int(data.get("treasury_deficit", 0), 0)

@@ -299,6 +299,16 @@ def _chapter_finance(state) -> List[str]:
                          f"恐有胥吏上下其手，请遣人核之。")
         else:
             lines.append(f"诸路耗损偏重（耗率 {share:.0%}，常例约 {FIN_LOSS_NORM:.0%}），宜察。")
+    # P3 勾校风闻（三级"证据"）：本月新立案卷（证据在握）→ 御史风闻
+    _cases = getattr(state, "audit_cases", None) or {}
+    _turn = int(getattr(state, "turn", 0) or 0)
+    for _c in _cases.values():
+        if not isinstance(_c, dict) or _c.get("status") != "证据在握":
+            continue
+        _ct = _c.get("created_turn")
+        # 注意：created_turn 可为 0（开局回合）——不得用 `or` 兜底（falsy-zero 陷阱）
+        if isinstance(_ct, (int, float)) and int(_ct) == _turn:
+            lines.append(f"御史风闻：{_c.get('route', '')} 路账目异常，已立案待勘。")
     return lines or ["本月度支无异常可记。"]
 
 

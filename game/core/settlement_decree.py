@@ -301,6 +301,21 @@ def _apply_decree_effect(state, decree, log):
     **整月结算被打断**；`commerce_tax` 的 min/max 钳位遇 NaN 会返回下界（=最高税）。
     """
     _raw = decree.get("effects", {})
+    # ---- P3 勾校诏令（V1.3 §7）：**先于数值过滤**处理（载荷为路名/字典，非数值）----
+    if isinstance(_raw, dict) and "audit_route" in _raw:
+        from core.audit_case import resolve_audit
+        _ar = _raw["audit_route"]
+        if isinstance(_ar, str):
+            _ar = {"route": _ar}
+        if isinstance(_ar, dict):
+            _res = resolve_audit(
+                state, str(_ar.get("route", "")),
+                executor=_ar.get("executor") or decree.get("executor"),
+                secret=bool(_ar.get("secret")), log=log)
+            if not _res.get("ok"):
+                log.append(f"[勾校] 未成：{_res.get('reason')}")
+        else:
+            log.append("[勾校] 载荷非法（须为路名或 {route,executor,secret}），未执行")
     effects = {}
     if isinstance(_raw, dict):
         for _k, _v in _raw.items():

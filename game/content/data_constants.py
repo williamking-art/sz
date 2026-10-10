@@ -99,6 +99,15 @@ FIN_LOSS_NORM = 0.02               # 正常账面损耗参考份额（对齐开�
 FIN_LOSS_ALERT_MULT = 1.5          # "耗损偏重/异常"触发倍数（份额 ≥ norm×mult 即异常）
 FIN_ANOMALY_OVERSIGHT_LINE = 0.45  # 监察力度闸门：oversight ≥ 线 → 呈报升至"耗损异常"（信息差二级）
 
+# P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
+FIN_AUDIT_BASE = 0.35            # 保真度基线
+FIN_AUDIT_INTEGRITY_W = 0.45     # 执行者清廉权重（正：corruption 越低越查得实）
+FIN_AUDIT_GRIP_W = 0.60          # 目标路把持度权重（负：grip 越高越蒙蔽）
+FIN_AUDIT_SPY_W = 0.20           # 谍报覆盖权重（正；spy_network 最高覆盖）
+FIN_AUDIT_SECRET_BONUS = 0.15    # 密查加成（绕会签、少走漏）
+FIN_AUDIT_EVIDENCE_LINE = 0.55   # ≥ 线 → "查得实情"（成案·证据在握）
+FIN_AUDIT_BACKFIRE_LINE = 0.25   # < 线 → "反噬"（查官被倒打一耙）
+
 # ============================================================
 # 经济/财政
 # ============================================================

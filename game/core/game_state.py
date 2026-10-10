@@ -575,6 +575,10 @@ class GameState(GameStateEconMixin):
             "local_keep_rate": FIN_KEEP_BASE,
             "diversion_rate": FIN_DIV_RATE,
         }
+        # ---- 勾校案卷（P3 发现系统；V1.3 终稿 §7；Q11 抄没前置）----
+        # {case_id: {id, route, outcome, fidelity, executor, secret, created_turn,
+        #            status(证据在握/查无实据/反噬), evidence, judgement}}
+        self.audit_cases: dict = {}
 
         # ---- 国库 ----
         self.treasury: int = TREASURY_START

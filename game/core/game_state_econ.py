@@ -46,6 +46,9 @@ from content.data import (
 # game_state.py、本文件 mixin 方法共三份重复）
 from content.data import clamp as _clamp  # noqa: E402
 
+# P3 发现系统（V1.3 §7）：四级阶梯读数（异常→怀疑→证据→真相；只读组装）
+from core.audit_case import discovery_readout as _discovery_readout  # noqa: E402
+
 # 官制 × POP 的单一权威源（官额/吏额/子池付款权数一律经此读取，杜绝 officials 双账复活）
 from core.domains.administration import officialdom as _officialdom  # noqa: E402
 
@@ -553,6 +556,8 @@ class GameStateEconMixin:
                 "diverted": int(self.statistics.get("land_tax_diverted", 0) or 0),
             },
             "tax_loss": self.tax_loss_readout(),
+            # P3 发现系统（V1.3 §7）：四级阶梯读数（异常→怀疑→证据→真相）
+            "discovery": _discovery_readout(self),
             "monthly_in": monthly_in,              # 月实际到库合计
             "expenditure": expenditure,            # 月常支（派生）
             "army_cash": army_cash_total,          # 月军费（折色饷钱）
