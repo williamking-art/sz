@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-10T16:33:11Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-10T16:39:34Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -11,7 +11,6 @@
 ## 任务板（未完成）
 
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
-- `M32-guard-installed-rebind` _GUARD_INSTALLED 全局重绑跨测污染：install_all_guards 调完不 reset ｜status=**open-registered**｜claimedBy=DSH
 
 ## 待裁 / 未闭环决策
 
@@ -21,7 +20,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261010T131030Z-DSH` → [`worklog/20261010T131030Z-DSH.md`](worklog/20261010T131030Z-DSH.md)
 - `20261010T133245Z-DSH` → [`worklog/20261010T133245Z-DSH.md`](worklog/20261010T133245Z-DSH.md)
 - `20261010T133911Z-DSH` → [`worklog/20261010T133911Z-DSH.md`](worklog/20261010T133911Z-DSH.md)
 - `20261010T140033Z-DSH` → [`worklog/20261010T140033Z-DSH.md`](worklog/20261010T140033Z-DSH.md)
@@ -29,8 +27,9 @@
 - `20261010T160525Z-DSH` → [`worklog/20261010T160525Z-DSH.md`](worklog/20261010T160525Z-DSH.md)
 - `20261010T161056Z-DSH` → [`worklog/20261010T161056Z-DSH.md`](worklog/20261010T161056Z-DSH.md)
 - `20261010T162859Z-DSH` → [`worklog/20261010T162859Z-DSH.md`](worklog/20261010T162859Z-DSH.md)
+- `20261010T163917Z-DSH` → [`worklog/20261010T163917Z-DSH.md`](worklog/20261010T163917Z-DSH.md)
 
 ## 计数
 
-- tasks 10（未完成 2）· decisions 13（未闭环 3）· worklog 79 · phase 文件 2
+- tasks 10（未完成 1）· decisions 13（未闭环 3）· worklog 80 · phase 文件 2
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
