@@ -59,6 +59,14 @@ export interface ArmyUnitReadout {
   equip?: Record<string, number>;
   /** 该军**累计欠饷**（贯）— 阶段 B-3 新增；国库不足时按月分摊累加 */
   arrears?: number;
+  /**
+   * 该军**应发月饷**（贯/月）。来源 core/region_brief.unit_cost_readout：
+   * 与 calc_army_cash 用同一张 branch_std 权威表，只是按军取明细。
+   * 读不到 → 缺省（前端显示「未定义」，**不回落 0**）。
+   */
+  monthly_pay?: number | null;
+  /** 该军**月粮消耗**（石/月）。来源同上，与 calc_army_grain 同源。 */
+  monthly_grain?: number | null;
   army_name: string;
   org_arm: string;
   scale: string;

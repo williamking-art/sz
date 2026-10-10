@@ -47,6 +47,7 @@
 | `PrefecturePanel` | 路（州府） |
 | `LocalArchivePanel` | 地方志 |
 | `ProvinceMilitaryPanel` | 州郡军 |
+| `ProvinceArchivePanel` | **州路档案（左侧多页面抽屉）**：选中舆图上的**路**后由 `App` 常驻挂载；页签＝概览/人口/民情/施政/军政/营建/财赋，同一选中对象下切页；州府下钻走既有 `LocalArchivePanel`（不另造府级口径） |
 
 ### 军政与外交
 `MilitaryPanel`（军）· `DiplomacyPanel`（外交）
@@ -74,6 +75,7 @@
 | `PlanReadoutPanel.test.tsx` | **显示纪律**：四层分列、待支持不进告成块、缺读数不以空白冒充"无工程"、按路过滤时层级与台账一并过滤 |
 | `LocalArchivePanel.test.tsx` | 地方志面板 |
 | `regionLinkage.test.tsx` | 区域联动 |
+| `ProvinceArchivePanel.test.tsx` | 州路档案多页面抽屉：默认概览、切页不改选中路、州府下钻走 `localarchive`、军队标签开单军档案、缺失显示「未定义」 |
 
 ## 纪律
 

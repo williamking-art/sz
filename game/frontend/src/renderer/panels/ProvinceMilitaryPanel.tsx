@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getApiClient } from "../api/client";
 import type { ReadoutsResult } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import ArmyDossier from "../components/ArmyDossier";
 import { wan } from "../utils/format";
 
 // 省级军政 —— 点击舆图的路（省），或由「地方档案」跳入。
@@ -22,6 +23,11 @@ interface MUnit {
   morale: number | null; training: number | null; arrears: number | null;
   org_arm: string;
   branches: Record<string, number>;
+  /** 以下四项只作「单军档案」展示（后端读数原样透传，前端不重算） */
+  equip_rate: number | null;
+  equip: Record<string, number>;
+  monthly_pay: number | null;
+  monthly_grain: number | null;
 }
 interface MRoute {
   route: string; units: number; troops: number; morale_weighted: number; arrears: number;
@@ -68,6 +74,8 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
   const [newName, setNewName] = useState("");
   const [mergePick, setMergePick] = useState("");
   const [commander, setCommander] = useState("");
+  // 单军档案（与地图驻军卡、全军面板**共用同一实现**）
+  const [dossier, setDossier] = useState<MUnit | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -112,7 +120,14 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
         morale: numOrNull(u.morale),
         training: numOrNull(u.training),
         arrears: numOrNull(u.arrears),
-        branches: Object.fromEntries(Object.entries(asDict(u.branches)).map(([k, v]) => [k, Number(v) || 0]))
+        branches: Object.fromEntries(Object.entries(asDict(u.branches)).map(([k, v]) => [k, Number(v) || 0])),
+        // 「单军档案」需要的字段：**原样透传**后端读数，前端不重算（缺失留 null → 档案示「未定义」）
+        equip_rate: numOrNull(u.equip_rate),
+        equip: Object.fromEntries(
+          Object.entries(asDict(u.equip)).map(([k, v]) => [k, Number(v) || 0])
+        ),
+        monthly_pay: numOrNull(u.monthly_pay),
+        monthly_grain: numOrNull(u.monthly_grain)
       }))
       .sort((a, b) => b.troops - a.troops);
   }, [army, route]);
@@ -259,6 +274,7 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                     <th className="px-2 py-1 text-right">士气</th>
                     <th className="px-2 py-1 text-right">欠饷</th>
                     <th className="px-2 py-1 text-left">所属司</th>
+                    <th className="px-2 py-1 text-right">档案</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,10 +290,22 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
                       <td className="px-2 py-0.5 text-right">{numText(u.morale)}</td>
                       <td className="px-2 py-0.5 text-right">{wan(u.arrears, "")}</td>
                       <td className="px-2 py-0.5">{u.org_arm || "—"}</td>
+                      <td className="px-2 py-0.5 text-right">
+                        {/* 军队标签 → 单军档案（点行 = 选中军令对象，两者互不干扰） */}
+                        <button
+                          type="button"
+                          aria-label={"查看" + (u.army_name || u.name) + "档案"}
+                          title="查看该编制单位档案：人员 / 兵种 / 粮饷 / 士气 / 训练 / 装备"
+                          onClick={(ev) => { ev.stopPropagation(); setPicked(u.unit_id); setDossier(u); }}
+                          className="rounded border border-gold/40 px-1.5 py-0.5 text-[11.5px] text-dim hover:bg-gold/10 hover:text-ink"
+                        >
+                          档案
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {routeUnits.length === 0 ? (
-                    <tr><td className="px-2 py-2 text-dim" colSpan={6}>（本路暂无可列编制单位）</td></tr>
+                    <tr><td className="px-2 py-2 text-dim" colSpan={7}>（本路暂无可列编制单位）</td></tr>
                   ) : null}
                 </tbody>
               </table>
@@ -373,6 +401,9 @@ export default function ProvinceMilitaryPanel({ props }: { props?: Dict }) {
           </section>
         </>
       )}
+
+      {/* 单军档案：地图驻军卡 / 州路档案军政页 / 本面板三处**同一实现** */}
+      <ArmyDossier unit={dossier as never} onClose={() => setDossier(null)} />
     </div>
   );
 }

@@ -9,7 +9,9 @@ if _GAME_ROOT not in sys.path:
     sys.path.insert(0, _GAME_ROOT)
 
 from core.game_state import GameState                       # noqa: E402
-from core.region_brief import route_military_summary        # noqa: E402
+import pytest  # noqa: E402
+
+from core.region_brief import route_military_summary, unit_cost_readout  # noqa: E402
 
 
 def _new_state():
@@ -57,3 +59,74 @@ def test_cash_and_grain_reuse_region_brief_totals():
     m = route_military_summary(s)
     assert abs(sum(r["cash_month"] or 0 for r in m["routes"]) - m["nation"]["cash_month"]) < 0.05
     assert abs(sum(r["grain_month"] or 0 for r in m["routes"]) - m["nation"]["grain_month"]) < 0.05
+
+
+# ---------------------------------------------------------------
+# 单军粮饷明细（面板「点开某一支军」用）—— 与全局口径**同源**，不得另算一套
+# ---------------------------------------------------------------
+def test_unit_cost_readout_sums_to_army_totals():
+    """Σ单军月饷 == calc_army_cash；Σ单军月粮 == calc_army_grain（权威表同一张）。"""
+    s = _new_state()
+    pay = 0.0
+    grain = 0.0
+    for u in s.army_units:
+        c = unit_cost_readout(u)
+        assert set(c) == {"monthly_pay", "monthly_grain"}
+        assert c["monthly_pay"] is not None, "开局军队应可算出应发月饷"
+        pay += float(c["monthly_pay"])
+        grain += float(c["monthly_grain"])
+    cash_total, _ = s.calc_army_cash()
+    grain_total, _ = s.calc_army_grain()
+    assert abs(pay - cash_total) < 0.05, f"Σ单军月饷 {pay} != calc_army_cash {cash_total}"
+    assert abs(grain - grain_total) < 0.05, f"Σ单军月粮 {grain} != calc_army_grain {grain_total}"
+
+
+def test_route_military_units_carry_costs_and_match_route_row():
+    """`route_military_summary(route).units` 带月饷/月粮，且逐军求和 == 该路行合计。"""
+    s = _new_state()
+    station = s.army_units[0].station
+    m = route_military_summary(s, station)
+    assert m["units"], "该路应有军队"
+    for u in m["units"]:
+        assert "monthly_pay" in u and "monthly_grain" in u, "单军行缺粮饷明细"
+    pay = sum(float(u["monthly_pay"] or 0) for u in m["units"])
+    grain = sum(float(u["monthly_grain"] or 0) for u in m["units"])
+    assert abs(pay - float(m["summary"]["cash_month"] or 0)) < 0.05
+    assert abs(grain - float(m["summary"]["grain_month"] or 0)) < 0.05
+
+
+def test_unit_cost_readout_stays_consistent_on_unknown_branch():
+    """未知兵种：读数不得炸，且必须与权威表（calc_army_* / branch_std）逐分不分岉。
+
+    `branch_std` 对未知兵种回落轻步兵（现行权威行为，calc_army_cash/grain 同样如此）——
+    本读数属于同一口径，故不得单方面“严于”权威表（那会让 Σ单军 != calc_army_*）。
+    """
+    s = _new_state()
+    u = s.army_units[0]
+    keep = dict(u.branches)
+    try:
+        u.branches = dict(keep)
+        u.branches["不存在的兵种"] = 1000
+        c = unit_cost_readout(u)
+        assert c["monthly_pay"] is not None, "未知兵种不得让读数整条失败"
+        pay = grain = 0.0
+        for x in s.army_units:
+            cc = unit_cost_readout(x)
+            pay += float(cc["monthly_pay"] or 0)
+            grain += float(cc["monthly_grain"])
+        cash_total, _ = s.calc_army_cash()
+        grain_total, _ = s.calc_army_grain()
+        assert abs(pay - cash_total) < 0.05, "未知兵种下与 calc_army_cash 分叉"
+        assert abs(grain - grain_total) < 0.05, "未知兵种下与 calc_army_grain 分叉"
+    finally:
+        u.branches = keep
+
+
+def test_unit_cost_readout_is_read_only():
+    """粮饷明细是只读派生：调用前后 army_units 逐字一致。"""
+    s = _new_state()
+    before = _fingerprint(s)
+    for u in s.army_units:
+        unit_cost_readout(u)
+    assert _fingerprint(s) == before, "粮饷读数改动了 army_units"
+

@@ -6,6 +6,7 @@ import RightStrip from "./hud/RightStrip";
 import Dock from "./hud/Dock";
 import MapCartouche from "./hud/MapCartouche";
 import OverlayStack from "./panels/OverlayStack";
+import ProvinceArchivePanel from "./panels/ProvinceArchivePanel";
 import MainMenu from "./main-menu/MainMenu";
 import { ApiClient, setApiClient, COLD_START_WAIT_MS } from "./api/client";
 import { useGameStore, pick } from "./store/gameStore";
@@ -137,6 +138,9 @@ export default function App() {
       <LeftTodo />
       <RightStrip />
       <Dock />
+
+      {/* L1.5 选中的**路** → 左侧多页面州路档案（地图仍可见，见 ProvinceArchivePanel） */}
+      <ProvinceArchivePanel />
 
       {/* L2 面板浮层栈 */}
       <OverlayStack />

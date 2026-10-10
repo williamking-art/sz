@@ -33,7 +33,7 @@ from core.foundation.common.numeric import parse_number as _num, clamp as _clamp
 log = logging.getLogger("region_brief")
 
 __all__ = ["build_region_brief", "route_risk", "build_prefecture_brief",
-           "hidden_surveyed", "route_military_summary"]
+           "hidden_surveyed", "route_military_summary", "unit_cost_readout"]
 
 
 def _route_literacy(state, name: str):
@@ -429,6 +429,36 @@ def build_region_brief(state) -> Dict[str, Any]:
 # ============================================================
 # 省级军政（P1，2026-09-27 方案 §3）
 # ============================================================
+def unit_cost_readout(unit) -> Dict[str, Any]:
+    """单军**月度成本读数**（只读派生）：应发月饷（贯/月）与月粮（石/月）。
+
+    - 与 `game_state_econ.calc_army_cash` / `calc_army_grain` 用**同一张权威表**
+      （`branch_std(军籍, 兵种).pay|grain`，即 `BRANCH_BASE × ARMY_RATE` 按率）；
+      此处只是**按军取明细**（面板点开某一支军看它自己的粮饷），**不另设军费/军粮口径**；
+    - 军饷直接复用 `army_models.unit_monthly_pay`（该函数已是"欠饷/月饷"折扣的分母）；
+    - 口径为**应发额**（与 `calc_army_*` 的 `for_issue=False` 一致）。"乡兵自备"是
+      **实发**口径（`for_issue=True` 只发禁军+厢军），由结算侧承担，不在本条读数里改写。
+    - 兵种键无法解析 → **跳过该项**（不猜值）；因此可能略小于"应发"而**不**回落 0。
+    """
+    from core.domains.military.army_models import branch_std, unit_monthly_pay
+
+    grain = 0.0
+    for key, n in (getattr(unit, "branches", None) or {}).items():
+        try:
+            tier, branch = unit._split_key(key)
+            grain += float(n) * float(branch_std(tier, branch).get("grain", 0) or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+    try:
+        pay = float(unit_monthly_pay(unit))
+    except Exception:                       # noqa: BLE001 — 读数失败按缺失处理，不炸整份读数
+        pay = None
+    return {
+        "monthly_pay": None if pay is None else round(pay, 2),
+        "monthly_grain": round(grain, 1),
+    }
+
+
 def route_military_summary(state, route: str | None = None) -> Dict[str, Any]:
     """省级军政（**只读派生**）：按路聚合 `army_units` 实体。
 
@@ -445,6 +475,7 @@ def route_military_summary(state, route: str | None = None) -> Dict[str, Any]:
             troops = int(getattr(u, "troops", 0) or 0)
         except Exception:                 # noqa: BLE001
             troops = 0
+        cost = unit_cost_readout(u)
         return {
             "unit_id": str(getattr(u, "unit_id", "") or ""),
             "name": str(getattr(u, "name", "") or ""),
@@ -457,6 +488,8 @@ def route_military_summary(state, route: str | None = None) -> Dict[str, Any]:
             "training": int(_num(getattr(u, "training", 0))),
             "arrears": max(0, int(_num(getattr(u, "arrears", 0)))),
             "branches": {str(k): max(0, int(_num(v))) for k, v in br.items()},
+            "monthly_pay": cost["monthly_pay"],
+            "monthly_grain": cost["monthly_grain"],
         }
 
     all_units = [u for u in (getattr(state, "army_units", None) or [])]

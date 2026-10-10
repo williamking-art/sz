@@ -383,10 +383,15 @@ export default function MapView() {
     if (markersRef.current && foundCoord) {
       markersRef.current.pulseAt(foundCoord);
     }
-    // 2026-09-27（地方档案 P0）：点**府/州**或**路** → 直接开「地方档案」；
+    // 2026-09-27（地方档案 P0）：点**府/州** → 开「地方档案」浮层；
+    // 2026-10-11：点**路** → 改由左侧「州路档案」多页面抽屉呈现（App 层挂载，读同一 selected），
+    //   不再叠加浮层——否则抽屉与浮层会同时出现，且路级信息被挤进小卡。
     // 其余（如政权）仍走 detail。detail（查阅路分账册/诏令）仍可由其它入口打开，未移除。
-    if (kind === "city" || kind === "circuit") {
+    if (kind === "city") {
       pushOverlay({ kind: "localarchive", title: name, props: { kind, name, props: foundProps } });
+      return;
+    }
+    if (kind === "circuit") {
       return;
     }
     pushOverlay({

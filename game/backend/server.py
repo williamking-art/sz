@@ -739,16 +739,23 @@ def api_readouts(request: Request):
             s._derive_defense_lines()
         except Exception:
             log.warning("readouts：防线段派生失败（defense_lines 可能滞后）", exc_info=True)
+        # 单军**月饷/月粮**读数：算法单点在 `core/region_brief.unit_cost_readout`
+        # （与 `calc_army_cash` / `calc_army_grain` 同一张 `branch_std` 权威表）。
+        # 薄壳只负责调用与序列化；读数不可用 → `None`（前端显示"未定义"，不回落 0）。
+        from core.region_brief import unit_cost_readout as _unit_cost
         army = []
         army_dropped = 0
         for u in getattr(s, "army_units", []) or []:
             try:
+                _cost = _unit_cost(u)
                 army.append({
                     "unit_id": u.unit_id, "name": u.name, "tier": u.tier,
                     "branches": dict(u.branches), "troops": u.troops,
                     "station": u.station, "defense_line": u.defense_line,
                     "morale": u.morale, "training": u.training,
                     "equip_rate": round(u.equip_rate(), 3),
+                    "monthly_pay": _cost["monthly_pay"],
+                    "monthly_grain": _cost["monthly_grain"],
                     # 阶段 B-3：装备**实物明细**（7 项）＋ 该军累计**欠饷**（贯），
                     # 供前端"点开某军 → 明细窗"显示人员/兵种/装备/士气/欠饷。
                     "equip": dict(getattr(u, "equip", {}) or {}),
