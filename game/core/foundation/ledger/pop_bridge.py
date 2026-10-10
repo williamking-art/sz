@@ -549,6 +549,8 @@ _VIOLATIONS = []
 #: 结构化守卫记录：与 `_VIOLATIONS` 一一对应，供批 2 归因探针读取。
 #: 不改变旧列表格式；合法镜像刷新仍由 `_pops_write_exempt` 完全豁免。
 _VIOLATION_DETAILS = []
+#: 批 2-1 诊断开关；默认关闭，避免生产守卫为调用栈付出额外开销。
+_GUARD_TRACE = False
 _GUARD_INSTALLED = False
 
 #: 豁免深度 > 0 时守卫**只记账不计数** —— `sync_route_pops` 的镜像刷新属合法写入，
@@ -577,6 +579,27 @@ class _pops_write_exempt:
 
 def _charging() -> bool:
     return not _EXEMPT
+
+
+def set_pops_guard_trace(enabled: bool = True) -> None:
+    """开启/关闭守卫调用点诊断（批 2-1 探针使用，默认关闭）。"""
+    global _GUARD_TRACE
+    _GUARD_TRACE = bool(enabled)
+
+
+def _trace_detail() -> dict:
+    if not _GUARD_TRACE:
+        return {}
+    try:
+        import sys
+        # _trace_detail → _rec → __setitem__/update → 生产调用方
+        fr = sys._getframe(3)
+        return {"file": fr.f_code.co_filename, "line": fr.f_lineno,
+                "function": fr.f_code.co_name}
+    except Exception:
+        return {}
+
+
 class _GuardedPops(dict):
     """路级 `pops` 只读守卫：任何**直接写入**都会记录到 `_VIOLATIONS`。"""
 
@@ -587,7 +610,7 @@ class _GuardedPops(dict):
             return
         if len(_VIOLATIONS) < 500:
             _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
-            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val})
+            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val, **_trace_detail()})
 
     def __setitem__(self, key, value):
         self._rec(key, value)
@@ -620,7 +643,7 @@ class _GuardedRow(dict):
             return
         if len(_VIOLATIONS) < 500:
             _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
-            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val})
+            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val, **_trace_detail()})
 
     def __setitem__(self, key, value):
         self._rec(key, value)
@@ -682,6 +705,8 @@ def reset_pops_guard() -> None:
     """清空守卫记账（测试用）。"""
     del _VIOLATIONS[:]
     del _VIOLATION_DETAILS[:]
+    global _GUARD_TRACE
+    _GUARD_TRACE = False
 
 __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
     "split_int",
@@ -691,7 +716,7 @@ __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
            "pop_obj_set", "pop_obj_add",
            # 路级 pops 只读守卫（5b 退役）
            "install_pops_guard", "install_all_guards",
-           "pops_guard_violations", "pops_guard_violation_details", "reset_pops_guard"]
+           "pops_guard_violations", "pops_guard_violation_details", "set_pops_guard_trace", "reset_pops_guard"]
 
 
 def pops_guard_violation_details() -> list:

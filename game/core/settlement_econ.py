@@ -1470,14 +1470,18 @@ def _sell_to_buyers(p, seller, qty, price, copper_share=1.0, state=None):
         pop = p["pops"][pop_name]
         # 逐户封顶：绝不扣穿当前 wealth（实收不足部分由卖方按实收记账，钱不进不出）
         share = max(0, min(share, int(pop.get("wealth", 0))))
-        pop["wealth"] -= share              # 钱出
+        # 批 2-1：`wealth` 写入必须先落治所真账；未下沉才回退旧路级写法。
+        if _pop_obj_add(state, pop, "wealth", -share) is None:
+            pop["wealth"] -= share              # 钱出（未下沉回退）
         _grain_add(pop, grain_share, state)   # 粮进（缺口被填补）
         paid += share
         grain_given += grain_share
     # 用户关键修正：**窖银只囤银**——铜钱/交子（钞）均不入窖，全部进 wealth（流通）；
     # 窖银（白银）由 _settle_civilian_hoard 从市舶 silver 池分配（银硬通货可窖、钞不可窖）
     # 审查 P2-17：卖方按「实收 paid」入账（与买方实扣合计一致，钱粮双向守恒）
-    seller["wealth"] += paid
+    # 批 2-1：卖方入账同样走 POP 桥，保持买卖双方钱账都落真账。
+    if _pop_obj_add(state, seller, "wealth", paid) is None:
+        seller["wealth"] += paid              # 未下沉回退
     return sold
 
 
