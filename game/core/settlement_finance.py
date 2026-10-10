@@ -547,6 +547,32 @@ def _settle_arrears_repayment(state, log):
     return amount
 
 
+def _book_tax_loss(state, amount: int) -> None:
+    """P2 账面：把侵渔额以「损耗」类目记入**官方账目** `statistics["tax_loss_report"]`。
+
+    真账＝吏囊（官僚 POP wealth，已在 `_settle_land_tax_color` 落地）；
+    账面＝火耗类损耗（本函数）——**账实落差**即「贪吏做账」的可观测形态。
+    拆分系数 `FIN_LOSS_COVER`（分散多科目更不易察觉）；**总和精确等于 amount**（尾差归火耗）。
+    """
+    if amount <= 0:
+        return
+    from content.data import FIN_LOSS_COVER
+    rep = state.statistics.setdefault(
+        "tax_loss_report",
+        {"运输损耗": 0, "地方耗费": 0, "火耗": 0, "杂费": 0, "total": 0})
+    for _k in ("运输损耗", "地方耗费", "火耗", "杂费", "total"):
+        rep.setdefault(_k, 0)
+    _given = 0
+    for _k, _w in FIN_LOSS_COVER.items():
+        if _k == "火耗":
+            continue
+        _part = int(amount * _w)
+        rep[_k] = int(rep.get(_k, 0) or 0) + _part
+        _given += _part
+    rep["火耗"] = int(rep.get("火耗", 0) or 0) + (amount - _given)   # 尾差归火耗
+    rep["total"] = int(rep.get("total", 0) or 0) + amount
+
+
 def _settle_land_tax_color(state, log) -> dict:
     """田赋折色（P1 双层税基·三率分流；Q3 甲：**仅此税种**换新模型）。
 
@@ -675,6 +701,8 @@ def _settle_finance(state, log):
     # 新径：全额税基 → 征收率 → 实收 → 归一三率三分（上供／留州／侵渔，各有落点）。
     # 读数（econ summary / region_brief）暂留旧径，P2「账面系统」统一改造（终稿附 A.2）。
     _land_tax = _settle_land_tax_color(state, log)
+    # P2 账面：侵渔额以「损耗」类目入官方账目（真账=吏囊，账面=火耗类损耗；账实落差即"做账"）
+    _book_tax_loss(state, int(_land_tax["diverted"]))
     tax_color_total = int(_land_tax["assessed"])      # 展示/日志口径＝应征
     salt_coin = state.calc_salt_coin(arrival)
     material_coin = 0.0

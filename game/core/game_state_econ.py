@@ -14,6 +14,8 @@ from content.data import (
     FIN_COLLECTION_BASE, FIN_COLLECTION_GOVERN_W, FIN_COLLECTION_MIN, FIN_COLLECTION_MAX,
     FIN_TRANSFER_RATE, FIN_TRANSFER_CAP, FIN_KEEP_BASE, FIN_KEEP_GOVERN_ANCHOR,
     FIN_KEEP_GOVERN_W, FIN_KEEP_MIN, FIN_KEEP_MAX, FIN_KEEP_CAP, FIN_DIV_RATE,
+    # P2 账面（V1.3 终稿 §5）：损耗科目与信息差闸门
+    FIN_LOSS_NORM, FIN_LOSS_ALERT_MULT, FIN_ANOMALY_OVERSIGHT_LINE,
     PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
     SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
@@ -542,6 +544,15 @@ class GameStateEconMixin:
             "maritime": maritime_tax,              # 月市舶抽解
             "tax_color": tax_color_total,          # 月二税折色（全进国库）
             "salt_coin": salt_coin,                # 月盐课（单列，不进二税）
+            # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
+            "land_tax": {
+                "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
+                "collected": int(self.statistics.get("land_tax_collected", 0) or 0),
+                "central": int(self.statistics.get("land_tax_central", 0) or 0),
+                "local": int(self.statistics.get("land_tax_local", 0) or 0),
+                "diverted": int(self.statistics.get("land_tax_diverted", 0) or 0),
+            },
+            "tax_loss": self.tax_loss_readout(),
             "monthly_in": monthly_in,              # 月实际到库合计
             "expenditure": expenditure,            # 月常支（派生）
             "army_cash": army_cash_total,          # 月军费（折色饷钱）
@@ -639,6 +650,29 @@ class GameStateEconMixin:
                               "transfer": transfer, "keep": keep, "div": div}
             total += assessed
         return {"assessed_total": int(total), "by_route": by_route}
+
+    def tax_loss_readout(self) -> dict:
+        """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。
+
+        - 一级（普通账面）：损耗可见（`report` 四类目＋total）；
+        - 二级（监察能力高）：份额超常（≥ `FIN_LOSS_NORM×FIN_LOSS_ALERT_MULT`）
+          且 `oversight ≥ FIN_ANOMALY_OVERSIGHT_LINE` → `status="耗损异常"`；
+          超常但监察不足 → `"耗损偏重"`；否则 `"正常"`；
+        - 三级（"侵渔金额"）由调查（P3）揭示，本读数**不越级**。
+        """
+        rep = dict(self.statistics.get("tax_loss_report") or {})
+        for _k in ("运输损耗", "地方耗费", "火耗", "杂费", "total"):
+            rep.setdefault(_k, 0)
+        total = int(rep.get("total", 0) or 0)
+        assessed = int(self.statistics.get("land_tax_assessed", 0) or 0)
+        share = (total / assessed) if assessed > 0 else 0.0
+        status = "正常"
+        if total > 0 and share >= FIN_LOSS_NORM * FIN_LOSS_ALERT_MULT:
+            oversight = float(getattr(self, "oversight", 0.0) or 0.0)
+            status = ("耗损异常" if oversight >= FIN_ANOMALY_OVERSIGHT_LINE
+                      else "耗损偏重")
+        return {"report": rep, "total": total, "share": round(share, 4),
+                "status": status}
 
     # ================================================================
     # 经济全浮动重构：派生函数族（纯函数风格，返回 (total, by_route) 或 float）

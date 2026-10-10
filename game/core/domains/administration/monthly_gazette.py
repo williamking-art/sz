@@ -5,7 +5,8 @@
   每回合固定章节 + 章末七言联 + ▲▼ 差值摘要，把「看不见的数值变化」翻译成可读叙事。
 
 章节：`诏书核销 / 指令核销 / 长期局势 / 密令动向 / 讣闻登场 / 人物历练 / 军事 / 邦交`
-＋ 2026-09-26 新增第九章 `推演变更`（state_applier 落地明细，政策 diff 视图）。
+＋ 2026-09-26 新增第九章 `推演变更`（state_applier 落地明细，政策 diff 视图）
+＋ 2026-10-11 新增 `度支录`（P2 账面：田赋折色账目与损耗——"贪吏做账"在账面侧的可见化）。
 必补三章（明末实测缺口）：① 局势进展逐条 ② 人物历练/属性涨跌 ③ 密令动向。
 
 纪律：
@@ -16,6 +17,9 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+
+from content.data import (FIN_ANOMALY_OVERSIGHT_LINE, FIN_LOSS_ALERT_MULT,
+                          FIN_LOSS_NORM)
 
 __all__ = ["CHAPTER_ORDER", "build_monthly_gazette", "GAZETTE_COUPLETS"]
 
@@ -45,6 +49,7 @@ _CHAPTER_SCENE_TEMPLATES: Dict[str, list] = {
 
 # 八章固定顺序（明末 §2.2 对齐；标题即 UI 章名）
 # 2026-09-26 增第九章「推演变更」：state_applier 落地明细（政策 diff 视图）。
+# 2026-10-11 增「度支录」（置于「推演变更」之前）：P2 账面——田赋折色账目与损耗。
 CHAPTER_ORDER: tuple = (
     "诏书核销",
     "指令核销",
@@ -54,6 +59,7 @@ CHAPTER_ORDER: tuple = (
     "人物历练",
     "军事",
     "邦交",
+    "度支录",
     "推演变更",
 )
 
@@ -256,6 +262,46 @@ def _chapter_life(state) -> List[str]:
     return lines or ["本月无人事进退可记。"]
 
 
+def _chapter_finance(state) -> List[str]:
+    """度支录章（P2 账面）：田赋折色账目与损耗（"贪吏做账"在账面侧的可观测形态）。
+
+    - 取 `statistics` 真账留痕（`land_tax_*` ＋ `tax_loss_report`），与上月邸报
+      `finance_raw` 求**本月增量**（首月以累计为当月）；
+    - 一级（普通账面）：账目行（应征/实收/上供/留州/耗损）常显；
+    - 二级（监察能力高）：耗率超常（≥ 常例×倍数）且 `oversight ≥ 闸门` → 御史"耗损异常"奏报；
+      超常但监察不足 → 仅"耗损偏重，宜察"；
+    - 三级（"侵渔金额"）留调查（P3）——本函数不越级。
+    """
+    st = getattr(state, "statistics", None) or {}
+    rep = st.get("tax_loss_report") or {}
+    cur = {
+        "assessed": int(st.get("land_tax_assessed", 0) or 0),
+        "collected": int(st.get("land_tax_collected", 0) or 0),
+        "central": int(st.get("land_tax_central", 0) or 0),
+        "local": int(st.get("land_tax_local", 0) or 0),
+        "loss": int(rep.get("total", 0) or 0),
+    }
+    hist = getattr(state, "monthly_gazette", None) or []
+    prev = None
+    if hist and isinstance(hist[-1], dict) and isinstance(hist[-1].get("finance_raw"), dict):
+        prev = hist[-1]["finance_raw"]
+    d = {k: (cur[k] - int(prev.get(k, 0) or 0)) for k in cur} if prev else dict(cur)
+    state._gazette_finance_raw = cur      # 供 build 落档、供下月比对
+    lines: List[str] = []
+    if d["assessed"] > 0 or d["loss"] > 0:
+        lines.append(f"田赋折色：应征 {d['assessed']:,} 贯，实收 {d['collected']:,} 贯"
+                     f"（上供 {d['central']:,}／留州 {d['local']:,}／耗损 {d['loss']:,}）")
+    share = (d["loss"] / d["assessed"]) if d["assessed"] > 0 else 0.0
+    if d["loss"] > 0 and share >= FIN_LOSS_NORM * FIN_LOSS_ALERT_MULT:
+        oversight = float(getattr(state, "oversight", 0.0) or 0.0)
+        if oversight >= FIN_ANOMALY_OVERSIGHT_LINE:
+            lines.append(f"御史台奏：诸路耗损异常（耗率 {share:.0%}，远超常例），"
+                         f"恐有胥吏上下其手，请遣人核之。")
+        else:
+            lines.append(f"诸路耗损偏重（耗率 {share:.0%}，常例约 {FIN_LOSS_NORM:.0%}），宜察。")
+    return lines or ["本月度支无异常可记。"]
+
+
 def _chapter_by_keywords(state, chapter: str) -> List[str]:
     """按关键词把本月结算行归入指定章。"""
     kws = _CHAPTER_KEYWORDS.get(chapter, ())
@@ -336,6 +382,8 @@ def build_monthly_gazette(state, year: Optional[int] = None,
             lines = _chapter_by_keywords(state, name) or ["本月无讣闻、无新擢。"]
         elif name == "推演变更":
             lines = _chapter_agent_diff(state)
+        elif name == "度支录":
+            lines = _chapter_finance(state)
         else:
             lines = _chapter_by_keywords(state, name) or [f"本月无{name}可记。"]
         chapters.append({"title": name, "lines": lines,
@@ -349,4 +397,6 @@ def build_monthly_gazette(state, year: Optional[int] = None,
         "couplet": _couplet(y, m),
         "diff_summary": diff,
         "diff_raw": dict(getattr(state, "_gazette_diff_raw", None) or {}),
+        # P2 度支录：本月田赋折色累计快照（供下月求增量；前端忽略未知键）
+        "finance_raw": dict(getattr(state, "_gazette_finance_raw", None) or {}),
     }

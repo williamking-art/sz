@@ -17,12 +17,12 @@ from core.monthly_gazette import (  # noqa: E402
 
 
 def test_chapter_order_complete():
-    """九章固定顺序（2026-09-26 增第九章「推演变更」；章节完整率 100% 验收）。"""
-    assert len(CHAPTER_ORDER) == 9
+    """十章固定顺序（2026-09-26 增「推演变更」；2026-10-11 增「度支录」；章节完整率 100% 验收）。"""
+    assert len(CHAPTER_ORDER) == 10
     assert CHAPTER_ORDER[0] == "诏书核销"
-    assert CHAPTER_ORDER[-2] == "邦交"
+    assert CHAPTER_ORDER[-2] == "度支录"
     assert CHAPTER_ORDER[-1] == "推演变更"
-    for must in ("长期局势", "密令动向", "人物历练"):
+    for must in ("长期局势", "密令动向", "人物历练", "邦交"):
         assert must in CHAPTER_ORDER
 
 
@@ -31,7 +31,7 @@ def test_build_gazette_has_all_chapters_and_couplet():
     s = GameState("史实")
     g = build_monthly_gazette(s, year=1102, month=3)
     assert g["year"] == 1102 and g["month"] == 3
-    assert len(g["chapters"]) == 9
+    assert len(g["chapters"]) == len(CHAPTER_ORDER)
     titles = [c["title"] for c in g["chapters"]]
     assert titles == list(CHAPTER_ORDER)
     for c in g["chapters"]:
@@ -71,5 +71,5 @@ def test_settlement_persists_monthly_gazette():
     hist = s.monthly_gazette
     assert isinstance(hist, list) and len(hist) >= 1
     last = hist[-1]
-    assert len(last["chapters"]) == 9
+    assert len(last["chapters"]) == len(CHAPTER_ORDER)
     assert last["couplet"]
