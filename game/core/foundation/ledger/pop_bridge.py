@@ -546,6 +546,9 @@ def assert_pops_consistent(pdata: dict) -> List[str]:
 # 再由测试跑长局断言**零违规**。这把声明变成了**可证明的不变量**。
 
 _VIOLATIONS = []
+#: 结构化守卫记录：与 `_VIOLATIONS` 一一对应，供批 2 归因探针读取。
+#: 不改变旧列表格式；合法镜像刷新仍由 `_pops_write_exempt` 完全豁免。
+_VIOLATION_DETAILS = []
 _GUARD_INSTALLED = False
 
 #: 豁免深度 > 0 时守卫**只记账不计数** —— `sync_route_pops` 的镜像刷新属合法写入，
@@ -584,6 +587,7 @@ class _GuardedPops(dict):
             return
         if len(_VIOLATIONS) < 500:
             _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
+            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val})
 
     def __setitem__(self, key, value):
         self._rec(key, value)
@@ -616,6 +620,7 @@ class _GuardedRow(dict):
             return
         if len(_VIOLATIONS) < 500:
             _VIOLATIONS.append("%s[%r] = %r" % (self._label, key, val))
+            _VIOLATION_DETAILS.append({"label": self._label, "op": key, "value": val})
 
     def __setitem__(self, key, value):
         self._rec(key, value)
@@ -676,6 +681,7 @@ def pops_guard_violations() -> list:
 def reset_pops_guard() -> None:
     """清空守卫记账（测试用）。"""
     del _VIOLATIONS[:]
+    del _VIOLATION_DETAILS[:]
 
 __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
     "split_int",
@@ -685,7 +691,12 @@ __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
            "pop_obj_set", "pop_obj_add",
            # 路级 pops 只读守卫（5b 退役）
            "install_pops_guard", "install_all_guards",
-           "pops_guard_violations", "reset_pops_guard"]
+           "pops_guard_violations", "pops_guard_violation_details", "reset_pops_guard"]
+
+
+def pops_guard_violation_details() -> list:
+    """返回与守卫记录同步的结构化 payload（批 2-1 归因使用）。"""
+    return list(_VIOLATION_DETAILS)
 
 
 def locate_pops(state, pop_obj) -> tuple:
