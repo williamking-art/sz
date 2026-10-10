@@ -551,7 +551,11 @@ _VIOLATIONS = []
 _VIOLATION_DETAILS = []
 #: 批 2-1 诊断开关；默认关闭，避免生产守卫为调用栈付出额外开销。
 _GUARD_TRACE = False
-_GUARD_INSTALLED = False
+# 🔴 M32：守卫安装标志改为**原地可变容器**（非 `global` 重绑）。旧转发桩
+# `core.pop_bridge` 的 `from ... import _GUARD_INSTALLED` 因此与实现侧恒为**同一 list 对象**，
+# 杜绝 install/uninstall 整体重绑导致的跨测对象身份分叉（b9 判据③误报"第二份实现"）。
+# 与 M30 `_ALIAS_INDEX` 原地 clear/update 同构；当前无消费者读取该标志，读法若启用应为 `_GUARD_INSTALLED[0]`。
+_GUARD_INSTALLED = [False]
 
 #: 豁免深度 > 0 时守卫**只记账不计数** —— `sync_route_pops` 的镜像刷新属合法写入，
 #: 不能算作「绕过桥接的直写」。用 try/finally 保证一定复位。
@@ -687,12 +691,11 @@ def install_pops_guard(pdata: dict, label: str = "") -> bool:
 
 def install_all_guards(state) -> int:
     """给 `state` 全部已下沉的路装守卫，返回装了几路。"""
-    global _GUARD_INSTALLED
     n = 0
     for route, pdata in (getattr(state, "prefectures", None) or {}).items():
         if install_pops_guard(pdata, str(route)):
             n += 1
-    _GUARD_INSTALLED = True
+    _GUARD_INSTALLED[0] = True
     return n
 
 
@@ -706,7 +709,6 @@ def uninstall_all_guards(state) -> int:
     还原只换容器类型（dict 子类 → plain dict），**键值数据一字不动**。
     未装守卫的路为 no-op；返回还原了几路（幂等）。
     """
-    global _GUARD_INSTALLED
     n = 0
     for _route, pdata in (getattr(state, "prefectures", None) or {}).items():
         if not isinstance(pdata, dict):
@@ -719,7 +721,7 @@ def uninstall_all_guards(state) -> int:
             plain[cls] = dict(row) if isinstance(row, _GuardedRow) else row
         pdata["pops"] = plain
         n += 1
-    _GUARD_INSTALLED = False
+    _GUARD_INSTALLED[0] = False
     return n
 
 

@@ -178,11 +178,12 @@ def test_old_stubs_forward_to_same_objects():
     assert n > 50, f"仅比对 {n} 个名字，疑比对面过窄"
 
 
-# 🔴 已登记的单个兼容面欠账：旧 POP 桥接桩导出的 `_GUARD_INSTALLED` 是私有 bool 快照。
-# foundation 实现安装守卫时会 False→True 重绑；生产代码不读取旧桩此值，留作兼容/诊断表面。
-# material_tech / settlement_agri 的 `_ALIAS_INDEX` 已改为原地清空/更新，不再是欠账。
+# 已登记的兼容面欠账（惰性缓存被 `global` 整体重绑，桩侧转发绑定必然停在导入时的旧值）。
+# material_tech / settlement_agri 的 `_ALIAS_INDEX` 已按选项①改为原地 clear/update，不再是欠账。
+# `core.pop_bridge._GUARD_INSTALLED` 亦已治本（M32）：改为原地可变容器 `[bool]`，install/uninstall
+# 只改 `[0]` 内容、不重绑对象 ⇒ 旧桩与实现侧恒为同一 list，判据③不再误报"第二份实现"。
+# 集合暂留空，`_is_global_rebind_cache` 判据保留以防未来新欠账。
 REBIND_CACHE_DEBT = {
-    ('core.pop_bridge', '_GUARD_INSTALLED'),     # foundation/ledger/pop_bridge.py:554,695
 }
 
 
