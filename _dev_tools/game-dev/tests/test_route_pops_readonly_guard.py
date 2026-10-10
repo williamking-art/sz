@@ -270,6 +270,82 @@ def test_civilian_hoard_transfers_keep_pop_truth_on_seats():
         assert not assert_pops_consistent(pdata)
 
 
+def test_hoard_withdrawal_keeps_pop_truth_on_seats():
+    """窖银高档动用：士绅真账窖银转至工匠/商人 wealth，守卫零写且 M_ALL 守恒。"""
+    from application.game_init import new_game
+    from core.settlement_econ import _settle_civilian_hoard
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent, pop_get, pop_set
+    from core import money
+
+    state = new_game()
+    state._economy_ai = {"士绅": "囤", "士绅力度": "中", "窖银": "大"}
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+    pdata = next(iter(state.prefectures.values()))
+    state.maritime = dict(state.maritime) if isinstance(state.maritime, dict) else {}
+    state.maritime["open"] = False  # isolate draw leg from same-call silver injection
+    from content.data import HOARD_DRAW_RATE
+    draw_rate = HOARD_DRAW_RATE["大"]
+    assert pop_set(pdata, "士绅", "窖银", 1_000_000) is not None
+    before_hoard = sum(int(pop_get(p, "士绅", "窖银") or 0) for p in state.prefectures.values())
+    before_wealth = sum(
+        int(pop_get(p, cls, "wealth") or 0)
+        for p in state.prefectures.values() for cls in ("工匠", "商人")
+    )
+    money_before = money.m_all(state)
+
+    _settle_civilian_hoard(state, [])
+    assert not pops_guard_violations(), pops_guard_violations()[:20]
+
+    after_hoard = sum(int(pop_get(p, "士绅", "窖银") or 0) for p in state.prefectures.values())
+    after_wealth = sum(
+        int(pop_get(p, cls, "wealth") or 0)
+        for p in state.prefectures.values() for cls in ("工匠", "商人")
+    )
+    expected_draw = int(before_hoard * draw_rate)
+    assert before_hoard - after_hoard == expected_draw
+    assert after_wealth - before_wealth == expected_draw
+    assert money.m_all(state) == money_before, "出窖只是 POP 钱池间转移，M_ALL 不变"
+    for route_p in state.prefectures.values():
+        assert not assert_pops_consistent(route_p)
+
+
+def test_combined_monthly_economic_paths_keep_seat_pop_truth():
+    """一条鞭、高城市化、就业、家产、囤粮与窖银同时接线仍保持州府真账。"""
+    from application.game_init import new_game
+    from core.settlement import run_monthly_settlement
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent, pop_set
+    from core.domains.administration.officialdom import check_invariants
+
+    state = new_game()
+    state.single_whip = True
+    state._economy_ai = {
+        "景气": "大", "城市化": "大", "回乡": "无", "科举": "无",
+        "窖银": "大", "士绅": "囤", "士绅力度": "大",
+    }
+    for pdata in state.prefectures.values():
+        pdata["buildings"] = {"工坊": {"lv": 2}, "商铺": {"lv": 1}}
+    _, first = next(iter(state.prefectures.items()))
+    for cls, size in (("农", 250_000), ("工匠", 100), ("商人", 100)):
+        assert pop_set(first, cls, "size", size) is not None
+    assert pop_set(first, "农", "wealth", 0) is not None
+    assert pop_set(first, "士绅", "wealth", 0) is not None
+    state.maritime = dict(state.maritime) if isinstance(state.maritime, dict) else {}
+    state.maritime["open"] = True
+    state.maritime["silver_in"] = max(int(state.maritime.get("silver_in", 0) or 0), 10_000_000)
+
+    assert install_all_guards(state) > 0
+    reset_pops_guard()
+    for month in range(3):
+        run_monthly_settlement(state)
+        assert not pops_guard_violations(), (month + 1, pops_guard_violations()[:20])
+        for route, pdata in state.prefectures.items():
+            bad = assert_pops_consistent(pdata)
+            assert not bad, (month + 1, route, bad[:10])
+        ok, bad = check_invariants(state)
+        assert ok, (month + 1, bad[:10])
+
+
 def test_ai_urbanization_and_job_flow_keep_pop_truth_on_seats():
     """AI 城市化与宋侧岗位空缺流动均传 state，复合结算不改路级 POP 真账。"""
     from application.game_init import new_game

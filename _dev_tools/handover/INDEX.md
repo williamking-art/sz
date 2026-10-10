@@ -1,11 +1,11 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-10T09:15:47Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-10T10:38:47Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
-- **DSH**（updatedAt=2026-10-10）：POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-5 已完成；默认和条件化经济结算、命令入口有守卫回归。
+- **DSH**（updatedAt=2026-10-10）：POP 州府真账迁移维护：批 1-A～1-E、批 2-1～2-6 已完成；组合经济压力长局已验证，兼容桩快照欠账明确登记。
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -22,16 +22,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261010T061644Z-DSH` → [`worklog/20261010T061644Z-DSH.md`](worklog/20261010T061644Z-DSH.md)
-- `20261010T063638Z-DSH` → [`worklog/20261010T063638Z-DSH.md`](worklog/20261010T063638Z-DSH.md)
-- `20261010T065807Z-DSH` → [`worklog/20261010T065807Z-DSH.md`](worklog/20261010T065807Z-DSH.md)
-- `20261010T080959Z-DSH` → [`worklog/20261010T080959Z-DSH.md`](worklog/20261010T080959Z-DSH.md)
-- `20261010T082929Z-DSH` → [`worklog/20261010T082929Z-DSH.md`](worklog/20261010T082929Z-DSH.md)
-- `20261010T083953Z-DSH` → [`worklog/20261010T083953Z-DSH.md`](worklog/20261010T083953Z-DSH.md)
 - `20261010T085828Z-DSH` → [`worklog/20261010T085828Z-DSH.md`](worklog/20261010T085828Z-DSH.md)
 - `20261010T091546Z-DSH` → [`worklog/20261010T091546Z-DSH.md`](worklog/20261010T091546Z-DSH.md)
+- `20261010T095344Z-DSH` → [`worklog/20261010T095344Z-DSH.md`](worklog/20261010T095344Z-DSH.md)
+- `20261010T100004Z-DSH` → [`worklog/20261010T100004Z-DSH.md`](worklog/20261010T100004Z-DSH.md)
+- `20261010T102624Z-DSH` → [`worklog/20261010T102624Z-DSH.md`](worklog/20261010T102624Z-DSH.md)
+- `20261010T103248Z-DSH` → [`worklog/20261010T103248Z-DSH.md`](worklog/20261010T103248Z-DSH.md)
+- `20261010T103452Z-DSH` → [`worklog/20261010T103452Z-DSH.md`](worklog/20261010T103452Z-DSH.md)
+- `20261010T103847Z-DSH` → [`worklog/20261010T103847Z-DSH.md`](worklog/20261010T103847Z-DSH.md)
 
 ## 计数
 
-- tasks 9（未完成 2）· decisions 13（未闭环 4）· worklog 54 · phase 文件 2
+- tasks 9（未完成 2）· decisions 13（未闭环 4）· worklog 60 · phase 文件 2
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

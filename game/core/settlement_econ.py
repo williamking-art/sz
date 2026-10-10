@@ -1611,7 +1611,8 @@ def _settle_civilian_hoard(state, log):
         # 无 AI 时 _draw_rate = 0（冻结，不到最后关头不用）。
         _draw = int(genty.get("窖银", 0) * _draw_rate)
         if _draw > 0:
-            genty["窖银"] = genty.get("窖银", 0) - _draw
+            if _pop_obj_add(state, genty, "窖银", -_draw) is None:
+                genty["窖银"] = genty.get("窖银", 0) - _draw
             _half = int(_draw * 0.5)
             _art = p["pops"]["工匠"]
             _mer = p["pops"]["商人"]

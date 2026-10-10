@@ -192,9 +192,13 @@ def test_old_stubs_forward_to_same_objects():
 #   ② 或把该名字从旧路径转发面撤下（会改 `dir()` 公开面，需先裁定）。
 # 现况风险面：生产侧已无任何模块引用这两个旧桩（判据②覆盖），
 # 所以危害限于"测试经旧路径读缓存会拿到 None"——正因如此这条必须显式登记而不是放宽断言。
+# core.pop_bridge._GUARD_INSTALLED is a third verified global-rebind bool: install_pops_guard
+# rebinds False→True, leaving the legacy forwarding stub with the import-time False snapshot.
+# It is private/diagnostic only and has no production readers; removing the facade surface is separate work.
 REBIND_CACHE_DEBT = {
     ('core.material_tech', '_ALIAS_INDEX'),      # domains/construction/material_tech.py:248
     ('core.settlement_agri', '_ALIAS_INDEX'),    # domains/production/settlement_agri.py:237
+    ('core.pop_bridge', '_GUARD_INSTALLED'),     # foundation/ledger/pop_bridge.py:554,695
 }
 
 
