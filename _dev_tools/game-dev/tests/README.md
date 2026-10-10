@@ -36,5 +36,6 @@ $env:CODEBUDDY_SAFE_DELETE_ENABLED = "0"
 - `test_route_pops_readonly_guard.py` 覆盖精选结算子步、真实 15 月月结、玩家扩编命令、一条鞭折银欠税、家产循环、士绅囤粮/市舶窖银（含出窖）、AI 城市化/就业流及组合压力结算；守卫应零直写、逐字段镜像一致，另核对 POP 财富/粮食与 `M_ALL` 守恒。
 - `test_econ_price_review.py` 覆盖路线价本地性（别路隐户不传染、本地隐户能影响本地价）及同一初局、仅改 AI 城市化档位的 12 月对照，用于证明经济选择能产生可测的 POP 结构差异。
 - 经济与人口回归应分别检查账本守恒、需求/供给和长局民生指标；残差为零不能代替平衡验收。
+- test_military_summary.py 覆盖省级军政派生：兵额守恒、只读、逐路筛选，以及**单军月饷/月粮**（region_brief.unit_cost_readout）与 calc_army_cash / calc_army_grain 的逐分不分叉。
 
 按专题查找审查整改、圣旨闭环或市场用例时，以当前文件名和相应 `specs/*/tasks.md` 为准；批次文件会增删，不在此重复维护静态清单。

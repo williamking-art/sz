@@ -18,6 +18,8 @@
 
 `game_state_econ.calc_region_grain_price` 的路线需求按本路在籍人口 + 本路 `农.hidden`；全国酒耗与中央太仓仍按在籍人口份额分摊。全国隐户比不再放大全图需求。AI 经济字段仍只提供档位，规则程序化形成钱粮/阶层变化；`test_econ_price_review.py` 对照相同新局、单改城市化档位验证其长局 POP 与路线价分歧。
 
+region_brief.unit_cost_readout(unit) 是**单军月饷/月粮**的读数单点（面板「点开某一支军」用）：与 calc_army_cash / calc_army_grain 同一张 branch_std 权威表，只是按军取明细，**不另设军费/军粮口径**；口径为应发额（乡兵自备是实发口径，由结算侧 for_issue=True 承担）。
+
 结算顺序属于游戏规则的一部分。新增步骤要放在语义正确的位置，并核对相应测试、读数与文档；不要只依据文件名或测试文件存在就认定已接入。
 
 ## 关键机制模块
