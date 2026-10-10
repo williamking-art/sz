@@ -106,3 +106,41 @@ def test_full_monthly_settlement_keeps_route_pops_derived():
                    for p in state.prefectures.values())
         ok, bad = check_invariants(state)
         assert ok, bad[:10]
+
+
+def test_player_military_recruitment_keeps_pop_truth_on_seats():
+    """非月结玩家命令扩编：真账守恒，路级仅派生刷新。"""
+    from core.commands import new_game, issue_military_order
+    from core.foundation.ledger.pop_bridge import assert_pops_consistent
+
+    state = new_game()
+    assert install_all_guards(state) > 0
+    units_by_tier = {}
+    for unit in state.army_units:
+        units_by_tier.setdefault(unit.tier, []).append(unit)
+    unit = next(us[0] for us in units_by_tier.values() if us)
+    route = unit.station if unit.station in state.prefectures else next(iter(state.prefectures))
+    unit.station = route
+    pdata = state.prefectures[route]
+    pdata["refugees"] = 50_000
+    state.treasury = max(state.treasury, 10_000_000)
+    reset_pops_guard()
+
+    before = {
+        cls: sum(int(((seat.get("pops") or {}).get(cls) or {}).get("size", 0) or 0)
+                 for seat in pdata["seats"].values())
+        for cls in ("农", "兵")
+    }
+    message = issue_military_order(state, unit.unit_id, "扩编", scale=1)
+    assert "增募" in message or "批红" in message
+    assert not pops_guard_violations(), pops_guard_violations()[:10]
+
+    after = {
+        cls: sum(int(((seat.get("pops") or {}).get(cls) or {}).get("size", 0) or 0)
+                 for seat in pdata["seats"].values())
+        for cls in ("农", "兵")
+    }
+    assert after["农"] + after["兵"] == before["农"] + before["兵"]
+    for cls in ("农", "兵"):
+        assert int(pdata["pops"][cls]["size"]) == after[cls]
+        assert not assert_pops_consistent(pdata)

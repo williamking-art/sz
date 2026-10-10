@@ -100,7 +100,7 @@ game/backend/server.py:849                  from core.domains.administration.ins
   无依据时回落 `CLERK_PER_OFFICIAL`（**不捣造比例**）。
 - 结算写入（新增/裁减官、授职、转祠禄、致仕、宗室入官、科举入官）必须通过 `pop_obj_add`
   先改州府真账，再由 `sync_route_pops` 刷新路级镜像；只有未下沉时才执行旧路级回退。
-- 长局守卫基线为零直接写；测试同时覆盖精选官制结算子步与真实 `run_monthly_settlement` 全管线，
-  并校验镜像及两条不变量。
+- 长局守卫基线为零直接写；测试覆盖精选官制结算子步、真实 `run_monthly_settlement` 全管线（15 月），
+  以及玩家扩编命令 `issue_military_order` 的非月结 POP 写入，并校验镜像及两条不变量。
 
 实施：子池规范化批 1-A（`f5d2e5c3da`）；结算写点桥接批 2-2（`559c44e0df`）。
