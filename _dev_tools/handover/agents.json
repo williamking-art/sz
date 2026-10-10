@@ -1,7 +1,7 @@
 {
  "schema": 2,
- "updatedAt": "2026-10-07",
- "note": "按 agent 分键；phase:<name>/task:<name> 各自独占，decisions/* 与 log 为共享。fileOwnership 语义已于 2026-10-07 修订（见 migrationNote）。",
+ "updatedAt": "2026-10-11",
+ "note": "按 agent 分键；phase:<name>/task:<name> 各自独占，decisions/* 与 log 为共享。fileOwnership 语义已于 2026-10-07 修订（见 migrationNote）。 2026-10-11 新增 Cline（全审/守卫生产化），DSH 不再兼作其署名。",
  "migrationNote": "模块化迁移期为「按目标包认领」，不再按平铺文件独占——平铺路径已降级为转发桩，独占它无意义且易冲突。真账冲突面看『新落点 + 生产调用点』。",
  "registered": {
   "DSH": {
@@ -32,6 +32,16 @@
    ],
    "toolDir": ".qoder/（未跟踪）",
    "verifiedAt": "2026-10-07 DSH 实测：平铺 93 / 纯桩 23 / 仍持实现 70；全量 F=0 E=0 · 2481 passed"
+  },
+  "Cline": {
+   "focus": "全库审计/文档校准/POP 真账守卫生产化接线；以独立身份登记，不再冒用 DSH 署名；动 Qoder/Codex 领地的文件前按协议 log 声明",
+   "lastSeen": "2026-10-11",
+   "writes": [
+    "game/core/commands.py（POP 守卫生产接线）",
+    "game/core/foundation/ledger/pop_bridge.py（守卫装卸）",
+    "_dev_tools/game-docs/specs/economy/地方府库下沉州府级_阻塞记录.md",
+    "_dev_tools/game-docs/reviews/未落地设计裁定与实施路线.md"
+   ]
   }
  },
  "fileOwnership": {
@@ -41,7 +51,8 @@
   "game/core/market_price.py": "DSH",
   "game/core/domains/**": "Qoder（迁移期按包认领；他人动前先 log_append 声明）",
   "game/core/foundation/**": "Qoder（同上）",
-  "_dev_tools/game-docs/specs/cross-cutting/": "Qoder 维护架构方案演进；DSH 可追加裁定记录"
+  "_dev_tools/game-docs/specs/cross-cutting/": "Qoder 维护架构方案演进；DSH 可追加裁定记录",
+  "game/core/commands.py": "Cline（POP 守卫生产接线；他人动前先 log 声明）"
  },
  "migratedStubs": {
   "count": 23,

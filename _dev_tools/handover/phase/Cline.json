@@ -1,0 +1,13 @@
+{
+ "agent": "Cline",
+ "updatedAt": "2026-10-10T16:48:43Z",
+ "phase": "阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期",
+ "done": [
+  "主线A：settle_local 生产月结入口接线路级 pops 守卫（env SONGZUO_POPS_GUARD 开关，缺省关闭/记录型不中断/回合级装卸），test_prod_pops_guard 4 例过",
+  "M32：_GUARD_INSTALLED 改原地可变 flag，销账 b9 转发桩跨测污染",
+  "修正阻塞记录 §二：seats 阻塞实已解除（新局 20/20 带 seats），原文折档留史",
+  "回写 A-粮价=用户已 decided（非 bug），纠正任务表过时的『第5门未过』描述"
+ ],
+ "verification": "全量套件 2478 tests / 0 failed / 0 error（junit 权威）",
+ "pending_for_user": "地方府库下沉是否排期（重大口径变更，未动代码）"
+}
