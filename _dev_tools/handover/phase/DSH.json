@@ -1,13 +1,19 @@
 {
- "phase": "非军事经济目标已完成：路线粮价本地化、AI经济档位长局分歧验证、M30缓存债务关闭；用户暂停的兵种注册桥接仍未提交。",
+ "phase": "州路档案 UI 与单军档案已落地：左侧多页面抽屉（概览/人口/民情/施政/军政/营建/财赋）+ 舆图驻军摘要卡 + 三入口共用的单军档案；后端补单军月饷/月粮读数；计划第4步兵种注册兵饷州府桥接已收尾提交。",
  "updatedAt": "2026-10-11",
  "agent": "DSH",
  "verification": {
-  "pytest": "本轮完整 --junitxml tests=2470 / failures=0 / errors=0 / skipped=2；经济+缓存定向117 passed；兵种注册与经济价格定向21 passed",
-  "grain": "本路需求=本路在籍人口+农.hidden；本地新增200万隐户使本路价约+0.293，外路同增对本路价格delta=0；全国酒耗/太仓按在籍人口权重",
-  "ai": "城市化无/极同初局12月回归；60月量化农-11,413,123，工匠+5,774,996，商人+3,850,794；20/20路线价有差",
-  "handover": "A-粮价 decided/blocks清空；M30 done；M25保留架构阶段3跟进且不阻塞经济改动；handover check 问题=0",
-  "paused": "兵种注册粮饷桥接和下沉守卫回归仍在两个未提交文件；遵守用户‘军队的事情等一下’，不提交。"
+  "frontend": "tsc --noEmit 双配置（web/node）均 0 错；vitest 10 文件 / 82 tests 全通过（含新增 ProvinceArchivePanel.test.tsx 10 例）",
+  "backend": "全量 --junitxml：tests=2474 / failures=0 / errors=0 / skipped=2；军政+读数定向 64 passed",
+  "readout": "region_brief.unit_cost_readout 与 calc_army_cash / calc_army_grain 逐分一致（开局 Σ单军月饷=1,124,462.25 贯、Σ单军月粮=963,712.5 石，delta=0）；只读、未知兵种与权威表同口径不分叉",
+  "ui": "州路抽屉读同一 selected（kind=circuit），点州府下钻既有 LocalArchivePanel（不另造府级口径）；单军档案在州路档案军政页、州郡军面板、全军面板三处为同一实现；缺失一律显示「未定义」",
+  "handover": "summary/check 通过，问题=0"
  },
- "next": "等待用户恢复军队范围后，提交已完成的兵种注册 POP 真账桥接；其它经济目标均已完成。"
+ "delivered": [
+  "components/ArmyDossier.tsx（单军档案，多入口唯一实现）",
+  "panels/ProvinceArchivePanel.tsx（左侧多页面州路档案 + 舆图驻军摘要卡）",
+  "backend 单军月饷/月粮读数（region_brief.unit_cost_readout → /api/readouts::army）",
+  "兵种注册兵饷州府真账桥接（原暂停项，按计划第4步收尾）"
+ ],
+ "next": "若需进一步贴合参考图：把驻军摘要卡由固定偏移改为按路几何投影定位；并按用户确认补装备损耗/马料等仅在有权威口径时才显示的项。"
 }
