@@ -55,6 +55,8 @@
 | `money` | `foundation/ledger/money.py` | 35.2 KB | 50 |
 | `pop_bridge` | `foundation/ledger/pop_bridge.py` | 25.7 KB | 桩 32 / 实现顶层 35→36（第十二包加 `split_int` 显式接口；旧私有名留别名但**不外泄到桩面**）|
 | `grain_bridge` | `foundation/ledger/grain_bridge.py` | 5.6 KB | 6 |
+
+**粮账口径（G-3）**：POP 粮真账在 `seats[*].pops[*]`；路级 `pops[].grain` 是 `sync_route_pops` 派生兼容镜像。所有 POP 粮写入均通过 `grain_add/grain_set(..., state)` 下沉；`p["grain"]` 路级产粮基数/仓粮字段语义不同，不属于 POP 粮迁移范围。
 | `numeric` | `foundation/common/numeric.py` | 2.7 KB | 8 |
 | `pop_structure` | `foundation/ledger/pop_structure.py` | 12.6 KB | 19 |
 | `prefecture_entity` | `foundation/ledger/prefecture_entity.py` | 11.2 KB | 24（dir() 口径）|
