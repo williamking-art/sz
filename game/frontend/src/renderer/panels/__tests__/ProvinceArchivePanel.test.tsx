@@ -160,24 +160,6 @@ describe("州路档案（左侧多页面抽屉）", () => {
   });
 
 
-  it("舆图驻军摘要卡：给出驻军数/总兵力，点「进入军事视图」切到军政页", async () => {
-    render(<ProvinceArchivePanel />);
-    await waitFor(() => expect(screen.getByRole("note", { name: /驻军摘要/ })).toBeTruthy());
-    const card = within(screen.getByRole("note", { name: /驻军摘要/ }));
-    expect(card.getByText(/驻军 1 支/)).toBeTruthy();
-    expect(card.getByText(/2万/)).toBeTruthy();
-    fireEvent.click(card.getByRole("button", { name: "进入军事视图" }));
-    await waitFor(() => expect(screen.getAllByText("本路驻军").length).toBeGreaterThan(0));
-  });
-
-  it("驻军摘要卡可收起（纯展示态，不影响读数）", async () => {
-    render(<ProvinceArchivePanel />);
-    await waitFor(() => expect(screen.getByRole("note", { name: /驻军摘要/ })).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "收起驻军摘要" }));
-    await waitFor(() => expect(screen.queryByRole("note", { name: /驻军摘要/ })).toBeNull());
-    expect(screen.getByText("台州")).toBeTruthy();
-  });
-
   it("营建页列出本路建筑与在办工程（读数来自后端）", async () => {
     render(<ProvinceArchivePanel />);
     await waitFor(() => expect(screen.getByText("台州")).toBeTruthy());

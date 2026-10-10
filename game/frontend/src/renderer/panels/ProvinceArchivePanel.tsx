@@ -119,8 +119,6 @@ export default function ProvinceArchivePanel({ props }: { props?: Dict }) {
   const [projects, setProjects] = useState<PlanProject[]>([]);
   const [err, setErr] = useState("");
   const [dossier, setDossier] = useState<ArmyUnitReadout | null>(null);
-  // 舆图驻军摘要卡是否展开（默认展开；玩家可收起，不记忆到存档——纯展示态）
-  const [garrisonOpen, setGarrisonOpen] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -476,36 +474,6 @@ export default function ProvinceArchivePanel({ props }: { props?: Dict }) {
       </aside>
 
 
-      {/* 舆图驻军摘要卡：贴在抽屉右侧、压在舆图之上（参考图做法）——
-          点「军事视图」把抽屉切到军政页，不新开浮层。窄屏隐藏，避免遮住舆图交互。 */}
-      {garrisonOpen && routeMil && routeMil.units > 0 && page !== "military" ? (
-        <div
-          role="note"
-          aria-label={"驻军摘要 " + route}
-          className="pointer-events-auto fixed left-[456px] top-20 z-30 hidden w-[210px] rounded border border-gold/50 bg-card/95 px-2.5 py-2 shadow-lg lg:block"
-        >
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="truncate font-kai text-[13px] font-bold text-ink">{route}</p>
-            <button type="button" onClick={() => setGarrisonOpen(false)} aria-label="收起驻军摘要"
-              className="text-[11px] text-dim hover:text-ink">收起</button>
-          </div>
-          <p className="mt-0.5 text-[11.5px] text-dim">军事视图</p>
-          <p className="mt-1 text-[12.5px] text-ink">
-            驻军 {routeMil.units} 支 · 总兵力 {wan(routeMil.troops, "人")}
-          </p>
-          <p className="text-[11.5px] text-dim">
-            士气 {routeMil.morale_weighted}　欠饷 {wan(routeMil.arrears, "贯")}
-          </p>
-          <p className="mt-0.5 text-[11.5px] text-dim">
-            {routeUnits.slice(0, 2).map((u) => u.army_name || u.name).join("、")}
-            {routeUnits.length > 2 ? " 等" : ""}
-          </p>
-          <button type="button" onClick={() => setPage("military")}
-            className="mt-1.5 w-full rounded border border-gold/60 bg-card/70 px-2 py-0.5 text-[12px] text-ink hover:bg-card">
-            进入军事视图
-          </button>
-        </div>
-      ) : null}
 
       {/* 单军档案：与全军面板、地方军政面板**共用同一实现** */}
       <ArmyDossier unit={dossier} onClose={() => setDossier(null)} />
