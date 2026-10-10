@@ -696,6 +696,33 @@ def install_all_guards(state) -> int:
     return n
 
 
+def uninstall_all_guards(state) -> int:
+    """把各路路级 `pops` 守卫**还原为普通 dict**（与 `install_all_guards` 成对收尾）。
+
+    存在的理由：守卫是 `_GuardedPops`/`_GuardedRow` dict 子类，只在结算**观察期**存在。
+    结算结束必须还原，否则：
+      · 存档 / 深拷贝会带上守卫子类与 `_label` 槽（非数据字段）；
+      · 结算之后的玩家命令若做路级派生刷新，会被**误记账**进 `_VIOLATIONS`。
+    还原只换容器类型（dict 子类 → plain dict），**键值数据一字不动**。
+    未装守卫的路为 no-op；返回还原了几路（幂等）。
+    """
+    global _GUARD_INSTALLED
+    n = 0
+    for _route, pdata in (getattr(state, "prefectures", None) or {}).items():
+        if not isinstance(pdata, dict):
+            continue
+        pops = pdata.get("pops")
+        if not isinstance(pops, _GuardedPops):
+            continue
+        plain = {}
+        for cls, row in pops.items():
+            plain[cls] = dict(row) if isinstance(row, _GuardedRow) else row
+        pdata["pops"] = plain
+        n += 1
+    _GUARD_INSTALLED = False
+    return n
+
+
 def pops_guard_violations() -> list:
     """返回守卫记录的**直接写入**列表（空 = 路级 `pops` 全程只读）。"""
     return list(_VIOLATIONS)
@@ -715,7 +742,7 @@ __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
            "assert_pops_consistent", "locate_pops",
            "pop_obj_set", "pop_obj_add",
            # 路级 pops 只读守卫（5b 退役）
-           "install_pops_guard", "install_all_guards",
+           "install_pops_guard", "install_all_guards", "uninstall_all_guards",
            "pops_guard_violations", "pops_guard_violation_details", "set_pops_guard_trace", "reset_pops_guard"]
 
 

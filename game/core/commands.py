@@ -765,6 +765,22 @@ def settle_local(state) -> list:
     """
     import logging as _lg
     snap = _snapshot_state(state)
+    # 🔴 路级 `pops` 只读守卫（观察型，缺省关闭）：`SONGZUO_POPS_GUARD=1` 时在结算
+    #    观察期给已下沉路装上守卫，结算后读违规汇总并**还原 plain dict**。记录型、
+    #    不硬中断、不改数值；装/卸成对（`finally`），异常路径由 `_restore_state`
+    #    用装守卫前的 plain 快照整体替换 `prefectures`，守卫子类随之卸除。
+    import os as _os
+    _guard_on = _os.environ.get("SONGZUO_POPS_GUARD", "").strip() not in ("", "0", "false", "no")
+    if _guard_on:
+        try:
+            from core.foundation.ledger.pop_bridge import (
+                install_all_guards, uninstall_all_guards,
+                reset_pops_guard, pops_guard_violations,
+            )
+            reset_pops_guard()
+            install_all_guards(state)
+        except Exception:  # noqa: BLE001 —— 守卫接线失败绝不影响结算
+            _guard_on = False
     try:
         return run_monthly_settlement(state)
     except Exception as e:  # noqa: BLE001
@@ -772,6 +788,19 @@ def settle_local(state) -> list:
         _lg.getLogger("settle_local").error(
             "月度结算异常，已回滚状态快照（回合未推进，可安全重试）：%s", e)
         raise
+    finally:
+        if _guard_on:
+            try:
+                _viol = pops_guard_violations()
+                if _viol:
+                    _lg.getLogger("settle_local").warning(
+                        "路级 pops 只读守卫：结算期检出 %d 处直写（路级应只读、"
+                        "写入须走桥接）：%s", len(_viol), _viol[:10])
+            finally:
+                try:
+                    uninstall_all_guards(state)
+                except Exception:  # noqa: BLE001 —— 卸守卫失败不得升级为结算异常
+                    _lg.getLogger("settle_local").error("路级 pops 守卫还原失败", exc_info=True)
 
 
 def finish_turn(state) -> None:
