@@ -156,11 +156,19 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
     """
     kind = kind or decree_kind(org_hint, text)
     clerks_mult = None
+    clerks_scope = "全国"
     clerks_view: Dict[str, Any] = {}
     try:
-        from core.clerks import decree_execution_mult, totals
+        from core.clerks import decree_execution_mult, route_decree_mult, totals
         clerks_view = totals(state) or {}
-        clerks_mult = round(_clamp(_num(decree_execution_mult(state), 1.0), 0.0, 1.0), 4)
+        # Q12 已决·乙：给了 route 且该路 `clerks_detail` 可用 → 走**该路**把持度；
+        # 否则回落全国口径（对无 route 调用方零影响）。
+        _rm = route_decree_mult(state, route) if route else None
+        if _rm is not None:
+            clerks_mult = round(_clamp(_rm, 0.0, 1.0), 4)
+            clerks_scope = f"按路（{route}）"
+        else:
+            clerks_mult = round(_clamp(_num(decree_execution_mult(state), 1.0), 0.0, 1.0), 4)
     except Exception as e:  # noqa: BLE001
         log.warning("decree_effect 取吏治折扣失败：%s", e)
 
@@ -213,6 +221,8 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
         "defined": defined,
         "kind": kind,
         "clerks_mult": clerks_mult,
+        # Q12（V1.3 §7）：吏治折扣口径——"全国"或"按路（<路名>）"
+        "clerks_scope": clerks_scope,
         "clerks": {"grievance": clerks_view.get("grievance"),
                    "grip": clerks_view.get("grip"),
                    "quality": clerks_view.get("quality")},

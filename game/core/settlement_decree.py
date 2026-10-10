@@ -123,6 +123,8 @@ def _settle_decrees(state, log):
                 org_hint=org,
                 text=str(d.get("title") or ""),
                 enforce_troops=bool(d.get("enforce_troops", False)),
+                # Q12（V1.3 §7）：诏令若指明所涉路 → 吏治折扣走**该路**把持度
+                route=d.get("route") or None,
             )
         except Exception as e:  # noqa: BLE001 — 读数缺失不得阻断结算，也不得假装有值
             log.warning("[诏令] 效果系数读取失败（挂起本诏令，不按 1.0 假装执行）: %s", e,
@@ -316,6 +318,35 @@ def _apply_decree_effect(state, decree, log):
                 log.append(f"[勾校] 未成：{_res.get('reason')}")
         else:
             log.append("[勾校] 载荷非法（须为路名或 {route,executor,secret}），未执行")
+    # ---- P4 改革轴（V1.3 §9）：调财政四率（归一化保序）——载荷为字典，先于数值过滤 ----
+    if isinstance(_raw, dict) and "finance_rates" in _raw:
+        _fr = _raw["finance_rates"]
+        if isinstance(_fr, dict):
+            _rf = state.apply_finance_reform(_fr)
+            if _rf.get("applied"):
+                _af = _rf["after"]
+                log.append(f"[改革] 财政四率调整：{_rf['applied']}"
+                           f"（归一化后 transfer={_af.get('transfer_rate', 0):.3f}／"
+                           f"keep={_af.get('local_keep_rate', 0):.3f}／"
+                           f"div={_af.get('diversion_rate', 0):.3f}）")
+            else:
+                log.append("[改革] finance_rates 无有效键（忽略）")
+        else:
+            log.append("[改革] finance_rates 载荷非法（须为字典），未执行")
+    # ---- P4 抄没前置（Q11 已决·甲）：财政贪墨须先成案；皇权事件可例外 ----
+    if isinstance(_raw, dict) and "confiscate" in _raw:
+        from core.audit_case import confiscate_by_case
+        _cf = _raw["confiscate"]
+        if isinstance(_cf, str):
+            _cf = {"case_id": _cf}
+        if isinstance(_cf, dict):
+            _cr = confiscate_by_case(
+                state, case_id=_cf.get("case_id"), route=_cf.get("route"),
+                imperial_exception=bool(_cf.get("imperial_exception")), log=log)
+            if not _cr.get("ok"):
+                log.append(f"[抄没] 未成：{_cr.get('reason')}")
+        else:
+            log.append("[抄没] 载荷非法（须为案号或 {case_id,route,imperial_exception}），未执行")
     effects = {}
     if isinstance(_raw, dict):
         for _k, _v in _raw.items():

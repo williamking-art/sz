@@ -337,6 +337,20 @@ def decree_execution_mult(state) -> float:
     return float(totals(state)["decree_mult"])
 
 
+def route_decree_mult(state, route: str) -> Optional[float]:
+    """**按路**把持度折扣（Q12 已决·乙；V1.3 §7）：`1 − DECREE_GRIP_W × grip_路`（下限 0.3）。
+
+    `clerks_detail` 未建/坏值 → `None`（调用方回落**全国口径**，绝不臆造）。
+    语义："贪得越狠的路越查不动"——查某路的诏令（勾校/清丈等）走该路自身把持度。
+    """
+    p = (getattr(state, "prefectures", None) or {}).get(route) or {}
+    d = p.get("clerks_detail") or {}
+    grip = d.get("grip")
+    if not isinstance(grip, (int, float)) or isinstance(grip, bool):
+        return None
+    return float(max(0.3, 1.0 - DECREE_GRIP_W * float(grip)))
+
+
 def backlog_gain(state, route: str) -> float:
     """本路本月**净积压增量**（§11.6 第一行：把 `random.randint(0,3)` 换成 `W − C`）。
 

@@ -19,7 +19,7 @@ from content.data import (FIN_AUDIT_BACKFIRE_LINE, FIN_AUDIT_BASE,
                           FIN_AUDIT_SPY_W, GRIP_BASE, clamp as _clamp)
 
 __all__ = ["audit_fidelity", "resolve_audit", "discovery_readout",
-           "case_is_evidenced"]
+           "case_is_evidenced", "confiscate_by_case"]
 
 
 def _executor_corruption(state, executor: Optional[str]) -> Optional[float]:
@@ -183,3 +183,44 @@ def discovery_readout(state) -> Dict[str, Any]:
     level = 4 if truths else (3 if evidence else (2 if suspicions else (1 if anomalies else 0)))
     return {"level": level, "anomalies": anomalies, "suspicions": suspicions,
             "evidence": evidence, "truths": truths}
+
+
+def confiscate_by_case(state, case_id: Optional[str] = None, route: Optional[str] = None,
+                       imperial_exception: bool = False,
+                       log: Optional[list] = None) -> Dict[str, Any]:
+    """Q11 抄没前置：财政贪墨**须先成案**（case_id＋evidence＋judgement）；皇权事件可例外。
+
+    成案（`status=="证据在握"`）→ 抄没该路官僚私囊 `FIN_CONFISCATE_RATE` 比例入国库
+    （守恒：官僚 wealth → treasury，ΣM_ALL 不变），并落 `judgement`（案卷转"已定案"）。
+    无案/未成案 → 拒绝（可诊断）；例外通道须显式 `imperial_exception=True`（谋反/政变类）。
+    """
+    from content.data import FIN_CONFISCATE_RATE
+    from core.foundation.ledger.pop_bridge import pop_obj_set as _pop_obj_set
+    cases = getattr(state, "audit_cases", None) or {}
+    rec = cases.get(case_id) if case_id else None
+    if not imperial_exception:
+        if not isinstance(rec, dict):
+            return {"ok": False, "reason": "无案可抄：财政贪墨须先勾校成案（Q11）"}
+        if rec.get("status") != "证据在握":
+            return {"ok": False, "reason": f"案未成：{rec.get('status')}（Q11 须证据在握）"}
+    _route = route or (rec or {}).get("route")
+    prefs = getattr(state, "prefectures", None) or {}
+    if not _route or _route not in prefs:
+        return {"ok": False, "reason": "无有效路名（案卷缺 route）"}
+    guan = (prefs[_route].get("pops") or {}).get("官僚")
+    if not isinstance(guan, dict):
+        return {"ok": False, "reason": f"{_route} 无官僚私囊可抄"}
+    _wealth = int(guan.get("wealth", 0) or 0)
+    seize = int(_wealth * FIN_CONFISCATE_RATE)
+    if seize <= 0:
+        return {"ok": False, "reason": f"{_route} 官僚私囊无余财可抄"}
+    if _pop_obj_set(state, guan, "wealth", _wealth - seize) is None:
+        guan["wealth"] = _wealth - seize
+    state.change_treasury(seize)
+    if isinstance(rec, dict):
+        rec["judgement"] = f"抄没官僚私囊 {seize:,} 贯入国库（{_route}）"
+        rec["status"] = "已定案"
+    if log is not None:
+        log.append(f"[抄没] {_route}：抄没官僚私囊 {seize:,} 贯入国库"
+                   f"{'（皇权事件例外通道）' if imperial_exception else ''}")
+    return {"ok": True, "seized": seize, "route": _route}

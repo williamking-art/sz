@@ -631,6 +631,36 @@ class GameStateEconMixin:
             float(fin.get("transfer_rate", FIN_TRANSFER_RATE)), keep,
             float(fin.get("diversion_rate", FIN_DIV_RATE)))
 
+    def apply_finance_reform(self, deltas: dict) -> dict:
+        """改革轴（V1.3 §9）：按增量调整四率，随后**归一化**（保护顺序 div→keep→transfer）。
+
+        - 接受键：`transfer_rate`／`local_keep_rate`／`diversion_rate`／`collection_rate`；
+        - 三率（分流）调后归一（和 ≡ 1，transfer 最高保护）；`collection_rate` 单独钳制；
+        - 未知键/坏值忽略；返回 `{"before","after","applied"}`（供日志与审计）。
+        """
+        fin = getattr(self, "finance", None)
+        if not isinstance(fin, dict):
+            return {"before": {}, "after": {}, "applied": {}}
+        before = dict(fin)
+        applied = {}
+        for _k, _v in (deltas or {}).items():
+            if _k not in ("transfer_rate", "local_keep_rate",
+                          "diversion_rate", "collection_rate"):
+                continue
+            if isinstance(_v, bool) or not isinstance(_v, (int, float)):
+                continue
+            fin[_k] = float(fin.get(_k, 0.0)) + float(_v)
+            applied[_k] = float(_v)
+        _t, _k2, _d = normalize_finance_split(
+            float(fin.get("transfer_rate", FIN_TRANSFER_RATE)),
+            float(fin.get("local_keep_rate", FIN_KEEP_BASE)),
+            float(fin.get("diversion_rate", FIN_DIV_RATE)))
+        fin["transfer_rate"], fin["local_keep_rate"], fin["diversion_rate"] = _t, _k2, _d
+        fin["collection_rate"] = float(_clamp(
+            float(fin.get("collection_rate", FIN_COLLECTION_BASE)),
+            FIN_COLLECTION_MIN, FIN_COLLECTION_MAX))
+        return {"before": before, "after": dict(fin), "applied": applied}
+
     def calc_land_tax_channels(self) -> dict:
         """田赋折色「双层税基＋三率」读数（只读；P1·Q3 甲：**仅折色**走新模型）。
 
