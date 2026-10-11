@@ -1,17 +1,17 @@
 {
- "phase": "设计治理与收口核实：已产出《未落地设计裁定与实施路线》；已核实并回填 M36.6 收口台账 §21.4/§21.5（全量 2689/0/0/2，验收通过）。",
- "updatedAt": "2026-10-11",
+ "phase": "《宋祚》文档纪律收口 + 主线 C 生产层开工门台账已交付（未改代码）",
+ "updatedAt": "2026-10-12",
  "agent": "DSH",
  "verification": {
-  "m36_6": "junit _dev_tools/_scratch/m36_6_final.xml：tests=2689 / failures=0 / errors=0 / skipped=2（1 xfail + 1 skip），time 397.6s，commit 1a56085641；与上一批 2682 增量恰为新增 7 例",
-  "m36_6_targeted": "test_m36_6_wiring.py 7/7；受影响既有用例 48/48",
-  "frontend": "上一批：tsc 双配置 0 错、vitest 80 passed（州路档案抽屉/单军档案）",
-  "marks_census": "更正口径：本机不能用数进度点取 marks（日志含 warning 正文，字符统计 2711/199 失真）⇒ 改用 junit + 逐条 skip 类型",
+  "pytest_full": "tests 2737 / failures 0 / errors 0 / skipped 2 / time 421.5s（junit _scratch/junit.xml；= 上批 2689 + 本轮新增 48 例文档纪律用例）",
+  "readme_sync_test": "test_readme_sync.py 48/48（索引完整性 46 目录 + 取数口径 + 链接完整性）",
+  "link_check": "90 份 README 坏链 0（修复前 7 处）",
   "handover": "check 问题=0"
  },
  "delivered": [
-  "reviews/未落地设计裁定与实施路线.md（设计治理路线：怎么做/做什么/做到什么程度）",
-  "M36-7 台账 §21.4 终态 + §21.5 收口结论回填"
+  "game-docs/specs/production/主线C_生产层开工门台账.md（508 行 · 本轮唯一交付物）",
+  "test_readme_sync.py：修复 core.quotepath 漏检根因 + 扩覆盖至 game-docs + 新增链接完整性断言",
+  "补齐 reviews/docs/specs.economy/specs.production 索引缺口与 7 处坏链"
  ],
- "next": "待用户裁定：M37 监察能力模型（发现权/怀疑权/移送权/权限约束）；以及路线文档六条主线的开工顺序。"
+ "next": "等用户裁定主线 C 台账的 9 项待裁（尤其 ⑧ yields 与 POP 不相容走甲/乙/丙/丁，建议甲+丁）；评审通过后才从 C0 启动，C0 零代码改动。"
 }
