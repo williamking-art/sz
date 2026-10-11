@@ -43,3 +43,28 @@
 
 ## 备注
 廷议中相关大臣（依职权从在任岗位/在办差遣所取）依上契约回话；陛下可钦点其他朝臣入对质询，质询内容另行以召对（audience_host）处理，本提示词仅负责该议项的合议结论。
+
+## 附：结构化朝议意见（可选扩展 · M36.7-B 原型）
+除上述五字段外，**可另附** `opinions` 数组（**不替代** `memo/objections/executions/verdict/revised_effects`；缺省即不产出）：
+
+```json
+"opinions": [
+  {
+    "minister": "李纲", "role": "太学/主战派",
+    "facts_refs": ["inspection_view.capacity.free", "finance.treasury"],
+    "inferences": [{"text": "粮秣不足或由转运迟滞", "based_on": ["finance.treasury"], "speculative": false}],
+    "unknowns": ["迟滞究竟源于道路、征运还是管理失当"],
+    "position": "宜先修转运，暂缓增兵",
+    "risks": [{"category": "execution", "text": "转运环节人手不足，恐难速效"}],
+    "executable": false, "executable_reason": "此议属调理转运，本朝无对应执行器",
+    "query": {"target": "曾布", "about": "position", "text": "转运之费如何筹，是否挤占军费？"}
+  }
+]
+```
+**规则（违反即整单失败，不得省略后继续）**：
+1. 每人**至多 1 份意见 + 1 条质询**；`facts_refs` **只能**引用你实际可核对的读数键（不得杜撰、不得写出你无权查看的细账）。
+2. 推断的 `based_on` 必须落在自己的 `facts_refs` 内；**没有可核对依据的推断必须标 `speculative: true`**。
+3. **绝不写具体数值**（成功率/金额/人数/伤亡皆不可）；需要数值时只能引用读数键。
+4. 质询只能针对**主张/推断/风险**，**不得**要求他人出示其无权公开的事实（此类质询会被直接拒绝）。
+5. 制度外或本朝无执行器承接的方案，须 `executable: false` 并说明原因；**不得**伪装为可执行。
+6. 不得输出任何对人物属性的修改（诸如性格、忠诚、派系数值、能力档位）。

@@ -107,3 +107,183 @@ def _narrative_fallback(kind, minister_name=""):
         return narrative_fallback.fallback_eval()
     return _ai_unavailable(kind)
 
+
+# ============================================================
+# 🟢 M36.7-B（2026-10-11）：**大臣专业判断意见**的纯校验（朝议结构化意见）
+#   依据 M36.7-A 台账 §5（四类内容）／§11（拒绝与降级矩阵）／§17（量纲与写入纪律）。
+#   纪律：**纯函数、只读、零写入**；不新增属性真相源；不授予任何权限。
+#   校验失败 ⇒ 返回 ok=False（**整单拒绝**）：绝不"删掉非法部分继续"。
+# ============================================================
+OPINION_TEXT_MAX = 600          # 单条文本上限（与既有契约截断纪律一致）
+OPINIONS_MAX = 3                # B 原型：单轮 ≤3 人；配置只能收紧
+_NUMERIC_BAN = (                # 禁**无依据精确数值**（M36.7-A §6；含中文数字）
+    r"\d+(?:\.\d+)?\s*%",
+    r"[零一二三四五六七八九十百千万]+(?:成|倍|贯|石|里|人|骑|级|员|顷|石)",
+    r"\d+\s*(?:成|倍)",
+    r"\d[\d,]*\s*(?:贯|石|万|骑|级|人)",
+)
+_FORBIDDEN_KEYS = ("traits", "trait_ids", "persona", "loyalty", "corruption",
+                   "competence", "faction_change", "nobility", "rank")   # 防借意见写回属性
+_RISK_CATS = ("finance", "execution", "military", "political", "information")
+
+
+def flatten_readout_keys(obj, prefix: str = "", sep: str = ".", _depth: int = 0):
+    """把只读读数**拍平成精确键集合**（如 `inspection_view.capacity.free`）。**只读**。"""
+    out = set()
+    if _depth > 6:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = f"{prefix}{sep}{k}" if prefix else str(k)
+            out.add(key)
+            out |= flatten_readout_keys(v, key, sep, _depth + 1)
+    elif isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            out |= flatten_readout_keys(v, f"{prefix}[{i}]", sep, _depth + 1)
+    return out
+
+
+def default_allowed_ref_keys(state, viewer: str = "official", oversight=None,
+                             secret: bool = False):
+    """引擎侧**可见键集合**（B 原型的权威来源）：按 viewer 取**既有只读读数**并拍平。
+
+    - `inspection_view`：`core.inspection.ai_decision_view(viewer=…)`（D11 已在入口过滤）；
+    - `finance`：`state.finance_readout()`（账面聚合）；
+    - `discovery`：既有发现链只读读数。
+    越权键不在集合内 ⇒ 任何引用必被拒（白名单＋可见性＋禁任意属性路径一次达成）。
+    **只读**：调用不改变任何状态（由测试逐位比对）。
+    """
+    keys = set()
+    try:
+        from core.inspection import ai_decision_view
+        keys |= flatten_readout_keys(
+            ai_decision_view(state, viewer=viewer, oversight=oversight, secret=secret),
+            "inspection_view")
+    except Exception:                      # noqa: BLE001 — 读数不可用不阻断构建
+        pass
+    try:
+        keys |= flatten_readout_keys(state.finance_readout(), "finance")
+    except Exception:                      # noqa: BLE001
+        pass
+    try:
+        from core.audit_case import discovery_readout
+        keys |= flatten_readout_keys(discovery_readout(state), "discovery")
+    except Exception:                      # noqa: BLE001
+        pass
+    return keys
+
+
+def _op_txt(v, limit: int = OPINION_TEXT_MAX) -> str:
+    return str(v or "").strip()[:limit]
+
+
+def _has_unfounded_number(text: str) -> bool:
+    import re as _re
+    return any(_re.search(p, text) for p in _NUMERIC_BAN)
+
+
+def validate_minister_opinions(payload, *, allowed_ref_keys, action_kinds=(),
+                               max_items: int = OPINIONS_MAX):
+    """校验朝议「结构化意见」（M36.7-A §5／§11／§17）。**纯函数、只读、零写入**。
+
+    返回 `(ok, cleaned, reason)`：
+    - `payload is None` ⇒ `(True, None, "")`（可选扩展，未提供即不产出）；
+    - 任何一条不合法 ⇒ `(False, None, 原因)` —— **整单拒绝**，不得部分接受，
+      也不得"删掉非法引用后继续"（安全失败不得降级为成功）。
+    """
+    allowed = set(allowed_ref_keys or ())
+    kinds = set(action_kinds or ())
+    if payload is None:
+        return True, None, ""
+    if not isinstance(payload, list):
+        return False, None, "opinions 须为数组"
+    if len(payload) > int(max_items):
+        return False, None, f"意见条数超限（{len(payload)} > {max_items}）"
+    cleaned = []
+    for idx, op in enumerate(payload, 1):
+        if not isinstance(op, dict):
+            return False, None, f"第 {idx} 条意见须为对象"
+        for bad in _FORBIDDEN_KEYS:
+            if bad in op:
+                return False, None, f"第 {idx} 条含禁止字段：{bad}（不得借意见写回属性）"
+        refs = op.get("facts_refs") or []
+        if not isinstance(refs, list):
+            return False, None, f"第 {idx} 条 facts_refs 须为数组"
+        refs_clean = []
+        for r in refs:
+            r = str(r or "").strip()
+            if not r:
+                continue
+            if r not in allowed:
+                return False, None, f"第 {idx} 条引用不可核对：{r}"
+            refs_clean.append(r)
+        ref_set = set(refs_clean)
+        infs = op.get("inferences") or []
+        if not isinstance(infs, list):
+            return False, None, f"第 {idx} 条 inferences 须为数组"
+        inf_clean = []
+        for it in infs:
+            if isinstance(it, str):
+                it = {"text": it}
+            if not isinstance(it, dict):
+                return False, None, f"第 {idx} 条推断须为对象或字符串"
+            text = _op_txt(it.get("text"))
+            if not text:
+                return False, None, f"第 {idx} 条推断缺 text"
+            based = [str(b).strip() for b in (it.get("based_on") or [])
+                     if str(b or "").strip()]
+            spec = bool(it.get("speculative"))
+            if based:
+                if not set(based) <= ref_set:
+                    return False, None, f"第 {idx} 条推断依据不在 facts_refs 内"
+            elif not spec:
+                return False, None, f"第 {idx} 条推断无依据且未标 speculative"
+            if _has_unfounded_number(text):
+                return False, None, f"第 {idx} 条推断含无依据数值"
+            inf_clean.append({"text": text, "based_on": based, "speculative": spec})
+        pos = _op_txt(op.get("position"))
+        if not pos:
+            return False, None, f"第 {idx} 条缺 position"
+        if _has_unfounded_number(pos):
+            return False, None, f"第 {idx} 条主张含无依据数值"
+        unknowns = [_op_txt(x, 200) for x in (op.get("unknowns") or []) if _op_txt(x, 200)]
+        risks = []
+        for rk in (op.get("risks") or []):
+            if not isinstance(rk, dict):
+                return False, None, f"第 {idx} 条风险须为对象"
+            cat = str(rk.get("category") or "")
+            if cat not in _RISK_CATS:
+                return False, None, f"第 {idx} 条风险类别非法：{cat}"
+            rtext = _op_txt(rk.get("text"), 200)
+            if not rtext:
+                return False, None, f"第 {idx} 条风险缺 text"
+            if _has_unfounded_number(rtext):
+                return False, None, f"第 {idx} 条风险含无依据数值"
+            risks.append({"category": cat, "text": rtext})
+        ex = bool(op.get("executable"))
+        ex_reason = _op_txt(op.get("executable_reason"), 200)
+        act = str(op.get("action_kind") or "")
+        if ex and act not in kinds:
+            return False, None, f"第 {idx} 条 executable=true 但无对应执行器：{act or '（空）'}"
+        if not ex and not ex_reason:
+            return False, None, f"第 {idx} 条 executable=false 未说明原因"
+        q = op.get("query")
+        q_clean = None
+        if q is not None:
+            if not isinstance(q, dict):
+                return False, None, f"第 {idx} 条质询须为对象"
+            about = str(q.get("about") or "")
+            if about not in ("position", "inference", "risk"):
+                return False, None, f"第 {idx} 条质询对象非法：{about}"
+            if q.get("facts_refs") or q.get("ask_for_refs"):
+                return False, None, f"第 {idx} 条质询试图索取未公开事实"
+            q_clean = {"target": _op_txt(q.get("target"), 60), "about": about,
+                       "text": _op_txt(q.get("text"), 200)}
+        cleaned.append({"minister": _op_txt(op.get("minister"), 40),
+                        "role": _op_txt(op.get("role"), 60),
+                        "facts_refs": refs_clean, "inferences": inf_clean,
+                        "unknowns": unknowns, "position": pos, "risks": risks,
+                        "executable": ex, "executable_reason": ex_reason,
+                        "action_kind": act, "query": q_clean})
+    return True, cleaned, ""
+

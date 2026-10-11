@@ -217,6 +217,22 @@ class CourtContractMixin:
                 return None
             o["verdict"] = o["verdict"]
             o["revised_effects"] = _normalize_effects(o.get("revised_effects", []))
+            # 🟢 M36.7-B：可选结构化意见（朝议）——**独立语义校验**；失败 ⇒ 整单拒绝
+            #   纪律：复用契约 ≠ 减少校验；不得"删掉非法引用后继续"（安全失败不得降级为成功）
+            if o.get("opinions") is not None:
+                try:
+                    from ai.validators import (default_allowed_ref_keys,
+                                               validate_minister_opinions)
+                    _allowed = default_allowed_ref_keys(state) if state is not None else set()
+                    _ok, _clean, _why = validate_minister_opinions(
+                        o.get("opinions"), allowed_ref_keys=_allowed,
+                        action_kinds=("inspect_dispatch", "inspect_report",
+                                      "inspect_allege", "audit_route"))
+                except Exception:              # noqa: BLE001 — 校验器异常按失败处理
+                    return None
+                if not _ok:
+                    return None
+                o["opinions"] = _clean
             return o
 
         # 廷议：依职权列出「相关大臣」（机构在任者+在办差遣领办人）供合议回话
