@@ -20,6 +20,7 @@ from content.data import (FIN_AUDIT_BACKFIRE_LINE, FIN_AUDIT_BASE,
                           FIN_SUSPICION_WINDOW_TURNS, GRIP_BASE, clamp as _clamp)
 
 __all__ = ["audit_fidelity", "resolve_audit", "discovery_readout",
+           "financial_evidence",
            "case_is_evidenced", "confiscate_by_case",
            "scan_fiscal_suspicion", "record_suspicion", "FIN_SUSPICION_KEYWORDS"]
 
@@ -159,6 +160,90 @@ def audit_fidelity(state, route: str, executor: Optional[str] = None,
                        "spy_coverage": spy, "secret": bool(secret)}}
 
 
+def financial_evidence(state, route: str, include_real: bool = False) -> Dict[str, Any]:
+    """P3-1 **财政证据项**（**只读**；**不生成案件、不改财政/欠给/压力**）。
+
+    用途：让**既有勾校链**（`resolve_audit`）在成案时**引用已存在的财政状态**——
+    是"案卷引用状态"，不是"证据生成案件"。
+
+    返回（全部为**读取快照**，JSON 可序列化）：
+
+    - `rumor_source`（**观察层，始终携带**）：`rumor_tier` 逐路档位与构成信号（"为何起疑"）
+      —— **档位 ≠ 腐败判定**，仅供 AI 自行判断（派巡按/加拨/责问/暂缓）。
+    - 真账三项（**仅 `include_real=True`**，即"查得实情"档才随卷入）；
+        · `local_arrears`    真欠给四科目（官俸/吏禄/衙役/公用）＋合计
+        · `arrears_months`   连续欠给月数（逐科目 ＋ 最大）
+        · `official_gap`     上报与真账之差：
+            `loss_report`（账面损耗科目）vs `land_tax_diverted`（真侵渔）⇒ **掩护虚增**；
+            未承认欠支（当前官府不记欠支 ⇒ ＝真欠给合计）；
+            征收缺口恒等式（应征 − 实收 ＝ 豁免 ＋ 欠税 ＋ 侵渔，可逐项核）。
+
+    纪律：本函数**不写任何字段**；`money`／欠给三层／压力／案卷**均不被改动**。
+    """
+    prefs = getattr(state, "prefectures", None) or {}
+    p = prefs.get(route)
+    if not isinstance(p, dict):
+        return {"route": route, "available": False, "reason": "路名不存在"}
+
+    def _i(v):
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+    guan = pops.get("官僚") if isinstance(pops.get("官僚"), dict) else {}
+    gong = pops.get("工匠") if isinstance(pops.get("工匠"), dict) else {}
+    shang = pops.get("商人") if isinstance(pops.get("商人"), dict) else {}
+
+    # ① 观察层（始终携带）：传闻档位与信号（"听到什么"，非"查实什么"）
+    try:
+        _rt = (state.rumor_tier() or {}).get("by_route", {}).get(route) or {}
+    except Exception:                        # noqa: BLE001 — 读数失败不阻断勾校
+        _rt = {}
+    rumor_source = {"tier": _i(_rt.get("tier")), "label": str(_rt.get("label") or ""),
+                    "signals": dict(_rt.get("signals") or {})}
+
+    out: Dict[str, Any] = {"route": route, "available": True,
+                           "rumor_source": rumor_source}
+    if not include_real:
+        # 未"查得实情"：**只给观察层**（真账不入卷，保护信息差与 Q11 前置语义）
+        return out
+
+    arrears = {
+        "official_salary": _i(guan.get("officials_salary_arrears")),
+        "clerk_pay": _i(guan.get("clerks_pay_arrears")),
+        "runner_pay": _i(guan.get("runners_pay_arrears")),
+        "public_supply": _i(gong.get("欠给")) + _i(shang.get("欠给")),
+    }
+    arrears["total"] = sum(v for k, v in arrears.items() if k != "total")
+    months_raw = p.get("arrears_months") if isinstance(p.get("arrears_months"), dict) else {}
+    months = {k: round(float(months_raw.get(k, 0.0) or 0.0), 2)
+              for k in ("official_salary", "clerk_pay", "runner_pay", "public_supply")}
+    months["max"] = max(list(months.values()) or [0.0])
+    # 上报 vs 真账
+    try:
+        _loss = state.tax_loss_readout() or {}
+    except Exception:                        # noqa: BLE001
+        _loss = {}
+    _loss_total = _i((_loss.get("report") or {}).get("total"))
+    st = getattr(state, "statistics", {}) or {}
+    _diverted = _i(st.get("land_tax_diverted"))
+    _assessed = _i(st.get("land_tax_assessed"))
+    _collected = _i(st.get("land_tax_collected"))
+    official_gap = {
+        "loss_report_total": _loss_total,           # 账面损耗（做账掩护）
+        "real_diverted": _diverted,                 # 真侵渔
+        "cover_overstatement": _loss_total - _diverted,   # >0 ⇒ 多报损耗掩盖侵渔
+        "unacknowledged_arrears": arrears["total"],  # 未承认欠支（官府不记欠支 ⇒ 全额）
+        "collection_gap": {"assessed": _assessed, "collected": _collected,
+                           "gap": _assessed - _collected},
+    }
+    out.update({"local_arrears": arrears, "arrears_months": months,
+                "official_gap": official_gap})
+    return out
+
+
 def resolve_audit(state, route: str, executor: Optional[str] = None,
                   secret: bool = False, log: Optional[list] = None) -> Dict[str, Any]:
     """勾校某路钱粮 → 案卷（写入 `state.audit_cases`；Q11 抄没前置）。
@@ -191,6 +276,8 @@ def resolve_audit(state, route: str, executor: Optional[str] = None,
             "kind": "账目异常",
             "grip": round(float(_grip if _grip is not None else GRIP_BASE), 3),
             "note": "簿籍不符、火耗过额（档位）",
+            # 🟢 P3-1：**引用既有财政状态**（只读快照；真账仅"查得实情"档入卷）
+            "financial": financial_evidence(state, route, include_real=True),
         }
     cases[cid] = rec
     if outcome == "反噬":
