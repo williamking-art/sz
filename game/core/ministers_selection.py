@@ -19,7 +19,7 @@ from content.ministers.data import MINISTERS
 from content.ministers.registry import (DOMAIN_ENUM, domains_of_role,
                                         is_central_role, is_registered_trait)
 
-__all__ = ["minister_registry_facts", "select_participants"]
+__all__ = ["minister_registry_facts", "select_participants", "council_participants"]
 
 
 def _unknown_fields(fig: Dict[str, Any]) -> List[str]:
@@ -123,3 +123,54 @@ def select_participants(state, issue_domains: Iterable[str] = (), *, max_n: int 
                      "在册＋in_office=True 方可入选；缺 in_office 记 unknown"),
             "fields_exposed": ("name/role/faction/trait_ids(已登记)/domains/selected_by"
                                "（不含 loyalty/corruption 数值）")}
+
+
+def council_participants(state, org_key: str = "", issue_domains: Iterable[str] = (), *,
+                         max_n: int = 0) -> Dict[str, Any]:
+    """**廷议参与者**（M36.7-C 最小适配：**只限员**；只读；不改流程、不新建机制）。
+
+    规则（可解释、确定性）：
+    1. **优先复用既有** `state.org_ministers(org_key)`（机构驱动；已按 `loyalty` 在册者过滤）；
+    2. 不足 `max_n` ⇒ 用 `select_participants(..., issue_domains)` **规则化补足**（去重）；
+    3. **一律截断到 `max_n`**（限员生效）；缺员即缺员，**不凑数**。
+
+    返回 `{org_key, participants, capped, shortfall, source, max_n, note}`；
+    `source` 记每人的来源（`org`＝机构在任／`domain`＝职责域补足／`central`＝中枢补足）。
+    """
+    from content.data import COUNCIL_MAX_PARTICIPANTS
+    limit = int(max_n or COUNCIL_MAX_PARTICIPANTS or 3)
+    picked: List[Dict[str, Any]] = []
+    names: List[str] = []
+    org_names: List[str] = []
+    if org_key:
+        try:
+            org_names = [str(n) for n in (state.org_ministers(org_key) or [])]
+        except Exception:                  # noqa: BLE001 — 机构读数不可用不影响补足
+            org_names = []
+    for n in org_names:
+        if n not in names:
+            names.append(n)
+    for n in names[:limit]:
+        f = minister_registry_facts(state).get(n)
+        picked.append({"name": n, "selected_by": "org",
+                       "role": (f or {}).get("role", ""), "faction": (f or {}).get("faction", ""),
+                       "domains": (f or {}).get("domains", [])})
+    capped = len(names) > limit
+    shortfall = max(0, limit - len(picked))
+    if shortfall:
+        add = select_participants(state, issue_domains, max_n=shortfall,
+                                  require_in_office=True)
+        for p in add["participants"]:
+            if p["name"] in {x["name"] for x in picked}:
+                continue
+            picked.append(p)
+            if len(picked) >= limit:
+                break
+    return {"org_key": str(org_key or ""),
+            "participants": picked[:limit],
+            "capped": capped or len(picked) >= limit,
+            "shortfall": max(0, limit - len(picked)),
+            "source": {p["name"]: p.get("selected_by", "") for p in picked[:limit]},
+            "max_n": limit,
+            "note": ("优先机构在任者 → 不足则按职责域规则化补足 → 一律截断到 max_n；"
+                     "缺员不凑数；不含私德数值")}

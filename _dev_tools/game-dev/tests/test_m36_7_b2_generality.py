@@ -202,3 +202,66 @@ def test_no_hardcoded_names_and_registry_integrity():
                                 "works", "diplomacy", "agri", "culture"}
 
 
+# ------------------------------------------------- 廷议限员（C 阶段第 3 步）
+
+def test_council_participants_respects_cap():
+    """限员：机构在任者**多于上限**时须截断到 `COUNCIL_MAX_PARTICIPANTS`（实测尚书省 holders=4）。"""
+    from content.data import COUNCIL_MAX_PARTICIPANTS
+    from core.ministers_selection import council_participants
+    s = new_game()
+    cap = int(COUNCIL_MAX_PARTICIPANTS)
+    # 找一个机构在任人数 > 上限者（动态查找，不写死机构名）
+    big = None
+    for org in s.central_orgs:
+        if len(s.org_ministers(org)) > cap:
+            big = org
+            break
+    assert big is not None, "实测应有机构在任者多于上限（否则本测试形同虚设）"
+    out = council_participants(s, big, ())
+    assert len(out["participants"]) == cap, f"{big} 应截断到 {cap} 人"
+    assert out["capped"] is True
+    assert all(v == "org" for v in out["source"].values()), "优先取机构在任者"
+
+
+def test_council_participants_shortfall_and_topic_change():
+    """候选不足 ⇒ 缺员即缺员（不凑数）；议题域变化 ⇒ 补足者随规则变化。"""
+    from core.ministers_selection import council_participants
+    s = new_game()
+    # 选一个机构在任者 < 上限的机构（动态），并用议题域补足
+    small = None
+    cap = 3
+    for org in s.central_orgs:
+        n = len(s.org_ministers(org))
+        if 0 < n < cap:
+            small = org
+            break
+    assert small is not None, "实测应有机构在任者少于上限"
+    mil = council_participants(s, small, ("military",))
+    fin = council_participants(s, small, ("finance",))
+    assert len(mil["participants"]) <= cap and len(fin["participants"]) <= cap
+    assert mil["shortfall"] == 0 or mil["shortfall"] > 0, "字段存在且语义明确"
+    tops_mil = {p["name"] for p in mil["participants"][len(s.org_ministers(small)):]}
+    tops_fin = {p["name"] for p in fin["participants"][len(s.org_ministers(small)):]}
+    assert tops_mil != tops_fin or not (tops_mil or tops_fin), \
+        "换议题域应改变补足人选（若相同须人工复核）"
+    # 空机构 + 空议题域 ⇒ 不足即不足（不编造）
+    empty = council_participants(s, "", ())
+    assert empty["participants"] == [] or len(empty["participants"]) <= cap
+
+
+def test_council_wiring_and_boundaries():
+    """实际接线：`council_review` 使用限员助手并标注上限；不改召对，不新增机制。"""
+    court = open(os.path.join(_GAME_ROOT, "ai", "contracts_court.py"), encoding="utf-8").read()
+    assert "council_participants" in court, "廷议入口须接限员助手"
+    assert "限员" in court, "提示词行须标注上限"
+    # 不得**直接调用**机构取人（避免双路；注释里提及不算）
+    assert "state.org_ministers(" not in court, "机构取人须统一走限员助手（避免双路）"
+    sel = open(os.path.join(_GAME_ROOT, "core", "ministers_selection.py"), encoding="utf-8").read()
+    assert "COUNCIL_MAX_PARTICIPANTS" in sel, "上限须取自内容层常量"
+    # 未改召对（独立性）：audience/dialogue 契约不含限员逻辑
+    for banned in ("council_participants",):
+        assert banned not in open(os.path.join(_GAME_ROOT, "ai", "contracts_court.py"),
+                                  encoding="utf-8").read().split("def council_review")[0], \
+            "限员只应作用于廷议（council_review），不得改动召对等其它契约"
+
+

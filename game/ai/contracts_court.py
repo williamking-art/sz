@@ -241,10 +241,13 @@ class CourtContractMixin:
             try:
                 org_hint = draft.get("org_hint", "政府")
                 org_key = _org_by_affiliation(state, org_hint)
-                rel = state.org_ministers(org_key) if org_key else []
+                # 🟢 M36.7-C 最小适配：**限员**（复用既有 org_ministers＋规则化补足，截断到上限）
+                from core.ministers_selection import council_participants
+                _cp = council_participants(state, org_key, ()) if org_key else {"participants": []}
+                rel = [p["name"] for p in _cp.get("participants", [])]
                 if rel:
                     att = "、".join(f"{m}({state._loyalty_band(m)})" for m in rel)
-                    related_line = f"【依职权相关大臣】{att}\n"
+                    related_line = f"【依职权相关大臣｜限员 {_cp.get('max_n')}】{att}\n"
             except Exception:
                 related_line = ""
         # 审查 P0-2：有 state 时用脱敏文本（区间/滞后/定性），无 state 时 dict 摘要归一
