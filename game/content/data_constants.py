@@ -191,6 +191,24 @@ LOCAL_ARREARS_UNREST_STEP = 0.5     # 每达标月 +动乱
 LOCAL_ARREARS_MORALE_STEP = 2.0     # 每达标月 −官员士气
 LOCAL_ARREARS_DECAY_STEP = 1.0      # 每达标月 +公用失修压力
 LOCAL_ARREARS_MORALE_INIT = 100.0   # 官员士气初值（旧档缺省补此值）
+# ============================================================
+# 🟢 M35-2-A/B（2026-10-11）：欠给**时间化**与**身份压力**（状态接口，不自动成事件）
+#   · 金额（存量）与时间（连续欠给月数）**分离**：1 月欠给 ≠ 24 月欠给；
+#   · 压力＝金额占比＋月数占比＋把持＋侵渔 的加权（0–100），**只报状态**，
+#     不自动腐败、不生成剧本事件（由 AI/事件层自行消费）。
+# ============================================================
+LOCAL_ARREARS_MONTHS_CAP = 36.0        # 连续欠给月数上限（封顶，防长期溢出）
+LOCAL_PRESSURE_MONTHS_REF = 24.0       # 月数参考基准（达到此月数 → 月数项打满）
+LOCAL_PRESSURE_W_AMOUNT = 0.35         # 胥吏/官员压力：金额占比权重
+LOCAL_PRESSURE_W_MONTHS = 0.35         # 月数占比权重
+LOCAL_PRESSURE_W_GRIP = 0.20           # 吏胥把持权重（胥吏压力）
+LOCAL_PRESSURE_W_UNDERPAY = 0.15       # 欠俸权重（官员压力：1 − pay_ratio）
+LOCAL_PRESSURE_W_DIV = 0.10            # 侵渔份额权重（共通）
+# 财政可见度**读取规则**（M35-2-C）：谁能看到真账
+FIN_VIS_LAYERS_PLAYER = ("official", "rumor")            # 玩家：**不含 real**
+FIN_VIS_LAYERS_AUDIT = ("official", "rumor")             # 御史/监察：默认同玩家
+FIN_VIS_LAYERS_AUDIT_TRUTH = ("real", "official", "rumor")   # 监察**足**或**密查**时可见真账
+FIN_VIS_LAYERS_SYSTEM = ("real", "official", "rumor")    # 系统/AI 全知（内部）
 
 # P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
 FIN_AUDIT_BASE = 0.35            # 保真度基线

@@ -774,6 +774,9 @@ def _load_with_data(slot: int = 1):
         p.setdefault("changping_stock", round(p.get("grain", 0) * CHANGPING_INIT_MONTHLY_SHARE))
         p.setdefault("pay_ratio", 0.5)
         p.setdefault("gap", 0)
+        # 🟢 M35-2-A 存档兼容：欠给**时间化**容器（路级连续欠给月数；旧档补空 dict，幂等）
+        if not isinstance(p.get("arrears_months"), dict):
+            p["arrears_months"] = {}
         # POP 迁移（v2）：无 pops 的旧档用 _build_pops 重建；有 pops 则逐 POP 补 goods/窖银 键
         from content.data import RESOURCE_DIMS, RAW_DIMS
         _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]

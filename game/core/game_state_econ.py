@@ -632,10 +632,15 @@ class GameStateEconMixin:
             # 🟢 M35-B：欠给**身份化**（官员欠俸／胥吏欠钱／衙役欠钱／士卒欠饷）
             "local_arrears_by_identity": dict(
                 self.statistics.get("local_arrears_by_identity") or {}),
-            # 🟢 M35-A/C/D：身份经济层 · 职业映射 · 财政可见度三层（均只读）
+            # 🟢 M35-A/C/D：身份经济层 · 职业映射 · 财政可见度（均只读）
             "identity_economics": self.identity_economics(),
             "local_identities": self.calc_local_identities(),
-            "fiscal_visibility": self.fiscal_visibility(),
+            # 🟢 M35-2-B：身份压力状态（只报状态，不自动成事件）
+            "identity_pressures": self.identity_pressures(),
+            # 🟢 M35-2-C：**玩家视角**的可见度（不含 real；真账另走内部 `fiscal_visibility()`）
+            "fiscal_visibility": self.fiscal_visibility_view("player"),
+            # 欠给时间化（金额之外的"欠了几个月"；供 AI 判断慢性程度）
+            "local_arrears_months": self.arrears_months_summary(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -1044,6 +1049,162 @@ class GameStateEconMixin:
         except Exception:                     # noqa: BLE001
             rumor = {}
         return {"real": real, "official": official, "rumor": rumor}
+
+    def identity_pressures(self) -> dict:
+        """M35-2-B **身份压力接口**（只读状态；**不自动腐败、不生成剧本事件**）。
+
+        公式（各项先归一到 0–1，再加权，最后 ×100，常量见 content）：
+          clerk_pressure    = 100·clamp(w_amount·金额占比 ＋ w_months·月数占比
+                                        ＋ w_grip·吏胥把持度 ＋ w_div·侵渔率)
+          official_pressure = 100·clamp(w_amount·金额占比 ＋ w_months·月数占比
+                                        ＋ w_underpay·(1 − 俸禄实付率) ＋ w_div·侵渔率)
+        其中：金额占比 ＝ 身份欠给**存量** ÷ 该科目当月**现实应支**（封顶 1）；
+              月数占比 ＝ 连续欠给**月数** ÷ `LOCAL_PRESSURE_MONTHS_REF`（封顶 1）。
+        ⇒ **金额与时间分离贡献**：同为 1 万贯，欠 1 月与欠 24 月压力不同（M35-2-A）。
+        仅输出状态与构成，供 AI/事件层自行决定如何反应。
+        """
+        from content.data import (LOCAL_PRESSURE_MONTHS_REF, LOCAL_PRESSURE_W_AMOUNT,
+                                  LOCAL_PRESSURE_W_DIV, LOCAL_PRESSURE_W_GRIP,
+                                  LOCAL_PRESSURE_W_MONTHS, LOCAL_PRESSURE_W_UNDERPAY)
+        try:
+            plan = self.calc_local_expenditure().get("by_route", {})
+        except Exception:                    # noqa: BLE001 — 压力读数不得因单点失败整体崩
+            plan = {}
+
+        def _clamp01(v):
+            return max(0.0, min(1.0, float(v)))
+
+        def _f(v):
+            try:
+                return float(v or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        by_route = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+            guan = pops.get("官僚") if isinstance(pops.get("官僚"), dict) else {}
+            bing = pops.get("兵") if isinstance(pops.get("兵"), dict) else {}
+            months = p.get("arrears_months") if isinstance(p.get("arrears_months"), dict) else {}
+            due = plan.get(name) or {}
+            grip = _clamp01(_f((p.get("clerks_detail") or {}).get("grip", 0.0)))
+            try:
+                pay_ratio = _clamp01(_f(self.calc_pay_ratio(name)))
+            except Exception:                # noqa: BLE001
+                pay_ratio = 1.0
+            try:
+                div = _clamp01(_f(self.finance_split(name)[2]))
+            except Exception:                # noqa: BLE001
+                div = 0.0
+
+            def _ratio(amount, due_amt, months_v):
+                return (_clamp01(amount / due_amt) if due_amt > 0 else 0.0,
+                        _clamp01(_f(months_v) / float(LOCAL_PRESSURE_MONTHS_REF)))
+
+            _a, _m = _ratio(int(guan.get("officials_salary_arrears", 0) or 0),
+                            _f(due.get("official_salary", 0)), months.get("official_salary", 0))
+            official_pressure = 100.0 * _clamp01(
+                LOCAL_PRESSURE_W_AMOUNT * _a + LOCAL_PRESSURE_W_MONTHS * _m
+                + LOCAL_PRESSURE_W_UNDERPAY * (1.0 - pay_ratio) + LOCAL_PRESSURE_W_DIV * div)
+            _a2, _m2 = _ratio(int(guan.get("clerks_pay_arrears", 0) or 0),
+                              _f(due.get("clerk_pay", 0)), months.get("clerk_pay", 0))
+            clerk_pressure = 100.0 * _clamp01(
+                LOCAL_PRESSURE_W_AMOUNT * _a2 + LOCAL_PRESSURE_W_MONTHS * _m2
+                + LOCAL_PRESSURE_W_GRIP * grip + LOCAL_PRESSURE_W_DIV * div)
+            _a3, _m3 = _ratio(int(bing.get("runners_pay_arrears", 0) or 0),
+                              _f(due.get("runner_pay", 0)), months.get("runner_pay", 0))
+            runner_pressure = 100.0 * _clamp01(
+                LOCAL_PRESSURE_W_AMOUNT * _a3 + LOCAL_PRESSURE_W_MONTHS * _m3
+                + LOCAL_PRESSURE_W_GRIP * grip + LOCAL_PRESSURE_W_DIV * div)
+            by_route[name] = {
+                "clerk_pressure": round(clerk_pressure, 2),
+                "official_pressure": round(official_pressure, 2),
+                "runner_pressure": round(runner_pressure, 2),
+                "inputs": {"clerk_arrears": int(guan.get("clerks_pay_arrears", 0) or 0),
+                           "official_arrears": int(guan.get("officials_salary_arrears", 0) or 0),
+                           "runner_arrears": int(bing.get("runners_pay_arrears", 0) or 0),
+                           "clerk_months": round(_f(months.get("clerk_pay", 0)), 2),
+                           "official_months": round(_f(months.get("official_salary", 0)), 2),
+                           "runner_months": round(_f(months.get("runner_pay", 0)), 2),
+                           "grip": round(grip, 4), "pay_ratio": round(pay_ratio, 4),
+                           "div": round(div, 4)},
+            }
+        if not by_route:
+            return {"total": {}, "by_route": {}}
+        tot = {
+            "clerk_pressure_max": max(r["clerk_pressure"] for r in by_route.values()),
+            "official_pressure_max": max(r["official_pressure"] for r in by_route.values()),
+            "runner_pressure_max": max(r["runner_pressure"] for r in by_route.values()),
+            "routes_with_clerk_arrears": sum(1 for r in by_route.values()
+                                             if r["inputs"]["clerk_arrears"] > 0),
+            "routes_with_official_arrears": sum(1 for r in by_route.values()
+                                                if r["inputs"]["official_arrears"] > 0),
+            "max_arrears_months": max(
+                max(r["inputs"]["clerk_months"], r["inputs"]["official_months"],
+                    r["inputs"]["runner_months"]) for r in by_route.values()),
+        }
+        return {"total": tot, "by_route": by_route}
+
+    def fiscal_visibility_view(self, viewer: str = "player", oversight=None,
+                               secret: bool = False) -> dict:
+        """M35-2-C 财政可见度**读取规则**（只完善规则，**不开放玩家读真账**）。
+
+        - `viewer="player"`（默认）→ `official` ＋ `rumor`（**不含 real**）；
+        - `viewer="audit"` → 同上；**仅当**监察力度 ≥ `FIN_ANOMALY_OVERSIGHT_LINE`
+          或**密查**（`secret=True`）时，追加 `real`（即"查得实情"）；
+        - `viewer="system"／"ai"` → 三层全给（系统/AI 内部，不面向玩家）。
+        返回结构与 `fiscal_visibility()` 相同，但**只含被允许的层**；
+        **真实层入口仅 `fiscal_visibility()`（内部）**——为审计/巡按/调查系统预留接口。
+        """
+        from content.data import (FIN_ANOMALY_OVERSIGHT_LINE, FIN_VIS_LAYERS_AUDIT,
+                                  FIN_VIS_LAYERS_AUDIT_TRUTH, FIN_VIS_LAYERS_PLAYER,
+                                  FIN_VIS_LAYERS_SYSTEM)
+        raw = self.fiscal_visibility()
+        v = str(viewer or "player").lower()
+        if v in ("system", "ai", "truth"):
+            layers = FIN_VIS_LAYERS_SYSTEM
+        elif v == "audit":
+            _ov = oversight
+            if _ov is None:
+                _ov = float(getattr(self, "oversight", 0.0) or 0.0)
+            layers = (FIN_VIS_LAYERS_AUDIT_TRUTH
+                      if (secret or float(_ov or 0.0) >= FIN_ANOMALY_OVERSIGHT_LINE)
+                      else FIN_VIS_LAYERS_AUDIT)
+        else:
+            layers = FIN_VIS_LAYERS_PLAYER
+        out = {k: raw.get(k, {}) for k in layers}
+        out["viewer"] = v
+        out["layers"] = list(layers)
+        return out
+
+    def arrears_months_summary(self) -> dict:
+        """M35-2-A 欠给**时间**汇总（只读；与金额分离）：各科目 全国最大／均值／最长欠给路。
+
+        数据源＝`prefectures[路]["arrears_months"]`（连续欠给月数，按月累进／恢复递减，
+        身份欠给清偿则清零）。供 AI 判断"慢性程度"（1 月 vs 24 月风险不同）。
+        """
+        kinds = ("official_salary", "clerk_pay", "runner_pay", "public_supply")
+        rows = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            m = p.get("arrears_months")
+            if isinstance(m, dict):
+                rows[name] = m
+        out = {}
+        for k in kinds:
+            vals = [float((rows.get(n) or {}).get(k, 0.0) or 0.0) for n in rows]
+            if not vals:
+                continue
+            _mx = max(vals)
+            _arg = max(rows, key=lambda n: float((rows.get(n) or {}).get(k, 0.0) or 0.0))
+            out[k] = {"max": round(_mx, 2),
+                      "mean": round(sum(vals) / float(len(vals)), 2),
+                      "routes_over_3": sum(1 for v in vals if v >= 3.0),
+                      "longest_route": _arg if _mx > 0 else None}
+        return out
 
     def tax_loss_readout(self) -> dict:
         """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。

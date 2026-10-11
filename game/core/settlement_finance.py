@@ -806,6 +806,7 @@ def _settle_local_expenditure(state, log) -> dict:
                               LOCAL_ARREARS_DECAY_STEP,
                               LOCAL_ARREARS_GRIEVANCE_STEP,
                               LOCAL_ARREARS_GRIP_STEP,
+                              LOCAL_ARREARS_MONTHS_CAP,
                               LOCAL_ARREARS_MORALE_INIT,
                               LOCAL_ARREARS_MORALE_STEP,
                               LOCAL_ARREARS_OFFICIAL_MONTHS,
@@ -856,6 +857,11 @@ def _settle_local_expenditure(state, log) -> dict:
         alloc = {k: 0 for k in kinds}
         _p_route = state.prefectures.get(name)
         _p_pops_ref = (_p_route or {}).get("pops") if isinstance(_p_route, dict) else None
+
+        def _pools_now():
+            """**每次重新取**路级 POP 镜像：桥接写入会替换镜像对象，缓存引用会失效。"""
+            _pp = state.prefectures.get(name)
+            return (_pp.get("pops") or {}) if isinstance(_pp, dict) else {}
         # 现实应支 `due_k_eff` ＝ 该科目应支 × (现实应支/责任应支)（已含保障倍数与有效使用率），
         # 尾差给占比最大的科目，保证 Σ due_k_eff ≡ due_eff。**与预算无关**，供欠支/欠月数使用。
         _ratio = (float(due_eff) / float(tot_base)) if tot_base > 0 else 0.0
@@ -909,7 +915,7 @@ def _settle_local_expenditure(state, log) -> dict:
             # （**只记账**，不改人口真账；两池合计不得超过整池 wealth，超额部分不计）
             _ident = _IDENTITY_WEALTH.get(k)
             if _ident is not None:
-                _pool2 = (_p_pops_ref or {}).get("官僚")
+                _pool2 = _pools_now().get("官僚")
                 if isinstance(_pool2, dict):
                     _pool2.setdefault("officials_wealth", 0)
                     _pool2.setdefault("clerks_wealth", 0)
@@ -936,7 +942,7 @@ def _settle_local_expenditure(state, log) -> dict:
             # （与 `欠税` 对称：欠税＝POP 欠国家，欠给＝国家欠 POP）；
             # **D7′**：逐科目未付＝该科目现实应支 − 实付（刚性级序下低位科目先欠）。
             _p = state.prefectures.get(name)
-            _pops = (_p or {}).get("pops") if isinstance(_p, dict) else None
+            _pops = _pools_now()
             if isinstance(_pops, dict):
                 _kind_short = {k: max(0, due_k_eff_used[k] - alloc[k]) for k in kinds}
                 _diff = short - sum(_kind_short.values())
@@ -971,6 +977,30 @@ def _settle_local_expenditure(state, log) -> dict:
         by_route[name] = {"target": target, "paid": route_paid, "arrears": short,
                           "due_eff": due_eff, "arrears_by_kind": _kind_short,
                           "due_k_eff": due_k_eff_used}
+        # 🟢 M35-2-A **欠给时间化**（金额与时间分离）：连续欠给月数按月累进／恢复递减；
+        #    身份欠给**已清偿**（存量归零）→ 月数清零。1 月欠给与 24 月欠给风险不同。
+        if isinstance(_p_route, dict):
+            _am = _p_route.get("arrears_months")
+            _am = dict(_am) if isinstance(_am, dict) else {}
+            for k in kinds:
+                _due_k = int(due_k_eff_used.get(k, 0) or 0)
+                if _due_k <= 0:
+                    continue
+                _unpaid_k = int(_kind_short.get(k, 0) or 0)
+                _prev = float(_am.get(k, 0.0) or 0.0)
+                if _unpaid_k > 0:
+                    _am[k] = min(LOCAL_ARREARS_MONTHS_CAP, _prev + 1.0)
+                else:
+                    _am[k] = max(0.0, _prev - 1.0)
+            # 身份层存量归零 ⇒ 视为已清偿，月数清零（"补发即缓解"）
+            _pool3 = _pools_now()
+            for _cls3, _akey, _k3 in (("官僚", "officials_salary_arrears", "official_salary"),
+                                      ("官僚", "clerks_pay_arrears", "clerk_pay"),
+                                      ("兵", "runners_pay_arrears", "runner_pay")):
+                _pp3 = _pool3.get(_cls3)
+                if isinstance(_pp3, dict) and int(_pp3.get(_akey, 0) or 0) <= 0:
+                    _am[_k3] = 0.0
+            _p_route["arrears_months"] = _am
     # ---- D5′ 欠费闭环（分层触发）：只写"压力/士气/把持"状态量（**AI/事件的接口**）----
     _pressure = {"clerks_over3": 0, "runners_over3": 0,
                  "officials_over6": 0, "public_over6": 0}
