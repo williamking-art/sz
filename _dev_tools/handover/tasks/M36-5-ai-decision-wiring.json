@@ -1,0 +1,18 @@
+{
+ "id": "M36-5-ai-decision-wiring",
+ "title": "M36.5《AI 决策接线》：让外部 AI 能正确使用 M36 的信息与行动接口（不开 M37）",
+ "claimedBy": "Cline",
+ "claimedAt": "2026-10-11T09:56:03Z",
+ "status": "in_progress",
+ "verdict": "用户裁定 2026-10-11：M36 四阶段（接口层/生命周期/反馈观察层/发现链衔接）正式闭环；**下一阶段先做 AI 侧接线，暂不开 M37**（监察能力模型属更高层政治模型，且须先有情报/官员网络/隐瞒机制，否则破坏「观察层 ≠ 能力层」冻结）。",
+ "scope": "① **只做决策接口层适配**：把 M36 三个动作（授差遣/奏报/察访→怀疑层）接到既有 AI 通道（候选：诏令载荷为主＋呈请批红为辅）；② 提供**可用动作的事实清单**（不含推荐）；③ 可选：`ai_decision_view()` 薄聚合＋权限标注。缺口与候选见设计台账 §1（接口现状）／§2（G1–G4）。",
+ "prereq": [
+  "先裁 G1（接哪个通道）与 G2（可用动作清单如何与既有 briefing 推荐解耦）",
+  "新增通道必须三处同步：schemas.py（结构）＋ validators.py（语义）＋执行点守恒，并配测试",
+  "禁止：系统推荐派谁/查哪、自动生成监察令/怀疑、任何自动路径、引入成功率/概率/阻力、放宽权限"
+ ],
+ "risk": "🟡 低-中：仅接线层（不改监察语义与单点）；风险在「清单被当成推荐」与「新通道绕过三层校验」——均由契约测试钉住",
+ "next": "接口现状已盘点（台账 §1）：读数侧 `finance_readout()` 已聚合 `inspection`／`inspection_feedback`／`inspection_backlash`／`fiscal_gap_report`／`discovery`，另有 `rumor_tier`／`identity_pressures`／`fiscal_visibility_view`；行动侧已通＝诏令（白名单 18 数值键＋`audit_route`→`resolve_audit`＋`finance_rates`）／呈请（`enqueue_ai_action`）／召对；**未通＝`enqueue_inspection`／`file_inspection_report`／`record_report_suspicion`**（M36.5 主任务）。",
+ "related": "specs/economy/M36_察访与监司行动_设计台账.md §19.8｜specs/economy/M36-5_AI决策接线_设计台账.md｜tasks/M36-inspection-batch.json（M36 四阶段已完成）",
+ "commit": ""
+}
