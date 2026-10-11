@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-11T12:00:41Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-11T12:19:57Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -15,6 +15,7 @@
 - `M36-5-ai-decision-wiring` M36.5《AI 决策接线》：让外部 AI 能正确使用 M36 的信息与行动接口（不开 M37） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-6-A-minister-proposal-contract` M36.6-A《AI 大臣人格化事实视图与提案契约》：数据结构/权限继承/提案格式/状态转换（设计已出，待 P1–P3 裁定后编码） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-7-A-professional-decision-ledger` M36.7-A《AI 大臣专业决策模型》总设计裁定台账（零代码）——八层分析模型/四落点/Q1–Q7 与 P1–P3 已裁 ｜status=**in_progress**｜claimedBy=Cline
+- `M36-7-B-ministers-prototype` M36.7-B《AI 大臣最小原型》：1 议题 × 3 大臣 × 单轮、不落库（已实现并本地验收） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-inspection-batch` M36《察访与监司行动》：监察＝行动者（编制/生命周期/风险反馈/审理链对接） ｜status=**in_progress**｜claimedBy=Cline
 
 ## 待裁 / 未闭环决策
@@ -25,7 +26,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261011T082030Z-Cline` → [`worklog/20261011T082030Z-Cline.md`](worklog/20261011T082030Z-Cline.md)
 - `20261011T091742Z-Cline` → [`worklog/20261011T091742Z-Cline.md`](worklog/20261011T091742Z-Cline.md)
 - `20261011T094838Z-Cline` → [`worklog/20261011T094838Z-Cline.md`](worklog/20261011T094838Z-Cline.md)
 - `20261011T095603Z-Cline` → [`worklog/20261011T095603Z-Cline.md`](worklog/20261011T095603Z-Cline.md)
@@ -33,8 +33,9 @@
 - `20261011T114716Z-Cline` → [`worklog/20261011T114716Z-Cline.md`](worklog/20261011T114716Z-Cline.md)
 - `20261011T115751Z-Cline` → [`worklog/20261011T115751Z-Cline.md`](worklog/20261011T115751Z-Cline.md)
 - `20261011T120041Z-Cline` → [`worklog/20261011T120041Z-Cline.md`](worklog/20261011T120041Z-Cline.md)
+- `20261011T121957Z-Cline` → [`worklog/20261011T121957Z-Cline.md`](worklog/20261011T121957Z-Cline.md)
 
 ## 计数
 
-- tasks 16（未完成 5）· decisions 16（未闭环 3）· worklog 117 · phase 文件 3
+- tasks 17（未完成 6）· decisions 16（未闭环 3）· worklog 118 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
