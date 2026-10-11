@@ -246,6 +246,9 @@ def save_game(state, slot: int = 1) -> bool:
 
         "diff_params": state.diff_params,
         "statistics": state.statistics,
+        # 🟢 M36-1：巡按容器（存档兼容；旧档缺省由 `_load_with_data` 补默认）
+        "inspection_tasks": getattr(state, "inspection_tasks", []),
+        "inspection_agent_state": getattr(state, "inspection_agent_state", {}),
         "spy_network": state.spy_network,
 
         "yamen": state.yamen,
@@ -646,6 +649,15 @@ def _load_with_data(slot: int = 1):
     # 恢复其他
     state.diff_params = data.get("diff_params", state.diff_params)
     state.statistics = data.get("statistics", state.statistics)
+    # 🟢 M36-1 存档兼容：巡按容器（旧档补默认；幂等）
+    try:
+        from core.inspection import ensure_inspection_schema
+        state.inspection_tasks = data.get("inspection_tasks", state.inspection_tasks)
+        state.inspection_agent_state = data.get("inspection_agent_state",
+                                                state.inspection_agent_state)
+        ensure_inspection_schema(state)
+    except Exception:                          # noqa: BLE001 — 迁移失败不阻断载入
+        pass
     state.spy_network = data.get("spy_network", state.spy_network)
     state.settlement_log = data.get("settlement_log", [])
     state.monthly_gazette = data.get("monthly_gazette", []) or []

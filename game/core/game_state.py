@@ -602,6 +602,11 @@ class GameState(GameStateEconMixin):
         # {case_id: {id, route, outcome, fidelity, executor, secret, created_turn,
         #            status(证据在握/查无实据/反噬), evidence, judgement}}
         self.audit_cases: dict = {}
+        # 🟢 M36-1（2026-10-11）：巡按**编制与在途容器**（监察世界接口层；**零财政耦合**）
+        #   `inspection_tasks`＝在途任务列表；`inspection_agent_state`＝编制/计数（started/done/expired）
+        #   口径见 `core/inspection.py`；**不自动派遣、不自动成案**（AI 决策）。
+        self.inspection_tasks: list = []
+        self.inspection_agent_state: dict = {"started": 0, "done": 0, "expired": 0}
         # ---- 大臣财政疑虑奏报（M34-③；V1.3 §6 发现链二级"怀疑"）----
         # 唯一写入点：core.audit_case.record_suspicion（呈请/召对两处接线）
         self.discovery_suspicions: list = []

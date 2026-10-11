@@ -652,6 +652,8 @@ class GameStateEconMixin:
             # 🟢 P3-3/P3-4：差额报表（**玩家视角**：只账面侧）＋ 巡按反向观察量
             "fiscal_gap_report": self.fiscal_gap_report("player"),
             "inspection_backlash": self.inspection_backlash_readout(),
+            # 🟢 M36-1：巡按编制/在途（**事实与约束**；AI 自行决定是否派/派谁/查哪/多深）
+            "inspection": self._inspection_readout(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -1444,6 +1446,21 @@ class GameStateEconMixin:
                 "grievance_added": round(_f(st.get("inspection_grievance_added")), 3),
                 "unrest_added": round(_f(st.get("inspection_unrest_added")), 3),
                 "by_route": by_route}
+    def _inspection_readout(self) -> dict:
+        """🟢 M36-1 **巡按编制/在途读数**（只读；**AI 决策入口**；**零财政耦合**）。
+
+        提供**事实与约束**：可派上限（D2）、逐路候选池（D1：既有官员池 waiting＋sinecure）、
+        在途任务列表。**不**提供建议、**不**自动派遣（决策空间归 AI）。
+        失败时降级为空读数，**绝不影响**财政读数。
+        """
+        try:
+            from core.inspection import inspection_readout
+            return inspection_readout(self)
+        except Exception:                      # noqa: BLE001
+            return {"capacity": {}, "candidates_total": 0,
+                    "candidates_by_route": {}, "tasks": []}
+
+
 
     def fiscal_gap_report(self, viewer: str = "player", oversight=None,
                           secret: bool = False) -> dict:
