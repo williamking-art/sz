@@ -12,7 +12,7 @@
   "验收口径统一：pytest 最终状态 ＋ `--junitxml` ＋ `FINISHED=1`（本机终端收尾统计行偶被截断，勿读未结束日志）"
  ],
  "risk": "🟡 低-中：监察本体零财政耦合、纯增量；风险在于 M36-3 若引入反馈量，需严防间接写财政/POP，并复跑校准门",
- "next": "**M36-2 已通过全量回归**：FINISHED=1 ／ tests 2614 ／ failed 0 ／ errors 0 ／ skipped 2（1 skip＋1 xfail 既有）；校准门 `END` 五项逐位一致 99,806／101,108,584／55／1.220904／9,833,490。**下一步＝M36-3 风险反馈**（等待用户就"密查失败代价"口径裁定）；接口现状：`inspection_readout()`／`inspection_capacity(tier=)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`。",
+ "next": "**M36-2 已通过全量回归**：FINISHED=1 ／ tests 2614 ／ failed 0 ／ errors 0 ／ skipped 2（1 skip＋1 xfail 既有）；校准门 `END` 五项逐位一致 99,806／101,108,584／55／1.220904／9,833,490。**下一步＝M36-3 风险反馈**（等待用户就「密查失败代价」口径裁定）；接口现状：`inspection_readout()`／`inspection_capacity(tier=…)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`。",
  "related": "specs/economy/M36_巡按大批次_设计台账.md（§15 M36-1、§16 M36-2 落地记录）｜specs/economy/P3_监察巡按接口_设计台账.md｜tasks/M34-finance-followups.json（done）",
  "commit": ""
 }
