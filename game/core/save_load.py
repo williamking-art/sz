@@ -794,6 +794,12 @@ def _load_with_data(slot: int = 1):
                 _pop.setdefault("欠税", 0)
                 # M34-① 存档兼容：**欠给**（政府欠该 POP 的钱；与欠税对称）旧档补 0
                 _pop.setdefault("欠给", 0)
+                # 🟢 M35-A/B 存档兼容：身份经济记账层与身份欠给（旧档一律补 0，幂等）
+                for _f in ("officials_wealth", "clerks_wealth",
+                           "officials_salary_arrears", "clerks_pay_arrears",
+                           "soldiers_arrears", "runners_pay_arrears",
+                           "militia_pay_arrears"):
+                    _pop.setdefault(_f, 0)
                 # 家产迁移（2026-09-27）：士绅 POP 的家产子池（钱的真实所在）
                 _pop.setdefault("estate", 0)
                 _pop.setdefault("estate_hoard", 0)

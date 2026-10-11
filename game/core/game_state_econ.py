@@ -629,6 +629,13 @@ class GameStateEconMixin:
             # M34-① D5′：欠给分层压力（AI/事件接口；只报压力，不判事件）
             "local_arrears_pressure": dict(
                 self.statistics.get("local_arrears_pressure") or {}),
+            # 🟢 M35-B：欠给**身份化**（官员欠俸／胥吏欠钱／衙役欠钱／士卒欠饷）
+            "local_arrears_by_identity": dict(
+                self.statistics.get("local_arrears_by_identity") or {}),
+            # 🟢 M35-A/C/D：身份经济层 · 职业映射 · 财政可见度三层（均只读）
+            "identity_economics": self.identity_economics(),
+            "local_identities": self.calc_local_identities(),
+            "fiscal_visibility": self.fiscal_visibility(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -914,6 +921,129 @@ class GameStateEconMixin:
             "total_shortfall_eff": total_due_eff - total_plan_eff,
             "by_route": by_route,
         }
+
+    def identity_economics(self) -> dict:
+        """M35-A 官僚**身份经济层**（只读投影）：官／吏 财富归属、份额、身份欠给。
+
+        口径（裁决：**只加经济接口，不改人口真账**）：
+          - 记账额＝`officials_wealth`／`clerks_wealth`（**记账层**；两池合计 ≤ 整池 wealth）；
+          - `wealth_share` ＝ 记账额 ÷ Σ记账额（**读侧派生**；两池皆空 → `None`，缺失不作 0）；
+          - 身份欠给：`officials_salary_arrears`（官欠俸）／`clerks_pay_arrears`（吏欠钱）；
+          - **不改粮耗、不拆 POP、不动 `pop_bridge` 镜像**（新字段已注册为可加类）。
+        """
+        def _i(v):
+            try:
+                return int(v or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        by_route = {}
+        tot = {"officials": 0, "clerks": 0, "officials_wealth": 0, "clerks_wealth": 0,
+               "pool_wealth": 0, "officials_salary_arrears": 0, "clerks_pay_arrears": 0}
+        for name, p in self.prefectures.items():
+            pool = ((p.get("pops") or {}) if isinstance(p, dict) else {}).get("官僚")
+            if not isinstance(pool, dict):
+                continue
+            ow = _i(pool.get("officials_wealth"))
+            cw = _i(pool.get("clerks_wealth"))
+            attr = ow + cw
+            row = {
+                "officials": _i(pool.get("officials")),
+                "clerks": _i(pool.get("clerks")),
+                "officials_wealth": ow,
+                "clerks_wealth": cw,
+                "attributed_total": attr,
+                "pool_wealth": _i(pool.get("wealth")),
+                "coverage": (round(attr / float(pool.get("wealth") or 1), 4)
+                             if _i(pool.get("wealth")) > 0 else None),
+                "officials_wealth_share": (round(ow / float(attr), 4) if attr > 0 else None),
+                "clerks_wealth_share": (round(cw / float(attr), 4) if attr > 0 else None),
+                "officials_salary_arrears": _i(pool.get("officials_salary_arrears")),
+                "clerks_pay_arrears": _i(pool.get("clerks_pay_arrears")),
+            }
+            by_route[name] = row
+            for k in tot:
+                tot[k] += row[k]
+        _sum = tot["officials_wealth"] + tot["clerks_wealth"]
+        tot["officials_wealth_share"] = (round(tot["officials_wealth"] / float(_sum), 4)
+                                         if _sum > 0 else None)
+        tot["clerks_wealth_share"] = (round(tot["clerks_wealth"] / float(_sum), 4)
+                                      if _sum > 0 else None)
+        return {"total": tot, "by_route": by_route}
+
+    def calc_local_identities(self) -> dict:
+        """M35-C **职业/身份映射**（只读派生；**不改军费算法**）：官／吏／士卒／乡兵／衙役。
+
+        - `official` / `clerk`：来自 `官僚` POP 子池（`officials` / `clerks`）；
+        - `soldier` / `militia`：来自 `army_units`（`tier == "乡兵"` → militia，其余 → soldier）；
+          **只映射、不改军费**（军费仍按 `calc_army_cash` 现行口径）；
+        - `runner`：**接口留白**——衙役（弓手/手力）尚未建模，读 `prefectures[路].get("runners", 0)`
+          （AI/事件可填；不新增 POP、不改人口真账）；`runner_pay` 收款方暂挂 `兵`（后续脱离）。
+        """
+        by_route = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            pool = (p.get("pops") or {}).get("官僚")
+            pool = pool if isinstance(pool, dict) else {}
+            by_route[name] = {
+                "official": int(pool.get("officials", 0) or 0),
+                "clerk": int(pool.get("clerks", 0) or 0),
+                "soldier": 0, "militia": 0,
+                "runner": int(p.get("runners", 0) or 0),
+                "soldiers_arrears": 0, "runners_pay_arrears": 0, "militia_pay_arrears": 0,
+            }
+        for u in getattr(self, "army_units", []) or []:
+            row = by_route.get(getattr(u, "station", None))
+            if row is None:
+                continue
+            n = int(getattr(u, "troops", 0) or 0)
+            if str(getattr(u, "tier", "")) == "乡兵":
+                row["militia"] += n
+            else:
+                row["soldier"] += n
+        for name, row in by_route.items():
+            pool = ((self.prefectures.get(name) or {}).get("pops") or {}).get("兵")
+            if isinstance(pool, dict):
+                row["soldiers_arrears"] = int(pool.get("soldiers_arrears", 0) or 0)
+                row["runners_pay_arrears"] = int(pool.get("runners_pay_arrears", 0) or 0)
+                row["militia_pay_arrears"] = int(pool.get("militia_pay_arrears", 0) or 0)
+        tot = {k: sum(r[k] for r in by_route.values())
+               for k in ("official", "clerk", "soldier", "militia", "runner",
+                         "soldiers_arrears", "runners_pay_arrears", "militia_pay_arrears")}
+        return {"total": tot, "by_route": by_route}
+
+    def fiscal_visibility(self) -> dict:
+        """M35-D 财政**可见度接口**（只读；三层，**不做**完整调查系统）。
+
+        · `real`     **真账**：真值（田赋应征/实收/三分、地方支用、欠给、附加收入）；
+        · `official` **官府账**：真账 ＋ P2 做账掩护（`tax_loss_readout` 损耗科目）；
+        · `rumor`    **风闻**：定档/区间（P3 发现链 `discovery_readout`）。
+        三层**同为只读投影**，不新建账本、不改钱粮。
+        """
+        st = self.statistics or {}
+        real = {
+            "land_assessed": int(st.get("land_tax_assessed", 0) or 0),
+            "land_collected": int(st.get("land_tax_collected", 0) or 0),
+            "land_central": int(st.get("land_tax_central", 0) or 0),
+            "land_local": int(st.get("land_tax_local", 0) or 0),
+            "land_diverted": int(st.get("land_tax_diverted", 0) or 0),
+            "local_extra_income": int(st.get("local_extra_income", 0) or 0),
+            "local_expense_paid": int(st.get("local_expense_paid", 0) or 0),
+            "local_arrears": int(st.get("local_arrears", 0) or 0),
+        }
+        try:
+            loss = self.tax_loss_readout() or {}
+        except Exception:                     # noqa: BLE001 — 读数不得因单点失败整体崩
+            loss = {}
+        official = {"land_central": real["land_central"],
+                    "loss_report": loss.get("report", {}),
+                    "loss_status": loss.get("status", "正常")}
+        try:
+            rumor = dict(_discovery_readout(self) or {})
+        except Exception:                     # noqa: BLE001
+            rumor = {}
+        return {"real": real, "official": official, "rumor": rumor}
 
     def tax_loss_readout(self) -> dict:
         """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。

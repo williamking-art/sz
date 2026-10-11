@@ -170,9 +170,16 @@ def _build_pops(info: dict, p_type: str) -> dict:
                   # 故其开局存量需**抵消**粮基数的同比例放大（`/ _stock`），保持原人均缓冲
                   # （≈4.9 石/人 = 1~2 月口粮；见 `test_tuning_fixes` 的 Q2 定案）。
                   "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02 / _stock),
-                  "goods": _g0(), "欠税": 0, "欠给": 0},
+                  "goods": _g0(), "欠税": 0, "欠给": 0,
+                  # 🟢 M35-A（2026-10-11）：**身份经济记账层**——官/吏各自的财富归属（记账，
+                  # **不改人口真账、不改粮耗**；两池合计 ≤ 整池 wealth，读侧派生 wealth_share）
+                  "officials_wealth": 0, "clerks_wealth": 0,
+                  # 🟢 M35-B：身份欠给（官欠俸／吏欠钱）——"欠谁的钱"决定后续政治效果
+                  "officials_salary_arrears": 0, "clerks_pay_arrears": 0},
         # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
-        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0, "欠给": 0},  # 兵额由 army_units 聚合后回填
+        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0, "欠给": 0,
+                # 🟢 M35-B/C：士卒欠饷／衙役欠钱／乡兵欠给（身份欠给；军费算法不变）
+                "soldiers_arrears": 0, "runners_pay_arrears": 0, "militia_pay_arrears": 0},
     }
 
 

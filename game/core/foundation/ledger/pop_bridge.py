@@ -56,6 +56,12 @@ SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
                  #   （该 POP 欠国家的钱）**对称**的总量子池，必须可加下沉，否则治所级
                  #   真账与路级镜像脱同步（同 `grain` 的教训）。
                  "欠给",
+                 # 🟢 M35-A/B（2026-10-11 ·《官僚身份经济层与欠给身份化》）：
+                 #   **身份经济记账层**（可加、只记账不改人口真账）与**身份欠给**：
+                 "officials_wealth", "clerks_wealth",           # 官/吏 财富归属（记账）
+                 "officials_salary_arrears", "clerks_pay_arrears",   # 官欠俸／吏欠钱
+                 "soldiers_arrears", "runners_pay_arrears",     # 士卒欠饷／衙役欠钱
+                 "militia_pay_arrears",                          # 乡兵（地方）欠给
                  # 身份与家产子池（可加类：均为计数或总量）
                  "estate", "estate_hoard",
                  "officials", "clerks", "on_post", "waiting", "sinecure",
