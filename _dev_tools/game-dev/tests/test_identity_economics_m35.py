@@ -67,7 +67,8 @@ def test_arrears_identity_mapping():
     pool = s.prefectures[poor]["pops"]
     assert int(pool["官僚"]["officials_salary_arrears"]) == by_id["official_salary"]
     assert int(pool["官僚"]["clerks_pay_arrears"]) == by_id["clerk_pay"]
-    assert int(pool["兵"]["runners_pay_arrears"]) == by_id["runner_pay"]
+    # 🟢 M35-C-1：役人欠给挂**官僚桶**（原挂兵桶；兵侧字段为旧位兼容）
+    assert int(pool["官僚"]["runners_pay_arrears"]) == by_id["runner_pay"]
     stats_id = s.statistics.get("local_arrears_by_identity") or {}
     assert sum(int(v) for v in stats_id.values()) == sum(by_id.values())
     assert s.finance_readout()["local_arrears_by_identity"] == stats_id

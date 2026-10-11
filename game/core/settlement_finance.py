@@ -821,12 +821,16 @@ def _settle_local_expenditure(state, log) -> dict:
                         "clerk_pay": "clerks_wealth"}      # M35-A 记账层
     _IDENTITY_ARREARS = {"official_salary": ("官僚", "officials_salary_arrears"),
                          "clerk_pay": ("官僚", "clerks_pay_arrears"),
-                         "runner_pay": ("兵", "runners_pay_arrears")}   # M35-B 身份欠给
+                         # 🟢 M35-C-1：役人身份欠给挂**官僚桶**（兵侧字段保留一版兼容）
+                         "runner_pay": ("官僚", "runners_pay_arrears")}   # M35-B 身份欠给
     _payout = {"official_salary": (("官僚", 1.0),),          # 官员俸禄 → 官僚
                "clerk_pay": (("官僚", 1.0),),                # 胥吏雇钱 → 官僚（M35 起可分身份层）
-               "runner_pay": (("兵", 1.0),),                 # 衙役雇钱 → 兵（M35 起分 runners 身份）
+               # 🟢 M35-C-1（裁决 D3）：衙役雇钱**改挂官僚桶**（役人由州县支给；衙役非军人）
+               "runner_pay": (("官僚", 1.0),),
                "public_supply": (("工匠", 0.4), ("商人", 0.6))}   # 公用钱（营造/水利服务）
     _personnel_kinds = ("official_salary", "clerk_pay", "runner_pay")
+    # 🟢 M35-C-1：役人雇钱**记账层**字段（累计流量；不改 POP wealth 真账、不进 m_all）
+    _OCCUPATION_INCOME = {"runner_pay": "occupation_income_runner"}
     empty = {"paid": 0, "by_kind": {k: 0 for k in kinds}, "arrears": 0,
              "arrears_by_kind": {k: 0 for k in kinds},
              "arrears_by_identity": {k: 0 for k in ("official_salary", "clerk_pay",
@@ -912,8 +916,14 @@ def _settle_local_expenditure(state, log) -> dict:
             paid_by_kind[k] += given
             route_paid += given
             # 🟢 M35-A（身份经济记账层）：官俸→`officials_wealth`／吏禄→`clerks_wealth`
-            # （**只记账**，不改人口真账；两池合计不得超过整池 wealth，超额部分不计）
+            # 🟢 M35-C-1（occupation 层）：役人雇钱→`occupation_income_runner`（累计流量，不封顶）
             _ident = _IDENTITY_WEALTH.get(k)
+            _occ = _OCCUPATION_INCOME.get(k)
+            if _occ is not None:
+                _pool_occ = _pools_now().get("官僚")
+                if isinstance(_pool_occ, dict):
+                    if _pop_obj_add(state, _pool_occ, _occ, given) is None:
+                        _pool_occ[_occ] = int(_pool_occ.get(_occ, 0) or 0) + given
             if _ident is not None:
                 _pool2 = _pools_now().get("官僚")
                 if isinstance(_pool2, dict):
@@ -996,7 +1006,7 @@ def _settle_local_expenditure(state, log) -> dict:
             _pool3 = _pools_now()
             for _cls3, _akey, _k3 in (("官僚", "officials_salary_arrears", "official_salary"),
                                       ("官僚", "clerks_pay_arrears", "clerk_pay"),
-                                      ("兵", "runners_pay_arrears", "runner_pay")):
+                                      ("官僚", "runners_pay_arrears", "runner_pay")):
                 _pp3 = _pool3.get(_cls3)
                 if isinstance(_pp3, dict) and int(_pp3.get(_akey, 0) or 0) <= 0:
                     _am[_k3] = 0.0

@@ -644,6 +644,8 @@ class GameStateEconMixin:
             # 🟢 M35-3：补发能力（AI 决策接口：是否拨款/减税/整顿）；累计补发额
             "arrears_recovery_capacity": self.arrears_recovery_capacity(),
             "local_arrears_repaid": int(self.statistics.get("local_arrears_repaid", 0) or 0),
+            # 🟢 M35-C-1：人口口径分解（六桶 ＋ occupation ＋ 流民）
+            "population_breakdown": self.population_breakdown(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -947,7 +949,8 @@ class GameStateEconMixin:
 
         by_route = {}
         tot = {"officials": 0, "clerks": 0, "officials_wealth": 0, "clerks_wealth": 0,
-               "pool_wealth": 0, "officials_salary_arrears": 0, "clerks_pay_arrears": 0}
+               "pool_wealth": 0, "officials_salary_arrears": 0, "clerks_pay_arrears": 0,
+               "runner_count": 0, "occupation_income_runner": 0}
         for name, p in self.prefectures.items():
             pool = ((p.get("pops") or {}) if isinstance(p, dict) else {}).get("官僚")
             if not isinstance(pool, dict):
@@ -968,15 +971,23 @@ class GameStateEconMixin:
                 "clerks_wealth_share": (round(cw / float(attr), 4) if attr > 0 else None),
                 "officials_salary_arrears": _i(pool.get("officials_salary_arrears")),
                 "clerks_pay_arrears": _i(pool.get("clerks_pay_arrears")),
+                # 🟢 M35-C-1：职业（occupation）层——役人计数与雇钱记账（裁决 D3 字段形状）
+                "runner_count": _i(pool.get("runner_count")),
+                "occupation_income": {"runner": _i(pool.get("occupation_income_runner"))},
             }
             by_route[name] = row
             for k in tot:
-                tot[k] += row[k]
+                if k in row:
+                    tot[k] += row[k]
+            tot["occupation_income_runner"] += min(
+                _i(pool.get("occupation_income_runner")),
+                _i(row.get("occupation_income", {}).get("runner")))
         _sum = tot["officials_wealth"] + tot["clerks_wealth"]
         tot["officials_wealth_share"] = (round(tot["officials_wealth"] / float(_sum), 4)
                                          if _sum > 0 else None)
         tot["clerks_wealth_share"] = (round(tot["clerks_wealth"] / float(_sum), 4)
                                       if _sum > 0 else None)
+        tot["occupation_income"] = {"runner": tot.pop("occupation_income_runner", 0)}
         return {"total": tot, "by_route": by_route}
 
     def calc_local_identities(self) -> dict:
@@ -994,11 +1005,16 @@ class GameStateEconMixin:
                 continue
             pool = (p.get("pops") or {}).get("官僚")
             pool = pool if isinstance(pool, dict) else {}
+            _rc = int(pool.get("runner_count", 0) or 0)
+            if _rc <= 0:
+                _rc = int(p.get("runners", 0) or 0)      # 兼容：旧档/测试直写路级 `runners`
             by_route[name] = {
                 "official": int(pool.get("officials", 0) or 0),
                 "clerk": int(pool.get("clerks", 0) or 0),
                 "soldier": 0, "militia": 0,
-                "runner": int(p.get("runners", 0) or 0),
+                "runner": _rc,
+                # 🟢 M35-C-1：役人雇钱记账层（累计）与身份欠给（挂官僚桶）
+                "runner_income": int(pool.get("occupation_income_runner", 0) or 0),
                 "soldiers_arrears": 0, "runners_pay_arrears": 0, "militia_pay_arrears": 0,
             }
         for u in getattr(self, "army_units", []) or []:
@@ -1011,15 +1027,52 @@ class GameStateEconMixin:
             else:
                 row["soldier"] += n
         for name, row in by_route.items():
-            pool = ((self.prefectures.get(name) or {}).get("pops") or {}).get("兵")
-            if isinstance(pool, dict):
-                row["soldiers_arrears"] = int(pool.get("soldiers_arrears", 0) or 0)
-                row["runners_pay_arrears"] = int(pool.get("runners_pay_arrears", 0) or 0)
-                row["militia_pay_arrears"] = int(pool.get("militia_pay_arrears", 0) or 0)
+            pool_b = ((self.prefectures.get(name) or {}).get("pops") or {}).get("兵")
+            if isinstance(pool_b, dict):
+                row["soldiers_arrears"] = int(pool_b.get("soldiers_arrears", 0) or 0)
+                row["militia_pay_arrears"] = int(pool_b.get("militia_pay_arrears", 0) or 0)
+            pool_g = ((self.prefectures.get(name) or {}).get("pops") or {}).get("官僚")
+            if isinstance(pool_g, dict):
+                # 🟢 M35-C-1：役人欠给挂官僚桶；兵侧字段为**旧位兼容**（迁移前档仍可读）
+                row["runners_pay_arrears"] = int(pool_g.get("runners_pay_arrears", 0) or 0)
+                if row["runners_pay_arrears"] <= 0 and isinstance(pool_b, dict):
+                    row["runners_pay_arrears"] = int(pool_b.get("runners_pay_arrears", 0) or 0)
         tot = {k: sum(r[k] for r in by_route.values())
-               for k in ("official", "clerk", "soldier", "militia", "runner",
+               for k in ("official", "clerk", "soldier", "militia", "runner", "runner_income",
                          "soldiers_arrears", "runners_pay_arrears", "militia_pay_arrears")}
         return {"total": tot, "by_route": by_route}
+
+    def population_breakdown(self) -> dict:
+        """M35-C-1 **人口口径分解**（只读；裁决 D1 甲）：六桶 size ＋ occupation ＋ 流民。
+
+        · `pop_classes`：六桶 size（**不含** occupation，也不含隐户/役人）；
+        · `occupations`：职业人口（`runner_count`，不进任何桶 size）；
+        · `in_registry_total` ＝ Σ六桶 size ＋ Σoccupation（不含流民）；
+        · `refugees`／`population_field`：流民与 `state.population`（后者含流民，用于对账）。
+        """
+        pop_classes = {}
+        occupations = {"runner": 0}
+        for p in self.prefectures.values():
+            if not isinstance(p, dict):
+                continue
+            for cls, pool in (p.get("pops") or {}).items():
+                if isinstance(pool, dict):
+                    pop_classes[cls] = pop_classes.get(cls, 0) + int(pool.get("size", 0) or 0)
+            guan = (p.get("pops") or {}).get("官僚")
+            if isinstance(guan, dict):
+                _rc = int(guan.get("runner_count", 0) or 0)
+                if _rc <= 0:
+                    _rc = int(p.get("runners", 0) or 0)      # 旧位兼容
+                occupations["runner"] += _rc
+        _size_total = sum(pop_classes.values())
+        _occ_total = sum(occupations.values())
+        return {"pop_classes": pop_classes,
+                "occupations": occupations,
+                "size_total": _size_total,
+                "occupation_total": _occ_total,
+                "in_registry_total": _size_total + _occ_total,
+                "refugees": int(getattr(self, "refugee_count", 0) or 0),
+                "population_field": int(getattr(self, "population", 0) or 0)}
 
     def fiscal_visibility(self) -> dict:
         """M35-D 财政**可见度接口**（只读；三层，**不做**完整调查系统）。
@@ -1116,7 +1169,8 @@ class GameStateEconMixin:
             clerk_pressure = 100.0 * _clamp01(
                 LOCAL_PRESSURE_W_AMOUNT * _a2 + LOCAL_PRESSURE_W_MONTHS * _m2
                 + LOCAL_PRESSURE_W_GRIP * grip + LOCAL_PRESSURE_W_DIV * div)
-            _a3, _m3 = _ratio(int(bing.get("runners_pay_arrears", 0) or 0),
+            _a3, _m3 = _ratio(int((guan.get("runners_pay_arrears", 0)
+                                   or bing.get("runners_pay_arrears", 0) or 0)),
                               _f(due.get("runner_pay", 0)), months.get("runner_pay", 0))
             runner_pressure = 100.0 * _clamp01(
                 LOCAL_PRESSURE_W_AMOUNT * _a3 + LOCAL_PRESSURE_W_MONTHS * _m3
@@ -1127,7 +1181,8 @@ class GameStateEconMixin:
                 "runner_pressure": round(runner_pressure, 2),
                 "inputs": {"clerk_arrears": int(guan.get("clerks_pay_arrears", 0) or 0),
                            "official_arrears": int(guan.get("officials_salary_arrears", 0) or 0),
-                           "runner_arrears": int(bing.get("runners_pay_arrears", 0) or 0),
+                           "runner_arrears": int(guan.get("runners_pay_arrears", 0)
+                                                 or bing.get("runners_pay_arrears", 0) or 0),
                            "clerk_months": round(_f(months.get("clerk_pay", 0)), 2),
                            "official_months": round(_f(months.get("official_salary", 0)), 2),
                            "runner_months": round(_f(months.get("runner_pay", 0)), 2),
@@ -1249,7 +1304,8 @@ class GameStateEconMixin:
                 "arrears_by_kind": {
                     "official_salary": int(guan.get("officials_salary_arrears", 0) or 0),
                     "clerk_pay": int(guan.get("clerks_pay_arrears", 0) or 0),
-                    "runner_pay": int(bing.get("runners_pay_arrears", 0) or 0),
+                    "runner_pay": int(guan.get("runners_pay_arrears", 0)
+                                      or bing.get("runners_pay_arrears", 0) or 0),
                     "public_supply": (int((pops.get("工匠") or {}).get("欠给", 0) or 0)
                                       + int((pops.get("商人") or {}).get("欠给", 0) or 0)),
                 },

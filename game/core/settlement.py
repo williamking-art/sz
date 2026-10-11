@@ -701,8 +701,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # growth 已在 Step 3 分配到农 POP，故校正后 population 仍含当月增长效果，数学一致。
     # 2026-09-27（方案 A）：隐户人口已并入 `农` POP 的加法子池 `hidden`（口），但**不在籍**
     # （不落籍、不纳税）→ 本式**不含**隐户；「总口」口径 = 本式结果 ＋ Σ`农.hidden`。
+    # 🟢 M35-C-1（裁决 D1 甲）：**职业人口（occupation）计入在籍人口**——役人是实际人口，
+    #   但不进任何 POP 桶的 `size`（不破 `size == officials+clerks`、不被兵额月度重算抹掉），
+    #   故在此**读侧并入**：Σ六桶 size ＋ Σ occupation(runner_count) ＋ 流民。
+    _occ_total = 0
+    for _p in state.prefectures.values():
+        _guan = ((_p.get("pops") or {}).get("官僚")
+                 if isinstance(_p.get("pops"), dict) else None)
+        if isinstance(_guan, dict):
+            _occ_total += int(_guan.get("runner_count", 0) or 0)
     _pop_total = sum(_pop["size"] for _p in state.prefectures.values()
-                     for _pop in _p["pops"].values()) + state.refugee_count
+                     for _pop in _p["pops"].values()) + state.refugee_count + _occ_total
     state.population = max(10_000_000, _pop_total)
 
     # ---- Step 10.55: 农的职位/丁口子池对齐（B1d-a **月度兜底**，幂等）----

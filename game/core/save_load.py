@@ -777,6 +777,31 @@ def _load_with_data(slot: int = 1):
         # 🟢 M35-2-A 存档兼容：欠给**时间化**容器（路级连续欠给月数；旧档补空 dict，幂等）
         if not isinstance(p.get("arrears_months"), dict):
             p["arrears_months"] = {}
+        # 🟢 M35-C-1 存档迁移（**幂等**）：① 路级 `runners` → 官僚池 `runner_count`
+        #   ② 身份欠给 `runners_pay_arrears`：兵 → 官僚（挂靠桶＝官僚，裁决 D3）
+        try:
+            _pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+            _guan = _pops.get("官僚") if isinstance(_pops.get("官僚"), dict) else None
+            _bing = _pops.get("兵") if isinstance(_pops.get("兵"), dict) else None
+            if _guan is not None:
+                _rc = int(_guan.get("runner_count", 0) or 0)
+                _legacy = int(p.get("runners", 0) or 0)
+                if _rc <= 0 and _legacy > 0:
+                    _guan["runner_count"] = _legacy          # 搬运（真账唯一化）
+                    p["runners"] = 0                         # 旧位清零，避免双源漂移
+                    state.statistics["m35c_runner_count_migrated"] = \
+                        int(state.statistics.get("m35c_runner_count_migrated", 0) or 0) + _legacy
+                if _bing is not None:
+                    _b_arr = int(_bing.get("runners_pay_arrears", 0) or 0)
+                    _g_arr = int(_guan.get("runners_pay_arrears", 0) or 0)
+                    if _b_arr > 0 and _g_arr <= 0:
+                        _guan["runners_pay_arrears"] = _b_arr    # 搬运（不改 any money）
+                        _bing["runners_pay_arrears"] = 0
+                        state.statistics["m35c_runner_arrears_migrated"] = \
+                            int(state.statistics.get("m35c_runner_arrears_migrated", 0) or 0) \
+                            + _b_arr
+        except Exception:                                     # noqa: BLE001 — 迁移失败不阻断载入
+            pass
         # POP 迁移（v2）：无 pops 的旧档用 _build_pops 重建；有 pops 则逐 POP 补 goods/窖银 键
         from content.data import RESOURCE_DIMS, RAW_DIMS
         _goods_dims = [d for d in RESOURCE_DIMS if d not in RAW_DIMS]
@@ -801,7 +826,9 @@ def _load_with_data(slot: int = 1):
                 for _f in ("officials_wealth", "clerks_wealth",
                            "officials_salary_arrears", "clerks_pay_arrears",
                            "soldiers_arrears", "runners_pay_arrears",
-                           "militia_pay_arrears"):
+                           "militia_pay_arrears",
+                           # 🟢 M35-C-1：职业（occupation）层
+                           "runner_count", "occupation_income_runner"):
                     _pop.setdefault(_f, 0)
                 # 家产迁移（2026-09-27）：士绅 POP 的家产子池（钱的真实所在）
                 _pop.setdefault("estate", 0)

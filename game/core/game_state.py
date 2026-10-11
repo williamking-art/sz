@@ -175,7 +175,15 @@ def _build_pops(info: dict, p_type: str) -> dict:
                   # **不改人口真账、不改粮耗**；两池合计 ≤ 整池 wealth，读侧派生 wealth_share）
                   "officials_wealth": 0, "clerks_wealth": 0,
                   # 🟢 M35-B：身份欠给（官欠俸／吏欠钱）——"欠谁的钱"决定后续政治效果
-                  "officials_salary_arrears": 0, "clerks_pay_arrears": 0},
+                  "officials_salary_arrears": 0, "clerks_pay_arrears": 0,
+                  # 🟢 M35-C-1（2026-10-11 · 裁决 D1 甲/D2 甲/D3）：
+                  #   役人（衙役）职业层——`runner_count`＝职业人口计数（**不进 size**，不破
+                  #   `size == officials + clerks`；人口统计在**读侧**并入＝Σsize + Σoccupation）；
+                  #   `occupation_income_runner`＝役人雇钱**记账层**累计（与 officials_wealth/
+                  #   clerks_wealth 同性质：只记账，不改 POP wealth 真账、不进 m_all）。
+                  "runner_count": 0, "occupation_income_runner": 0,
+                  # 🟢 M35-C-1：役人身份欠给**挂靠本桶**（由兵桶幂等迁入；兵侧字段保留一版兼容）
+                  "runners_pay_arrears": 0},
         # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
         "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0, "欠给": 0,
                 # 🟢 M35-B/C：士卒欠饷／衙役欠钱／乡兵欠给（身份欠给；军费算法不变）

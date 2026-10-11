@@ -62,6 +62,11 @@ SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
                  "officials_salary_arrears", "clerks_pay_arrears",   # 官欠俸／吏欠钱
                  "soldiers_arrears", "runners_pay_arrears",     # 士卒欠饷／衙役欠钱
                  "militia_pay_arrears",                          # 乡兵（地方）欠给
+                 # 🟢 M35-C-1（2026-10-11 · 裁决 D1 甲/D3）：**职业（occupation）层**
+                 #   `runner_count`＝役人（衙役）职业人口计数（**不进 size**，人口统计读侧并入）；
+                 #   `occupation_income_runner`＝役人雇钱**记账层**累计（不改 POP wealth 真账、
+                 #   不进 `money.ACCOUNTS`/`m_all`）。二者皆可加，须注册方随镜像同步。
+                 "runner_count", "occupation_income_runner",
                  # 身份与家产子池（可加类：均为计数或总量）
                  "estate", "estate_hoard",
                  "officials", "clerks", "on_post", "waiting", "sinecure",
