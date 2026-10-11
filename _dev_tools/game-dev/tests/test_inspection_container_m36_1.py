@@ -297,8 +297,10 @@ def test_readout_exposed_for_ai():
     """AI 读数：`finance_readout()[\"inspection\"]` 给容量＋在途（事实与约束，无建议）。"""
     s = new_game()
     ro = s.finance_readout()["inspection"]
+    # M36-4 契约升级：新增 `suspicion_pending`（已奏报、尚未桥接入怀疑层——事实，不替代决策）
     assert set(ro) == {"capacity", "candidates_total", "candidates_by_route",
-                       "status_counts", "identity", "tasks"}
+                       "status_counts", "identity", "suspicion_pending", "tasks"}
+    assert ro["suspicion_pending"] == [], "新局无已奏报差遣"
     assert ro["capacity"]["max_active_tasks"] == INSPECTION_MAX_ACTIVE_TASKS["正常"]
     assert ro["capacity"]["tiers"] == dict(INSPECTION_MAX_ACTIVE_TASKS)
     assert set(ro["status_counts"]) == {"created", "active", "completed", "expired"}

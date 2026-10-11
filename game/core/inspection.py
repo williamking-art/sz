@@ -440,15 +440,22 @@ def inspection_readout(state) -> Dict[str, Any]:
     cands = inspection_candidates(state)
     total = sum(_i(v.get("candidates")) for v in cands.values())
     counts = {s: 0 for s in _TASK_STATUSES}
+    pending: List[str] = []
     for t in state.inspection_tasks:
-        if isinstance(t, dict):
-            _st = str(t.get("status") or "active")
-            counts[_st if _st in counts else "active"] += 1
+        if not isinstance(t, dict):
+            continue
+        _st = str(t.get("status") or "active")
+        counts[_st if _st in counts else "active"] += 1
+        _rep = t.get("report")
+        if _st == "completed" and isinstance(_rep, dict) and _rep.get("suspicion") is None:
+            pending.append(str(t.get("id") or ""))
     return {"capacity": cap,
             "candidates_total": total,
             "candidates_by_route": cands,
             "status_counts": counts,
             "identity": inspection_identity(state),
+            # M36-4 事实（**不替代决策**）：已奏报、尚未经决策方桥接入怀疑层的差遣
+            "suspicion_pending": pending,
             "tasks": inspection_task_list(state)}
 
 

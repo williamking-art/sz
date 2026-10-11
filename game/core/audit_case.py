@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 """勾校案卷（P3 发现系统；V1.3 终稿 §7）。
 
+⚠️ **称谓（2026-10-11）**：内容层按宋制用语——**察访／差遣／奏报**（御史台・监司）；
+技术层保持 `inspection_*`／`audit_case.*`，朝代称谓经 `INSPECTION_IDENTITY` 映射。
+
 - `audit_fidelity(state, route, executor, secret)`：**保真度三档**读数（C3 参数，小权重起步）；
-  输入＝执行者 `corruption` × 目标路 `clerks_detail[路]["grip"]` × `spy_network` × 是否密查。
+  输入＝执行者 `corruption` × 目标路 `clerks_detail[路]["grip"]` × `spy_network` × 是否密查
+  （🟢 M36-4 冻结：**四输入不因察访身份而变**，察访不增加隐藏成功率/不改查实概率/不改真账读取）；
 - `resolve_audit(...)`：勾校某路钱粮 → 产出**案卷**写入 `state.audit_cases`
-  （`case_id ＋ evidence ＋ judgement`；Q11 抄没前置之"证据"）。
+  （`case_id ＋ evidence ＋ judgement`；Q11 抄没前置之"证据"）。**唯一致案函数**；
+  取证触发者＝**决策方（玩家／外部 AI）显式行动**（D10＝甲），察访完成**不得**自动查账。
+- `record_suspicion(...)`：**怀疑唯一写入点**（发现链二级；呈请/召对/察访三源）；
+- `record_report_suspicion(...)`：🟢 M36-4 **察访 → 怀疑层**的唯一桥接（只做适配，
+  须任务已奏报、须决策方显式调用；不建案、不产证据、不写财政）。
 - `discovery_readout(state)`：**四级发现阶梯**（异常→怀疑→证据→真相；一/二级复用既有读数）。
 
 纪律：只读输入、不伪造；缺失读数按**中值**处理并在 `inputs` 里显式标注（缺失 ≠ 0/1）。
@@ -22,7 +30,8 @@ from content.data import (FIN_AUDIT_BACKFIRE_LINE, FIN_AUDIT_BASE,
 __all__ = ["audit_fidelity", "resolve_audit", "discovery_readout",
            "financial_evidence",
            "case_is_evidenced", "confiscate_by_case",
-           "scan_fiscal_suspicion", "record_suspicion", "FIN_SUSPICION_KEYWORDS"]
+           "scan_fiscal_suspicion", "record_suspicion", "record_report_suspicion",
+           "FIN_SUSPICION_KEYWORDS"]
 
 #: 财政疑虑关键词（**单点声明**；启发式、可审计——命中即视为大臣"犯嘀咕"。
 #: 与 `longterm_task._TOPIC_BRIDGE`／`decree_effect.MILITARY_KEYWORDS` 同姿态：
@@ -81,6 +90,54 @@ def record_suspicion(state, text, *, source: str, minister: Optional[str] = None
     if FIN_SUSPICION_CAP > 0 and len(items) > FIN_SUSPICION_CAP:
         del items[:len(items) - FIN_SUSPICION_CAP]
     return rec
+
+
+def record_report_suspicion(state, task_id: str, text: str, *,
+                            source: str = "察访") -> Dict[str, Any]:
+    """🟢 M36-4（裁决 D9＝B＋B-2）**察访 → 怀疑层**的唯一桥接（**只做适配，不做判断**）。
+
+    定位：**接入发现链**，不是扩大监察能力。
+      - 上游：`core.inspection` 的**察访差遣**（`state.inspection_tasks`，只提供信息）；
+      - 本函数：把**已奏报**的察访差遣，转成发现链二级「怀疑」（委托 `record_suspicion` 唯一写入点）；
+      - 下游：决策方据此判断是否下诏勾校（`resolve_audit`）。
+
+    **禁止**（由契约测试钉住）：
+      - 奏报**不自动**产生怀疑（本函数必须**由决策方显式调用**，结算链不得调用）；
+      - 不建案、不产证据、不写财政/POP/吏治、不改 `audit_fidelity` 四输入；
+      - 不因察访身份放宽任何真账权限（D11：察访身份 ≠ 自动全知）。
+
+    合法性：① 差遣存在；② 状态为 `completed`（**须已奏报**，`created`/`active`/`expired` 不可入怀疑层）；
+    ③ 文本非空。其余（是否财政疑虑、去重、容量）一律沿用 `record_suspicion` 的既有规则。
+    """
+    from core.inspection import inspection_task_list      # 只读任务容器（方向：司法读监察）
+    _tid = str(task_id or "")
+    task = next((t for t in inspection_task_list(state)
+                 if str(t.get("id")) == _tid), None)
+    if task is None:
+        return {"ok": False, "reason": f"察访差遣不存在：{_tid}"}
+    _st = str(task.get("status") or "")
+    if _st != "completed":
+        return {"ok": False, "reason": f"差遣尚未奏报（status={_st}），不可入怀疑层"}
+    _txt = str(text or "").strip()
+    if not _txt:
+        return {"ok": False, "reason": "涉嫌事项文本为空（不静默伪造、不静默丢弃）"}
+    _kind = str(task.get("kind") or "")
+    _route = str(task.get("route") or "")
+    _payload = f"[{_kind}·{_route}] {_txt}"          # 可追溯：任务种类与路名随卷入
+    rec = record_suspicion(state, _payload, source=str(source or "察访"),
+                           route=_route)
+    if rec is None:
+        return {"ok": False,
+                "reason": "未入怀疑层：非财政疑虑文本，或与既有条目重复（record_suspicion 规则）"}
+    # 只在监察自己的容器里记"已桥接"（**不写**案卷/证据/财政）；
+    # `inspection_task_list` 返回浅拷贝，但 `report` 为共享引用 ⇒ 写入会落到真实任务上
+    _rep = task.get("report")
+    if isinstance(_rep, dict):
+        _rep["suspicion"] = {"keyword": rec.get("keyword"),
+                             "period": f"{getattr(state, 'year', 0)}-{getattr(state, 'month', 0)}",
+                             "source": rec.get("source")}
+    return {"ok": True, "task_id": _tid, "suspicion": rec}
+
 
 
 def _executor_corruption(state, executor: Optional[str]) -> Optional[float]:
