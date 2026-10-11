@@ -1,0 +1,17 @@
+{
+ "id": "D10-证据触发",
+ "title": "D10：financial_evidence 的触发者（甲 AI 决定→单点执行／乙 回奏自动接钩校／丙 第二证据生产者）",
+ "status": "open",
+ "raisedBy": "Cline",
+ "raisedAt": "2026-10-11T08:31:00Z",
+ "blocks": ["M36-4"],
+ "context": "现状唯一生产链：AI 诏令 effects['audit_route'] → settlement_decree._apply_decree_effect → audit_case.resolve_audit（唯一致案）→ financial_evidence(include_real=True)（唯一证据读数）。M36-4 需裁定『回奏之后是否新增触发路径』。",
+ "options": [
+  "甲（推荐）AI 决定 → 调用 audit：回奏只是信息，成案须另有一次显式 AI 行动；触发者=AI，执行者=单点",
+  "乙 inspection_report → 自动 resolve_audit → financial_evidence（等于回奏自动成案，禁止）",
+  "丙 新增第二个证据生产者（如 inspection_evidence；违反口径单点，禁止）"
+ ],
+ "recommendation": "甲；并附三条：① resolve_audit／financial_evidence 单点不变；② audit_fidelity 四输入（corruption × grip × spy_network × secret）冻结，巡按不得暗中改变（否则即成功率模型绕道，属 M37/M38）；③ 触发通道不新增（仍走既有显式 AI 行动接口）；回奏的 summary/late/反馈观察量可作 AI 决策输入，但不得作为 resolve_audit 的隐藏参数",
+ "designDoc": "specs/economy/M36-4_证据形成机制_设计裁决台账.md §5／§9",
+ "note": "verdict 只由裁定人写（本条目由 Cline 登记，未替裁定人写结论）"
+}

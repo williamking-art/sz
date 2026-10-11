@@ -1,0 +1,16 @@
+{
+ "id": "D11-证据权限",
+ "title": "D11：证据权限（谁可见 rumor／official 账／real 账／financial evidence）",
+ "status": "open",
+ "raisedBy": "Cline",
+ "raisedAt": "2026-10-11T08:32:00Z",
+ "blocks": ["M36-4"],
+ "context": "现有权限范本＝game_state_econ.fiscal_gap_report(viewer, oversight, secret)：player/official/court 只给账面侧；inspector 需 secret 或 oversight ≥ FIN_ANOMALY_OVERSIGHT_LINE 才见真账；ai/system 全知。financial_evidence(include_real=True) 目前仅由 resolve_audit 在『查得实情』档调用。",
+ "options": [
+  "维持现状矩阵（推荐）：player/official/court 只账面；inspector 按 secret／门限得真账；ai/system 全知；审理阶段 evidence 随卷入（case_is_evidenced 判据不变）",
+  "因巡按存在而放宽（如普遍可见真账）——不建议：会破坏信息差与 Q11 前置语义"
+ ],
+ "recommendation": "维持现状；三条附则：① 不因巡按存在而全开放；② 回奏 ≠ 开卷（file_inspection_report 仍只做 case_id 引用校验，真账仍只由 resolve_audit 在查得实情档取用）；③ M36-3 反馈观察量是本层唯一额外可见物",
+ "designDoc": "specs/economy/M36-4_证据形成机制_设计裁决台账.md §6／§9",
+ "note": "verdict 只由裁定人写（本条目由 Cline 登记，未替裁定人写结论）"
+}

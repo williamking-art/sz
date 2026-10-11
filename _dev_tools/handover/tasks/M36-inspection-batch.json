@@ -12,7 +12,7 @@
   "验收口径统一：pytest 最终状态 ＋ `--junitxml` ＋ `FINISHED=1`（本机终端收尾统计行偶被截断，勿读未结束日志）"
  ],
  "risk": "🟡 低-中：监察本体零财政耦合、纯增量；风险在于 M36-3 若引入反馈量，需严防间接写财政/POP，并复跑校准门",
- "next": "**M36-3 已通过全量回归**：FINISHED=1 ／ tests 2626 ／ failed 0 ／ errors 0 ／ skipped 2（1 skip＋1 xfail 既有）；校准门 `END` 五项逐位一致 99,806／101,108,584／55／1.220904／9,833,490。**下一步＝M36-4（后置）对接审理链**：任务回奏的 `case_id` 引用与 `audit_case.resolve_audit`＋`financial_evidence` 单点衔接（仍禁：自动成案/处罚/定罪/抄没、监察写财政）。接口现状：`inspection_readout()`／`inspection_feedback_readout()`／`inspection_capacity(tier=…)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`。",
+ "next": "**M36-4 设计裁决已出，等待裁定（未编码）**：见 [`specs/economy/M36-4_证据形成机制_设计裁决台账.md`](../../game-docs/specs/economy/M36-4_证据形成机制_设计裁决台账.md)。待裁三项已登记 `decisions/`：**D9 巡按发现**（推荐 B：可提涉嫌事项、进既有发现链二级「怀疑」、**不成案**；落地形态推荐 B-2 零接口改动）／**D10 取证触发者**（推荐甲：AI 决定 → `resolve_audit` 单点执行；冻结 `audit_fidelity` 四输入）／**D11 证据权限**（维持现状 viewer 矩阵；**不因巡按全开放**、回奏≠开卷）。裁后若取推荐组合，M36-4 落地面＝**零代码**（仅补 6 项契约测试＋文档）。接口现状：`inspection_readout()`／`inspection_feedback_readout()`／`inspection_capacity(tier=…)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`；审计链单点：`audit_case.resolve_audit`（唯一致案）／`financial_evidence`（唯一证据读数）／`record_suspicion`（怀疑唯一写入点）。",
  "related": "specs/economy/M36_巡按大批次_设计台账.md（§15 M36-1、§16 M36-2 落地记录）｜specs/economy/P3_监察巡按接口_设计台账.md｜tasks/M34-finance-followups.json（done）",
  "commit": "a1181b89ba"
 }

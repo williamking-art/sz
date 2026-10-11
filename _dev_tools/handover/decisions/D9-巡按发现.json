@@ -1,0 +1,17 @@
+{
+ "id": "D9-巡按发现",
+ "title": "D9：巡按发现是什么？（A 只提交 observation／B 可提涉嫌事项但不形成案件／C 直接成案卷）",
+ "status": "open",
+ "raisedBy": "Cline",
+ "raisedAt": "2026-10-11T08:30:00Z",
+ "blocks": ["M36-4"],
+ "context": "M36-4 开工门。现状：`audit_case.resolve_audit` 是唯一致案函数（写 state.audit_cases）；`record_suspicion` 是怀疑的唯一写入点（发现链二级，已从 呈请/召对 两处接线，6 回合窗口、容量 12）；`file_inspection_report` 只做 case_id 引用校验。",
+ "options": [
+  "A 巡按只提交自由文本 observation（＋可选已存在 case_id）：信息不进发现链，下游无法计数复核",
+  "B（推荐）巡按可提结构化『涉嫌事项』，写入既有发现链二级『怀疑』（record_suspicion，source=巡按），不形成案件",
+  "C 巡按直接形成调查案卷（违反成案单点与证据单点，不建议）"
+ ],
+ "recommendation": "B；落地形态推荐 B-2（零接口改动：AI 直接调用既有 record_suspicion），M36-4 可为纯设计＋测试＋文档的零代码批次",
+ "designDoc": "specs/economy/M36-4_证据形成机制_设计裁决台账.md §4／§9",
+ "note": "verdict 只由裁定人写（本条目由 Cline 登记，未替裁定人写结论）"
+}
