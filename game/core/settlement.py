@@ -714,14 +714,14 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
                      for _pop in _p["pops"].values()) + state.refugee_count + _occ_total
     state.population = max(10_000_000, _pop_total)
 
-    # ---- 🟢 M36-1：【巡按】在途任务**状态迁移**（时间推进；幂等）----
+    # ---- 🟢 M36-1：【察访】差遣在途任务**状态迁移**（时间推进；幂等）----
     # 纪律：只推进任务窗口/到期标记（**不成案、不写财政/POP/欠给**）；
     #       无在途任务时**完全无操作**（⇒ 校准门与既有行为逐位一致）。
     try:
         from core.inspection import inspection_tick
         inspection_tick(state, log)
     except Exception as _e:                       # noqa: BLE001 — 监察推演不得阻断结算
-        log.append(f"[巡按] 状态迁移异常（已跳过）：{type(_e).__name__}")
+        log.append(f"[察访] 状态迁移异常（已跳过）：{type(_e).__name__}")
 
     # ---- Step 10.55: 农的职位/丁口子池对齐（B1d-a **月度兜底**，幂等）----
     # 本月内一切改动 `农.size` 的通道（城市化/回乡、就业流动、逃荒赈济、征兵裁兵、逃籍归籍、

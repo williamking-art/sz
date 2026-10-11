@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""M36-1《巡按编制与在途容器》契约回归（**监察世界接口层**；**零财政耦合**）。
+"""M36-1《察访编制与在途容器》契约回归（**监察世界接口层**；**零财政耦合**）。
 
 架构边界（用户裁定 2026-10-11）：
   游戏系统提供**事实/约束/合法性/迁移/存档/守恒** → **AI** 决定是否派/派谁/查哪/查什么/明查密查/是否暂缓。
@@ -195,7 +195,7 @@ def test_no_auto_dispatch_and_no_auto_case():
     for _ in range(6):
         s.month = 1 + (s.month % 12)
         run_monthly_settlement(s)
-    assert s.inspection_tasks == [], "系统不得自动派遣巡按（决策权归 AI）"
+    assert s.inspection_tasks == [], "系统不得自动派遣（决策权归决策方：玩家／外部 AI）"
     assert s.inspection_agent_state["started"] == 0
     assert (getattr(s, "audit_cases", {}) or {}) == before["cases"], "不得自动成案"
 
@@ -298,10 +298,12 @@ def test_readout_exposed_for_ai():
     s = new_game()
     ro = s.finance_readout()["inspection"]
     assert set(ro) == {"capacity", "candidates_total", "candidates_by_route",
-                       "status_counts", "tasks"}
+                       "status_counts", "identity", "tasks"}
     assert ro["capacity"]["max_active_tasks"] == INSPECTION_MAX_ACTIVE_TASKS["正常"]
     assert ro["capacity"]["tiers"] == dict(INSPECTION_MAX_ACTIVE_TASKS)
     assert set(ro["status_counts"]) == {"created", "active", "completed", "expired"}
+    # M36-称谓契约升级：内容层称谓按朝代映射（宋＝察访/差遣）
+    assert ro["identity"]["term"] == "察访" and ro["identity"]["dispatch"] == "差遣"
     assert len(INSPECTION_KINDS) == 3, "D5 首批仅三类（查民情/查军务暂缓）"
 
 

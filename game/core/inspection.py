@@ -1,30 +1,38 @@
 # -*- coding: utf-8 -*-
-"""M36-1 巡按**编制与在途容器**（**监察世界接口层**：只给事实/约束/合法性/迁移/存档/守恒）。
+"""M36 **察访（监司／御史差遣）**编制与在途容器（**监察世界接口层**：只给事实/约束/合法性/迁移/存档/守恒）。
+
+⚠️ **称谓规范（2026-10-11 用户裁定）**：故事背景为**宋**，宋制**无**「巡按」（那是明代巡按御史）。
+本模块技术层统一用 `inspection_*`；**内容层称谓一律按朝代映射**（`INSPECTION_IDENTITY`）：
+宋＝**察访**／**差遣**（御史台・监司：转运使／提点刑狱／提举常平）；明＝巡按御史；清＝巡察·钦差。
 
 架构定位（用户裁定 2026-10-11）：
 ```
-游戏系统提供事实 → AI 读取信息与约束 → AI 提出政治行动选择 → 系统校验合法性 → 执行并产生反馈
+游戏系统提供事实 → 决策方读取信息与约束 → 决策方提出行动 → 系统校验合法性 → 执行并产生反馈
 ```
-**系统负责**：`inspection_capacity()`（编制/在途/上限）、`inspection_candidates()`（既有官员池事实）、
+**决策方＝玩家或扮演玩家的外部 AI**；⚠️ **本游引擎内不存在中央政务 AI**——
+引擎**不**自己决定是否察访、派谁、查哪里（那正是"自动派遣/固定触发"被禁止的原因）。
+**系统负责**：`inspection_capacity()`（可授差遣数/在途）、`inspection_candidates()`（既有官员池事实）、
 任务合法性检查、状态迁移（时间推进）、存档、守恒校验；
-**AI 负责**：是否派/派谁/查哪里/查什么/明查还是密查/是否暂缓（**不提前枚举为固定规则**）。
+**决策方负责**：是否差遣／授何人／察何处／察何事／明察还是密访／是否暂缓（**不提前枚举为固定规则**）。
 
 **本模块禁止**（M36-1／M36-2 边界）：
 - 自动派遣算法、固定触发条件、自动监察策略（**无任何自动派遣/自动触发**）；
 - 修改 POP／occupation／`settlement_common`／`money`／`finance`／`tax`／`grain`；
 - **自动**判断调查结论/产生证据/成案/处罚/定罪/抄没/降官；**不调用** `audit_case.resolve_audit`。
 
-流程仍为：观察 → 监察任务 → 证据 → 审理 → 执行（M36 只覆盖**任务容器、生命周期与回奏容器**）。
+流程仍为：观察 → 察访任务 → 证据 → 审理 → 执行（M36 只覆盖**任务容器、生命周期与奏报容器**）。
 
 M36-2（2026-10-11 裁决）新增：任务生命周期 `created → active → completed ／ expired`
-＋ **回奏容器**（`file_inspection_report`：只记录回奏与**已存在**案卷的引用，**不建案**）。
+＋ **奏报容器**（`file_inspection_report`：只记录奏报与**已存在**案卷的引用，**不建案**）。
+M36-3（2026-10-11 裁决）新增：**反馈观察层**（`inspection_feedback`，只记录政治后果，不判断成败）。
 """
 from typing import Any, Dict, List, Optional
 
 __all__ = ["ensure_inspection_schema", "window_for", "inspection_capacity",
            "inspection_candidates", "enqueue_inspection", "inspection_tick",
            "inspection_task_list", "inspection_readout", "file_inspection_report",
-           "ensure_inspection_feedback_schema", "inspection_feedback_readout"]
+           "ensure_inspection_feedback_schema", "inspection_feedback_readout",
+           "inspection_identity"]
 
 # M36-2 生命周期（AI 提交 → created；月度推进 → active；回奏 → completed；超期 → expired）
 _TASK_STATUSES = ("created", "active", "completed", "expired")
@@ -185,6 +193,23 @@ def _normalize_task(t: Any, seq: int) -> None:
     t.setdefault("report", None)                    # M36-2 回奏容器（默认空）
 
 
+def inspection_identity(state=None, era: str = "") -> Dict[str, Any]:
+    """**只读**朝代身份映射（内容层称谓）：宋＝**察访/差遣**；明＝巡按御史；清＝巡察·钦差。
+
+    供 UI/AI 按本朝制度说话；**不改任何状态**。技术层函数名一律 `inspection_*`（跨朝代复用）。
+    """
+    from content.data import INSPECTION_IDENTITY, INSPECTION_IDENTITY_DEFAULT_ERA
+    _era = str(era or INSPECTION_IDENTITY_DEFAULT_ERA)
+    prof = (INSPECTION_IDENTITY or {}).get(_era) or (INSPECTION_IDENTITY or {}).get(
+        INSPECTION_IDENTITY_DEFAULT_ERA) or {}
+    out = dict(prof)
+    out["era_requested"] = _era
+    out["note"] = ("本朝（宋）用语以 term／dispatch／agency／actors 为准：中央监察在御史台、"
+                   "地方按察在监司、出使以**差遣**；技术层接口名保持 `inspection_*`，"
+                   "以便跨朝代（明／清）复用同一套接口。")
+    return out
+
+
 def window_for(kind: str, secret: bool = False) -> int:
     """D3/D4 时间窗口（月）：普通 2／复杂 3；**密查固定 4**（不提高成功率，只换时间与风险）。"""
     from content.data import (INSPECTION_KIND_COMPLEXITY, INSPECTION_WINDOW_COMPLEX,
@@ -261,7 +286,7 @@ def inspection_capacity(state, tier: str = "") -> Dict[str, Any]:
 
 def enqueue_inspection(state, route: str, kind: str, secret: bool = False,
                        log: Optional[list] = None) -> Dict[str, Any]:
-    """**入列**一个巡按任务（**系统校验合法性 → 执行**；**绝不自动调用**）。
+    """**入列**一件察访差遣（**系统校验合法性 → 执行**；**绝不自动调用**）。
 
     合法性（引擎职责）：① 路存在；② 种类在首批清单（D5）；③ 在途未超上限（D2）；
     ④ 该路候选池 > 0（D1）。
@@ -299,8 +324,8 @@ def enqueue_inspection(state, route: str, kind: str, secret: bool = False,
     state.inspection_agent_state["started"] = \
         _i(state.inspection_agent_state.get("started")) + 1
     if log is not None:
-        log.append(f"[巡按] 受理赴 {route} {kind}"
-                   f"{'（密查）' if secret else ''}，限 {win} 月（待发）")
+        log.append(f"[察访] 授差遣赴 {route} {kind}"
+                   f"{'（密访）' if secret else ''}，限 {win} 月（待发）")
     return {"ok": True, "task": task}
 
 
@@ -349,14 +374,14 @@ def inspection_tick(state, log: Optional[list] = None) -> Dict[str, int]:
                              bool(t.get("secret")), "expired",
                              _feedback_deltas_expired(bool(t.get("secret"))))
     if log is not None and (dispatched or advanced or expired):
-        log.append(f"[巡按] 出发 {dispatched} 项，在途推进 {advanced} 项，超期 {expired} 项")
+        log.append(f"[察访] 出发 {dispatched} 项，在途推进 {advanced} 项，超期 {expired} 项")
     return {"dispatched": dispatched, "advanced": advanced, "expired": expired}
 
 
 def file_inspection_report(state, task_id: str, summary: str = "",
                            case_id: Optional[str] = None,
                            log: Optional[list] = None) -> Dict[str, Any]:
-    """**回奏容器**：登记巡按回奏（`active → completed`；超期后回奏记 `late=True`）。
+    """**奏报容器**：登记察访奏报（`active → completed`；超期后奏报记 `late=True`）。
 
     **系统只做容器与合法性**：
     - ① 任务存在；② 已出发（`created` 不可回奏）；③ **未重复回奏**（已完成则拒绝）；
@@ -395,7 +420,7 @@ def file_inspection_report(state, task_id: str, summary: str = "",
                      _feedback_deltas_filed(bool(task.get("secret")),
                                             bool(task["report"]["late"])))
     if log is not None:
-        log.append(f"[巡按] {task.get('route')} {task.get('kind')} 回奏"
+        log.append(f"[察访] {task.get('route')} {task.get('kind')} 奏报"
                    f"{'（超期）' if task['report']['late'] else ''}")
     return {"ok": True, "task": task, "report": task["report"]}
 
@@ -423,6 +448,7 @@ def inspection_readout(state) -> Dict[str, Any]:
             "candidates_total": total,
             "candidates_by_route": cands,
             "status_counts": counts,
+            "identity": inspection_identity(state),
             "tasks": inspection_task_list(state)}
 
 

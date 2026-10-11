@@ -170,7 +170,7 @@ def test_no_auto_case_no_auto_evidence_no_auto_penalty():
     b = new_game()
     rk_a, rk_b = _route_with_pool(a), _route_with_pool(b)
     assert rk_a == rk_b
-    assert enqueue_inspection(a, rk_a, "查赋")["ok"], "A 局有在途巡按任务"
+    assert enqueue_inspection(a, rk_a, "查赋")["ok"], "A 局有在途差遣"
     for _ in range(6):                             # 6 期已覆盖「受理→出发→超期」全程
         a.month = b.month = 1 + (a.month % 12)
         run_monthly_settlement(a, seed_offset=0)

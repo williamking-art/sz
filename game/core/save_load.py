@@ -246,7 +246,7 @@ def save_game(state, slot: int = 1) -> bool:
 
         "diff_params": state.diff_params,
         "statistics": state.statistics,
-        # 🟢 M36-1：巡按容器（存档兼容；旧档缺省由 `_load_with_data` 补默认）
+        # 🟢 M36-1：察访容器（存档兼容；旧档缺省由 `_load_with_data` 补默认）
         "inspection_tasks": getattr(state, "inspection_tasks", []),
         "inspection_agent_state": getattr(state, "inspection_agent_state", {}),
         # 🟢 M36-3：巡察反馈观察层（存档兼容；旧档缺省由迁移补默认）
@@ -651,7 +651,7 @@ def _load_with_data(slot: int = 1):
     # 恢复其他
     state.diff_params = data.get("diff_params", state.diff_params)
     state.statistics = data.get("statistics", state.statistics)
-    # 🟢 M36-1 存档兼容：巡按容器（旧档补默认；幂等）
+    # 🟢 M36-1 存档兼容：察访容器（旧档补默认；幂等）
     try:
         from core.inspection import ensure_inspection_schema
         state.inspection_tasks = data.get("inspection_tasks", state.inspection_tasks)

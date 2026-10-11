@@ -649,10 +649,10 @@ class GameStateEconMixin:
             "rumor": self.rumor_tier(),
             # 🟢 M35-C-1：人口口径分解（六桶 ＋ occupation ＋ 流民）
             "population_breakdown": self.population_breakdown(),
-            # 🟢 P3-3/P3-4：差额报表（**玩家视角**：只账面侧）＋ 巡按反向观察量
+            # 🟢 P3-3/P3-4：差额报表（**玩家视角**：只账面侧）＋ 察访反向观察量
             "fiscal_gap_report": self.fiscal_gap_report("player"),
             "inspection_backlash": self.inspection_backlash_readout(),
-            # 🟢 M36-1：巡按编制/在途（**事实与约束**；AI 自行决定是否派/派谁/查哪/多深）
+            # 🟢 M36-1：察访编制/在途（**事实与约束**；决策方＝玩家／外部 AI，引擎内无中央政务 AI）
             "inspection": self._inspection_readout(),
             # 🟢 M36-3：监察**反馈观察量**（记录监察的政治后果；**不判断成败**）
             "inspection_feedback": self._inspection_feedback_readout(),
@@ -1290,7 +1290,7 @@ class GameStateEconMixin:
           或**密查**（`secret=True`）时，追加 `real`（即"查得实情"）；
         - `viewer="system"／"ai"` → 三层全给（系统/AI 内部，不面向玩家）。
         返回结构与 `fiscal_visibility()` 相同，但**只含被允许的层**；
-        **真实层入口仅 `fiscal_visibility()`（内部）**——为审计/巡按/调查系统预留接口。
+        **真实层入口仅 `fiscal_visibility()`（内部）**——为审计/察访/调查系统预留接口。
         """
         from content.data import (FIN_ANOMALY_OVERSIGHT_LINE, FIN_VIS_GRANULARITY,
                                   FIN_VIS_LAYERS_AUDIT, FIN_VIS_LAYERS_AUDIT_TRUTH,
@@ -1424,7 +1424,7 @@ class GameStateEconMixin:
         return {"total": tot, "by_route": by_route}
 
     def inspection_backlash_readout(self) -> dict:
-        """P3-4 **巡按反向观察量**读数（只读）：监察的代价（扰民/吏怨），供 AI 权衡"还查不查"。
+        """P3-4 **察访反向观察量**读数（只读）：监察的代价（扰民/吏怨），供 AI 权衡"还查不查"。
 
         来源：`statistics["inspection_*"]` 计数（由 `audit_case.resolve_audit` 写入）
         ＋ 逐路 `clerks_detail.grievance` 现值。**只读**；不含任何财政量。
@@ -1449,7 +1449,7 @@ class GameStateEconMixin:
                 "unrest_added": round(_f(st.get("inspection_unrest_added")), 3),
                 "by_route": by_route}
     def _inspection_readout(self) -> dict:
-        """🟢 M36-1 **巡按编制/在途读数**（只读；**AI 决策入口**；**零财政耦合**）。
+        """🟢 M36-1 **察访编制/在途读数**（只读；**AI 决策入口**；**零财政耦合**）。
 
         提供**事实与约束**：可派上限（D2）、逐路候选池（D1：既有官员池 waiting＋sinecure）、
         在途任务列表。**不**提供建议、**不**自动派遣（决策空间归 AI）。

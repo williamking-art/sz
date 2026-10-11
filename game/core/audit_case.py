@@ -169,7 +169,7 @@ def financial_evidence(state, route: str, include_real: bool = False) -> Dict[st
     返回（全部为**读取快照**，JSON 可序列化）：
 
     - `rumor_source`（**观察层，始终携带**）：`rumor_tier` 逐路档位与构成信号（"为何起疑"）
-      —— **档位 ≠ 腐败判定**，仅供 AI 自行判断（派巡按/加拨/责问/暂缓）。
+      —— **档位 ≠ 腐败判定**，仅供决策方自行判断（派员察访/加拨/责问/暂缓）。
     - 真账三项（**仅 `include_real=True`**，即"查得实情"档才随卷入）；
         · `local_arrears`    真欠给四科目（官俸/吏禄/衙役/公用）＋合计
         · `arrears_months`   连续欠给月数（逐科目 ＋ 最大）
@@ -280,7 +280,7 @@ def resolve_audit(state, route: str, executor: Optional[str] = None,
             "financial": financial_evidence(state, route, include_real=True),
         }
     cases[cid] = rec
-    # 🟢 P3-4（2026-10-11）：**巡按反向观察量**——监察的代价（扰民/吏怨）。
+    # 🟢 P3-4（2026-10-11）：**察访反向观察量**——监察的代价（扰民/吏怨）。
     #   纪律：**只改吏治状态量与计数**（`clerks_detail.grievance`／`unrest`／statistics 计数），
     #   **不改** money／欠给三层／身份压力／三分财政；**不自动处罚、不自动反腐判定**。
     #   密查（secret）扰民更小 ⇒ 按 `INSPECTION_BACKLASH_SECRET_MULT` 折算。

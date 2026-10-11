@@ -602,7 +602,7 @@ class GameState(GameStateEconMixin):
         # {case_id: {id, route, outcome, fidelity, executor, secret, created_turn,
         #            status(证据在握/查无实据/反噬), evidence, judgement}}
         self.audit_cases: dict = {}
-        # 🟢 M36-1（2026-10-11）：巡按**编制与在途容器**（监察世界接口层；**零财政耦合**）
+        # 🟢 M36-1（2026-10-11）：察访（差遣）**编制与在途容器**（监察世界接口层；**零财政耦合**）
         #   `inspection_tasks`＝在途任务列表；`inspection_agent_state`＝编制/计数（started/done/expired）
         #   口径见 `core/inspection.py`；**不自动派遣、不自动成案**（AI 决策）。
         self.inspection_tasks: list = []
