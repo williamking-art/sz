@@ -1,10 +1,12 @@
 {
  "id": "D9-察访发现",
  "title": "D9：察访发现是什么？（宋制术语；原误用明制「察访」，已订正）",
- "status": "open",
+ "status": "decided",
  "raisedBy": "Cline",
  "raisedAt": "2026-10-11T08:30:00Z",
- "blocks": ["M36-4"],
+ "blocks": [
+  "M36-4"
+ ],
  "context": "M36-4 开工门。现状（宋制术语：察访／差遣；技术层 inspection_* 不改名）：`audit_case.resolve_audit` 是唯一致案函数（写 state.audit_cases）；`record_suspicion` 是怀疑的唯一写入点（发现链二级，已从 呈请/召对 两处接线，6 回合窗口、容量 12）；`file_inspection_report` 只做 case_id 引用校验。",
  "options": [
   "A 察访只提交自由文本 observation（＋可选已存在 case_id）：信息不进发现链，下游无法计数复核",
@@ -13,5 +15,8 @@
  ],
  "recommendation": "B；落地形态推荐 B-2（零接口改动：AI 直接调用既有 record_suspicion），M36-4 可为纯设计＋测试＋文档的零代码批次",
  "designDoc": "specs/economy/M36-4_证据形成机制_设计裁决台账.md §4／§9",
- "note": "verdict 只由裁定人写（本条目由 Cline 登记，未替裁定人写结论）"
+ "note": "verdict 只由裁定人写（本条目由 Cline 登记，未替裁定人写结论）",
+ "verdict": "用户 2026-10-11 裁定 D9＝B＋B-2：察访可提「涉嫌事项」进发现链二级「怀疑」（record_suspicion, source=察访），不直接形成案件；流程＝察访任务→奏报→决策方判断→桥接→后续审理；禁止 奏报→自动怀疑→自动成案。落地＝audit_case.record_report_suspicion（唯一桥接，只做适配，须决策方显式调用）",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-11T09:36:52Z"
 }

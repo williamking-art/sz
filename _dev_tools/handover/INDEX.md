@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-11T09:17:43Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-11T09:37:14Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -17,9 +17,6 @@
 ## 待裁 / 未闭环决策
 
 - `C-invest` [recommended-no] invest_decide 回报来源守恒
-- `D10-证据触发` [open] D10：financial_evidence 的触发者（甲 AI 决定→单点执行／乙 奏报自动接钩校／丙 第二证据生产者）
-- `D11-证据权限` [open] D11：证据权限（谁可见 rumor／official 账／real 账／financial evidence）
-- `D9-察访发现` [open] D9：察访发现是什么？（宋制术语；原误用明制「察访」，已订正）
 - `MIG-COMPAT-RETENTION` [待裁定] 迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API
 - `POP-faction` [design-done] POP 增派系子池（与阶层分离）
 
@@ -36,5 +33,5 @@
 
 ## 计数
 
-- tasks 13（未完成 2）· decisions 16（未闭环 6）· worklog 111 · phase 文件 3
+- tasks 13（未完成 2）· decisions 16（未闭环 3）· worklog 111 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
