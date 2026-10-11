@@ -1,12 +1,12 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-11T12:19:57Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-11T16:32:25Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
-- **DSH**（updatedAt=2026-10-11）：州路档案 UI 与单军档案已落地：左侧多页面抽屉（概览/人口/民情/施政/军政/营建/财赋）+ 三入口共用的单军档案；后端补单军月饷/月粮读数；计划第4步兵种注册兵饷州府桥接已收尾提交。
+- **DSH**（updatedAt=2026-10-11）：设计治理与收口核实：已产出《未落地设计裁定与实施路线》；已核实并回填 M36.6 收口台账 §21.4/§21.5（全量 2689/0/0/2，验收通过）。
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -26,16 +26,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261011T091742Z-Cline` → [`worklog/20261011T091742Z-Cline.md`](worklog/20261011T091742Z-Cline.md)
-- `20261011T094838Z-Cline` → [`worklog/20261011T094838Z-Cline.md`](worklog/20261011T094838Z-Cline.md)
-- `20261011T095603Z-Cline` → [`worklog/20261011T095603Z-Cline.md`](worklog/20261011T095603Z-Cline.md)
-- `20261011T111919Z-Cline` → [`worklog/20261011T111919Z-Cline.md`](worklog/20261011T111919Z-Cline.md)
-- `20261011T114716Z-Cline` → [`worklog/20261011T114716Z-Cline.md`](worklog/20261011T114716Z-Cline.md)
 - `20261011T115751Z-Cline` → [`worklog/20261011T115751Z-Cline.md`](worklog/20261011T115751Z-Cline.md)
 - `20261011T120041Z-Cline` → [`worklog/20261011T120041Z-Cline.md`](worklog/20261011T120041Z-Cline.md)
 - `20261011T121957Z-Cline` → [`worklog/20261011T121957Z-Cline.md`](worklog/20261011T121957Z-Cline.md)
+- `20261011T123904Z-Cline` → [`worklog/20261011T123904Z-Cline.md`](worklog/20261011T123904Z-Cline.md)
+- `20261011T124743Z-Cline` → [`worklog/20261011T124743Z-Cline.md`](worklog/20261011T124743Z-Cline.md)
+- `20261011T161917Z-Cline` → [`worklog/20261011T161917Z-Cline.md`](worklog/20261011T161917Z-Cline.md)
+- `20261011T163023Z-DSH` → [`worklog/20261011T163023Z-DSH.md`](worklog/20261011T163023Z-DSH.md)
+- `20261011T163207Z-DSH` → [`worklog/20261011T163207Z-DSH.md`](worklog/20261011T163207Z-DSH.md)
 
 ## 计数
 
-- tasks 17（未完成 6）· decisions 16（未闭环 3）· worklog 118 · phase 文件 3
+- tasks 17（未完成 6）· decisions 16（未闭环 3）· worklog 123 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

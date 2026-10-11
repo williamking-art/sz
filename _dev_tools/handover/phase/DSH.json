@@ -1,19 +1,17 @@
 {
- "phase": "州路档案 UI 与单军档案已落地：左侧多页面抽屉（概览/人口/民情/施政/军政/营建/财赋）+ 三入口共用的单军档案；后端补单军月饷/月粮读数；计划第4步兵种注册兵饷州府桥接已收尾提交。",
+ "phase": "设计治理与收口核实：已产出《未落地设计裁定与实施路线》；已核实并回填 M36.6 收口台账 §21.4/§21.5（全量 2689/0/0/2，验收通过）。",
  "updatedAt": "2026-10-11",
  "agent": "DSH",
  "verification": {
-  "frontend": "tsc --noEmit 双配置（web/node）均 0 错；vitest 10 文件 / 82 tests 全通过（含新增 ProvinceArchivePanel.test.tsx 10 例）",
-  "backend": "全量 --junitxml：tests=2474 / failures=0 / errors=0 / skipped=2；军政+读数定向 64 passed",
-  "readout": "region_brief.unit_cost_readout 与 calc_army_cash / calc_army_grain 逐分一致（开局 Σ单军月饷=1,124,462.25 贯、Σ单军月粮=963,712.5 石，delta=0）；只读、未知兵种与权威表同口径不分叉",
-  "ui": "州路抽屉读同一 selected（kind=circuit），点州府下钻既有 LocalArchivePanel；单军档案在州路档案军政页、州郡军面板、全军面板三处为同一实现；没有舆图驻军摘要卡，按用户最新要求移除；缺失一律显示「未定义」",
-  "handover": "summary/check 通过，问题=0"
+  "m36_6": "junit _dev_tools/_scratch/m36_6_final.xml：tests=2689 / failures=0 / errors=0 / skipped=2（1 xfail + 1 skip），time 397.6s，commit 1a56085641；与上一批 2682 增量恰为新增 7 例",
+  "m36_6_targeted": "test_m36_6_wiring.py 7/7；受影响既有用例 48/48",
+  "frontend": "上一批：tsc 双配置 0 错、vitest 80 passed（州路档案抽屉/单军档案）",
+  "marks_census": "更正口径：本机不能用数进度点取 marks（日志含 warning 正文，字符统计 2711/199 失真）⇒ 改用 junit + 逐条 skip 类型",
+  "handover": "check 问题=0"
  },
  "delivered": [
-  "components/ArmyDossier.tsx（单军档案，多入口唯一实现）",
-  "panels/ProvinceArchivePanel.tsx（左侧多页面州路档案）",
-  "backend 单军月饷/月粮读数（region_brief.unit_cost_readout → /api/readouts::army）",
-  "兵种注册兵饷州府真账桥接（计划第4步）"
+  "reviews/未落地设计裁定与实施路线.md（设计治理路线：怎么做/做什么/做到什么程度）",
+  "M36-7 台账 §21.4 终态 + §21.5 收口结论回填"
  ],
- "next": "如需继续贴合参考图，只讨论下一步侧栏视觉/地图联动；装备损耗/马料等没有权威口径时不在 UI 猜算。"
+ "next": "待用户裁定：M37 监察能力模型（发现权/怀疑权/移送权/权限约束）；以及路线文档六条主线的开工顺序。"
 }
