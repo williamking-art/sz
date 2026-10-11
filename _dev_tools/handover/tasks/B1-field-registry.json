@@ -1,0 +1,38 @@
+{
+ "id": "B1-field-registry",
+ "title": "B-1 字段单点注册：applier 六套路径/规则集合 → 单点声明 + 自动派生",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-12",
+ "authority": "用户 2026-10-12 裁定：B-1 有条件通过，按 B-1a/B-1b 两阶段实施",
+ "goal": "state_applier 的六套集合（VALID_PATHS / NON_NEG_PREFIXES / MONEY_PATHS / GRAIN_PATHS / RANGE_100_FIELDS / CLAMP_01_FIELDS）改为单点声明与自动派生，并以测试证明迁移前后行为一致。",
+ "scope": [
+  "只统一声明数据源与自动派生六个集合",
+  "B-1a 生产判定路径零改动（影子期）",
+  "B-1b 仅换数据源，保留原有五个 matcher 实现与语义",
+  "cons 必填 + EXEMPT 显式 + exempt_reason；validate_registry 校验实际值",
+  "关键词命中只触发人工解释要求，不自动决定守恒分类"
+ ],
+ "explicitly_not": [
+  "不新增游戏引擎 / 规则 DSL / 新架构层",
+  "不统一或收敛五个 matcher（未来单独裁定）",
+  "不收紧 granary 宽松前缀 / 不收窄通配 / 不改守恒分类 / 不清理失效条目（E1–E8 冻结）",
+  "不开展 B-2（守卫进放行门）、B-3（结算步序契约）、B-4（机制台账机器可读）",
+  "不改数值口径、存档 schema、SONGZUO_POPS_GUARD 语义"
+ ],
+ "deliverables": [
+  "field_registry.py + 自检 + 负向测试",
+  "六集合旧值/新值对照（含顺序不可复现的环路证据）",
+  "匹配语义与 applier_pipeline 行为差分报告",
+  "关键生产调用方回归 + 全量回归终态（基准提交标识）",
+  "未解决问题与回退证据"
+ ],
+ "blocking_gates": [
+  "全量回归基线必须以实测重跑为准（不得沿用 2689 过期数）",
+  "回滚场景（中间层缺失→KeyError→逆序回滚→CHANGE_LOG 不追加）必须先以旧实现实跑记录真实行为；若旧实现不满足预期，登记独立缺陷，不得借 B-1 顺手修复",
+  "B-1a 若发现六集合无法由声明结构无损生成，或 B-1b 出现任何行为差异 ⇒ 立即停止、保留证据、重新裁定"
+ ],
+ "note": "任务板 ID 避开 M37（已预留给监察能力模型）。",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-11T17:29:03Z"
+}

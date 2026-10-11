@@ -307,7 +307,7 @@
 | 蓝图解析 / 前置校验 / 立项 | `core/construction.py`：`resolve_blueprint` / `can_build` / `propose_project` | 静态版已可用，需**扩展**以支持动态蓝图 |
 | 工程五态状态机 | `state.projects` ＋ `_settle_projects`（由 `propose_project` 移交） | 规格明确禁止新建平行状态机 |
 | 守恒记账通道 | `transfer_public_funds_to_pops` / `transfer_public_funds_to_pops`＋`state_applier` | 资金/粮变更须继续经此，并已含钱组守恒校验 |
-| 受管写路径白名单 | `engine/state_applier.py`：`VALID_PATHS` / `MONEY_PATHS` / `NON_NEG_PREFIXES` | 新增资金类字段必须登记（见 M2 的三处登记范例） |
+| 受管写路径白名单 | `engine/field_registry.py`：`RULES` 单点声明 → `derive()` 生成 `VALID_PATHS` / `MONEY_PATHS` / `GRAIN_PATHS` / `NON_NEG_PREFIXES` / `RANGE_100_FIELDS` / `CLAMP_01_FIELDS`（B-1，2026-10-12） | 新增资金类字段只改**一行** `cons=MONEY`（原「三处登记」已收口为单点声明）；契约与冻结清单见 `../field-registry/` |
 | 效果构件表 | `content/data*.py`：`BUILDING_STD` / `BUILDING_BLUEPRINTS` / `IMPERIAL_*` 等 | 动态蓝图的构件来源 |
 
 ---

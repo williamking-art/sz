@@ -74,6 +74,7 @@
 
 - [`README.md`](./cross-cutting/README.md)
 - [`decree-action-chain/`](./cross-cutting/decree-action-chain/)
+- [`field-registry/`](./cross-cutting/field-registry/) —— 🔴 现行：`engine/state_applier` 写契约单点注册（B-1，B-1a/B-1b 两阶段）
 - [`代码层机制模块化架构方案_2026-10-06.md`](./cross-cutting/代码层机制模块化架构方案_2026-10-06.md)
 - [`阶段1_依赖图与循环依赖.md`](./cross-cutting/阶段1_依赖图与循环依赖.md)
 - [`甲批_符号归属与新旧路径表.md`](./cross-cutting/甲批_符号归属与新旧路径表.md)

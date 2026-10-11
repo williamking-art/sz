@@ -1,0 +1,21 @@
+{
+ "id": "B1-legacy-freeze-E1-E8",
+ "title": "B-1 冻结清单 E1–E8：历史例外与不对称一律维持现状，测试只锁定不修改",
+ "status": "已裁定",
+ "raisedBy": "DSH",
+ "raisedAt": "2026-10-12",
+ "ruler": "用户",
+ "verdict": "E1–E8 全部保持现状；可以进入决策台账，但不得成为 B-1 的实施内容。测试可以锁定现状，不得因测试发现设计问题就自动扩大本次改动。",
+ "items": {
+  "E1": "不收紧 granary 的宽松前缀（实测唯一分歧：_is_non_neg('granary_cap')==True）",
+  "E2": "不删除 land.hidden_households 孤儿规则（在 NON_NEG、不在 VALID，经白名单不可达）",
+  "E3": "不改变 era_state. 的写入能力或月结覆盖关系（白名单在、settle_era_links 月结覆盖）",
+  "E4": "不调整 art_mastery 可写性（审计记有刷分风险，属另一裁决）",
+  "E5": "不修正 defense_lines.*.fortification 与 garrison 的规则不对称",
+  "E6": "不改变 waste_reform.savings 的守恒分类（只要求例外有 exempt_reason）",
+  "E7": "不删除 NO_CONSERVATION_PATHS = None（全库零引用的死常量）",
+  "E8": "不开展宽松前缀的全面显式化"
+ },
+ "note": "B-1 的测试对上述现状做锁定断言（锁定 ≠ 认可其正确性）；任何清理需另立裁定。",
+ "blocks": []
+}

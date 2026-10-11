@@ -22,86 +22,36 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 log = logging.getLogger("state_applier")
 
 # ---------------------------------------------------------------------------
-# 1. 合法路径白名单（path 前缀 + 通配）
-#    世界状态 = GameState 顶层键 / prefectures[路] / factions[派系] / pops[阶层] 等。
-#    此处定义**允许 AI 修改**的路径白名单（前缀匹配，* 通配路/派系/阶层名）。
+# 1. 六套路径/规则集合：唯一数据源 = engine/field_registry.py（B-1，2026-10-12）
 # ---------------------------------------------------------------------------
-VALID_PATHS: List[str] = [
-    "treasury", "imperial_treasury", "granary", "prestige",
-    # 审查 M2（用户 2026-10-01 定稿 (a)）：`payraise_budget` 升级为**真实分账基金**——
-    # 「拨帑」时国库拨入、每月发放时**池扣款 → 官吏 POP 实际收到**，走本受管管线。
-    # 它本就是 `money.ACCOUNTS` 的 M_ALL 账户（"由国库拨入、随后发放给官僚/吏"），
-    # 但此前**不在**白名单，导致「池 → POP」这条腿无法经applier 划转，
-    # 只好在结算里裸写 `state.payraise_budget -= used` 并同时计入 `total_out`
-    # ⇒同一笔钱扣两次（实测月残差 −2×消耗）。现登记为可写路径，使资金流全程受管。
-    "payraise_budget",
-    "population_satisfaction", "art_mastery", "era_state.",
-    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
-    "prefectures.*.grain", "prefectures.*.storage",
-    "prefectures.*.pops.农.wealth", "prefectures.*.pops.农.grain",
-    "prefectures.*.pops.士绅.wealth", "prefectures.*.pops.士绅.grain",
-    "prefectures.*.pops.工匠.wealth", "prefectures.*.pops.商人.wealth",
-    "prefectures.*.pops.官僚.wealth", "prefectures.*.pops.兵.wealth",
-    "prefectures.*.refugees",
-    "factions.*.satisfaction", "factions.*.influence",
-    # ---- 四大机制改良（legacies / focus / 地区深化）----
-    # 2026-09-27（隐户入 POP）：`land.hidden_households` 已从可写路径**移除** ——
-    # 人口属"人"轴，按 POP 挂载律条 1 必须落在 POP 上（现为 `农.hidden` 子池，
-    # 且子池亦不在本白名单内），AI/大臣不得直接改人口；该键现为**派生镜像**（只读）。
-    # `land.hidden_rate` 是**税率隐漏率**（非人口），保留可写。
-    "land.hidden_rate",
-    "waste_reform.active", "waste_reform.savings",
-    "defense_lines.*.fortification", "defense_lines.*.garrison",
-    "legacies.*.active", "legacies.*.progress",
-    # 审查修复（移除死通道）：原写 "focus.*.unlocked" / "focus.*.power_level"，
-    # 但 GameState 并无 `focus` 字段 —— 国策树是 state.focus_tree（「分支 → nodes →
-    # 节点」嵌套，静态定义只有 power_level、无 unlocked），在办国策是
-    # state.active_focus（可为 None）。该两条路径 `_locate_path` 必然失败，而本模块
-    # 采用「整批回滚 + 抛异常」语义 → AI 一旦产出即连带同批合法变更一并作废。
-    # 此处不再宣告不存在的能力；国策进度的 AI 写入通道待与 focus_mechanic 一并设计
-    # （须先解决 active_focus 为 None 的寻址问题）。
-    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
-    "prefectures.*.city_defense", "prefectures.*.controlled_by",
-]
-
-# 0-1 范围字段（修改后自动 clamp [0,1]）
-# T2 修复：wealth/satisfaction/influence 均非 0-1 比率（wealth 为贯、满意度 0-100），
-# 原 CLAMP_01 把它们 clamp 到 1 会毁掉守恒——清空（真 0-1 字段如有再加）。
-# D 说明：本表当前为空 → 对应的 clamp 分支为**有意保留的空通道**（非缺陷，
-# 亦非漏写）。真 0-1 字段（如 oversight）如需 AI 写入，在此登记即可自动生效。
-CLAMP_01_FIELDS: List[str] = []
-
-# 0-100 百分制字段（修改后 clamp [0,100]，set 负值直接拒绝）
-# 审查 P1-4 修复：原实现仅校验「是数值」，AI 可 set population_satisfaction=-50 / 9999，
-# 越界值直接进入状态并污染评价/结算。此处恢复区间校验（字段范围与 game_state 一致）。
-RANGE_100_FIELDS: List[str] = [
-    "prestige", "population_satisfaction", "art_mastery",
-    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
-    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
-    "prefectures.*.city_defense",
-    "factions.*.satisfaction", "factions.*.influence",
-]
-
-# 非负字段（数值不能为负数）
-NON_NEG_PREFIXES: List[str] = [
-    "treasury", "imperial_treasury", "granary", "prefectures.*.grain",
-    # 审查 M2：加俸预算池是钱，余额不得为负（发放腿按 `min(池, 缺口)` 实付、只按实付扣）。
-    "payraise_budget",
-    "prefectures.*.storage", "prefectures.*.pops.*.wealth",
-    "prefectures.*.pops.*.grain",
-    # 审查 P1-4：百分制 / 规模 / 进度类字段同样非负（防 AI 写负数）
-    "prestige", "population_satisfaction", "art_mastery",
-    "prefectures.*.mood", "prefectures.*.govern", "prefectures.*.unrest",
-    "prefectures.*.public_support", "prefectures.*.gentry_resistance",
-    "prefectures.*.city_defense", "prefectures.*.refugees",
-    "factions.*.satisfaction", "factions.*.influence",
-    "defense_lines.*.garrison",
-    "land.hidden_households",
-    "waste_reform.savings",
-    "legacies.*.progress",
-    # D 修复：原含 "focus.*.power_level" —— focus 路径已从 VALID_PATHS 移除
-    # （GameState 无 focus 字段），该条永不命中，属失效配置。
-]
+# 🔴 **不要在本文件重新手写这些清单**：新增可写字段只改 `field_registry.RULES` 的**一行**
+#    （`kind` 与 `cons` 必填，`EXEMPT` 也要显式写），由 `derive` 自动生成六个集合并驱动下方
+#    全部校验。声明自检 `field_registry.validate_registry()`；差分测试
+#    `_dev_tools/game-dev/tests/test_field_registry_parity.py`；契约与「本表刻意不承载什么」
+#    见 `_dev_tools/game-docs/specs/cross-cutting/field-registry/design.md`。
+#
+# ⚠️ **匹配语义按集合各自保留**（本文件五个 matcher 一字未改）：同一路径在不同集合里语义可能
+#    不同——例 `NON_NEG_PREFIXES` 的 `"granary"` 是**无边界前缀**（会命中 `granary_cap`），而
+#    `VALID_PATHS` 的 `"granary"` 是精确匹配。统一 matcher 属未来独立裁定，不在 B-1。
+#
+# 历史纪律（保留，勿再犯）：
+#   · **不宣告不存在的能力**：曾写 `focus.*.unlocked` / `focus.*.power_level`，但 `GameState`
+#     无 `focus` 字段（国策树在 `focus_tree` / `active_focus`）⇒ 寻址必失败，而本模块是
+#     「整批回滚」语义 ⇒ AI 一旦产出即连带同批合法变更一并作废（`factions.*.power` 同理）。
+#   · `land.hidden_households` 已从可写路径移除：人口属"人"轴，必须落 POP 子池；
+#     `land.hidden_rate` 是**税率隐漏率**（非人口），保留可写。
+#   · **新增钱字段必须同属 MONEY_PATHS**（守恒配对），否则发放腿被判"缺来源"而整批拒绝
+#     ——2026-10-01 `payraise_budget` 实测教训（报错点离病因极远）。
+#   · `CLAMP_01_FIELDS` 当前为**空表**且属**有意保留的空通道**（真 0-1 字段如需 AI 写入，
+#     在 `field_registry` 标 `clamp01=True` 即自动生效），非漏写。
+from engine.field_registry import (  # noqa: E402
+    CLAMP_01_FIELDS,
+    GRAIN_PATHS,
+    MONEY_PATHS,
+    NON_NEG_PREFIXES,
+    RANGE_100_FIELDS,
+    VALID_PATHS,
+)
 
 # 支持的操作
 OPS = ("set", "add", "mul", "remove", "push")
@@ -374,24 +324,13 @@ def apply_cascade(state, merged_changes: List[dict]) -> List[dict]:
 # ---------------------------------------------------------------------------
 # 3.5 守恒校验（来源=去向，不凭空造灭）
 # ---------------------------------------------------------------------------
-# 守恒分组：钱组 / 粮组（AI changes 的钱粮变动必须组内 ΣΔ==0）
-# T2：补 官僚/兵（俸禄接收方）——俸禄/俸给变动需同组成对
-# 审查 M2（用户 2026-10-01 定稿 (a)）：`payraise_budget` 是 `money.ACCOUNTS` 的
-# 真实分账基金，其**发放腿**（池 −X ＋ 官僚 POP wealth +X）必须成对才能过守恒校验。
-# 此前池不在本组 ⇒ 发放被拒（"缺来源"）⇒ 只能退回裸写+重复计账。纳入本组即由管线兜住。
-MONEY_PATHS = [
-    "treasury", "imperial_treasury", "payraise_budget",
-    "prefectures.*.pops.农.wealth", "prefectures.*.pops.士绅.wealth",
-    "prefectures.*.pops.工匠.wealth", "prefectures.*.pops.商人.wealth",
-    "prefectures.*.pops.官僚.wealth", "prefectures.*.pops.兵.wealth",
-]
-GRAIN_PATHS = [
-    "granary",
-    "prefectures.*.grain", "prefectures.*.storage",
-    "prefectures.*.pops.农.grain", "prefectures.*.pops.士绅.grain",
-]
-# 豁免字段（状态类，无守恒约束，只 clamp/非负）——保留作文档说明：
-# _group_of 未命中 MONEY/GRAIN_PATHS 的路径即豁免，不再引用本常量（审查 P2：死代码消除）。
+# 守恒分组 `MONEY_PATHS` / `GRAIN_PATHS` 的定义已上收至 `engine/field_registry.py`（§1 导入）。
+# 纪律（M2 教训，保留）：`payraise_budget` 这类真实分账基金的**发放腿**（池 −X ＋ 官僚 POP
+# wealth +X）必须与接收方同组，才能过 `ΣΔ==0`；否则发放被判"缺来源"整批拒绝 ⇒ 只能退回
+# 裸写 + 重复计账（实测月残差 −2×消耗）。
+# 豁免字段（状态类，无守恒约束，只 clamp/非负）：`_group_of` 未命中钱/粮组的路径即豁免。
+# ⚠️ **E7 冻结**：`NO_CONSERVATION_PATHS` 是**全库零引用的历史死常量**，本轮**保留不删**
+#    （清理需另行裁定，见 `_dev_tools/handover/decisions/B1-legacy-freeze-E1-E8.json`）。
 NO_CONSERVATION_PATHS = None
 
 

@@ -29,7 +29,11 @@
 
 ## 专题目录
 
-`decree-action-chain/` 采用 `requirements.md` / `design.md` / `tasks.md` 三件套：
+`decree-action-chain/` 与 `field-registry/` 采用 `requirements.md` / `design.md` / `tasks.md` 三件套：
+
+- [`decree-action-chain/`](./decree-action-chain/) —— 圣旨行动闭环。
+- [`field-registry/`](./field-registry/) —— 🔴 **B-1**：`engine/state_applier` 六套路径/规则集合的
+  **单点声明与自动派生**（B-1a 影子期 / B-1b 数据源切换），含顺序不可复现的环路证据与 E1–E8 冻结清单。
 
 | 文件 | 内容 |
 |---|---|

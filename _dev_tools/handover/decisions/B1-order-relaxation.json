@@ -1,0 +1,32 @@
+{
+ "id": "B1-order-relaxation",
+ "title": "六集合顺序无法由单一声明复现 ⇒ 仅对 NON_NEG_PREFIXES / RANGE_100_FIELDS 放宽顺序验收（其余四套仍须顺序一致）",
+ "status": "已追认（用户 2026-10-12）",
+ "raisedBy": "DSH",
+ "raisedAt": "2026-10-12",
+ "ruler": "用户",
+ "verdict": "批准 B1-order-relaxation，但仅限两套集合：NON_NEG_PREFIXES、RANGE_100_FIELDS 采用多重集相同 + 行为差分证明语义不变；VALID_PATHS、MONEY_PATHS、GRAIN_PATHS 仍须字符串与顺序均一致，CLAMP_01_FIELDS 继续验证为空且符合原行为。这不是全面放宽顺序要求。",
+ "evidence": {
+  "method": "对每个集合内部相邻元素建先后约束图并做拓扑排序（静态解析 state_applier.py）",
+  "result": "TOPOLOGICAL_ORDER_FEASIBLE=NO；38 行中 35 行在环内；最小环 4 节点",
+  "min_cycle": [
+   "defense_lines.*.fortification -> defense_lines.*.garrison   (VALID_PATHS 要求)",
+   "defense_lines.*.garrison -> land.hidden_households          (NON_NEG_PREFIXES 要求)",
+   "land.hidden_households -> waste_reform.savings             (NON_NEG_PREFIXES 要求)",
+   "waste_reform.savings -> defense_lines.*.fortification      (VALID_PATHS 要求)"
+  ],
+  "order_unobservable_proof": "test_field_registry_parity.py 洗牌不变性：3 种子 × 64 样本 × 5 谓词 + 2 种子 × 3 场景，结果不变",
+  "scope_facts": {
+   "order_identical_views": ["VALID_PATHS", "MONEY_PATHS", "GRAIN_PATHS", "CLAMP_01_FIELDS"],
+   "order_divergent_views": ["NON_NEG_PREFIXES", "RANGE_100_FIELDS"],
+   "divergence_measured": "派生顺序 = 声明顺序；NON_NEG 首个分歧 idx 与 RANGE_100 首个分歧 idx 已在 tasks.md §C 登记"
+  }
+ },
+ "scope_and_limits": {
+  "适用范围": "仅 NON_NEG_PREFIXES 与 RANGE_100_FIELDS 的顺序验收方式改为『多重集相同 + 行为差分』",
+  "不适用": "VALID_PATHS / MONEY_PATHS / GRAIN_PATHS 必须字符串与顺序均一致；CLAMP_01_FIELDS 必须仍为空",
+  "未来限制": "后续若有代码开始依赖 NON_NEG_PREFIXES 或 RANGE_100_FIELDS 的**迭代顺序**，必须重新评估契约；不得把本次裁定当作普遍豁免。",
+  "落地": "test_field_registry_parity.py::test_l1_order_rule_is_scoped_by_ruling 把本裁定写成可执行断言（四套严格顺序 + 两套多重集）"
+ },
+ "blocks": []
+}

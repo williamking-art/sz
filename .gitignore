@@ -146,6 +146,8 @@ _dev_tools/game-dev/*
 !_dev_tools/game-dev/tests/
 !_dev_tools/game-dev/tests/**
 !_dev_tools/game-dev/requirements-dev.txt
+# B-1 字段注册 golden 的产出脚本（**单文件**放行；本目录其余根级脚本仍不入库）
+!_dev_tools/game-dev/b1_baseline_probe.py
 # 放行 tests/** 会连带纳入 __pycache__，须显式排除（每次跑测试都变）
 _dev_tools/game-dev/tests/__pycache__/
 
