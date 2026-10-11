@@ -141,6 +141,8 @@ def save_game(state, slot: int = 1) -> bool:
         "finance": dict(getattr(state, "finance", None) or {}),
         # 勾校案卷（P3；V1.3 §7）：随档持久化，读档侧缺省补 {}
         "audit_cases": dict(getattr(state, "audit_cases", None) or {}),
+        # 大臣财政疑虑奏报（M34-③；V1.3 §6 二级"怀疑"）：随档持久化
+        "discovery_suspicions": list(getattr(state, "discovery_suspicions", None) or []),
         "treasury": state.treasury,
         # 累计亏空深度（B3）：破产两档线判据，须随档持久化
         "treasury_deficit": getattr(state, "treasury_deficit", 0),
@@ -470,6 +472,10 @@ def _load_with_data(slot: int = 1):
     # 勾校案卷（P3；V1.3 §7）：旧档缺省 → {}（缺省不臆造）
     _cases = data.get("audit_cases")
     state.audit_cases = _cases if isinstance(_cases, dict) else {}
+    # 大臣财政疑虑奏报（M34-③）：旧档缺省 → []；仅收 dict 条目（坏值隔离）
+    _susp = data.get("discovery_suspicions")
+    state.discovery_suspicions = ([s for s in _susp if isinstance(s, dict)]
+                                  if isinstance(_susp, list) else [])
     state.treasury = data.get("treasury", 5000000)
     # 累计亏空深度（B3）：旧档缺省为 0（兼容）
     state.treasury_deficit = _safe_int(data.get("treasury_deficit", 0), 0)

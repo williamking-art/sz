@@ -579,6 +579,9 @@ class GameState(GameStateEconMixin):
         # {case_id: {id, route, outcome, fidelity, executor, secret, created_turn,
         #            status(证据在握/查无实据/反噬), evidence, judgement}}
         self.audit_cases: dict = {}
+        # ---- 大臣财政疑虑奏报（M34-③；V1.3 §6 发现链二级"怀疑"）----
+        # 唯一写入点：core.audit_case.record_suspicion（呈请/召对两处接线）
+        self.discovery_suspicions: list = []
 
         # ---- 国库 ----
         self.treasury: int = TREASURY_START
@@ -1459,6 +1462,13 @@ class GameState(GameStateEconMixin):
             "payload": dict(payload or {}), "proposer": proposer,
             "turn": self.turn, "status": "pending",
         })
+        # M34-③：AI 大臣**呈请**若含财政疑虑 → 记入发现链二级"怀疑"（唯一写入点）
+        try:
+            from core.audit_case import record_suspicion
+            record_suspicion(self, f"{title} {summary}", source="呈请",
+                             minister=proposer)
+        except Exception:  # noqa: BLE001 — 奏报记录失败不得阻断呈请入队
+            pass
         return aid
 
     def get_ai_pending(self, status: str = "pending") -> list:

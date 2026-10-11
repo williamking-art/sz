@@ -16,10 +16,70 @@ from typing import Any, Dict, Optional
 from content.data import (FIN_AUDIT_BACKFIRE_LINE, FIN_AUDIT_BASE,
                           FIN_AUDIT_EVIDENCE_LINE, FIN_AUDIT_GRIP_W,
                           FIN_AUDIT_INTEGRITY_W, FIN_AUDIT_SECRET_BONUS,
-                          FIN_AUDIT_SPY_W, GRIP_BASE, clamp as _clamp)
+                          FIN_AUDIT_SPY_W, FIN_SUSPICION_CAP,
+                          FIN_SUSPICION_WINDOW_TURNS, GRIP_BASE, clamp as _clamp)
 
 __all__ = ["audit_fidelity", "resolve_audit", "discovery_readout",
-           "case_is_evidenced", "confiscate_by_case"]
+           "case_is_evidenced", "confiscate_by_case",
+           "scan_fiscal_suspicion", "record_suspicion", "FIN_SUSPICION_KEYWORDS"]
+
+#: 财政疑虑关键词（**单点声明**；启发式、可审计——命中即视为大臣"犯嘀咕"。
+#: 与 `longterm_task._TOPIC_BRIDGE`／`decree_effect.MILITARY_KEYWORDS` 同姿态：
+#: 单一处声明、可复核；仅用于发现链二级的"怀疑"提示，不改任何数值。）
+FIN_SUSPICION_KEYWORDS: tuple = (
+    "火耗", "亏空", "侵渔", "侵盗", "中饱", "截留", "贪墨", "贪吏", "贪",
+    "账目", "簿籍", "亏欠", "逋欠", "挪移", "私派", "加征", "横敛", "把持",
+    "吏弊",
+)
+
+
+def scan_fiscal_suspicion(text) -> Optional[str]:
+    """文本是否含财政疑虑（返回命中关键词；无 → `None`）。**只读**，不改状态。"""
+    t = str(text or "")
+    for _k in FIN_SUSPICION_KEYWORDS:
+        if _k in t:
+            return _k
+    return None
+
+
+def record_suspicion(state, text, *, source: str, minister: Optional[str] = None,
+                     route: Optional[str] = None,
+                     turn: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """**唯一写入点**：AI 大臣/密探的财政疑虑奏报 → `state.discovery_suspicions`（发现链二级）。
+
+    - 文本经 `scan_fiscal_suspicion` 过滤（非财政疑虑不入，返回 `None`）；
+    - 去重（同源＋同人＋同文）；容量上限 `FIN_SUSPICION_CAP`（超限丢最旧）；
+    - 返回写入条目；被拒（空文/非疑虑/重复）→ `None`（不静默伪造、不静默丢弃）。
+    """
+    t = str(text or "").strip()
+    if not t:
+        return None
+    _kw = scan_fiscal_suspicion(t)
+    if not _kw:
+        return None
+    items = getattr(state, "discovery_suspicions", None)
+    if not isinstance(items, list):
+        items = []
+        state.discovery_suspicions = items
+    _key = (str(source or ""), str(minister or ""), t[:60])
+    for _it in items:
+        if not isinstance(_it, dict):
+            continue
+        if (str(_it.get("source", "")), str(_it.get("minister", "")),
+                str(_it.get("text", ""))[:60]) == _key:
+            return None                      # 去重（同源同人同文）
+    _turn = getattr(state, "turn", 0)
+    try:
+        _turn = int(_turn)
+    except (TypeError, ValueError):
+        _turn = 0
+    rec = {"source": str(source or ""), "minister": str(minister or ""),
+           "route": route or "", "text": t[:120], "keyword": _kw,
+           "turn": int(turn) if turn is not None else _turn}
+    items.append(rec)
+    if FIN_SUSPICION_CAP > 0 and len(items) > FIN_SUSPICION_CAP:
+        del items[:len(items) - FIN_SUSPICION_CAP]
+    return rec
 
 
 def _executor_corruption(state, executor: Optional[str]) -> Optional[float]:
@@ -173,8 +233,20 @@ def discovery_readout(state) -> Dict[str, Any]:
         sat = 100.0
     if sat < 40:
         anomalies.append({"kind": "民生", "text": "民心低迷，民困增加"})
-    suspicions = [dict(s) for s in (getattr(state, "discovery_suspicions", None) or [])
-                  if isinstance(s, dict)]
+    # 二级「怀疑」：AI 大臣奏报（`record_suspicion` 唯一写入点）；**仅计窗口内**（M34-③）
+    _turn_now = getattr(state, "turn", 0)
+    try:
+        _turn_now = int(_turn_now)
+    except (TypeError, ValueError):
+        _turn_now = 0
+    suspicions = []
+    for _s in (getattr(state, "discovery_suspicions", None) or []):
+        if not isinstance(_s, dict):
+            continue
+        _st = _s.get("turn")
+        _st = int(_st) if isinstance(_st, (int, float)) and not isinstance(_st, bool) else _turn_now
+        if _turn_now - _st <= FIN_SUSPICION_WINDOW_TURNS:
+            suspicions.append(dict(_s))
     cases = getattr(state, "audit_cases", None) or {}
     evidence = [dict(c) for c in cases.values()
                 if isinstance(c, dict) and c.get("status") == "证据在握"]

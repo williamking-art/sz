@@ -309,6 +309,20 @@ def _chapter_finance(state) -> List[str]:
         # 注意：created_turn 可为 0（开局回合）——不得用 `or` 兜底（falsy-zero 陷阱）
         if isinstance(_ct, (int, float)) and int(_ct) == _turn:
             lines.append(f"御史风闻：{_c.get('route', '')} 路账目异常，已立案待勘。")
+    # M34-③ 臣工风闻（二级"怀疑"）：本月大臣奏报的财政疑虑（限 2 条）
+    _shown = 0
+    for _s in reversed(list(getattr(state, "discovery_suspicions", None) or [])):
+        if _shown >= 2:
+            break
+        if not isinstance(_s, dict):
+            continue
+        _st = _s.get("turn")
+        if not (isinstance(_st, (int, float)) and not isinstance(_st, bool)
+                and int(_st) == _turn):
+            continue
+        lines.append(f"臣工风闻：{_s.get('minister') or '有司'}奏「"
+                     f"{str(_s.get('text', ''))[:60]}」")
+        _shown += 1
     return lines or ["本月度支无异常可记。"]
 
 

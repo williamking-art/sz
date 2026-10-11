@@ -1906,6 +1906,12 @@ def audience_dialogue_apply(state: GameState, minister_name: str, obj) -> str:
     topic = _topic_key(str(prev[1])) if prev and prev[0] == "朕" else ""
     _record_dialogue_row(state, minister_name, minister_name, reply, topic=topic,
                          intent=intent_hint, stance=str(intent_hint))
+    # M34-③：召对**回奏**若含财政疑虑 → 记入发现链二级"怀疑"（唯一写入点）
+    try:
+        from core.audit_case import record_suspicion
+        record_suspicion(state, reply, source="召对", minister=minister_name)
+    except Exception:  # noqa: BLE001 — 奏报记录失败不得阻断召对落定
+        pass
     return reply
 
 
