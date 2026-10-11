@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-11T06:51:26Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-11T07:25:28Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -12,6 +12,7 @@
 ## 任务板（未完成）
 
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
+- `M36-inspection-batch` None ｜status=**None**｜claimedBy=（未认领）
 
 ## 待裁 / 未闭环决策
 
@@ -21,7 +22,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261011T042448Z-Cline` → [`worklog/20261011T042448Z-Cline.md`](worklog/20261011T042448Z-Cline.md)
 - `20261011T043724Z-Cline` → [`worklog/20261011T043724Z-Cline.md`](worklog/20261011T043724Z-Cline.md)
 - `20261011T044711Z-Cline` → [`worklog/20261011T044711Z-Cline.md`](worklog/20261011T044711Z-Cline.md)
 - `20261011T045609Z-Cline` → [`worklog/20261011T045609Z-Cline.md`](worklog/20261011T045609Z-Cline.md)
@@ -29,8 +29,9 @@
 - `20261011T051439Z-Cline` → [`worklog/20261011T051439Z-Cline.md`](worklog/20261011T051439Z-Cline.md)
 - `20261011T052536Z-Cline` → [`worklog/20261011T052536Z-Cline.md`](worklog/20261011T052536Z-Cline.md)
 - `20261011T065118Z-Cline` → [`worklog/20261011T065118Z-Cline.md`](worklog/20261011T065118Z-Cline.md)
+- `20261011T072513Z-Cline` → [`worklog/20261011T072513Z-Cline.md`](worklog/20261011T072513Z-Cline.md)
 
 ## 计数
 
-- tasks 12（未完成 1）· decisions 13（未闭环 3）· worklog 107 · phase 文件 3
+- tasks 13（未完成 2）· decisions 13（未闭环 3）· worklog 108 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
