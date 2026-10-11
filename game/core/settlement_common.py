@@ -619,6 +619,7 @@ def food_insecure_headcount(pops: dict, price: float) -> dict:
     会出现"没饿却在逃籍"或"饿着却不逃"的矛盾（硬约束 #2 口径单点）。
     """
     from content.data import GRAIN_CONSUME_PER_CAPITA
+    from core.foundation.ledger.occupation import effective_size
     out = {}
     if not isinstance(pops, dict):
         return out
@@ -629,7 +630,9 @@ def food_insecure_headcount(pops: dict, price: float) -> dict:
     for cls, slot in pops.items():
         if not isinstance(slot, dict):
             continue
-        size = int(slot.get("size", 0) or 0)
+        # 🟢 M35-C-2：**有效人口** ＝ 桶 `size` ＋ 职业附加（occupation，挂靠桶）
+        #   统一经 `occupation.effective_size`（**单点口径**，禁止各模块自算役人粮耗）。
+        size = effective_size(pops, cls, slot.get("size", 0))
         if size <= 0:
             out[cls] = 0
             continue

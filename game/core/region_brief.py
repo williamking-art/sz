@@ -28,7 +28,8 @@ import logging
 import math
 from typing import Any, Dict, List, Tuple
 
-from content.data import GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST
+from content.data import GRAIN_CONSUME_PER_CAPITA, PREFECTURE_LIST   # noqa: F401
+from core.foundation.ledger.occupation import food_need_of          # M35-C-2 单点口径
 from core.foundation.common.numeric import parse_number as _num, clamp as _clamp
 
 log = logging.getLogger("region_brief")
@@ -333,7 +334,8 @@ def build_region_brief(state) -> Dict[str, Any]:
         for k, v in pops.items():
             n = int(_num((v or {}).get("size") if isinstance(v, dict) else 0))
             pop_total += n
-            grain_need += n * _num(GRAIN_CONSUME_PER_CAPITA.get(k, 0.5), 0.5)
+            # 🟢 M35-C-2：口粮需求＝**有效人口**×人均（含职业附加；单点口径 occupation.food_need_of）
+            grain_need += food_need_of(pops, k)
         if pop_total <= 0:
             pop_total = int(_num(p.get("population")))
             # 复审（gemini C1）：无 POP 细分但有总人口时，口粮需求不能丢，否则安全垫虚高

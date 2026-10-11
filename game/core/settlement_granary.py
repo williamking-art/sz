@@ -459,14 +459,16 @@ def _settle_granary(state, log):
     # （农保底 FARMER_SELL_FLOOR）；买方扣款 == 卖方收款（尾差归末位）；净头寸单边参与防双重扣款。
     # 顺序：士绅囤抛（_settle_civilian_hoard）先售（B1），本撮合处理余量——缺粮 POP 先扣士绅粮款、
     # 剩余可支付余力才入本撮合买方池，写死防双重扣款（同一笔钱不得两处买粮）。
+    from content.data import GRAIN_CONSUME_PER_CAPITA
+    from core.foundation.ledger.occupation import food_need_of   # M35-C-2 单点口径
     _famine = False
     for name, p in state.prefectures.items():
         price = p.get("grain_price", state.grain_price)
         price_wen = max(int(price * 1000), 1)
         pops = p["pops"]
         # 1) 各 POP 净头寸（need 按职业口粮）
-        need_of = {pn: int(pop["size"] * GRAIN_CONSUME_PER_CAPITA.get(pn, 0.5))
-                   for pn, pop in pops.items()}
+        # 1) 各 POP 净头寸（need 按口粮；🟢 M35-C-2：**有效人口**含职业附加，单点口径）
+        need_of = {pn: int(food_need_of(pops, pn)) for pn, pop in pops.items()}
         sellers = []
         for pn, pop in pops.items():
             surplus = max(0, pop["grain"] - need_of[pn])
@@ -482,7 +484,7 @@ def _settle_granary(state, log):
             short = max(0, need_of[pn] - pop["grain"])
             if short <= 0:
                 continue
-            floor = int(pop["size"] * GRAIN_CONSUME_PER_CAPITA.get(pn, 0.5) * price)  # 保底线（贯）
+            floor = int(food_need_of(pops, pn) * price)  # 保底线（贯；🟢 M35-C-2 含职业附加）
             # 可购量：wealth（贯）按文级单价折算石（×1000 对齐 price_wen=文/石，防贯/文 1000 倍量级 bug）
             can_buy = min(short, (max(0, pop["wealth"] - floor) * 1000) // price_wen)
             if can_buy > 0:

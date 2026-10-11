@@ -258,8 +258,10 @@ def _slot_grain_sale(state, pref: Optional[dict], pop: dict, cls: str) -> Dict[s
     grain = _int(pop.get("grain"), None)
     per = _grain_need_per_capita(cls)
     size = _int(pop.get("size"), None)
+    # 🟢 M35-C-2：粮需按**有效人口**（桶 size ＋ 职业附加 occupation）——单点口径
+    from core.foundation.ledger.occupation import food_need_of_pool
     need = (None if (per is None or size is None)
-            else int(size * per))
+            else int(food_need_of_pool(pop, cls, per)))
     price, price_src = _grain_price(pref, state)
     if grain is None or need is None:
         saleable = None
@@ -675,7 +677,10 @@ def purchasing_power_readout(state, *, routes: Optional[Sequence[str]] = None,
             gap = (None if (per_cap is None or line is None) else per_cap - line)
             rel = demand_release(cls, per_cap)          # ← 口径单点：读，不改
             per = _grain_need_per_capita(cls)
-            need = (None if (per is None or size is None) else int(size * per))
+            # 🟢 M35-C-2：粮需按**有效人口**（含职业附加）——单点口径
+            from core.foundation.ledger.occupation import food_need_of_pool
+            need = (None if (per is None or size is None)
+                    else int(food_need_of_pool(pop, cls, per)))
             price, _src = _grain_price(pref, state)
             self_suff = (None if (need is None or need <= 0 or grain is None)
                          else round(min(1.0, grain / float(need)), 4))

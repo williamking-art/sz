@@ -885,8 +885,9 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
             if _ag.get(_gd):
                 _ag[_gd] = int(_ag[_gd] * cfg["goods_decay"])
     # ---- Phase C 粮市撮合（净头寸；卖方分得同一笔实付额，尾差归最大卖/买方）----
-    need_of = {kl: int(int(v.get("size", 0) or 0)
-                       * float(GRAIN_CONSUME_PER_CAPITA.get(kl, 0.5)) * cmul)
+    # 🟢 M35-C-2：粮市撮合需求＝**有效人口**×人均（含职业附加；单点口径）
+    from core.foundation.ledger.occupation import food_need_of
+    need_of = {kl: int(food_need_of(pop, kl) * cmul)
                for kl, v in pop.items() if isinstance(v, dict)}
     sellers = []
     for kl, v in pop.items():
