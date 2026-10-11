@@ -1046,6 +1046,10 @@ def approve_ai_action(state: GameState, action_id: str) -> str:
         if kind == "finance_proposal":
             return _apply_finance_proposal(state, action_id, payload, title)
 
+        # ---- M36.5：察访呈请（呈请 ≠ 批准 ≠ 执行；批红后才落到既有单点）----
+        if kind in ("inspect_dispatch", "inspect_report", "inspect_allege"):
+            return _apply_inspect_request(state, action_id, kind, payload, title)
+
         state.set_ai_pending_status(action_id, "rejected")
         return f"未知待批类型：{kind}，已驳回。"
     except Exception as e:  # noqa: BLE001
@@ -1053,6 +1057,26 @@ def approve_ai_action(state: GameState, action_id: str) -> str:
         # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
         log.warning("[approve_ai_action] 落地失败: %s", e)
         return f"批红未成：{title}（该条已驳回）。"
+
+
+def _apply_inspect_request(state: GameState, action_id: str, kind: str,
+                           payload: dict, title: str) -> str:
+    """M36.5 察访呈请的**批红落地**：把呈请载荷交既有单点执行；成功才记 approved。
+
+    纪律：**呈请 ≠ 批准 ≠ 执行**——本函数只在**批红**（`approve_ai_action`）路径被调用；
+    引擎不得在结算时自动调用（`settlement.py` 不得出现这些名字，源码测试钉住）。
+    三动作一律落到既有单点：`enqueue_inspection`／`file_inspection_report`／
+    `record_report_suspicion`（唯一桥接）；**不含**成案入口（`resolve_audit` 仍只经 `audit_route`）。
+    """
+    from core.inspection_wiring import apply_inspect_decree_payload
+    _log: list = []
+    done = apply_inspect_decree_payload(state, {kind: dict(payload or {})}, _log)
+    _msg = _log[-1] if _log else ""
+    if done:
+        state.set_ai_pending_status(action_id, "approved")
+        return f"批红：{title}（{_msg}）"
+    state.set_ai_pending_status(action_id, "rejected")
+    return f"批红未成，已驳回：{title}（{_msg}）"
 
 
 def reject_ai_action(state: GameState, action_id: str) -> str:

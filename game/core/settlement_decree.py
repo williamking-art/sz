@@ -318,6 +318,13 @@ def _apply_decree_effect(state, decree, log):
                 log.append(f"[勾校] 未成：{_res.get('reason')}")
         else:
             log.append("[勾校] 载荷非法（须为路名或 {route,executor,secret}），未执行")
+    # ---- M36.5 察访载荷（授差遣／奏报／涉嫌事项）：**结构+语义校验后交既有单点执行** ----
+    # 与 audit_route 同姿态：先于数值过滤处理；不判断"该不该派"（决策方的事）；
+    # 三动作分别落到 enqueue_inspection／file_inspection_report／record_report_suspicion（唯一单点）。
+    if isinstance(_raw, dict) and any(k in _raw for k in
+                                      ("inspect_dispatch", "inspect_report", "inspect_allege")):
+        from core.inspection_wiring import apply_inspect_decree_payload
+        apply_inspect_decree_payload(state, _raw, log)
     # ---- P4 改革轴（V1.3 §9）：调财政四率（归一化保序）——载荷为字典，先于数值过滤 ----
     if isinstance(_raw, dict) and "finance_rates" in _raw:
         _fr = _raw["finance_rates"]

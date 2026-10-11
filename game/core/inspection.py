@@ -32,7 +32,7 @@ __all__ = ["ensure_inspection_schema", "window_for", "inspection_capacity",
            "inspection_candidates", "enqueue_inspection", "inspection_tick",
            "inspection_task_list", "inspection_readout", "file_inspection_report",
            "ensure_inspection_feedback_schema", "inspection_feedback_readout",
-           "inspection_identity"]
+           "inspection_identity", "ai_decision_view"]
 
 # M36-2 生命周期（AI 提交 → created；月度推进 → active；回奏 → completed；超期 → expired）
 _TASK_STATUSES = ("created", "active", "completed", "expired")
@@ -459,6 +459,100 @@ def inspection_readout(state) -> Dict[str, Any]:
             "tasks": inspection_task_list(state)}
 
 
+def ai_decision_view(state, viewer: str = "player", oversight=None, secret: bool = False,
+                     tier: str = "") -> Dict[str, Any]:
+    """🟢 M36.5 **AI 大臣中立事实视图**（朝廷决策层信息输入；**只读**；**不含任何推荐**）。
+
+    与 UI 推荐接口（`briefing.build_briefing_actions`）**分离**：本视图只说"世界是什么、能做什么、
+    为什么不能做"，**不**说"该做什么"——无 `urgent`、无排序、无"宜…"建议语、无最优人选/路线。
+
+    应提供：察访容量/占用/剩余名额｜逐路候选事实｜可用行动与**参数约束**｜在途任务与状态｜
+            `suspicion_pending`｜**动作不可用的具体原因**｜（可选）按 viewer 过滤的财政上下文。
+    不应提供：推荐派谁/查哪、最优排序、`urgent` 优先级、替 AI 决定下一步、自动生成怀疑/成案。
+
+    **权限（D11，在入口落实）**：`fiscal_context` 一律经 `fiscal_gap_report(viewer=…)` 计算——
+    `player/official/court` 只账面侧；`inspector` 需 `secret` 或 `oversight ≥ 门限` 才见真账；
+    `ai/system` 全知。**调用者是 AI 大臣不改变其身份权限**。
+    """
+    from content.data import INSPECTION_KINDS
+    ensure_inspection_schema(state)
+    cap = inspection_capacity(state, tier=tier)
+    cands = inspection_candidates(state)
+    tasks = inspection_task_list(state)
+    pending = [t["id"] for t in tasks
+               if str(t.get("status")) == "completed"
+               and isinstance(t.get("report"), dict)
+               and t["report"].get("suspicion") is None]
+    _kinds = tuple(INSPECTION_KINDS or ())
+
+    def _routes_with_pool():
+        return [n for n, v in cands.items() if _i(v.get("candidates")) > 0]
+
+    # ---- 可用行动（含参数约束与不可用原因；**不含推荐**）----
+    actions: List[Dict[str, Any]] = []
+    _d_reasons: List[str] = []
+    if cap["free"] <= 0:
+        _d_reasons.append(f"无可用差遣名额：在途＋受理已占 {cap['occupied']}/{cap['max_active_tasks']}")
+    if not _routes_with_pool():
+        _d_reasons.append("各路候选池为 0（待阙＋祠禄无官可差）")
+    actions.append({"action": "inspect_dispatch",
+                    "params": {"route": "任一路名（须候选池 > 0）", "kind": list(_kinds),
+                               "secret": "bool（密访）"},
+                    "available": not _d_reasons, "reasons": _d_reasons,
+                    "via": "诏令载荷 inspect_dispatch（正式执行）｜呈请—批红 kind=inspect_dispatch"})
+    _act = [t["id"] for t in tasks if str(t.get("status")) == "active"]
+    actions.append({"action": "inspect_report",
+                    "params": {"task_id": "已出发差遣 id", "summary": "奏报正文"},
+                    "available": bool(_act), "reasons": [] if _act else ["无已出发待奏报的差遣"],
+                    "via": "诏令载荷 inspect_report｜呈请—批红 kind=inspect_report（改变任务终态）"})
+    actions.append({"action": "inspect_allege",
+                    "params": {"task_id": "已奏报且未桥接的差遣 id", "text": "涉嫌事项（须含财政疑虑）"},
+                    "available": bool(pending),
+                    "reasons": [] if pending else ["无已奏报且尚未入怀疑层的差遣"],
+                    "via": "诏令载荷 inspect_allege｜呈请—批红 kind=inspect_allege → record_report_suspicion()（唯一桥接）"})
+    actions.append({"action": "audit_route",
+                    "params": {"route": "路名", "executor": "可选", "secret": "bool"},
+                    "available": True,
+                    "reasons": [],
+                    "via": "诏令载荷 audit_route → 既有**唯一成案入口**（不得新增绕过路径）"})
+
+    # ---- 财政上下文（**按 viewer 过滤**；AI 大臣身份不升权）----
+    fiscal_ctx: Dict[str, Any] = {}
+    try:
+        _rep = state.fiscal_gap_report(str(viewer or "player"),
+                                       oversight=oversight, secret=bool(secret)) or {}
+        fiscal_ctx = {"viewer": str(viewer or "player"), "allow_real": bool(_rep.get("allow_real")),
+                      "totals": dict(_rep.get("totals") or {})}
+    except Exception:                      # noqa: BLE001 — 读数失败不阻断视图
+        fiscal_ctx = {"viewer": str(viewer or "player"), "allow_real": False, "totals": {}}
+
+    # ---- 反馈观察量（事实，供权衡政治后果；不含建议）----
+    fb: Dict[str, Any] = {}
+    try:
+        _fbr = inspection_feedback_readout(state)
+        fb = {"observables": _fbr.get("observables"), "events": _fbr.get("events")}
+    except Exception:                      # noqa: BLE001
+        fb = {}
+
+    # ---- 待批呈请（事实：大臣已呈请、待皇帝朱批的察访事项）----
+    pend_req = [a for a in (getattr(state, "ai_pending_actions", None) or [])
+                if isinstance(a, dict) and str(a.get("kind") or "").startswith("inspect_")
+                and a.get("status") == "pending"]
+
+    return {"viewer": str(viewer or "player"),
+            "identity": inspection_identity(state),
+            "capacity": cap,
+            "candidates_by_route": cands,
+            "tasks": tasks,
+            "suspicion_pending": pending,
+            "available_actions": actions,
+            "pending_requests": [{"id": a.get("id"), "kind": a.get("kind"),
+                                  "title": a.get("title"), "proposer": a.get("proposer")}
+                                 for a in pend_req],
+            "feedback": fb,
+            "fiscal_context": fiscal_ctx,
+            "note": ("中立事实视图：只给事实与约束，**不含**推荐/排序/优先级；"
+                     "是否察访、授谁、察何处、是否追究由决策方判断。")}
 def inspection_feedback_readout(state) -> Dict[str, Any]:
     """🟢 M36-3 **监察反馈观察量**读数（**只读**；**不判断成败**，无成功率/概率/阻力）。
 
