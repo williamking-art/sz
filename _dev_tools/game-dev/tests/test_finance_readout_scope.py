@@ -113,8 +113,9 @@ def test_cross_scope_ratio_is_the_old_panel_formula(readout):
 def test_nominal_annual_full_is_five_item_sum(readout):
     arr = readout["mechanism_arrival_rate"]
     assert arr is not None and arr > 0
-    # 二税折色 / 盐课月额已乘 arrival → ÷ arrival × 12 即年度应征额（应征公式反推）
-    tax_color_annual = readout["tax_color"] / arr * 12
+    # M34-④（甲②）：二税折色已是**新模型应征**（无 arrival 折扣）→ 年应征 = 月应征×12
+    tax_color_annual = readout["tax_color"] * 12
+    # 盐课仍走旧径（月额已乘 arrival）→ ÷ arrival × 12 反推年应征额
     salt_annual = readout["salt_coin"] / arr * 12
     expected = readout["nominal_annual"] + tax_color_annual + salt_annual
     assert readout["nominal_annual_full"] == pytest.approx(expected, rel=1e-9, abs=1e-6)
@@ -198,7 +199,8 @@ def test_zero_subject_contributes_zero(state):
     # 盐课为 0 时反推项必须是 0（不允许 0/arr 之外的意外）
     arr = out["mechanism_arrival_rate"]
     assert arr and arr > 0
-    expected_full = out["nominal_annual"] + out["tax_color"] / arr * 12 + 0.0
+    # M34-④（甲②）：二税折色已是**新模型应征**（无 arrival 折扣）→ 年应征 = 月应征×12
+    expected_full = out["nominal_annual"] + out["tax_color"] * 12 + 0.0
     assert out["nominal_annual_full"] == pytest.approx(expected_full, rel=1e-9, abs=1e-6)
 
 

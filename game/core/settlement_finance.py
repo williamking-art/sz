@@ -658,6 +658,12 @@ def _settle_land_tax_color(state, log) -> dict:
     _st["land_tax_central"] = int(_st.get("land_tax_central", 0) or 0) + central
     _st["land_tax_local"] = int(_st.get("land_tax_local", 0) or 0) + local_total
     _st["land_tax_diverted"] = int(_st.get("land_tax_diverted", 0) or 0) + div_total
+    # M34-④：**本月**结账快照（供面板/比率读数；累计值另见 land_tax_*）
+    _st["land_tax_last"] = {
+        "turn": int(getattr(state, "turn", 0) or 0),
+        "assessed": assessed, "collected": _collected,
+        "central": central, "local": local_total, "diverted": div_total,
+    }
     log.append(f"[田赋] 折色应征 {assessed:,}贯 → 实收 {_collected:,}贯；三分："
                f"上供 {central:,}／留州 {local_total:,}／侵渔 {div_total:,}"
                + (f"（豁免/欠税 {assessed - _collected:,}）" if _collected < assessed else ""))

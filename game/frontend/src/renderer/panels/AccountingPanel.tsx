@@ -138,11 +138,13 @@ export default function AccountingPanel() {
   // 现改为读同口径三税比率与五科目比率；后端缺分母时给 null → 显示「未定义」。
   const arrivalTaxed = asRatio(fin.arrival_ratio_taxed);
   const arrivalFull = asRatio(fin.arrival_ratio_full);
-  const mechanismArrival = asRatio(fin.mechanism_arrival_rate);
+  // M34-④（D3）：机制到账率更名 `legacy_arrival_rate`（**旧口径**，仅含旧径 arrival 折扣）；
+  // 旧键 `mechanism_arrival_rate` 后端保留兼容一版，此处优先读新键。
+  const mechanismArrival = asRatio(fin.legacy_arrival_rate ?? fin.mechanism_arrival_rate);
   const scopeTaxed = asText(fin.arrival_ratio_scope_taxed,
-    "三税（工商·役钱·市舶）——不含二税折色与盐课");
+    "三税（工商·役钱·市舶）——不含二税折色与盐课（诊断口径·勿当到账率）");
   const scopeFull = asText(fin.arrival_ratio_scope_full,
-    "五科目（工商·役钱·市舶·二税折色·盐课）");
+    "五科目（工商·役钱·市舶·二税折色[按应征]·盐课）（诊断口径·勿当到账率）");
   const totalOut = asNum(fin.total_out);
   const net = asNum(fin.net);
 
@@ -206,10 +208,10 @@ export default function AccountingPanel() {
             title={
               `三税到账率（${scopeTaxed}）= 三税应征 ÷ (三税账面年额 ÷ 12) = `
               + `${humanizeCoin(monthlyInTaxed)} ÷ ${humanizeCoin(nominalAnnual / 12)} = ${fmtRatio(arrivalTaxed)}；`
-              + "本比率不含二税折色与盐课"
+              + "本比率不含二税折色与盐课，为诊断口径（勿当精确到账率）"
               + (mechanismArrival === null
-                ? "；机制到账率（含隐漏/钱荒）见机制。"
-                : `；机制到账率（含隐漏/钱荒）为 ${(mechanismArrival * 100).toFixed(1)}%。`)
+                ? "；旧口径到账率（含隐漏/钱荒）见机制。"
+                : `；旧口径到账率（含隐漏/钱荒）为 ${(mechanismArrival * 100).toFixed(1)}%。`)
             }
           >
             三税到账率 {fmtRatio(arrivalTaxed)}
@@ -221,7 +223,8 @@ export default function AccountingPanel() {
             title={
               `综合到账率（${scopeFull}）= 五项应征 ÷ (五项年报应征 ÷ 12) = `
               + `${humanizeCoin(monthlyIn)} ÷ ${humanizeCoin(nominalAnnualFull / 12)} = ${fmtRatio(arrivalFull)}；`
-              + "分子分母同口径，故与「三税到账率」不同（两者不可互相换算）。"
+              + "分子分母同口径，故与「三税到账率」不同（两者不可互相换算）；"
+              + "二税折色按应征计入（实收须待月结），故为诊断口径。"
             }
           >
             综合到账率（五科目）{fmtRatio(arrivalFull)}

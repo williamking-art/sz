@@ -386,6 +386,7 @@ export function getTreasuryDetail(state: GameState | null, finance: Record<strin
   }
 
   // 月入分项（后端 finance_readout：commerce/poll/maritime/tax_color/salt_coin）
+  // M34-④：`tax_color` 已改**新模型应征**（＝全额税基×征收率，无 arrival 折扣）
   const commerce = financeNum(finance, "commerce");
   const poll = financeNum(finance, "poll");
   const maritime = financeNum(finance, "maritime");

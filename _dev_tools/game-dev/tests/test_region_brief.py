@@ -53,10 +53,13 @@ def test_brief_is_readonly_deep_snapshot():
 # ② 与核心派生口径一致（复审 A4/D2：以核心值为权威）
 # ---------------------------------------------------------------
 def test_tax_authority_is_core_value():
-    """nation.tax_month 必须等于核心派生总额；逐路展示值之和单独作诊断。"""
+    """nation.tax_month 必须等于核心派生总额；逐路展示值之和单独作诊断。
+
+    M34-④：核心口径已统一为**新模型应征**（`calc_land_tax_channels().assessed_total`）。
+    """
     s = _state()
     b = build_region_brief(s)
-    core_total = s.calc_monthly_tax_income()[0]
+    core_total = s.calc_land_tax_channels()["assessed_total"]
     assert abs(b["nation"]["tax_month"] - core_total) < 0.01, "全国税额须以核心派生值为权威"
     assert "tax_month_routes_sum" in b["nation"], "须保留逐路求和作为诊断值"
     assert abs(b["nation"]["tax_month_routes_sum"]
@@ -177,7 +180,7 @@ def test_partial_status_on_derivation_failure():
     class _Bad:
         prefectures = {name: {"pops": {}} for name in PREFECTURE_LIST}
 
-        def calc_monthly_tax_income(self):
+        def calc_land_tax_channels(self):
             raise RuntimeError("boom")
 
         def calc_army_cash(self):
@@ -264,8 +267,8 @@ def test_partial_on_nonfinite_return():
     class _NF:
         prefectures = {n: {"pops": {}} for n in PREFECTURE_LIST}
 
-        def calc_monthly_tax_income(self):
-            return float("inf"), {}
+        def calc_land_tax_channels(self):
+            return {"assessed_total": float("inf"), "by_route": {}}
 
         def calc_army_cash(self):
             return 0.0, {"x": "y"}
@@ -299,8 +302,8 @@ def test_negative_army_grain_clamped():
         prefectures = {n: {"pops": {"农": {"size": 1000}}, "storage": 0, "changping_stock": 0}
                        for n in PREFECTURE_LIST}
 
-        def calc_monthly_tax_income(self):
-            return 0.0, {}
+        def calc_land_tax_channels(self):
+            return {"assessed_total": 0, "by_route": {}}
 
         def calc_army_cash(self):
             return 0.0, {}

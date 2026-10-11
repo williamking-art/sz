@@ -370,7 +370,17 @@ class GameStateEconMixin:
         `arrival_ratio_cross_scope`（旧面板跨口径原值，仅作诊断）/ `mechanism_arrival_rate` /
         `arrival_ratio_scope*` 单点派生字段：前端直读比率、不再自行相除，避免多口径复制。
         三个比率**分子分母各自同科目**（跨口径旧值单列保留、不得当"到账率"用）。
-        既有字段取值与语义**一概不变**。
+
+        **M34-④ 口径统一（2026-10-11，用户裁 D1=甲/D2=保留诊断/D3=显式命名）**：
+        二税折色自 P1 起结算走**新模型**（应征＝全额税基×征收率，**无 arrival 折扣**），
+        面板旧径（`calc_monthly_tax_income`，arrival 已乘进税基）只作兼容锚保留于
+        `tax_color_legacy`。故：
+          - `tax_color` / `assessed_total` = **月应征**（`calc_land_tax_channels`）；
+          - `tax_color_annual` = 月应征×12（**去**旧径 `/arrival×12` 反推）；
+          - `arrival_ratio_*` 家族＝**诊断口径**（勿当精确到账率；scope 串已明写）；
+          - 新增 `land_tax_last`（上月结账快照：应征/实收/三分）、`land_tax_cum`（累计三分）、
+            `collection_rate_avg` / `transfer_rate_avg`（月度双率均值）、`legacy_arrival_rate`。
+        机制常量与既有字段语义**未动**（`tax_color` 语义按本次裁决由"旧径到库"改为"新径应征"）。
         """
         from content.data import (
             COMMERCE_TAX_RATE_DEFAULT,
@@ -416,7 +426,12 @@ class GameStateEconMixin:
             cash_out = cash_pay
 
         # 经济全浮动重构读数（与 _settle_finance 同源）
-        tax_color_total, _ = self.calc_monthly_tax_income(tax_coeff)
+        # M34-④ 口径统一（甲）：二税折色改**新模型应征**（全额税基×征收率，无 arrival 折扣）；
+        # 旧径值另存 `tax_color_legacy`（兼容/回归锚——结算侧自 P1 起已走新径）。
+        tax_color_legacy, _ = self.calc_monthly_tax_income(tax_coeff)
+        _ch = self.calc_land_tax_channels()
+        assessed_total = int(_ch.get("assessed_total", 0) or 0)
+        tax_color_total = assessed_total
         salt_coin = self.calc_salt_coin(arrival)
         army_cash_total, _ = self.calc_army_cash()
         official_cash_total, _ = self.calc_official_cash()
@@ -458,7 +473,9 @@ class GameStateEconMixin:
             _arr = ARRIVAL_MIN
         if not _math.isfinite(_arr) or _arr < ARRIVAL_MIN:
             _arr = ARRIVAL_MIN
-        tax_color_annual = (float(tax_color_total) / _arr * 12.0) if tax_color_total else 0.0
+        # M34-④（甲②）：应征已是**全额税基×征收率**（无 arrival 折扣）→ 年应征 = 月应征×12；
+        # **不得**再 ÷arrival（旧径的反推式在新口径下会放大 1/arrival ≈1.7×）。
+        tax_color_annual = (float(assessed_total) * 12.0) if assessed_total else 0.0
         salt_annual = (float(salt_coin) / _arr * 12.0) if salt_coin else 0.0
         # 五项全口径年度应征（**新增**派生量；不是对 nominal_annual 的改写）
         nominal_annual_full = nominal_annual + tax_color_annual + salt_annual
@@ -482,6 +499,9 @@ class GameStateEconMixin:
         #   64.625% 正是 arrival×TAX_COEFF（1.1）——只对工商项精确成立（1,130,940÷(21,000,060/12)）。
         #   改名义岁入役钱基数属机制改动，本轮不做（见交付说明"遗留/需用户裁决"）。
         arrival_ratio_taxed = (monthly_in_taxed / _den_taxed) if _den_taxed > 0 else None
+        # M34-④（甲③）：五科目口径——分子/分母**同步换新口径**（二税折色按**应征**计入；
+        # 月度实收须待月结，真实到账见 `land_tax_last`（上月结账）/`land_tax_cum`（累计三分））。
+        # ⇒ 本比值为**诊断口径**（"到账率"的近似上界），**勿**当精确到账率使用。
         arrival_ratio_full = (monthly_in / _den_full) if _den_full > 0 else None
         # 旧面板算法原值（跨口径：分子五科目、分母三税账面）——开局 128.2%。
         # 保留它只为「可复现旧读数 + 回归断言」，UI 一律不得据此称"到账率"。
@@ -489,9 +509,25 @@ class GameStateEconMixin:
         # 机制到账率（隐漏/胥吏侵蚀/钱荒后的折扣系数）＝ 二税折色、盐课实收的隐含折扣，
         # 也是 `calc_arrival_rate()` 的当月值；供 tooltip 解释"为何二税折色/盐课口径 = 58.8%"。
         # 缺失（非有限值）→ None（不伪造 1.0）。
+        # M34-④（D3）：**旧口径**——改名 `legacy_arrival_rate`（新键），旧键保留兼容一版。
         mechanism_arrival_rate = _arr if _math.isfinite(_arr) else None
-        scope_taxed = "三税（工商·役钱·市舶）——不含二税折色与盐课"
-        scope_full = "五科目（工商·役钱·市舶·二税折色·盐课）"
+        legacy_arrival_rate = mechanism_arrival_rate
+        # M34-④（乙）：新模型只读字段（月度双率均值 + 真账快照/累计三分）
+        _crs = [self.calc_collection_rate(_r) for _r in self.prefectures]
+        collection_rate_avg = round(sum(_crs) / len(_crs), 4) if _crs else None
+        _splits = [self.finance_split(_r) for _r in self.prefectures]
+        transfer_rate_avg = round(sum(_s[0] for _s in _splits) / len(_splits), 4) if _splits else None
+        _last = self.statistics.get("land_tax_last")
+        land_tax_last = dict(_last) if isinstance(_last, dict) else None
+        land_tax_cum = {
+            "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
+            "collected": int(self.statistics.get("land_tax_collected", 0) or 0),
+            "central": int(self.statistics.get("land_tax_central", 0) or 0),
+            "local": int(self.statistics.get("land_tax_local", 0) or 0),
+            "diverted": int(self.statistics.get("land_tax_diverted", 0) or 0),
+        }
+        scope_taxed = "三税（工商·役钱·市舶）——不含二税折色与盐课（诊断口径·勿当到账率）"
+        scope_full = "五科目（工商·役钱·市舶·二税折色[按应征]·盐课）（诊断口径·勿当到账率）"
 
         # ---- 后端权威定性字段（前端一律读这里，杜绝多口径重复与真实层泄漏）----
         # 钱荒定性：统一走 desensitize_shortage（与仓廪页/状态条同源）
@@ -524,13 +560,19 @@ class GameStateEconMixin:
             # `arrival_ratio_taxed`：**三税口径**到账率 = 三税应征 ÷ (三税账面年额÷12)，
             #   覆盖 工商·役钱·市舶，**分子分母同科目**（开局 62.9%）。分母为 0 → None。
             #   （不是 monthly_in/(nominal_annual/12)：那是跨口径比值，见下一字段。）
-            # `arrival_ratio_full`：**五科目口径**到账率 = monthly_in ÷ (nominal_annual_full/12)，
-            #   分子分母同口径（覆盖 工商·役钱·市舶·二税折色·盐课；开局 60.7%）。分母为 0 → None。
+            # `arrival_ratio_full`：**五科目口径**诊断比值 = monthly_in ÷ (nominal_annual_full/12)，
+            #   分子分母同口径（覆盖 工商·役钱·市舶·二税折色[按应征]·盐课；开局 60.7%）。
+            #   M34-④ 注：二税折色分子按**应征**计入（月度实收须待月结）⇒ 它是"到账率"的
+            #   **近似上界**，真实到账看 `land_tax_last` / `land_tax_cum`。分母为 0 → None。
             # `arrival_ratio_cross_scope`：**旧面板算法原值**（分子五科目 ÷ 分母三税账面）
             #   = 开局 **128.2%**。它的存在本身就是"分母缺二税折色与盐课 → 比值 >100%
             #   → 差额为负却被当『隐漏与拖欠』"这条自相矛盾的凭证；**仅作诊断与回归**，
             #   UI 不得把它当"到账率"显示。
             # `mechanism_arrival_rate`：机制到账率（隐漏/钱荒后的折扣系数），供 tooltip 解释。
+            #   M34-④（D3）：**旧口径**，新键 `legacy_arrival_rate` 为权威命名，旧键保留兼容一版。
+            # `land_tax_last`：**上月**田赋折色结账快照（应征/实收/上供/留州/截留），未结账 → None。
+            # `land_tax_cum`：**累计**真账三分（应征/实收/上供/留州/截留），审计留痕。
+            # `collection_rate_avg` / `transfer_rate_avg`：各路征收率/上供份额的月度均值。
             # `arrival_ratio_scope*`：上面比率各自覆盖的科目（中文可读，前端直取，
             #   不再各处自写口径）；两处均**明写不含二税折色与盐课**，以免再被当成同一比率。
             "nominal_annual_full": nominal_annual_full,
@@ -545,8 +587,16 @@ class GameStateEconMixin:
             "commerce": commerce_tax,              # 月工商税（实际到库）
             "poll": poll_tax,                      # 月役钱
             "maritime": maritime_tax,              # 月市舶抽解
-            "tax_color": tax_color_total,          # 月二税折色（全进国库）
+            "tax_color": tax_color_total,          # 月二税折色**应征**（新模型；M34-④ 口径统一）
+            "tax_color_legacy": int(tax_color_legacy),  # 旧径（arrival 折扣）——兼容/回归锚
             "salt_coin": salt_coin,                # 月盐课（单列，不进二税）
+            # M34-④（乙）：新模型只读字段（月度双率 + 真账快照/累计三分）
+            "assessed_total": assessed_total,             # 田赋折色月应征（≡ tax_color）
+            "collection_rate_avg": collection_rate_avg,   # 各路征收率均值
+            "transfer_rate_avg": transfer_rate_avg,       # 各路上供份额均值
+            "land_tax_last": land_tax_last,               # 上月结账快照（应征/实收/三分）
+            "land_tax_cum": land_tax_cum,                 # 累计真账三分（审计留痕）
+            "legacy_arrival_rate": legacy_arrival_rate,   # 旧口径到账率（D3 显式命名）
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),

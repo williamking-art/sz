@@ -4,13 +4,13 @@
  "claimedBy": "",
  "claimedAt": "",
  "status": "open-registered",
- "verdict": "P1–P4 已全部落地（M33 done，commit a912af8fd2）；**M34-③ AI 奏报接线已落地**（commit dd4a6baf53；record_suspicion 唯一写入点＋呈请/召对两处接线＋二级窗口＋月报臣工风闻；全量 2514 passed）。余项为**设计明确后置/待接**，非缺陷。",
- "scope": "① 地方支出（V2：local_treasury 的行政/治安/水利/救灾/粮仓支出通道；现状只进不出）② 巡按（Phase 4+ 后置：需巡察 AI/官员移动/地图事件）③ ✅ **已落地** AI 奏报接线（`core/audit_case.record_suspicion`；接线点：`GameState.enqueue_ai_action` 呈请 / `commands.audience_dialogue_apply` 召对；窗口 `FIN_SUSPICION_WINDOW_TURNS=6`、容量 12；月报「度支录」臣工风闻）④ 读数口径统一（**开工门台账已出**：[`specs/economy/读数口径统一_开工门台账.md`](../../game-docs/specs/economy/读数口径统一_开工门台账.md)；**待裁 D1 口径方案 / D2 比率家族去留 / D3 命名**；事实：结算已新径、面板 `finance_readout` 与 `region_brief` 仍旧径，两侧分叉）",
+ "verdict": "P1–P4 已全部落地（M33 done，commit a912af8fd2）；**M34-③ AI 奏报接线已落地**（commit dd4a6baf53；record_suspicion 唯一写入点＋呈请/召对两处接线＋二级窗口＋月报臣工风闻）；**M34-④ 读数口径统一已落地**（2026-10-11；用户裁 D1=甲＋乙／D2=保留为诊断／D3=显式命名；面板 `tax_color` 改新模型应征、去 `/arrival×12` 反推、`region_brief` 逐路同源、乙组只读字段＋月结快照 `land_tax_last`；财政校准门同种子 12 月五项逐位一致；全量 2522／0 failed）。余项为**设计明确后置/待接**，非缺陷。",
+ "scope": "① 地方支出（V2：local_treasury 的行政/治安/水利/救灾/粮仓支出通道；现状只进不出）② 巡按（Phase 4+ 后置：需巡察 AI/官员移动/地图事件）③ ✅ **已落地** AI 奏报接线（`core/audit_case.record_suspicion`；接线点：`GameState.enqueue_ai_action` 呈请 / `commands.audience_dialogue_apply` 召对；窗口 `FIN_SUSPICION_WINDOW_TURNS=6`、容量 12；月报「度支录」臣工风闻）④ ✅ **已落地** 读数口径统一（台账：[`specs/economy/读数口径统一_开工门台账.md`](../../game-docs/specs/economy/读数口径统一_开工门台账.md) §7；面板 `finance_readout` 与 `region_brief` 逐路税均改新径**应征**，旧径单列 `tax_color_legacy`；`legacy_arrival_rate` 为 D3 新名）",
  "prereq": [
-  "无阻塞；四项可独立开工",
-  "①④ 开工前先出小台账（口径/守恒/读写点），复跑财政校准门（同种子 ≥12 月五项）"
+  "无阻塞；①② 可独立开工",
+  "① 开工前先出小台账（口径/守恒/读写点），复跑财政校准门（同种子 ≥12 月五项；探针 `_dev_tools/_scratch/m34_gate_probe.py` 可复用）"
  ],
- "risk": "🟡 低-中：①④ 涉及钱账口径与平衡（须复跑校准门）；②③ 涉及 ai 层 prompt 与 UI",
- "next": "④ 读数口径统一：**开工门台账已出、待裁 D1–D3**（裁后实现：改 `finance_readout`＋`region_brief` 同源＋更新 2 处契约测试＋复跑财政校准门）；随后 ①（V2 支出，需台账）→ ②（巡按，最重）。③ 已完成（dd4a6baf53）。",
+ "risk": "🟡 低-中：① 涉及钱账口径与平衡（须复跑校准门）；② 涉及 ai 层 prompt 与 UI",
+ "next": "① 地方支出 V2（需台账：local_treasury 支出通道，现状只进不出）→ ② 巡按（最重，需巡察 AI/官员移动/地图事件）。③④ 已完成（dd4a6baf53／本轮）。④ 遗留非缺陷项：乙组真账字段（`land_tax_last`/`land_tax_cum`）面板展示择期；旧键 `mechanism_arrival_rate` 兼容一版待删。",
  "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜tasks/M33-local-treasury-sink.json（done）"
 }

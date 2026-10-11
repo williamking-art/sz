@@ -7,7 +7,8 @@
 ## 纪律（POP 挂载律，见《游戏机制说明》§五）
 1. 本模块**只读**：不写任何 POP `size/wealth/grain`、不写国库/内帑/州县字段；
 2. 不新建与 POP 平行的独立存量账本——所有数字都是既有派生函数
-   （`calc_monthly_tax_income` / `calc_army_cash` / `calc_army_grain`）与州县既有字段的组合；
+   （`calc_land_tax_channels`（M34-④ 起田赋折色改**新模型应征**）/ `calc_army_cash` /
+   `calc_army_grain`）与州县既有字段的组合；
 3. 供 `/api/readouts`（薄壳）与前端「州县」面板消费；**算法单点在此**，前端不复制。
 
 ## 多模型复审后的修正（gemini-3.8-flash + gpt-6-astra，2026-09-19）
@@ -304,7 +305,12 @@ def build_region_brief(state) -> Dict[str, Any]:
             return 0.0, {}
         return tf, by_route
 
-    tax_total, tax_by_route = _derive("tax", state.calc_monthly_tax_income)
+    # M34-④：逐路税与面板**同源**（新模型**应征**）——不再走旧径 arrival 折扣
+    def _tax_derive():
+        ch = state.calc_land_tax_channels()
+        return (ch.get("assessed_total", 0),
+                {k: v.get("assessed", 0) for k, v in (ch.get("by_route") or {}).items()})
+    tax_total, tax_by_route = _derive("tax", _tax_derive)
     army_cash_total, army_cash_by_route = _derive("army_cash", state.calc_army_cash)
     army_grain_total, army_grain_by_route = _derive("army_grain", state.calc_army_grain)
     # 核心总额同样钳非负（复审 gpt-6-astra A5：负的军粮/军饷不得抵消或反向计入国家统计）
