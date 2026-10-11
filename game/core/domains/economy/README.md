@@ -3,7 +3,9 @@
 > 2026-10-07 第二十三包（DSH）新增 `read_models/` 子包并迁入 `flow_summary.py`。
 > 2026-10-06 · 丙批二起**已有首个实现**（`material_trade_ops.py`）。
 > 2026-10-07 第十五包迁入 `dynamic_price.py`、`demand.py`；第十八包再迁入 `market.py`、
-> `hoard_settle.py`、`regime_fiscal.py` ⇒ **本包现共 6 个实现文件**；
+> `hoard_settle.py`、`regime_fiscal.py`；此后又迁入 `regime_tech.py`（第二十八包）、
+> `trade_shadow.py`（第三十包）、`settlement_econ_helpers.py`（阶段 3）
+> ⇒ **本包现共 9 个实现文件 ＋ `read_models/flow_summary.py`（2026-10-11 实测）**；
 > 其余（`settlement_finance` / `settlement_granary` / `settlement_econ` / `market*` 等）
 > 仍为候选归属、**未移动**——它们的被调方在平铺大环（v3 口径 **[17]**；旧记录写 16 是 v2 漏计
 > `from core import X` 形态所致，见 `阶段1_依赖图与循环依赖.md` §一之补）内，
@@ -24,6 +26,9 @@
 | `market.py` | `core/market.py`（第十八包 2026-10-07，`git mv`）| `trade_goods` `sellable_stock` `reset_trade_ledger` `TRADE_PURPOSES` `TRADE_SCHEMA_VERSION` `TradeOutcome`（+私有 `_num`/`_int`/`_TRADE_LEDGER`/`_ledger_key`）| **唯一商品成交入口**；🔴 模块级可变台账 `_TRADE_LEDGER` 在桩后必须仍是**同一个 dict**（用例锁死：经桩 reset 要能清实现侧，且禁止在桩上重绑） |
 | `hoard_settle.py` | `core/hoard_settle.py`（第十八包）| `settle_hoard` `hoard_readout`（+私有 `_drain_into_clerks` 与 6 个常量） | 叶子：stdlib `random`/typing + 函数内 `content.data` |
 | `regime_fiscal.py` | `core/regime_fiscal.py`（第十八包）| `apply_fiscal_response`（+私有 `_cut` 与 7 个阈值常量） | 叶子：typing + `core.foundation.ledger.pop_structure` 公开名（人口写入走桥接，符合 POP 挂载律）|
+| `regime_tech.py` | `core/regime_tech.py`（第二十八包 2026-10-07，`git mv`）| `advance_regime_tech` 等 | 主要国家/外邦政权的**科技推进**（批 B）：与宋**同一套 `TECH_NODES` 规则**；花费走**政权库银**（税收供血），**不扣宋国库、不扣任何 POP 账户**；研究**按月摊销**，库银不足 ⇒ **暂停研究**（`research_paused`），**不透支、不挂账、不回落 0 假装** |
+| `trade_shadow.py` | `core/trade_shadow.py`（第三十包 2026-10-07，`git mv`）| 外贸货腿影子函数（4 键对账） | 🔴 **影子模块（只读）——不接入正式结算**：验证「出口扣货＋进口加货＋运费＋钱流」四者对账；纯函数、不写任何 state、**不被 `settlement*` 引用**；用途＝守恒自检与接入前裁定参考。含 `ROUTE_WATERWAY`（**路级**；州府级下沉见 `specs/transport/交通下沉州府级.md`）|
+| `settlement_econ_helpers.py` | `settlement_steps.py` 拆出（阶段 3 第二包）| `_distribute_pop_wealth`／`_settle_mint`（+私有） | 结算金钱/粮**分发助手**（零行为变更）：lump 按 POP size 分摊**尾差归最大府**（守恒）；铸钱受控（铜料约束＋熔耗＋对账台账）。POP 写入走桥接（未下沉回落原写法）|
 | `read_models/flow_summary.py` | `core/flow_summary.py`（第二十三包 2026-10-07，`git mv`）| `build_flow_summary` `_parse_finance_line` `_extract_one_off`（+3 私有）| 纯派生**读数**（只读 GameState、不写 state）⇒ 归 `read_models/` 子包（架构方案 §3.1）。与 `material_trade_ops.py` 的平铺形式不同，待统一；本批已用**真实通道非空**验证（调 `build_flow_summary(s)` 返回 `{treasury, imperial}`，非空壳）。|
 ✅ **已销账（第十包，2026-10-07）**：`material_trade_ops` 改用 ledger 显式接口
 `attribute_to_seats` / `route_of`（旧私有名在 ledger 内仅作兼容别名保留，供 `core/material_holding.py`

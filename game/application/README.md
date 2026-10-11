@@ -2,7 +2,7 @@
 
 > 目标架构与分期见 `_dev_tools/game-docs/specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md`
 > （§1 目标树、§5 回合记忆回写、§6-1 依赖方向）。本文件只记**当前事实与纪律**。
-> 日期：2026-10-07
+> 日期：2026-10-07（M25 落地）；2026-10-11 补记 `game_init.py`／`load_game.py`
 
 ## 职责
 
@@ -14,6 +14,8 @@
 | `turn_lifecycle.py` | `finish_turn` / `check_terminal_state` / `auto_save_if_due` | 回合收尾编排：终局判定 → 记忆三步 → 自动存档 |
 | `memory_lifecycle.py` | `on_turn_finished` / `compress_memory_if_needed` / `summarize_dialogue_if_due` / `persist_memory` | 记忆治理间隔：压缩 6、周期总结+归档 12、对话 3 |
 | `agent_router.py` | `route_agents` / `inject_work` 等（桩面 **15** 名）| **第二十七包 DSH 2026-10-07**，`git mv` 自 `core/agent_router.py`。按需唤醒 Agent 的路由层：唤醒条件（关键词/状态触发/上轮 diff 路径），未唤醒的 Agent 不消耗任何开销。自身只 import `__future__`/`concurrent.futures`/`typing` ⇒ 零 `core` 依赖；唯一生产调用方 `commands.py` 已同批改指新路径 |
+| `game_init.py` | `new_game` / `init_population` / `init_pops_seats` ＋ `GameInitError` | **M25 裁定**：新局初始化编排。顺序固定 **先注隐户（`ensure_hidden_in_pops`，因 `hidden` 属 `SPLIT_FIELDS`）→ 再下沉州府级（`sink_pops_to_seats`）**，颠倒会让路级写落进派生镜像造成分叉。**fail-fast**：失败抛 `GameInitError`（带站点＋通道），**不返回半初始化 state**。🔴 生产入口 `commands.new_game` **必须**委托本模块，否则玩家开局就缺初始化 |
+| `load_game.py` | `restore_dynamic_blueprints` / `load_game` ＋ `RestoreServiceError` | **M25 裁定**：读档编排。基础层只做反序列化，**蓝图的校验与登记**在此编排。失败分级：整档级（恢复服务自身故障）**fail-fast** 不返回部分恢复的 state／单条级（蓝图内容非法）**只丢该条**并留痕／子段级（schema 过高）**只拒该子段**、整档继续 |
 
 ## 已知的既有语义（抽取时原样保留，勿"顺手修正"）
 

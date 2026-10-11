@@ -12,17 +12,20 @@
 **所有 POP / 钱 / 粮的写入必须经过本层。** 绕过桥接的直写会被
 `test_route_pops_readonly_guard.py` 当场炸掉（路级 `pops` 已由只读守卫强制）。
 
-## 模块（7 个，均 `git mv` 迁入，保留历史）
+## 模块（8 个，均 `git mv` 迁入，保留历史）
+
+> 行数为 2026-10-11 实测快照（会随提交变化，仅作量级参考，不作为判据）。
 
 | 模块 | 行 | 职责 |
 |---|---:|---|
-| `pop_bridge.py` | 640 | 🔴 **州府级 POP 基座 + 读写桥**（2026-10-04 用户裁定**方案乙**：POP 实体下沉州府级，24 个接口）。真账在 `prefectures[路]["seats"][治所]["pops"][类]` |
-| `material_holding.py` | 740 | **账本接口层**（31 个接口）。物料/商品单点访问层——遍历 `goods` 键会把州府桶当商品维参与算术，**唯一安全判据是 `commodity_dims`** |
-| `money.py` | 762 | 货币口径 M0/M1/M2/M3 与月度对账（46 个接口，**只读视图**） |
+| `pop_bridge.py` | 805 | 🔴 **州府级 POP 基座 + 读写桥**（2026-10-04 用户裁定**方案乙**：POP 实体下沉州府级）。真账在 `prefectures[路]["seats"][治所]["pops"][类]`；含只读守卫 `install_all_guards`/`uninstall_all_guards`/`pops_guard_violations` |
+| `material_holding.py` | 907 | **账本接口层**。物料/商品单点访问层——遍历 `goods` 键会把州府桶当商品维参与算术，**唯一安全判据是 `commodity_dims`** |
+| `money.py` | 762 | 货币口径 M0/M1/M2/M3 与月度对账（**只读视图**） |
+| `pop_structure.py` | 359 | POP 职位子池与丁口维度（B1a，2026-09-27 用户口径） |
+| `prefecture_entity.py` | 239 | 州府实体层（P0/A2 · 2026-10-02） |
 | `grain_bridge.py` | 128 | 🔴 **G-3 读写桥**：`pops[].grain` ⇄ `goods[治所][米]` 的**单点过渡层** |
-| `pop_structure.py` | 245 | POP 职位子池与丁口维度（B1a，2026-09-27 用户口径） |
-| `prefecture_entity.py` | 204 | 州府实体层（P0/A2 · 2026-10-02） |
-| `grain_ledger.py` | 81 | 🔴 **G-3 迁移基座**：把 `pops[].grain` 迁入 `goods[治所][米/麦]`（裁定 H·甲） |
+| `occupation.py` | 111 | 🔴 **M35-C 职业人口单点**（2026-10-11 并入）：职业计数住**挂靠桶子池**（`HOST_POOL`，如 `官僚.runner_count`），**不新增 POP、不新增粮桶**；所有"人口粮需／饥饿判断／粮仓需求／购粮能力"一律经本模块取值 |
+| `grain_ledger.py` | 99 | 🔴 **G-3 迁移基座**：把 `pops[].grain` 迁入 `goods[治所][米/麦]`（裁定 H·甲） |
 
 ## 🔴 不可绕过的纪律
 

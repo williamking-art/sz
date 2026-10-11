@@ -10,8 +10,17 @@
 $py = "..\.audit-venv\Scripts\python.exe"
 $env:PYTHONPATH = ""
 $env:CODEBUDDY_SAFE_DELETE_ENABLED = "0"
-& $py -m pytest _dev_tools/game-dev/tests -p no:cacheprovider
+& $py -m pytest _dev_tools/game-dev/tests -p no:cacheprovider --junitxml=out.xml
 ```
+
+### 🔴 取数纪律（本机反复踩过，务必遵守）
+
+- **唯一权威口径 = `--junitxml` 的 `testsuite` 属性**（`tests` / `failures` / `errors` / `skipped`）。
+- **不得数进度点**：本机 `-q` 的末尾汇总行会被吞（PowerShell 重定向与点行宽度都会变），
+  `--collect-only` 同样看不到汇总；日志正文还含 warning 文本，逐字符统计会把 `SyntaxWarning` 里的字母也计入
+  （实测得到 `'.'=2711 / 's'=199`，与真实 `2689 / 2` 明显不符）。这曾导致同一棵树报出多组互相矛盾的用例数。
+- **不得用 `passed` 数宣称验收**：`xfail` 计入 `skipped`，报数时须同时给 `tests/failures/errors/skipped`。
+- 判定"跑完"要看**进程退出 + junit 落盘**，不看日志末行。
 
 跳过标记为长时推演的用例：
 
@@ -36,6 +45,7 @@ $env:CODEBUDDY_SAFE_DELETE_ENABLED = "0"
 - `test_route_pops_readonly_guard.py` 覆盖精选结算子步、真实 15 月月结、玩家扩编命令、一条鞭折银欠税、家产循环、士绅囤粮/市舶窖银（含出窖）、AI 城市化/就业流及组合压力结算；守卫应零直写、逐字段镜像一致，另核对 POP 财富/粮食与 `M_ALL` 守恒。
 - `test_econ_price_review.py` 覆盖路线价本地性（别路隐户不传染、本地隐户能影响本地价）及同一初局、仅改 AI 城市化档位的 12 月对照，用于证明经济选择能产生可测的 POP 结构差异。
 - 经济与人口回归应分别检查账本守恒、需求/供给和长局民生指标；残差为零不能代替平衡验收。
-- test_military_summary.py 覆盖省级军政派生：兵额守恒、只读、逐路筛选，以及**单军月饷/月粮**（region_brief.unit_cost_readout）与 calc_army_cash / calc_army_grain 的逐分不分叉。
+- `test_military_summary.py` 覆盖省级军政派生：兵额守恒、只读、逐路筛选，以及**单军月饷/月粮**（`region_brief.unit_cost_readout`）与 `calc_army_cash` / `calc_army_grain` 的逐分不分叉。
+- `test_prod_pops_guard.py` 覆盖**生产** POP 守卫：`SONGZUO_POPS_GUARD` 缺省关闭不改数值、开启后能抓到注入的直写（非空转）、装/卸配对把路级 `pops` 还原为普通 dict。
 
 按专题查找审查整改、圣旨闭环或市场用例时，以当前文件名和相应 `specs/*/tasks.md` 为准；批次文件会增删，不在此重复维护静态清单。

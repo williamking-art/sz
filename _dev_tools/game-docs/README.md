@@ -32,18 +32,20 @@
 - [`AI推演与民间经济营造市场落地建议.md`](docs/AI推演与民间经济营造市场落地建议.md)：AI Agent、事务流程与市场的整合建议；属于设计依据，具体生效范围仍看代码和任务表。
 - [`开发服务器与回归测试说明.md`](docs/开发服务器与回归测试说明.md)：本地开发、回归与发行操作说明。
 
-## 验证基线 · 唯一出处（2026-10-03 确立）
+## 验证基线 · 取数口径（2026-10-03 确立；2026-10-11 更新）
 
 历史文档中散落着数十个不同的测试用例数（那是**各文档编写当时的快照**，正文按证据保留、不追改）。
-**当前真值只有一个出处**，以本节为准：
 
-| 项 | 当前值 | 复跑命令 |
+🔴 **唯一可复现口径 = `--junitxml` 的 `testsuite` 属性**。本机 `-q` 的末尾汇总行会被吞、
+`--collect-only` 同样看不到汇总，**一律不得数进度点**（实测日志含 warning 正文，逐字符统计会把
+`SyntaxWarning` 里的字母也算进去）。
+
+| 项 | 最近实测快照 | 复跑命令 |
 |---|---|---|
-| pytest 全量 | **2178 passed / 1 skipped / 1 xfailed / 0 failed** | `cd D:\codebuddy\sz; $env:PYTHONPATH=""; & "D:\codebuddy\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider` |
-| 提交 | `d6dc6b5ee9`（docs） / `96766ea123`（G-1 目录） / `865cc251d6`（物料中文化+州府级） | `git log --oneline` |
-| tsc / vitest / build | 本轮**未复跑**，不得引用旧值 | 见 `docs/开发服务器与回归测试说明.md` |
+| pytest 全量 | **tests 2689 / failures 0 / errors 0 / skipped 2**（2026-10-11 · 提交 `1a56085641` · junit `_dev_tools/_scratch/m36_6_final.xml`，耗时 397.6s） | `cd D:\codebuddy\sz; $env:PYTHONPATH=""; & "D:\codebuddy\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
+| 前端 | tsc 双配置 0 错；vitest 80 passed（2026-10-11） | 见 `docs/开发服务器与回归测试说明.md` |
 
-⚠️ 引用别处文档里的用例数时，**须核对是否晚于/早于本表**；早于本表的一律视为历史快照。
+⚠️ 本表是**带日期与提交的快照**，不是永久真值；**任何一批改动后应重跑并更新本行**，引用前先核对日期。
 ⚠️ 物料维已于 `865cc251d6` **全中文化**（`盐/茶/丝/麻/蔗/果/木/石/铁/金/铜/银/牲畜/马/药材`），
 文档中残留的 `salt`/`timber`/`stone`/`iron`/`tea` 等**英文维已失效**（归档文档按原样存真，不追改）。
 
@@ -53,7 +55,9 @@
 - [`market-civilian-economy`](specs/market-civilian-economy/tasks.md)：POP 消费、商品、粮仓、营造市场和官员 Agent；B0–B5 的状态细分与未关闭的建模/校准门见任务表收口章节。**B4-1 建材缺口已闭合**——2026-10-02 裁决 **C / C-c / E-1** 并接线（商人 POP 持料、工地只从本地取、跨路走在途、商人补货下单）。
 - [`unified-civilian-market`](specs/unified-civilian-market/tasks.md)：州府级经济地基已落地（136 席实体、主键 `路|治所`、Σ 守恒），宋侧史料户口已录 96 席、**13/21 路成路**（**已达崇宁户口真实天花板**——南方多「元丰户」或无年号），外邦州府级口径三态分离（`historical` / `historical_ub` / `setting`）。
   建材侧按用户裁定 **C / C-c / E-1** 推进：建材**商品化**（存量落商人 POP `goods`，仓明细层已退役以免平行账本），施工侧**只从本地取、取不到即缺料**（物流才有意义）；三处消费侧已接线，**迁移收尾中**（见任务表 §14）。
-  ⚠️ **勿把"州府数据层已建"等同于"州府级市场已运行"**——交通边、在途批次、市场圈派生**均尚未建**。
+  ⚠️ **勿把"州府数据层已建"等同于"州府级市场已运行"**——按任务表 P0 口径，**交通边与在途批次已落地**
+  （`transport.py` 州府级耗时/相邻可达/未到不入账；`test_transport_transit.py`），**市场圈派生与州府级成交量仍缺**
+  （报价基座在 `market_price.py`，**零调用方**）。下一阶段 P1–P6 未开工，见该任务表 §10 状态表。
 
 README 不固定测试数量、回归通过数、模拟基线或某台机器的绝对路径。此类信息必须附运行条件和采样日期，并归入专题说明。
 

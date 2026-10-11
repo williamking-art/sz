@@ -13,7 +13,9 @@
 _dev_tools/handover/
 ├── INDEX.md                  # `summary` 生成，勿手改
 ├── agents.json               # agent 注册表 + 文件归属（共享；改前先读）
-├── phase/<Agent>.json        # 各 agent **独占**
+├── NOTICE.md                 # 通道变更说明 + 需自查的 split-brain 风险点
+├── TO_DSH_2026-10-09.md      # 云端→本机切换时写给 DSH 的交接单（历史留档）
+├── phase/<Agent>.json        # 各 agent **独占**；退役键落 `_retired.<名>.json`
 ├── tasks/<ID>.json           # 任务板：认领只碰自己那一条
 ├── decisions/<ID>.json       # 决策项：verdict 只由裁定人写
 ├── worklog/<UTC时间>-<agent>.md  # 追加 = 新建文件，永不重写历史

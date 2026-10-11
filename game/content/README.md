@@ -20,7 +20,10 @@
 | `build_prefecture_demog.py` | 州府人口经济表生成器。**含恒等式自检，`Σ子+residual==父级` 不成立即拒写**；已录史料且该路席位齐全者按**崇宁户比例**分配，否则回退"面积×锚点"（部分覆盖不启用，避免同路掺两种口径）。 |
 | `build_map_geo.py` | 舆图数据构建工具；资源生成和前端消费路径见 `game/assets/map/README.md`。 |
 | `codex_data.py`、`codex_text.py`、`legacy_gazette.py`、`situation_seeds.py` | 图鉴、开局邸报与局势种子内容。 |
-| `ministers/` | 大臣基础资料、人格和相关立绘资源，见 [`ministers/README.md`](ministers/README.md)。 |
+| `faction_schema.py` | **势力配置的中立结构定义**（P1 · 2026-10-06 用户裁定）：**中立的是结构/校验/查询接口，不是数据**；宋与外邦都是各自提供配置的势力。🔴 **不得把宋配置当外邦默认值**；官制（职位/职位→阶层映射/机构/官制参数）**全按势力提供**；经济基础建筑目录**跨势力共用**（不为外邦另造「粮田/桑麻田」重复类型）。缺失≠0 也≠1.0：本模块**只定义结构与校验，不提供任何默认数值**。 |
+| `faction_registry.py` | **势力配置统一注册表**（P1）：按势力名加载 `content/data_factions/*`；**共用机制定义与势力参数分离**；查不到势力 ⇒ **显式报错**，**不落 default**。 |
+| `data_factions/` | 各势力配置数据（宋/辽/西夏/吐蕃/大理…），结构契约见 `faction_schema.py`；见 [`data_factions/README.md`](data_factions/README.md)。 |
+| `ministers/` | 大臣基础资料、人格、**M36.7-B+ 登记表 `registry.py`**、**B3 历史候选库 `roster.py`** 和相关立绘资源，见 [`ministers/README.md`](ministers/README.md)。 |
 
 ## 修改约定
 

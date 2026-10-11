@@ -18,6 +18,9 @@
 | `audio/`、`telemetry/` | 音频能力与运行观测的独立模块 | 各自目录 README |
 | `saves/` | 本地运行存档位置 | [`saves/README.md`](saves/README.md) |
 | `backend_server_entry.py`、`SongZuo.spec` | 冻结后端的入口与 PyInstaller 配置 | 发行构建的具体要求见下文链接文档 |
+| `pytest.ini`、`requirements.txt`、`requirements-extras.txt` | `game/` 下的 pytest 配置与依赖清单 | ⚠️ 仓库根与 `game/` **各有一份 pytest 配置**，从不同目录启动会选中不同配置；见 [`_dev_tools/game-dev/tests/README.md`](../_dev_tools/game-dev/tests/README.md) |
+| `build_map_basemap.py`、`content/build_map_geo.py`、`export_constants.py`、`export_frontend_data.py`、`fetch_basemap.py`、`fetch_hillshade.py` | 舆图/常量/前端数据的**生成与导出脚本** | 生成物**不入库**，新克隆须按序重建；顺序见仓库根 `AGENTS.md` §4 与 [`assets/map/README.md`](assets/map/README.md) |
+| `ai_config.example.json`、`backend_config.example.json` | 本机配置**样例**（真实配置 git-ignored） | 勿把真实密钥写入仓库 |
 
 开发工具、回归用例、机制文档和规格在仓库根 `_dev_tools/` 下，不属于游戏模块。Rust 并行实现位于仓库根 `songzuo_server/`，不是 Python 后端的替代入口。
 

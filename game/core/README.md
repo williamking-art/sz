@@ -2,8 +2,13 @@
 
 本目录包含游戏状态、玩家命令、月度结算、人口与财政、政令、工程、市场、外交及状态读数。这里的 README 是导航；单个机制的当前口径以 `_dev_tools/game-docs/docs/` 为准，阶段状态以相应规格的 `tasks.md` 与生产调用路径核实。
 
-代码层按机制域模块化的目标架构（采用三省流程、六部业务域作责任划分参照）见 [`specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md`](../../_dev_tools/game-docs/specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md)。**分阶段实施中**：阶段 1（依赖图）已完成；阶段 2 已迁 `foundation/`（ledger 7 模块 + common/numeric）与首个 `domains/economy/` 实现；平铺旧路径全部保留薄转发桩；**生产调用点已改指新路径**（2026-10-07 第九包达成阶段 2 判据④，
-生产侧旧桩引用归零；**测试侧仍走旧桩**＝兼容门面生效面）。每包实测状态唯一权威 = [`foundation/README.md`](foundation/README.md)。
+代码层按机制域模块化的目标架构（采用三省流程、六部业务域作责任划分参照）见 [`specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md`](../../_dev_tools/game-docs/specs/cross-cutting/代码层机制模块化架构方案_2026-10-06.md)。**分阶段实施中**（**实测状态唯一权威 = [`foundation/README.md`](foundation/README.md)**，本行只是导航）：
+
+- 阶段 1（依赖图）✅ 完成；
+- 阶段 2（迁 `foundation/`）🔶 进行中：`ledger` **8 模块**、`common/numeric`、`persistence`（2 模块）、顶层 `registries.py` 已迁；
+- 阶段 3（业务域抽出）🔶 进行中：`domains/` 已有 **11 个子域、31 个实现**（economy 9／administration 6／politics 4／production 4／construction 2／diplomacy 2／military 2／culture 1／population 1）；`events`、`transport` 两目录仍空；
+- 平铺旧路径保留薄转发桩，**生产调用点已改指新路径**（阶段 2 判据④达成）；**测试侧仍走旧桩**＝兼容门面生效面；
+- ⚠️ 收口项：任务板 `M25-blocked-writesites` 仍 open（阶段 3 收尾）、`MIG-COMPAT-RETENTION`（兼容桩保留多久）待裁定。
 
 ## 回合与状态主链
 
