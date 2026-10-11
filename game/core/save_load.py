@@ -792,6 +792,8 @@ def _load_with_data(slot: int = 1):
                 _pop.setdefault("窖银", 0)
                 # A1 存档兼容：旧档 POP 无欠税科目则补 0（新结算读写 pop["欠税"]，防 KeyError）
                 _pop.setdefault("欠税", 0)
+                # M34-① 存档兼容：**欠给**（政府欠该 POP 的钱；与欠税对称）旧档补 0
+                _pop.setdefault("欠给", 0)
                 # 家产迁移（2026-09-27）：士绅 POP 的家产子池（钱的真实所在）
                 _pop.setdefault("estate", 0)
                 _pop.setdefault("estate_hoard", 0)

@@ -115,6 +115,53 @@ def test_centralization_interface_moves_the_priority_layer():
     assert s4.finance["local_expense_mult"] == pytest.approx(LOCAL_EXP_MULT_MIN)
 
 
+def test_arrears_are_mounted_on_creditor_pops():
+    """欠支必须挂到**债权人 POP** 的 `欠给` 子池（与 `欠税` 对称），且分类留痕。"""
+    s = new_game()
+    poor = min(s.prefectures)
+    s.prefectures[poor]["local_treasury"] = 0        # 逼出欠支（按可付截断 → 全额欠）
+    for p in s.prefectures.values():
+        for v in (p.get("pops") or {}).values():
+            if isinstance(v, dict):
+                v["欠给"] = 0
+    ret = _settle_local_expenditure(s, [])
+    assert ret["arrears"] > 0, "府库为零的路必须记欠支（不得静默消失）"
+    pop_arrears = {}
+    for cls in ("官僚", "兵", "工匠", "商人"):
+        pop_arrears[cls] = sum(int((p.get("pops") or {}).get(cls, {}).get("欠给", 0) or 0)
+                               for p in s.prefectures.values())
+    assert sum(pop_arrears.values()) == ret["arrears"], \
+        "ΣPOP 欠给 必须等于本月欠支总额（欠支不得悬空）"
+    # 分类欠支：分科目和 ≡ 总额（结算返回与 statistics 双留痕）
+    assert sum(ret["arrears_by_kind"].values()) == ret["arrears"]
+    stats_kind = s.statistics.get("local_arrears_by_kind") or {}
+    assert sum(int(v) for v in stats_kind.values()) == int(s.statistics["local_arrears"])
+    # 治安欠支 → 兵池；行政欠支 → 官僚池（谁是债权人就挂谁）
+    if ret["arrears_by_kind"].get("security"):
+        assert pop_arrears["兵"] > 0
+    if ret["arrears_by_kind"].get("admin"):
+        assert pop_arrears["官僚"] > 0
+
+
+def test_readout_exposes_arrears_and_pop_mount():
+    """读数暴露：总额 / 分科目 / **POP 挂载**（ΣPOP 欠给）。
+
+    注：正常月份顺序改造会先把必要支出划给府库，故欠支多出现在"中央腿本身不足"时；
+    本测试直接对**零府库**调用支用步以逼出欠支路径。
+    """
+    s = new_game()
+    s.prefectures[min(s.prefectures)]["local_treasury"] = 0
+    _settle_local_expenditure(s, [])
+    out = s.finance_readout()
+    assert out["local_arrears"] == int(s.statistics["local_arrears"]) > 0
+    assert out["local_arrears_pop"] == sum(
+        int((v or {}).get("欠给", 0) or 0)
+        for p in s.prefectures.values()
+        for v in (p.get("pops") or {}).values() if isinstance(v, dict))
+    assert out["local_arrears_pop"] > 0, "欠支必须挂到债权人 POP 上"
+    assert isinstance(out["local_arrears_by_kind"], dict) and out["local_arrears_by_kind"]
+
+
 def test_expense_mult_missing_falls_back_to_historical_default():
     """旧档（无该键）→ 史实默认 1.0（幂等；不得因缺键而 0＝地方责任全收中央）。"""
     s = new_game()

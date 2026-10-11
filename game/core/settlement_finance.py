@@ -736,6 +736,7 @@ def _settle_local_expenditure(state, log) -> dict:
                "security": (("兵", 1.0),),
                "waterworks": (("工匠", 0.4), ("商人", 0.6))}
     empty = {"paid": 0, "by_kind": {k: 0 for k in kinds}, "arrears": 0,
+             "arrears_by_kind": {k: 0 for k in kinds},
              "papered": 0, "personnel_reimb": 0, "by_route": {}}
     try:
         plan = state.calc_local_expenditure()
@@ -743,19 +744,23 @@ def _settle_local_expenditure(state, log) -> dict:
         log.append(f"[地方经费] 支用读数失败（{type(_e).__name__}），本月不支用")
         return empty
     paid_by_kind = {k: 0 for k in kinds}
+    arrears_by_kind = {k: 0 for k in kinds}         # 欠支**分科目**（M34-① 分类欠支）
     papered = 0                                     # 一体发钞下并入交子口径的人员腿
     personnel_reimb = 0
     arrears = 0
     by_route = {}
     _paper_pay = getattr(state, "pay_system", {}).get("mode") == "一体发钞"
     for name, row in plan["by_route"].items():
+        due_eff = int(row.get("due_eff", 0))
         target = int(row.get("plan_eff", 0))
         base = {k: int(row.get(k, 0)) for k in kinds}
         tot_base = sum(base.values())
-        if target <= 0 or tot_base <= 0:
+        if due_eff <= 0 or tot_base <= 0:
             continue
-        alloc = {k: int(target * base[k] / tot_base) for k in kinds}
-        alloc[max(base, key=lambda k: base[k])] += target - sum(alloc.values())
+        alloc = {k: int(target * base[k] / tot_base) for k in kinds} if target > 0 \
+            else {k: 0 for k in kinds}
+        if target > 0:
+            alloc[max(base, key=lambda k: base[k])] += target - sum(alloc.values())
         route_paid = 0
         for k in kinds:
             amt = alloc[k]
@@ -787,14 +792,50 @@ def _settle_local_expenditure(state, log) -> dict:
                 if isinstance(_p, dict):
                     _drop = given / float(LOCAL_EXP_SECURITY_UNREST_PER_POINT)
                     _p["unrest"] = max(0.0, round(float(_p.get("unrest", 0) or 0) - _drop, 2))
-        short = target - route_paid
+        # 欠支基准＝**应支** `due_eff`（府库不足或 cap 截断都算欠支，不得静默消失）
+        short = due_eff - route_paid
         arrears += short
-        by_route[name] = {"target": target, "paid": route_paid, "arrears": short}
+        if short > 0:
+            # M34-①（POP 挂载律）：欠支必须落到**债权人 POP** 的 `欠给` 子池
+            # （与 `欠税` 对称：欠税＝POP 欠国家，欠给＝国家欠 POP）；按科目应支占比分录，
+            # 并走桥接写口 `_pop_obj_add`（未下沉时回落原写法），保证治所↔路级镜像同源。
+            _p = state.prefectures.get(name)
+            _pops = (_p or {}).get("pops") if isinstance(_p, dict) else None
+            if isinstance(_pops, dict):
+                _kind_short = {k: int(short * base[k] / tot_base) for k in kinds}
+                _kbig = max(base, key=lambda k: base[k])
+                _kind_short[_kbig] += short - sum(_kind_short.values())
+                for k in kinds:
+                    amt_k = _kind_short[k]
+                    if amt_k <= 0:
+                        continue
+                    arrears_by_kind[k] += amt_k
+                    _shares = _payout[k]
+                    _given = 0
+                    for _i, (_cls, _w) in enumerate(_shares):
+                        part = (amt_k - _given if _i == len(_shares) - 1
+                                else int(amt_k * _w))
+                        _pool = _pops.get(_cls)
+                        if not isinstance(_pool, dict) or part <= 0:
+                            continue
+                        if _pop_obj_add(state, _pool, "欠给", part) is None:
+                            _pool["欠给"] = int(_pool.get("欠给", 0) or 0) + part
+                        _given += part
+        by_route[name] = {"target": target, "paid": route_paid, "arrears": short,
+                          "due_eff": due_eff}
     # 中央抵减口径（裁决 2026-10-11）：1.0＝责任转移（国库同额少付）／0.0＝正俸之外的地方贴补
     personnel_reimb = int(personnel_reimb * min(1.0, max(0.0, float(LOCAL_EXP_REIMB_SHARE))))
     if arrears > 0:
         state.statistics["local_arrears"] = \
             int(state.statistics.get("local_arrears", 0) or 0) + arrears
+        # 分科目欠支（史实口径：official_salary 官员俸禄／clerk_pay 胥吏雇钱／
+        # runner_pay 衙役雇钱／public_expense 公用钱——批 1 先有前三项中的两项＋公用）
+        _bak = state.statistics.get("local_arrears_by_kind")
+        _bak = dict(_bak) if isinstance(_bak, dict) else {}
+        for k, v in arrears_by_kind.items():
+            if v:
+                _bak[k] = int(_bak.get(k, 0) or 0) + v
+        state.statistics["local_arrears_by_kind"] = _bak
     paid_total = sum(paid_by_kind.values())
     if paid_total > 0:
         state.statistics["local_expense_paid"] = \
@@ -804,6 +845,7 @@ def _settle_local_expenditure(state, log) -> dict:
                + (f"；交子口径 {papered:,}贯" if papered else "")
                + (f"；欠支 {arrears:,}贯（府库不足）" if arrears else ""))
     return {"paid": paid_total, "by_kind": paid_by_kind, "arrears": arrears,
+            "arrears_by_kind": arrears_by_kind,
             "papered": papered, "personnel_reimb": personnel_reimb, "by_route": by_route}
 
 

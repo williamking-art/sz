@@ -52,6 +52,10 @@ _DERIVED_SEAT_FIELDS = (("clerks", "officials", "size"),)
 #:   改后按 `size` 权重拆分，**Σ治所 == 路级**，路级回归纯派生镜像。
 SPLIT_FIELDS = ("size", "kou", "ding", "wealth", "hidden",
                  "欠税", "自耕农", "佃农", "富农", "贫农", "窖银", "grain",
+                 # 🔴 M34-①（2026-10-11）：**欠给**（政府欠该 POP 的钱粮）——与 `欠税`
+                 #   （该 POP 欠国家的钱）**对称**的总量子池，必须可加下沉，否则治所级
+                 #   真账与路级镜像脱同步（同 `grain` 的教训）。
+                 "欠给",
                  # 身份与家产子池（可加类：均为计数或总量）
                  "estate", "estate_hoard",
                  "officials", "clerks", "on_post", "waiting", "sinecure",
@@ -121,7 +125,7 @@ _split_int = split_int
 # **挂载律**（与 POP 挂载律一致）：子池是父 POP 的**分区**，不是并行账本；
 #    `Σ child.size == parent.size`；不适用时**不造空池**；缺依据保 `unclassified`。
 
-AFFILIATION_FIELDS = ("size", "kou", "ding", "wealth", "grain", "窖银", "欠税")
+AFFILIATION_FIELDS = ("size", "kou", "ding", "wealth", "grain", "窖银", "欠税", "欠给")
 
 
 def split_affiliation_to_seats(src: dict, weights: List[tuple]) -> dict:

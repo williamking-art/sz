@@ -140,7 +140,7 @@ def _build_pops(info: dict, p_type: str) -> dict:
         # 人口不再另立"第 7 类池"，但**不计入在籍**（`state.population` 仍 = Σsize + 流民）。
         "农": {"size": sz_nong, "wealth": int(monthly_tax * 0.5 * _stock),
                "grain": int(monthly_grain * 2.0),
-               "hidden": 0, "goods": _g0(), "欠税": 0},
+               "hidden": 0, "goods": _g0(), "欠税": 0, "欠给": 0},
         "士绅": {
             "size": sz_shen,
             "wealth": int(monthly_tax * (GENTRY_TREASURY_SOUTH if south else GENTRY_TREASURY_NORTH) * _stock),
@@ -153,9 +153,12 @@ def _build_pops(info: dict, p_type: str) -> dict:
             "estate": 0,
             "estate_hoard": 0,
             "欠税": 0,           # 欠税科目（A1）：税征缺口累计，逐月追缴；存档兼容见 save_load 迁移
+            # M34-①（2026-10-11）：**欠给**（政府欠该 POP 的钱，与欠税对称）——地方财政
+            # 欠支落到**债权人 POP** 上（胥吏/衙役/官吏/工匠商人），不做无主体的悬账。
+            "欠给": 0,
         },
-        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0 * _stock), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0},
-        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0 * _stock), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0},
+        "工匠": {"size": sz_gong, "wealth": int(monthly_tax * 1.0 * _stock), "grain": int(monthly_grain * 0.1), "goods": _g0(), "欠税": 0, "欠给": 0},
+        "商人": {"size": sz_shang, "wealth": int(monthly_tax * 2.0 * _stock), "grain": int(monthly_grain * 0.2), "goods": _g0(), "欠税": 0, "欠给": 0},
         "官僚": {"size": sz_guan,
                   # 身份子池（宋代官制设计 §13.3/§13.4）：官/吏分账，官再分在岗/待阙/祠禄。
                   # 不变量：size == officials + clerks；officials == on_post + waiting + sinecure。
@@ -167,9 +170,9 @@ def _build_pops(info: dict, p_type: str) -> dict:
                   # 故其开局存量需**抵消**粮基数的同比例放大（`/ _stock`），保持原人均缓冲
                   # （≈4.9 石/人 = 1~2 月口粮；见 `test_tuning_fixes` 的 Q2 定案）。
                   "wealth": int(monthly_tax * 0.5), "grain": int(monthly_grain * 0.02 / _stock),
-                  "goods": _g0(), "欠税": 0},
+                  "goods": _g0(), "欠税": 0, "欠给": 0},
         # 官僚开局 grain = 月产×0.02（≈4.9石/人 = 1~2 月口粮缓冲；旧 0.1 为设计残留，见调参定案 Q2）
-        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0},  # 兵额由 army_units 聚合后回填
+        "兵": {"size": 0, "wealth": 0, "grain": 0, "goods": _g0(), "欠税": 0, "欠给": 0},  # 兵额由 army_units 聚合后回填
     }
 
 

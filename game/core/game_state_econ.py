@@ -617,6 +617,12 @@ class GameStateEconMixin:
             "local_arrears": int(self.statistics.get("local_arrears", 0) or 0),
             "local_expense_paid": int(self.statistics.get("local_expense_paid", 0) or 0),
             "land_tax_required": int(self.statistics.get("land_tax_required", 0) or 0),
+            # M34-① 欠支的 **POP 挂载**读数（债权人在 POP 上；与欠税对称）
+            "local_arrears_by_kind": dict(self.statistics.get("local_arrears_by_kind") or {}),
+            "local_arrears_pop": sum(
+                int((v or {}).get("欠给", 0) or 0)
+                for p in self.prefectures.values()
+                for v in (p.get("pops") or {}).values() if isinstance(v, dict)),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
