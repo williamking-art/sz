@@ -209,6 +209,16 @@ FIN_VIS_LAYERS_PLAYER = ("official", "rumor")            # 玩家：**不含 rea
 FIN_VIS_LAYERS_AUDIT = ("official", "rumor")             # 御史/监察：默认同玩家
 FIN_VIS_LAYERS_AUDIT_TRUTH = ("real", "official", "rumor")   # 监察**足**或**密查**时可见真账
 FIN_VIS_LAYERS_SYSTEM = ("real", "official", "rumor")    # 系统/AI 全知（内部）
+# ============================================================
+# 🟢 M35-3（2026-10-11）：欠给**补发与恢复**（财政改善 → 补发 → 压力下降 → 治理恢复）
+#   纪律（裁决）：① 不直接改欠给字段，必须走**账户划转**（`money.ACCOUNTS` 口径，Σ 守恒）；
+#   ② 来源优先级：路级府库 surplus → 中央拨款（改革/特殊诏令）；**暂不自动调用**；
+#   ③ 补发顺序沿用 D7′ 刚性等级；**不做自动公平分配**（保留制度选择空间）；
+#   ④ 补发只减 欠给/月数/压力，**不直接**降 corruption/grip/unrest（"欠钱解决 ≠ 立即清廉"）。
+# ============================================================
+LOCAL_REPAY_ENABLED = True          # 接口总开关（默认开，但**无自动调用**——仅显式调用生效）
+LOCAL_REPAY_KEEP_MONTHS = 1.0       # 路级府库**留存线**＝N 个月现实应支（不得为补发而抽空运营金）
+LOCAL_REPAY_MONTHS_RELIEF = 1.0     # 每次补发（该科目）缓解的欠给月数
 
 # P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
 FIN_AUDIT_BASE = 0.35            # 保真度基线

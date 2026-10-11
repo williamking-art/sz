@@ -641,6 +641,9 @@ class GameStateEconMixin:
             "fiscal_visibility": self.fiscal_visibility_view("player"),
             # 欠给时间化（金额之外的"欠了几个月"；供 AI 判断慢性程度）
             "local_arrears_months": self.arrears_months_summary(),
+            # 🟢 M35-3：补发能力（AI 决策接口：是否拨款/减税/整顿）；累计补发额
+            "arrears_recovery_capacity": self.arrears_recovery_capacity(),
+            "local_arrears_repaid": int(self.statistics.get("local_arrears_repaid", 0) or 0),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -1205,6 +1208,77 @@ class GameStateEconMixin:
                       "routes_over_3": sum(1 for v in vals if v >= 3.0),
                       "longest_route": _arg if _mx > 0 else None}
         return out
+
+    def arrears_recovery_capacity(self) -> dict:
+        """M35-3 **补发能力读数**（只读；供 AI 决策：是否拨款／减税／整顿）。
+
+        逐路给出：
+          · `coffer_surplus`   路级府库可动用额（＝余额 − `LOCAL_REPAY_KEEP_MONTHS` 个月现实应支）；
+          · `treasury_available` 中央可拨额（＝国库 − `ARREARS_KEEP_TREASURY` 应急线）；
+          · `arrears_by_kind` 各科目欠给**规模**（身份字段／池 `欠给`）；
+          · `priority` 建议补发顺序（**＝D7′ 刚性等级**，非"公平分配"）；
+          · `months` 各科目连续欠给月数；`pressure` 同路压力（供权衡）。
+        `total`：可补发合计、欠给规模合计、超 3 月路数（AI 的"要不要动"依据）。
+        """
+        from content.data import (ARREARS_KEEP_TREASURY, LOCAL_EXP_PAY_TIERS,
+                                  LOCAL_REPAY_KEEP_MONTHS)
+        try:
+            plan = self.calc_local_expenditure().get("by_route", {})
+        except Exception:                    # noqa: BLE001
+            plan = {}
+        try:
+            pressures = self.identity_pressures().get("by_route", {})
+        except Exception:                    # noqa: BLE001
+            pressures = {}
+        _treasury_avail = max(0, int(getattr(self, "treasury", 0) or 0)
+                              - int(ARREARS_KEEP_TREASURY))
+        priority = [k for _t in LOCAL_EXP_PAY_TIERS for k in _t]
+        by_route = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+            guan = pops.get("官僚") if isinstance(pops.get("官僚"), dict) else {}
+            bing = pops.get("兵") if isinstance(pops.get("兵"), dict) else {}
+            _due_eff = float((plan.get(name) or {}).get("due_eff", 0) or 0)
+            _keep = int(_due_eff * float(LOCAL_REPAY_KEEP_MONTHS))
+            by_route[name] = {
+                "coffer": int(p.get("local_treasury", 0) or 0),
+                "coffer_surplus": max(0, int(p.get("local_treasury", 0) or 0) - _keep),
+                "treasury_available": _treasury_avail,
+                "arrears_by_kind": {
+                    "official_salary": int(guan.get("officials_salary_arrears", 0) or 0),
+                    "clerk_pay": int(guan.get("clerks_pay_arrears", 0) or 0),
+                    "runner_pay": int(bing.get("runners_pay_arrears", 0) or 0),
+                    "public_supply": (int((pops.get("工匠") or {}).get("欠给", 0) or 0)
+                                      + int((pops.get("商人") or {}).get("欠给", 0) or 0)),
+                },
+                "arrears_total": int(guan.get("欠给", 0) or 0) + int(bing.get("欠给", 0) or 0)
+                + int((pops.get("工匠") or {}).get("欠给", 0) or 0)
+                + int((pops.get("商人") or {}).get("欠给", 0) or 0),
+                "months": {k: round(float((p.get("arrears_months") or {}).get(k, 0.0) or 0.0), 2)
+                           for k in ("official_salary", "clerk_pay", "runner_pay",
+                                     "public_supply")},
+                "pressure": {k: (pressures.get(name) or {}).get(k)
+                             for k in ("clerk_pressure", "official_pressure",
+                                       "runner_pressure")},
+                "priority": list(priority),
+            }
+        if not by_route:
+            return {"total": {}, "by_route": {}}
+        tot = {
+            "treasury_available": _treasury_avail,
+            "coffer_surplus_total": sum(r["coffer_surplus"] for r in by_route.values()),
+            "arrears_total": sum(r["arrears_total"] for r in by_route.values()),
+            "recoverable_total": (sum(r["coffer_surplus"] for r in by_route.values())
+                                  + _treasury_avail),
+            "routes_with_arrears": sum(1 for r in by_route.values() if r["arrears_total"] > 0),
+            "routes_over_3_months": sum(
+                1 for r in by_route.values()
+                if max(r["months"].values() or [0]) >= 3.0),
+            "priority": list(priority),
+        }
+        return {"total": tot, "by_route": by_route}
 
     def tax_loss_readout(self) -> dict:
         """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。

@@ -1082,6 +1082,149 @@ def _settle_local_expenditure(state, log) -> dict:
             "papered": papered, "personnel_reimb": personnel_reimb, "by_route": by_route}
 
 
+def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "coffer",
+                        kinds=None, log=None) -> dict:
+    """欠给**补发**（M35-3）：财政改善 → 补发欠给 → 压力下降 → 治理恢复的**接口**（**不自动调用**）。
+
+    纪律（裁决 2026-10-11）：
+      · **不直接改欠给**：资金一律经 `GameState.transfer_money`（映射 `money.ACCOUNTS`）划转，
+        Σ 货币守恒（府库/国库/POP 同在 `m_all` 内）；欠给字段只在**同一笔划转成功后**同步冲减；
+      · **来源优先级**：`source="coffer"`（路级府库 surplus，默认）→ `source="treasury"`
+        （中央拨款：先 `treasury → local:<路>`，再补发，保持"地方支出"主体性）；
+      · **顺序＝D7′ 刚性等级**（`LOCAL_EXP_PAY_TIERS`），`kinds` 可显式指定以体现**制度选择**
+        （**不做自动公平分配**）；
+      · **效果**：只减 欠给／月数／压力；**不**降 corruption/grip/unrest（"欠钱解决 ≠ 立即清廉"）。
+    """
+    from content.data import (ARREARS_KEEP_TREASURY, LOCAL_EXP_PAY_TIERS,
+                              LOCAL_REPAY_ENABLED, LOCAL_REPAY_KEEP_MONTHS,
+                              LOCAL_REPAY_MONTHS_RELIEF)
+    _log = log if log is not None else []
+    if not LOCAL_REPAY_ENABLED:
+        return {"repaid": 0, "by_kind": {}, "by_route": {}, "source": source,
+                "skipped": "disabled"}
+    _payout = {"official_salary": (("官僚", 1.0),), "clerk_pay": (("官僚", 1.0),),
+               "runner_pay": (("兵", 1.0),),
+               "public_supply": (("工匠", 0.4), ("商人", 0.6))}
+    _ident_field = {"official_salary": "officials_salary_arrears",
+                    "clerk_pay": "clerks_pay_arrears",
+                    "runner_pay": "runners_pay_arrears"}
+    order = list(kinds) if kinds else [k for _t in LOCAL_EXP_PAY_TIERS for k in _t]
+    try:
+        due = state.calc_local_expenditure().get("by_route", {})
+    except Exception:                       # noqa: BLE001 — 读数失败不得阻断补发
+        due = {}
+
+    def _pools_now(name):
+        pp = state.prefectures.get(name)
+        return (pp.get("pops") or {}) if isinstance(pp, dict) else {}
+
+    def _has_arrears(p):
+        for pool in (p.get("pops") or {}).values():
+            if isinstance(pool, dict) and int(pool.get("欠给", 0) or 0) > 0:
+                return True
+        return False
+
+    def _cap(k, cls, pool, w):
+        cap = int(pool.get("欠给", 0) or 0)
+        cap = int(cap * w) if w < 1.0 else cap
+        _f = _ident_field.get(k)
+        if _f:
+            cap = min(cap, int(pool.get(_f, 0) or 0))
+        return max(0, cap)
+
+    def _dec(state_, name, k, cls, got, w):
+        """同步冲减：池 `欠给`／身份字段／统计三层；按科目缓解月数（**不触碰 grip/unrest**）。"""
+        p = state_.prefectures.get(name)
+        if not isinstance(p, dict):
+            return
+        pool = _pools_now(name).get(cls)
+        if isinstance(pool, dict):
+            _f = _ident_field.get(k)
+            if _f:
+                _cur_f = int(pool.get(_f, 0) or 0)
+                _new = max(0, _cur_f - got)
+                if _pop_obj_add(state_, pool, _f, _new - _cur_f) is None:
+                    pool[_f] = _new
+            _cur = int(pool.get("欠给", 0) or 0)
+            _newd = max(0, _cur - got)
+            if _pop_obj_add(state_, pool, "欠给", _newd - _cur) is None:
+                pool["欠给"] = _newd
+        st = state_.statistics
+        st["local_arrears"] = max(0, int(st.get("local_arrears", 0) or 0) - got)
+        for _key in ("local_arrears_by_kind", "local_arrears_by_identity"):
+            _d = st.get(_key)
+            if isinstance(_d, dict) and k in _d:
+                _d[k] = max(0, int(_d.get(k, 0) or 0) - got)
+                st[_key] = _d
+        _am = p.get("arrears_months")
+        if isinstance(_am, dict) and k in _am:
+            _pool_after = _pools_now(name).get(cls)
+            _ident_after = (int(_pool_after.get(_ident_field[k], 0) or 0)
+                            if (isinstance(_pool_after, dict) and k in _ident_field) else None)
+            if _ident_after is not None and _ident_after <= 0:
+                _am[k] = 0.0                       # 该身份已清偿 ⇒ 月数清零
+            else:
+                _am[k] = max(0.0, float(_am.get(k, 0.0) or 0.0)
+                             - float(LOCAL_REPAY_MONTHS_RELIEF))
+            p["arrears_months"] = _am
+
+    # --- M35-3 repay main loop ---
+    routes = [route] if route else [n for n, p in state.prefectures.items()
+                                    if isinstance(p, dict) and _has_arrears(p)]
+    repaid_by_kind, by_route = {}, {}
+    total = 0
+    for name in routes:
+        p = state.prefectures.get(name)
+        if not isinstance(p, dict):
+            continue
+        if source == "treasury":
+            # 中央拨款：先拨到该路府库（一笔守恒划转，保持"地方支出"主体性）
+            avail = max(0, int(getattr(state, "treasury", 0) or 0)
+                        - int(ARREARS_KEEP_TREASURY))
+            if amount:
+                avail = min(avail, int(amount))
+            if avail <= 0:
+                continue
+            avail = state.transfer_money("treasury", f"local:{name}", avail)
+        else:
+            # 路级府库 surplus：留出 LOCAL_REPAY_KEEP_MONTHS 个月的运营金再补发
+            _due_eff = float((due.get(name) or {}).get("due_eff", 0) or 0)
+            _keep = int(_due_eff * float(LOCAL_REPAY_KEEP_MONTHS))
+            avail = max(0, int(p.get("local_treasury", 0) or 0) - _keep)
+            if amount:
+                avail = min(avail, int(amount))
+        route_paid = 0
+        for k in order:
+            if avail <= 0:
+                break
+            for _cls, _w in _payout.get(k, ()):
+                if avail <= 0:
+                    break
+                pool = _pools_now(name).get(_cls)
+                if not isinstance(pool, dict):
+                    continue
+                _cap_k = _cap(k, _cls, pool, _w)
+                if _cap_k <= 0:
+                    continue
+                got = state.transfer_money(f"local:{name}", f"pop:{name}:{_cls}",
+                                           min(avail, _cap_k))
+                if got <= 0:
+                    continue
+                avail -= got
+                route_paid += got
+                repaid_by_kind[k] = repaid_by_kind.get(k, 0) + got
+                _dec(state, name, k, _cls, got, _w)
+        if route_paid > 0:
+            by_route[name] = route_paid
+            total += route_paid
+    if total > 0:
+        state.statistics["local_arrears_repaid"] = \
+            int(state.statistics.get("local_arrears_repaid", 0) or 0) + total
+        _log.append(f"[欠给补发] {source} → 补发 {total:,}贯（{len(by_route)} 路）")
+    return {"repaid": total, "by_kind": repaid_by_kind, "by_route": by_route,
+            "source": source,
+            "skipped": "" if total else "no_surplus_or_no_arrears"}
+
 def _settle_finance(state, log):
     """月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
     田赋本色为实物入粮仓。支出含折色俸禄（随 pay_system）与岁币岁赐。"""
