@@ -654,6 +654,8 @@ class GameStateEconMixin:
             "inspection_backlash": self.inspection_backlash_readout(),
             # 🟢 M36-1：巡按编制/在途（**事实与约束**；AI 自行决定是否派/派谁/查哪/多深）
             "inspection": self._inspection_readout(),
+            # 🟢 M36-3：监察**反馈观察量**（记录监察的政治后果；**不判断成败**）
+            "inspection_feedback": self._inspection_feedback_readout(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -1461,6 +1463,19 @@ class GameStateEconMixin:
                     "candidates_by_route": {}, "tasks": []}
 
 
+
+    def _inspection_feedback_readout(self) -> dict:
+        """🟢 M36-3 **监察反馈观察量**读数（只读；**不判断成败**；零财政耦合）。
+
+        只给**事实**（累计暴露/戒备/官场议论/风闻变化 ＋ 逐路 ＋ 最近事件），
+        并附**只读**上下文（`rumor_tier`／`grip`／P3-4 `backlash`）。失败降级为空读数。
+        """
+        try:
+            from core.inspection import inspection_feedback_readout
+            return inspection_feedback_readout(self)
+        except Exception:                      # noqa: BLE001
+            return {"observables": {}, "events": 0, "by_route": {}, "recent": [],
+                    "context": {}, "interpretation": "record-only"}
 
     def fiscal_gap_report(self, viewer: str = "player", oversight=None,
                           secret: bool = False) -> dict:

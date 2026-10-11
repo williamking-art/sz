@@ -607,6 +607,10 @@ class GameState(GameStateEconMixin):
         #   口径见 `core/inspection.py`；**不自动派遣、不自动成案**（AI 决策）。
         self.inspection_tasks: list = []
         self.inspection_agent_state: dict = {"started": 0, "done": 0, "expired": 0}
+        # 🟢 M36-3：巡察**反馈观察层**容器（累计观察量；只写此容器，不写财政/POP/吏治/案卷）
+        #   结构见 `core/inspection.inspection_feedback_readout()`；`interpretation="record-only"`
+        self.inspection_feedback: dict = {"observables": {}, "events": 0,
+                                          "by_route": {}, "recent": []}
         # ---- 大臣财政疑虑奏报（M34-③；V1.3 §6 发现链二级"怀疑"）----
         # 唯一写入点：core.audit_case.record_suspicion（呈请/召对两处接线）
         self.discovery_suspicions: list = []

@@ -249,6 +249,8 @@ def save_game(state, slot: int = 1) -> bool:
         # 🟢 M36-1：巡按容器（存档兼容；旧档缺省由 `_load_with_data` 补默认）
         "inspection_tasks": getattr(state, "inspection_tasks", []),
         "inspection_agent_state": getattr(state, "inspection_agent_state", {}),
+        # 🟢 M36-3：巡察反馈观察层（存档兼容；旧档缺省由迁移补默认）
+        "inspection_feedback": getattr(state, "inspection_feedback", {}),
         "spy_network": state.spy_network,
 
         "yamen": state.yamen,
@@ -655,6 +657,8 @@ def _load_with_data(slot: int = 1):
         state.inspection_tasks = data.get("inspection_tasks", state.inspection_tasks)
         state.inspection_agent_state = data.get("inspection_agent_state",
                                                 state.inspection_agent_state)
+        state.inspection_feedback = data.get("inspection_feedback",
+                                            getattr(state, "inspection_feedback", {}))
         ensure_inspection_schema(state)
     except Exception:                          # noqa: BLE001 — 迁移失败不阻断载入
         pass

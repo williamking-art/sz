@@ -261,6 +261,29 @@ INSPECTION_KIND_COMPLEXITY = {"查粮": "normal", "查赋": "complex",
                                "查吏治": "complex", "查民情": "normal",
                                "查军务": "complex"}
 # ============================================================
+# 🟢 M36-3（2026-10-11 · 裁决「方案①＋适量②，不做③」）：巡察**反馈观察层**常量
+#   定位：只**记录监察行为对环境造成的反馈**（暴露/戒备/官场议论/风闻变化），
+#         **不判断**成败——**无**成功率／查出概率／阻力数值，**不**固定加时。
+#   ① 暴露/戒备：复用 `clerks_detail.grip`（把持度）与 P3-4 `inspection_backlash_readout()` 作**只读上下文**；
+#   ② 风闻：以 **rumor 层同量纲**的 `rumor_change` 累计观察量表达（**不写** rumor 状态）。
+#   全部为**信息／观察层**量：**不**影响 money／tax／grain／POP／occupation／官员属性／案卷。
+# ============================================================
+INSPECTION_FEEDBACK_KEYS = ("exposure", "local_caution",
+                            "official_pressure", "rumor_change")
+INSPECTION_FEEDBACK_LOG_CAP = 24          # recent 事件上限（容器不得无界膨胀）
+INSPECTION_FEEDBACK_CAUTION_PUBLIC = 0.60      # 明查出发：地方知中央关注 → 戒备↑（文书整理加强）
+INSPECTION_FEEDBACK_CAUTION_SECRET = 0.15      # 密查出发：地方未明确知道 → 短期戒备较低
+INSPECTION_FEEDBACK_EXPIRE_PRESSURE_PUBLIC = 0.40    # 超期（明查）：官场议论微升
+INSPECTION_FEEDBACK_EXPIRE_PRESSURE_SECRET = 1.20    # 超期（密查）：暴露后反弹更明显
+INSPECTION_FEEDBACK_EXPIRE_EXPOSURE_PUBLIC = 0.10
+INSPECTION_FEEDBACK_EXPIRE_EXPOSURE_SECRET = 1.00
+INSPECTION_FEEDBACK_EXPIRE_RUMOR_PUBLIC = 0.20
+INSPECTION_FEEDBACK_EXPIRE_RUMOR_SECRET = 0.90
+INSPECTION_FEEDBACK_DONE_RUMOR_PUBLIC = 0.35   # 回奏（明查）：民间期待／议论微升
+INSPECTION_FEEDBACK_DONE_RUMOR_SECRET = 0.05   # 回奏（密查）：走漏少
+INSPECTION_FEEDBACK_LATE_EXPOSURE = 0.60       # 迟回：更可能走漏（观察量，非惩罚）
+INSPECTION_FEEDBACK_LATE_PRESSURE = 0.50
+# ============================================================
 # 🟢 M35-3（2026-10-11）：欠给**补发与恢复**（财政改善 → 补发 → 压力下降 → 治理恢复）
 #   纪律（裁决）：① 不直接改欠给字段，必须走**账户划转**（`money.ACCOUNTS` 口径，Σ 守恒）；
 #   ② 来源优先级：路级府库 surplus → 中央拨款（改革/特殊诏令）；**暂不自动调用**；
