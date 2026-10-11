@@ -1,9 +1,9 @@
 {
  "id": "M34-finance-followups",
  "title": "财政治理系统遗留项（V1.3 后置）：地方支出 V2／巡按／AI 奏报接线／读数口径统一",
- "claimedBy": "",
- "claimedAt": "",
- "status": "open-registered",
+ "claimedBy": "Cline",
+ "claimedAt": "2026-10-11T06:28:01Z",
+ "status": "done",
  "verdict": "P1–P4 已全部落地（M33 done，commit a912af8fd2）；**M34-③ AI 奏报接线已落地**（commit dd4a6baf53；record_suspicion 唯一写入点＋呈请/召对两处接线＋二级窗口＋月报臣工风闻）；**M34-④ 读数口径统一已落地**（2026-10-11；用户裁 D1=甲＋乙／D2=保留为诊断／D3=显式命名；面板 `tax_color` 改新模型应征、去 `/arrival×12` 反推、`region_brief` 逐路同源、乙组只读字段＋月结快照 `land_tax_last`；财政校准门同种子 12 月五项逐位一致；全量 2522／0 failed）。余项为**设计明确后置/待接**，非缺陷。",
  "scope": "① 地方支出（V2：local_treasury 的行政/治安/水利/救灾/粮仓支出通道；现状只进不出）② 巡按（Phase 4+ 后置：需巡察 AI/官员移动/地图事件）③ ✅ **已落地** AI 奏报接线（`core/audit_case.record_suspicion`；接线点：`GameState.enqueue_ai_action` 呈请 / `commands.audience_dialogue_apply` 召对；窗口 `FIN_SUSPICION_WINDOW_TURNS=6`、容量 12；月报「度支录」臣工风闻）④ ✅ **已落地** 读数口径统一（台账：[`specs/economy/读数口径统一_开工门台账.md`](../../game-docs/specs/economy/读数口径统一_开工门台账.md) §7；面板 `finance_readout` 与 `region_brief` 逐路税均改新径**应征**，旧径单列 `tax_color_legacy`；`legacy_arrival_rate` 为 D3 新名）",
  "prereq": [
@@ -12,5 +12,6 @@
  ],
  "risk": "🟡 低-中：① 涉及钱账口径与平衡（须复跑校准门）；② 涉及 ai 层 prompt 与 UI",
  "next": "✅ **监察基础设施阶段完成**（M35-D rumor 档位化＋P3-1 案卷财政证据项＋P3-3 差额报表复核＋P3-4 巡按反向观察量；均只读/只改吏治状态；校准门逐位一致 99,806／101,108,584／55／1.220904／9,833,490）。**下一阶段＝M36《巡按大批次》· 设计台账已出（未编码）**：[`specs/economy/M36_巡按大批次_设计台账.md`](../../game-docs/specs/economy/M36_巡按大批次_设计台账.md) —— 监察升级为**行动者**（有限人数＝待阙/祠禄池派生、在途占位、时间窗口、密查成本），五类任务（查粮/查赋/查吏治/查民情/查军务，产出仍经 `resolve_audit`＋`financial_evidence` 单点），AI 选择接口（是否派/派谁/查哪/查多深），风险反馈（地方戒备/官场反弹/民间期待）。**待裁 D1–D8**（人数口径／在途上限／时间窗口／密查成本甲·乙·丙／任务首发范围／民心与戒备强度／人选派系倾向）。**M36 第一版明确不做**：自动处罚/定罪/抄没/财政恢复、监察直接写财政、新增 POP、改 `settlement_common` 或 POP 层。阶段划分 M36-1（编制与在途容器·只读）→ M36-2（任务生成＋tick）→ M36-3（风险反馈）→ M36-4（对接审理链，后置）。",
- "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜specs/economy/地方支出V2_开工门台账.md（M34-① 开工门）｜specs/economy/读数口径统一_开工门台账.md（M34-④ 已落地）｜tasks/M33-local-treasury-sink.json（done）"
+ "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜specs/economy/地方支出V2_开工门台账.md（M34-① 开工门）｜specs/economy/读数口径统一_开工门台账.md（M34-④ 已落地）｜tasks/M33-local-treasury-sink.json（done）",
+ "commit": "d2d73453dd"
 }
