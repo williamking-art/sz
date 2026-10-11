@@ -11,6 +11,6 @@
   "① 开工前先出小台账（口径/守恒/读写点），复跑财政校准门（同种子 ≥12 月五项；探针 `_dev_tools/_scratch/m34_gate_probe.py` 可复用）"
  ],
  "risk": "🟡 低-中：① 涉及钱账口径与平衡（须复跑校准门）；② 涉及 ai 层 prompt 与 UI",
- "next": "① 地方支出 V2（需台账：local_treasury 支出通道，现状只进不出）→ ② 巡按（最重，需巡察 AI/官员移动/地图事件）。③④ 已完成（dd4a6baf53／本轮）。④ 遗留非缺陷项：乙组真账字段（`land_tax_last`/`land_tax_cum`）面板展示择期；旧键 `mechanism_arrival_rate` 兼容一版待删。",
- "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜tasks/M33-local-treasury-sink.json（done）"
+ "next": "① 地方支出 V2：**开工门台账已出**（[`specs/economy/地方支出V2_开工门台账.md`](../../game-docs/specs/economy/地方支出V2_开工门台账.md)）——**待裁 D1 方案（甲搬移为主＋触发式新增，推荐／乙纯新增需封顶／丙只做账目）／D2 科目范围／D3 搬移口径（官俸地方份额初值 5–10%？国库同额少出？）／D4 预算封顶／D5 观测**。事实：府库流出**仅平籴**（资产形态转换），消费性支用＝0；12 月实测府库 16.44M→8.80M（−46.5%）、留州流入仅 ≈44.9k/月、平籴 ≈770k/月；逐路差三个数量级（京畿 1.81M ↔ 荆湖 2.9k）；写口零新增（`transfer_money(\"local:<路>\",\"pop:<路>:<阶层>\")` 已支持）。→ 裁后实现（五科目＋守恒 C1–C6＋校准门，探针 `_dev_tools/_scratch/m34_local_probe.py`）。→ ② 巡按（最重）。③④ 已完成（dd4a6baf53／1bb74ac25b）。",
+ "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜specs/economy/地方支出V2_开工门台账.md（M34-① 开工门）｜specs/economy/读数口径统一_开工门台账.md（M34-④ 已落地）｜tasks/M33-local-treasury-sink.json（done）"
 }
