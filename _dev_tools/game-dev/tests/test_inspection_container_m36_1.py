@@ -112,7 +112,8 @@ def test_save_load_roundtrip_keeps_tasks():
     assert len(s2.inspection_tasks) == 2
     assert [t["kind"] for t in s2.inspection_tasks] == ["查粮", "查赋"]
     assert s2.inspection_tasks[1]["secret"] is True
-    assert s2.inspection_tasks[0]["remaining"] == 1      # 2 月窗口 − 1
+    assert s2.inspection_tasks[0]["remaining"] == 2      # M36-2：首期只出发、不扣窗口
+    assert s2.inspection_tasks[0]["status"] == "active"
     assert s2.inspection_agent_state["started"] == 2
     if os.path.exists(_slot_path(72)):
         os.remove(_slot_path(72))
@@ -152,6 +153,9 @@ def test_capacity_is_fixed_config_not_finance():
         "编制上限不得与财政/人口耦合"
     assert inspection_capacity(s)["active"] == 0
     assert inspection_capacity(s)["free"] == INSPECTION_MAX_ACTIVE_TASKS["正常"]
+    # M36-2：档位**只由调用方显式传入**，接受别名
+    assert inspection_capacity(s, tier="strong")["max_active_tasks"] == 8
+    assert inspection_capacity(s, tier="small")["max_active_tasks"] == 3
 
 
 def test_window_rules():
@@ -179,7 +183,9 @@ def test_enqueue_legality_checks():
         assert enqueue_inspection(s, rk, "查粮")["ok"]
     assert inspection_capacity(s)["free"] == 0
     assert enqueue_inspection(s, rk, "查粮")["ok"] is False
-    assert inspection_capacity(s)["active"] == cap
+    # M36-2：受理（created）与在途（active）**同占名额**
+    assert inspection_capacity(s)["occupied"] == cap
+    assert inspection_capacity(s)["created"] == cap and inspection_capacity(s)["active"] == 0
 
 
 def test_no_auto_dispatch_and_no_auto_case():
@@ -197,39 +203,56 @@ def test_no_auto_dispatch_and_no_auto_case():
 # ---------------------------------------------------------------- 状态迁移（幂等）
 
 def test_tick_transitions_and_idempotent_same_period():
-    """状态迁移：同结算期**重复 tick 不重复扣减**；到期 → `expired`；`remaining` 单调。"""
+    """状态迁移：同结算期**重复 tick 不重复处理**；`created→active→expired`；`remaining` 单调。
+
+    🟢 **M36-2 契约升级**（2026-10-11 裁决）：生命周期为
+    `created → active → completed ／ expired`——`enqueue` 只**受理**（`created`），
+    首次月度推进才**出发**（`active`，出发当月不扣窗口），此后每期 `remaining −1`。
+    """
     s = new_game()
     rk = _route_with_pool(s)
     assert enqueue_inspection(s, rk, "查粮")["ok"]           # 窗口 2 月
+    assert s.inspection_tasks[0]["status"] == "created", "受理即为 created（待发）"
     s.year, s.month = 990, 3
-    assert inspection_tick(s, []) == {"advanced": 1, "expired": 0}
-    assert s.inspection_tasks[0]["remaining"] == 1
-    assert inspection_tick(s, []) == {"advanced": 0, "expired": 0}, "同月必须幂等"
-    assert s.inspection_tasks[0]["remaining"] == 1
+    assert inspection_tick(s, []) == {"dispatched": 1, "advanced": 0, "expired": 0}
+    t0 = s.inspection_tasks[0]
+    assert t0["status"] == "active" and t0["dispatched_period"] == "990-3"
+    assert t0["remaining"] == 2, "出发当月不扣窗口"
+    assert inspection_tick(s, []) == {"dispatched": 0, "advanced": 0, "expired": 0}, \
+        "同期必须幂等（不重复出发/扣减）"
+    assert s.inspection_tasks[0]["remaining"] == 2
     s.month = 4
-    assert inspection_tick(s) == {"advanced": 1, "expired": 1}
+    assert inspection_tick(s) == {"dispatched": 0, "advanced": 1, "expired": 0}
+    assert s.inspection_tasks[0]["remaining"] == 1
+    s.month = 5
+    assert inspection_tick(s) == {"dispatched": 0, "advanced": 1, "expired": 1}
     t = s.inspection_tasks[0]
     assert t["status"] == "expired" and t["remaining"] == 0
-    assert t["settled_turn"] is not None and t["settled_period"] == "990-4"
+    assert t["settled_turn"] is not None and t["settled_period"] == "990-5"
     assert s.inspection_agent_state["expired"] == 1
-    assert inspection_tick(s) == {"advanced": 0, "expired": 0}, "过期任务不得重复推进"
-    assert inspection_capacity(s)["active"] == 0, "过期任务不再占在途名额"
+    assert inspection_tick(s) == {"dispatched": 0, "advanced": 0, "expired": 0}, \
+        "过期任务不得重复推进"
+    assert inspection_capacity(s)["occupied"] == 0, "过期任务不再占名额"
     # 跨年不碰撞：新任务在新的一年推进仍生效
     assert enqueue_inspection(s, rk, "查赋")["ok"]
     s.year, s.month = 991, 3
-    assert inspection_tick(s)["advanced"] == 1
+    assert inspection_tick(s)["dispatched"] == 1
 
 
 def test_monthly_settlement_advances_tasks_monthly():
-    """接线：月度结算推进在途任务；**无任务时完全无操作**（月报逐字不变）。"""
+    """接线：月度结算推进任务；**无任务时完全无操作**（月报逐字不变）。"""
     s = new_game()
     log = ["一", "二", "三"]
-    assert inspection_tick(s, log) == {"advanced": 0, "expired": 0}
-    assert log == ["一", "二", "三"], "无在途任务不得写日志"
+    assert inspection_tick(s, log) == {"dispatched": 0, "advanced": 0, "expired": 0}
+    assert log == ["一", "二", "三"], "无任务不得写日志"
     rk = _route_with_pool(s)
     enqueue_inspection(s, rk, "查粮")
     s.month = 1 + (s.month % 12)
-    run_monthly_settlement(s)
+    run_monthly_settlement(s)                             # 第 1 期：出发
+    assert s.inspection_tasks[0]["status"] == "active"
+    assert s.inspection_tasks[0]["remaining"] == 2
+    s.month = 1 + (s.month % 12)
+    run_monthly_settlement(s)                             # 第 2 期：推进
     assert s.inspection_tasks[0]["remaining"] == 1
 
 
@@ -274,9 +297,11 @@ def test_readout_exposed_for_ai():
     """AI 读数：`finance_readout()[\"inspection\"]` 给容量＋在途（事实与约束，无建议）。"""
     s = new_game()
     ro = s.finance_readout()["inspection"]
-    assert set(ro) == {"capacity", "candidates_total", "candidates_by_route", "tasks"}
+    assert set(ro) == {"capacity", "candidates_total", "candidates_by_route",
+                       "status_counts", "tasks"}
     assert ro["capacity"]["max_active_tasks"] == INSPECTION_MAX_ACTIVE_TASKS["正常"]
     assert ro["capacity"]["tiers"] == dict(INSPECTION_MAX_ACTIVE_TASKS)
+    assert set(ro["status_counts"]) == {"created", "active", "completed", "expired"}
     assert len(INSPECTION_KINDS) == 3, "D5 首批仅三类（查民情/查军务暂缓）"
 
 

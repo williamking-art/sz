@@ -250,6 +250,10 @@ INSPECTION_BACKLASH_SECRET_MULT = 0.25  # 密查折算（扰民小）
 INSPECTION_KINDS = ("查粮", "查赋", "查吏治")          # D5 首批（暂缓：查民情／查军务）
 INSPECTION_MAX_ACTIVE_TASKS = {"小朝廷": 3, "正常": 5, "强监察": 8}   # D2（配置化）
 INSPECTION_MAX_ACTIVE_DEFAULT = 5                       # D2 默认档（正常）
+INSPECTION_MAX_ACTIVE_TIER_DEFAULT = "正常"              # D2 默认档名（调用方可显式覆盖）
+INSPECTION_CAPACITY_TIER_ALIASES = {                    # 档位别名（英文→中文；调用方友好）
+    "small": "小朝廷", "normal": "正常", "strong": "强监察",
+    "小": "小朝廷", "强": "强监察"}
 INSPECTION_WINDOW_NORMAL = 2                            # D3 普通任务 2 月
 INSPECTION_WINDOW_COMPLEX = 3                           # D3 复杂任务 3 月
 INSPECTION_WINDOW_SECRET = 4                           # D3/D4 密查窗口（固定 4 月；非提高成功率）

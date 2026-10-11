@@ -9,18 +9,24 @@
 任务合法性检查、状态迁移（时间推进）、存档、守恒校验；
 **AI 负责**：是否派/派谁/查哪里/查什么/明查还是密查/是否暂缓（**不提前枚举为固定规则**）。
 
-**本模块禁止**（M36-1 边界）：
+**本模块禁止**（M36-1／M36-2 边界）：
 - 自动派遣算法、固定触发条件、自动监察策略（**无任何自动派遣/自动触发**）；
 - 修改 POP／occupation／`settlement_common`／`money`／`finance`／`tax`／`grain`；
-- **自动**成案/处罚/定罪/抄没/降官（到期只做**状态迁移**，**不调用** `audit_case.resolve_audit`）。
+- **自动**判断调查结论/产生证据/成案/处罚/定罪/抄没/降官；**不调用** `audit_case.resolve_audit`。
 
-流程仍为：观察 → 监察任务 → 证据 → 审理 → 执行（M36-1 只覆盖前两步的**容器与迁移**）。
+流程仍为：观察 → 监察任务 → 证据 → 审理 → 执行（M36 只覆盖**任务容器、生命周期与回奏容器**）。
+
+M36-2（2026-10-11 裁决）新增：任务生命周期 `created → active → completed ／ expired`
+＋ **回奏容器**（`file_inspection_report`：只记录回奏与**已存在**案卷的引用，**不建案**）。
 """
 from typing import Any, Dict, List, Optional
 
 __all__ = ["ensure_inspection_schema", "window_for", "inspection_capacity",
            "inspection_candidates", "enqueue_inspection", "inspection_tick",
-           "inspection_task_list", "inspection_readout"]
+           "inspection_task_list", "inspection_readout", "file_inspection_report"]
+
+# M36-2 生命周期（AI 提交 → created；月度推进 → active；回奏 → completed；超期 → expired）
+_TASK_STATUSES = ("created", "active", "completed", "expired")
 
 
 def _i(v: Any) -> int:
@@ -36,7 +42,11 @@ def _period(state) -> str:
 
 
 def ensure_inspection_schema(state) -> None:
-    """幂等补齐容器（旧档迁移 / 新局）：`inspection_tasks`／`inspection_agent_state`。"""
+    """幂等补齐容器（旧档迁移 / 新局）：`inspection_tasks`／`inspection_agent_state`。
+
+    M36-2：同时**规范化在途任务**（旧档任务无 `report`／`created_period` 等字段时补默认；
+    未知状态归一为 `active`），可安全重复调用（全部 `setdefault`）。
+    """
     if not isinstance(getattr(state, "inspection_tasks", None), list):
         state.inspection_tasks = []
     st = getattr(state, "inspection_agent_state", None)
@@ -46,6 +56,30 @@ def ensure_inspection_schema(state) -> None:
     st.setdefault("done", 0)
     st.setdefault("expired", 0)
     state.inspection_agent_state = st
+    for seq, t in enumerate(state.inspection_tasks):
+        _normalize_task(t, seq)
+
+
+def _normalize_task(t: Any, seq: int) -> None:
+    """**幂等**规范化单个任务（旧档兼容；不改任何财政/POP）。"""
+    if not isinstance(t, dict):
+        return
+    kind = str(t.get("kind") or "")
+    t.setdefault("id", f"legacy-{seq + 1}")
+    t.setdefault("route", "")
+    t.setdefault("kind", kind)
+    t.setdefault("secret", False)
+    t.setdefault("status", "active")
+    if str(t.get("status")) not in _TASK_STATUSES:
+        t["status"] = "active"                      # 未知状态归一（不猜成 completed）
+    t.setdefault("window_months", window_for(kind, bool(t.get("secret"))))
+    t.setdefault("remaining", int(t.get("window_months") or 0))
+    t.setdefault("created_period", t.get("started_period"))
+    t.setdefault("started_period", t.get("created_period"))
+    t.setdefault("dispatched_period",
+                 t.get("started_period") if str(t.get("status")) != "created" else None)
+    t.setdefault("settled_turn", None)
+    t.setdefault("report", None)                    # M36-2 回奏容器（默认空）
 
 
 def window_for(kind: str, secret: bool = False) -> int:
@@ -82,20 +116,43 @@ def inspection_candidates(state) -> Dict[str, Dict[str, int]]:
 
 
 def inspection_capacity(state, tier: str = "") -> Dict[str, Any]:
-    """**只读**编制容量（D2）：在途/上限/富余 ＋ 逐路占用。**不读任何财政量**。"""
-    from content.data import INSPECTION_MAX_ACTIVE_DEFAULT, INSPECTION_MAX_ACTIVE_TASKS
+    """**只读**编制容量（D2）：在途/受理/上限/富余 ＋ 逐路占用。**不读任何财政量**。
+
+    `created`（已受理待发）与 `active`（在途）**同占名额**（`occupied`）——避免
+    在受理与在途之间出现上限漏洞；两者分开给出（AI 需要知道有几个已出发）。
+    `tier`：**只由调用方显式传入**（默认「正常」），**不自动**随民怨/政治状态升档；
+    接受中文或别名（`small`/`normal`/`strong`）。
+    """
+    try:
+        from content.data import (INSPECTION_CAPACITY_TIER_ALIASES,
+                                  INSPECTION_MAX_ACTIVE_DEFAULT,
+                                  INSPECTION_MAX_ACTIVE_TASKS,
+                                  INSPECTION_MAX_ACTIVE_TIER_DEFAULT)
+    except ImportError:                              # 兜底（老常量集）
+        from content.data import (INSPECTION_MAX_ACTIVE_DEFAULT,
+                                  INSPECTION_MAX_ACTIVE_TASKS)
+        INSPECTION_CAPACITY_TIER_ALIASES = {}
+        INSPECTION_MAX_ACTIVE_TIER_DEFAULT = "正常"
     ensure_inspection_schema(state)
-    active = [t for t in state.inspection_tasks if isinstance(t, dict)
-              and str(t.get("status") or "active") == "active"]
+    busy = {"created": 0, "active": 0}
     by_route: Dict[str, int] = {}
-    for t in active:
+    for t in state.inspection_tasks:
+        if not isinstance(t, dict):
+            continue
+        _st = str(t.get("status") or "active")
+        if _st not in busy:
+            continue
+        busy[_st] += 1
         rk = str(t.get("route") or "")
         by_route[rk] = by_route.get(rk, 0) + 1
-    _tier = str(tier or "正常")
-    cap = int((INSPECTION_MAX_ACTIVE_TASKS or {}).get(_tier,
-                                                      INSPECTION_MAX_ACTIVE_DEFAULT))
-    return {"tier": _tier, "max_active_tasks": cap, "active": len(active),
-            "free": max(0, cap - len(active)), "by_route": by_route,
+    _tier = str(tier or INSPECTION_MAX_ACTIVE_TIER_DEFAULT)
+    _tier = str((INSPECTION_CAPACITY_TIER_ALIASES or {}).get(_tier, _tier))
+    cap = int((INSPECTION_MAX_ACTIVE_TASKS or {}).get(_tier, INSPECTION_MAX_ACTIVE_DEFAULT))
+    occupied = busy["created"] + busy["active"]
+    return {"tier": _tier, "max_active_tasks": cap,
+            "created": busy["created"], "active": busy["active"],
+            "occupied": occupied, "free": max(0, cap - occupied),
+            "by_route": by_route,
             "tiers": dict(INSPECTION_MAX_ACTIVE_TASKS or {})}
 
 
@@ -128,36 +185,49 @@ def enqueue_inspection(state, route: str, kind: str, secret: bool = False,
     task = {"id": f"ins{_period(state)}-{len(state.inspection_tasks) + 1}",
             "route": route, "kind": kind, "secret": bool(secret),
             "window_months": win, "remaining": win,
-            "started_turn": turn, "started_period": _period(state),
-            "settled_turn": None, "status": "active"}
+            "status": "created",                     # M36-2：受理待发（出发由月度推进完成）
+            "created_period": _period(state),
+            "started_period": _period(state),
+            "started_turn": turn,
+            "dispatched_period": None,
+            "settled_turn": None,
+            "report": None}
     state.inspection_tasks.append(task)
     state.inspection_agent_state["started"] = \
         _i(state.inspection_agent_state.get("started")) + 1
     if log is not None:
-        log.append(f"[巡按] 派员赴 {route} {kind}"
-                   f"{'（密查）' if secret else ''}，限 {win} 月")
+        log.append(f"[巡按] 受理赴 {route} {kind}"
+                   f"{'（密查）' if secret else ''}，限 {win} 月（待发）")
     return {"ok": True, "task": task}
 
 
 def inspection_tick(state, log: Optional[list] = None) -> Dict[str, int]:
-    """**月度状态迁移**（幂等）：在途任务 `remaining −1`；到期 → `expired`。
+    """**月度状态迁移**（幂等）：`created → active`（出发），在途 `remaining −1`，到期 → `expired`。
 
-    **不**调用 `resolve_audit`（**不成案**）、**不**写 money／finance／POP／欠给／粮；
-    同结算期重复调用**不重复扣减**（以 `last_tick_period`＝"年-月" 标记，`remaining` 单调递减）。
-    到期语义＝**超期未回**（不是"查出问题"）——证据/审理留待后续阶段与 AI 决策。
+    - **出发**：受理当期的结算即完成出发（`dispatched_period`），**出发当月不扣窗口**；
+    - **推进**：此后每结算期 `remaining −1`；归零 → `expired`（＝**超期未回**，非"查出问题"）；
+    - **幂等**：同结算期重复调用不重复出发/扣减（`last_tick_period`＝"年-月"）；
+    - **不生案**：**不**调用 `resolve_audit`、**不**产生证据/案卷/处罚，**不**写 money／finance／POP／欠给／粮。
     """
     ensure_inspection_schema(state)
     now = _period(state)
+    dispatched = 0
     advanced = 0
     expired = 0
     for t in state.inspection_tasks:
-        if not isinstance(t, dict) or str(t.get("status")) != "active":
+        if not isinstance(t, dict):
             continue
-        if t.get("settled_turn") is not None:
+        _st = str(t.get("status") or "active")
+        if _st not in ("created", "active"):
             continue
         if str(t.get("last_tick_period") or "") == now:
-            continue                              # **幂等**：同结算期不重复扣减
+            continue                              # **幂等**：同结算期不重复处理
         t["last_tick_period"] = now
+        if _st == "created":                      # 受理 → 出发（本期不扣窗口）
+            t["status"] = "active"
+            t["dispatched_period"] = now
+            dispatched += 1
+            continue
         t["remaining"] = max(0, _i(t.get("remaining")) - 1)
         advanced += 1
         if _i(t.get("remaining")) <= 0:
@@ -167,9 +237,51 @@ def inspection_tick(state, log: Optional[list] = None) -> Dict[str, int]:
             expired += 1
             state.inspection_agent_state["expired"] = \
                 _i(state.inspection_agent_state.get("expired")) + 1
-    if log is not None and (advanced or expired):
-        log.append(f"[巡按] 在途推进 {advanced} 项，超期 {expired} 项")
-    return {"advanced": advanced, "expired": expired}
+    if log is not None and (dispatched or advanced or expired):
+        log.append(f"[巡按] 出发 {dispatched} 项，在途推进 {advanced} 项，超期 {expired} 项")
+    return {"dispatched": dispatched, "advanced": advanced, "expired": expired}
+
+
+def file_inspection_report(state, task_id: str, summary: str = "",
+                           case_id: Optional[str] = None,
+                           log: Optional[list] = None) -> Dict[str, Any]:
+    """**回奏容器**：登记巡按回奏（`active → completed`；超期后回奏记 `late=True`）。
+
+    **系统只做容器与合法性**：
+    - ① 任务存在；② 已出发（`created` 不可回奏）；③ **未重复回奏**（已完成则拒绝）；
+    - ④ 若给 `case_id`，该案卷**必须已存在**于 `state.audit_cases`（引擎**绝不建案**，
+      只做引用校验，避免悬空引用）。
+    **不**判断调查结论、**不**产生证据、**不**成案/处罚、**不**写任何财政/POP。
+    """
+    ensure_inspection_schema(state)
+    tid = str(task_id or "")
+    task = next((t for t in state.inspection_tasks
+                 if isinstance(t, dict) and str(t.get("id")) == tid), None)
+    if task is None:
+        return {"ok": False, "reason": f"任务不存在：{tid}"}
+    _st = str(task.get("status") or "")
+    if _st == "completed":
+        return {"ok": False, "reason": f"任务已回奏，不可重复（{tid}）"}
+    if _st == "created":
+        return {"ok": False, "reason": f"任务尚未出发，无可回奏（{tid}）"}
+    cases = getattr(state, "audit_cases", None) or {}
+    if case_id is not None and str(case_id) not in cases:
+        return {"ok": False, "reason": f"未知案卷引用（引擎不建案）：{case_id}"}
+    now = _period(state)
+    task["report"] = {"summary": str(summary or "")[:500],
+                      "case_id": (str(case_id) if case_id is not None else None),
+                      "filed_period": now,
+                      "filed_turn": _i(getattr(state, "turn", 0)),
+                      "late": _st == "expired"}       # 超期后回奏：**标注**而非改写历史
+    task["status"] = "completed"
+    task["settled_period"] = now
+    task["settled_turn"] = _i(getattr(state, "turn", 0))
+    state.inspection_agent_state["done"] = \
+        _i(state.inspection_agent_state.get("done")) + 1
+    if log is not None:
+        log.append(f"[巡按] {task.get('route')} {task.get('kind')} 回奏"
+                   f"{'（超期）' if task['report']['late'] else ''}")
+    return {"ok": True, "task": task, "report": task["report"]}
 
 
 def inspection_task_list(state) -> List[Dict[str, Any]]:
@@ -179,16 +291,22 @@ def inspection_task_list(state) -> List[Dict[str, Any]]:
 
 
 def inspection_readout(state) -> Dict[str, Any]:
-    """**只读**汇总（**AI 决策入口**）：编制容量 ＋ 候选（逐路事实）＋ 在途列表。
+    """**只读**汇总（**AI 决策入口**）：编制容量 ＋ 候选（逐路事实）＋ 在途/回奏状态计数 ＋ 任务列表。
 
-    仅提供**事实与约束**；不提供"该不该派/派谁/查哪里"的建议（AI 自行判断）。
+    仅提供**事实与约束**；不提供"该不该派/派谁/查哪里/如何解释回奏"的建议（AI 自行判断）。
     """
     cap = inspection_capacity(state)
     cands = inspection_candidates(state)
     total = sum(_i(v.get("candidates")) for v in cands.values())
+    counts = {s: 0 for s in _TASK_STATUSES}
+    for t in state.inspection_tasks:
+        if isinstance(t, dict):
+            _st = str(t.get("status") or "active")
+            counts[_st if _st in counts else "active"] += 1
     return {"capacity": cap,
             "candidates_total": total,
             "candidates_by_route": cands,
+            "status_counts": counts,
             "tasks": inspection_task_list(state)}
 
 
