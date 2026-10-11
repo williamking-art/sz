@@ -30,7 +30,8 @@ from content.data import (LOCAL_EXP_ADMIN_SHARE, LOCAL_EXP_CAP_SHARE,  # noqa: E
                           LOCAL_EXP_RELIEF_PER_CAPITA)
 from core.game_state import GameState  # noqa: E402
 
-_KINDS = ("admin", "security", "waterworks", "granary", "relief")
+_KINDS = ("official_salary", "clerk_pay", "runner_pay", "public_supply",
+          "granary", "relief")
 
 
 def _state():
@@ -67,14 +68,26 @@ def test_plan_identity_and_fields():
     assert plan["total_due"] > 0 and plan["total_shortfall"] >= 0
 
 
-def test_admin_kind_tracks_official_cash_share():
-    """科目① 行政必须挂**既有派生量**（本路官俸 × 份额），不得新造税基。"""
+def test_official_salary_kind_tracks_official_cash_share():
+    """科目① 官员俸禄必须挂**既有派生量**（本路官俸 × 份额），不得新造税基。"""
     s = _state()
     _, by_route = s.calc_official_cash()
     plan = s.calc_local_expenditure()
     for name, row in plan["by_route"].items():
-        assert row["admin"] == int(by_route.get(name, 0) * LOCAL_EXP_ADMIN_SHARE), \
-            f"{name} 行政应支与官俸口径不同源"
+        assert row["official_salary"] == int(by_route.get(name, 0) * LOCAL_EXP_ADMIN_SHARE), \
+            f"{name} 官员俸禄应支与官俸口径不同源"
+
+
+def test_clerk_pay_kind_tracks_route_clerks():
+    """科目② 胥吏雇钱必须挂**既有派生量**（本路吏额 × 吏月俸 × 份额）。"""
+    from content.data import CLERK_PAY_PER_MONTH, LOCAL_EXP_CLERK_SHARE
+    from core.domains.administration import officialdom as _officialdom
+    s = _state()
+    plan = s.calc_local_expenditure()
+    for name, row in plan["by_route"].items():
+        expect = int(float(_officialdom.route_clerks(s.prefectures[name]))
+                     * CLERK_PAY_PER_MONTH * LOCAL_EXP_CLERK_SHARE)
+        assert row["clerk_pay"] == expect, f"{name} 胥吏雇钱与吏额口径不同源"
 
 
 def test_poor_route_is_capped_and_records_shortfall():

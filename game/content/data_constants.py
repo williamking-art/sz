@@ -113,12 +113,15 @@ LOCAL_EXP_WATERWORKS_RATE = 0.005     # ③ 水利/营造：地方水利资产�
 LOCAL_EXP_GRANARY_PER_STONE = 0.002   # ④ 粮仓：常平库存（石）× 此值（贯/石·月，仓廪维护）
 LOCAL_EXP_RELIEF_PER_CAPITA = 0.0005  # ⑤ 救灾：灾路每人 × 严重度（1–5，贯/人·月）；仅灾月
 LOCAL_EXP_CAP_SHARE = 0.5             # 预算封顶（D4）：单月计划支出 ≤ 本路府库 × 此值
-# 地方财政**责任科目**（裁决 2026-10-11：地方先养活行政 → 剩余上供中央）：
-#   「官吏/胥役」（admin）＋「治安」（security）＋「水利」（waterworks）三项＝**地方经费池**责任，
-#   由**中央解送额优先划出**（见 `_settle_land_tax_color` 扣除层）；
-#   粮仓（granary）与救灾（relief）本轮**只读预报**，接线留批次 2（须同步从国库
-#   `_settle_upkeep`/赈济侧减支，避免双重支付）。
-LOCAL_EXP_ACTIVE_KINDS = ("admin", "security", "waterworks")
+# 地方财政**责任科目**（裁决 2026-10-11：地方先养活行政 → 剩余上供中央；
+# 科目命名按史实口径，与"欠支分类"同词表）：
+#   official_salary 官员俸禄／clerk_pay 胥吏雇钱／runner_pay 衙役雇钱／public_supply 公用钱
+#   前三者为**人员腿**（国库 personnel 同额抵减，防双付）；public_supply 为公用（工匠/商人）。
+#   granary 粮仓／relief 救灾 仍**只读预报**（接线留批 2，须同步从国库 upkeep/赈济侧减支）。
+LOCAL_EXP_ACTIVE_KINDS = ("official_salary", "clerk_pay", "runner_pay", "public_supply")
+LOCAL_EXP_ACTIVE_KINDS_LEGACY = ("admin", "security", "waterworks")   # 旧键兼容（勿再新增）
+# 胥吏雇钱的地方承担份额（史实：免役法后州县雇役钱／吏禄；初值·待校准）
+LOCAL_EXP_CLERK_SHARE = 0.30
 # 地方经费保障倍数（`state.finance["local_expense_mult"]`）：开局 1.0 ＝ **史实口径**
 # （地方先养活行政 → 剩余上供中央）。玩家集权经 `finance_rates` 诏令效果下调（0.0 = 责任全收中央），
 # 分权上调（上限防"地方坐大"）。

@@ -720,21 +720,25 @@ def _settle_local_expenditure(state, log) -> dict:
 
     流程（逐路）：现实应支 `due_eff`（＝责任应支 × 玩家保障倍数 × 有效使用率）→ 计划
     `plan_eff = min(due_eff, 府库×cap)` → 按科目比例**逐笔 `transfer_money` 划给本路民间 POP**
-    （行政→官僚；治安→兵；水利→工匠 40%＋商人 60%）→ 未付部分记
-    `statistics["local_arrears"]`（与 `upkeep_arrears`/欠饷/欠税同构）。
+    （`official_salary` 官员俸禄／`clerk_pay` 胥吏雇钱 → 官僚；`runner_pay` 衙役雇钱 → 兵；
+    `public_supply` 公用钱 → 工匠 40%＋商人 60%）→ 未付部分记
+    `statistics["local_arrears"]`（总额）与 `["local_arrears_by_kind"]`（**史实科目分类**），
+    并落到**债权人 POP 的 `欠给` 子池**（与 `欠税` 对称；见 §9.10）。
 
-    效果：治安实付按 `LOCAL_EXP_SECURITY_UNREST_PER_POINT` 压该路 `unrest`（"钱花出去，盗贼少了"）。
+    效果：治安（`runner_pay`）实付按 `LOCAL_EXP_SECURITY_UNREST_PER_POINT` 压该路 `unrest`。
 
     守恒（POP 挂载律 ⑤）：府库减额 ≡ 民间 POP 增额（`transfer_money` 单点划转，ΣΔ==0）。
     **不并入**国库 `total_out`（不同主体）；国库**同额少付**见 `_settle_finance` 人员腿抵减
     与 `_settle_upkeep` 的水利资产排除（防双重支付）。
     """
-    from content.data import (LOCAL_EXP_REIMB_SHARE,
+    from content.data import (LOCAL_EXP_ACTIVE_KINDS, LOCAL_EXP_REIMB_SHARE,
                               LOCAL_EXP_SECURITY_UNREST_PER_POINT)
-    kinds = ("admin", "security", "waterworks")
-    _payout = {"admin": (("官僚", 1.0),),
-               "security": (("兵", 1.0),),
-               "waterworks": (("工匠", 0.4), ("商人", 0.6))}
+    kinds = tuple(LOCAL_EXP_ACTIVE_KINDS)          # 史实科目（单点词表来自 content）
+    _payout = {"official_salary": (("官僚", 1.0),),          # 官员俸禄 → 官僚
+               "clerk_pay": (("官僚", 1.0),),                # 胥吏雇钱 → 官僚（M35 起可分身份层）
+               "runner_pay": (("兵", 1.0),),                 # 衙役雇钱 → 兵（M35 起分 runners 身份）
+               "public_supply": (("工匠", 0.4), ("商人", 0.6))}   # 公用钱（营造/水利服务）
+    _personnel_kinds = ("official_salary", "clerk_pay", "runner_pay")
     empty = {"paid": 0, "by_kind": {k: 0 for k in kinds}, "arrears": 0,
              "arrears_by_kind": {k: 0 for k in kinds},
              "papered": 0, "personnel_reimb": 0, "by_route": {}}
@@ -769,7 +773,7 @@ def _settle_local_expenditure(state, log) -> dict:
             # 一体发钞（交子）：人员腿（行政/治安）随俸禄同口径——**不动府库铜钱**
             # （否则同月既发交子又发现钱＝双发造币，见 `test_paper_pay_no_copper_mint`）；
             # 非人员腿（水利营造：工匠/商人服务）仍付现钱。
-            if _paper_pay and k in ("admin", "security"):
+            if _paper_pay and k in _personnel_kinds:
                 papered += amt
                 paid_by_kind[k] += amt
                 route_paid += amt
@@ -785,9 +789,9 @@ def _settle_local_expenditure(state, log) -> dict:
                 continue
             paid_by_kind[k] += given
             route_paid += given
-            if k in ("admin", "security"):
+            if k in _personnel_kinds:
                 personnel_reimb += given
-            if k == "security":
+            if k == "runner_pay":
                 _p = state.prefectures.get(name)
                 if isinstance(_p, dict):
                     _drop = given / float(LOCAL_EXP_SECURITY_UNREST_PER_POINT)
@@ -840,8 +844,9 @@ def _settle_local_expenditure(state, log) -> dict:
     if paid_total > 0:
         state.statistics["local_expense_paid"] = \
             int(state.statistics.get("local_expense_paid", 0) or 0) + paid_total
-    log.append(f"[地方经费] 支用 {paid_total:,}贯（行政 {paid_by_kind['admin']:,}／治安 "
-               f"{paid_by_kind['security']:,}／水利 {paid_by_kind['waterworks']:,}）"
+    log.append(f"[地方经费] 支用 {paid_total:,}贯（官俸 {paid_by_kind['official_salary']:,}／"
+               f"吏禄 {paid_by_kind['clerk_pay']:,}／衙役 {paid_by_kind['runner_pay']:,}／"
+               f"公用 {paid_by_kind['public_supply']:,}）"
                + (f"；交子口径 {papered:,}贯" if papered else "")
                + (f"；欠支 {arrears:,}贯（府库不足）" if arrears else ""))
     return {"paid": paid_total, "by_kind": paid_by_kind, "arrears": arrears,

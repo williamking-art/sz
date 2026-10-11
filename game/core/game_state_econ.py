@@ -786,7 +786,8 @@ class GameStateEconMixin:
         """
         from content.data import (BUILDING_COST_GROWTH, BUILDING_STD,
                                   LOCAL_EXP_ACTIVE_KINDS, LOCAL_EXP_ADMIN_SHARE,
-                                  LOCAL_EXP_CAP_SHARE, LOCAL_EXP_EFFICACY_GRIP_W,
+                                  LOCAL_EXP_CAP_SHARE, LOCAL_EXP_CLERK_SHARE,
+                                  LOCAL_EXP_EFFICACY_GRIP_W,
                                   LOCAL_EXP_EFFICACY_MIN, LOCAL_EXP_EFFICACY_PAY_W,
                                   LOCAL_EXP_GRANARY_PER_STONE, LOCAL_EXP_MULT_BASE,
                                   LOCAL_EXP_MULT_MAX, LOCAL_EXP_MULT_MIN,
@@ -808,7 +809,8 @@ class GameStateEconMixin:
         _region = str(getattr(self, "disaster_region", "") or "")
         _wstd = BUILDING_STD.get("水利") or {"base_cost": 0}
         by_route = {}
-        tot = {"admin": 0, "security": 0, "waterworks": 0, "granary": 0, "relief": 0}
+        tot = {"official_salary": 0, "clerk_pay": 0, "runner_pay": 0,
+               "public_supply": 0, "granary": 0, "relief": 0}
         for name, p in self.prefectures.items():
             if not isinstance(p, dict):
                 continue
@@ -818,25 +820,28 @@ class GameStateEconMixin:
             if pop_total <= 0:
                 pop_total = _i(p.get("population"))
             unrest = min(100.0, max(0.0, float(_i(p.get("unrest")))))
-            admin = int(_i(_official.get(name, 0)) * LOCAL_EXP_ADMIN_SHARE)
-            security = int(_i(_army.get(name, 0)) * LOCAL_EXP_SECURITY_SHARE
-                           * (1.0 + unrest / 100.0))
+            # ⑤ 史实科目（裁决词表）：官员俸禄／胥吏雇钱／衙役雇钱／公用钱
+            official_salary = int(_i(_official.get(name, 0)) * LOCAL_EXP_ADMIN_SHARE)
+            # 胥吏雇钱应得 = 路吏额 × 吏月俸 × 地方承担份额（**应得**口径，未乘 pay_ratio；
+            # 欠给正是"应得 − 实付"的差额，故基数须为应得）
+            clerk_pay = int(float(_officialdom.route_clerks(p)) * CLERK_PAY_PER_MONTH
+                            * LOCAL_EXP_CLERK_SHARE)
+            runner_pay = int(_i(_army.get(name, 0)) * LOCAL_EXP_SECURITY_SHARE
+                             * (1.0 + unrest / 100.0))
             _wlv = _bld_lv((p.get("buildings") or {}).get("水利"), 1) if isinstance(
                 p.get("buildings"), dict) else 0
-            _wasset = float(_wstd.get("base_cost", 0)) * (BUILDING_COST_GROWTH ** (max(1, _wlv) - 1)) \
-                if _wlv > 0 else 0.0
-            waterworks = int(_wasset * LOCAL_EXP_WATERWORKS_RATE)
+            _wasset = float(_wstd.get("base_cost", 0)) * (
+                BUILDING_COST_GROWTH ** (max(1, _wlv) - 1)) if _wlv > 0 else 0.0
+            public_supply = int(_wasset * LOCAL_EXP_WATERWORKS_RATE)
             granary = int(_i(p.get("changping_stock")) * LOCAL_EXP_GRANARY_PER_STONE)
             relief = 0
             if _sev > 0 and (not _region or _region == name):
                 relief = int(pop_total * LOCAL_EXP_RELIEF_PER_CAPITA * _sev)
-            due = admin + security + waterworks + granary + relief
+            due = official_salary + clerk_pay + runner_pay + public_supply + granary + relief
             coffer = max(0, _i(p.get("local_treasury")))
             cap = int(coffer * LOCAL_EXP_CAP_SHARE)
             plan = min(due, cap)
-            due_active = sum((admin, security, waterworks)[i] for i, k in
-                             enumerate(("admin", "security", "waterworks"))
-                             if k in LOCAL_EXP_ACTIVE_KINDS)
+            due_active = official_salary + clerk_pay + runner_pay + public_supply
             plan_active = min(due_active, cap)
             # M34-①（裁决：官员要能**有效使用**府库资金）：有效使用率 = 1 − 把持/欠俸/侵渔
             _grip = float((p.get("clerks_detail") or {}).get("grip", 0.0) or 0.0) \
@@ -856,8 +861,9 @@ class GameStateEconMixin:
             due_eff = int(due_active * _mult * efficacy)
             plan_eff = min(due_eff, cap)
             by_route[name] = {
-                "coffer": coffer, "admin": admin, "security": security,
-                "waterworks": waterworks, "granary": granary, "relief": relief,
+                "coffer": coffer, "official_salary": official_salary,
+                "clerk_pay": clerk_pay, "runner_pay": runner_pay,
+                "public_supply": public_supply, "granary": granary, "relief": relief,
                 "due": due, "cap": cap, "plan": plan, "shortfall": due - plan,
                 # M34-① 批次 1（财政顺序）：**责任科目**应支/计划（真扣款只用这组）
                 "due_active": due_active, "plan_active": plan_active,
@@ -869,9 +875,10 @@ class GameStateEconMixin:
                 "due_eff": due_eff, "plan_eff": plan_eff,
                 "shortfall_eff": due_eff - plan_eff,
             }
-            tot["admin"] += admin
-            tot["security"] += security
-            tot["waterworks"] += waterworks
+            tot["official_salary"] += official_salary
+            tot["clerk_pay"] += clerk_pay
+            tot["runner_pay"] += runner_pay
+            tot["public_supply"] += public_supply
             tot["granary"] += granary
             tot["relief"] += relief
         total_due = sum(tot.values())
