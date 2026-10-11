@@ -45,9 +45,14 @@ $env:CODEBUDDY_SAFE_DELETE_ENABLED = "0"
 - `test_route_pops_readonly_guard.py` 覆盖精选结算子步、真实 15 月月结、玩家扩编命令、一条鞭折银欠税、家产循环、士绅囤粮/市舶窖银（含出窖）、AI 城市化/就业流及组合压力结算；守卫应零直写、逐字段镜像一致，另核对 POP 财富/粮食与 `M_ALL` 守恒。
 - `test_econ_price_review.py` 覆盖路线价本地性（别路隐户不传染、本地隐户能影响本地价）及同一初局、仅改 AI 城市化档位的 12 月对照，用于证明经济选择能产生可测的 POP 结构差异。
 - 经济与人口回归应分别检查账本守恒、需求/供给和长局民生指标；残差为零不能代替平衡验收。
-- test_readme_sync.py 把**文档纪律**变成可执行断言（两条）：① COVERED 目录里每个受跟踪的代码/文档文件都必须在**该目录 README** 里出现（全名或 stem）；② README 里的用例数必须带 YYYY-MM-DD 或标为历史快照。新增模块忘了写进索引、或抄了一个裸用例数，这里会红。
+- test_readme_sync.py 把**文档纪律**变成可执行断言（**三条**）：
+  ① **索引完整性**：COVERED 目录里每个受跟踪的代码/文档文件都必须在**该目录 README** 里出现（全名或 stem）；
+  ② **取数口径**：README 里的用例数必须带 YYYY-MM-DD 或标为历史快照；
+  ③ **链接完整性**：README 的相对链接必须能解析。
+  新增模块忘了写进索引、抄了裸用例数、或改名后留下坏链，这里都会红。
   - 豁免规则写在该文件内：NON_CODE_EXTS（资源/配置/锁）与逐目录 EXEMPT（须写理由）；archive/ 与资产目录**有意不逐条列**，故不在覆盖范围。
   - ⚠️ 索引检查走 git ls-files，所以**新文件要 git add 后才会被检查到**——这正是「提交前拦住」的意图。
+  - 🔴 **必须带 `-c core.quotepath=false`**：git 默认把非 ASCII 路径转义成 `\345\270\202`，会让**中文文件名永远比对不上**、检查静默假绿。本用例最初就踩了这个坑（`reviews/`、`docs/`、`specs/economy/` 全被漏检），现已加自检断言：一旦检测到八进制转义就**报错而非放行**。
 - `test_military_summary.py` 覆盖省级军政派生：兵额守恒、只读、逐路筛选，以及**单军月饷/月粮**（`region_brief.unit_cost_readout`）与 `calc_army_cash` / `calc_army_grain` 的逐分不分叉。
 - `test_prod_pops_guard.py` 覆盖**生产** POP 守卫：`SONGZUO_POPS_GUARD` 缺省关闭不改数值、开启后能抓到注入的直写（非空转）、装/卸配对把路级 `pops` 还原为普通 dict。
 

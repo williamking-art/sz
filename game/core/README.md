@@ -65,14 +65,14 @@ region_brief.unit_cost_readout(unit) 是**单军月饷/月粮**的读数单点�
 
 ## 政令到地方行动
 
-行动链相关实现包括政令契约（`game/ai/contracts_decree.py`）、计划校验与提交、动态蓝图、地点工程、月度效果结算和 AI/UI 读数。完整验收范围与剩余问题见 [`decree-action-chain/tasks.md`](../../_dev_tools/game-docs/specs/decree-action-chain/tasks.md)。代码具备蓝图或 handler，并不自动意味着所有旨意动作均有执行器；遇到缺失 handler 应保留“未支持/待承办”状态，不把叙事或进度当成实际建设。
+行动链相关实现包括政令契约（`game/ai/contracts_decree.py`）、计划校验与提交、动态蓝图、地点工程、月度效果结算和 AI/UI 读数。完整验收范围与剩余问题见 [`decree-action-chain/tasks.md`](../../_dev_tools/game-docs/specs/cross-cutting/decree-action-chain/tasks.md)。代码具备蓝图或 handler，并不自动意味着所有旨意动作均有执行器；遇到缺失 handler 应保留“未支持/待承办”状态，不把叙事或进度当成实际建设。
 
 ## POP、财政和商品账本
 
 - 人口必须归属现有 POP 类别；阶层迁移、隐户、流民与死亡使用各自明确的迁移/统计口径。不能把累计“人月”读数解释成独立人口数。
 - 钱粮和商品必须能追踪持有人、地点、用途及转移对手方；汇总读数是派生值，不能另建一份平行存量。**"扣库存"不是"买卖"**——`state.resources` 的直接扣减（工程领料、产出链入仓）**不构成付款腿**；需要真实对手方时走 `core/market.py::trade_goods`。
 - 缺字段、未记录和数值为零含义不同。读档迁移不得悄悄伪造人口、财富、价格或库存。
-- 市场、消费、农业、建材、官民经营与官员 Agent 的实施状态见 [`market-civilian-economy/tasks.md`](../../_dev_tools/game-docs/specs/market-civilian-economy/tasks.md)。240 月人口/民生稳定性需单独验收；货币残差为零不足以证明平衡成立。
+- 市场、消费、农业、建材、官民经营与官员 Agent 的实施状态见 [`market-civilian-economy/tasks.md`](../../_dev_tools/game-docs/specs/economy/market-civilian-economy/tasks.md)。240 月人口/民生稳定性需单独验收；货币残差为零不足以证明平衡成立。
 - `statistics` 里的月度流量键（`price_demand`/`goods_spend`/`goods_traded`/`goods_unmet`/`basics_unmet`）**全库无自动清零**，语义是当月流量，须在结算起点归零；否则累加值与当月存量配对会系统性放大价格压力。开局的农业资产类建筑（`game_state._init_agri_buildings`）只为让投资有可作用对象，不产生岗位、也不含科技节点绑定建筑。
 
 ## 修改本目录前

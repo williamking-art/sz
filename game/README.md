@@ -29,8 +29,8 @@
 1. 前端经本地服务接口读取游戏快照、提交操作并展示结果。
 2. `core/commands.py` 编排玩家命令、AI 推演和回合推进；结算流程由 `core/settlement.py` 与 `core/settlement_steps.py` 组织，具体步骤分散在相应 `settlement_*.py` 模块。
 3. `ai/` 的契约和校验约束模型输出；`engine/state_applier.py` 是结构化 AI 变更进入游戏状态的受控应用路径。确定性规则仍由核心程序结算。
-4. 圣旨行动、长期事务和营造相关实现分布在 `decree_plan.py`、`longterm_task.py`、`blueprint_dynamic.py`、`construction.py`、`plan_commit.py`、`settlement_tech.py` 等模块。具体接线和遗留事项以 [`decree-action-chain/tasks.md`](../_dev_tools/game-docs/specs/decree-action-chain/tasks.md) 及代码调用链为准。
-5. 民间交易、需求、价格、人口与营造等实现正在分模块演进。存在代码文件或只读读数，不等于它已经进入月结算生产链；按 [`market-civilian-economy/tasks.md`](../_dev_tools/game-docs/specs/market-civilian-economy/tasks.md) 的逐项状态核实，不把计划态写成已生效。
+4. 圣旨行动、长期事务和营造相关实现分布在 `decree_plan.py`、`longterm_task.py`、`blueprint_dynamic.py`、`construction.py`、`plan_commit.py`、`settlement_tech.py` 等模块。具体接线和遗留事项以 [`decree-action-chain/tasks.md`](../_dev_tools/game-docs/specs/cross-cutting/decree-action-chain/tasks.md) 及代码调用链为准。
+5. 民间交易、需求、价格、人口与营造等实现正在分模块演进。存在代码文件或只读读数，不等于它已经进入月结算生产链；按 [`market-civilian-economy/tasks.md`](../_dev_tools/game-docs/specs/economy/market-civilian-economy/tasks.md) 的逐项状态核实，不把计划态写成已生效。
 
 ## 开发入口
 

@@ -62,7 +62,18 @@ COVERED = [
     "game/memory",
     "game/telemetry",
     "_dev_tools/handover",
+    # --- game-docs：这些目录的 README 自己就是索引，必须跟着文件增删同步 ---
+    "_dev_tools/game-docs/analysis",
+    "_dev_tools/game-docs/docs",
+    "_dev_tools/game-docs/reviews",
+    "_dev_tools/game-docs/specs/construction",
+    "_dev_tools/game-docs/specs/cross-cutting",
+    "_dev_tools/game-docs/specs/diplomacy",
+    "_dev_tools/game-docs/specs/economy",
     "_dev_tools/game-docs/specs/economy/unified-civilian-market",
+    "_dev_tools/game-docs/specs/population",
+    "_dev_tools/game-docs/specs/production",
+    "_dev_tools/game-docs/specs/transport",
 ]
 
 #: 不要求进索引的扩展名（资源 / 配置 / 锁 / 样式等，不是"模块"）。
@@ -80,12 +91,22 @@ EXEMPT = {
 
 
 def _tracked_files():
-    """仓库内受跟踪文件（相对路径，/ 分隔）。"""
-    out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True,
-                         text=True, encoding="utf-8", errors="replace")
+    """仓库内受跟踪文件（相对路径，/ 分隔）。
+
+    🔴 **必须带 `-c core.quotepath=false`**：git 默认把非 ASCII 路径转义成 `\345\270\202` 这种
+    八进制形式，于是**中文文件名与 README 正文永远比对不上** ⇒ 检查会静默假报通过。
+    本用例最初就踩了这个坑（`reviews/`、`docs/`、`specs/economy/` 全被漏检）。
+    """
+    out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files"], cwd=REPO,
+                         capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
         pytest.skip("git 不可用，跳过 README 同步检查")
-    return [l for l in out.stdout.splitlines() if l.strip()]
+    paths = [l for l in out.stdout.splitlines() if l.strip()]
+    # 自检：出现八进制转义说明 quotepath 没生效，此时**必须报错**而不是放行
+    assert not any("\\3" in p and p.count("\\") >= 2 for p in paths), (
+        "git 路径仍被 quotepath 转义（非 ASCII 文件名会漏检）；检查 core.quotepath 设置"
+    )
+    return paths
 
 
 @pytest.mark.parametrize("d", COVERED)
@@ -153,3 +174,40 @@ def test_readmes_do_not_state_undated_test_counts():
         "README 出现未标日期的用例数（应带 YYYY-MM-DD，或指向 --junitxml 口径）：\n"
         + "\n".join(offenders)
     )
+
+
+#: Markdown 相对链接
+_LINK_RX = re.compile(r"\]\(([^)]+)\)")
+
+
+def test_readmes_have_no_broken_relative_links():
+    """README 的相对链接必须能解析（防「文件改名 / 挪目录后链接烂掉」）。
+
+    实测价值：本轮据此抓出 **7 处坏链**——`specs/` 分子目录后，多个 README 仍指向
+    `specs/<规格>/tasks.md` 平铺旧路径（`game-docs/README.md`、`game-docs/docs/README.md`、
+    `game/README.md`、`game/core/README.md` 各若干）。
+    """
+    broken = []
+    for p in _tracked_files():
+        if not p.endswith("README.md"):
+            continue
+        if p.startswith("_dev_tools/game-docs/archive/") or "/archive/" in p:
+            continue  # 归档按原样存真，不追改
+        path = os.path.join(REPO, p.replace("/", os.sep))
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        base = os.path.dirname(path)
+        for m in _LINK_RX.finditer(text):
+            url = m.group(1).strip().split("#")[0]
+            if not url or url.startswith(("http://", "https://", "mailto:")):
+                continue
+            if not os.path.exists(os.path.normpath(os.path.join(base, url))):
+                broken.append(p + " -> " + url)
+
+    assert not broken, (
+        "README 有 %d 处坏链（改名/挪目录后未同步）：\n" % len(broken)
+        + "\n".join(broken[:20])
+    )
+

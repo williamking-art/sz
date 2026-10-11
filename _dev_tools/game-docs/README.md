@@ -51,9 +51,9 @@
 
 ## 当前实施状态
 
-- [`decree-action-chain`](specs/decree-action-chain/tasks.md)：圣旨行动链的实施记录；顶层完成声明与局部历史快照有冲突，复核后以任务状态表和代码/测试证据为准。
-- [`market-civilian-economy`](specs/market-civilian-economy/tasks.md)：POP 消费、商品、粮仓、营造市场和官员 Agent；B0–B5 的状态细分与未关闭的建模/校准门见任务表收口章节。**B4-1 建材缺口已闭合**——2026-10-02 裁决 **C / C-c / E-1** 并接线（商人 POP 持料、工地只从本地取、跨路走在途、商人补货下单）。
-- [`unified-civilian-market`](specs/unified-civilian-market/tasks.md)：州府级经济地基已落地（136 席实体、主键 `路|治所`、Σ 守恒），宋侧史料户口已录 96 席、**13/21 路成路**（**已达崇宁户口真实天花板**——南方多「元丰户」或无年号），外邦州府级口径三态分离（`historical` / `historical_ub` / `setting`）。
+- [`decree-action-chain`](specs/cross-cutting/decree-action-chain/tasks.md)：圣旨行动链的实施记录；顶层完成声明与局部历史快照有冲突，复核后以任务状态表和代码/测试证据为准。
+- [`market-civilian-economy`](specs/economy/market-civilian-economy/tasks.md)：POP 消费、商品、粮仓、营造市场和官员 Agent；B0–B5 的状态细分与未关闭的建模/校准门见任务表收口章节。**B4-1 建材缺口已闭合**——2026-10-02 裁决 **C / C-c / E-1** 并接线（商人 POP 持料、工地只从本地取、跨路走在途、商人补货下单）。
+- [`unified-civilian-market`](specs/economy/unified-civilian-market/tasks.md)：州府级经济地基已落地（136 席实体、主键 `路|治所`、Σ 守恒），宋侧史料户口已录 96 席、**13/21 路成路**（**已达崇宁户口真实天花板**——南方多「元丰户」或无年号），外邦州府级口径三态分离（`historical` / `historical_ub` / `setting`）。
   建材侧按用户裁定 **C / C-c / E-1** 推进：建材**商品化**（存量落商人 POP `goods`，仓明细层已退役以免平行账本），施工侧**只从本地取、取不到即缺料**（物流才有意义）；三处消费侧已接线，**迁移收尾中**（见任务表 §14）。
   ⚠️ **勿把"州府数据层已建"等同于"州府级市场已运行"**——按任务表 P0 口径，**交通边与在途批次已落地**
   （`transport.py` 州府级耗时/相邻可达/未到不入账；`test_transport_transit.py`），**市场圈派生与州府级成交量仍缺**
