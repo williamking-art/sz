@@ -1,0 +1,18 @@
+{
+ "id": "M36-6-A-minister-proposal-contract",
+ "title": "M36.6-A《AI 大臣人格化事实视图与提案契约》：数据结构/权限继承/提案格式/状态转换（设计已出，待 P1–P3 裁定后编码）",
+ "claimedBy": "Cline",
+ "claimedAt": "2026-10-11T11:47:16Z",
+ "status": "in_progress",
+ "verdict": "用户裁定 2026-10-11：**先加深 M36.5 的 AI 侧接线，暂不开 M37**。M36.5 的关键成果不是多了三个 inspect_* 动作，而是建立权责边界（AI 大臣判断／皇帝授权／引擎执行／审计与审理独立）。M36.6 各子项：A 人格化事实视图、B 提案模板、C 批红语义（准奏/驳回/退回/暂缓）、D 执行反馈、E 回归与守卫。三条原则：① 人格化≠权限提升；② 提案≠决策≠执行（驳回/退回/暂缓零世界变更；执行失败不得标记为成功批准）；③ 监察发现／审计取证／司法判断继续分离。",
+ "scope": "**首轮只出设计，不改执行单点、不新增监察能力**。设计台账 `specs/economy/M36-6_AI大臣决策表达_设计裁决台账.md` §2–§7： minister_lens(name)（事实与权限不变，只分区/排序）／payload.proposal 契约（rationale/evidence_refs/risks/authorization/expected）／批红状态机（pending→approved|rejected|returned|deferred；approved→executed|failed）／执行反馈契约／权限继承表／8 项守卫测试。",
+ "prereq": [
+  "先裁 P1（退回重提上限）／P2（暂缓期限语义）／P3（反馈是否注入下次提示词）",
+  "实现时不得新增执行入口：一律复用诏令载荷（inspect_*／audit_route）与批红通道",
+  "不得因人格/官职放宽 D11 权限；loyalty/corruption 数值不得外泄（沿用「只给档位词」）"
+ ],
+ "risk": "🟡 低：纯表达/交互层；风险在「人格化被误用为升权」与「状态机副作用」——由契约测试逐条钉住",
+ "next": "M36.5 基线：commit bb0d1dd850（AI 决策接线：三载荷＋呈请批红＋中立事实视图；tests 2653 / failed 0 / skipped 2；校准门逐位一致）。**下一步＝等 P1/P2/P3 裁定**，随后按台账 §3–§7 实现 A+B+C+D+E。",
+ "related": "specs/economy/M36-6_AI大臣决策表达_设计裁决台账.md｜specs/economy/M36-5_AI决策接线_设计台账.md｜specs/economy/M36_察访与监司行动_设计台账.md §19.9",
+ "commit": ""
+}
