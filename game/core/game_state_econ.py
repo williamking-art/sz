@@ -649,6 +649,9 @@ class GameStateEconMixin:
             "rumor": self.rumor_tier(),
             # 🟢 M35-C-1：人口口径分解（六桶 ＋ occupation ＋ 流民）
             "population_breakdown": self.population_breakdown(),
+            # 🟢 P3-3/P3-4：差额报表（**玩家视角**：只账面侧）＋ 巡按反向观察量
+            "fiscal_gap_report": self.fiscal_gap_report("player"),
+            "inspection_backlash": self.inspection_backlash_readout(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -1415,6 +1418,109 @@ class GameStateEconMixin:
             "priority": list(priority),
         }
         return {"total": tot, "by_route": by_route}
+
+    def inspection_backlash_readout(self) -> dict:
+        """P3-4 **巡按反向观察量**读数（只读）：监察的代价（扰民/吏怨），供 AI 权衡"还查不查"。
+
+        来源：`statistics["inspection_*"]` 计数（由 `audit_case.resolve_audit` 写入）
+        ＋ 逐路 `clerks_detail.grievance` 现值。**只读**；不含任何财政量。
+        """
+        st = self.statistics or {}
+
+        def _f(v):
+            try:
+                return float(v or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        by_route = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            _cd = p.get("clerks_detail") if isinstance(p.get("clerks_detail"), dict) else {}
+            by_route[name] = {"grievance": round(_f(_cd.get("grievance")), 3),
+                              "unrest": round(_f(p.get("unrest")), 2)}
+        return {"actions": int(st.get("inspection_actions", 0) or 0),
+                "grievance_added": round(_f(st.get("inspection_grievance_added")), 3),
+                "unrest_added": round(_f(st.get("inspection_unrest_added")), 3),
+                "by_route": by_route}
+
+    def fiscal_gap_report(self, viewer: str = "player", oversight=None,
+                          secret: bool = False) -> dict:
+        """P3-3 **差额报表复核**（**只读接口**；**不进入月报**）。
+
+        复核三类差额与两条恒等式（口径**单点复用** `audit_case.financial_evidence`，不另算）：
+          ① **掩护虚增** ＝ Σ账面损耗 − Σ真侵渔（>0 ⇒ 多报损耗掩盖侵渔）；
+          ② **未承认欠支** ＝ Σ真欠给（官方口径不记欠支 ⇒ 差额＝全额）；
+          ③ **征收缺口** ＝ 应征 − 实收；并校验两条恒等式：
+              `应征 ≡ 实收 ＋ 豁免欠税`、`实收 ≡ 上供 ＋ 留州 ＋ 侵渔`。
+
+        **权限（信息差）**：`player`／`official`／`court` **只给账面侧**（不含 real 差额与逐路真账）；
+        真账差额需 `inspector`（监察足额 `| oversight≥门限` **或** 密查）或 `ai`／`system`。
+        纪律：只读；**不改** money／POP／欠给／压力／案卷；**不写月报**。
+        """
+        from content.data import FIN_ANOMALY_OVERSIGHT_LINE
+        from core.audit_case import financial_evidence
+        v = str(viewer or "player").lower()
+        if v in ("ai", "system", "truth"):
+            allow_real = True
+        elif v in ("inspector", "audit", "censor"):
+            _ov = oversight
+            if _ov is None:
+                _ov = float(getattr(self, "oversight", 0.0) or 0.0)
+            allow_real = bool(secret) or float(_ov or 0.0) >= FIN_ANOMALY_OVERSIGHT_LINE
+        else:
+            allow_real = False
+
+        st = self.statistics or {}
+        by_route = {}
+        for name in self.prefectures:
+            try:
+                ev = financial_evidence(self, name, include_real=True) or {}
+            except Exception:                 # noqa: BLE001 — 单路失败不阻断复核
+                continue
+            if not ev.get("available"):
+                continue
+            _a = ev.get("local_arrears") or {}
+            _g = ev.get("official_gap") or {}
+            row = {"route": name,
+                   # 账面侧（玩家/中央可见）
+                   "loss_report_total": int(_g.get("loss_report_total", 0) or 0)}
+            if allow_real:
+                row.update({
+                    "real_diverted": int(_g.get("real_diverted", 0) or 0),
+                    "cover_overstatement": int(_g.get("cover_overstatement", 0) or 0),
+                    "unacknowledged_arrears": int(_g.get("unacknowledged_arrears", 0) or 0),
+                    "local_arrears": dict(_a),
+                    "collection_gap": dict(_g.get("collection_gap") or {}),
+                })
+            by_route[name] = row
+
+        out = {"viewer": v, "allow_real": allow_real, "by_route": by_route}
+        # 全国合计（账面侧恒给；真账侧按权限）
+        out["totals"] = {"loss_report_total": sum(r["loss_report_total"]
+                                                  for r in by_route.values())}
+        if allow_real:
+            out["totals"].update({
+                "real_diverted": sum(r.get("real_diverted", 0) for r in by_route.values()),
+                "cover_overstatement": sum(r.get("cover_overstatement", 0)
+                                           for r in by_route.values()),
+                "unacknowledged_arrears": sum(r.get("unacknowledged_arrears", 0)
+                                              for r in by_route.values()),
+            })
+        # 恒等式复核（真账口径；仅有权者可见结果）
+        _assessed = int(st.get("land_tax_assessed", 0) or 0)
+        _collected = int(st.get("land_tax_collected", 0) or 0)
+        _central = int(st.get("land_tax_central", 0) or 0)
+        _local = int(st.get("land_tax_local", 0) or 0)
+        _div = int(st.get("land_tax_diverted", 0) or 0)
+        _checks = {
+            "three_way_identity": (_central + _local + _div) == _collected,
+            "collection_le_assessed": _collected <= _assessed,
+            "assessed_minus_collected": _assessed - _collected,
+        }
+        out["identities"] = _checks if allow_real else {"note": "需监察权限（只读复核）"}
+        return out
 
     def tax_loss_readout(self) -> dict:
         """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。

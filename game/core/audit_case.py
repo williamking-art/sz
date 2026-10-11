@@ -280,6 +280,34 @@ def resolve_audit(state, route: str, executor: Optional[str] = None,
             "financial": financial_evidence(state, route, include_real=True),
         }
     cases[cid] = rec
+    # 🟢 P3-4（2026-10-11）：**巡按反向观察量**——监察的代价（扰民/吏怨）。
+    #   纪律：**只改吏治状态量与计数**（`clerks_detail.grievance`／`unrest`／statistics 计数），
+    #   **不改** money／欠给三层／身份压力／三分财政；**不自动处罚、不自动反腐判定**。
+    #   密查（secret）扰民更小 ⇒ 按 `INSPECTION_BACKLASH_SECRET_MULT` 折算。
+    try:
+        from content.data import (INSPECTION_BACKLASH_GRIEVANCE,
+                                  INSPECTION_BACKLASH_SECRET_MULT,
+                                  INSPECTION_BACKLASH_UNREST)
+        _mult = float(INSPECTION_BACKLASH_SECRET_MULT) if secret else 1.0
+        _p = prefs.get(route)
+        if isinstance(_p, dict):
+            _cd = _p.get("clerks_detail")
+            if isinstance(_cd, dict):
+                _cd["grievance"] = (float(_cd.get("grievance", 0.0) or 0.0)
+                                    + float(INSPECTION_BACKLASH_GRIEVANCE) * _mult)
+            _p["unrest"] = min(100.0, round(float(_p.get("unrest", 0.0) or 0.0)
+                                           + float(INSPECTION_BACKLASH_UNREST) * _mult, 2))
+        _st = getattr(state, "statistics", None)
+        if isinstance(_st, dict):
+            _st["inspection_actions"] = int(_st.get("inspection_actions", 0) or 0) + 1
+            _st["inspection_grievance_added"] = round(
+                float(_st.get("inspection_grievance_added", 0.0) or 0.0)
+                + float(INSPECTION_BACKLASH_GRIEVANCE) * _mult, 3)
+            _st["inspection_unrest_added"] = round(
+                float(_st.get("inspection_unrest_added", 0.0) or 0.0)
+                + float(INSPECTION_BACKLASH_UNREST) * _mult, 3)
+    except Exception:                        # noqa: BLE001 — 反向观察量不得阻断勾校
+        pass
     if outcome == "反噬":
         try:
             state.change_prestige(-1, "勾校反噬")
