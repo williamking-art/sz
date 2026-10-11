@@ -644,6 +644,9 @@ class GameStateEconMixin:
             # 🟢 M35-3：补发能力（AI 决策接口：是否拨款/减税/整顿）；累计补发额
             "arrears_recovery_capacity": self.arrears_recovery_capacity(),
             "local_arrears_repaid": int(self.statistics.get("local_arrears_repaid", 0) or 0),
+            # 🟢 M35-D：民间传闻档位（0–4；AI 可读状态，非事件）
+            "rumor_tier": self.rumor_tier()["tier"],
+            "rumor": self.rumor_tier(),
             # 🟢 M35-C-1：人口口径分解（六桶 ＋ occupation ＋ 流民）
             "population_breakdown": self.population_breakdown(),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
@@ -1074,6 +1077,69 @@ class GameStateEconMixin:
                 "refugees": int(getattr(self, "refugee_count", 0) or 0),
                 "population_field": int(getattr(self, "population", 0) or 0)}
 
+    def rumor_tier(self) -> dict:
+        """M35-D **民间传闻档位**（只读·档位化观察结果；**不生成剧情/事件**）。
+
+        档位（裁决）：`0 无异常｜1 钱粮迟滞｜2 吏胥鼓噪｜3 州县积欠｜4 地方失控风险`
+        输入一律为**可观察量**（**不暴露真账**）：欠给连续月数、身份压力、吏胥把持度、本路粮价、动乱。
+        ⇒ 档位表示"民间/中央**听到了什么**"，**不是**"已查实腐败"；查实须靠监察（P3 保真度）。
+
+        规则（初值·待校准，越严重档位越高、单调）：
+          L1 钱粮迟滞：本路粮价 ≥ `RUMOR_PRICE_L1` **或** 存在欠给（≥1 月）
+          L2 吏胥鼓噪：把持度 ≥ `RUMOR_GRIP_L2` **或** 身份压力 ≥ `RUMOR_PRESSURE_L2`
+          L3 州县积欠：欠给月数 ≥ `RUMOR_MONTHS_L3` **或** 压力 ≥ `RUMOR_PRESSURE_L3`
+          L4 地方失控：动乱 ≥ `RUMOR_UNREST_L4` **或**（月数 ≥ `RUMOR_MONTHS_L4` 且压力 ≥ `RUMOR_PRESSURE_L4`）
+        返回 `{"tier","label","signals","by_route"}`（全国＝逐路最高）。
+        """
+        from content.data import (RUMOR_GRIP_L2, RUMOR_LABELS, RUMOR_MONTHS_L3,
+                                  RUMOR_MONTHS_L4, RUMOR_PRESSURE_L2, RUMOR_PRESSURE_L3,
+                                  RUMOR_PRESSURE_L4, RUMOR_PRICE_L1, RUMOR_UNREST_L4)
+        try:
+            pr = self.identity_pressures().get("by_route", {})
+        except Exception:                    # noqa: BLE001 — 读数失败不得整体崩
+            pr = {}
+
+        def _f(v):
+            try:
+                return float(v or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        by_route = {}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            months = p.get("arrears_months") if isinstance(p.get("arrears_months"), dict) else {}
+            _months = max([_f(v) for v in months.values()] or [0.0])
+            _press = max([_f((pr.get(name) or {}).get(k)) for k in
+                          ("clerk_pressure", "runner_pressure", "official_pressure")] or [0.0])
+            _grip = _f((p.get("clerks_detail") or {}).get("grip", 0.0))
+            _price = _f(p.get("grain_price", getattr(self, "grain_price", 1.0)))
+            _unrest = _f(p.get("unrest", 0.0))
+            tier = 0
+            if _price >= RUMOR_PRICE_L1 or _months >= 1.0:
+                tier = 1
+            if _grip >= RUMOR_GRIP_L2 or _press >= RUMOR_PRESSURE_L2:
+                tier = max(tier, 2)
+            if _months >= RUMOR_MONTHS_L3 or _press >= RUMOR_PRESSURE_L3:
+                tier = max(tier, 3)
+            if _unrest >= RUMOR_UNREST_L4 or (_months >= RUMOR_MONTHS_L4
+                                              and _press >= RUMOR_PRESSURE_L4):
+                tier = max(tier, 4)
+            by_route[name] = {
+                "tier": tier, "label": RUMOR_LABELS.get(tier, "无异常"),
+                "signals": {"months": round(_months, 2), "pressure": round(_press, 2),
+                            "grip": round(_grip, 4), "grain_price": round(_price, 4),
+                            "unrest": round(_unrest, 2)},
+            }
+        top = max([r["tier"] for r in by_route.values()] or [0])
+        return {"tier": top, "label": RUMOR_LABELS.get(top, "无异常"),
+                "signals": {"routes_tier_ge1": sum(1 for r in by_route.values() if r["tier"] >= 1),
+                            "routes_tier_ge2": sum(1 for r in by_route.values() if r["tier"] >= 2),
+                            "routes_tier_ge3": sum(1 for r in by_route.values() if r["tier"] >= 3),
+                            "routes_tier_ge4": sum(1 for r in by_route.values() if r["tier"] >= 4)},
+                "by_route": by_route}
+
     def fiscal_visibility(self) -> dict:
         """M35-D 财政**可见度接口**（只读；三层，**不做**完整调查系统）。
 
@@ -1101,9 +1167,12 @@ class GameStateEconMixin:
                     "loss_report": loss.get("report", {}),
                     "loss_status": loss.get("status", "正常")}
         try:
-            rumor = dict(_discovery_readout(self) or {})
+            _disc = dict(_discovery_readout(self) or {})
         except Exception:                     # noqa: BLE001
-            rumor = {}
+            _disc = {}
+        # 🟢 M35-D：rumor 层**档位化**（0–4；"听到什么"而非"已查实"）；P3 发现链原文入 `discovery`
+        rumor = dict(self.rumor_tier())
+        rumor["discovery"] = _disc
         return {"real": real, "official": official, "rumor": rumor}
 
     def identity_pressures(self) -> dict:
@@ -1216,14 +1285,14 @@ class GameStateEconMixin:
         返回结构与 `fiscal_visibility()` 相同，但**只含被允许的层**；
         **真实层入口仅 `fiscal_visibility()`（内部）**——为审计/巡按/调查系统预留接口。
         """
-        from content.data import (FIN_ANOMALY_OVERSIGHT_LINE, FIN_VIS_LAYERS_AUDIT,
-                                  FIN_VIS_LAYERS_AUDIT_TRUTH, FIN_VIS_LAYERS_PLAYER,
-                                  FIN_VIS_LAYERS_SYSTEM)
+        from content.data import (FIN_ANOMALY_OVERSIGHT_LINE, FIN_VIS_GRANULARITY,
+                                  FIN_VIS_LAYERS_AUDIT, FIN_VIS_LAYERS_AUDIT_TRUTH,
+                                  FIN_VIS_LAYERS_PLAYER, FIN_VIS_LAYERS_SYSTEM)
         raw = self.fiscal_visibility()
         v = str(viewer or "player").lower()
         if v in ("system", "ai", "truth"):
             layers = FIN_VIS_LAYERS_SYSTEM
-        elif v == "audit":
+        elif v in ("audit", "inspector", "censor"):
             _ov = oversight
             if _ov is None:
                 _ov = float(getattr(self, "oversight", 0.0) or 0.0)
@@ -1231,10 +1300,21 @@ class GameStateEconMixin:
                       if (secret or float(_ov or 0.0) >= FIN_ANOMALY_OVERSIGHT_LINE)
                       else FIN_VIS_LAYERS_AUDIT)
         else:
+            # 🟢 M35-D：`player`（玩家）／`official`（地方官）／`court`（中央）／未知 ⇒ **不含 real**
             layers = FIN_VIS_LAYERS_PLAYER
         out = {k: raw.get(k, {}) for k in layers}
         out["viewer"] = v
         out["layers"] = list(layers)
+        gran = FIN_VIS_GRANULARITY.get(v, "route")
+        out["granularity"] = gran
+        if gran == "national":
+            # 信息差：中央只见**汇总**（不给逐路明细与信号构成）
+            for _k in ("official", "rumor"):
+                _sec = out.get(_k)
+                if isinstance(_sec, dict):
+                    _sec.pop("by_route", None)
+                    if _k == "rumor":
+                        _sec.pop("signals", None)
         return out
 
     def arrears_months_summary(self) -> dict:
