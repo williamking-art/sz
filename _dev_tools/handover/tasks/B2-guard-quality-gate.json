@@ -1,0 +1,31 @@
+{
+ "id": "B2-guard-quality-gate",
+ "title": "B-2 守卫进质量放行门：先只读设计与取证，评审后再实施",
+ "status": "in_progress",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-12",
+ "authority": "用户 2026-10-12 裁定：B-2 开始只读设计与取证；B-3、B-4 暂缓",
+ "goal": "确认质量放行门能发现并拦截不符合要求的账本状态，而不仅是确认守卫代码存在。",
+ "deliverable_now": "_dev_tools/game-docs/specs/cross-cutting/B2_守卫与质量放行门_设计与取证_2026-10-12.md（设计与取证完成，未实施、未提交）",
+ "key_findings": [
+  "守卫已在 core/commands.settle_local 接线（env SONGZUO_POPS_GUARD，缺省关），但违规只写日志：不返回、不入 state",
+  "_dev_tools/verify-all.ps1（唯一全量门）不设该 env、不读违规 ⇒ 门里守卫既不启用也不检查",
+  "零违规断言存在但走『测试内直接 install_all_guards』路径（test_route_pops_readonly_guard 等）；生产 env 组合下没有",
+  "test_prod_pops_guard.py case 2 docstring 声称『正常局零违规』但用例未断言（只断言容器类型还原）",
+  "归因能力（set_pops_guard_trace → file/line/function）已实现，全库无调用方",
+  "_VIOLATIONS 上限 500；uninstall 不清空 ⇒ 门用例可在 settle_local 返回后读取该轮违规"
+ ],
+ "scope": [
+  "B-2a：POP 守卫进质量放行门（预计仅新增门用例 + commands.py 1 处补留痕 + verify-all.ps1 开关）",
+  "B-2b/c/d：粮（载体二选一）/ 商品（越层写入）/ 资源桶（双记与守恒方向）各自先取证再定"
+ ],
+ "explicitly_not": [
+  "不改账本口径与桥接语义（pop_bridge / grain_bridge / material_holding）",
+  "不把守卫改为生产硬失败（用户已裁：生产保持记录型）",
+  "不为统一外形把四类账本套成同一守卫规则",
+  "不与 B-3/B-4 并行实施"
+ ],
+ "blocks": "B-2 实施、B-3、B-4 均待本轮设计评审；B-1 已完成不阻塞",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-11T23:39:44Z"
+}

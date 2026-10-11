@@ -298,11 +298,29 @@ def test_l1_wiring_is_all_or_nothing():
     assert wired in (set(), set(VIEWS)), "半接线状态：%s" % sorted(wired)
 
 
-def test_l1_order_divergence_is_documented():
-    """顺序不可由单一声明复现（环路证据见 design.md §2.3）——只锁定分歧集合集，
-    不伪称顺序恒等。未来若实现"按集合顺序元数据"，本用例会红，属预期信号。"""
-    divergent = {v for v in VIEWS if getattr(fr, v) != getattr(G, "SIX_COLLECTIONS_OLD")[v]}
-    assert divergent == {"NON_NEG_PREFIXES", "RANGE_100_FIELDS"}, divergent
+def test_l1_order_rule_is_scoped_by_ruling():
+    """顺序验收**按集合分别执行**（用户 2026-10-12 追认，见 `decisions/B1-order-relaxation.json`）。
+
+    · `VALID_PATHS` / `MONEY_PATHS` / `GRAIN_PATHS`：**字符串与顺序均须一致**（严格）。
+    · `CLAMP_01_FIELDS`：必须仍为空且与原行为一致。
+    · `NON_NEG_PREFIXES` / `RANGE_100_FIELDS`：**只要求多重集相同**；语义不变由 L1.5 洗牌不变性证明
+      （顺序不可由单一声明复现：约束图存在 4 节点环，见 design.md §2.3）。
+
+    🔴 **未来限制**：这不是普遍豁免。若将来有任何代码开始依赖后两套集合的**迭代顺序**，
+    必须重新评估契约——届时须把它们移入 `STRICT_ORDER` 并补行为证据。
+    """
+    strict = ["VALID_PATHS", "MONEY_PATHS", "GRAIN_PATHS"]
+    loose = ["NON_NEG_PREFIXES", "RANGE_100_FIELDS"]
+    for v in strict:
+        assert list(getattr(fr, v)) == list(G.SIX_COLLECTIONS_OLD[v]), \
+            "%s 必须字符串与顺序均一致（追认仅放宽两套集合）" % v
+    assert list(fr.CLAMP_01_FIELDS) == list(G.SIX_COLLECTIONS_OLD["CLAMP_01_FIELDS"]) == [], \
+        "CLAMP_01_FIELDS 必须仍为空"
+    for v in loose:
+        assert Counter(getattr(fr, v)) == Counter(G.SIX_COLLECTIONS_OLD[v]), v
+    # 收紧面：除追认的两套外，不得再出现第三套顺序分歧（防"顺手多放宽一套"）
+    divergent = {v for v in VIEWS if list(getattr(fr, v)) != list(G.SIX_COLLECTIONS_OLD[v])}
+    assert divergent == set(loose), divergent
 
 
 # ---------------------------------------------------------------------------

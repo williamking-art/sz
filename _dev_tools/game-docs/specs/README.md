@@ -83,6 +83,7 @@
 - [`州府级真账总批计划.md`](./cross-cutting/州府级真账总批计划.md)
 - [`州府级真账计划_深化版.md`](./cross-cutting/州府级真账计划_深化版.md)
 - [`语义核对_public_support与gentry_resistance.md`](./cross-cutting/语义核对_public_support与gentry_resistance.md)
+- [`B2_守卫与质量放行门_设计与取证_2026-10-12.md`](./cross-cutting/B2_守卫与质量放行门_设计与取证_2026-10-12.md) —— **B-2 只读轮**：守卫↔放行门关系与账本写链盘点（未实施）
 
 > **索引与实际脱节（2026-10-07 实测登记，未擅自修）**：上表「文档数」按明细条目数计，
 > 而实际 `.md` 文件数已不一致 —— `economy` 4 条 vs 11 文件、`construction` 9 vs 13、

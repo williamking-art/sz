@@ -1,0 +1,19 @@
+{
+ "id": "AGENT-DSH-NAME-COLLISION",
+ "title": "两个并发会话共用 `DSH` 名字，`phase/DSH.json` 被互相覆盖（需裁定归属规则）",
+ "status": "待裁定",
+ "raisedBy": "DSH",
+ "raisedAt": "2026-10-12",
+ "context": "本机交接层规定 `phase/<Agent>.json` 为各 agent **独占**。实测：另一并发会话同样以 `DSH` 署名写 worklog（如 `worklog/20261011T174558Z-DSH.md`、`20261011T233626Z-DSH.md`，内容为主线 C C0 台账），并在提交 c13d6e6/b20e094 中入库。DSH 的 phase 槽因此被两个会话交替覆盖：HEAD 版为对方的主线 C 阶段，工作树版为我的 B-1 阶段（本次 B-1 提交已把 phase/DSH.json **排除在外**，以免覆盖对方会话的工作记录）。",
+ "impact": [
+  "phase 槽不再可信（谁是当前 owner 无法从文件判定）",
+  "B-2/B-3/B-4 若与对方主线 C 并行，`log` 与 `phase` 会继续互相覆盖；`decisions/` 与 `tasks/` 因一条一文件不受影响"
+ ],
+ "options": {
+  "甲": "新增独立 agent 键（如 `DSH-2` / 按会话命名 `DSH-<会话>`），agents.json 登记后各写各的 phase",
+  "乙": "保留 `DSH` 但 phase 改为一条一文件（`phase/DSH/<会话ID>.json`），由 summary 聚合",
+  "丙": "维持现状，接受 phase 只能表达『最近一次写入者』（其余状态以 worklog/tasks 为准）"
+ },
+ "note": "属工具/协议层裁定，与游戏机制无关；在裁定前，B-1/B-2 的关键结论都已落 worklog + tasks + decisions + docs 正文，不依赖 phase 保存。",
+ "blocks": []
+}

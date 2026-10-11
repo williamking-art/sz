@@ -26,7 +26,7 @@
   "适用范围": "仅 NON_NEG_PREFIXES 与 RANGE_100_FIELDS 的顺序验收方式改为『多重集相同 + 行为差分』",
   "不适用": "VALID_PATHS / MONEY_PATHS / GRAIN_PATHS 必须字符串与顺序均一致；CLAMP_01_FIELDS 必须仍为空",
   "未来限制": "后续若有代码开始依赖 NON_NEG_PREFIXES 或 RANGE_100_FIELDS 的**迭代顺序**，必须重新评估契约；不得把本次裁定当作普遍豁免。",
-  "落地": "test_field_registry_parity.py::test_l1_order_rule_is_scoped_by_ruling 把本裁定写成可执行断言（四套严格顺序 + 两套多重集）"
+  "落地": "test_field_registry_parity.py::test_l1_order_rule_is_scoped_by_ruling 把本裁定写成可执行断言：VALID_PATHS / MONEY_PATHS / GRAIN_PATHS 断言『字符串与顺序均一致』(STRICT_ORDER)，CLAMP_01_FIELDS 断言仍为空，NON_NEG_PREFIXES / RANGE_100_FIELDS 只断言多重集相同，并额外断言『除这两套外不得出现第三套顺序分歧』（防顺手多放宽）。⚠️ 该用例由 test_l1_order_divergence_is_documented 更名加强而来，属**测试侧补充**，随下一批提交入库（B-1 提交 673d8aae9a 内为旧名版本）。"
  },
  "blocks": []
 }
