@@ -381,6 +381,10 @@ class GameStateEconMixin:
           - 新增 `land_tax_last`（上月结账快照：应征/实收/三分）、`land_tax_cum`（累计三分）、
             `collection_rate_avg` / `transfer_rate_avg`（月度双率均值）、`legacy_arrival_rate`。
         机制常量与既有字段语义**未动**（`tax_color` 语义按本次裁决由"旧径到库"改为"新径应征"）。
+
+        **M34-① 地方支出 V2（2026-10-11 · 只读预报层先行）**：新增 `local_expenditure`
+        （五科目应支/封顶/计划/缺口，`calc_local_expenditure()`）——**只报不记**，
+        真扣款（府库支用）与欠费科目待用户裁决 D1–D5；该字段**不并入** `total_out`。
         """
         from content.data import (
             COMMERCE_TAX_RATE_DEFAULT,
@@ -532,6 +536,10 @@ class GameStateEconMixin:
         }
         scope_taxed = "三税（工商·役钱·市舶）——不含二税折色与盐课（诊断口径·勿当到账率）"
         scope_full = "五科目（工商·役钱·市舶·二税折色[按应征]·盐课）（诊断口径·勿当到账率）"
+        # M34-①（V2 **预报层**·只读）：州郡府库支用应支/封顶/计划/缺口——五科目各挂既有派生量，
+        # **不改钱账**（真扣款与欠费科目待裁决 D1–D5，见 specs/economy/地方支出V2_开工门台账.md）；
+        # 也**不并入** total_out（地方与中央是不同主体，并入即双计）。
+        local_expenditure = self.calc_local_expenditure()
 
         # ---- 后端权威定性字段（前端一律读这里，杜绝多口径重复与真实层泄漏）----
         # 钱荒定性：统一走 desensitize_shortage（与仓廪页/状态条同源）
@@ -601,6 +609,8 @@ class GameStateEconMixin:
             "land_tax_last": land_tax_last,               # 上月结账快照（应征/实收/三分）
             "land_tax_cum": land_tax_cum,                 # 累计真账三分（审计留痕）
             "legacy_arrival_rate": legacy_arrival_rate,   # 旧口径到账率（D3 显式命名）
+            # M34-①（V2 预报层·只读）：州郡支用应支/计划/缺口（不并入 total_out）
+            "local_expenditure": local_expenditure,
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -739,6 +749,91 @@ class GameStateEconMixin:
                               "transfer": transfer, "keep": keep, "div": div}
             total += assessed
         return {"assessed_total": int(total), "by_route": by_route}
+
+    def calc_local_expenditure(self) -> dict:
+        """州郡府库支用 **只读预报**（M34-① V2 预报层；**不写任何账本**）。
+
+        依据：`_dev_tools/game-docs/specs/economy/地方支出V2_开工门台账.md`
+        —— 现状府库只有流入与平籴，**消费性支用＝0**。本函数把"若接线将要花多少"提前算出：
+        五科目应支 → 预算封顶 → 计划额 → 缺口，供面板/AI 在钱还没花之前就看见地方财政压力。
+
+        口径（各挂**既有派生量**，不新造税基；费率见 `content` 常量 `LOCAL_EXP_*`，待校准门定值）：
+          ① 行政 `admin`   ＝ 本路官俸 × `LOCAL_EXP_ADMIN_SHARE`（史实：公使钱/职田）
+          ② 治安 `security`＝ 本路军费 × `LOCAL_EXP_SECURITY_SHARE` × (1 + unrest/100)
+          ③ 水利 `waterworks` ＝ 本路水利资产折算造价 × `LOCAL_EXP_WATERWORKS_RATE`
+             （折算式与 `_settle_upkeep` 同源：`base_cost × BUILDING_COST_GROWTH^(lv-1)`）
+          ④ 粮仓 `granary` ＝ 本路常平库存(石) × `LOCAL_EXP_GRANARY_PER_STONE`
+          ⑤ 救灾 `relief`  ＝ 灾路人丁 × `LOCAL_EXP_RELIEF_PER_CAPITA` × 严重度(1–5)；**非灾月为 0**
+        封顶（D4 初值）：`cap = 本路府库 × LOCAL_EXP_CAP_SHARE`，`plan = min(due, cap)`。
+        **缺口 `shortfall` ＝ due − plan**：本层**只报不记**（真扣款与欠费科目待裁决 D1–D5）。
+        """
+        from content.data import (BUILDING_COST_GROWTH, BUILDING_STD,
+                                  LOCAL_EXP_ADMIN_SHARE, LOCAL_EXP_CAP_SHARE,
+                                  LOCAL_EXP_GRANARY_PER_STONE, LOCAL_EXP_RELIEF_PER_CAPITA,
+                                  LOCAL_EXP_SECURITY_SHARE, LOCAL_EXP_WATERWORKS_RATE)
+        from core.building_jobs import building_level as _bld_lv
+        import math as _math   # 局部导入（本文件既有风格：函数内按需 import）
+
+        def _i(v, default=0):
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                return default
+            return int(f) if _math.isfinite(f) else default
+
+        _official = self.calc_official_cash()[1]
+        _army = self.calc_army_cash()[1]
+        _sev = max(0, _i(getattr(self, "disaster_severity", 0)))
+        _region = str(getattr(self, "disaster_region", "") or "")
+        _wstd = BUILDING_STD.get("水利") or {"base_cost": 0}
+        by_route = {}
+        tot = {"admin": 0, "security": 0, "waterworks": 0, "granary": 0, "relief": 0}
+        for name, p in self.prefectures.items():
+            if not isinstance(p, dict):
+                continue
+            pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+            pop_total = sum(_i((v or {}).get("size")) for v in pops.values()
+                            if isinstance(v, dict))
+            if pop_total <= 0:
+                pop_total = _i(p.get("population"))
+            unrest = min(100.0, max(0.0, float(_i(p.get("unrest")))))
+            admin = int(_i(_official.get(name, 0)) * LOCAL_EXP_ADMIN_SHARE)
+            security = int(_i(_army.get(name, 0)) * LOCAL_EXP_SECURITY_SHARE
+                           * (1.0 + unrest / 100.0))
+            _wlv = _bld_lv((p.get("buildings") or {}).get("水利"), 1) if isinstance(
+                p.get("buildings"), dict) else 0
+            _wasset = float(_wstd.get("base_cost", 0)) * (BUILDING_COST_GROWTH ** (max(1, _wlv) - 1)) \
+                if _wlv > 0 else 0.0
+            waterworks = int(_wasset * LOCAL_EXP_WATERWORKS_RATE)
+            granary = int(_i(p.get("changping_stock")) * LOCAL_EXP_GRANARY_PER_STONE)
+            relief = 0
+            if _sev > 0 and (not _region or _region == name):
+                relief = int(pop_total * LOCAL_EXP_RELIEF_PER_CAPITA * _sev)
+            due = admin + security + waterworks + granary + relief
+            coffer = max(0, _i(p.get("local_treasury")))
+            cap = int(coffer * LOCAL_EXP_CAP_SHARE)
+            plan = min(due, cap)
+            by_route[name] = {
+                "coffer": coffer, "admin": admin, "security": security,
+                "waterworks": waterworks, "granary": granary, "relief": relief,
+                "due": due, "cap": cap, "plan": plan, "shortfall": due - plan,
+            }
+            tot["admin"] += admin
+            tot["security"] += security
+            tot["waterworks"] += waterworks
+            tot["granary"] += granary
+            tot["relief"] += relief
+        total_due = sum(tot.values())
+        total_plan = sum(r["plan"] for r in by_route.values())
+        return {
+            "cap_share": LOCAL_EXP_CAP_SHARE,
+            "disaster": {"severity": _sev, "region": _region},
+            "by_kind": dict(tot),
+            "total_due": total_due,
+            "total_plan": total_plan,
+            "total_shortfall": total_due - total_plan,
+            "by_route": by_route,
+        }
 
     def tax_loss_readout(self) -> dict:
         """账面损耗读数（P2）：`tax_loss_report` 累计 ＋ 份额 ＋ 分级状态（信息差一/二级）。

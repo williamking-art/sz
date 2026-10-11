@@ -99,6 +99,21 @@ FIN_LOSS_NORM = 0.02               # 正常账面损耗参考份额（对齐开�
 FIN_LOSS_ALERT_MULT = 1.5          # "耗损偏重/异常"触发倍数（份额 ≥ norm×mult 即异常）
 FIN_ANOMALY_OVERSIGHT_LINE = 0.45  # 监察力度闸门：oversight ≥ 线 → 呈报升至"耗损异常"（信息差二级）
 
+# ============================================================
+# M34-① 地方支出 V2（州郡府库支用）**费率初值 · 待校准**
+# 口径：只读预报层先落（`GameStateEconMixin.calc_local_expenditure`），
+#       真扣款（结算期 `local_treasury` 支出）**待用户裁决 D1–D5**后接线，
+#       见 `_dev_tools/game-docs/specs/economy/地方支出V2_开工门台账.md`。
+# 纪律：五科目**各挂既有派生量**（官俸/军费/水利资产/常平库存/灾情人口），
+#       不新造税基；全部经财政校准门（同种子 12 月五项）定值。
+# ============================================================
+LOCAL_EXP_ADMIN_SHARE = 0.05          # ① 行政：官俸的**地方承担份额**（史实：公使钱/职田/州郡经费）
+LOCAL_EXP_SECURITY_SHARE = 0.02       # ② 治安：本地弓手/巡捕＝按路军费份额 ×(1+unrest/100)
+LOCAL_EXP_WATERWORKS_RATE = 0.005     # ③ 水利/营造：地方水利资产折算造价 × 此率/月（同 ASSET_MAINTAIN_RATE）
+LOCAL_EXP_GRANARY_PER_STONE = 0.002   # ④ 粮仓：常平库存（石）× 此值（贯/石·月，仓廪维护）
+LOCAL_EXP_RELIEF_PER_CAPITA = 0.0005  # ⑤ 救灾：灾路每人 × 严重度（1–5，贯/人·月）；仅灾月
+LOCAL_EXP_CAP_SHARE = 0.5             # 预算封顶（D4）：单月计划支出 ≤ 本路府库 × 此值
+
 # P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
 FIN_AUDIT_BASE = 0.35            # 保真度基线
 FIN_AUDIT_INTEGRITY_W = 0.45     # 执行者清廉权重（正：corruption 越低越查得实）
