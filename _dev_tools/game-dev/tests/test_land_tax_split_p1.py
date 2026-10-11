@@ -125,8 +125,10 @@ def test_full_finance_pipeline_local_landing():
     s = new_game()
     loc0 = _local_total(s)
     paid0 = int(s.statistics.get("local_expense_paid", 0) or 0)
+    extra0 = int(s.statistics.get("local_extra_income", 0) or 0)
     _settle_finance(s, [])
     inflow = int(s.statistics["land_tax_local"])
+    inflow += int(s.statistics.get("local_extra_income", 0) or 0) - extra0   # D6′ 附加收入
     outflow = int(s.statistics.get("local_expense_paid", 0) or 0) - paid0
     assert _local_total(s) - loc0 == inflow - outflow, \
         f"Δ府库 {_local_total(s) - loc0} ≠ 流入 {inflow} − 流出 {outflow}"

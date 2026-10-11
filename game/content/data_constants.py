@@ -145,6 +145,52 @@ LOCAL_EXP_LOCAL_MAINTAINED = ("水利",)
 # 中央不吃亏也不占便宜）。史实介于两者之间（州县官俸有中央拨给，公使钱/职田则属地方自筹）
 # ⇒ 开局取 1.0 保证中央财政中性；玩家集权时下调（中央只管发钱、地方贴补自筹）。
 LOCAL_EXP_REIMB_SHARE = 1.0
+# **D1′ 裁决（2026-10-11）：责任转移恒为 1.0**，且**按科目**可分别设定（0.5 中间值留后续制度改革）。
+# 结构对齐裁决词表 `expense_transfer.<科目>.central_offset`。
+LOCAL_EXP_CENTRAL_OFFSET = {
+    "official_salary": 1.0,     # 官员俸禄：地方出多少，国库少发多少
+    "clerk_pay": 1.0,           # 胥吏雇钱
+    "runner_pay": 1.0,          # 衙役雇钱
+    "public_supply": 1.0,       # 公用钱（国库 upkeep 侧已排除对应资产，同额）
+}
+# **D7′ 裁决：刚性等级支付**（现金不足时按级序**足额**，下位级才欠）：
+#   一级＝维持行政运转（胥吏雇钱／衙役雇钱／公用基本维护）；二级＝官员俸禄；三级＝非必要公用（未来细分）。
+LOCAL_EXP_PAY_TIERS = (
+    ("clerk_pay", "runner_pay", "public_supply"),
+    ("official_salary",),
+    (),
+)
+
+# ============================================================
+# D6′ 地方附加收入（裁决：**独立收入池**，不并入 keep、不动三分模型）
+# 来源＝坊场钱／经制钱／杂税（史实：地方自有财源，直接入府库、不上供）
+# 纪律：**从本路民间 POP 征收**（守恒转移，不造币）；派生于既有税基/产出；初值·待校准。
+# ============================================================
+LOCAL_EXTRA_ENABLED = True          # 总开关（接口：诏令/改革可关或加强）
+# 率值标定（2026-10-11 实测）：工商产出基数 ≈ 28,800,000 贯/月（工匠+商人 8,000,000 人 × 3.6），
+# 目标＝附加收入 ≈ **地方责任科目现实应支量级**（≈145k/月；留州另 ≈45k/月）⇒
+#   坊场钱 0.5% × 产出 × 征收率 ≈ 90k；杂税 0.16% ≈ 29k；经制钱 3% × 折色应征 ≈ 34k；合计 ≈153k/月
+LOCAL_EXTRA_FANGFANG_SHARE = 0.005  # 坊场钱 = 本路工商产出 × 此率 × 征收率
+LOCAL_EXTRA_JINGZHI_SHARE = 0.03    # 经制钱 = 本路田赋折色**应征** × 此率（地方附加，不经三分）
+LOCAL_EXTRA_ZASHUI_SHARE = 0.0016   # 杂税 = 本路工商产出 × 此率
+# ============================================================
+# D5′ 欠费闭环（裁决：**分层触发**——欠一天不等于腐败；长期拖欠才成制度性问题）
+#   胥吏 clerk_pay ≥3 月 → grip↑（把持/蒙蔽）→ 支出效率↓、侵渔难查
+#   衙役 runner_pay ≥3 月 → unrest↑（治安效率↓）
+#   官员 official_salary ≥6 月 → official_morale↓（离心/奏报，AI/事件消费）
+#   公用 public_supply ≥6 月 → public_decay_pressure↑（设施失修动因）
+# 本层只写**压力/士气/把持**等状态量（=AI 的行为接口），不直接判定腐败事件。
+# ============================================================
+LOCAL_ARREARS_CLERK_MONTHS = 3.0
+LOCAL_ARREARS_RUNNER_MONTHS = 3.0
+LOCAL_ARREARS_OFFICIAL_MONTHS = 6.0
+LOCAL_ARREARS_PUBLIC_MONTHS = 6.0
+LOCAL_ARREARS_GRIP_STEP = 0.01      # 每达标月 +把持度
+LOCAL_ARREARS_GRIEVANCE_STEP = 2.0  # 每达标月 +吏怨
+LOCAL_ARREARS_UNREST_STEP = 0.5     # 每达标月 +动乱
+LOCAL_ARREARS_MORALE_STEP = 2.0     # 每达标月 −官员士气
+LOCAL_ARREARS_DECAY_STEP = 1.0      # 每达标月 +公用失修压力
+LOCAL_ARREARS_MORALE_INIT = 100.0   # 官员士气初值（旧档缺省补此值）
 
 # P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
 FIN_AUDIT_BASE = 0.35            # 保真度基线

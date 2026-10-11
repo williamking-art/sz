@@ -710,6 +710,77 @@ def _settle_land_tax_color(state, log) -> dict:
             "div_by_route": div_by_route}
 
 
+def _settle_local_extra_income(state, log) -> dict:
+    """地方附加收入（M34-① · **D6′ 裁决**）：坊场钱／经制钱／杂税——**独立收入池**直接入府库。
+
+    - **不并入 `keep`**（不动三分模型）：地方自有财源，不经上供（`田赋 → 三分` 与
+      `附加收入 → local_treasury` 两条平行）；
+    - **从本路民间 POP 征收**（坊郭户＝工匠/商人；乡村杂派＝农），走 `transfer_money` 单点划转
+      ⇒ 守恒（ΣΔ==0、不造币）；POP 现钱不足则**按可付截断**（地方自征，不记欠税）；
+    - 派生于**既有量**：工商月产出（工匠+商人 size × `CRAFT_OUTPUT_PER_CAPITA`）× 本路**征收率**；
+      经制钱另挂田赋折色**应征**（`calc_land_tax_channels`）；
+    - **接口**：`LOCAL_EXTRA_ENABLED` 总开关（诏令/改革可关或加强）；三率常量初值·待校准门定值。
+    """
+    from content.data import (CRAFT_OUTPUT_PER_CAPITA, LOCAL_EXTRA_ENABLED,
+                              LOCAL_EXTRA_FANGFANG_SHARE, LOCAL_EXTRA_JINGZHI_SHARE,
+                              LOCAL_EXTRA_ZASHUI_SHARE)
+    if not LOCAL_EXTRA_ENABLED:
+        return {"total": 0, "by_route": {}, "by_kind": {}}
+    ch = (state.calc_land_tax_channels() or {}).get("by_route", {})
+    total = 0
+    by_kind = {"坊场钱": 0, "经制钱": 0, "杂税": 0}
+    by_route = {}
+    _payers = {"坊场钱": (("工匠", 0.5), ("商人", 0.5)),
+               "经制钱": (("商人", 0.6), ("工匠", 0.4)),
+               "杂税": (("农", 1.0),)}
+    for name, p in state.prefectures.items():
+        if not isinstance(p, dict):
+            continue
+        pops = p.get("pops") if isinstance(p.get("pops"), dict) else {}
+        if not pops:
+            continue
+
+        def _sz(cls):
+            row = pops.get(cls)
+            return int((row or {}).get("size", 0) or 0) if isinstance(row, dict) else 0
+
+        _commerce = (_sz("工匠") + _sz("商人")) * float(CRAFT_OUTPUT_PER_CAPITA)
+        _rate = float(state.calc_collection_rate(name))
+        _assessed = int((ch.get(name) or {}).get("assessed", 0) or 0)
+        _dues = {
+            "坊场钱": int(_commerce * float(LOCAL_EXTRA_FANGFANG_SHARE) * _rate),
+            "经制钱": int(_assessed * float(LOCAL_EXTRA_JINGZHI_SHARE)),
+            "杂税": int(_commerce * float(LOCAL_EXTRA_ZASHUI_SHARE) * _rate),
+        }
+        route_got = 0
+        for kind, amt in _dues.items():
+            if amt <= 0:
+                continue
+            given = 0
+            shares = _payers[kind]
+            for _i, (_cls, _w) in enumerate(shares):
+                part = amt - given if _i == len(shares) - 1 else int(amt * _w)
+                if part <= 0:
+                    continue
+                given += state.transfer_money(f"pop:{name}:{_cls}", f"local:{name}", part)
+            by_kind[kind] += given
+            route_got += given
+        if route_got > 0:
+            by_route[name] = route_got
+            total += route_got
+    if total > 0:
+        state.statistics["local_extra_income"] = \
+            int(state.statistics.get("local_extra_income", 0) or 0) + total
+        _bk = state.statistics.get("local_extra_by_kind")
+        _bk = dict(_bk) if isinstance(_bk, dict) else {}
+        for k, v in by_kind.items():
+            if v:
+                _bk[k] = int(_bk.get(k, 0) or 0) + v
+        state.statistics["local_extra_by_kind"] = _bk
+        log.append(f"[地方附加] 坊场钱/经制钱/杂税入府库 {total:,}贯（{len(by_route)} 路）")
+    return {"total": total, "by_route": by_route, "by_kind": by_kind}
+
+
 def _settle_local_expenditure(state, log) -> dict:
     """州郡府库支用（M34-① 批次 1）：**地方官员有效使用**府库资金。
 
@@ -731,7 +802,18 @@ def _settle_local_expenditure(state, log) -> dict:
     **不并入**国库 `total_out`（不同主体）；国库**同额少付**见 `_settle_finance` 人员腿抵减
     与 `_settle_upkeep` 的水利资产排除（防双重支付）。
     """
-    from content.data import (LOCAL_EXP_ACTIVE_KINDS, LOCAL_EXP_REIMB_SHARE,
+    from content.data import (LOCAL_ARREARS_CLERK_MONTHS,
+                              LOCAL_ARREARS_DECAY_STEP,
+                              LOCAL_ARREARS_GRIEVANCE_STEP,
+                              LOCAL_ARREARS_GRIP_STEP,
+                              LOCAL_ARREARS_MORALE_INIT,
+                              LOCAL_ARREARS_MORALE_STEP,
+                              LOCAL_ARREARS_OFFICIAL_MONTHS,
+                              LOCAL_ARREARS_PUBLIC_MONTHS,
+                              LOCAL_ARREARS_RUNNER_MONTHS,
+                              LOCAL_ARREARS_UNREST_STEP,
+                              LOCAL_EXP_ACTIVE_KINDS, LOCAL_EXP_CENTRAL_OFFSET,
+                              LOCAL_EXP_PAY_TIERS, LOCAL_EXP_REIMB_SHARE,
                               LOCAL_EXP_SECURITY_UNREST_PER_POINT)
     kinds = tuple(LOCAL_EXP_ACTIVE_KINDS)          # 史实科目（单点词表来自 content）
     _payout = {"official_salary": (("官僚", 1.0),),          # 官员俸禄 → 官僚
@@ -761,10 +843,32 @@ def _settle_local_expenditure(state, log) -> dict:
         tot_base = sum(base.values())
         if due_eff <= 0 or tot_base <= 0:
             continue
-        alloc = {k: int(target * base[k] / tot_base) for k in kinds} if target > 0 \
-            else {k: 0 for k in kinds}
+        alloc = {k: 0 for k in kinds}
+        # 现实应支 `due_k_eff` ＝ 该科目应支 × (现实应支/责任应支)（已含保障倍数与有效使用率），
+        # 尾差给占比最大的科目，保证 Σ due_k_eff ≡ due_eff。**与预算无关**，供欠支/欠月数使用。
+        _ratio = (float(due_eff) / float(tot_base)) if tot_base > 0 else 0.0
+        due_k_eff = {k: int(base[k] * _ratio) for k in kinds}
+        _kbig = max(base, key=lambda k: base[k])
+        due_k_eff[_kbig] += due_eff - sum(due_k_eff.values())
         if target > 0:
-            alloc[max(base, key=lambda k: base[k])] += target - sum(alloc.values())
+            # **D7′ 刚性等级**：先按级序把"现实应支"逐级足额，现金用尽后下位级才欠。
+            _budget = target
+            for _tier in LOCAL_EXP_PAY_TIERS:
+                for k in _tier:
+                    if k not in alloc or _budget <= 0:
+                        continue
+                    _give = min(due_k_eff[k], _budget)
+                    alloc[k] += _give
+                    _budget -= _give
+            for k in kinds:                     # 级序未列出的科目（三级/新增）按剩余预算兜底
+                if _budget <= 0:
+                    break
+                if k in [kk for _t in LOCAL_EXP_PAY_TIERS for kk in _t]:
+                    continue
+                _give = min(due_k_eff[k], _budget)
+                alloc[k] += _give
+                _budget -= _give
+        due_k_eff_used = due_k_eff
         route_paid = 0
         for k in kinds:
             amt = alloc[k]
@@ -799,16 +903,19 @@ def _settle_local_expenditure(state, log) -> dict:
         # 欠支基准＝**应支** `due_eff`（府库不足或 cap 截断都算欠支，不得静默消失）
         short = due_eff - route_paid
         arrears += short
+        _kind_short = {k: 0 for k in kinds}
         if short > 0:
             # M34-①（POP 挂载律）：欠支必须落到**债权人 POP** 的 `欠给` 子池
-            # （与 `欠税` 对称：欠税＝POP 欠国家，欠给＝国家欠 POP）；按科目应支占比分录，
-            # 并走桥接写口 `_pop_obj_add`（未下沉时回落原写法），保证治所↔路级镜像同源。
+            # （与 `欠税` 对称：欠税＝POP 欠国家，欠给＝国家欠 POP）；
+            # **D7′**：逐科目未付＝该科目现实应支 − 实付（刚性级序下低位科目先欠）。
             _p = state.prefectures.get(name)
             _pops = (_p or {}).get("pops") if isinstance(_p, dict) else None
             if isinstance(_pops, dict):
-                _kind_short = {k: int(short * base[k] / tot_base) for k in kinds}
-                _kbig = max(base, key=lambda k: base[k])
-                _kind_short[_kbig] += short - sum(_kind_short.values())
+                _kind_short = {k: max(0, due_k_eff_used[k] - alloc[k]) for k in kinds}
+                _diff = short - sum(_kind_short.values())
+                if _diff:
+                    _kbig2 = max(base, key=lambda k: base[k])
+                    _kind_short[_kbig2] = max(0, _kind_short[_kbig2] + _diff)
                 for k in kinds:
                     amt_k = _kind_short[k]
                     if amt_k <= 0:
@@ -826,9 +933,56 @@ def _settle_local_expenditure(state, log) -> dict:
                             _pool["欠给"] = int(_pool.get("欠给", 0) or 0) + part
                         _given += part
         by_route[name] = {"target": target, "paid": route_paid, "arrears": short,
-                          "due_eff": due_eff}
-    # 中央抵减口径（裁决 2026-10-11）：1.0＝责任转移（国库同额少付）／0.0＝正俸之外的地方贴补
-    personnel_reimb = int(personnel_reimb * min(1.0, max(0.0, float(LOCAL_EXP_REIMB_SHARE))))
+                          "due_eff": due_eff, "arrears_by_kind": _kind_short,
+                          "due_k_eff": due_k_eff_used}
+    # ---- D5′ 欠费闭环（分层触发）：只写"压力/士气/把持"状态量（**AI/事件的接口**）----
+    _pressure = {"clerks_over3": 0, "runners_over3": 0,
+                 "officials_over6": 0, "public_over6": 0}
+    for name, d in by_route.items():
+        _p = state.prefectures.get(name)
+        if not isinstance(_p, dict):
+            continue
+        _aw = d.get("arrears_by_kind") or {}
+        _dk = d.get("due_k_eff") or {}
+
+        def _months(k):
+            _due = int(_dk.get(k, 0) or 0)
+            return (float(_aw.get(k, 0) or 0) / _due) if _due > 0 else 0.0
+
+        if _months("clerk_pay") >= LOCAL_ARREARS_CLERK_MONTHS:
+            _cd = _p.get("clerks_detail")
+            if isinstance(_cd, dict):
+                _cd["grip"] = min(1.0, float(_cd.get("grip", 0.0) or 0.0)
+                                  + LOCAL_ARREARS_GRIP_STEP)
+                _cd["grievance"] = (float(_cd.get("grievance", 0.0) or 0.0)
+                                    + LOCAL_ARREARS_GRIEVANCE_STEP)
+            _pressure["clerks_over3"] += 1
+        if _months("runner_pay") >= LOCAL_ARREARS_RUNNER_MONTHS:
+            _p["unrest"] = min(100.0, round(float(_p.get("unrest", 0) or 0)
+                                            + LOCAL_ARREARS_UNREST_STEP, 2))
+            _pressure["runners_over3"] += 1
+        if _months("official_salary") >= LOCAL_ARREARS_OFFICIAL_MONTHS:
+            _p["official_morale"] = max(0.0, round(
+                float(_p.get("official_morale", LOCAL_ARREARS_MORALE_INIT)
+                      or LOCAL_ARREARS_MORALE_INIT) - LOCAL_ARREARS_MORALE_STEP, 2))
+            _pressure["officials_over6"] += 1
+        if _months("public_supply") >= LOCAL_ARREARS_PUBLIC_MONTHS:
+            _p["public_decay_pressure"] = round(
+                float(_p.get("public_decay_pressure", 0) or 0) + LOCAL_ARREARS_DECAY_STEP, 2)
+            _pressure["public_over6"] += 1
+    if any(_pressure.values()):
+        state.statistics["local_arrears_pressure"] = _pressure
+        log.append(f"[地方经费] 欠给分层后果：胥吏≥3月 {_pressure['clerks_over3']} 路／"
+                   f"衙役≥3月 {_pressure['runners_over3']} 路／"
+                   f"官员≥6月 {_pressure['officials_over6']} 路／"
+                   f"公用≥6月 {_pressure['public_over6']} 路")
+    # **D1′ 中央抵减口径**：责任转移（1.0）——逐科目 `central_offset`（可分别设定，
+    # 0.5 中间值留制度改），再乘全局 `LOCAL_EXP_REIMB_SHARE`。地方代付多少，国库少发多少。
+    _reimb = 0.0
+    for k in _personnel_kinds:
+        _off = float((LOCAL_EXP_CENTRAL_OFFSET or {}).get(k, 1.0))
+        _reimb += float(paid_by_kind[k]) * _off
+    personnel_reimb = int(_reimb * min(1.0, max(0.0, float(LOCAL_EXP_REIMB_SHARE))))
     if arrears > 0:
         state.statistics["local_arrears"] = \
             int(state.statistics.get("local_arrears", 0) or 0) + arrears
@@ -945,6 +1099,8 @@ def _settle_finance(state, log):
                     _pop["欠税"] = _pop.get("欠税", 0) - _recover
                 actual_tax += _recover
 
+    # ---- M34-① D6′：地方附加收入（独立池，直接入府库）——须在支用腿**之前**入账 ----
+    _settle_local_extra_income(state, log)
     # ---- M34-① 批次 1：州郡府库支用（财政顺序改造的**支出腿**；地方官员有效使用）----
     # 必须早于俸禄发放：地方已代付的官俸/兵饷份额需在下文**同额抵减**国库支出（防双重支付）。
     _local_exp = _settle_local_expenditure(state, log)

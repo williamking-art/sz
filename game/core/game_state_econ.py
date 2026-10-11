@@ -623,6 +623,12 @@ class GameStateEconMixin:
                 int((v or {}).get("欠给", 0) or 0)
                 for p in self.prefectures.values()
                 for v in (p.get("pops") or {}).values() if isinstance(v, dict)),
+            # M34-① D6′：地方附加收入（独立池；坊场钱/经制钱/杂税）
+            "local_extra_income": int(self.statistics.get("local_extra_income", 0) or 0),
+            "local_extra_by_kind": dict(self.statistics.get("local_extra_by_kind") or {}),
+            # M34-① D5′：欠给分层压力（AI/事件接口；只报压力，不判事件）
+            "local_arrears_pressure": dict(
+                self.statistics.get("local_arrears_pressure") or {}),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
