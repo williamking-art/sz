@@ -12,7 +12,7 @@
   "禁止：系统推荐派谁/查哪、自动生成监察令/怀疑、任何自动路径、引入成功率/概率/阻力、放宽权限"
  ],
  "risk": "🟡 低-中：仅接线层（不改监察语义与单点）；风险在「清单被当成推荐」与「新通道绕过三层校验」——均由契约测试钉住",
- "next": "接口现状已盘点（台账 §1）：读数侧 `finance_readout()` 已聚合 `inspection`／`inspection_feedback`／`inspection_backlash`／`fiscal_gap_report`／`discovery`，另有 `rumor_tier`／`identity_pressures`／`fiscal_visibility_view`；行动侧已通＝诏令（白名单 18 数值键＋`audit_route`→`resolve_audit`＋`finance_rates`）／呈请（`enqueue_ai_action`）／召对；**未通＝`enqueue_inspection`／`file_inspection_report`／`record_report_suspicion`**（M36.5 主任务）。",
+ "next": "**M36.5 已落地（G1／G2 裁定后实现，commit bb0d1dd850）**：① 诏令载荷＝正式执行通道（`inspect_dispatch{route,kind,secret}`／`inspect_report{task_id,summary}`／`inspect_allege{task_id,text}`，其中涉及司法侧的唯一桥接调用放在独立接线模块 `core/inspection_wiring.py`，以保住「监察不读司法」的源码守卫）；② `ai_pending_actions`＝呈请—批红辅通道（`approve_ai_action` 新增三分支 → 同一单点，呈请≠批准≠执行）；③ **AI 中立事实视图** `inspection.ai_decision_view(state, viewer, oversight, secret, tier)`（无 urgent/推荐/排序，含动作不可用原因；`fiscal_context` 按 viewer 落实 D11，AI 大臣≠全知）；④ UI 推荐 `briefing.build_briefing_actions` 未改（分离）。契约测试 `test_m36_5_ai_wiring.py`（11 例）；终态 FINISHED=1 tests 2653 / failed 0 / errors 0 / skipped 2；校准门逐位一致 99806/101108584/55/1.220904/9833490。**暂停线**：涉及 D11 权限／唯一桥接／唯一成案入口／财政隔离契约的变更必须暂停另行裁定。下一步待用户定：AI 侧接线是否继续加深（如大臣人格化视图/提案模板），或开 M37（监察能力模型）。",
  "related": "specs/economy/M36_察访与监司行动_设计台账.md §19.8｜specs/economy/M36-5_AI决策接线_设计台账.md｜tasks/M36-inspection-batch.json（M36 四阶段已完成）",
- "commit": ""
+ "commit": "bb0d1dd850"
 }
