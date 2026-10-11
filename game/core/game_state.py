@@ -567,13 +567,18 @@ class GameState(GameStateEconMixin):
         # ---- 财政四率容器（P1 双层税基；V1.3 终稿 §11）----
         # 默认值取自 content.data（单一权威源）；旧档缺省由 save_load._migrate_finance 幂等补值。
         from content.data import (FIN_COLLECTION_BASE, FIN_TRANSFER_RATE,
-                                  FIN_KEEP_BASE, FIN_DIV_RATE)
+                                  FIN_KEEP_BASE, FIN_DIV_RATE, LOCAL_EXP_MULT_BASE)
         self.finance: dict = {
             "tax_version": 1,
             "collection_rate": FIN_COLLECTION_BASE,
             "transfer_rate": FIN_TRANSFER_RATE,
             "local_keep_rate": FIN_KEEP_BASE,
             "diversion_rate": FIN_DIV_RATE,
+            # M34-①（裁决 2026-10-11）：**地方经费保障倍数**——对"地方责任科目应支"
+            # （行政/治安/水利）的乘数，开局 1.0 ＝ **史实口径**（地方先养活行政，剩余上供）。
+            # 玩家集权可经 `finance_rates` 诏令效果/改革轴下调（压地方经费 → 上供相对增），
+            # 分权则上调。接口与四率同源（`apply_finance_reform`），存档迁移幂等补默认。
+            "local_expense_mult": LOCAL_EXP_MULT_BASE,
         }
         # ---- 勾校案卷（P3 发现系统；V1.3 终稿 §7；Q11 抄没前置）----
         # {case_id: {id, route, outcome, fidelity, executor, secret, created_turn,

@@ -38,8 +38,13 @@ def _pop_wealth(s):
 
 
 def _due(s):
-    """独立复算应付额（不复用被测代码的内部变量，避免自证）。"""
-    from content.data import BUILDING_COST_GROWTH, BUILDING_STD, POP_BUILDING_VALUE
+    """独立复算应付额（不复用被测代码的内部变量，避免自证）。
+
+    M34-①（裁决 2026-10-11）：**地方承担的资产**（`LOCAL_EXP_LOCAL_MAINTAINED`＝水利）
+    由地方经费支付维护（`_settle_local_expenditure` 水利腿），国库 upkeep **不再折算**该项。
+    """
+    from content.data import (BUILDING_COST_GROWTH, BUILDING_STD,
+                              LOCAL_EXP_LOCAL_MAINTAINED, POP_BUILDING_VALUE)
 
     def lvc(std, lv):
         return float(std["base_cost"]) * (BUILDING_COST_GROWTH ** (max(1, int(lv)) - 1))
@@ -47,11 +52,16 @@ def _due(s):
     v = 0.0
     for pj in (getattr(s, "projects", {}) or {}).values():
         if isinstance(pj, dict):
-            std = BUILDING_STD.get(str(pj.get("name") or pj.get("type") or ""))
+            name = str(pj.get("name") or pj.get("type") or "")
+            if name in LOCAL_EXP_LOCAL_MAINTAINED:
+                continue
+            std = BUILDING_STD.get(name)
             if std:
                 v += lvc(std, pj.get("level", 1))
     for p in s.prefectures.values():
         for bt, lv in (p.get("buildings") or {}).items():
+            if str(bt) in LOCAL_EXP_LOCAL_MAINTAINED:
+                continue
             std = BUILDING_STD.get(str(bt))
             v += lvc(std, lv) if std else POP_BUILDING_VALUE * max(1, int(lv or 1))
     v += len(getattr(s, "workshops", {}) or {}) * float(WORKSHOP_VALUE)

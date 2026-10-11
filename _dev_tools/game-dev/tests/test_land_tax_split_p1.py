@@ -89,22 +89,47 @@ def test_collection_conservation_and_landings():
     # ④ 中央入账后 m_all 归零（纯转移，不造币不销币）
     s.change_treasury(int(ret["central"]))
     assert abs(m_all(s) - m0) < 1e-9
-    # ⑤ 逐路精确：留州 == int(paid×keep)，侵渔 == int(paid×div)
+    # ⑤ 逐路精确：留州 == int(paid×keep) ＋ **必要支出优先层**（M34-① 裁决）；
+    #    侵渔 == int(paid×div)
     for rk, l in ret["local_by_route"].items():
         _t, k, _d = s.finance_split(rk)
-        assert l == int(ret["by_route"][rk] * k)
+        assert l == int(ret["by_route"][rk] * k) + ret["required_by_route"].get(rk, 0), \
+            f"{rk} 留州 ≠ keep 腿 ＋ 必要支出优先层"
     for rk, dv in ret["div_by_route"].items():
         _t, _k, d = s.finance_split(rk)
         assert dv == int(ret["by_route"][rk] * d)
 
 
+def test_required_priority_layer_bounded_by_central():
+    """M34-① 财政顺序：必要支出优先层**不得透支**（≤ 本路中央解送额），且三分和仍 ≡ 实收。"""
+    s = new_game()
+    m0 = m_all(s)
+    ret = _settle_land_tax_color(s, [])
+    assert ret["required_landed"] >= 0
+    assert sum(ret["required_by_route"].values()) == ret["required_landed"]
+    assert ret["central"] + ret["local"] + ret["diverted"] == ret["collected"]
+    # 优先层 ≤ 中央腿（划出后 central 不得为负）
+    assert ret["central"] >= 0
+    # 纯转移：m_all 减少额 ≡ central（优先层只是改了留州/上供的分配，不造币不销币）
+    assert m_all(s) - m0 == -ret["central"]
+
+
 # ---------------- 全管线落点 ----------------
 
 def test_full_finance_pipeline_local_landing():
+    """全管线：府库当月变动 ≡ 留州流入 − **地方支用**（M34-① 起府库有支出腿）。
+
+    口径（顺序改造后）：`land_tax_local`（含必要支出优先层）是**流入**；
+    `_settle_local_expenditure` 的实付是**流出**；二者之差即 Δ府库。
+    """
     s = new_game()
     loc0 = _local_total(s)
+    paid0 = int(s.statistics.get("local_expense_paid", 0) or 0)
     _settle_finance(s, [])
-    assert _local_total(s) - loc0 == int(s.statistics["land_tax_local"])
+    inflow = int(s.statistics["land_tax_local"])
+    outflow = int(s.statistics.get("local_expense_paid", 0) or 0) - paid0
+    assert _local_total(s) - loc0 == inflow - outflow, \
+        f"Δ府库 {_local_total(s) - loc0} ≠ 流入 {inflow} − 流出 {outflow}"
 
 
 # ---------------- Q3 甲：其余税种旧路径回归锁 ----------------

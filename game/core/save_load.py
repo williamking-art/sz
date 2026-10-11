@@ -70,10 +70,10 @@ def _migrate_finance(raw) -> dict:
     - `tax_version` 取整；比率项取浮点（bool 拒收，防 True==1 混入）。
     """
     from content.data import (FIN_COLLECTION_BASE, FIN_TRANSFER_RATE,
-                              FIN_KEEP_BASE, FIN_DIV_RATE)
+                              FIN_KEEP_BASE, FIN_DIV_RATE, LOCAL_EXP_MULT_BASE)
     defaults = {"tax_version": 1, "collection_rate": FIN_COLLECTION_BASE,
                 "transfer_rate": FIN_TRANSFER_RATE, "local_keep_rate": FIN_KEEP_BASE,
-                "diversion_rate": FIN_DIV_RATE}
+                "diversion_rate": FIN_DIV_RATE, "local_expense_mult": LOCAL_EXP_MULT_BASE}
     out = dict(defaults)
     if isinstance(raw, dict):
         for _k, _v in raw.items():

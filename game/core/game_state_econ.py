@@ -16,6 +16,8 @@ from content.data import (
     FIN_KEEP_GOVERN_W, FIN_KEEP_MIN, FIN_KEEP_MAX, FIN_KEEP_CAP, FIN_DIV_RATE,
     # P2 账面（V1.3 终稿 §5）：损耗科目与信息差闸门
     FIN_LOSS_NORM, FIN_LOSS_ALERT_MULT, FIN_ANOMALY_OVERSIGHT_LINE,
+    # M34-① 地方支出 V2（裁决 2026-10-11）：地方经费保障倍数（玩家接口）
+    LOCAL_EXP_MULT_BASE, LOCAL_EXP_MULT_MIN, LOCAL_EXP_MULT_MAX,
     PAY_CASH_BASE, SUI_GONG_ANNUAL, COMMERCE_TAX_RATE_MIN,
     COMMERCE_TAX_RATE_MAX, COMMERCE_TAX_RATE_DEFAULT,
     SALT_PROFIT_PER_JIN, SALT_CAPACITY_BASE, SALT_POP_BASE,
@@ -611,6 +613,10 @@ class GameStateEconMixin:
             "legacy_arrival_rate": legacy_arrival_rate,   # 旧口径到账率（D3 显式命名）
             # M34-①（V2 预报层·只读）：州郡支用应支/计划/缺口（不并入 total_out）
             "local_expenditure": local_expenditure,
+            # M34-① 批次 1 真账留痕（顺序改造 + 地方支用腿）
+            "local_arrears": int(self.statistics.get("local_arrears", 0) or 0),
+            "local_expense_paid": int(self.statistics.get("local_expense_paid", 0) or 0),
+            "land_tax_required": int(self.statistics.get("land_tax_required", 0) or 0),
             # P2 账面（V1.3 §5）：田赋折色真账留痕 ＋ 损耗科目（信息差一/二级；三级留调查·P3）
             "land_tax": {
                 "assessed": int(self.statistics.get("land_tax_assessed", 0) or 0),
@@ -709,7 +715,7 @@ class GameStateEconMixin:
         applied = {}
         for _k, _v in (deltas or {}).items():
             if _k not in ("transfer_rate", "local_keep_rate",
-                          "diversion_rate", "collection_rate"):
+                          "diversion_rate", "collection_rate", "local_expense_mult"):
                 continue
             if isinstance(_v, bool) or not isinstance(_v, (int, float)):
                 continue
@@ -723,6 +729,11 @@ class GameStateEconMixin:
         fin["collection_rate"] = float(_clamp(
             float(fin.get("collection_rate", FIN_COLLECTION_BASE)),
             FIN_COLLECTION_MIN, FIN_COLLECTION_MAX))
+        # M34-①（裁决 2026-10-11 · 留接口）：**地方经费保障倍数**——不参与四率归一化，
+        # 独立钳制到 [MIN, MAX]（集权下调 → 责任收归中央；分权上调 → 地方经费更足）。
+        fin["local_expense_mult"] = float(_clamp(
+            float(fin.get("local_expense_mult", LOCAL_EXP_MULT_BASE)),
+            LOCAL_EXP_MULT_MIN, LOCAL_EXP_MULT_MAX))
         return {"before": before, "after": dict(fin), "applied": applied}
 
     def calc_land_tax_channels(self) -> dict:
@@ -768,8 +779,12 @@ class GameStateEconMixin:
         **缺口 `shortfall` ＝ due − plan**：本层**只报不记**（真扣款与欠费科目待裁决 D1–D5）。
         """
         from content.data import (BUILDING_COST_GROWTH, BUILDING_STD,
-                                  LOCAL_EXP_ADMIN_SHARE, LOCAL_EXP_CAP_SHARE,
-                                  LOCAL_EXP_GRANARY_PER_STONE, LOCAL_EXP_RELIEF_PER_CAPITA,
+                                  LOCAL_EXP_ACTIVE_KINDS, LOCAL_EXP_ADMIN_SHARE,
+                                  LOCAL_EXP_CAP_SHARE, LOCAL_EXP_EFFICACY_GRIP_W,
+                                  LOCAL_EXP_EFFICACY_MIN, LOCAL_EXP_EFFICACY_PAY_W,
+                                  LOCAL_EXP_GRANARY_PER_STONE, LOCAL_EXP_MULT_BASE,
+                                  LOCAL_EXP_MULT_MAX, LOCAL_EXP_MULT_MIN,
+                                  LOCAL_EXP_RELIEF_PER_CAPITA,
                                   LOCAL_EXP_SECURITY_SHARE, LOCAL_EXP_WATERWORKS_RATE)
         from core.building_jobs import building_level as _bld_lv
         import math as _math   # 局部导入（本文件既有风格：函数内按需 import）
@@ -813,10 +828,40 @@ class GameStateEconMixin:
             coffer = max(0, _i(p.get("local_treasury")))
             cap = int(coffer * LOCAL_EXP_CAP_SHARE)
             plan = min(due, cap)
+            due_active = sum((admin, security, waterworks)[i] for i, k in
+                             enumerate(("admin", "security", "waterworks"))
+                             if k in LOCAL_EXP_ACTIVE_KINDS)
+            plan_active = min(due_active, cap)
+            # M34-①（裁决：官员要能**有效使用**府库资金）：有效使用率 = 1 − 把持/欠俸/侵渔
+            _grip = float((p.get("clerks_detail") or {}).get("grip", 0.0) or 0.0) \
+                if isinstance(p.get("clerks_detail"), dict) else 0.0
+            try:
+                _pay = float(self.calc_pay_ratio(name))
+            except Exception:            # noqa: BLE001 — 读数不得因单路坏值整体失败
+                _pay = 1.0
+            _div = float(self.finance_split(name)[2])
+            efficacy = 1.0 - (LOCAL_EXP_EFFICACY_GRIP_W * min(1.0, max(0.0, _grip))
+                              + LOCAL_EXP_EFFICACY_PAY_W * min(1.0, max(0.0, 1.0 - _pay))
+                              + min(1.0, max(0.0, _div)))
+            efficacy = round(min(1.0, max(LOCAL_EXP_EFFICACY_MIN, efficacy)), 4)
+            # 保障倍数（玩家接口·集权可下调）：责任科目 × 倍数 × 有效使用率 = **现实应支**
+            _mult = min(LOCAL_EXP_MULT_MAX, max(LOCAL_EXP_MULT_MIN, float(
+                (self.finance or {}).get("local_expense_mult", LOCAL_EXP_MULT_BASE))))
+            due_eff = int(due_active * _mult * efficacy)
+            plan_eff = min(due_eff, cap)
             by_route[name] = {
                 "coffer": coffer, "admin": admin, "security": security,
                 "waterworks": waterworks, "granary": granary, "relief": relief,
                 "due": due, "cap": cap, "plan": plan, "shortfall": due - plan,
+                # M34-① 批次 1（财政顺序）：**责任科目**应支/计划（真扣款只用这组）
+                "due_active": due_active, "plan_active": plan_active,
+                "shortfall_active": due_active - plan_active,
+                # 官员有效使用：grip/实付率/侵渔 → 有效使用率 → 现实应支/计划
+                "grip": round(min(1.0, max(0.0, _grip)), 4),
+                "pay_ratio": round(min(1.0, max(0.0, _pay)), 4),
+                "efficacy": efficacy,
+                "due_eff": due_eff, "plan_eff": plan_eff,
+                "shortfall_eff": due_eff - plan_eff,
             }
             tot["admin"] += admin
             tot["security"] += security
@@ -825,13 +870,29 @@ class GameStateEconMixin:
             tot["relief"] += relief
         total_due = sum(tot.values())
         total_plan = sum(r["plan"] for r in by_route.values())
+        total_due_active = sum(r["due_active"] for r in by_route.values())
+        total_plan_active = sum(r["plan_active"] for r in by_route.values())
+        total_due_eff = sum(r["due_eff"] for r in by_route.values())
+        total_plan_eff = sum(r["plan_eff"] for r in by_route.values())
+        _mult_all = min(LOCAL_EXP_MULT_MAX, max(LOCAL_EXP_MULT_MIN, float(
+            (self.finance or {}).get("local_expense_mult", LOCAL_EXP_MULT_BASE))))
         return {
             "cap_share": LOCAL_EXP_CAP_SHARE,
+            "active_kinds": tuple(LOCAL_EXP_ACTIVE_KINDS),
+            "expense_mult": _mult_all,
             "disaster": {"severity": _sev, "region": _region},
             "by_kind": dict(tot),
             "total_due": total_due,
             "total_plan": total_plan,
             "total_shortfall": total_due - total_plan,
+            # 责任科目口径（批次 1 真扣款用；粮仓/救灾仍为预报）
+            "total_due_active": total_due_active,
+            "total_plan_active": total_plan_active,
+            "total_shortfall_active": total_due_active - total_plan_active,
+            # 现实口径（× 保障倍数 × 官员有效使用率）＝批次 1 实际划出/支付的口径
+            "total_due_eff": total_due_eff,
+            "total_plan_eff": total_plan_eff,
+            "total_shortfall_eff": total_due_eff - total_plan_eff,
             "by_route": by_route,
         }
 

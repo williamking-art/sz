@@ -113,6 +113,35 @@ LOCAL_EXP_WATERWORKS_RATE = 0.005     # ③ 水利/营造：地方水利资产�
 LOCAL_EXP_GRANARY_PER_STONE = 0.002   # ④ 粮仓：常平库存（石）× 此值（贯/石·月，仓廪维护）
 LOCAL_EXP_RELIEF_PER_CAPITA = 0.0005  # ⑤ 救灾：灾路每人 × 严重度（1–5，贯/人·月）；仅灾月
 LOCAL_EXP_CAP_SHARE = 0.5             # 预算封顶（D4）：单月计划支出 ≤ 本路府库 × 此值
+# 地方财政**责任科目**（裁决 2026-10-11：地方先养活行政 → 剩余上供中央）：
+#   「官吏/胥役」（admin）＋「治安」（security）＋「水利」（waterworks）三项＝**地方经费池**责任，
+#   由**中央解送额优先划出**（见 `_settle_land_tax_color` 扣除层）；
+#   粮仓（granary）与救灾（relief）本轮**只读预报**，接线留批次 2（须同步从国库
+#   `_settle_upkeep`/赈济侧减支，避免双重支付）。
+LOCAL_EXP_ACTIVE_KINDS = ("admin", "security", "waterworks")
+# 地方经费保障倍数（`state.finance["local_expense_mult"]`）：开局 1.0 ＝ **史实口径**
+# （地方先养活行政 → 剩余上供中央）。玩家集权经 `finance_rates` 诏令效果下调（0.0 = 责任全收中央），
+# 分权上调（上限防"地方坐大"）。
+LOCAL_EXP_MULT_BASE = 1.0
+LOCAL_EXP_MULT_MIN = 0.0
+LOCAL_EXP_MULT_MAX = 1.5
+# **有效使用率**（裁决 2026-10-11：地方政府/官员要能**有效使用**府库资金——支用不得是纯公式自动烧钱）：
+#   有效使用率 efficacy = clamp(1 − grip_w × 吏胥把持度 − pay_w × (1 − 官俸实付率) − 侵渔率, MIN, 1)
+#   口径挂**既有派生量**：`clerks_detail[路]["grip"]`（贪墨/蒙蔽）、`calc_pay_ratio(路)`（俸禄不济）、
+#   `finance_split` 的 div（侵渔份额）。⇒ 吏治/厚禄/监察改革会**把府库的钱用得更有效**（同一笔钱效果更大）。
+LOCAL_EXP_EFFICACY_GRIP_W = 0.5     # 把持度权重（负）
+LOCAL_EXP_EFFICACY_PAY_W = 0.3      # 欠俸权重（负）
+LOCAL_EXP_EFFICACY_MIN = 0.3        # 有效使用率下限（治理崩坏也不至于 0，尚有惯性）
+# 治安支用的**效果**（批 1 初值·待校准）：每 N 贯实付压 1 点动乱（"钱花出去，盗贼少了"）
+LOCAL_EXP_SECURITY_UNREST_PER_POINT = 1000
+# **地方承担维护的资产**（批 1：水利）——`_settle_upkeep` 折算资产时排除，
+# 由地方经费的水利腿按同一折算式与费率支付（防双重支付）。
+LOCAL_EXP_LOCAL_MAINTAINED = ("水利",)
+# **中央抵减口径**（回答"地方花钱为何扣国库"）：0.0＝地方经费是**正俸之外的贴补**
+# （国库支出不变，官吏/兵卒**多收一份**）；1.0＝**责任转移**（地方代付多少，国库就少付多少，
+# 中央不吃亏也不占便宜）。史实介于两者之间（州县官俸有中央拨给，公使钱/职田则属地方自筹）
+# ⇒ 开局取 1.0 保证中央财政中性；玩家集权时下调（中央只管发钱、地方贴补自筹）。
+LOCAL_EXP_REIMB_SHARE = 1.0
 
 # P3 发现系统（V1.3 终稿 §7）：勾校保真度三档（C3 参数·小权重起步）
 FIN_AUDIT_BASE = 0.35            # 保真度基线

@@ -114,11 +114,17 @@ def _settle_upkeep(state, log):
         return float(std["base_cost"]) * (BUILDING_COST_GROWTH ** (max(1, int(lv)) - 1))
 
     asset_value = 0.0
+    # 0) M34-①（财政顺序）：**水利**资产维护改由**地方经费**承担
+    #    （`_settle_local_expenditure` 的水利腿，同一折算式与费率）⇒ 此处排除，防双重支付。
+    from content.data import LOCAL_EXP_LOCAL_MAINTAINED
     # 1) 政府工程（projects）：类型命中 BUILDING_STD 时按等级造价
     for _pj in (getattr(state, "projects", {}) or {}).values():
         if not isinstance(_pj, dict):
             continue
-        _std = BUILDING_STD.get(str(_pj.get("name") or _pj.get("type") or ""))
+        _name = str(_pj.get("name") or _pj.get("type") or "")
+        if _name in LOCAL_EXP_LOCAL_MAINTAINED:
+            continue
+        _std = BUILDING_STD.get(_name)
         if _std:
             asset_value += _lv_cost(_std, _pj.get("level", 1))
     # 2) POP 建筑（按路）：命中 BUILDING_STD 用其 base_cost，否则用 POP_BUILDING_VALUE
@@ -127,6 +133,8 @@ def _settle_upkeep(state, log):
     from core.building_jobs import building_level as _bld_lv
     for _p in state.prefectures.values():
         for _bt, _lv in ((_p.get("buildings") or {})).items():
+            if str(_bt) in LOCAL_EXP_LOCAL_MAINTAINED:
+                continue                     # 地方承担维护（M34-①）
             _std = BUILDING_STD.get(str(_bt))
             _level = _bld_lv(_lv, 1)
             if _std:

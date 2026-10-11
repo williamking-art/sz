@@ -627,6 +627,7 @@ def _settle_land_tax_color(state, log) -> dict:
                     paid_by_route[_rk] += _paid
     central = local_total = div_total = 0
     local_by_route, div_by_route = {}, {}
+    central_by_route = {}
     for _rk, _paid in paid_by_route.items():
         if _paid <= 0:
             continue
@@ -651,6 +652,36 @@ def _settle_land_tax_color(state, log) -> dict:
                 _c += _dv
                 log.append(f"[田赋] {_rk} 侵渔无接收池（官僚 POP 缺失），该路侵渔份额转归中央")
         central += _c
+        central_by_route[_rk] = central_by_route.get(_rk, 0) + _c
+    # ---- M34-①（裁决 2026-10-11 · **财政顺序改造**）：地方必要支出**优先层** ----
+    # 宋代口径是「**地方先养活行政/治安/水利** → 剩余上供中央」，不是「中央先拿走大头」。
+    # 故：本路责任科目的**现实应支**（`calc_local_expenditure().by_route[路]["due_eff"]`，
+    # 已含玩家保障倍数与官员有效使用率）从**中央解送额**中**优先划出**给本路府库；
+    # 上限＝中央本应得（不透支、守恒不破：central+local+div ≡ collected 仍成立）。
+    # 国库因此**少收，但同额少付**（见 `_settle_finance` 人员腿抵减 / `_settle_upkeep` 水利排除）。
+    _required_landed = 0
+    required_by_route = {}
+    if state.prefectures:
+        try:
+            _req = state.calc_local_expenditure()["by_route"]
+        except Exception as _e:                     # noqa: BLE001 — 读数失败不得阻断结账
+            _req = {}
+            log.append(f"[地方经费] 必要支出扣除层读数失败（{type(_e).__name__}），本轮不扣除")
+        for _rk in list(central_by_route):
+            _need = int((_req.get(_rk) or {}).get("due_eff", 0))
+            _move = min(_need, central_by_route[_rk])
+            if _move <= 0:
+                continue
+            _pd = state.prefectures.get(_rk)
+            if not isinstance(_pd, dict):
+                continue
+            _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _move
+            central_by_route[_rk] -= _move
+            central -= _move
+            local_total += _move
+            local_by_route[_rk] = local_by_route.get(_rk, 0) + _move
+            _required_landed += _move
+            required_by_route[_rk] = required_by_route.get(_rk, 0) + _move
     _st = state.statistics
     _collected = sum(paid_by_route.values())
     _st["land_tax_assessed"] = int(_st.get("land_tax_assessed", 0) or 0) + assessed
@@ -658,19 +689,122 @@ def _settle_land_tax_color(state, log) -> dict:
     _st["land_tax_central"] = int(_st.get("land_tax_central", 0) or 0) + central
     _st["land_tax_local"] = int(_st.get("land_tax_local", 0) or 0) + local_total
     _st["land_tax_diverted"] = int(_st.get("land_tax_diverted", 0) or 0) + div_total
+    # M34-①（财政顺序）：地方必要支出**优先层**划出额（含在 `land_tax_local` 内，单列留痕）
+    _st["land_tax_required"] = int(_st.get("land_tax_required", 0) or 0) + _required_landed
     # M34-④：**本月**结账快照（供面板/比率读数；累计值另见 land_tax_*）
     _st["land_tax_last"] = {
         "turn": int(getattr(state, "turn", 0) or 0),
         "assessed": assessed, "collected": _collected,
         "central": central, "local": local_total, "diverted": div_total,
+        "required": _required_landed,
     }
     log.append(f"[田赋] 折色应征 {assessed:,}贯 → 实收 {_collected:,}贯；三分："
                f"上供 {central:,}／留州 {local_total:,}／侵渔 {div_total:,}"
+               + (f"；其中地方必要支出优先划出 {_required_landed:,}贯" if _required_landed else "")
                + (f"（豁免/欠税 {assessed - _collected:,}）" if _collected < assessed else ""))
     return {"assessed": assessed, "collected": _collected, "central": central,
             "local": local_total, "diverted": div_total,
+            "required_landed": _required_landed,
+            "required_by_route": required_by_route,
             "by_route": paid_by_route, "local_by_route": local_by_route,
             "div_by_route": div_by_route}
+
+
+def _settle_local_expenditure(state, log) -> dict:
+    """州郡府库支用（M34-① 批次 1）：**地方官员有效使用**府库资金。
+
+    依据（用户裁决 2026-10-11）：① 财政顺序＝「地方先养活行政/治安/水利 → 剩余上供中央」
+    （资金来自 `_settle_land_tax_color` 的**必要支出优先层**）；② 地方政府/官员要能
+    **有效使用**府库资金——支用不是纯公式烧钱，而受该路**治理状况**调节：
+    有效使用率 `efficacy = 1 − 把持度×w₁ − 欠俸×w₂ − 侵渔`（见 `calc_local_expenditure`）。
+
+    流程（逐路）：现实应支 `due_eff`（＝责任应支 × 玩家保障倍数 × 有效使用率）→ 计划
+    `plan_eff = min(due_eff, 府库×cap)` → 按科目比例**逐笔 `transfer_money` 划给本路民间 POP**
+    （行政→官僚；治安→兵；水利→工匠 40%＋商人 60%）→ 未付部分记
+    `statistics["local_arrears"]`（与 `upkeep_arrears`/欠饷/欠税同构）。
+
+    效果：治安实付按 `LOCAL_EXP_SECURITY_UNREST_PER_POINT` 压该路 `unrest`（"钱花出去，盗贼少了"）。
+
+    守恒（POP 挂载律 ⑤）：府库减额 ≡ 民间 POP 增额（`transfer_money` 单点划转，ΣΔ==0）。
+    **不并入**国库 `total_out`（不同主体）；国库**同额少付**见 `_settle_finance` 人员腿抵减
+    与 `_settle_upkeep` 的水利资产排除（防双重支付）。
+    """
+    from content.data import (LOCAL_EXP_REIMB_SHARE,
+                              LOCAL_EXP_SECURITY_UNREST_PER_POINT)
+    kinds = ("admin", "security", "waterworks")
+    _payout = {"admin": (("官僚", 1.0),),
+               "security": (("兵", 1.0),),
+               "waterworks": (("工匠", 0.4), ("商人", 0.6))}
+    empty = {"paid": 0, "by_kind": {k: 0 for k in kinds}, "arrears": 0,
+             "papered": 0, "personnel_reimb": 0, "by_route": {}}
+    try:
+        plan = state.calc_local_expenditure()
+    except Exception as _e:                        # noqa: BLE001 — 读数失败不得阻断结账
+        log.append(f"[地方经费] 支用读数失败（{type(_e).__name__}），本月不支用")
+        return empty
+    paid_by_kind = {k: 0 for k in kinds}
+    papered = 0                                     # 一体发钞下并入交子口径的人员腿
+    personnel_reimb = 0
+    arrears = 0
+    by_route = {}
+    _paper_pay = getattr(state, "pay_system", {}).get("mode") == "一体发钞"
+    for name, row in plan["by_route"].items():
+        target = int(row.get("plan_eff", 0))
+        base = {k: int(row.get(k, 0)) for k in kinds}
+        tot_base = sum(base.values())
+        if target <= 0 or tot_base <= 0:
+            continue
+        alloc = {k: int(target * base[k] / tot_base) for k in kinds}
+        alloc[max(base, key=lambda k: base[k])] += target - sum(alloc.values())
+        route_paid = 0
+        for k in kinds:
+            amt = alloc[k]
+            if amt <= 0:
+                continue
+            # 一体发钞（交子）：人员腿（行政/治安）随俸禄同口径——**不动府库铜钱**
+            # （否则同月既发交子又发现钱＝双发造币，见 `test_paper_pay_no_copper_mint`）；
+            # 非人员腿（水利营造：工匠/商人服务）仍付现钱。
+            if _paper_pay and k in ("admin", "security"):
+                papered += amt
+                paid_by_kind[k] += amt
+                route_paid += amt
+                continue
+            shares = _payout[k]
+            given = 0
+            for _i, (_cls, _w) in enumerate(shares):
+                part = amt - given if _i == len(shares) - 1 else int(amt * _w)
+                if part <= 0:
+                    continue
+                given += state.transfer_money(f"local:{name}", f"pop:{name}:{_cls}", part)
+            if given <= 0:
+                continue
+            paid_by_kind[k] += given
+            route_paid += given
+            if k in ("admin", "security"):
+                personnel_reimb += given
+            if k == "security":
+                _p = state.prefectures.get(name)
+                if isinstance(_p, dict):
+                    _drop = given / float(LOCAL_EXP_SECURITY_UNREST_PER_POINT)
+                    _p["unrest"] = max(0.0, round(float(_p.get("unrest", 0) or 0) - _drop, 2))
+        short = target - route_paid
+        arrears += short
+        by_route[name] = {"target": target, "paid": route_paid, "arrears": short}
+    # 中央抵减口径（裁决 2026-10-11）：1.0＝责任转移（国库同额少付）／0.0＝正俸之外的地方贴补
+    personnel_reimb = int(personnel_reimb * min(1.0, max(0.0, float(LOCAL_EXP_REIMB_SHARE))))
+    if arrears > 0:
+        state.statistics["local_arrears"] = \
+            int(state.statistics.get("local_arrears", 0) or 0) + arrears
+    paid_total = sum(paid_by_kind.values())
+    if paid_total > 0:
+        state.statistics["local_expense_paid"] = \
+            int(state.statistics.get("local_expense_paid", 0) or 0) + paid_total
+    log.append(f"[地方经费] 支用 {paid_total:,}贯（行政 {paid_by_kind['admin']:,}／治安 "
+               f"{paid_by_kind['security']:,}／水利 {paid_by_kind['waterworks']:,}）"
+               + (f"；交子口径 {papered:,}贯" if papered else "")
+               + (f"；欠支 {arrears:,}贯（府库不足）" if arrears else ""))
+    return {"paid": paid_total, "by_kind": paid_by_kind, "arrears": arrears,
+            "papered": papered, "personnel_reimb": personnel_reimb, "by_route": by_route}
 
 
 def _settle_finance(state, log):
@@ -763,6 +897,12 @@ def _settle_finance(state, log):
                 if _pop_obj_add(state, _pop, "欠税", -_recover) is None:
                     _pop["欠税"] = _pop.get("欠税", 0) - _recover
                 actual_tax += _recover
+
+    # ---- M34-① 批次 1：州郡府库支用（财政顺序改造的**支出腿**；地方官员有效使用）----
+    # 必须早于俸禄发放：地方已代付的官俸/兵饷份额需在下文**同额抵减**国库支出（防双重支付）。
+    _local_exp = _settle_local_expenditure(state, log)
+    _local_reimb = (0 if state.pay_system.get("mode") == "一体发钞"
+                    else int(_local_exp.get("personnel_reimb", 0) or 0))
 
     wr = getattr(state, "waste_reform", None) or {}
     if wr.get("active"):
@@ -920,10 +1060,15 @@ def _settle_finance(state, log):
     # 现先算支付能力，按比例实付，短付部分记「欠饷/欠俸」科目（与既有「欠税」科目对称）。
     # 语义：宁可欠着（欠饷 → 军心/官僚怨望的后继机制），也绝不凭空造币。
     _civil_back = max(0, expenditure)
-    _credits_due = (0 if _paper_pay else personnel_cash) + _civil_back + int(corruption_cash_ded)
+    # M34-① 批次 1：地方已代付的官俸/兵饷份额 → **国库同额少付**（不同主体、不双计；
+    # 省下的钱留在国库，正是"地方先养活行政"对中央的减负）。
+    _credits_due = max(0, (0 if _paper_pay else personnel_cash) + _civil_back
+                       + int(corruption_cash_ded) - _local_reimb)
     _cash_available = max(0, int(state.treasury) + int(actual_tax) - int(sui_gong))
     _pay_scale = 1.0 if _credits_due <= 0 else min(1.0, _cash_available / float(_credits_due))
     _paid_personnel = int((0 if _paper_pay else personnel_cash) * _pay_scale)
+    # M34-① 抵减：地方已代付的官俸/兵饷份额（防双重支付）
+    _paid_personnel = max(0, _paid_personnel - _local_reimb)
     _paid_civil = int(_civil_back * _pay_scale)
     _paid_corruption = int(int(corruption_cash_ded) * _pay_scale)
     _arrears = _credits_due - (_paid_personnel + _paid_civil + _paid_corruption)
