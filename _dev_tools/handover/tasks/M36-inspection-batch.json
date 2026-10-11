@@ -1,18 +1,18 @@
 {
  "id": "M36-inspection-batch",
- "title": "M36《巡按大批次》：监察＝行动者（编制/生命周期/风险反馈/审理链对接）",
+ "title": "M36《察访与监司行动》：监察＝行动者（编制/生命周期/风险反馈/审理链对接）",
  "claimedBy": "Cline",
  "claimedAt": "2026-10-11T07:00:00Z",
  "status": "in_progress",
- "verdict": "架构定位（用户裁定 2026-10-11）：M36＝**监察世界接口层**，不是规则化巡按系统。流程固定为「系统提供事实 → AI 读取约束 → AI 提出政治行动 → 系统校验合法性 → 执行并产生反馈」；**禁止**自动派遣算法／固定触发条件／自动监察策略／自动成案。D1–D8 已裁（见台账 §15.2）：D1 固定可派池＝既有官员池 `waiting+sinecure`（不用动态 %）／D2 固定上限 3·5·8（不绑财政）／D3 窗口 普通2·复杂3·密查4／D4 密查成本＝甲（时间＋失败代价）／D5 首批 查粮·查赋·查吏治／D6 民心弱反馈（观察量）／D7 戒备复用 P3-4／D8 派系倾斜延后。",
- "scope": "① ✅ **M36-1 已落地**（commit d2d73453dd）：`core/inspection.py`（候选池/容量/合法性/月度迁移/只读读数）＋常量＋`state.inspection_tasks`／`inspection_agent_state`＋存档迁移＋结算**仅**接线 `inspection_tick`。② ✅ **M36-2 已落地**（commit aaee0f2038）：生命周期 `created → active → completed ／ expired`＋**回奏容器** `file_inspection_report`（只记录回奏与**已存在**案卷引用，引擎绝不建案；超期回奏 `late=True`）＋名额占用口径（created/active 同占、completed/expired 释放）＋档位别名（small/normal/strong，**仍须调用方显式传**）。③ ✅ **M36-3 已落地**（commit a1181b89ba）：**反馈观察层**——`state.inspection_feedback`（exposure／local_caution／official_pressure／rumor_change ＋ by_route ＋ 有界 recent）由生命周期事件驱动（出发/超期/回奏，密查超期反弹更明显、迟回记暴露）；`inspection_feedback_readout()` 只读出口 `finance_readout()[\"inspection_feedback\"]`，`context` 复用 `grip`／`rumor_tier`／P3-4 backlash；**无成功率/概率/阻力/固定加时**（源码测试钉住）。④ ⏳ **M36-4 后置**：对接审理链（任务产出的证据/案卷引用与 `resolve_audit`＋`financial_evidence` 单点衔接）。",
+ "verdict": "架构定位（用户裁定 2026-10-11）：M36＝**监察世界接口层**，不是规则化察访系统。流程固定为「系统提供事实 → 决策方（玩家／外部 AI；引擎内无中央政务 AI）读取约束 → 决策方提出政治行动 → 系统校验合法性 → 执行并产生反馈」；**禁止**自动派遣算法／固定触发条件／自动监察策略／自动成案。D1–D8 已裁（见台账 §15.2）：D1 固定可派池＝既有官员池 `waiting+sinecure`（不用动态 %）／D2 固定上限 3·5·8（不绑财政）／D3 窗口 普通2·复杂3·密查4／D4 密查成本＝甲（时间＋失败代价）／D5 首批 查粮·查赋·查吏治／D6 民心弱反馈（观察量）／D7 戒备复用 P3-4／D8 派系倾斜延后。",
+ "scope": "① ✅ **M36-1 已落地**（commit d2d73453dd）：`core/inspection.py`（候选池/容量/合法性/月度迁移/只读读数）＋常量＋`state.inspection_tasks`／`inspection_agent_state`＋存档迁移＋结算**仅**接线 `inspection_tick`。② ✅ **M36-2 已落地**（commit aaee0f2038）：生命周期 `created → active → completed ／ expired`＋**奏报容器** `file_inspection_report`（只记录奏报与**已存在**案卷引用，引擎绝不建案；超期回奏 `late=True`）＋名额占用口径（created/active 同占、completed/expired 释放）＋档位别名（small/normal/strong，**仍须调用方显式传**）。③ ✅ **M36-3 已落地**（commit a1181b89ba）：**反馈观察层**——`state.inspection_feedback`（exposure／local_caution／official_pressure／rumor_change ＋ by_route ＋ 有界 recent）由生命周期事件驱动（出发/超期/奏报，密查超期反弹更明显、迟回记暴露）；`inspection_feedback_readout()` 只读出口 `finance_readout()[\"inspection_feedback\"]`，`context` 复用 `grip`／`rumor_tier`／P3-4 backlash；**无成功率/概率/阻力/固定加时**（源码测试钉住）。④ ⏳ **M36-4 后置**：对接审理链（任务产出的证据/案卷引用与 `resolve_audit`＋`financial_evidence` 单点衔接）。",
  "prereq": [
   "M36-3 开工前需明确：密查失败代价的具体口径（时间已体现在窗口 4 月，代价如何表达而不写财政）",
   "任何后续批次**不得**改：POP／occupation／`settlement_common`／money／finance／tax／grain；不得自动处罚/定罪/抄没/降级",
   "验收口径统一：pytest 最终状态 ＋ `--junitxml` ＋ `FINISHED=1`（本机终端收尾统计行偶被截断，勿读未结束日志）"
  ],
  "risk": "🟡 低-中：监察本体零财政耦合、纯增量；风险在于 M36-3 若引入反馈量，需严防间接写财政/POP，并复跑校准门",
- "next": "**M36-4 设计裁决已出，等待裁定（未编码）**：见 [`specs/economy/M36-4_证据形成机制_设计裁决台账.md`](../../game-docs/specs/economy/M36-4_证据形成机制_设计裁决台账.md)。待裁三项已登记 `decisions/`：**D9 巡按发现**（推荐 B：可提涉嫌事项、进既有发现链二级「怀疑」、**不成案**；落地形态推荐 B-2 零接口改动）／**D10 取证触发者**（推荐甲：AI 决定 → `resolve_audit` 单点执行；冻结 `audit_fidelity` 四输入）／**D11 证据权限**（维持现状 viewer 矩阵；**不因巡按全开放**、回奏≠开卷）。裁后若取推荐组合，M36-4 落地面＝**零代码**（仅补 6 项契约测试＋文档）。接口现状：`inspection_readout()`／`inspection_feedback_readout()`／`inspection_capacity(tier=…)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`；审计链单点：`audit_case.resolve_audit`（唯一致案）／`financial_evidence`（唯一证据读数）／`record_suspicion`（怀疑唯一写入点）。",
- "related": "specs/economy/M36_巡按大批次_设计台账.md（§15 M36-1、§16 M36-2 落地记录）｜specs/economy/P3_监察巡按接口_设计台账.md｜tasks/M34-finance-followups.json（done）",
+ "next": "**M36-4 设计裁决已出，等待裁定（未编码）**：见 [`specs/economy/M36-4_证据形成机制_设计裁决台账.md`](../../game-docs/specs/economy/M36-4_证据形成机制_设计裁决台账.md)。待裁三项已登记 `decisions/`：**D9 察访发现**（推荐 B：可提涉嫌事项、进既有发现链二级「怀疑」、**不成案**；落地形态推荐 B-2 零接口改动）／**D10 取证触发者**（推荐甲：决策方决定 → `resolve_audit` 单点执行；冻结 `audit_fidelity` 四输入）／**D11 证据权限**（维持现状 viewer 矩阵；**不因察访全开放**、奏报≠开卷）。裁后若取推荐组合，M36-4 落地面＝**零代码**（仅补 6 项契约测试＋文档）。接口现状：`inspection_readout()`／`inspection_feedback_readout()`／`inspection_capacity(tier=…)`／`inspection_task_list()`／`enqueue_inspection()`／`inspection_tick()`／`file_inspection_report()`；审计链单点：`audit_case.resolve_audit`（唯一致案）／`financial_evidence`（唯一证据读数）／`record_suspicion`（怀疑唯一写入点）。",
+ "related": "specs/economy/M36_察访与监司行动_设计台账.md（§15 M36-1、§16 M36-2 落地记录）｜specs/economy/P3_监察巡按接口_设计台账.md｜tasks/M34-finance-followups.json（done）",
  "commit": "a1181b89ba"
 }
