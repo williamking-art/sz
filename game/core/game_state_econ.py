@@ -462,10 +462,12 @@ class GameStateEconMixin:
         # 「隐漏与拖欠」输出 → 出现**负的隐漏**，自相矛盾（漏出不可能为负）。
         # 修法：**不动**任何机制常量、**不改** `nominal_annual` 的取值口径与字段语义，
         # 只在此处补**同口径分母**与比率读数，前端直读（单点口径，杜绝算法复制）。
-        # 应征额反推：`calc_monthly_tax_income`（二税折色）与 `calc_salt_coin`（盐课）
-        # 的月额**已乘 arrival**，故 ÷ arrival × 12 即回年度应征额；arrival 可能为 0 或
+        # 应征额反推（**仅盐课仍适用**）：`calc_salt_coin`（盐课）的月额**已乘 arrival**，
+        # 故 ÷ arrival × 12 即回年度应征额；arrival 可能为 0 或
         # 缺失（损坏存档）→ 用 max(arrival, ARRIVAL_MIN) 兜底，并保证结果为有限值：
         # 科目为 0 时该项为 0（不做无意义反推）。
+        # M34-④ 注：二税折色**不再走此反推**——自 P1 起其月额已是新模型**应征**
+        #   （全额税基×征收率，无 arrival 折扣），见下方 `tax_color_annual`。
         import math as _math   # 局部导入（本文件既有风格：函数内按需 import）
         try:
             _arr = float(arrival)
@@ -488,7 +490,9 @@ class GameStateEconMixin:
         # **禁止**回落 0 或 1.0 假装无事（1.0 会让"到账完美"成为默认）。
         # 口径纪律：**分子与分母必须同科目**，否则又回到本次要修的"跨口径比值"。
         #   arrival_ratio_taxed ＝ 三税应征 ÷ 三税账面月额（分子分母都是三税）
-        #   arrival_ratio_full  ＝ 五项应征 ÷ 五项应征月额（分子分母都是五项）
+        #   arrival_ratio_full  ＝ 五项（四实收＋二税折色**应征**）÷ 五项应征月额（同科目）
+        #     M34-④ 注：二税折色分子按**应征**计入（月度实收须待月结）⇒ 该比值是"到账率"的
+        #     近似**上界**，精确到账见 `land_tax_last`／`land_tax_cum`；已在 scope 串明写诊断口径。
         # 注：任务书初稿把 arrival_ratio_taxed 写成 `monthly_in / (nominal_annual/12)`
         #   （＝五科目÷三税，开局 128.2%），那正是本次要修的跨口径比值本身，与
         #   tooltip 要求的"成立等式（≈64.6%）"矛盾；故此处按**同口径**实现，跨口径旧值
