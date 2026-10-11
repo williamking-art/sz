@@ -11,6 +11,6 @@
   "① 开工前先出小台账（口径/守恒/读写点），复跑财政校准门（同种子 ≥12 月五项；探针 `_dev_tools/_scratch/m34_gate_probe.py` 可复用）"
  ],
  "risk": "🟡 低-中：① 涉及钱账口径与平衡（须复跑校准门）；② 涉及 ai 层 prompt 与 UI",
- "next": "**M35 已开工并落地第一批**（《官僚身份经济层与欠给身份化》· [`specs/economy/M35_官僚身份经济层_开工门台账.md`](../../game-docs/specs/economy/M35_官僚身份经济层_开工门台账.md)）：M35-A 官僚子池**经济记账层**（`officials_wealth`/`clerks_wealth`，封顶 ≤ 整池、不改人口真账/粮耗）／M35-B **欠给身份化**（`local_arrears_by_identity`：官欠俸／吏欠钱／衙役欠钱／士卒欠饷接口留白）／M35-C **职业映射**（official/clerk/soldier/militia/runner，不改军费，runner 走 `prefectures[路].runners` 留白）／M35-D **财政可见度三层**（real 真账／official 官府账＋P2 损耗掩护／rumor 风闻）。8 新测试＋132 相关回归全绿；**校准门逐位不变**（纯记账/只读）。**下一步**：M35-C 收口（衙役真账载体小台账 → `runner_pay` 脱离兵桶）／M35-A 深化（记账额接消费流）／M35-D 档位化；P3/P4 待办＝贪腐收入拆分＋欠给补发（照 `_settle_arrears_repayment`）＋欠支后果事件化。",
+ "next": "**M35-C《衙役身份载体设计台账》已出（设计阶段，未改代码）**：[`specs/economy/M35-C_衙役身份载体设计台账.md`](../../game-docs/specs/economy/M35-C_衙役身份载体设计台账.md)。结论：`runner_pay` 挂兵桶**技术上不可行**（兵 size 每月由 `army_units.troops` 重算会抹掉；官僚桶 `size==officials+clerks` 被测试钉住；农桶有 farm slices 不变量）⇒ 走 **occupation 并列计数**（逐路 `runner_count` + 人口 Σ 显式并入）＋**粮耗归挂靠桶**（不新增粮桶）＋**钱落挂靠桶 `occupation_income`**（推荐挂 `官僚`，与吏禄同池）＋ `runners_pay_arrears` 兵→官僚**幂等迁池**。**待裁 D1–D4**：Q1 人口（甲计入·推荐／乙不计入）／Q2 粮耗（甲计粮·推荐／乙视作行政成本）／Q3 挂靠桶（官僚·推荐／农／兵）／落代码批次（一次到位含人口粮耗口径／分两步）。**风险**：人2/3 触及人口与粮耗口径 ⇒ 校准门**预期不再逐位不变**（人口+Σ役人、粮需+役人口粮），须记录前后值并在门限内。→ 裁后落代码。",
  "related": "specs/economy/宋代财政流向_上供留州与贪吏做账系统设计终稿_V1.3.md（§13 落地记录·遗留行）｜specs/economy/地方支出V2_开工门台账.md（M34-① 开工门）｜specs/economy/读数口径统一_开工门台账.md（M34-④ 已落地）｜tasks/M33-local-treasury-sink.json（done）"
 }
