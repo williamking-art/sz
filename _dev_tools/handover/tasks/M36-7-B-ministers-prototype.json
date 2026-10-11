@@ -12,7 +12,7 @@
   "继续冻结：D11 权限／唯一桥接／唯一成案入口／财政隔离／人格与权限分离／反馈与行动分离"
  ],
  "risk": "🟢 低：只加「校验＋提示词可选段」，无新容器/API/属性/执行器；已由 12 项契约测试与 2665 项全量回归覆盖",
- "next": "B 已实现并本地验收：**tests 2665 / failed 0 / errors 0 / skipped 2**；受影响既有测试 48/48；校准门逐位一致 99806/101108584/55/1.220904/9833490；12 项原型测试全绿（范围/结构/独立性/引用白名单/禁无依据数值/禁属性写入/executable 语义/质询边界/零持久化/unknown/三处同步/失败回退）。**待你复核后进 C**。另记录数据实况：minister_status() 对不在册名字与 in_office=False 者亦返回 active ⇒ 原型以 MINISTERS 成员＋in_office 判在朝，缺则 unknown。",
+ "next": "**B+ 通用性验收已落地**（用户修正裁决后）：新增内容层登记表 `content/ministers/registry.py`（domain 枚举 8 类／职责关键词映射／13 标签登记＋统一禁止用途）与只读选人器 `core/ministers_selection.py`（`minister_registry_facts()` 全量无上限；`select_participants(state, issue_domains, max_n)` 资格＝在册＋in_office=True、缺则 unknown；domain 命中优先→中枢规则化补足→不足即不足）；**机制代码零人名**（源码守卫）。通用性六项验收 `test_m36_7_b2_generality.py` 7 例全绿（档案规模/资格/缺失属性/差异性可追溯/动态选人三变量/只读隔离＋反硬编码＋登记完整性）。**待你确认后进 C**：把 decision_record 映射进 M36.6-A payload.proposal（执行载荷不变、批红遵守 P1–P3）。",
  "related": "specs/economy/M36-7_AI大臣专业决策模型_总设计裁定台账.md §17–§18｜specs/economy/M36-6_AI大臣决策表达_设计裁决台账.md｜_dev_tools/game-dev/tests/test_m36_7_b_prototype.py",
  "commit": "edaed2fe0c"
 }
