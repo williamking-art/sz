@@ -61,6 +61,26 @@ def _route(s, i=0):
     return list(s.prefectures)[i]
 
 
+def _set_pool(s, route, cls, **fields):
+    """设置某路某 POP 池字段（**真账在 seats**：必须同时写治所并刷新路级镜像）。
+
+    背景（M35-C-1 后的回归修复）：路级 `pops` 只是**派生镜像**；只改镜像会在下一次
+    镜像刷新/聚合时被 seats 真账覆盖（`famine_attribution` 等读数读 seats ⇒ 数值不一致）。
+    """
+    from core.foundation.ledger.pop_bridge import sync_route_pops
+    p = s.prefectures[route]
+    seats = p.get("seats") or {}
+    for seat in seats.values():
+        pool = (seat.get("pops") or {}).get(cls)
+        if isinstance(pool, dict):
+            pool.update({k: v for k, v in fields.items()})
+    pool = (p.get("pops") or {}).get(cls)
+    if isinstance(pool, dict):
+        pool.update({k: v for k, v in fields.items()})
+    if seats:
+        sync_route_pops(p)
+
+
 def _rows(d, route):
     return next(r for r in d["by_route"] if r["route"] == route)
 
@@ -250,8 +270,11 @@ def test_hunger_headcount_matches_single_source_of_truth():
     pops = s.prefectures[r]["pops"]
     s.grain_price = 1.7                      # `famine_attribution` 读的是 state 级粮价
     s.prefectures[r]["grain_price"] = 1.7
-    pops["兵"].update({"size": 500, "wealth": 0, "grain": 0})
-    expect = food_insecure_headcount(pops, 1.7).get("兵", 0)
+    _set_pool(s, r, "兵", size=500, wealth=0, grain=0)   # 真账在 seats（经桥接同步镜像）
+    # 该读数（`famine_attribution`）为**全国**口径 ⇒ 期望值必须同口径逐路求和
+    # （M35-C-1 起兵桶不再收 `runner_pay`，其他路的兵可能出现边际缺粮 ⇒ 单路口径不可比）
+    expect = sum(food_insecure_headcount((p.get("pops") or {}), 1.7).get("兵", 0)
+                 for p in s.prefectures.values())
     ch = consumption_exit_vs_hunger(s, routes=[r])
     assert ch["by_class"]["兵"]["hunger_headcount"] == expect
     assert ch["hunger_evidence"]["grain_price"] == 1.7

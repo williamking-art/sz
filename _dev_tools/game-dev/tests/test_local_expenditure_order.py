@@ -138,9 +138,9 @@ def test_arrears_are_mounted_on_creditor_pops():
     assert sum(ret["arrears_by_kind"].values()) == ret["arrears"]
     stats_kind = s.statistics.get("local_arrears_by_kind") or {}
     assert sum(int(v) for v in stats_kind.values()) == int(s.statistics["local_arrears"])
-    # 治安欠支 → 兵池；行政欠支 → 官僚池（谁是债权人就挂谁）
+    # 役人欠支 → **官僚挂靠桶**（M35-C-1 起；兵侧字段为旧位兼容）；官俸/吏禄 → 官僚池
     if ret["arrears_by_kind"].get("runner_pay"):
-        assert pop_arrears["兵"] > 0
+        assert pop_arrears["官僚"] > 0, "役人欠给挂官僚挂靠桶（M35-C-1）"
     if ret["arrears_by_kind"].get("official_salary") \
             or ret["arrears_by_kind"].get("clerk_pay"):
         assert pop_arrears["官僚"] > 0
