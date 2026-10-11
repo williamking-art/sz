@@ -1329,6 +1329,22 @@ def _org_by_affiliation(state, org_hint: str) -> str:
     return ""
 
 
+def _build_decision_facts_context(state, minister_name: str = "",
+                                  viewer: str = "official") -> str:
+    """M36.6 收口第 1 项：把**大臣决策事实**格式化为提示词事实块（**只读**）。
+
+    事实来源＝`core.ministers_selection.minister_decision_facts`（察访读数/在途任务/反馈观察量/
+    待处理计数/按 viewer 过滤的财政上下文）。**不含**推荐、排序、优先级，也**不**把人格或忠诚
+    折算为能力；**不写状态**。读数不可用 ⇒ 返回空串（不阻断召对/廷议）。
+    """
+    try:
+        from core.ministers_selection import _fmt_decision_facts_block, minister_decision_facts
+        facts = minister_decision_facts(state, minister_name, viewer=viewer)
+        return "\n" + _fmt_decision_facts_block(facts)
+    except Exception:                      # noqa: BLE001 — 事实块失败不得阻断召对/廷议
+        return ""
+
+
 def _build_offer_context(state, minister_name: str) -> str:
     """为召对注入「职权献策」上下文：让在朝大臣可依职权献新制（专家团动态回答）。
 

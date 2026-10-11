@@ -125,6 +125,65 @@ def select_participants(state, issue_domains: Iterable[str] = (), *, max_n: int 
                                "（不含 loyalty/corruption 数值）")}
 
 
+def minister_decision_facts(state, name: str = "", viewer: str = "official") -> Dict[str, Any]:
+    """**大臣决策事实视图**（M36.6 收口第 1 项）：给召对/廷议**只读事实**，供其自行判断。
+
+    提供（皆为事实，含"无/不足"的明确表述）：
+    - 察访读数：`inspection`（容量/在途任务/已奏报未桥接）＋`feedback`（**政治后果观察量**）；
+    - 待处理事项（**计数**）：待批提案数、待签诏草数、在册案卷数；
+    - 财政上下文：**按 `viewer` 过滤**（`official` 只账面；D11 不变）。
+
+    **不提供**：推荐/排序/优先级、人格或忠诚→能力的任何折算、提案处置反馈的叙述（P3 冻结：
+    处置反馈不进提示词——本节只给观察量，不给"上次为何被驳"）。
+    **只读**：不写任何状态、不改权限、不产生执行。
+    """
+    facts: Dict[str, Any] = {"minister": str(name or ""), "viewer": str(viewer or "official")}
+    try:
+        from core.inspection import ai_decision_view, inspection_feedback_readout
+        v = ai_decision_view(state, viewer=viewer)
+        facts["inspection"] = {"capacity": v.get("capacity"),
+                               "tasks": v.get("tasks"),
+                               "suspicion_pending": v.get("suspicion_pending", [])}
+        facts["fiscal_context"] = v.get("fiscal_context", {})
+        fb = inspection_feedback_readout(state) or {}
+        facts["feedback"] = {"observables": fb.get("observables"), "events": fb.get("events")}
+    except Exception:                      # noqa: BLE001 — 读数不可用不阻断
+        facts.setdefault("inspection", {})
+        facts.setdefault("fiscal_context", {})
+        facts.setdefault("feedback", {})
+    facts["pending"] = {
+        "proposals": len([a for a in (getattr(state, "ai_pending_actions", None) or [])
+                          if isinstance(a, dict) and a.get("status") == "pending"]),
+        "drafts": len(getattr(state, "edict_drafts", None) or []),
+        "audit_cases": len(getattr(state, "audit_cases", None) or {}),
+    }
+    facts["note"] = ("只读事实（不含推荐/优先级）；人格、特质、忠诚档位**不折算**为专业能力；"
+                     "不改变权限矩阵；AI 不得据此直接修改世界状态")
+    return facts
+
+
+def _fmt_decision_facts_block(f: Dict[str, Any]) -> str:
+    """把事实视图格式化为**提示词事实块**（只陈述事实，无建议语）。**只读**。"""
+    ins = f.get("inspection") or {}
+    cap = ins.get("capacity") or {}
+    tasks = ins.get("tasks") or {}
+    pend = f.get("pending") or {}
+    fb = (f.get("feedback") or {}).get("observables") or {}
+    fc = f.get("fiscal_context") or {}
+    lines = ["【卿可知之事实（只读；不得据此擅改世界）】",
+             f"　察访编制：可派 {cap.get('free', '未知')}／上限 {cap.get('max_active_tasks', '未知')}"
+             f"（在途 {cap.get('active', 0)}、受理 {cap.get('created', 0)}）",
+             f"　在途差遣：{len(tasks) if isinstance(tasks, (list, dict)) else '未知'} 项；"
+             f"已奏报未入怀疑层：{len(ins.get('suspicion_pending') or [])} 项",
+             f"　监察政治后果观察量：暴露 {fb.get('exposure', '未知')}／地方戒备 "
+             f"{fb.get('local_caution', '未知')}／官场议论 {fb.get('official_pressure', '未知')}／"
+             f"风闻变化 {fb.get('rumor_change', '未知')}",
+             f"　待处理：待批提案 {pend.get('proposals', 0)} 件／待签诏草 {pend.get('drafts', 0)} 道／"
+             f"在册案卷 {pend.get('audit_cases', 0)} 宗",
+             f"　卿可见之财政：{'真账可核' if fc.get('allow_real') else '仅账面（真账不在可核对范围）'}"]
+    return "\n".join(lines)
+
+
 def council_participants(state, org_key: str = "", issue_domains: Iterable[str] = (), *,
                          max_n: int = 0) -> Dict[str, Any]:
     """**廷议参与者**（M36.7-C 最小适配：**只限员**；只读；不改流程、不新建机制）。

@@ -182,6 +182,39 @@ def _has_unfounded_number(text: str) -> bool:
     return any(_re.search(p, text) for p in _NUMERIC_BAN)
 
 
+def to_proposal_payload(decision_record, *, title: str = "", summary: str = ""):
+    """🟢 M36.6 收口第 2 项：`decision_record` → **既有 `payload.proposal` 契约**（**仅五项**）。
+
+    映射（严格按 M36.7-A §10 表）：
+      `rationale ← position`｜`evidence_refs ← facts_refs`｜`risks ← risks`｜
+      `authorization ← authorization_required`｜`expected ← expected`。
+
+    **表达层适配，不是新增执行载荷**：其余字段（`inferences／unknowns／alternatives／
+    executable…`）**不映射**（要进提案须另裁）；**不**改变 P1–P3 批红规则、权限校验与圣旨入口。
+    缺失字段**不编造**：值缺 ⇒ 省略该键，并在 `missing` 中列出。
+    """
+    rec = decision_record if isinstance(decision_record, dict) else {}
+    out: Dict[str, Any] = {}
+    missing: List[str] = []
+    pairs = (("rationale", rec.get("position")),
+             ("evidence_refs", rec.get("facts_refs")),
+             ("risks", rec.get("risks")),
+             ("authorization", rec.get("authorization_required")),
+             ("expected", rec.get("expected")))
+    for key, val in pairs:
+        if val is None or val == "" or val == []:
+            missing.append(key)
+            continue
+        out[key] = val
+    payload: Dict[str, Any] = {"proposal": out}
+    if title:
+        payload["proposal"]["title"] = str(title)[:80]
+    if summary:
+        payload["proposal"]["summary"] = str(summary)[:200]
+    return {"payload": payload, "missing": missing,
+            "note": ("仅五项映射；不得借映射扩张执行载荷；缺项列 missing（不编造）")}
+
+
 def validate_minister_opinions(payload, *, allowed_ref_keys, action_kinds=(),
                                max_items: int = OPINIONS_MAX):
     """校验朝议「结构化意见」（M36.7-A §5／§11／§17）。**纯函数、只读、零写入**。

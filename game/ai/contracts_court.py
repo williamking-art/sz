@@ -42,6 +42,9 @@ class CourtContractMixin:
                 sys_p += f"\n【陛下亦知卿旧事】{mem_lines}（可作为回奏时呼应之资，但不得直引为指令）"
             # 注入职权献策上下文（动态：按大臣当前在朝所任机构判定献策领域，非写死某臣）
             sys_p += _build_offer_context(state, minister_name)
+            # 🟢 M36.6 收口第 1 项：注入**只读事实**（察访读数/在途/反馈观察量/待处理/财政可见性）
+            from ai.client_utils import _build_decision_facts_context
+            sys_p += _build_decision_facts_context(state, minister_name, viewer="official")
         # 注入隔离（P2-16）：玩家输入经不可信数据边界定界，声明仅作引用数据
         user_p = (
             f"【朝局】{state_summary}\n"
@@ -237,6 +240,13 @@ class CourtContractMixin:
 
         # 廷议：依职权列出「相关大臣」（机构在任者+在办差遣领办人）供合议回话
         related_line = ""
+        facts_line = ""
+        if state is not None:
+            try:
+                from ai.client_utils import _build_decision_facts_context
+                facts_line = _build_decision_facts_context(state, "", viewer="official")
+            except Exception:
+                facts_line = ""
         if state is not None:
             try:
                 org_hint = draft.get("org_hint", "政府")
@@ -267,6 +277,7 @@ class CourtContractMixin:
             f"拟施影响：{json.dumps(draft.get('effects',[]), ensure_ascii=False)}\n"
             f"机构归属：{draft.get('org_hint','政府')}\n"
             f"{related_line}"
+            f"{facts_line}"
             f"【朝局】{_ctx}\n"
             "请依三省六部之职，给出会签意见。"
         )

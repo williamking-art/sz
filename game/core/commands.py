@@ -1059,6 +1059,23 @@ def approve_ai_action(state: GameState, action_id: str) -> str:
         return f"批红未成：{title}（该条已驳回）。"
 
 
+def _record_action_feedback(state: GameState, action_id: str, outcome: str, reason: str) -> None:
+    """🟢 M36.6 收口第 4 项：把**处置结果**记为事实，附在既有提案容器 `ai_pending_actions` 项上。
+
+    只写既有容器（**不新增结构、不新增通道**）；**不自动注入**下一轮提示词（P3 冻结），
+    也**不**触发重试/升级/自动提案。
+    """
+    try:
+        for it in (getattr(state, "ai_pending_actions", None) or []):
+            if isinstance(it, dict) and it.get("id") == action_id:
+                it["feedback"] = {"outcome": str(outcome),
+                                  "reason": str(reason or "")[:200],
+                                  "period": f"{getattr(state, 'year', 0)}-{getattr(state, 'month', 0)}"}
+                return
+    except Exception:                      # noqa: BLE001 — 反馈记录不得阻断处置
+        pass
+
+
 def _apply_inspect_request(state: GameState, action_id: str, kind: str,
                            payload: dict, title: str) -> str:
     """M36.5 察访呈请的**批红落地**：把呈请载荷交既有单点执行；成功才记 approved。
@@ -1074,8 +1091,10 @@ def _apply_inspect_request(state: GameState, action_id: str, kind: str,
     _msg = _log[-1] if _log else ""
     if done:
         state.set_ai_pending_status(action_id, "approved")
+        _record_action_feedback(state, action_id, "executed", _msg)
         return f"批红：{title}（{_msg}）"
     state.set_ai_pending_status(action_id, "rejected")
+    _record_action_feedback(state, action_id, "failed", _msg)
     return f"批红未成，已驳回：{title}（{_msg}）"
 
 
@@ -1084,6 +1103,7 @@ def reject_ai_action(state: GameState, action_id: str) -> str:
     if not item or item.get("status") != "pending":
         return "无此待批条目（或已处置）。"
     state.set_ai_pending_status(action_id, "rejected")
+    _record_action_feedback(state, action_id, "rejected", "陛下驳回")
     return f"已驳回：「{item.get('title', '')}」。"
 
 
