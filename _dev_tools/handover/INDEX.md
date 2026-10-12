@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T19:47:34Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T19:48:01Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -24,7 +24,7 @@
 - `M40-storage-sink` 仓储下沉州府级（主线B 批次4 仓储片）：storage/changping_stock 治所级真账 + 路级 Σ 派生 ｜status=**in_progress**｜claimedBy=DSH
 - `M41-market-p1-first-slice` 统一民间市场 P1 第一条纵向切片（开工门已出；剩余缺口见 inventory-market.md 2026-10-13 复核） ｜status=**in_progress**｜claimedBy=DSH
 - `M42-stock-flow-ledger` 逐维商品流量账（P1 第一句「逐月复原商品库存恒等式」的**缺失前置**） ｜status=**in_progress**｜claimedBy=DSH
-- `M43-goods-decay-mirror-write` None ｜status=**None**｜claimedBy=（未认领）
+- `M43-goods-decay-mirror-write` 商品月折旧写**路级镜像** ⇒ 在下沉档被刷回、实际不生效（同类「直写路级＝写丢失」） ｜status=**pending**｜claimedBy=（未认领）
 
 ## 待裁 / 未闭环决策
 
@@ -37,7 +37,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261012T184625Z-DSH` → [`worklog/20261012T184625Z-DSH.md`](worklog/20261012T184625Z-DSH.md)
 - `20261012T185516Z-DSH` → [`worklog/20261012T185516Z-DSH.md`](worklog/20261012T185516Z-DSH.md)
 - `20261012T190332Z-DSH` → [`worklog/20261012T190332Z-DSH.md`](worklog/20261012T190332Z-DSH.md)
 - `20261012T191245Z-DSH` → [`worklog/20261012T191245Z-DSH.md`](worklog/20261012T191245Z-DSH.md)
@@ -45,8 +44,9 @@
 - `20261012T193028Z-DSH` → [`worklog/20261012T193028Z-DSH.md`](worklog/20261012T193028Z-DSH.md)
 - `20261012T193903Z-DSH` → [`worklog/20261012T193903Z-DSH.md`](worklog/20261012T193903Z-DSH.md)
 - `20261012T194734Z-DSH` → [`worklog/20261012T194734Z-DSH.md`](worklog/20261012T194734Z-DSH.md)
+- `20261012T194800Z-DSH` → [`worklog/20261012T194800Z-DSH.md`](worklog/20261012T194800Z-DSH.md)
 
 ## 计数
 
-- tasks 27（未完成 13）· decisions 24（未闭环 6）· worklog 195 · phase 文件 4
+- tasks 27（未完成 13）· decisions 24（未闭环 6）· worklog 196 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
