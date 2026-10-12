@@ -406,7 +406,20 @@ WATERWAY_TIER_MULT: Dict[str, float] = {"强": 1.0, "有": 1.3, "弱": 1.8}
 
 
 def waterway_tier(route: str) -> Optional[str]:
-    """该路可航档；**未登记 ⇒ None**（承「缺失≠0」⇒ 不可水运）。"""
+    """该路可航档（**路级派生**：取该路已登记治所中的最高档）。
+
+    真账＝**治所级**表 `waterway_seats.SEAT_WATERWAY`（由本模块史料表首府承载生成，
+    见 `specs/transport/交通下沉州府级.md`）；本函数是**派生聚合**。
+    治所级模块不可用/未覆盖 ⇒ **回落到本模块 `ROUTE_WATERWAY` 表**（可选层纪律：不得卡流程）。
+    **未登记 ⇒ None**（承「缺失≠0」⇒ 不可水运）。
+    """
+    try:
+        from core.domains.economy.waterway_seats import waterway_tier_route
+        t = waterway_tier_route(route)
+        if t is not None:
+            return t
+    except Exception:  # noqa: BLE001 — 可选层：失败回落原表
+        pass
     for tier, routes in ROUTE_WATERWAY.items():
         if route in routes:
             return tier
