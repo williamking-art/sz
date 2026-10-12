@@ -1,0 +1,40 @@
+{
+ "id": "M52-livelihood-shadow-scope",
+ "title": "主线E 第一切片范围裁定（家计影子＋归属守恒，只读）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "主线E（家计/经济归属/税制）本批取哪个切片？",
+ "options": {
+  "A": "家计影子（分项读数 + 整项 None + 阈值由调用方给）+ 归属守恒读数",
+  "B": "只做经济归属守恒读数（更小）",
+  "C": "A 再加三税三基影子对账（范围明显更大）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.9479513168334966, "B": 0.0199079420417547, "C": 0.0321407318115234},
+ "margin_note": "A 显著领先（0.948 vs 0.020/0.032）⇒ 非平手，按裁定执行",
+ "premises_verified_by_me_before_acting": [
+  "经济归属**机制已存在**：`pop_bridge.AFFILIATION_FIELDS` + `split_affiliation_to_seats` + `aggregate_affiliation`（G-3/T1 2026-10-05），且有动态回归 `test_economic_affiliation`",
+  "家计在代码里 **0 命中**（未实施）；文档给了公式与五等判据，但**阈值只有符号名（阈值1..4）、无具体数值**",
+  "三税三基（赋役按等第/田赋按占田/商税按交易额）为用户定稿；本批**不碰税基**"
+ ],
+ "applied_in": {
+  "module": "game/core/domains/economy/livelihood_shadow.py",
+  "tests": "_dev_tools/game-dev/tests/test_livelihood_shadow.py（10 passed）",
+  "task": "_dev_tools/handover/tasks/M52-livelihood-shadow.json",
+  "commit": "（本批提交）"
+ },
+ "constraints_recorded": [
+  "任一分项不可读 ⇒ 家计 `None`（**不回落 0**）",
+  "等第阈值**必须由调用方传入**；缺省 `None` + reason（**不臆造**）；非法阈值 `ValueError`",
+  "经济归属：Σ子池 == 父 POP；**无史料保留 unclassified**（实测子池全库为空 ⇒ 如实 `ok=None`，**不假装通过**）"
+ ],
+ "findings_from_execution": [
+  "`MATERIAL_PRICE_BASE` **没有粮维** ⇒ 粮基准价单点是 `song_job_cfg()['grain_price0']`（当月市价按文档不得用于家计）",
+  "POP 字段在下沉档可能是**治所桶**（`grain` 实测如此）⇒ 必须走 `pop_bridge.pop_get`／摊平，否则会把「有粮」误判成「不可读」（同类坑第三次）",
+  "全库 `economic_affiliation` 子池为空 ⇒ 归属守恒判不了；下一步应初始化 `unclassified` 桶"
+ ],
+ "reopen_if": "若后续要求本批并入三税三基影子对账，或阈值标定口径下达，则本裁定作废重问 Jev"
+}

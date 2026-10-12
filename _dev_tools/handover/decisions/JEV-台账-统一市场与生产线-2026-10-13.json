@@ -1,0 +1,28 @@
+{
+ "id": "JEV-台账-统一市场与生产线-2026-10-13",
+ "title": "统一市场 / 生产 / 家计各批的 **Jev 裁定台账**（2026-10-13 会话）",
+ "status": "record",
+ "kind": "台账（逐条裁定留痕；**不是**待裁定项）",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "why": "协议要求「凡是拿不准的判断先问 Jev，**结论要留痕**」。此前这些裁定只落在 **commit 正文 + 任务档 authority 字段**，`decisions/` 账本里查不到 ⇒ 等于半个没留痕。本档补齐，便于 grep 与复盘。",
+ "ledger": [
+  {"batch": "M41a", "question": "统一民间市场 P1 第一步取哪个", "mode": "choose", "chosen": "A（缺失原因与来源 ID 结构化契约）", "p": 0.989},
+  {"batch": "M42", "question": "逐维流量账的范围", "mode": "choose", "chosen": "A（只做全国仓＋在途这条链）", "p": 0.840},
+  {"batch": "M43+M44", "question": "两处同族缺陷合并还是分开", "mode": "choose", "chosen": "A（合并为一批）", "p": 0.984},
+  {"batch": "M43+M44", "question": "修复时是否同批给出同种子数值影响", "mode": "gate", "holds": true, "p": 0.986},
+  {"batch": "M46", "question": "州府价格线最小切片", "mode": "choose", "chosen": "B（只做州府级商品只读读数）", "p": 0.669, "note": "A 作坊地点并轨 0.313 次之，留下批"},
+  {"batch": "M47", "question": "作坊产出地点并轨是否本批做", "mode": "choose", "chosen": "A", "p": null, "note": "以 M46 次选项身份进入下一批"},
+  {"batch": "M49", "question": "建筑经营工资腿口径", "mode": "choose", "chosen": "C（只读投影：工资到位率与降产）", "p": 0.561, "note": "B 经营主体自付 0.259 / A 国库支付 0.180"},
+  {"batch": "M50", "question": "主线C 本批切片", "mode": "choose", "chosen": "C（修「缺配置静默套外邦 default」）", "p": 0.472,
+   "thin_margin_disclosure": "0.472 vs B 0.313 —— **差距不大**，按 AGENTS.md §Jev 纪律第 2 条**先自己核验前提**再动手",
+   "premise_check_result": "已核实 `produce_job_track` 唯一调用方是外邦路径（宋境从不调用）⇒ 该修法今日**零行为变化**；若前提相反（宋境在调）则会改数值，本批不会照做"},
+  {"batch": "M51", "question": "主线D G-4 本批切片", "mode": "choose", "chosen": "A（货主/资金/工资/采购四项影子读数）", "p": 0.831},
+  {"batch": "M52", "question": "主线E 本批切片", "mode": "choose", "chosen": "A（家计影子＋经济归属守恒读数）", "p": 0.948}
+ ],
+ "voided_or_corrected": [
+  {"what": "以 Jev 裁定替代实测", "rule": "AGENTS.md：Jev 与实测/硬约束冲突时**以实测为准**；本会话已发生多次「实测推翻既有条目」（M41a 修正开工门盘点、M42 修正我自己的仪器缺陷、M45/M47 由守卫 trace 定位而非 Jev）",
+   "action": "凡裁定与实测冲突，在提交/文档里写明冲突与最终依据并保留痕迹"}
+ ],
+ "discipline": "自本档起：Jev 裁定除 commit 正文与任务档外，**必须落 `decisions/`**（一条一文件或本类台账）；裁定失败/不可用则按 §3 静默降级并标注「未经 Jev 判定」。"
+}
