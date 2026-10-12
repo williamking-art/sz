@@ -1,7 +1,7 @@
 {
  "id": "JEV-decree-plan-review",
  "title": "Jev 决策模型接入：诏令行动计划（decree_action_plan）的独立复核闸门",
- "status": "in_progress",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-12",
  "authority": "用户 2026-10-12 指定：「把 Jev 接到《宋祚》里，挑一个具体决策点并实跑验证」",
@@ -17,5 +17,6 @@
  ],
  "blocks": "无；与 Cline 的 M36 系列无文件重叠（本任务落 game/ai/ 与 tests/）",
  "claimedBy": "DSH",
- "claimedAt": "2026-10-12T15:57:09Z"
+ "claimedAt": "2026-10-12T15:57:09Z",
+ "commit": "99a8d4e864"
 }
