@@ -89,14 +89,34 @@ def sink_pops_to_seats(state) -> int:
     return _migrate_pops_to_seats(state)
 
 
-def sink_treasury_to_seats(state) -> int:
-    """把**路级 treasury（地方府库）下沉**到州府级 seats（主线 B 第一片）。
+def sink_local_treasury_to_seats(state) -> int:
+    """把**地方府库**（`local_treasury`）下沉到州府级 seats（主线 B 第一片）。
 
     与 `sink_pops_to_seats` 同型：**无条件幂等入口**，新局与读档共用。
-    真账落 `prefectures[路]["seats"][治所]["treasury"]`，路级降为 Σ 派生镜像。
+    真账落 `prefectures[路]["seats"][治所]["local_treasury"]`，路级降为 Σ 派生镜像。
+
+    🔴 **别与中央国库混淆**：`state.treasury` 是国库（`imperial_treasury` 是内帑），
+    本函数只管**地方府库**（账户 id `local:<路>`）。
 
     ⚠️ 必须在 `sink_pops_to_seats` **之后**调用（分摊权重取自治所人口）。
-    返回实际下沉的路数；权重不可得的路**跳过**（不臆造归属）。
+    返回实际下沉的路数；权重不可得或无 `local_treasury` 数值的路**跳过**（不臆造归属）。
+
+    **Jev 裁定（2026-10-13）**：本批只做「真账下沉 + 聚合 + 对账」，**不改**既有读点
+    —— 路级保留为 Σ 镜像，而 Σ 与原值恒等 ⇒ 读路径行为不变（范围 0.93；口径 P=0.995）。
     """
-    from core.foundation.ledger import treasury_bridge
-    return treasury_bridge.sink_treasury_to_seats(state)
+    from core.foundation.ledger import local_treasury_bridge
+    return local_treasury_bridge.sink_local_treasury_to_seats(state)
+
+
+def sink_buildings_to_seats(state) -> int:
+    """把**建筑**（`buildings`）下沉到州府级 seats（主线 B 批次 2 · M38b-2）。
+
+    与 `sink_pops_to_seats` / `sink_local_treasury_to_seats` 同型：**无条件幂等入口**，
+    新局与读档共用。真账落 `prefectures[路]["seats"][治所]["buildings"]`，路级降为 Σ 派生镜像
+    （**保形态**：`{"lv":n,"built_month":m}` 原样搬运）。
+
+    ⚠️ 必须在 `sink_pops_to_seats` **之后**调用——首府（路治）判定取治所人口权重。
+    返回实际下沉的路数；无可分配等级或判不出首府的路**跳过**（不臆造归属）。
+    """
+    from core.foundation.ledger import building_bridge
+    return building_bridge.sink_buildings_to_seats(state)

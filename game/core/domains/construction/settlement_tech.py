@@ -570,8 +570,13 @@ def _settle_projects(state, log):
                     if _bname:
                         _b = state.prefectures[_broute].setdefault("buildings", {})
                         _lv = max(1, int(proj.get("levels", 1) or 1))
-                        _b[_bname] = int(_b.get(_bname, 0) or 0) + _lv
-                        log.append(f"[工程] {name} 落成：{_broute}·{_bname} Lv{_b[_bname]}"
+                        # 🟢 M38b-2：建筑写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+                        from core.foundation.ledger import building_bridge as _bb
+                        _new = _bb.building_add(state, _broute, _bname, _lv)
+                        if _new is None:
+                            _b[_bname] = int(_b.get(_bname, 0) or 0) + _lv
+                            _new = _b[_bname]
+                        log.append(f"[工程] {name} 落成：{_broute}·{_bname} Lv{_new}"
                                    f"（部署 adoption 与资产维持费自此生效）")
                 except Exception as e:  # noqa: BLE001
                     # 审查 P2-3 应修：原只有结算日志一行、**无 traceback**（落成登记失败

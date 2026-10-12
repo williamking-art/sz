@@ -1,39 +1,44 @@
 {
  "id": "M38-building-sink",
- "title": "建筑下沉州府级（主线B 批次2）：seats[治所][\"buildings\"] 真账 + 路级派生聚合 + 写点全桥",
+ "title": "建筑下沉州府级（主线B 批次2）：seats[治所][\"buildings\"] 真账 + 路级 Σ 派生聚合（保形态）+ 4 写点全桥 + 已接线",
  "status": "in_progress",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
- "authority": "_dev_tools/game-docs/specs/cross-cutting/州府级真账总批计划.md 批次 2（建筑下沉：2.1 buildings 路级→治所级；2.2 同步改 4 个消费者；2.3 建筑语汇统一）；上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B",
- "goal": "把建筑真账下沉到治所（prefectures[路][\"seats\"][治所][\"buildings\"]），路级 prefectures[路][\"buildings\"] 降为只读派生聚合；全部写点走桥；新局/读档共用幂等入口；**开闸与全桥同批**（M37 教训）。",
- "recon": {
-  "真账现状": "prefectures[路][\"buildings\"] = {建筑名: 等级标量}（如 {\"工坊\": 2}）",
-  "写点": [
-   "game_state.py:1032 新局初始化 `_init_agri_buildings(info, p_type)`（路级）",
-   "settlement_tech.py:571-573 工程完工登记：`_b[_bname] = int(_b.get(_bname,0) or 0) + _lv` —— **等级是累加的**",
-   "civil_building.py:983-989 先确保槽位可写（`p[\"buildings\"] = {}`），:1059 起写落点",
-   "（外邦 provinces[*][\"buildings\"] 结构 {\"lv\": n} 不属本批；宋侧未来并轨另议）"
-  ],
-  "读点（约 10 处，均读路级）": [
-   "building_jobs.py:375/:794（岗位/就业，`building_level` 兼容标量与 {\"lv\":n}）",
-   "settlement_econ.py:136/:1197/:1243（就业流与产出）",
-   "domains/production/settlement_agri.py:405、production_chain.py:53（生产乘数）",
-   "domains/administration/settlement_officialdom.py:135、asset_context.py:354、era_mechanic.py:64/:103/:212",
-   "domains/construction/material_tech.py:726（科技覆盖率）、game_state_econ.py:864-865（水利等级）",
-   "income_readout.py:307（读数）、civil_building.py:599/:983"
-  ],
-  "口径风险": "建筑是**等级**：若路级聚合用 Σ，等级语义会随治所数放大（岗位 = 等级 × JOBS_PER_LEVEL 会被放大 N 倍）；若用 max，读者零改动但失去总量信息。**故必须裁定聚合口径**。"
+ "authority": "specs/cross-cutting/州府级真账总批计划.md 批次 2；reviews/未落地设计裁定与实施路线.md §3 主线 B；设计档 specs/cross-cutting/建筑下沉州府级_实施设计_2026-10-13.md §0-§8",
+ "goal": "建筑真账下沉治所，路级降为只读 Σ 派生聚合（保形态）；全部写点走桥；新局/读档共用幂等入口；接线与全桥同批并以 A/B 对照证明零行为变化。",
+ "deliverable_now": "M38a（桥接层）+ M38b-1（form-aware：保 built_month/两种形态、closed⇒0、building_remove 删键）+ M38b-2（4 写点全桥 + 接 new_game/读档 + A/B 对照）",
+ "key_findings": [
+  "写点实为 4 处（初版记 3 处是漏的）：game_state:1032 新局初始化（在 sink 前可不桥）／settlement_tech:571-573 完工登记 +=／civil_building:1064-1073 民间营造（标量或 {lv,built_month}）／era_mechanic:104-111 战乱灾荒降级（写回标量、lv==1 时 del）",
+  "built_month 有读者：civil_building:677 折旧判据，读不到即 undefined、不回落 0 ⇒ 桥必须保形态（M38a 归一成 int 会静默改行为）",
+  "路级聚合 = Σ 各治所等级（Jev 0.429，与 MAX 0.390 几乎平手；Σ 对可加读者正确、对阈值读者会放大）；下沉初始分配 = 首府承载（0.894）⇒ Σ 与原值逐字相等",
+  "接线关键证据：A/B 对照（接线 vs 桥全回落）逐路 buildings 差异 0/20 ⇒ 零行为变化",
+  "阈值类读者（水利等级/科技覆盖率/era 书写端/维持费）当前 Σ == 首府值 ⇒ 零变化；全库无调用方传非首府 seat_id ⇒ 按 Jev Q5 留到多治所落位时再改"
+ ],
+ "verification": {
+  "定向回归": "test_building_sink.py 24 passed（首府承载/Σ 恒等/幂等/缺失≠0/写桥/对账/首府判定/形态四例/删除语义两例）",
+  "A_B对照": "A 组 20/20 下沉、survey 0 失配、建筑总量 {水利:23,常平仓:23}；B 组（接线前）完全相同；逐路 buildings 差异 0/20",
+  "全量回归": "三批均 EXIT=0（日志 _scratch/full_regression_m38*.log；M38b-2 见 full_regression_m38b2.log）",
+  "首府抽查": "京畿路首府=京畿路|开封府、京西路首府=京西路|河南府"
  },
+ "jev_rulings": [
+  "路级聚合口径 choose A=Σ（0.429；MAX 0.390 平手 → 按纪律 2 自行论证并写入档）",
+  "下沉初始分配 choose A=首府承载（0.894）",
+  "M38b 本步 choose A=先做 form-aware 桥、暂不接线（0.927）；Q4 措辞自相矛盾与 Q3 冲突 → 按硬约束『不得静默改行为』采用 Q3（已留痕）",
+  "M38b-2 choose A=只桥 4 写点 + 接线 + A/B 验证零变化；阈值读者留到多治所落位（0.929）"
+ ],
  "scope": [
-  "M38a（本批）：building_bridge（真账/聚合/对账/写桥）+ 幂等迁移 + 全部写点桥接 + 新局/读档接线",
-  "M38b：4 个消费者按治所级重算（settlement_agri / 岗位 / 科技 / 交通）",
-  "M38c：建筑语汇统一（桑/麻/果/蔗各成一建，批次 2.3）"
+  "M38a（✅）：桥接层（Σ 聚合/首府承载/对账/写桥）",
+  "M38b-1（✅）：form-aware（保 built_month/两种形态、closed⇒0、building_remove 删键）",
+  "M38b-2（✅）：4 写点全桥 + 接 new_game/读档 + A/B 对照（0/20 差异）",
+  "M38b-3（未做，按裁定延后）：阈值类读者改逐治所 —— 触发条件 = 建筑真正落到非首府治所",
+  "M38c（未做）：建筑语汇统一（桑/麻/果/蔗各成一建，批次 2.3）"
  ],
  "explicitly_not": [
-  "不动外邦 provinces[*][\"buildings\"]（结构不同，属并轨另议）",
-  "不新增建筑账本（沿用既有槽位，civil_building 纪律）",
-  "不在未桥全部写点前开闸（M37 实测教训：必然漂移/冲账）"
+  "不动外邦 provinces[*][\"buildings\"]（结构不同，并轨另议）",
+  "不新增建筑账本（沿用既有槽位）",
+  "不把 damage_buildings 的『顺带归一为标量』改掉（保持原行为；改动需另批论证）"
  ],
+ "blocks": "M38c 需建筑语汇统一口径（一作物一建筑）；其后：交通下沉（批次1）→ 仓储/商品存量 → 真实交易与州府价格",
  "claimedBy": "DSH",
- "claimedAt": "2026-10-12T17:42:02Z"
+ "claimedAt": "2026-10-13T00:00:00Z"
 }

@@ -1061,16 +1061,24 @@ def build_civil_building(state, pref: str, building: str, *,
     old_lv = _bld_lv(buildings.get(building), 0)
     new_lv = min(int(spec["level_cap"]),
                  old_lv + max(1, int(CIVIL_LEVELS_PER_MONTH)))
+    # 🟢 M38b-2：落点走桥（未下沉 ⇒ `None` ⇒ 回落原写法，行为不变）
+    #   注：桥会**替换** `p["buildings"]` 为新的 Σ 镜像对象 ⇒ 上面的局部 `buildings` 之后不再使用
+    from core.foundation.ledger import building_bridge as _bb
     if spec.get("write_form") == "scalar":
-        buildings[building] = int(new_lv)          # 岗位类：标量（int(lv) 兼容）
+        _entry = int(new_lv)                        # 岗位类：标量（int(lv) 兼容）
+        if _bb.building_set(state, pref, building, _entry) is None:
+            buildings[building] = _entry
     else:
-        now = abs_month_index(state, month)
-        entry = buildings.get(building)
-        if isinstance(entry, dict):
-            entry["lv"] = int(new_lv)
-            entry["built_month"] = now
+        _now = abs_month_index(state, month)
+        _old = buildings.get(building)
+        if isinstance(_old, dict):
+            _entry = dict(_old)
+            _entry["lv"] = int(new_lv)
+            _entry["built_month"] = _now
         else:
-            buildings[building] = {"lv": int(new_lv), "built_month": now}
+            _entry = {"lv": int(new_lv), "built_month": _now}
+        if _bb.building_set(state, pref, building, _entry) is None:
+            buildings[building] = _entry
 
     # ---- 统计（全部落既有 `state.statistics`）----
     labor_hours = float(trigger["cost"]["labor_hours"] or 0.0)

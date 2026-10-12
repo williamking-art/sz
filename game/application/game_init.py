@@ -56,14 +56,41 @@ def init_pops_seats(state):
     return sink_pops_to_seats(state)
 
 
-def new_game(mode: str = "史实"):
-    """开局入口：`GameState` 构造 → 人口域初始化 → **POP 下沉州府级**。
+def init_local_treasury_seats(state):
+    """把**地方府库**（`local_treasury`）下沉到州府级（主线 B 第一片）。
 
-    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、POP 也不会下沉。
+    与 `init_pops_seats` 同型：真账落 `seats[治所]["local_treasury"]`，路级降为 Σ 派生镜像。
+    🔴 **不是**中央 `state.treasury`（国库）——本模块只管地方府库（账户 `local:<路>`）。
+    **必须在 `init_pops_seats` 之后**——分摊权重取自治所人口。
+    幂等：已下沉的路跳过；权重不可得或无 `local_treasury` 数值的路跳过（不臆造归属）。
+    """
+    from core.foundation.persistence.migrations import sink_local_treasury_to_seats
+
+    return sink_local_treasury_to_seats(state)
+
+
+def init_buildings_seats(state):
+    """把**建筑**（`buildings`）下沉到州府级（主线 B 批次 2 · M38b-2）。
+
+    真账落 `seats[治所]["buildings"]`，路级降为 Σ 派生镜像（**保形态**：字典条目仍字典）。
+    **必须在 `init_pops_seats` 之后**——首府（路治）判定取治所人口权重作同级决胜。
+    幂等：已下沉的路跳过；无可分配等级或判不出首府的路跳过（不臆造归属）。
+    """
+    from core.foundation.persistence.migrations import sink_buildings_to_seats
+
+    return sink_buildings_to_seats(state)
+
+
+def new_game(mode: str = "史实"):
+    """开局入口：`GameState` → 人口域初始化 → **POP 下沉** → **地方府库下沉** → **建筑下沉**。
+
+    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、POP/府库/建筑都不会下沉。
     """
     from core.game_state import GameState
 
     state = GameState(mode)
-    init_population(state)     # 先注隐户（hidden 在 SPLIT_FIELDS 内）
-    init_pops_seats(state)      # 再下沉，避免路级写落进派生镜像
+    init_population(state)              # 先注隐户（hidden 在 SPLIT_FIELDS 内）
+    init_pops_seats(state)              # 再下沉，避免路级写落进派生镜像
+    init_local_treasury_seats(state)    # 府库分摊依赖治所人口，必须排在其后
+    init_buildings_seats(state)         # 首府判定同样依赖治所人口
     return state

@@ -1,15 +1,16 @@
 {
- "phase": "《宋祚》主线B 批次2 建筑下沉（M38）：M38a 桥接层 + M38b-1 **form-aware 桥**已落地（保 built_month/两种条目形态、closed⇒0、首府承载原样搬运、building_set 精确写；22 用例；全量 EXIT=0）。**仍刻意未接线**（写点实为 4 处，含 era_mechanic.damage_buildings）。下一步 M38b-2：桥 4 写点 + 接 new_game/读档 + 阈值类读者改逐治所。",
+ "phase": "《宋祚》主线B 批次2 建筑下沉（M38）：M38a 桥 + M38b-1 form-aware + **M38b-2 已接线**（4 写点全桥 + new_game/读档；A/B 对照逐路 buildings 差异 0/20 ⇒ 零行为变化；全量 EXIT=0）。剩余 M38c 建筑语汇统一。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M38a 与 M38b-1 各一次）；定向 test_building_sink.py 22 passed",
+  "pytest": "全量串行 EXIT=0 ×3（M38a/M38b-1/M38b-2）；定向 test_building_sink.py 24 passed",
+  "A_B": "接线组 20/20 下沉 + survey 0 失配；对照组（桥全回落）逐路 buildings 完全一致（差异 0/20）",
   "m37": "收口：三批全量 EXIT=0、结算回放 3 轮 0 失配",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "M38b-2：桥掉 4 个写点（game_state 新局初始化（在 sink 前可不桥）/ settlement_tech 完工登记 / civil_building 民间营造 / era_mechanic.damage_buildings 灾荒降级）＋ 接 new_game 与读档 ＋ 阈值类读者改逐治所（game_state_econ 水利 / material_tech 覆盖率 / era_mechanic 书写端 / settlement_officialdom 维持费）→ 结算回放 survey_buildings 0 失配 + 全量 EXIT=0（接线与全桥同批）。其后 M38c 建筑语汇统一；再后续：交通下沉 → 仓储/商品存量 → 真实交易与州府价格 → 主线 C/D/E/F → 主线 A 读数面板",
+ "next": "M38c 建筑语汇统一（桑/麻/果/蔗各成一建，批次 2.3）；随后按目标顺序：**交通下沉**（批次1：ROAD_QUALITY/canal_block 逐治所）→ 仓储/商品存量 → 真实交易与州府价格 → 主线 C（生产率与经济作物）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫读数面板接线）。⚠️ M38b-3（阈值类读者改逐治所）触发条件=建筑真正落到非首府治所",
  "pending_decisions": [
   "地方支出V2-D1-D5（M37c-2 与府库出口侧）"
  ]

@@ -99,15 +99,22 @@ def damage_buildings(state, log, reason="战乱"):
     """战乱/灾荒 → 建筑毁损（level 降、记 destroyed/ruined；史实：金兵毁宫室/水利失修）。"""
     from core.building_jobs import building_level as _bld_lv
     damaged = 0
-    for p in state.prefectures.values():
+    from core.foundation.ledger import building_bridge as _bb
+    for _route, p in state.prefectures.items():
         b = p.get("buildings") or {}
         for bt, raw in list(b.items()):
             lv = _bld_lv(raw, 1)
             if lv > 1:
-                b[bt] = lv - 1        # 写回归一化后的标量（结构 {"lv": n} 顺带归一）
+                # 🟢 M38b-2：写点走桥（未下沉 ⇒ None ⇒ 回落原写法）。
+                #   刻意用 `building_set` 写**标量** ⇒ 逐字复现原实现 `b[bt] = lv - 1`
+                #   （原实现顺带把结构化条目归一成标量、丢掉 built_month——保持原样，不改行为）
+                if _bb.building_set(state, _route, bt, lv - 1) is None:
+                    b[bt] = lv - 1
                 damaged += 1
             elif lv == 1:
-                del b[bt]
+                # 原文是 `del b[bt]`（**删键**，不是留 0）⇒ 桥必须同样删键
+                if _bb.building_remove(state, _route, bt) is None:
+                    del b[bt]
                 damaged += 1
     if damaged:
         state.era_building_log.append({"turn": state.turn, "event": f"毁于{reason}", "count": damaged})

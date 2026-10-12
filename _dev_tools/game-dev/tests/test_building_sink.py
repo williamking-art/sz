@@ -248,3 +248,25 @@ def test_closed_entry_counts_zero():
     bb.sink_buildings_to_seats(s)
     assert bb.seat_buildings_total(s.prefectures["路U"]) == {"货栈": 0}
 
+
+# ------------------------------------------------------------------ 8. 删除语义（era_mechanic 降级用）
+def test_building_remove_deletes_key_not_zero(cap):
+    """原文是 `del b[bt]`（删键）——桥必须同样**删键**，不能留 0（否则 `in` 判据改变）。"""
+    cap({"路V": "S1"})
+    s = _state({"路V": {"buildings": {"货栈": 1, "工坊": 2}, "seats": {"S1": {}, "S2": {}}}})
+    bb.sink_buildings_to_seats(s)
+
+    assert bb.building_remove(s, "路V", "货栈") is True
+    seats = s.prefectures["路V"]["seats"]
+    assert "货栈" not in seats["S1"][KEY]
+    assert "货栈" not in s.prefectures["路V"][KEY]              # 镜像同步删键
+    assert bb.building_remove(s, "路V", "货栈") is False         # 没删到
+    assert bb.building_remove(s, "路V", "工坊") is True
+    assert s.prefectures["路V"][KEY] == {}
+
+
+def test_building_remove_none_when_not_sunk():
+    s = _state({"路W": {"buildings": {"货栈": 1}, "seats": {"S1": {}}}})
+    assert bb.building_remove(s, "路W", "货栈") is None
+
+

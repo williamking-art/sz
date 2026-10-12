@@ -103,4 +103,20 @@ def load_game(slot: int = 1):
     if state is None:
         return None
     restore_dynamic_blueprints(state, data, slot)
+    # 主线 B 第一片：**地方府库**（local_treasury）州府级下沉。
+    # 新档已在 new_game 下沉过 ⇒ 本调用幂等跳过；旧档（无 seats[治所]["local_treasury"]）在此补齐。
+    # 失败**不得拒档**：桥接层在未下沉时会返回 None，调用方回落旧载体，行为不变。
+    try:
+        from core.foundation.persistence.migrations import sink_local_treasury_to_seats
+        sink_local_treasury_to_seats(state)
+    except Exception:  # noqa: BLE001 — 迁移失败不拒档（见上）
+        _dlog.warning("[读档] 地方府库州府级下沉失败（不拒档，桥接将回落旧载体）",
+                      exc_info=True)
+    # 主线 B 批次 2：**建筑**（buildings）州府级下沉。新档已在 new_game 下沉过 ⇒ 幂等跳过；
+    # 旧档在此补齐。同样**失败不拒档**（桥接未下沉时返回 None，调用方回落原写法）。
+    try:
+        from core.foundation.persistence.migrations import sink_buildings_to_seats
+        sink_buildings_to_seats(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 建筑州府级下沉失败（不拒档，桥接将回落旧载体）", exc_info=True)
     return state

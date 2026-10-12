@@ -41,8 +41,8 @@ SEAT_KEY = "buildings"
 __all__ = [
     "SEAT_KEY", "is_sunk", "aggregate_seat_buildings", "seat_buildings_total",
     "survey_buildings", "capital_seat_id", "sink_route_buildings",
-    "sink_buildings_to_seats", "building_add", "building_set", "building_level",
-    "norm_level",
+    "sink_buildings_to_seats", "building_add", "building_set", "building_remove",
+    "building_level", "norm_level",
 ]
 
 
@@ -321,6 +321,26 @@ def building_set(state, route: str, name: str, entry,
     seat[SEAT_KEY][name] = entry
     _refresh(pdata)
     return entry
+
+
+def building_remove(state, route: str, name: str,
+                    seat_id: Optional[str] = None) -> Optional[bool]:
+    """**删**该建筑条目——对齐 `era_mechanic` 原有的 `del b[bt]` 语义（**不是留 0**）。
+
+    未下沉 ⇒ `None`（调用方回落）；目标条目本就不存在 ⇒ `False`（没删到）。
+    """
+    pdata = _routed(state, route)
+    if pdata is None or not is_sunk(pdata):
+        return None
+    sid = seat_id or capital_seat_id(pdata, route)
+    seat = _seat_of(pdata, sid) if sid else None
+    if seat is None or not isinstance(seat.get(SEAT_KEY), dict):
+        return None
+    if name not in seat[SEAT_KEY]:
+        return False
+    seat[SEAT_KEY].pop(name, None)
+    pdata[SEAT_KEY] = aggregate_seat_buildings(pdata) or {}
+    return True
 
 
 def building_level(state, route: str, name: str) -> Optional[int]:
