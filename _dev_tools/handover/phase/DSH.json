@@ -1,17 +1,20 @@
 {
- "phase": "《宋祚》文档纪律收口 + 主线 C 生产层开工门台账已交付（未改代码）",
+ "phase": "B-1 已验收并**已提交**（673d8aae9a，20 文件，隔离他人改动成功）；B-2 只读设计与取证已交付（未实施、未提交）；B-3/B-4 冻结",
  "updatedAt": "2026-10-12",
  "agent": "DSH",
  "verification": {
-  "pytest_full": "tests 2737 / failures 0 / errors 0 / skipped 2 / time 421.5s（junit _scratch/junit.xml；= 上批 2689 + 本轮新增 48 例文档纪律用例）",
-  "readme_sync_test": "test_readme_sync.py 48/48（索引完整性 46 目录 + 取数口径 + 链接完整性）",
-  "link_check": "90 份 README 坏链 0（修复前 7 处）",
+  "b1_commit": "673d8aae9a63fd0580aefa8bf6e6a2f24507b7aa · 20 files · +2136/−107；含实现/测试/golden/产出脚本/specs 三件套/决策/worklog/.gitignore 单文件放行",
+  "commit_isolation": "分块暂存：specs/README.md 只纳入 B-1 hunk（另一 agent 的主线C hunk 保留未暂存）；排除 INDEX.md（派生聚合）、phase/DSH.json（DSH 名冲突件）、.qoder/（他人）、他人 worklog",
+  "precommit_checks": "git diff --cached --check 退出 0；--stat 20 文件；.gitignore 与 specs/README.md 暂存内容逐块审查通过",
+  "b1_gate": "定向 210/0/0/0；全量 2737→2799（+62）/ 0 / 0 / 2（HEAD b20e094，start=end 未移动）",
+  "b2_design": "只读取证：守卫↔放行门关系、运行时/门策略分离、粮·商品·资源桶写入链盘点、实施拆分、8 条负反例、9 条验收断言（**本轮未运行测试**）",
+  "frontend": "未改",
   "handover": "check 问题=0"
  },
  "delivered": [
-  "game-docs/specs/production/主线C_生产层开工门台账.md（508 行 · 本轮唯一交付物）",
-  "test_readme_sync.py：修复 core.quotepath 漏检根因 + 扩覆盖至 game-docs + 新增链接完整性断言",
-  "补齐 reviews/docs/specs.economy/specs.production 索引缺口与 7 处坏链"
+  "提交 673d8aae9a（B-1 两阶段合并交付）",
+  "specs/cross-cutting/B2_守卫与质量放行门_设计与取证_2026-10-12.md（未提交，待评审）",
+  "decisions/B1-order-relaxation.json 更新为『已追认』（含适用范围与未来限制）"
  ],
- "next": "等用户裁定主线 C 台账的 9 项待裁（尤其 ⑧ yields 与 POP 不相容走甲/乙/丙/丁，建议甲+丁）；评审通过后才从 C0 启动，C0 零代码改动。"
+ "next": "待评审 B-2 设计（5 项未决：门进 verify-all 还是 pytest / 回放月数 / env 复位 / B-2b-d 批次切法 / trace 默认）；B-3、B-4 保持冻结"
 }

@@ -1,16 +1,17 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-11T17:18:31Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T04:04:01Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
-- **DSH**（updatedAt=2026-10-12）：《宋祚》文档纪律收口 + 主线 C 生产层开工门台账已交付（未改代码）
+- **DSH**（updatedAt=2026-10-12）：B-1 已验收并**已提交**（673d8aae9a，20 文件，隔离他人改动成功）；B-2 只读设计与取证已交付（未实施、未提交）；B-3/B-4 冻结
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
 
+- `B2-guard-quality-gate` B-2 守卫进质量放行门：先只读设计与取证，评审后再实施 ｜status=**in_progress**｜claimedBy=DSH
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
 - `M36-5-ai-decision-wiring` M36.5《AI 决策接线》：让外部 AI 能正确使用 M36 的信息与行动接口（不开 M37） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-6-A-minister-proposal-contract` M36.6-A《AI 大臣人格化事实视图与提案契约》：数据结构/权限继承/提案格式/状态转换（设计已出，待 P1–P3 裁定后编码） ｜status=**in_progress**｜claimedBy=Cline
@@ -20,22 +21,23 @@
 
 ## 待裁 / 未闭环决策
 
+- `AGENT-DSH-NAME-COLLISION` [待裁定] 两个并发会话共用 `DSH` 名字，`phase/DSH.json` 被互相覆盖（需裁定归属规则）
 - `C-invest` [recommended-no] invest_decide 回报来源守恒
 - `MIG-COMPAT-RETENTION` [待裁定] 迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API
 - `POP-faction` [design-done] POP 增派系子池（与阶层分离）
 
 ## 最近 8 条工作日志
 
-- `20261011T124743Z-Cline` → [`worklog/20261011T124743Z-Cline.md`](worklog/20261011T124743Z-Cline.md)
-- `20261011T161917Z-Cline` → [`worklog/20261011T161917Z-Cline.md`](worklog/20261011T161917Z-Cline.md)
-- `20261011T163023Z-DSH` → [`worklog/20261011T163023Z-DSH.md`](worklog/20261011T163023Z-DSH.md)
-- `20261011T163207Z-DSH` → [`worklog/20261011T163207Z-DSH.md`](worklog/20261011T163207Z-DSH.md)
-- `20261011T164445Z-DSH` → [`worklog/20261011T164445Z-DSH.md`](worklog/20261011T164445Z-DSH.md)
-- `20261011T165228Z-DSH` → [`worklog/20261011T165228Z-DSH.md`](worklog/20261011T165228Z-DSH.md)
-- `20261011T170646Z-DSH` → [`worklog/20261011T170646Z-DSH.md`](worklog/20261011T170646Z-DSH.md)
-- `20261011T171822Z-DSH` → [`worklog/20261011T171822Z-DSH.md`](worklog/20261011T171822Z-DSH.md)
+- `20261012T011552Z-DSH` → [`worklog/20261012T011552Z-DSH.md`](worklog/20261012T011552Z-DSH.md)
+- `20261012T023842Z-DSH` → [`worklog/20261012T023842Z-DSH.md`](worklog/20261012T023842Z-DSH.md)
+- `20261012T024221Z-DSH` → [`worklog/20261012T024221Z-DSH.md`](worklog/20261012T024221Z-DSH.md)
+- `20261012T025325Z-DSH` → [`worklog/20261012T025325Z-DSH.md`](worklog/20261012T025325Z-DSH.md)
+- `20261012T025450Z-DSH` → [`worklog/20261012T025450Z-DSH.md`](worklog/20261012T025450Z-DSH.md)
+- `20261012T032627Z-DSH` → [`worklog/20261012T032627Z-DSH.md`](worklog/20261012T032627Z-DSH.md)
+- `20261012T033030Z-DSH` → [`worklog/20261012T033030Z-DSH.md`](worklog/20261012T033030Z-DSH.md)
+- `20261012T040401Z-DSH` → [`worklog/20261012T040401Z-DSH.md`](worklog/20261012T040401Z-DSH.md)
 
 ## 计数
 
-- tasks 17（未完成 6）· decisions 16（未闭环 3）· worklog 127 · phase 文件 3
+- tasks 19（未完成 7）· decisions 20（未闭环 4）· worklog 149 · phase 文件 3
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
