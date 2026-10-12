@@ -1,0 +1,13 @@
+{
+ "phase": "Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。",
+ "updatedAt": "2026-10-12T16:05:00Z",
+ "agent": "DSH-JEV",
+ "verification": {
+  "pytest": "test_jev_gate.py 13 passed (EXIT=0)；邻域 decree/token_meter 筛选 EXIT=0",
+  "tsc": "N/A 未动前端",
+  "vitest": "N/A",
+  "build": "N/A"
+ },
+ "next": "可选：把 assess_irreversibility 接到「提交前二次确认」；Jev 阈值需用真实诏令语料校准（现取 0.5）",
+ "note": "用独立 agent 名 DSH-JEV 是因为 decisions/AGENT-DSH-NAME-COLLISION 待裁定：phase/DSH.json 会被并发 DSH 会话互相覆盖"
+}

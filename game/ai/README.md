@@ -31,6 +31,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 | `vector_store.py` | 向量近邻检索（sqlite-vec，纯 Python 兜底） |
 | `kb_query.py` | 游戏内知识库查询（本地 SQLite FTS5，**随游戏分发、只读**） |
 | `model_setup.py` | 语义模型下载器（一次性工具） |
+| `jev_gate.py` | **Jev 决策闸门（可选层）**：用 TypeSafe System One（决策模型）给 AI 提议做**独立**复核。当前接线点：`contracts_decree.decree_action_plan` —— 对每个动作问 noul「圣旨原文是否明确支持该动作」，不足者追加进 `unresolved`（下游 `core/plan_commit` 与 UI 消费）。**缺配置即整层禁用**，无配置/超时/报错一律返回 `None`，主流程行为不变 |
 | `safety_lexicon.json` / `SensitiveWords.SOURCE.md` | 敏感词与来源说明 |
 | `prompts/` | 提示词模板（按用途分文件） |
 
@@ -57,3 +58,8 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 7. **新增契约要同步三处**：提示词 ＋ `validate` ＋ `token_meter.TOKEN_GROUPS`；
    `decree_action_plan` / `decree_narrative_decide` 已登记「推演」组（漏组会被覆盖测试抓出）。
 8. **失败即整单失败**：契约 `validate` 返回 `None` 表示**整单拒绝**，不得部分接受。
+9. **可选决策模型（`jev_gate.py`）的纪律**：它是**可选层**，与 tiktoken/ONNX 同规矩——
+   缺配置即整层禁用；**无配置 / 超时 / 报错一律返回 `None`，调用方行为完全不变**（不得抛进主流程）。
+   另两条：① Jev 只出**判断**，阈值折算由本模块做，**玩家可见文案只用档位词、不带概率数字**（脱敏优先）；
+   ② 多个待判断项**打包成一次调用**（Jev 的 state 只摄入一次），退化成 N 次调用即回归失败。
+   配置住在 `ai_config.json` 的 `jev` 段（缺失即关闭），环境变量 `SONGZUO_JEV_ENABLED` / `TYPESAFE_API_KEY` 可覆盖。

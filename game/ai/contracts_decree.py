@@ -4,6 +4,7 @@
 拆分自 ai/client.py：以 mixin 形式承载契约方法，AIClient 继承之。
 零行为变更：方法体原样搬运。
 """
+import logging
 import math
 
 from ai.client_utils import (
@@ -11,6 +12,29 @@ from ai.client_utils import (
     _normalize_effects, _wrap_untrusted,
 )
 from ai.validators import _summary_text
+
+log = logging.getLogger(__name__)
+
+
+def _append_jev_review(edict_text, plan):
+    """可选层：用 Jev 独立复核「圣旨原文是否明确支持该动作」，不足者追加进 unresolved。
+
+    * 未启用 / 超时 / 报错 → **原样返回**（主流程行为完全不变，AI 失败不得拖垮主流程）；
+    * 只产出档位词，**不带原始概率**（脱敏优先）；
+    * 延迟 import：Jev 是可选层，不得成为 ai 包的硬依赖。
+    """
+    if not isinstance(plan, dict) or not isinstance(plan.get("actions"), list):
+        return plan
+    try:
+        from ai import jev_gate
+        extra = jev_gate.review_actions(edict_text, plan.get("actions"))
+    except Exception:
+        log.warning("decree_action_plan: Jev 复核异常，跳过", exc_info=True)
+        return plan
+    if extra:
+        plan["unresolved"] = list(plan.get("unresolved") or []) + extra
+    return plan
+
 
 class DecreeContractMixin:
     # ============================================================
@@ -353,7 +377,8 @@ class DecreeContractMixin:
         user_p = (f"【圣旨】{edict_text or ''}\n【可用路名】{known}\n"
                   "请拆解为行动清单（不要填最终生效数值，构件名不确定就留空）。")
         raw = self._call(sys_p, user_p, temperature=0.3, max_tokens=900, json_mode=True)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_action_plan"))
+        plan = self._postprocess(raw, validate, lambda: _ai_unavailable("decree_action_plan"))
+        return _append_jev_review(edict_text, plan)
 
     def decree_execute_decide(self, posture, state=None):
         """诏令执行契约（知制诰/六部）：把玩家下达的诏书按机构归属拆解为可执行任务。

@@ -1,0 +1,21 @@
+{
+ "id": "JEV-decree-plan-review",
+ "title": "Jev 决策模型接入：诏令行动计划（decree_action_plan）的独立复核闸门",
+ "status": "in_progress",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-12",
+ "authority": "用户 2026-10-12 指定：「把 Jev 接到《宋祚》里，挑一个具体决策点并实跑验证」",
+ "goal": "在 AI 自报的 unresolved 之外，增加一层**独立**语义复核：用 Jev 判定「圣旨原文是否明确支持该动作」，不成立的追加进 unresolved（该出口已被 core/plan_commit 与 UI 消费），从而拦住「AI 把推测当事实」。",
+ "deliverable_now": "game/ai/jev_gate.py（可选层：缺配置/超时/报错一律静默禁用）+ contracts_decree.decree_action_plan 追加复核 + 定向回归 + 实跑取证",
+ "why_this_point": "decree_action_plan 的 unresolved 已经是「会被玩家看到的歧义出口」，且该契约明文「AI 只有提议权」；在此点只增判断、不碰数值，符合 game/ai 三层契约。",
+ "explicitly_not": [
+  "不改数值口径，不碰 core/decree_plan.py 的校验与封顶（Jev 只出判断，数值仍由程序算）",
+  "不做成硬依赖：无配置/超时/报错一律静默返回 None，主流程行为完全不变",
+  "不碰 M36.5 / M36.6 / M36.7（Cline in_progress 的 AI 大臣与决策接线领地）",
+  "不引第三方依赖（纯标准库 HTTP）",
+  "玩家可见文案只用档位词，不出现原始概率（脱敏优先）"
+ ],
+ "blocks": "无；与 Cline 的 M36 系列无文件重叠（本任务落 game/ai/ 与 tests/）",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T15:57:09Z"
+}
