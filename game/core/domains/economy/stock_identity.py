@@ -109,7 +109,14 @@ def national_resources_by_dim(state) -> Optional[Dict[str, float]]:
 
 
 def in_transit_by_dim(state) -> Optional[Dict[str, float]]:
-    """在途批次合计（逐维）。**运输模块不可用 ⇒ `None`**（不回落 0＝不冒充"没有在途"）。"""
+    """在途批次合计（逐维）。
+
+    ⚠️ **真·只读**：`core.transport.in_transit` 读时会**惰性创建** `state.material_transit`（实测）
+    ⇒ 先判容器是否存在：**不存在 ⇒ 返回 `{}`（"没有在途"是可读事实），且不去触发那次写**；
+    容器在但读数不可用 ⇒ `None`（**不冒充"没有在途"**）。
+    """
+    if getattr(state, "material_transit", None) is None:
+        return {}
     try:
         from core.transport import in_transit
         batches = in_transit(state)

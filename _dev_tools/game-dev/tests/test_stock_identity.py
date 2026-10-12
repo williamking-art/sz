@@ -59,14 +59,19 @@ def test_national_resources_accepts_dict_or_scalar_cell():
 
 def test_in_transit_by_dim(monkeypatch):
     import core.transport as tp
+    st = _state()
+    # 🔴 真·只读守卫：无容器 ⇒ `{}`（"没有在途"是可读事实）且**不创建**该容器
+    assert si.in_transit_by_dim(st) == {}
+    assert not hasattr(st, "material_transit")
+    st.material_transit = []
     monkeypatch.setattr(tp, "in_transit",
                         lambda state: [{"qty": {"木": 5}}, {"qty": {"木": 2, "石": 1}}])
-    assert si.in_transit_by_dim(_state()) == {"木": 7.0, "石": 1.0}
+    assert si.in_transit_by_dim(st) == {"木": 7.0, "石": 1.0}
 
     def _boom(state):
         raise RuntimeError("transport 坏了")
     monkeypatch.setattr(tp, "in_transit", _boom)
-    assert si.in_transit_by_dim(_state()) is None             # 不可用 ⇒ None（不冒充无在途）
+    assert si.in_transit_by_dim(st) is None                   # 容器在但读数坏 ⇒ None（不冒充无在途）
 
 
 def test_pending_stock_separate_and_optional():
@@ -83,6 +88,7 @@ def test_snapshot_totals_exclude_pending(monkeypatch):
         resources={"木": {"stock": 100}},
         pending={"木": 999},                                   # 待定：**不得并入 totals**
     )
+    st.material_transit = []                                   # 容器在 ⇒ 才会走下钻读在途
     snap = si.stock_snapshot(st)
     assert snap["all_readable"] is True
     assert snap["totals"]["木"] == 115.0                       # 10 + 100 + 5
@@ -96,6 +102,7 @@ def test_snapshot_totals_none_when_any_custody_unreadable(monkeypatch):
     monkeypatch.setattr(tp, "in_transit", lambda state: None)  # 在途不可读
     st = _state(prefs={"路A": {"pops": {"工匠": {"goods": {"木": 1}}}}},
                 resources={"木": {"stock": 1}})
+    st.material_transit = []                                   # 容器在，才会去读（并得到 None）
     snap = si.stock_snapshot(st)
     assert snap["all_readable"] is False
     assert snap["totals"]["木"] is None                        # 缺失≠0

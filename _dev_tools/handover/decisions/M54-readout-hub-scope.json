@@ -1,0 +1,37 @@
+{
+ "id": "M54-readout-hub-scope",
+ "title": "主线A（读数面板接线）第一切片裁定：后端统一读数索引（只读）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "主线A/P5 第一切片取哪个？",
+ "options": {
+  "A": "后端统一读数索引（只读）：聚合 8 个读数模块的摘要级读数，每项给 {value 或 undefined+reason, source(模块:函数), drill_down(取数路径)}；缺失显式 undefined",
+  "B": "A ＋ 四问证据链（哪里短缺/为何未运到/谁本来应供/结果影响了谁）",
+  "C": "直接接前端面板（改 game/frontend，须 tsc/vitest/截图）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.8552175164222717, "B": 0.12550202012062073, "C": 0.019280478358268738},
+ "margin_note": "A 显著领先；C 被压低，与「P5 依赖 P1–P4 有读可显」以及前端属单独域（须构建验证）一致",
+ "premises_verified_by_me_before_asking": [
+  "P5 原文要求「每个显著读数**能下钻到来源**；读数缺失**不显示为 0**」（specs/economy/unified-civilian-market/tasks.md）",
+  "本会话已落地 8 个只读读数模块（market_gap / stock_identity / stock_flow / seat_goods_readout / wage_gate_readout / workshop_fund_shadow / livelihood_shadow / seat_market_shadow），**各自都已遵守缺失≠0（不可读 ⇒ None+reason）**",
+  "`game/frontend` 是独立域，改动需 tsc/vitest/截图验证 ⇒ 不适合与本批（后端只读索引）混做"
+ ],
+ "applied_in": {
+  "module": "game/core/domains/economy/readout_hub.py",
+  "tests": "_dev_tools/game-dev/tests/test_readout_hub.py",
+  "task": "_dev_tools/handover/tasks/M54-readout-hub.json",
+  "commit": "（本批提交）"
+ },
+ "constraints_recorded": [
+  "**只读**：零写入、不改玩法、不新增平行账本",
+  "**缺失一律显式 `undefined` + reason**，绝不显示 0（P5 硬要求）",
+  "每个读数必须带 `source`（模块:函数）与 `drill_down`（怎么下钻到明细）",
+  "**单个读数失败不得拖垮整表**：该项转 undefined + reason 并 `logging.warning` 留痕（不得静默）",
+  "**不谎报已显**：本批只做后端索引，前端面板未接 ⇒ 在汇报与文档里明写"
+ ],
+ "reopen_if": "若要接前端面板（改 game/frontend）或要做四问证据链（选项 B），本裁定作废重问 Jev"
+}
