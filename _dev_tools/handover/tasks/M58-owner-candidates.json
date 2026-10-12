@@ -1,0 +1,22 @@
+{
+ "id": "M58-owner-candidates",
+ "title": "作坊产权落点候选**只读盘点**（M51 blocker 的证据补齐）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M58-owner-candidates-scope.json（Jev choose B 0.863）；tasks/M51-workshop-fund-shadow.json 的 blocker",
+ "deliverable": "core/domains/economy/owner_candidates_shadow.py（只读）：CANDIDATES（六候选，货主 id 复用既有词表）· pool_of（一律走既有单点）· procure_need（Σ recipe_cost）· wage_need（None + reason）· affordability · survey_owner_candidates",
+ "key_evidence": [
+  "107 作坊；**采购需求 22,000,000**（0 个作坊不可估）",
+  "**国库 82,133 ⇒ 到位率 0.004（差 268 倍）**；内帑 3,852,211 ⇒ 0.175；本路商人 4,044,785 ⇒ 0.184；**路级官府（地方府库）21,146,557 ⇒ 0.961（唯一量级匹配的既有载体）**；本路士绅 213,905,718 ⇒ 1.000（但会抽干其消费/奢侈支出）",
+  "**工资需求 None**：作坊维度无权威单点（JOBS_PER_LEVEL 只登记建筑、WAGE_RATE 只登记 牧场/工坊/矿场）⇒ 不拿建筑口径硬套",
+  "**「作坊自持」判为违规**（`parallel_ledger_violation=True`）：自持需要与 POP 平行的存量载体（如 state.workshops[wid]['fund']）⇒ 违反 §3-1；改造条件已写入候选 note"
+ ],
+ "limits": [
+  "只读盘点，**不预选**——「谁持有作坊」是玩法裁定，须由用户/口径定；本模块只把量级与相容性摆清",
+  "国库/内帑/阶层 wealth 都是**当期快照**：若真按某载体接线，营运资金会逐月变化，须再跑长局标定"
+ ],
+ "next": "① 口径裁定选载体后：把 `state.workshops[wid]` 的 `owner`/`owner_kind` 按既有词表填上（幂等迁移 + 新局初始化），即可让 `workshop_fund_shadow` 从 `undefined` 转 `shadow_ready`；② 再补 G-4 的营运资金划入/工资义务冻结/采购预算冻结三笔影子流水；③ 工资单点仍需先定（属机制设计）",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T23:51:13Z"
+}

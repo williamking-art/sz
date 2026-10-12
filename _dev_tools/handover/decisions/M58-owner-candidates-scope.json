@@ -1,0 +1,45 @@
+{
+ "id": "M58-owner-candidates-scope",
+ "title": "作坊产权落点候选盘点范围裁定（含「作坊自持」的平行账本评估）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "为「谁持有作坊」（M51 的 blocker）做只读候选盘点，范围取哪个？",
+ "options": {
+  "A": "盘点既有载体五种（国库/内帑/本路士绅/本路商人/路级官府），逐项给池、付款能力、利润去向、只读推演、硬约束相容性",
+  "B": "A 再加入「作坊自持」方案，并**显式评估是否构成平行账本**（违规就标红并给改造条件）",
+  "C": "只做硬约束相容性矩阵（不推演资金）"
+ },
+ "verdict": "B",
+ "probabilities": {"A": 0.12071864306926727, "B": 0.8628656268119812, "C": 0.01641574501991272},
+ "margin_note": "B 碾压 ⇒ 直接执行（含自持方案的违规评估）",
+ "premises_verified_by_me_before_asking": [
+  "货主 id **既有词表**存在：`material_holding.resolve_holder` 接受 `pop:<阶层>:<关系键>` / `state_treasury` / `imperial`；路级官府实体为 `local:<路>`",
+  "地方府库读口单点：`local_treasury_bridge.aggregate_seat_local_treasury(pdata)`（真账在治所 `local_treasury`）",
+  "§3-1「禁与 POP 平行的账本」⇒ 作坊自持必须评估"
+ ],
+ "applied_in": {
+  "module": "game/core/domains/economy/owner_candidates_shadow.py",
+  "tests": "_dev_tools/game-dev/tests/test_owner_candidates_shadow.py（9 passed）",
+  "task": "_dev_tools/handover/tasks/M58-owner-candidates.json",
+  "commit": "（本批提交）"
+ },
+ "key_evidence": {
+  "workshops": 107,
+  "procure_need": 22000000,
+  "wage_need": null,
+  "pools": {"state_treasury": 82133, "imperial": 3852211, "pop_gentry": 213905718,
+            "pop_merchant": 4044785, "local_route": 21146557, "workshop_self": null},
+  "procure_cover": {"state_treasury": 0.004, "imperial": 0.175, "pop_gentry": 1.0,
+                    "pop_merchant": 0.184, "local_route": 0.961, "workshop_self": null},
+  "reading": "**国库差 268 倍**（0.4% 到位率）；**路级官府（地方府库）0.961 是唯一量级匹配的既有载体**；士绅虽 100% 但会抽干其消费/奢侈支出；商人 18.4%、内帑 17.5%。工资需求在作坊维度**无权威口径** ⇒ 仍不可定义。"
+ },
+ "constraints_recorded": [
+  "**只读**：不写 state、不预选、不给默认方案（口径属玩法裁定）",
+  "自持方案判为**违规**并给改造条件（把营运资金挂到既有载体，或把持有者登记为既有账户）",
+  "缺失≠0：池/需求不可读一律 `None` + reason"
+ ],
+ "reopen_if": "若口径裁定选了某个载体、或把「作坊持有者」登记进文档/数据表，本盘点作废重做（届时可直接落地）"
+}
