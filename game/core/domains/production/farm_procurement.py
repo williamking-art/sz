@@ -46,6 +46,40 @@ PROCURE_TARGET_MONTHS = 1.0
 PROCURE_MAX_TREASURY_SHARE = 0.5
 
 
+#: M55 追因：`_take_goods` 逐次调用留痕（**模块级环形缓冲 ⇒ 零状态改动**，
+#: 不往 `state` 加字段——否则会触「禁新增状态属性」用例）
+_TAKE_TRACE = []
+
+
+def _trace_take(goods, dim: str, *, want: int, take: int, have: int) -> None:
+    """记录一次取货：**声称取出量 `take`** vs **实测减少量 `before − after`**。
+
+    M48 的矛盾证据正卡在「take > 0 而观测不到减少」⇒ 本插桩把它变成可核对的数字；
+    只留最近 500 条（进程内），不一致时 `WARNING` 留痕（**不静默**）。
+    """
+    from core.foundation.ledger.material_holding import goods_amount
+    after = int(goods_amount(goods, dim) or 0)
+    rec = {"dim": dim, "want": int(want), "take": int(take), "before": int(have),
+           "after": after, "observed": int(have) - after,
+           "consistent": (int(have) - after) == int(take),
+           "obj_id": id(goods),
+           "shape": ("bucket" if (isinstance(goods, dict)
+                                  and any(isinstance(v, dict) for v in goods.values()))
+                     else "flat")}
+    if len(_TAKE_TRACE) < 500:
+        _TAKE_TRACE.append(rec)
+    if not rec["consistent"]:
+        import logging as _logging
+        _logging.getLogger("farm_procurement").warning(
+            "[和买] 取货账实不符 dim=%s want=%s take=%s 实测减少=%s（该差异会直接进 POP 残差）",
+            dim, rec["want"], rec["take"], rec["observed"])
+
+
+def take_trace():
+    """逐次取货留痕（读数/回归用；返回副本）。"""
+    return list(_TAKE_TRACE)
+
+
 def _take_goods(goods: dict, dim: str, qty: int) -> int:
     """\u4ece `goods`\uff08\u6241\u5e73 + \u5dde\u5e9c\u6876\u53cc\u5f62\u6001\uff09\u53d6\u51fa `qty`\uff0c\u8fd4\u56de**\u5b9e\u9645\u53d6\u51fa\u91cf**\u3002"""
     from core.foundation.ledger.material_holding import goods_amount, goods_set
@@ -67,6 +101,9 @@ def _take_goods(goods: dict, dim: str, qty: int) -> int:
     if left > 0:
         flat = int(goods.get(dim, 0) or 0)
         goods_set(goods, dim, max(0, flat - left))
+    # 🔴 M55 追因插桩（**零状态改动**：模块级环形缓冲 + logging，不往 state 加字段）：
+    #   记录"声称取出量 take"与"实测减少量 before−after"是否一致——M48 的矛盾证据正卡在这里。
+    _trace_take(goods, dim, want=int(qty), take=take, have=have)
     return take
 
 
@@ -138,14 +175,50 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             got = state.transfer_money("treasury", "pop:%s:\u519c" % route, pay)
             if got <= 0:
                 continue                  # \u94b1\u4e0d\u5230\u4f4d \u21d2 **\u4e0d\u53d6\u8d27**\uff08\u4e0d\u65e0\u507f\u5165\u5e93\uff09
+            # 🔴 M56（2026-10-13 实测定位；Jev gate p=0.878 本批修 / choose 乙 0.625）：
+            #   `transfer_money` 的**桥接写入会刷新路由级 POP 行** ⇒ `nong["goods"]` 被换成新对象
+            #   （实测 id ...096 → ...856，旧引用 87500→87000 而**真账仍 87500**）。
+            #   原实现用的是**取钱之前**抓的 `goods` 引用 ⇒ 扣进已脱离真账的旧对象：
+            #   **货没从 POP 扣掉，国库却 `+= take`**（钱货不守恒 + POP 残留 = M48 的 0.17%）。
+            #   修法（乙）：取钱之后**重新解析**一次取货目标（拿刷新的真账对象）。
+            _nong_live = (pf.get("pops") or {}).get("\u519c")
+            _goods_live = _nong_live.get("goods") if isinstance(_nong_live, dict) else None
+            if isinstance(_goods_live, dict):
+                goods = _goods_live
             from core.foundation.ledger.material_holding import goods_amount as _gamt
             _before_have = int(_gamt(goods, dim) or 0)
-            take = _take_goods(goods, dim, want)
-            # 🟢 M42k：POP 侧流量登记——记**实测差额**（不是计算量 `take`）。
-            #   实测（2026-10-13）：用 `take` 会多记（某步 POP 与农户 goods 真值均未变，
-            #   账却记了 −13,888）⇒ 逐月恒等式出现 0.17% 残差。**只记实际减少量**。
-            _after_have = int(_gamt(goods, dim) or 0)
-            _actual = max(0, _before_have - _after_have)
+            # 🔴 M56（2026-10-13 实测定案，**第 6 处同族缺陷**）：和买取货**必须从治所真账扣**。
+            #   机制（三条实测证据链）：① `_take_goods` 扣的是**路级 `pops["农"]["goods"]` 镜像**；
+            #   ② 随后任何 `sync_route_pops` 用 Σ治所重算并**整体替换**该镜像（留痕 `obj_id`
+            #      在真账对象图里前后皆 `None`：写进了一个**已脱离真账**的 dict）；
+            #   ③ 而 `slot["stock"] += take` 让国库**真的多收**了货
+            #      ⇒ **钱货不守恒 + POP 侧残留 = M48 的丝 +18,842 / 麻 +15（0.17%）**。
+            #   ⚠️ Jev 当时给的是「甲先扣后付 / 乙取钱后重解析」，两者都建立在"重解析能拿到真账对象"
+            #      的假设上；实测显示**重解析拿到的仍是会被覆盖的镜像** ⇒ 两案均**被实测推翻**
+            #      （AGENTS.md：以实测为准）。正解＝走**既有桥口** `pop_bridge.pop_goods_sub`
+            #      （按各治所持仓占比扣、逐个夹紧 ≥0，并刷新镜像）。
+            _take_via_bridge = None
+            try:
+                from core.foundation.ledger import pop_bridge as _pb
+                _take_via_bridge = _pb.pop_goods_sub(pf, "\u519c", dim, want)
+            except Exception:                                   # noqa: BLE001
+                logging.getLogger("farm_procurement").warning(
+                    "[和买] 治所级扣减不可用，回落镜像写法（可能被 sync 覆盖）", exc_info=True)
+                _take_via_bridge = None
+            if _take_via_bridge is None:                        # 未下沉/无持仓 ⇒ 回落原写法（行为不变）
+                take = _take_goods(goods, dim, want)
+            else:
+                take = int(_take_via_bridge)
+            # 🟢 M42k/M56：POP 侧流量登记——**只记实际减少量**。
+            #   · 走桥路径：桥的返回值 `_take_via_bridge` **就是**治所真账的实际扣减量 ⇒ 直接记它
+            #     （不能再量"镜像前后差"：镜像会被 sync 换对象 ⇒ 差恒为 0 ⇒ 变**漏记**，
+            #      实测残差会从 +18,842 翻成 −18,842）；
+            #   · 回落路径（未下沉）：量镜像前后差，仍不一致则只留痕、不记假账。
+            if _take_via_bridge is not None:
+                _actual = int(take)
+            else:
+                _after_have = int(_gamt(goods, dim) or 0)
+                _actual = max(0, _before_have - _after_have)
             if _actual > 0:
                 from core.domains.economy import stock_flow as _sf
                 _sf.record_out(state, dim, _actual, reason="procure_sell",

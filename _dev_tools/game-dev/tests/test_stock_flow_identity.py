@@ -41,13 +41,13 @@ def test_national_warehouse_identity_closes_over_pipeline():
     assert rep["ok"] is True
 
 
-def test_pop_custody_identity_near_closed():
-    """**POP custody 常驻断言**：未闭合维必须为 0，且各维残差须在 **0.5%** 以内。
+def test_pop_custody_identity_closes_exactly():
+    """**POP custody 常驻断言（逐维精确闭合）**：未闭合维必须为 0，**各维残差必须为 0**。
 
-    已知小额缺口（2026-10-13 实测）：丝 +18,841、麻 +15（0.17% / 0.0002%），
-    根因（"哪条路径把货放进 POP 却没登记"）尚未定位 ⇒ 本用例**容忍该量级**，
-    但任何**新增的未登记写点**（残差跳到远超 0.5%）或**出现"有变动却完全无账"的维**都会让它变红。
-    修复缺口后应把本用例收紧为"逐维残差 == 0"。
+    ✅ 2026-10-13（M56）缺口已修：和买取货**从治所真账扣**（走 `pop_bridge.pop_goods_sub`）
+    并**按桥的返回值登记**流量 ⇒ 此前 丝 +18,842 / 麻 +15（0.17%）的残差归零，
+    故本用例由「容忍 ≤0.5%」**收紧为逐维 == 0**（与 `national_resources` 同标准）。
+    ⚠️ 将来任何"直写路级镜像"或"登记量与实际发生量不一致"的写点都会让它红。
     """
     import core.settlement as S
 
@@ -61,13 +61,9 @@ def test_pop_custody_identity_near_closed():
     flows = sf.cumulative_flows(s, custody=sf.CUSTODY_POP)
     rep = sf.residual_for_custody(first, last, sf.CUSTODY_POP, flows=flows)
     assert rep["unclosed"] == [], f"有维有变动却完全无账：{rep['unclosed']}"
-    delta = si.stock_delta(first, last)["by_custody"].get(sf.CUSTODY_POP) or {}
-    for dim, r in (rep["residual"] or {}).items():
-        if not isinstance(r, (int, float)):
-            continue
-        d = abs(float(delta.get(dim, 0.0)))
-        assert abs(r) <= max(1.0, 0.005 * d), (
-            f"{dim} 残差 {r} 超出 0.5%（Δ={delta.get(dim)}，账={flows.get(dim)}）")
+    assert rep["nonzero"] == [], (f"有维残差非 0：{rep['nonzero']}"
+                                  f"（残差表 {rep['residual']}，账 {flows}）")
+    assert rep["ok"] is True
 
 
 def test_money_residual_zero_over_pipeline():

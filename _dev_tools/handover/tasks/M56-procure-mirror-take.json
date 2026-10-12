@@ -1,0 +1,28 @@
+{
+ "id": "M56-procure-mirror-take",
+ "title": "和买取货扣**路级镜像**被 sync 覆盖（第 6 处同族缺陷）——**已修**，M48 残差随之归零",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §3-1（路级 pops 是派生镜像、写必须走桥）；decisions/M55-next-batch-tiebreak.json（平手自论证）；decisions 内 Jev gate 0.878 / choose 乙 0.625 —— **后者被实测推翻**",
+ "mechanism": [
+  "`farm_procurement.procure_from_farmers` 取货用 `_take_goods(goods, dim, want)`，`goods`＝**路级** `pops[\"农\"][\"goods\"]`（派生镜像）",
+  "任何后续 `sync_route_pops`（由桥接写入触发）用 **Σ治所** 重算并**整体替换**该镜像 ⇒ 扣减被覆盖",
+  "实测证据链：① `_take_goods` 457 次全流水留痕**账实一致 0 不一致**（Σtake == Σ实测减少 == 623,088）⇒ 洞不在函数；② 定点复核：`take=13,888`、被扣 dict `before=87500→after=73612`，但 `Σ逐路逐类 goods_amount` 与 `pop_goods_by_dim` **差 0**；③ 给留痕加 `obj_id` 后判定：被扣对象的 id **在真账对象图里前后皆 `None`**（写进了一个已脱离真账的 dict）；④ 隔离复现 `transfer_money` 前后 id 变化（...096 → ...856）",
+  "后果：**货没从 POP 扣掉，而 `slot[\"stock\"] += take` 让国库多收** ⇒ 钱货不守恒 + POP 残留（**= M48 的 丝 +18,842 / 麻 +15，0.17%**）"
+ ],
+ "fix": [
+  "取货改走**既有桥口** `pop_bridge.pop_goods_sub(pf, \"农\", dim, want)`（按各治所持仓占比扣、逐个夹紧 ≥0、并刷新镜像）；未下沉/无持仓 ⇒ `None` ⇒ **回落原写法**（行为不变）",
+  "登记同步修正：走桥时**直接记桥的返回值**（它就是治所真账的实际扣减量）；不能再量\"镜像前后差\"（镜像会被换对象 ⇒ 差恒为 0 ⇒ 变**漏记**，实测残差会从 +18,842 **翻成 −18,842**）"
+ ],
+ "evidence": [
+  "定点：`Σ逐路逐类 goods_amount` 由 `2,161,661 → 2,147,773`（**−13,888**，真账真的扣了）",
+  "两条 custody：`national_resources` 9/9 残差 0；**`pop_goods` 6/6 残差 0、0 未闭合**（丝 Δ=账=10,865,994；麻 Δ=账=8,566,937）",
+  "常驻断言**已收紧**为逐维 == 0（`test_pop_custody_identity_closes_exactly`，删除了原先的 0.5% 容忍）"
+ ],
+ "jev_note": "🔴 Jev 当时给的是「甲＝先扣后付 / 乙＝取钱后重解析（0.625）」，**两案都建立在\"重解析能拿到真账对象\"的假设上**；实测（obj_id 判定）显示重解析拿到的仍是**会被覆盖的镜像** ⇒ **两案被实测推翻**，按 AGENTS.md「Jev 不是最终权威，与实测冲突以实测为准」改走桥口。平手事实（B 0.4584 vs A 0.4489）与我的自论证已入 `decisions/M55-next-batch-tiebreak.json`。",
+ "next": "① 同族排查收官：把「路级镜像被 sync 覆盖」的剩余写点做一次全量扫描（本会话已找 6 处：商品折旧/产出入POP/成品池分派/成交钱货/外销变现/和买取货）；② M42k 加的 `procure_take_mismatch` 留痕现在应恒为 0——可作为回归哨兵",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T23:14:42Z",
+ "commit": "HEAD"
+}
