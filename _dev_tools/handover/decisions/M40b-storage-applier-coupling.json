@@ -1,0 +1,45 @@
+{
+ "id": "M40b-storage-applier-coupling",
+ "title": "州仓 storage 下沉的前置：engine applier 路径 `prefectures.*.storage` 与 journal 判据的耦合",
+ "status": "待设计",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "blocks": "M40b（州仓 storage 治所级下沉）",
+ "authority": "specs/economy/仓储下沉州府级_实施设计_2026-10-13.md §5；engine/field_registry.py；engine/state_applier.py；core/situations.py",
+ "context": "常平仓（M40a）已安全下沉，因为它只有 settlement 单点写点。州仓 `storage` 不同：它是 **field-registry 可写路径**，因此除 settlement 两处外还有 **engine applier** 写入口；且 `situations` 的拨帑/赈济**成立判据**按 journal 路径读它。",
+ "evidence": [
+  "engine/field_registry.py:112 `PathRule(\"prefectures.*.storage\", _N, _G, writable=True, non_neg=True)` ⇒ 是**合法可写路径**，不是纯 settlement 字段",
+  "engine/state_applier.py:425 `CASCADE_REASON_FIX`：抄没田 → 粮组补记写 `prefectures.*.storage`（op=add, value=-…)",
+  "core/situations.py:1103 条件路径含 `prefectures.*.storage`",
+  "core/situations.py:1250-1256 拨帑/赈济判据：`_inflow(lambda p: p.startswith(\"prefectures.\") and (\".pops.\" in p or p.endswith(\".storage\")))` ⇒ **按 journal path 求 inflow**",
+  "settlement 侧写点 2 处：settlement_granary.py:116-124（漕运起运 −）、settlement_econ.py:302（本色征粮 +）"
+ ],
+ "why_blocked": "若照 M40a 模式给 storage 下沉并开闸，而 engine applier 仍按 `prefectures.<路>.storage` 直写路级镜像 ⇒ **治所真账与镜像必然分叉**（M37 实测过：只下沉不桥全部写点 ⇒ 结算首轮起 20/20 路失配）。此外若把写点改为写治所，需确认 **journal 记录的 path 不变**，否则拨帑/赈济判据会失效（规则层静默失灵，比数值错更危险）。",
+ "options": [
+  {
+   "id": "applier_route_through_bridge",
+   "label": "在 applier 的路径解析处把 `prefectures.<路>.storage` 路由到 storage 桥（真账落治所、镜像同步、journal 仍记原 path）",
+   "pros": "唯一能同时满足『真账在治所』与『journal 判据不变』的方案",
+   "cons": "触 engine/B-1 领地；须先出改动清单 + 定向回归 + 条件路径核对"
+  },
+  {
+   "id": "keep_route_as_truth",
+   "label": "承认 storage 是**路级行政字段**（与 field_registry 一致的定位），不做治所级下沉",
+   "pros": "零风险；与 `PathRule` 的既有定位自洽（B 类字段：行政属性）",
+   "cons": "与『仓储是地点性实物』（批次 4 A 类）的上级口径冲突，需上级裁定"
+  },
+  {
+   "id": "later_batch",
+   "label": "本批不做，登记为需单独作业的前置（与 B-1/B-2 守卫批次协同）",
+   "pros": "不阻塞主线；避免半成品造成分叉",
+   "cons": "仓储片只完成常平仓一半"
+  }
+ ],
+ "jev_basis": {
+  "asked": "2026-10-13 DSH 就『M40b 如何处置』与『applier 未处理前是否开闸』问 Jev",
+  "ruling": "见 decisions 更新（本档登记时结论：**本批不做 M40b**；applier/journal 耦合未处理前**不得开闸**）",
+  "note": "Jev 只裁处置方式；『storage 到底算 A 类（地点性实物，应下沉）还是 B 类（路级行政字段）』属上级口径，需裁定人。"
+ },
+ "ruler": "",
+ "verdict": ""
+}
