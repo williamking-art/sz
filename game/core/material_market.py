@@ -742,7 +742,15 @@ def buy_material(state, *, pref: Any, dim: str, qty: Any,
         else:
             # 民间售料：货出商户 goods、货款进该商户 wealth（真实 POP 槽位）
             spop["wealth"] = int(seller_holder["wealth"])
-            spop["goods"][dim] = max(0, int(round(rest_stock)))
+            _pg = spop.setdefault("goods", {})
+            _before_pop = int(_pg.get(dim, 0) or 0)
+            _pg[dim] = max(0, int(round(rest_stock)))
+            # 🟢 M42e：POP 侧逐维流量登记（民间售料**出 POP goods**；只记实际减少量）
+            _pop_out = _before_pop - int(_pg[dim])
+            if _pop_out > 0:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_out(state, dim, _pop_out, reason="pop_sell",
+                               custody=_sf.CUSTODY_POP)
         if buyer == "treasury":
             treasury = _num(getattr(state, "treasury", None))
             state.treasury = int(round(treasury if treasury is not None else 0.0)

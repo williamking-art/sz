@@ -1,0 +1,30 @@
+{
+ "id": "M43-goods-decay-mirror-write",
+ "title": "商品月折旧写**路级镜像** ⇒ 在下沉档被刷回、实际不生效（同类「直写路级＝写丢失」）",
+ "status": "pending",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "blocks": "统一民间市场 P1 的 POP custody 恒等式闭合（M42e 取证副产品）",
+ "authority": "AGENTS.md §3-1（POP 挂载律：路级 pops 是派生镜像，**直写＝写丢失**，写必须走桥）；game/core/settlement_granary.py:375-381",
+ "evidence": [
+  "settlement_granary.py:379-381 `for _pop in p[\"pops\"].values(): for _gdim in commodity_dims(_pop.get(\"goods\")): _pop[\"goods\"][_gdim] = int(_pop[\"goods\"][_gdim] * 0.95)`",
+  "下沉档真账在 `prefectures[路][\"seats\"][治所][\"pops\"][类][\"goods\"]`；路级 `pops[类][\"goods\"]` 是 `sync_route_pops` 维护的**派生镜像**（pop_bridge.aggregate_seat_pops 逐键求和）",
+  "⇒ 此处改的是镜像值，随后被 `sync_route_pops` 从治所真账**重算覆盖** ⇒ 折旧不生效",
+  "**实测佐证（M42e）**：POP 侧流量账登记的 `out:goods_decay` **从未触发**（6 轮 `run_monthly_settlement` 后 by_reason 里没有它），而 `in:produce_pop` 达 40,632,384 ⇒ 侧证该段未真正扣减",
+  "同一文件 :376 的注释已知 goods 有州府桶形态，但此处**只处理了'键不是桶'**，未处理'写要落到治所真账'"
+ ],
+ "impact": "商品**只增不减**（寿命/折旧口径形同不存在）⇒ 工匠库存虚高、可售量虚高、成交与价格压力被低估；且与 P1「逐月库存恒等式」的 POP 侧缺口直接相关。",
+ "need": "把该折旧改为**经既有桥接**落到治所真账（参照 `production_chain` 的 `goods_add(goods, dim, qty, seat_id)` 用法，或 material_holding 的单点），并补定向回归（下沉档跑一月，断言 Σ治所 goods 真的按 5% 下降、镜像同步）。",
+ "constraints": [
+  "**改数值**（修好后商品真会贬值、消费与价格随之变化）⇒ 须先说明口径与影响 + 同种子对照标定（承 AGENTS.md §3-4）",
+  "不得新增平行账本；写必须走既有桥接（§3-1）",
+  "缺失≠0：桶形态/旧档兼容按既有 `commodity_dims` 判据处理",
+  "须与 P1 POP custody 的逐月 trace 一并做（否则分不清"折旧未生效"与"其他出账未登记"）"
+ ],
+ "jev_basis": {
+  "asked": "未单独问 Jev（本档是**缺陷登记**而非方案选择）；按纪律不改数值、先登记",
+  "note": "若决定修，建议先问 Jev：是否本批修 / 是否与 M42e 的 POP trace 合并做。"
+ },
+ "claimedBy": "",
+ "claimedAt": ""
+}

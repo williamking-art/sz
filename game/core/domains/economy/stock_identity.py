@@ -55,8 +55,31 @@ def _add(acc: Dict[str, float], dim: str, qty) -> None:
 # --------------------------------------------------------------------------
 # 各保管方（逐商品维）
 # --------------------------------------------------------------------------
+def _sum_leaves(node, depth: int = 0) -> Dict[str, float]:
+    """把**数值**或**嵌套桶**（如 `{治所: {dim: n}}`，POP `goods` 的州府桶形态）摊平成 `{dim: n}`。
+
+    🔴 **为什么必须兼容两种形态**：POP 下沉后 `pops[阶层]["goods"]` 可能是
+    `{dim: n}`，也可能是 `{治所: {dim: n}}`（州府桶）。只看数值会把后者**全部跳过** ⇒
+    读数恒为 0、恒等式假"闭合"（2026-10-13 实测踩到）。`depth` 上限防脏档无限递归。
+    """
+    out: Dict[str, float] = {}
+    if not isinstance(node, dict) or depth > 4:
+        return out
+    for k, v in node.items():
+        q = _num(v)
+        if q is not None:
+            out[str(k)] = out.get(str(k), 0.0) + q
+        elif isinstance(v, dict):
+            for d, x in _sum_leaves(v, depth + 1).items():
+                out[d] = out.get(d, 0.0) + x
+    return out
+
+
 def pop_goods_by_dim(state) -> Optional[Dict[str, float]]:
-    """Σ 民间 POP 手持货（逐维）。无 `prefectures` ⇒ `None`（**不是 0**）。"""
+    """Σ 民间 POP 手持货（逐维）。无 `prefectures` ⇒ `None`（**不是 0**）。
+
+    兼容 `goods` 的两种形态：`{dim: n}` 与 `{治所: {dim: n}}`（州府桶）——见 `_sum_leaves`。
+    """
     prefs = getattr(state, "prefectures", None)
     if not isinstance(prefs, dict):
         return None
@@ -68,8 +91,8 @@ def pop_goods_by_dim(state) -> Optional[Dict[str, float]]:
         for slot in pops.values():
             goods = (slot or {}).get("goods") if isinstance(slot, dict) else None
             if isinstance(goods, dict):
-                for dim, q in goods.items():
-                    _add(out, dim, q)
+                for dim, q in _sum_leaves(goods).items():
+                    out[dim] = out.get(dim, 0.0) + q
     return out
 
 

@@ -378,7 +378,14 @@ def _settle_granary(state, log):
         from core.domains.economy.material_trade_ops import commodity_dims
         for _pop in p["pops"].values():
             for _gdim in commodity_dims(_pop.get("goods")):
+                _before_g = _pop["goods"][_gdim]
                 _pop["goods"][_gdim] = int(_pop["goods"][_gdim] * 0.95)
+                # 🟢 M42e：POP 侧逐维流量登记（商品月折旧；**只记实际减少量**）
+                _decay = int(_before_g) - int(_pop["goods"][_gdim])
+                if _decay > 0:
+                    from core.domains.economy import stock_flow as _sf
+                    _sf.record_out(state, _gdim, _decay, reason="goods_decay",
+                                   custody=_sf.CUSTODY_POP)
         # 3.1) **价格发现（B2-4 ＋ B2-R2 路级修正）**：
         # 供需**同域**——需求取**本路** `(route, good)`，供给取**本路**工匠可售库存，
         # 上期价取**本路**动态价。原实现把多路累计需求与"循环中当前一路"的库存配对，

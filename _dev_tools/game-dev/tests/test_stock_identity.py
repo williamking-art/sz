@@ -24,6 +24,18 @@ def _state(prefs=None, resources=None, pending=None):
 
 
 # ------------------------------------------------------------------ 1. 各保管方
+def test_pop_goods_handles_seat_bucket_shape():
+    """`goods` 的**州府桶形态** `{治所: {dim: n}}` 必须被摊平计入（否则读数恒 0）。
+
+    2026-10-13 实测教训：只看数值会把下沉档的州府桶**整片跳过** ⇒ 恒等式假"闭合"。
+    """
+    prefs = {
+        "路A": {"pops": {"工匠": {"goods": {"路A|甲": {"绸": 5}, "路A|乙": {"绸": 2, "布": 1}}}}},
+        "路B": {"pops": {"工匠": {"goods": {"绸": 3}}}},          # 扁平形态也支持
+    }
+    assert si.pop_goods_by_dim(_state(prefs)) == {"绸": 10.0, "布": 1.0}
+
+
 def test_pop_goods_by_dim_sums_across_routes_and_classes():
     prefs = {
         "路A": {"pops": {"工匠": {"goods": {"绸": 5, "布": 2}},
