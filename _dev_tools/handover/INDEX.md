@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T19:12:46Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T19:21:18Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-13）：《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b（库存/货币只读投影）+ **M41c（逐月 Δ 与残差 + 全流水取证）已落地**。取证结论：**货币残差恒 0**；货确实在动（10 维）但**逐维流量账不存在**（statistics 仅聚合键、granary_stats 仅粮腿）⇒ **P1 第一
+- **DSH**（updatedAt=2026-10-13）：《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b/c（库存货币只读投影与逐月Δ）+ **M42a（逐维流量账，全国仓 5/9 维残差归零）已落地**。P1 第一句的可闭合性从「全 20 维 unclosed」推进到「全国仓 5 维精确闭合」；余下需 POP goods 侧与出账侧登记。
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -36,7 +36,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261012T181625Z-DSH` → [`worklog/20261012T181625Z-DSH.md`](worklog/20261012T181625Z-DSH.md)
 - `20261012T182609Z-DSH` → [`worklog/20261012T182609Z-DSH.md`](worklog/20261012T182609Z-DSH.md)
 - `20261012T183504Z-DSH` → [`worklog/20261012T183504Z-DSH.md`](worklog/20261012T183504Z-DSH.md)
 - `20261012T183709Z-DSH` → [`worklog/20261012T183709Z-DSH.md`](worklog/20261012T183709Z-DSH.md)
@@ -44,8 +43,9 @@
 - `20261012T185516Z-DSH` → [`worklog/20261012T185516Z-DSH.md`](worklog/20261012T185516Z-DSH.md)
 - `20261012T190332Z-DSH` → [`worklog/20261012T190332Z-DSH.md`](worklog/20261012T190332Z-DSH.md)
 - `20261012T191245Z-DSH` → [`worklog/20261012T191245Z-DSH.md`](worklog/20261012T191245Z-DSH.md)
+- `20261012T192118Z-DSH` → [`worklog/20261012T192118Z-DSH.md`](worklog/20261012T192118Z-DSH.md)
 
 ## 计数
 
-- tasks 26（未完成 12）· decisions 24（未闭环 6）· worklog 191 · phase 文件 4
+- tasks 26（未完成 12）· decisions 24（未闭环 6）· worklog 192 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

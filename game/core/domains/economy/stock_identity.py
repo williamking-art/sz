@@ -253,11 +253,19 @@ def residual_report(prev: Dict[str, Any], curr: Dict[str, Any],
     unclosed: List[str] = []
     for d, dv in (delta.get("net") or {}).items():
         fv = None if not isinstance(flows, dict) else flows.get(d)
-        if dv is None or not isinstance(fv, (int, float)):
+        if dv is None:
             residual[d] = None
             unclosed.append(d)
-        else:
-            residual[d] = float(dv) - float(fv)
+            continue
+        if not isinstance(fv, (int, float)):
+            # Δ==0 且无账目 ⇒ 视为闭合（"零变动维"不该被误判为无账）
+            if abs(float(dv)) < 1e-9:
+                residual[d] = 0.0
+                continue
+            residual[d] = None
+            unclosed.append(d)
+            continue
+        residual[d] = float(dv) - float(fv)
     bad = sorted(d for d, r in residual.items() if isinstance(r, (int, float)) and abs(r) > tol)
     return {"delta": delta, "flows_provided": isinstance(flows, dict),
             "residual": residual, "unclosed": sorted(unclosed), "nonzero": bad,

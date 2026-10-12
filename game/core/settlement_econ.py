@@ -1778,11 +1778,17 @@ def _settle_workshops(state, log):
             # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。
             _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
             _cap = int(_slot.get("cap", 0) or 0)
-            _new = int(_slot.get("stock", 0) or 0) + yld
+            _before_s = int(_slot.get("stock", 0) or 0)
+            _new = _before_s + yld
             # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
             # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
             # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
             _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
+            # 🟢 M42a：逐维流量登记（作坊产出**入国家仓**；只记**实际入账量**，cap 可能截断）
+            _added_s = int(_slot["stock"]) - _before_s
+            if _added_s > 0:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_in(state, out_dim, _added_s, reason="workshop_output")
             # 2026-10-11（规格 market-civilian-economy B1）：**成品维（布/绸）另入工匠 goods 池**。
             # 口径依 `building_jobs.produce_job_track`（:327-331）「原料维 → resources；
             # 成品维 → goods_pool，单一产出通道原则」——宋侧此前只写 resources，

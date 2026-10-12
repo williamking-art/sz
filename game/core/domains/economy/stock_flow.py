@@ -152,11 +152,20 @@ def residual_for_custody(prev: Dict[str, Any], curr: Dict[str, Any], custody: st
     unclosed = []
     for dim, dv in row.items():
         fv = None if not isinstance(flows, dict) else flows.get(dim)
-        if dv is None or not isinstance(fv, (int, float)):
+        if dv is None:
             residual[dim] = None
             unclosed.append(dim)
-        else:
-            residual[dim] = float(dv) - float(fv)
+            continue
+        if not isinstance(fv, (int, float)):
+            # 🔴 **Δ==0 且无账目 ⇒ 本就无需账目，视为闭合**（否则"零变动维"会被误判无账；
+            #    2026-10-13 由恒等式回归用例抓出）。只有"有变动却没账"才算 unclosed。
+            if abs(float(dv)) < 1e-9:
+                residual[dim] = 0.0
+                continue
+            residual[dim] = None
+            unclosed.append(dim)
+            continue
+        residual[dim] = float(dv) - float(fv)
     nonzero = sorted(d for d, r in residual.items()
                      if isinstance(r, (int, float)) and abs(r) > 1e-6)
     return {"custody": custody, "residual": residual, "unclosed": sorted(unclosed),
