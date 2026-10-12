@@ -1,0 +1,18 @@
+{
+ "id": "M49-wage-gate-readout",
+ "title": "建筑经营「投入/工资/劳力」闸门只读投影（P2 第一条的读数先行）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（P2 行）；Jev choose C 0.561（B 经营主体自付 0.259 / A 国库支付 0.180 次之）",
+ "deliverable": "core/domains/economy/wage_gate_readout.py（只读）：岗位需求（复用 song_job_cfg 单点，兼容两种形态）· 劳力供给 · 缺工上界乘数（最短板）· 工资需求（既有 WAGE_RATE 分层）· 付款池三档并列的到位率",
+ "findings": [
+  "**开局建筑只有 `水利`/`常平仓`（标量等级）⇒ 20 路无一有岗位类建筑** ⇒ 「缺工降产」闸门当前无处可施（先要有岗位建筑的开局配置/建造入口）",
+  "`song_job_cfg()['WAGE_RATE']` **只登记外邦政权与 `default`**（牧场/工坊/矿场）⇒ 宋境作坊工价只能走 `default` 兜底：**工坊 1.5 贯/岗/月**；`商铺` 在 default 档**无条目 ⇒ None**（不臆造）",
+  "`JOBS_PER_LEVEL` **两种形态并存**：cfg 里是**每级总岗数（int）**，模块常量 `SONG_JOBS_PER_LEVEL` 是 `{职位:数}` ⇒ 只认一种会在真实局全部跳过（已踩并修）",
+  "宋境**没有工资腿**：`building_jobs.pay_wages_from_revenue` 唯一调用方仍是外邦路径；`civil_building` 的**营造工钱**（`_pay_wage`，全或无、走 transfer_money）与作坊岗位工资不是一回事"
+ ],
+ "next": "接线前的两个前置（**口径待定**）：① 宋境**岗位工价**是否沿用 `default` 档（1.5）还是另立宋侧档；② 付款池选哪一档（国库＝政府雇工 / 经营主体自付＝需先定义持有者）——两者都改钱流，须口径 + 同种子标定。读数侧已就绪：给定任一口径都能立刻算出到位率与降产上界。",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T21:59:12Z"
+}
