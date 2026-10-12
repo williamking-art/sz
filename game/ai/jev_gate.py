@@ -117,27 +117,28 @@ def enabled() -> bool:
     return load_config() is not None
 
 
-#: 供应商登记表。**阈值必须按供应商各自校准**（见 tools\jev\jev_calibrate.py）：
-#: tokenrhythm 的响应自带
-#: `confidence_source=local_delivery_formula_not_verified_as_typesafe_equivalent`，
-#: 即它自己声明概率并非 TypeSafe 等价物。实测（8 条中文样例）：
-#:   typesafe    正例 0.65–0.95 / 负例 0.04–0.09 → 100% 区间 0.15–0.65 → 取 0.40
-#:   tokenrhythm 正例 0.95–0.97 / 负例 0.00–0.09 → 100% 区间 0.15–0.90 → 取 0.50
+#: 供应商登记表。**阈值必须按供应商各自校准**（概率标度不同）。24 条中文样例实测
+#: （`D:\codebuddy\tools\jev\jev_calibrate.py --both --write`，产出 thresholds.json）：
+#:   tokenrhythm 正例 0.654–0.990 / 负例 0.003–0.127 → 100% 窗口 0.15–0.65 → 取 **0.40**
+#:   typesafe    正例 0.65–0.97   / 负例 0.04–0.19    → 100% 窗口 0.20–0.65 → 取 **0.45**
+#:   两家判定一致率 24/24。样本仍非真实语料，正式上线应用真实数据重跑。
+#: ⚠️ tokenrhythm 自称 `confidence_source=local_delivery_formula_not_verified_as_typesafe_equivalent`
+#:   ⇒ 概率**不可跨供应商沿用**；且它对"不可逆/危险操作"会判低（见 README 关键约定 9）。
 _PROVIDERS = {
     "typesafe": {
         "endpoint": "https://api.typesafe.ai/v1/systemone",
         "model": "jev-latest",
         "key_env": "TYPESAFE_API_KEY",
         "keys_file": r"D:\codebuddy\_credentials\typesafe_jev_keys.txt",
-        "threshold": 0.40,
+        "threshold": 0.45,
     },
     "tokenrhythm": {
-        # 服务器侧首选：**不需要代理**、更快（实测 0.36–0.54s vs TypeSafe 0.58s）
+        # 默认主通道：**不需要代理**、更快（实测 0.36–0.54s vs TypeSafe 0.58s）
         "endpoint": "https://tokenrhythm.studio/v1/decision",
         "model": "NeoHorse-Jev-4B",
         "key_env": "TOKENRHYTHM_API_KEY",
         "keys_file": None,
-        "threshold": 0.50,
+        "threshold": 0.40,
     },
 }
 

@@ -45,12 +45,12 @@ ACTIONS = [
 
 # ---------------------------------------------------------------- 0. 默认供应商
 def test_default_provider_is_tokenrhythm(jev_on):
-    """默认供应商 = tokenrhythm（免代理）；阈值按供应商各自校准，不可互用。"""
+    """默认供应商 = tokenrhythm（免代理）；阈值按供应商各自校准（24 条样例），不可互用。"""
     cfg = jev_gate.load_config()
     assert cfg is not None
     assert cfg["provider"] == "tokenrhythm"
-    assert cfg["threshold"] == 0.50
-    assert jev_gate._PROVIDERS["typesafe"]["threshold"] == 0.40
+    assert cfg["threshold"] == 0.40
+    assert jev_gate._PROVIDERS["typesafe"]["threshold"] == 0.45
     # 两个通道都在登记表里 → 主通道失败可自动降级
     assert set(jev_gate._PROVIDERS) >= {"tokenrhythm", "typesafe"}
 
@@ -59,7 +59,7 @@ def test_provider_env_override(jev_on, monkeypatch):
     monkeypatch.setenv("SONGZUO_JEV_PROVIDER", "typesafe")
     cfg = jev_gate.load_config()
     assert cfg["provider"] == "typesafe"
-    assert cfg["threshold"] == 0.40          # 跟随供应商换成校准值
+    assert cfg["threshold"] == 0.45          # 跟随供应商换成校准值
 
 
 # ---------------------------------------------------------------- 1. 默认禁用
