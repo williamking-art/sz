@@ -1,0 +1,19 @@
+{
+  "name": "mcp-songzuo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "宋祚跨设备 state / context / 工作日志 MCP（Streamable HTTP, stateless）",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "selftest": "node selftest.js"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "ali-oss": "^6.21.0"
+  }
+}

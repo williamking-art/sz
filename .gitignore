@@ -128,6 +128,13 @@ _dev_tools/*
 # 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：
 # `game/README.md`（**入库**文档）已引用它 —— 若不入库，新克隆者按文档跑会找不到文件。
 !_dev_tools/verify-all.ps1
+# mcp-songzuo：跨设备/跨 agent 状态 MCP（自托管于阿里云 ECS 120.25.223.23:18080）。
+# 它接替已停用的 CloudBase 交接 MCP，是 AGENTS.md §1 提到的跨会话共享载体之一，
+# 源码需随仓库分发、供 ECS 从 git 拉取部署（用户 2026-10-12 裁定：放进 sz 仓库）。
+# ⚠️ 只放源码与部署件 —— `.env`（含逐 agent token 明文）、`.dns-aliyun.env`、
+#    `tokens.txt`、`certs/` 一律不入库，由 `_dev_tools/mcp-songzuo/.gitignore` 兜底。
+!_dev_tools/mcp-songzuo/
+!_dev_tools/mcp-songzuo/**
 # 立绘生成工具链入库：一次性资产管线的源脚本+源图（2026-09-26 从 game/content/
 # 迁出，修复分层纪律违规；含 _i2i.py 的第三方 key——key 本体按用户决定不轮换，
 # 但迁出后至少不再随 PyInstaller 把 content/ 整体打包而进每个分发版）。

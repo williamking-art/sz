@@ -1,0 +1,65 @@
+# 宋祚 MCP（mcp-songzuo）— Docker Compose 部署
+#
+# 拓扑：
+#   公网 ──TLS──> nginx 容器 ──compose 内网──> mcp 容器
+#   MCP 容器不再映射到公网；127.0.0.1:9000 仅供服务器本机排障。
+#
+# 换存储驱动：改 .env 的 STORAGE_DRIVER=oss 并补齐 OSS_* 变量，无需改代码。
+
+services:
+  mcp:
+    build: ./app
+    image: mcp-songzuo:2.0.0
+    container_name: mcp-songzuo
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "9000"
+      HOST: "0.0.0.0"
+      STATE_DIR: /data/mcp-state
+    volumes:
+      - mcp-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"   # 仅本机排障，不对公网
+    networks:
+      - mcpnet
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    image: nginx:alpine
+    container_name: mcp-songzuo-nginx
+    restart: unless-stopped
+    depends_on:
+      - mcp
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      # 443 不映射：同机 llm-relay-nginx 已占用；且 songzuo.online 未备案被
+      # 阿里云按 SNI 拦截，TLS 域名通道在备案通过前无意义（配置保留）。
+      # 18080 = 直连 IP 的明文 HTTP 入口（8080 被同机 songzuo-site 占用）。
+      - "18080:18080"
+      - "8443:8443"
+    networks:
+      - mcpnet
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  mcpnet:
+    name: mcp-songzuo-net
+
+volumes:
+  mcp-data:
+    name: mcp-songzuo-data
