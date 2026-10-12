@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T16:57:34Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T17:00:04Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -27,11 +27,9 @@
 - `C-invest` [recommended-no] invest_decide 回报来源守恒
 - `MIG-COMPAT-RETENTION` [待裁定] 迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API
 - `POP-faction` [design-done] POP 增派系子池（与阶层分离）
-- `local-treasury-share-basis` [待裁定] 地方府库下沉的【分摊权重依据】取什么？
 
 ## 最近 8 条工作日志
 
-- `20261012T161040Z-DSH` → [`worklog/20261012T161040Z-DSH.md`](worklog/20261012T161040Z-DSH.md)
 - `20261012T163136Z-DSH` → [`worklog/20261012T163136Z-DSH.md`](worklog/20261012T163136Z-DSH.md)
 - `20261012T163739Z-DSH` → [`worklog/20261012T163739Z-DSH.md`](worklog/20261012T163739Z-DSH.md)
 - `20261012T164741Z-DSH` → [`worklog/20261012T164741Z-DSH.md`](worklog/20261012T164741Z-DSH.md)
@@ -39,8 +37,9 @@
 - `20261012T165303Z-DSH` → [`worklog/20261012T165303Z-DSH.md`](worklog/20261012T165303Z-DSH.md)
 - `20261012T165532Z-DSH` → [`worklog/20261012T165532Z-DSH.md`](worklog/20261012T165532Z-DSH.md)
 - `20261012T165733Z-DSH` → [`worklog/20261012T165733Z-DSH.md`](worklog/20261012T165733Z-DSH.md)
+- `20261012T170004Z-DSH` → [`worklog/20261012T170004Z-DSH.md`](worklog/20261012T170004Z-DSH.md)
 
 ## 计数
 
-- tasks 21（未完成 8）· decisions 21（未闭环 5）· worklog 174 · phase 文件 4
+- tasks 21（未完成 8）· decisions 21（未闭环 4）· worklog 175 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

@@ -1,7 +1,7 @@
 {
  "id": "local-treasury-share-basis",
  "title": "地方府库下沉的【分摊权重依据】取什么？",
- "status": "待裁定",
+ "status": "已裁",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "M37-local-treasury-sink 的 M37a（桥接/迁移/聚合）实现",
@@ -30,5 +30,7 @@
  "recommendation": "seat_pop_weights",
  "recommendation_reason": "与既有 POP 机制同型、可立即实施且断言可复用；制度准确性问题待日后有等级数据源时再作独立裁定（不阻塞主干）。",
  "ruler": "",
- "verdict": ""
+ "verdict": "Jev 裁定（tokenrhythm/NeoHorse-Jev-4B）：制度上更优=B 按行政等级/编制（0.55 > A 0.33 > C 0.12）；但闸门 P=0.988 支持『先用 A（人口权数）落地并把分摊依据标为推演、不等制度级裁定』。=> 现已用 A 落地，切换点 = treasury_bridge.set_weights_provider()，B 为目标",
+ "verdictBy": "Jev 决策模型",
+ "verdictAt": "2026-10-12T16:59:59Z"
 }

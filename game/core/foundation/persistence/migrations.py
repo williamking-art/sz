@@ -87,3 +87,16 @@ def sink_pops_to_seats(state) -> int:
 返回实际下沉的路数。
     """
     return _migrate_pops_to_seats(state)
+
+
+def sink_treasury_to_seats(state) -> int:
+    """把**路级 treasury（地方府库）下沉**到州府级 seats（主线 B 第一片）。
+
+    与 `sink_pops_to_seats` 同型：**无条件幂等入口**，新局与读档共用。
+    真账落 `prefectures[路]["seats"][治所]["treasury"]`，路级降为 Σ 派生镜像。
+
+    ⚠️ 必须在 `sink_pops_to_seats` **之后**调用（分摊权重取自治所人口）。
+    返回实际下沉的路数；权重不可得的路**跳过**（不臆造归属）。
+    """
+    from core.foundation.ledger import treasury_bridge
+    return treasury_bridge.sink_treasury_to_seats(state)
