@@ -62,6 +62,9 @@
    分派到各路工匠 `goods` 池）**同样直写镜像**。**试改走 `pop_goods_add` 会触 POP 只读守卫**
    （`test_route_pops_readonly_guard.py` 两例转红：`test_full_monthly_settlement_keeps_route_pops_derived`
    与 `test_combined_monthly_economic_paths_keep_seat_pop_truth`，报的是**路级 `pops[类]["wealth"]` 直写**，
-   即"改法引起的连锁写入"而非 goods 本身）⇒ **需单独查因后再修**，本批已回滚该改动（守卫复绿）。
+   即"改法引起的连锁写入"而非 goods 本身）⇒ **根因已查明（2026-10-13，M45）**：守卫 trace 直指
+   **`market.py:180/:183`（`_trade_goods_core`）成交时直写路级 `pops[类]["wealth"]` 镜像**；
+   该路径平时空转（工匠池没货），**修好"商品真落 POP"后 Phase B 消费成交才真的跑起来**，于是潜伏缺陷暴露。
+   ⇒ **第三处必须在 M45 修好之后再做**（否则守卫必红）；本批已回滚该改动（守卫复绿 12 passed）。
    **POP custody 复测（同种子 6 个月）**：7 维有变动、7 维有账、**5 维精确闭合**、0 未闭合；
    余 **丝 +18,841／麻 +15** 的未登记入账（已登记待查，量级 0.17% / 0.0002%）。
