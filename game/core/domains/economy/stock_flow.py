@@ -167,14 +167,34 @@ def cumulative_flows(state, custody: str = CUSTODY_NATIONAL) -> Dict[str, int]:
 
 
 def coverage(state, month: Optional[int] = None,
-             custody: str = CUSTODY_NATIONAL) -> Dict[str, Any]:
-    """某 custody 的**覆盖率读数**：本月登记了哪些维/原因（`all_months=True` 看累计）。"""
+             custody: str = CUSTODY_NATIONAL, *, all_months: bool = False) -> Dict[str, Any]:
+    """某 custody 的**覆盖率读数**：登记了哪些维/哪些原因。
+
+    ⚠️ `all_months=False`（默认）只报**当前月**——结算跑完后当前月通常已无登记 ⇒ 会显示 0 维
+    （2026-10-13 实测误导）。看"整体覆盖了多少"应传 `all_months=True`（跨全月桶汇总）。
+    """
+    if all_months:
+        dims = sorted(cumulative_flows(state, custody=custody))
+        reasons: Dict[str, int] = {}
+        flow = getattr(state, STATE_KEY, None) or {}
+        if isinstance(flow, dict):
+            for _m, month_b in flow.items():
+                b = month_b.get(str(custody)) if isinstance(month_b, dict) else None
+                if not isinstance(b, dict):
+                    continue
+                for _d, row in b.items():
+                    if isinstance(row, dict):
+                        for k, q in (row.get("by_reason") or {}).items():
+                            reasons[k] = reasons.get(k, 0) + int(q)
+        return {"custody": custody, "month": None, "all_months": True,
+                "dims": dims, "dim_count": len(dims),
+                "reasons": reasons, "registered": bool(dims)}
     f = flows_for(state, month, custody)
-    reasons: Dict[str, int] = {}
+    reasons = {}
     for v in f.values():
         for k, q in (v.get("by_reason") or {}).items():
             reasons[k] = reasons.get(k, 0) + int(q)
-    return {"custody": custody,
+    return {"custody": custody, "all_months": False,
             "month": current_month(state) if month is None else int(month),
             "dims": sorted(f), "dim_count": len(f),
             "reasons": reasons, "registered": bool(f)}

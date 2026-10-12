@@ -97,6 +97,13 @@ def test_coverage(m7):
     cov = sf.coverage(s)
     assert cov["dims"] == ["木"] and cov["dim_count"] == 1
     assert cov["reasons"] == {"in:produce": 4, "out:consume": 1}
+    # ⚠️ 当前月之外还有登记时，`all_months=True` 才看得到（默认只看当前月 ⇒ 会显示 0）
+    s.stock_flow["9"] = {sf.CUSTODY_NATIONAL: {"石": {"in": 3, "out": 0,
+                                                     "by_reason": {"in:produce": 3}}}}
+    assert sf.coverage(s, month=8)["dim_count"] == 0            # 第 8 月无登记
+    am = sf.coverage(s, all_months=True)
+    assert am["all_months"] is True
+    assert set(am["dims"]) == {"石", "木"} and am["reasons"]["in:produce"] == 7
 
 
 # ------------------------------------------------------------------ 3. 单 custody 残差

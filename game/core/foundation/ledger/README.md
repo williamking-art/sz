@@ -58,3 +58,10 @@
    **实测对照（2026-10-13，同种子 6 个月）**：修复前 `production_chain` 产出登记 **4,063 万**
    而 POP 实存 **0**、`settlement_granary` 折旧**完全不发生**；修复后 POP 实存 **3,408 万**、
    折旧核销 **655 万**（`price_level`/`grain_price` 未变——商品尚未接入市场供给，属 P2 范畴）。
+   **第三处同族写点（⚠️ 尚未修）**：`settlement_econ` 的**成品池分派**（`:1805-1831`，meat/绸/布
+   分派到各路工匠 `goods` 池）**同样直写镜像**。**试改走 `pop_goods_add` 会触 POP 只读守卫**
+   （`test_route_pops_readonly_guard.py` 两例转红：`test_full_monthly_settlement_keeps_route_pops_derived`
+   与 `test_combined_monthly_economic_paths_keep_seat_pop_truth`，报的是**路级 `pops[类]["wealth"]` 直写**，
+   即"改法引起的连锁写入"而非 goods 本身）⇒ **需单独查因后再修**，本批已回滚该改动（守卫复绿）。
+   **POP custody 复测（同种子 6 个月）**：7 维有变动、7 维有账、**5 维精确闭合**、0 未闭合；
+   余 **丝 +18,841／麻 +15** 的未登记入账（已登记待查，量级 0.17% / 0.0002%）。
