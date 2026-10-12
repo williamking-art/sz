@@ -1,0 +1,37 @@
+{
+ "id": "M39-transport-sink",
+ "title": "交通下沉州府级（主线B 批次1）：水位/漕运逐治所真账 + 路级/全国降为派生",
+ "status": "in_progress",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/transport/交通下沉州府级.md（2026-10-05 用户裁定「交通是州府级」）；specs/cross-cutting/州府级真账总批计划.md 批次 1；reviews/未落地设计裁定与实施路线.md §3 主线 B",
+ "goal": "交通件（`ROUTE_WATERWAY` / `canal_block`，以及已完成下沉的 `buildings` 中的水利）真账落治所，路级/全国降为派生聚合；消费方改逐治所/逐路读取；新局与读档共用幂等入口。",
+ "recon": {
+  "三件现状": [
+   "`canal_block`（漕运阻塞 0~100）：🔴 **全国单标量**（`game_state.py:718`）—— 无法表达『某段淤塞、别处通畅』",
+   "`buildings`（含『水利』）：路级 → **✅ 已由 M38（2026-10-13）下沉完成**",
+   "`ROUTE_WATERWAY`：🔴 **路级**（`core/trade_shadow.py`）—— 规格自述『本会话新增、改动最小』"
+  ],
+  "规格自述建议顺序": [
+   "① 先把 `ROUTE_WATERWAY` 下沉治所（改动最小、零风险）",
+   "② 再议『逐治所初始值』的依据（地理事实；Natural Earth 已证不可用）",
+   "③ 然后才动 `canal_block` / `buildings`（牵动多系统，需单独作业）"
+  ],
+  "已被规格点名的风险": [
+   "`canal_block` 已被**粮价**消费（`game_state_econ.py:293`『漕运阻塞越高，外粮难入 → 加价』）⇒ 下沉后粮价逻辑必须改逐路/逐治所读，否则行为分叉",
+   "逐治所初始值缺地理事实依据（不在本批臆造）"
+  ]
+ },
+ "scope": [
+  "M39a：`ROUTE_WATERWAY` 下沉治所（按规格建议顺序的第①步）",
+  "M39b：逐治所初始值依据（地理事实）——需材料，缺则标『材料不足』不臆造",
+  "M39c：`canal_block` 全国标量 → 逐治所 + **粮价消费方改逐路读**（牵动多系统，单独作业）"
+ ],
+ "explicitly_not": [
+  "不臆造逐治所水位/漕运初始值（无地理依据就不编）",
+  "不动外邦侧交通",
+  "不在未改粮价读取前下沉 canal_block（会造成行为分叉）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T18:08:20Z"
+}

@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T18:07:10Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T18:08:27Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -20,18 +20,19 @@
 - `M36-7-B-ministers-prototype` M36.7-B《AI 大臣最小原型》：1 议题 × 3 大臣 × 单轮、不落库（已实现并本地验收） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-inspection-batch` M36《察访与监司行动》：监察＝行动者（编制/生命周期/风险反馈/审理链对接） ｜status=**in_progress**｜claimedBy=Cline
 - `M38-building-sink` 建筑下沉州府级（主线B 批次2）：seats[治所]["buildings"] 真账 + 路级 Σ 派生聚合（保形态）+ 4 写点全桥 +  ｜status=**in_progress**｜claimedBy=DSH
+- `M39-transport-sink` 交通下沉州府级（主线B 批次1）：水位/漕运逐治所真账 + 路级/全国降为派生 ｜status=**in_progress**｜claimedBy=DSH
 
 ## 待裁 / 未闭环决策
 
 - `AGENT-DSH-NAME-COLLISION` [待裁定] 两个并发会话共用 `DSH` 名字，`phase/DSH.json` 被互相覆盖（需裁定归属规则）
 - `C-invest` [recommended-no] invest_decide 回报来源守恒
+- `M38c-crop-buildings-authorization` [待裁定] M38c 建筑语汇统一（桑/麻/果/蔗/茶园各成一建）· 是否需要该阶段单独授权？
 - `MIG-COMPAT-RETENTION` [待裁定] 迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API
 - `POP-faction` [design-done] POP 增派系子池（与阶层分离）
 - `地方支出V2-D1-D5` [待裁定] 地方支出 V2（M34-①）：行政/治安/水利/救灾/仓廪五条消费性出口的接入口径 D1–D5
 
 ## 最近 8 条工作日志
 
-- `20261012T170004Z-DSH` → [`worklog/20261012T170004Z-DSH.md`](worklog/20261012T170004Z-DSH.md)
 - `20261012T171840Z-DSH` → [`worklog/20261012T171840Z-DSH.md`](worklog/20261012T171840Z-DSH.md)
 - `20261012T173016Z-DSH` → [`worklog/20261012T173016Z-DSH.md`](worklog/20261012T173016Z-DSH.md)
 - `20261012T173930Z-DSH` → [`worklog/20261012T173930Z-DSH.md`](worklog/20261012T173930Z-DSH.md)
@@ -39,8 +40,9 @@
 - `20261012T175012Z-DSH` → [`worklog/20261012T175012Z-DSH.md`](worklog/20261012T175012Z-DSH.md)
 - `20261012T175835Z-DSH` → [`worklog/20261012T175835Z-DSH.md`](worklog/20261012T175835Z-DSH.md)
 - `20261012T180710Z-DSH` → [`worklog/20261012T180710Z-DSH.md`](worklog/20261012T180710Z-DSH.md)
+- `20261012T180827Z-DSH` → [`worklog/20261012T180827Z-DSH.md`](worklog/20261012T180827Z-DSH.md)
 
 ## 计数
 
-- tasks 22（未完成 8）· decisions 22（未闭环 5）· worklog 182 · phase 文件 4
+- tasks 23（未完成 9）· decisions 23（未闭环 6）· worklog 183 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
