@@ -23,7 +23,7 @@
  ],
  "jev_basis": {
   "asked": "未单独问 Jev（本档是**缺陷登记 + 依赖关系**）；按纪律不改数值、先登记",
-  "note": "若开工，建议先问 Jev：是否与 M42h 第三处合并、以及"调用方改传治所行"的影响面（Phase B / material_market / export_policy 等）。"
+  "note": "若开工，建议先问 Jev：是否与 M42h 第三处合并、以及「调用方改传治所行」的影响面（Phase B / material_market / export_policy 等）。"
  },
  "claimedBy": "",
  "claimedAt": ""
