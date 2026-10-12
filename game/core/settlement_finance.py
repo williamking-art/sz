@@ -637,7 +637,10 @@ def _settle_land_tax_color(state, log) -> dict:
         _c = _paid - _l - _dv                       # 尾差归中央（保护 transfer）
         _pd = state.prefectures.get(_rk) or {}
         if _l > 0:
-            _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _l
+            # 🟢 主线 B（M37b）：地方府库写点走桥（未下沉 ⇒ None ⇒ 回落原写法）
+            from core.foundation.ledger import local_treasury_bridge as _ltb
+            if _ltb.local_treasury_add(state, _rk, _l) is None:
+                _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _l
             local_total += _l
             local_by_route[_rk] = _l
         if _dv > 0:
@@ -675,7 +678,10 @@ def _settle_land_tax_color(state, log) -> dict:
             _pd = state.prefectures.get(_rk)
             if not isinstance(_pd, dict):
                 continue
-            _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _move
+            # 🟢 主线 B（M37b）：地方府库写点走桥（未下沉 ⇒ None ⇒ 回落原写法）
+            from core.foundation.ledger import local_treasury_bridge as _ltb
+            if _ltb.local_treasury_add(state, _rk, _move) is None:
+                _pd["local_treasury"] = int(_pd.get("local_treasury", 0) or 0) + _move
             central_by_route[_rk] -= _move
             central -= _move
             local_total += _move

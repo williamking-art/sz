@@ -1226,7 +1226,13 @@ class GameState(GameStateEconMixin):
                 _, road = key.split(":", 1)
                 p = self.prefectures.get(road)
                 if isinstance(p, dict):
-                    p["local_treasury"] = max(0, int(val))
+                    _v = max(0, int(val))
+                    # 🟢 主线 B（M37b）：地方府库真账在**治所**，路级是 Σ 派生镜像。
+                    #   已下沉 ⇒ 走桥（写治所真账并刷新镜像）；**未下沉 ⇒ None ⇒ 回落原写法**。
+                    #   此处是全部 `transfer_money("local:…")` 的汇聚点。
+                    from core.foundation.ledger import local_treasury_bridge as _ltb
+                    if _ltb.local_treasury_set(self, road, _v) is None:
+                        p["local_treasury"] = _v
                     return
         def _writable(key):
             """目标是否**可写**（审查 M3）：原实现只判 src 可付，`_write(dst, …)` 在

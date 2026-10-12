@@ -80,12 +80,15 @@ def _run_fixed(state, cat, params):
             if payable <= 0:
                 return "国库不足，州郡赈济未能拨付。"
             state.change_treasury(-payable)
-            _prefs = list(state.prefectures.values())
+            _prefs = list(state.prefectures.items())
             if _prefs:
                 _each, _rem = divmod(payable, len(_prefs))
-                for _i, _p in enumerate(_prefs):
-                    _p["local_treasury"] = (int(_p.get("local_treasury", 0) or 0)
-                                            + _each + (_rem if _i == 0 else 0))
+                # 🟢 主线 B（M37b）：地方府库写点走桥（未下沉 ⇒ None ⇒ 回落原写法）
+                from core.foundation.ledger import local_treasury_bridge as _ltb
+                for _i, (_rn, _p) in enumerate(_prefs):
+                    _add = _each + (_rem if _i == 0 else 0)
+                    if _ltb.local_treasury_add(state, _rn, _add) is None:
+                        _p["local_treasury"] = int(_p.get("local_treasury", 0) or 0) + _add
             return f"〔拨付〕州郡赈济 {payable} 贯（自国库列支）。"
 
         _dst = _SRC_DST.get(target)

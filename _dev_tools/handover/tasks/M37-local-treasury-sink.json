@@ -1,31 +1,49 @@
 {
  "id": "M37-local-treasury-sink",
- "title": "地方府库下沉州府级（主线 B 第一片）：seats[治所][\"treasury\"] 真账 + 路级派生镜像",
+ "title": "地方府库（local_treasury）下沉州府级：seats[治所][\"local_treasury\"] 真账 + 路级 Σ 派生镜像 + 七处写点全桥",
  "status": "in_progress",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
- "authority": "上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B；seats 载体前置已满足（2026-10-11 核实 20/20）",
- "goal": "把地方府库真账下沉到治所（seats[治所][\"treasury\"]），路级降为只读派生聚合；所有写点走桥接；以此解开 A-粮价债务（game_state_econ.py:315/:327-328 的全国分母）。",
- "deliverable_now": "_dev_tools/game-docs/specs/economy/地方府库下沉州府级_实施设计_2026-10-13.md（设计 + 取证完成；未写代码、未提交代码改动）",
+ "authority": "上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B；阻塞记录 specs/economy/地方府库下沉州府级_阻塞记录.md §五",
+ "goal": "把地方府库真账下沉到治所（seats[治所][\"local_treasury\"]），路级降为只读 Σ 派生聚合；**全部写点走桥**；新局与读档共用幂等入口。",
+ "deliverable_now": "M37a（基础设施+接线）＋ M37b（七处写点全桥）均已落地并实跑验收；设计档 specs/economy/地方府库下沉州府级_实施设计_2026-10-13.md §12-§13",
  "key_findings": [
-  "pop_bridge 已有同型机制可复用：SPLIT_FIELDS(:53) / aggregate_seat_pops(:341) / sync_route_pops(:431) / _pops_write_exempt(:580)",
-  "迁移入口同型：migrations.sink_pops_to_seats(:80)；新局与读档必须共用同一幂等入口",
-  "field_registry 已登记 treasury/granary writable+non_neg(:93-95)；但 NON_NEG_PREFIXES 的 granary 是无边界前缀(会命中 granary_cap)",
-  "engine/README:28 规定写 wealth/grain/treasury/granary/savings 必须给 exempt_reason",
-  "已桥接写入点约 130 处（core/README:47）；treasury 写点全集未扫完（只初查 commands.py 6 处）"
+  "🔴 字段名更正：地方府库真账是 prefectures[路][\"local_treasury\"]（账户 id local:<路>），**不是** treasury —— 后者不存在，state.treasury 是中央国库",
+  "🔴 失败模式①（M37a 原样）：**只下沉、不桥任何写点** ⇒ 结算第 1 轮起 20/20 路失配（治所冻结、镜像漂移）—— M37a 当时的验收只测了新局+存读档，漏了结算回放",
+  "🔴 失败模式②：只桥账户层、留 5 处直写 ⇒ **2× 冲账**（淮南东路 路级 349,118 vs Σ治所 698,234）",
+  "✅ 正解：下沉开闸必须与『全部写点走桥』同批；七处全桥后结算回放 3 轮 0 失配",
+  "七处写点：game_state 账户层 setter ／ settlement_common:270、:300 ／ settlement_finance:640、:678 ／ commands_decree:87 ／ save_load:788（由 load_game 顺序覆盖，无需改）",
+  "闭包复查：grep 余下 6 处 local_treasury 赋值全在桥接的 is None 回退分支内，无漏网直写",
+  "可复用范式：pop_bridge.seat_pop_weights(:79) 按路名取治所人口权重；split_int(:102) Σ 精确等于 total；aggregate_seat_pops(:341) 缺失⇒None"
+ ],
+ "verification": {
+  "定向回归": "test_local_treasury_sink.py 20 passed / 0 skip EXIT=0",
+  "结算回放": "finance/granary/economy/land_local × 3 轮：0 失配；Σ地方库 15,587,561 → 15,394,109 → 15,302,573",
+  "新局": "20/20 路已下沉；Σ治所 == 路级 0 失配（京畿路 1,260,000 精确等于四治所之和）",
+  "幂等": "复跑新增下沉 0，真账不变",
+  "存读档": "读档后 20/20、0 失配",
+  "全量回归": "见 _scratch/full_regression_m37b.log"
+ },
+ "jev_rulings": [
+  "分摊依据：制度更优=按行政等级/编制(0.55)，当前以人口权数落地(P=0.988)；切换点 set_weights_provider()",
+  "M37a 范围：只做真账下沉+聚合+对账(choose A 0.93)",
+  "M37a 口径：路级保留为 Σ 派生镜像(P=0.995)",
+  "M37a 收口判定：可判为落地(P=0.843)（⚠️ 后被结算回放推翻——验收不充分，见失败模式①）",
+  "M37b：七处写点本批全桥(choose A 0.78)；先撤回『只下沉不桥』接线以恢复守恒(P=0.980)",
+  "⚠️ 作废裁定：『本批不动那五处直写』(p=0.317) 前提被实测推翻（2× 冲账），按 AGENTS.md 纪律 2 重问"
  ],
  "scope": [
-  "M37a：treasury 桥接 + 迁移 + 聚合（本设计主片）",
-  "M37b：A-粮价债务收口（wine_share/_gran_share 改本地份额）+ P0 第 5 门断言",
-  "M37c：写点全库扫描与分类（桥接 / 豁免白名单）"
+  "M37a（✅）：真账下沉 + 聚合 + 对账 + 写桥 + 新局/读档接线",
+  "M37b（✅）：七处写点全部桥接 + 结算回放验证",
+  "M37c：账户 id 扩展 local:<路>:<治所>（§五-3）＋ settlement_finance/granary 府库收支分腿（§五-5，🔴高）"
  ],
  "explicitly_not": [
-  "不新增与 treasury 平行的账户；不动 imperial_treasury（中央内帑）",
+  "不新增与 local_treasury 平行的账户；不动中央 treasury / imperial_treasury",
+  "读侧不改读治所聚合（Jev 判无收益：镜像 == Σ，数值不变）——除非将来取消镜像",
   "不按人口比例伪造地点/货主；分摊只作推演并标来源",
-  "不同批混入仓储/商品存量、真实交易与州府价格（主线 B 后续片）",
-  "不动 run_monthly_settlement 本体（有 AST 内省测试 test_middle_calibration）"
+  "不动 run_monthly_settlement 本体（有 AST 内省测试）"
  ],
- "blocks": "实现待两件事：① 分摊权重依据待裁定（decisions/local-treasury-share-basis.json）；② 写点全集待扫描。设计本身已可评审。",
+ "blocks": "M37c 需账户 id 扩展方案（local:<路>:<治所>）与府库收支分腿设计",
  "claimedBy": "DSH",
- "claimedAt": "2026-10-12T16:55:31Z"
+ "claimedAt": "2026-10-13T00:00:00Z"
 }
