@@ -1,0 +1,29 @@
+{
+ "id": "M57-mirror-write-family-closure",
+ "title": "「直写路级 pops/镜像」家族**收口扫描**（静态 + 长局守卫动态，0 直写）＋常驻哨兵",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §3-1（路级 pops 是派生镜像、写必须走桥）；decisions/M57-mirror-write-sweep-scope.json（Jev choose A 0.984）",
+ "scope": "本会话已修 6 处同族缺陷（商品折旧 settlement_granary · 产出入 POP production_chain · 成品池分派 settlement_econ · 成交钱货 market.trade_goods · 外销变现 export_policy · 和买取货 farm_procurement）；本批做**系统性收口**：静态正则扫描 + 长局守卫（带 trace）动态扫描，并把排查固化为常驻哨兵。",
+ "static_scan": [
+  "扫描式：`[\"goods\"][X] =`、`[\"goods\"].setdefault`、`pops\"][类][\"wealth|size|grain\"] =`",
+  "命中分类（**无新的未桥接宋境写点**）：① 外邦路径（`settlement_econ` 的 `_ext_econ_phases` / `_settle_external_economy`，写的是外邦 POP，不属宋境守卫范围）② `pop_bridge.pop_goods_sub` 内部写**治所行**（正确）③ `settlement_granary` 的商品折旧**回落分支**（未下沉才走，已文档化）④ `settlement_finance` 的 `pops[兵][size]` / `pops[官僚][wealth]`——**均为 `if _pop_set/_pop_add(...) is None:` 桥优先+回落**写法（正确）"
+ ],
+ "dynamic_scan": {
+  "tool": "pop_bridge.install_all_guards + _GUARD_TRACE + pops_guard_violation_details()",
+  "scenarios": [
+   "① 朴素新局 18 月 ⇒ 违规 0、唯一写入者 0",
+   "② 组合场景（一条鞭＋高城市化＋工坊/商铺＋人口重排＋海贸）12 月 ⇒ 违规 0、唯一写入者 0"
+  ],
+  "conclusion": "✅ **家族收口**：跑得出的路径上**不存在任何直写路级 pops 的代码**（含 goods 与 wealth/size/grain）"
+ },
+ "deliverable": "_dev_tools/game-dev/tests/test_m57_mirror_write_sweep.py —— 常驻哨兵：长局开守卫+trace，**断言无违规且 trace 明细为空**，失败时直接打印 `function @ file:line` 的唯一写入者清单（把「找写入者」从手工二分变成自动）",
+ "limits": [
+  "哨兵覆盖的是**结算管线**（`run_monthly_settlement`）跑得到的路径；后端动作（`/api/action`）与前端触发的写点**未覆盖** ⇒ 仍属已知盲区（AGENTS.md 亦记「生产未启用守卫」）",
+  "静态扫描是正则近似，可能漏掉间接写（如 `row.update({...})` / 别名变量）⇒ 不要当作完备证明"
+ ],
+ "next": "盲区补齐：把守卫装到**后端动作**路径（或给后端动作加同一哨兵），并在 `save_load` 读档往返后也跑一次短哨兵",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T23:27:57Z"
+}

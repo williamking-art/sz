@@ -1,0 +1,31 @@
+{
+ "id": "M57-mirror-write-sweep-scope",
+ "title": "本轮范围裁定：家族收口扫描（静态 + 长局守卫动态）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "本会话已修 6 处「直写路级镜像」同族缺陷后，本轮做哪个？",
+ "options": {
+  "A": "家族收口扫描：① 长局守卫（带 trace）dump 全部违规写入者 ② 静态正则扫描直写点 ③ 逐点处置（走桥/判为豁免/登记）",
+  "B": "产权候选只读盘点（M51 的 blocker，上一轮欠账）",
+  "C": "收口整理（把挂账/待裁/未开工项整理进 phase 与 spec 状态表）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.9840005040168762, "B": 0.00521840201690793, "C": 0.010781080462348517},
+ "margin_note": "A 碾压（0.984）⇒ 直接按裁定执行，无需自论证",
+ "premises_verified_by_me_before_asking": [
+  "已有可用工具：`pop_bridge.install_all_guards` + `_GUARD_TRACE` + `pops_guard_violation_details()`（给 file:line:function）",
+  "既有 `test_route_pops_readonly_guard.py` 只跑 3–15 月、两个场景，且**不要求 trace 明细为空**（不给写入者清单）",
+  "本会话 6 处同族缺陷均由「守卫红 + trace 定位」找出 ⇒ 该手段有效"
+ ],
+ "outcome": "✅ **收口成功**：静态扫描无新的未桥接宋境写点（命中项均为外邦路径/治所级桥内部/桥优先回落写法）；动态扫描 18 月朴素局 + 12 月组合场景 **违规 0、唯一写入者 0**。新增常驻哨兵 `test_m57_mirror_write_sweep.py`（断言无违规且 trace 为空，失败即报 `function @ file:line`）。",
+ "limits_recorded": "哨兵只覆盖结算管线；后端动作与前端触发的写点仍是盲区（已在任务档 limits 写明）",
+ "applied_in": {
+  "tests": "_dev_tools/game-dev/tests/test_m57_mirror_write_sweep.py",
+  "task": "_dev_tools/handover/tasks/M57-mirror-write-family-closure.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若后端动作路径发现新直写，或守卫机制变更（如 `_GUARD_TRACE` 语义变化），本裁定作废重做扫描"
+}
