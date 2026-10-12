@@ -41,6 +41,35 @@ def test_national_warehouse_identity_closes_over_pipeline():
     assert rep["ok"] is True
 
 
+def test_pop_custody_identity_near_closed():
+    """**POP custody 常驻断言**：未闭合维必须为 0，且各维残差须在 **0.5%** 以内。
+
+    已知小额缺口（2026-10-13 实测）：丝 +18,841、麻 +15（0.17% / 0.0002%），
+    根因（"哪条路径把货放进 POP 却没登记"）尚未定位 ⇒ 本用例**容忍该量级**，
+    但任何**新增的未登记写点**（残差跳到远超 0.5%）或**出现"有变动却完全无账"的维**都会让它变红。
+    修复缺口后应把本用例收紧为"逐维残差 == 0"。
+    """
+    import core.settlement as S
+
+    random.seed(20261013)
+    s = commands.new_game()
+    first = si.stock_snapshot(s)
+    for _ in range(6):
+        S.run_monthly_settlement(s)
+    last = si.stock_snapshot(s)
+
+    flows = sf.cumulative_flows(s, custody=sf.CUSTODY_POP)
+    rep = sf.residual_for_custody(first, last, sf.CUSTODY_POP, flows=flows)
+    assert rep["unclosed"] == [], f"有维有变动却完全无账：{rep['unclosed']}"
+    delta = si.stock_delta(first, last)["by_custody"].get(sf.CUSTODY_POP) or {}
+    for dim, r in (rep["residual"] or {}).items():
+        if not isinstance(r, (int, float)):
+            continue
+        d = abs(float(delta.get(dim, 0.0)))
+        assert abs(r) <= max(1.0, 0.005 * d), (
+            f"{dim} 残差 {r} 超出 0.5%（Δ={delta.get(dim)}，账={flows.get(dim)}）")
+
+
 def test_money_residual_zero_over_pipeline():
     import core.settlement as S
 

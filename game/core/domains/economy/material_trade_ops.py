@@ -92,9 +92,16 @@ def supply_merchant_materials(state, total: Optional[Dict[str, int]] = None
             # 🔴 **只写一处** —— 桶是权威，扁平区仅作「无州府归属」的如实单列；
             # 两处都写会**双计**（`goods_amount` 会把两者相加）。
             attributed = attribute_to_seats(merchant_of(state, route), route, dim, int(qty))
+            # 🟢 M42j：POP 侧逐维流量登记（官仓按存量给商人**补货**入 POP；测量仪器）
+            from core.domains.economy import stock_flow as _sf
+            if attributed > 0:
+                _sf.record_in(state, dim, int(attributed), reason="supply_merchant",
+                              custody=_sf.CUSTODY_POP)
             if attributed <= 0:
                 # 该路无治所人口权重（如无地图府块）⇒ **不臆造归属**，如实落扁平区
                 goods_add(goods, dim, int(qty))
+                _sf.record_in(state, dim, int(qty), reason="supply_merchant_flat",
+                              custody=_sf.CUSTODY_POP)
         out[dim] = held + need
     return out
 
