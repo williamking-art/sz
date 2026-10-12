@@ -1,19 +1,19 @@
 {
- "phase": "《宋祚》主线B 批次4 仓储下沉（M40）：**M40a 常平仓（changping_stock）治所级下沉已落地**（storage_bridge + Σ 派生 + 首府承载 + 幂等迁移 + `_changping_trade` 两写点桥接 + new_game/load_game 接线；A/B 轨迹与逐路存量差异 0/20；9 用例；全量 EXIT=0）。M37 地方府库、M38 建筑、M39 交通均已收口。",
+ "phase": "《宋祚》统一民间市场 P1：**M41a 已落地**（缺失原因与来源 ID 的结构化契约 market_gap.py，接在唯一成交入口 trade_goods 的 gap 字段，加性零行为变化；7 新用例 + 178 市场相关用例 + 全量 EXIT=0）。开工门盘点 inventory-market.md 的过时条目已按 §5 复核更正（在途/交通边早已实现、市场圈派生属 §14.4 明确排除）。M37 地方府库、M38 建筑、M39 交通、M40a 常平仓均已收口。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M40a，日志 _scratch/full_regression_m40a.log）；定向 test_storage_sink.py 9 passed",
-  "A_B": "接线 vs sink 打桩 no-op（每次 run 固定种子）：Σ常平仓 6 轮轨迹逐轮相同 [15942508,16599031,16969428,17035002,17091810,17099114]；逐路存量差异 0/20；20/20 已下沉；survey_storage 0 失配",
-  "m39": "M39a/M39c-1：A/B 轨迹逐轮一致 [10,10,8,6,6,5]（类型 int）",
-  "m38": "三批全量 EXIT=0；A/B 逐路 buildings 差异 0/20",
+  "pytest": "全量串行 EXIT=0（M41a，日志 _scratch/full_regression_m41a.log）；定向 test_market_gap.py 7 passed；市场/成交相关 -k 178 passed",
+  "A_B": "加性接入：trade_goods 既有字段（schema_version/dim/ok/traded/paid/unmet_qty/reason/tail_delta/price）与 _trade_goods_core **逐字相同**，钱货转移结果一致（有用例锁）",
+  "prior": "M40a 常平仓 A/B 逐路差异 0/20；M39c-1 轨迹逐轮一致；M38 逐路 buildings 差异 0/20",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "M40b **州仓 storage** 治所级下沉（2 写点：settlement_granary:121 漕运起运 −／settlement_econ:302 本色征粮 +；读点含 **situations.py:1103 条件路径 `prefectures.*.storage` 与 :1253 拨帑赈济 inflow 判据**，属规则路径须单独核对）→ M40c 商品/物料存量（state.resources 全国口径）州府化。其后按目标顺序：真实交易与州府价格 → 主线 C（**待授权**）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫读数面板）。交通余项挂账：M39c-2 读者改逐路（改数值须标定）· M39b 逐治所航道初始值（材料不足）",
+ "next": "P1 余项（按 Jev 裁定顺序）：① **宋境工钱通道**（pay_wages_from_revenue 唯一调用方是外邦路径 ⇒ P1 末句『生产者收入有来源』缺前提；属**改钱流＝改数值**，须先同种子标定）；② 商品×州府纵向链（含逐月货币与商品库存恒等式读数）；③ 作坊产出按人口分派的地点并轨（违 §14.1，属 P2 主体）。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（前置＝applier/journal 耦合，决策档已登记）· M40c 商品/物料存量 · M39c-2 读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
  "pending_decisions": [
-  "地方支出V2-D1-D5（府库出口侧）",
-  "M38c-crop-buildings-authorization（建筑语汇统一/主线C 内容变更授权）"
+  "地方支出V2-D1-D5",
+  "M38c-crop-buildings-authorization",
+  "M40b-storage-applier-coupling"
  ]
 }

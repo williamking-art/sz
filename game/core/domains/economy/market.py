@@ -89,7 +89,7 @@ def _ledger_key(state, trade_id: str) -> Tuple[Any, str]:
     return (getattr(state, "turn", None), str(trade_id))
 
 
-def trade_goods(state, *, dim: str, qty: int, price: float,
+def _trade_goods_core(state, *, dim: str, qty: int, price: float,
                 buyer: dict, seller: dict,
                 purpose: str = "resale",
                 buyer_goods_key: str = "goods",
@@ -208,3 +208,33 @@ class TradeOutcome:
     INVALID = "invalid"
 
     ALL = (OK, NO_DEMAND, NO_STOCK, NO_MONEY, DUPLICATE, INVALID)
+
+
+def trade_goods(state, *, dim: str, qty: int, price: float,
+                buyer: dict, seller: dict,
+                purpose: str = "resale",
+                buyer_goods_key: str = "goods",
+                trade_id: Optional[str] = None,
+                reserved: int = 0,
+                ) -> Dict[str, Any]:
+    """**唯一的商品成交入口**（对外签名/语义**完全不变**；实现见 `_trade_goods_core`）。
+
+    本层只做**一处加法**：给返回字典挂 `gap` ＝ **结构化缺失原因**（P1 · M41a 契约，
+    见 `core.domains.economy.market_gap`）：成交 / 零需求 ⇒ `None`；未满足 ⇒
+    `{code, group, need, have, source_id, note}`，`group` ∈ 钱/货/岗位/料/运力。
+    既有字段（`ok/traded/paid/unmet_qty/reason/...`）**逐字不变**。
+
+    ⚠️ **可选层**：挂 `gap` 失败**不得影响成交结果**（吞异常并留痕）。
+    """
+    out = _trade_goods_core(state, dim=dim, qty=qty, price=price, buyer=buyer,
+                            seller=seller, purpose=purpose,
+                            buyer_goods_key=buyer_goods_key,
+                            trade_id=trade_id, reserved=reserved)
+    try:
+        from core.domains.economy import market_gap
+        out["gap"] = market_gap.from_trade_outcome(out, need=qty)
+    except Exception:  # noqa: BLE001 — 契约层失败不得影响成交
+        import logging as _logging
+        _logging.getLogger(__name__).warning("trade_goods: 挂 gap 失败（成交不受影响）",
+                                             exc_info=True)
+    return out

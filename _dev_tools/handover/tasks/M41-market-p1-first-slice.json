@@ -1,0 +1,37 @@
+{
+ "id": "M41-market-p1-first-slice",
+ "title": "统一民间市场 P1 第一条纵向切片（开工门已出；剩余缺口见 inventory-market.md 2026-10-13 复核）",
+ "status": "in_progress",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（§14.1 开工门 + P0–P6）；inventory-market.md / inventory-building.md",
+ "goal": "按规格 §14.1 五态（定义存在/已接线/账本闭合/长局校准/玩家可观察）推进 P1『一条地方经济纵向切片』，每批一个可验证切片。",
+ "recon_2026_10_13": {
+  "已实现（原台账记为缺失，实测已有）": [
+   "交通边与在途批次：core/transport.py（324 行）dispatch/arrive_due/in_transit/transit_report/transit_by_seat/route_days/is_adjacent(200km)；台账 state.material_transit 存档往返；settlement.py Step 4.46 到货入账；material_trade.py 采购；market_readout.in_transit 已接线"
+  ],
+  "被明确排除（不是待办）": [
+   "市场圈派生 / 断路改道 / 季节性封冻 —— core/transport.py 头部自陈 §14.4 明确排除（无真实地理与路况支撑）"
+  ],
+  "仍有效的缺口": [
+   "§三-1 作坊产出地点信息丢失、按各路工匠 size 占比分派（settlement_econ.py:1608-1634 自陈）⇒ 违 §14.1",
+   "§三-2 建材无付款腿（production_chain.py:78、settlement_tech.py:413 入仓/扣减均不涉钱）",
+   "§三-3 POP 无建材 goods 槽（game_state.py:124-125 只建 RESOURCE_DIMS − RAW_DIMS）",
+   "§三-6 外销税基可能重复（calc_maritime_trade 公式估额 vs export_policy 逐笔）",
+   "§三-7 **宋境无工钱通道**（pay_wages_from_revenue 唯一调用方是外邦路径）⇒ P1 验收『生产者收入有来源』缺前提",
+   "§四-4 **缺失原因/来源 ID 无统一契约**（散在各返回值 reason 字符串里）⇒ P1 验收『缺钱/缺货/缺岗位/缺料/缺运力分别可见』直接依赖它"
+  ]
+ },
+ "scope": [
+  "本批：由 Jev 裁定第一步切片后落地（候选：缺失原因契约 / 宋境工钱通道 / 作坊产出地点 / 商品×州府纵向链）",
+  "后续：P1 余项 → P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行"
+ ],
+ "explicitly_not": [
+  "不做 §14.4 明确排除的市场圈派生/断路改道/季节封冻",
+  "不重造已有实体（交通边/在途批次/可售派生视图/价格四态/唯一成交入口）",
+  "不臆造地点或按人口比例伪拆（§14.1）",
+  "不在未桥全部写点前给治所级真账开闸（M37 实测教训）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T18:38:19Z"
+}
