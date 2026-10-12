@@ -1,7 +1,7 @@
 {
  "id": "M37-local-treasury-sink",
  "title": "地方府库（local_treasury）下沉州府级：治所真账 + 路级 Σ 派生镜像 + 七处写点全桥 + 治所级账户",
- "status": "in_progress",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "authority": "上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B；阻塞记录 specs/economy/地方府库下沉州府级_阻塞记录.md §五",
@@ -45,5 +45,6 @@
  ],
  "blocks": "M37c-2 需府库收支（收入/支出腿）分腿设计；其后主线 B 其余片（建筑/交通州府化→仓储/商品存量→真实交易与州府价格）",
  "claimedBy": "DSH",
- "claimedAt": "2026-10-13T00:00:00Z"
+ "claimedAt": "2026-10-13T00:00:00Z",
+ "commit": "b93086b918"
 }
