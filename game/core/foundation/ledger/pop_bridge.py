@@ -456,6 +456,81 @@ def sync_route_pops(pdata: dict) -> bool:
     return True
 
 
+def pop_goods_add(pdata: dict, cls: str, dim: str, qty: int,
+                  seat_id: Optional[str] = None) -> Optional[int]:
+    """把**商品**增量写入**治所真账**（`seats[治所]["pops"][cls]["goods"][dim]`）并刷新镜像。
+
+    🔴 **为什么必须有它**：`goods` 是 `aggregate_seat_pops` 聚合的字段之一 ⇒ 路级
+    `pops[cls]["goods"]` 是**派生镜像**，直写必被 `sync_route_pops` 覆盖
+    （2026-10-13 实测：某路产出登记 4,063 万而 POP 实存仅 8 万）。所有商品写点必须经本函数。
+
+    `seat_id` 缺省 ⇒ 取该路**人口权重最大**的治所；**未下沉（无 `seats`）/ 治所不存在 /
+    `qty ≤ 0` ⇒ `None`**（调用方回落原写法，未下沉行为不变）。
+    """
+    if not isinstance(pdata, dict) or int(qty) <= 0:
+        return None
+    seats = pdata.get("seats") or {}
+    if not isinstance(seats, dict) or not seats:
+        return None
+    sid = seat_id
+    if not sid:
+        w = []
+        try:
+            w = seat_pop_weights(str(pdata.get("name") or ""))
+        except Exception:                                   # noqa: BLE001
+            w = []
+        sid = max(w, key=lambda kv: kv[1])[0] if w else next(iter(seats))
+    srow = seats.get(sid)
+    if not isinstance(srow, dict):
+        return None
+    srow_pops = srow.get("pops")
+    if not isinstance(srow_pops, dict):
+        srow_pops = {}
+        srow["pops"] = srow_pops
+    row = srow_pops.get(cls)
+    if not isinstance(row, dict):
+        return None
+    goods = row.get("goods")
+    if not isinstance(goods, dict):
+        goods = {}
+        row["goods"] = goods
+    from core.foundation.ledger.material_holding import goods_add as _gadd
+    new = _gadd(goods, dim, int(qty))            # 治所内**扁平**（聚合按扁平键求和）
+    sync_route_pops(pdata)
+    return int(new)
+
+
+def pop_goods_decay(pdata: dict, cls: str, rate: float) -> Dict[str, int]:
+    """对**治所真账**各类商品按月折旧（逐治所独立取整），随后刷新镜像。
+
+    返回**逐维核销表** `{dim: 核销量}`；未下沉（无 `seats`）或无商品 ⇒ `{}`
+    （调用方据此回落原写法：折旧路级镜像）。`rate` ＝ 核销比例（如 `0.05`）。
+    **逐治所独立取整**，避免先合后分造成分配漂移。
+    """
+    seats = (pdata or {}).get("seats") if isinstance(pdata, dict) else None
+    if not isinstance(seats, dict) or not seats:
+        return {}
+    per_dim: Dict[str, int] = {}
+    for srow in seats.values():
+        row = None
+        if isinstance(srow, dict):
+            row = (srow.get("pops") or {}).get(cls)
+        goods = row.get("goods") if isinstance(row, dict) else None
+        if not isinstance(goods, dict):
+            continue
+        for dim, v in list(goods.items()):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            nv = int(v * (1.0 - float(rate)))
+            cut = max(0, int(v) - nv)
+            if cut:
+                per_dim[str(dim)] = per_dim.get(str(dim), 0) + cut
+            goods[dim] = nv
+    if per_dim:
+        sync_route_pops(pdata)
+    return per_dim
+
+
 def pop_get(pdata: dict, cls: str, field: str = "size"):
     """**读**真账（治所级聚合）。未下沉时回落路级原账；都没有 ⇒ `None`（缺失≠0）。"""
     if not isinstance(pdata, dict):

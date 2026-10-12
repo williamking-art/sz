@@ -1,7 +1,7 @@
 {
  "id": "M43-goods-decay-mirror-write",
  "title": "商品月折旧写**路级镜像** ⇒ 在下沉档被刷回、实际不生效（同类「直写路级＝写丢失」）",
- "status": "pending",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "统一民间市场 P1 的 POP custody 恒等式闭合（M42e 取证副产品）",
@@ -25,6 +25,6 @@
   "asked": "未单独问 Jev（本档是**缺陷登记**而非方案选择）；按纪律不改数值、先登记",
   "note": "若决定修，建议先问 Jev：是否本批修 / 是否与 M42e 的 POP trace 合并做。"
  },
- "claimedBy": "",
- "claimedAt": ""
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T20:05:03Z"
 }

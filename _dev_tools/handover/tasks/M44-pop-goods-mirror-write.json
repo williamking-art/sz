@@ -1,7 +1,7 @@
 {
  "id": "M44-pop-goods-mirror-write",
  "title": "production_chain 产出写**路级 POP goods 镜像** ⇒ 被 sync_route_pops 覆盖、POP 侧产出实际丢失（与 M43 同族）",
- "status": "pending",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "统一民间市场 P1 的 POP custody 恒等式闭合；亦影响「产出先入本地经营库存」的 P2 口径",
@@ -24,6 +24,6 @@
   "asked": "未单独问 Jev（本档是**缺陷登记**，不涉及方案选择）；按纪律不改数值、先登记",
   "note": "若决定修，建议先问 Jev：是否与 M43 合并为一批、以及改数值后的标定方式。"
  },
- "claimedBy": "",
- "claimedAt": ""
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T20:05:04Z"
 }

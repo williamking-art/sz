@@ -50,3 +50,11 @@
    （留州份额／必要支出优先层）· `commands_decree`（州郡赈济）；旧档 `setdefault` 由 `load_game` 顺序覆盖。
    账户 id 三段式 **`local:<路>:<治所>`** = 治所级**精确**写（不重分摊）；
    **未下沉路／治所不存在一律不可写**（否则划转静默无效、调用方仍记"已入库"＝销毁钱）。
+7. 🔴 **POP 商品（`goods`）是聚合字段** ⇒ 路级 `pops[cls]["goods"]` 是**派生镜像**，
+   直写会被 `sync_route_pops`（`row.update(aggregate_seat_pops(...))`，**含 goods**）**覆盖**。
+   商品写点**必须走** `pop_bridge.pop_goods_add(pdata, cls, dim, qty[, seat_id])`（写治所真账 + 刷镜像）；
+   月度折旧走 `pop_bridge.pop_goods_decay(pdata, cls, rate)`（**逐治所独立取整**，返回逐维核销表）。
+   未下沉 ⇒ 分别返回 `None` / `{}` ⇒ 调用方回落原写法（行为不变）。
+   **实测对照（2026-10-13，同种子 6 个月）**：修复前 `production_chain` 产出登记 **4,063 万**
+   而 POP 实存 **0**、`settlement_granary` 折旧**完全不发生**；修复后 POP 实存 **3,408 万**、
+   折旧核销 **655 万**（`price_level`/`grain_price` 未变——商品尚未接入市场供给，属 P2 范畴）。

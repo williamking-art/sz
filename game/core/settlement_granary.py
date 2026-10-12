@@ -376,11 +376,23 @@ def _settle_granary(state, log):
         # 2026-10-03：`goods` 含 `治所→{dim:n}` 州府桶，须只对**商品维**折旧，
         # 否则会对 dict 做乘法（旧写法直接炸 `unsupported operand *: 'dict' and 'float'`）。
         from core.domains.economy.material_trade_ops import commodity_dims
-        for _pop in p["pops"].values():
+        from core.foundation.ledger import pop_bridge as _pb
+        _sales_decay = None
+        for _cls_g, _pop in p["pops"].items():
+            if not isinstance(_pop, dict):
+                continue
+            # 🟢 M43 修复：折旧必须落**治所真账**（路级 goods 是派生镜像，直写被覆盖 ⇒
+            #   实测该段在下沉档从未生效）。未下沉 ⇒ 空表 ⇒ 回落原写法（行为不变）。
+            _decay_map = _pb.pop_goods_decay(p, _cls_g, 0.05)
+            if _decay_map:
+                from core.domains.economy import stock_flow as _sf
+                for _gd, _q in _decay_map.items():
+                    _sf.record_out(state, _gd, _q, reason="goods_decay",
+                                   custody=_sf.CUSTODY_POP)
+                continue
             for _gdim in commodity_dims(_pop.get("goods")):
                 _before_g = _pop["goods"][_gdim]
                 _pop["goods"][_gdim] = int(_pop["goods"][_gdim] * 0.95)
-                # 🟢 M42e：POP 侧逐维流量登记（商品月折旧；**只记实际减少量**）
                 _decay = int(_before_g) - int(_pop["goods"][_gdim])
                 if _decay > 0:
                     from core.domains.economy import stock_flow as _sf

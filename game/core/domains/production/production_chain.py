@@ -231,13 +231,21 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                     _goods = {}
                     _tgt["goods"] = _goods
                 try:
-                    from core.foundation.ledger.material_holding import goods_add as _gadd
-                    _gadd(_goods, dim, add, _pick_seat(p, dim))
+                    # 🟢 M43/M44 修复：商品**必须落治所真账**——路级 `pops[cls]["goods"]` 是
+                    #   派生镜像，直写会被 `sync_route_pops` 覆盖（实测：产出登记 4,063 万
+                    #   而 POP 实存仅 8 万）。未下沉（无 seats）⇒ None ⇒ 回落原写法，行为不变。
+                    from core.foundation.ledger import pop_bridge as _pb
+                    _seat_id = _pick_seat(p, dim)
+                    _put = _pb.pop_goods_add(p, _cls, dim, add, seat_id=_seat_id)
+                    if _put is None:
+                        from core.foundation.ledger.material_holding import goods_add as _gadd
+                        _gadd(_goods, dim, add, _seat_id)
                     produced[dim] = produced.get(dim, 0) + add
-                    # 🟢 M42d：POP 侧逐维流量登记（产出**入 POP goods**；测量仪器）
-                    from core.domains.economy import stock_flow as _sf
-                    _sf.record_in(state, dim, add, reason="produce_pop",
-                                  custody=_sf.CUSTODY_POP)
+                    # 🟢 流量登记：**只在实际落到真账时记**（否则是"意图量"，见 M44）
+                    if _put is not None:
+                        from core.domains.economy import stock_flow as _sf
+                        _sf.record_in(state, dim, add, reason="produce_pop",
+                                      custody=_sf.CUSTODY_POP)
                 except Exception:                       # noqa: BLE001
                     # 归属分派失败 ⇒ **如实回落国家仓**，不吞料、不造钱
                     _write_pending(state, name, dim, add)
