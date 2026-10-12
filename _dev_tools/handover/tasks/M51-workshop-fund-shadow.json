@@ -1,0 +1,21 @@
+{
+ "id": "M51-workshop-fund-shadow",
+ "title": "G-4 工坊经营资金**影子预算**（主线 D 第一切片：货主/资金/工资/采购四项读数）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "reviews/未落地设计裁定与实施路线.md §主线D（「先做影子预算，不接正式结算」）；Jev choose A 0.831（B 全链条影子 0.043 / C 产权取证 0.126）",
+ "deliverable": "core/domains/economy/workshop_fund_shadow.py（只读）：owner_of / workshop_route / wage_obligation / recipe_cost / funding_candidates / workshop_shadow / survey_workshop_fund_shadow",
+ "evidence": [
+  "真实新局：**107 作坊 / `shadow_ready`=0 / 无货主=107**（产权模型未实现，符合规格「无 owner ⇒ 停工或显示未定义」）",
+  "**地点归属 100%**（判不出路的 = 0）：键内路名经 `seat_goods_readout.route_of_workshop` 单点解析",
+  "**M_ALL 守恒 ok**（337,809,947 前后一致；只读 ⇒ 恒成立，作为规格要求的断言）",
+  "候选资金三档并列：国库 5,000,000 / 全国工匠 14,877,426 / 全国士绅+商人 286,797,851",
+  "样本「酒坊_京畿路_0」：采购预算 0（配方无采购维）、工资义务 `None`（**作坊名不在 `JOBS_PER_LEVEL`**，且「酒坊」也不在 `WAGE_RATE` 档）⇒ 如实 `None` + reason，**不拿建筑岗位数硬套作坊**"
+ ],
+ "not_this_batch": "规格第二轮项：成交才扣款 / 到货后加工 / 有买方才记销售收入 / 工资不足记欠付（代码里以 `not_in_this_batch` 显式列出，不留空白）",
+ "blocker": "🔴 **产权模型（`owner_kind`/`owner_ref`）不存在**（实测 core 内仅 `construction_shadow` 有）⇒ 「实际货主」无权威来源；影子只能报未定义。要往下走必须先定产权落点（谁持有作坊/经营主体是谁）——**属玩法口径，建议下一步先裁**",
+ "next": "① 定产权落点（`state.workshops[wid]` 增 owner/owner_kind？或由建筑产权表派生）；② 有了 owner 后补「营运资金划入 + 工资义务冻结 + 采购预算冻结」三笔影子流水；③ 再做规格第二轮（成交扣款/到货/销售/欠付）；全程 `M_ALL` 守恒断言",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T22:25:49Z"
+}
