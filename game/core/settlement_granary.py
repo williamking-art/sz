@@ -73,7 +73,10 @@ def _settle_granary(state, log):
     if jin_will >= 80 and random.random() < 0.3:
         block = min(100, block + random.randint(3, 10))
     block = max(0, block - random.randint(0, 2))
-    state.canal_block = block
+    # 🟢 M39c-1：全国级写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+    from core.domains.economy import canal_bridge as _cb
+    if _cb.canal_set_national(state, block) is None:
+        state.canal_block = block
 
     # AI 契约档位映射（审查 P1：7 档闭环——原 4 档表 无→1.0 错当「小」执行、
     # 巨/极→回落 1.0 低于「大」=档位倒挂）

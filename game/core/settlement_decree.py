@@ -463,7 +463,11 @@ def _apply_decree_effect(state, decree, log):
         state.change_granary_cap(add)
         log.append(f"[仓储] 修葺仓廪，太仓增容 {int(effects['granary_reform'])*10000}石")
     if "canal_dredge" in effects:
-        state.canal_block = max(0, state.canal_block - int(effects["canal_dredge"]))
+        _new_canal = max(0, state.canal_block - int(effects["canal_dredge"]))
+        # 🟢 M39c-1：全国级写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+        from core.domains.economy import canal_bridge as _cb
+        if _cb.canal_set_national(state, _new_canal) is None:
+            state.canal_block = _new_canal
         log.append(f"[漕运] 疏浚运河，漕路阻塞减 {effects['canal_dredge']}")
     if "anti_corruption" in effects:
         for org_key in ("户部",):

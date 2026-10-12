@@ -120,3 +120,17 @@ def sink_buildings_to_seats(state) -> int:
     """
     from core.foundation.ledger import building_bridge
     return building_bridge.sink_buildings_to_seats(state)
+
+
+def sink_canal_to_seats(state) -> int:
+    """把**漕运淤塞**（`canal_block`）下沉到州府级 seats（交通下沉 M39c-1）。
+
+    与 `sink_pops_to_seats` / `sink_local_treasury_to_seats` / `sink_buildings_to_seats` 同型：
+    **无条件幂等入口**，新局与读档共用。原为**全国单标量** ⇒ 按路落到各自**首府**治所
+    （无逐治所来源，**不编造差异**）；路级/全国值改为**按水路档位加权平均**的派生镜像。
+
+    ⚠️ 必须在 `sink_pops_to_seats` **之后**调用——首府判定依赖治所存在。
+    返回实际下沉的路数。
+    """
+    from core.domains.economy import canal_bridge
+    return canal_bridge.sink_canal_to_seats(state)

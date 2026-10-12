@@ -81,10 +81,22 @@ def init_buildings_seats(state):
     return sink_buildings_to_seats(state)
 
 
-def new_game(mode: str = "史实"):
-    """开局入口：`GameState` → 人口域初始化 → **POP 下沉** → **地方府库下沉** → **建筑下沉**。
+def init_canal_seats(state):
+    """把**漕运淤塞**（`canal_block`）下沉到州府级（交通下沉 M39c-1）。
 
-    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、POP/府库/建筑都不会下沉。
+    原为全国单标量 ⇒ 按路落到**首府**治所（不编造逐治所差异）；路级/全国降为派生镜像。
+    **必须在 `init_pops_seats` 之后**——首府判定依赖治所存在。
+    幂等：已下沉的路跳过。
+    """
+    from core.foundation.persistence.migrations import sink_canal_to_seats
+
+    return sink_canal_to_seats(state)
+
+
+def new_game(mode: str = "史实"):
+    """开局入口：`GameState` → 人口域初始化 → **POP→府库→建筑→漕运 依次下沉州府级**。
+
+    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、四类真账都不会下沉。
     """
     from core.game_state import GameState
 
@@ -93,4 +105,5 @@ def new_game(mode: str = "史实"):
     init_pops_seats(state)              # 再下沉，避免路级写落进派生镜像
     init_local_treasury_seats(state)    # 府库分摊依赖治所人口，必须排在其后
     init_buildings_seats(state)         # 首府判定同样依赖治所人口
+    init_canal_seats(state)             # 漕运同样按首府承载（依赖 seats 已建）
     return state

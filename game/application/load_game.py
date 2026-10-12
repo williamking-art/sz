@@ -119,4 +119,11 @@ def load_game(slot: int = 1):
         sink_buildings_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 建筑州府级下沉失败（不拒档，桥接将回落旧载体）", exc_info=True)
+    # 交通下沉 M39c-1：**漕运淤塞**（canal_block）州府级下沉（旧档补齐；新档已幂等跳过）。
+    # 失败同样**不拒档**：桥接未下沉时返回 None，调用方回落原写法（state.canal_block 直写）。
+    try:
+        from core.foundation.persistence.migrations import sink_canal_to_seats
+        sink_canal_to_seats(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 漕运淤塞州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
     return state
