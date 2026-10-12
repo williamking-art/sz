@@ -1,0 +1,38 @@
+{
+ "id": "M53-seat-market-shadow-scope",
+ "title": "主线F 第一切片范围裁定（治所级市场切片**影子**，只读）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "主线F（市场与外贸）第一切片取哪个？",
+ "options": {
+  "A": "只读治所级市场切片影子：逐(治所×商品) 供给/货主(持有POP类)/需求与购买力/在途(from-to)/可达性 + 若在治所级撮合的影子成交量价与未满足原因（复用 market_gap 原因码）；附五段链条守恒与缺失诊断",
+  "B": "只做治所级持有人与产地归属读数（更小，不含撮合影子）",
+  "C": "直接做治所级**正式**成交改造（改数值、须另行授权）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.9481762051582336, "B": 0.0490184910595417, "C": 0.002805378520861268},
+ "margin_note": "A 显著领先（0.948 vs 0.049/0.003）⇒ 非平手，按裁定执行；C 被明确压低，与规格「先做最小切片再扩展」一致",
+ "premises_verified_by_me_before_asking": [
+  "规格表：P0 已基本落地、P1 已落 P1-a..g、P2 已落 M47/M49 部分；**P3（官府旨意接线）与 P4（府际/边境/远方市场）均未开工**",
+  "成交入口 `market.trade_goods` 是**路级**（3 个调用方），**无治所级成交**",
+  "**商品真账已在治所**（M42g/i 起四条写点全走治所桥）⇒「持有人**治所**」可读；M51 缺的是**作坊 owner**（产权模型），二者不是一回事",
+  "`market_gap.py`（五分组缺失原因）与 `seat_goods_readout.py`（州府级商品读数 + 真账↔镜像一致性）均已落地",
+  "在途批次 `transport` 有 from/to；`transport.is_adjacent` 为既有可达性判据"
+ ],
+ "applied_in": {
+  "module": "game/core/domains/economy/seat_market_shadow.py",
+  "tests": "_dev_tools/game-dev/tests/test_seat_market_shadow.py",
+  "task": "_dev_tools/handover/tasks/M53-seat-market-shadow.json",
+  "commit": "（本批提交）"
+ },
+ "constraints_recorded": [
+  "**只读**：零写入、**不改正式成交**（正式仍是路级 `trade_goods`）",
+  "不得臆造货主/买方/地点/需求：任一分项不可读 ⇒ `None` + reason（缺失≠0）",
+  "缺口原因**复用** `market_gap` 的原因码与五分组（不另立命名）",
+  "不新增平行账本；需求/价格一律走既有单点（不自己造公式）"
+ ],
+ "reopen_if": "若要切到治所级**正式**成交（改数值、须授权与同种子标定），或需求口径单点被替换，本裁定作废重问 Jev"
+}

@@ -1,0 +1,24 @@
+{
+ "id": "M53-seat-market-shadow",
+ "title": "治所级市场切片**影子**（主线 F 第一切片；只读，不改正式成交）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "reviews/未落地设计裁定与实施路线.md §主线F；decisions/M53-seat-market-shadow-scope.json（Jev choose A 0.948）",
+ "deliverable": "core/domains/economy/seat_market_shadow.py（只读）：seat_holders / seat_supply / seat_purchasing_power / seat_demand / in_transit_to / seat_reachability / seat_price_or_none / shadow_match / chain_diagnosis（五段）/ survey_seat_market_shadow",
+ "evidence": [
+  "真实新局 + 6 个月：**有货的 (治所,商品) 对 = 227** ⇒ 州府级供给真实存在且可读（走既有单点 goods_amount，兼容治所桶）",
+  "**影子成交 = `None`**（不是 0）：`demand.basic_need` 对治理的作物维（丝/蔗…）**未配置** ⇒ 有效需求不可定义 ⇒ 成交量不可定义（诚实报 None + reason）",
+  "在途 = 0（无在途批次）；可达性 = 每路 0 个**其他**有货治所（本场景每路仅 1 个有货治所）",
+  "价 = `None`：价格单点（`market_price.effective_buy_price` 的调用口径）**未接** ⇒ 按缺失≠0 报 None"
+ ],
+ "fixed_during_this_batch": [
+  "治所桶必须走**既有单点** `material_holding.goods_amount`（自造摊平会漏桶——已踩）",
+  "`demand.basic_need` 是**人均·月** ⇒ 需求总量 = 人均 × size × 余量释放（漏乘 size 已踩）",
+  "`market_gap.gap` 是**关键字参数**；我原来用位置参数 ⇒ TypeError 被 `except` **静默吞掉** ⇒ 已改为关键字调用，并把该 except 补上 `logging.warning(exc_info=True)`（项目禁区：不得静默 except）",
+  "`transport.in_transit` **读时会惰性创建** `state.material_transit`（实测）⇒ 本模块先看容器存在性，不存在即返回 0 ⇒ 保持**真·只读**（用例锁 `not hasattr(st,'material_transit')`）"
+ ],
+ "next": "① **需求口径**：`demand.basic_need` 的维覆盖需要配置（否则治所级需求永远不可定义）；② **价单点**：确定 `effective_buy_price` 的调用口径（dim/route/月序）；③ ②①齐备后，影子撮合才有量价；④ 再谈**治所级正式成交**（改数值、须授权 + 同种子标定）与 P4 府际/远方市场",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T22:49:24Z"
+}
