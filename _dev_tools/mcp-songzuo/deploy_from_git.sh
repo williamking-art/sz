@@ -15,7 +15,7 @@ set -euo pipefail
 SRC=${MCP_SRC:-/opt/mcp-songzuo-src}
 DST=${MCP_DST:-/opt/mcp-songzuo}
 REPO=${MCP_REPO:-git@github.com:williamking-art/sz.git}
-BRANCH=${MCP_BRANCH:-master}
+BRANCH=${MCP_BRANCH:-main}
 SUBDIR=${MCP_SUBDIR:-_dev_tools/mcp-songzuo}
 KEY=${MCP_GIT_KEY:-/root/.ssh/id_ed25519_git_ecs}
 
@@ -26,13 +26,16 @@ fi
 export GIT_SSH_COMMAND="ssh -i $KEY -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
 if [ ! -d "$SRC/.git" ]; then
-  echo "==> 首次稀疏克隆 $REPO（只取 $SUBDIR）"
+  echo "==> 首次稀疏克隆 $REPO（只取 $SUBDIR，分支 $BRANCH）"
   git clone --depth 1 --filter=blob:none --sparse -b "$BRANCH" "$REPO" "$SRC"
   git -C "$SRC" sparse-checkout set "$SUBDIR"
 else
   echo "==> 拉取最新 ($BRANCH)"
-  git -C "$SRC" fetch --depth 1 origin "$BRANCH"
-  git -C "$SRC" reset --hard "origin/$BRANCH"
+  # ⚠️ `git clone --depth N` 隐含 --single-branch，克隆里可能**没有** origin/<branch>
+  #    远程跟踪引用（2026-10-12 实测：改分支名后 `reset --hard origin/main` 报
+  #    "ambiguous argument"）。故用显式 refspec 拉进 refs/remotes/origin/<branch>。
+  git -C "$SRC" fetch --depth 1 origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+  git -C "$SRC" checkout -B "$BRANCH" "origin/$BRANCH"
   git -C "$SRC" sparse-checkout set "$SUBDIR"
 fi
 

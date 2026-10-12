@@ -52,7 +52,9 @@ mcp-songzuo/
 源码以**本目录为唯一真源**（随 `sz` 仓库分发到 GitHub），ECS 从 git 拉取：
 
 ```bash
-# 1) 本机改动 → 提交 → push 到 GitHub（origin: williamking-art/sz）
+# 1) 本机改动 → 提交 → push 到 GitHub（origin: williamking-art/sz，**默认分支 main**）
+#    注意：本地分支名是 master，远端默认是 main —— 推之前先 `git ls-remote --heads origin`
+#    确认目标分支，别像我 2026-10-12 那样直接 `git push origin master` 造出多余分支。
 # 2) ECS 上执行：
 ssh -i C:\Users\william\.ssh\sz_cvm_ed25519 root@120.25.223.23
 bash /opt/mcp-songzuo/deploy_from_git.sh
@@ -60,6 +62,7 @@ bash /opt/mcp-songzuo/deploy_from_git.sh
 
 `deploy_from_git.sh` 用 **sparse-checkout 只取 `_dev_tools/mcp-songzuo/`**，
 不拉整个游戏仓库；认证走只读 deploy key（`/root/.ssh/id_ed25519_git_ecs`）。
+默认分支 `main`，可用环境变量 `MCP_BRANCH` 覆盖。
 
 不带 git 的应急路径：直接改 ECS 上 `/opt/mcp-songzuo/` 再 `bash deploy.sh`（会与 git 版本漂移，仅限救火）。
 
