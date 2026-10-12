@@ -177,10 +177,25 @@ def _trade_goods_core(state, *, dim: str, qty: int, price: float,
         return out
 
     buyer.setdefault(buyer_goods_key, {})
-    buyer["wealth"] = buyer_wealth - paid
-    buyer[buyer_goods_key][dim] = _int(buyer[buyer_goods_key].get(dim), 0) + trade_qty
-    seller_goods[dim] = _int(seller_goods.get(dim), 0) - trade_qty
-    seller["wealth"] = max(0, _int(seller.get("wealth"), 0)) + paid
+    # 🟢 M45：财富与商品写入**必须走桥**（落治所真账 + 刷镜像）。
+    #   原实现直写 buyer["wealth"]/seller["wealth"] 与双方 goods，而调用方传的是**路级镜像行**
+    #   （`for … in p["pops"].items()`）⇒ 写入会被 `sync_route_pops` 覆盖
+    #   （2026-10-13 守卫 trace 直指 market.py:180/:183）。
+    #   `locate_pops` 认镜像行对象 ⇒ 桥可直接用；**未下沉 ⇒ None ⇒ 回落原写法**（行为不变）。
+    from core.foundation.ledger import pop_bridge as _pb
+    if _pb.pop_obj_add(state, buyer, "wealth", -paid) is None:
+        buyer["wealth"] = buyer_wealth - paid
+    if buyer_goods_key == "goods":
+        # 桥只认标准 goods 槽；自定义槽名（少见）保持原写法
+        if _pb.pop_goods_add(state, buyer, dim, trade_qty) is None:
+            buyer[buyer_goods_key][dim] = _int(buyer[buyer_goods_key].get(dim), 0) + trade_qty
+    else:
+        buyer[buyer_goods_key][dim] = _int(buyer[buyer_goods_key].get(dim), 0) + trade_qty
+    # 卖方出货：从其**治所真账**按现有持仓占比扣、逐个夹紧 ≥0（无持仓治所不参与）
+    if _pb.pop_goods_sub(state, seller, dim, trade_qty) is None:
+        seller_goods[dim] = _int(seller_goods.get(dim), 0) - trade_qty
+    if _pb.pop_obj_add(state, seller, "wealth", paid) is None:
+        seller["wealth"] = max(0, _int(seller.get("wealth"), 0)) + paid
 
     unmet = want - trade_qty
     out.update(ok=True, traded=trade_qty, paid=paid, unmet_qty=unmet,

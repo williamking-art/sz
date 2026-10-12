@@ -1822,12 +1822,23 @@ def _settle_workshops(state, log):
         _assigned = {dim: 0 for dim in _finished_goods}
         for _i, (_r, a, sz) in enumerate(_rows):
             g = a.setdefault("goods", {})
+            _pd = (getattr(state, "prefectures", None) or {}).get(_r)
             for dim, q in _finished_goods.items():
                 # 末路取余数（q − 已分派），其余按占比
                 got = (int(q) - _assigned[dim]) if _i == len(_rows) - 1 \
                     else int(int(q) * sz / float(_sum_sz))
                 got = max(0, got)
                 _assigned[dim] += got
-                g[dim] = int(g.get(dim, 0) or 0) + got
+                # 🟢 M42h（M45 已修后可落地）：分派落**治所真账**
+                _put = None
+                if isinstance(_pd, dict) and got > 0:
+                    from core.foundation.ledger import pop_bridge as _pb
+                    _put = _pb.pop_goods_add(_pd, "工匠", dim, got)
+                    if _put is not None:
+                        from core.domains.economy import stock_flow as _sf
+                        _sf.record_in(state, dim, got, reason="workshop_pool",
+                                      custody=_sf.CUSTODY_POP)
+                if _put is None:
+                    g[dim] = int(g.get(dim, 0) or 0) + got
 
 

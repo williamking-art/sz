@@ -500,6 +500,48 @@ def pop_goods_add(pdata: dict, cls: str, dim: str, qty: int,
     return int(new)
 
 
+def pop_goods_sub(pdata: dict, cls: str, dim: str, qty: int,
+                  seat_id: Optional[str] = None) -> Optional[int]:
+    """从**治所真账**扣减商品（成交卖出/消费/损耗用），随后刷新镜像。
+
+    返回**实际扣减量**（各治所按现有持仓占比扣、**逐个夹紧 ≥0**，故可能少于请求量）；
+    **未下沉 / 无该商品 / qty ≤ 0 ⇒ `None`**（调用方回落原写法，未下沉行为不变）。
+    只扣**有持仓**的治所（无持仓治所不参与，避免出现负库存）。
+    """
+    if not isinstance(pdata, dict) or int(qty) <= 0:
+        return None
+    seats = pdata.get("seats") or {}
+    if not isinstance(seats, dict) or not seats:
+        return None
+    rows = []
+    for sid, s in seats.items():
+        row = ((s or {}).get("pops") or {}).get(cls) if isinstance(s, dict) else None
+        goods = row.get("goods") if isinstance(row, dict) else None
+        if not isinstance(goods, dict):
+            continue
+        v = goods.get(dim)
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+            rows.append((str(sid), row, float(v)))
+    if not rows:
+        return None
+    if seat_id and str(seat_id) not in {r[0] for r in rows}:
+        return None
+    if seat_id:
+        rows = [r for r in rows if r[0] == str(seat_id)]
+    want = int(qty)
+    total = sum(r[2] for r in rows)
+    taken = 0
+    for i, (sid, row, v) in enumerate(rows):
+        take = want - taken if i == len(rows) - 1 else int(want * v / total)
+        take = max(0, min(int(v), take, want - taken))
+        if take:
+            row["goods"][dim] = int(v) - take
+            taken += take
+    if taken:
+        sync_route_pops(pdata)
+    return taken
+
+
 def pop_goods_decay(pdata: dict, cls: str, rate: float) -> Dict[str, int]:
     """对**治所真账**各类商品按月折旧（逐治所独立取整），随后刷新镜像。
 

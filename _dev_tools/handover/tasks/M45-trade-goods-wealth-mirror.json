@@ -1,7 +1,7 @@
 {
  "id": "M45-trade-goods-wealth-mirror",
  "title": "market.trade_goods 成交时**直写路级 POP wealth 镜像** ⇒ 财富写入被 sync 覆盖（第 4 处同族缺陷）",
- "status": "pending",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "M42h 第三处（settlement_econ 成品池分派改走治所真账）—— 该修法**依赖本项先修**；亦影响 P1「不伪造成交」与 P2「经营主体并轨」",
@@ -25,6 +25,6 @@
   "asked": "未单独问 Jev（本档是**缺陷登记 + 依赖关系**）；按纪律不改数值、先登记",
   "note": "若开工，建议先问 Jev：是否与 M42h 第三处合并、以及「调用方改传治所行」的影响面（Phase B / material_market / export_policy 等）。"
  },
- "claimedBy": "",
- "claimedAt": ""
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T20:41:58Z"
 }
