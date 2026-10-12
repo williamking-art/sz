@@ -53,9 +53,24 @@ rsync -a --delete \
   --exclude 'tokens.txt' \
   --exclude 'certs/' \
   --exclude 'node_modules/' \
+  --exclude 'deploy_from_git.sh' \
   "$SRC/$SUBDIR/" "$DST/"
 
 echo "==> 部署"
 bash "$DST/deploy.sh"
 
 echo "==> 完成（远端 $(git -C "$SRC" log -1 --format='%h %s')）"
+
+# 自更新：把刚从 git 取到的新版脚本原子替换到固定路径。
+# 必须放在最后，且用「临时文件 + rename」——直接原地覆盖正在运行的脚本，
+# bash 逐行读取会读到被截断的内容而崩掉。
+# 上面 rsync 刻意排除了本脚本，否则它会用 git 里的**旧**版本覆盖自己，
+# 造成「改了脚本却要跑两次才生效」的自举环（2026-10-12 实测踩到）。
+SELF="$SRC/$SUBDIR/deploy_from_git.sh"
+if [ -f "$SELF" ] && ! cmp -s "$SELF" "$0"; then
+  echo "==> 自更新部署脚本 → $0"
+  cp "$SELF" "$0.tmp.$$"
+  chmod +x "$0.tmp.$$"
+  mv -f "$0.tmp.$$" "$0"
+fi
+
