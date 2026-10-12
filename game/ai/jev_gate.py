@@ -100,14 +100,63 @@ def load_config() -> dict | None:
 
     if not cfg.get("enabled"):
         return None
-    if not (cfg.get("api_key") or cfg.get("key_file")):
-        log.warning("jev_gate: enabled 但既无 api_key 也无 key_file → 视为禁用")
+    # provider 解析（配置 > 环境变量 > 默认 typesafe）；key 也可由 provider 登记表提供
+    name = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "typesafe")
+    base = _PROVIDERS.get(name) or {}
+    cfg["provider"] = name
+    if base and "threshold" not in cfg:
+        # 阈值按供应商各自校准（实测两种概率标度不同，不可互用）
+        cfg["threshold"] = base["threshold"]
+    if not (cfg.get("api_key") or cfg.get("key_file") or _keys_for(base)):
+        log.warning("jev_gate: enabled 但 provider=%s 无可用 key → 视为禁用", name)
         return None
     return cfg
 
 
 def enabled() -> bool:
     return load_config() is not None
+
+
+#: 供应商登记表。**阈值必须按供应商各自校准**（见 tools\jev\jev_calibrate.py）：
+#: tokenrhythm 的响应自带
+#: `confidence_source=local_delivery_formula_not_verified_as_typesafe_equivalent`，
+#: 即它自己声明概率并非 TypeSafe 等价物。实测（8 条中文样例）：
+#:   typesafe    正例 0.65–0.95 / 负例 0.04–0.09 → 100% 区间 0.15–0.65 → 取 0.40
+#:   tokenrhythm 正例 0.95–0.97 / 负例 0.00–0.09 → 100% 区间 0.15–0.90 → 取 0.50
+_PROVIDERS = {
+    "typesafe": {
+        "endpoint": "https://api.typesafe.ai/v1/systemone",
+        "model": "jev-latest",
+        "key_env": "TYPESAFE_API_KEY",
+        "keys_file": r"D:\codebuddy\_credentials\typesafe_jev_keys.txt",
+        "threshold": 0.40,
+    },
+    "tokenrhythm": {
+        # 服务器侧首选：**不需要代理**、更快（实测 0.36–0.54s vs TypeSafe 0.58s）
+        "endpoint": "https://tokenrhythm.studio/v1/decision",
+        "model": "NeoHorse-Jev-4B",
+        "key_env": "TOKENRHYTHM_API_KEY",
+        "keys_file": None,
+        "threshold": 0.50,
+    },
+}
+
+
+def _keys_for(spec: dict) -> list[str]:
+    """按 provider 登记表取 key（env 优先，其次本地密钥文件）。"""
+    keys: list[str] = []
+    env = spec.get("key_env")
+    if env and os.environ.get(env):
+        keys += [k.strip() for k in os.environ[env].split(",") if k.strip()]
+    kf = spec.get("keys_file")
+    if not keys and kf and os.path.isfile(kf):
+        try:
+            with open(kf, encoding="utf-8") as fh:
+                keys += [ln.strip() for ln in fh
+                         if ln.strip() and not ln.startswith("#")]
+        except Exception:
+            log.warning("jev_gate: 读 keys_file 失败: %s", kf, exc_info=True)
+    return keys
 
 
 def _keys(cfg: dict) -> list[str]:
@@ -127,33 +176,54 @@ def _keys(cfg: dict) -> list[str]:
 # HTTP（纯标准库；任何失败都不抛）
 # --------------------------------------------------------------------------
 def _decide(cfg: dict, state, questions: dict) -> dict | None:
-    """调一次 Jev。失败返回 None（**不抛**）。"""
-    keys = _keys(cfg)
-    if not keys:
-        return None
-    body = {"model": str(cfg.get("model") or _DEFAULT_MODEL),
-            "state": state, "questions": questions}
-    payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    endpoint = str(cfg.get("endpoint") or _DEFAULT_ENDPOINT)
+    """调一次 Jev：**主通道失败自动降级到备用通道**。全失败返回 None（不抛）。
+
+    主通道由 `provider` 决定（配置或环境变量 `SONGZUO_JEV_PROVIDER`，默认 typesafe）；
+    备用通道用 `fallback_provider`（或 `SONGZUO_JEV_FALLBACK_PROVIDER`）指定。
+    典型部署：服务器 `provider=tokenrhythm`（免代理）+ `fallback_provider=typesafe`。
+    """
+    primary = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "typesafe")
+    order = [primary]
+    fb = cfg.get("fallback_provider") or os.environ.get("SONGZUO_JEV_FALLBACK_PROVIDER")
+    if fb and str(fb) != primary:
+        order.append(str(fb))
     try:
         timeout = float(cfg.get("timeout") or _DEFAULT_TIMEOUT)
     except Exception:
         timeout = _DEFAULT_TIMEOUT
 
-    for key in keys:                      # 多把 key 轮询（够用即可，不做退避重试）
-        req = urllib.request.Request(
-            endpoint, data=payload, method="POST",
-            headers={"Authorization": f"Bearer {key}",
-                     "Content-Type": "application/json",
-                     "Accept": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:200]
-            log.warning("jev_gate: HTTP %s %s", exc.code, detail)
-        except Exception:
-            log.warning("jev_gate: 调用失败 endpoint=%s", endpoint, exc_info=True)
+    for name in order:
+        base = _PROVIDERS.get(name)
+        if not base:
+            log.warning("jev_gate: 未知 provider=%s，跳过", name)
+            continue
+        is_primary = (name == primary)
+        endpoint = str(cfg.get("endpoint") or base["endpoint"]) if is_primary else base["endpoint"]
+        model = str(cfg.get("model") or base["model"]) if is_primary else base["model"]
+        keys = (_keys(cfg) if is_primary else []) or _keys_for(base)
+        if not keys:
+            log.warning("jev_gate: provider=%s 无可用 key，跳过", name)
+            continue
+
+        body = {"model": model, "state": state, "questions": questions}
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        for key in keys:                  # 多把 key 轮询（够用即可，不做退避重试）
+            req = urllib.request.Request(
+                endpoint, data=payload, method="POST",
+                headers={"Authorization": f"Bearer {key}",
+                         "Content-Type": "application/json",
+                         "Accept": "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    out = json.loads(resp.read().decode("utf-8"))
+                    if not is_primary:
+                        log.warning("jev_gate: 主通道(%s)失败，已由备用通道(%s)应答", primary, name)
+                    return out
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", "replace")[:200]
+                log.warning("jev_gate: %s HTTP %s %s", name, exc.code, detail)
+            except Exception:
+                log.warning("jev_gate: %s 调用失败 endpoint=%s", name, endpoint, exc_info=True)
     return None
 
 
