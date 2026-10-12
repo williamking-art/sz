@@ -298,6 +298,32 @@ def produce_grain_track(pops: dict, buildings: dict, cfg: dict,
     return g
 
 
+#: M50：岗位轨**缺政权专档**而回落 `default` 的次数（结构化留痕；见 `_note_config_fallback`）
+_CONFIG_FALLBACKS: List[Dict[str, Any]] = []
+
+
+def _note_config_fallback(rtype: str) -> None:
+    """登记「岗位轨缺政权专档 ⇒ 回落 default」一次（**不静默**）。
+
+    🔴 规格主线C 通过标准②要求「缺配置不再**静默**退回默认值」。本批**只去静默**：
+    数值仍走 `default`（避免把未登记外邦政权的产出直接归零——影响面未验），
+    但每次回落都 **计数 + WARNING + 结构化留痕**，可被读数与回归看见。
+    更严的「拒绝产出」见 `tasks/M50-job-track-config-fallback.json`。
+    """
+    import logging as _logging
+    rec = {"rtype": rtype or "", "reason": "missing_regime_entry_in_PER_WORKER_OUTPUT"}
+    if len(_CONFIG_FALLBACKS) < 500:
+        _CONFIG_FALLBACKS.append(rec)
+    _logging.getLogger("building_jobs").warning(
+        "[岗位轨] 政权 %r 在 PER_WORKER_OUTPUT 无专档，已回落 default（缺失≠0；不得静默）",
+        rtype or "(未给)")
+
+
+def job_track_config_fallbacks() -> List[Dict[str, Any]]:
+    """返回本次进程内「缺专档回落 default」的记录（读数/回归用）。"""
+    return list(_CONFIG_FALLBACKS)
+
+
 def produce_job_track(pops: dict, buildings: dict, cfg: dict,
                       rtype: str = "", staffed: Optional[Dict[str, int]] = None,
                       resources: Optional[dict] = None,
@@ -310,8 +336,21 @@ def produce_job_track(pops: dict, buildings: dict, cfg: dict,
     """
     if staffed is None:
         staffed = allocate_employment(pops, buildings, cfg, rtype)
-    table = (cfg.get("PER_WORKER_OUTPUT") or {}).get(
-        rtype, (cfg.get("PER_WORKER_OUTPUT") or {}).get("default", {}))
+    # 🔴 M50（2026-10-13，规格主线C 通过标准②「缺配置不再**静默**退回默认值」）：
+    #   原写法 `(tbl).get(rtype, tbl.get("default", {}))` 对**未登记政权**静默套用 `default`，
+    #   读数上完全看不见。现改为**显式登记 + 留痕**：
+    #   · `rtype` 有专档 ⇒ 用它（**数值不变**）；
+    #   · 无专档 ⇒ 仍走 `default`（**本批不动数值**，避免把未登记外邦政权产出直接归零），
+    #     但**计数 + WARNING + 结构化留痕**，可被读数与回归看见。
+    #   ⚠️ 更严的「**拒绝产出（return {}）**」须先量外邦影响面：`PER_WORKER_OUTPUT` 只登记
+    #     `default` + 党项蕃国/游牧帝国/西南属国（实测），其余政权若走拒绝即产出归零
+    #     ⇒ 登记为待标定项（`tasks/M50-job-track-config-fallback.json`）。
+    _tbl_all = cfg.get("PER_WORKER_OUTPUT") or {}
+    if rtype and isinstance(_tbl_all.get(rtype), dict):
+        table = _tbl_all[rtype]
+    else:
+        table = _tbl_all.get("default", {}) if isinstance(_tbl_all.get("default"), dict) else {}
+        _note_config_fallback(rtype)
     lv_bonus = float(cfg.get("LV_OUTPUT_BONUS", 0.05))
     produced: Dict[str, int] = {}
     raw_dims = set(cfg.get("RAW_DIMS") or ())

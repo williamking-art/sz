@@ -1,0 +1,17 @@
+{
+ "id": "M50-job-track-config-fallback",
+ "title": "岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步）",
+ "status": "pending",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/production/主线C_生产层开工门台账.md（C0/C2 通过标准②「缺配置不再静默退回默认值」）；Jev choose C 0.472（B 0.313 / A 0.215；**差距不大，故先自核前提**）",
+ "premise_check": [
+  "`produce_job_track` **唯一调用方是外邦路径**（`settlement_econ:760`，位于 `_ext_econ_phases` 内）⇒ **宋境从不调用它** ⇒ 本项今日**零行为变化**",
+  "`PER_WORKER_OUTPUT` 实测只登记 **`default` + 党项蕃国 / 游牧帝国 / 西南属国**"
+ ],
+ "done_this_batch": "`building_jobs.produce_job_track` 的查表由**静默** `.get(rtype, tbl.get('default', {}))` 改为**显式登记**：有专档 ⇒ 用它（数值不变）；无专档 ⇒ **仍走 default（不动数值）**，但**计数 + WARNING + 结构化留痕**，新增读数口 `job_track_config_fallbacks()`。真实流水 2 个月实测 **回落记录 = 0**（今日无影响面）",
+ "not_done": "更严的「**拒绝产出（return {}）**」——即未登记政权**不产**——**未做**：会把未登记外邦政权产出直接归零，属改数值，影响面（哪些政权真在跑、少多少）**未验** ⇒ 须先量再做；规格 C2 亦要求「须另行授权」",
+ "next": "① 量外邦影响面：跑长局统计 `job_track_config_fallbacks()` 的逐政权次数与对应产出量（现在有了读数口，可直接量）；② 若确认某些政权长期靠 default 运行 ⇒ 走"补齐专档"而不是"拒绝产出"；③ 宋侧接入岗位轨（C2）时，`rtype` 必须显式配 `PER_WORKER_OUTPUT[宋]`，届时**拒绝产出**才是正确语义",
+ "claimedBy": "",
+ "claimedAt": ""
+}
