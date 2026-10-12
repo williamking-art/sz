@@ -173,3 +173,78 @@ def test_capital_falls_back_to_first_seat(monkeypatch):
     monkeypatch.setattr(bb, "_seats_of", lambda route: [])
     pdata = {"seats": {"路O|甲": {}, "路O|乙": {}}}
     assert bb.capital_seat_id(pdata, "路O") == "路O|甲"           # 判不出 ⇒ 确定性首键
+
+
+# ------------------------------------------------------------------ 7. 条目形态（built_month）
+def test_norm_level_forms():
+    assert bb.norm_level(2) == 2
+    assert bb.norm_level({"lv": 3}) == 3
+    assert bb.norm_level({"closed": True, "lv": 5}) == 0          # 倒闭 ⇒ 0（building_jobs 语义）
+    assert bb.norm_level({"built_month": 4}) is None              # 无 lv ⇒ 读不出（缺失≠0）
+    assert bb.norm_level(None) is None
+    assert bb.norm_level(True) is None                            # bool 不算等级
+
+
+def test_sink_preserves_dict_form_and_built_month(cap):
+    """`civil_building` 写的 `{"lv":n,"built_month":m}` 必须**原样**搬到治所，不得归一成 int。"""
+    cap({"路P": "S1"})
+    s = _state({"路P": {"buildings": {"货栈": {"lv": 2, "built_month": 7}, "工坊": 1},
+                        "seats": {"S1": {}, "S2": {}}}})
+    assert bb.sink_buildings_to_seats(s) == 1
+    seats = s.prefectures["路P"]["seats"]
+    assert seats["S1"][KEY]["货栈"] == {"lv": 2, "built_month": 7}
+    assert seats["S1"][KEY]["工坊"] == 1
+    assert seats["S2"][KEY] == {}
+    mirror = s.prefectures["路P"][KEY]
+    assert mirror["工坊"] == 1                                    # 标量仍标量
+    assert mirror["货栈"] == {"lv": 2, "built_month": 7}           # 字典仍字典
+
+
+def test_aggregate_keeps_dict_form_and_oldest_month(cap):
+    """多治所聚合：Σ 等级；`built_month` 取**最老者**（推演口径，逐治所真账各留原值）。"""
+    cap({"路Q": "S1"})
+    s = _state({"路Q": {"buildings": {"货栈": {"lv": 1, "built_month": 9}},
+                        "seats": {"S1": {}, "S2": {}}}})
+    bb.sink_buildings_to_seats(s)
+    assert bb.building_set(s, "路Q", "货栈", {"lv": 3, "built_month": 4}, seat_id="S2") is not None
+    assert s.prefectures["路Q"][KEY]["货栈"] == {"lv": 4, "built_month": 4}
+    assert bb.seat_buildings_total(s.prefectures["路Q"]) == {"货栈": 4}
+    # 逐治所真账各自保留原 built_month
+    seats = s.prefectures["路Q"]["seats"]
+    assert seats["S1"][KEY]["货栈"]["built_month"] == 9
+    assert seats["S2"][KEY]["货栈"]["built_month"] == 4
+
+
+def test_building_add_keeps_built_month_on_dict_entry(cap):
+    cap({"路R": "S1"})
+    s = _state({"路R": {"buildings": {"货栈": {"lv": 1, "built_month": 5}},
+                        "seats": {"S1": {}}}})
+    bb.sink_buildings_to_seats(s)
+    assert bb.building_add(s, "路R", "货栈", 1) == 2
+    assert s.prefectures["路R"]["seats"]["S1"][KEY]["货栈"] == {"lv": 2, "built_month": 5}
+
+
+def test_building_add_writes_dict_when_built_month_given(cap):
+    cap({"路S": "S1"})
+    s = _state({"路S": {"buildings": {"工坊": 1}, "seats": {"S1": {}}}})
+    bb.sink_buildings_to_seats(s)
+    assert bb.building_add(s, "路S", "货栈", 1, built_month=11) == 1
+    assert s.prefectures["路S"]["seats"]["S1"][KEY]["货栈"] == {"lv": 1, "built_month": 11}
+    assert s.prefectures["路S"][KEY]["货栈"] == {"lv": 1, "built_month": 11}
+
+
+def test_building_set_raw_write_and_gate(cap):
+    cap({"路T": "S1"})
+    s = _state({"路T": {"buildings": {"货栈": 1}, "seats": {"S1": {}}}})
+    assert bb.building_set(s, "路T", "货栈", {"lv": 2}) is None    # 未下沉 ⇒ None
+    bb.sink_buildings_to_seats(s)
+    assert bb.building_set(s, "路T", "货栈", {"lv": 3, "built_month": 2}) == {"lv": 3, "built_month": 2}
+    assert bb.building_set(s, "路T", "货栈", {"built_month": 1}) is None   # 无 lv ⇒ 拒绝
+
+
+def test_closed_entry_counts_zero():
+    s = _state({"路U": {"buildings": {"货栈": {"closed": True, "lv": 3}},
+                        "seats": {"S1": {}}}})
+    bb.sink_buildings_to_seats(s)
+    assert bb.seat_buildings_total(s.prefectures["路U"]) == {"货栈": 0}
+
