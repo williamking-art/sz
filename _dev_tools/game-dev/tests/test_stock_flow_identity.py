@@ -15,17 +15,9 @@ from core.domains.economy import stock_flow as sf
 from core.domains.economy import stock_identity as si
 
 
-def _cumulative_flows(state):
-    net = {}
-    for _m, bucket in (getattr(state, "stock_flow", None) or {}).items():
-        if not isinstance(bucket, dict):
-            continue
-        for dim, row in bucket.items():
-            if not isinstance(row, dict):
-                continue
-            net[dim] = (net.get(dim, 0) + int(row.get("in", 0) or 0)
-                        - int(row.get("out", 0) or 0))
-    return net
+def _cumulative_flows(state, custody=sf.CUSTODY_NATIONAL):
+    """跨全月桶累计净流量（**直接用模块 API**——避免助手自己维护一套分桶形态解析）。"""
+    return sf.cumulative_flows(state, custody=custody)
 
 
 def test_national_warehouse_identity_closes_over_pipeline():

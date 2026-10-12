@@ -39,16 +39,29 @@ def test_record_in_out_by_month(m7):
     assert f["木"]["in"] == 150 and f["木"]["out"] == 30 and f["木"]["net"] == 120
     assert f["木"]["by_reason"]["in:produce"] == 100
     assert sf.flows_delta(s) == {"木": 120}
-    assert s.stock_flow["7"]["木"]["in"] == 150           # 落在第 7 月桶
+    # 分桶形态：{月序: {custody: {dim: {...}}}}（custody 默认全国仓）
+    assert s.stock_flow["7"][sf.CUSTODY_NATIONAL]["木"]["in"] == 150
 
 
 def test_records_are_month_isolated(m7):
     s = _state()
     sf.record_in(s, "木", 10, reason="produce")
-    s.stock_flow["8"] = {"木": {"in": 5, "out": 1, "by_reason": {}}}
+    s.stock_flow["8"] = {sf.CUSTODY_NATIONAL: {"木": {"in": 5, "out": 1, "by_reason": {}}}}
     assert sf.flows_delta(s, month=7) == {"木": 10}
     assert sf.flows_delta(s, month=8) == {"木": 4}
     assert sf.flows_for(s, month=9) == {}                 # 未登记月份 ⇒ 空（不是 0）
+
+
+def test_custody_isolation(m7):
+    """**custody 分列**：全国仓与 POP 侧互不污染（否则两条链的残差都算不准）。"""
+    s = _state()
+    sf.record_in(s, "木", 100, reason="produce")                              # 默认＝全国仓
+    sf.record_in(s, "木", 30, reason="produce_pop", custody=sf.CUSTODY_POP)
+    sf.record_out(s, "木", 10, reason="consume", custody=sf.CUSTODY_POP)
+    assert sf.flows_delta(s) == {"木": 100}
+    assert sf.flows_delta(s, custody=sf.CUSTODY_POP) == {"木": 20}
+    assert sf.cumulative_flows(s) == {"木": 100}
+    assert sf.cumulative_flows(s, custody=sf.CUSTODY_POP) == {"木": 20}
 
 
 def test_nonpositive_and_bad_values_are_ignored(m7):

@@ -139,6 +139,11 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             if got <= 0:
                 continue                  # \u94b1\u4e0d\u5230\u4f4d \u21d2 **\u4e0d\u53d6\u8d27**\uff08\u4e0d\u65e0\u507f\u5165\u5e93\uff09
             take = _take_goods(goods, dim, want)
+            # 🟢 M42d：POP 侧逐维流量登记（和买**从 POP goods 卖出**；只记实际取走量）
+            if take > 0:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_out(state, dim, take, reason="procure_sell",
+                               custody=_sf.CUSTODY_POP)
             if take <= 0:
                 state.transfer_money("pop:%s:\u519c" % route, "treasury", got)   # \u56de\u9000
                 continue

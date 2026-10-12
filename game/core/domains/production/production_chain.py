@@ -234,6 +234,10 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                     from core.foundation.ledger.material_holding import goods_add as _gadd
                     _gadd(_goods, dim, add, _pick_seat(p, dim))
                     produced[dim] = produced.get(dim, 0) + add
+                    # 🟢 M42d：POP 侧逐维流量登记（产出**入 POP goods**；测量仪器）
+                    from core.domains.economy import stock_flow as _sf
+                    _sf.record_in(state, dim, add, reason="produce_pop",
+                                  custody=_sf.CUSTODY_POP)
                 except Exception:                       # noqa: BLE001
                     # 归属分派失败 ⇒ **如实回落国家仓**，不吞料、不造钱
                     _write_pending(state, name, dim, add)
