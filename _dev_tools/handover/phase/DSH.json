@@ -1,16 +1,17 @@
 {
- "phase": "《宋祚》交通下沉（M39）：M39a（ROUTE_WATERWAY 结构性下沉）与 **M39c-1（canal_block 治所级结构下沉 + 桥 2 个全国级写点）** 已落地，A/B 轨迹逐轮一致（零行为变化），全量 EXIT=0。M37 地方府库、M38 建筑下沉亦已收口。M39b 逐治所航道初始值＝材料不足；M39c-2 改读者（粮价/运力）＝改数值需标定。",
+ "phase": "《宋祚》主线B 批次4 仓储下沉（M40）：**M40a 常平仓（changping_stock）治所级下沉已落地**（storage_bridge + Σ 派生 + 首府承载 + 幂等迁移 + `_changping_trade` 两写点桥接 + new_game/load_game 接线；A/B 轨迹与逐路存量差异 0/20；9 用例；全量 EXIT=0）。M37 地方府库、M38 建筑、M39 交通均已收口。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M39c-1，日志 _scratch/full_regression_m39c.log）；定向 test_canal_sink.py 14 passed；test_waterway_seats.py 8 passed",
-  "A_B": "接线 vs sink 打桩为 no-op：6 轮 canal_block 轨迹逐轮完全相同 [10,10,8,6,6,5]（类型均 int）；20/20 路已下沉；survey_canal 0 失配；路级镜像==首府值；全国镜像==派生值",
+  "pytest": "全量串行 EXIT=0（M40a，日志 _scratch/full_regression_m40a.log）；定向 test_storage_sink.py 9 passed",
+  "A_B": "接线 vs sink 打桩 no-op（每次 run 固定种子）：Σ常平仓 6 轮轨迹逐轮相同 [15942508,16599031,16969428,17035002,17091810,17099114]；逐路存量差异 0/20；20/20 已下沉；survey_storage 0 失配",
+  "m39": "M39a/M39c-1：A/B 轨迹逐轮一致 [10,10,8,6,6,5]（类型 int）",
   "m38": "三批全量 EXIT=0；A/B 逐路 buildings 差异 0/20",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "按目标顺序转 **仓储/商品存量州府级**（批次 4 的仓储片）→ 真实交易与州府价格。交通线余项挂账：M39c-2（把 game_state_econ:336 粮价、population_readout:177 运力判据、income_readout:349、AI 认知层、economy_history、前端 2 处改逐路/逐治所读 —— **改数值须先做同种子标定**）；M39b（逐治所航道初始值＝材料不足）。其后：主线 C（**待授权**：decisions/M38c-crop-buildings-authorization.json）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫读数面板接线）",
+ "next": "M40b **州仓 storage** 治所级下沉（2 写点：settlement_granary:121 漕运起运 −／settlement_econ:302 本色征粮 +；读点含 **situations.py:1103 条件路径 `prefectures.*.storage` 与 :1253 拨帑赈济 inflow 判据**，属规则路径须单独核对）→ M40c 商品/物料存量（state.resources 全国口径）州府化。其后按目标顺序：真实交易与州府价格 → 主线 C（**待授权**）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫读数面板）。交通余项挂账：M39c-2 读者改逐路（改数值须标定）· M39b 逐治所航道初始值（材料不足）",
  "pending_decisions": [
   "地方支出V2-D1-D5（府库出口侧）",
   "M38c-crop-buildings-authorization（建筑语汇统一/主线C 内容变更授权）"

@@ -266,7 +266,10 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=No
             money += _pay
         if total <= 0:
             return 0, 0
-        pref["changping_stock"] = int(pref.get("changping_stock", 0) or 0) + total
+        # 🟢 M40a：常平仓写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+        from core.foundation.ledger import storage_bridge as _sb
+        if _sb.changping_add(state, name, total) is None:
+            pref["changping_stock"] = int(pref.get("changping_stock", 0) or 0) + total
         # 🟢 主线 B（M37b）：地方府库写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
         from core.foundation.ledger import local_treasury_bridge as _ltb
         _new_lt = _pay_cap - money
@@ -300,7 +303,10 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=No
         want -= _alloc
     if total <= 0:
         return 0, 0
-    pref["changping_stock"] = max(0, int(pref.get("changping_stock", 0) or 0) - total)
+    # 🟢 M40a：常平仓写点走桥（未下沉 ⇒ None ⇒ 回落原写法；桥内含 0 下限钳，同原 max(0,…)）
+    from core.foundation.ledger import storage_bridge as _sb
+    if _sb.changping_add(state, name, -total) is None:
+        pref["changping_stock"] = max(0, int(pref.get("changping_stock", 0) or 0) - total)
     # 🟢 主线 B（M37b）：地方府库写点走桥（未下沉 ⇒ None ⇒ 回落原写法）
     from core.foundation.ledger import local_treasury_bridge as _ltb
     if _ltb.local_treasury_add(state, name, money) is None:

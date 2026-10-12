@@ -126,4 +126,10 @@ def load_game(slot: int = 1):
         sink_canal_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 漕运淤塞州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
+    # 批次 4 仓储片：**常平仓**（changping_stock）州府级下沉（旧档补齐；新档已幂等跳过）。
+    try:
+        from core.foundation.persistence.migrations import sink_changping_to_seats
+        sink_changping_to_seats(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 常平仓州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
     return state

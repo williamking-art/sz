@@ -134,3 +134,17 @@ def sink_canal_to_seats(state) -> int:
     """
     from core.domains.economy import canal_bridge
     return canal_bridge.sink_canal_to_seats(state)
+
+
+def sink_changping_to_seats(state) -> int:
+    """把**常平仓**（`changping_stock`）下沉到州府级 seats（主线 B 批次 4 · M40a）。
+
+    与 `sink_pops_to_seats` / `sink_local_treasury_to_seats` / `sink_buildings_to_seats`
+    / `sink_canal_to_seats` 同型：**无条件幂等入口**，新局与读档共用。
+    路级存量全部落**首府**治所（无逐治所来源 ⇒ **不编造差异**）；路级降为 **Σ 派生镜像**。
+
+    ⚠️ 必须在 `sink_pops_to_seats` **之后**调用——首府判定依赖治所存在。
+    返回实际下沉的路数。
+    """
+    from core.foundation.ledger import storage_bridge
+    return storage_bridge.sink_storage_to_seats(state, key=storage_bridge.CHANGPING_KEY)

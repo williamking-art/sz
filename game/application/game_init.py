@@ -93,10 +93,21 @@ def init_canal_seats(state):
     return sink_canal_to_seats(state)
 
 
-def new_game(mode: str = "史实"):
-    """开局入口：`GameState` → 人口域初始化 → **POP→府库→建筑→漕运 依次下沉州府级**。
+def init_storage_seats(state):
+    """把**常平仓**（`changping_stock`）下沉到州府级（批次 4 · M40a）。
 
-    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、四类真账都不会下沉。
+    路级存量落**首府**治所（不编造逐治所差异）；路级降为 Σ 派生镜像。
+    **必须在 `init_pops_seats` 之后**——首府判定依赖治所存在。幂等。
+    """
+    from core.foundation.persistence.migrations import sink_changping_to_seats
+
+    return sink_changping_to_seats(state)
+
+
+def new_game(mode: str = "史实"):
+    """开局入口：`GameState` → 人口域初始化 → **POP→府库→建筑→漕运→常平仓 依次下沉州府级**。
+
+    调用方应改用本函数而非直接 `GameState(...)`，否则隐户不会被注入、五类真账都不会下沉。
     """
     from core.game_state import GameState
 
@@ -106,4 +117,5 @@ def new_game(mode: str = "史实"):
     init_local_treasury_seats(state)    # 府库分摊依赖治所人口，必须排在其后
     init_buildings_seats(state)         # 首府判定同样依赖治所人口
     init_canal_seats(state)             # 漕运同样按首府承载（依赖 seats 已建）
+    init_storage_seats(state)           # 常平仓同型（批次 4 仓储片）
     return state

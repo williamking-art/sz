@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T18:26:10Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T18:35:04Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-13）：《宋祚》交通下沉（M39）：M39a（ROUTE_WATERWAY 结构性下沉）与 **M39c-1（canal_block 治所级结构下沉 + 桥 2 个全国级写点）** 已落地，A/B 轨迹逐轮一致（零行为变化），全量 EXIT=0。M37 地方府库、M38 建筑下沉亦已收口。M39b 逐治所航道初始值＝材料不足；
+- **DSH**（updatedAt=2026-10-13）：《宋祚》主线B 批次4 仓储下沉（M40）：**M40a 常平仓（changping_stock）治所级下沉已落地**（storage_bridge + Σ 派生 + 首府承载 + 幂等迁移 + `_changping_trade` 两写点桥接 + new_game/load_game 接线；A/B 轨迹与逐路存量差异
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -21,6 +21,7 @@
 - `M36-inspection-batch` M36《察访与监司行动》：监察＝行动者（编制/生命周期/风险反馈/审理链对接） ｜status=**in_progress**｜claimedBy=Cline
 - `M38-building-sink` 建筑下沉州府级（主线B 批次2）：seats[治所]["buildings"] 真账 + 路级 Σ 派生聚合（保形态）+ 4 写点全桥 +  ｜status=**in_progress**｜claimedBy=DSH
 - `M39-transport-sink` 交通下沉州府级（主线B 批次1）：水位/漕运逐治所真账 + 路级/全国降为派生 ｜status=**in_progress**｜claimedBy=DSH
+- `M40-storage-sink` 仓储下沉州府级（主线B 批次4 仓储片）：storage/changping_stock 治所级真账 + 路级 Σ 派生 ｜status=**in_progress**｜claimedBy=DSH
 
 ## 待裁 / 未闭环决策
 
@@ -33,7 +34,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261012T173930Z-DSH` → [`worklog/20261012T173930Z-DSH.md`](worklog/20261012T173930Z-DSH.md)
 - `20261012T174052Z-DSH` → [`worklog/20261012T174052Z-DSH.md`](worklog/20261012T174052Z-DSH.md)
 - `20261012T175012Z-DSH` → [`worklog/20261012T175012Z-DSH.md`](worklog/20261012T175012Z-DSH.md)
 - `20261012T175835Z-DSH` → [`worklog/20261012T175835Z-DSH.md`](worklog/20261012T175835Z-DSH.md)
@@ -41,8 +41,9 @@
 - `20261012T180827Z-DSH` → [`worklog/20261012T180827Z-DSH.md`](worklog/20261012T180827Z-DSH.md)
 - `20261012T181625Z-DSH` → [`worklog/20261012T181625Z-DSH.md`](worklog/20261012T181625Z-DSH.md)
 - `20261012T182609Z-DSH` → [`worklog/20261012T182609Z-DSH.md`](worklog/20261012T182609Z-DSH.md)
+- `20261012T183504Z-DSH` → [`worklog/20261012T183504Z-DSH.md`](worklog/20261012T183504Z-DSH.md)
 
 ## 计数
 
-- tasks 23（未完成 9）· decisions 23（未闭环 6）· worklog 185 · phase 文件 4
+- tasks 24（未完成 10）· decisions 23（未闭环 6）· worklog 186 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

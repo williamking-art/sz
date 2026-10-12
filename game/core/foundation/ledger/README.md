@@ -12,7 +12,7 @@
 **所有 POP / 钱 / 粮的写入必须经过本层。** 绕过桥接的直写会被
 `test_route_pops_readonly_guard.py` 当场炸掉（路级 `pops` 已由只读守卫强制）。
 
-## 模块（10 个：8 个由 `git mv` 迁入 + 2 个 2026-10-13 新建：`local_treasury_bridge` / `building_bridge`）
+## 模块（11 个：8 个由 `git mv` 迁入 + 3 个 2026-10-13 新建：`local_treasury_bridge` / `building_bridge` / `storage_bridge`）
 
 > 行数为 2026-10-11 实测快照（会随提交变化，仅作量级参考，不作为判据）。
 
@@ -28,6 +28,7 @@
 | `grain_ledger.py` | 99 | 🔴 **G-3 迁移基座**：把 `pops[].grain` 迁入 `goods[治所][米/麦]`（裁定 H·甲） |
 | `local_treasury_bridge.py` | 307 | 🔴 **地方府库（`local_treasury`）下沉桥**（M37，2026-10-13 **新建**、非迁移）。真账在 `prefectures[路]["seats"][治所]["local_treasury"]`，路级降为 **Σ 派生镜像**；含聚合（未下沉⇒`None`）· 对账 `survey_local_treasury` · 写桥 `local_treasury_set/add`（未下沉⇒`None` 回落）· **治所级精确写** `seat_local_treasury_set` + `seat_local_treasury_writable`。⚠️ **别与中央 `state.treasury` 混淆**（两者不同账户） |
 | `building_bridge.py` | ~310 | 🔴 **建筑（`buildings`）下沉桥**（M38a/M38b-1/M38b-2，2026-10-13 **新建**）。真账在 `seats[治所]["buildings"]`，路级 = **Σ 各治所等级**（**保形态**：任一条目是字典 ⇒ 镜像也写字典）；含 `aggregate_seat_buildings`（未下沉⇒`None`）· `survey_buildings` 逐建筑对账 · `capital_seat_id`（首府＝`SEAT_LEVELS` 序最优、同级取人口权重大者）· `sink_buildings_to_seats`（**首府承载 + 原始条目原样搬运** ⇒ Σ 与原值逐字相等）· 写桥 `building_add`（增量保形态）/ `building_set`（按原始条目精确写）/ **`building_remove`（删键，对齐 `era_mechanic` 原 `del`）** / `norm_level`（标量·`{"lv":n}`·`{"closed":true}`⇒0）。✅ **2026-10-13 已接 new_game/读档**（M38b-2；4 写点全桥：含 `era_mechanic.damage_buildings`），**A/B 对照证明零行为变化**（逐路 buildings 差异 0/20）。⚠️ 阈值类读者待「建筑落到多治所」时再改逐治所 |
+| `storage_bridge.py` | ~215 | 🔴 **仓储（`changping_stock` 常平仓 / `storage` 州仓）下沉桥**（M40a，2026-10-13 **新建**）。真账在 `seats[治所][<键>]`（石），路级 = **Σ 各治所**；含 `route_stock_total`/`aggregate_route_changping`（未下沉⇒`None`）· `survey_storage` 对账 · `changping_sink_route`/`sink_storage_to_seats`（**首府承载**，Σ 与原值逐字相等）· 写桥 `changping_add`（含 **0 下限钳**，同原 `max(0, x-total)`）/ `changping_set`/`changping_get`。✅ 2026-10-13 已接 new_game/读档；**M40a 已桥 `_changping_trade` 两处写点**，A/B 轨迹与逐路存量差异 **0/20**。⚠️ `storage`（州仓）待 M40b（其读点含 `situations` 条件路径，须单独核对）；**不动中央太仓 `state.granary`** |
 
 ## 🔴 不可绕过的纪律
 
