@@ -1,17 +1,17 @@
 {
- "phase": "《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b（库存/货币只读投影）+ **M41c（逐月 Δ 与残差 + 全流水取证）已落地**。取证结论：**货币残差恒 0**；货确实在动（10 维）但**逐维流量账不存在**（statistics 仅聚合键、granary_stats 仅粮腿）⇒ **P1 第一句「逐月复原商品库存恒等式」当前不可闭合**，缺口登记为 tasks/M42-stock-flow-ledger.json（pending，未认领）。",
+ "phase": "《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b/c（库存货币只读投影与逐月Δ）+ **M42a（逐维流量账，全国仓 5/9 维残差归零）已落地**。P1 第一句的可闭合性从「全 20 维 unclosed」推进到「全国仓 5 维精确闭合」；余下需 POP goods 侧与出账侧登记。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M41c，日志 _scratch/full_regression_m41c.log）；定向 test_stock_identity_delta.py + test_stock_identity.py 共 14 passed",
-  "evidence": "run_monthly_settlement × 6 轮（只读）：变动维 8/7/6/4/5/3，累计 10 维；residual_report 全 20 维 unclosed、ok=False；货币残差 0",
-  "flow_keys": "statistics 8 个聚合流量键（goods_spend/goods_traded/goods_unmet/basics_unmet/changping_recycled/hidden_produce/stabilizer_recycled/workshop_finished_goods）；granary_stats 仅粮腿",
-  "zero_write": "stock_identity 全部为只读投影（用例深比较锁定）",
+  "pytest": "全量串行 EXIT=0（M42a，日志 _scratch/full_regression_m42a.log）；定向 test_stock_flow.py 9 passed",
+  "evidence": "run_monthly_settlement x6（只读）：全国仓 9 维变动，5 维残差精确为 0（木/盐/石/茶/铁 各 3,000,000）；meat/绸/布 属 POP 侧未覆盖；丝 残差 -18,815 属 custody 边界效应；货币残差 0",
+  "bug_fixed": "月桶 int 键会被 JSON 存档回转成 str ⇒ 读档后流量账读成空（已规范化为字符串键，取证可见 ['13213',...]）",
+  "zero_write": "stock_identity 系列只读（深比较锁定）；stock_flow 只登记不持货",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "P1 余项：①（新登记、待认领）**M42 逐维商品流量账** —— 建逐维产量/消费登记（与既有写点同源、不新增平行账本），使 residual_report 能逐维判残差 0；这是 P1 第一句的**唯一前置**。② 宋境工钱通道（改钱流须标定，偏 P2）。③ 商品×州府纵向链。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
+ "next": "M42 余项：① POP goods 侧生产/消费/折旧登记（把 meat/绸/布 等纳入）；② 出账侧登记（领料 consume_for_circuit / 熔铜 settlement_econ_helpers:68 / 售出 material_market:735,:812）；③ 覆盖率读数按全月桶（coverage() 目前只报当前月）。其后 P1：宋境工钱通道（改钱流须标定，偏 P2）· 商品×州府纵向链。再往后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
  "pending_decisions": [
   "地方支出V2-D1-D5",
   "M38c-crop-buildings-authorization",
