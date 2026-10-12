@@ -203,10 +203,15 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                 #   存放地 != 货主，**不并入 resources**，不得出售/采购/计税。
                 if not _to_pop:
                     # 6.33 账实一致：**按实际入账量**记 produced（国库 cap 可能截断）
-                    _in = (_write_warehouse(resources, dim, add) if _to_state
+                    _to_wh = bool(_to_state)
+                    _in = (_write_warehouse(resources, dim, add) if _to_wh
                            else _write_pending(state, name, dim, add))
                     if _in > 0:
                         produced[dim] = produced.get(dim, 0) + int(_in)
+                        if _to_wh:
+                            # 🟢 M42a：逐维流量登记（**测量仪器**，只记实际入账量；失败不中断）
+                            from core.domains.economy import stock_flow as _sf
+                            _sf.record_in(state, dim, _in, reason="produce")
                     continue
                 try:
                     _cls = _holder.split(":")[1]

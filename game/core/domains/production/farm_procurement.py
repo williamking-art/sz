@@ -143,6 +143,9 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
                 state.transfer_money("pop:%s:\u519c" % route, "treasury", got)   # \u56de\u9000
                 continue
             slot["stock"] = int(slot.get("stock", 0) or 0) + take
+            # 🟢 M42a：逐维流量登记（和买**入国家仓**；测量仪器，失败不中断）
+            from core.domains.economy import stock_flow as _sf
+            _sf.record_in(state, dim, take, reason="procure_buy")
             qty += take; paid += got; _spent += got
         if qty > 0:
             out[dim] = {"qty": qty, "paid": paid}
