@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 __all__ = [
     "SCHEMA_VERSION", "POP_GOODS_CLASSES", "seat_goods", "route_seat_totals",
     "seat_consistency", "workshop_attribution", "survey_seat_goods",
+    "route_of_workshop",
 ]
 
 SCHEMA_VERSION = 1
@@ -190,6 +191,23 @@ def workshop_attribution(state) -> Dict[str, Any]:
     return {"total": total, "attributable": attributable,
             "ratio": (attributable / total) if total else None,
             "unattributed": bad[:20]}
+
+
+def route_of_workshop(state, wid: Any) -> Optional[str]:
+    """作坊 id（形如 `麻坊_京畿路_2`）⇒ **所属路名**；判不出 ⇒ `None`（**不臆造地点**）。
+
+    🔴 口径单点：`state.workshops` 的键内嵌路名是**当前唯一**的地点依据
+    （作坊对象本身不存 `route` 字段）。所有"产出地点并轨"的写点都经本函数取路，
+    避免各写点各写一套匹配逻辑而出现分叉。
+    """
+    if not isinstance(wid, str):
+        return None
+    routes = list(_prefs(state) or {})
+    hits = [r for r in routes if r and r in wid]
+    if not hits:
+        return None
+    # 取**最长**匹配（防「京东东路」与「京东路」这类前缀互相误判）
+    return max(hits, key=len)
 
 
 def survey_seat_goods(state) -> Dict[str, Any]:

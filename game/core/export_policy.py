@@ -577,8 +577,20 @@ def apply_export_decision(
         return out
 
     # ---- 钱的一腿：POP wealth（POP 挂载点）＋ 来源登记
-    goods[dim] = have - qty
-    seller["wealth"] = max(0, _trunc(seller.get("wealth") or 0)) + income
+    # 🟢 M45 家族第 5 处（2026-10-13）：`seller` 是**路级镜像行**（调用方从 `p["pops"]` 取），
+    #   直写 `goods[...]` / `seller["wealth"]` 会被 `sync_route_pops` 覆盖。
+    #   M47 让各路的货留在本路后，本路径才真的跑起来 ⇒ 潜伏缺陷暴露（守卫 trace 直指此文件）。
+    #   未下沉/找不到 ⇒ None ⇒ **回落原写法**（行为不变）。
+    from core.foundation.ledger import pop_bridge as _pb
+    _sub = _pb.pop_goods_sub(state, seller, dim, qty)
+    if _sub is None:
+        goods[dim] = have - qty
+        _sub = qty
+    if _pb.pop_obj_add(state, seller, "wealth", income) is None:
+        seller["wealth"] = max(0, _trunc(seller.get("wealth") or 0)) + income
+    if _sub:
+        from core.domains.economy import stock_flow as _sf
+        _sf.record_out(state, dim, _sub, reason="export_sell", custody=_sf.CUSTODY_POP)
     out["applied"] = True
 
     if register_flow:

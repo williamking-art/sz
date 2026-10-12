@@ -16,6 +16,8 @@ from core.domains.economy import stock_identity as si
 
 def _state(flow=None):
     st = types.SimpleNamespace()
+    # 流量账容器＝**独立属性** `state.stock_flow`（不放进 statistics：
+    # 后者被财政隔离契约整表比对，见模块常量注释）
     if flow is not None:
         st.stock_flow = flow
     st.month = 3
@@ -40,13 +42,13 @@ def test_record_in_out_by_month(m7):
     assert f["木"]["by_reason"]["in:produce"] == 100
     assert sf.flows_delta(s) == {"木": 120}
     # 分桶形态：{月序: {custody: {dim: {...}}}}（custody 默认全国仓）
-    assert s.stock_flow["7"][sf.CUSTODY_NATIONAL]["木"]["in"] == 150
+    assert sf.flows_container(s, create=True)["7"][sf.CUSTODY_NATIONAL]["木"]["in"] == 150
 
 
 def test_records_are_month_isolated(m7):
     s = _state()
     sf.record_in(s, "木", 10, reason="produce")
-    s.stock_flow["8"] = {sf.CUSTODY_NATIONAL: {"木": {"in": 5, "out": 1, "by_reason": {}}}}
+    sf.flows_container(s, create=True)["8"] = {sf.CUSTODY_NATIONAL: {"木": {"in": 5, "out": 1, "by_reason": {}}}}
     assert sf.flows_delta(s, month=7) == {"木": 10}
     assert sf.flows_delta(s, month=8) == {"木": 4}
     assert sf.flows_for(s, month=9) == {}                 # 未登记月份 ⇒ 空（不是 0）
@@ -76,7 +78,7 @@ def test_unknown_month_bucket_when_unreadable(monkeypatch):
     monkeypatch.setattr(sf, "current_month", lambda state: None)
     s = _state()
     sf.record_in(s, "石", 3, reason="produce")
-    assert "unknown" in s.stock_flow                     # **不假装**落在某月
+    assert "unknown" in sf.flows_container(s)            # **不假装**落在某月
 
 
 def test_record_does_not_raise_on_broken_state(monkeypatch):
@@ -98,8 +100,8 @@ def test_coverage(m7):
     assert cov["dims"] == ["木"] and cov["dim_count"] == 1
     assert cov["reasons"] == {"in:produce": 4, "out:consume": 1}
     # ⚠️ 当前月之外还有登记时，`all_months=True` 才看得到（默认只看当前月 ⇒ 会显示 0）
-    s.stock_flow["9"] = {sf.CUSTODY_NATIONAL: {"石": {"in": 3, "out": 0,
-                                                     "by_reason": {"in:produce": 3}}}}
+    sf.flows_container(s, create=True)["9"] = {sf.CUSTODY_NATIONAL: {"石": {"in": 3, "out": 0,
+                                                                           "by_reason": {"in:produce": 3}}}}
     assert sf.coverage(s, month=8)["dim_count"] == 0            # 第 8 月无登记
     am = sf.coverage(s, all_months=True)
     assert am["all_months"] is True

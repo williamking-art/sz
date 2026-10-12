@@ -86,6 +86,16 @@ def test_workshop_attribution():
 
 
 # ------------------------------------------------------------------ 4. 只读 + 总读数
+def test_route_of_workshop_single_source():
+    """作坊 id ⇒ 路名（**最长匹配**，防「京东路」与「京东东路」互误；判不出 ⇒ None）。"""
+    st = _state(routes=("京东路", "京东东路", "京畿路"))
+    assert sg.route_of_workshop(st, "麻坊_京东东路_3") == "京东东路"
+    assert sg.route_of_workshop(st, "酒坊_京畿路_1") == "京畿路"
+    assert sg.route_of_workshop(st, "无名坊_1") is None
+    assert sg.route_of_workshop(st, None) is None
+    assert sg.route_of_workshop(st, 123) is None
+
+
 def test_survey_is_readonly():
     st = _state(seats={"路A": {"A|甲": {"pops": {"工匠": {"goods": {"绸": 8}}}}}},
                 mirror={"路A": {"绸": 8}}, workshops={"麻坊_路A_1": {}})

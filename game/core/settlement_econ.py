@@ -1667,6 +1667,11 @@ def _settle_workshops(state, log):
     # ⚠️ `wine` 也是成品维，但走**酒课入内帑**（既有口径，`wine_tax`），
     # 不进工匠池——池子只放**民间可买的布/绸**。
     _finished_goods: dict = {}
+    # 🟢 M47：**产出地点并轨** —— 可按作坊所属路归属的成品另记一路，
+    #   分派时落**该路**（§14.1「产出先入本地经营库存」）；判不出路的作坊
+    #   仍走原「全局按工匠 size 占比」分派（**不销毁产出、不臆造地点**）。
+    _finished_by_route: dict = {}
+    _unattributed_dims: dict = {}
     from content.data_constants import (FINISHED_DIMS as _FIN_DIMS,
                                       FINISHED_TAX_DIMS as _FIN_TAX_DIMS)
     # 工匠货栈（可交易）= 成品维 − 即产即销折钱入内帑的维（wine 酒课 / meat 按人口征收）。
@@ -1796,19 +1801,67 @@ def _settle_workshops(state, log):
             # 两处是**同一批货的两个用途槽**（`storage` 仓储读数 / `resale` 待售），
             # 不是两批货：B1-3 台账须标明，**不得相加当"总产量"**。
             if out_dim in _POOL_DIMS:
-                _fg = _finished_goods.setdefault(out_dim, 0)
-                _finished_goods[out_dim] = _fg + int(round(yld))
+                # 🟢 M47：能归属到作坊所属路 ⇒ 记到**该路**（产出先入本地经营库存）；
+                #   判不出路 ⇒ 仍走原全局分派（**不销毁产出**），并计入 `workshop_unattributed`
+                from core.domains.economy.seat_goods_readout import route_of_workshop as _row_route
+                _q_pool = int(round(yld))
+                _wroute = _row_route(state, wid)
+                if _wroute:
+                    _rb = _finished_by_route.setdefault(_wroute, {})
+                    _rb[out_dim] = int(_rb.get(out_dim, 0) or 0) + _q_pool
+                else:
+                    _fg = _finished_goods.setdefault(out_dim, 0)
+                    _finished_goods[out_dim] = _fg + _q_pool
+                    _unattributed_dims[out_dim] = int(_unattributed_dims.get(out_dim, 0) or 0) + _q_pool
     # 酒课按月**重算**（保底 ＋ Σ酒坊产能加成）——杜绝"月度率被逐月累加"（A-5）
     from content.data import WINE_COIN_BASE
     state.wine_tax = int(WINE_COIN_BASE) + int(_wine_bonus)
 
-    # ---- 2026-10-11（B1）：成品维产出分派到各路工匠 goods 池（待售位）----
-    # 分派口径：作坊产出是**全局**记账（`state.workshops` 不分路），
-    # 故按各路**工匠 size 占比**分派；整数尾差归末路，保证 Σ分派 == Σ产出（不丢量）。
-    if _finished_goods:
+    # ---- M47（2026-10-13）**产出地点并轨** ----
+    # ① 可按作坊所属路归属的成品 ⇒ 落**本路治所真账**（按该路人口权重拆、尾差归最大权重治所，
+    #    Σ 精确不丢量）。这是 §14.1「产出先入本地经营库存」的最小落地。
+    # ② 判不出路 / 该路无治所权重 ⇒ 退回下方**原「全局按工匠 size 占比」分派**（不销毁产出）。
+    if _finished_goods or _finished_by_route:
         _stats = getattr(state, "statistics", None)
         if isinstance(_stats, dict):
-            _stats["workshop_finished_goods"] = sum(_finished_goods.values())
+            _stats["workshop_finished_goods"] = (
+                sum(int(v or 0) for v in _finished_goods.values())
+                + sum(int(q or 0) for _m in _finished_by_route.values() for q in _m.values()))
+            if _unattributed_dims:
+                _stats["workshop_unattributed"] = sum(int(v or 0)
+                                                      for v in _unattributed_dims.values())
+    for _wr, _wn in (_finished_by_route or {}).items():
+        _pd = (getattr(state, "prefectures", None) or {}).get(_wr)
+        from core.foundation.ledger.pop_bridge import seat_pop_weights as _spw
+        _w = _spw(_wr) if isinstance(_pd, dict) else []
+        if not isinstance(_pd, dict) or not _w:
+            for _d, _q in _wn.items():                     # 路不存在/无权重 ⇒ 退回全局分派
+                _finished_goods[_d] = int(_finished_goods.get(_d, 0) or 0) + int(_q or 0)
+            continue
+        _tw = sum(x for _s, x in _w)
+        _anchor = max(_w, key=lambda kv: kv[1])[0]
+        for _d, _q in _wn.items():
+            _q = int(_q or 0)
+            if _q <= 0:
+                continue
+            _parts = {_s: int(round(_q * x / _tw)) for _s, x in _w}
+            _parts[_anchor] += _q - sum(_parts.values())   # 尾差归最大权重治所 ⇒ Σ 精确
+            for _sid, _pq in _parts.items():
+                if _pq <= 0:
+                    continue
+                from core.foundation.ledger import pop_bridge as _pb
+                _put = _pb.pop_goods_add(_pd, "工匠", _d, _pq, seat_id=_sid)
+                if _put is not None:
+                    from core.domains.economy import stock_flow as _sf
+                    _sf.record_in(state, _d, _pq, reason="workshop_pool",
+                                  custody=_sf.CUSTODY_POP)
+                else:
+                    _finished_goods[_d] = int(_finished_goods.get(_d, 0) or 0) + _pq
+
+    # ---- 2026-10-11（B1）：**判不出路**的成品退回全局分派（待售位）----
+    # 原口径：作坊产出是全局记账 ⇒ 按各路**工匠 size 占比**分派；整数尾差归末路。
+    # M47 后此路只服务"地点不可归属"的残余（正常应为 0，`statistics['workshop_unattributed']` 可见）。
+    if _finished_goods:
         _rows = []
         for r, p in (getattr(state, "prefectures", None) or {}).items():
             if not isinstance(p, dict):

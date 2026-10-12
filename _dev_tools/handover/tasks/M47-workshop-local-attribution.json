@@ -1,0 +1,31 @@
+{
+ "id": "M47-workshop-local-attribution",
+ "title": "作坊产出**地点并轨**（产出先入本地经营库存，§14.1）+ 第 5 处同族镜像写点修复",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（P1 行，Jev choose A）; AGENTS.md §3-4（改数值须说明口径与影响 + 定向回归）",
+ "deliverable": "settlement_econ._settle_workshops 产出按**作坊所属路**归属（route_of_workshop 单点解析），落本路治所真账、按该路人口权重拆（尾差归最大权重治所，Σ 精确）；判不出路者退回原全局按 size 占比分派并计入 statistics['workshop_unattributed']",
+ "calibration": {
+  "method": "同种子（20261013）6 个月 A/B；B 组把 route_of_workshop 打桩成恒 None ⇒ 全量退回旧分派",
+  "total_artisan_goods": "413,603（A） vs 413,892（B）⇒ 差 −289（0.07%，来自逐治所取整×折旧）",
+  "distribution": "A：京东西路 21,737 / 京畿路 21,733 / 成都府路 21,726…（**各留本路产出**）；B：两浙路 41,495 / 江南西路 31,372 / 河北路 30,356…（产出流向工匠人口多的路）",
+  "unattributed": "A 0 / B 80,223",
+  "prices": "price_level 1.2136 vs 1.2131；grain_price 1.3956 vs 1.395"
+ },
+ "exposed_fifth_instance": {
+  "where": "core/export_policy.py:579-581（apply_export_decision）",
+  "what": "卖家是**路级镜像行** ⇒ 直写 goods 与 wealth 会被 sync_route_pops 覆盖（同 M43/M44/M45 一族，第 5 处）",
+  "why_now": "M47 让各路的货留在本路 ⇒ 京畿路真的有了可外销余货 ⇒ 外销路径跑起来 ⇒ 守卫 trace 直指该文件",
+  "fix": "货走 pop_goods_sub、钱走 pop_obj_add，未下沉回落原写法；并登记 out:export_sell",
+  "evidence": "trace 复现 违规 0 条（原 1 条）；守卫 12 passed"
+ },
+ "registered_exception": {
+  "test": "test_b2r6_export.test_no_parallel_ledger_is_created",
+  "why": "`state.stock_flow` 是**登记式测量仪器**（不持 custody 真账、不参与结算判定、不 gate 玩法）；与「与 POP 平行的玩法账本」性质不同 ⇒ 显式 allowlist 放行，其余新增属性仍被拒",
+  "also_rejected": "曾试把它放进 `state.statistics` ⇒ 污染**财政隔离契约**（test_m36_4/5 整表比对 statistics）⇒ 两例转红；故改回独立属性"
+ },
+ "verification": "定向全绿；全量串行 EXIT=0；index 纪律通过",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T21:39:48Z"
+}

@@ -36,7 +36,13 @@ from typing import Any, Dict, Optional
 
 log = logging.getLogger(__name__)
 
-#: state 上的容器键（**登记式**；随档整表序列化）
+#: 🔴 承载容器：state 上的**独立**属性（`state.stock_flow`）。
+#: 为什么**不**放进 `state.statistics`：`statistics` 被**财政隔离契约**整表比对
+#: （`test_m36_4/5`：同种子两局 `dict(a.statistics) == dict(b.statistics)`）⇒
+#: 把逐月流量账塞进去会让"测量仪器"污染该契约（实测 2026-10-13 两例转红）。
+#: 为什么可以新增该属性：它是**登记式测量仪器**——不持 custody 真账、不参与任何结算判定、
+#: 不 gate 任何玩法；「禁新增状态属性」守卫（`test_b2r6_export.test_no_parallel_ledger_is_created`）
+#: 已按**有理由的例外**登记（见该用例的 allowlist 注释）。
 STATE_KEY = "stock_flow"
 
 CUSTODY_NATIONAL = "national_resources"
@@ -45,9 +51,25 @@ CUSTODY_IN_TRANSIT = "in_transit"
 
 __all__ = [
     "STATE_KEY", "CUSTODY_NATIONAL", "CUSTODY_POP", "CUSTODY_IN_TRANSIT",
-    "current_month", "record_in", "record_out", "flows_for", "flows_delta",
-    "coverage", "residual_for_custody",
+    "current_month", "flows_container", "record_in", "record_out", "flows_for",
+    "flows_delta", "cumulative_flows", "coverage", "residual_for_custody",
 ]
+
+
+def flows_container(state, *, create: bool = False) -> Optional[Dict[str, Any]]:
+    """取（或按需建）流量账容器；不可用 ⇒ `None`（不抛）。"""
+    flow = getattr(state, STATE_KEY, None)
+    if isinstance(flow, dict):
+        return flow
+    if not create:
+        return None
+    flow = {}
+    try:
+        setattr(state, STATE_KEY, flow)
+    except Exception:                                       # noqa: BLE001
+        log.warning("stock_flow: 无法创建容器", exc_info=True)
+        return None
+    return flow
 
 
 def current_month(state) -> Optional[int]:
@@ -62,16 +84,9 @@ def current_month(state) -> Optional[int]:
 
 def _bucket(state, month: Optional[int] = None, custody: str = CUSTODY_NATIONAL, *,
             create: bool = False) -> Optional[Dict[str, Any]]:
-    flow = getattr(state, STATE_KEY, None)
+    flow = flows_container(state, create=create)
     if not isinstance(flow, dict):
-        if not create:
-            return None
-        flow = {}
-        try:
-            setattr(state, STATE_KEY, flow)
-        except Exception:                                   # noqa: BLE001
-            log.warning("stock_flow: 无法在 state 上创建容器", exc_info=True)
-            return None
+        return None
     m = month if month is not None else current_month(state)
     # 🔴 **键规范化为字符串**（月序与 custody 都是）：JSON 会把 int 键回转成 str，
     #    用 int 键会让读档后 `flows_for(month=7)` **读成空**（2026-10-13 实测踩到并修）。
@@ -149,7 +164,7 @@ def flows_delta(state, month: Optional[int] = None,
 def cumulative_flows(state, custody: str = CUSTODY_NATIONAL) -> Dict[str, int]:
     """**跨全月桶累计**净流量 `{dim: Σ(in−out)}`（逐月对账用）。"""
     net: Dict[str, int] = {}
-    flow = getattr(state, STATE_KEY, None) or {}
+    flow = flows_container(state) or {}
     if not isinstance(flow, dict):
         return net
     for _m, month_b in flow.items():
@@ -176,7 +191,7 @@ def coverage(state, month: Optional[int] = None,
     if all_months:
         dims = sorted(cumulative_flows(state, custody=custody))
         reasons: Dict[str, int] = {}
-        flow = getattr(state, STATE_KEY, None) or {}
+        flow = flows_container(state) or {}
         if isinstance(flow, dict):
             for _m, month_b in flow.items():
                 b = month_b.get(str(custody)) if isinstance(month_b, dict) else None

@@ -318,7 +318,11 @@ def test_no_parallel_ledger_is_created():
     apply_export_decision(st, d, seller=artisan, log=[])
     assert set(artisan) == keys_before, "不得给 POP 增删字段（另起账本）"
     new_state_attrs = {k for k in vars(st) if k not in {"turn", "statistics", "prefectures"}}
-    assert new_state_attrs <= {"_money_flow_month"}, new_state_attrs
+    # 🔴 **有理由的例外（2026-10-13 登记）**：`stock_flow` 是 `core.domains.economy.stock_flow`
+    #   的**登记式测量仪器**——按月记 `{custody: {dim: {in,out,by_reason}}}`，**不持 custody 真账、
+    #   不参与任何结算判定、不 gate 任何玩法**，仅供"逐月库存恒等式"取证与回归断言。
+    #   它与本用例要禁的「**与 POP 平行的玩法账本**」性质不同 ⇒ 显式放行；其余新增属性仍会被拒。
+    assert new_state_attrs <= {"_money_flow_month", "stock_flow"}, new_state_attrs
 
 
 def test_decision_is_pure_and_readouts_do_not_write():
