@@ -1199,11 +1199,18 @@ class GameState(GameStateEconMixin):
             #   —— **不是新建账户**，故 `money.ACCOUNTS` 的聚合投影
             #   （`local_treasury_total` = Σ 各路字段）**不变、不双计**。
             if key.startswith("local:"):
-                _, road = key.split(":", 1)
-                p = self.prefectures.get(road)
+                _parts = key.split(":", 2)
+                p = self.prefectures.get(_parts[1])
                 if not isinstance(p, dict):
                     return 0
-                return int(p.get("local_treasury", 0) or 0)
+                if len(_parts) == 2:
+                    return int(p.get("local_treasury", 0) or 0)
+                # 🟢 M37c-1 **治所级账户** `local:<路>:<治所>`：读**治所真账**
+                #   （缺失 ⇒ 0，与 `local:<路>` 现状一致；未下沉路该治所无真账 ⇒ 0）
+                _seat = (p.get("seats") or {}).get(_parts[2])
+                if isinstance(_seat, dict):
+                    return int(_seat.get("local_treasury", 0) or 0)
+                return 0
             return 0
 
         def _write(key, val):
@@ -1223,14 +1230,20 @@ class GameState(GameStateEconMixin):
 
             # 🔴 地方府库写入（承 `_read` 同注释：映射**既有字段**，**非新建账户**）
             if key.startswith("local:"):
-                _, road = key.split(":", 1)
+                _parts = key.split(":", 2)
+                road = _parts[1]
                 p = self.prefectures.get(road)
                 if isinstance(p, dict):
                     _v = max(0, int(val))
                     # 🟢 主线 B（M37b）：地方府库真账在**治所**，路级是 Σ 派生镜像。
                     #   已下沉 ⇒ 走桥（写治所真账并刷新镜像）；**未下沉 ⇒ None ⇒ 回落原写法**。
-                    #   此处是全部 `transfer_money("local:…")` 的汇聚点。
                     from core.foundation.ledger import local_treasury_bridge as _ltb
+                    if len(_parts) == 3:
+                        # 🟢 M37c-1 **治所级账户** `local:<路>:<治所>`：**精确**写该治所（不重分摊）。
+                        #   不做回落：目标不可写时 `_writable` 已返回 False ⇒ 划转本就不会发生；
+                        #   若在此直写，反而会在未下沉路凭空造出治所真账（分叉）。
+                        _ltb.seat_local_treasury_set(self, road, _parts[2], _v)
+                        return
                     if _ltb.local_treasury_set(self, road, _v) is None:
                         p["local_treasury"] = _v
                     return
@@ -1251,10 +1264,16 @@ class GameState(GameStateEconMixin):
             #   —— **不是新建账户**，故 `money.ACCOUNTS` 的聚合投影
             #   （`local_treasury_total` = Σ 各路字段）**不变、不双计**。
             if key.startswith("local:"):
-                _, road = key.split(":", 1)
-                p = self.prefectures.get(road)
+                _parts = key.split(":", 2)
+                p = self.prefectures.get(_parts[1])
                 if not isinstance(p, dict):
                     return False
+                if len(_parts) == 3:
+                    # 🟢 M37c-1 **治所级账户** `local:<路>:<治所>`：仅当『该路已下沉 且 该治所存在』
+                    #   才可写（Jev 裁定 P=0.999）——否则划转会静默无效、而调用方仍记"已入库"
+                    #   ＝把钱销毁（本函数 docstring 记的审查 M3 同型坑）。
+                    from core.foundation.ledger import local_treasury_bridge as _ltb
+                    return _ltb.seat_local_treasury_writable(self, _parts[1], _parts[2])
                 return True
             return False
 

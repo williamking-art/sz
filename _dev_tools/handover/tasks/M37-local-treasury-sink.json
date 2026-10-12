@@ -1,49 +1,49 @@
 {
  "id": "M37-local-treasury-sink",
- "title": "地方府库（local_treasury）下沉州府级：seats[治所][\"local_treasury\"] 真账 + 路级 Σ 派生镜像 + 七处写点全桥",
+ "title": "地方府库（local_treasury）下沉州府级：治所真账 + 路级 Σ 派生镜像 + 七处写点全桥 + 治所级账户",
  "status": "in_progress",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "authority": "上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B；阻塞记录 specs/economy/地方府库下沉州府级_阻塞记录.md §五",
- "goal": "把地方府库真账下沉到治所（seats[治所][\"local_treasury\"]），路级降为只读 Σ 派生聚合；**全部写点走桥**；新局与读档共用幂等入口。",
- "deliverable_now": "M37a（基础设施+接线）＋ M37b（七处写点全桥）均已落地并实跑验收；设计档 specs/economy/地方府库下沉州府级_实施设计_2026-10-13.md §12-§13",
+ "goal": "把地方府库真账下沉到治所（seats[治所][local_treasury]），路级降为只读 Σ 派生聚合；全部写点走桥；新局与读档共用幂等入口；账户层支持治所级精确寻址。",
+ "deliverable_now": "M37a（真账下沉/聚合/对账/迁移/接线）＋ M37b（七处写点全桥）＋ M37c-1（治所级账户 local:<路>:<治所>）均已落地并验证；设计档 §12-§14；模块索引与纪律见 game/core/foundation/ledger/README.md",
  "key_findings": [
-  "🔴 字段名更正：地方府库真账是 prefectures[路][\"local_treasury\"]（账户 id local:<路>），**不是** treasury —— 后者不存在，state.treasury 是中央国库",
-  "🔴 失败模式①（M37a 原样）：**只下沉、不桥任何写点** ⇒ 结算第 1 轮起 20/20 路失配（治所冻结、镜像漂移）—— M37a 当时的验收只测了新局+存读档，漏了结算回放",
-  "🔴 失败模式②：只桥账户层、留 5 处直写 ⇒ **2× 冲账**（淮南东路 路级 349,118 vs Σ治所 698,234）",
-  "✅ 正解：下沉开闸必须与『全部写点走桥』同批；七处全桥后结算回放 3 轮 0 失配",
-  "七处写点：game_state 账户层 setter ／ settlement_common:270、:300 ／ settlement_finance:640、:678 ／ commands_decree:87 ／ save_load:788（由 load_game 顺序覆盖，无需改）",
-  "闭包复查：grep 余下 6 处 local_treasury 赋值全在桥接的 is None 回退分支内，无漏网直写",
-  "可复用范式：pop_bridge.seat_pop_weights(:79) 按路名取治所人口权重；split_int(:102) Σ 精确等于 total；aggregate_seat_pops(:341) 缺失⇒None"
+  "🔴 字段名：地方府库真账是 prefectures[路][\"local_treasury\"]（账户 id local:<路>），**不是** treasury（后者为中央国库）",
+  "🔴 失败模式①：只下沉、不桥写点 ⇒ 结算第 1 轮起 20/20 路镜像漂移（M37a 当时验收漏了结算回放）",
+  "🔴 失败模式②：只桥账户层、留 5 处直写 ⇒ 2× 冲账（淮南东路 349,118 vs Σ治所 698,234）",
+  "✅ 正解：开闸必须与全部写点走桥同批；七处全桥后 0 失配",
+  "七处写点：game_state 账户层 setter ／ settlement_common:270、:300 ／ settlement_finance:640、:678 ／ commands_decree:87 ／ save_load:788（load_game 顺序覆盖）",
+  "✅ 货币口径无需改：money.local_treasury_total() 是 Σ 路级镜像（money.py:180）、不枚举账户 ⇒ 治所级账户不双计 M1/M_ALL",
+  "治所级账户纪律：未下沉路／治所不存在 ⇒ 一律不可写（否则划转静默无效、调用方仍记已入库＝销毁钱）"
  ],
  "verification": {
-  "定向回归": "test_local_treasury_sink.py 20 passed / 0 skip EXIT=0",
-  "结算回放": "finance/granary/economy/land_local × 3 轮：0 失配；Σ地方库 15,587,561 → 15,394,109 → 15,302,573",
-  "新局": "20/20 路已下沉；Σ治所 == 路级 0 失配（京畿路 1,260,000 精确等于四治所之和）",
+  "定向回归": "test_local_treasury_sink.py 22 passed / 0 skip EXIT=0",
+  "结算回放": "finance/granary/economy/land_local × 3 轮：0 失配（M37b 与 M37c 后各测一次）",
+  "新局": "20/20 路已下沉；Σ治所 == 路级 0 失配",
   "幂等": "复跑新增下沉 0，真账不变",
   "存读档": "读档后 20/20、0 失配",
-  "全量回归": "见 _scratch/full_regression_m37b.log"
+  "全量回归": "三个批次各跑一次全量串行，均 EXIT=0（日志 _scratch/full_regression_m37*.log）",
+  "治所级账户": "精确写单治所不动他人；未下沉/治所不存在 ⇒ None 且不可写；不可写账户划转不动 src"
  },
  "jev_rulings": [
   "分摊依据：制度更优=按行政等级/编制(0.55)，当前以人口权数落地(P=0.988)；切换点 set_weights_provider()",
-  "M37a 范围：只做真账下沉+聚合+对账(choose A 0.93)",
-  "M37a 口径：路级保留为 Σ 派生镜像(P=0.995)",
-  "M37a 收口判定：可判为落地(P=0.843)（⚠️ 后被结算回放推翻——验收不充分，见失败模式①）",
-  "M37b：七处写点本批全桥(choose A 0.78)；先撤回『只下沉不桥』接线以恢复守恒(P=0.980)",
-  "⚠️ 作废裁定：『本批不动那五处直写』(p=0.317) 前提被实测推翻（2× 冲账），按 AGENTS.md 纪律 2 重问"
+  "M37a 范围 choose A 0.93／口径（路级留 Σ 镜像）P=0.995／收口 0.843（⚠️ 后被结算回放证明验收不充分）",
+  "M37b：七处全桥 choose A 0.78／先撤回只下沉接线恢复守恒 P=0.980；⚠️『不动五处直写』(0.317) 因实测推翻作废（AGENTS.md 纪律2）",
+  "M37c：范围 choose A 0.717（只做账户 id 扩展）／治所级账户不可写规则 P=0.999"
  ],
  "scope": [
   "M37a（✅）：真账下沉 + 聚合 + 对账 + 写桥 + 新局/读档接线",
   "M37b（✅）：七处写点全部桥接 + 结算回放验证",
-  "M37c：账户 id 扩展 local:<路>:<治所>（§五-3）＋ settlement_finance/granary 府库收支分腿（§五-5，🔴高）"
+  "M37c-1（✅）：治所级账户 local:<路>:<治所>（读治所真账、精确写单治所、未下沉一律不可写）",
+  "M37c-2（未做）：settlement_finance/granary 府库收支分腿（§五-5，🔴高）"
  ],
  "explicitly_not": [
   "不新增与 local_treasury 平行的账户；不动中央 treasury / imperial_treasury",
-  "读侧不改读治所聚合（Jev 判无收益：镜像 == Σ，数值不变）——除非将来取消镜像",
+  "读侧不改读治所聚合（Jev 判无收益：镜像 == Σ，数值不变）",
   "不按人口比例伪造地点/货主；分摊只作推演并标来源",
   "不动 run_monthly_settlement 本体（有 AST 内省测试）"
  ],
- "blocks": "M37c 需账户 id 扩展方案（local:<路>:<治所>）与府库收支分腿设计",
+ "blocks": "M37c-2 需府库收支（收入/支出腿）分腿设计；其后主线 B 其余片（建筑/交通州府化→仓储/商品存量→真实交易与州府价格）",
  "claimedBy": "DSH",
  "claimedAt": "2026-10-13T00:00:00Z"
 }

@@ -244,4 +244,65 @@ def test_weights_provider_is_swappable(patched_weights):
         assert seats["S2"][KEY] == 60.0
     finally:
         ltb.set_weights_provider(None)
-    assert ltb._weights_provider_unset() if hasattr(ltb, "_weights_provider_unset") else True
+
+
+# ================================================================== M37c-1 治所级账户
+# 账户 id `local:<路>:<治所>`（阻塞记录 §五-3）：读治所真账、**精确**写该治所（不重分摊）。
+# Jev 裁定（P=0.999）：未下沉路 / 治所不存在 ⇒ **一律不可写**（避免"钱被销毁仍记已入库"）。
+def test_seat_set_writes_exactly_one_seat(patched_weights):
+    patched_weights({"路M": [("S1", 1.0), ("S2", 1.0)]})
+    s = _state({"路M": {"local_treasury": 100, "seats": {"S1": {}, "S2": {}}}})
+    ltb.sink_local_treasury_to_seats(s)
+
+    assert ltb.seat_local_treasury_set(s, "路M", "S1", 80) == 130.0   # 只动 S1：80 + 50 = 130
+    assert s.prefectures["路M"]["seats"]["S1"][KEY] == 80.0
+    assert s.prefectures["路M"]["seats"]["S2"][KEY] == 50.0          # S2 未被重分摊
+    assert s.prefectures["路M"]["local_treasury"] == 130.0           # 镜像 = Σ
+    assert ltb.seat_local_treasury_get(s, "路M", "S1") == 80.0
+
+
+def test_seat_set_returns_none_when_unwritable(patched_weights):
+    patched_weights({"路N": [("S1", 1.0)]})
+    not_sunk = _state({"路N": {"local_treasury": 10, "seats": {"S1": {}}}})
+    assert ltb.seat_local_treasury_set(not_sunk, "路N", "S1", 5) is None      # 未下沉
+    assert ltb.seat_local_treasury_writable(not_sunk, "路N", "S1") is False
+
+    sunk = _state({"路N": {"local_treasury": 10, "seats": {"S1": {}}}})
+    ltb.sink_local_treasury_to_seats(sunk)
+    assert ltb.seat_local_treasury_set(sunk, "路N", "不存在的治所", 5) is None
+    assert ltb.seat_local_treasury_writable(sunk, "路N", "不存在的治所") is False
+    assert ltb.seat_local_treasury_set(sunk, "路N", "S1", -1) is None        # 负值
+    assert ltb.seat_local_treasury_writable(sunk, "路N", "S1") is True
+
+
+def test_account_seat_id_transfers_money_to_that_seat():
+    """走真实账户层：`local:<路>:<治所>` 的划转必须精确落到该治所，且镜像 == Σ。"""
+    from core import commands
+
+    s = commands.new_game()
+    route = next(iter(s.prefectures))
+    seats = s.prefectures[route]["seats"]
+    seat_id = next(iter(seats))
+    before_seat = int(seats[seat_id].get(KEY) or 0)
+    before_route = int(s.prefectures[route].get(KEY) or 0)
+
+    moved = s.transfer_money("treasury", f"local:{route}:{seat_id}", 700)
+
+    assert moved == 700, f"治所级划转应成功，实际 {moved}"
+    assert int(seats[seat_id].get(KEY) or 0) == before_seat + 700
+    assert int(s.prefectures[route].get(KEY) or 0) == before_route + 700   # 镜像 = Σ
+    assert ltb.survey_local_treasury(s)["字段失配"] == []
+
+
+def test_account_seat_id_unwritable_does_not_destroy_money():
+    """**不可写的治所级账户**⇒ 划转返回 0 且**不动 src**（钱不得凭空消失）。"""
+    from core import commands
+
+    s = commands.new_game()
+    route = next(iter(s.prefectures))
+    before_treasury = int(s.treasury)
+
+    moved = s.transfer_money("treasury", f"local:{route}:不存在的治所", 500)
+
+    assert moved == 0, "目标不可写时不应报告已划转"
+    assert int(s.treasury) == before_treasury, "src 不得被扣（否则等于销毁钱）"

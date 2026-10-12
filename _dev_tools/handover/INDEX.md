@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T17:30:16Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T17:39:30Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-12）：B-1 已验收并**已提交**（673d8aae9a，20 文件，隔离他人改动成功）；B-2 只读设计与取证已交付（未实施、未提交）；B-3/B-4 冻结
+- **DSH**（updatedAt=2026-10-13）：《宋祚》M37 地方府库（local_treasury）下沉：M37a 真账下沉/聚合/对账/迁移 已落地；M37b 七处写点全桥 已落地；M37c-1 治所级账户 local:<路>:<治所> 已落地。下一步 = 阻塞记录 §五-5 府库收支分腿（🔴高）
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -19,7 +19,7 @@
 - `M36-7-A-professional-decision-ledger` M36.7-A《AI 大臣专业决策模型》总设计裁定台账（零代码）——八层分析模型/四落点/Q1–Q7 与 P1–P3 已裁 ｜status=**in_progress**｜claimedBy=Cline
 - `M36-7-B-ministers-prototype` M36.7-B《AI 大臣最小原型》：1 议题 × 3 大臣 × 单轮、不落库（已实现并本地验收） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-inspection-batch` M36《察访与监司行动》：监察＝行动者（编制/生命周期/风险反馈/审理链对接） ｜status=**in_progress**｜claimedBy=Cline
-- `M37-local-treasury-sink` 地方府库（local_treasury）下沉州府级：seats[治所]["local_treasury"] 真账 + 路级 Σ 派生镜像 + ｜status=**in_progress**｜claimedBy=DSH
+- `M37-local-treasury-sink` 地方府库（local_treasury）下沉州府级：治所真账 + 路级 Σ 派生镜像 + 七处写点全桥 + 治所级账户 ｜status=**in_progress**｜claimedBy=DSH
 
 ## 待裁 / 未闭环决策
 
@@ -30,7 +30,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261012T164741Z-DSH` → [`worklog/20261012T164741Z-DSH.md`](worklog/20261012T164741Z-DSH.md)
 - `20261012T165203Z-DSH` → [`worklog/20261012T165203Z-DSH.md`](worklog/20261012T165203Z-DSH.md)
 - `20261012T165303Z-DSH` → [`worklog/20261012T165303Z-DSH.md`](worklog/20261012T165303Z-DSH.md)
 - `20261012T165532Z-DSH` → [`worklog/20261012T165532Z-DSH.md`](worklog/20261012T165532Z-DSH.md)
@@ -38,8 +37,9 @@
 - `20261012T170004Z-DSH` → [`worklog/20261012T170004Z-DSH.md`](worklog/20261012T170004Z-DSH.md)
 - `20261012T171840Z-DSH` → [`worklog/20261012T171840Z-DSH.md`](worklog/20261012T171840Z-DSH.md)
 - `20261012T173016Z-DSH` → [`worklog/20261012T173016Z-DSH.md`](worklog/20261012T173016Z-DSH.md)
+- `20261012T173930Z-DSH` → [`worklog/20261012T173930Z-DSH.md`](worklog/20261012T173930Z-DSH.md)
 
 ## 计数
 
-- tasks 21（未完成 8）· decisions 21（未闭环 4）· worklog 177 · phase 文件 4
+- tasks 21（未完成 8）· decisions 21（未闭环 4）· worklog 178 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

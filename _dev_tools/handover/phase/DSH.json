@@ -1,20 +1,13 @@
 {
- "phase": "B-1 已验收并**已提交**（673d8aae9a，20 文件，隔离他人改动成功）；B-2 只读设计与取证已交付（未实施、未提交）；B-3/B-4 冻结",
- "updatedAt": "2026-10-12",
+ "phase": "《宋祚》M37 地方府库（local_treasury）下沉：M37a 真账下沉/聚合/对账/迁移 已落地；M37b 七处写点全桥 已落地；M37c-1 治所级账户 local:<路>:<治所> 已落地。下一步 = 阻塞记录 §五-5 府库收支分腿（🔴高）",
+ "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "b1_commit": "673d8aae9a63fd0580aefa8bf6e6a2f24507b7aa · 20 files · +2136/−107；含实现/测试/golden/产出脚本/specs 三件套/决策/worklog/.gitignore 单文件放行",
-  "commit_isolation": "分块暂存：specs/README.md 只纳入 B-1 hunk（另一 agent 的主线C hunk 保留未暂存）；排除 INDEX.md（派生聚合）、phase/DSH.json（DSH 名冲突件）、.qoder/（他人）、他人 worklog",
-  "precommit_checks": "git diff --cached --check 退出 0；--stat 20 文件；.gitignore 与 specs/README.md 暂存内容逐块审查通过",
-  "b1_gate": "定向 210/0/0/0；全量 2737→2799（+62）/ 0 / 0 / 2（HEAD b20e094，start=end 未移动）",
-  "b2_design": "只读取证：守卫↔放行门关系、运行时/门策略分离、粮·商品·资源桶写入链盘点、实施拆分、8 条负反例、9 条验收断言（**本轮未运行测试**）",
-  "frontend": "未改",
-  "handover": "check 问题=0"
+  "pytest": "全量串行 EXIT=0（提交 26b6e0428a / 141153237d / 本轮 M37c）；定向 test_local_treasury_sink.py 22 passed",
+  "settlement_replay": "finance/granary/economy/land_local × 3 轮：0 失配（改过 _write/_writable 后复测）",
+  "tsc": "未跑（本轮未改前端）",
+  "vitest": "未跑（本轮未改前端）",
+  "build": "未跑"
  },
- "delivered": [
-  "提交 673d8aae9a（B-1 两阶段合并交付）",
-  "specs/cross-cutting/B2_守卫与质量放行门_设计与取证_2026-10-12.md（未提交，待评审）",
-  "decisions/B1-order-relaxation.json 更新为『已追认』（含适用范围与未来限制）"
- ],
- "next": "待评审 B-2 设计（5 项未决：门进 verify-all 还是 pytest / 回放月数 / env 复位 / B-2b-d 批次切法 / trace 默认）；B-3、B-4 保持冻结"
+ "next": "M37c-2：settlement_finance / settlement_granary 府库收支分腿（阻塞记录 §五-5，🔴高）；其后主线 B 其余片：建筑下沉 → 交通下沉 → 仓储/商品存量 → 真实交易与州府价格；再往后主线 C（生产率与经济作物）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫违规读数面板接线）"
 }
