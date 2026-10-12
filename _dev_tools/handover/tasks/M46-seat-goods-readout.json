@@ -1,0 +1,23 @@
+{
+ "id": "M46-seat-goods-readout",
+ "title": "州府级商品只读读数 + 真账↔镜像一致性自检（统一市场「真实交易与州府价格」第一块）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（P1 行）；Jev choose B 0.669（A=作坊地点并轨 0.313 次之）",
+ "deliverable": "core/domains/economy/seat_goods_readout.py（只读）：seat_goods / route_seat_totals / seat_consistency / workshop_attribution / survey_seat_goods",
+ "findings": [
+  "真实流水 6 轮（只读）：20 路 / 20 个有货治所 / 7 维（meat·丝·布·果·绸·蔗·麻）",
+  "**真账↔镜像一致性 = ok，121 项检查、0 不一致** —— 独立验证了 M42g/i 那族「直写镜像」修复确实到位",
+  "**作坊可归属率 107/107 = 1.0**（键形如「麻坊_京畿路_2」内嵌路名）⇒ 下一批「产出地点并轨」有完整依据"
+ ],
+ "constraints": [
+  "只读：零写入（用例深比较前后 state）",
+  "缺失≠0：路未下沉 ⇒ 显式 None（不静默省略）；无 prefectures ⇒ None 并给 reason",
+  "阶层维度不合并（工匠待售 / 士绅囤积是不同业务事实）",
+  "镜像读数走 material_holding.goods_amount 单点（含州府桶），不裸读 goods"
+ ],
+ "next": "下一批（Jev 次选项 A）：作坊产出**地点并轨** —— 按作坊所属路→治所归属落本地经营库存，替代『全局按工匠 size 占比分派』；**改数值** ⇒ 须口径说明 + 同种子对照标定 + 定向回归 + 全量 EXIT=0",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T20:59:00Z"
+}
