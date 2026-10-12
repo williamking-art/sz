@@ -1,7 +1,7 @@
 {
  "id": "CNB-发布通道",
  "title": "CNB 发布通道（williamkai-2026/songzuo）：已进历史的 ai_config.json 密钥如何处置 / 发布范围与工具归属",
- "status": "待裁定",
+ "status": "decided",
  "raisedBy": "DSH",
  "raisedAt": "2026-10-12",
  "context": "2026-10-12 建立《宋祚》对外发布通道：把本地 sz 仓库 HEAD 的 game/ 子树（仅版本管理内文件）幂等同步到私有 CNB 仓库 williamkai-2026/songzuo。远端此前已有一份旧版游戏源码（4 个提交、122 文件、根目录直接放 main.py/core/ui/_hmaps 等，另有畸形文件 `$null`）。本轮以「在远端 main 之上追加普通提交、绝不强推」的方式同步为当前源码。工具在工作区内（D:\\codebuddy\\tools\\cnb-sync.ps1 + .cmd），不在本仓库。",
@@ -28,5 +28,8 @@
   "Q2-丙": "扩大发布范围（如 game/ + _dev_tools/game-docs/），把权威文档也镜像到 CNB"
  },
  "note": "verdict 只由裁定人写。本通道的幂等语义：新树 == 远端树则不做提交与推送；推送永远在远端 main 之上追加普通提交、从不强推；远端根 .gitignore 默认保留（-KeepRootPaths 可改）。本轮为本通道的首次落地与实测，未改任何 sz 代码、未跑 pytest。",
- "blocks": []
+ "blocks": [],
+ "verdict": "用户 2026-10-12 裁定 Q1=丙、Q2=丙。Q1（接受风险）：CNB 远端历史里的 ai_config.json／api_key 不轮换、不重写历史——依据是仓库经双向实测确认为私有（禁用凭据助手后匿名 ls-remote 失败）；若日后改为公开或新增协作者，须重新评估此项。Q2（扩大发布范围）：除 game/（置于远端根目录）外，把权威文档 _dev_tools/game-docs/ 整体镜像到远端 game-docs/，已在 a65ce9f 落地并实测：远端 808 = game 644 + docs 163 + 保留的 .gitignore，其中 game-docs/docs 19、game-docs/specs 75 与源仓库计数一致，游戏源码仍在根（core/content/frontend 均在）。发布工具仍留在工作区 D:\\codebuddy\\tools\\（未选「纳入 sz 仓库」）。发布内容为本地 HEAD 已提交版本：另有并发会话未提交的 4 处 game-docs 改动未纳入本次镜像。",
+ "verdictBy": "用户",
+ "verdictAt": "2026-10-12T04:02:45Z"
 }
