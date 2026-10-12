@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-12T18:46:25Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-12T18:55:16Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-13）：《宋祚》统一民间市场 P1：**M41a 已落地**（缺失原因与来源 ID 的结构化契约 market_gap.py，接在唯一成交入口 trade_goods 的 gap 字段，加性零行为变化；7 新用例 + 178 市场相关用例 + 全量 EXIT=0）。开工门盘点 inventory-market.md 的过时条目
+- **DSH**（updatedAt=2026-10-13）：《宋祚》统一民间市场 P1：**M41a（缺失原因结构化契约）+ M41b（库存/货币恒等式只读投影）已落地**；P1 验收五句中「分别可见」「不伪造成交」「有库存+购买力可成交」已有承载，「逐月库存恒等式」只完成读数工具（Δ 恒等式待补含生产步的探测），「生产者收入有来源」的宋境工钱通道仍缺（属改钱流，偏 P2）。
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -35,7 +35,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261012T175835Z-DSH` → [`worklog/20261012T175835Z-DSH.md`](worklog/20261012T175835Z-DSH.md)
 - `20261012T180710Z-DSH` → [`worklog/20261012T180710Z-DSH.md`](worklog/20261012T180710Z-DSH.md)
 - `20261012T180827Z-DSH` → [`worklog/20261012T180827Z-DSH.md`](worklog/20261012T180827Z-DSH.md)
 - `20261012T181625Z-DSH` → [`worklog/20261012T181625Z-DSH.md`](worklog/20261012T181625Z-DSH.md)
@@ -43,8 +42,9 @@
 - `20261012T183504Z-DSH` → [`worklog/20261012T183504Z-DSH.md`](worklog/20261012T183504Z-DSH.md)
 - `20261012T183709Z-DSH` → [`worklog/20261012T183709Z-DSH.md`](worklog/20261012T183709Z-DSH.md)
 - `20261012T184625Z-DSH` → [`worklog/20261012T184625Z-DSH.md`](worklog/20261012T184625Z-DSH.md)
+- `20261012T185516Z-DSH` → [`worklog/20261012T185516Z-DSH.md`](worklog/20261012T185516Z-DSH.md)
 
 ## 计数
 
-- tasks 25（未完成 11）· decisions 24（未闭环 6）· worklog 188 · phase 文件 4
+- tasks 25（未完成 11）· decisions 24（未闭环 6）· worklog 189 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

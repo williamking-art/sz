@@ -1,16 +1,17 @@
 {
- "phase": "《宋祚》统一民间市场 P1：**M41a 已落地**（缺失原因与来源 ID 的结构化契约 market_gap.py，接在唯一成交入口 trade_goods 的 gap 字段，加性零行为变化；7 新用例 + 178 市场相关用例 + 全量 EXIT=0）。开工门盘点 inventory-market.md 的过时条目已按 §5 复核更正（在途/交通边早已实现、市场圈派生属 §14.4 明确排除）。M37 地方府库、M38 建筑、M39 交通、M40a 常平仓均已收口。",
+ "phase": "《宋祚》统一民间市场 P1：**M41a（缺失原因结构化契约）+ M41b（库存/货币恒等式只读投影）已落地**；P1 验收五句中「分别可见」「不伪造成交」「有库存+购买力可成交」已有承载，「逐月库存恒等式」只完成读数工具（Δ 恒等式待补含生产步的探测），「生产者收入有来源」的宋境工钱通道仍缺（属改钱流，偏 P2）。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M41a，日志 _scratch/full_regression_m41a.log）；定向 test_market_gap.py 7 passed；市场/成交相关 -k 178 passed",
-  "A_B": "加性接入：trade_goods 既有字段（schema_version/dim/ok/traded/paid/unmet_qty/reason/tail_delta/price）与 _trade_goods_core **逐字相同**，钱货转移结果一致（有用例锁）",
-  "prior": "M40a 常平仓 A/B 逐路差异 0/20；M39c-1 轨迹逐轮一致；M38 逐路 buildings 差异 0/20",
+  "pytest": "全量串行 EXIT=0（M41b，日志 _scratch/full_regression_m41b.log）；定向 test_stock_identity.py 8 passed；M41a 定向 7 passed + 市场相关 -k 178 passed",
+  "identity_evidence": "6 轮货币残差恒 0（M_ALL=337,809,947）；库存快照全部可读、dims=20；⚠️ 探测只跑 4 个结算步（未含生产步）⇒ 各维合计恒 0，逐月库存 Δ 恒等式**未验**",
+  "zero_write": "identity_report 前后 state 深比较一致（用例锁）",
+  "prior": "M41a 加性接入既有字段逐字不变；M40a 逐路差异 0/20；M39c-1 轨迹逐轮一致；M38 逐路 buildings 差异 0/20",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "P1 余项（按 Jev 裁定顺序）：① **宋境工钱通道**（pay_wages_from_revenue 唯一调用方是外邦路径 ⇒ P1 末句『生产者收入有来源』缺前提；属**改钱流＝改数值**，须先同种子标定）；② 商品×州府纵向链（含逐月货币与商品库存恒等式读数）；③ 作坊产出按人口分派的地点并轨（违 §14.1，属 P2 主体）。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（前置＝applier/journal 耦合，决策档已登记）· M40c 商品/物料存量 · M39c-2 读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
+ "next": "P1 余项（Jev：先结构性）：① **含生产步的库存 Δ 恒等式探测**（把 settlement 全流水/生产步纳入，验证逐月 Δ == 产 − 耗，不成立即登记缺口——**只取证不改数值**）；② 商品×州府纵向链；③ 宋境工钱通道（改钱流须标定，偏 P2）。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
  "pending_decisions": [
   "地方支出V2-D1-D5",
   "M38c-crop-buildings-authorization",
