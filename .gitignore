@@ -66,6 +66,16 @@ assets/map/web/tiles/
 # --- 项目数据目录（CodeBuddy 工作区数据，非源码） ---
 .codebuddy/
 
+# --- Qoder harness 本地运行产物（非源码，不入库） ---
+# 2026-10-12：.qoder/better-harness-runs/ 下是 Qoder 评审运行包（bundle.json /
+# lane_*.json / report.canvas.tsx 等，且含一层意外递归副本
+# .qoder/better-harness-runs/.qoder/better-harness-runs/）。
+# 实测其中 6 个文件含 16–17 字符的 "sk-" 形态字符串：位于正文而非 JSON 字段值位置、
+# 长度远短于真 key（40–60+）⇒ 像占位符，但无法证明；按 AGENTS.md §3.8
+# 「不把密钥/token 写进仓库」不入库（用户 2026-10-12 裁定：写进 .gitignore）。
+# 不锚定根目录：harness 的嵌套 .qoder/ 副本同样覆盖。
+.qoder/
+
 # --- CloudBase MCP 项目级绑定（本机机器管理文件，不入库） ---
 # MCP 从 .cloudbase/project.json 读 envId/site/region，实现「打开仓库即连对环境」。
 # 它绑定的是本机环境、属机器配置而非源码，故不入库。
