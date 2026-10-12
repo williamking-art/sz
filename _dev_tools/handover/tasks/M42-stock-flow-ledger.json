@@ -1,0 +1,25 @@
+{
+ "id": "M42-stock-flow-ledger",
+ "title": "逐维商品流量账（P1 第一句「逐月复原商品库存恒等式」的**缺失前置**）",
+ "status": "pending",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "blocks": "统一民间市场 P1 验收第一句『逐月复原货币与商品库存恒等式』",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（P1 行）；game/core/domains/economy/stock_identity.py",
+ "finding": "2026-10-13 DSH 全流水取证（`_scratch/verify_m41c.py`，run_monthly_settlement × 6 轮，只读）：货**确实在动**（6 轮累计 10 个维变动：盐/茶/木/铁/石 各 +3,000,000、meat +480,000、绸 +15,064、布/丝…），但 `residual_report` 对**全部 20 个维**都判 `unclosed`、`ok=False` ⇒ **恒等式当前不可闭合**。",
+ "root_cause": [
+  "`state.statistics` 只有**聚合**流量键（goods_spend / goods_traded / goods_unmet / basics_unmet / changping_recycled / hidden_produce / stabilizer_recycled / workshop_finished_goods），**没有逐商品维**的产量/消费量",
+  "`state.granary_stats` 只有**粮**的腿（canal_in / canal_loss / converted / corruption_grain / grain_market_trade / seed_grain / relief …）",
+  "⇒ 无法给出 `flows = {dim: 产−耗}`，故 `stock_identity.residual_report` 只能把该维列为**未闭合**（模块与用例已按『不把没有账当残差 0』实现）"
+ ],
+ "need": "建立**逐维**的产量与消费流量账（或从既有写点派生），使 `residual_report(prev, curr, flows)` 能对**每个受跟踪维**给出残差并判 0。",
+ "constraints": [
+  "不得新增平行账本（§3-1）；流量账应为**派生/登记**，与既有写点同源",
+  "缺失≠0：某维无记录 ⇒ 该维 `None` + reason，不回落 0",
+  "统计键在结算起点须归零（既有踩坑：price_demand 因未清零被系统性放大）",
+  "改动触及生产/消费多写点 ⇒ 须先出改动清单 + 定向回归 + 全量 EXIT=0"
+ ],
+ "observation": "取证中 盐/茶/木/铁/石 首轮各 +3,000,000（整数且同量）——疑为开局补货/公式路径（未核）；本任务不含排查该现象，另记。",
+ "claimedBy": "",
+ "claimedAt": ""
+}

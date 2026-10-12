@@ -1,17 +1,17 @@
 {
- "phase": "《宋祚》统一民间市场 P1：**M41a（缺失原因结构化契约）+ M41b（库存/货币恒等式只读投影）已落地**；P1 验收五句中「分别可见」「不伪造成交」「有库存+购买力可成交」已有承载，「逐月库存恒等式」只完成读数工具（Δ 恒等式待补含生产步的探测），「生产者收入有来源」的宋境工钱通道仍缺（属改钱流，偏 P2）。",
+ "phase": "《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b（库存/货币只读投影）+ **M41c（逐月 Δ 与残差 + 全流水取证）已落地**。取证结论：**货币残差恒 0**；货确实在动（10 维）但**逐维流量账不存在**（statistics 仅聚合键、granary_stats 仅粮腿）⇒ **P1 第一句「逐月复原商品库存恒等式」当前不可闭合**，缺口登记为 tasks/M42-stock-flow-ledger.json（pending，未认领）。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M41b，日志 _scratch/full_regression_m41b.log）；定向 test_stock_identity.py 8 passed；M41a 定向 7 passed + 市场相关 -k 178 passed",
-  "identity_evidence": "6 轮货币残差恒 0（M_ALL=337,809,947）；库存快照全部可读、dims=20；⚠️ 探测只跑 4 个结算步（未含生产步）⇒ 各维合计恒 0，逐月库存 Δ 恒等式**未验**",
-  "zero_write": "identity_report 前后 state 深比较一致（用例锁）",
-  "prior": "M41a 加性接入既有字段逐字不变；M40a 逐路差异 0/20；M39c-1 轨迹逐轮一致；M38 逐路 buildings 差异 0/20",
+  "pytest": "全量串行 EXIT=0（M41c，日志 _scratch/full_regression_m41c.log）；定向 test_stock_identity_delta.py + test_stock_identity.py 共 14 passed",
+  "evidence": "run_monthly_settlement × 6 轮（只读）：变动维 8/7/6/4/5/3，累计 10 维；residual_report 全 20 维 unclosed、ok=False；货币残差 0",
+  "flow_keys": "statistics 8 个聚合流量键（goods_spend/goods_traded/goods_unmet/basics_unmet/changping_recycled/hidden_produce/stabilizer_recycled/workshop_finished_goods）；granary_stats 仅粮腿",
+  "zero_write": "stock_identity 全部为只读投影（用例深比较锁定）",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "P1 余项（Jev：先结构性）：① **含生产步的库存 Δ 恒等式探测**（把 settlement 全流水/生产步纳入，验证逐月 Δ == 产 − 耗，不成立即登记缺口——**只取证不改数值**）；② 商品×州府纵向链；③ 宋境工钱通道（改钱流须标定，偏 P2）。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
+ "next": "P1 余项：①（新登记、待认领）**M42 逐维商品流量账** —— 建逐维产量/消费登记（与既有写点同源、不新增平行账本），使 residual_report 能逐维判残差 0；这是 P1 第一句的**唯一前置**。② 宋境工钱通道（改钱流须标定，偏 P2）。③ 商品×州府纵向链。其后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
  "pending_decisions": [
   "地方支出V2-D1-D5",
   "M38c-crop-buildings-authorization",

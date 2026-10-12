@@ -30,6 +30,7 @@ __all__ = [
     "SCHEMA_VERSION", "CUSTODY_KEYS", "pop_goods_by_dim",
     "national_resources_by_dim", "in_transit_by_dim", "pending_stock_by_dim",
     "stock_snapshot", "money_identity", "identity_report",
+    "stock_delta", "residual_report",
 ]
 
 SCHEMA_VERSION = 1
@@ -194,3 +195,70 @@ def identity_report(state) -> Dict[str, Any]:
         warnings.append("货币快照不可读")
     return {"schema_version": SCHEMA_VERSION, "stock": stock, "money": mon,
             "warnings": warnings}
+
+
+# --------------------------------------------------------------------------
+# 逐月 Δ 与残差（P1 第一句「**逐月**复原恒等式」）
+# --------------------------------------------------------------------------
+def stock_delta(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """两次 `stock_snapshot` 的**逐保管方／逐维**差额（纯函数、只读）。
+
+    * `by_custody[k][dim] = curr − prev`（任一侧该保管方不可读 ⇒ 该维 `None`——缺失≠0）；
+    * `net[dim]` ＝ **可加三方**（民间 POP ＋ 全国仓 ＋ 在途）的 Δ合计；任一项不可读 ⇒ `None`；
+      **不含** `pending_stock`（归属待定，单列在 `by_custody` 里，便于发现"待定池变动"）；
+    * `all_readable` 为两侧三方均可读。
+    """
+    def _parts(snap):
+        if not isinstance(snap, dict):
+            return None
+        return snap.get("by_custody")
+
+    p, c = _parts(prev), _parts(curr)
+    out: Dict[str, Any] = {"by_custody": {}, "net": {}, "all_readable": False}
+    if not isinstance(p, dict) or not isinstance(c, dict):
+        return out
+    dims = sorted({d for k in CUSTODY_KEYS for d in
+                   list((p.get(k) or {})) + list((c.get(k) or {}))})
+    addable = [k for k in CUSTODY_KEYS if k != "pending_stock"]
+    for k in CUSTODY_KEYS:
+        pv, cv = p.get(k), c.get(k)
+        row: Dict[str, Optional[float]] = {}
+        for d in dims:
+            if not isinstance(pv, dict) or not isinstance(cv, dict):
+                row[d] = None
+            else:
+                row[d] = float(cv.get(d, 0.0)) - float(pv.get(d, 0.0))
+        out["by_custody"][k] = row
+    for d in dims:
+        if all(isinstance(p.get(k), dict) and isinstance(c.get(k), dict) for k in addable):
+            out["net"][d] = sum(out["by_custody"][k][d] for k in addable)
+        else:
+            out["net"][d] = None
+    out["all_readable"] = all(isinstance(p.get(k), dict) and isinstance(c.get(k), dict)
+                              for k in addable)
+    return out
+
+
+def residual_report(prev: Dict[str, Any], curr: Dict[str, Any],
+                    flows: Optional[Dict[str, float]] = None,
+                    tol: float = 1e-6) -> Dict[str, Any]:
+    """**残差报告**：`Δ库存` 对 `已记录流量`（`flows = {dim: 产−耗}`）。
+
+    🔴 **`flows` 由调用方提供**：本模块**不猜**流量账。若某个维的产量/消费量在现库里
+    没有权威记录键，就**给不出残差**——此时 `residual[dim] = None` 并在 `unclosed` 里列出，
+    绝不把"没有账"当成"残差 0"（那是把未知当已验）。
+    """
+    delta = stock_delta(prev, curr)
+    residual: Dict[str, Optional[float]] = {}
+    unclosed: List[str] = []
+    for d, dv in (delta.get("net") or {}).items():
+        fv = None if not isinstance(flows, dict) else flows.get(d)
+        if dv is None or not isinstance(fv, (int, float)):
+            residual[d] = None
+            unclosed.append(d)
+        else:
+            residual[d] = float(dv) - float(fv)
+    bad = sorted(d for d, r in residual.items() if isinstance(r, (int, float)) and abs(r) > tol)
+    return {"delta": delta, "flows_provided": isinstance(flows, dict),
+            "residual": residual, "unclosed": sorted(unclosed), "nonzero": bad,
+            "ok": bool(not bad and not unclosed)}
