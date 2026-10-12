@@ -1,16 +1,15 @@
 {
- "phase": "《宋祚》M37 地方府库（local_treasury）下沉：a/b/c-1 已落地并三批全量回归 EXIT=0；c-2『府库收支分腿』查证后定性为**待裁 D1–D5**（M34-①《地方支出 V2》），已登记 decisions/地方支出V2-D1-D5.json 并校正台账漂移行号。按 Jev(A 0.838) 转下一主线：建筑下沉/交通下沉/仓储存量/真实交易与州府价格",
+ "phase": "《宋祚》主线B 批次2 建筑下沉（M38）：M38a 桥接层已落地（building_bridge：Σ 聚合 / 首府承载下沉 / 对账 / 写桥；15 passed；全量 EXIT=0），**刻意未开闸**（Σ 会让阈值类读者放大，须与 M38b 消费者处理同批）。M37 地方府库已收口（c-2 待裁 D1–D5）。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0 ×3（提交 26b6e0428a / 141153237d / ed6674851a）；定向 test_local_treasury_sink.py 22 passed",
-  "settlement_replay": "finance/granary/economy/land_local × 3 轮：0 失配",
-  "m37": "实跑 20/20 路已下沉、Σ治所==路级 0 失配、幂等 0、存读档 20/20 0 失配",
+  "pytest": "全量串行 EXIT=0（M38a；日志 _scratch/full_regression_m38a.log）；定向 test_building_sink.py 15 passed",
+  "m37": "收口：三批全量 EXIT=0（26b6e0428a / 141153237d / ed6674851a）；结算回放 3 轮 0 失配",
   "tsc": "未跑（本轮未改前端）",
   "vitest": "未跑（本轮未改前端）",
   "build": "未跑"
  },
- "next": "主线 B 第二片：**建筑下沉**（州府级）；随后交通下沉 → 仓储/商品存量 → 真实交易与州府价格。再往后主线 C（生产率与经济作物）→ D（G-4 影子预算）→ E（经济归属与税制）→ F（最小州府市场切片与外贸）→ 主线 A（POP 守卫违规读数面板接线）。⚠️ M37c-2 待用户裁 D1–D5（decisions/地方支出V2-D1-D5.json）",
+ "next": "M38b：桥掉 3 个写点（game_state 新局初始化 / settlement_tech 完工登记 / civil_building 民间营造）＋ 接 new_game 与读档 ＋ **阈值类读者改逐治所**（game_state_econ 水利等级 / material_tech 科技覆盖率 / era_mechanic 时代修正 / settlement_officialdom 维持费）→ 结算回放 0 失配 + 全量 EXIT=0。其后 M38c 建筑语汇统一；再后续：交通下沉（批次1）→ 仓储/商品存量 → 真实交易与州府价格 → 主线 C/D/E/F → 主线 A 读数面板",
  "pending_decisions": [
   "地方支出V2-D1-D5（M37c-2 与府库出口侧）"
  ]

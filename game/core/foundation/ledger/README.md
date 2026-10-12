@@ -12,7 +12,7 @@
 **所有 POP / 钱 / 粮的写入必须经过本层。** 绕过桥接的直写会被
 `test_route_pops_readonly_guard.py` 当场炸掉（路级 `pops` 已由只读守卫强制）。
 
-## 模块（9 个：8 个由 `git mv` 迁入 + 1 个 2026-10-13 新建）
+## 模块（10 个：8 个由 `git mv` 迁入 + 2 个 2026-10-13 新建：`local_treasury_bridge` / `building_bridge`）
 
 > 行数为 2026-10-11 实测快照（会随提交变化，仅作量级参考，不作为判据）。
 
@@ -27,6 +27,7 @@
 | `occupation.py` | 111 | 🔴 **M35-C 职业人口单点**（2026-10-11 并入）：职业计数住**挂靠桶子池**（`HOST_POOL`，如 `官僚.runner_count`），**不新增 POP、不新增粮桶**；所有"人口粮需／饥饿判断／粮仓需求／购粮能力"一律经本模块取值 |
 | `grain_ledger.py` | 99 | 🔴 **G-3 迁移基座**：把 `pops[].grain` 迁入 `goods[治所][米/麦]`（裁定 H·甲） |
 | `local_treasury_bridge.py` | 307 | 🔴 **地方府库（`local_treasury`）下沉桥**（M37，2026-10-13 **新建**、非迁移）。真账在 `prefectures[路]["seats"][治所]["local_treasury"]`，路级降为 **Σ 派生镜像**；含聚合（未下沉⇒`None`）· 对账 `survey_local_treasury` · 写桥 `local_treasury_set/add`（未下沉⇒`None` 回落）· **治所级精确写** `seat_local_treasury_set` + `seat_local_treasury_writable`。⚠️ **别与中央 `state.treasury` 混淆**（两者不同账户） |
+| `building_bridge.py` | 232 | 🔴 **建筑（`buildings`）下沉桥**（M38a，2026-10-13 **新建**）。真账在 `seats[治所]["buildings"]`，路级 = **Σ 各治所等级**；含 `aggregate_seat_buildings`（未下沉⇒`None`）· `survey_buildings` 逐建筑对账 · `capital_seat_id`（首府＝`SEAT_LEVELS` 序最优、同级取人口权重大者）· `sink_buildings_to_seats`（**首府承载**，Σ 与原值逐字相等）· 写桥 `building_add`。⚠️ **本批刻意未接 new_game/读档**（Σ 会让阈值类读者放大，须与 M38b 消费者处理同批） |
 
 ## 🔴 不可绕过的纪律
 
