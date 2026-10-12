@@ -1724,7 +1724,13 @@ def _settle_workshops(state, log):
             got = _alloc[dim].get(wid, 0.0)
             if got > 0:
                 _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
-                _slot["stock"] = max(0, int(_slot.get("stock", 0) or 0) - int(round(got)))
+                _cur_s = int(_slot.get("stock", 0) or 0)
+                _take = min(_cur_s, int(round(got)))
+                _slot["stock"] = max(0, _cur_s - int(round(got)))
+                # 🟢 M42a：逐维流量登记（作坊投料**出账**；只记实际扣减量）
+                if _take > 0:
+                    from core.domains.economy import stock_flow as _sf
+                    _sf.record_out(state, dim, _take, reason="workshop_feed")
     for wid, g in _grain_alloc.items():
         if g > 0:
             state.change_granary(-int(round(g)))

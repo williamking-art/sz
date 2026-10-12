@@ -320,6 +320,10 @@ def _settle_coin_melt(state, log):
             _room = max(0, _cap - _cur) if _cap > 0 else _overflow
             _taken = min(_overflow, _room)
             _slot["stock"] = _cur + _taken
+            # 🟢 M42a：逐维流量登记（熔铜池溢出**入国家仓**；测量仪器，失败不中断）
+            if _taken > 0:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_in(state, COPPER_RESOURCE_DIM, _taken, reason="melt_pool_overflow")
             # 未入仓者仍留熔铜池（不凭空消失）
             state.coin["melted_pool"] = 100_000_000 + (_overflow - _taken)
             state.statistics["copper_recycled"] = (

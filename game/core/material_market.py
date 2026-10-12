@@ -732,7 +732,13 @@ def buy_material(state, *, pref: Any, dim: str, qty: Any,
         if seller_kind == "warehouse":
             # 官仓售料：货出仓储、货款进国库（钱货两条腿都落既有槽位）
             state.treasury = int(seller_holder["wealth"])
+            _before_stock = int(slot.get("stock", 0) or 0)
             slot["stock"] = max(0, int(round(rest_stock)))
+            # 🟢 M42a：逐维流量登记（官仓售料**出账**；只记实际减少量，失败不中断）
+            _out_q = _before_stock - int(slot["stock"])
+            if _out_q > 0:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_out(state, dim, _out_q, reason="warehouse_sell")
         else:
             # 民间售料：货出商户 goods、货款进该商户 wealth（真实 POP 槽位）
             spop["wealth"] = int(seller_holder["wealth"])
@@ -809,7 +815,13 @@ def issue_material(state, *, pref: Any, dim: str, qty: Any,
                    detail="官仓无可领量（无货不能领）")
         return out
     left_stock = convert_market_to_stock(dim, stock - traded)
+    _before_stock = int(slot.get("stock", 0) or 0)
     slot["stock"] = max(0, int(round(left_stock)))
+    # 🟢 M42a：逐维流量登记（官仓领料**出账**；只记实际减少量）
+    _out_q = _before_stock - int(slot["stock"])
+    if _out_q > 0:
+        from core.domains.economy import stock_flow as _sf
+        _sf.record_out(state, dim, _out_q, reason="warehouse_issue")
     out.update(ok=True, traded=traded, paid=0, applied=True,
                unmet_qty=int(want_market) - traded,
                reason=(MaterialReason.OK if want_market - traded <= 0

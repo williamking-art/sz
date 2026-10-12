@@ -65,7 +65,14 @@ def _settle_mint(state, log, amount: int = 0):
     _from_pool = min(_pool, _need_metal)
     state.coin["melted_pool"] = _pool - _from_pool
     if _need_metal > _from_pool:
-        _res["stock"] = max(0, int(_res.get("stock", 0) or 0) - (_need_metal - _from_pool))
+        _want_take = _need_metal - _from_pool
+        _cur_stock = int(_res.get("stock", 0) or 0)
+        _took = min(_cur_stock, _want_take)
+        _res["stock"] = max(0, _cur_stock - _want_take)
+        # 🟢 M42a：逐维流量登记（铸钱**扣铜料**；只记实际发生量，失败不中断）
+        if _took > 0:
+            from core.domains.economy import stock_flow as _sf
+            _sf.record_out(state, COPPER_RESOURCE_DIM, _took, reason="mint_copper")
     _net = int(amount * MINT_NET_RATIO)          # 净增 80%（20% 熔耗蒸发，退出流通）
     _art_total = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
     _mer_total = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
