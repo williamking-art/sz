@@ -11,7 +11,7 @@
   "复现脚本 `_scratch/trace_pop_guard_m42h.py`（复刻 test_combined_monthly_economic_paths_keep_seat_pop_truth 设定）：1 个月即 38 条违规，全是 `prefectures[路].pops[类][\"wealth\"]` 直写",
   "**为什么平时不触发**：Phase B 消费路径（`settlement_granary` 用 `market.trade_goods` 让各 POP 真成交）需要**工匠池里真有货**；在 M42g/h 修复前商品从未真正落到 POP ⇒ 该路径基本空转，缺陷潜伏",
   "**触发条件**：`settlement_econ` 成品池分派改走 `pop_goods_add`（M42h 试点）后，工匠池真有货 ⇒ 成交真的发生 ⇒ 守卫立刻抓到 `wealth` 直写",
-  "调用方传的是**路级镜像行**（`settlement_granary` 里 `for pop_name, pop in p[\"pops\"].items()`），故 `pop_obj_add`/`locate_pops` 按对象身份也**找不到治所行**（返回 None 回落）⇒ 不能只靠给 trade_goods 加桥接解决，**必须先解决"调用方持有的是镜像行"这一层**"
+  "调用方传的是**路级镜像行**（`settlement_granary` 里 `for pop_name, pop in p[\"pops\"].items()`），故 `pop_obj_add`/`locate_pops` 按对象身份也**找不到治所行**（返回 None 回落）⇒ 不能只靠给 trade_goods 加桥接解决，**必须先解决「调用方持有的是镜像行」这一层**"
  ],
  "impact": "成交导致的买卖双方 `wealth` 变动**写在镜像上**，随后被 `sync_route_pops` 重算覆盖 ⇒ **POP wealth 的成交口径静默失效**（与 M43/M44 同族）。一旦商品真正落到 POP（M42g 已做到一半），该缺陷就会开始吞掉成交带来的财富转移。",
  "need": "让成交的财富写入落**治所真账**：① `trade_goods` 增可选 `state`/治所解析（或新增 `pop_wealth_add` 桥口）；② 调用方（`settlement_granary` Phase B、`material_market` 等）改为传**治所级** POP 行；③ 两处皆需未下沉回落原写法。",
