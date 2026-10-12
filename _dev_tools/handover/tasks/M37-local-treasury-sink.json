@@ -1,0 +1,31 @@
+{
+ "id": "M37-local-treasury-sink",
+ "title": "地方府库下沉州府级（主线 B 第一片）：seats[治所][\"treasury\"] 真账 + 路级派生镜像",
+ "status": "in_progress",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "上级路线 reviews/未落地设计裁定与实施路线.md §3 主线 B；seats 载体前置已满足（2026-10-11 核实 20/20）",
+ "goal": "把地方府库真账下沉到治所（seats[治所][\"treasury\"]），路级降为只读派生聚合；所有写点走桥接；以此解开 A-粮价债务（game_state_econ.py:315/:327-328 的全国分母）。",
+ "deliverable_now": "_dev_tools/game-docs/specs/economy/地方府库下沉州府级_实施设计_2026-10-13.md（设计 + 取证完成；未写代码、未提交代码改动）",
+ "key_findings": [
+  "pop_bridge 已有同型机制可复用：SPLIT_FIELDS(:53) / aggregate_seat_pops(:341) / sync_route_pops(:431) / _pops_write_exempt(:580)",
+  "迁移入口同型：migrations.sink_pops_to_seats(:80)；新局与读档必须共用同一幂等入口",
+  "field_registry 已登记 treasury/granary writable+non_neg(:93-95)；但 NON_NEG_PREFIXES 的 granary 是无边界前缀(会命中 granary_cap)",
+  "engine/README:28 规定写 wealth/grain/treasury/granary/savings 必须给 exempt_reason",
+  "已桥接写入点约 130 处（core/README:47）；treasury 写点全集未扫完（只初查 commands.py 6 处）"
+ ],
+ "scope": [
+  "M37a：treasury 桥接 + 迁移 + 聚合（本设计主片）",
+  "M37b：A-粮价债务收口（wine_share/_gran_share 改本地份额）+ P0 第 5 门断言",
+  "M37c：写点全库扫描与分类（桥接 / 豁免白名单）"
+ ],
+ "explicitly_not": [
+  "不新增与 treasury 平行的账户；不动 imperial_treasury（中央内帑）",
+  "不按人口比例伪造地点/货主；分摊只作推演并标来源",
+  "不同批混入仓储/商品存量、真实交易与州府价格（主线 B 后续片）",
+  "不动 run_monthly_settlement 本体（有 AST 内省测试 test_middle_calibration）"
+ ],
+ "blocks": "实现待两件事：① 分摊权重依据待裁定（decisions/local-treasury-share-basis.json）；② 写点全集待扫描。设计本身已可评审。",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T16:55:31Z"
+}
