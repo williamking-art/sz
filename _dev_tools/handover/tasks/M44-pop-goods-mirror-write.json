@@ -1,0 +1,29 @@
+{
+ "id": "M44-pop-goods-mirror-write",
+ "title": "production_chain 产出写**路级 POP goods 镜像** ⇒ 被 sync_route_pops 覆盖、POP 侧产出实际丢失（与 M43 同族）",
+ "status": "pending",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "blocks": "统一民间市场 P1 的 POP custody 恒等式闭合；亦影响「产出先入本地经营库存」的 P2 口径",
+ "authority": "AGENTS.md §3-1（路级 pops 是派生镜像，直写＝写丢失，写必须走桥）；game/core/domains/production/production_chain.py:224-231；game/core/foundation/ledger/pop_bridge.py:431-456",
+ "evidence": [
+  "production_chain.py:217-231 `_to_pop` 分支：`_tgt = _pops.get(_cls)`（**路级** POP dict）→ `_goods = _tgt.get(\"goods\")` → `goods_add(_goods, dim, add, _pick_seat(p, dim))` ⇒ 写的是**路级镜像**",
+  "pop_bridge.py:445-453 `sync_route_pops`：对每个类 `agg = aggregate_seat_pops(pdata, cls)`（**含 goods**）后 `row.update(agg)` ⇒ **镜像里的 goods 每次同步都被治所聚合覆盖**",
+  "**实测佐证（M42e trace，只读）**：逐步执行 32 个结算步后，POP goods 只被动过一次（`_settle_workshops` +80,000 meat），**合计 ≈ 80,000**；而同一轮 6 个月的流量账登记的 `in:produce_pop` 达 **40,632,384** ⇒ 登记量＝**意图量**，货并未真的留在 POP",
+  "推论：`in:produce_pop` 不能用于 POP 恒等式（它记的是对镜像的写入）——POP custody 未闭合的直接原因之一"
+ ],
+ "impact": "宋境**作坊/原料产出的 POP 侧切片实际不生效**（被覆盖）⇒ 工匠/农户 goods 的\"已确权 POP 切片\"形同虚设；POP custody 恒等式无法闭合；若将来把 POP goods 接入本地市场，会出现\"有产出记录、无实物\"。",
+ "need": "把 `_to_pop` 分支改为**经桥接落治所真账**（参照 `material_holding` 的治所级写法 / `pop_bridge` 的 goods 通道），并补定向回归：跑一月后断言 `Σ治所 goods` 实际增加、且镜像同步后**不回退**。",
+ "constraints": [
+  "**改数值**（修好后 POP 会真的持有货、可售量与消费随之变化）⇒ 须先说明口径与影响 + 同种子对照标定（AGENTS.md §3-4）",
+  "不得新增平行账本；写必须走既有桥接（§3-1）",
+  "与 M43（settlement_granary 商品折旧同族缺陷）**合并为一批**处理更省（同一个\"POP goods 写点未走桥\"根因）",
+  "仪器侧：`stock_flow` 的 `in:produce_pop` 在该根因修复前**不可用于判定闭合**，须在文档与读数里标注"
+ ],
+ "jev_basis": {
+  "asked": "未单独问 Jev（本档是**缺陷登记**，不涉及方案选择）；按纪律不改数值、先登记",
+  "note": "若决定修，建议先问 Jev：是否与 M43 合并为一批、以及改数值后的标定方式。"
+ },
+ "claimedBy": "",
+ "claimedAt": ""
+}
