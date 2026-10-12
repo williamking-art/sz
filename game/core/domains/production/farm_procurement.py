@@ -138,12 +138,23 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             got = state.transfer_money("treasury", "pop:%s:\u519c" % route, pay)
             if got <= 0:
                 continue                  # \u94b1\u4e0d\u5230\u4f4d \u21d2 **\u4e0d\u53d6\u8d27**\uff08\u4e0d\u65e0\u507f\u5165\u5e93\uff09
+            from core.foundation.ledger.material_holding import goods_amount as _gamt
+            _before_have = int(_gamt(goods, dim) or 0)
             take = _take_goods(goods, dim, want)
-            # 🟢 M42d：POP 侧逐维流量登记（和买**从 POP goods 卖出**；只记实际取走量）
-            if take > 0:
+            # 🟢 M42k：POP 侧流量登记——记**实测差额**（不是计算量 `take`）。
+            #   实测（2026-10-13）：用 `take` 会多记（某步 POP 与农户 goods 真值均未变，
+            #   账却记了 −13,888）⇒ 逐月恒等式出现 0.17% 残差。**只记实际减少量**。
+            _after_have = int(_gamt(goods, dim) or 0)
+            _actual = max(0, _before_have - _after_have)
+            if _actual > 0:
                 from core.domains.economy import stock_flow as _sf
-                _sf.record_out(state, dim, take, reason="procure_sell",
+                _sf.record_out(state, dim, _actual, reason="procure_sell",
                                custody=_sf.CUSTODY_POP)
+            elif take > 0:
+                # 账实不一致（算出取走量却没见减少）⇒ **留痕不记假账**
+                state.granary_stats = getattr(state, "granary_stats", {}) or {}
+                state.granary_stats["procure_take_mismatch"] = (
+                    int(state.granary_stats.get("procure_take_mismatch", 0) or 0) + int(take))
             if take <= 0:
                 state.transfer_money("pop:%s:\u519c" % route, "treasury", got)   # \u56de\u9000
                 continue

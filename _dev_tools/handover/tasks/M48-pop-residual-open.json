@@ -1,0 +1,27 @@
+{
+ "id": "M48-pop-residual-open",
+ "title": "POP custody 残差 0.17%（丝 +18,842 / 麻 +15）——**未决**，证据互相矛盾，禁止硬猜",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "blocks": "统一民间市场 P1「逐月复原商品库存恒等式」在 **POP custody** 上收紧为「逐维残差 == 0」",
+ "authority": "specs/economy/unified-civilian-market/tasks.md（P1 行）；常驻断言 test_stock_flow_identity.test_pop_custody_identity_near_closed（当前容忍 ≤0.5%）",
+ "current_state": "POP custody：未闭合维 = 0；5/7 维精确闭合；余 丝 +18,842、麻 +15（占 |Δ| 的 0.17% / 0.0002%）",
+ "evidence_a": "**逐步自诊断**（_scratch/locate_pop_residual.py，逐步同时读 POP 与流量账）：唯一「ΔPOP 与 Δ账 不符」的步骤是 `farm_procurement.procure_from_farmers`（丝 ΔPOP=0 而 Δ账=−12,172；麻 ΔPOP=0 而 Δ账=−4）",
+ "evidence_b": "**隔离微观探针**（_scratch/micro_procure.py，只调该函数）：丝/麻 均 **ΔPOP总=0、Δ农户 goods 真值=0、Δ账=−13,888/−2** ⇒ 出现「算出取走量>0 却观测不到减少」",
+ "evidence_c": "**与 b 矛盾**：定义域改为「记实测差额」后复跑全流水，`out:procure_sell` 仍为 18,856（与改前同）、残差不变 ⇒ 在**完整流水**里 `_actual == take`（货确实减了）",
+ "conclusion": "**材料不足、未定**：无法据此判定是「登记多记」还是「别处有等额未登记入账」。已按 §3-7 记为未决，**不做猜测性修补**（不为了把断言改绿而调整口径）。",
+ "done_this_batch": "registrations 改为**记实测差额**（`goods_amount` 前后差）并加 mismatch 留痕（`granary_stats['procure_take_mismatch']`）——这条改进与结论无关，属「只记实际发生量」的纪律硬化",
+ "next_methods": [
+  "在两处候选上开**调用计数/调用栈**（不只是差值）：记录每次 `_take_goods` 的 (route, dim, want, take, before, after) 到 granary_stats 明细，跑一月后看是否出现 take>0 且 after==before",
+  "对 POP 侧**全量写点**做一次「写后即比」插桩（pop_goods_add/sub/decay + 任何裸写 goods），找出未登记入账",
+  "把常驻断言收紧到逐维 0 前，必须先有上述证据"
+ ],
+ "constraints": [
+  "**不得**为了让断言变绿而放宽口径或调参（UNKNOWN 就是 UNKNOWN）",
+  "常驻断言在解决前保持「未闭合维 0 + 残差 ≤0.5%」",
+  "任何修补须带同种子对照与全量 EXIT=0"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T21:48:42Z"
+}
