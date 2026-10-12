@@ -100,8 +100,8 @@ def load_config() -> dict | None:
 
     if not cfg.get("enabled"):
         return None
-    # provider 解析（配置 > 环境变量 > 默认 typesafe）；key 也可由 provider 登记表提供
-    name = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "typesafe")
+    # provider 解析（配置 > 环境变量 > 默认 **tokenrhythm**，免代理；typesafe 作兜底）
+    name = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "tokenrhythm")
     base = _PROVIDERS.get(name) or {}
     cfg["provider"] = name
     if base and "threshold" not in cfg:
@@ -182,9 +182,10 @@ def _decide(cfg: dict, state, questions: dict) -> dict | None:
     备用通道用 `fallback_provider`（或 `SONGZUO_JEV_FALLBACK_PROVIDER`）指定。
     典型部署：服务器 `provider=tokenrhythm`（免代理）+ `fallback_provider=typesafe`。
     """
-    primary = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "typesafe")
+    primary = str(cfg.get("provider") or os.environ.get("SONGZUO_JEV_PROVIDER") or "tokenrhythm")
     order = [primary]
-    fb = cfg.get("fallback_provider") or os.environ.get("SONGZUO_JEV_FALLBACK_PROVIDER")
+    fb = (cfg.get("fallback_provider") or os.environ.get("SONGZUO_JEV_FALLBACK_PROVIDER")
+          or "typesafe")            # 默认：主 tokenrhythm（免代理）→ 备 typesafe
     if fb and str(fb) != primary:
         order.append(str(fb))
     try:
@@ -200,7 +201,9 @@ def _decide(cfg: dict, state, questions: dict) -> dict | None:
         is_primary = (name == primary)
         endpoint = str(cfg.get("endpoint") or base["endpoint"]) if is_primary else base["endpoint"]
         model = str(cfg.get("model") or base["model"]) if is_primary else base["model"]
-        keys = (_keys(cfg) if is_primary else []) or _keys_for(base)
+        # 该 provider **自己的** key 优先；配置里的 api_key 只作最后兜底
+        # （否则会出现「拿 typesafe 的 key 去打 tokenrhythm」的错配）
+        keys = _keys_for(base) or (_keys(cfg) if is_primary else [])
         if not keys:
             log.warning("jev_gate: provider=%s 无可用 key，跳过", name)
             continue

@@ -18,9 +18,11 @@ from ai.contracts_decree import DecreeContractMixin
 
 @pytest.fixture
 def jev_on(monkeypatch, tmp_path):
-    """把 Jev 打开，并把配置路径指到不存在的位置（避免读本机真实 ai_config.json）。"""
+    """把 Jev 打开（默认供应商 tokenrhythm），配置路径指到不存在的位置。"""
     monkeypatch.setenv("SONGZUO_JEV_ENABLED", "1")
-    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("TOKENRHYTHM_API_KEY", "test-key-not-real")   # 默认供应商的 key
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key-not-real")      # 兜底通道的 key
+    monkeypatch.delenv("SONGZUO_JEV_PROVIDER", raising=False)
     monkeypatch.setattr("ai.client_utils.resolve_ai_config_path",
                         lambda *a, **k: str(tmp_path / "no-such-ai-config.json"))
     return tmp_path
@@ -39,6 +41,25 @@ ACTIONS = [
     {"source_fragment": "朕欲于两浙路兴修水利", "title": "两浙路兴修水利"},
     {"source_fragment": "", "title": "顺便裁撤三司"},          # 原文无据（应被复核挑出）
 ]
+
+
+# ---------------------------------------------------------------- 0. 默认供应商
+def test_default_provider_is_tokenrhythm(jev_on):
+    """默认供应商 = tokenrhythm（免代理）；阈值按供应商各自校准，不可互用。"""
+    cfg = jev_gate.load_config()
+    assert cfg is not None
+    assert cfg["provider"] == "tokenrhythm"
+    assert cfg["threshold"] == 0.50
+    assert jev_gate._PROVIDERS["typesafe"]["threshold"] == 0.40
+    # 两个通道都在登记表里 → 主通道失败可自动降级
+    assert set(jev_gate._PROVIDERS) >= {"tokenrhythm", "typesafe"}
+
+
+def test_provider_env_override(jev_on, monkeypatch):
+    monkeypatch.setenv("SONGZUO_JEV_PROVIDER", "typesafe")
+    cfg = jev_gate.load_config()
+    assert cfg["provider"] == "typesafe"
+    assert cfg["threshold"] == 0.40          # 跟随供应商换成校准值
 
 
 # ---------------------------------------------------------------- 1. 默认禁用
