@@ -220,6 +220,22 @@ def _p2_readiness(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return len(ready), None, drill
 
 
+def _building_owned(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**建筑归属已登记率**（M91–M93）：`with_owner / total`；无建筑 ⇒ None + reason。"""
+    src = "core.domains.economy.building_owner:survey_building_owners"
+    try:
+        from core.domains.economy import building_owner as bo
+        rep = bo.survey_building_owners(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: 建筑归属读数失败", exc_info=True)
+        return None, f"建筑归属读数异常：{type(e).__name__}", src
+    total = int(rep.get("total") or 0)
+    if not total:
+        return None, "无建筑 ⇒ 归属率不可定义（缺失≠0）", {**rep, "drill": src}
+    ratio = round(int(rep.get("with_owner") or 0) / total, 4)
+    return ratio, None, {**rep, "已登记率": ratio, "drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -248,6 +264,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _pilot_bottleneck, "source": "core.domains.economy.p1_pilot_chain:survey_diagnosis"},
     {"key": "p2_readiness", "label": "P2 字段已就绪数（共 14 项）", "unit": "项",
      "fn": _p2_readiness, "source": "core.domains.economy.entity_projection:survey_entity_projection"},
+    {"key": "building_owned", "label": "建筑归属已登记率", "unit": "比",
+     "fn": _building_owned, "source": "core.domains.economy.building_owner:survey_building_owners"},
 )
 
 

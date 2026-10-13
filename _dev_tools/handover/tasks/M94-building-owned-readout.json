@@ -1,0 +1,47 @@
+{
+ "id": "M94-building-owned-readout",
+ "title": "读数索引 13→14：接入**建筑归属已登记率**（M91–M93 落地的 P5 可见化）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M94-building-owned-readout-scope.json（同型惯例扩项；M81/M83/M87 三次同型）",
+ "deliverable": [
+  "core/domains/economy/readout_hub.py：`_building_owned` + 注册行（第 14 项）",
+  "test_m81/test_m83：计数断言 13→14（member 判定，抗后续扩项）"
+ ],
+ "readout_added": {
+  "key": "building_owned",
+  "label": "建筑归属已登记率",
+  "unit": "比",
+  "value_6m": 1.0,
+  "drill_down": [
+   "total",
+   "with_owner",
+   "missing",
+   "undefined_rule",
+   "source"
+  ],
+  "undefined_when": "无建筑 ⇒ `undefined` + reason"
+ },
+ "evidence": {
+  "total_readouts": 14,
+  "ok": 13,
+  "undefined": 1,
+  "p2_readiness": 5,
+  "building_owned": 1.0,
+  "undefined_list": [
+   "jobs_capacity"
+  ]
+ },
+ "verified": [
+  "读数相关用例全绿；全量串行 EXIT=0（先看退出码）；JSON lint 门通过"
+ ],
+ "next": [
+  "① P5 收口：月报归因 + 前端展示（面板已自动呈现新读数）",
+  "② P2 其余字段（blueprint/completed_month/maintenance/methods/recipe/io_stock/income_to）待口径",
+  "③ `jobs_filled` 是否落成状态（改数值 ⇒ 桥接 + 同种子标定）",
+  "④ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T09:24:48Z"
+}

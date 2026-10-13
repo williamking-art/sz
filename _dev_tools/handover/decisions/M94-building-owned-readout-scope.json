@@ -1,0 +1,19 @@
+{
+ "id": "M94-building-owned-readout-scope",
+ "title": "Round 73：建筑归属登记率接进读数索引（13→14 项；零数值）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "DSH（按 M87 同型惯例：读数扩容属「只读可见化」，沿用既有契约；未单独问 Jev —— 若需可补问）",
+ "mode": "convention",
+ "outcome": "✅ `readout_hub` 13 → **14 项**：新增 `building_owned`「建筑归属已登记率」＝`with_owner / total`（M91–M93 落地的可见化），下钻给 总数/已登记/缺失/未登记规则计数与 `source`；无建筑 ⇒ `undefined`。实测：**14 项 ok=13 / undefined=1**（`jobs_capacity`）；`building_owned = 1.0`（40/40 建筑已登记）、`p2_readiness = 5`。",
+ "applied_in": {
+  "module": "core/domains/economy/readout_hub.py（+_building_owned 与注册行）",
+  "tests": ["test_m81_readout_hub_wiring.py（计数 13→14）", "test_m83_readouts_endpoint_hub.py（计数 13→14）"],
+  "task": "_dev_tools/handover/tasks/M94-building-owned-readout.json",
+  "commit": "（本批提交）"
+ },
+ "note": "本批为**同型惯例扩项**（M81/M83/M87 已三次同型），未新增口径；若你要求「每次扩项都过 Jev」，我后续补问并把裁定补档",
+ "next": "① 月报归因/前端展示（P5 收口）；② P2 其余字段待口径；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若读数契约变更，本档作废重接"
+}
