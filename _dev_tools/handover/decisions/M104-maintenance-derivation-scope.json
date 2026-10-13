@@ -1,0 +1,26 @@
+{
+ "id": "M104-maintenance-derivation-scope",
+ "title": "Round 83：P2 `maintenance` 只读派生（甲 0.907）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "P2 `maintenance`（维护责任）能否只读派生？",
+ "options": {"甲": "派生为「由 owner 承担」（首期同责，维护费参数在 constants）",
+             "乙": "保持 undefined（等玩法裁定：官修/民修/承包）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9065924286842346, "乙": 0.09340754896402359},
+ "outcome": "✅ 建筑与作坊两处投影的 `maintenance` 均改为**派生＝owner**（**首期同责**），`source` 注明「维护**费**参数在 `content` constants（如 常平仓 maintain=0.005）」；无 owner ⇒ `undefined` + reason（缺失≠0）。**零 state 改动**。",
+ "evidence": {"readiness_1.0_building": ["seat", "level", "owner", "operator", "operation_mode", "maintenance"],
+              "readiness_1.0_workshop": ["seat", "owner", "operator", "maintenance", "operation_mode", "recipe"],
+              "note": "两侧均 **6/14**（原 5/14）"},
+ "process_note": "🔴 本轮用 `replace_all` 时**误把作坊分支也用建筑版本替换**（引用了作坊里不存在的 `_meta`）⇒ M96 三红；读回定位后修正并同步 M96 期望（5→6）。教训：`replace_all` 仅适用于**两处文本确实同构且无作用域差异**的场景。另：本批**漏建 tasks/decisions 档**（claim 失败才发现），已补——纪律重申：**Jev 裁定必须落 `decisions/`**",
+ "applied_in": {
+  "module": "core/domains/economy/entity_projection.py（project_building.project_workshop 两处 maintenance）",
+  "tests": "_dev_tools/game-dev/tests/test_m96_workshop_projection.py（defined_count 5→6）",
+  "commit": "3a3b2f9b89"
+ },
+ "next": "① P2 余下字段（methods/income_to 待口径；blueprint 已取证）· ② `jobs_filled` 写入＝改数值批（设计见 M102）· ③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若裁定官修/民修/承包分离，本派生作废重接"
+}

@@ -1,0 +1,41 @@
+{
+ "id": "M104-maintenance-derivation",
+ "title": "P2 `maintenance` 只读派生（首期＝与 owner 同责）⇒ 建筑/作坊就绪度各 6/14",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M104-maintenance-derivation-scope.json（Jev choose 甲 0.907）",
+ "deliverable": [
+  "core/domains/economy/entity_projection.py（建筑与作坊两处 `maintenance` 改派生）",
+  "_dev_tools/game-dev/tests/test_m96_workshop_projection.py（defined_count 5→6）"
+ ],
+ "evidence": {
+  "building_ready": [
+   "seat",
+   "level",
+   "owner",
+   "operator",
+   "operation_mode",
+   "maintenance"
+  ],
+  "workshop_ready": [
+   "seat",
+   "owner",
+   "operator",
+   "maintenance",
+   "operation_mode",
+   "recipe"
+  ],
+  "both": "6/14（原 5/14）"
+ },
+ "zero_change": "纯派生（不写 state、不进结算）⇒ 零数值变化",
+ "process_note": "① `replace_all` 误替换作坊分支（引用不存在的 `_meta`）⇒ M96 三红，读回修正后转绿；② 本批**漏建 tasks/decisions 档**（claim 失败才发现）⇒ 已补，纪律重申「Jev 裁定必须落 decisions/」",
+ "verified": [
+  "定向全绿；全量串行 EXIT=0；提交 3a3b2f9b89"
+ ],
+ "next": [
+  "P2 余下字段待口径 · jobs_filled 写入＝改数值批（M102 设计）· 卡口不变：产能/营运资金来源/作坊岗位数/宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T11:30:09Z"
+}
