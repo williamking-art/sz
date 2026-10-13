@@ -1,0 +1,40 @@
+{
+ "id": "M73-demand-channel-scope",
+ "title": "Round 52 裁定：M62 需求配置「可依据化」取证（A 0.941）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 52 取哪个？",
+ "options": {
+  "A": "M62 需求配置可依据化取证（查 6 个缺配置维的人均月需求有无既有出处；有则落地、无则登记）",
+  "B": "P4 府际/边境/远方市场设计切片",
+  "C": "M52 家计重算（粮价单点已修）",
+  "D": "其他（如 P5 前端）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.9412061573410034, "B": 0.023580551147460938,
+                   "C": 0.009455740451812746, "D": 0.025757618248462677},
+ "outcome": "✅ **取证得到的是『设计上的校准门控』而非缺史料**，并**更正了 M62 的双重误报**（见下）。",
+ "key_findings": {
+  "1_更正_basic_need_口径": "`demand.basic_need(cls, dim, size)` 里 **`cls` 根本不参与**（人均量按**维**配在 `BASIC_NEED_BASKET`）⇒ M62 报的「6/42（6 阶层 × 布）」**表述有误**：真实是**维级**，`basket` 只配了 `布`。",
+  "2_还有两条既有通道": "除 `basket` 外，尚有 **`DURABLE_TARGET_STOCK`**（耐用品目标库存）与 **`GRAIN_CONSUME_PER_CAPITA[类]`**（按阶层人均口粮，只对粮维有意义）⇒ 需求**不是只有一条通道**。",
+  "3_全表（真实开局，23 维）": {
+   "有通道": {"布": ["basket", "durable"], "绸": ["durable"], "米": ["grain"], "麦": ["grain"]},
+   "无通道19维": ["meat", "wine", "丝", "木", "果", "牲畜", "盐", "石", "糖", "纸", "茶",
+                "药材", "蔗", "金", "铁", "铜", "银", "马", "麻"],
+   "读法": "`丝/麻/木/石/铁/铜/银/金/马/牲畜/药材` 属**原料或非消费品** ⇒ 无消费需求通道**本就正确**；但 **`meat/wine/盐/茶/糖/纸/果`** 是**消费品却无通道** ⇒ 缺口属实"
+  },
+  "4_不得拍数（文档明写）": "`specs/economy/market-civilian-economy/tasks.md` §「参数待裁（阻塞）」：温饱线／余量尺度／**基本需求篮子**／耐用品目标库存等参数**由 B2-R 先补足因果环与局部市场定价，再用 60/240 月实测确定**，「**不把『裁定参数』作为提前调数的许可**」；另 `民间经济与营造市场统一设计.md`：日用品「**无来源不启用**」。"
+ },
+ "decision": "本批**不填任何数值**；把 M62 的覆盖率口径**改为「需求通道矩阵」**（逐维报 basket/durable/grain 三通道 + 无通道清单），并把缺口登记为**校准门控（B2-R）**而非"缺史料"。",
+ "applied_in": {
+  "module": "core/domains/economy/seat_market_shadow.py（`demand_coverage` 重写为通道矩阵；维枚举并入 content 维表）",
+  "tests": "_dev_tools/game-dev/tests/test_seat_market_shadow.py（10 passed，通道矩阵用例已更新）",
+  "task": "_dev_tools/handover/tasks/M73-demand-channel-matrix.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① 影子撮合若要真跑，须先补**消费品需求通道**——但按文档属**校准门控**（B2-R：先因果环+局部定价，再 60/240 月实测）⇒ 需口径/流程裁定，不是拍数；② 也可先把 `durable_gap` 通道接进 `seat_market_shadow` 的需求侧（**有据可依**，因为 `DURABLE_TARGET_STOCK` 已配置）。",
+ "reopen_if": "若 B2-R 校准启动、或给出消费品需求依据，本裁定作废并进入实施批"
+}

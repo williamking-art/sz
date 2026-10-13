@@ -1,0 +1,69 @@
+{
+ "id": "M73-demand-channel-matrix",
+ "title": "M62 需求配置「可依据化」取证：改为**需求通道矩阵** + 更正双重误报；缺口属**校准门控**（不拍数）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M73-demand-channel-scope.json（Jev choose A 0.941）",
+ "deliverable": [
+  "core/domains/economy/seat_market_shadow.demand_coverage —— 重写为**逐维需求通道矩阵**（basket / durable / grain），维枚举并入 content 维表",
+  "_dev_tools/game-dev/tests/test_seat_market_shadow.py —— 通道矩阵用例（10 passed）"
+ ],
+ "corrections_to_M62": [
+  "🔴 **口径错**：`demand.basic_need(cls, dim, size)` 的 **`cls` 不参与**（人均量按**维**配）⇒ M62 的「6/42＝6 阶层 × 布」**表述有误**，真实是**维级**、`basket` 仅配 `布`",
+  "🔴 **漏通道**：M62 只看了 `basic_need` 一条通道；实际还有 **`DURABLE_TARGET_STOCK`**（耐用品）与 **`GRAIN_CONSUME_PER_CAPITA[类]`**（口粮）⇒ 「需求不可定义」的判断过粗"
+ ],
+ "channel_matrix_real_game": {
+  "checked_dims": 23,
+  "with_channel": {
+   "布": [
+    "basket",
+    "durable"
+   ],
+   "绸": [
+    "durable"
+   ],
+   "米": [
+    "grain"
+   ],
+   "麦": [
+    "grain"
+   ]
+  },
+  "no_channel_consumer_goods": [
+   "meat",
+   "wine",
+   "盐",
+   "茶",
+   "糖",
+   "纸",
+   "果"
+  ],
+  "no_channel_non_consumer": [
+   "丝",
+   "麻",
+   "木",
+   "石",
+   "铁",
+   "铜",
+   "银",
+   "金",
+   "马",
+   "牲畜",
+   "药材",
+   "蔗"
+  ],
+  "reading": "原料/非消费品**无消费通道本就正确**；**消费品**（酒/肉/盐/茶/糖/纸/果）无通道才是真缺口"
+ },
+ "why_not_fill": "机制文档明写：需求篮子/温饱线/余量尺度等参数**由 B2-R 先补足因果环与局部市场定价，再用 60/240 月实测校准**，「**不把裁定参数作为提前调数的许可**」；且日用品「**无来源不启用**」⇒ 属**校准门控**，本批**不拍数**（缺失≠0 保持）。",
+ "verified": [
+  "seat_market_shadow 用例 10 passed；全量串行 EXIT=0（_scratch/full_regression_m73.log）"
+ ],
+ "next": [
+  "**有据可依的一步**：把已配置的 **`durable_gap`（耐用品目标库存）通道接进** `seat_market_shadow` 的需求侧（绸/布已有目标库存值）——这样影子撮合至少对绸/布**有量**",
+  "消费品（酒/肉/盐/茶/糖/纸/果）需求须走 B2-R 校准流程（口径/流程裁定）",
+  "其余卡口不变：营运资金来源 · 作坊岗位数；未开工：P3/P4/P5/P6"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T03:20:45Z"
+}

@@ -96,16 +96,20 @@ def test_price_goes_through_public_single_point(monkeypatch):
 
 
 def test_demand_coverage_matrix(monkeypatch):
-    """需求覆盖率普查：逐 (阶层,维) 报『有配置/缺配置』——这是影子撮合恒 None 的数据级根因。"""
-    from core.domains.economy import demand as dm
-    monkeypatch.setattr(dm, "basic_need",
-                        lambda cls, dim, size: 2.0 if dim == "绸" else None)
-    st = _state({"A|甲": _seat({"绸": 10, "布": 5}, size=10)})
-    cov = sm.demand_coverage(st, dims=["绸", "布"], classes=["工匠", "农"])
-    assert cov["checked"] == 4
-    assert {c["dim"] for c in cov["configured"]} == {"绸"} and len(cov["configured"]) == 2
-    assert {c["dim"] for c in cov["missing"]} == {"布"} and len(cov["missing"]) == 2
-    assert "不是 0" in cov["note"]
+    """需求**通道矩阵**（M73 更正口径）：逐**维**报 basket/durable/grain 三通道；无通道 ⇒ 列入。"""
+    import content.data as cd
+    monkeypatch.setattr(cd, "BASIC_NEED_BASKET", {"绸": 0.2, "布": 0.3}, raising=False)
+    monkeypatch.setattr(cd, "DURABLE_TARGET_STOCK", {"绸": 5.0}, raising=False)
+    st = _state({"A|甲": _seat({"绸": 10, "布": 5, "木": 3}, size=10)})
+    cov = sm.demand_coverage(st, dims=["绸", "布", "木", "粮"])
+    rows = {r["dim"]: r for r in cov["dims"]}
+    assert rows["绸"]["channels"] == ["basket", "durable"]      # 两条通道都有
+    assert rows["布"]["channels"] == ["basket"]
+    assert rows["木"]["channels"] == []                          # **无来源不启用**
+    assert cov["no_channel"] == ["木"] or "木" in cov["no_channel"]
+    assert cov["checked"] == 4 and cov["with_channel"] == 3      # 绸/布/粮 有通道，木没有
+    assert rows["粮"]["channels"] == ["grain"]                   # 粮走**按阶层**的口粮通道
+    assert "维级" in cov["note"] and "不启用" in cov["note"] and "不得拍数" in cov["note"]
 
 
 def test_reachability_and_price_not_invented():

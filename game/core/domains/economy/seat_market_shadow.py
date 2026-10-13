@@ -221,44 +221,82 @@ def seat_reachability(state, route: str, seat: str, dim: str) -> Dict[str, Any]:
             "reason": None}
 
 
-def demand_coverage(state, dims=None, classes=None) -> Dict[str, Any]:
-    """`demand.basic_need` 的**配置覆盖率**：哪些 `(阶层, 商品维)` 有配置、哪些没有。
+def demand_coverage(state, dims=None) -> Dict[str, Any]:
+    """**需求通道矩阵**（只读；M62 建、**M73 更正口径**）。
 
-    这是 M53 影子撮合恒为 `None` 的**数据级根因**：`basic_need` 未配置的维 ⇒ 需求不可定义。
-    只读；`dims` 缺省取『本局有货的维 ∪ 各作坊 recipe 维』。
+    🔴 **M73 更正**：`demand.basic_need(cls, dim, size)` 里 **`cls` 根本不参与**
+    （人均需求量按**维**配置在 `BASIC_NEED_BASKET`）⇒ M62 报的「6/42（6 阶层 × 布）」
+    **表述有误**：真实是「**7 个有货维里只配了 1 维（布）**」。
+    本函数改为**逐维**报**三条既有需求通道**：
+      * `basket`：`BASIC_NEED_BASKET[dim]`（人均·月，**维级**）；
+      * `durable`：`DURABLE_TARGET_STOCK[dim]`（耐用品目标库存）；
+      * `grain`：`GRAIN_CONSUME_PER_CAPITA[类]`（**按阶层**的人均口粮，只对粮维有意义）；
+    无任何通道 ⇒ `channels=[]`（**无来源不启用**：机制文档明写「先加少量能由当前资源/作坊生产的
+    日用品；无来源不启用」）。
+    ⚠️ **M73 取证结论**：其余维**不得拍数**——`specs/economy/market-civilian-economy/tasks.md`
+    §「参数待裁（阻塞）」明写：这些参数**由 B2-R 先补足因果环与局部市场定价，再用 60/240 月实测校准**，
+    「不把『裁定参数』作为提前调数的许可」⇒ 属**校准门控**，不是缺史料。
     """
-    try:
-        from core.domains.economy import demand as _dm
-    except Exception:                                       # noqa: BLE001
-        return {"reason": "demand 单点不可用", "configured": [], "missing": []}
+    def _cfg(name: str) -> dict:
+        try:
+            from content import data as _d
+            v = getattr(_d, name, None)
+            return v if isinstance(v, dict) else {}
+        except Exception:                                   # noqa: BLE001
+            log.warning("seat_market_shadow: %s 不可读", name, exc_info=True)
+            return {}
+
+    basket = _cfg("BASIC_NEED_BASKET")
+    durable = _cfg("DURABLE_TARGET_STOCK")
+    grain_pc = _cfg("GRAIN_CONSUME_PER_CAPITA")
     if dims is None:
-        found = set()
+        found = set(basket) | set(durable)
+        # 并入 content 的**维表**（RAW/FINISHED/GOODS/RESOURCE_DIMS：条令维集，避免只靠"有货维"漏维）
+        try:
+            from content import data as _d
+            for nm in ("RAW_DIMS", "FINISHED_DIMS", "GOODS_DIMS", "RESOURCE_DIMS",
+                       "GRAIN_DIMS", "FINISHED_TAX_DIMS"):
+                v = getattr(_d, nm, None)
+                if isinstance(v, (list, tuple, set, frozenset)):
+                    found |= {str(x) for x in v}
+        except Exception:                                   # noqa: BLE001
+            log.warning("seat_market_shadow: content 维表不可读", exc_info=True)
+        # 并入「本局有货的维」与「作坊 recipe 维」（只读枚举；任一不可用不影响其余）
         try:
             from core.domains.economy.seat_goods_readout import seat_goods
             for _r, seats in (seat_goods(state) or {}).items():
-                if not isinstance(seats, dict):
-                    continue
-                for cl in seats.values():
-                    for g in (cl or {}).values():
-                        found |= set((g or {}).keys())
+                if isinstance(seats, dict):
+                    for cl in seats.values():
+                        for g in (cl or {}).values():
+                            found |= set((g or {}).keys())
         except Exception:                                   # noqa: BLE001
-            pass
+            log.warning("seat_market_shadow: 有货维枚举不可用", exc_info=True)
         for ws in (getattr(state, "workshops", None) or {}).values():
             if isinstance(ws, dict):
                 found |= {d for d in (ws.get("recipe") or {})
                           if d not in ("grain_feed", "ration_weight")}
         dims = sorted(found)
-    cls_list = list(classes or ("士绅", "官僚", "商人", "工匠", "农", "兵"))
-    configured, missing = [], []
-    for cls in cls_list:
-        for dim in dims:
-            need = _dm.basic_need(str(cls), str(dim), 1)     # size=1 ⇒ 得人均月需求
-            rec = {"cls": cls, "dim": dim, "need_per_capita": None if need is None else float(need)}
-            (configured if need is not None else missing).append(rec)
-    return {"checked": len(configured) + len(missing), "configured": configured,
-            "missing": missing, "dims": list(dims), "classes": cls_list,
-            "source": "core.domains.economy.demand.basic_need",
-            "note": "缺失项 ⇒ 该 (阶层,维) 的需求不可定义（**不是 0**）；要跑影子撮合须先补配置"}
+    rows, no_channel = [], []
+    for dim in dims:
+        ch = []
+        if _num(basket.get(dim)) is not None:
+            ch.append("basket")
+        if _num(durable.get(dim)) is not None:
+            ch.append("durable")
+        if dim in ("粮", "grain", "米", "麦") and grain_pc:
+            ch.append("grain")
+        rows.append({"dim": dim, "channels": ch,
+                     "basket_per_capita": _num(basket.get(dim)),
+                     "durable_target": _num(durable.get(dim))})
+        if not ch:
+            no_channel.append(dim)
+    return {"dims": rows, "checked": len(rows),
+            "with_channel": len(rows) - len(no_channel),
+            "no_channel": no_channel,
+            "source": "content.data: BASIC_NEED_BASKET / DURABLE_TARGET_STOCK / GRAIN_CONSUME_PER_CAPITA",
+            "note": ("**维级**口径（`basic_need` 不吃 `cls`）；无通道维按机制文档「**无来源不启用**」；"
+                     "其余参数属**校准门控**（B2-R：先因果环+局部定价，再 60/240 月实测校准）——"
+                     "**不得拍数**")}
 
 
 def seat_price_or_none(state, route: str, dim: str) -> Dict[str, Any]:
