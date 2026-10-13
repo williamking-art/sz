@@ -1,0 +1,37 @@
+{
+ "id": "M139-trade-line-evidence",
+ "title": "主线 F（外贸）**只读取证**：常量齐备、**无可对外只读入口**、唯一 state 槽为私有 `_trade_income`",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "本轮真实局探针（新局 + 反射模块公开名与 state 槽）",
+ "findings": {
+  "常量齐备（素材够）": [
+   "`REGIME_IMPORTS`（各政权进口表）",
+   "`ROUTE_WATERWAY`（**路级史料源表**）",
+   "`SEA_TRADERS` / `ABSTRACT_TRADERS`（海商/抽解商）",
+   "`LOGISTICS_FEE` / `SEA_FREIGHT`（运费）",
+   "`DISTANCE_BAND` / `TERRAIN_MULT` / `COND_MULT_BEST|WORST`（距离·地形·条件乘数）",
+   "`OVER_TAX_SHARE` / `STAY_TAX_SHARE`（过税/住税份额）"
+  ],
+  "缺口1_无对外只读入口": "模块公开名中**不存在** `survey_*` / `*_readout` 之类的汇总函数（本轮按 `survey_trade_shadow`/`trade_shadow`/`shadow_readout`/`reconcile`/`survey` 逐一试探，**均不存在**）⇒ 外贸**没有任何可下钻读数**，`readout_hub` 的 17 项里也**不含外贸**",
+  "缺口2_无真账容器": "全 state 里与外贸相关的槽**只有私有的 `_trade_income`**（不是公开账、无路/政权/商品维度）⇒ **无法回答「哪一路、哪一货、跟谁、多少」**",
+  "与P4设计切片的印证": "M75（P4 切片）已实测：外贸**逐笔全缺**、在途 0、无显式路线表 ⇒ 本轮独立复现同一结论，并进一步定位到**具体缺什么**（入口 + 容器）"
+ },
+ "proposed_next_steps": {
+  "第1步_只读零数值_建议先做": "给 `trade_shadow` 补一个**只读汇总入口**（`survey_trade_shadow(state)`）并把 `_trade_income` 与 `REGIME_IMPORTS`/`ROUTE_WATERWAY` **按路/政权聚合**出来，**只读不写**；随后作为**第 18 项读数**接进 `readout_hub`（服务 P5 与主线 F 的可见化）",
+  "第2步_真账_须口径与授权": "建立**外贸逐笔真账**（路×政权×商品×数量×价格×税费），须先裁：① 账本挂在哪（**不得新增与 POP 平行的账本** ⇒ 倾向复用钱/货既有载体）② 过税/住税口径 ③ 与既有 `statistics` 的关系",
+  "第3步_实施": "在满足第 2 步口径后接**最小切片**（如「一路一政权一货」），走桥接 + **同种子 A/B** + ≥60 月长局 + 全量回归"
+ },
+ "not_done_why": "第 1 步需要先确认 `trade_shadow` 现有影子函数的确切名称与签名（本轮公开名被截断、候选名均不存在）⇒ 属**下一次具体实现批**的前置侦察；本轮**只取证、不改代码**",
+ "verified": [
+  "探针在真实新局上执行；模块公开名与 state 槽均已列出（见 findings）"
+ ],
+ "next": [
+  "① 下一批：先读全 `trade_shadow` 的公开 API，再按第 1 步补只读入口 + 第 18 项读数",
+  "② 第 2 步的真账口径**需要你裁定**（账本载体 / 过税住税 / 与 statistics 关系）",
+  "③ 四个既有卡口不变：产能 · 营运资金 · 作坊岗位数 · P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T22:46:19Z"
+}
