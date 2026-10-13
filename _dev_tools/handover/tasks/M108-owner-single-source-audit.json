@@ -1,0 +1,24 @@
+{
+ "id": "M108-owner-single-source-audit",
+ "title": "口径单点核查：owner 规则**无重复造表**；`workshop_fund_shadow.owner_of` 技术债**经查不成立**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §3-2（口径单点）；本轮两次 grep + 代码阅读",
+ "findings": [
+  "✅ `workshop_fund_shadow.owner_of` **读的就是 M66 写入的同一字段**（`workshops[wid].owner` / `owner_ref`）⇒ **没有**第二份作坊 owner 规则 ⇒ 先前记录的技术债（『owner_of 应复用 workshop_owner』）**经查不成立**，销账",
+  "✅ 全库仅两处 `OWNER_BY_TYPE`，且分属**不同容器**：`workshop_owner`（管 `state.workshops`）· `building_owner`（管 `prefectures[*].seats[*].buildings`）⇒ **不构成重复口径**（econ README 已写明「不冲突」）",
+  "✅ 词表形式统一（`local:<路>` / `pop:<路>:<阶层>`），`derive_operation_mode` 为**唯一**的经营方式派生点（M92 口径单点）"
+ ],
+ "action": "**无代码改动**（核查结论＝无需改）；本档用于**销掉技术债条目**并留痕",
+ "verified": [
+  "两次 grep 覆盖 game/**/*.py（`OWNER_BY_TYPE|pop:商人|local:.*路|owner_kind`）与 `workshop_fund_shadow` 全文"
+ ],
+ "next": [
+  "① 仍待口径：产能 · 营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道",
+  "② 待授权：P3 官府旨意接线",
+  "③ 零风险备选：`methods` 语义裁定后落地可用方法集合"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T11:44:11Z"
+}
