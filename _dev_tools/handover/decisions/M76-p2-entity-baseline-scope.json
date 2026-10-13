@@ -1,0 +1,37 @@
+{
+ "id": "M76-p2-entity-baseline-scope",
+ "title": "Round 55：P2「主体」只读取证 + 最小主体设计（甲 0.811）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "P2「主体」口径本批怎么切？",
+ "options": {
+  "甲": "只读取证 + 最小主体设计（不动手）",
+  "乙": "直接定口径并实施迁移（改数值须标定）",
+  "丙": "转别的（如 P1 纵向切片选行业）"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.8114839196205139, "乙": 0.1810348927974701, "丙": 0.00748122064396739},
+ "takings": {
+  "buildings_shape": "治所 `seats[治所][\"buildings\"]` = `{\"水利\": 2, \"常平仓\": 2}` —— **只有「建筑名→等级」** ⇒ P2 要求的 14 项里绝大多数**缺**（无 id/所有者/经营者/岗位实到/库存/收入去向/完工月/蓝图版本/维护责任/经营方式）",
+  "workshops_shape": "`state.workshops[wid]` 8 键：name/recipe/output_dim/yield/active + **M66 的 owner/owner_kind/owner_reason** ⇒ 主体字段**部分具备**（owner ✅）",
+  "no_entity_container": "jobs/employment/labor/workers/building_instances/entities/economic_entities **全 None** ⇒ **无就业/主体实例容器**，岗位由公式算",
+  "gap1": "缺口 1「按人口占比分派」实测：岗位侧只有**政权/阶层份额 `JOB_SHARE`**，**没有按路人口给建筑分派岗位实到** ⇒ 「实到岗位」今天**不可得**"
+ },
+ "design_headlines": [
+  "主体 id 复用既有词表（local:<路> / pop:<路>:<阶层> / state_treasury / imperial），**不新造**",
+  "字段逐项映射既有容器：资金池→既有账户与 POP wealth（✅）；配方/产出库存→作坊 recipe 与 resources/工匠 goods 池（✅）；岗位容量→JOBS_PER_LEVEL×等级×JOB_SHARE（🟡）；**岗位实到/经营者/收入去向→未定义**",
+  "🔴 **缺字段一律 `undefined`**：**严禁默认全员就业或默认满产补齐**（规格原文）",
+  "迁移影响面登记：实例 schema + 幂等迁移 + 桥接（先桥后沉）+ A/B + 只读读数先接 —— **本批不做**"
+ ],
+ "deliverable": [
+  "specs/economy/unified-civilian-market/P2_主体_取证与最小设计_2026-10-13.md（取证表 / 主体契约 / 缺口 1 / 迁移影响面 / 验收断言 / 边界）",
+  "同规格 tasks.md 的 P2 行状态更新"
+ ],
+ "non_goals": ["不做实例 schema 落地/迁移/桥接", "不接数值（营运资金/工资/利润）", "不设计 P1 试点行业"],
+ "applied_in": {"task": "_dev_tools/handover/tasks/M76-p2-entity-baseline.json", "commit": "（本批提交）"},
+ "next": "① **缺口 1（按人口占比分派 → 岗位实到）** 是 P1/P2/P4 的硬阻塞，须先出方案；② 之后可按『先 schema（不改数值）→ 只读读数 → 再桥接/迁移（A/B）』推进 P2",
+ "reopen_if": "若缺口 1 有方案、或用户给出主体口径，本设计作废并进入实施批"
+}
