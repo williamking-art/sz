@@ -1,0 +1,25 @@
+{
+ "id": "M120-workshop-jobs-derivability",
+ "title": "取证：作坊 `jobs_capacity` **无法如实只读派生**（宋境无「每工匠月」速率常量）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "本轮 grep（`units_per_artisan|ARTISAN.*RATE|per_artisan|工匠月`）",
+ "finding": {
+  "事实1": "宋境内置配方表 `content.data_constants.WORKSHOP_RECIPES` 只有 `{recipe, output_dim, yield}` —— **每轮**投料与产出，**没有**「每工匠月处理量」",
+  "事实2": "「单位/工匠月」只出现在**外邦**扩展表：`content.data_external` 的 `WORKSHOP_RECIPES_EXT`，注释明写 `[(raw, units_per_artisan_month, finished_good)]`（且按政权分组）",
+  "推论": "⇒ 宋境作坊的**岗位容量**既不能由配方反推（缺速率），也无史料表在库 ⇒ **无法如实只读派生**；M67 现有的 `undefined + reason`（『作坊不在 `JOBS_PER_LEVEL`；不按人口均分、不默认满员』）**是正确的**"
+ },
+ "implication_for_M67": "M67 三选一里：① **史料编制**＝需要引入外部史料表（可离线做，但须标注出处与口径）；② **产出反推标定**＝必须先**新立**一个「每工匠月处理量」常量（**改数值批**，须标定）；③ **P3 旨意**＝运行时由玩家/旨意决定（须 P3 授权）。**没有任何一条能靠现有数据只读得出**。",
+ "action": "**本轮不改代码**（现状已诚实）；登记结论，供 M67 裁定与后续实施参考",
+ "verified": [
+  "grep 覆盖 game/**/*.py；宋境 `WORKSHOP_RECIPES` 与 `JOBS_PER_LEVEL` 均已核对（后者无作坊）"
+ ],
+ "next": [
+  "① 若裁「史料编制」⇒ 我可按给定史料表落地只读/写入（须出处）",
+  "② 若裁「产出反推标定」⇒ 属改数值批：新立速率常量 + 桥接 + 同种子 A/B + ≥60 月长局",
+  "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T13:46:03Z"
+}
