@@ -23,7 +23,7 @@
   "`workshops[wid]` 无岗位字段（M66 后仅多 owner* 三字段）",
   "🟠 侦察还发现：配方面实有 **6 型**，而 M66 规则表只登记 **4 型**（真缺陷）"
  ],
- "outcome": "✅ 取证结论：**岗位数无任何权威来源** ⇒ `wage_obligation` 恒 `None`（不臆造、**不按人口均分**，A 被否）；给出「作坊类型→建筑类型」的**推断映射**与 `WAGE_RATE` 候选（工坊类 1.5 / 牧场类 1.4），并**强制标注"推断、非史料"**；顺带**修掉 M66 补漏**：配方面 6 型全覆盖 + **覆盖断言**（`set(WORKSHOP_RECIPES) - set(OWNER_BY_TYPE) == ∅`，将来加型会红）。",
+ "outcome": "✅ 取证结论：**岗位数无任何权威来源** ⇒ `wage_obligation` 恒 `None`（不臆造、**不按人口均分**，A 被否）；给出「作坊类型→建筑类型」的**推断映射**与 `WAGE_RATE` 候选（工坊类 1.5 / 牧场类 1.4），并**强制标注「推断、非史料」**；顺带**修掉 M66 补漏**：配方面 6 型全覆盖 + **覆盖断言**（`set(WORKSHOP_RECIPES) - set(OWNER_BY_TYPE) == ∅`，将来加型会红）。",
  "applied_in": {
   "module": "core/domains/economy/wage_gate_readout.py（新增 `workshop_wage_survey` / `WORKSHOP_TO_BUILDING` / `WORKSHOP_MAPPING_BASIS`）",
   "fixed": "core/domains/economy/workshop_owner.py（补 `造纸坊`/`糖坊` ⇒ 民营，依据：纸/糖 与 绢/布 同路）",
