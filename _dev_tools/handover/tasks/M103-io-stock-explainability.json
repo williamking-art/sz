@@ -1,0 +1,24 @@
+{
+ "id": "M103-io-stock-explainability",
+ "title": "P2 `io_stock` 可解释性改进：reason 指明**库存在哪、怎么查**（零数值、零 state）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §3-3（缺失≠0）＋ P5 验收「玩家能回答『谁本来应供』」",
+ "what": "`entity_projection` 的 `io_stock` 由「库存不按主体分栏」改为**可操作指引**：建筑 ⇒ 货由 POP 持有（治所级）或入 `resources`/工匠 `goods` 池，查持有方用 `seat_goods_readout`（治所×阶层）／`material_holding`（全国池）；作坊 ⇒ 先用 `route_of_workshop` 定路，再看该路治所真账。**仍 `undefined`**（不臆造建筑/作坊库存），但原因**可下钻到查法**",
+ "why": "P5 验收门要求读数能回答「**谁本来应供**」；只报『不按主体分栏』对玩家/后续 agent 无指引",
+ "evidence": {
+  "tests": "M86+M96 共 10 passed",
+  "full": "全量串行 EXIT=0"
+ },
+ "verified": [
+  "定向 10 passed；全量 EXIT=0（先看退出码再提交）"
+ ],
+ "next": [
+  "① P2 余下字段（maintenance/methods/income_to）待口径",
+  "② `jobs_filled` 写入＝改数值批（设计见 M102）",
+  "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T11:11:06Z"
+}

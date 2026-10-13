@@ -108,7 +108,9 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
                         "source": j.get("source") or "core.building_jobs:allocate_employment_detail",
                         "reason": None if j.get("filled") is not None else "实到不可算（该建筑非岗位建筑或无池）"},
         "recipe": _undef("建筑无配方（配方在**作坊**上）"),
-        "io_stock": _undef("库存**不按主体分栏**（产出入 `resources`/工匠 `goods` 池）"),
+        "io_stock": _undef("库存**不在建筑上**：货由 POP 持有（治所级）或入 `resources`/工匠 `goods` 池 ⇒ "
+                           "本字段不按建筑分栏；**查持有方**用 `seat_goods_readout`（治所×阶层）／"
+                           "`material_holding`（全国池）（**不臆造建筑库存**）"),
         "income_to": _undef("利润归主未接（营运资金来源待口径，见 M71）"),
     }
     undefined = [k for k in FIELDS if not (fields.get(k) or {}).get("defined")]
@@ -182,7 +184,9 @@ def project_workshop(state, wid: str) -> Dict[str, Any]:
         "jobs_capacity": _undef("作坊**不在 `JOBS_PER_LEVEL`**（M67：作坊岗位数无权威来源）"),
         "jobs_filled": _undef("同上（M67）——**不按人口均分、不默认满员**"),
         "recipe": _def(row.get("recipe"), "`workshops[wid].recipe`（原料消耗）"),
-        "io_stock": _undef("作坊投入/产出**不按主体分栏**（产出入 `resources`/工匠 `goods` 池）"),
+        "io_stock": _undef("作坊的投入/产出**不单独分栏**：原料/成品由 POP 持有（治所级 `goods`）或入 "
+                           "`resources`/工匠 `goods` 池 ⇒ **查持有方**用 `seat_goods_readout.route_of_workshop` "
+                           "定路后看该路治所真账（**不臆造作坊库存**）"),
         "income_to": _undef("利润归主未接（营运资金来源待口径，见 M71）"),
     }
     undefined = [k for k in FIELDS if not (fields.get(k) or {}).get("defined")]
