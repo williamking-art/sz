@@ -1,0 +1,30 @@
+{
+ "id": "M105-methods-income-evidence",
+ "title": "P2 `methods`/`income_to` **只读取证**：可选方法可派生但语义未定；收入去向依赖 M71 口径",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "取证（本轮）＋ M71（营运资金来源未定）；写入 specs/…/P2_字段落地设计_2026-10-13.md §五·补三",
+ "findings": {
+  "methods": [
+   "作坊**当前方法**＝`workshops[wid].recipe`（静态表 `WORKSHOP_RECIPES`：每类一条）",
+   "另有**按政权的扩展配方**：`song_job_cfg()[\"WORKSHOP_RECIPES_EXT\"]`，形态 `[(原料, 比例, 产出)]`",
+   "🔴 核心内**没有**「可选方法集合 / 当前选哪种 / 如何切换」的字段或流程 ⇒ 「可选生产方法」**语义未定**"
+  ],
+  "income_to": [
+   "依赖 **M71 营运资金来源口径**（甲/乙/丙/丁）——未定",
+   "由 owner 直接映射看似可行，但那等于**假装利润已归主**（M71 实测民营 12 月 **0/20** 路满覆盖，资金来源尚未解决）⇒ 保持 `undefined`"
+  ]
+ },
+ "decision": "**本批不做**：`methods` 若含 `active`/切换机制属新玩法（改 state + 标定）；`income_to` 必须等 M71 口径",
+ "verified": [
+  "本轮仅文档；下一批提交时复核索引纪律与全量回归"
+ ],
+ "next": [
+  "① 裁 `methods` 语义（`{available, active}` vs 仅 `available`）——若含 active 属改 state 批",
+  "② 裁 M71 营运资金来源后，`income_to` 才能落地",
+  "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T11:31:16Z"
+}
