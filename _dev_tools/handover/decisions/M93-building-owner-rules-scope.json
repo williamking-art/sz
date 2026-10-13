@@ -1,0 +1,30 @@
+{
+ "id": "M93-building-owner-rules-scope",
+ "title": "Round 72：建筑归属规则**扩到岗位建筑**（甲 0.970）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "建筑归属规则是否扩到岗位建筑？",
+ "options": {"甲": "农田/自耕农庄/地主农庄/庄园 → pop:<路>:农；工坊 → pop:<路>:工匠；商铺 → pop:<路>:商人",
+             "乙": "只做 工坊/商铺", "丙": "都不做（保持 undefined）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9706937074661255, "乙": 0.02379770763218403, "丙": 0.005508510861545801},
+ "outcome": "✅ `OWNER_BY_TYPE` 由 2 条扩到 **7 条**，每条**带依据**（全部取自既有 `BUILDING_WORKER` 的阶层归属）：`水利`/`常平仓` → `local:<路>`（官府兴办/官仓）；`农田`/`自耕农庄`/`地主农庄`/`庄园` → `pop:<路>:农`；`工坊` → `pop:<路>:工匠`；`商铺` → `pop:<路>:商人`；未登记类型仍 **不写**（undefined）。同步把 `owner_for` 的 `pop:` 形态实现为「本路该阶层」。",
+ "evidence": {"rules_selfcheck": {"水利": "local:路A", "常平仓": "local:路A", "农田": "pop:路A:农",
+                                  "地主农庄": "pop:路A:农", "工坊": "pop:路A:工匠", "商铺": "pop:路A:商人",
+                                  "谜之建筑": null},
+              "note": "与 M66 不冲突：M66 管 `state.workshops`，本表管 `buildings`（两套容器、同名机制）"},
+ "zero_change": "登记为**幂等迁移 + 只读派生**（不写数值、不进结算）⇒ 零数值变化（M91 的 A/B 恒等仍适用）",
+ "applied_in": {
+  "module": "core/domains/economy/building_owner.py（OWNER_BY_TYPE 扩表 + pop: 形态实现）",
+  "docs": "econ README 的 building_owner 行补 M93 扩表说明",
+  "task": "_dev_tools/handover/tasks/M93-building-owner-rules.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["现有开局只有 水利/常平仓 ⇒ 扩表**暂不改变**就绪度（仍 5/14）；玩家建坊后生效",
+            "`operation_mode` 对 `pop:<路>:农` 等派生为**家庭兼业**（M92 规则）"],
+ "next": "① P2 其余字段（blueprint/completed_month/maintenance/methods/recipe/io_stock/income_to）待口径；② `jobs_filled` 落成状态（改数值 ⇒ 桥接+标定）；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若裁定某类建筑另归（如官营作坊属官），逐条改表并留依据"
+}

@@ -29,6 +29,13 @@ META_KEY = "building_meta"
 OWNER_BY_TYPE: Dict[str, tuple] = {
     "水利": ("local", "官府兴办工程（非民业）"),
     "常平仓": ("local", "官仓：平粜/常平为官府职能（M40a 已州府化）"),
+    # ---- M93（Jev 甲 0.970）：**岗位建筑**按 `BUILDING_WORKER` 的阶层归属定民业主体 ----
+    "农田": ("pop:农", "耕作主体＝农户（`BUILDING_WORKER[农田]=农`）"),
+    "自耕农庄": ("pop:农", "自耕农户（`BUILDING_WORKER[自耕农庄]=农`）"),
+    "地主农庄": ("pop:农", "庄田耕作仍由农户承担（`BUILDING_WORKER[地主农庄]=农`）"),
+    "庄园": ("pop:农", "庄园耕作为农事（`BUILDING_WORKER[庄园]=农`）"),
+    "工坊": ("pop:工匠", "工匠经营（`BUILDING_WORKER[工坊]=工匠`）"),
+    "商铺": ("pop:商人", "商人经营（`BUILDING_WORKER[商铺]=商人`）"),
 }
 
 #: 经营方式（`operation_mode`）由 **owner 前缀派生**的**口径单点**（M92；Jev 甲 0.742）
@@ -68,7 +75,12 @@ def owner_for(route: str, building: str) -> Dict[str, Any]:
         return {"defined": False, "owner": None,
                 "reason": f"建筑类型 {building!r} **未登记归属规则** ⇒ 不臆造（须先给依据并补表）"}
     kind, basis = rule
-    owner = f"local:{route}" if kind == "local" else None
+    if kind == "local":
+        owner = f"local:{route}"
+    elif kind.startswith("pop:"):
+        owner = f"pop:{route}:{kind.split(':', 1)[1]}"      # 民业：本路该阶层
+    else:
+        owner = None
     if owner is None:
         return {"defined": False, "owner": None, "reason": f"规则形态未支持：{kind!r}"}
     return {"defined": True, "owner": owner, "basis": basis, "owner_kind": kind}

@@ -1,0 +1,44 @@
+{
+ "id": "M93-building-owner-rules",
+ "title": "建筑归属规则扩到**岗位建筑**（7 类型，逐条带依据）；开局不变、玩家建坊后生效",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M93-building-owner-rules-scope.json（Jev choose 甲 0.970）",
+ "deliverable": [
+  "core/domains/economy/building_owner.py：`OWNER_BY_TYPE` 2 → **7 条**（每条带依据）；`owner_for` 实现 `pop:<路>:<阶层>` 形态",
+  "econ README：building_owner 行补 M93 扩表说明"
+ ],
+ "rules": {
+  "官营（local:<路>）": [
+   "水利",
+   "常平仓"
+  ],
+  "农（pop:<路>:农）": [
+   "农田",
+   "自耕农庄",
+   "地主农庄",
+   "庄园"
+  ],
+  "工匠（pop:<路>:工匠）": [
+   "工坊"
+  ],
+  "商人（pop:<路>:商人）": [
+   "商铺"
+  ],
+  "未登记": "不写（undefined + reason）"
+ },
+ "evidence": {
+  "selfcheck": "7 类型逐条输出 owner 与依据（见 decision 档）；未登记类型仍 None",
+  "targeted": "test_m91 + test_readme_sync 共 54 passed",
+  "full": "全量串行 EXIT=0"
+ },
+ "zero_change": "幂等迁移 + 只读派生 ⇒ 零数值变化；开局 40 座建筑仍为 水利/常平仓（就绪度仍 5/14）",
+ "next": [
+  "① P2 其余字段待口径",
+  "② `jobs_filled` 是否落成状态（改数值 ⇒ 桥接 + 标定）",
+  "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T09:05:11Z"
+}
