@@ -114,7 +114,13 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         "io_stock": _undef("库存**不在建筑上**：货由 POP 持有（治所级）或入 `resources`/工匠 `goods` 池 ⇒ "
                            "本字段不按建筑分栏；**查持有方**用 `seat_goods_readout`（治所×阶层）／"
                            "`material_holding`（全国池）（**不臆造建筑库存**）"),
-        "income_to": _undef("利润归主未接（营运资金来源待口径，见 M71）"),
+        "income_to": (lambda _a: {
+            "value": _a, "defined": bool(_a),
+            "source": ("M117（Jev 甲 0.788）**应然去向**＝按 owner 推出的账户"
+                       "（`building_owner.income_account_of`）；"
+                       "⚠️ **实际钱流未接**（D 线待 M71 营运资金来源口径）"),
+            "reason": None if _a else "无 owner ⇒ 收入去向不可定义（缺失≠0）"})(
+            _income_account_of(_meta.get("owner"))),
     }
     undefined = [k for k in FIELDS if not (fields.get(k) or {}).get("defined")]
     return {"route": route, "seat": seat, "building": str(building), "level": level,
@@ -166,6 +172,20 @@ def blueprint_of(building: str) -> Dict[str, Any]:
             "source": ("静态蓝图表 `BUILDING_STD`（**键即中文名**）；⚠️ **版本号未登记**"
                        "（M100：落成只写等级，未持久化 blueprint_key/version）"),
             "reason": None}
+
+
+def _income_account_of(owner) -> Optional[str]:
+    """owner → **应然**收入去向（M117，Jev 甲 0.788）：委托 `building_owner.income_account_of` 单点。
+
+    🔴 这是**应然去向**（按归属推出的账户），**不是已发生的钱流**——实际利润归主/资金划转属
+    **D 线**，待 M71 营运资金来源口径。调用方**必须**在 `source` 里写明这一点。
+    """
+    try:
+        from core.domains.economy.building_owner import income_account_of
+        return income_account_of(owner)
+    except Exception:                                       # noqa: BLE001
+        log.warning("entity_projection: income_account_of 不可用", exc_info=True)
+        return None
 
 
 def available_methods(row: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -249,7 +269,9 @@ def project_workshop(state, wid: str) -> Dict[str, Any]:
         "io_stock": _undef("作坊的投入/产出**不单独分栏**：原料/成品由 POP 持有（治所级 `goods`）或入 "
                            "`resources`/工匠 `goods` 池 ⇒ **查持有方**用 `seat_goods_readout.route_of_workshop` "
                            "定路后看该路治所真账（**不臆造作坊库存**）"),
-        "income_to": _undef("利润归主未接（营运资金来源待口径，见 M71）"),
+        "income_to": _def(_income_account_of(owner),
+                          "M117（Jev 甲 0.788）**应然去向**＝按 owner 推出的账户；⚠️ **实际钱流未接**（D 线待 M71）",
+                          None if owner else "无 owner ⇒ 收入去向不可定义（缺失≠0）"),
     }
     undefined = [k for k in FIELDS if not (fields.get(k) or {}).get("defined")]
     return {"wid": wid, "route": route, "fields": fields, "undefined_fields": undefined,
