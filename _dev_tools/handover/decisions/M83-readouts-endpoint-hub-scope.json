@@ -1,0 +1,33 @@
+{
+ "id": "M83-readouts-endpoint-hub-scope",
+ "title": "Round 62：归因入读数索引（12 项）＋ `/api/readouts` 接 `readout_hub`（甲 0.996）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 62 取哪个？",
+ "options": {
+  "甲": "后端最小接线：归因入 readout_hub ＋ 核实/补齐读数端点（/api/readouts）",
+  "乙": "P5 前端面板（tsc/vitest/截图）",
+  "丙": "P2 建筑实例 schema"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9961101412773132, "乙": 0.003165650647133589, "丙": 0.0007242157007567585},
+ "recon_finding": "前端**已相当完整**（37 面板 + `/api/readouts` 已服务 finance/plan/army/regions/minister…，`gameStore.tsx` 已自动刷新），但**此前未接 `readout_hub` 的 11 项索引与 M82 归因** ⇒ 这才是缺口。",
+ "outcome": "✅ ① `readout_hub` 加**第 12 项** `pilot_bottleneck`（P1 试点主瓶颈；6 月实测值 `capacity_shortage`；下钻给逐 verdict 计数与样本路证据）；② `/api/readouts` 新增 **`hub`** 字段（薄壳调用 `readout_hub.collect`，失败进 `readout_errors`，不拖垮整表）。实测：**12 项中 11 项有值、1 项 undefined**（`jobs_capacity`）。",
+ "acceptance_served": "P5 验收门「每个显著读数**能下钻到来源**」⇒ `hub.readouts` 每项带 `source` 与 `drill_down`；「缺失**不显示为 0**」⇒ 不可读项 `display=\"undefined\"` + reason。",
+ "applied_in": {
+  "modules": ["core/domains/economy/readout_hub.py（+_pilot_bottleneck 与注册行，12 项）",
+              "backend/server.py（api_readouts 新增 hub 段与响应字段）"],
+  "tests": ["_dev_tools/game-dev/tests/test_m83_readouts_endpoint_hub.py（3 passed）",
+            "test_m81_readout_hub_wiring.py（计数 11→12 已更新）"],
+  "docs": "econ README 的 readout_hub 行（12 项 + 端点接线）",
+  "task": "_dev_tools/handover/tasks/M83-readouts-endpoint-hub.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["前端**尚未消费** `hub` 字段（P5 本体；本次只保证后端可用且契约明确）",
+            "端点接线用**源码断言**（`inspect.getsource`）验证存在，未起 HTTP 服务（本机无 httpx，见根 AGENTS.md §5）"],
+ "next": "① P5 前端消费 `hub`（面板/月报展示 12 项 + 归因下钻）；② P2 建筑实例 schema；③ 卡口不变：产能（本轮证据指出的真瓶颈）· 营运资金来源 · 作坊岗位数 · 宋境工钱通道",
+ "reopen_if": "若读数契约或端点响应结构变更，本档作废重接"
+}

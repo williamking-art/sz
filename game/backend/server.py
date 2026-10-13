@@ -892,6 +892,17 @@ def api_readouts(request: Request):
             situations = {"items": [], "by_status": {}, "readout_status": "partial",
                           "readout_errors": ["situations: 投影失败"]}
             readout_errors.append("situations")
+        # 统一读数索引（M54/M81/M82；`core/domains/economy/readout_hub.py` 为单一权威）：
+        # 12 项只读读数（含 P1 试点链条缺口/主瓶颈、岗位容量）。契约：**缺失 ⇒ display="undefined"**
+        # （绝不显示 0）· 每项带 `source` 与 `drill_down`（P5 验收：读数能下钻到来源）。
+        # 薄壳纪律：只调 core 的只读聚合，算法不在此复制。
+        try:
+            from core.domains.economy.readout_hub import collect as _hub_collect
+            hub = _json_safe(_hub_collect(s))
+        except Exception:
+            hub = {}
+            readout_errors.append("hub")
+            log.warning("readouts：统一读数索引（readout_hub.collect）派生失败", exc_info=True)
         return {
             "army": army,
             "arsenal": arsenal,
@@ -905,6 +916,7 @@ def api_readouts(request: Request):
             "clerks": clerks,
             "institution": institution,
             "regions": regions,
+            "hub": hub,
             "situations": situations,
             "defense_lines": _json_safe(s.defense_lines),
             # 审查 P2-3（应修）：失败读数清单（正常时为空表 → 前端可据此区分

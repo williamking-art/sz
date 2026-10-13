@@ -179,6 +179,30 @@ def _jobs_capacity(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return int(cap), None, drill
 
 
+def _pilot_bottleneck(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**P1 试点主瓶颈**（M82）：分布里**占比最高**的 verdict 名（字符串）；无数据 ⇒ None + reason。
+
+    下钻给**逐 verdict 计数**与**样本路证据**（回答 P5 的「为何未运到」）。
+    """
+    src = "core.domains.economy.p1_pilot_chain:survey_diagnosis"
+    try:
+        from core.domains.economy import p1_pilot_chain as pc
+        rep = pc.survey_diagnosis(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: P1 归因读数失败", exc_info=True)
+        return None, f"P1 归因读数异常：{type(e).__name__}", src
+    dist = rep.get("verdicts") or {}
+    routes = rep.get("routes") or []
+    drill = {"分布": dist, "路数": rep.get("route_count"),
+             "样本": ({"路": routes[0]["route"], "verdict": routes[0]["verdict"],
+                       "覆盖": routes[0].get("coverage_by_output")} if routes else None),
+             "drill": src}
+    if not dist:
+        return None, "无归因数据（无作坊且无成品的路 ⇒ 不臆造瓶颈）", drill
+    top = max(dist.items(), key=lambda kv: kv[1])[0]
+    return top, None, drill
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -203,6 +227,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _pilot_chain_gap, "source": "core.domains.economy.p1_pilot_chain:survey_pilot_chain"},
     {"key": "jobs_capacity", "label": "岗位容量合计（建筑岗位）", "unit": "岗",
      "fn": _jobs_capacity, "source": "core.domains.economy.jobs_readout:survey_jobs"},
+    {"key": "pilot_bottleneck", "label": "P1 试点主瓶颈（绸）", "unit": "类",
+     "fn": _pilot_bottleneck, "source": "core.domains.economy.p1_pilot_chain:survey_diagnosis"},
 )
 
 

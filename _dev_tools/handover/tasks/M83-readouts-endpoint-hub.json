@@ -1,0 +1,52 @@
+{
+ "id": "M83-readouts-endpoint-hub",
+ "title": "归因入读数索引（12 项）＋ `/api/readouts` 接 `readout_hub`（P5 后端可用）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M83-readouts-endpoint-hub-scope.json（Jev choose 甲 0.996）",
+ "deliverable": [
+  "core/domains/economy/readout_hub.py：新增 `_pilot_bottleneck` + 注册行（共 **12 项**）",
+  "backend/server.py：`api_readouts` 新增 hub 段（薄壳、失败隔离）与响应字段 `\"hub\": hub`",
+  "_dev_tools/game-dev/tests/test_m83_readouts_endpoint_hub.py（3 passed）",
+  "test_m81_readout_hub_wiring.py 的计数断言 11→12（已更新）",
+  "econ README 的 readout_hub 行：12 项 + 端点接线"
+ ],
+ "readout_added": {
+  "key": "pilot_bottleneck",
+  "label": "P1 试点主瓶颈（绸）",
+  "unit": "类",
+  "value_6m": "capacity_shortage",
+  "drill_down": [
+   "分布（逐 verdict 计数）",
+   "路数",
+   "样本（路/verdict/覆盖）",
+   "source"
+  ],
+  "undefined_when": "无归因数据（无作坊且无成品的路）⇒ `undefined` + reason（**不臆造瓶颈**）"
+ },
+ "endpoint_wiring": {
+  "endpoint": "GET /api/readouts",
+  "new_field": "hub（= readout_hub.collect(state)；`_json_safe` 后下发）",
+  "isolation": "该段失败 ⇒ `hub={}` 且 `readout_errors` 追加 `hub`（**不拖垮整表**）",
+  "verification": "用例以 `inspect.getsource` 断言接线存在（本机无 httpx，未起 HTTP 服务）"
+ },
+ "evidence": {
+  "total_readouts": 12,
+  "ok": 11,
+  "undefined": 1,
+  "pilot_chain_gap": 1850540,
+  "pilot_bottleneck": "capacity_shortage",
+  "jobs_capacity": "undefined（开局无岗位建筑）"
+ },
+ "verified": [
+  "M83 3 passed；M81/M82 用例更新后通过；`-k readout` 全绿；全量串行 EXIT=0（**先看退出码再提交**）"
+ ],
+ "next": [
+  "① **P5 前端消费 `hub`**（面板/月报展示 12 项 + 归因下钻）",
+  "② P2 建筑实例 schema",
+  "③ 卡口不变：**产能**（M82 证据指出的真瓶颈）· 营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T06:07:53Z"
+}
