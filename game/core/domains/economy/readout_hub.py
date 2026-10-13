@@ -377,6 +377,48 @@ def _d_funding_best(state) -> Tuple[Optional[Any], Optional[str], Any]:
              "drill": src})
 
 
+def _trade_line_status(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**主线 F 外贸：素材就绪度**（M140，只读·零数值）。
+
+    值＝**齐备的素材项数**（政权进口表 / 海商 / 抽解商 / 水路源表）+ 纯函数可算证明；
+    下钻给逐项条数、纯函数 dry 结果与 🔴 **真账缺口**（无逐笔容器）——**缺失≠0，不虚构外贸账**。
+    """
+    src = "core.domains.economy.trade_shadow（**纯函数影子，未接结算**）"
+    try:
+        from core.domains.economy import trade_shadow as ts
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 外贸模块不可读", exc_info=True)
+        return None, f"外贸模块不可读：{type(e).__name__}", {"drill": src}
+    detail: Dict[str, Any] = {}
+    ready: List[str] = []
+    for name in ("REGIME_IMPORTS", "SEA_TRADERS", "ABSTRACT_TRADERS", "ROUTE_WATERWAY"):
+        v = getattr(ts, name, None)
+        n = len(v) if hasattr(v, "__len__") else None
+        detail[name] = n
+        if v:
+            ready.append(name)
+    # 纯函数 dry 证明（**不触 state**）
+    dry: Dict[str, Any] = {}
+    for fn, args in (("land_freight", (1000, "近", "平川")),
+                     ("sea_freight", (1000,)),
+                     ("tax_split", (0.05,)),
+                     ("condition_mult", (1.0,))):
+        f = getattr(ts, fn, None)
+        try:
+            # 🔴 用「**未抛异常**」判定可算（真值判定会误报：如 `land_freight` 可能返回 0/空 dict）
+            f(*args)
+            dry[fn] = callable(f)
+        except Exception:                                    # noqa: BLE001
+            dry[fn] = False
+    detail["纯函数可算"] = dry
+    detail["真账缺口"] = ("**无逐笔容器**：全 state 相关槽只有私有 `_trade_income`（无路/政权/商品维度）"
+                          "⇒ 现只能回答「有没有素材」，**不能**回答「哪一路、哪一货、跟谁、多少」")
+    detail["drill"] = src
+    if not ready:
+        return None, "外贸常量均不可读 ⇒ 素材就绪度不可定义（缺失≠0）", detail
+    return len(ready), None, detail
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -413,6 +455,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _p2_gaps, "source": "core.domains.economy.entity_projection（建筑+作坊）"},
     {"key": "d_funding_best", "label": "营运资金最佳候选到位率（D 线影子）", "unit": "比",
      "fn": _d_funding_best, "source": "core.domains.economy.owner_candidates_shadow:survey_owner_candidates"},
+    {"key": "trade_line_status", "label": "外贸素材就绪项数（主线 F）", "unit": "项",
+     "fn": _trade_line_status, "source": "core.domains.economy.trade_shadow（纯函数影子）"},
 )
 
 
