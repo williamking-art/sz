@@ -1,0 +1,28 @@
+{
+ "id": "M80-p1-pilot-chain-scope",
+ "title": "Round 59：P1 切片第一片＝**纵向链条只读读数**落地（甲 0.985）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 59 取哪个？",
+ "options": {
+  "甲": "把 P1 切片第一片做成只读读数并落地（逐路 原料→作坊→上限→成品→需求→缺口；零数值变化）",
+  "乙": "P2 建筑实例 schema 只读设计（又一份文档）",
+  "丙": "别的（如把 jobs_readout 接进 readout_hub）"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9846532940864563, "乙": 0.004244382027536631, "丙": 0.01110241562128067},
+ "outcome": "✅ 落地 `core/domains/economy/p1_pilot_chain.py`（只读）：逐路读数 + 全图汇总；6 条用例锁定。**实测给出第一条可操作经济结论**：7 路共 7 座丝坊、成品 11,230 vs 需求 1,861,770 ⇒ **缺口 1,850,540（供给仅 0.6%）**——瓶颈是**产能/作坊数量**（20 路只有 7 座丝坊、单轮产出 8,000）。",
+ "key_caveat": "⚠️ **作坊「在岗」如实 `undefined`**：作坊**不在 `state.buildings`** 里 ⇒ M78 的建筑岗位实到**覆盖不到作坊**；且 M67 实测**作坊岗位数无权威来源** ⇒ 不按人口均分、不默认满员（reason 写明）",
+ "applied_in": {
+  "module": "core/domains/economy/p1_pilot_chain.py",
+  "tests": "_dev_tools/game-dev/tests/test_m80_p1_pilot_chain.py（6 passed）",
+  "docs": "econ README 新模块行；P1 文档增「四·补：切片第一片已落地 + 实测经济发现」",
+  "task": "_dev_tools/handover/tasks/M80-p1-pilot-chain.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① 若要**改善绸供给**：作坊数量/单轮产出/建坊路径（属玩法与数值，须标定）；② 作坊**在岗**仍缺权威来源（M67）；③ P2 建筑实例 schema 仍是「实体化经营」前置",
+ "reopen_if": "若试点换链条、或作坊岗位来源确定，本读数按新口径扩展"
+}

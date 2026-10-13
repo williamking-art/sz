@@ -1,0 +1,50 @@
+{
+ "id": "M80-p1-pilot-chain",
+ "title": "P1 试点纵向链条**只读读数**落地（绸：丝→绸）—— 实测供给仅占需求 0.6%",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M80-p1-pilot-chain-scope.json（Jev choose 甲 0.985）",
+ "deliverable": [
+  "core/domains/economy/p1_pilot_chain.py（PILOT / chain_of_route / survey_pilot_chain）",
+  "_dev_tools/game-dev/tests/test_m80_p1_pilot_chain.py（6 passed）",
+  "econ README 新模块行；P1 文档增「四·补」实测经济发现"
+ ],
+ "readout": [
+  "原料（治所真账 Σ 丝）",
+  "作坊（座数/active/owner/recipe/yield）",
+  "理论上限（Σyield/轮，**上限非承诺**）",
+  "成品（治所真账 Σ 绸）",
+  "需求（M74 的 max 口径）",
+  "缺口（需求−成品，**夹 0**）"
+ ],
+ "evidence_6m": {
+  "routes_with_silk_workshop_or_stock": 7,
+  "workshops": 7,
+  "finished_output": 11230,
+  "demand": 1861770,
+  "gap": 1850540,
+  "per_route_sample": {
+   "京畿路": {
+    "raw_input": 426260,
+    "workshops": 1,
+    "cap_per_round": 8000,
+    "finished_output": 1609,
+    "demand": 341141,
+    "gap": 339532
+   }
+  },
+  "reading": "🔴 **绸的成品供给仅为需求的 0.6%** ⇒ 瓶颈是**产能/作坊数量**（20 路只有 7 座丝坊、单轮 8,000），**不是钱**"
+ },
+ "caveat": "作坊**在岗**如实 `undefined`：作坊不在 `state.buildings` ⇒ M78 建筑岗位实到覆盖不到；M67 已证作坊岗位**无权威来源** ⇒ 不按人口均分、不默认满员",
+ "verified": [
+  "M80 用例 6 passed；全量串行 EXIT=0（**先看退出码再提交**）；JSON lint 门通过"
+ ],
+ "next": [
+  "① 改善绸供给＝作坊数量/单轮产出/建坊路径（**玩法与数值**，须同种子标定）",
+  "② 作坊在岗仍缺权威来源（M67；史料/产出反推/P3 旨意三选一）",
+  "③ P2 建筑实例 schema（实体化经营前置）；卡口不变：营运资金来源（M71 证据已备）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T05:14:41Z"
+}
