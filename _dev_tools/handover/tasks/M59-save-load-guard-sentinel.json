@@ -1,0 +1,21 @@
+{
+ "id": "M59-save-load-guard-sentinel",
+ "title": "盲区补齐：**读档往返哨兵**（含下沉不变量）＋ M50 长局影响面量化",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M59-盲区补齐-scope.json（Jev choose A 0.528；B 0.323 —— 差距 0.21，非碾压，故**两件都做**：A 为主，B 为廉价切片）",
+ "deliverable": "_dev_tools/game-dev/tests/test_m59_save_load_guard_sentinel.py（两条哨兵）",
+ "what_it_covers": [
+  "**读档往返**（`save_game` → `load_game`）后：① 20/20 路有 `seats`；② 逐路 `assert_pops_consistent(pdata) == []`（路级镜像 == Σ治所）；③ 再跑 3 月短哨兵（守卫 + `_GUARD_TRACE`）**0 违规、trace 明细为空**；④ `survey_pops` 的『字段失配』为空 —— 覆盖 AGENTS.md 记过的『存档往返即下沉』陷阱",
+  "**M50 影响面（长局）**：12 个月 `job_track_config_fallbacks() == []` ⇒ 长局**没有**『缺政权专档 ⇒ 回落 default』⇒ 结论是**无需补专档**；M50 里那条更严的『拒绝产出』**仍然保持不做**（它会把未登记政权产出直接归零，且本项证明长局无此需求）"
+ ],
+ "bug_fixed_while_doing_this": "本批**无**代码改动（纯哨兵 + 量化）——这是刻意的：盲区补齐要先把『现状是否已合规』证出来，而不是顺手改代码",
+ "limits": [
+  "**后端动作路径（/api/action）仍未覆盖**（需先读 backend/client.py 动作分派表，范围更大）⇒ 下一批或后续 agent 补",
+  "静态扫描仍是正则近似（M57 已记）"
+ ],
+ "next": "① 后端动作路径装守望（或对动作路径加同一哨兵）；② 把 M57/M59 两条哨兵纳入发布前检查清单",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T00:03:46Z"
+}

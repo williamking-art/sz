@@ -80,6 +80,13 @@
    长局开守卫 + trace，**断言无违规且 trace 明细为空**，失败时直接打印
    `function @ file:line` 的唯一写入者清单（把「找写入者」从手工二分变成自动）。
    ⚠️ **盲区**：哨兵只覆盖结算管线；**后端动作（`/api/action`）与前端触发的写点未覆盖**（生产未装守卫）。
+   ✅ **读档往返盲区已补（M59，2026-10-13）**：新增哨兵
+   `_dev_tools/game-dev/tests/test_m59_save_load_guard_sentinel.py` —— `save_game → load_game` 后
+   ① 20/20 路有 `seats`；② 逐路 `assert_pops_consistent(pdata) == []`；③ 再跑 3 月短哨兵
+   **0 违规、trace 明细为空**；④ `survey_pops` 的『字段失配』为空（覆盖「存档往返即下沉」陷阱）。
+   同文件另一条哨兵把 **M50 影响面**量化：12 个月 `job_track_config_fallbacks() == []`
+   ⇒ **长局无『缺政权专档 ⇒ 回落 default』** ⇒ M50 里那条更严的「拒绝产出」**保持不做**。
+   ⚠️ **仍未覆盖**：后端动作路径（`/api/action`）——留待后续。
    **第三处同族写点（✅ 后续已修）**：`settlement_econ` 的**成品池分派**（`:1805-1831`）曾同样直写镜像；
    试改时**触 POP 只读守卫**，守卫 trace 直指 **M45**——`market.py:180/:183`（`_trade_goods_core`）
    成交时直写路级 `pops[类]["wealth"]` 镜像（该路径平时空转，**商品真落 POP 后才被触发**）。
