@@ -119,6 +119,12 @@ def load_game(slot: int = 1):
         sink_buildings_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 建筑州府级下沉失败（不拒档，桥接将回落旧载体）", exc_info=True)
+    # M66：作坊**货主**（产权落点）——旧档补齐；**失败不拒档**（只登记字段、不动钱）。
+    try:
+        from core.foundation.persistence.migrations import assign_workshop_owners
+        assign_workshop_owners(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 作坊货主登记失败（不拒档；影子读数将报 undefined）", exc_info=True)
     # 交通下沉 M39c-1：**漕运淤塞**（canal_block）州府级下沉（旧档补齐；新档已幂等跳过）。
     # 失败同样**不拒档**：桥接未下沉时返回 None，调用方回落原写法（state.canal_block 直写）。
     try:

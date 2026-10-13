@@ -122,6 +122,17 @@ def sink_buildings_to_seats(state) -> int:
     return building_bridge.sink_buildings_to_seats(state)
 
 
+def assign_workshop_owners(state) -> dict:
+    """给**缺失货主**的作坊补 `owner`/`owner_kind`（产权落点 · M66；Jev choose A 0.665）。
+
+    与 `sink_*` 同型：**无条件幂等入口**，新局与读档共用；只填缺失、**不覆盖**既有值；
+    判不出归属的**跳过并计数**（不臆造）。**不动任何钱**。
+    """
+    from core.domains.economy import workshop_owner
+
+    return workshop_owner.assign_owners(state)
+
+
 def sink_canal_to_seats(state) -> int:
     """把**漕运淤塞**（`canal_block`）下沉到州府级 seats（交通下沉 M39c-1）。
 

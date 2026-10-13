@@ -1,0 +1,30 @@
+{
+ "id": "M66-workshop-owner",
+ "title": "作坊**货主登记**（产权落点）：解除 M51 的 owner blocker（只登记字段、不动钱）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M66-workshop-owner-scope.json（Jev choose A 0.665）",
+ "deliverable": [
+  "core/domains/economy/workshop_owner.py（口径单点：`OWNER_BY_TYPE` 逐条带依据 · `owner_for` · `assign_owners` 幂等 · `survey_owner_assignment`）",
+  "core/foundation/persistence/migrations.assign_workshop_owners（同型幂等入口）",
+  "application/game_init.init_workshop_owners（新局序列）＋ application/load_game（读档，**失败不拒档**）",
+  "_dev_tools/game-dev/tests/test_workshop_owner.py（7 passed）"
+ ],
+ "division_rule": "酒坊 → 官营 `local:<路>`（榷酒：酒课入内帑、收益归官府）；畜栏/麻坊/丝坊 → 民营 `pop:<路>:商人`（成品入工匠 `goods` 池、由**民间成交**付钱）——**逐条给依据**，不臆造；未登记类型/判不出路 ⇒ `undefined` + reason（跳过并计数）",
+ "evidence": [
+  "真实新局：**107/107 座有货主**、`undefined_rule=0`；分布 `{local: 40, pop:商人: 67}`（与建造规则 2 酒坊/路×20=40、畜栏 40+麻坊 20+丝坊 7=67 **吻合**）",
+  "`workshop_fund_shadow.survey_*['undefined_no_owner']` **= 0** ⇒ **M51 的 owner blocker 解除**",
+  "读档往返后货主仍在；再跑 `assign_owners` ⇒ `assigned=0`（**幂等**、不覆盖既有值）",
+  "**零数值变化**：用例断言只新增 `owner`/`owner_kind`/`owner_reason` 三字段，其余逐字不变、`treasury` 未动",
+  "⚠️ **`shadow_ready` 仍 0**：影子还要求**工资单点**（作坊维度无权威条目）——如实保留，不谎报 ready"
+ ],
+ "not_done": [
+  "营运资金划入 / 工资义务冻结 / 利润归主（**改钱流** ⇒ 须另批 + 同种子标定）",
+  "作坊**工资单点**（`JOBS_PER_LEVEL` 只登记建筑、`WAGE_RATE` 只登记 牧场/工坊/矿场）",
+  "`workshop_fund_shadow` 的 `owner_of` 建议改为**复用本模块**（现各读 `owner`/`owner_ref`，口径已一致；留待清理）"
+ ],
+ "next": "① 定**作坊工资单点**（口径/史料）⇒ 影子即可从 undefined 转 ready；② 再按 D 的规格接营运资金/工资/利润（改钱流，须标定）；③ 主线 E 的 `economic_affiliation` 可复用同一套「逐主体登记」手法",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T01:44:23Z"
+}

@@ -81,6 +81,17 @@ def init_buildings_seats(state):
     return sink_buildings_to_seats(state)
 
 
+def init_workshop_owners(state):
+    """给作坊登记**货主**（产权落点 · M66；Jev choose A 0.665）。
+
+    幂等：只填缺失、不覆盖；判不出归属者跳过（不臆造）；**不动任何钱**。
+    依赖`workshops`已建（`GameState.__init__` 建）与治所（定路）。
+    """
+    from core.foundation.persistence.migrations import assign_workshop_owners
+
+    return assign_workshop_owners(state)
+
+
 def init_canal_seats(state):
     """把**漕运淤塞**（`canal_block`）下沉到州府级（交通下沉 M39c-1）。
 
@@ -118,4 +129,5 @@ def new_game(mode: str = "史实"):
     init_buildings_seats(state)         # 首府判定同样依赖治所人口
     init_canal_seats(state)             # 漕运同样按首府承载（依赖 seats 已建）
     init_storage_seats(state)           # 常平仓同型（批次 4 仓储片）
+    init_workshop_owners(state)         # M66：作坊货主（产权落点，只登记字段、不动钱）
     return state
