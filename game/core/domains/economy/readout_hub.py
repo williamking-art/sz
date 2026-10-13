@@ -332,6 +332,36 @@ def _p2_gaps(state) -> Tuple[Optional[Any], Optional[str], Any]:
                                   "逐原因": by_reason, "drill": src}
 
 
+def _d_funding_best(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**营运资金最佳候选到位率**（D 线 G-4 影子，只读）：候选池 ÷ 采购需求的最大值（夹 1.0）。
+
+    值＝**最佳候选的到位率**；下钻给**逐候选到位率**与需求（服务 N1「钱从哪来」的裁定）。
+    取不到 ⇒ None + reason（**缺失≠0**，不臆造）。
+    """
+    src = "core.domains.economy.owner_candidates_shadow:survey_owner_candidates"
+    try:
+        from core.domains.economy import owner_candidates_shadow as oc
+        rep = oc.survey_owner_candidates(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: 营运资金候选盘点失败", exc_info=True)
+        return None, f"营运资金盘点异常：{type(e).__name__}", src
+    rows = rep.get("rows") if isinstance(rep, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return None, "无候选行 ⇒ 到位率不可定义（缺失≠0）", src
+    pairs = [(str((r or {}).get("key") or (r or {}).get("name") or "?"), (r or {}).get("coverage"))
+             for r in rows if isinstance(r, dict)]
+    pairs = [(k, v) for k, v in pairs if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if not pairs:
+        return None, "候选到位率均不可读（缺失≠0，不臆造）", {"候选数": len(rows), "drill": src}
+    pairs.sort(key=lambda kv: -kv[1])
+    best_k, best_v = pairs[0]
+    return (round(float(best_v), 4), None,
+            {"最佳候选": best_k,
+             "逐候选": {k: round(float(v), 4) for k, v in pairs},
+             "需求": (rep.get("need") if isinstance(rep, dict) else None),
+             "drill": src})
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -366,6 +396,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _workshop_readiness, "source": "core.domains.economy.entity_projection:survey_workshop_projection"},
     {"key": "p2_gaps", "label": "P2 未就绪原因条数（去重）", "unit": "条",
      "fn": _p2_gaps, "source": "core.domains.economy.entity_projection（建筑+作坊）"},
+    {"key": "d_funding_best", "label": "营运资金最佳候选到位率（D 线影子）", "unit": "比",
+     "fn": _d_funding_best, "source": "core.domains.economy.owner_candidates_shadow:survey_owner_candidates"},
 )
 
 

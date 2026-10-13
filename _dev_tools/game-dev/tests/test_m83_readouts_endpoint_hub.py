@@ -21,7 +21,7 @@ def _months(state, n=6):
 
 def test_pilot_bottleneck_readout_is_registered_and_valued():
     keys = [r["key"] for r in rh.READOUTS]
-    assert "pilot_bottleneck" in keys and len(rh.READOUTS) == 16      # M109 起 16（末项 p2_gaps）
+    assert "pilot_bottleneck" in keys and len(rh.READOUTS) == 17      # M124 起 17（末项 d_funding_best）
     s = _months(commands.new_game())
     rep = rh.collect(s, keys=["pilot_bottleneck"])
     row = rep["readouts"]["pilot_bottleneck"]
