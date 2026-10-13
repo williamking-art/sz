@@ -53,6 +53,20 @@ def test_non_job_building_yields_undefined_capacity():
     assert "非岗位建筑" in rep["fields"]["jobs_capacity"]["reason"]
 
 
+def test_completed_month_is_read_when_structured():
+    """M99：结构化条目 `{"lv":n,"built_month":m}` ⇒ `completed_month` 可读（绝对月序）；标量 ⇒ undefined。"""
+    st = types.SimpleNamespace()
+    st.prefectures = {"路A": {"name": "路A", "seats": {"A|甲": {
+        "buildings": {"官营作坊": {"lv": 2, "built_month": 20251234}, "工坊": 2},
+        "pops": {"工匠": {"size": 10, "wealth": 100}}}}}}
+    structured = ep.project_building(st, "路A", "A|甲", "官营作坊", 2)
+    assert structured["fields"]["completed_month"]["defined"] is True
+    assert structured["fields"]["completed_month"]["value"] == 20251234
+    scalar = ep.project_building(st, "路A", "A|甲", "工坊", 2)
+    assert scalar["fields"]["completed_month"]["defined"] is False
+    assert "标量" in scalar["fields"]["completed_month"]["reason"]
+
+
 def test_real_game_survey_ratio_and_readonly():
     from core import commands
     s = commands.new_game()

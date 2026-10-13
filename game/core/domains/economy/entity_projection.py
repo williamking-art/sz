@@ -64,6 +64,12 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
     """单座建筑的 P2 字段投影（只读）：每个字段 `{value, defined, source, reason}`。"""
     ctx = jobs_ctx if jobs_ctx is not None else _jobs_context(state, route, seat)
     j = ctx.get(str(building)) or {}
+    # 🔴 M99：`completed_month` **可如实读取**——非岗位类建筑写结构化条目
+    #   `{"lv": n, "built_month": m}`（`civil_building`；`built_month`＝**绝对月序** = year×12+month）；
+    #   岗位类建筑写**标量**（无建成月）⇒ 后者如实 `undefined`（缺失≠0）。
+    _raw = ((_seat_row(state, route, seat) or {}).get("buildings") or {}).get(str(building))
+    _built = _raw.get("built_month") if isinstance(_raw, dict) else None
+    _built_ok = isinstance(_built, (int, float)) and not isinstance(_built, bool)
     # 🔴 M91：建筑**归属**读 `seats[治所].building_meta`（保形态、**非账本**；未迁移/未登记 ⇒ undefined）
     _meta = (((_seat_row(state, route, seat) or {}).get("building_meta") or {}).get(str(building))) or {}
 
@@ -76,7 +82,12 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
                  "source": "prefectures[路].seats[治所]（M38 已州府化）", "reason": None},
         "level": {"value": level, "defined": level is not None,
                   "source": "seats[治所][\"buildings\"]", "reason": None},
-        "completed_month": _undef("建成月仅 `civil_building` 有；本模块**不臆造**"),
+        "completed_month": {"value": int(_built) if _built_ok else None, "defined": _built_ok,
+                            "source": ("seats[治所].buildings[建筑].built_month（**绝对月序**＝year×12+month；"
+                                       "`civil_building` 结构写法）"),
+                            "reason": None if _built_ok else
+                            ("该建筑以**标量**登记（岗位类写法）或为开局建筑（无 built_month）"
+                             "⇒ 无建成月（缺失≠0，**不臆造**）")},
         "owner": {"value": _meta.get("owner"), "defined": bool(_meta.get("owner")),
                   "source": "prefectures[路].seats[治所].building_meta（M91 P2 第一片；保形态、**非账本**）",
                   "reason": None if _meta.get("owner") else "该建筑类型未登记归属规则，或旧档未迁移（缺失≠0）"},

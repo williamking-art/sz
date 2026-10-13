@@ -1,0 +1,23 @@
+{
+ "id": "M99-completed-month-readout",
+ "title": "P2 字段落地：`completed_month` **可如实读取**（结构化 built_month＝绝对月序）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "取证发现（本轮 grep）：`civil_building` 对**非岗位类**建筑写 `{\"lv\": n, \"built_month\": m}`；岗位类写**标量**；开局 水利/常平仓 容忍无该字段",
+ "finding": "🔴 **规格要求的「完工/可运营月份」并非缺失**：`built_month` 存在于结构化条目里（**绝对月序**＝`year×12+month`，`civil_building.abs_month_index` 同量纲），此前 M86 一律报 undefined 是**过于保守**",
+ "fix": "`entity_projection.project_building` 的 `completed_month` 改**如实读取**：条目是 dict 且有 `built_month` ⇒ 有值（source＝`civil_building` 写法）；条目是标量或为开局建筑 ⇒ `undefined` + reason（『以标量登记（岗位类写法）或开局建筑 ⇒ 无建成月，缺失≠0，不臆造』）",
+ "evidence": {
+  "structured": "{\"lv\":2,\"built_month\":20251234} ⇒ completed_month = 20251234（defined）",
+  "scalar": "{\"工坊\": 2} ⇒ undefined + reason『标量』",
+  "tests": "M86+M96+M91 共 16 passed；全量串行 EXIT=0"
+ },
+ "process_note": "本轮我的编辑**误把 `_meta` 赋值替换掉**（M91 的 owner 读取源）⇒ 投影用例 4 红；立即补回 `_meta` 后转绿。教训重申：**替换式编辑必须把被替换行包含在 new_string 里**（AGENTS.md 段落截断坑的同族）",
+ "next": [
+  "P2 余下字段：`blueprint`（无字段）· `maintenance`/`methods`/`io_stock`/`income_to`（待口径或未接）",
+  "`jobs_*` 写入＝改数值批（桥接 + 同种子标定）",
+  "卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T10:42:43Z"
+}
