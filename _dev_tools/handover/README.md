@@ -91,3 +91,21 @@ _dev_tools/handover/
 只想检查、不改文件时说一句「**只读审查当前交接**」：本目录支持——读 `INDEX.md` + `check` +
 `DECISIONS-INDEX.md`，指出**过期状态、断链、遗漏**，**不写任何文件**（`log` 也不写）。
 
+### 提交前门禁（2026-10-13 起 · 逐条不可省）
+
+> 借鉴外部项目 [handoff](https://github.com/jidekaixin2dian/handoff) 工作流第 9 条
+> （`git diff --check`）与本仓库既有纪律，固化为**每次提交前**的检查清单：
+
+```powershell
+$py = "D:\codebuddy\.audit-venv\Scripts\python.exe"
+cd D:\codebuddy\sz
+& $py _dev_tools\handover.py check                       # 交接层自检（问题必须为 0）
+git diff --cached --check                                # 🔴 尾随空白 / 冲突标记 / 空行 EOF ⇒ 非 0 即阻止提交
+& $py -m pytest _dev_tools/game-dev/tests/test_readme_sync.py -q -p no:cacheprovider   # 索引纪律
+& $py -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider > $env:TEMP\full.log 2>&1
+"FULL EXIT=$LASTEXITCODE"                                # 🔴 只看退出码，别只看 tail
+```
+- **JSON 文件**（`decisions/`、`tasks/`）写完**立刻解析一次**（内层引号用「」；`None` 要写 `null`）。
+- **碰了 `game/` 下任何代码或数据** ⇒ 全量回归**不可省**；
+  「纯文档批是否免全量」**待用户裁定**（见 `specs/cross-cutting/对照借鉴_外部交接项目handoff_2026-10-13.md` 第三节）。
+- 提交正文写明 **Jev 概率 + 实测数字 + 纪律声明**（只写正文不算留痕 ⇒ 裁定必须同时落 `decisions/`）。
