@@ -1,0 +1,44 @@
+{
+ "id": "M110-methods-derivation",
+ "title": "P2 `methods` 落地：作坊**可用生产方法**只读派生（就绪度 6/14 → 7/14）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "**无独立 Jev 裁定**（属 M104 甲 0.907 同族「只读派生」口径；M105 已取证形态）；如你要求每次派生都过闸门，我下批补问",
+ "deliverable": [
+  "core/domains/economy/entity_projection.py：`available_methods(row)` + `project_workshop.methods` 改派生",
+  "_dev_tools/game-dev/tests/test_m96_workshop_projection.py（defined_count 6→7）"
+ ],
+ "shape": {
+  "active": "workshops[wid].recipe（既有字段）",
+  "available": [
+   "内置 WORKSHOP_RECIPES 的方法（宋境单条）",
+   "本作坊 active（仅当与内置不同：自定义/AI 拟定）"
+  ],
+  "not_merged": "外邦 `WORKSHOP_RECIPES_EXT` 形态为 `[(原料, 单位/工匠月, 成品)]`，与宋境 `{recipe, output_dim, yield}` **口径不同** ⇒ **不并入**（避免两种口径互相污染）"
+ },
+ "evidence": {
+  "workshop_ready": [
+   "seat",
+   "owner",
+   "operator",
+   "maintenance",
+   "operation_mode",
+   "methods",
+   "recipe"
+  ],
+  "count": "7/14（原 6/14）",
+  "sample": "酒坊 ⇒ {active: {grain_feed: 50000}, available: [内置 WORKSHOP_RECIPES（output_dim=wine, yield=30）]}"
+ },
+ "zero_change": "纯派生（不写 state、不进结算）⇒ 零数值变化",
+ "process_note": "本轮两次踩坑：① `methods`/`maintenance` 在建筑与作坊两处同名，`edit` 的 old_string 不唯一 ⇒ 必须用**后续行**做锚点精确定位；② 一条命令里用**反引号**拼 handover log 位置参数 ⇒ PowerShell 解析失败、输出丢失 ⇒ 改用 here-string 写变量再传（AGENTS.md 已明载，仍复发）",
+ "verified": [
+  "定向全绿（103 用例）；全量串行 EXIT=0；提交 de433e591e"
+ ],
+ "next": [
+  "P2 余下：`blueprint`（已取证：落成不写 key）· `income_to`（待 M71）· `jobs_*` 写入（改数值批，设计见 M102）",
+  "卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T12:32:24Z"
+}
