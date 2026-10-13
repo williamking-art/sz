@@ -94,7 +94,10 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         "operator": (lambda _o: (
             {"value": _o, "defined": bool(_o), "source": "building_owner.derive_operator（M92：**首期与 owner 同值**，无独立经营者模型）",
              "reason": None if _o else "无 owner ⇒ 经营者亦不可定义（缺失≠0）"}))(_meta.get("owner")),
-        "maintenance": _undef("无维护责任字段"),
+        "maintenance": (lambda _o: {"value": _o, "defined": bool(_o),
+                                    "source": ("M104（Jev 甲 0.907）：**首期维护责任＝与 owner 同责**；"
+                                               "维护**费**参数在 `content` constants（如 常平仓 maintain=0.005）"),
+                                    "reason": None if _o else "无 owner ⇒ 维护责任不可定义（缺失≠0）"})(_meta.get("owner")),
         "operation_mode": (lambda _o: (lambda _m: (
             {"value": _m, "defined": bool(_m), "source": "building_owner.derive_operation_mode（M92 口径单点：local:→官营 · pop:…:商人→民营雇工 · 其它 pop:→家庭兼业）",
              "reason": None if _m else "无 owner 前缀可派生 ⇒ 经营方式不可定义（缺失≠0）"}))(
@@ -176,7 +179,9 @@ def project_workshop(state, wid: str) -> Dict[str, Any]:
                       None if owner else "未登记货主（M66 迁移未覆盖）"),
         "operator": _def(derive_operator(owner), "building_owner.derive_operator（M92：首期＝owner）",
                          None if owner else "无 owner ⇒ 经营者不可定义"),
-        "maintenance": _undef("无维护责任字段"),
+        "maintenance": _def(derive_operator(owner),
+                            "M104（Jev 甲 0.907）：**首期维护责任＝与 owner 同责**；维护费参数在 `content` constants",
+                            None if owner else "无 owner ⇒ 维护责任不可定义（缺失≠0）"),
         "operation_mode": _def(derive_operation_mode(owner),
                                "building_owner.derive_operation_mode（M92 口径单点）",
                                None if owner else "无 owner 前缀可派生"),

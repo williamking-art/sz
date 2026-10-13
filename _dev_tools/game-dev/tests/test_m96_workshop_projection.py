@@ -28,7 +28,7 @@ def test_workshop_computable_fields():
     assert f["owner"]["defined"] and f["owner"]["value"] == "pop:路A:商人"
     assert f["operator"]["value"] == "pop:路A:商人"                 # M92 首期＝owner
     assert f["operation_mode"]["value"] == "民营雇工"                # pop:…:商人
-    assert rep["defined_count"] == 5                              # seat/owner/operator/operation_mode/recipe
+    assert rep["defined_count"] == 6                              # seat/owner/operator/maintenance/operation_mode/recipe（M104 增 maintenance）
     assert rep["field_count"] == 14
 
 
