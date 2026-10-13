@@ -152,6 +152,77 @@ def chain_of_route(state, route: str) -> Dict[str, Any]:
     }
 
 
+def diagnose_route(state, route: str) -> Dict[str, Any]:
+    """该路试点链条的**原因链归因**（只读；回答 P5 的「**为何未运到**」）。
+
+    每条归因**必须带证据数字**；证据不足 ⇒ 只报 `undefined_data`（**不臆造**）。
+    判定优先级（先因后果）：`undefined_data` → `no_workshop` → `raw_shortage`
+    → `capacity_shortage` → `demand_far_exceeds_supply` → `ok`。
+    """
+    ch = chain_of_route(state, route)
+    ev: Dict[str, Any] = {
+        "raw_input": ch["raw_input"], "per_round_input": ch["workshops"]["per_round_input"],
+        "workshops": ch["workshops"]["count"], "active": ch["workshops"]["active"],
+        "cap_per_round_total": ch["theoretical_output_cap_per_round"],
+        "finished_output": ch["finished_output"], "demand": ch["demand"], "gap": ch["gap"],
+    }
+    reasons: List[Dict[str, Any]] = []
+
+    def _add(code: str, note: str, evidence: Dict[str, Any]) -> None:
+        reasons.append({"code": code, "note": note, "evidence": evidence})
+
+    per = _num(ev["per_round_input"])
+    raw = _num(ev["raw_input"])
+    demand = _num(ev["demand"])
+    out = _num(ev["finished_output"])
+    cap = _num(ev["cap_per_round_total"])
+    shops = int(ev["workshops"] or 0)
+
+    if shops == 0:
+        _add("no_workshop", "本路**没有该作坊** ⇒ 无产能（不是缺钱/缺料）", {"workshops": 0})
+    if raw is None or per is None:
+        _add("undefined_data", "原料或每轮投入不可读 ⇒ 归因不可判定（缺失≠0）",
+             {"raw_input": ev["raw_input"], "per_round_input": ev["per_round_input"]})
+    else:
+        rounds = None if per <= 0 else raw / per
+        if rounds is not None and rounds < 1:
+            _add("raw_shortage", "原料**撑不满一轮** ⇒ 先缺料、后缺产能", 
+                 {"raw_input": raw, "per_round_input": per, "rounds_supported": round(rounds, 3)})
+    if cap is not None and demand is not None and cap < demand:
+        _add("capacity_shortage", "产能上限**低于需求** ⇒ 即使满产也不够（瓶颈＝作坊数/单轮产出）",
+             {"cap_per_round_total": cap, "demand": demand,
+              "coverage_by_cap": None if demand <= 0 else round(cap / demand, 6)})
+    if out is not None and demand is not None and demand > 0:
+        cov = out / demand
+        if cov < 0.1:
+            _add("demand_far_exceeds_supply", "成品仅覆盖需求**不到一成** ⇒ 需求侧远大于现有供给",
+                 {"finished_output": out, "demand": demand, "coverage_by_output": round(cov, 6)})
+    if not reasons:
+        _add("ok", "未发现结构性短缺（按现有证据）", {"finished_output": out, "demand": demand})
+    verdict = reasons[0]["code"]
+    return {"route": route, "pilot": dict(PILOT), "verdict": verdict, "primary": verdict,
+            "reasons": reasons, "evidence": ev,
+            "coverage_by_output": (None if (out is None or not demand) else round(out / demand, 6)),
+            "note": ("只读归因；每条归因都带**证据数字**，证据不足只报 `undefined_data`；"
+                     "**作坊在岗仍 undefined**（M67）")}
+
+
+def survey_diagnosis(state, top: int = 8) -> Dict[str, Any]:
+    """全图归因汇总（只读）：主要瓶颈分布 + 逐路明细（按缺口降序）。"""
+    prefs = getattr(state, "prefectures", None)
+    if not isinstance(prefs, dict):
+        return {"reason": "无 prefectures", "routes": []}
+    rows = [diagnose_route(state, r) for r in prefs]
+    rows = [r for r in rows if r["evidence"]["workshops"] or r["evidence"]["finished_output"]]
+    rows.sort(key=lambda r: -(r["evidence"]["gap"] or 0))
+    dist: Dict[str, int] = {}
+    for r in rows:
+        dist[r["verdict"]] = dist.get(r["verdict"], 0) + 1
+    return {"routes": rows[:top], "route_count": len(rows), "verdicts": dist,
+            "pilot": dict(PILOT),
+            "note": "P1 原因链归因；`verdict` 为**主瓶颈**（优先级见 `diagnose_route`）"}
+
+
 def survey_pilot_chain(state, top: int = 8) -> Dict[str, Any]:
     """全图试点链条汇总（只读）：按成品量排序，附未定义字段清单。"""
     prefs = getattr(state, "prefectures", None)

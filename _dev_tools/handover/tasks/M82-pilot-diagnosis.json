@@ -1,0 +1,60 @@
+{
+ "id": "M82-pilot-diagnosis",
+ "title": "P1 试点**原因链归因**：7 路主瓶颈全部＝产能（`capacity_shortage`），不是缺料/缺钱",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M82-pilot-diagnosis-scope.json（Jev choose 甲 0.996）",
+ "deliverable": [
+  "core/domains/economy/p1_pilot_chain.py：`diagnose_route`（逐路归因+主瓶颈）· `survey_diagnosis`（全图分布）",
+  "_dev_tools/game-dev/tests/test_m82_pilot_diagnosis.py（6 passed）",
+  "econ README 的 p1_pilot_chain 行更新"
+ ],
+ "reason_codes": {
+  "undefined_data": "证据不足（原料/每轮投入不可读）⇒ **不臆造**（优先级最高）",
+  "no_workshop": "本路没有该作坊 ⇒ 无产能",
+  "raw_shortage": "原料撑不满一轮（evidence: 原料 vs 每轮投入 vs 可支撑轮数）",
+  "capacity_shortage": "产能上限低于需求（evidence: 上限/轮 vs 需求 vs 覆盖比）",
+  "demand_far_exceeds_supply": "成品覆盖需求不到一成（evidence: 成品/需求/覆盖比）",
+  "ok": "按现有证据未发现结构性短缺"
+ },
+ "evidence_6m": {
+  "routes": 7,
+  "verdicts": {
+   "capacity_shortage": 7
+  },
+  "samples": {
+   "京畿路": {
+    "cap_per_round_total": 8000,
+    "demand": 341141,
+    "coverage_by_cap": 0.023451,
+    "finished_output": 1609,
+    "coverage_by_output": 0.004717
+   },
+   "江南西路": {
+    "cap_per_round_total": 8000,
+    "demand": 377397,
+    "coverage_by_cap": 0.021198,
+    "finished_output": 1603,
+    "coverage_by_output": 0.004248
+   }
+  },
+  "conclusion": "🔴 绸的缺口＝**产能**（作坊数 × 单轮产出）：即使满产也只覆盖需求 **2% 上下**；原料充足（各路丝 33–92 万）⇒ **不是缺料、不是缺钱**"
+ },
+ "design_guarantees": [
+  "每条归因**必须带证据数字**（用例锁定）",
+  "证据不足只报 `undefined_data`（不臆造）",
+  "优先级固定并有用例覆盖",
+  "只读（零写入，用例锁定）"
+ ],
+ "verified": [
+  "M82 用例 6 passed + M80 用例 6 passed；全量串行 EXIT=0（**先看退出码再提交**）；JSON lint 门通过"
+ ],
+ "next": [
+  "① **作坊数/单轮产出/建坊路径**（改善绸供给＝玩法+数值，须同种子标定）",
+  "② **P5 前端面板**（11 项读数 + 归因链接进 UI）",
+  "③ 卡口不变：营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道（台账 §三-7）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T05:50:43Z"
+}

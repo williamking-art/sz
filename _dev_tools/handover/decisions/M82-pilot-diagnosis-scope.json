@@ -1,0 +1,30 @@
+{
+ "id": "M82-pilot-diagnosis-scope",
+ "title": "Round 61：P1 原因链归因读数（甲 0.996）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 61 取哪个？",
+ "options": {
+  "甲": "P1 原因链归因读数（带证据数字，回答 P5『为何未运到』）",
+  "乙": "P5 前端面板（须 tsc/vitest/截图）",
+  "丙": "P2 建筑实例 schema"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9958048462867737, "乙": 0.0035258447751402855, "丙": 0.0006692278548143804},
+ "outcome": "✅ 新增 `diagnose_route` / `survey_diagnosis`（只读）：逐路给出**带证据数字**的归因（`no_workshop` / `raw_shortage` / `capacity_shortage` / `demand_far_exceeds_supply` / `undefined_data` / `ok`）与**主瓶颈**判定；证据不足只报 `undefined_data`（**不臆造**）。",
+ "key_finding": "🔴 **实测（6 月/同种子）：7 路主瓶颈全部＝`capacity_shortage`**——例如京畿路 产能上限 **8,000/轮** vs 需求 **341,141** ⇒ 即使满产也只覆盖 **2.3%**（成品覆盖 0.47%）；江南西路 8,000 vs 377,397（2.1%）。⇒ **绸的缺口是「产能」（作坊数 × 单轮产出），不是缺料（各路丝原料 33–92 万，充足）也不是缺钱**。",
+ "applied_in": {
+  "module": "core/domains/economy/p1_pilot_chain.py（+ diagnose_route / survey_diagnosis）",
+  "tests": "_dev_tools/game-dev/tests/test_m82_pilot_diagnosis.py（6 passed）＋ M80 用例（6 passed）",
+  "docs": "econ README 的 p1_pilot_chain 行更新（含归因优先级与实测结论）",
+  "task": "_dev_tools/handover/tasks/M82-pilot-diagnosis.json",
+  "commit": "（本批提交）"
+ },
+ "acceptance_served": "P5 验收问句链『哪里短缺 → **为何未运到** → 谁本来应供』的**中段**：本读数给出「为何未运到」的**可下钻归因**（每条带证据数字），可直接接进前端/月报。",
+ "limits": ["归因基于**现有证据链**（原料/产能上限/成品/需求）；**作坊在岗仍 undefined**（M67）⇒ 若将来有了在岗，`capacity_shortage` 的「满产」假设需重算", "前端未接（P5 本体）"],
+ "next": "① 若要让供给上来：**作坊数/单轮产出/建坊路径**（玩法与数值，须标定）；② P5 前端面板（把 11 项读数＋归因链接进 UI）；③ 卡口不变：营运资金来源 / 作坊岗位数 / 宋境工钱通道",
+ "reopen_if": "若工件在岗落地或配方/产出改动，归因阈值与「满产」假设须重算"
+}
