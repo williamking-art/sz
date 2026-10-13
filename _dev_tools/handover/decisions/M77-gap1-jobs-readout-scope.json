@@ -1,0 +1,37 @@
+{
+ "id": "M77-gap1-jobs-readout-scope",
+ "title": "Round 56：缺口 1 分派规则取**丙**（先只读，实到 undefined）＋ 落地岗位只读读数",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "「实到岗位」的分派规则取哪个（P1/P2/P4 共同硬阻塞）？",
+ "options": {
+  "甲": "按该阶层在本治所 POP 规模摊（近似「按人口摊」，无历史依据）",
+  "乙": "走既有岗位队列（`JOB_QUEUE_*`/`JOB_FLOW_RATE`），需细化到路/治所级",
+  "丙": "**先只读**：容量与所需阶层照实报，**实到一律 undefined**",
+  "丁": "阶层内按建筑等级占比分配"
+ },
+ "verdict": "丙",
+ "probabilities": {"甲": 0.31012099981307983, "乙": 0.10176671296358193,
+                   "丙": 0.5014196634292603, "丁": 0.08669255673885345},
+ "margin_note": "丙 0.5014 **刚过 tokenrhythm 0.50 阈值**（甲 0.310）⇒ 非平手但余量小；且丙与规格原文一致（缺字段标未定义、不得默认全员就业/满产），故直接执行",
+ "premises_verified_by_me_before_asking": [
+  "容量可算：`JOBS_PER_LEVEL`（建筑类型→岗位数，标量）",
+  "所需阶层有单点：`BUILDING_WORKER`",
+  "`JOB_SHARE` 是**政权/阶层级份额**；岗位是**月度流量**（`JOB_FLOW_RATE`/`JOB_QUEUE_*`）",
+  "**无按路/治所的岗位实到机制**（`jobs_capacity`/`route_jobs` 等接口不存在）",
+  "**开局 20 路 buildings 只有 水利/常平仓**（都不是岗位建筑）"
+ ],
+ "outcome": "✅ 落地**只读**读数 `core/domains/economy/jobs_readout.py`：容量（原值，**不臆造等级缩放**）· 所需阶层 · **实到恒 `None` + reason** · 未登记类型 ⇒ `None`（缺失≠0）；7 条用例锁定（含真实开局「无岗位建筑 ⇒ 容量与实到皆 undefined」）。**未做**：任何实到岗位的写入/估计。",
+ "applied_in": {
+  "module": "core/domains/economy/jobs_readout.py",
+  "tests": "_dev_tools/game-dev/tests/test_m77_jobs_readout.py（7 passed）",
+  "docs": "econ README 新模块行；P2 文档补「缺口 1 的裁定与第一切片」",
+  "task": "_dev_tools/handover/tasks/M77-jobs-readout.json",
+  "commit": "（本批提交）"
+ },
+ "next": "解锁路径（另批，改数值须标定）：把既有 `JOB_QUEUE_*`/`JOB_FLOW_RATE` **从政权级细化到路/治所级**，实到＝当月真正被队列吸收的人数 ⇒ 之后才谈 P1/P2/P4 的「实到/盈亏」",
+ "reopen_if": "若裁定用甲/乙/丁、或岗位队列细化方案确定，本裁定作废并进入实施批"
+}

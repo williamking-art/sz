@@ -1,0 +1,57 @@
+{
+ "id": "M77-jobs-readout",
+ "title": "岗位**只读读数**（P2 缺口 1 第一切片）：容量可算、**实到一律 undefined**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M77-gap1-jobs-readout-scope.json（Jev choose 丙 0.5014）",
+ "deliverable": [
+  "core/domains/economy/jobs_readout.py（capacity_of / class_of / seat_jobs / survey_jobs）",
+  "_dev_tools/game-dev/tests/test_m77_jobs_readout.py（7 passed）",
+  "econ README 新模块行；P2 文档补「缺口 1 的裁定与第一切片」"
+ ],
+ "contract": [
+  "**容量**＝`JOBS_PER_LEVEL[建筑]` **原值**；配置是**标量** ⇒ `level_scaling=\"undefined\"`（**不臆造等级缩放**）；若是按等级的表（list/dict）才按等级取值",
+  "**所需阶层**＝`BUILDING_WORKER`（农田/庄园→农 · 工坊→工匠 · 商铺→商人）",
+  "**实到岗位 ＝ `None` + reason**：今天**无就业实例**，`JOB_SHARE`/`JOB_QUEUE_*` 是**政权/阶层级流量** ⇒ 规格明令**不得默认全员就业或满产补齐**",
+  "未登记建筑类型 ⇒ `None`（**不是 0 岗位**，缺失≠0）",
+  "**只读**：零写入（用例锁定）"
+ ],
+ "evidence": {
+  "jobs_per_level": {
+   "农田": 0,
+   "自耕农庄": 160,
+   "地主农庄": "（见配置）",
+   "工坊": "（见配置）",
+   "商铺": "（见配置）",
+   "庄园": "（见配置）"
+  },
+  "building_worker": {
+   "农田": "农",
+   "自耕农庄": "农",
+   "地主农庄": "农",
+   "工坊": "工匠",
+   "商铺": "商人",
+   "庄园": "农"
+  },
+  "opening_buildings": "{\"水利\": 2, \"常平仓\": 2}（**都不是岗位建筑**）⇒ 全图容量与实到皆 undefined",
+  "job_share": {
+   "宋": 0.35,
+   "default": 0.35,
+   "游牧帝国": 0.4,
+   "党项蕃国": 0.25,
+   "西南属国": 0.1
+  }
+ },
+ "unblocks": "把「实到岗位」的口径问题**明确化并只读化** ⇒ P2 的『经营记录 schema』可以先做（不改数值）；P1/P2/P4 的『实到/盈亏』仍待队列细化",
+ "next": [
+  "① 把 `JOB_QUEUE_*`/`JOB_FLOW_RATE` 从**政权级细化到路/治所级**（实到＝当月被队列吸收的人数；改数值须标定）",
+  "② 之后按 P2 路径推进：schema（不改数值）→ 只读读数 → 桥接/迁移（A/B）",
+  "③ 卡口不变：营运资金来源（M71 证据已备）· 作坊岗位数（`workshop_wage_survey`）"
+ ],
+ "verified": [
+  "M77 用例 7 passed；全量串行 EXIT=0（见 _scratch/full_regression_m77.log）；JSON lint 门通过"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T04:41:40Z"
+}
