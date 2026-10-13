@@ -102,10 +102,13 @@ _dev_tools/handover/
 $py = "D:\codebuddy\.audit-venv\Scripts\python.exe"
 cd D:\codebuddy\sz
 & $py _dev_tools\handover.py check                       # 交接层自检（问题必须为 0）
-git diff --cached --check                                # 🔴 尾随空白 / 冲突标记 / 空行 EOF ⇒ 非 0 即阻止提交
+git diff --cached --check; $diffExit = $LASTEXITCODE     # 🔴 尾随空白 / 冲突标记 / 空行 EOF
 & $py -m pytest _dev_tools/game-dev/tests/test_readme_sync.py -q -p no:cacheprovider   # 索引纪律
 & $py -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider > $env:TEMP\full.log 2>&1
-"FULL EXIT=$LASTEXITCODE"                                # 🔴 只看退出码，别只看 tail
+$fullExit = $LASTEXITCODE
+"DIFF_CHECK_EXIT=$diffExit  FULL EXIT=$fullExit"
+# 🔴 **必须真的据此退出**——只打印不拦 = 没接线的门禁（M134 因此漏进一个带尾部空行的提交 c848dbbe4b）
+if ($diffExit -ne 0 -or $fullExit -ne 0) { "❌ 门禁未过：不提交"; exit 1 }
 ```
 - **JSON 文件**（`decisions/`、`tasks/`）写完**立刻解析一次**（内层引号用「」；`None` 要写 `null`）。
 - **碰了 `game/` 下任何代码或数据** ⇒ 全量回归**不可省**；
