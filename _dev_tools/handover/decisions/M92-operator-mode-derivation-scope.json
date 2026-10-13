@@ -1,0 +1,33 @@
+{
+ "id": "M92-operator-mode-derivation-scope",
+ "title": "Round 71：operator/operation_mode **只读派生**（甲 0.742）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "P2 的 operator/operation_mode 怎么定（只读派生，不改 state）？",
+ "options": {"甲": "两者都派生（operator 首期＝owner；operation_mode 由 owner 前缀派生）",
+             "乙": "只派生 operation_mode",
+             "丙": "都不做（保持 undefined）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.7420921325683594, "乙": 0.16723206639289856, "丙": 0.09067582339048386},
+ "outcome": "✅ 新增两条**只读派生单点**（`building_owner.derive_operation_mode` / `derive_operator`）并接入 `entity_projection`：`local:`→**官营** · `pop:…:商人`→**民营雇工** · 其它 `pop:`→**家庭兼业**；`operator` 首期＝owner（**显式标注\"首期同值、无独立经营者模型\"**，不假装有独立模型）。**P2 就绪度 3/14 → 5/14**（+operator +operation_mode）。",
+ "evidence": {"derivation": {"local:路A": "官营", "pop:路A:商人": "民营雇工", "pop:路A:士绅": "家庭兼业", "None": null},
+              "readiness_1.0": ["seat", "level", "owner", "operator", "operation_mode"],
+              "readiness_remaining_0": ["blueprint", "completed_month", "maintenance", "methods",
+                                        "jobs_capacity", "jobs_filled", "recipe", "io_stock", "income_to"],
+              "sample": "水利 ⇒ owner=local:京畿路 · operator=local:京畿路 · operation_mode=官营"},
+ "zero_change": "只读派生（不写 state）⇒ 数值不变；上批 M91 的 A/B 恒等仍成立（本批未新增任何 state 字段）",
+ "applied_in": {
+  "modules": ["core/domains/economy/building_owner.py（+derive_operation_mode / derive_operator）",
+              "core/domains/economy/entity_projection.py（operator/operation_mode 改派生）"],
+  "docs": "econ README 补 `building_owner.py` 索引行（**本轮曾因漏索引导致 readme_sync 红**，已补）",
+  "task": "_dev_tools/handover/tasks/M92-operator-mode-derivation.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["`jobs_capacity`/`jobs_filled` 在**非岗位建筑**上仍 0%（开局水利/常平仓无岗位）——属数据现实",
+            "`blueprint`/`completed_month`/`maintenance`/`methods`/`recipe`/`io_stock`/`income_to` 仍待口径"],
+ "next": "① 其余建筑类型的归属依据；② `jobs_filled` 落成状态（改数值 ⇒ 桥接+标定）；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若玩法裁定独立经营者模型或经营方式表，本派生作废重接"
+}

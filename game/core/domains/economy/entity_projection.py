@@ -80,9 +80,15 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         "owner": {"value": _meta.get("owner"), "defined": bool(_meta.get("owner")),
                   "source": "prefectures[路].seats[治所].building_meta（M91 P2 第一片；保形态、**非账本**）",
                   "reason": None if _meta.get("owner") else "该建筑类型未登记归属规则，或旧档未迁移（缺失≠0）"},
-        "operator": _undef("无经营者/管理 Agent 字段"),
+        "operator": (lambda _o: (
+            {"value": _o, "defined": bool(_o), "source": "building_owner.derive_operator（M92：**首期与 owner 同值**，无独立经营者模型）",
+             "reason": None if _o else "无 owner ⇒ 经营者亦不可定义（缺失≠0）"}))(_meta.get("owner")),
         "maintenance": _undef("无维护责任字段"),
-        "operation_mode": _undef("无经营方式字段（家庭兼业/民营雇工/官营/官有承包）"),
+        "operation_mode": (lambda _o: (lambda _m: (
+            {"value": _m, "defined": bool(_m), "source": "building_owner.derive_operation_mode（M92 口径单点：local:→官营 · pop:…:商人→民营雇工 · 其它 pop:→家庭兼业）",
+             "reason": None if _m else "无 owner 前缀可派生 ⇒ 经营方式不可定义（缺失≠0）"}))(
+            __import__("core.domains.economy.building_owner", fromlist=["x"]).derive_operation_mode(_o)))(
+            _meta.get("owner")),
         "methods": _undef("无可选生产方法字段"),
         "jobs_capacity": {"value": j.get("capacity"), "defined": j.get("capacity") is not None,
                           "source": "core.domains.economy.jobs_readout:capacity_of（= lv × 每级）",

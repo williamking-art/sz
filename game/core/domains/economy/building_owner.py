@@ -31,8 +31,27 @@ OWNER_BY_TYPE: Dict[str, tuple] = {
     "常平仓": ("local", "官仓：平粜/常平为官府职能（M40a 已州府化）"),
 }
 
+#: 经营方式（`operation_mode`）由 **owner 前缀派生**的**口径单点**（M92；Jev 甲 0.742）
+#: ⚠️ **只读派生**：不写 state、不改数值；`local:` → 官营；`pop:<路>:商人` → 民营雇工；
+#: 其它 `pop:` → 家庭兼业；无法判定 ⇒ `None`（**缺失≠0**）。
+def derive_operation_mode(owner) -> Optional[str]:
+    """按既有货主 id **派生**经营方式（口径单点）。"""
+    if not isinstance(owner, str) or not owner:
+        return None
+    if owner.startswith("local:"):
+        return "官营"
+    if owner.startswith("pop:"):
+        return "民营雇工" if owner.endswith(":商人") else "家庭兼业"
+    return None
+
+
+def derive_operator(owner) -> Optional[str]:
+    """首期**经营者＝所有者**（无独立经营者/管理 Agent 模型）⇒ 同值并**显式标注**。"""
+    return owner if isinstance(owner, str) and owner else None
+
+
 __all__ = ["META_KEY", "OWNER_BY_TYPE", "owner_for", "assign_building_owners",
-           "survey_building_owners"]
+           "survey_building_owners", "derive_operation_mode", "derive_operator"]
 
 
 def _seats(state, route: str) -> Optional[dict]:

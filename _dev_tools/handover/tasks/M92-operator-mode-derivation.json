@@ -1,0 +1,41 @@
+{
+ "id": "M92-operator-mode-derivation",
+ "title": "P2 再推进：operator/operation_mode **只读派生**（P2 就绪度 3/14 → 5/14；零 state 改动）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M92-operator-mode-derivation-scope.json（Jev choose 甲 0.742）",
+ "deliverable": [
+  "core/domains/economy/building_owner.py：`derive_operation_mode`（口径单点）+ `derive_operator`（首期＝owner，显式标注）",
+  "core/domains/economy/entity_projection.py：`operator`/`operation_mode` 改派生（不再一律 undefined）",
+  "econ README：补 `building_owner.py` 索引行（含本轮漏索引导致 readme_sync 红的教训）"
+ ],
+ "derivation_rules": {
+  "local:<路>": "官营",
+  "pop:<路>:商人": "民营雇工",
+  "pop:<路>:其它": "家庭兼业",
+  "无法判定": "None（缺失≠0）"
+ },
+ "evidence": {
+  "readiness_1.0": [
+   "seat",
+   "level",
+   "owner",
+   "operator",
+   "operation_mode"
+  ],
+  "readiness_counts": "5/14（原 3/14）"
+ },
+ "zero_change": "**只读派生，不写 state** ⇒ 数值不变（M91 的 A/B 恒等仍适用）",
+ "verified": [
+  "定向用例通过；索引纪律 48 passed（**补索引后**）；全量串行 EXIT=0（先看退出码）"
+ ],
+ "next": [
+  "① 其余建筑类型的归属依据（逐类型）",
+  "② `jobs_filled` 是否落成状态（改数值 ⇒ 桥接 + 同种子标定）",
+  "③ `blueprint`/`completed_month`/`maintenance`/`methods`/`recipe`/`io_stock`/`income_to` 待口径",
+  "④ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T08:46:46Z"
+}
