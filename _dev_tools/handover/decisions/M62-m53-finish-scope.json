@@ -1,0 +1,31 @@
+{
+ "id": "M62-m53-finish-scope",
+ "title": "Round 42 裁定：M53 收尾（价单点接线 + 需求覆盖率普查）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 42 取哪个（均不需玩法裁定）？",
+ "options": {
+  "A": "M53 收尾：需求配置覆盖率普查 + 价单点接进 seat_price_or_none（让影子撮合有量有价）",
+  "B": "M40c 只读取证：state.resources 写点普查（经 applier 还是可外科手术），**只取证不下沉**",
+  "C": "其他（P3 未授权）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.7157629132270813, "B": 0.2598615884780884, "C": 0.0243755485864935},
+ "margin_note": "A 领先 0.46（0.716 vs 0.260）⇒ 非平手，按裁定执行；B 保留为下一候选",
+ "premises_verified_by_me_before_asking": [
+  "`market_price` 的公开面（`__all__`）含 `effective_buy_price` / `discover_price` / `record_trade_price` / `pref_good_key` / `seat_good_key` / `record_seat_trade_price` / `discover_seat_price`",
+  "治所级查口 `_lookup_seat_price` 为**私有名** ⇒ 不跨模块 import（项目纪律）",
+  "`demand.basic_need(cls, dim, size)` 未配置 ⇒ `None`（既有口径：**不是 0**）"
+ ],
+ "outcome": "✅ **A 绿且产出两条关键事实**：① 价已接公开单点并明示 `level=\"route\"`（取证：丝 200.0 / 蔗 60.0，kind=base）；② **需求配置只有 6/42 项**（6 阶层 × `布`），缺 `meat/丝/果/绸/蔗/麻` —— 这正是 M53 影子成交恒 None 的**数据级根因**；并**更正我 M53 的判断**（当时说『价格单点未接』并不准确：`market_price` 早有治所级原语，缺的是**公开**查口）。",
+ "applied_in": {
+  "module": "core/domains/economy/seat_market_shadow.py（seat_price_or_none 改接单点；新增 demand_coverage）",
+  "tests": "_dev_tools/game-dev/tests/test_seat_market_shadow.py（10 passed）",
+  "task": "_dev_tools/handover/tasks/M62-m53-price-and-demand.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若 `market_price` 提供治所级公开查口、或 `demand.basic_need` 补齐配置，本裁定作废重做（届时影子撮合可直接给量价）"
+}

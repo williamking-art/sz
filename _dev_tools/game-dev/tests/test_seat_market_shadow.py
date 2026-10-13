@@ -74,12 +74,51 @@ def test_in_transit_filters_by_seat_and_dim(monkeypatch):
     assert sm.in_transit_to(st, "路A", "A|甲", "绸") is None      # 不可用 ⇒ None（不冒充 0）
 
 
+def test_price_goes_through_public_single_point(monkeypatch):
+    """价走公开单点：能读 ⇒ 给值并标 `level="route"`（**明示非治所级**）；读不到 ⇒ None + reason。"""
+    import core.market_price as mp
+    monkeypatch.setattr(mp, "effective_buy_price",
+                        lambda **kw: {"price": 1.5, "kind": "base", "reason": "基准价"})
+    st = _state()
+    pr = sm.seat_price_or_none(st, "路A", "绸")
+    assert pr["price"] == 1.5 and pr["level"] == "route" and pr["kind"] == "base"
+    assert "路级" in pr["note"] and "欠账" in pr["note"]      # 口径与欠账都写清
+
+    monkeypatch.setattr(mp, "effective_buy_price",
+                        lambda **kw: {"price": None, "kind": "none", "reason": "无价"})
+    assert sm.seat_price_or_none(st, "路A", "绸")["price"] is None
+
+    def _boom(**kw):
+        raise RuntimeError("价单点炸了")
+    monkeypatch.setattr(mp, "effective_buy_price", _boom)
+    pr3 = sm.seat_price_or_none(st, "路A", "绸")
+    assert pr3["price"] is None and "不可用" in pr3["reason"]
+
+
+def test_demand_coverage_matrix(monkeypatch):
+    """需求覆盖率普查：逐 (阶层,维) 报『有配置/缺配置』——这是影子撮合恒 None 的数据级根因。"""
+    from core.domains.economy import demand as dm
+    monkeypatch.setattr(dm, "basic_need",
+                        lambda cls, dim, size: 2.0 if dim == "绸" else None)
+    st = _state({"A|甲": _seat({"绸": 10, "布": 5}, size=10)})
+    cov = sm.demand_coverage(st, dims=["绸", "布"], classes=["工匠", "农"])
+    assert cov["checked"] == 4
+    assert {c["dim"] for c in cov["configured"]} == {"绸"} and len(cov["configured"]) == 2
+    assert {c["dim"] for c in cov["missing"]} == {"布"} and len(cov["missing"]) == 2
+    assert "不是 0" in cov["note"]
+
+
 def test_reachability_and_price_not_invented():
+    """可达性按事实报；价走**公开单点**——**无基准价的商品 ⇒ `None` + reason**（缺失≠0）。"""
     st = _state({"A|甲": _seat({"绸": 0}), "A|乙": _seat({"绸": 6})})
     rep = sm.seat_reachability(st, "路A", "A|甲", "绸")
     assert rep["same_route_seats_with_stock"] == 1 and "A|乙" in rep["detail"]
+    # 价**走公开单点**：本 fixture 的 `绸` 实际上有价（单点走 state 的基准/动态价）
+    # ⇒ 断言"确实问到了单点、且明示是路级价"；"不可定价"的场景由 monkeypatch 用例覆盖
     pr = sm.seat_price_or_none(st, "路A", "绸")
-    assert pr["price"] is None and "不臆造" in pr["reason"]
+    assert pr["price"] is not None and pr["level"] == "route"
+    assert pr["kind"] in ("official", "dynamic", "base")
+    assert "effective_buy_price" in pr["source"]
 
 
 # ------------------------------------------------------------------ 影子撮合 / 五段链条

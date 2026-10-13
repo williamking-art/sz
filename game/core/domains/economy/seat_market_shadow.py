@@ -221,11 +221,71 @@ def seat_reachability(state, route: str, seat: str, dim: str) -> Dict[str, Any]:
             "reason": None}
 
 
+def demand_coverage(state, dims=None, classes=None) -> Dict[str, Any]:
+    """`demand.basic_need` 的**配置覆盖率**：哪些 `(阶层, 商品维)` 有配置、哪些没有。
+
+    这是 M53 影子撮合恒为 `None` 的**数据级根因**：`basic_need` 未配置的维 ⇒ 需求不可定义。
+    只读；`dims` 缺省取『本局有货的维 ∪ 各作坊 recipe 维』。
+    """
+    try:
+        from core.domains.economy import demand as _dm
+    except Exception:                                       # noqa: BLE001
+        return {"reason": "demand 单点不可用", "configured": [], "missing": []}
+    if dims is None:
+        found = set()
+        try:
+            from core.domains.economy.seat_goods_readout import seat_goods
+            for _r, seats in (seat_goods(state) or {}).items():
+                if not isinstance(seats, dict):
+                    continue
+                for cl in seats.values():
+                    for g in (cl or {}).values():
+                        found |= set((g or {}).keys())
+        except Exception:                                   # noqa: BLE001
+            pass
+        for ws in (getattr(state, "workshops", None) or {}).values():
+            if isinstance(ws, dict):
+                found |= {d for d in (ws.get("recipe") or {})
+                          if d not in ("grain_feed", "ration_weight")}
+        dims = sorted(found)
+    cls_list = list(classes or ("士绅", "官僚", "商人", "工匠", "农", "兵"))
+    configured, missing = [], []
+    for cls in cls_list:
+        for dim in dims:
+            need = _dm.basic_need(str(cls), str(dim), 1)     # size=1 ⇒ 得人均月需求
+            rec = {"cls": cls, "dim": dim, "need_per_capita": None if need is None else float(need)}
+            (configured if need is not None else missing).append(rec)
+    return {"checked": len(configured) + len(missing), "configured": configured,
+            "missing": missing, "dims": list(dims), "classes": cls_list,
+            "source": "core.domains.economy.demand.basic_need",
+            "note": "缺失项 ⇒ 该 (阶层,维) 的需求不可定义（**不是 0**）；要跑影子撮合须先补配置"}
+
+
 def seat_price_or_none(state, route: str, dim: str) -> Dict[str, Any]:
-    """**价**：不臆造。价格单点（`effective_buy_price` 的调用口径）未接 ⇒ `None` + reason。"""
-    return {"price": None,
-            "reason": ("价格单点未接：`market_price.effective_buy_price` 的调用口径（需 dim/route/月序）"
-                       "尚未在本模块确定 ⇒ 按『缺失≠0』报 None，不臆造价")}
+    """**价**：走**公开单点** `market_price.effective_buy_price`（官定价 → 本路动态价 → 基准价）。
+
+    ⚠️ **口径（重要）**：该单点给的是**路级**价（键 = `pref`，即路名），**不是治所级**。
+    `market_price` 里**治所级原语已存在**（`seat_good_key` / `record_seat_trade_price` /
+    `discover_seat_price`），但其**公开查口缺失**——内部 `_lookup_seat_price` 是**私有名**
+    ⇒ 按项目纪律（不跨模块 import 私有名）本模块**不碰它**，只报路级价并标 `level="route"`；
+    治所级查口缺失记为**欠账**（`tasks/M62-m53-price-and-demand.json`）。
+    读不到（`kind=="none"` 或单点不可用）⇒ `price=None` + reason（缺失≠0）。
+    """
+    src = "core.market_price.effective_buy_price(dim=…, state=…, pref=route)"
+    try:
+        from core.market_price import effective_buy_price
+        r = effective_buy_price(dim=str(dim), state=state, pref=route)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("seat_market_shadow: 价单点不可用", exc_info=True)
+        return {"price": None, "level": None, "kind": None, "source": src,
+                "reason": f"价单点不可用：{type(e).__name__}: {e}"}
+    price = _num(r.get("price")) if isinstance(r, dict) else None
+    if price is None:
+        return {"price": None, "level": None, "kind": (r or {}).get("kind"), "source": src,
+                "reason": ((r or {}).get("reason") or "价不可读（缺失≠0）")}
+    return {"price": price, "level": "route", "kind": r.get("kind"), "source": src,
+            "reason": r.get("reason"),
+            "note": "**路级**价（非治所级）；治所级公开查口缺失 ⇒ 已登记欠账"}
 
 
 def shadow_match(state, route: str, seat: str, dim: str) -> Dict[str, Any]:

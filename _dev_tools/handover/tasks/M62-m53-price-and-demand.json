@@ -1,0 +1,27 @@
+{
+ "id": "M62-m53-price-and-demand",
+ "title": "M53 收尾：价走**公开单点**（路级，明示非治所级）＋ 需求配置覆盖率普查（找到影子撮合恒 None 的数据级根因）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M62-m53-finish-scope.json（Jev choose A 0.716）",
+ "deliverable": "core/domains/economy/seat_market_shadow.py：`seat_price_or_none` 改接公开单点；新增 `demand_coverage`",
+ "findings": [
+  "🔴 **我 M53 的判断不准确**：当时说『价格单点未接』，但实测 `core/market_price.py` **早已有治所级价格原语**——`seat_good_key(pref, seat, dim)` / `record_seat_trade_price` / `discover_seat_price`，以及内部私有查口 `_lookup_seat_price`（先治所键、回退本路键、都没有 ⇒ None）",
+  "**公开查口**是 `effective_buy_price(*, dim, state=None, gov_price=None, pref=None, use_dynamic=True) -> {price, kind, reason}`，`kind ∈ {official, dynamic, base, none}`（官定价 → 本路动态价 → 基准价）⇒ 本模块改走它，并**明示 `level=\"route\"`（路级价，非治所级）**",
+  "⚠️ **治所级价格公开查口缺失**：`_lookup_seat_price` 是**私有名** ⇒ 按项目纪律（不跨模块 import 私有名）**不碰它**，把『治所级公开查口』记为欠账",
+  "**需求配置覆盖率（真实局）**：检查 **42 项**（6 阶层 × 7 个有货维），**只有 6 项有配置**（6 阶层 × `布`），**缺 36 项**；缺配置维 = `meat / 丝 / 果 / 绸 / 蔗 / 麻` ⇒ 🔴 **这就是 M53「影子成交恒 `None`」的数据级根因**（需求不可定义，**不是 0**）",
+  "取证：`丝` 价 = 200.0（base/route）、`蔗` 价 = 60.0（base/route）⇒ 影子现在**有量（供给）有价**，只差需求配置"
+ ],
+ "not_done": [
+  "**需求配置补齐**（`demand.basic_need` 的 6 个维）——属**数据/口径**（每维人均月需求取值需史料或标定）⇒ 不臆造，登记待办",
+  "**治所级价格公开查口**：需在 `market_price` 里把 `_lookup_seat_price` 提升为公开名（或加 `effective_seat_buy_price`）——属他人模块的接口改动，跨模块前先登记"
+ ],
+ "limits": [
+  "价虽接通，但**路级**：治所级成交价尚未可用（同上的公开查口问题）",
+  "覆盖率普查的『有货维』口径 = 本局 `seat_goods` 出现的维 ∪ 作坊 recipe 维；换局会变"
+ ],
+ "next": "① 补 `demand.basic_need` 的 6 个维配置（数据级，须口径）⇒ 影子撮合即从 None 变有量有价；② 在 `market_price` 提升治所级查口；③ 之后才谈治所级**正式**成交（改数值、须授权）",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T00:43:04Z"
+}
