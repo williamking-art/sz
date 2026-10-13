@@ -1,0 +1,25 @@
+{
+ "id": "M100-blueprint-evidence",
+ "title": "P2 `blueprint`（蓝图版本）**只读取证**：容器存在、**未持久化到建筑条目**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "取证（本轮 grep）；结论写入 specs/…/P2_字段落地设计_2026-10-13.md §五·补",
+ "findings": [
+  "静态蓝图表存在且**键即中文名**（`BUILDING_STD`：水利/常平仓/官营作坊/官署/军营/学校）",
+  "**动态蓝图注册表**存在：`state.dynamic_blueprints = {dyn:xxxx: 蓝图dict}`（`core/blueprint_dynamic`）",
+  "工程档案**带 `proj[\"blueprint_key\"]`**，落成登记处（`settlement_tech`）**知道**这个 key",
+  "🔴 **但落成只写等级**（标量或 `{\"lv\",\"built_month\"}`）——**不含 blueprint_key** ⇒ 建筑条目上**无蓝图版本**"
+ ],
+ "options_registered": {
+  "只读派生（零 state）": "按建筑名反查静态表 ⇒ `key = 名`、`version = None`；⚠️ 须先把 `blueprint` 语义明确为 `{key, version}`，且 `version` 缺失仍 `undefined`（否则等于把键当版本）",
+  "持久化（改 state）": "落成时把 `blueprint_key` 写进建筑条目 ⇒ 需幂等迁移（**旧档无法回填**，只对新建筑生效）+ 桥接 + **A/B 同种子标定**（落成属结算路径）"
+ },
+ "decision": "**本批不做**（两条路径都需先定语义/走改 state 流程）；只取证并登记，避免「把键当版本」的误导",
+ "verified": ["本轮仅取证 + 文档；未改代码。索引纪律与全量回归在下一批提交时一并复核"],
+ "next": ["① 若采用只读派生：先裁 `blueprint` 语义＝`{key, version}`（版本未登记时仍 undefined）",
+          "② 若采用持久化：属改 state 批（幂等迁移不可回填旧档 + 桥接 + 标定）",
+          "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13"
+}
