@@ -204,8 +204,18 @@ def settle_production_chain(state, log: Optional[list] = None) -> Dict[str, int]
                 if not _to_pop:
                     # 6.33 账实一致：**按实际入账量**记 produced（国库 cap 可能截断）
                     _to_wh = bool(_to_state)
-                    _in = (_write_warehouse(resources, dim, add) if _to_wh
-                           else _write_pending(state, name, dim, add))
+                    # 🟢 M64b（**先桥**步，Jev 甲 0.817）：有路（`name`）则先问资源存量桥。
+                    #   桥接管 ⇒ 写治所真账、**无全国 cap** ⇒ 实际入账即 `add`；
+                    #   未接管（`None`，如该路尚未下沉/`name` 不是路键）⇒ **保留原写法**。
+                    _in_bridge = None
+                    if _to_wh:
+                        from core.foundation.ledger import resource_stock_bridge as _rsb
+                        _in_bridge = _rsb.stock_add(state, dim, add, route=name)
+                    if _in_bridge is not None:
+                        _in = int(add)
+                    else:
+                        _in = (_write_warehouse(resources, dim, add) if _to_wh
+                               else _write_pending(state, name, dim, add))
                     if _in > 0:
                         produced[dim] = produced.get(dim, 0) + int(_in)
                         if _to_wh:

@@ -1,0 +1,33 @@
+{
+ "id": "M65-m64b-bridge-remaining-scope",
+ "title": "Round 45 裁定：M64b 桥余下有路写点（A 0.918）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 45 取哪个？",
+ "options": {
+  "A": "M64b：桥余下 3 处有路写点（生产链 `_write_warehouse`、作坊产出入仓、粮维写回）",
+  "B": "M51 产权落点（M58 已量化候选，但属玩法口径，可能要用户拍板）",
+  "C": "P5 前端面板（改 game/frontend，须 tsc/vitest/截图）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.9176808595657349, "B": 0.07902512699365616, "C": 0.003294027177616954},
+ "margin_note": "A 领先 0.84 ⇒ 非平手；B 需玩法口径（留待用户/口径），C 范围最大",
+ "premises_verified_by_me_before_asking": [
+  "M64 已完成先桥首步：`resource_stock_bridge` 单一写口 + 零接管契约 + 覆盖率可断言（当时 2/11）",
+  "生产链写点作用域含 `state` 与 `name`（路名）⇒ 可桥；作坊产出段含 `state` 与 `wid` ⇒ 可经 `route_of_workshop` 定路",
+  "粮维写回 `_gr_raw[\"stock\"] = n` 的**量语义是 total 非增量** ⇒ 需 `stock_set` 语义且作用域待核 ⇒ 本批不桥（如实留 `bridged=False`）"
+ ],
+ "outcome": "✅ 桥接 2 处（合计 **4/11**）：`production_chain` 生产入仓（有路则先问桥，接管时**无全国 cap** ⇒ 实际入账即 `add`）、`settlement_econ` 作坊产出入仓（接管时 `_added_s = round(yld)` 且**跳过**直接写，避免双计）。**A/B 同种子 3 月**：桥在位 vs 打桩恒 `None` ⇒ `resources`（20 维）、`treasury`、`goods_traded`、`workshop_finished_goods` **四项全一致** ⇒ **零行为变化**。",
+ "remaining": "**7/11 未桥**：3 处「有路但量语义/作用域需处理」（粮维写回 total 语义；另 2 处见 M64 档）+ **6 处全国口径无路**（按甲**不应**强桥，其中 material_market 4 处 + 铸钱扣铜 + 熔铜溢出）。",
+ "applied_in": {
+  "wired": ["core/domains/production/production_chain.py", "core/settlement_econ.py（作坊产出段）"],
+  "ledger": "core/domains/economy/resource_stock_survey.py（`bridged` 标记更新）",
+  "tests": "test_resource_stock_survey.py / test_resource_stock_bridge.py / test_stock_flow_identity.py（18 passed）",
+  "task": "_dev_tools/handover/tasks/M65-m64b-bridge-remaining.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若决定翻开关（改逐路池）须先为 6 处无路写点定不造假地点的归属规则；或粮维写回语义（total/增量）被裁定"
+}

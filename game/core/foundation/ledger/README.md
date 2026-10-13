@@ -107,7 +107,8 @@
    * `stock_take` **从治所真账按持仓占比取**（逐个夹紧 ≥0、夹紧留痕）；`sink_route_resource_stock` /
      `sink_resource_stock_to_seats` **已实现但本批不调用**（翻开关须先为 6 处无路写点定**不造假地点**的归属规则）。
    * 覆盖率**可断言**：`resource_stock_survey.DIRECT_WRITE_SITES` 带 `bridged` 标记 +
-     `bridge_coverage()`；用例会核对"标了 bridged 的文件里必须真出现桥调用"。当前 **2/11** 已桥。
+     `bridge_coverage()`；用例会核对"标了 bridged 的文件里必须真出现桥调用"。当前 **4/11** 已桥（M65 增：`production_chain` 生产入仓、`settlement_econ` 作坊产出入仓；A/B 同种子 3 月四项指标全一致）。
+   * ⚠️ **接管时的 cap 语义差异**：治所真账路径**没有全国 cap**（生产入仓记全额 `add`；作坊产出入仓记 `round(yld)` 并**跳过**直接写以防双计）——今日无路下沉 ⇒ 该分支从不走到。
    **第三处同族写点（✅ 后续已修）**：`settlement_econ` 的**成品池分派**（`:1805-1831`）曾同样直写镜像；
    试改时**触 POP 只读守卫**，守卫 trace 直指 **M45**——`market.py:180/:183`（`_trade_goods_core`）
    成交时直写路级 `pops[类]["wealth"]` 镜像（该路径平时空转，**商品真落 POP 后才被触发**）。

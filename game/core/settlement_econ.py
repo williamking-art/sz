@@ -1789,16 +1789,32 @@ def _settle_workshops(state, log):
         elif out_dim in RESOURCE_DIMS:
             # 审查防御：同上（缺槽即 KeyError）；且 cap<=0 时原式 min(0, …) 会把
             # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。
-            _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
-            _cap = int(_slot.get("cap", 0) or 0)
-            _before_s = int(_slot.get("stock", 0) or 0)
-            _new = _before_s + yld
-            # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
-            # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
-            # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
-            _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
-            # 🟢 M42a：逐维流量登记（作坊产出**入国家仓**；只记**实际入账量**，cap 可能截断）
-            _added_s = int(_slot["stock"]) - _before_s
+            # 🟢 M64b（**先桥**步）：作坊可定路（键内路名）⇒ 先问资源存量桥。
+            #   桥接管 ⇒ 写治所真账、**无全国 cap** ⇒ 实际入账 = round(yld)；
+            #   未接管（`None`）⇒ **保留原写法**（今日零行为变化）。
+            _bridge_added = None
+            try:
+                from core.domains.economy.seat_goods_readout import route_of_workshop as _row_s
+                _wroute_s = _row_s(state, wid)
+            except Exception:                                   # noqa: BLE001
+                _wroute_s = None
+            if _wroute_s:
+                from core.foundation.ledger import resource_stock_bridge as _rsb_out
+                _q_yld = int(round(yld))
+                if _rsb_out.stock_add(state, out_dim, _q_yld, route=_wroute_s) is not None:
+                    _bridge_added = _q_yld
+            if _bridge_added is None:
+                _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
+                _cap = int(_slot.get("cap", 0) or 0)
+                _before_s = int(_slot.get("stock", 0) or 0)
+                _new = _before_s + yld
+                # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
+                # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
+                # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
+                _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
+                _added_s = int(_slot["stock"]) - _before_s
+            else:
+                _added_s = int(_bridge_added)
             if _added_s > 0:
                 from core.domains.economy import stock_flow as _sf
                 _sf.record_in(state, out_dim, _added_s, reason="workshop_output")

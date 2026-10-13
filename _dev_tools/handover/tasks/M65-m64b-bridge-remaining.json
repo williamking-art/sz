@@ -1,0 +1,30 @@
+{
+ "id": "M65-m64b-bridge-remaining",
+ "title": "M64b：桥接余下**有路**写点（生产链入仓 + 作坊产出入仓）⇒ 覆盖 4/11",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M65-m64b-bridge-remaining-scope.json（Jev choose A 0.918）",
+ "deliverable": [
+  "core/domains/production/production_chain.py（生产入仓：有路则先问桥）",
+  "core/settlement_econ.py（作坊产出入仓：有路则先问桥）",
+  "core/domains/economy/resource_stock_survey.py（台账 `bridged` 标记：2/11 → **4/11**）"
+ ],
+ "contract_kept": [
+  "**零接管契约不变**：桥返回 `None`（该路未下沉 / `name` 不是路键 / 参数非法）⇒ 调用方**逐字保留原写法**",
+  "**接管时的 cap 语义差异（须留意）**：治所真账路径**没有全国 cap** ⇒ 生产入仓记 `add`（原写法会被 cap 截断）；作坊产出入仓记 `round(yld)` 且**跳过**直接写（避免与全国池刷新**双计**）。今日无路下沉 ⇒ 该分支**从不走到**（A/B 已证零行为变化）",
+  "**粮维写回**（`_gr_raw[\"stock\"] = n`）**本批不桥**：其量语义是 **total 非增量**（应用 `stock_set`），且作用域待核 ⇒ 如实留 `bridged=False`（不做半桥）"
+ ],
+ "evidence": [
+  "**A/B 同种子 3 月**：桥在位 vs 桥被打桩恒 `None` ⇒ `resources` 20 维 / `treasury` / `statistics['goods_traded']` / `workshop_finished_goods` **四项全一致**",
+  "`bridge_coverage()` 读数：**4/11 已桥**；待桥文件 = settlement_econ_helpers / material_market / settlement_econ(粮维) / settlement_finance",
+  "用例：台账存在性 + 覆盖率可断言（标 bridged 的文件必含桥调用）+ 桥单测 + 恒等式 = **18 passed**"
+ ],
+ "next": [
+  "① 粮维写回改走 `stock_set`（需先定 total 语义与作用域）",
+  "② **6 处全国口径无路**：按 Jev 甲**不应强桥**——若要改逐路池，必须先为它们定「不造假地点」的归属规则（re-ask Jev）",
+  "③ M51 产权落点（M58 已量化；属玩法口径，建议用户拍板）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T01:27:42Z"
+}
