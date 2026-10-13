@@ -274,6 +274,64 @@ def _workshop_readiness(state) -> Tuple[Optional[Any], Optional[str], Any]:
                               "作坊数": rep.get("workshops"), "drill": src}
 
 
+def _p2_gaps(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**P2 未就绪原因分布**（M109，只读）：去重原因 → 涉及字段/实体数。
+
+    值＝**去重原因条数**；下钻给逐原因明细与一条样本（服务 P5「**为何**读不到」）。
+    无实体 ⇒ None + reason（缺失≠0）。
+    """
+    src = "core.domains.economy.entity_projection（建筑+作坊逐项投影）"
+    try:
+        from core.domains.economy import entity_projection as ep
+    except Exception as e:                                  # noqa: BLE001
+        return None, f"原因分布不可读：{type(e).__name__}", src
+    by_reason: Dict[str, Dict[str, Any]] = {}
+    entities = 0
+    max_scan = 48                                          # 🔴 采样上限（性能门：全量 147 实体过慢）
+    seen_routes = 0
+    try:
+        prefs = getattr(state, "prefectures", {}) or {}
+        for route, pdata in prefs.items():
+            for seat, srow in ((pdata or {}).get("seats") or {}).items():
+                for b, lv in ((srow or {}).get("buildings") or {}).items():
+                    if entities >= max_scan:
+                        break
+                    rep = ep.project_building(state, route, seat, b, lv)
+                    entities += 1
+                    for k in rep.get("undefined_fields") or []:
+                        r = ((rep["fields"].get(k) or {}).get("reason") or "（无原因）")[:60]
+                        d = by_reason.setdefault(r, {"fields": [], "count": 0})
+                        d["count"] += 1
+                        if k not in d["fields"]:
+                            d["fields"].append(k)
+                if entities >= max_scan:
+                    break
+            seen_routes += 1
+            if entities >= max_scan:
+                break
+        for wid in (getattr(state, "workshops", None) or {}):
+            if entities >= max_scan * 2:
+                break
+            rep = ep.project_workshop(state, wid)
+            if not rep.get("fields"):
+                continue
+            entities += 1
+            for k in rep.get("undefined_fields") or []:
+                r = ((rep["fields"].get(k) or {}).get("reason") or "（无原因）")[:60]
+                d = by_reason.setdefault(r, {"fields": [], "count": 0})
+                d["count"] += 1
+                if k not in d["fields"]:
+                    d["fields"].append(k)
+    except Exception:                                       # noqa: BLE001
+        log.warning("readout_hub: P2 原因分布计算失败", exc_info=True)
+        return None, "原因分布计算异常（已降级）", src
+    if not entities:
+        return None, "无建筑/作坊 ⇒ 原因分布不可定义（缺失≠0）", src
+    return len(by_reason), None, {"原因数": len(by_reason), "已扫描实体": entities,
+                                  "采样上限": max_scan, "扫描路数": seen_routes,
+                                  "逐原因": by_reason, "drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -306,6 +364,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _building_owned, "source": "core.domains.economy.building_owner:survey_building_owners"},
     {"key": "workshop_readiness", "label": "作坊（经营记录）字段已就绪数（共 14 项）", "unit": "项",
      "fn": _workshop_readiness, "source": "core.domains.economy.entity_projection:survey_workshop_projection"},
+    {"key": "p2_gaps", "label": "P2 未就绪原因条数（去重）", "unit": "条",
+     "fn": _p2_gaps, "source": "core.domains.economy.entity_projection（建筑+作坊）"},
 )
 
 
