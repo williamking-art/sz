@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-13T13:02:22Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-13T13:10:13Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-13）：《宋祚》主顺序各阶段**均有落地物且规格状态一致**。**P0** ✅5/5 门。**P1** 选点（绸：丝→绸，M79）· 纵向链条只读读数（M80；缺口 1,850,540）· 原因链归因（M82；**7 路主瓶颈全部＝capacity_shortage**，每条带证据）。**P2** 取证+主体设计（M76）· 
+- **DSH**（updatedAt=2026-10-13）：《宋祚》主顺序：各阶段均有落地物且规格状态一致（P2 行已第 3 次同步）。**P0** ✅5/5 门。**P1** 选点（绸：丝→绸）· 链条只读读数（缺口 1,850,540）· 原因链归因（**7 路主瓶颈全部＝capacity_shortage**，每条带证据）。**P2** 归属落地（`building_me
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -37,7 +37,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261013T114124Z-DSH` → [`worklog/20261013T114124Z-DSH.md`](worklog/20261013T114124Z-DSH.md)
 - `20261013T114411Z-DSH` → [`worklog/20261013T114411Z-DSH.md`](worklog/20261013T114411Z-DSH.md)
 - `20261013T120740Z-DSH` → [`worklog/20261013T120740Z-DSH.md`](worklog/20261013T120740Z-DSH.md)
 - `20261013T123154Z-DSH` → [`worklog/20261013T123154Z-DSH.md`](worklog/20261013T123154Z-DSH.md)
@@ -45,8 +44,9 @@
 - `20261013T124621Z-DSH` → [`worklog/20261013T124621Z-DSH.md`](worklog/20261013T124621Z-DSH.md)
 - `20261013T130144Z-DSH` → [`worklog/20261013T130144Z-DSH.md`](worklog/20261013T130144Z-DSH.md)
 - `20261013T130222Z-DSH` → [`worklog/20261013T130222Z-DSH.md`](worklog/20261013T130222Z-DSH.md)
+- `20261013T131013Z-DSH` → [`worklog/20261013T131013Z-DSH.md`](worklog/20261013T131013Z-DSH.md)
 
 ## 计数
 
-- tasks 88（未完成 13）· decisions 71（未闭环 6）· worklog 284 · phase 文件 4
+- tasks 88（未完成 13）· decisions 71（未闭环 6）· worklog 285 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
