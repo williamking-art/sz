@@ -1,20 +1,23 @@
 {
- "phase": "《宋祚》统一民间市场 P1：M41a（缺失原因契约）+ M41b/c（库存货币只读投影与逐月Δ）+ **M42a（逐维流量账，全国仓 5/9 维残差归零）已落地**。P1 第一句的可闭合性从「全 20 维 unclosed」推进到「全国仓 5 维精确闭合」；余下需 POP goods 侧与出账侧登记。",
+ "phase": "《宋祚》统一市场/生产线：**目标顺序各「第一切片」已全部落地**（M37 地方府库 → 建筑/交通/仓储 → 真实交易与州府价格 M41–M53 → 主线C/D/E/F 的只读影子与契约 → 主线A 后端读数索引）。横切质量：**「直写路级镜像」家族 6 处全修 + 收口扫描 0 直写 + 常驻哨兵（结算管线 + 读档往返）**；**M48 POP 残差 0.17% 结案**（两条 custody 逐维残差 == 0）。**未完成**：P3 官府旨意接线、P4 府际/远方市场、P5 前端面板、P6 校准放行，以及产权/需求/价/州仓 storage 等前置（须口径或授权）。",
  "updatedAt": "2026-10-13",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（M42a，日志 _scratch/full_regression_m42a.log）；定向 test_stock_flow.py 9 passed",
-  "evidence": "run_monthly_settlement x6（只读）：全国仓 9 维变动，5 维残差精确为 0（木/盐/石/茶/铁 各 3,000,000）；meat/绸/布 属 POP 侧未覆盖；丝 残差 -18,815 属 custody 边界效应；货币残差 0",
-  "bug_fixed": "月桶 int 键会被 JSON 存档回转成 str ⇒ 读档后流量账读成空（已规范化为字符串键，取证可见 ['13213',...]）",
-  "zero_write": "stock_identity 系列只读（深比较锁定）；stock_flow 只登记不持货",
-  "tsc": "未跑（本轮未改前端）",
-  "vitest": "未跑（本轮未改前端）",
+  "pytest": "全量串行 EXIT=0（_scratch/full_regression_m60_final.log；各批另存 full_regression_m{37..59}.log）",
+  "guards": "镜像直写哨兵：结算管线 18 月 + 组合 12 月 = 0 违规；**读档往返** 0 违规/0 明细；sh: state 不变量 20/20 路 seats + 逐路镜像==Σ治所",
+  "identity": "national_resources 9/9 维残差 0；pop_goods 6/6 维残差 0、0 未闭合（M56 修桥后收紧为逐维 0）",
+  "index_discipline": "test_readme_sync.py 48 passed（每批 git add 后复检）",
+  "handover": "check 问题=0（tasks 43 / decisions 36 / worklog 229）",
+  "tsc": "未跑（本会话未改前端）",
+  "vitest": "未跑（同上）",
   "build": "未跑"
  },
- "next": "M42 余项：① POP goods 侧生产/消费/折旧登记（把 meat/绸/布 等纳入）；② 出账侧登记（领料 consume_for_circuit / 熔铜 settlement_econ_helpers:68 / 售出 material_market:735,:812）；③ 覆盖率读数按全月桶（coverage() 目前只报当前月）。其后 P1：宋境工钱通道（改钱流须标定，偏 P2）· 商品×州府纵向链。再往后 P2 建筑资产与经营主体并轨 → P3 官府旨意接线 → P4 府际与远方市场 → P5 界面与月报 → P6 校准放行。挂账：M40b 州仓 storage（applier/journal 耦合）· M40c 商品/物料存量 · M39c-2 交通读者改逐路（须标定）· M39b 逐治所航道初始值（材料不足）",
+ "next": "① 待裁：产权落点（M58 证据已就绪：路级官府到位率 0.961 为唯一量级匹配；国库 0.004）→ 裁定后把 state.workshops[wid] 的 owner 按既有词表填上（幂等迁移 + 新局初始化），107 作坊即可转 shadow_ready；② P3 官府旨意接线（最大未开工项）；③ 后端动作路径装守望（M57/M59 最后盲区）；④ M40c 商品/物料存量州府化；⑤ M53 需求口径与价单点齐备后，才谈治所级正式成交与 P4。",
  "pending_decisions": [
   "地方支出V2-D1-D5",
   "M38c-crop-buildings-authorization",
-  "M40b-storage-applier-coupling"
+  "M40b-storage-applier-coupling",
+  "M51 产权落点（M58 候选已量化）",
+  "M53 需求口径与价单点"
  ]
 }
