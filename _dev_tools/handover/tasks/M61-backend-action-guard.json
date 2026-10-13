@@ -1,0 +1,22 @@
+{
+ "id": "M61-backend-action-guard",
+ "title": "盲区补齐：**后端动作路径**守望（LocalBackend 分派表 + 一月结算）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M61-backend-action-guard-scope.json（Jev choose A 0.518 vs C 0.456 —— 平手自论证后取 A）",
+ "deliverable": "_dev_tools/game-dev/tests/test_m61_backend_action_guard.py",
+ "what_it_covers": [
+  "装 `pop_bridge.install_all_guards`（20 路）+ `_GUARD_TRACE` 后，用 `LocalBackend.action(state, name, {})` 逐个派发 **15 个代表动作**（诏令/加俸/个人行动/御前抉择/科技研究/focus 三件套/军令/准驳 AI 行动/长期事务旨意/口谕/合并稿/遣使），再跑一月结算",
+  "断言 **`pops_guard_violations() == []` 且 `pops_guard_violation_details() == []`**；失败时直接打印 `function @ file:line` 写入者清单",
+  "结果：**0 违规、0 明细** ⇒ 加上 M57（结算管线）与 M59（读档往返），**「直写路级镜像」家族及其三个盲区（结算/存档/动作）已全部被守望覆盖**"
+ ],
+ "limits": [
+  "驱动的是 **LocalBackend（进程内）** 分派表；`HttpBackend` 走 `/api/action` 后服务端调**同一套 core.commands** ⇒ 写点集合相同，但**未**起 HTTP 服务做端到端验证",
+  "空 payload 只覆盖「默认参数下会写到的写点」，**不覆盖「特定参数组合才写」的分支**",
+  "动作中因缺参数被拒绝属**预期**（用例只关心有无直写），故 `try/except` 吞掉异常——但要求至少 1 个动作派发成功，避免「整表签名变了导致全被吞」的假绿"
+ ],
+ "next": "① 若要更强：起 dev server 做一次 `/api/action` 端到端哨兵（需环境支持）；② 对高频动作补**带真实 payload** 的用例（覆盖"特定参数才写"的分支）；③ 未开工阶段：P3（须授权）、P4、P5 前端、P6",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13"
+}

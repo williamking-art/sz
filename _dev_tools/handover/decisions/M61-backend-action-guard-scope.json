@@ -1,0 +1,36 @@
+{
+ "id": "M61-backend-action-guard-scope",
+ "title": "Round 41 裁定：后端动作路径守望（A）——含平手自论证",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B) + DSH 自论证",
+ "mode": "choose",
+ "question": "目标仍未完成、P3/P4/前端待口径，本批做哪个？",
+ "options": {
+  "A": "后端动作路径装守望（补 M57/M59 明写的最后盲区：/api/action → LocalBackend.action 分派表）",
+  "B": "M40c 商品/物料存量州府化（范围大，与 M40b applier/journal 耦合同源，有踩坑风险）",
+  "C": "P3 官府旨意接线的只读证据链切片（P3 整条未开工，须另行授权）"
+ },
+ "jev_verdict": "A",
+ "probabilities": {"A": 0.5181061625480652, "B": 0.026194224134087563, "C": 0.4556995928287506},
+ "TIE_DISCLOSURE": "🔴 A 与 C 相差仅 **0.06**（0.518 vs 0.456）⇒ 属「概率接近平手」，按纪律**必须自己再论证**并披露，不得当作碾压裁定。",
+ "my_argumentation": [
+  "**A 补的是同一家族的最后盲区**：M57 已把「直写路级镜像」家族的 6 处写点全修 + 结算管线哨兵，M59 补了读档往返；剩下唯一明写的盲区就是后端动作路径 ⇒ 做完 A 才能说『这条家族+其盲区都清了』，**边际价值高且结论二值**（有/无违规）。",
+  "**工具与路径现成、无口径风险**：`install_all_guards`/`_GUARD_TRACE`/`pops_guard_violation_details` 已在位；`LocalBackend.action(state, action, params)` 可直接驱动；**不改数值、不需要授权**。",
+  "**C 属未授权阶段且验收依赖未设计语义**：P3 的验收含「未授权者看不到密旨 / 拒绝可追到权限资源关系 / 重试不重复执行」——这些权限与幂等语义**尚未设计**，此时做只读证据链很可能做成「回溯一个不存在的模型」，产出价值不确定。",
+  "**B 明确不取**：与 M40b 的 applier/journal 耦合同源，M40b 仍是待裁项 ⇒ 先动 B 有重蹈『未桥接先下沉』的风险（本会话已用 M37 教训证明过该顺序不可颠倒）。"
+ ],
+ "decision": "本批做 **A**；C 待 P3 授权、B 待 M40b 裁定。",
+ "outcome": "✅ **A 绿**：装守卫 + trace 后逐个派发 15 个代表动作（`issue_decree`/`allocate_payraise`/`do_personal_action`/`choose_imperial_action`/`start_tech_research`/`unlock_focus`/`start_focus`/`cancel_focus`/`issue_military_order`/`approve_ai_action`/`reject_ai_action`/`issue_task_decree`/`issue_kouyu`/`merge_drafts`/`envoy_diplomacy`）再跑一月结算 ⇒ **0 违规、trace 明细为空**。",
+ "limits_recorded": [
+  "驱动的是 **LocalBackend（进程内）** 分派表；`HttpBackend` 把同名 action 转 `/api/action` 后由服务端调用**同一套 `core.commands`** ⇒ 写点集合相同，但**未**起 HTTP 服务做端到端验证（本机不保证 dev server）",
+  "空 payload 走各自默认/校验路径：只覆盖「默认参数下会写到的写点」，不覆盖「特定参数组合才写」的分支"
+ ],
+ "applied_in": {
+  "tests": "_dev_tools/game-dev/tests/test_m61_backend_action_guard.py（1 passed）",
+  "task": "_dev_tools/handover/tasks/M61-backend-action-guard.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若新增动作、或端到端 HTTP 路径发现直写，本裁定作废重做"
+}
