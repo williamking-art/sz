@@ -1,0 +1,30 @@
+{
+ "id": "M102-jobs-filled-bridge-design",
+ "title": "`jobs_filled` **写入**的桥接方案只读设计（改数值批的前置；本批不改 state）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §3-4（核心模拟改动须先说明口径与影响+定向回归）；M90/M99 的续篇",
+ "deliverable": [
+  "specs/economy/unified-civilian-market/P2_字段落地设计_2026-10-13.md §五·补二"
+ ],
+ "key_points": [
+  "**为什么不急着写**：现在**没有任何结算读它** ⇒ 写了只是缓存只读结果（可能过期）；一旦结算读它，就变成改数值，必须标定",
+  "**容器**：沿用 M91 的 `seats[治所].building_meta[建筑].jobs_filled`（**不新建账本**），形状必须与 `allocate_employment_detail` 同形（口径单点）",
+  "**桥接**：写侧走既有 `building_bridge.building_set` 范式；未下沉/无 meta ⇒ `None` ⇒ 回落；写后刷新路级 Σ 镜像",
+  "**时机与失效**：只在月度结算固定步骤写一次（先算后写）；**读侧一律优先纯函数重算**（缓存只作快照不作真相）",
+  "**标定硬门**：同种子 A/B（写 vs 不写）逐月 `treasury`/`statistics`/`ΣPOP size`/`population` **必须恒等**；≥60 月长局对照；幂等迁移；**旧档无法回填**（历史实到不可重建）",
+  "**验收断言 5 条**：与纯函数重算一致 · A/B 恒等 · 未登记不写 · 幂等不覆盖 · 玩家读数与真相同源"
+ ],
+ "decision": "**本批只出设计**；写出实现属**改数值批**，须 Jev 授权 + 同种子标定 + 全量回归 + 长局对照",
+ "verified": [
+  "本轮仅文档；下一批提交时复核索引纪律与全量回归"
+ ],
+ "next": [
+  "① 若要写入：先问 Jev 授权，再按本设计实施（标定硬门不可省）",
+  "② 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+  "③ 零风险备选：月报归因 · 前端可解释段"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T11:02:48Z"
+}
