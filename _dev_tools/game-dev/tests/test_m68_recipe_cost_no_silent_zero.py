@@ -18,13 +18,21 @@ def _state(workshops):
     return st
 
 
-def test_grain_feed_only_workshop_is_undefined_not_zero():
+def test_grain_feed_only_workshop_never_silently_zero():
+    """M68 的契约（**不静默 0**）在 M69 定价后仍成立：无价维要么走**声明的单点**、要么 `None`。
+
+    M69（Jev 甲 0.992）已给 `grain_feed` 指定口径单点 ⇒ 现在应为**数值 + 价源可追**；
+    若单点不可读则须 `None`（该分支由 `test_m69_feed_price_basis.py` 锁定）。
+    """
     st = _state({"酒坊_路A_1": {"recipe": {"grain_feed": 50000}}})
     rep = wfs.recipe_cost(st, "酒坊_路A_1")
-    assert rep["cost"] is None, "无粮基准价单点 ⇒ 采购预算**不可定义**（不得静默 0）"
-    assert "grain_feed" in rep["missing_price"]
-    assert rep["dims"]["grain_feed"] == {"qty": 50000.0, "price": None, "value": None}
-    assert "缺失≠0" in rep["reason"] or "不可定义" in rep["reason"]
+    d = rep["dims"]["grain_feed"]
+    if rep["cost"] is None:
+        assert "grain_feed" in rep["missing_price"] and d["price"] is None
+    else:
+        assert rep["cost"] > 0 and d["price"] is not None
+        assert d["price_source"], "有价就必须能追到价源（不得凭空出现）"
+    assert "不可定义" in (rep["reason"] or "") or rep["cost"] > 0
 
 
 def test_priced_recipe_still_computes():
@@ -41,17 +49,15 @@ def test_ration_weight_is_not_a_material():
     assert "ration_weight" not in rep["dims"]
 
 
-def test_real_new_game_jiufang_and_chulan_are_undefined():
-    """真实新局：酒坊/畜栏（各 40 座）**必须**是 `cost=None`（此前被静默算成 0）。"""
+def test_real_new_game_workshops_are_all_priced_after_m69():
+    """真实新局：M69 定价后 **107 座全部可算**（此前 80 座粮料作坊被静默算成 0 / 后为 None）。"""
     from core import commands
     s = commands.new_game()
     kinds = {}
     for wid in s.workshops:
         t = wid.split("_")[0]
         kinds.setdefault(t, wfs.recipe_cost(s, wid)["cost"])
-    assert kinds["酒坊"] is None and kinds["畜栏"] is None
-    assert isinstance(kinds["麻坊"], int) and isinstance(kinds["丝坊"], int)
-    # 下游 M58 `procure_need` 必须如实变"不可定义"（而不是漏算 80 座后给个偏小的数）
+    assert all(v is not None for v in kinds.values()), kinds
     need = __import__("core.domains.economy.owner_candidates_shadow",
                       fromlist=["x"]).procure_need(s)
-    assert need["value"] is None and need["unreadable_count"] == 80
+    assert need["value"] is not None and need["unreadable_count"] == 0

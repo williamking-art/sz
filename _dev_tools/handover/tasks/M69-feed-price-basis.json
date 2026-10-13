@@ -1,0 +1,47 @@
+{
+ "id": "M69-feed-price-basis",
+ "title": "粮料基准价口径（粮料即粮）＋ 修粮价单点**按政权求和**缺陷 ⇒ G-4/M58 数字全部打通",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M69-feed-price-and-m70-grain-tier.json（Jev：口径**甲 0.992**；单点修法**甲 0.996**）",
+ "deliverable": [
+  "core/domains/economy/workhop_fund_shadow.feed_price（口径单点：粮料即粮；复用家计侧单点）",
+  "core/domains/economy/livelihood_shadow.grain_base_price（**公开单点**，按政权取档；旧名 `_grain_base_price` 保留为别名）",
+  "`recipe_cost` 认粮料价并把 `price_source` 写进读数（口径可追）",
+  "_dev_tools/game-dev/tests/test_m69_feed_price_basis.py（4 passed）· test_m70_grain_price_regime_tier.py（6 passed）"
+ ],
+ "two_defects_fixed": [
+  "**M68 遗留**：`recipe_cost` 对无价维静默 0（已在同批改为 None + missing_price）；本批**把粮料维补上价源** ⇒ 80 座作坊不再不可定义",
+  "🔴 **M70（新发现，我 M52 的缺陷）**：`_grain_base_price()` 把**按政权分档**的 `grain_price0` **求和** ⇒ 返回 **5.8**（正确 = 本政权档 **1.6**，宋无专档取 `default`），**3.6× 误差**，污染 M52 家计所有粮折价项并会让作坊采购预算虚高 3.6×"
+ ],
+ "numbers_after_fix": {
+  "grain_feed_price": 1.6,
+  "M58_procure_need": 28400000,
+  "M58_unreadable_workshops": 0,
+  "M58_cover_opening_pools": {
+   "国库": 0.176,
+   "内帑": 0.035,
+   "士绅": 1.0,
+   "商人": 1.0,
+   "路级官府": 0.579,
+   "作坊自持": "undefined（违规）"
+  },
+  "G4_gov": "20/20 路可算，全部 1.000",
+  "G4_merchant": "20/20 路可算，中位 1.000、最低 0.424、12 路满覆盖"
+ },
+ "corrections_to_earlier_batches": [
+  "🔴 **M58 结论更正**：修正分母后，**开局时商人/士绅覆盖 100%**、路级官府 0.579、国库 0.176 ⇒ 先前『路级官府是唯一量级匹配载体、国库差 268 倍』**不再成立**（漏算 80 座 + 6 个月快照所致）",
+  "M68 档中『M58 到位率表作废』的判断正确，本批给出**重算值**"
+ ],
+ "verified": [
+  "M69+M70 用例 10 passed；相关影子/家计/owner 用例全绿；全量串行 EXIT=0（见 _scratch/full_regression_m69.log）"
+ ],
+ "next": [
+  "① 依新分母**重审产权落点**（M66 owner 与本次到位率可能指向不同结论——须再裁）",
+  "② 仍是 `shadow_ready` 卡口：**作坊岗位数**（史料／标定／P3）",
+  "③ 家计影子（M52）可借修好的粮价单点**重算**（原先所有粮折价项偏 3.6×）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T02:41:47Z"
+}

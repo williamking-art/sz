@@ -97,6 +97,28 @@ def wage_obligation(state, wid: str) -> Dict[str, Any]:
                        % (name or wid))}
 
 
+def feed_price(state=None) -> Optional[float]:
+    """**粮料（`grain_feed`）基准价口径单点** —— M69（Jev choose **甲 0.992**）。
+
+    口径：配方里的 `grain_feed` 是「**从太仓扣的粮料**」（`WORKSHOP_RECIPES` 注释：
+    加工型消耗依托建筑）⇒ **粮料即粮**，其基准价**复用既有粮价单点**
+    `core.building_jobs.song_job_cfg()['grain_price0']`（与 M52 家计影子的粮基准价**同源**，
+    因为 `MATERIAL_PRICE_BASE` **确实没有粮维**）。
+
+    ⚠️ **只用于读数**（`recipe_cost` 采购预算 / G-4 到位率）；**不改任何仿真数值**。
+    单点不可读 ⇒ `None`（**缺失≠0**，不回落 0）。
+
+    🔴 M70：**复用** `livelihood_shadow.grain_base_price`（同一单点）——原实现在 M52 里
+    把按政权分档的 `grain_price0` **求和**得 5.8（3.6× 误差），已修为按政权取档（宋 ⇒ 1.6）。
+    """
+    try:
+        from core.domains.economy.livelihood_shadow import grain_base_price
+        return grain_base_price()
+    except Exception:                                       # noqa: BLE001
+        log.warning("workshop_fund_shadow: 粮价单点不可用", exc_info=True)
+        return None
+
+
 def recipe_cost(state, wid: str) -> Dict[str, Any]:
     """作坊**采购预算**：Σ(配方量 × 既有基准价)；缺价维 ⇒ `None` + 列出。"""
     ws = (getattr(state, "workshops", None) or {}).get(wid)
@@ -130,7 +152,12 @@ def recipe_cost(state, wid: str) -> Dict[str, Any]:
         #   且使 M58 报的「采购需求 22,000,000」**低估**（漏了这 80 座）。
         #   现改为：有量的维一律登记；**无基准价 ⇒ 记入 `missing` 并使整项 `cost=None`**。
         px = _num(_P.get(dim))
-        dims[str(dim)] = {"qty": qn, "price": px,
+        price_source = "MATERIAL_PRICE_BASE"
+        if px is None and dim == "grain_feed":
+            # 🔴 M69（Jev 甲 0.992）：**粮料即粮** ⇒ 复用既有粮价单点（只动读数）
+            px = feed_price(state)
+            price_source = "core.building_jobs.song_job_cfg()['grain_price0']"
+        dims[str(dim)] = {"qty": qn, "price": px, "price_source": price_source,
                           "value": None if px is None else round(qn * px, 4)}
         if px is None:
             missing.append(str(dim))

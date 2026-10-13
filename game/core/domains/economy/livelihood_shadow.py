@@ -106,38 +106,38 @@ def _pop_value(state, route: str, cls: str, field: str) -> Optional[float]:
     return _flatten_sum(row.get(field))
 
 
-def _grain_base_price() -> Optional[float]:
-    """粮的**基准价**（文档：粮折价用基准价，**不得用当月市价**以免自激）；取不到 ⇒ `None`。
+def grain_base_price(regime: Optional[str] = None) -> Optional[float]:
+    """粮的**基准价**（**口径单点**；文档：粮折价用基准价，**不得用当月市价**以免自激）。
 
-    🔴 实测（2026-10-13）：`MATERIAL_PRICE_BASE` **没有粮维**（只有 盐/茶/丝/麻/蔗/果/木/石/铁/wine）
-    ⇒ 正确单点是岗位配置的 **`song_job_cfg()["grain_price0"]`（基准粮价）**；
-    `state.grain_price` 是**当月市价**，按文档**不得**用于家计折价。
+    🔴 实测（2026-10-13，M70 修）：`song_job_cfg()["grain_price0"]` 是**按政权分档**的
+    `dict`（`{'游牧帝国': 2.2, '党项蕃国': 2.0, 'default': 1.6}`）⇒ 必须**取本政权档**
+    （无专档 ⇒ `default`）。**原实现用 `_flatten_sum` 求和得 5.8（= 2.2+2.0+1.6）**，
+    误差 **3.6×**（污染 M52 家计的所有"粮折价"项，并会让 M69 的作坊采购预算虚高 3.6×）。
+    正确范式照抄既有 `wage_rate_for(building, regime)`（按政权键 → `default` → `None`）。
+
+    另：`MATERIAL_PRICE_BASE` **没有粮维**（只有 盐/茶/丝/麻/蔗/果/木/石/铁/wine）；
+    `state.grain_price` 是**当月市价**，按文档**不得**用于折价。
+    取不到 ⇒ `None`（**缺失≠0**，不回落 0）。
     """
     try:
         from core.building_jobs import song_job_cfg
-        cfg = song_job_cfg() or {}
-        raw = cfg.get("grain_price0")
-        v = _flatten_sum(raw)                               # 兼容"标量 / 按政权分档的 dict"
-        if v is None and isinstance(raw, dict):
-            v = _num((raw.get("default") if isinstance(raw.get("default"), dict) else raw).get("default")) \
-                if isinstance(raw.get("default"), dict) else None
-        if v is not None:
-            return v
+        raw = (song_job_cfg() or {}).get("grain_price0")
     except Exception:                                       # noqa: BLE001
-        log.warning("livelihood_shadow: song_job_cfg 不可用（粮基准价取不到）", exc_info=True)
-    for mod_name, attr in (("content.data", "MATERIAL_PRICE_BASE"),
-                           ("content.data_external", "MATERIAL_PRICE_BASE")):
-        try:
-            mod = __import__(mod_name, fromlist=["x"])
-            tbl = getattr(mod, attr, None)
-        except Exception:                                   # noqa: BLE001
-            tbl = None
-        if isinstance(tbl, dict):
-            for k in ("粮", "grain", "米", "麦"):
-                v = _num(tbl.get(k))
-                if v is not None:
-                    return v
-    return None
+        log.warning("livelihood_shadow: 粮价单点不可读", exc_info=True)
+        return None
+    if isinstance(raw, dict):
+        # **按政权取档**（不是求和！）：本政权 → 宋 → default
+        for key in ([regime] if regime else []) + ["宋", "default"]:
+            v = _num(raw.get(key)) if key else None
+            if v is not None:
+                return v
+        return None                                         # 分档 dict 但无可用档 ⇒ None
+    return _num(raw)                                        # 兼容标量写法
+
+
+def _grain_base_price() -> Optional[float]:
+    """**兼容别名**（旧内部名；M70 起正名为公开单点 `grain_base_price`）。"""
+    return grain_base_price()
 
 
 def tier_of(value: Optional[float], thresholds: Optional[Sequence[float]]) -> Dict[str, Any]:

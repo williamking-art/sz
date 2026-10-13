@@ -1,0 +1,52 @@
+{
+ "id": "M69-feed-price-and-m70-grain-tier",
+ "title": "Round 49 裁定：粮料即粮（甲 0.992）＋ 修粮价单点「按政权求和」缺陷（甲 0.996）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose（两次：先定口径、实施中发现单点本身坏了再定修法）",
+ "asked_round_1": {
+  "question": "`grain_feed`（粮料）的基准价口径取哪个？（M68 后 80 座作坊采购预算与 G-4 官营侧全不可定义）",
+  "options": {
+   "甲": "**粮料即粮**：引用既有粮价单点 `song_job_cfg()['grain_price0']`（复用单点、不新增数据；**只动读数**）",
+   "乙": "新增独立配置项 `FEED_PRICE_BASE`（需史料/标定给值）",
+   "丙": "保持不可定义（官营侧永久空缺）"
+  },
+  "verdict": "甲",
+  "probabilities": {"甲": 0.9924397468566895, "乙": 0.0009782197885215282, "丙": 0.006582028232514858}
+ },
+ "asked_round_2": {
+  "trigger": "🔴 实施中实测：该单点**本身是坏的**——`livelihood_shadow._grain_base_price()`（M52 写的）用 `_flatten_sum` 解析**按政权分档**的 `grain_price0`（`{'游牧帝国':2.2,'党项蕃国':2.0,'default':1.6}`）⇒ 返回 **5.8（三档之和）**，而正确语义是**取本政权档**（宋无专档 ⇒ 1.6）⇒ **3.6× 误差**。",
+  "options": {
+   "甲": "改为**按政权解析**（本政权 → 宋 → `default` → `None`）并**提升为公开单点** `grain_base_price(regime=None)`，`feed_price` 复用同一单点（数值 5.8→1.6，**只动只读影子**）",
+   "乙": "只登记、M69 自行解析（重复逻辑，违反口径单点）",
+   "丙": "保持 5.8（明显错误）"
+  },
+  "verdict": "甲",
+  "probabilities": {"甲": 0.9964472651481628, "乙": 0.003194339107722044, "丙": 0.0003584350924938917}
+ },
+ "decision": "本批 = 粮料即粮（**甲 0.992**）＋ 修粮价单点求和（**甲 0.996**）；两处均**只动只读影子**，不改仿真。",
+ "outcome_evidence": {
+  "grain_base_price": "5.8 → **1.6**（宋 ⇒ default 档）；各政权档可解析（游牧 2.2 / 党项 2.0 / 西南 无档⇒1.6）；分档 dict 无可用档 ⇒ `None`（**不求和、不回落 0**）",
+  "M58_procure_need": "**28,400,000**（不可读作坊 **0**；此前 M68 后为 None、更早的 22,000,000 因漏算 80 座而偏低）",
+  "M58_到位率（**开局池**，分母已修正）": {"国库": 0.176, "内帑": 0.035, "本路士绅": 1.000,
+                                    "本路商人": 1.000, "路级官府（地方府库）": 0.579,
+                                    "作坊自持": "undefined（违规）"},
+  "G4_官营": "20/20 路可算，**全部 1.000**（满覆盖）",
+  "G4_民营": "20/20 路可算，中位 1.000、**最低 0.424**、12 路满覆盖",
+  "correction": "🔴 **M58 的结论须更正**：修正分母后，**开局时「本路商人 / 本路士绅」覆盖 100%**，而「路级官府」为 0.579、国库 0.176 ⇒ 先前『路级官府是唯一量级匹配载体、国库差 268 倍』**不再成立**（那是漏算 80 座 + 6 个月快照的产物）。回落结论：**没有一个载体在所有时点都够**——须按"开局靠商人/士绅、战时/长期靠地方府库"分层讨论，或重新裁定产权落点。"
+ },
+ "applied_in": {
+  "modules": ["core/domains/economy/livelihood_shadow.py（`grain_base_price` 公开单点 + 兼容别名）",
+              "core/domains/economy/workshop_fund_shadow.py（`feed_price` 复用单点；`recipe_cost` 认粮料价）"],
+  "tests": ["test_m70_grain_price_regime_tier.py（6 passed）",
+            "test_m69_feed_price_basis.py（4 passed）",
+            "test_m68_recipe_cost_no_silent_zero.py / test_m68_owner_funding_by_route.py（已同步）"],
+  "task": "_dev_tools/handover/tasks/M69-feed-price-basis.json",
+  "commit": "（本批提交）"
+ },
+ "artifacts_note": "本轮亦修掉一处**编辑事故**：替换函数时旧函数体尾部残行导致 IndentationError，已读回删除并加语法自检（`ast.parse`）。",
+ "next": "① 依新分母**重审产权落点**（M66 的 owner 与本次到位率可能指向不同结论）；② 仍缺：作坊岗位数（`shadow_ready` 卡口）",
+ "reopen_if": "若 `grain_price0` 的语义（按政权档）或粮料定义变更，本裁定作废重算"
+}
