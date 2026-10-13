@@ -3,7 +3,7 @@
 > 由 `_dev_tools/handover/decisions/*.json` 自动汇总。**一条裁定一文件**是本项目纪律；
 > 本索引只做导航（**权威仍是各 json**）。生成者：DSH（M116，2026-10-13）。
 
-- 决策档总数：**72**
+- 决策档总数：**73**
 - 非法 JSON：**0**
 
 | 档案 | verdict | 前二概率 | 裁定人/来源 | 问题（截断） |
@@ -29,6 +29,7 @@
 | `LOCAL-HANDOVER.json` | 本机交接；载体=_dev |  | - | 交接通道：放弃 CloudBase MCP，改用仓库内本机交接层 |
 | `M104-maintenance-derivation-scope.json` | 甲 | 甲 0.907 · 乙 0.093 | Jev (tokenrhyt | P2 `maintenance`（维护责任）能否只读派生？ |
 | `M111-blueprint-derivation-scope.json` | 甲 | 甲 0.908 · 乙 0.059 | Jev (tokenrhyt | P2 `blueprint`（蓝图版本）只读派生怎么定？ |
+| `M117-income-to-derivation-scope.json` | 甲 | 甲 0.788 · 乙 0.212 | Jev (tokenrhyt | P2 `income_to` 能否只读派生为「应然去向」？ |
 | `M25-写站点拆环.json` | 路径①依赖注入，但注入面 |  | - | 11 个写站点的接口归属 |
 | `M38c-crop-buildings-authorization.json` | 待裁定 |  | - | 是否授权在本阶段新增桑田/麻田/果园/蔗田/茶园等 `content` 条目与可建选项（M38c）？若授权，按工程量评估的哪一档（0/1/2 |
 | `M40b-storage-applier-coupling.json` | 待设计 |  | - | 州仓 storage 下沉的前置：engine applier 路径 `prefectures.*.storage` 与 journal 判 |
