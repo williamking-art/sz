@@ -1,0 +1,33 @@
+{
+ "id": "M78-jobs-readout-correction",
+ "title": "更正 M77 两处判断：**等级缩放本就存在**、**实到本就可算**（只读、零数值变化）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M78-jobs-readout-correction-scope.json（Jev 甲 0.833：不动数值；本批为**按实测更正读数**）",
+ "deliverable": [
+  "core/domains/economy/jobs_readout.py：容量改为 **lv × 每级**；`seat_jobs`/`survey_jobs` 用既有纯函数算**实到**",
+  "_dev_tools/game-dev/tests/test_m77_jobs_readout.py（更正版，7 passed）",
+  "econ README 行更正；P2 文档增「二·补二：M78 更正」"
+ ],
+ "corrections": [
+  "🔴 **容量**：M77 报『按 `JOBS_PER_LEVEL` 原值、不臆造等级缩放』⇒ 实测**等级缩放本就存在**（`jobs_by_position`：岗位数 = **lv × 每级岗位**）⇒ 现为 **容量 = lv × 每级**，口径同 `jobs_by_position`",
+  "🔴 **实到**：M77 报『一律 `undefined`』⇒ 实测**可用既有纯函数** `allocate_employment_detail(pops, buildings, cfg, rtype)` **按治所数据只读算出**（口径：农池 = `农 size × JOB_SHARE`（OVERRIDE 优先）· 工匠/商人/士绅池 = 各自 `size`；类内按 `JOB_QUEUE_<类>` 建筑序、建筑内按职位槽 `min(槽位, 池余)`）",
+  "**真值 0 与缺失 None 分开**：无岗位建筑 ⇒ 实到 **0**（真值）；数据不可读/单点异常 ⇒ `None` + reason（**不静默补 0**）"
+ ],
+ "evidence": {
+  "real_opening": "20 路 buildings 只有 水利/常平仓 ⇒ 容量 `None`、**实到 0**、有实到路数 20",
+  "synthetic_seat": "工坊 lv2 + 商铺 lv1 + 工匠 1000/商人 200 ⇒ **容量 360、实到 360**（工坊 320 / 商铺 40）",
+  "implication": "P1/P2/P4 的『实到岗位』**已可在只读层给出**；剩下的是把调用点从政权级改为按路/治所传入（**改数值，须标定**）"
+ },
+ "verified": [
+  "M77/M78 用例 7 passed；全量串行 EXIT=0（_scratch/full_regression_m78.log，**先看退出码再提交**）"
+ ],
+ "next": [
+  "① 若实施『细化到路/治所』：改 `allocate_employment*` 调用方 ⇒ **同种子 A/B 标定** + 全量回归 + 人口/产出/财政读数对照",
+  "② P2 建筑实例 schema（谁在岗/经营方式/收入去向等）——可先 schema 不改数值",
+  "③ 卡口不变：营运资金来源（M71 证据已备）· 作坊岗位数"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T04:53:10Z"
+}

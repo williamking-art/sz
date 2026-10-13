@@ -1,0 +1,38 @@
+{
+ "id": "M78-jobs-readout-correction-scope",
+ "title": "Round 57：岗位细化取**甲（只读取证+设计，不动数值）**；并按实测**更正 M77 两处判断**",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "岗位队列细化到路/治所级本批怎么切？（会改仿真数值）",
+ "options": {
+  "甲": "只读取证 + 细化设计（盘清调用链/状态，给最小方案与标定计划；**不动数值**）",
+  "乙": "本批直接实施细化（改数值；须同种子 A/B 标定 + 全量回归）",
+  "丙": "暂不细化；先把 jobs_readout 接进 readout_hub"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.8331583142280579, "乙": 0.14131475985050201, "丙": 0.025526920333504677},
+ "margin_note": "甲 0.833 ⇒ 非平手；改数值风险高（岗位/就业分配影响人口流动、产出、财政）⇒ 先取证",
+ "premises_verified_by_me_before_asking": [
+  "`jobs_by_position`：岗位数 = **lv × 每级岗位**（等级缩放**已存在**）",
+  "`allocate_employment_detail(pops, buildings, cfg, rtype)` 是**纯函数**，按传入数据工作 ⇒ **可按治所调用**",
+  "`JOB_QUEUE_<类>` 是类内建筑序；农池 = `农 size × JOB_SHARE`（`JOB_SHARE_OVERRIDE` 优先）",
+  "开局 20 路 buildings 只有 水利/常平仓（**非岗位建筑**）"
+ ],
+ "outcome": "✅ ① 按 Jev 甲**不动数值**；② 但实测推翻 M77 两处过保守判断并**当场更正**：**等级缩放本就存在**（容量 = lv × 每级，口径同 `jobs_by_position`）、**实到本就可算**（纯函数 `allocate_employment_detail`，按治所 pops/buildings 只读算出）。**实测**：真实开局容量 `None`、**实到 0（真值）**；合成治所（工坊 lv2 + 商铺 lv1）**容量 360 且实到 360**（工坊 320 / 商铺 40）。⇒ P1/P2/P4 的「实到岗位」**已可在只读层给出**。",
+ "corrections_to_M77": [
+  "容量：原报『按原值、不臆造等级缩放』⇒ 更正为 **lv × 每级**（`jobs_by_position` 同口径）",
+  "实到：原报『一律 undefined』⇒ 更正为 **可用既有纯函数只读算出**；『真值 0』（无岗位建筑）与『缺失 None』（数据不可读）**分开**"
+ ],
+ "remaining_work": "把 `allocate_employment*` 的调用点**从政权级改为按路/治所传入**（改数值，须同种子标定 + 全量回归）；以及 P2 的建筑实例 schema（谁在岗/经营方式等字段）",
+ "applied_in": {
+  "module": "core/domains/economy/jobs_readout.py（capacity_of / seat_jobs / survey_jobs 更正）",
+  "tests": "_dev_tools/game-dev/tests/test_m77_jobs_readout.py（M78 更正版，7 passed）",
+  "docs": "econ README 行更正；P2 文档增「二·补二：M78 更正」",
+  "task": "_dev_tools/handover/tasks/M78-jobs-readout-correction.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若决定实施「细化到路/治所」（改数值），须另批 + 同种子标定；届时本档作为前置证据"
+}
