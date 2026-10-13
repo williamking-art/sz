@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-13 21:48 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-13 22:11 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -9,7 +9,7 @@
 |---|---|---|
 | Cline.json | 阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期 | 2026-10-10T16:48:43Z |
 | DSH-JEV.json | Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。 | 2026-10-12T16:05:00Z |
-| DSH.json | 《宋祚》主顺序：各阶段均有落地物且规格状态一致（P2 行已第 3 次同步）。**P0** ✅5/5 门。**P1** 选点（绸：丝→绸）· 链条只读读数（缺口 1,850,540）· 原因链归因（**7 路主瓶颈全部＝capacity_shortage**，每条带证据）。**P2** 归属落地（`building_me… | 2026-10-13 |
+| DSH.json | 《宋祚》主顺序：各阶段均有落地物且规格状态一致。**P0** ✅5/5 门。**P1** 选点+链条只读读数（缺口 1,850,540）+ 原因链归因（**7 路主瓶颈全＝capacity_shortage**，每条带证据）。**P2** 归属落地（building_meta，保形态/非账本；40/40）· 六项只读派… | 2026-10-13 |
 | Qoder.json | 阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/） | 2026-10-09T23:58:31Z |
 | _legacy_shared_phase.json | - | - |
 | _retired.qoder.json | - | - |
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
+80e547520d fix(handover): M135 门禁「只打印没接线」事故修复（漏过 c848dbbe4b）+ 留档
+561017b01a docs(handover): M134 新增 **HANDOFF.md 四件事聚合页** + 生成器（借鉴 handoff 第 4 条）
+c848dbbe4b docs(handover): M134 新增 **HANDOFF.md 四件事聚合页** + 生成器（借鉴 handoff 第 4 条）
 1150f2d17e docs(handover): M133 落「提交前门禁」（借鉴 handoff 第 9 条）+ 修两处自身问题
 18b9cea7e1 docs(spec): M132 对照借鉴外部交接项目 `handoff`（逐条：现状→建议→成本→是否需裁定）
-95b8cb7242 docs(handover): M131 借鉴 jidekaixin2dian/handoff —— 落「交接四件事 + 三条护栏」到本项目协议
-76bcfdb6c5 test(economy): M130 新增**D 线候选资金契约守卫**（到位率公式自洽 · 缺失≠0 · 只读）
-9307c05cbf test(api): M129 把 `hub` 读数索引补上**端点级**覆盖（M83 此前只有源码断言）
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **78** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **79** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 
