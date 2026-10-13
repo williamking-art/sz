@@ -21,8 +21,9 @@ def _state_with_months(state, months=6):
 
 def test_two_new_readouts_are_registered_with_sources():
     keys = [r["key"] for r in rh.READOUTS]
-    assert keys[-3:-1] == ["pilot_chain_gap", "jobs_capacity"]      # M83 后追加了 pilot_bottleneck
-    for k in ("pilot_chain_gap", "jobs_capacity"):
+    # 用**成员判定**（而非切片）⇒ 后续继续扩项不会误红（M83/M87 各扩过一次）
+    for k in ("pilot_chain_gap", "jobs_capacity", "pilot_bottleneck", "p2_readiness"):
+        assert k in keys, k
         row = next(r for r in rh.READOUTS if r["key"] == k)
         assert row["source"] and row["label"] and row["unit"]
 
@@ -51,7 +52,7 @@ def test_all_readouts_shape_and_readonly():
     s = _state_with_months(commands.new_game())
     before = copy.deepcopy({r: p.get("seats") for r, p in s.prefectures.items()})
     rep = rh.collect(s)
-    assert len(rep["readouts"]) == len(rh.READOUTS) == 12      # M81 起 11 → M83 起 12
+    assert len(rep["readouts"]) == len(rh.READOUTS) == 13      # M81 起 11 → M83 起 12 → M87 起 13
     assert rep["frontend_wired"] is False
     for k, v in rep["readouts"].items():
         assert set(v) >= {"label", "value", "display", "unit", "source", "reason"}

@@ -203,6 +203,23 @@ def _pilot_bottleneck(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return top, None, drill
 
 
+def _p2_readiness(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**P2 字段就绪度**（M86）：14 项里**已可定义**的字段数（`seat/level` 等）；不可读 ⇒ None。"""
+    src = "core.domains.economy.entity_projection:survey_entity_projection"
+    try:
+        from core.domains.economy import entity_projection as ep
+        rep = ep.survey_entity_projection(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: P2 就绪度读数失败", exc_info=True)
+        return None, f"P2 就绪度异常：{type(e).__name__}", src
+    ratio = rep.get("defined_ratio") or {}
+    if not ratio or not rep.get("buildings"):
+        return None, "无建筑 ⇒ 就绪度不可定义（缺失≠0）", {**ratio, "drill": src}
+    ready = sorted([k for k, v in ratio.items() if v and v >= 1.0])
+    drill = {"已就绪字段": ready, "逐字段率": ratio, "建筑数": rep.get("buildings"), "drill": src}
+    return len(ready), None, drill
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -229,6 +246,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _jobs_capacity, "source": "core.domains.economy.jobs_readout:survey_jobs"},
     {"key": "pilot_bottleneck", "label": "P1 试点主瓶颈（绸）", "unit": "类",
      "fn": _pilot_bottleneck, "source": "core.domains.economy.p1_pilot_chain:survey_diagnosis"},
+    {"key": "p2_readiness", "label": "P2 字段已就绪数（共 14 项）", "unit": "项",
+     "fn": _p2_readiness, "source": "core.domains.economy.entity_projection:survey_entity_projection"},
 )
 
 

@@ -1,0 +1,28 @@
+{
+ "id": "M87-p2-readiness-readout-scope",
+ "title": "Round 66：P2 就绪度接进 readout_hub（13 项；甲 0.733）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 66 取哪个？",
+ "options": {"甲": "P2 就绪度接进 readout_hub（零数值）",
+             "乙": "月报归因（有回归风险）",
+             "丙": "P2 字段落地（改数值须标定）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.732603132724762, "乙": 0.03455931693315506, "丙": 0.23283758759498596},
+ "outcome": "✅ `readout_hub` 12 → **13 项**：新增 `p2_readiness`「P2 字段已就绪数（共 14 项）」——值＝`defined_ratio` 里达到 100% 的字段数（**实测 = 2**：`seat`/`level`），下钻给**已就绪字段清单**、**逐字段率**与建筑数。",
+ "evidence": {"total_readouts": 13, "ok": 12, "undefined": 1,
+              "p2_readiness": 2, "pilot_bottleneck": "capacity_shortage",
+              "undefined_list": ["jobs_capacity"]},
+ "applied_in": {
+  "module": "core/domains/economy/readout_hub.py（+_p2_readiness 与注册行）",
+  "tests": ["test_m81_readout_hub_wiring.py（计数 12→13；并把切片断言改为**成员判定**，抗后续扩项）",
+            "test_m83_readouts_endpoint_hub.py（去硬编码末项）"],
+  "task": "_dev_tools/handover/tasks/M87-p2-readiness-readout.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① P2 字段落地（owner/operator → jobs_filled 写入 → income_to）· ② 月报归因 · ③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道",
+ "reopen_if": "若 P2 字段落地使就绪度变化，本读数自动反映（无需改档）；若读数契约变更则作废重接"
+}

@@ -1,0 +1,36 @@
+{
+ "id": "M87-p2-readiness-readout",
+ "title": "P2 就绪度接进读数索引（12→13 项）；并把读数用例改为**抗扩项**断言",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M87-p2-readiness-readout-scope.json（Jev choose 甲 0.733）",
+ "deliverable": [
+  "core/domains/economy/readout_hub.py：`_p2_readiness` + 注册行（第 13 项）",
+  "test_m81_readout_hub_wiring.py：计数 12→13；断言改为**成员判定**（抗后续扩项，M83/M87 已各扩一次）",
+  "test_m83_readouts_endpoint_hub.py：去掉对「末项」的硬编码"
+ ],
+ "readout_added": {
+  "key": "p2_readiness",
+  "label": "P2 字段已就绪数（共 14 项）",
+  "unit": "项",
+  "value_6m": 2,
+  "drill_down": [
+   "已就绪字段",
+   "逐字段率",
+   "建筑数",
+   "source"
+  ],
+  "undefined_when": "无建筑 ⇒ `undefined` + reason（缺失≠0）"
+ },
+ "verified": [
+  "读数相关用例全绿；全量串行 **EXIT=0**（先看退出码再提交）；JSON lint 门通过"
+ ],
+ "next": [
+  "① P2 字段落地（owner/operator ⇒ jobs_filled 写入 ⇒ income_to）",
+  "② 月报归因（把 P1 主瓶颈写进报告，只读文本）",
+  "③ 卡口不变：**产能**（M82 真瓶颈）· 营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道（§三-7）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T07:18:11Z"
+}
