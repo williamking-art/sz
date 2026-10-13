@@ -1,0 +1,56 @@
+{
+ "id": "M88-session-consolidation-2",
+ "title": "会话收口（第 2 次）：M76–M87 落地清单 + 剩余卡口 + 下一步建议（零代码）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §6（收工必须回写）；本档为交接层索引，结论正文已进各批 tasks/decisions 与 specs",
+ "landed_since_last_consolidation": {
+  "P1 试点": [
+   "M79 选点（绸：丝→绸；四项齐全）+ 切片口径与 5 条验收断言",
+   "M80 纵向链条只读读数（原料→作坊→上限→成品→需求→缺口；实测缺口 1,850,540＝需求 99.4%）",
+   "M82 原因链归因（**7 路主瓶颈全部＝capacity_shortage**；每条带证据数字）"
+  ],
+  "P2 主体与建筑": [
+   "M76 取证 + 最小主体设计（治所 buildings 仅 {名:等级}；无就业/主体容器）",
+   "M77 岗位只读读数（容量/所需阶层；实到当时如实 undefined）",
+   "M78 **更正 M77 两处判断**：等级缩放本就存在（lv × 每级）、**实到本就可算**（纯函数 allocate_employment_detail）",
+   "M86 建筑实例只读投影（规格 14 字段枚举单点；就绪度量化：**仅 seat/level 100%**）"
+  ],
+  "P5 读数可见化": [
+   "M81 读数索引 9→11（P1 缺口 + 岗位容量）",
+   "M83 12 项（P1 主瓶颈）＋ **/api/readouts 新增 hub 字段**",
+   "M84 前端**面板** ReadoutHubPanel（消费 hub；缺失显示「未定义」不显示 0）+ 用例",
+   "M85 面板**入口**（右侧条「天下诸务」→读数索引）",
+   "M87 13 项（P2 就绪度）"
+  ],
+  "数据/口径修正": [
+   "M69 粮料即粮（复用粮价单点）",
+   "M70 修粮价单点**按政权求和**（5.8→1.6，3.6× 误差）",
+   "M72 资源存量「先桥」收口（可桥 4/4 已桥；不可桥 7 处逐点写明原因）",
+   "M73 需求**通道矩阵**（23 维里仅 4 维有通道；消费品 酒/肉/盐/茶/糖/纸/果 无通道＝真缺口，属 B2-R 校准门控）"
+  ]
+ },
+ "hard_blockers_needing_ruling": {
+  "产能": "🔴 M82 实证：绸的缺口是**产能**（作坊数×单轮产出），不是缺料/缺钱 ⇒ 若要改善须动**作坊数/单轮产出/建坊路径**（玩法+数值，须同种子标定）",
+  "营运资金来源": "M71 三时点证据已备（民营 12 月 0/20 满覆盖；士绅唯一长期充裕）；四选项甲/乙/丙/丁待裁",
+  "作坊岗位数": "M67：无权威来源（史料／产出反推标定／P3 旨意 三选一）",
+  "宋境工钱通道": "台账 §三-7 仍在（pay_wages_from_revenue 唯一调用方是外邦）⇒ P1 切片不得含支付工钱",
+  "P2 建筑实例 schema": "字段落地（owner/operator → jobs_filled 写入 → income_to）需 schema + 幂等迁移 + 桥接 + A/B；Jev 丙 0.233（次选）",
+  "P3 官府旨意接线": "**整条未开工，须用户授权**"
+ },
+ "zero_risk_next_candidates": [
+  "月报归因（把 P1 主瓶颈写进月度报告，只读文本）",
+  "前端展示新读数（p2_readiness/pilot_bottleneck）已随 hub 自动可见 ✅",
+  "把 P2 就绪度/P1 归因加进月报与前端的「可解释」段落",
+  "P2 字段落地的**只读设计**（先写 schema 与迁移方案，不动 state）"
+ ],
+ "verification_state": {
+  "backend_full": "EXIT=0（_scratch/full_regression_m87.log）",
+  "frontend": "tsc web/node 0 错；vitest 83 passed（11 文件）",
+  "index_discipline": "test_readme_sync 48 passed（含 specs 目录）",
+  "handover": "check：tasks 69 / decisions 62 / worklog 255，问题=0"
+ },
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T07:20:55Z"
+}
