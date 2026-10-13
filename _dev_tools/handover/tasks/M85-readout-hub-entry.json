@@ -1,0 +1,32 @@
+{
+ "id": "M85-readout-hub-entry",
+ "title": "读数索引面板**入口**（P5 收口：把已建好的面板接进 HUD 菜单）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M85-readout-hub-entry-scope.json（Jev choose 甲 0.994）",
+ "deliverable": [
+  "frontend/src/renderer/hud/RightStrip.tsx：「天下诸务」组新增「读数索引」（key=readouthub，icon=Gauge 复用已导入）",
+  "frontend/src/renderer/panels/OverlayStack.tsx：sectionFor 把 readouthub 归入「天下诸务」",
+  "frontend/src/renderer/panels/README.md：面板行补「入口」说明"
+ ],
+ "why": "M84 的 `ReadoutHubPanel` 已实现并注册进 `OverlayStack`，但**没有任何入口** ⇒ 玩家点不到；本批只补入口（零逻辑、零数值）",
+ "gates": {
+  "tsc_web": 0,
+  "tsc_node": 0,
+  "vitest": "83 passed（11 文件）",
+  "backend_full": "EXIT=0（先看退出码）",
+  "json_lint": "2/2"
+ },
+ "verified": [
+  "前端 tsc 双配置 0 错；vitest 83 passed；后端全量串行 EXIT=0"
+ ],
+ "next": [
+  "① 月报呈现归因（P5 收口剩余）",
+  "② 截图台验收（Edge headless）",
+  "③ P2 建筑实例 schema",
+  "④ 卡口不变：**产能**（M82 真瓶颈）· 营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道（§三-7）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T06:34:40Z"
+}

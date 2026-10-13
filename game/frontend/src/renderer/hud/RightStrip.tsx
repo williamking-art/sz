@@ -42,6 +42,7 @@ const GROUPS: Group[] = [
       { key: "land", label: "田亩", icon: Trees },
       { key: "granary", label: "仓廪", icon: Warehouse },
       { key: "accounting", label: "会计", icon: Calculator },
+      { key: "readouthub", label: "读数索引", icon: Gauge },
       { key: "military", label: "军政", icon: Shield },
       { key: "provincemilitary", label: "经略边防", icon: Shield },
       { key: "diplomacy", label: "邦交", icon: Globe2 },

@@ -1,0 +1,29 @@
+{
+ "id": "M85-readout-hub-entry-scope",
+ "title": "Round 64：给读数索引面板**加入口**（甲 0.994）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 64 取哪个？",
+ "options": {
+  "甲": "只加入口（右侧条菜单加 readouthub；零逻辑零数值）",
+  "乙": "甲 ＋ 月报呈现归因（后端只读文本）",
+  "丙": "P2 建筑实例 schema"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9936289191246033, "乙": 0.00609649159014225, "丙": 0.0002745753445196897},
+ "outcome": "✅ M84 的面板此前**玩家点不到**（无入口）⇒ 本批补上：`hud/RightStrip.tsx` 的「天下诸务」组新增 `{ key: \"readouthub\", label: \"读数索引\", icon: Gauge }`（图标复用**已导入**的 `Gauge`，避免改 import）；`OverlayStack.sectionFor` 把 `readouthub` 归入「天下诸务」。**零逻辑、零数值**。",
+ "gates": {"tsc_web": 0, "tsc_node": 0, "vitest": "83 passed（11 文件）", "backend_full": "EXIT=0"},
+ "applied_in": {
+  "frontend": ["src/renderer/hud/RightStrip.tsx（菜单条目）",
+               "src/renderer/panels/OverlayStack.tsx（sectionFor 归组）",
+               "src/renderer/panels/README.md（面板行补「入口」说明）"],
+  "task": "_dev_tools/handover/tasks/M85-readout-hub-entry.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["未跑截图台（需 Edge headless）", "未做月报归因（属乙，本批被否）"],
+ "next": "① 月报呈现归因（乙）· ② 截图台验收 · ③ P2 建筑实例 schema · ④ 卡口不变：产能（M82 真瓶颈）· 营运资金来源 · 作坊岗位数 · 宋境工钱通道",
+ "reopen_if": "若 HUD 入口表结构变更（如改为注册表驱动），本档作废重接"
+}

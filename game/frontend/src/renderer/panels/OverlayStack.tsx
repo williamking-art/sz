@@ -218,7 +218,7 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
 function sectionFor(kind: PanelKind): string {
   if (["court", "ministers", "audience", "centralorg", "governance", "pending"].includes(kind)) return "朝廷中枢";
   if (["decree", "secretdecree", "focus", "engineering", "tech", "personal", "todo"].includes(kind)) return "政令施为";
-  if (["prefecture", "pop", "land", "granary", "accounting", "military", "provincemilitary", "diplomacy", "situation"].includes(kind)) return "天下诸务";
+  if (["prefecture", "pop", "land", "granary", "accounting", "readouthub", "military", "provincemilitary", "diplomacy", "situation"].includes(kind)) return "天下诸务";
   if (["gazette", "dailylog", "memory", "codex", "localarchive", "meter"].includes(kind)) return "邸报典籍";
   if (["settings", "save", "conclude", "newgame", "intro"].includes(kind)) return "御前事务";
   if (["advance", "event", "detail"].includes(kind)) return "本月纪事";
