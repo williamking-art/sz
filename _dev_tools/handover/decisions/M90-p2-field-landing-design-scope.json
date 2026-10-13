@@ -1,0 +1,27 @@
+{
+ "id": "M90-p2-field-landing-design-scope",
+ "title": "Round 69：P2 建筑实例字段落地**只读设计**（甲 0.903）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 69 取哪个？",
+ "options": {"甲": "P2 字段落地只读设计（schema/迁移/桥接/标定方案，不动 state）",
+             "乙": "直接落地 owner/operator（改 state，须标定）",
+             "丙": "月报归因（只读文本）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9030687212944031, "乙": 0.08704062551259995, "丙": 0.009890635497868061},
+ "outcome": "✅ 产出《P2 建筑实例字段落地设计》：14 字段逐项给出「值来源（既有单点）/谁写/缺了怎么办」；🔴 **保形态**方案——`buildings` 标量**一字不动**，并列新增 `seats[治所].building_meta`（**明确不是账本**，仅归属/元数据）；迁移照 `assign_workshop_owners` 同型（幂等、只填缺失、判不出跳过计数、读档失败不拒档）；**首期零数值变化**（新字段不被任何结算读取）＋ 5 条验收断言 + 回滚方案。",
+ "key_design_decisions": ["**能派生的绝不写 state**（`jobs_capacity`/`jobs_filled`/`operation_mode` 只读派生），只有无法派生且需持久化的（`owner`）才落字段",
+                          "**保形态**：不改 `buildings` 标量（避免 20+ 读取点被炸）",
+                          "`operator` 首期是否＝`owner`、`operation_mode` 的派生规则、建筑归属规则（水利/常平仓 → `local:<路>`）**均标为待裁定**，未裁定前留 `undefined`",
+                          "`jobs_filled` **落成状态**属另一批（改数值 ⇒ 桥接 + 同种子 A/B 标定）"],
+ "applied_in": {
+  "doc": "specs/economy/unified-civilian-market/P2_字段落地设计_2026-10-13.md（+ 该目录 README 索引）",
+  "task": "_dev_tools/handover/tasks/M90-p2-field-landing-design.json",
+  "commit": "（本批提交）"
+ },
+ "next": "落地实施（另批）需先裁：① 建筑归属规则（水利/常平仓 → local:<路>？）② operator 是否＝owner ③ operation_mode 派生表。实施须：幂等迁移 + （不新增账本）+ A/B 同种子恒等 + 全量回归",
+ "reopen_if": "若裁定归属/operator 口径，本设计作废并进入实施批"
+}

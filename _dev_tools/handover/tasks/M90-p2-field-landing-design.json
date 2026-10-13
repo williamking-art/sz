@@ -1,0 +1,35 @@
+{
+ "id": "M90-p2-field-landing-design",
+ "title": "P2 建筑实例字段落地**只读设计**（保形态 building_meta；首期零数值变化；5 条验收断言）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M90-p2-field-landing-design-scope.json（Jev choose 甲 0.903）",
+ "deliverable": [
+  "specs/economy/unified-civilian-market/P2_字段落地设计_2026-10-13.md（+ 目录 README 索引行）"
+ ],
+ "headlines": [
+  "14 字段逐项：值来源（既有单点）/谁写/缺了怎么办",
+  "🔴 **保形态**：`buildings = {建筑名: 等级}` 标量**一字不动**；并列新增 `seats[治所].building_meta = {建筑名: {owner, …}}`",
+  "`building_meta` **明确不是账本**（不含存量/金额）⇒ 不违反「不新增与 POP 平行的账本」",
+  "迁移照 `assign_workshop_owners`：幂等 · 只填缺失 · 判不出归属**跳过并计数** · 读档失败**不拒档**",
+  "**能派生的绝不写 state**；只有 `owner` 这类无法派生者才落字段",
+  "**首期零数值变化**（新字段不被任何结算读取）⇒ A/B 同种子应恒等",
+  "5 条验收断言 + 回滚方案（删 `building_meta` 与两处迁移调用即可）"
+ ],
+ "pending_rulings": [
+  "建筑归属规则（水利/常平仓 → `local:<路>`？其余逐类型给依据）",
+  "`operator` 首期是否＝`owner`",
+  "`operation_mode` 的派生表",
+  "`jobs_filled` 是否落成状态（改数值 ⇒ 另批 + 标定）"
+ ],
+ "verified": [
+  "本批仅文档；仍跑全量串行 EXIT=0 与索引纪律（新增文档已回填目录 README）"
+ ],
+ "next": [
+  "实施批（须先裁上述口径）：幂等迁移 + 保形态 + A/B 恒等 + 全量回归",
+  "卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T07:47:55Z"
+}
