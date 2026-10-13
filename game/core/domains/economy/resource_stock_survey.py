@@ -27,36 +27,42 @@ log = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
-#: 写点台账：`(相对 game/ 的路径, 源码片段 marker, 方向, 说明, 已否走桥)`
-#: 🔴 marker 必须能在源码里逐字存在（存在性用例兜底）；改动写点时请同步台账。
-#: **`已否走桥`**：M64a「先桥」进度——`True` 表示该点已「先问桥、未接管则回落原写法」。
-DIRECT_WRITE_SITES: Tuple[Tuple[str, str, str, str, bool], ...] = (
+#: 写点台账：`(相对 game/ 的路径, marker, 方向, 说明, 已否走桥, 可桥性)`
+#: 🔴 marker 必须能在源码里逐字存在（存在性用例兜底）。
+#: **可桥性**（M72 修正）：`True` ＝ **该写点有宋境路名可用**（按 Jev 甲 0.817 应桥）；
+#: `False` ＝ **不可桥**，原因写在说明里（**全国口径无路** / **外邦政权口径无宋路**）。
+#: ⇒ 收口判据：**可桥的全部已桥**（`bridged == True` for all `bridgeable`）。
+DIRECT_WRITE_SITES: Tuple[Tuple[str, str, str, str, bool, bool], ...] = (
     ("core/domains/production/production_chain.py",
-     'slot["stock"] = stock + n', "入", "生产链 `_write_warehouse`：入国库仓（返回实际入账量）",
-     True),
+     'slot["stock"] = stock + n', "入", "生产链 `_write_warehouse`：入国库仓（**宋境有路**）",
+     True, True),
     ("core/domains/production/farm_procurement.py",
-     'slot["stock"] = int(slot.get("stock", 0) or 0) + take', "入", "和买入仓（有路）", True),
+     'slot["stock"] = int(slot.get("stock", 0) or 0) + take', "入", "和买入仓（**宋境有路**）",
+     True, True),
     ("core/settlement_econ.py",
-     '_gr_raw["stock"] = n', "入/出", "粮维写回（**量语义是 total 非增量** ⇒ 需 `stock_set` 语义，本批未桥）",
-     False),
+     '_gr_raw["stock"] = n', "入/出",
+     "粮维写回：⚠️ **实测在 `_ext_econ_phases`（外邦政权口径，无宋路）** ⇒ **不可桥**"
+     "（Jev 甲 0.732 原假设有路，被实测推翻）",
+     False, False),
     ("core/settlement_econ.py",
-     '_slot["stock"] = max(0, _cur_s - int(round(got)))', "出", "作坊投料扣减（可定路）", True),
+     '_slot["stock"] = max(0, _cur_s - int(round(got)))', "出", "作坊投料扣减（**宋境有路**，可定路）",
+     True, True),
     ("core/settlement_econ.py",
      '_slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))', "入",
-     "作坊产出入仓（cap 截断；可定路）", True),
+     "作坊产出入仓（**宋境有路**，可定路）", True, True),
     ("core/material_market.py",
-     'base["stock"] = stock', "写", "物料市场基座写（**全国口径、无路**）", False),
+     'base["stock"] = stock', "写", "物料市场基座写（**全国口径无路**）", False, False),
     ("core/material_market.py",
-     'slot["stock"] = max(0, int(round(rest_stock)))', "出", "官仓售料（**全国口径、无路**）", False),
+     'slot["stock"] = max(0, int(round(rest_stock)))', "出", "官仓售料（**全国口径无路**）", False, False),
     ("core/material_market.py",
      'dslot["stock"] = int(_read_int(dslot.get("stock")) or 0)', "入",
-     "买入入仓（**全国口径、无路**）", False),
+     "买入入仓（**全国口径无路**）", False, False),
     ("core/material_market.py",
-     'slot["stock"] = max(0, int(round(left_stock)))', "出", "官仓领料（**全国口径、无路**）", False),
+     'slot["stock"] = max(0, int(round(left_stock)))', "出", "官仓领料（**全国口径无路**）", False, False),
     ("core/domains/economy/settlement_econ_helpers.py",
-     '_res["stock"] = max(0, _cur_stock - _want_take)', "出", "铸钱扣铜料（**全国口径**）", False),
+     '_res["stock"] = max(0, _cur_stock - _want_take)', "出", "铸钱扣铜料（**全国口径无路**）", False, False),
     ("core/settlement_finance.py",
-     '_slot["stock"] = _cur + _taken', "入", "熔铜池溢出 → 铜料入仓（**全国口径**）", False),
+     '_slot["stock"] = _cur + _taken', "入", "熔铜池溢出 → 铜料入仓（**全国口径无路**）", False, False),
 )
 
 #: 只读访问方（**不作为写点**，列出以说明改动的读数影响面）
@@ -79,20 +85,31 @@ def _num(v) -> Optional[float]:
 
 
 def direct_write_sites() -> List[Dict[str, Any]]:
-    """写点台账（副本，含 `bridged` 桥接进度）。"""
-    return [{"file": f, "marker": m, "direction": d, "note": n, "bridged": bool(b)}
-            for f, m, d, n, b in DIRECT_WRITE_SITES]
+    """写点台账（副本，含 `bridged` 桥接进度与 `bridgeable` 可桥性）。"""
+    return [{"file": f, "marker": m, "direction": d, "note": n,
+             "bridged": bool(b), "bridgeable": bool(c)}
+            for f, m, d, n, b, c in DIRECT_WRITE_SITES]
 
 
 def bridge_coverage() -> Dict[str, Any]:
-    """**先桥**进度：`{total, bridged, pending, pending_files}`（M64a 用；不靠嘴说覆盖率）。"""
+    """**先桥完成度**（M64/M65/M72）：可桥的点是否**全部**已桥。
+
+    判据（收口）：`可桥的全部已桥` ⇒ `bridgeable_pending == 0`。
+    不可桥的两类写明原因：**全国口径无路** / **外邦政权口径无宋路**。
+    """
     sites = direct_write_sites()
-    pending = [s for s in sites if not s["bridged"]]
-    return {"total": len(sites), "bridged": len(sites) - len(pending),
-            "pending": len(pending),
+    bridgeable = [s for s in sites if s["bridgeable"]]
+    pending = [s for s in bridgeable if not s["bridged"]]
+    not_bridgeable = [s for s in sites if not s["bridgeable"]]
+    return {"total": len(sites), "bridgeable": len(bridgeable),
+            "bridged": len(bridgeable) - len(pending),
+            "bridgeable_pending": len(pending),
+            "not_bridgeable": len(not_bridgeable),
+            "not_bridgeable_files": sorted({s["file"] for s in not_bridgeable}),
             "pending_files": sorted({s["file"] for s in pending}),
-            "note": ("`bridged=True` ＝ 该点已「先问桥、未接管则回落原写法」；"
-                     "未桥接点多为**全国口径、无路**（见各点 note），按 Jev 甲 0.817 **保持全国池**")}
+            "closed": not pending,
+            "note": ("`bridgeable=True` ＝ 该点**有宋境路名可用**（按 Jev 甲 0.817 应桥）；"
+                     "`False` ＝ **不可桥**（全国口径无路 / 外邦政权口径无宋路），原因写在各点 note")}
 
 
 def stock_summary(state) -> Dict[str, Any]:

@@ -36,24 +36,43 @@ def test_ledger_shape():
     sites = rss.direct_write_sites()
     assert len(sites) >= 10
     for s in sites:
-        assert set(s) == {"file", "marker", "direction", "note", "bridged"}
+        assert set(s) == {"file", "marker", "direction", "note", "bridged", "bridgeable"}
         assert s["file"].startswith("core/") and s["marker"] and s["direction"]
+        # **不可桥必须有原因**（写在该点 note 里）——不然就是"偷懒不桥"
+        if not s["bridgeable"]:
+            assert ("无路" in s["note"]) or ("外邦" in s["note"]), s
+
+
+def test_all_bridgeable_sites_are_bridged_and_workstream_closed():
+    """M72 收口判据：**可桥的全部已桥**（`closed=True`），不可桥的都有原因。"""
+    cov = rss.bridge_coverage()
+    assert cov["bridgeable"] == 4 and cov["bridged"] == 4
+    assert cov["bridgeable_pending"] == 0 and cov["closed"] is True
+    assert cov["not_bridgeable"] == 7
+    # 可桥的必须真的接了桥
+    import os
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "game"))
+    for s in rss.direct_write_sites():
+        if not s["bridgeable"]:
+            continue
+        with open(os.path.join(root, s["file"]), encoding="utf-8") as fh:
+            assert "resource_stock_bridge" in fh.read(), f"{s['file']} 可桥却没接桥"
 
 
 def test_bridge_coverage_is_asserted_not_claimed():
-    """覆盖率**可断言**：`bridged` 标记的点，其文件里必须**真的**出现桥调用。"""
+    """覆盖率**可断言**：`bridgeable` 的点，其文件里必须**真的**出现桥调用。"""
     import os
 
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "game"))
     cov = rss.bridge_coverage()
     assert cov["total"] == len(rss.DIRECT_WRITE_SITES)
-    assert cov["bridged"] + cov["pending"] == cov["total"]
+    assert cov["bridgeable"] + cov["not_bridgeable"] == cov["total"]
     for s in rss.direct_write_sites():
-        if not s["bridged"]:
+        if not s["bridgeable"]:
             continue
         with open(os.path.join(root, s["file"]), encoding="utf-8") as fh:
             src = fh.read()
-        assert "resource_stock_bridge" in src, f"{s['file']} 标了 bridged 但没接桥"
+        assert "resource_stock_bridge" in src, f"{s['file']} 标了 bridgeable 但没接桥"
 
 
 # ------------------------------------------------------------------ ② 存量读数

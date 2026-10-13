@@ -1,0 +1,42 @@
+{
+ "id": "M72-bridge-closure",
+ "title": "资源存量「先桥」**收口**：可桥 4/4 已桥；不可桥 7 处逐点写明原因",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M72-bridge-closure-scope.json（Jev 甲 0.732 —— **前提被实测推翻**，改以实测收口）",
+ "deliverable": [
+  "core/domains/economy/resource_stock_survey.py：`DIRECT_WRITE_SITES` 增 `bridgeable`；`bridge_coverage()` 增 `bridgeable/bridgeable_pending/not_bridgeable/closed`",
+  "_dev_tools/game-dev/tests/test_resource_stock_survey.py：收口判据用例（不可桥须有原因 · 可桥须真接桥 · `closed` 为真）",
+  "game/core/foundation/ledger/README.md 纪律 8：收口结论 + 前提被推翻的留痕"
+ ],
+ "closure": {
+  "total": 11,
+  "bridgeable": 4,
+  "bridged": 4,
+  "bridgeable_pending": 0,
+  "closed": true,
+  "not_bridgeable": 7,
+  "not_bridgeable_reasons": {
+   "全国口径无路": [
+    "material_market 基座写/官仓售料/买入入仓/官仓领料（四处）",
+    "settlement_econ_helpers 铸钱扣铜料",
+    "settlement_finance 熔铜池溢出"
+   ],
+   "外邦政权口径无宋路": [
+    "settlement_econ `_gr_raw[\"stock\"] = n`（实为 `_ext_econ_phases` 内，每月 38 个外邦政权各调一次）"
+   ]
+  }
+ },
+ "measurement_vs_jev": "🔴 Jev 本轮甲（0.732「用 `stock_set` 桥接」）的**前提**是『该写点有宋境路名』；实测该处属**外邦政权口径** ⇒ 按 M64 甲 0.817（只桥有路的）**不可桥**。故**未按裁定实施**，改为修正分类 + 以可桥性收口（AGENTS.md：与实测冲突以实测为准，冲突要写清楚）。",
+ "verified": [
+  "台账用例 7 passed；全量串行 EXIT=0（_scratch/full_regression_m72.log）；索引纪律 48 passed"
+ ],
+ "next": [
+  "M64 线**已无技术欠账**（可桥的都桥了）⇒ 若将来改逐路池，须先为 7 处不可桥写点定**不造假地点**的归属规则（届时 re-ask Jev）",
+  "剩余卡口不变：**营运资金来源**（M71 三时点证据已备）· **作坊岗位数**（`shadow_ready`）",
+  "未开工阶段：P3（须授权）· P4 · P5 前端 · P6"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T03:06:13Z"
+}
