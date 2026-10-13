@@ -64,6 +64,8 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
     """单座建筑的 P2 字段投影（只读）：每个字段 `{value, defined, source, reason}`。"""
     ctx = jobs_ctx if jobs_ctx is not None else _jobs_context(state, route, seat)
     j = ctx.get(str(building)) or {}
+    # 🔴 M91：建筑**归属**读 `seats[治所].building_meta`（保形态、**非账本**；未迁移/未登记 ⇒ undefined）
+    _meta = (((_seat_row(state, route, seat) or {}).get("building_meta") or {}).get(str(building))) or {}
 
     def _undef(reason: str, source: str = "（无）") -> Dict[str, Any]:
         return {"value": None, "defined": False, "source": source, "reason": reason}
@@ -75,7 +77,9 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         "level": {"value": level, "defined": level is not None,
                   "source": "seats[治所][\"buildings\"]", "reason": None},
         "completed_month": _undef("建成月仅 `civil_building` 有；本模块**不臆造**"),
-        "owner": _undef("**建筑**无货主字段（M66 只登记了**作坊**的主人）"),
+        "owner": {"value": _meta.get("owner"), "defined": bool(_meta.get("owner")),
+                  "source": "prefectures[路].seats[治所].building_meta（M91 P2 第一片；保形态、**非账本**）",
+                  "reason": None if _meta.get("owner") else "该建筑类型未登记归属规则，或旧档未迁移（缺失≠0）"},
         "operator": _undef("无经营者/管理 Agent 字段"),
         "maintenance": _undef("无维护责任字段"),
         "operation_mode": _undef("无经营方式字段（家庭兼业/民营雇工/官营/官有承包）"),

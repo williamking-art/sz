@@ -1,0 +1,44 @@
+{
+ "id": "M91-building-owner-landing",
+ "title": "P2 第一片落地：建筑**归属**登记（保形态 building_meta；P2 就绪度 owner 0→1.0；A/B 恒等）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M91-building-owner-landing-scope.json（Jev 放行 甲 0.866；设计见 M90）",
+ "deliverable": [
+  "core/domains/economy/building_owner.py（OWNER_BY_TYPE 逐条带依据 / owner_for / assign_building_owners 幂等 / survey_building_owners）",
+  "core/foundation/persistence/migrations.assign_building_owners（同型幂等入口）",
+  "application/game_init.init_building_owners（新局序列）＋ application/load_game（读档补齐，失败不拒档）",
+  "core/domains/economy/entity_projection.py（owner 改读 building_meta）",
+  "_dev_tools/game-dev/tests/test_m91_building_owner.py（6 passed）"
+ ],
+ "contract": [
+  "**保形态**：`buildings = {建筑名: 等级}` 一字不动；并列新增 `building_meta`（**非账本**）",
+  "幂等：只填缺失、不覆盖；未登记类型**跳过并计数**（不臆造）；读档失败**不拒档**",
+  "**零数值变化**：新字段不被任何结算读取（A/B 同种子 3 月恒等已证）",
+  "规则逐条给依据（水利/常平仓＝官府兴办/官仓 ⇒ `local:<路>`）"
+ ],
+ "evidence": {
+  "owned": "40/40",
+  "undefined_rule": 0,
+  "readiness_owner": 1.0,
+  "ready_fields": [
+   "seat",
+   "level",
+   "owner"
+  ],
+  "ab_identical": true,
+  "idempotent": true
+ },
+ "verified": [
+  "M91 用例 6 passed；M86 owner 期望已更新；全量串行 EXIT=0（先看退出码）"
+ ],
+ "next": [
+  "① 其余建筑类型的归属依据（逐类型）",
+  "② operator/operation_mode/completed_month/recipe/io_stock/income_to 待口径",
+  "③ jobs_filled 是否落成状态（改数值 ⇒ 桥接 + 同种子标定）",
+  "④ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T08:19:57Z"
+}

@@ -62,5 +62,6 @@ def test_real_game_survey_ratio_and_readonly():
     ratio = rep["defined_ratio"]
     assert ratio["level"] == 1.0 and ratio["seat"] == 1.0
     assert ratio["jobs_capacity"] == 0.0                   # 非岗位建筑 ⇒ 容量不可算（如实）
-    assert ratio["owner"] == 0.0 and ratio["income_to"] == 0.0
+    assert ratio["owner"] == 1.0                            # M91 起：建筑归属已登记（0 → 1.0）
+    assert ratio["income_to"] == 0.0
     assert copy.deepcopy({r: p.get("seats") for r, p in s.prefectures.items()}) == before

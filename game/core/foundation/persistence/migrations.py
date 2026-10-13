@@ -122,6 +122,17 @@ def sink_buildings_to_seats(state) -> int:
     return building_bridge.sink_buildings_to_seats(state)
 
 
+def assign_building_owners(state) -> dict:
+    """给**缺失归属**的建筑补 `building_meta[建筑]["owner"]`（P2 第一片 · M91；Jev 甲 0.866）。
+
+    与 `assign_workshop_owners` 同型：**无条件幂等入口**，新局与读档共用；只填缺失、**不覆盖**；
+    未登记类型**跳过并计数**（不臆造）；**保形态**（`buildings` 一字不动）；**零数值变化**。
+    """
+    from core.domains.economy import building_owner
+
+    return building_owner.assign_building_owners(state)
+
+
 def assign_workshop_owners(state) -> dict:
     """给**缺失货主**的作坊补 `owner`/`owner_kind`（产权落点 · M66；Jev choose A 0.665）。
 

@@ -1,0 +1,35 @@
+{
+ "id": "M91-building-owner-landing-scope",
+ "title": "Round 70：P2 第一片落地——建筑归属登记（Jev 放行 甲 0.866）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "是否放行按 M90 设计实施 P2 第一片（owner 字段）？",
+ "options": {"甲": "放行实施", "乙": "只做归属规则再取证", "丙": "不动手"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.8657206296920776, "乙": 0.09768244624137878, "丙": 0.03659689798941349},
+ "outcome": "✅ 落地：① 新模块 `core/domains/economy/building_owner.py`（规则**逐条给依据**：水利/常平仓 → `local:<路>`；**未登记类型不写**，留 undefined）；② **保形态**——`buildings` 标量**一字不动**，并列 `seats[治所].building_meta`（**非账本**，仅归属元数据）；③ 幂等迁移 `migrations.assign_building_owners` 接入**新局**（`game_init.init_building_owners`）与**读档**（失败不拒档）；④ `entity_projection` 读 `building_meta.owner` ⇒ **P2 就绪度 owner 0 → 1.0**。",
+ "evidence": {
+  "buildings_owned": "40/40（`undefined_rule=0`）",
+  "readiness": {"seat": 1.0, "level": 1.0, "owner": 1.0, "其余 11 项": 0.0},
+  "AB_identical": "✅ 同种子 3 月：迁移在位 vs 清空 building_meta ⇒ `treasury`／`buildings`／作坊数**完全一致** ⇒ **零数值变化已证**",
+  "idempotent": "新局后再跑 `assign_building_owners` ⇒ `assigned=0`（只填缺失、不覆盖）"
+ },
+ "applied_in": {
+  "modules": ["core/domains/economy/building_owner.py（新建）",
+              "core/domains/economy/entity_projection.py（owner 改读 building_meta）",
+              "core/foundation/persistence/migrations.py（assign_building_owners）",
+              "application/game_init.py（init_building_owners + 序列）",
+              "application/load_game.py（读档补齐，失败不拒档）"],
+  "tests": ["_dev_tools/game-dev/tests/test_m91_building_owner.py（6 passed）",
+            "test_m86_entity_projection.py（owner 期望 0.0 → 1.0）"],
+  "task": "_dev_tools/handover/tasks/M91-building-owner-landing.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["只落地 `owner` 一项；`operator`／`operation_mode`／`completed_month`／`recipe`／`io_stock`／`income_to` 仍 `undefined`（待口径）",
+            "建筑归属规则目前只覆盖 水利/常平仓；其余类型**逐类型给依据**后再补表"],
+ "next": "① 按需补建筑类型的归属依据；② `jobs_filled` 是否落成状态（改数值 ⇒ 桥接 + 标定）；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若裁定新的归属规则或 operator 口径，补表后本档作废重接"
+}
