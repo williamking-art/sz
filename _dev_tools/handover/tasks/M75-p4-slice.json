@@ -1,0 +1,46 @@
+{
+ "id": "M75-p4-slice",
+ "title": "P4 第①段「府际市场」**设计切片** + P4 前置只读取证（依赖现实：P2 主体未开工）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M75-p4-slice-scope.json（Jev 甲 0.4506 vs 丙 0.4379 —— 极端平手，自论证后**两件都做**）",
+ "deliverable": [
+  "specs/economy/unified-civilian-market/P4_府际市场_设计切片_2026-10-13.md（取证表 / 第①段设计 / 验收断言 / 非目标 / 依赖现实）",
+  "_scratch/verify_m75_p4_prereq.py（可复跑取证）",
+  "tasks.md 的 P4 行状态更新为『🟡 设计切片已出（M75）』"
+ ],
+ "evidence": {
+  "reusable": "transport（dispatch/in_transit/arrive_due/is_adjacent/haversine_km/KM_PER_MONTH/ROAD_QUALITY）；P0 可达性 5/5 门",
+  "thin": "maritime 仅 {open, silver_in, tariff}；邻接靠距离判定、**无显式可复原路线表**",
+  "missing": "state.foreign_trade / trade_records / customs / port_tax / interstate **全 None**（无逐笔外贸与关税）；边境政权市场无独立账本；**6 月后在途批次 = 0**、material_transit 未创建"
+ },
+ "design_headlines": [
+  "路线表**由 transport 原语派生**（不手抄）：(from,to,距离,路况,运力/月,损耗,关卡状态)；**缺失即不启用该路线**",
+  "在途批次逐笔（复用 dispatch/arrive_due）；**未到货不得使用**",
+  "成交＝月初意向快照 × 当月约束（预算/运力/库存/关卡）；**价差须扣除运费+税费+资金占用+风险**才算套利",
+  "税基＝**逐笔成交记录之和**；**无记录 ⇒ 市舶税/外销收入 = 0（不是 None）**",
+  "货主一律用既有词表（pop:/local:/state_treasury/imperial）⇒ **不新增与 POP 平行的存量账本**"
+ ],
+ "acceptance_assertions_written": [
+  "关路后量/价/税基逐月变化",
+  "无预算或运力不成交",
+  "在途货未到不得使用",
+  "沿途转售不重复计收入",
+  "无贸易记录 ⇒ 税/收入为 0"
+ ],
+ "blocking_found": "🔴 规格状态表明写 **P4 依赖 P0（✅）＋ P2 主体（⬜ 未开工）**；第①段需要『谁在运、谁出钱』⇒ 落地前须先定 **P2 主体口径**（建筑实例 schema/迁移），或明确以 **M66 的作坊 owner** 作主体。**本切片据实写明，不假装能立即开工。**",
+ "non_goals": [
+  "不做全世界一个市场",
+  "不做所有路线任意互通",
+  "不设计②③④细节",
+  "不改结算/数值，不新增平行账本"
+ ],
+ "next": [
+  "① 定 P2 主体口径（或用 M66 owner 代替）⇒ 第①段可开工",
+  "② 逐笔贸易记录容器（②③④共同前置）",
+  "③ 实施批须走数值标定"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T04:10:47Z"
+}

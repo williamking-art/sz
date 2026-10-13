@@ -1,0 +1,33 @@
+{
+ "id": "M75-p4-slice-scope",
+ "title": "Round 54：P4 第①段「府际市场」设计切片（甲 0.4506 vs 丙 0.4379 —— **极端平手**，两件都做）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B) + DSH 自论证",
+ "mode": "choose",
+ "question": "P4（府际/边境/远方市场）本批怎么切？",
+ "options": {
+  "甲": "只做第①段（府际市场）的可落地设计切片（口径/调用链/数据形态/验收断言/非目标）",
+  "乙": "四段都出设计（纸面更全但每段浅）",
+  "丙": "先只读取证：现有交通/在途/关卡/外贸数据能支撑到哪一步"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.45056504011154175, "乙": 0.11155771464109421, "丙": 0.4378772974014282},
+ "TIE_DISCLOSURE": "🔴 **极端平手**：甲 0.4506 vs 丙 0.4379（差 **0.013**），且**两者都低于 tokenrhythm 0.50 阈值** ⇒ 按 AGENTS.md「概率接近平手必须自己再论证」，本批**两件都做且按正确顺序**：先**只读取证**（否则「可落地」无从谈起），再据取证写第①段设计；②③④ 明确列为后续。",
+ "takings": {
+  "reused": "transport 原语（dispatch/in_transit/arrive_due/is_adjacent/haversine_km/KM_PER_MONTH/ROAD_QUALITY）✅；P0 可达性 5/5 门 ✅；跨路成交已在 P0 落地",
+  "existing_but_thin": "maritime 仅 {open, silver_in, tariff}（无逐笔成交）；邻接由**距离判定**给出，**无显式可复原路线表**",
+  "missing": "外贸逐笔/关税/市舶税（state.foreign_trade/trade_records/customs/port_tax/interstate **全 None**）；边境政权市场无独立账本；6 月后**在途批次 = 0**、material_transit 未创建（运输层存在但当前无派发）"
+ },
+ "dependency_reality": "🔴 P4 依赖 **P0 可达性（✅）＋ P2 主体（⬜ 未开工）**。第①段需要『谁在运、谁出钱』⇒ M66 已登记 107 座作坊货主（部分补上），但 **P2 的建筑实例 schema 与迁移未做** ⇒ 第①段**落地前须先定主体口径**（本设计据实写明，不假装可立即开工）。",
+ "deliverable": [
+  "_dev_tools/game-docs/specs/economy/unified-civilian-market/P4_府际市场_设计切片_2026-10-13.md（取证表 + 第①段设计 + 验收断言 + 非目标 + 依赖现实）",
+  "_scratch/verify_m75_p4_prereq.py（可复跑取证）",
+  "同规格 tasks.md 的 P4 行状态更新"
+ ],
+ "non_goals": ["不做全世界一个市场", "不做所有路线任意互通", "本批不设计②③④细节（Jev 乙 0.112 已否）", "不改结算、不改数值、不新增平行账本"],
+ "applied_in": {"task": "_dev_tools/handover/tasks/M75-p4-slice.json", "commit": "（本批提交）"},
+ "next": "① 第①段落地前须先定 **P2 主体口径**（建筑实例 schema/迁移）或明确用 M66 的 owner 作主体；② 逐笔贸易记录容器是②③④的共同前置；③ 本批只出设计，实施须另批（并走数值标定）",
+ "reopen_if": "若 P2 主体口径或路线表来源确定，本切片作废并进入实施批"
+}
