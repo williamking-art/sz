@@ -139,6 +139,29 @@ def project_seat(state, route: str, seat: str) -> Dict[str, Any]:
             "note": "逐建筑 P2 字段投影（只读）；`undefined_fields` 列出未定义字段"}
 
 
+def available_methods(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """作坊**可用生产方法**（M110 只读派生）：内置表（`WORKSHOP_RECIPES`）∪ 本作坊 active。
+
+    ⚠️ 外邦扩展配方（`WORKSHOP_RECIPES_EXT`，形态 `[(原料, 单位/工匠月, 成品)]`）**形态不同**
+    ⇒ 本项**不并入**（避免把两种口径混成一种）；宋境作坊的方法集合以本函数为准。
+    """
+    out: List[Dict[str, Any]] = []
+    name = row.get("name") or row.get("workshop_type") or row.get("type")
+    try:
+        from content.data_constants import WORKSHOP_RECIPES        # 内置单点
+        base = WORKSHOP_RECIPES.get(str(name))
+        if isinstance(base, dict):
+            out.append({"source": "内置 WORKSHOP_RECIPES", "recipe": base.get("recipe"),
+                        "output_dim": base.get("output_dim"), "yield": base.get("yield")})
+    except Exception:                                              # noqa: BLE001
+        log.warning("entity_projection: 内置配方表不可读 name=%s", name, exc_info=True)
+    active = row.get("recipe")
+    if active and (not out or out[0].get("recipe") != active):
+        out.append({"source": "本作坊 active（自定义/AI 拟定）", "recipe": active,
+                    "output_dim": row.get("output_dim"), "yield": row.get("yield")})
+    return out
+
+
 def project_workshop(state, wid: str) -> Dict[str, Any]:
     """**作坊（经营记录）**的 P2 字段投影（只读）——规格原文是「建筑/经营记录」，
     而**作坊才是经营记录**（M96 补）。
@@ -185,7 +208,12 @@ def project_workshop(state, wid: str) -> Dict[str, Any]:
         "operation_mode": _def(derive_operation_mode(owner),
                                "building_owner.derive_operation_mode（M92 口径单点）",
                                None if owner else "无 owner 前缀可派生"),
-        "methods": _undef("无可选生产方法字段"),
+        "methods": (lambda _ms: {
+            "value": {"active": row.get("recipe"), "available": _ms}, "defined": bool(_ms),
+            "source": ("M110 只读派生：`active`＝`workshops[wid].recipe`（既有字段）· "
+                       "`available`＝内置表 `WORKSHOP_RECIPES` ∪ 本作坊 active"
+                       "（外邦 `WORKSHOP_RECIPES_EXT` 形态不同，**不并入**）"),
+            "reason": None if _ms else "无配方可判定 ⇒ 生产方法不可定义（缺失≠0）"})(available_methods(row)),
         "jobs_capacity": _undef("作坊**不在 `JOBS_PER_LEVEL`**（M67：作坊岗位数无权威来源）"),
         "jobs_filled": _undef("同上（M67）——**不按人口均分、不默认满员**"),
         "recipe": _def(row.get("recipe"), "`workshops[wid].recipe`（原料消耗）"),
