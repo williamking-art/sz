@@ -96,6 +96,18 @@
    `/api/action` 后由服务端调用**同一套 `core.commands`** ⇒ 写点集合相同，但**未起 HTTP 服务做端到端验证**；
    空 payload 只覆盖「默认参数下会写到的写点」，**不覆盖「特定参数组合才写」的分支**。
    ⇒ 至此「直写路级镜像」家族**及其三个盲区（结算管线 / 读档往返 / 后端动作）全部被守望覆盖**。
+
+8. 🔴 **`state.resources` 是「全国池」、**没有路维度**（M64 实测）** ⇒ 商品/物料存量州府化
+   **不能**按 POP/地方府库那样机械"全桥+下沉"：
+   * 11 处 `resources[dim]["stock"]` 写点里，只有一部分**天然有路**（生产链/和买/作坊投料/作坊产出）；
+     另一些是**全国口径操作、根本没有路**（`material_market` 官仓售料/领料/基座写、铸钱扣铜、熔铜溢出）。
+   * Jev 裁定 **甲 0.817：保持全国池不下沉**；新增单一写口
+     `resource_stock_bridge`（`stock_add/set/take/get`）——**有路的写点先问桥，桥未接管（`None`）则回落原写法**
+     ⇒ **今日零行为变化**（A/B 同种子 3 月 `resources` 完全一致），同时为将来改逐路池留好接口。
+   * `stock_take` **从治所真账按持仓占比取**（逐个夹紧 ≥0、夹紧留痕）；`sink_route_resource_stock` /
+     `sink_resource_stock_to_seats` **已实现但本批不调用**（翻开关须先为 6 处无路写点定**不造假地点**的归属规则）。
+   * 覆盖率**可断言**：`resource_stock_survey.DIRECT_WRITE_SITES` 带 `bridged` 标记 +
+     `bridge_coverage()`；用例会核对"标了 bridged 的文件里必须真出现桥调用"。当前 **2/11** 已桥。
    **第三处同族写点（✅ 后续已修）**：`settlement_econ` 的**成品池分派**（`:1805-1831`）曾同样直写镜像；
    试改时**触 POP 只读守卫**，守卫 trace 直指 **M45**——`market.py:180/:183`（`_trade_goods_core`）
    成交时直写路级 `pops[类]["wealth"]` 镜像（该路径平时空转，**商品真落 POP 后才被触发**）。

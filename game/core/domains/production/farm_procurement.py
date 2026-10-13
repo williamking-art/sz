@@ -231,7 +231,12 @@ def procure_from_farmers(state, log: Optional[List[str]] = None):
             if take <= 0:
                 state.transfer_money("pop:%s:\u519c" % route, "treasury", got)   # \u56de\u9000
                 continue
-            slot["stock"] = int(slot.get("stock", 0) or 0) + take
+            # 🟢 M64a（**先桥**步，Jev 甲 0.817）：此处**有路**（`route`）⇒ 先问资源存量桥；
+            #   桥未接管（返回 None，例如该路尚未下沉）⇒ **保留原写法** ⇒ 今日零行为变化。
+            from core.foundation.ledger import resource_stock_bridge as _rsb
+            _rsb_ret = _rsb.stock_add(state, dim, take, route=route)
+            if _rsb_ret is None:
+                slot["stock"] = int(slot.get("stock", 0) or 0) + take
             # 🟢 M42a：逐维流量登记（和买**入国家仓**；测量仪器，失败不中断）
             from core.domains.economy import stock_flow as _sf
             _sf.record_in(state, dim, take, reason="procure_buy")

@@ -36,8 +36,24 @@ def test_ledger_shape():
     sites = rss.direct_write_sites()
     assert len(sites) >= 10
     for s in sites:
-        assert set(s) == {"file", "marker", "direction", "note"}
+        assert set(s) == {"file", "marker", "direction", "note", "bridged"}
         assert s["file"].startswith("core/") and s["marker"] and s["direction"]
+
+
+def test_bridge_coverage_is_asserted_not_claimed():
+    """覆盖率**可断言**：`bridged` 标记的点，其文件里必须**真的**出现桥调用。"""
+    import os
+
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "game"))
+    cov = rss.bridge_coverage()
+    assert cov["total"] == len(rss.DIRECT_WRITE_SITES)
+    assert cov["bridged"] + cov["pending"] == cov["total"]
+    for s in rss.direct_write_sites():
+        if not s["bridged"]:
+            continue
+        with open(os.path.join(root, s["file"]), encoding="utf-8") as fh:
+            src = fh.read()
+        assert "resource_stock_bridge" in src, f"{s['file']} 标了 bridged 但没接桥"
 
 
 # ------------------------------------------------------------------ ② 存量读数

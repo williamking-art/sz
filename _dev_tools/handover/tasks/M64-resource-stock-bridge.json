@@ -1,0 +1,51 @@
+{
+ "id": "M64-resource-stock-bridge",
+ "title": "资源存量**先桥**步：`resource_stock_bridge` 单一写口（保持全国池，零行为变化）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M64-resource-stock-bridge-scope.json（Jev：批次 A 0.996；口径**甲 0.817**）",
+ "deliverable": [
+  "core/foundation/ledger/resource_stock_bridge.py（单一写口 + 幂等下沉函数（**不调用**）+ 只读对账）",
+  "_dev_tools/game-dev/tests/test_resource_stock_bridge.py（9 passed）",
+  "_dev_tools/game-dev/tests/test_resource_stock_survey.py（6 passed，含覆盖率断言）"
+ ],
+ "contract": [
+  "**零接管契约**：`stock_add/stock_set/stock_take/stock_get` 在『无路 / 该路未下沉 / 参数非法』时返回 `None` ⇒ **调用方保留原写法**",
+  "已下沉 ⇒ 写 `seats[治所][\"resources\"]` 真账；**全国池**刷成 `Σ（已下沉治所 ∪ 未下沉路级）`；**`cap` 不动**",
+  "`stock_take` 按各治所持仓占比取、逐个夹紧 ≥0；**夹紧留痕**（`clamp_events()`）",
+  "缺省承载治所：**首府**（`building_bridge.capital_seat_id`）→ 人口权重最大 → 任一治所 → `None`（**不臆造地点**）",
+  "`sink_route_resource_stock` / `sink_resource_stock_to_seats` **已实现、BUG 已单测、本批不调用**"
+ ],
+ "evidence": [
+  "**A/B 同种子 3 月**：桥在位 vs 桥打桩恒 None ⇒ `resources` 20 维**完全一致**、`treasury`/`goods_traded` 一致 ⇒ **零行为变化**",
+  "真实新局 **20/20 路未下沉** ⇒ 所有写口不接管（用例锁定）",
+  "合成已下沉 state 覆盖：写治所真账 + 全国池 Σ + cap 不动 + 按比例取货 + 夹紧留痕 + 下沉幂等"
+ ],
+ "wired": [
+  "farm_procurement（和买入仓）",
+  "settlement_econ（作坊投料扣减）"
+ ],
+ "pending_sites": {
+  "count": 9,
+  "by_reason": {
+   "全国口径无路（按甲不应强桥）": [
+    "material_market 基座写/官仓售料/买入入仓/官仓领料",
+    "settlement_econ_helpers 铸钱扣铜",
+    "settlement_finance 熔铜溢出"
+   ],
+   "有路但需改签名或作用域（下一批）": [
+    "production_chain._write_warehouse（需把 route 传进 `_write_warehouse`）",
+    "settlement_econ 作坊产出入仓",
+    "settlement_econ 粮维写回"
+   ]
+  }
+ },
+ "limits": [
+  "本批**未改真账位置**（`resources` 仍全国池）⇒ 只读消费方（stock_identity / stock_flow / material_trade_ops / settlement_agri / civil_building）无需改",
+  "『未下沉路的路级 `resources`』在当前存档里**并不存在**（真账一直在全国池）⇒ `_sum_known_stock` 对未下沉路取到 `None`；**今日不会走到**该分支（无路下沉 ⇒ 桥不接管），翻开关时必须**同时**迁移全部路（幂等入口已备）"
+ ],
+ "next": "① 下一批桥接 3 处「有路但需改签名/作用域」的点；② 若要翻开关（改逐路池）须先为 6 处无路写点定不造假地点的归属规则（届时 re-ask Jev）；③ 6 位数整数观察（盐/茶/木/石/铁 各 3,000,000）复查",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T01:14:50Z"
+}

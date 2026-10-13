@@ -1731,7 +1731,15 @@ def _settle_workshops(state, log):
                 _slot = state.resources.setdefault(dim, {"stock": 0, "cap": 0})
                 _cur_s = int(_slot.get("stock", 0) or 0)
                 _take = min(_cur_s, int(round(got)))
-                _slot["stock"] = max(0, _cur_s - int(round(got)))
+                # 🟢 M64a（**先桥**步）：作坊可定路（键内路名）⇒ 先问资源存量桥；
+                #   未接管（None）⇒ 保留原写法 ⇒ 今日零行为变化。
+                from core.foundation.ledger import resource_stock_bridge as _rsb
+                from core.domains.economy.seat_goods_readout import route_of_workshop as _row_of
+                _wroute = _row_of(state, wid)
+                _rsb_ret = (_rsb.stock_take(state, dim, int(round(got)), route=_wroute)
+                            if _wroute else None)
+                if _rsb_ret is None:
+                    _slot["stock"] = max(0, _cur_s - int(round(got)))
                 # 🟢 M42a：逐维流量登记（作坊投料**出账**；只记实际扣减量）
                 if _take > 0:
                     from core.domains.economy import stock_flow as _sf

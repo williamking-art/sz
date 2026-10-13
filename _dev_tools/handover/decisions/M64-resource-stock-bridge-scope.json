@@ -1,0 +1,46 @@
+{
+ "id": "M64-resource-stock-bridge-scope",
+ "title": "Round 44 裁定：resources 归属口径取**甲**（保持全国池＋给有路写点加可选路参数桥）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose（两次：先定批次范围、实施中撞到新事实后再定口径）",
+ "asked_round_1": {
+  "question": "Round 44 取哪个？",
+  "options": {"A": "先桥（11 写点走单一写口，真账不动，零行为变化 + A/B 证明）",
+              "B": "一步到位（桥接+下沉+迁移；风险高）", "C": "其他（如前端面板）"},
+  "verdict": "A",
+  "probabilities": {"A": 0.9959083795547485, "B": 0.0038672974333167076, "C": 0.00022432139667216688}
+ },
+ "asked_round_2": {
+  "trigger": "🔴 实施中撞到**新事实**（不猜，回头问）：`state.resources` 是**全国池、没有路维度**——11 处写点里只有一部分**天然有路**（生产链/和买/作坊投料/作坊产出…），另一些（官仓售料/领料/基座写/熔铜溢出/买入入仓）是**全国口径操作、根本没有路**，因此『11 处全部走桥』**不是机械替换**。",
+  "question": "resources 的归属口径取哪个？",
+  "options": {
+   "甲": "保持**全国池不下沉**，只给有路的写点加**可选路参数**桥（给了路且该路已下沉 ⇒ 治所真账；否则全国池＝现状）",
+   "乙": "改成**逐路池**（路级 Σ治所；全国 = Σ路）——但 5 处无路写点必须**新造归属规则**（＝按人口比例伪造地点，M37/M47 明令禁止）",
+   "丙": "只做 cap/stock 分层口径，暂不动写点"
+  },
+  "verdict": "甲",
+  "probabilities": {"甲": 0.8165017366409302, "乙": 0.15502800047397614, "丙": 0.028470266610383987},
+  "margin_note": "甲领先 0.66 ⇒ 非平手；且乙会让 5 处写点被迫「造地点」，与硬约束冲突"
+ },
+ "decision": "**甲**：`resources` 保持**全国池**；新增 `resource_stock_bridge` 作为**单一写口**，对**有路**的写点「先问桥、未接管则回落原写法」⇒ **今日零行为变化**，同时为将来若改逐路池**留好接口**（`sink_route_resource_stock` / `sink_resource_stock_to_seats` 已实现但**不调用**）。",
+ "applied_in": {
+  "module": "core/foundation/ledger/resource_stock_bridge.py",
+  "wired": ["core/domains/production/farm_procurement.py（和买入仓，有路）",
+            "core/settlement_econ.py（作坊投料扣减，可定路）"],
+  "tests": ["_dev_tools/game-dev/tests/test_resource_stock_bridge.py（9 passed）",
+            "_dev_tools/game-dev/tests/test_resource_stock_survey.py（6 passed，含**覆盖率可断言**）"],
+  "task": "_dev_tools/handover/tasks/M64-resource-stock-bridge.json",
+  "commit": "（本批提交）"
+ },
+ "evidence": [
+  "**零行为变化（A/B 同种子 3 月）**：桥在位 vs 桥被打桩恒 `None` ⇒ `resources`（20 维）**完全一致**、`treasury` 一致、`statistics['goods_traded']` 一致",
+  "**零接管契约**：真实新局 20 路**全未下沉** ⇒ 所有写口返回 `None`（调用方保留原写法）",
+  "已下沉路径（合成 state）单测覆盖：写治所真账 + 全国池刷成 Σ（已下沉治所 ∪ 未下沉路级）、`cap` 不动、`stock_take` 按持仓占比 + 逐个夹紧 + **夹紧留痕**、`sink_*` **幂等**",
+  "台账升级：`DIRECT_WRITE_SITES` 增 `bridged` 标记 + `bridge_coverage()`；**覆盖率可断言**（标了 bridged 的文件里必须真出现桥调用）"
+ ],
+ "remaining": "**未桥接 9 处**（生产链 `_write_warehouse` 需改签名传路、作坊产出入仓、粮维写回、`material_market` 四处、铸钱扣铜、熔铜溢出）——其中 6 处是**全国口径、无路**（按甲**不应**强行桥接），3 处**有路但需改签名/作用域**（下一批做）。",
+ "reopen_if": "若将来裁定改逐路池（乙），则需先为 5 处无路写点定**不造假地点**的归属规则；或 `cap` 口径变更时重问"
+}
