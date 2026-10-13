@@ -26,6 +26,12 @@ def test_rules_are_evidence_based():
         assert basis, f"{wtype} 缺依据"
     assert wo.OWNER_BY_TYPE["酒坊"][1] == "官营"
     assert wo.OWNER_BY_TYPE["畜栏"][1] == "民营"
+    # M67 补漏：配方面实有 6 型 ⇒ 规则表必须**全覆盖**（否则将来建坊会 owner-undefined）
+    from content.data_constants import WORKSHOP_RECIPES
+    missing = set(WORKSHOP_RECIPES) - set(wo.OWNER_BY_TYPE)
+    assert missing == set(), f"配方面有而规则表缺：{missing}"
+    assert wo.OWNER_BY_TYPE["造纸坊"][1] == "民营"
+    assert wo.OWNER_BY_TYPE["糖坊"][1] == "民营"
 
 
 def test_owner_for_uses_existing_vocabulary():

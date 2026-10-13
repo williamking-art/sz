@@ -42,6 +42,14 @@ OWNER_BY_TYPE: Dict[str, Tuple[str, str, str]] = {
              "产出为商品（meat 等），经工匠 goods 池由**民间成交**付钱（2026-10-08 用户裁定）"),
     "麻坊": ("pop:商人", "民营", "成品（布）入工匠 goods 池、由民间成交付钱"),
     "丝坊": ("pop:商人", "民营", "成品（绸）入工匠 goods 池、由民间成交付钱"),
+    # ---- M67 补漏（**配方面实有 6 型**，M66 只登记了 4 型）----
+    #   `WORKSHOP_RECIPES` 里还有 `造纸坊`（麻→纸）与 `糖坊`（蔗→糖，G-6 产业链扩充）；
+    #   其成品（纸/糖）与 绢/布 同路：**落 resources + 工匠 goods 池、由民间成交付钱**
+    #   （见 `settlement_econ` 的 RESOURCE_DIMS 分支注释）⇒ 同属**民营**。
+    "造纸坊": ("pop:商人", "民营",
+               "成品（纸）与 绢/布 同路：入工匠 goods 池、由民间成交付钱（settlement_econ RESOURCE_DIMS 分支）"),
+    "糖坊": ("pop:商人", "民营",
+             "成品（糖）与 绢/布 同路：入工匠 goods 池、由民间成交付钱（settlement_econ RESOURCE_DIMS 分支）"),
 }
 
 __all__ = ["OWNER_BY_TYPE", "workshop_type_of", "owner_for", "assign_owners",

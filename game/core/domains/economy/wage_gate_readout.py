@@ -277,6 +277,63 @@ def project_route_gate(state, route: str) -> Dict[str, Any]:
             "cover_by_pool": cover, "reasons": reasons}
 
 
+#: 作坊类型 → **建筑类型**的推断映射（M67 取证；⚠️ **推断，非史料**）
+WORKSHOP_TO_BUILDING: Dict[str, str] = {
+    "酒坊": "工坊", "麻坊": "工坊", "丝坊": "工坊", "造纸坊": "工坊", "糖坊": "工坊",
+    "畜栏": "牧场",
+}
+#: 上述映射的**依据与保留**（必须随映射一起展示，避免被当成史实引用）
+WORKSHOP_MAPPING_BASIS = (
+    "**推断（非史料）**：作坊是『加工型生产单位』，与建筑 `工坊` 同类；`畜栏` 属畜牧，"
+    "与建筑 `牧场` 同类。该映射**只用于展示既有 `WAGE_RATE` 的量级**，"
+    "**不足以**据此给作坊记工资义务——因为还缺**岗位数**（见 `workshop_wage_survey`）。"
+)
+
+
+def workshop_wage_survey(state, regime: str = "宋") -> Dict[str, Any]:
+    """**作坊工资前置取证**（M67；只读）：逐项报『能不能算』并说明缺什么（**不臆造**）。
+
+    返回：
+      * `jobs_source`：有无权威的作坊**岗位数**来源（今日**无** ⇒ `None` + reason）；
+      * `rate_by_type`：若按**推断映射**取既有 `WAGE_RATE`，各作坊类型的**工价候选**与依据；
+      * `wage_obligation`：**恒 `None`**（岗位数不可得 ⇒ 义务不可定义，**不是 0**）；
+      * `workshops`：本局作坊数与类型分布。
+    """
+    ws = getattr(state, "workshops", None)
+    ws = ws if isinstance(ws, dict) else {}
+    by_type: Dict[str, int] = {}
+    for wid in ws:
+        t = str(wid).split("_")[0]
+        by_type[t] = by_type.get(t, 0) + 1
+    rate_by_type: Dict[str, Any] = {}
+    for wtype, btype in WORKSHOP_TO_BUILDING.items():
+        w = wage_rate_for(btype, regime)
+        # `wage_rate_for` 返回**数值**（贯/岗/月）；兼容将来若改成结构化返回
+        if isinstance(w, dict):
+            rate, src = w.get("rate"), w.get("source")
+        elif w is None:
+            rate, src = None, None
+        else:
+            rate, src = w, "core.domains.economy.wage_gate_readout.wage_rate_for"
+        rate_by_type[wtype] = {
+            "building": btype,
+            "rate": rate,
+            "rate_source": src,
+            "reason": None if rate is not None else f"`WAGE_RATE` 里取不到 {btype!r}（regime={regime!r}）",
+        }
+    return {
+        "jobs_source": None,
+        "jobs_reason": ("**无权威来源**：`WORKSHOP_RECIPES` 只有 `{name, recipe, output_dim, yield}`（无岗位）；"
+                        "`JOBS_PER_LEVEL` 只登记**建筑**；`workshops[wid]` 无岗位字段"
+                        " ⇒ 作坊**岗位数不可得**（不臆造、也不按人口均分）"),
+        "rate_by_type": rate_by_type,
+        "mapping_basis": WORKSHOP_MAPPING_BASIS,
+        "wage_obligation": None,
+        "wage_reason": "工资义务 = 岗位数 × 工价；岗位数不可得 ⇒ 义务**不可定义**（缺失≠0）",
+        "workshops": len(ws), "by_type": by_type,
+    }
+
+
 def survey_wage_gate(state) -> Dict[str, Any]:
     """全局投影：逐路闸门 + 汇总（**零写入**）。"""
     prefs = getattr(state, "prefectures", None)

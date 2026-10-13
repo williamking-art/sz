@@ -1,0 +1,38 @@
+{
+ "id": "M67-workshop-wage-scope",
+ "title": "Round 47 裁定：作坊工资口径取 **D（先取证）**",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "作坊工资单点（把 shadow_ready 从 0 顶起来的最后前置）本批取哪个？",
+ "options": {
+  "A": "口径映射 + 本路工匠**均分**岗位（均分是否有据存疑）",
+  "B": "新增作坊岗位字段（需史料/标定，无据不填）",
+  "C": "只补工价映射（类型→建筑→工价），岗位数保持 None ⇒ 影子仍 undefined",
+  "D": "先取证：清查有无任何作坊岗位/用工的既有数据或史料记载"
+ },
+ "verdict": "D",
+ "probabilities": {"A": 0.019843487069010735, "B": 0.05273449048399925,
+                   "C": 0.3606676757335663, "D": 0.5667543411254883},
+ "margin_note": "D 领先 0.21（C 0.361）⇒ 非碾压但明确；D 与 C 不冲突，本批**以 D 为主并顺带完成 C 的可做部分**（推断映射，标注非史料），另修一处真缺陷",
+ "premises_verified_by_me_before_asking": [
+  "`WORKSHOP_RECIPES` 只有 `{name, recipe, output_dim, yield}`（无岗位）",
+  "`JOBS_PER_LEVEL` 只登记建筑；`WAGE_RATE` 只有 外邦 + `default`（`default` 仅 牧场/工坊/矿场）",
+  "`workshops[wid]` 无岗位字段（M66 后仅多 owner* 三字段）",
+  "🟠 侦察还发现：配方面实有 **6 型**，而 M66 规则表只登记 **4 型**（真缺陷）"
+ ],
+ "outcome": "✅ 取证结论：**岗位数无任何权威来源** ⇒ `wage_obligation` 恒 `None`（不臆造、**不按人口均分**，A 被否）；给出「作坊类型→建筑类型」的**推断映射**与 `WAGE_RATE` 候选（工坊类 1.5 / 牧场类 1.4），并**强制标注"推断、非史料"**；顺带**修掉 M66 补漏**：配方面 6 型全覆盖 + **覆盖断言**（`set(WORKSHOP_RECIPES) - set(OWNER_BY_TYPE) == ∅`，将来加型会红）。",
+ "applied_in": {
+  "module": "core/domains/economy/wage_gate_readout.py（新增 `workshop_wage_survey` / `WORKSHOP_TO_BUILDING` / `WORKSHOP_MAPPING_BASIS`）",
+  "fixed": "core/domains/economy/workshop_owner.py（补 `造纸坊`/`糖坊` ⇒ 民营，依据：纸/糖 与 绢/布 同路）",
+  "tests": ["_dev_tools/game-dev/tests/test_m67_workshop_wage_survey.py（4 passed）",
+            "_dev_tools/game-dev/tests/test_workshop_owner.py（7 passed，含覆盖断言）"],
+  "doc": "_dev_tools/game-docs/specs/cross-cutting/作坊工资前置取证_2026-10-13.md（已回填目录索引）",
+  "task": "_dev_tools/handover/tasks/M67-workshop-wage-basis.json",
+  "commit": "（本批提交）"
+ },
+ "next": "要顶起 `shadow_ready` 必须先定**作坊岗位数**来源（史料编制／产出反推标定／P3 旨意指定）——三选一须口径裁定；**均分被否**。",
+ "reopen_if": "若给出岗位数来源（史料或标定），本裁定作废并进入实施批（届时才谈工资义务与营运资金）"
+}

@@ -1,0 +1,31 @@
+{
+ "id": "M67-workshop-wage-basis",
+ "title": "作坊工资前置**取证**：岗位数无权威来源 ⇒ 工资义务不可定义（并修 M66 规则表补漏）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M67-workshop-wage-scope.json（Jev choose D 0.567；A 均分 0.020 被否）",
+ "deliverable": [
+  "core/domains/economy/wage_gate_readout.py：新增 `workshop_wage_survey`（只读取证）· `WORKSHOP_TO_BUILDING`（推断映射）· `WORKSHOP_MAPPING_BASIS`（强制标注）",
+  "core/domains/economy/workshop_owner.py：补 `造纸坊`/`糖坊` → 民营（**修 M66 真缺陷**）",
+  "_dev_tools/game-dev/tests/test_m67_workshop_wage_survey.py（4 passed）＋ test_workshop_owner.py 覆盖断言",
+  "_dev_tools/game-docs/specs/cross-cutting/作坊工资前置取证_2026-10-13.md（+ 目录索引回填）"
+ ],
+ "findings": [
+  "🔴 **作坊岗位数无任何权威来源**：`WORKSHOP_RECIPES` 只有 `{name, recipe, output_dim, yield}`；`JOBS_PER_LEVEL` 只登记**建筑**；`workshops[wid]` 无岗位字段 ⇒ **工资义务不可定义**（缺失≠0）",
+  "**不得按人口均分**（Jev A 0.020 被否）——无据摊派违反『不臆造』",
+  "可给出的只是**推断映射**的工价候选：酒坊/麻坊/丝坊/造纸坊/糖坊→`工坊` 1.5；畜栏→`牧场` 1.4 ⇒ **必须标注『推断、非史料』**（已写进返回值 `mapping_basis`，用例锁定）",
+  "🔴 **M66 真缺陷（本批已修）**：配方面实有 **6 型**，M66 规则表只登记 **4 型** ⇒ 玩家建 `造纸坊`/`糖坊` 会 owner-undefined；现补齐并加**覆盖断言**（将来配方面加型会红）",
+  "实测作坊分布：107 座（酒坊 40 · 畜栏 40 · 麻坊 20 · 丝坊 7；造纸坊/糖坊开局无）"
+ ],
+ "verified": [
+  "M67 用例 4 passed · owner 用例 7 passed · 全量串行 **EXIT=0** · 索引纪律 48 passed"
+ ],
+ "next": [
+  "**唯一卡口**：作坊岗位数来源 ⇒ 三选一（史料编制／产出反推标定／P3 旨意指定）须口径裁定",
+  "定下来后才能算工资义务，再按主线 D 接「营运资金划入／工资冻结／利润归主」（改钱流 ⇒ 须同种子标定）",
+  "`shadow_ready` 在岗位数落定前**保持 0**（如实，不谎报）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T02:10:46Z"
+}
