@@ -77,7 +77,7 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         return {"value": None, "defined": False, "source": source, "reason": reason}
 
     fields: Dict[str, Any] = {
-        "blueprint": _undef("无「蓝图版本」字段（建筑只有名称+等级）"),
+        "blueprint": blueprint_of(str(building)),
         "seat": {"value": f"{route}|{seat}", "defined": True,
                  "source": "prefectures[路].seats[治所]（M38 已州府化）", "reason": None},
         "level": {"value": level, "defined": level is not None,
@@ -137,6 +137,35 @@ def project_seat(state, route: str, seat: str) -> Dict[str, Any]:
     return {"route": route, "seat": seat, "rows": rows, "buildings": len(rows),
             "schema_version": SCHEMA_VERSION,
             "note": "逐建筑 P2 字段投影（只读）；`undefined_fields` 列出未定义字段"}
+
+
+def blueprint_of(building: str) -> Dict[str, Any]:
+    """P2 `blueprint` **只读派生**（M111，Jev 甲 0.908）：静态表**键即中文名** ⇒ `{key, scope, version}`。
+
+    🔴 明写 **`version=None`＋"版本号未登记"**——**不把「键」冒充「版本」**（M100 取证：
+    落成登记只写等级，`proj["blueprint_key"]` 未持久化）。不在静态表者（动态 `dyn:` 蓝图等）
+    ⇒ `defined=False`（**不臆造**）。
+    """
+    spec = None
+    for mod, attr in (("content.data", "BUILDING_STD"), ("content.data_constants", "BUILDING_STD")):
+        try:
+            m = __import__(mod, fromlist=[attr])
+            tbl = getattr(m, attr, None)
+        except Exception:                                   # noqa: BLE001
+            continue
+        if isinstance(tbl, dict) and tbl:                   # 🔴 只有**真取到表**才 break（否则会漏掉下一候选）
+            spec = tbl.get(str(building))
+            break
+    if not isinstance(spec, dict):
+        return {"value": None, "defined": False,
+                "source": "静态蓝图表 `BUILDING_STD`（键即中文名）",
+                "reason": ("该建筑不在静态蓝图表（动态 `dyn:` 蓝图须在落成时持久化 key，"
+                           "见 M100）⇒ `blueprint` 不可判定（**不臆造**）")}
+    return {"value": {"key": str(building), "scope": "static", "version": None},
+            "defined": True,
+            "source": ("静态蓝图表 `BUILDING_STD`（**键即中文名**）；⚠️ **版本号未登记**"
+                       "（M100：落成只写等级，未持久化 blueprint_key/version）"),
+            "reason": None}
 
 
 def available_methods(row: Dict[str, Any]) -> List[Dict[str, Any]]:

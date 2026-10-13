@@ -1,0 +1,39 @@
+{
+ "id": "M111-blueprint-derivation",
+ "title": "P2 `blueprint` 只读派生（静态表键即名 + **明写版本号未登记**）⇒ 建筑就绪度 6/14 → 7/14",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M111-blueprint-derivation-scope.json（Jev choose 甲 0.908）",
+ "deliverable": [
+  "core/domains/economy/entity_projection.py：`blueprint_of(building)`（多候选表加载 + **只有取到非空表才 break**）",
+  "`project_building.blueprint` 由 `_undef` 改为调用 `blueprint_of`"
+ ],
+ "shape": {
+  "hit_static": "{key: <建筑名>, scope: 'static', version: None} + source 明写「版本号未登记」",
+  "miss": "undefined + reason「不在静态蓝图表（动态 dyn: 须落成时持久化 key，见 M100）⇒ 不臆造」"
+ },
+ "evidence": {
+  "building_ready": [
+   "blueprint",
+   "level",
+   "maintenance",
+   "operation_mode",
+   "operator",
+   "owner",
+   "seat"
+  ],
+  "count": "7/14（原 6/14）",
+  "sample": "水利 ⇒ {key:'水利', scope:'static', version:None}"
+ },
+ "zero_change": "纯派生（不写 state、不进结算）⇒ 零数值变化",
+ "verified": [
+  "定向全绿；全量串行 **EXIT=0**（先看退出码）；提交本批"
+ ],
+ "next": [
+  "① `income_to` 待 M71 · ② `jobs_*` 写入＝改数值批（M102 设计）",
+  "③ 真版本号需落成持久化（改 state 批）· ④ 卡口不变：产能/营运资金来源/作坊岗位数/宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T12:45:05Z"
+}

@@ -1,0 +1,30 @@
+{
+ "id": "M111-blueprint-derivation-scope",
+ "title": "Round 90：P2 `blueprint` 只读派生（甲 0.908）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "P2 `blueprint`（蓝图版本）只读派生怎么定？",
+ "options": {"甲": "按名反查静态表派生 `{key, scope}` 并**明写版本号未登记**",
+             "乙": "仅能确定 dyn: key 时才有值（现状 ⇒ 全 undefined，等于不做）",
+             "丙": "保持 undefined（等持久化批）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9079011678695679, "乙": 0.05912245810031891, "丙": 0.03297630697488785},
+ "outcome": "✅ `blueprint` 由「一律 undefined」改为**只读派生**：静态表 `content.data.BUILDING_STD`（**键即中文名**）命中 ⇒ `{key: 建筑名, scope: \"static\", version: None}`，`source` **明写「版本号未登记」**；不在静态表者（动态 `dyn:` 蓝图）⇒ `undefined` + reason（**不把「键」冒充「版本」**）。建筑就绪度 **6/14 → 7/14**。",
+ "evidence": {"sample": "水利 ⇒ {key: '水利', scope: 'static', version: None}（defined）",
+              "unlisted": "谜之建筑 ⇒ defined=False + reason「不在静态蓝图表…不臆造」",
+              "readiness_1.0": ["blueprint", "level", "maintenance", "operation_mode", "operator", "owner", "seat"],
+              "full_regression": "EXIT=0"},
+ "process_note": "🔴 实现初版有 bug：候选模块循环里**首个模块没有该属性时也 `break`** ⇒ 从未尝试 `content.data`（真表所在）⇒ `水利` 误判为「不在表」。改为**只有真取到非空表才 break** 后修正。教训：多候选加载器**必须区分「模块导入成功但无此属性」与「取到了表」**，否则静默降级。TODO：`entity_projection` 内有一处 docstring 反引号转义引发 `SyntaxWarning: invalid escape sequence`（仅告警、无行为影响），下次顺手清。",
+ "applied_in": {
+  "module": "core/domains/economy/entity_projection.py（+`blueprint_of`；`project_building.blueprint` 改用它）",
+  "task": "_dev_tools/handover/tasks/M111-blueprint-derivation.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["`version` 仍为 `None`（**版本号未登记**——须落成时持久化 blueprint_key 才能有值，属改 state 批）",
+            "动态 `dyn:` 蓝图建筑仍 `undefined`（同上）"],
+ "next": "① `income_to` 待 M71 口径 · ② `jobs_*` 写入＝改数值批（设计见 M102）· ③ 若要真版本号：落成持久化（幂等迁移不可回填旧档 + 桥接 + A/B 标定）· ④ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若落成开始持久化 blueprint_key/version，本派生应改为直读该字段"
+}
