@@ -1,0 +1,36 @@
+{
+ "id": "M71-funding-horizons-scope",
+ "title": "Round 50 裁定：多时点产权资金到位率取证（A 0.733）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 50 取哪个（产权落点依据已因 M69/M70 变更）？",
+ "options": {
+  "A": "多时点到位率取证（开局/6月/12月 × 各载体 + G-4 逐路分位）⇒ 为产权/营运资金口径给可用依据",
+  "B": "粮维写回桥接（补 5/11）",
+  "C": "M52 家计重算（粮价单点已修）",
+  "D": "P4 设计切片（范围大）"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.7325935363769531, "B": 0.15854406356811523,
+                   "C": 0.1065080463886261, "D": 0.0023543713614344597},
+ "margin_note": "A 领先 0.57 ⇒ 非平手；B/C 保留为下一候选",
+ "premises_verified_by_me_before_asking": [
+  "M58 的到位率旧结论与 6 月快照结论相反 ⇒ 时点敏感，需多时点",
+  "M69/M70 已修好分母（28,400,000）与粮价单点",
+  "`owner_funding_by_route` 与 `survey_owner_candidates` 已可复用"
+ ],
+ "outcome": "✅ 三时点取证完成（同一分母 28,400,000，不可读 0），**推翻了 M58 的单点结论**并暴露一条更硬的规律：**民营侧随时间崩掉**（商人 wealth 29.8M→4.0M→1.6M；G-4 民营满覆盖 12/20→1/20→**0/20**）、**士绅三时点恒 1.000 是唯一长期充裕者**、**官营侧同样不可持续**（12 月降到 16/20 满、最低 0.145）。⇒ D 线接钱前必须先定「钱从哪来」（甲士绅／乙府库／丙多来源分摊／丁先不接）。",
+ "applied_in": {
+  "module": "core/domains/economy/workshop_fund_shadow.funding_summary（只读汇总口，可复跑）",
+  "probe": "_scratch/verify_m71_horizons.py（同种子逐时点新开局）",
+  "doc": "_dev_tools/game-docs/specs/cross-cutting/产权资金到位率_多时点取证_2026-10-13.md（已回填目录索引）",
+  "tests": "_dev_tools/game-dev/tests/test_m71_funding_summary.py（3 passed）",
+  "task": "_dev_tools/handover/tasks/M71-funding-horizons.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① 「营运资金来源」口径（甲/乙/丙/丁）须裁定后才能接钱流；② 作坊岗位数仍缺。",
+ "reopen_if": "若裁定营运资金来源、或经济参数变动（如商人 wealth 的生成/消耗规则），本取证作废重跑"
+}

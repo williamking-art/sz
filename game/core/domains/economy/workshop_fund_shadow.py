@@ -223,6 +223,44 @@ def workshop_shadow(state, wid: str) -> Dict[str, Any]:
             "missing": sorted(missing), "not_in_this_batch": list(LATER_FIELDS)}
 
 
+def funding_summary(state) -> Dict[str, Any]:
+    """**产权资金到位率汇总**（只读；M71）——把"谁养得起作坊"压成一张可复跑的表。
+
+    含：① 各**候选载体**的池与到位率（复用 `owner_candidates_shadow.survey_owner_candidates`）；
+    ② **G-4 逐路**到位率的分位（官营/民营：可算路数、中位、最低、满覆盖路数）。
+    供**多时点取证**（开局／6 月／12 月）直接调用；**任一侧不可读 ⇒ `None`**（缺失≠0）。
+    """
+    out: Dict[str, Any] = {"carriers": [], "g4": {}, "procure_need": None}
+    try:
+        from core.domains.economy import owner_candidates_shadow as ocs
+        need = ocs.procure_need(state)
+        out["procure_need"] = need.get("value")
+        out["unreadable_workshops"] = need.get("unreadable_count", 0)
+        for c in ocs.survey_owner_candidates(state)["candidates"]:
+            out["carriers"].append({"key": c["key"], "label": c["label"], "pool": c["pool"],
+                                    "cover": c["procure_cover"],
+                                    "parallel_ledger_violation": c["parallel_ledger_violation"]})
+    except Exception:                                       # noqa: BLE001
+        log.warning("funding_summary: 载体表不可读", exc_info=True)
+    try:
+        g = owner_funding_by_route(state)
+        for side in ("gov", "merchant"):
+            covers = sorted(r[side]["cover"] for r in g["routes"]
+                            if r[side]["cover"] is not None)
+            n = len(covers)
+            out["g4"][side] = {
+                "routes": n,
+                "min": covers[0] if n else None,
+                "median": covers[n // 2] if n else None,
+                "max": covers[-1] if n else None,
+                "full": sum(1 for c in covers if c >= 1.0),
+                "undefined": sum(1 for r in g["routes"] if r[side]["cover"] is None),
+            }
+    except Exception:                                       # noqa: BLE001
+        log.warning("funding_summary: 逐路表不可读", exc_info=True)
+    return out
+
+
 def owner_funding_by_route(state) -> Dict[str, Any]:
     """**G-4 逐路资金到位率**（只读；M68）——用 M66 登记的货主把"全国池影子"升级成**逐路可用数字**。
 
