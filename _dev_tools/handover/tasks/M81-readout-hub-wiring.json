@@ -1,0 +1,63 @@
+{
+ "id": "M81-readout-hub-wiring",
+ "title": "读数索引扩容 9→11：接入 P1 试点链条缺口 + 岗位容量（P5 验收门「可下钻/缺失不显示 0」）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M81-readout-hub-wiring-scope.json（Jev choose 甲 0.625）",
+ "deliverable": [
+  "core/domains/economy/readout_hub.py：新增 `_pilot_chain_gap` / `_jobs_capacity` + 注册表 2 行（共 11 项）",
+  "_dev_tools/game-dev/tests/test_m81_readout_hub_wiring.py（4 passed）",
+  "econ README 的 readout_hub 行扩容说明"
+ ],
+ "readouts": {
+  "pilot_chain_gap": {
+   "label": "P1 试点链条缺口（绸）",
+   "unit": "匹",
+   "drill_down": [
+    "成品",
+    "需求",
+    "作坊数",
+    "样本路"
+   ],
+   "value_6m": 1850540
+  },
+  "jobs_capacity": {
+   "label": "岗位容量合计（建筑岗位）",
+   "unit": "岗",
+   "drill_down": [
+    "实到（建筑岗位）",
+    "有实到读数的路"
+   ],
+   "value_6m": null,
+   "display": "undefined",
+   "reason": "无岗位建筑（开局 buildings 只有 水利/常平仓）⇒ 容量不可定义（不填 0）"
+  }
+ },
+ "contract_kept": [
+  "每项 `{label,value,display,unit,source,drill_down,reason}`",
+  "有值 ⇒ `display` 为数值字符串",
+  "**不可读 ⇒ `display=\"undefined\"` 且带 reason（绝不显示 0）**",
+  "逐项失败隔离（单项异常不影响其它）",
+  "`frontend_wired=False`（前端未接，如实）"
+ ],
+ "evidence": {
+  "total_readouts": 11,
+  "ok": 10,
+  "undefined": 1,
+  "undefined_list": [
+   "jobs_capacity"
+  ],
+  "note": "岗位容量在开局为 undefined 属**数据现实**（无岗位建筑），不是读数缺陷"
+ },
+ "verified": [
+  "M81 用例 4 passed；`-k readout` 全量 154 passed；全量串行 EXIT=0（**先看退出码再提交**）；JSON lint 门通过"
+ ],
+ "next": [
+  "① **P5 前端面板**（把 11 项读数接进 UI；须 tsc/vitest/截图）",
+  "② P2 建筑实例 schema",
+  "③ 卡口不变：营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道（台账 §三-7）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T05:36:15Z"
+}

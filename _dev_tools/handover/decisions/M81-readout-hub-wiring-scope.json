@@ -1,0 +1,30 @@
+{
+ "id": "M81-readout-hub-wiring-scope",
+ "title": "Round 60：把 P1 链条与岗位读数接进 readout_hub（甲 0.625）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 60 取哪个？",
+ "options": {
+  "甲": "接入 P1 链条 + 岗位两项（保持 readout_hub 契约）",
+  "乙": "只接 P1 链条一项（最小改动）",
+  "丙": "先不接，改做 P2 schema"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.6249842047691345, "乙": 0.36988720297813416, "丙": 0.005128562916070223},
+ "margin_note": "甲领先 0.255 ⇒ 非平手（但余量不算大）；甲把 P5 验收门的两个关键读数一次接齐",
+ "outcome": "✅ 读数索引 **9 → 11 项**：新增 `pilot_chain_gap`（绸的供需缺口；下钻 成品/需求/作坊数/样本路）与 `jobs_capacity`（建筑岗位容量；下钻 **实到**）。**契约完好**：不可读 ⇒ `display=\"undefined\"` + reason（**绝不显示 0**）、逐项失败隔离、`frontend_wired=False` 如实。实测：**10 项有值 / 1 项 undefined**（`jobs_capacity` 因开局无岗位建筑）；`pilot_chain_gap = 1,850,540`。",
+ "acceptance_served": "P5 验收门「每个显著读数**能下钻到来源**」「读数缺失**不显示为 0**」——两项新读数均带 `source` 与 `drill_down`；`jobs_capacity` 在**无岗位建筑**时显示 `undefined` 而非 0。",
+ "applied_in": {
+  "module": "core/domains/economy/readout_hub.py（_pilot_chain_gap / _jobs_capacity + 注册表 2 行）",
+  "tests": "_dev_tools/game-dev/tests/test_m81_readout_hub_wiring.py（4 passed）",
+  "docs": "econ README 的 readout_hub 行扩容说明",
+  "task": "_dev_tools/handover/tasks/M81-readout-hub-wiring.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["前端面板仍未接（`frontend_wired=False`，P5 本体）", "岗位容量在开局为 undefined 属**数据现实**（无岗位建筑），不是读数缺陷"],
+ "next": "① P5 前端面板（把 11 项读数接进 UI；须 tsc/vitest/截图）· ② P2 建筑实例 schema · ③ 卡口不变：营运资金来源 / 作坊岗位数 / 宋境工钱通道",
+ "reopen_if": "若读数契约变更（如 display 语义或 drill_down 结构），或前端接线开始，本档作废并重接"
+}

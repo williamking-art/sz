@@ -138,6 +138,47 @@ def _labor_tight_routes(state) -> Tuple[Optional[int], Optional[str], str]:
     return len(rep.get("routes_labor_tight") or []), None, src
 
 
+def _pilot_chain_gap(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**P1 试点链条缺口**（绸，M80）：`value = 需求 − 成品`（夹 0）；不可读 ⇒ None + reason。
+
+    下钻给出 成品/需求/作坊数 与**样本路**（回答"哪里短缺、为何未运到"）。
+    """
+    src = "core.domains.economy.p1_pilot_chain:survey_pilot_chain"
+    try:
+        from core.domains.economy import p1_pilot_chain as pc
+        rep = pc.survey_pilot_chain(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: P1 试点链条读数失败", exc_info=True)
+        return None, f"P1 试点链条读数异常：{type(e).__name__}", src
+    totals = rep.get("totals") or {}
+    gap = totals.get("gap")
+    drill = {"成品": totals.get("finished_output"), "需求": totals.get("demand"),
+             "作坊数": totals.get("workshops"), "样本路": (rep.get("routes") or [{}])[0].get("route")}
+    if gap is None:
+        return None, "缺口不可读（原料/成品/需求任一段缺失 ⇒ 不填 0）", {**drill, "drill": src}
+    return int(gap), None, {**drill, "drill": src}
+
+
+def _jobs_capacity(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**岗位容量合计**（M77/M78）：开局只有 水利/常平仓（非岗位建筑）⇒ 容量 `None`（undefined）。
+
+    ⚠️ `实到` 见 `drill_down.filled`（**建筑岗位**可算，M78）；**作坊在岗不在本项**（M67）。
+    """
+    src = "core.domains.economy.jobs_readout:survey_jobs"
+    try:
+        from core.domains.economy import jobs_readout as jr
+        rep = jr.survey_jobs(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: 岗位读数失败", exc_info=True)
+        return None, f"岗位读数异常：{type(e).__name__}", src
+    cap = rep.get("capacity_total")
+    drill = {"实到（建筑岗位）": rep.get("filled_total"), "有实到读数的路": rep.get("filled_routes"),
+             "drill": src, "note": rep.get("note")}
+    if cap is None:
+        return None, "无岗位建筑（开局 buildings 只有 水利/常平仓）⇒ 容量不可定义（不填 0）", drill
+    return int(cap), None, drill
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -158,6 +199,10 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _seat_market_pairs, "source": "core.domains.economy.seat_market_shadow:survey_seat_market_shadow"},
     {"key": "labor_tight_routes", "label": "缺工路数（岗位闸门乘数<1）", "unit": "路",
      "fn": _labor_tight_routes, "source": "core.domains.economy.wage_gate_readout:survey_wage_gate"},
+    {"key": "pilot_chain_gap", "label": "P1 试点链条缺口（绸）", "unit": "匹",
+     "fn": _pilot_chain_gap, "source": "core.domains.economy.p1_pilot_chain:survey_pilot_chain"},
+    {"key": "jobs_capacity", "label": "岗位容量合计（建筑岗位）", "unit": "岗",
+     "fn": _jobs_capacity, "source": "core.domains.economy.jobs_readout:survey_jobs"},
 )
 
 
