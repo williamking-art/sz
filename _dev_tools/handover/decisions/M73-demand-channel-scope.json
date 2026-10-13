@@ -28,7 +28,7 @@
   },
   "4_不得拍数（文档明写）": "`specs/economy/market-civilian-economy/tasks.md` §「参数待裁（阻塞）」：温饱线／余量尺度／**基本需求篮子**／耐用品目标库存等参数**由 B2-R 先补足因果环与局部市场定价，再用 60/240 月实测确定**，「**不把『裁定参数』作为提前调数的许可**」；另 `民间经济与营造市场统一设计.md`：日用品「**无来源不启用**」。"
  },
- "decision": "本批**不填任何数值**；把 M62 的覆盖率口径**改为「需求通道矩阵」**（逐维报 basket/durable/grain 三通道 + 无通道清单），并把缺口登记为**校准门控（B2-R）**而非"缺史料"。",
+ "decision": "本批**不填任何数值**；把 M62 的覆盖率口径**改为「需求通道矩阵」**（逐维报 basket/durable/grain 三通道 + 无通道清单），并把缺口登记为**校准门控（B2-R）**而非「缺史料」。",
  "applied_in": {
   "module": "core/domains/economy/seat_market_shadow.py（`demand_coverage` 重写为通道矩阵；维枚举并入 content 维表）",
   "tests": "_dev_tools/game-dev/tests/test_seat_market_shadow.py（10 passed，通道矩阵用例已更新）",
