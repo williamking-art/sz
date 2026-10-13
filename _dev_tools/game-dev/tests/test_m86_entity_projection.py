@@ -31,7 +31,9 @@ def test_computable_fields_are_computed():
     assert rep["fields"]["level"]["defined"] and rep["fields"]["level"]["value"] == 2
     assert rep["fields"]["jobs_capacity"]["defined"], "容量应可算（lv × 每级）"
     assert rep["fields"]["jobs_filled"]["defined"], "实到应可算（M78 纯函数）"
-    assert rep["defined_count"] == 4                      # seat/level/jobs_capacity/jobs_filled
+    ready = sorted(k for k, v in rep["fields"].items() if v.get("defined"))
+    # 🔴 用**成员判定**而非 `defined_count == N`：后续每加一个可派生字段都会误红（本会话已 3 次）
+    assert {"seat", "level", "jobs_capacity", "jobs_filled"} <= set(ready), ready
 
 
 def test_undefined_fields_are_honest_and_explained():

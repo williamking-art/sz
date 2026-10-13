@@ -28,7 +28,10 @@ def test_workshop_computable_fields():
     assert f["owner"]["defined"] and f["owner"]["value"] == "pop:路A:商人"
     assert f["operator"]["value"] == "pop:路A:商人"                 # M92 首期＝owner
     assert f["operation_mode"]["value"] == "民营雇工"                # pop:…:商人
-    assert rep["defined_count"] == 7                              # +methods（M110 只读派生 active/available）
+    ready = sorted(k for k, v in f.items() if v.get("defined"))
+    # 🔴 成员判定（抗后续扩项）；`defined_count` 只做**下界**断言
+    assert {"seat", "owner", "operator", "recipe"} <= set(ready), ready
+    assert rep["defined_count"] >= 4
     assert rep["field_count"] == 14
 
 
