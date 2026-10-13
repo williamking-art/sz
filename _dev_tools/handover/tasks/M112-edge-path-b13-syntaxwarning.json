@@ -1,0 +1,22 @@
+{
+ "id": "M112-edge-path-b13-syntaxwarning",
+ "title": "他人文件潜在问题登记：`tests/test_edge_path_b13.py:75` docstring 反引号转义触发 SyntaxWarning",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "本轮 compileall 定位；**按归属纪律未改他人文件**（非我批次，且《宋祚》§1 要求改共享文件先认领）",
+ "finding": {
+  "file": "_dev_tools/game-dev/tests/test_edge_path_b13.py",
+  "line": 75,
+  "snippet": "只查表行（以 `| \\`模块\\`` 开头），否则正文里提到模块名的普通句子会被误判。",
+  "effect": "Python 抛 `SyntaxWarning: invalid escape sequence '\\`'`；**仅告警、不影响用例结果**（本会话全量回归一直 EXIT=0）",
+  "latent_risk": "若任何环境以 `-W error::SyntaxWarning` 跑（或未来 Python 把该告警升级为错误），**该文件会收集失败** ⇒ 用例数静默减少。本会话实测：`& $py -W error::SyntaxWarning -m compileall -q -f <tests>` ⇒ `COMPILE_EXIT=1`"
+ },
+ "fix_suggestion": "把 docstring 里的 `\\`` 改为单反引号（或在 docstring 前加 `r` 前缀）：`只查表行（以 `| `模块`` 开头）…` —— **一行改动，零行为影响**",
+ "action_taken": "**未改他人文件**；仅登记（本档 + worklog）。请该文件属主或接手者顺手修",
+ "verified": ["`compileall -q -f` 实测：`game/core/domains/economy`、`game/application` 与我的 test_m*.py **均无告警**；唯一告警来自该他人文件"],
+ "next": ["① 属主修该 docstring · ② 我的 M111 附注里的同类告警已确认**不是** economy 模块（此前误记，特此更正：告警源是该测试文件）",
+          "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13"
+}
