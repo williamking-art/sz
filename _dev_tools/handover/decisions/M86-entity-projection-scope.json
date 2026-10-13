@@ -1,0 +1,27 @@
+{
+ "id": "M86-entity-projection-scope",
+ "title": "Round 65：P2 建筑实例只读投影第一片（甲 0.970）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 65 取哪个？",
+ "options": {"甲": "P2 建筑实例只读投影第一片", "乙": "月报归因（有回归风险）", "丙": "截图台验收（需 Edge headless）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.970484733581543, "乙": 0.015991464257240295, "丙": 0.013523807749152184},
+ "outcome": "✅ 新增 `core/domains/economy/entity_projection.py`（只读）：把规格 §4 P2 的 **14 字段**做成**枚举单点**，逐座建筑给 `{value, defined, source, reason}`；**能算的算**（等级 / 岗位容量 / 实到），**其余如实 undefined**（并附 `undefined_fields` 清单与原因）。实测（开局 40 座建筑：20 路 × 水利/常平仓）：**只有 `seat`/`level` 可定义（100%），其余 12 项 0%** ⇒ **P2 就绪度被量化**。",
+ "applied_in": {
+  "module": "core/domains/economy/entity_projection.py",
+  "tests": "_dev_tools/game-dev/tests/test_m86_entity_projection.py（5 passed）",
+  "docs": "econ README 新模块行（含就绪度实测）",
+  "task": "_dev_tools/handover/tasks/M86-entity-projection.json",
+  "commit": "（本批提交）"
+ },
+ "acceptance_served": "规格 §4 P2「每个试点建筑/经营记录须能确定……**缺字段标未定义**，不能用默认全员就业或默认满产补齐」⇒ 本模块把 14 字段**逐项可判**，未落地项不静默、不补默认。",
+ "readiness": {"seat": 1.0, "level": 1.0, "blueprint": 0.0, "completed_month": 0.0, "owner": 0.0,
+               "operator": 0.0, "maintenance": 0.0, "operation_mode": 0.0, "methods": 0.0,
+               "jobs_capacity": 0.0, "jobs_filled": 0.0, "recipe": 0.0, "io_stock": 0.0, "income_to": 0.0},
+ "next": "① P2 字段落地顺序建议：**owner/operator**（可复用 M66 词表与建筑实例 schema）→ **jobs_filled 写入**（把 M78 的只读算法落成状态）→ **income_to**（待营运资金来源口径）；② 名额：`readout_hub` 可加「P2 就绪度」读数；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道",
+ "reopen_if": "若建筑实例 schema 落地（新增字段），本投影的 `reason` 与就绪度须同步更新"
+}

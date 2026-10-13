@@ -1,0 +1,55 @@
+{
+ "id": "M86-entity-projection",
+ "title": "P2 建筑实例**只读投影**第一片（14 字段枚举单点；就绪度量化：仅 seat/level 100%）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M86-entity-projection-scope.json（Jev choose 甲 0.970）",
+ "deliverable": [
+  "core/domains/economy/entity_projection.py（FIELDS / project_building / project_seat / survey_entity_projection）",
+  "_dev_tools/game-dev/tests/test_m86_entity_projection.py（5 passed）",
+  "econ README 新模块行（含 P2 就绪度实测）"
+ ],
+ "fields": {
+  "可算": [
+   "seat",
+   "level",
+   "jobs_capacity",
+   "jobs_filled"
+  ],
+  "如实-undefined": [
+   "blueprint",
+   "completed_month",
+   "owner",
+   "operator",
+   "maintenance",
+   "operation_mode",
+   "methods",
+   "recipe",
+   "io_stock",
+   "income_to"
+  ]
+ },
+ "evidence_real_game": {
+  "buildings": 40,
+  "seat_ratio": 1.0,
+  "level_ratio": 1.0,
+  "other_12_fields_ratio": 0.0,
+  "note": "开局 20 路 × （水利/常平仓）——两者都**非岗位建筑** ⇒ 容量/实到也不可算（如实）"
+ },
+ "rules_kept": [
+  "**缺字段标未定义**（规格原文）；每个 undefined 都带 reason（不静默）",
+  "**不得默认全员就业/满产补齐**（note 中写明）",
+  "只读、零数值变化（用例锁定零写入）"
+ ],
+ "verified": [
+  "M86 用例 5 passed；全量串行 EXIT=0（先看退出码）；JSON lint 门通过"
+ ],
+ "next": [
+  "① 落地顺序建议：owner/operator（复用 M66 词表 + 建筑实例 schema）→ jobs_filled **写入** → income_to（待 M71 口径）",
+  "② 可把「P2 就绪度」接进 readout_hub（P5 可见）",
+  "③ 卡口不变：**产能**（M82 真瓶颈）· 营运资金来源（M71）· 作坊岗位数（M67）· 宋境工钱通道（§三-7）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T06:47:00Z"
+}
