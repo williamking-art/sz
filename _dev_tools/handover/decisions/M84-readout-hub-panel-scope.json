@@ -1,0 +1,38 @@
+{
+ "id": "M84-readout-hub-panel-scope",
+ "title": "Round 63：P5 前端消费 hub（最小切片：类型 + 新只读面板 + 注册；甲 0.942）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 63 取哪个？",
+ "options": {
+  "甲": "前端最小切片：ReadoutsResult 加 hub 类型 + 新只读面板 ReadoutHubPanel + OverlayStack 注册 + tsc/vitest",
+  "乙": "只加类型与 API 透传（不改 UI）",
+  "丙": "后端继续（如把 hub 接进月报）"
+ },
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9415150284767151, "乙": 0.05762472376227379, "丙": 0.0008603299502283335},
+ "outcome": "✅ ① `api/client.ts` 的 `ReadoutsResult` 增 **`hub?`**（与后端同形，注释写明契约：不可读 `display` 恒为字符串 `\"undefined\"`、每项带 `source`/`drill_down`）；② 新增只读面板 `panels/ReadoutHubPanel.tsx`（12 项表格 + 点行下钻 `drill_down`）；③ 注册：`PanelKind` 加 `\"readouthub\"`、`OverlayStack` 加 import 与 case。**前端三道门全绿**：tsc web 0 · tsc node 0 · vitest 83 passed（11 文件，含新用例 3 条）。",
+ "contract_kept": [
+  "面板**只呈现不重算**（AGENTS.md §3-2：算法单点在 core）",
+  "**缺失显式呈现「未定义」**（后端 `display===\"undefined\"`）—— 绝不回落 0；**真 0 照实显示 0**（用例区分二者）",
+  "唯一展示映射点抽成可测纯函数 `hubRowText`（覆盖 有值/undefined/0 三种）",
+  "未改他人未提交改动"
+ ],
+ "applied_in": {
+  "frontend": ["src/renderer/api/client.ts（ReadoutsResult.hub）",
+               "src/renderer/panels/ReadoutHubPanel.tsx（新建）",
+               "src/renderer/panels/OverlayStack.tsx（import + case）",
+               "src/renderer/store/gameStore.tsx（PanelKind 加 readouthub）",
+               "src/renderer/panels/__tests__/readoutHubPanel.test.ts（3 passed）",
+               "src/renderer/panels/README.md（面板索引行）"],
+  "task": "_dev_tools/handover/tasks/M84-readout-hub-panel.json",
+  "commit": "（本批提交）"
+ },
+ "limits": ["**未跑截图台**（`scripts/shot/shoot.mjs` 需 Edge headless；本批以 tsc+vitest 为门）",
+            "面板入口需玩家从既有浮层菜单打开（本批未新增菜单项/快捷键；`panelId=\"readouthub\"` 已可用）"],
+ "next": "① 给该面板加入口（菜单/快捷键）并在月报中呈现归因；② P2 建筑实例 schema；③ 卡口不变：**产能**（M82 真瓶颈）· 营运资金来源 · 作坊岗位数 · 宋境工钱通道",
+ "reopen_if": "若后端 `hub` 契约变更或面板并入他处，本档作废重接"
+}

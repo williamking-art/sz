@@ -1,0 +1,39 @@
+{
+ "id": "M84-readout-hub-panel",
+ "title": "P5 前端第一片：**统一读数索引面板**（消费 `/api/readouts::hub` 的 12 项；缺失显示「未定义」）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M84-readout-hub-panel-scope.json（Jev choose 甲 0.942）",
+ "deliverable": [
+  "frontend/src/renderer/api/client.ts：`ReadoutsResult.hub`（契约注释）",
+  "frontend/src/renderer/panels/ReadoutHubPanel.tsx（12 项表格 + 点行下钻 drill_down + 可测纯函数 hubRowText）",
+  "frontend/src/renderer/panels/OverlayStack.tsx（import + `case \"readouthub\"`）",
+  "frontend/src/renderer/store/gameStore.tsx（PanelKind 加 readouthub）",
+  "frontend/src/renderer/panels/__tests__/readoutHubPanel.test.ts（3 passed）",
+  "frontend/src/renderer/panels/README.md（面板索引行）"
+ ],
+ "frontend_gates": {
+  "tsc_web": 0,
+  "tsc_node": 0,
+  "vitest": "83 passed（11 文件）",
+  "backend_full": "EXIT=0"
+ },
+ "contract_kept": [
+  "只呈现不重算（口径单点）",
+  "缺失 ⇒ 显示「未定义」（后端 display===\"undefined\"），**绝不回落 0**",
+  "真 0 与缺失**分开**（用例覆盖）",
+  "唯一展示映射点＝可测纯函数 `hubRowText`"
+ ],
+ "readout_source": "GET /api/readouts → `hub` = `core/domains/economy/readout_hub.collect`（12 项；M81/M83 扩容；含 P1 试点链条缺口 1,850,540 与主瓶颈 capacity_shortage、岗位容量 undefined）",
+ "verified": [
+  "frontend tsc 双配置 0 错；vitest 83 passed；后端全量串行 EXIT=0（先看退出码）"
+ ],
+ "next": [
+  "① 面板入口（菜单/快捷键）＋月报呈现归因（P5 收口）",
+  "② 截图台验收（需 Edge headless，本批未跑）",
+  "③ P2 建筑实例 schema；卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T06:22:35Z"
+}

@@ -1,0 +1,131 @@
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { getApiClient } from "../api/client";
+
+// 统一读数索引面板（P5 第一片 · M84）
+//
+// 数据来源：后端 `/api/readouts::hub`（= `core/domains/economy/readout_hub.collect`，
+// **12 项**只读读数聚合：货币/库存/流量/州府一致性/工坊资金/家计/治所市场/缺工/
+// P1 试点链条缺口/P1 主瓶颈/岗位容量…）。
+//
+// 🔴 纪律（根 AGENTS.md §3-2/§3-3 + 前端 AGENTS.md 禁区）：
+//   · 本面板**只呈现，不重算**——所有数字与 `source` 一律直读后端（口径单点）；
+//   · **缺失值显式呈现「未定义」**：后端契约是 `display === "undefined"`，
+//     面板**不得回落 0**；有 `reason` 时一并展示（让玩家知道"为什么读不到"）；
+//   · `drill_down` 只在用户点开时展示（读数**能下钻到来源**）。
+
+type Row = {
+  label: string;
+  value: unknown;
+  display: string;
+  unit: string;
+  source: string;
+  drill_down?: unknown;
+  reason?: string | null;
+};
+type Hub = {
+  readouts?: Record<string, Row>;
+  ok_count?: number;
+  undefined_count?: number;
+  note?: string;
+};
+
+/** 有值 ⇒ 原样展示（后端已给字符串）；不可读 ⇒ **「未定义」占位**（绝不显示 0）。
+ *
+ * 抽成**可测纯函数**：后端契约是 `display === "undefined"`，此处是**唯一**的展示映射点
+ * （前端不重算、不造默认值）。 */
+export function hubRowText(row: Pick<Row, "display">): string {
+  return row.display === "undefined" ? "未定义" : row.display;
+}
+
+function DisplayText({ row }: { row: Row }) {
+  if (row.display === "undefined") {
+    return <span className="text-dim" title={row.reason ?? "后端未给出原因"}>未定义</span>;
+  }
+  return <span>{row.display}</span>;
+}
+
+export default function ReadoutHubPanel() {
+  const [hub, setHub] = useState<Hub | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getApiClient().readouts();
+        if (!alive) return;
+        setHub((res as unknown as { hub?: Hub }).hub ?? null);
+      } catch (e) {
+        console.error("[readouts:hub]", e);
+        if (alive) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (err) {
+    return <p className="py-6 text-center text-[13px] text-dim">读数不可用：{err}</p>;
+  }
+  if (!hub) {
+    return (
+      <p className="flex items-center justify-center gap-2 py-6 text-[13px] text-dim">
+        <Loader2 className="h-4 w-4 animate-spin" /> 正在读取统一读数索引…
+      </p>
+    );
+  }
+  const rows = Object.entries(hub.readouts ?? {});
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-[15px] font-semibold">统一读数索引（{rows.length} 项）</h3>
+        <span className="text-[12px] text-dim">
+          有值 {hub.ok_count ?? 0} · 未定义 {hub.undefined_count ?? 0}
+        </span>
+      </div>
+      {hub.note ? <p className="text-[12px] text-dim">{hub.note}</p> : null}
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="text-left text-dim">
+            <th className="py-1">读数</th>
+            <th className="py-1">值</th>
+            <th className="py-1">单位</th>
+            <th className="py-1">来源（可下钻）</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([key, row]) => (
+            <tr
+              key={key}
+              className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+              onClick={() => setOpenKey(openKey === key ? null : key)}
+              title="点开查看下钻明细"
+            >
+              <td className="py-1 pr-2">{row.label}</td>
+              <td className="py-1 pr-2 font-mono">
+                <DisplayText row={row} />
+              </td>
+              <td className="py-1 pr-2 text-dim">{row.unit}</td>
+              <td className="py-1 text-dim">
+                {key}
+                {row.reason ? <div className="text-[11px]">原因：{row.reason}</div> : null}
+                {openKey === key ? (
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 text-[11px]">
+                    {JSON.stringify(row.drill_down ?? { source: row.source }, null, 2)}
+                  </pre>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-[11px] text-dim">
+        只读索引：数字与来源一律直读后端（口径单点，前端不重算）；**缺失一律显示「未定义」，不回落 0**。
+      </p>
+    </div>
+  );
+}

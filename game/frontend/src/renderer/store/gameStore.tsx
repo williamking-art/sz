@@ -16,6 +16,7 @@ export type PanelKind =
   | "localarchive"
   | "provincemilitary"
   | "granary"
+  | "readouthub"
   | "focus"
   | "diplomacy"
   | "pop"

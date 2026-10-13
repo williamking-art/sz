@@ -16,6 +16,7 @@ import PrefecturePanel from "./PrefecturePanel";
 import LocalArchivePanel from "./LocalArchivePanel";
 import ProvinceMilitaryPanel from "./ProvinceMilitaryPanel";
 import GranaryPanel from "./GranaryPanel";
+import ReadoutHubPanel from "./ReadoutHubPanel";
 import AccountingPanel from "./AccountingPanel";
 import MilitaryPanel from "./MilitaryPanel";
 import TechPanel from "./TechPanel";
@@ -165,6 +166,8 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
       return <ProvinceMilitaryPanel props={props} />;
     case "granary":
       return <GranaryPanel />;
+    case "readouthub":
+      return <ReadoutHubPanel />;
     case "accounting":
       return <AccountingPanel />;
     case "military":

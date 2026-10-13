@@ -120,6 +120,27 @@ export interface ReadoutsResult {
   army: ArmyUnitReadout[];
   arsenal: Record<string, unknown>;
   finance: Record<string, unknown>;
+  /** 统一读数索引（M83；后端 `core/domains/economy/readout_hub.collect`）——
+   *  **12 项**只读读数（含 P1 试点链条缺口/主瓶颈、岗位容量）。
+   *  🔴 契约：**不可读项的 `display` 恒为字符串 `"undefined"`（绝不显示 0）**；
+   *  每项带 `source` 与 `drill_down`（读数**能下钻到来源**）。面板只渲染，不重算。 */
+  hub?: {
+    schema_version?: number;
+    readouts?: Record<string, {
+      label: string;
+      value: unknown;
+      /** 有值 ⇒ 数值字符串；不可读 ⇒ 恒为 `"undefined"` */
+      display: string;
+      unit: string;
+      source: string;
+      drill_down?: unknown;
+      reason?: string | null;
+    }>;
+    ok_count?: number;
+    undefined_count?: number;
+    frontend_wired?: boolean;
+    note?: string;
+  };
   /** 国库/内帑收支明细（core.flow_summary.build_flow_summary） */
   flow?: {
     treasury?: {
