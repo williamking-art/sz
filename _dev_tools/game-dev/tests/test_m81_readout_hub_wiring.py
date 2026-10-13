@@ -56,6 +56,8 @@ def test_all_readouts_shape_and_readonly():
     assert rep["frontend_wired"] is False
     for k, v in rep["readouts"].items():
         assert set(v) >= {"label", "value", "display", "unit", "source", "reason"}
+        # 🔴 drill_down 必须是 dict（或 None）——M81/M124 两次在 undefined 分支误传字符串
+        assert isinstance(v.get("drill_down"), (dict, type(None))), (k, type(v.get("drill_down")))
         if v["value"] is None:
             assert v["display"] == "undefined" and v["reason"], k
     bad = rh.undefined_summary(s)

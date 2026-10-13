@@ -345,20 +345,35 @@ def _d_funding_best(state) -> Tuple[Optional[Any], Optional[str], Any]:
     except Exception as e:                                  # noqa: BLE001
         log.warning("readout_hub: 营运资金候选盘点失败", exc_info=True)
         return None, f"营运资金盘点异常：{type(e).__name__}", src
-    rows = rep.get("rows") if isinstance(rep, dict) else None
+    if not isinstance(rep, dict):
+        return None, "盘点结果不可读（缺失≠0）", {"返回类型": type(rep).__name__, "drill": src}
+    rows = rep.get("rows") or rep.get("candidates") or rep.get("items")
     if not isinstance(rows, list) or not rows:
-        return None, "无候选行 ⇒ 到位率不可定义（缺失≠0）", src
-    pairs = [(str((r or {}).get("key") or (r or {}).get("name") or "?"), (r or {}).get("coverage"))
-             for r in rows if isinstance(r, dict)]
-    pairs = [(k, v) for k, v in pairs if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        # 🔴 drill_down **必须是 dict**（M81/M124 两次踩：undefined 分支误传字符串）
+        return None, "无候选行 ⇒ 到位率不可定义（缺失≠0）", {"返回键": sorted(rep.keys())[:12], "drill": src}
+    pairs = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        v = r.get("procure_cover")
+        if v is None:
+            v = r.get("coverage")
+        pairs.append((str(r.get("label") or r.get("key") or "?"), v,
+                      r.get("wage_cover"), r.get("pool")))
+    pairs = [(k, v, w, p) for (k, v, w, p) in pairs
+             if isinstance(v, (int, float)) and not isinstance(v, bool)]
     if not pairs:
         return None, "候选到位率均不可读（缺失≠0，不臆造）", {"候选数": len(rows), "drill": src}
-    pairs.sort(key=lambda kv: -kv[1])
-    best_k, best_v = pairs[0]
-    return (round(float(best_v), 4), None,
-            {"最佳候选": best_k,
-             "逐候选": {k: round(float(v), 4) for k, v in pairs},
-             "需求": (rep.get("need") if isinstance(rep, dict) else None),
+    pairs.sort(key=lambda t: -t[1])
+    best = pairs[0]
+    return (round(float(best[1]), 4), None,
+            {"最佳候选": best[0],
+             "逐候选到位率": {k: round(float(v), 4) for (k, v, _w, _p) in pairs},
+             "逐候选工资到位率": {k: (None if w is None else round(float(w), 4))
+                                 for (k, _v, w, _p) in pairs},
+             "逐候选资金池": {k: p for (k, _v, _w, p) in pairs},
+             "采购需求": (rep.get("procure_need") if isinstance(rep, dict) else None),
+             "工资需求": (rep.get("wage_need") if isinstance(rep, dict) else None),
              "drill": src})
 
 
@@ -427,7 +442,11 @@ def collect(state, keys: Optional[List[str]] = None) -> Dict[str, Any]:
             "value": value,
             "display": "undefined" if value is None else str(value),
             "source": spec["source"],
-            "drill_down": drill or spec["source"],
+            # 🔴 **单点归一化**：`drill_down` 只允许 dict —— 旧读数（M54 期 9 个）返回的是
+            # 路径字符串，这里统一收进 `note`，避免"同一契约两种形状"（M81/M124/M125 三次踩）
+            "drill_down": (drill if isinstance(drill, dict) else
+                           ({"note": drill, "source": spec["source"]} if drill
+                            else {"source": spec["source"]})),
             "reason": None if value is not None else (reason or "不可读（缺失≠0）"),
         }
     return {"schema_version": SCHEMA_VERSION, "readouts": rows,
