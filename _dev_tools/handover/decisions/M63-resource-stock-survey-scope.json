@@ -1,0 +1,32 @@
+{
+ "id": "M63-resource-stock-survey-scope",
+ "title": "Round 43 裁定：M40c 只读取证 + 写点台账（不下沉）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "Round 43 取哪个（M40c 商品/物料存量州府化的前置取证）？",
+ "options": {
+  "A": "只读取证 + 写点台账（含存在性用例防台账腐烂）+ 设计 notes；不下沉、不改数值",
+  "B": "A 再直接给出下沉方案（真账放治所、路级镜像、迁移与桥接清单），仍不实施",
+  "C": "只出文档、不出代码"
+ },
+ "verdict": "A",
+ "probabilities": {"A": 0.6932061910629272, "B": 0.28548672795295715, "C": 0.021307073533535004},
+ "margin_note": "A 领先 0.41（0.693 vs 0.285）⇒ 非平手，按裁定执行；B 保留为下一候选（有了 A 的台账后 B 会更省）",
+ "premises_verified_by_me_before_asking": [
+  "`state.resources` 为全国口径 `{dim: {stock, cap}}`，M41–M62 多个只读读数依赖它",
+  "已知直接写点 ≥6 处（material_market / settlement_econ / settlement_econ_helpers / settlement_finance / production_chain / farm_procurement）",
+  "M40b（州仓 `storage` ↔ applier/journal）仍是待裁项；M37 教训是**先桥后沉、顺序不可颠倒**"
+ ],
+ "outcome": "✅ A 落地：写点台账 **11 处**（含**存在性用例**兜底 ⇒ 台账不腐烂）、`stock_summary`、`mediation_status`；并产出**两条关键事实**——① `resources` 20 维合计 15,495,102、cap 缺失 0；② 🔴 **`stock` 写入不经 applier**，且 **M40b 的 `storage` 与本项 `resources.stock` 不是同一物** ⇒ M40c **不能直接套用 M40b 的 blocker**，真实前置是「11 处写点桥接 + 幂等迁移 + 首府承载口径 + A/B 证明」。",
+ "applied_in": {
+  "module": "core/domains/economy/resource_stock_survey.py",
+  "tests": "_dev_tools/game-dev/tests/test_resource_stock_survey.py（5 passed）",
+  "doc": "_dev_tools/game-docs/specs/cross-cutting/商品物料存量州府化_前置取证_2026-10-13.md（已回填目录 README 索引）",
+  "task": "_dev_tools/handover/tasks/M63-resource-stock-survey.json",
+  "commit": "（本批提交）"
+ },
+ "reopen_if": "若 M40b 裁定与 M40c 合并推进、或迁移取值口径（首府承载 vs 按人口权重拆）下达，本裁定作废并进入实施批次"
+}

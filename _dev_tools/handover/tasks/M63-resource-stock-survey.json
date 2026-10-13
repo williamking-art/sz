@@ -1,0 +1,30 @@
+{
+ "id": "M63-resource-stock-survey",
+ "title": "商品/物料存量州府化 —— 前置**只读取证**（写点台账 11 处 + 先桥后沉前置 + 与 M40b 的关键区分）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M63-resource-stock-survey-scope.json（Jev choose A 0.693）",
+ "deliverable": [
+  "core/domains/economy/resource_stock_survey.py（只读）：direct_write_sites / stock_summary / mediation_status",
+  "_dev_tools/game-dev/tests/test_resource_stock_survey.py（5 passed，含**台账存在性**用例）",
+  "_dev_tools/game-docs/specs/cross-cutting/商品物料存量州府化_前置取证_2026-10-13.md（设计notes，已回填该目录 README 索引）"
+ ],
+ "findings": [
+  "`state.resources` 是**全国口径**：实测 **20 维 / 合计 15,495,102** / `cap` 缺失维 **0**；存量前 6 维 = 盐·茶·木·石·铁 各 3,000,000 + meat 480,000",
+  "**写点台账 11 处**（方向分布：入 5 · 入/出 1 · 出 4 · 写 1），全部为**直接写** `resources[dim][\"stock\"]`",
+  "**`stock` 写入不经 `engine.state_applier`**：applier 可导入但其公开集合里**未见** `resources`/`stock`（探针级证据，非完备证明），与 11 处直接写点互相印证",
+  "🔴 **与 M40b 不是同一物**：M40b 的耦合对象是 **`storage` 字段**（州仓 ↔ applier/journal），本项对象是 **`resources.stock`** ⇒ **不能直接把 M40b 的 blocker 套到 M40c 上**",
+  "只读消费方 5 类：stock_identity / stock_flow / material_trade_ops / settlement_agri / civil_building（改动的读数影响面）",
+  "观察（未核）：盐/茶/木/石/铁 各恰为 3,000,000 整数 ⇒ 疑公式/补货路径（M41c 已记过一次）"
+ ],
+ "next": [
+  "① 逐点标注 11 处写点『能否直接改走桥』（预计 `material_market` 四处 + `settlement_econ` 三处 + `settlement_finance` 一处可走既有 `pop_goods_sub` 式桥口；`production_chain._write_warehouse` 与 `farm_procurement` 已在 M42/M56 部分桥化）",
+  "② **迁移取值口径须裁定**：无逐治所来源时用**首府承载**还是**按人口权重拆**（与 M37/M38/M40a 的既有手法对照）",
+  "③ 桥接 + 迁移 + A/B 零行为变化证明**齐备后**才切换读数方（**先桥后沉**）",
+  "④ 复查 3,000,000 整数观察"
+ ],
+ "not_done_in_this_batch": "**未动任何写点、未加迁移、未改数值、未下沉**（本批刻意只取证）",
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T00:57:45Z"
+}

@@ -8,6 +8,9 @@
 - [`README.md`](./README.md)
   本文件。
 - [`decree-action-chain/`](./decree-action-chain/)
+- [`商品物料存量州府化_前置取证_2026-10-13.md`](./商品物料存量州府化_前置取证_2026-10-13.md)
+  **只读取证**：`state.resources`（全国口径）的 11 处写点台账、只读消费方、**先桥后沉**的前置顺序；
+  🔴 并区分 M40b（`storage` ↔ applier）与本项（`resources.stock` **不经** applier）。
 - [`代码层机制模块化架构方案_2026-10-06.md`](./代码层机制模块化架构方案_2026-10-06.md)
   架构总纲：`game/core/` 四层责任（foundation / workflows / domains / compatibility）、依赖硬规则、五阶段迁移、验收标准与明确不做。**本目录结构的唯一依据**。
 - [`阶段1_依赖图与循环依赖.md`](./阶段1_依赖图与循环依赖.md)
