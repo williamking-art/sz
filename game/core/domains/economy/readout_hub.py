@@ -216,7 +216,28 @@ def _p2_readiness(state) -> Tuple[Optional[Any], Optional[str], Any]:
     if not ratio or not rep.get("buildings"):
         return None, "无建筑 ⇒ 就绪度不可定义（缺失≠0）", {**ratio, "drill": src}
     ready = sorted([k for k, v in ratio.items() if v and v >= 1.0])
-    drill = {"已就绪字段": ready, "逐字段率": ratio, "建筑数": rep.get("buildings"), "drill": src}
+    # 🔴 M107：追加**样本原因**——给"首个未就绪字段"一条真实 reason（服务 P5「为何读不到」）
+    sample = None
+    try:
+        prefs = getattr(state, "prefectures", {}) or {}
+        for route, pdata in prefs.items():
+            seats = (pdata or {}).get("seats") or {}
+            for seat, srow in seats.items():
+                for b, lv in ((srow or {}).get("buildings") or {}).items():
+                    rep = ep.project_building(state, route, seat, b, lv)
+                    if rep.get("undefined_fields"):
+                        k = rep["undefined_fields"][0]
+                        sample = {"field": k, "route": route, "seat": seat, "building": b,
+                                  "reason": (rep["fields"].get(k) or {}).get("reason")}
+                        break
+                if sample:
+                    break
+            if sample:
+                break
+    except Exception:                                       # noqa: BLE001
+        log.warning("readout_hub: P2 样本原因不可得", exc_info=True)
+    drill = {"已就绪字段": ready, "逐字段率": ratio, "建筑数": rep.get("buildings"),
+             "未就绪样本原因": sample, "drill": src}
     return len(ready), None, drill
 
 
