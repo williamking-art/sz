@@ -1,0 +1,21 @@
+{
+ "id": "M95-p2-spec-status-sync",
+ "title": "规格状态同步：P2 行更新到「已落地第一片（M91–M94）」+ 就绪度 5/14 与未落地清单",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "AGENTS.md §6.1（落了新规格 ⇒ 更新 `specs/<规格>/tasks.md` 状态表）",
+ "deliverable": ["_dev_tools/game-docs/specs/economy/unified-civilian-market/tasks.md：P2 行状态由「🟡 取证与最小主体设计已出（M76）」更新为「🟢 已落地第一片（M91–M94）」"],
+ "content": {
+  "landed": ["建筑归属登记（`building_meta`，保形态、非账本；7 类型规则逐条带依据；40/40 建筑；幂等迁移接新局+读档）",
+             "`entity_projection` 只读投影 + `operator`/`operation_mode` 派生 ⇒ **P2 就绪度 5/14**",
+             "可见化：`p2_readiness`（M87）+ `building_owned=1.0`（M94）已进 `/api/readouts::hub`",
+             "**A/B 同种子 3 月恒等**（零数值变化已证）"],
+  "not_landed": ["`jobs_filled` **写入**（只读已可算；写入须桥接 + 同种子标定）",
+                 "`blueprint` / `completed_month` / `maintenance` / `methods` / `recipe` / `io_stock` / `income_to`（待口径）"]
+ },
+ "verified": ["全量串行 EXIT=0；索引纪律 48 passed（含 specs 目录）；JSON lint 通过"],
+ "next": ["① P2 其余字段口径；② `jobs_filled` 写入（改数值 ⇒ 桥接+标定）；③ 月报/前端展示（P5 收口）；④ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13"
+}
