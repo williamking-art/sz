@@ -236,6 +236,23 @@ def _building_owned(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return ratio, None, {**rep, "已登记率": ratio, "drill": src}
 
 
+def _workshop_readiness(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**作坊（经营记录）字段就绪数**（M96）：14 项里可定义者；无作坊 ⇒ None（缺失≠0）。"""
+    src = "core.domains.economy.entity_projection:survey_workshop_projection"
+    try:
+        from core.domains.economy import entity_projection as ep
+        rep = ep.survey_workshop_projection(state)
+    except Exception as e:                                  # noqa: BLE001
+        log.warning("readout_hub: 作坊就绪度失败", exc_info=True)
+        return None, f"作坊就绪度异常：{type(e).__name__}", src
+    ratio = rep.get("defined_ratio") or {}
+    if not rep.get("workshops") or not ratio:
+        return None, "无作坊 ⇒ 就绪度不可定义（缺失≠0）", {**ratio, "drill": src}
+    ready = sorted([k for k, v in ratio.items() if v and v >= 1.0])
+    return len(ready), None, {"已就绪字段": ready, "逐字段率": ratio,
+                              "作坊数": rep.get("workshops"), "drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -266,6 +283,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _p2_readiness, "source": "core.domains.economy.entity_projection:survey_entity_projection"},
     {"key": "building_owned", "label": "建筑归属已登记率", "unit": "比",
      "fn": _building_owned, "source": "core.domains.economy.building_owner:survey_building_owners"},
+    {"key": "workshop_readiness", "label": "作坊（经营记录）字段已就绪数（共 14 项）", "unit": "项",
+     "fn": _workshop_readiness, "source": "core.domains.economy.entity_projection:survey_workshop_projection"},
 )
 
 

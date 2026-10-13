@@ -1,0 +1,44 @@
+{
+ "id": "M97-workshop-readiness-readout",
+ "title": "读数索引 14→15：接入**作坊（经营记录）字段就绪度**（M96 的 P5 可见化）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M97-workshop-readiness-readout-scope.json（同型惯例；M81/M83/M87/M94 四次同型）",
+ "deliverable": [
+  "core/domains/economy/readout_hub.py：`_workshop_readiness` + 注册行（第 15 项）",
+  "test_m81/test_m83：计数断言 14→15"
+ ],
+ "readout_added": {
+  "key": "workshop_readiness",
+  "label": "作坊（经营记录）字段已就绪数（共 14 项）",
+  "unit": "项",
+  "value_6m": 5,
+  "drill_down": [
+   "已就绪字段",
+   "逐字段率",
+   "作坊数",
+   "source"
+  ],
+  "undefined_when": "无作坊 ⇒ `undefined` + reason"
+ },
+ "evidence": {
+  "total_readouts": 15,
+  "ok": 14,
+  "undefined": 1,
+  "p2_readiness": 5,
+  "building_owned": 1.0,
+  "workshop_readiness": 5,
+  "p2_two_entities": "建筑 5/14（M86/M92/M93）· 作坊 5/14（M96）——覆盖规格原文的「建筑/经营记录」"
+ },
+ "verified": [
+  "读数相关用例全绿；全量串行 **EXIT=0**（先看退出码）；JSON lint 门通过"
+ ],
+ "next": [
+  "① P5 收口（月报归因 / 前端展示）",
+  "② P2 `jobs_*` 写入＝改数值批（桥接 + 同种子标定）",
+  "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T10:10:03Z"
+}

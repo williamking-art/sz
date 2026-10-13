@@ -1,0 +1,18 @@
+{
+ "id": "M97-workshop-readiness-readout-scope",
+ "title": "Round 76：作坊就绪度接进读数索引（14→15 项；同型惯例扩项）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "DSH（同型惯例扩项：M81/M83/M87/M94 四次同型；未新增口径）",
+ "mode": "convention",
+ "outcome": "✅ `readout_hub` 14 → **15 项**：新增 `workshop_readiness`「作坊（经营记录）字段已就绪数（共 14 项）」（M96 的 P5 可见化），下钻给已就绪字段/逐字段率/作坊数/`source`；无作坊 ⇒ `undefined`。实测：**15 项 ok=14 / undefined=1**（`jobs_capacity`）；`p2_readiness=5` · `building_owned=1.0` · `workshop_readiness=5`。",
+ "applied_in": {
+  "module": "core/domains/economy/readout_hub.py（+_workshop_readiness 与注册行）",
+  "tests": ["test_m81_readout_hub_wiring.py（计数 14→15）", "test_m83_readouts_endpoint_hub.py（计数 14→15）"],
+  "task": "_dev_tools/handover/tasks/M97-workshop-readiness-readout.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① P5 收口：月报归因 + 前端展示（面板已自动呈现新读数）· ② P2 `jobs_*` 写入（改数值 ⇒ 桥接+标定）· ③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若读数契约变更，本档作废重接"
+}
