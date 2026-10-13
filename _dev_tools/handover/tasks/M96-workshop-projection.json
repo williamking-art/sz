@@ -1,0 +1,24 @@
+{
+ "id": "M96-workshop-projection",
+ "title": "补**作坊（经营记录）** P2 投影：107 座、就绪 5 项、9 项如实 undefined",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M96-workshop-projection-scope.json（Jev choose 甲 0.972）",
+ "deliverable": [
+  "core/domains/economy/entity_projection.py：`project_workshop`（逐作坊 14 字段）+ `survey_workshop_projection`（逐字段就绪度）",
+  "_dev_tools/game-dev/tests/test_m96_workshop_projection.py（4 passed）"
+ ],
+ "why": "规格 §4 P2 原文是「每个试点**建筑/经营记录**须能确定 14 字段」——**作坊才是经营记录**；M86 只投影了 buildings",
+ "evidence": {"workshops": 107,
+              "ready": ["seat", "owner", "operator", "operation_mode", "recipe"],
+              "undefined": ["blueprint", "completed_month", "income_to", "io_stock", "jobs_capacity",
+                            "jobs_filled", "level", "maintenance", "methods"],
+              "jobs_reason": "M67：作坊岗位数无权威来源 ⇒ **不按人口均分、不默认满员**（reason 明写）"},
+ "verified": ["M96 4 passed + M86 通过；全量串行 EXIT=0（先看退出码）；JSON lint 门通过"],
+ "next": ["① 作坊/建筑就绪度分列接进 readout_hub（P5 可见）",
+          "② `jobs_*` 写入＝改数值批（桥接 + 同种子标定）",
+          "③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权"],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13"
+}

@@ -1,0 +1,27 @@
+{
+ "id": "M96-workshop-projection-scope",
+ "title": "Round 75：补**作坊（经营记录）** P2 投影（甲 0.972）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "规格 §4 P2 原文是「建筑/**经营记录**」——作坊才是经营记录，是否补其投影？",
+ "options": {"甲": "补作坊投影（只读）", "乙": "不动"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.9716582298278809, "乙": 0.028341753408312798},
+ "outcome": "✅ 新增 `project_workshop` / `survey_workshop_projection`（只读）：逐作坊报同一套 **14 字段**；**能算的算**（地点/owner/经营者/经营方式/配方），**其余如实 undefined**——尤其**作坊岗位容量与实到**（M67：无权威来源 ⇒ `reason` 明写**不按人口均分、不默认满员**）。",
+ "evidence": {"workshops": 107,
+              "ready_1.0": ["seat", "owner", "operator", "operation_mode", "recipe"],
+              "undefined_0.0": ["blueprint", "completed_month", "income_to", "io_stock",
+                                "jobs_capacity", "jobs_filled", "level", "maintenance", "methods"],
+              "note": "与建筑投影**分列**（两类实体）；合起来覆盖规格原文的「建筑/经营记录」"},
+ "applied_in": {
+  "module": "core/domains/economy/entity_projection.py（+project_workshop / survey_workshop_projection）",
+  "tests": "_dev_tools/game-dev/tests/test_m96_workshop_projection.py（4 passed）",
+  "task": "_dev_tools/handover/tasks/M96-workshop-projection.json",
+  "commit": "（本批提交）"
+ },
+ "next": "① 可把作坊就绪度与建筑就绪度**分列**接进 readout_hub（P5 可见）；② `jobs_*` 写入仍属改数值批（须桥接+标定）；③ 卡口不变：产能 · 营运资金来源 · 作坊岗位数 · 宋境工钱通道；P3 待授权",
+ "reopen_if": "若作坊获得等级/完工月/岗位来源，投影的 reason 与就绪度须同步更新"
+}

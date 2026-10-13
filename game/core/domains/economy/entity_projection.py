@@ -123,6 +123,88 @@ def project_seat(state, route: str, seat: str) -> Dict[str, Any]:
             "note": "逐建筑 P2 字段投影（只读）；`undefined_fields` 列出未定义字段"}
 
 
+def project_workshop(state, wid: str) -> Dict[str, Any]:
+    """**作坊（经营记录）**的 P2 字段投影（只读）——规格原文是「建筑/经营记录」，
+    而**作坊才是经营记录**（M96 补）。
+
+    能算的：地点（键名/`route_of_workshop`）· `owner`（M66）· `recipe` · 产出维（`output_dim`）
+    · 经营方式（M92 由 owner 派生）· 经营者（首期＝owner）；**不能算的如实 `undefined`**
+    （蓝图/完工月/维护责任/生产方法/岗位容量与实到/投入产出库存/收入去向）——不臆造。
+    """
+    ws = getattr(state, "workshops", None)
+    row = (ws or {}).get(wid) if isinstance(ws, dict) else None
+    if not isinstance(row, dict):
+        return {"wid": wid, "fields": {}, "reason": "作坊不存在（缺失≠0）"}
+    try:
+        from core.domains.economy.building_owner import derive_operation_mode, derive_operator
+    except Exception:                                       # noqa: BLE001
+        derive_operation_mode = derive_operator = lambda _o: None    # type: ignore
+    owner = row.get("owner") or row.get("owner_ref")
+    route = None
+    try:
+        from core.domains.economy.seat_goods_readout import route_of_workshop
+        route = route_of_workshop(state, wid)
+    except Exception:                                       # noqa: BLE001
+        log.warning("entity_projection: 作坊路名不可用 wid=%s", wid, exc_info=True)
+
+    def _def(value, source, reason=None):
+        return {"value": value, "defined": value is not None, "source": source, "reason": reason}
+
+    def _undef(reason, source="（无）"):
+        return {"value": None, "defined": False, "source": source, "reason": reason}
+
+    fields = {
+        "blueprint": _undef("无「蓝图版本」字段（作坊只有名称/配方/产出）"),
+        "seat": _def(route, "seat_goods_readout.route_of_workshop（键名含路名）",
+                     None if route else "判不出所属路（不臆造地点）"),
+        "level": _undef("作坊无等级字段（等级在建筑上）"),
+        "completed_month": _undef("无完工月字段"),
+        "owner": _def(owner, "M66 `workshops[wid].owner`（既有词表）",
+                      None if owner else "未登记货主（M66 迁移未覆盖）"),
+        "operator": _def(derive_operator(owner), "building_owner.derive_operator（M92：首期＝owner）",
+                         None if owner else "无 owner ⇒ 经营者不可定义"),
+        "maintenance": _undef("无维护责任字段"),
+        "operation_mode": _def(derive_operation_mode(owner),
+                               "building_owner.derive_operation_mode（M92 口径单点）",
+                               None if owner else "无 owner 前缀可派生"),
+        "methods": _undef("无可选生产方法字段"),
+        "jobs_capacity": _undef("作坊**不在 `JOBS_PER_LEVEL`**（M67：作坊岗位数无权威来源）"),
+        "jobs_filled": _undef("同上（M67）——**不按人口均分、不默认满员**"),
+        "recipe": _def(row.get("recipe"), "`workshops[wid].recipe`（原料消耗）"),
+        "io_stock": _undef("作坊投入/产出**不按主体分栏**（产出入 `resources`/工匠 `goods` 池）"),
+        "income_to": _undef("利润归主未接（营运资金来源待口径，见 M71）"),
+    }
+    undefined = [k for k in FIELDS if not (fields.get(k) or {}).get("defined")]
+    return {"wid": wid, "route": route, "fields": fields, "undefined_fields": undefined,
+            "defined_count": len(FIELDS) - len(undefined), "field_count": len(FIELDS),
+            "note": "作坊＝**经营记录**（规格原文「建筑/经营记录」）；能算的算，其余如实 undefined"}
+
+
+def survey_workshop_projection(state, top: int = 8) -> Dict[str, Any]:
+    """全图作坊投影汇总（只读）：作坊数 + **逐字段可定义率**（与建筑投影分列）。"""
+    ws = getattr(state, "workshops", None)
+    if not isinstance(ws, dict):
+        return {"reason": "无 workshops", "workshops": 0}
+    defined = {k: 0 for k in FIELDS}
+    total = 0
+    rows = []
+    for wid in ws:
+        rep = project_workshop(state, wid)
+        if not rep.get("fields"):
+            continue
+        total += 1
+        for k in FIELDS:
+            if (rep["fields"].get(k) or {}).get("defined"):
+                defined[k] += 1
+        if len(rows) < top:
+            rows.append({"wid": wid, "route": rep.get("route"),
+                         "defined_count": rep.get("defined_count")})
+    return {"workshops": total, "rows": rows, "defined_by_field": defined,
+            "defined_ratio": {k: (None if not total else round(v / total, 4))
+                              for k, v in defined.items()},
+            "note": "作坊（经营记录）字段就绪度；与建筑投影**分列**（两类实体）"}
+
+
 def survey_entity_projection(state, top: int = 8) -> Dict[str, Any]:
     """全图汇总（只读）：建筑总数、**逐字段的已定义率**（规格 14 项里哪些已有真实来源）。"""
     prefs = getattr(state, "prefectures", None)
