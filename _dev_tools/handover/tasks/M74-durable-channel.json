@@ -1,0 +1,37 @@
+{
+ "id": "M74-durable-channel",
+ "title": "治所级影子需求接入**耐用品通道**（口径 max）＋ 修**双重计数**缺陷（需求曾被放大 size 倍）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M74-durable-channel-scope.json（Jev：批次 A 0.953 · 合成**乙 0.49998**＝实质平手（自论证取 max）· 修缺陷甲 0.998）",
+ "deliverable": [
+  "core/domains/economy/seat_market_shadow.seat_demand：接入 `demand.durable_gap`（**max** 合成）；新增 `partial/readable_classes/unreadable_classes/need_total/channel` 读数",
+  "_dev_tools/game-dev/tests/test_m74_durable_channel.py（6 passed）",
+  "test_seat_market_shadow.py 旧期望按修正语义更新（10 passed）"
+ ],
+ "two_findings": [
+  "🔴 **双重计数（M53 起）**：`demand.basic_need(cls, dim, pop_size)` **已含 size**（返回阶层需求总量），而 `seat_demand` 又乘了一次 ⇒ 影子需求虚高约 **size 倍**（`shadow_match` 成交量几乎总被供给上限吃掉）；M53 的注释『漏乘 size 已踩』**方向写反**，已改正",
+  "⚠️ **`demand.durable_gap(dim, pop_size, held)` 对 `held=None` 会按 0 算**（缺口=全目标，违反缺失≠0）⇒ 本模块**不改他人单点**，改为『持有不可读 ⇒ 该通道不可读』；另签名**第一参是维**（本轮曾误传阶层 ⇒ 通道恒 None）"
+ ],
+ "design": {
+  "composition": "**max(基本需求×余量释放, 耐用品缺口)**（非相加；理由＝零行为变化 + 不重复计数）",
+  "durable_channel": "`target[dim] × size − 该类在该治所的持有量`（**自限**：持有接近目标即归零）",
+  "partial_semantics": "`total` ＝ **可读阶层**合计；`partial=True` 表示有阶层不可读 ⇒ **不得当作全所需求**（照 M52 家计先例）"
+ },
+ "evidence": {
+  "before_fix": "有货 227 对 · 有成交 **37** 对（需求虚高 ⇒ 成交量≈供给）",
+  "after_fix": "有货 227 对 · 有成交 **37** 对（成交数相同，但**需求量级已回到真实**：京畿路|开封府 绸 ≈ 253,987 ＝ 目标 1.0/人 × 人口）",
+  "note": "『有货维』与『有通道维』在真实局**交集只有绸**（有货 227 对里：meat 115 / 丝 20 / 果 20 / 麻 20 / 蔗 13 / 绸 12）⇒ 影子成交偏少是**数据现实**，不是读数缺陷"
+ },
+ "verified": [
+  "M74 用例 6 passed · 影子用例 10 passed · 全量串行 **EXIT=0**（_scratch/full_regression_m74c.log）"
+ ],
+ "next": [
+  "消费品需求（酒/肉/盐/茶/糖/纸/果）须走 B2-R 校准；布/绸的**供给**仍薄",
+  "卡口不变：**营运资金来源**（M71 证据已备）· **作坊岗位数**",
+  "未开工：P3（须授权）· P4 · P5 前端 · P6"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T03:58:48Z"
+}

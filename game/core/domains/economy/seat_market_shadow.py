@@ -131,7 +131,8 @@ def seat_demand(state, route: str, seat: str, dim: str) -> Dict[str, Any]:
     by_class: Dict[str, Any] = {}
     reasons: List[str] = []
     total = 0.0
-    readable_all = True
+    readable_n = 0
+    unreadable: List[str] = []
     for cls, row in pops.items():
         if not isinstance(row, dict):
             continue
@@ -140,25 +141,69 @@ def seat_demand(state, route: str, seat: str, dim: str) -> Dict[str, Any]:
         if size is None or size <= 0:
             continue
         need = _dm.basic_need(str(cls), dim, int(size))
-        if need is None:
-            readable_all = False
-            by_class[str(cls)] = {"need": None, "release": None, "effective": None}
-            reasons.append(f"{cls}: `basic_need` 未配置该维 ⇒ 需求不可定义（不臆造）")
-            continue
         per_capita = None if wealth is None else wealth / size
         rel = _dm.demand_release(str(cls), per_capita)
-        # 🔴 `basic_need` 是**人均·月**需求 ⇒ 需求总量 = 人均 × size × 余量释放（漏乘 size 已踩）
-        eff = None if rel is None else float(need) * float(size) * float(rel)
-        by_class[str(cls)] = {"need_per_capita": float(need), "size": int(size),
+        # 🔴 M74b 修**双重计数**（Jev 甲 0.998）：`demand.basic_need(cls, dim, pop_size)`
+        #   **内部已经乘过 `pop_size`**（返回该阶层的**需求总量**，不是人均）⇒ 这里**不得再乘 size**
+        #   （M53 原写 `need * size * rel` 并附了一句"漏乘 size 已踩"的**错误**注释，实测把影子需求
+        #    放大约 size 倍，使 `shadow_match` 的成交量几乎总是"供给被全额吃掉"）。
+        eff = None if (need is None or rel is None) else float(need) * float(rel)
+
+        # 🟢 M74：**耐用品通道**（存量缺口）。口径 = **max(基本需求, 耐用品缺口)**，
+        #   **不是相加**（Jev 乙 0.49998 vs 甲 0.363 —— 差 0.14 且乙压在阈值下，属**实质平手**，
+        #   按 AGENTS.md「平手须自论证」：**max 是零行为变化选择**——`durable_gap` 未配置该维 ⇒ `None`
+        #   ⇒ 退化为原行为；已配置时也不会把"流量+存量缺口"重复计成双份）。
+        gap = None
+        goods = row.get("goods")
+        if isinstance(goods, dict):
+            raw = goods.get(dim)
+            if raw is not None and not isinstance(raw, dict):
+                held = _num(raw)                     # 扁平写法：**键在即读**（持有 0 也算可读）
+            else:
+                try:
+                    # 桶形态（`{治所: {dim: qty}}`）走既有单点；不可读 ⇒ 本通道不可读
+                    from core.foundation.ledger.material_holding import goods_amount
+                    held = _num(goods_amount(goods, dim))
+                except Exception:                           # noqa: BLE001
+                    log.warning("seat_market_shadow: 持有量不可读 cls=%s dim=%s",
+                                cls, dim, exc_info=True)
+                    held = None
+            if held is not None:
+                # ⚠️ 签名是 `durable_gap(dim, pop_size, held)` —— **第一个参数是维、不是阶层**
+                #   （本轮曾把 `cls` 传成 `dim` ⇒ 永远查不到目标库存 ⇒ 通道恒 None）
+                gap = _num(_dm.durable_gap(str(dim), int(size), held))
+        # ⚠️ `demand.durable_gap` 对 `held=None` 会**按 0 算**（缺口=全目标，违反缺失≠0）；
+        #   本模块**不改他人单点**，改为「持有不可读 ⇒ 本通道不可读」（gap 保持 None）。
+
+        eff_final = eff if gap is None else (float(gap) if eff is None else max(float(eff), float(gap)))
+        by_class[str(cls)] = {"need_total": None if need is None else float(need),
+                              "size": int(size),
                               "release": None if rel is None else float(rel),
-                              "effective": eff}
-        if eff is None:
-            readable_all = False
-            reasons.append(f"{cls}: 余量释放不可读（人均 wealth 缺失）⇒ 有效需求不可定义")
+                              "effective": eff_final,
+                              "basic_effective": eff,
+                              "durable_gap": gap,
+                              "channel": ("basic+durable" if (eff is not None and gap is not None)
+                                          else "basic" if eff is not None
+                                          else "durable" if gap is not None else None)}
+        if eff_final is None:
+            unreadable.append(str(cls))
+            if need is None and gap is None:
+                reasons.append(f"{cls}: 两条需求通道皆不可读 ⇒ 该类需求不可定义（不臆造）")
+            else:
+                reasons.append(f"{cls}: 余量释放不可读（人均 wealth 缺失）⇒ 该类有效需求不可定义")
         else:
-            total += eff
-    return {"total": float(total) if readable_all else None, "by_class": by_class,
-            "reasons": reasons}
+            total += eff_final
+            readable_n += 1
+    # 🔴 M74：**可读部分合计 + `partial` 标记**（照 M52 家计先例）。
+    #   否则"某阶层无该通道"会污染整个治所的需求（混合 POP 的治所永远看不到量）。
+    return {"total": float(total) if readable_n else None,
+            "readable_classes": readable_n,
+            "unreadable_classes": unreadable,
+            "partial": bool(unreadable) and readable_n > 0,
+            "by_class": by_class, "reasons": reasons,
+            "composition": "max(基本需求×余量释放, 耐用品缺口)；耐用品未配置/持有不可读 ⇒ 退化为基本需求",
+            "note": ("`total` ＝ **可读阶层**合计（缺失≠0）；`partial=True` 表示有阶层不可读，"
+                     "**不得当作全所需求**")}
 
 
 def in_transit_to(state, route: str, seat: str, dim: str) -> Optional[int]:

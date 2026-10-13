@@ -43,12 +43,15 @@ def test_purchasing_power():
 
 # ------------------------------------------------------------------ 需求（走既有单点）
 def test_demand_uses_existing_module_and_reports_missing(monkeypatch):
+    """`basic_need` **已含 size**（返回阶层需求总量）⇒ 本模块**不得再乘 size**（M74b 修双重计数）。"""
     from core.domains.economy import demand as dm
     monkeypatch.setattr(dm, "basic_need", lambda cls, dim, size: 2.0 if dim == "绸" else None)
     monkeypatch.setattr(dm, "demand_release", lambda cls, pc: 1.0)
     st = _state({"A|甲": _seat(size=10)})
     got = sm.seat_demand(st, "路A", "A|甲", "绸")
-    assert got["total"] == 20.0 and got["by_class"]["工匠"]["effective"] == 20.0
+    # `basic_need` 桩返回 **2.0（总量）** ⇒ 有效需求 = 2.0 × 余量释放 1.0 = 2.0（**不是 20**）
+    assert got["total"] == 2.0 and got["by_class"]["工匠"]["effective"] == 2.0
+    assert got["by_class"]["工匠"]["need_total"] == 2.0
     # 未配置的维 ⇒ 不可定义（不臆造）
     got2 = sm.seat_demand(st, "路A", "A|甲", "谜之货")
     assert got2["total"] is None and got2["reasons"]
@@ -130,10 +133,12 @@ def test_shadow_match_and_gap_reasons(monkeypatch):
     from core.domains.economy import demand as dm
     monkeypatch.setattr(dm, "basic_need", lambda cls, dim, size: 5.0)
     monkeypatch.setattr(dm, "demand_release", lambda cls, pc: 1.0)
-    st = _state({"A|甲": _seat({"绸": 3}, size=10)})           # 供给 3，需求 50
+    st = _state({"A|甲": _seat({"绸": 3}, size=10)})           # 供给 3
     m = sm.shadow_match(st, "路A", "A|甲", "绸")
-    assert m["supply"] == 3 and m["demand"] == 50.0
-    assert m["shadow_trade_qty"] == 3 and m["unmet"] == 47
+    # 需求 = **max(基本需求 5, 耐用品缺口 7)** = 7（绸目标库存 1.0/人 × 10 人 − 已持 3 = 7）
+    #   ⇒ 这条同时**证明耐用品通道已生效**（M74）
+    assert m["supply"] == 3 and m["demand"] == 7.0
+    assert m["shadow_trade_qty"] == 3 and m["unmet"] == 4
     codes = [g.get("code") for g in m["gap_reasons"] if g]
     assert "insufficient_stock" in codes                     # 复用 market_gap 原因码
 

@@ -1,0 +1,42 @@
+{
+ "id": "M74-durable-channel-scope",
+ "title": "Round 53：耐用品通道接入影子需求（A 0.953）＋ 合成口径**平手**＋ 修**双重计数**（甲 0.998）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose（三次：批次、合成口径、缺陷修法）",
+ "q1_scope": {
+  "question": "Round 53 取哪个？",
+  "options": {"A": "接 `durable_gap` 进影子需求（绸/布有量，不拍数）",
+              "B": "先只读取证 durable_gap 语义与缺口", "C": "不接，转 P4 设计切片"},
+  "verdict": "A",
+  "probabilities": {"A": 0.9529231190681458, "B": 0.040774907916784286, "C": 0.006301972549408674}
+ },
+ "q2_composition": {
+  "question": "影子需求里『基本需求（流量）』与『耐用品缺口（存量缺口）』如何合成？",
+  "options": {"甲": "相加", "乙": "取较大", "丙": "只用基本需求、durable 并列", "丁": "等正式口径统一"},
+  "verdict": "乙",
+  "probabilities": {"甲": 0.3629545271396637, "乙": 0.499983549118042,
+                    "丙": 0.11694265156984329, "丁": 0.02011924795806408},
+  "TIE_DISCLOSURE": "🔴 **实质平手**：乙 0.49998 仅以 0.14 领先甲 0.363，且**压在 tokenrhythm 0.50 阈值之下** ⇒ 按 AGENTS.md「概率接近平手必须自己再论证」，本实现取 **max（乙）**，理由是**它是零行为变化选择**：`durable_gap` 未配置该维 ⇒ `None` ⇒ 退化为原行为；已配置时也不会把『流量＋存量缺口』重复计成双份。"
+ },
+ "q3_defect": {
+  "trigger": "🔴 实施中实测发现**双重计数**（我 M53 写的）：`demand.basic_need(cls, dim, pop_size)` **内部已经乘过 `pop_size`**（返回阶层需求**总量**），而 `seat_demand` 又写 `need * size * rel` ⇒ 影子需求被放大约 **size 倍**（实测绸需求虚高到 25 万级、`shadow_match` 成交量几乎总等于供给）。M53 那句注释『漏乘 size 已踩』**方向写反了**。",
+  "options": {"甲": "删掉多余的 `* size`（只动只读影子；并把字段改名 `need_total`、改正错误注释）",
+              "乙": "改 `basic_need` 为人均语义（动他人单点、波及更多调用方）", "丙": "只登记不动手"},
+  "verdict": "甲",
+  "probabilities": {"甲": 0.9978122711181641, "乙": 0.0011575474636629224, "丙": 0.0010301388101652265}
+ },
+ "outcome": "✅ ① 耐用品通道接入（口径 **max**），`durable_gap` 未配置/持有不可读 ⇒ **退化为原行为**（零行为变化）；② 修**双重计数** ⇒ 影子需求回到真实量级；③ 新增**可读部分合计 + `partial` 标记**（照 M52 先例：某阶层无通道不得污染全所）。**终证**：6 月后 **227 对有货 → 37 对有成交**；京畿路|开封府 绸 需求 ≈ 253,987（= 目标 1.0/人 × 人口，**不再是双重计数的假高**）。",
+ "applied_in": {
+  "module": "core/domains/economy/seat_market_shadow.py（`seat_demand`）",
+  "tests": ["_dev_tools/game-dev/tests/test_m74_durable_channel.py（6 passed）",
+            "_dev_tools/game-dev/tests/test_seat_market_shadow.py（10 passed，旧期望已按修正语义更新）"],
+  "task": "_dev_tools/handover/tasks/M74-durable-channel.json",
+  "commit": "（本批提交）"
+ },
+ "process_note": "本轮**返工 6 次**（合成用例接缝错 ⇒ 改成 patch `demand._cfg`；`durable_gap` 参数序传错 ⇒ `cls` 当 `dim`；双重计数；旧用例期望…）。教训：**先用探针把真实读数打出来再写断言**，不要凭签名猜语义；`durable_gap(dim, size, held)` 第一参是**维**。",
+ "next": "① 布/绸的**供给**仍少（有货维里只有绸 12 对）⇒ 影子成交偏少属**数据现实**，不是读数缺陷；② 消费品（酒/肉/盐/茶/糖/纸/果）需求仍须 B2-R 校准；③ 卡口不变：营运资金来源 · 作坊岗位数。",
+ "reopen_if": "若正式消费口径（B2-R）落地并定义合成规则，本影子口径作废重接"
+}
