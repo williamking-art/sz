@@ -118,11 +118,17 @@ def recipe_cost(state, wid: str) -> Dict[str, Any]:
     total = 0.0
     ok = True
     for dim, q in recipe.items():
-        if dim in ("grain_feed", "ration_weight"):
-            continue
+        if dim == "ration_weight":
+            continue                    # **非物料**（配给权重）⇒ 本就无价，跳过是对的
         qn = _num(q)
         if qn is None or qn <= 0:
             continue
+        # 🔴 M68（Jev choose 甲 0.892）：**不得静默跳过无价维**。
+        #   原先此处 `if dim in ("grain_feed", "ration_weight"): continue` ⇒ 酒坊/畜栏
+        #   （配方只有 `grain_feed`）直接**返回 cost=0 且 ok=True**（与本文档头「缺价维 ⇒ None」
+        #   自相矛盾，违反 §3-3 缺失≠0）：实测把 **80 座**作坊的需求算成 0，
+        #   且使 M58 报的「采购需求 22,000,000」**低估**（漏了这 80 座）。
+        #   现改为：有量的维一律登记；**无基准价 ⇒ 记入 `missing` 并使整项 `cost=None`**。
         px = _num(_P.get(dim))
         dims[str(dim)] = {"qty": qn, "price": px,
                           "value": None if px is None else round(qn * px, 4)}
@@ -188,6 +194,87 @@ def workshop_shadow(state, wid: str) -> Dict[str, Any]:
             "wage": wage, "purchase": buy,
             "funding_source_candidates": funding_candidates(state),
             "missing": sorted(missing), "not_in_this_batch": list(LATER_FIELDS)}
+
+
+def owner_funding_by_route(state) -> Dict[str, Any]:
+    """**G-4 逐路资金到位率**（只读；M68）——用 M66 登记的货主把"全国池影子"升级成**逐路可用数字**。
+
+    口径
+    ----
+    * 官营作坊（`owner == "local:<路>"`）：营运资金池 = 该路**地方府库治所真账**
+      （`local_treasury_bridge.aggregate_seat_local_treasury`；未下沉 ⇒ `None`，**不回落 0**）；
+    * 民营作坊（`owner == "pop:<路>:商人"`）：资金池 = 该路**商人 POP wealth**
+      （`pop_bridge.pop_get(pdata, "商人", "wealth")`，真账单点）；
+    * 需求 = Σ 该路该类作坊的 `recipe_cost`（既有基准价；**缺价维 ⇒ None**）；
+    * 到位率 = `min(1, pool / need)`；任一侧不可读 ⇒ `None`（**缺失≠0**，不臆造）。
+    * ⚠️ **只是读数**：不划钱、不改 balance、不动作坊产出（为 D 线"营运资金划入"提供依据）。
+    """
+    prefs = getattr(state, "prefectures", None)
+    ws = getattr(state, "workshops", None)
+    if not isinstance(prefs, dict) or not isinstance(ws, dict):
+        return {"reason": "无 prefectures/workshops", "routes": [], "total": None}
+    rows: List[Dict[str, Any]] = []
+    for route in prefs:
+        gov_need = 0.0
+        gov_n = 0
+        mer_need = 0.0
+        mer_n = 0
+        unreadable: List[str] = []
+        for wid, row in ws.items():
+            owner = (row or {}).get("owner") or (row or {}).get("owner_ref")
+            if not owner:
+                continue
+            if owner == f"local:{route}":
+                pass
+            elif owner == f"pop:{route}:商人":
+                pass
+            else:
+                continue                                  # 属于别的路（或未登记形态）
+            rep = recipe_cost(state, wid)
+            if rep.get("cost") is None:
+                unreadable.append(wid)
+                continue
+            if owner.startswith("local:"):
+                gov_need += float(rep["cost"])
+                gov_n += 1
+            else:
+                mer_need += float(rep["cost"])
+                mer_n += 1
+        if gov_n == 0 and mer_n == 0:
+            continue
+
+        def _pool(kind: str):
+            try:
+                pdata = prefs.get(route)
+                if kind == "local":
+                    from core.foundation.ledger.local_treasury_bridge import (
+                        aggregate_seat_local_treasury)
+                    return aggregate_seat_local_treasury(pdata)
+                from core.foundation.ledger.pop_bridge import pop_get
+                return pop_get(pdata, "商人", "wealth")
+            except Exception:                               # noqa: BLE001
+                log.warning("owner_funding_by_route: 取池失败 route=%s kind=%s",
+                            route, kind, exc_info=True)
+                return None
+
+        g_pool = _num(_pool("local"))
+        m_pool = _num(_pool("pop"))
+        rows.append({
+            "route": route,
+            "gov": {"workshops": gov_n, "need": int(gov_need) if gov_n else None,
+                    "pool": None if g_pool is None else int(g_pool),
+                    "cover": None if (g_pool is None or gov_need <= 0) else min(1.0, g_pool / gov_need)},
+            "merchant": {"workshops": mer_n, "need": int(mer_need) if mer_n else None,
+                         "pool": None if m_pool is None else int(m_pool),
+                         "cover": None if (m_pool is None or mer_need <= 0) else min(1.0, m_pool / mer_need)},
+            "unreadable_recipes": unreadable[:5],
+        })
+    rows.sort(key=lambda r: ((r["gov"]["cover"] if r["gov"]["cover"] is not None else 9.9),
+                             (r["merchant"]["cover"] if r["merchant"]["cover"] is not None else 9.9)))
+    return {"routes": rows, "route_count": len(rows),
+            "worst": rows[0] if rows else None,
+            "note": ("只读读数：官营看**地方府库真账**、民营看**本路商人 wealth**；"
+                     "任一侧不可读 ⇒ None（缺失≠0）。**不划钱**")}
 
 
 def survey_workshop_fund_shadow(state) -> Dict[str, Any]:

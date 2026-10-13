@@ -1,0 +1,43 @@
+{
+ "id": "M68-g4-perroute-funding",
+ "title": "G-4 **逐路资金到位率**读数（只读）＋ 修 `recipe_cost` **静默 0** 缺陷（含 M58 数字作废与纠正）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M68-g4-perroute-funding-scope.json（Jev：批次 A 0.959；修法**甲 0.892**）",
+ "deliverable": [
+  "core/domains/economy/workshop_fund_shadow.py：`owner_funding_by_route`（逐路到位率，只读）",
+  "同文件 `recipe_cost` 修复：无基准价维 ⇒ 整项 `None` + `missing_price`（不再静默 0）",
+  "_dev_tools/game-dev/tests/test_m68_owner_funding_by_route.py（6 passed）",
+  "_dev_tools/game-dev/tests/test_m68_recipe_cost_no_silent_zero.py（4 passed）"
+ ],
+ "readout_spec": {
+  "官营作坊": "owner == `local:<路>` ⇒ 资金池＝该路**地方府库治所真账**（`local_treasury_bridge`；未下沉 ⇒ None）",
+  "民营作坊": "owner == `pop:<路>:商人` ⇒ 资金池＝该路**商人 POP wealth**（`pop_bridge.pop_get` 真账单点）",
+  "需求": "Σ 该路该类作坊 `recipe_cost`（缺价维 ⇒ None）",
+  "到位率": "min(1, pool/need)；任一侧不可读 ⇒ None（**缺失≠0**）",
+  "纪律": "**只读**：不划钱、不改余额、不动作坊产出（为 D 线『营运资金划入』提供依据）"
+ },
+ "defect_fixed": {
+  "what": "`recipe_cost` 第 120-122 行 `if dim in (\"grain_feed\", \"ration_weight\"): continue` ⇒ 酒坊/畜栏（配方只有 `grain_feed`）**total=0 且 ok=True** ⇒ 返回 **cost=0**",
+  "why_bad": "与其自身 docstring「缺价维 ⇒ None」矛盾；违反 §3-3「缺失≠0」；实测把 **80 座**作坊需求算成 0",
+  "downstream_corrections": [
+   "M58 `procure_need`：**22,000,000 作废** ⇒ 现 `None`（不可定义，`unreadable_count=80`）",
+   "M58 的到位率表（国库 0.004／内帑 0.175／商人 0.184／路级官府 0.961／士绅 1.000）**分母偏低 ⇒ 不再有效**，须待粮料价口径重算",
+   "README 两处旧数字已同步改注"
+  ]
+ },
+ "evidence": [
+  "修前：G-4 逐路读数中 **80 座**（酒坊 40＋畜栏 40）需求全为 0 ⇒ 官营到位率呈现为 `—`（假象）",
+  "修后：`recipe_cost(酒坊/畜栏) → None`（`missing_price=['grain_feed']`）；麻坊/丝坊仍为数值",
+  "民营侧真值（20 路）：到位率 **0.452–1.000**（京畿路 0.950、京西路/京东东路 1.000）",
+  "相关用例 **28 passed**；全量串行 **EXIT=0**"
+ ],
+ "next": [
+  "**粮料（`grain_feed`）基准价口径**是下一个卡口 ⇒ 定了它才能算官营侧到位率、并重算 M58 全部比率",
+  "之后接 D 线『营运资金划入/工资冻结/利润归主』（改钱流 ⇒ 须同种子标定）",
+  "作坊岗位数来源（史料／标定／P3）仍是 `shadow_ready` 的唯一卡口"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T02:25:35Z"
+}

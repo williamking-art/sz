@@ -1,0 +1,51 @@
+{
+ "id": "M68-g4-perroute-funding-scope",
+ "title": "Round 48 裁定：G-4 逐路资金到位率（A 0.959）＋ `recipe_cost` 静默 0 缺陷修法取**甲**（0.892）",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose（两次：先定批次范围、实施中撞到真缺陷后再定修法）",
+ "asked_round_1": {
+  "question": "Round 48 取哪个（D 线唯一卡口＝作坊岗位数来源，需外部输入 ⇒ 先做不依赖它的）？",
+  "options": {"A": "G-4 逐路资金到位率读数（用 M66 货主；只读）",
+              "B": "粮维写回桥接（补 5/11）", "C": "M62 需求配置（需数值依据）", "D": "P5 前端"},
+  "verdict": "A",
+  "probabilities": {"A": 0.9594605565071106, "B": 0.02891238033771515,
+                    "C": 0.010934329591691494, "D": 0.0006927296635694802}
+ },
+ "asked_round_2": {
+  "trigger": "🔴 实施中撞到**真缺陷**：`recipe_cost` 对**无基准价的维**静默返回 0（而非 None）——原实现 `if dim in (\"grain_feed\", \"ration_weight\"): continue` ⇒ 酒坊/畜栏（配方只有 `grain_feed`）走到 `total=0, ok=True` ⇒ **cost=0**，与其自身 docstring「缺价维 ⇒ None」矛盾，违反 §3-3。实测把 **80 座**作坊需求算成 0，并使 M58 的「22,000,000」**低估**。",
+  "options": {
+   "甲": "改为 `cost=None` + `reason` + `missing_price`（逐维留痕）；**数值会变**（22,000,000 → 不可定义）",
+   "乙": "用既有粮基准价单点 `song_job_cfg()['grain_price0']` 给 `grain_feed` 定价（引入新数值口径）",
+   "丙": "先只登记缺陷、不动手"
+  },
+  "verdict": "甲",
+  "probabilities": {"甲": 0.8922964334487915, "乙": 0.03326885774731636, "丙": 0.07443476468324661},
+  "margin_note": "甲碾压 ⇒ 直接执行；乙被否（避免用粮价给料定价的新口径）"
+ },
+ "decision": "本批 = **A（G-4 逐路到位率只读读数）** ＋ **甲（修 `recipe_cost` 静默 0）**。",
+ "outcome": "✅ ① 新增 `owner_funding_by_route`：逐路算「官营作坊需求 vs 该路**地方府库真账**」「民营作坊需求 vs 该路**商人 wealth**」的到位率（只读、零写入、任一侧不可读 ⇒ None）。② 修 `recipe_cost`：有量的维一律登记、**无基准价 ⇒ 整项 `cost=None`** + `missing_price`；`ration_weight` 仍正确跳过（非物料）。③ 由 ② 得**下游修正**：M58 的「采购需求 22,000,000」作废（漏算 80 座粮料作坊）⇒ 现为 `None`（不可定义）；README 两处旧数字已同步改注。",
+ "evidence": [
+  "**修前**：G-4 逐路读数里 **40 酒坊 + 40 畜栏（共 80 座）需求全为 0** ⇒ 官营到位率全是 `—`（假象）",
+  "**修后**：酒坊/畜栏 `recipe_cost → None`（`missing_price=['grain_feed']`）；`owner_candidates_shadow.procure_need` 如实变 `None` 且 `unreadable_count == 80`；麻坊/丝坊（麻/丝有价）仍为数值",
+  "民营侧读数（真值）：20 路逐路 0.452–1.000（中位约 0.6），京畿路 0.950、京西路 1.000 —— 地方府库侧待粮料价口径确定后才能算",
+  "全量串行 **EXIT=0**；相关用例 **28 passed**"
+ ],
+ "corrections_to_earlier_batches": [
+  "M58 `owner_candidates_shadow.procure_need`：22,000,000 → `None`（不可定义）",
+  "M58 到位率表（国库 0.004 / 内帑 0.175 / 商人 0.184 / 路级官府 0.961 / 士绅 1.000）**均按偏低的分母**算出 ⇒ 分母修正后这些比率**不再有效**（须待粮料价口径）",
+  "M63 台账中 `farm_procurement` 等写点未受影响（该缺陷只在影子读数侧）"
+ ],
+ "applied_in": {
+  "modules": ["core/domains/economy/workshop_fund_shadow.py（新增 `owner_funding_by_route`；修 `recipe_cost`）"],
+  "tests": ["_dev_tools/game-dev/tests/test_m68_owner_funding_by_route.py（6 passed）",
+            "_dev_tools/game-dev/tests/test_m68_recipe_cost_no_silent_zero.py（4 passed）"],
+  "docs": "game/core/domains/economy/README.md（两处旧数字改注）",
+  "task": "_dev_tools/handover/tasks/M68-g4-perroute-funding.json",
+  "commit": "（本批提交）"
+ },
+ "next": "粮料（`grain_feed`）的**基准价口径**是下一个卡口：定了它，官营侧到位率与 M58 的全部比率才能重算。",
+ "reopen_if": "若给 `grain_feed` 定价（乙）或改「采购预算」定义，本裁定作废重算"
+}
