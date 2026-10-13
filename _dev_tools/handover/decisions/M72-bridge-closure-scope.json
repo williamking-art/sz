@@ -1,29 +1,30 @@
 {
  "id": "M72-bridge-closure-scope",
- "title": "Round 51：粮维写回桥接（Jev 甲 0.732）——**前提被实测推翻** ⇒ 改为台账可桥性收口",
+ "title": "Round 51：粮维写回桥接（Jev 甲 0.732）——前提被实测推翻 ⇒ 改为台账可桥性收口",
  "status": "decided",
  "askedAt": "2026-10-13",
  "askedBy": "DSH",
  "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B) + 实测推翻",
  "mode": "choose",
- "question": "M64 余项（粮维写回 `_gr_raw[\"stock\"] = n`）怎么处理？",
+ "question": "M64 余项（粮维写回：把 resources 的粮维 stock 直接设为 n）怎么处理？",
  "options": {
-  "甲「: 」用 `stock_set` 桥接（有路且已下沉 ⇒ 桥接管；未接管逐字保留原写法）",
-  "乙「: 」改成差值 `stock_add`（多一次读、差值口径可能不等价）",
-  "丙「: 」不桥（保持 4/11）"
+  "甲": "用 stock_set 桥接（有路且已下沉 ⇒ 桥接管；未接管逐字保留原写法）",
+  "乙": "改成差值 stock_add（多一次读、差值口径可能不等价）",
+  "丙": "不桥（保持 4/11）"
  },
  "verdict": "甲",
- "probabilities": {"甲「: 0.732376217842102, 」乙「: 0.051815010607242584, 」丙": 0.21580876410007477},
+ "probabilities": {"甲": 0.732376217842102, "乙": 0.051815010607242584, "丙": 0.21580876410007477},
  "TIE_DISCLOSURE": "非平手（甲领先 0.52），但**裁定前提经实测不成立**（见下）⇒ 未按甲实施，改以实测为准",
  "premise_refuted_by_measurement": "🔴 Jev 甲的前提是『该写点有宋境路名』。实测：该处实为 `_ext_econ_phases`（**外邦政权口径**，`rtype` 参数、**每月 38 个外邦政权各调一次**）⇒ **没有宋路**。按 M64 甲 0.817 的既定口径（**只桥「有路的」**）该点**不可桥** ⇒ 若强行传入外邦名会走 `_routed()` 落空 ⇒ 桥恒返回 `None`（等于没桥，白改名）。",
- "decision": "本批**不实施桥接**，改为：① **修正台账分类**（新增 `bridgeable` 字段：`True`＝有宋境路可用；`False`＝不可桥，原因写明）；② **以「可桥性」为收口判据**（`bridge_coverage().closed`：可桥的全部已桥）；③ 逐点写明 7 处不可桥原因。",
- "outcome": "✅ **M64 工作流正式收口**：**可桥 4/4 已桥、可桥未桥 0（`closed=True`）**；不可桥 7 处 = **6 处全国口径无路**（`material_market` 四处／铸钱扣铜／熔铜溢出）+ **1 处外邦无宋路**（本处的真实归属）。用例锁死：① 不可桥点**必须有原因**（否则视为"偷懒不桥"）；② 可桥点文件里**必须真出现桥调用**；③ `closed` 必须为真。",
+ "decision": "本批**不实施桥接**，改为：① **修正台账分类**（新增 `bridgeable` 字段：True＝有宋境路可用；False＝不可桥，原因写明）；② **以「可桥性」为收口判据**（`bridge_coverage().closed`：可桥的全部已桥）；③ 逐点写明 7 处不可桥原因。",
+ "outcome": "✅ **M64 工作流正式收口**：**可桥 4/4 已桥、可桥未桥 0（closed=True）**；不可桥 7 处 = **6 处全国口径无路**（material_market 四处／铸钱扣铜／熔铜溢出）+ **1 处外邦无宋路**（本处的真实归属）。用例锁死：① 不可桥点**必须有原因**（否则视为「偷懒不桥」）；② 可桥点文件里**必须真出现桥调用**；③ closed 必须为真。",
  "applied_in": {
-  "module": "core/domains/economy/resource_stock_survey.py（`bridgeable` + `bridge_coverage().closed/bridgeable_pending`）",
+  "module": "core/domains/economy/resource_stock_survey.py（bridgeable + bridge_coverage 的 closed/bridgeable_pending）",
   "tests": "_dev_tools/game-dev/tests/test_resource_stock_survey.py（7 passed，含收口判据）",
   "doc": "game/core/foundation/ledger/README.md 纪律 8（收口结论 + 前提被推翻的留痕）",
   "task": "_dev_tools/handover/tasks/M72-bridge-closure.json",
   "commit": "（本批提交）"
  },
- "reopen_if": "若将来把 `state.resources` 改成逐路池（会为无路写点定归属规则），则本收口作废、需重新评估 7 处"
+ "process_note": "本轮修档时先用「CJK 相邻引号」正则批量替换，**误伤了结构引号**（把键值边界也换了）⇒ 文件结构性损坏；随后一次 write 被版本守卫拒绝、导致一条声称已修的提交实际未修（**如实登记**）。最终**整份重写**该档并 json.load 自检通过。教训：**不要用正则批量改 JSON 正文引号**（结构引号与内容引号同形），宁可整份重写。",
+ "reopen_if": "若将来把 state.resources 改成逐路池（会为无路写点定归属规则），则本收口作废、需重新评估 7 处"
 }
