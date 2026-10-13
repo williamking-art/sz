@@ -1,0 +1,27 @@
+{
+ "id": "M117-income-to-derivation-scope",
+ "title": "Round 96：P2 `income_to`（收入去向）只读派生（甲 0.788）—— **裁定已下，实施留待下批**",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "DSH",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "P2 `income_to` 能否只读派生为「应然去向」？",
+ "options": {"甲": "只读派生应然去向（owner→账户），source **明写「实际钱流未接」**", "乙": "保持 undefined（等 M71 落地）"},
+ "verdict": "甲",
+ "probabilities": {"甲": 0.7875550985336304, "乙": 0.21244490146636963},
+ "margin_note": "甲领先 0.575（**非平手**，但乙 0.212 不算极低）⇒ 我自行论证并留档：甲的成立**完全依赖「明写钱流未接」这一条件**——若省掉该 caveat，就会退化成 M105 明确反对的『假装利润已归主』。故实施时必须把 caveat 写进 `source`（已写入计划）。",
+ "outcome": "**裁定已下，但本批未落地**：实施中出现代码事故（见 process_note），为保持树干净**已完整回滚**。已保留 `building_owner.income_account_of`（口径单点，附 M117 说明，**当前无调用方**）。",
+ "planned_impl": {
+  "building": "`project_building.income_to` ← `_income_account_of(_meta.get(\"owner\"))`",
+  "workshop": "`project_workshop.income_to` ← `_def(_income_account_of(owner), …)`",
+  "mapping": "`local:<路>`→本路地方府库 · `pop:<路>:X`→该阶层 wealth 池 · `state_treasury`→国库 · `imperial`→内帑；无 owner ⇒ undefined + reason",
+  "caveat_mandatory": "`source` 必须含「**实际钱流未接**（D 线待 M71 营运资金来源口径）」"
+ },
+ "process_note": "🔴 **两处 `income_to` 同名导致 edit 歧义**：我连续三次以不同锚点尝试，最终在**作坊块插入了第二行 `income_to`**（Python 字典字面量**重复键**：后者覆盖前者 ⇒ 我插的那行成了**死代码**，且不报错）；同时建筑块仍未改。**发现方式**：读回 + grep 行号（`income_to` 在同一 dict 里出现两次）。**处置**：删除插入行与临时 helper，**完整回滚**，全量回归 **EXIT=0**。教训：**同名键出现两处时，必须先 `grep -n` 确认唯一锚点（用上下相邻的独特字段行），绝不靠试错**；改完立刻 `grep -n` 复查**键是否重复**。",
+ "applied_in": {"module": "core/domains/economy/building_owner.py（仅保留 `income_account_of` 单点，无调用方）",
+                "reverted": "core/domains/economy/entity_projection.py（回滚到 M111 状态）",
+                "commit": "（本批提交，含回滚说明）"},
+ "next": "下一批按 `planned_impl` 实施（**先 grep -n 定唯一锚点**；改后复查键重复）＋ 定向回归 ＋ 全量；随后 P2 建筑/作坊就绪度应为 **8/14**",
+ "reopen_if": "若 M71 口径落地（实际钱流接通），`income_to` 应改为**直读真账**而非「应然」派生"
+}

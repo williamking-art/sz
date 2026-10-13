@@ -1,0 +1,29 @@
+{
+ "id": "M117-income-to-derivation",
+ "title": "P2 `income_to` 只读派生：**裁定已下（甲 0.788）· 本批因代码事故回滚 · 实施留待下批**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M117-income-to-derivation-scope.json（Jev choose 甲 0.788）",
+ "deliverable": [
+  "core/domains/economy/building_owner.py：`income_account_of(owner)`（口径单点，**当前无调用方**，附 M117 说明）",
+  "本批**回滚** entity_projection 的改动（半成品不留在树上）",
+  "M116 的 `DECISIONS-INDEX.md` 已回填 `handover/README.md` 索引行（**修掉本批一度出现的 readme_sync 红**）"
+ ],
+ "incident": {
+  "what": "为给建筑与作坊两侧的 `income_to` 分别接派生，我以不同锚点连续编辑；因**两处键同名**，最后一次编辑在**作坊 dict 里插入了第二个 `income_to`**（Python **重复键**：后者覆盖前者 ⇒ 插入行成死代码，且**不报错**）；建筑侧仍未改。",
+  "detected": "改完读回 + `grep -n`：同一 dict 内 `income_to` 出现两次（262 与 265 行）",
+  "action": "删除插入行与临时 helper（`_income_account_of`），**完整回滚**；保留 `building_owner.income_account_of` 单点备用",
+  "lesson": "① 同名键出现两处时必须**先 `grep -n` 定唯一锚点**（取上下相邻的**独特字段行**），不靠试错；② 改完**立刻复查键是否重复**（Python 字典重复键是静默的）；③ 本会话同类歧义已发生 3 次（`methods`/`maintenance`/`income_to`）——**凡成对投影（建筑 vs 作坊），编辑前先定位唯一行**"
+ },
+ "why_not_done": "上下文与风险权衡：与其留下半接线的重复键，不如**回滚 + 登记**，下批按计划一次做完",
+ "verified": [
+  "回滚后：索引纪律 48 passed；全量串行 **EXIT=0**"
+ ],
+ "next": [
+  "① 按 `planned_impl` 实施（先 grep -n 定锚点）⇒ P2 建筑/作坊就绪度 **8/14**",
+  "② 卡口不变：产能 · 营运资金来源（M71）· 作坊岗位数 · 宋境工钱通道；P3 待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T13:33:03Z"
+}

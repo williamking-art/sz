@@ -37,6 +37,7 @@ _dev_tools/handover/
 | 目的 | 命令 |
 |---|---|
 | 看板上有什么 | `handover.py board` / 读 `INDEX.md` |
+| **决策台账导航** | 读 **`DECISIONS-INDEX.md`**（自动汇总 `decisions/*.json`：档案/verdict/前二概率/裁定人/问题；**权威仍是各 json**，本索引只做导航；M116 生成） |
 | **认领**（先认领再动手） | `handover.py claim claim <ID> --agent <名字> [--status in_progress]` |
 | 交差 | `handover.py claim finish <ID> --agent <名字> --commit <hash>` |
 | 追加日志（声明/汇报） | `handover.py log "YYYY-MM-DD <agent> 做了什么 <验证数字>"` |

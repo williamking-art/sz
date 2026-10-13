@@ -57,8 +57,32 @@ def derive_operator(owner) -> Optional[str]:
     return owner if isinstance(owner, str) and owner else None
 
 
+def income_account_of(owner) -> Optional[str]:
+    """owner → **应然**收入去向账户（M117，Jev 甲 0.788；**只读派生**）。
+
+    🔴 这是**应然去向**（按归属推出的账户），**不是已发生的钱流**——实际利润归主/资金划转
+    属于 **D 线**，待 M71 营运资金来源口径（现状：民营 12 月 0/20 路满覆盖）。
+    调用方（`entity_projection`）在 `source` 里**必须**写明这一点。
+    """
+    if not isinstance(owner, str) or not owner:
+        return None
+    if owner.startswith("local:"):
+        return f"地方府库（本路 {owner.split(':', 1)[1]}）"
+    if owner.startswith("pop:"):
+        parts = owner.split(":")
+        if len(parts) >= 3:
+            return f"该阶层 wealth 池（{parts[1]} · {parts[2]}）"
+        return None
+    if owner in ("state_treasury", "treasury"):
+        return "国库（state_treasury）"
+    if owner in ("imperial", "imperial_treasury"):
+        return "内帑（imperial_treasury）"
+    return None
+
+
 __all__ = ["META_KEY", "OWNER_BY_TYPE", "owner_for", "assign_building_owners",
-           "survey_building_owners", "derive_operation_mode", "derive_operator"]
+           "survey_building_owners", "derive_operation_mode", "derive_operator",
+           "income_account_of"]
 
 
 def _seats(state, route: str) -> Optional[dict]:
