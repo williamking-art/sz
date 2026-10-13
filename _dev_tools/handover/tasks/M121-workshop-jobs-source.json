@@ -1,0 +1,27 @@
+{
+ "id": "M121-workshop-jobs-source",
+ "title": "M67 作坊岗位数：Jev 裁**丁（维持 undefined）**—— 止损，不造数（零代码）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-13",
+ "authority": "decisions/M121-workshop-jobs-source-scope.json（Jev choose 丁 0.696）",
+ "deliverable": [
+  "**无代码改动**；仅裁定档 + 本任务档（按裁定『不臆造』执行）"
+ ],
+ "evidence": {
+  "M120_取证": "宋境内置配方只有 {recipe,output_dim,yield}（每轮口径）· `JOBS_PER_LEVEL` 不含作坊 · 「单位/工匠月」只在外邦 `WORKSHOP_RECIPES_EXT` ⇒ **现有数据无法只读得出**",
+  "Jev": "丁 0.696（丙 0.118 · 甲 0.102 · 乙 0.084）",
+  "spec": "规格 §4 P2 原文『缺字段标未定义，**不能用默认全员就业或默认满产补齐**』⇒ 与丁一致"
+ },
+ "verified": [
+  "本轮零代码：全量回归与索引纪律沿用 M118 的 EXIT=0 / 48 passed（未触碰代码）"
+ ],
+ "next": [
+  "① 若给史源 ⇒ 甲（史料编制表）",
+  "② 若授权标定并给依据 ⇒ 乙（改数值批）",
+  "③ 若授权 P3 ⇒ 丙（旨意指定）",
+  "④ 其余卡口：产能 · 营运资金来源（M71）· 宋境工钱通道；P3 整条待授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T13:47:28Z"
+}
