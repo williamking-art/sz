@@ -38,6 +38,8 @@ _dev_tools/handover/
 |---|---|
 | 看板上有什么 | `handover.py board` / 读 `INDEX.md` |
 | **交接四件事（借鉴外部项目）** | 见下方 §交接四件事与三条护栏 |
+| **一页接手（推荐入口）** | 读 **`HANDOFF.md`** ← **四件事聚合页**（当前状态 / 下一步 / 待裁 / 证据入口；**只链接不复制正文**）。由 `make_handoff.py` 生成（幂等覆盖，**勿手改**） |
+| **重新生成接手页** | `python _dev_tools/handover/make_handoff.py`（只读交接层与 git，只写 `HANDOFF.md`） |
 | **决策台账导航** | 读 **`DECISIONS-INDEX.md`**（自动汇总 `decisions/*.json`：档案/verdict/前二概率/裁定人/问题；**权威仍是各 json**，本索引只做导航；M116 生成） |
 | **认领**（先认领再动手） | `handover.py claim claim <ID> --agent <名字> [--status in_progress]` |
 | 交差 | `handover.py claim finish <ID> --agent <名字> --commit <hash>` |
