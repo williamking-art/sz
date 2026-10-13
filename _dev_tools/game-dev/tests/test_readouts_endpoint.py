@@ -89,3 +89,27 @@ def test_readouts_regions_has_literacy_field(server_state):
     row = routes[0]
     assert "literacy" in row, "州路读数缺 literacy（识字率设定未接通面板）"
     assert row["literacy"] is None or 0 <= row["literacy"] <= 100
+
+
+def test_readouts_shell_exposes_hub_readout_index(server_state):
+    """🔴 M83 接入的 **`hub`**（统一读数索引）必须由端点端到端下发，且**逐项合契约**。
+
+    M83 当时只做「源码接线断言」；本用例走**真实端点**（直调 + 伪造 Request），
+    把 P5 的读数契约在**端点边界**上再锁一次：不可读 ⇒ `display="undefined"` + reason
+    （**绝不显示 0**）、`drill_down` 必须 dict/None、`frontend_wired` 如实为 False。
+    """
+    S, _s = server_state
+    data = S.api_readouts(_FakeRequest())
+    hub = data.get("hub")
+    assert isinstance(hub, dict) and hub, "统一读数索引必须由本端点下发（M83 接线）"
+    rows = hub.get("readouts") or {}
+    assert len(rows) == 17, f"读数项数漂移：{len(rows)}"
+    assert hub.get("frontend_wired") is False
+    for k, v in rows.items():
+        assert isinstance(v.get("display"), str), k
+        assert isinstance(v.get("drill_down"), (dict, type(None))), k
+        assert v.get("source"), k
+        if v.get("value") is None:
+            assert v["display"] == "undefined" and v.get("reason"), k
+    # 薄壳纪律：失败读数必须留痕（而非静默空表）
+    assert "readout_errors" in data
