@@ -107,3 +107,32 @@ dynamic_price.py
 |---|---|---|
 | `entity_projection.py` | `level` 未定义时**补 `reason`**（原硬编码 `None`）⇒ **`undefined ⇒ reason` 不变量**（`test_m237` 强制） | M237 |
 | `entity_projection.py` | 新增 `NOT_APPLICABLE_BUILDING` / `NOT_APPLICABLE_WORKSHOP` 与 **`applicable_fields` / `not_applicable` / `applicable_ratio` / `applicable_overall`**（就绪度**双口径**；旧 `defined_ratio` 保留） ⇒ 建筑 **8/9=88.9%** · 作坊 **8/11=72.7%** | M238–M239 |
+---
+
+## 关键约定 / 纪律 · **读数取值**（2026-10-14 立 · 源自 M256–M258 审计实踩）
+
+> 本节记**当前事实与纪律**（不记流水账）。违反这两条会得到**看似合理但错误**的读数。
+
+### 1. 作坊的**类型字段是 `name` / `output_dim`** —— **没有 `type` 键**
+
+`workshops[wid]` 的实际键：`active` · **`name`**（如「酒坊」）· **`output_dim`**（如 `wine`/`meat`/`布`/`绸`）·
+`owner` · `owner_kind` · `owner_reason` · `recipe` · `yield`。
+
+🔴 **坑**：用 `w.get("type")` 分类会**静默得到全 `None`**（不报错），据此会误得「丝坊 0 座」这类**错误结论**。
+**正确**：按 `output_dim` 分类 —— 开局实测 `wine 40 · meat 40 · 布 20 · 绸 28`，**总 128**（丝坊 = 绸 = **28**）。
+
+### 2. `pilot_chain_gap` / `pilot_bottleneck` **必须月结算后读**
+
+| 读数 | **开局** | 6 月 | 12 月 |
+|---|---|---|---|
+| `pilot_chain_gap` | **0** | 4,545,108 | 4,549,112 |
+| `pilot_bottleneck` | **`undefined_data`** | `capacity_shortage` | `capacity_shortage` |
+
+🔴 **坑**：开局读 `pilot_chain_gap` 得 **0**、读瓶颈得 `undefined_data`，若当成结论会误判「无缺口 / 无瓶颈」。
+**正确**：先跑 `run_monthly_settlement` 若干月再读；写文档时**标明是哪一档（开局/6月/…）**。
+
+### 3. `applicable_overall` 的**类型相关假设**（见 `test_m258`）
+
+就绪度双口径里，`jobs_capacity` / `jobs_filled` 被列为**不适用**，**只因开局建筑集全部是非岗位建筑**。
+若出现**岗位类建筑**，这两项应为「适用」⇒ `test_m258_type_dependent_not_applicable` 会**失败并给出改判指令**。
+**看到该用例红 ⇒ 不是去改测试，是去把这两个字段从 `NOT_APPLICABLE_BUILDING` 移出（或改为按建筑类型判定）。**
