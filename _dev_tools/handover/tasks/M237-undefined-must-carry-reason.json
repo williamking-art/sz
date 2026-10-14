@@ -1,0 +1,27 @@
+{
+ "id": "M237-undefined-must-carry-reason",
+ "title": "P2 可解释性不变量：undefined 必带 reason（补 level 的 reason + 守卫用例）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M236 探针发现（level 在 defined=False 时 reason 恒为 None）+ entity_projection:83-84 逐行",
+ "deliverable": [
+  "entity_projection.project_building 的 level 分支补 reason（原为硬编码 None）",
+  "_dev_tools/game-dev/tests/test_m237_projection_reason_invariant.py（三条守卫）"
+ ],
+ "invariant": "对建筑与作坊的全部 14 字段：defined 为假者 reason 必非空（使语义不存在与可读但取不到可区分）",
+ "measured": {
+  "修复前": "样例 京畿路/京畿路|开封府/水利 的 level：defined=False 且 reason=None（14 字段中唯一无理由者）",
+  "修复后": "同一字段 defined=False 且 reason 为『该建筑以标量登记（岗位类写法）且该类型无等级语义（如水利为是/否型）⇒ level 不可定义（缺失不等于 0，不臆造）』；且全字段扫描 undefined 且无 reason 的字段等于空列表"
+ },
+ "regression_value": "把可解释性钉成用例，防后人再引入无 reason 的 undefined（本会话已因此类问题反复返工）",
+ "verified": [
+  "M237 三条守卫；样例探针实测（修复前 reason=None，修复后有 reason，全字段无 reason 的 undefined 为空）"
+ ],
+ "next": [
+  "① 下批：applicable_* 三键（M236 三集已定，零数值）",
+  "② 待用户 4 项 A/B/C/D"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:29:54Z"
+}

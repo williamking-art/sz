@@ -81,7 +81,11 @@ def project_building(state, route: str, seat: str, building: str, level: Any = N
         "seat": {"value": f"{route}|{seat}", "defined": True,
                  "source": "prefectures[路].seats[治所]（M38 已州府化）", "reason": None},
         "level": {"value": level, "defined": level is not None,
-                  "source": "seats[治所][\"buildings\"]", "reason": None},
+                  "source": "seats[治所][\"buildings\"]",
+                  "reason": None if level is not None else
+                  ("该建筑以**标量**登记（岗位类写法）且该类型**无等级语义**（如水利为是/否型）"
+                   "⇒ `level` 不可定义（**缺失≠0，不臆造**）——M237 补：原此处 `reason` 恒为 `None`，"
+                   "使『无等级』与『可读但取不到』不可区分")},
         "completed_month": {"value": int(_built) if _built_ok else None, "defined": _built_ok,
                             "source": ("seats[治所].buildings[建筑].built_month（**绝对月序**＝year×12+month；"
                                        "`civil_building` 结构写法）"),
