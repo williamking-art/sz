@@ -1,0 +1,31 @@
+{
+  "id": "M298-batch1-core-loop-redesign",
+  "title": "Batch 1: 21 路宏观物候（四价一荒）+ 朝堂双轨推力与 P3 封驳力谏机制落地",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-全系统改良与UI美工重构推进策略-2026-10-15.json（Jev A 案 0.753 裁定）· 用户全案修改授权",
+  "deliverable": [
+    "sz/game/core/domains/economy/macro_climate.py：实现 21 路四价一荒（斗米/匹绢/官私盐/钱荒/饥馑）宏观物候与市井浮世绘文案计算器",
+    "sz/game/core/decree_confirm.py：深化 P3 门，支持给事中封还词头/大臣力谏（STATUS_VETO）及特旨（overridden_by_sovereign）放行分支",
+    "sz/game/core/settlement_decree.py：接入双轨施政（外廷宰执路线 vs 内廷私局路线：高穿透+民怨池代价）与封驳拦截分支",
+    "sz/_dev_tools/game-dev/tests/test_m298_batch1_core_loop.py：完备单元测试守护（21路物候全覆盖、四价一荒无0回落、双轨执行效果与民怨因果、封驳拦截与特旨强推）"
+  ],
+  "cases": {
+    "21路物候全覆盖": "20 经济路 + 黔中路全量输出，无重复无遗漏",
+    "四价一荒真实读数": "米价/绢价/官私盐比/钱荒/饥馑指标均由底层真账派生，缺失不作 0",
+    "市井浮世绘文案": "基于物候真实数据生成东京梦华录风骨评语",
+    "双轨施政外廷": "外廷受胥吏 decay 衰减，民怨为 0",
+    "双轨施政内廷": "内廷高穿透突破胥吏衰减，消耗皇威并向目标路民怨池注水",
+    "P3门力谏封驳": "大臣严重政见冲突时触发封驳（veto），未特旨不予执行",
+    "特旨强行下发": "皇帝以特旨强制突破封驳，扣减天眷但强行生效"
+  },
+  "verified": [
+    "test_m298_batch1_core_loop.py 9 passed",
+    "核心诏令测试套件 57 passed（含 test_b2r54_decree_confirm 30 passed, test_m257_p3_decree_wiring 7 passed 等）",
+    "test_decree_action_chain & test_decree_effect 49 passed",
+    "test_prefecture_entity 56 passed（21路实体守卫）"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T07:37:00Z"
+}

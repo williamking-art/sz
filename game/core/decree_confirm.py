@@ -114,9 +114,9 @@ from core.domains.administration.minister_agent import can_act, recall, remember
 
 __all__ = [
     "DECREE_CONFIRM_SCHEMA_VERSION", "LEDGER_STAT_KEY",
-    "STATUS_CONFIRMED", "STATUS_MISMATCH", "STATUS_UNAUTHORIZED", "STATUS_UNDEFINED",
+    "STATUS_CONFIRMED", "STATUS_MISMATCH", "STATUS_UNAUTHORIZED", "STATUS_UNDEFINED", "STATUS_VETO",
     "STATUSES", "OUTCOME_EXECUTED", "OUTCOME_REGISTERED_ONLY", "OUTCOME_FAILED",
-    "OUTCOME_CLAIMED", "OUTCOMES",
+    "OUTCOME_CLAIMED", "OUTCOME_VETOED", "OUTCOMES",
     "MEMORY_KIND_RECITE", "RECITE_SOURCE_PREFIX", "RECITE_SEP", "RECITE_HEAD",
     "ELEMENTS", "READABLE_MAX", "DECREE_QUEUES",
     "recite_source", "decree_id_of", "ensure_decree_id", "decree_of", "addressees_of",
@@ -141,12 +141,14 @@ STATUS_CONFIRMED = "confirmed"          # 已复述且与原旨一致
 STATUS_MISMATCH = "mismatch"            # 有复述但与原旨不符（含漏复述）
 STATUS_UNAUTHORIZED = "unauthorized"    # 无权 / 非受命人 / 不在名册
 STATUS_UNDEFINED = "undefined"          # 读数缺失，不判
+STATUS_VETO = "veto"                    # 大臣力谏 / 给事中封还词头拒不奉诏
 STATUSES = (STATUS_CONFIRMED, STATUS_MISMATCH, STATUS_UNAUTHORIZED, STATUS_UNDEFINED)
 
 OUTCOME_EXECUTED = "executed"              # 已调执行器并成功返回
 OUTCOME_REGISTERED_ONLY = "registered_only"  # 只落幂等身份，数值留给既有通道
 OUTCOME_FAILED = "failed"                  # 执行器报错（已如实记账，不自动重试）
 OUTCOME_CLAIMED = "claimed"                # 已占位未完成（崩溃留痕，不再执行第二次）
+OUTCOME_VETOED = "vetoed"                  # 遭封驳停滞（已如实记账，不自动重试）
 OUTCOMES = (OUTCOME_EXECUTED, OUTCOME_REGISTERED_ONLY,
             OUTCOME_FAILED, OUTCOME_CLAIMED)
 
@@ -530,6 +532,47 @@ def compare_recitation(expected: Any, recited: Any) -> Dict[str, Any]:
             "unsupported": sorted(set(unsupported))}
 
 
+def _check_minister_veto(state, aid: str, decree: Dict[str, Any]) -> Optional[str]:
+    """检查大臣是否对该诏令发起封驳力谏（拒不奉诏）。
+
+    判定条件（有史料依据，不凭空捏造）：
+    1. 显式指定反对名单或派系；
+    2. 派系党争对立（旧党大臣执掌时遇激进新法，或新党遇废罢新法，忠诚度非盲从）；
+    3. 恤民力谏（清廉守正大臣遇苛敛搜括、花石纲、造作局等聚敛大作）。
+    """
+    fig = (MINISTERS or {}).get(aid)
+    if not isinstance(fig, dict):
+        return None
+    fac = str(fig.get("faction") or "")
+    traits = str(fig.get("traits") or "")
+    tids = set(fig.get("trait_ids") or [])
+    loyalty = float(fig.get("loyalty", 0.5) if fig.get("loyalty") is not None else 0.5)
+
+    title = str(decree.get("title") or "")
+    cat = str(decree.get("category") or "")
+
+    # 1. 显式反对名单
+    if aid in (decree.get("veto_ministers") or []):
+        return f"大臣「{aid}」上疏力谏：此旨有害社稷，誓不奉诏"
+    if fac and fac in (decree.get("oppose_factions") or []):
+        return f"「{fac}」重臣「{aid}」封还词头：党见不合，拒不遵行"
+
+    # 2. 党争对立
+    if fac == "旧党" and loyalty < 0.65:
+        if cat in ("新法", "变法") or any(k in title for k in ("方田", "市易", "免役", "新法", "青苗", "均输")):
+            return f"旧党重臣「{aid}」力谏封驳：新法扰民乱邦，祖宗成宪不可轻变"
+    elif fac == "新党" and loyalty < 0.65:
+        if any(k in title for k in ("废罢", "罢新法", "复旧制", "罢方田")):
+            return f"新党执政「{aid}」抗疏力争：先帝绍述不可中道而废"
+
+    # 3. 恤民抗谏
+    if any(t in traits or t in tids for t in ("守正", "清廉", "刚直", "老成")) and loyalty < 0.80:
+        if any(k in title for k in ("花石", "造作局", "应奉局", "进奉", "加征", "括田", "搜括")):
+            return f"直臣「{aid}」伏阙力谏：搜括赋敛必致民变，乞收回成命"
+
+    return None
+
+
 # ============================================================
 # ⑤ 复述确认（主流程；record=False 时是**纯读数**）
 # ============================================================
@@ -662,8 +705,17 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
     out["missing"] = cmp_["missing"]
     out["unsupported"] = cmp_["unsupported"]
     if cmp_["ok"]:
-        out.update(status=STATUS_CONFIRMED, reason="recitation_matches",
-                   message="「%s」已复述此旨，要素与原旨一致：可以承办。" % aid)
+        veto_reason = _check_minister_veto(state, aid, d)
+        if veto_reason and not (d.get("override_by_sovereign") or d.get("is_zhongzhi") or d.get("is_direct")):
+            out.update(status=STATUS_VETO, reason="minister_veto",
+                       veto_reason=veto_reason,
+                       message="「%s」封还词头拒不奉诏（%s）：不予承办。" % (aid, veto_reason))
+        else:
+            if veto_reason:
+                out["overridden_by_sovereign"] = True
+                out["sovereign_prestige_cost"] = 3
+            out.update(status=STATUS_CONFIRMED, reason="recitation_matches",
+                       message="「%s」已复述此旨，要素与原旨一致：可以承办。" % aid)
     else:
         bad = (cmp_["mismatched"] + cmp_["missing"] + cmp_["unsupported"])
         out.update(status=STATUS_MISMATCH, reason="recitation_diverges",

@@ -109,9 +109,11 @@ def _settle_decrees(state, log):
         OUTCOME_EXECUTED,
         OUTCOME_FAILED,
         OUTCOME_REGISTERED_ONLY,
+        OUTCOME_VETOED,
         STATUS_CONFIRMED,
         STATUS_MISMATCH,
         STATUS_UNDEFINED,
+        STATUS_VETO,
         addressees_of,
         canonical_decree,
         confirm_decree,
@@ -189,6 +191,19 @@ def _settle_decrees(state, log):
                     log.append(f"[诏令] 「{decree.get('title', '（无题）')}」**挂起**："
                                f"承办大臣「{_aid}」复述确认未决（{_gate.get('reason')}），本月不执行。")
                     continue
+                elif _gate.get("status") == STATUS_VETO:
+                    failed += 1
+                    _veto_msg = _gate.get("veto_reason") or "给事中封还词头拒不奉诏"
+                    log.append(f"[封驳] 「{decree.get('title', '（无题）')}」遭大臣「{_aid}」力谏封驳：{_veto_msg}，政令停滞。")
+                    if _did:
+                        record_execution(state, _did, by=_aid, digest=_gate_digest,
+                                         title=decree.get("title"), confirm_status=STATUS_VETO,
+                                         outcome=OUTCOME_VETOED, recitation_turn=_recitation_turn,
+                                         detail=_veto_msg)
+                    if decree.get("task_id"):
+                        from core.longterm_task import apply_decree_to_task
+                        apply_decree_to_task(state, decree, False, log, rate=0.0)
+                    continue
                 elif _gate.get("status") != STATUS_CONFIRMED:
                     failed += 1
                     _bad_reason = ("复述与原旨不符（" + "、".join(_gate.get("mismatched", [])) + "）"
@@ -204,6 +219,11 @@ def _settle_decrees(state, log):
                         from core.longterm_task import apply_decree_to_task
                         apply_decree_to_task(state, decree, False, log, rate=0.0)
                     continue
+                else:
+                    if _gate.get("overridden_by_sovereign"):
+                        _scost = int(_gate.get("sovereign_prestige_cost") or 3)
+                        state.prestige = max(0, getattr(state, "prestige", 50) - _scost)
+                        log.append(f"[特旨强行] 「{decree.get('title', '（无题）')}」虽遭大臣力谏，上降中旨特批强行放行（皇威 -{_scost}）。")
             except Exception as _ge:
                 log.warning("[诏令] 复述门校验异常: %s", _ge, exc_info=True)
 
@@ -250,10 +270,25 @@ def _settle_decrees(state, log):
             log.append(f"[诏令] 「{decree.get('title', '（无题）')}」**挂起**："
                        f"效果系数未定义（{_why_undef}），本月不执行，待读数可用后另行结算。")
             continue
-        if _eff_mult_v < 0.98:
-            log.append(f"[吏治] 「{decree.get('title', '（无题）')}」执行率 ×{_eff_mult_v:.2f}"
-                       f"（吏治折扣 × 民心/识字弱关联"
-                       f"{'，已调兵强制施行' if decree.get('enforce_troops') else ''}）")
+
+        # 双轨施政分流：外廷宰执路线 vs 内廷私局路线
+        _track = str(decree.get("track") or "outer_court")
+        if _track == "inner_court":
+            # 内廷私局路线：穿透外廷胥吏阻碍，但扣减皇威并向目标路民怨池注水
+            _eff_mult_v = max(_eff_mult_v, 0.98)
+            state.prestige = max(0, getattr(state, "prestige", 50) - 2)
+            _target_route = decree.get("route") or "两浙路"
+            _stats = getattr(state, "statistics", None)
+            if isinstance(_stats, dict):
+                _pool = _stats.setdefault("inner_court_unrest_pool", {})
+                if isinstance(_pool, dict):
+                    _pool[_target_route] = _pool.get(_target_route, 0) + 5
+            log.append(f"[内廷私局] 「{decree.get('title', '（无题）')}」由内侍省/应奉局直接督办：穿透外廷胥吏阻滞（执行率 ×{_eff_mult_v:.2f}），然士林清议非之（皇威 -2，{_target_route}民怨池 +5）。")
+        else:
+            if _eff_mult_v < 0.98:
+                log.append(f"[吏治] 「{decree.get('title', '（无题）')}」执行率 ×{_eff_mult_v:.2f}"
+                           f"（吏治折扣 × 民心/识字弱关联"
+                           f"{'，已调兵强制施行' if decree.get('enforce_troops') else ''}）")
         rate = rate * _eff_mult_v
         rate = min(0.95, rate + ai_boost)  # 封顶 95%
 
@@ -340,6 +375,20 @@ def _settle_decrees(state, log):
                     log.append(f"[密旨] 「{decree.get('title', '密令')}」**挂起**："
                                f"承办大臣「{_s_aid}」复述确认未决（{_sgate.get('reason')}），本月不执行。")
                     continue
+                elif _sgate.get("status") == STATUS_VETO:
+                    failed += 1
+                    _s_veto_msg = _sgate.get("veto_reason") or "给事中封还词头拒不奉诏"
+                    log.append(f"[密旨封驳] 「{decree.get('title', '密令')}」遭大臣「{_s_aid}」力谏封驳：{_s_veto_msg}。")
+                    if _did:
+                        record_execution(state, _did, by=_s_aid, digest=_s_gate_digest,
+                                         title=decree.get("title"), confirm_status=STATUS_VETO,
+                                         outcome=OUTCOME_VETOED, recitation_turn=_s_recitation_turn,
+                                         detail=_s_veto_msg)
+                    if decree.get("task_id"):
+                        from core.longterm_task import apply_decree_to_task
+                        apply_decree_to_task(state, decree, False, log, rate=0.0)
+                    state.pending_secret_decrees.remove(decree)
+                    continue
                 elif _sgate.get("status") != STATUS_CONFIRMED:
                     failed += 1
                     _s_bad_reason = ("复述与原旨不符（" + "、".join(_sgate.get("mismatched", [])) + "）"
@@ -356,6 +405,11 @@ def _settle_decrees(state, log):
                         apply_decree_to_task(state, decree, False, log, rate=0.0)
                     state.pending_secret_decrees.remove(decree)
                     continue
+                else:
+                    if _sgate.get("overridden_by_sovereign"):
+                        _scost = int(_sgate.get("sovereign_prestige_cost") or 3)
+                        state.prestige = max(0, getattr(state, "prestige", 50) - _scost)
+                        log.append(f"[特旨强行] 「{decree.get('title', '密令')}」虽遭大臣力谏，上降中旨特批强行放行（皇威 -{_scost}）。")
             except Exception as _sge:
                 log.warning("[密旨] 复述门校验异常: %s", _sge, exc_info=True)
 
@@ -375,6 +429,17 @@ def _settle_decrees(state, log):
             log.append(f"[密旨] 「{decree.get('title', '密令')}」**挂起**："
                        f"效果系数未定义（{_why_s}），本月不执行。")
             continue
+        _strack = str(decree.get("track") or "outer_court")
+        if _strack == "inner_court":
+            _eff_s = max(_eff_s, 0.98)
+            state.prestige = max(0, getattr(state, "prestige", 50) - 2)
+            _target_route = decree.get("route") or "两浙路"
+            _stats = getattr(state, "statistics", None)
+            if isinstance(_stats, dict):
+                _pool = _stats.setdefault("inner_court_unrest_pool", {})
+                if isinstance(_pool, dict):
+                    _pool[_target_route] = _pool.get(_target_route, 0) + 5
+            log.append(f"[内廷私局] 「{decree.get('title', '密令')}」由内侍省/应奉局直接密办：穿透外廷胥吏阻滞（执行率 ×{_eff_s:.2f}），然损皇威（皇威 -2，{_target_route}民怨池 +5）。")
         rate = rate * _eff_s
         if random.random() < rate:
             _apply_decree_effect(state, decree, log)

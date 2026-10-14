@@ -1,0 +1,31 @@
+{
+  "id": "JEV-台账-全系统改良与UI美工重构推进策略-2026-10-15",
+  "title": "全系统玩法改良、官制科举与UI美工重构推进策略裁定（A 案 0.753 胜出）",
+  "date": "2026-10-15",
+  "askedBy": "Antigravity",
+  "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+  "mode": "choose",
+  "question": "如何规划UI美工全面重构与玩法/官制科举深化的推进策略？",
+  "options": {
+    "A": "前后端分批闭环交付：Batch 1 落地 21 路口径/四价一荒物候/P3 封驳双轨；Batch 2 落地官员体系与科举制度完善；Batch 3 落地宣和御案 UI 体系与宋风美工重构；Batch 4 落地内生危机与全景联调验收",
+    "B": "先 UI 后机制：先全面推倒并重画 UI 与美工，再填补底层机制",
+    "C": "先机制后 UI：把所有后端机制与数据全部做完后，最后一次性推倒 UI"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.752738356590271,
+    "B": 0.015335232950747013,
+    "C": 0.23192639648914337
+  },
+  "premises_verified_by_me": [
+    "用户连续下达指令：纠正 21 路、改进玩法、完善官员体系与科举制度、全面重新设计 UI 体系与美工",
+    "前端拥有 vitest + playwright 截图台（shoot.mjs），具备视觉与逻辑双重回归能力",
+    "分批闭环交付可确保每一批都具备真实的测试覆盖（Pytest/Vitest/tsc 全绿）与 Git 干净提交，避免跨度过大导致系统失序",
+    "新 UI 依赖于后端提供的物候字段、奏章结构与差遣数据，先奠定数据结构再做界面包装最具工程自洽性"
+  ],
+  "applied_in": {
+    "module": "sz/game/frontend, sz/game/core, sz/game/content",
+    "roadmap": "Batch 1 至 Batch 4 梯次演进"
+  },
+  "reopen_if": "若用户要求单独优先突击纯视觉重构"
+}
