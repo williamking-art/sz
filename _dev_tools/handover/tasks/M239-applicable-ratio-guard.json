@@ -1,0 +1,26 @@
+{
+ "id": "M239-applicable-ratio-guard",
+ "title": "applicable_* 口径修正钉成不变量：4 条守卫用例（互补性 / 不适用须有 reason / 分母口径 / 兼容性）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M238 落地 · M233 纪律（不适用须有官方理由）· M236 三集",
+ "deliverable": [
+  "_dev_tools/game-dev/tests/test_m239_applicable_ratio_guard.py（4 passed）"
+ ],
+ "cases": [
+  "互补性：applicable_fields 与 not_applicable 交集为空、并集等于 FIELDS，且 not_applicable 恰等于模块常量",
+  "不适用须有 reason：对 not_applicable 的每一项，投影里必须 defined=False 且 reason 非空（不许凭空归类）",
+  "分母口径：applicable_overall 的分母为适用集（与全 14 分母的 defined_ratio 可区分）",
+  "兼容性：defined_by_field 与 defined_ratio 仍在，且 defined_ratio 的键为全 14 字段"
+ ],
+ "verified": [
+  "M239 4 passed；全量串行见日志"
+ ],
+ "next": [
+  "① 可选：把新口径写入 P2 设计档与 tasks.md 状态行",
+  "② 待用户 4 项：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:52:34Z"
+}
