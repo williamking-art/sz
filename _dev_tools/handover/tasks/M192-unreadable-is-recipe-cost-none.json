@@ -1,0 +1,33 @@
+{
+ "id": "M192-unreadable-is-recipe-cost-none",
+ "title": "🔴 根因收窄（并**推翻货主假设**）：`unreadable` ⇔ **`workshop_fund_shadow.recipe_cost(state, wid)['cost'] is None`**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮代码实测（`owner_candidates_shadow.procure_need` 的累加循环，行号 145-157）",
+ "confirmed_fact": {
+  "判据（逐字）": "`for wid in ws: rep = wfs.recipe_cost(state, wid); if rep.get(\"cost\") is None: unreadable.append(wid)`",
+  "⇒ 含义": "一座作坊被判『不可读』**当且仅当** `recipe_cost` 对它**返回 `cost = None`** ⇒ **与货主 (`owner`) 无关**",
+  "⇒ 推翻": "🔴 我 M189/M190 里『顺序 bug 导致新座无货主 ⇒ unreadable』的推断**被推翻**（货主不是该判据的输入）",
+  "连带": "`value`（采购需求）在 `unreadable` 非空时**整体为 `None`**（`缺失≠0` 的正确行为）⇒ `test_m71` 断言的 `unreadable_workshops == 0` 与 `test_m67`/owner 的真实红因**都指向 `recipe_cost`**"
+ },
+ "new_narrowed_question": "为什么 `recipe_cost` 对**我新建的 21 座**返回 `cost = None`（而既有 7 座丝坊**返回正常**）？二者字段看起来一致（均取自 `WORKSHOP_RECIPES['丝坊']`）。",
+ "hypotheses_now": [
+  "① **键序号语义**（仍未排除）：若 `recipe_cost` 用键里的 `<序号>` 去定位**治所/路**（例如按 `_widx` 索引治所列表），则我用『每路计数』生成的序号会**越界/错位** ⇒ `None`",
+  "② **`recipe` 字典共享**：我用 `{**WORKSHOP_RECIPES['丝坊'], 'active': True}`（**浅拷贝** ⇒ `recipe` 与模块常量**同一对象**），而既有座写 `dict(_js['recipe'])`（**独立副本**）；若 `recipe_cost` 会**读改写**该 dict（如临时缩放），共享副本可能被污染 ⇒ 但这只会影响『读不到』而非『None』，**可能性较低**",
+  "③ `recipe_cost` 可能要求座上有**额外字段**（既有座也许在别处被补过字段，如建座后由结算/迁移写入 `built_month`/`seat` 等）"
+ ],
+ "next_step_one_command": "读 `core/domains/economy/workshop_fund_shadow.py` 的 `def recipe_cost`（**1 次 grep 带上下文**即可看清它依赖哪些字段/键语义）⇒ 直接判定 ①②③ 哪一条成立",
+ "fix_direction_unchanged": "若是①（键序号）⇒ 按 M191 预判改注入方式：**在 `game_state.py` 创建循环内按丝份额配座**（沿用 `_widx` 连续性），而不是事后 `extend`；若是② ⇒ 改为 `dict(tmpl['recipe'])` **深一层的独立副本**（与既有座写法保持一致）",
+ "state_now": "🟢 树为 `dda96bd1e9`（模块已提交、**未接线**）；6 文件 **25 passed**",
+ "verified": [
+  "`procure_need` 的 145-157 行逐字读取（判据为 `recipe_cost(...)['cost'] is None`）"
+ ],
+ "next": [
+  "① 读 `recipe_cost` 实现 ⇒ 判定 3 条假设（1 次 grep）",
+  "② 按判定修注入方式/副本写法 ⇒ 重做 5 处接线 ⇒ **A/B** + **60/240 月** + 全量回归",
+  "③ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:38:11Z"
+}
