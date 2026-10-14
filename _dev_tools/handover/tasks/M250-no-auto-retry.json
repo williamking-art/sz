@@ -1,0 +1,20 @@
+{
+ "id": "M250-no-auto-retry",
+ "title": "可选增强（自动重试）已评估：Jev 裁甲 0.500 不加 ⇒ 面板失败行为定稿",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M250-no-auto-retry.json（Jev choose 甲 0.500）",
+ "deliverable": [
+  "裁定档（含自证：与前次甲 0.737 方向一致；乙丙成本高于收益且可能掩盖故障）"
+ ],
+ "consequence": "M246 的失败提示与手动重试即最终形态，无需再改代码",
+ "verified": [
+  "Jev 四项概率为实测输出"
+ ],
+ "next": [
+  "会话自决项已清空；仅剩用户 4 项 A/B/C/D"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T11:24:11Z"
+}
