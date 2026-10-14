@@ -1,0 +1,37 @@
+{
+  "id": "JEV-台账-P3复述门接线设计-2026-10-15",
+  "title": "P3 复述门接入 settlement_decree 主链设计裁定（A 案 0.969 胜出）",
+  "date": "2026-10-15",
+  "askedBy": "Antigravity",
+  "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+  "mode": "choose",
+  "question": "P3 诏令复述门（decree_confirm）接入 settlement_decree 诏令执行链采用哪种接线设计？",
+  "options": {
+    "A": "区分指派：指定大臣走 confirm_decree 与 exec_ledger 记录，未指派走 exec_ledger 记录通行防重放",
+    "B": "全量门禁：无论是否指派均要求指定大臣建档并复述（会卡死未指派/普发诏令通道）",
+    "C": "仅防重放：全量只记 exec_ledger 不调 confirm_decree"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9691635966300964,
+    "B": 0.008522536605596542,
+    "C": 0.022313816472887993
+  },
+  "premises_verified_by_me": [
+    "用户在会话终态授权项 A（覆盖此前 typesafe p=0.170 闸门）",
+    "全仓大量普发/中旨/固定程序诏令未指派具体在册大臣（如 test_longterm_support 中 target 为有司/非在册大臣）",
+    "P3 批 5 设计与 11 条用例（M221 6 条 + M223 5 条）已全绿收口",
+    "exec_ledger_of 位于 state.statistics 下，具备跨存档持久性且为白名单字段"
+  ],
+  "applied_in": {
+    "module": "sz/game/core/settlement_decree.py（_settle_decrees）",
+    "confirm_api": "sz/game/core/decree_confirm.py（record_execution）",
+    "tests": [
+      "_dev_tools/game-dev/tests/test_b2r54_decree_confirm.py",
+      "_dev_tools/game-dev/tests/test_m221_decree_gate_measurable.py",
+      "_dev_tools/game-dev/tests/test_m223_decree_gate_with_runstate.py",
+      "_dev_tools/game-dev/tests/test_m257_p3_decree_wiring.py"
+    ]
+  },
+  "reopen_if": "若后续重构引入全量官员 Agent 自动委任且所有诏令均具备确定性主管大臣"
+}

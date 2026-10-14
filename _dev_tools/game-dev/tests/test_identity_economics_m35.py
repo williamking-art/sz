@@ -51,6 +51,15 @@ def test_bookkeeping_never_exceeds_pool_wealth():
     """记账层不得越过整池 wealth（超标部分不计；不改人口真账/粮耗）。"""
     s = new_game()
     rk = min(s.prefectures)
+    pool = s.prefectures[rk]["pops"]["官僚"]
+    pool["officials_wealth"] = pool["wealth"] // 2
+    pool["clerks_wealth"] = pool["wealth"] - pool["officials_wealth"]
+    grain0 = int(pool.get("grain", 0) or 0)
+    size0 = int(pool.get("size", 0) or 0)
+    _settle_local_expenditure(s, [])
+    assert int(pool["officials_wealth"]) + int(pool["clerks_wealth"]) <= int(pool["wealth"])
+    assert int(pool.get("grain", 0) or 0) == grain0, "身份经济层不得改粮耗"
+    assert int(pool.get("size", 0) or 0) == size0, "身份经济层不得改人口真账"
 
 def test_arrears_identity_mapping():
     """欠给身份化：官员欠俸／胥吏欠钱／衙役欠钱 落对应身份字段；分科目和 ≡ 总额。"""
@@ -142,11 +151,3 @@ def test_old_save_defaults_for_m35_fields():
                                         "militia_pay_arrears"):
                     assert pool.get(f) == 0, f"载入后 {f} 必须补 0"
 
-    pool["officials_wealth"] = 60
-    pool["clerks_wealth"] = 40                # 已满 ⇒ 无余量
-    grain0 = int(pool.get("grain", 0) or 0)
-    size0 = int(pool.get("size", 0) or 0)
-    _settle_local_expenditure(s, [])
-    assert int(pool["officials_wealth"]) + int(pool["clerks_wealth"]) <= 100
-    assert int(pool.get("grain", 0) or 0) == grain0, "身份经济层不得改粮耗"
-    assert int(pool.get("size", 0) or 0) == size0, "身份经济层不得改人口真账"

@@ -123,7 +123,7 @@ __all__ = [
     "canonical_decree", "decree_digest", "compose_recitation", "render_recitation",
     "record_recitation", "recitations_of", "latest_recitation",
     "compare_recitation", "confirm_decree",
-    "exec_ledger_of", "execution_of", "backfill_decree", "backfill_candidates",
+    "exec_ledger_of", "execution_of", "record_execution", "backfill_decree", "backfill_candidates",
 ]
 
 #: 本模块落档读数的结构版本（随 `decree_exec_ledger` 条目一起持久）
@@ -689,6 +689,43 @@ def execution_of(state, decree_id: str) -> Optional[Dict[str, Any]]:
     did = _req_id(decree_id, "decree_id")
     rec = exec_ledger_of(state).get(did)
     return dict(rec) if isinstance(rec, dict) else None
+
+
+def record_execution(state, decree_id: str, *,
+                     by: str = "朝廷",
+                     digest: Optional[str] = None,
+                     title: Optional[str] = None,
+                     confirm_status: str = STATUS_CONFIRMED,
+                     outcome: str = OUTCOME_EXECUTED,
+                     recitation_turn: Optional[int] = None,
+                     turn: Optional[int] = None,
+                     detail: Optional[str] = None,
+                     error: Optional[str] = None) -> Dict[str, Any]:
+    """向执行台账（state.statistics[LEDGER_STAT_KEY]）登记执行结果（口径单点）。
+
+    供生产结算链（settlement_decree）在诏令执行完成或受阻时受控写入，
+    确保同一 decree_id 拥有可追溯、防重放的权威台账。
+    """
+    did = _req_id(decree_id, "decree_id")
+    t = int(turn if turn is not None else (getattr(state, "turn", 0) or 0))
+    entry: Dict[str, Any] = {
+        "schema_version": DECREE_CONFIRM_SCHEMA_VERSION,
+        "decree_id": did,
+        "turn": t,
+        "by": str(by or "朝廷").strip(),
+        "digest": digest,
+        "title": title,
+        "confirm_status": confirm_status,
+        "recitation_turn": recitation_turn if recitation_turn is not None else t,
+        "outcome": outcome,
+    }
+    if detail:
+        entry["detail"] = str(detail)[:200]
+    if error:
+        entry["error"] = str(error)[:100]
+    led = _ledger_mut(state)
+    led[did] = dict(entry)
+    return entry
 
 
 def _ledger_mut(state) -> Dict[str, Any]:

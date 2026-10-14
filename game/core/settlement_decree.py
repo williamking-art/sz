@@ -104,6 +104,22 @@ def _settle_decrees(state, log):
     failed = 0
     longterm_this_turn = []
 
+    from content.ministers.data import MINISTERS
+    from core.decree_confirm import (
+        OUTCOME_EXECUTED,
+        OUTCOME_FAILED,
+        OUTCOME_REGISTERED_ONLY,
+        STATUS_CONFIRMED,
+        STATUS_MISMATCH,
+        STATUS_UNDEFINED,
+        addressees_of,
+        canonical_decree,
+        confirm_decree,
+        decree_digest,
+        execution_of,
+        record_execution,
+    )
+
     # ---- 效果口径**单点**（用户 2026-10-01 定稿 (a)）----
     # 一次性诏令此前**从不**调用 `core.decree_effect.decree_effect_mult`（探针实测调用次数 = 0），
     # 只用 `clerks.decree_execution_mult`（吏治腿），导致：
@@ -145,6 +161,52 @@ def _settle_decrees(state, log):
         # B5-4/B5-5：先补确定性 `decree_id`（幂等与知情范围的锚）。
         # 原实现全仓从不写该键⇒ B5-5 分支恒假、泄露推演从未执行。
         _ensure_decree_id(state, decree)
+        _did = str(decree.get("decree_id") or "").strip()
+
+        # B5-4 幂等防重放：已在执行台账中成功执行/已登记的诏令，不重复执行
+        if _did:
+            _prev = execution_of(state, _did)
+            if _prev and _prev.get("outcome") in (OUTCOME_EXECUTED, OUTCOME_REGISTERED_ONLY):
+                log.append(f"[诏令] 「{decree.get('title', '（无题）')}」此前已执行（{_did}），不重复生效。")
+                continue
+
+        # P3 复述门（区分指派：指定在册/建档大臣走门禁，未指派普发诏令通行）
+        _addrs = addressees_of(decree)
+        _aid = _addrs[0] if _addrs else None
+        _min_agents = getattr(state, "minister_agents", None) or {}
+        _is_minister = bool(_aid and (_aid in MINISTERS or _aid in _min_agents))
+
+        _gate_digest = None
+        _recitation_turn = None
+        if _is_minister:
+            try:
+                _gate = confirm_decree(state, _did, _aid, decree=decree, record=True, turn=state.turn)
+                _gate_digest = _gate.get("digest")
+                _recitation_turn = _gate.get("recitation_turn")
+                if _gate.get("status") == STATUS_UNDEFINED:
+                    remaining.append(decree)
+                    _undefined_suspended += 1
+                    log.append(f"[诏令] 「{decree.get('title', '（无题）')}」**挂起**："
+                               f"承办大臣「{_aid}」复述确认未决（{_gate.get('reason')}），本月不执行。")
+                    continue
+                elif _gate.get("status") != STATUS_CONFIRMED:
+                    failed += 1
+                    _bad_reason = ("复述与原旨不符（" + "、".join(_gate.get("mismatched", [])) + "）"
+                                   if _gate.get("status") == STATUS_MISMATCH
+                                   else f"无权承办（{_gate.get('reason')}）")
+                    log.append(f"[诏令] 「{decree.get('title', '（无题）')}」承办受阻：大臣「{_aid}」{_bad_reason}。")
+                    if _did:
+                        record_execution(state, _did, by=_aid, digest=_gate_digest,
+                                         title=decree.get("title"), confirm_status=_gate.get("status"),
+                                         outcome=OUTCOME_FAILED, recitation_turn=_recitation_turn,
+                                         detail=_bad_reason)
+                    if decree.get("task_id"):
+                        from core.longterm_task import apply_decree_to_task
+                        apply_decree_to_task(state, decree, False, log, rate=0.0)
+                    continue
+            except Exception as _ge:
+                log.warning("[诏令] 复述门校验异常: %s", _ge, exc_info=True)
+
         # 局势意图（规范 §5.2）：诏令可选携带 `situation_intent`；无则该诏行为不变。
         # 此处**只登记**（运行时态，不落档），校验与消费由 Step 8.5 局势结算负责——
         # 校验依据是**本回合 state_applier 事务记录**，不得由最终 state 反推。
@@ -199,17 +261,37 @@ def _settle_decrees(state, log):
             _apply_decree_effect(state, decree, log)
             executed += 1
             _ok = True
+            if _did:
+                record_execution(
+                    state, _did,
+                    by=_aid if _is_minister else "朝廷",
+                    digest=_gate_digest or decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"),
+                    confirm_status=STATUS_CONFIRMED,
+                    outcome=OUTCOME_EXECUTED,
+                    recitation_turn=_recitation_turn if _recitation_turn is not None else state.turn,
+                )
         else:
             log.append(f"[诏令] 「{decree['title']}」执行受阻，部分落实")
             failed += 1
             _ok = False
+            if _did:
+                record_execution(
+                    state, _did,
+                    by=_aid if _is_minister else "朝廷",
+                    digest=_gate_digest or decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"),
+                    confirm_status=STATUS_CONFIRMED,
+                    outcome=OUTCOME_FAILED,
+                    recitation_turn=_recitation_turn if _recitation_turn is not None else state.turn,
+                )
         # 长期事务关联诏（P1-1）：把**本次结算结果**回写到事务支持与因果留痕。
         # 执行受阻 → 支持增量为 0（"颁旨 ≠ 成功"），见 core/longterm_task.apply_decree_to_task。
         if decree.get("task_id"):
             from core.longterm_task import apply_decree_to_task
             apply_decree_to_task(state, decree, _ok, log, rate=rate)
 
-        did = decree.get("id")
+        did = decree.get("decree_id") or decree.get("id")
         if decree.get("duration", 0) > 0:
             if did:
                 if did not in active_ids:
@@ -228,6 +310,55 @@ def _settle_decrees(state, log):
         # B5-5：密令必须有 `decree_id` 才能界定知情范围并推演泄露。
         # 原实现全仓从不写该键 ⇒ 下方 `if _did:` 恒假、泄露推演从未执行过。
         _ensure_decree_id(state, decree)
+        _did = str(decree.get("decree_id") or "").strip()
+
+        # B5-4 幂等防重放：已在执行台账中成功执行/已登记的密旨，不重复执行
+        if _did:
+            _prev = execution_of(state, _did)
+            if _prev and _prev.get("outcome") in (OUTCOME_EXECUTED, OUTCOME_REGISTERED_ONLY):
+                log.append(f"[密旨] 「{decree.get('title', '密令')}」此前已执行（{_did}），不重复生效。")
+                state.pending_secret_decrees.remove(decree)
+                continue
+
+        # P3 复述门（区分指派：指定在册/建档大臣走门禁，未指派密旨通行）
+        _s_addrs = addressees_of(decree)
+        _s_aid = _s_addrs[0] if _s_addrs else None
+        _s_min_agents = getattr(state, "minister_agents", None) or {}
+        _s_is_minister = bool(_s_aid and (_s_aid in MINISTERS or _s_aid in _s_min_agents))
+
+        _s_gate_digest = None
+        _s_recitation_turn = None
+        if _s_is_minister:
+            try:
+                _sgate = confirm_decree(state, _did, _s_aid, decree=decree, record=True, turn=state.turn)
+                _s_gate_digest = _sgate.get("digest")
+                _s_recitation_turn = _sgate.get("recitation_turn")
+                if _sgate.get("status") == STATUS_UNDEFINED:
+                    state.pending_secret_decrees.remove(decree)
+                    state.pending_secret_decrees.append(decree)   # 退回待办，次月再议
+                    _undefined_suspended += 1
+                    log.append(f"[密旨] 「{decree.get('title', '密令')}」**挂起**："
+                               f"承办大臣「{_s_aid}」复述确认未决（{_sgate.get('reason')}），本月不执行。")
+                    continue
+                elif _sgate.get("status") != STATUS_CONFIRMED:
+                    failed += 1
+                    _s_bad_reason = ("复述与原旨不符（" + "、".join(_sgate.get("mismatched", [])) + "）"
+                                     if _sgate.get("status") == STATUS_MISMATCH
+                                     else f"无权承办（{_sgate.get('reason')}）")
+                    log.append(f"[密旨] 「{decree.get('title', '密令')}」承办受阻：大臣「{_s_aid}」{_s_bad_reason}。")
+                    if _did:
+                        record_execution(state, _did, by=_s_aid, digest=_s_gate_digest,
+                                         title=decree.get("title"), confirm_status=_sgate.get("status"),
+                                         outcome=OUTCOME_FAILED, recitation_turn=_s_recitation_turn,
+                                         detail=_s_bad_reason)
+                    if decree.get("task_id"):
+                        from core.longterm_task import apply_decree_to_task
+                        apply_decree_to_task(state, decree, False, log, rate=0.0)
+                    state.pending_secret_decrees.remove(decree)
+                    continue
+            except Exception as _sge:
+                log.warning("[密旨] 复述门校验异常: %s", _sge, exc_info=True)
+
         rate = state.calc_decree_execution_rate(
             decree.get("faction_stances", {}),
             is_secret=True,
@@ -250,11 +381,20 @@ def _settle_decrees(state, log):
             log.append(f"[密旨] 「{decree.get('title','密令')}」暗中推行")
             executed += 1
             _sok = True
+            if _did:
+                record_execution(
+                    state, _did,
+                    by=_s_aid if _s_is_minister else "朝廷",
+                    digest=_s_gate_digest or decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"),
+                    confirm_status=STATUS_CONFIRMED,
+                    outcome=OUTCOME_EXECUTED,
+                    recitation_turn=_s_recitation_turn if _s_recitation_turn is not None else state.turn,
+                )
         else:
             # B5-5（2026-11 接线）：密令泄露改由**真实知情范围/传递路径**推演，
             # 替代原 `random.random() < 0.2` 固定概率。
             # 读数未定义（知情范围不可判定）时**不按"无人泄"结案**，显式记未决。
-            _did = decree.get("decree_id")
             _leaked = _detected = False
             if _did:
                 try:
@@ -279,6 +419,16 @@ def _settle_decrees(state, log):
                 except Exception as _lke:     # noqa: BLE001 — 推演失败不阻断密旨结算
                     log.append(f"[密旨][WARN] 泄露推演不可用：{type(_lke).__name__}")
             _sok = False
+            if _did:
+                record_execution(
+                    state, _did,
+                    by=_s_aid if _s_is_minister else "朝廷",
+                    digest=_s_gate_digest or decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"),
+                    confirm_status=STATUS_CONFIRMED,
+                    outcome=OUTCOME_FAILED,
+                    recitation_turn=_s_recitation_turn if _s_recitation_turn is not None else state.turn,
+                )
         if decree.get("task_id"):
             from core.longterm_task import apply_decree_to_task
             apply_decree_to_task(state, decree, _sok, log, rate=rate)

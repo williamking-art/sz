@@ -1,0 +1,30 @@
+{
+  "id": "M257-p3-decree-wiring",
+  "title": "P3 诏令复述门与执行台账接线落地（用户授权覆盖 typesafe 0.17 闸门 · Jev A 案 0.969 裁定）",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-P3复述门接线设计-2026-10-15.json（Jev A 案 0.969）· 用户会话终态授权",
+  "deliverable": [
+    "sz/game/core/decree_confirm.py：新增 record_execution 单点登记接口并导出",
+    "sz/game/core/settlement_decree.py：_settle_decrees 接入复述门与 exec_ledger_of 校验与记录（区分指派：指定大臣走 confirm_decree 与台账，未指派普发诏令通行防重放）",
+    "sz/_dev_tools/game-dev/tests/test_m257_p3_decree_wiring.py（7 passed）：覆盖普发通行、防重放、建档放行、复述不符驳回、无权驳回、未定义挂起、密旨通道",
+    "decisions/JEV-台账-P3复述门接线设计-2026-10-15.json：Jev 裁定留痕"
+  ],
+  "cases": {
+    "普发通行": "无指定在册大臣诏令正常执行并记录 exec_ledger（by=朝廷）",
+    "幂等防重放": "已执行相同 decree_id 不重复执行",
+    "有权放行": "指定在册大臣建档+在朝+有权 ⇒ confirm_decree 自动标准复述放行，记录 exec_ledger（by=大臣）",
+    "不符驳回": "已存复述与原旨不符 ⇒ 驳回，不执行效果，记 failed",
+    "无权驳回": "authority=0 或在野 ⇒ 驳回，记 failed",
+    "未定义挂起": "authority=None ⇒ 挂起留在待办，不假装执行",
+    "密旨接线": "密旨通道指定大臣走门禁、未指定通行、防重放生效"
+  },
+  "verified": [
+    "test_m257_p3_decree_wiring.py 7 passed",
+    "核心诏令测试套件 134 passed",
+    "settlement_decree 消费测试 208 passed"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T01:25:00Z"
+}
