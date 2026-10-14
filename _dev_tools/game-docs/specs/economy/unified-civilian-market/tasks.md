@@ -1143,3 +1143,17 @@ Step 3.85 民间营造与 Step 4.5 工程**之前**（消费侧读到分摊后�
 
 **累计 11 用例**；建档用**公开入口** `minister_agent.ensure_actor`（幂等、不覆盖记忆）+ 公开常量
 `MINISTER_STATUS_IN_OFFICE`（测试夹具，**不改产品代码**）。
+---
+
+## P4 / 主线F · **最小州府市场切片**：链级诊断（2026-10-14 · M225–M228）
+
+| 项 | 状态 | 依据 |
+|---|---|---|
+| 五环分环模块**齐备** | ✅ | 产地 `production_chain` · 运输 `in_transit`/`pending_stock`（P0 已验） · 成交 `material_market`/`seat_market_shadow` · 到货 `stock_flow`/`stock_identity` · 加工 `_settle_workshops` |
+| 数值底座**齐备** | ✅ | `stock_identity`：`stock_snapshot`（`by_custody` + **`all_readable`** + `warnings`）· `in_transit_by_dim` · `pending_stock_by_dim` · `stock_delta` · **`residual_report`（逐维残差）** · `identity_report` |
+| **链级诊断读数** | ✅ **第 21 项 `market_chain_diagnosis`** | 五环贯通：产地（丝）· 运输（绸在途）· 到货（待入库＋成品存量）· 成交/加工**指路不重算** · **端到端残差方法**（跨月 `residual_report`）· `stock_snapshot` 透传 |
+| **取值口径修正** | ✅ | M228：改从 **`stock_snapshot.by_custody`** 取值，并用**既有 `all_readable`** 判可读性——**可读且缺维 ⇒ 真实 0**，**不可读 ⇒ `None` + reason**（缺失≠0） |
+| **实测** | ✅ | 开局 `value=4`（四环全 0 · `all_readable=True` · 缺失环 `[]`）· **3 月：产地丝 5,842,101 · 成品绸 12,435** |
+| 契约 | ✅ | 由既有守卫用例**自动覆盖**（M125 `drill_down` 类型 · M126 载荷可序列化 · M129/130）；三处计数断言同步（**20 → 21**） |
+
+**读数总数：21 项**（ok=19 / undefined=2：`jobs_capacity` 与 `tax_scope_contrast`，均**如实** `undefined` + reason）。
