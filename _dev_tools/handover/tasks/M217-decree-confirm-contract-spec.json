@@ -1,0 +1,68 @@
+{
+ "id": "M217-decree-confirm-contract-spec",
+ "title": "P3 批 5 用例规格：`confirm_decree` **四态门契约**（kwargs/返回字段/拒绝式/防泄露）已读清 ⇒ 用例可直接照写",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/decree_confirm.py`（`confirm_decree` docstring :539-547 · 签名 :536-538 · `compare_recitation` :502-530）",
+ "gate_contract": {
+  "签名": "`confirm_decree(state, decree_id, actor_id, *, decree=None, recitation=None, record=False, turn=None) -> Dict`",
+  "四态裁决": "返回含 `status` / `reason` / `message`（**四态**由 docstring 明示；`status=None` 为初值 ⇒ 具体取值待运行确认）",
+  "decree 来源": "不给 `decree` ⇒ 按 `decree_id` 查**既有诏令队列**（查不到 ⇒ `undefined`）；给了 ⇒ 用调用方递上的对象（**用例可只传 `decree=` 免查队列**）",
+  "recitation 来源": "给了 ⇒ 调用方/AI 递上来的复述（**须为对象**，自由文本被**拒绝式**挡回）；不给 ⇒ 读该人**已存**的复述记录",
+  "record 语义": "`record=True` ⇒ **此前一条都没有**时按**原旨生成标准复述**落记（照抄原旨，非宽容判定）；**已有记录不重写**（同旨跨回合不反复复述）",
+  "损坏记录": "已有记录但**读不出要素**（被改/损坏）⇒ `undefined` / `recitation_unreadable`，**不覆盖、不猜**",
+  "🔴 防泄露": "**未获授权时 `withheld=True`**，**不返回原旨内容**（避免确认接口变成密旨旁路）",
+  "返回字段（初值清单）": [
+   "schema_version",
+   "decree_id",
+   "actor_id",
+   "turn",
+   "status",
+   "reason",
+   "message",
+   "defined",
+   "undefined_basis",
+   "authorized",
+   "can_act",
+   "in_roster",
+   "addressee_declared",
+   "is_addressee",
+   "recited",
+   "recorded",
+   "recitation_turn",
+   "elements",
+   "mismatched",
+   "missing",
+   "unsupported",
+   "suggested_recitation",
+   "withheld",
+   "digest"
+  ],
+  "拒绝式（异常）": "`recitation` 非 dict ⇒ `ValueError`；`decree` 非 dict ⇒ `ValueError`；`record` 非布尔 ⇒ `ValueError`"
+ },
+ "compare_contract": {
+  "签名": "`compare_recitation(expected, recited) -> Dict`",
+  "返回": "`{ok, elements:[{key, required, ok, expected, recited, note}], mismatched, missing, unsupported}`",
+  "规则": "原旨未写而复述有 ⇒ **unsupported**（且 `required=False`）· 原旨有而复述漏 ⇒ **missing** · 值不符 ⇒ **mismatched** · **复述出现口径不认的要素 ⇒ 也记 unsupported（不静默忽略）** · `ok = not(mismatched or missing or unsupported)`"
+ },
+ "remaining_unknown_one_step": "**最小可用 decree dict 的键**（`canonical_decree` / `_first_text(decree, keys)` 所需）⇒ 下一批 **1 次 grep**：读 `ELEMENTS` 常量与 `canonical_decree` 的取键（或直接复用既有测试里的 decree 夹具）",
+ "test_writing_recipe": [
+  "正：`ensure_decree_id(state, D)` → `rec = compose_recitation(canonical_decree(D))` → `confirm_decree(state, did, actor, decree=D, recitation=rec)` ⇒ 期望 `status` 为**通过**、`mismatched/missing/unsupported` 皆空",
+  "负·未复述：`confirm_decree(..., decree=D, recitation=None)` 且**该 actor 无记录** ⇒ 期望**拒**（`recited=False`）",
+  "负·不符：取 `rec` 的**副本改一个元素值** ⇒ `recitation=改坏副本` ⇒ 期望 `mismatched` 非空且拒",
+  "负·无权限：用**非受命者** `actor_id`（或非 `MINISTERS` 成员）⇒ 期望拒 / `withheld=True`",
+  "幂等：`record=True` 调两次 ⇒ 第二次 **不重写**（`recitation_turn` 不变）；重复承办不重复执行",
+  "防伪：把 `backfill_candidates(state)` 的候选**直接**当 `recitation` 递上 ⇒ 期望**不得**过门",
+  "拒绝式：`recitation=\"自由文本\"` ⇒ 期望 `ValueError`（**不得**把自由文本当复述）"
+ ],
+ "verified": [
+  "签名、docstring 四态说明、`compare_recitation` 的比对规则与返回字段、三处 `ValueError` 拒绝式均为**逐行实测**"
+ ],
+ "next": [
+  "① 下批：1 次 grep 定最小 decree 键 ⇒ **照上表写七条用例** ⇒ P3 批 5 收口",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:02:44Z"
+}
