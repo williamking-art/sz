@@ -1,36 +1,31 @@
 {
- "phase": "《宋祚》主顺序『可自决部分』全部收口并认证全绿（M37–M256）。四项剩余决策均有 Jev 依据：A P3 接线 typesafe gate 不成立 p=0.170 · B G-4 真划转 typesafe gate 不成立 p=0.180 · C 工资义务 choose 丁 0.446（无权威来源⇒undefined）· D affiliation 落数据 choose 甲 0.939（维持空池留 unclassified，乙=派生份额冒充史料 0.035）。⇒ A/B 属放行类、模型侧不得自行放行（非技术禁令，用户可覆盖）；C/D 由裁定与硬约束关闭。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 座 ⟸ 需求 4,556,179 ÷ 8,000 = 569.5 · 6 月 gap 4,545,108 · 验收 Jev 甲 0.764）；P2 双口径（建筑 8/9=88.9% · 作坊 8/11=72.7%）+ 两条不变量（undefined⇒reason · not_applicable 须有 reason 且互补）；P3 批 5 收口（设计+API+门契约+形状+执行顺序+11 用例全绿）⇒ 只剩接线；P4/主线F 双落地（外贸真账四片 + 链级诊断第 21 项已有值）；主线E 诚实上限；主线D/G-4 影子预算+守恒方案；P5 收口（21 项读数 · ok=20/undefined=1 仅 jobs_capacity · 端点 · 面板 · 月报归因 · 截图台跑通且覆盖读数面板 · 失败行为按 Jev 甲落地含重试）；P6 长局三档（60/240 月四项全过）。",
+ "phase": "《宋祚》主顺序『可自决部分』全部收口并终局认证（M37–M293，会话 256 轮）。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%）+ 两条不变量（undefined⇒reason · not_applicable 须有 reason 且互补）；P3 批 5 收口（设计+API+门契约+形状+执行顺序+11 用例全绿）⇒ 只剩接线；P4/主线F 双落地（外贸真账四片 + 链级诊断第 21 项）；主线E 诚实上限；主线D/G-4 影子预算+守恒方案；P5 收口（21 项读数+端点+面板+月报归因）**且截图台已升级为可内容验收**（hub/situations/plan/finance/statistics 五组真实 payload；readouts 与 state 两条通道均接通）· 截图台并据此**发现→确诊→修复→内容级验收**一处真缺陷（GovernanceHub 税入两项恒 0）；P6 长局三档（60/240 月四项全过）。剩余四项均需用户：A 授权 P3 接线（Jev typesafe p=0.170 不成立 ⇒ 须授权覆盖）· B 确认 G-4 影子后接线（p=0.180 不成立）· C 工资义务史源（Jev 丁 0.446）· D affiliation 史料（Jev 甲 0.939 维持 unclassified）。",
  "updatedAt": "2026-10-14",
  "agent": "DSH",
- "doc_governance_rule": "每次 Jev 裁定三步缺一不可：①decisions/ 台账（条件原文·概率·阈值·前提核验·reopen_if）②specs 正文（牵涉状态/待裁/口径者）③交接产物重生成（DECISIONS-INDEX·HANDOFF·phase）+ worklog。教训来源：用户两次指出——『只写在 commit 正文不算留痕』『decisions 写了但 specs 没更新』。",
- "doc_audit_2026_10_14": {
-  "范围": "现行层（specs 现行文档 · 最新收口总表 · 模块 README · 现行契约/测试断言）；跳过历史留档（旧日期全审报告 · 已结项 handover/tasks/M*.json · 历史 worklog）",
-  "已修": [
-   "读数 ok/undefined 过期表述（ok=19/undefined=2 → ok=20/undefined=1，仅 jobs_capacity）：tasks.md · economy README",
-   "前端 panels/README.md『12 项』→ 21 项",
-   "收口总表『20 项读数之一』→ 21 项",
-   "tasks.md P5 行『20 项』→ 21 项（附沿革 12→19→20→21）",
-   "economy README 回填读数扩容记录（M54→M81→M148→M152→M227）与 M237–M246 修订表"
-  ],
-  "复现注": "收口总表与 tasks.md 各追加『数值一致性复现注』：读数 21（ok=20/undef=1）· 6 月 gap 4,545,108（成品 11,071/需求 4,556,179/作坊 28/两浙路）· 阈值 569.5≈570 · 作坊 128（wine 40/meat 40/布 20/绸 28）· 税收差 9,834,477≈实测 9,834,320.67 · 双口径 0.8889/0.7273",
-  "方法性自查": "①作坊类型字段是 name/output_dim（无 type 键）②pilot_chain_gap 必须结算后读（开局为 0）",
-  "判定": "现行层与代码基准值现已一致；历史正文（宋祚全审报告_2026-10-01 · E-backend-security-rust · M151/M152/M166 任务档 · 旧 worklog）按治理不改，已于现行层回填现状"
- },
  "verification": {
-  "pytest": "全量串行 EXIT=0（M246/M252）",
-  "long_run": "60 月 EXIT=0（M252）· 240 月 EXIT=0（M230）",
-  "frontend": "tsc web/node = 0/0 · vitest = 0（M251）",
-  "screenshot": "SHOT EXIT=0（M243，须在 game/frontend 运行；15 张 PNG 含 readouthub.png）",
+  "pytest": "全量串行 EXIT=0（M274/M296 终局）",
+  "long_run": "60 月 EXIT=0 · 240 月 EXIT=0（M230）",
+  "frontend": "tsc web/node = 0/0 · vitest = 0",
+  "screenshot": "SHOT EXIT=0（cwd 必须 game/frontend；15+4=19 张 PNG）",
   "gates": "分档：纯文档免全量；含 game/ 全量；--cached --check 参与退出码",
   "index_discipline": "test_readme_sync 48 passed",
   "handover": "check 问题=0",
   "json_lint": "自建 lint 门累计 17 次拦下不合法 JSON"
  },
- "next": "唯一未闭环＝用户输入：A/B 授权（或覆盖原裁定）· C/D 史料。若授权 A：复用 decree-action-chain 最小闭环（先读 D-复述门/D9–D11）+ 11 条用例回归；若授权 B：真划转 + 记转账 + 同种子 A/B + 60/240 月；若给 C 史源：补全 G-4 额度公式；若给 D 史料：按 州府×POP类×生产关系 落数据 + Σ子池==父POP 断言。",
- "pending_decisions": [
-  "A 授权 P3 接线（Jev typesafe p=0.170 不成立 ⇒ 须用户授权）",
-  "B 确认 G-4 影子后接线（p=0.180 不成立 ⇒ 须用户授权）",
-  "C 工资义务史源（Jev 丁：无权威来源）",
-  "D affiliation 史料（Jev 甲 0.939：维持 unclassified）"
- ]
+ "screenshot_harness": {
+  "状态": "可内容验收（readouts 与 state 两条通道均接通）",
+  "真实 payload 五组": "hub（21 项）· situations · plan · finance · statistics（均由真实后端导出，非手写）",
+  "页头探针": "panel.tsx 页头显示 fixtures.STATE 键数与 statistics 值 —— **注入 fixture 后先看它**，可即时发现『注入没进顶层』（M292/M293 正是靠它定位）",
+  "已知事项": "面板覆盖 14/42（缺口与优先级见 tasks/M268）；`statistics` 曾误插嵌套块导致误判『state 通道未接通』，已撤回并更正（M293）"
+ },
+ "self_corrections": "本会话自查并公开更正 13 处（含 2 次失实提交 M264/M266、1 次错误结论 M287/M291、2 次手打校验串误判、2 次方法性错误、1 次替换工具捕获组失败等）——全部写入 worklog 与文档更正节",
+ "discipline": [
+  "Jev 决策 85 条留痕",
+  "提交前回读**结构量**（字节/行数/命中数），不用手打串行",
+  "实验必须具备**可观测性**（无效实验不得据以推断结论）",
+  "下结论前先验证**探针自身的输入**",
+  "低 defined_ratio ≠ 缺口（先读 reason）",
+  "文件被截断/报错要看全（requireStack 空 ⇒ 路径问题）"
+ ],
+ "next": "唯一未闭环＝用户四项：A/B 授权（或覆盖原裁定）· C/D 史料。可选零风险：按 M268 优先级继续扩面板覆盖（每张逐张目视）；或补其它 store fixture（granary 等）。"
 }

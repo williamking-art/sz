@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 14:06 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 15:25 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -9,7 +9,7 @@
 |---|---|---|
 | Cline.json | 阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期 | 2026-10-10T16:48:43Z |
 | DSH-JEV.json | Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。 | 2026-10-12T16:05:00Z |
-| DSH.json | 《宋祚》主顺序『可自决部分』全部收口并认证全绿（M37–M256）。四项剩余决策均有 Jev 依据：A P3 接线 typesafe gate 不成立 p=0.170 · B G-4 真划转 typesafe gate 不成立 p=0.180 · C 工资义务 choose 丁 0.446（无权威来源⇒undefine… | 2026-10-14 |
+| DSH.json | 《宋祚》主顺序『可自决部分』全部收口并终局认证（M37–M293，会话 256 轮）。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.… | 2026-10-14 |
 | Qoder.json | 阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/） | 2026-10-09T23:58:31Z |
 | _legacy_shared_phase.json | - | - |
 | _retired.qoder.json | - | - |
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
-e341497006 docs: M255 **文档全面审计 + 修 4 处过期**（读数项数 12/20 → 21）
-120b681d67 docs(spec): M254 **补文档同步** —— 把剩余四项的 Jev 补裁写进 specs 正文与交接产物
-dd01453f45 docs(decisions): M253 **补齐剩余四项的 Jev 裁决**（承认此前漏问 A/B/D）
-1e63d486db chore(cert): M252 **最终认证** —— 后端全量 + 60 月哨兵 + 前端三合一（真实退出码）
-d14aad5d13 chore(handover): M251 **刷新交接产物**到最新（decisions 84 条）+ 前端复测
+83bbf298bc fix(shot): M293 **修好 `statistics` 注入并撤回「state 通道未接通」的错误结论**
+73a2662714 docs(shot): M291 **`state` 通道未接通·决定性证据**（可观测探针）＋ 写入截图台 README 已知限制
+c5c37df407 chore(shot): M290 🔴 **承认两个实验在方法上无效**（撤销 M288 标记）—— 唯一有证据的结论仍是 M287
+cff86d7dc5 docs: M287 截图台 **state 通道盲点·定论**（两处硬证据交叉；两项假说已推翻/排除）
+c523298f46 docs: M286 诊断实验 —— **排除构建缓存**，提出新假说（截图台 `s.state` 可能非 `fixtures.STATE`）
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ d14aad5d13 chore(handover): M251 **刷新交接产物**到最新（decisions 84 
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **158** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **164** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 
