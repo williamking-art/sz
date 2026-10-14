@@ -16,7 +16,7 @@
 ### 核心循环
 | 面板 | 作用 |
 |---|---|
-| `ReadoutHubPanel` | **入口（M85）**：右侧条「天下诸务」组 →「**读数索引**」（`hud/RightStrip.tsx`；`sectionFor` 亦归该组）。**统一读数索引（P5 第一片 · M84）**：直读后端 `/api/readouts::hub`（= `core/domains/economy/readout_hub.collect`，**12 项**只读读数摘要），列 label/display/unit/source，点行展开 `drill_down`。🔴 **只呈现不重算**；**不可读项显式显示「未定义」**（后端契约 `display==="undefined"`），**绝不回落 0**；真 0 照实显示 0 |
+| `ReadoutHubPanel` | **入口（M85）**：右侧条「天下诸务」组 →「**读数索引**」（`hud/RightStrip.tsx`；`sectionFor` 亦归该组）。**统一读数索引（P5 第一片 · M84）**：直读后端 `/api/readouts::hub`（= `core/domains/economy/readout_hub.collect`，**21 项**只读读数摘要——M84 建时 12 项，经 **M148 → M152 → M227** 扩容至 21 项），列 label/display/unit/source，点行展开 `drill_down`。🔴 **只呈现不重算**；**不可读项显式显示「未定义」**（后端契约 `display==="undefined"`），**绝不回落 0**；真 0 照实显示 0 |
 | `StartPanel` | 开局（选政权/难度） |
 | `AdvancePanel` | 推进回合 |
 | `SituationPanel` | 局势（situations） |

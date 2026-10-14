@@ -80,3 +80,30 @@ dynamic_price.py
 `regime_fiscal.py` ⇒ **本包现有 6 个实现文件**。
 其余候选（`settlement_finance`/`settlement_granary`/`settlement_econ` 等结算域文件）**未开始**，
 受阶段 3 前置（反向边**接口倒置**）约束。
+---
+
+## 读数索引的**后续扩容记录**（现 21 项 · 2026-10-14 回填）
+
+> 上表的 M54/M81 行是**历史变更留档**（当时分别为 12 项与 11 项口径），按文档治理**不改历史正文**；
+> 本小节回填其后的实际演进，使「现状」可在本 README 内查得。
+
+| 批次 | 项数 | 新增 |
+|---|---|---|
+| M54 | 建立 | `READOUTS` / `collect` / `index` / `undefined_summary`（统一读数索引） |
+| M81 | 11 项 | `pilot_chain_gap`（P1 链条缺口）等 |
+| M148 | 19 项 | `fiscal_structure`（内帑/国库比；国库≤0 ⇒ `None` + reason） |
+| M152 | 20 项 | `tax_scope_contrast`（全口径 − `tax_breakdown` 4 目；下钻含真账笔数/货值/逐路/逐政权/逐商品） |
+| **M227** | **21 项** | **`market_chain_diagnosis`**（**市场切片·链级诊断**：产地→运输→成交→到货→加工五环贯通 + 端到端残差**方法** + `stock_snapshot` 透传；**只读零数值**，口径单点取 `stock_identity`） |
+
+**当前项数**：**21**（`ok=19` / `undefined=2`：`jobs_capacity`（非岗位建筑，`reason` 已写明）与
+`tax_scope_contrast`，均**如实** `undefined` + `reason`）。
+**契约**：由 `test_m125/m126/m129/m130` 与三处计数断言（`test_m81` / `test_m83` / `test_readouts_endpoint`）强制。
+
+---
+
+## 相关新增/修订（2026-10-14 · M237–M246）
+
+| 文件 | 变更 | 批次 |
+|---|---|---|
+| `entity_projection.py` | `level` 未定义时**补 `reason`**（原硬编码 `None`）⇒ **`undefined ⇒ reason` 不变量**（`test_m237` 强制） | M237 |
+| `entity_projection.py` | 新增 `NOT_APPLICABLE_BUILDING` / `NOT_APPLICABLE_WORKSHOP` 与 **`applicable_fields` / `not_applicable` / `applicable_ratio` / `applicable_overall`**（就绪度**双口径**；旧 `defined_ratio` 保留） ⇒ 建筑 **8/9=88.9%** · 作坊 **8/11=72.7%** | M238–M239 |
