@@ -472,8 +472,18 @@ def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
     except Exception:                                        # noqa: BLE001
         log.warning("readout_hub: 盐课（calc_salt_coin）不可读", exc_info=True)
         missing.append("盐课 calc_salt_coin 调用异常")
-    # 二税折色：M153 核查**无公开读口**（值只在结算局部变量）⇒ 如实标注
-    missing.append("tax_color 二税折色（无公开读口，M153）")
+    # 二税折色：**已有读口**——`statistics["land_tax_assessed"]`（应征口径；由 `_settle_land_tax_color`
+    # 内部落表 ⇒ **读字典无副作用**）。⚠️ 更正 M155：此前说"无公开读口"**不准确**（我只是没查到 stats）
+    try:
+        st = getattr(state, "statistics", None) or {}
+        lt = st.get("land_tax_assessed")
+        if isinstance(lt, (int, float)) and not isinstance(lt, bool):
+            extra["land_tax_assessed（二税折色·应征）"] = round(float(lt), 2)
+        else:
+            missing.append("二税折色（statistics 未含 land_tax_assessed）")
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 二税折色（statistics）不可读", exc_info=True)
+        missing.append("二税折色（statistics 读取异常）")
     full = base_sum + sum(float(v) for v in extra.values()) if extra else None
     detail["额外科目（已可读）"] = extra or None
     detail["额外科目（仍缺读口）"] = missing or None
@@ -481,7 +491,8 @@ def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
     detail["全税收口径合计（可读部分）"] = full
     detail["警示"] = ("**两套口径不可混用**：`tax_breakdown` 仅 4 目；任何「税收占比/到账率」"
                       "结论必须注明用哪套（M151 取证；历史误判见 `game_state_econ` 注释）。"
-                      "⚠️ 本项为**部分口径**：盐课已计入，**二税折色仍缺公开读口**")
+                      "另：**二税折色有地方分成**（`statistics.land_tax_local` 留州），"
+                      "而 4 目**无**（M156 更正 M149/M150）")
     if full is None:
         return None, "全税收口径不可读（额外科目取不到）⇒ 差额不可定义（缺失≠0）", detail
     return round(float(full) - base_sum, 2), None, detail

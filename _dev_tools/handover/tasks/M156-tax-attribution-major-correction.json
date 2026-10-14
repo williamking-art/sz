@@ -1,0 +1,59 @@
+{
+ "id": "M156-tax-attribution-major-correction",
+ "title": "🔴 **重大更正**：二税折色**有地方分成（留州）**且**有读口** ⇒ 全口径达成（4 目只占 **13.8%**）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮 `statistics` 全键核查 + 6 月实测数值 + 读数接线验证",
+ "corrections": {
+  "更正 M149/M150（结论错）": "我此前写『**州府（地方府库）税收分成 = 零**』——**错**。实测 `statistics` 含 **`land_tax_local`（留州）= 1,583,018**，且 `settlement_finance` 注释本就明写『归一**三率三分（上供／留州／侵渔）**』⇒ **地方对二税折色有分成**；**无分成的只是那 4 目**（工商/役钱/市舶/助役钱）。",
+  "更正 M155（表述不准）": "我写『二税折色**无公开读口**、值只在结算局部变量』——**不准确**：它**已落 `statistics`**（`land_tax_*` 系列，由 `_settle_land_tax_color` 内部写入）⇒ **读字典即可、无副作用**。我之所以没查到，是**只查了 `tax_base_summary` 与 `tax_breakdown` 两个容器**。"
+ },
+ "measured_6m": {
+  "land_tax_assessed（应征）": 8986561,
+  "land_tax_central（上供→中央）": 4880619,
+  "land_tax_local（**留州→地方**）": 1583018,
+  "land_tax_diverted（侵渔→吏囊）": 127213,
+  "land_tax_collected（实收）": 6590850,
+  "land_tax_required": 1314902,
+  "tax_loss_report.total": 127213,
+  "对账": "`land_tax_diverted` 与 `tax_loss_report.total` **完全一致**（127,213）✅",
+  "tax_grain_sale（税粮粜卖）": 2606560,
+  "盐课（月，calc_salt_coin）": 847916.67,
+  "official_service_tax": 70660,
+  "poll_tax_nominal": 390463,
+  "land_tax_last（上月单月）": {
+   "turn": 5,
+   "assessed": 1582915,
+   "collected": 1297915,
+   "central": 1003617,
+   "local": 269492,
+   "diverted": 24806
+  }
+ },
+ "readout_now_full_scope": {
+  "value": 9834477.67,
+  "构成": "盐课 847,916.67 ＋ 二税折色应征 8,986,561",
+  "partial": false,
+  "仍缺": null,
+  "全口径合计": 11412320.67,
+  "对比": "🔴 `tax_breakdown` 4 目合计 **1,577,843** ÷ 全口径 **11,412,320** ＝ **13.8%** ⇒ 拿 4 目当『全部税收』**低估约 86%**（二税折色 8.99M 是最大一块）"
+ },
+ "attribution_picture_now": {
+  "中央": "4 目（工商/役钱/市舶/助役钱）→ 国库；二税折色**上供** 4,880,619",
+  "地方": "二税折色**留州** 1,583,018 ✅（**有分成**）",
+  "吏": "二税折色**侵渔** 127,213（＝损耗报告 total，账实落差）",
+  "其它": "`tax_grain_sale` 2,606,560 · 盐课 847,917/月（→国库，M150）"
+ },
+ "lesson": "🔴 **下结论前必须覆盖『所有容器』**：本会话我因只查 `tax_breakdown` 与 `tax_base_summary`，先后得出『地方零分成』『二税折色无读口』两个**错误结论**，并在 M155 把它当「安全红线」写进档——**实际读口一直在 `statistics`（57 键）里**。⇒ 固定做法：**核查某量是否存在时，先列 `state` 全部字典槽与 `statistics` 全键**，再做判断。",
+ "verified": [
+  "6 月实测；`land_tax_diverted == tax_loss_report.total` 对账一致；读数接线后 `partial=False`、`value=9,834,477.67`；读数契约用例全绿"
+ ],
+ "next": [
+  "① **待裁问题更新**：由『地方是否应有税收分成』改为『**4 目是否也应给地方分成**』（二税折色已有留州）",
+  "② 主线 E 可继续：把『三率三分（上供/留州/侵渔）』做成读数或纳入 `tax_scope_contrast` 下钻",
+  "③ 其余卡口：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T02:15:45Z"
+}
