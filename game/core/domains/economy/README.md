@@ -136,3 +136,12 @@ dynamic_price.py
 就绪度双口径里，`jobs_capacity` / `jobs_filled` 被列为**不适用**，**只因开局建筑集全部是非岗位建筑**。
 若出现**岗位类建筑**，这两项应为「适用」⇒ `test_m258_type_dependent_not_applicable` 会**失败并给出改判指令**。
 **看到该用例红 ⇒ 不是去改测试，是去把这两个字段从 `NOT_APPLICABLE_BUILDING` 移出（或改为按建筑类型判定）。**
+### 4. 同类隐患**已排查**（M260 · 全案 grep）
+
+| 检查 | 结果 |
+|---|---|
+| 误用 `workshops[...].get("type")` 分类 | **仅 `entity_projection.py:218` 命中，且写法正确** —— `row.get("name") or row.get("workshop_type") or row.get("type")` 是**防御式回退**（`name` 优先）⇒ **不是缺陷** |
+| 误用 `workshop.get("kind")` 当类型 | **0 处** ✅ |
+| 误用 `workshop.get("dim")` | **0 处** ✅ |
+
+⇒ **「按 `type` 分类作坊」这一错误只出现在我 M256 的审计探针里，代码层无同类问题**（本条记录以免后人重复排查）。
