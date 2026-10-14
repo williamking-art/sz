@@ -1,0 +1,50 @@
+{
+ "id": "M151-tax-attribution-six-items",
+ "title": "主线 E 归属表**补至 6 目** + 🔴 **口径分层警示**：`tax_breakdown` 只是国库收入的**一部分**（4/6），盐课与二税折色走别的载体",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮 grep（`盐课|salt_tax|SALT|二税折色`）+ 代码注释阅读",
+ "complete_table": {
+  "commerce 工商": {
+   "归属": "国库（`tax_breakdown`）",
+   "征收对象": "工匠 60% + 商人 40%"
+  },
+  "poll 役钱": {
+   "归属": "国库（`tax_breakdown`）",
+   "征收对象": "农"
+  },
+  "maritime 市舶": {
+   "归属": "国库（`tax_breakdown`）",
+   "征收对象": "商人"
+  },
+  "official_service 助役钱": {
+   "归属": "国库（`tax_breakdown`，整表之后补写）",
+   "征收对象": "官僚 POP wealth"
+  },
+  "salt_coin 盐课": {
+   "归属": "**独立科目**（**不在** `tax_breakdown`；见 `settlement_finance.py:1656` 收入构成串 · `game_state_econ.calc_salt_coin` · `statistics`）",
+   "征收对象": "**商人**（`settlement_finance.py:1289`『盐课+市舶→商人』）"
+  },
+  "tax_color 二税折色": {
+   "归属": "**独立科目**（同上；`tax_color_total`）",
+   "征收对象": "农（二税折色）"
+  }
+ },
+ "critical_finding": {
+  "🔴 口径分层": "**`tax_breakdown` 只覆盖 4 目**（工商/役钱/市舶/助役钱），而 `game_state_econ` 明写**月度应征是五科目**（另加**二税折色、盐课**）⇒ **拿 `tax_breakdown` 当「全部税收」会漏掉两项大额**。",
+  "历史教训已被代码记录": "`game_state_econ.py:570-582` 注释：旧『名义岁入』比值 **>100%** 的**唯一原因**就是**分母缺二税折色与盐课**；现已显式引入 `scope_taxed`（三税）/`scope_full`（五科目）两个字符串，并**明写「诊断口径·勿当到账率」**。",
+  "既有的自我防护": "`calc_arrival_rate()` 与『机制到账率』（隐漏/胥吏侵蚀/钱荒折扣）口径**单列**，且注释点明『为何二税折色/盐课口径 = 58.8%』⇒ **口径单点在该处已做对**，本批只是把它**登记进主线 E 的归属表**以免后人重踩。"
+ },
+ "implication_for_line_e": "主线 E 的『归属』必须有**两套口径**并列：① `tax_breakdown` 口径（国库 4 目）② **全税收**口径（6 目，含盐课+二税折色）⇒ 任何「税收占比/到账率」结论**必须注明用哪套**，否则重演 >100% 的误判。",
+ "verified": [
+  "6 目各自的写点/载体与征收对象均有代码或注释依据（见 complete_table）"
+ ],
+ "next": [
+  "① 等你裁**地方是否应有税收分成**（主线 E 核心口径）",
+  "② 可另批：把『两套税收口径』做成第 20 项读数（`tax_scope_contrast`）以便面板并列显示，防误用",
+  "③ 既有卡口不变：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径待裁"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T01:18:26Z"
+}
