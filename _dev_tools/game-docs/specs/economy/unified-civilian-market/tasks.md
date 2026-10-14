@@ -1075,3 +1075,54 @@ Step 3.85 民间营造与 Step 4.5 工程**之前**（消费侧读到分摊后�
 
 **判定优先级（写死以免误判）**：`undefined_data → no_workshop → raw_shortage → **capacity_shortage** → demand_far_exceeds_supply → ok`
 ⇒ **只要 `cap < demand`，主瓶颈恒为 `capacity_shortage`**（成品覆盖不足仅为次级原因）。
+---
+
+## P3 · 批 5：**复述门生产调用链设计 + 正负用例**（2026-10-14 · M215）
+
+> **依据**（用户 2026-10-08 裁决 3，`reviews/裁决落地与分批计划_2026-10-08.md`）：
+> 「**D 诏令复述门：暂不接主链**；接法＝『**受命承办者承办前复述**』；**AI 只出候选**」
+> · 批次表：**批 5 前置＝无（只设计）** · §三明文：『❌ **不接复述门主链（先设计与用例）**』
+> 🔴 **本批只做设计与用例，不改诏令主链**（接线需用户授权——挂进主链会**卡死诏令通道**）。
+
+### 一、机制现状（实测）
+
+`core/decree_confirm.py` **已提供完整 API**（**无需新写机制**）：
+`compose_recitation` · `render_recitation` · `record_recitation` · `recitations_of` ·
+`latest_recitation` · `compare_recitation` · **`confirm_decree`（门）** · `exec_ledger_of` ·
+`execution_of` · `backfill_candidates` · **`backfill_decree`（补录）**。
+
+**真实缺口＝生产链无调用者**：两处调用方只 import 了 `ensure_decree_id`（幂等锚）。
+
+### 二、**生产调用链设计**（待接线的形态；本批**不落地**）
+
+```
+① 玩家/君主下诏 → 既有诏令通道（不变）
+② 受命承办者**承办前**：compose_recitation(诏令)            ← 由承办者（官员）产生复述
+③ record_recitation(承办者, 复述文本)                        ← 落账（可追溯）
+④ confirm_decree(诏令, 承办者)  ⇐ **门**                     ← compare_recitation 判定一致
+     ├─ 通过 ⇒ 允许承办；执行过程记 exec_ledger_of / execution_of
+     └─ 不通过 ⇒ **拒绝承办**（并留下原因：未复述 / 复述不符 / 无权限承办者）
+⑤ **AI 只出候选**：backfill_candidates 产出候选复述；**不得**以 AI 候选替代承办者的复述
+   （「AI 只出候选」是裁定明文）
+```
+
+**口径要点**：复述由**受命承办者**产生（**非玩家、非 AI**）；门是**承办前**的一次性校验；
+`backfill_decree` 仅用于**历史补录**，不与门混用。
+
+### 三、**正负用例清单**（下一步实现；只针对 `decree_confirm` 的 API 行为）
+
+| # | 类型 | 用例 | 期望 |
+|---|---|---|---|
+| 1 | **正** | 承办者复述**与诏令一致** ⇒ 过门 | `confirm_decree` 放行；`execution_of` 可查 |
+| 2 | **负** | **未复述**即承办 | 门**拒绝**（reason：未复述） |
+| 3 | **负** | 复述**与诏令不符** | 门**拒绝**（`compare_recitation` 判不一致） |
+| 4 | **负** | **无权限承办者** | 门**拒绝**（reason：权限） |
+| 5 | **幂等** | 同一诏令**重复复述/重复承办** | **不重复执行**（`ensure_decree_id` 锚 + 记录幂等） |
+| 6 | **负/防伪** | **AI 候选直接充当复述** | **不得**过门（候选≠承办者复述） |
+| 7 | **补录** | `backfill_decree` 仅补历史 | 不改变门的判定；补录后可追 `recitations_of` |
+
+### 四、本批边界（**明确不做**）
+
+- ❌ **不接诏令主链**（裁定明文；接线会卡死通道，需你授权）
+- ❌ 不改 `decree_confirm` 既有 API 语义
+- ❌ 不新增平行记录（复述与执行记录一律走既有 API 的载体）

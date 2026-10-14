@@ -1,0 +1,40 @@
+{
+ "id": "M215-p3-batch5-design",
+ "title": "P3 批 5（首次实质推进）：复述门**生产调用链设计 + 正负用例清单**（零数值、不接主链）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "用户 2026-10-08 裁决 3 + 批 5 门槛（只设计）· M214 定位",
+ "deliverable": [
+  "`specs/.../tasks.md` 追加『P3 · 批 5』节：机制现状（decree_confirm 完整 API）+ **五步调用链设计** + **七条正负用例清单** + **本批不做**",
+  "按裁定**不接主链**、不改既有 API 语义、不新增平行记录"
+ ],
+ "design_summary": {
+  "链": "下诏（不变）→ 承办者**承办前**compose_recitation → record_recitation → **confirm_decree 门**（compare_recitation 判定）→ 过则承办并 exec_ledger_of/execution_of 记账；不过则拒绝并留因",
+  "口径要点": "复述由**受命承办者**产生（非玩家、非 AI）；门是**承办前**一次性校验；backfill_decree 仅历史补录",
+  "AI": "**只出候选**（backfill_candidates），不得替代承办者复述（裁定明文）"
+ },
+ "use_cases": [
+  "正：一致 ⇒ 放行",
+  "负：未复述 ⇒ 拒",
+  "负：复述不符 ⇒ 拒",
+  "负：无权限承办者 ⇒ 拒",
+  "幂等：重复复述/承办 ⇒ 不重复执行",
+  "防伪：AI 候选充当复述 ⇒ 不得过门",
+  "补录：backfill_decree 不改门判定"
+ ],
+ "not_done": [
+  "**用例实现**（需读 `decree_confirm` 的签名与返回结构后写测试 ⇒ 下一批）",
+  "**接线**（裁定明文不做；需你授权）"
+ ],
+ "verified": [
+  "文档批（零数值）；`decree_confirm` 的 API 清单为既有 reviews 的实测记录，本轮未改任何代码"
+ ],
+ "next": [
+  "① 下一批：按设计实现**七条用例**（只针对 API，不改主链）",
+  "② 接线待你授权（A：授权 P3）",
+  "③ 其余 3 项可选：B G-4 确认接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:00:08Z"
+}
