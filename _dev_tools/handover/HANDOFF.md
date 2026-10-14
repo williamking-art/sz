@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 10:27 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 11:04 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
-26d71b1b5c docs(spec): M233 🔴 **更正 M231** —— 建筑侧 `jobs_capacity` **早已实现**（`jobs_readout.capacity_of`），`0/40` 属**正确**
-382d44e00f docs(spec): M232 P2 建筑侧 `jobs_capacity` **实施配方就绪**（口径已定，零数值）
-d098c0af10 docs(spec): M231 P2 **精确就绪表**（逐字段）＋两个真发现：建筑侧 `jobs_capacity` **本可算**；14 字段分母**失真**
-9423c578d6 docs(spec): M230 P6 **240 月**深度校验 —— 产能批 + 第 21 项读数落地后的最深端到端验证
-3653f34d28 docs(spec): M229 状态同步 —— **P4/主线F 链级诊断**写入正文；读数总数 21 项
+dc2870391a test(economy): M239 `applicable_*` 口径修正**钉成不变量** —— 4 条守卫用例
+1ce7fa10db feat(economy): M238 P2 就绪度**口径修正**落地 —— `applicable_*` 四键（区分「不适用」与「缺失」）
+a26ff4ef97 fix(economy): M237 P2 可解释性**不变量** —— `undefined` 必带 `reason`（补 `level` 的 reason + 三条守卫）
+e314fe381d docs(spec): M236 `applicable_*` **三集已定**（依据 `reason` 原文）＋ 发现 `level` 缺 `reason`
+f12180280e docs(spec): M235 `applicable_*` 三键**距落地仅剩 1 步** —— 最短路径＝直接调 `project_*`
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ d098c0af10 docs(spec): M231 P2 **精确就绪表**（逐字段）＋两个真发
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **147** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **152** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 
