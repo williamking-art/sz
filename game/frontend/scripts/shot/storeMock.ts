@@ -4,6 +4,7 @@
 //    字段清单来自 `grep "useGameStore((s) => s." src/renderer/panels`（12 个）。
 import { READOUTS } from "./fixtures";
 import { PLAN } from "./planFixture";
+import { FINANCE } from "./financeFixture";
 import { STATE } from "./fixtures";
 
 // HUD 组件（TopBar/LeftTodo/…）除了 `useGameStore` 还要一堆**纯派生 helper**
@@ -24,7 +25,7 @@ function store() {
     uiLogs: [] as string[],
     // M272：store 侧也要给 `plan`（`PlanReadoutPanel` 读 `useGameStore(s => s.readouts)?.plan`，
   //   **不走 `getApiClient()`** ⇒ 只补 apiMock 喂不到它）
-  readouts: { ...READOUTS, plan: PLAN },
+  readouts: { ...READOUTS, plan: PLAN, finance: FINANCE },
     overlays: [] as unknown[],
     inGame: true,
     backendReady: true,
