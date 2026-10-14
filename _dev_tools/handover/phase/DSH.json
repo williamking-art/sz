@@ -1,24 +1,23 @@
 {
- "phase": "《宋祚》主顺序『可自决部分』全部收口（M37–M240）。P0 5/5 门；P1 收口（产能批：丝坊 7→28 · recipe 共享根因修复 · 阈值公式 570 座 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%，旧 defined_ratio 兼容）＋两条不变量（undefined⇒reason M237 · not_applicable 须有 reason 且与 FIELDS 互补 M239）；P3 批 5 收口（设计+API+门契约+形状+执行顺序+11 用例全绿，只剩接线）；P4/主线F 双落地（外贸真账四片 + 链级诊断读数第 21 项已有值）；主线E 诚实上限（6 目归属+三率三分+2 处自我更正）；主线D/G-4 影子预算+守恒方案；P5 收口（21 项读数+端点+面板+月报归因）；P6 长局三档（60/240 月四项全过）。只剩 4 项需用户一句话：A 授权 P3 接线 · B 确认 G-4 影子后接线 · C 工资义务史源 · D affiliation 史料。",
+ "phase": "《宋祚》主顺序『可自决部分』全部收口（M37–M247）。P0 5/5；P1 收口（产能批：丝坊 7→28 · recipe 共享根因修复 · 阈值公式 570 座 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%，旧 defined_ratio 兼容）＋两条不变量（undefined⇒reason M237 · not_applicable 须有 reason 且与 FIELDS 互补 M239）；P3 批 5 收口（设计+API+门契约+形状+执行顺序+11 用例全绿）⇒ 只剩接线；P4/主线F 双落地（外贸真账四片 + 链级诊断读数第 21 项已有值）；主线E 诚实上限；主线D/G-4 影子预算+守恒方案；P5 收口（21 项读数+端点+面板+月报归因 + 截图台跑通且覆盖读数面板 + 面板失败行为按 Jev 甲落地含重试）；P6 长局三档（60/240 月四项全过）。只剩 4 项需用户：A 授权 P3 接线 · B 确认 G-4 影子后接线 · C 工资义务史源 · D affiliation 史料。",
  "updatedAt": "2026-10-14",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 EXIT=0（多次；最近 M238/M239）",
+  "pytest": "全量串行 EXIT=0（最近 M246）",
   "long_run": "60 月 EXIT=0（M204）· 240 月 EXIT=0（M230，含 21 项读数契约）",
-  "frontend": "tsc web/node = 0/0 · vitest = 0（M205 终验）",
-  "gates": "提交前门禁分档（纯文档免全量；含 game/ 全量；--cached --check 参与退出码）",
+  "frontend": "tsc web/node = 0/0 · vitest = 0（M246 复测）",
+  "screenshot": "SHOT EXIT=0（M243；须在 game/frontend 运行；15 张 PNG 含 readouthub.png）",
+  "gates": "分档：纯文档免全量；含 game/ 全量；--cached --check 参与退出码",
   "index_discipline": "test_readme_sync 48 passed",
   "handover": "check 问题=0",
   "json_lint": "自建 lint 门累计 17 次拦下不合法 JSON",
-  "invariants": "读数契约（21 项计数 · drill 为 dict|None · 载荷可序列化）· undefined⇒reason · not_applicable 互补且须有 reason · 幂等（补座/复述门）· Σ 守恒（外贸货值/补座）· 长局四项"
+  "invariants": "读数契约（21 项计数 · drill 为 dict|None · 载荷可序列化）· undefined⇒reason · not_applicable 互补且须有 reason · 幂等（补座/复述门）· Σ 守恒 · 长局四项"
  },
- "p2_readiness": {
-  "旧口径": "defined_ratio（全 14 字段分母）——保留兼容",
-  "新口径": "applicable_fields / not_applicable / applicable_ratio / applicable_overall（按实体类型的适用子集）",
-  "实测": "建筑适用集 9、applicable_overall 0.8889；作坊适用集 11、0.7273",
-  "不适用依据": "逐项引用投影 reason 原文（建筑 5 项；作坊 3 项）"
+ "this_session_tail": {
+  "M242-M243": "截图台：先误判缺依赖（实为我跑错目录；shoot.mjs 只 import node 内建模块），修正后 SHOT EXIT=0；补 readouthub 到面板清单；视觉验收如实=只能验挂载与布局（面板走 HTTP，截图台无后端故停留加载态）",
+  "M244-M247": "P5 截图台口径成文（含 cwd 陷阱与能力边界）· Jev 裁面板失败行为甲 0.737 · 面板补重试按钮（失败提示 M84 已有）· 文档纠偏覆盖待裁条目"
  },
- "next": "① 无待办的自决项（主顺序各线均达其诚实终点或其可自决上限）。② 待用户 4 项：A P3 接线（授权后复用 decree-action-chain 最小闭环，注意会卡死诏令通道）· B G-4 接线（确认影子后真划转 + 记录转账 + A/B + 60/240 月）· C 工资义务史源 · D affiliation 史料（否则按裁定留 unclassified）。③ 可选零风险：文档/交接一致性维护、门禁复核。",
+ "next": "① 无待办的自决项（主顺序各线均达其诚实终点或可自决上限）。② 待用户 4 项：A P3 接线（授权后复用 decree-action-chain 最小闭环；注意会卡死诏令通道）· B G-4 接线（确认影子后真划转 + 记转账 + A/B + 60/240 月）· C 工资义务史源 · D affiliation 史料（否则按裁定留 unclassified）。③ 可选零风险：Jev 丁（自动重试 N 次）· 文档/交接一致性维护。",
  "pending_decisions": [
   "A 授权 P3 接线",
   "B 确认 G-4 影子后接线",
