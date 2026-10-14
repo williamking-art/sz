@@ -1,0 +1,38 @@
+{
+ "id": "M218-recitation-shape-still-unknown",
+ "title": "🔴 如实：用例草稿**未提交**（5/8 过，但 `test_1` 疑为『空通过』）⇒ 必须先读 `compose_recitation` 的**元素形状**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "what_happened": {
+  "草稿": "写了 8 条用例（正/未复述/不符/无权限/幂等/防伪/拒绝式/缺失≠0）",
+  "结果": "**5 过 3 红**（过：正、无权限、幂等、拒绝式、缺失≠0；红：未复述、不符、防伪）",
+  "🔴 关键疑点（为何不提交）": "`test_1`（正）过关的判据是 `mismatched/missing/unsupported` **三列表全空**——但**红的那 3 条恰好也是这三列表**：`test_2` 的『未复述』三列表**也全空** ⇒ **极可能 `recitation` 元素形状没被解析 ⇒ 比对根本没发生 ⇒ `test_1` 是『空通过』**（假绿）",
+  "⇒ 处置": "**删除草稿、不提交**（与『不提交红树』同一条纪律：**也不提交可能假绿的用例**）"
+ },
+ "confirmed_by_the_attempt": {
+  "可用的结构字段（实测过）": [
+   "`decree_id` 可用（`decree_id_of` 取 `decree_id`→`id`→`task_id`→`title`）",
+   "`canonical_decree` 的最小键：`title` · `body`（或 desc/text/content）· `visibility` · `addressees`（`delivery`/`effects` 可空）",
+   "`ELEMENTS = (title, body, effects, visibility, delivery, addressees)`（**:163 口径单点**）",
+   "`in_roster` 依 `MINISTERS`（可用 `sorted(dc.MINISTERS)[0]` 造受命者）",
+   "`recitation` 非 dict ⇒ **`ValueError`** ✅（用例 7 已验）",
+   "未知 `decree_id` ⇒ `defined=False` ✅（用例 8 已验）",
+   "`record=True` 两次 ⇒ `recitation_turn` 不变 ✅（用例 5 已验，幂等成立）"
+  ]
+ },
+ "remaining_unknown_one_step": "**`compose_recitation(canonical)` 的返回形状**与 **`_parse_recitation(raw)` 的期望形状**（即 `recitation` 参数到底是 `{元素→值}` 还是 `{\"elements\": {…}}` 或可读文本）⇒ 下批 **1 次 grep（`def compose_recitation` + `def _parse_recitation`，各带 12 行上下文）** 即可定，然后重写那 4 条用例",
+ "discipline": [
+  "**不提交可能假绿的用例**（本轮新增的姊妹纪律：既有的『不提交红树』管红，本条管**假绿**）",
+  "用例断言优先取**结构不变量**；但结构不变量若与「机制未触发」不可区分，则**必须先把形状读清**再断言"
+ ],
+ "verified": [
+  "5 过 3 红为真实运行结果；草稿已删除（工作树该目录无改动）"
+ ],
+ "next": [
+  "① 下批：1 次 grep 定 `compose_recitation`/`_parse_recitation` 形状 ⇒ 重写 4 条用例 ⇒ P3 批 5 收口",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:04:48Z"
+}
