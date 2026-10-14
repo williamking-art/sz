@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 04:53 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 06:11 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -9,7 +9,7 @@
 |---|---|---|
 | Cline.json | 阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期 | 2026-10-10T16:48:43Z |
 | DSH-JEV.json | Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。 | 2026-10-12T16:05:00Z |
-| DSH.json | 《宋祚》主顺序：各阶段均有落地物且规格状态一致。**P0** ✅5/5 门。**P1** 选点+链条只读读数（缺口 1,850,540）+ 原因链归因（**7 路主瓶颈全＝capacity_shortage**，每条带证据）。**P2** 归属落地（building_meta，保形态/非账本；40/40）· 六项只读派… | 2026-10-13 |
+| DSH.json | 《宋祚》主顺序：**各阶段均已勘察完毕**，其中 **P0/P1/P5 已收口**，P2 达其诚实上限（建筑/作坊各 8/14，岗位数由 Jev 裁丁维持 undefined），**P3 是唯一未开工**（须授权）。**主线的口径 backlog 已 Jev 定案完毕**：①外贸载体＝甲 0.875 ②外贸维度分配＝甲… | 2026-10-14 |
 | Qoder.json | 阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/） | 2026-10-09T23:58:31Z |
 | _legacy_shared_phase.json | - | - |
 | _retired.qoder.json | - | - |
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
-e962076f7b docs(handover): M169 `HANDOFF.md` 证据入口增强 —— 待裁清单/接手指南/收口总表 + **长局哨兵跑法**
-a9a1dc551a docs(spec): M168 收口总表同步**会话末状态**（M158–M167）—— P5 收口 / P6 开工 / 主线E 更正
-79d9a395e3 docs(spec): M167 规格状态表**纠错** —— P5 由「⬜ 未开工」改为「🟢 已收口」
-9e1b023bd1 feat(ai): M166 **P5 收口** —— 程序真值月报并入**读数摘要** + 修 `pilot_chain_gap` 的「缺失≠0」缺陷
-22f6701d3a docs(spec): M165 月报归因（P5 收口）**落点已定位** —— 应落 `fallback_report`，不追写 AI 的 `rich_report`
+1c53c27c7a feat(economy): M177 外贸**派生记账纯函数** `trade_ledger.py`（只算不写 · 守恒精确 · 零接线）
+215ab01904 chore(handover): M176b **补档并纠正计数** —— 上一条漏建任务档致 claim 失败（正文写 115，实际 114）
+18b0d83dfb feat(economy): M176 主线 F 实施**原子第一片** —— `state.trade_journal` 容器 + 守卫用例（零行为变化）
+e530d897a4 docs(spec): M175 外贸**维度分配＝甲（按产能/人口权重）**（Jev 0.550）⇒ 主线 F 前置 **100% 裁完**
+6b111313af docs(spec): M174 外贸真账**实施准备·只读侦察** —— 注入点 + **隐藏前置（维度分配口径）**
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ a9a1dc551a docs(spec): M168 收口总表同步**会话末状态**（M158–M167�
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **96** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **102** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 

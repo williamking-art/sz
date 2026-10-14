@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-14T06:10:13Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-14T06:22:30Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-13）：《宋祚》主顺序：各阶段均有落地物且规格状态一致。**P0** ✅5/5 门。**P1** 选点+链条只读读数（缺口 1,850,540）+ 原因链归因（**7 路主瓶颈全＝capacity_shortage**，每条带证据）。**P2** 归属落地（building_meta，保形态/非账本；40/40）· 六项只读派
+- **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序：**各阶段均已勘察完毕**，其中 **P0/P1/P5 已收口**，P2 达其诚实上限（建筑/作坊各 8/14，岗位数由 Jev 裁丁维持 undefined），**P3 是唯一未开工**（须授权）。**主线的口径 backlog 已 Jev 定案完毕**：①外贸载体＝甲 0.875 ②外贸维度分配＝甲
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
