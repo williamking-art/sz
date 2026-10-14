@@ -1,0 +1,31 @@
+{
+ "id": "M198-capacity-threshold-is-570-shops",
+ "title": "🎯 决定性口径：`capacity_shortage` **优先于** `demand_far_exceeds_supply` ⇒ 转档须 **cap ≥ demand**（≈**570 座**，现 28 座的 20 倍）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/domains/economy/p1_pilot_chain.py`（chain_of_route / diagnose_route 逐行）",
+ "findings": {
+  "判定优先级（逐字）": "`undefined_data → no_workshop → raw_shortage → capacity_shortage → demand_far_exceeds_supply → ok`（`diagnose_route` 的 `_add` 顺序，`:181-201`；`verdict = reasons[0][code]`）",
+  "⇒ 结构含义": "**只要 `cap < demand`，主瓶颈恒为 `capacity_shortage`**（即使成品覆盖不到一成，那也只是**次级**原因）",
+  "cap 的算法": "`cap = yld * len(shops)`（`:130`；注：`per_round * 0 +` 是残留写法，实际只用 `yield×座数`）",
+  "demand 的算法": "`_route_demand(state, route, PILOT[\"output_dim\"])`（`:134`；注释 `:150` 明写**走 M74 的 max 口径**）",
+  "🎯 转档阈值（本轮推论）": "要 `capacity_shortage` 不再出现 ⇒ 需 `cap ≥ demand` ⇒ 座数 ≥ `4,556,740 ÷ 8,000 ≈ **570 座**`（当前 28 座的 **≈20 倍**；20 路平均每路 ≈28 座）",
+  "⇒ 对 M197 的解释": "**『转档未发生』是结构必然**（28 座时 cap=224,000 ≪ demand=4.56M），**不是接线失误**（接线已实测有效：座数 28、产量 ×4、恒等式 0）"
+ },
+ "implication_for_acceptance": {
+  "🔴 结论": "**把『P1 转档』当作产能批的验收标准是不现实的**（等价于要求 ≈570 座）⇒ **应重定验收口径**（M197 选项**甲**因此更有据），或明确把『cap ≥ demand（≈570 座）』写成**远期目标**而非本批验收",
+  "建议写进文档": "把该**判定优先级**与**转档阈值公式**（`座数 ≥ demand / yield`）写入 `specs`（避免后人再按『转档』验收而误判；本会话已发生一次口径混用）",
+  "需求侧（M197 选项丙）": "仍值得只读核查 `_route_demand` 的 max 口径取哪些量（确定 4.56M 的来源），但**即使需求口径正确，570 座阈值也不变**（阈值只依赖 demand 与 yield）"
+ },
+ "next_batch": [
+  "① 把『判定优先级 + 转档阈值公式』写入 specs（零风险）",
+  "② 只读核查 `_route_demand` 的 max 口径来源（确认 4.56M 合理）",
+  "③ 仍待你：产能验收取向（甲/乙）· 营运资金载体（建议甲）· P3 授权"
+ ],
+ "verified": [
+  "优先级顺序、cap/demand 算法、阈值推论均为**代码逐行 + 实测数字**得出"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:12:59Z"
+}
