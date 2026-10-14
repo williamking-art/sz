@@ -1,0 +1,35 @@
+{
+ "id": "M225-market-chain-diagnosis-is-last-self-decidable-item",
+ "title": "主线F「最小州府市场切片」：**五环分环模块齐备**，裁定要求的**贯通（五环）守恒与缺失诊断**＝主顺序里最后一个可自决项",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读检索（`game/core` 内 `in_transit|pending_stock|market_slice|到货` 的命中文件）+ 用户裁决（主线F：『必须完成**产地—运输—成交—到货—加工**链条的**守恒和缺失诊断**』）",
+ "five_links_and_modules": {
+  "产地（投入/产出）": "`core/domains/production/production_chain.py`（归属解析：`household_self` 解为本路 `农` POP，不要求户级 `economic_affiliation`）",
+  "运输（在途）": "`in_transit` / `pending_stock` 命中：`core/game_state.py` · `core/save_load.py` · `core/material_market.py`（**P0 已验**：交通边、在途批次、跨路成交、补货下单）",
+  "成交（市场）": "`core/material_market.py` · `core/domains/economy/seat_market_shadow.py`（治所级：`seat_holders`/`seat_supply`/`seat_purchasing_power`/`seat_demand`）· `core/domains/economy/workshop_fund_shadow.py`（采购预算/额度影子）",
+  "到货（存量）": "`core/domains/economy/stock_flow.py`（存量流）· `core/domains/economy/stock_identity.py`（**恒等式**：`money_identity` 等）",
+  "加工（作坊）": "`core/settlement_econ.py::_settle_workshops`（配方消耗→产出→成品池）· `core/civil_building.py`"
+ },
+ "gap_analysis": {
+  "✅ 已有": "五环**各自**都有模块与（部分）读数：产量/归属（production）、在途（in_transit/pending_stock）、成交（material_market/seat_market_shadow）、存量与恒等式（stock_flow/stock_identity）、加工（_settle_workshops）",
+  "🔴 未见（本轮检索所及）": "**一条把五环串起来的『贯通诊断』**——即：给定**一处产地 → 一批货 → 某条路线 → 一次成交 → 一次到货 → 一道加工**，能**端到端**报出各环的**守恒**（数量/金额）与**缺失**（哪一环不可读、为什么）。裁定的措辞正是『**链条的**守恒和缺失诊断』（**链级**，非分环）",
+  "⇒ 主顺序最后一项可自决工作": "**新增一条『市场切片·链级诊断』只读读数**（零数值）：把五环的读数**按同一条货流**串起来，逐环给 `{数量, 金额, 去向, 可读性, 缺失原因}`，并对**端到端守恒**给出断言（产地出 − 运输在途 − 到货存量 − 加工消耗 ± 成品 = 0 的口径）"
+ },
+ "next_step": [
+  "① 下批：读 `stock_flow.py` + `stock_identity.py` 的现有 API（1–2 次 grep）⇒ 判断是否**已有**链级诊断（若有⇒只补文档；若无⇒按上条新增只读读数）",
+  "② 新增读数须守硬约束：**只读**（零数值）· **缺失≠0**（不可读环给 `None` + reason）· **口径单点**（各环数值一律取既有模块，不复制算法）· **不新增平行账本**",
+  "③ 定向回归 + 全量 + 文档 + log/commit"
+ ],
+ "why_this_is_in_order": "objective 的主顺序列有『**主线F 最小州府市场切片与外贸**』⇒ 我此前做了**外贸真账**（后半），本轮定位到**切片**的裁定要求（前半）＝**链级守恒与缺失诊断**，且它**不依赖任何外部输入**（只读）⇒ **可自决**",
+ "verified": [
+  "命中文件清单为只读检索实测；『未见链级诊断』是**本轮检索所及**的判断（下批读 `stock_flow`/`stock_identity` 后方可定论，故不武断）"
+ ],
+ "next_actions": [
+  "① 下批读 `stock_flow`/`stock_identity` API ⇒ 定论是否已有链级诊断 ⇒ 缺则新增只读读数",
+  "② 其余 4 项（A/B/C/D）仍待你"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:37:15Z"
+}
