@@ -63,3 +63,27 @@ store ok（state 7 键｜statistics.total_income=undefined）
 **可选修法（须单独一批）**：在截图台 bootstrap 里显式 `setState(STATE)`（或修 alias 使
 `storeMock` 真正生效），随后**逐张复核**并把本限制条删除。
 **页头探针**：`panel.tsx` 的探针已保留 `statistics.total_income` 一栏（诊断用；值为 `undefined` 即表示未接通）。
+
+
+---
+
+## 🔴 更正（M293）：上文「`state` 通道未接通」**结论有误，已撤回**
+
+**真相**：`state` 通道**本来就是通的**；此前的「未接通」是**我自己的 fixture 注入插错层级**造成的假象 ——
+`scripts/shot/fixtures.ts` 的缩进**不一致**（嵌套块的键也是 2 空格），我据此误判「已置于 `STATE` 顶层」，
+实则插进了**嵌套块** ⇒ `fixtures.STATE.statistics === undefined`。
+
+**决定性对照（同一条探针先后两次读数）**：
+
+| 轮次 | 页头读数 | 面板「累计统计」 |
+|---|---|---|
+| M292（注入在嵌套块） | `store.state 7 键｜statistics=undefined｜fixtures.STATE 7 键｜statistics=undefined` | 入 **0** 贯（行） |
+| **M293（移到真顶层后）** | `store.state **8 键**｜statistics=**16329544**｜fixtures.STATE **8 键**｜statistics=**16329544**` | 入 **1633 万贯（行）**· 出 **1741 万贯** |
+
+⇒ **`readouts` 与 `state` 两条通道均可用**；「`state` 通道盲点」一条**作废**，**不得**再据此写限制。
+**保留的资产**：页头探针（`fixtures.STATE` 键数与 `statistics` 值）——**下次注入 fixture 时先看它**，
+可立刻发现「注入没进顶层」这类问题（**这正是本次的诊断工具**）。
+
+**教训（新增，第 5 条自查纪律）**：**下结论前先验证「探针自身的输入」**——
+本次我据「探针读不到值」断言通道死，却没先验证 `fixtures.STATE.statistics` **是否真的在顶层**。
+⇒ 探针结论必须连同**其输入的前置核验**一起给出，否则会把「自己的错误」误判成「系统的缺陷」。
