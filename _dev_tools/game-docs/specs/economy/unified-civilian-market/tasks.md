@@ -1388,3 +1388,29 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 **为何不是「后端补键」**：`finance_readout`（`core/game_state_econ.py:362`）已明确「**GUI 与终端共用，
 避免两处口径漂移**」⇒ **前端已有权威分项**，再让后端往 `tax_breakdown` 补 `tax_color`/`salt_coin`
 反而会**制造第二份口径**（违口径单点）⇒ **正解是前端改读既有权威面**。
+
+
+### M275 修复·**取数口径已完全确认**（M280）——剩下的是纯机械编辑
+
+**范例调用（`hud/TopBar.tsx`）已读实**：
+```tsx
+const state    = useGameStore((s) => s.state);      // :9
+const readouts = useGameStore((s) => s.readouts);   // :12
+const finance  = readouts ? (readouts.finance ?? null) : null;  // :45（注释：悬浮卡统一读 readouts.finance）
+const detail   = getTreasuryDetail(state, finance); // :92 → BudgetFlowData.incomes[]
+```
+
+**⇒ 目标改法（`GovernanceHub.tsx` 的「税入构成」块）**：
+1. 顶部改为取 `state` 与 `readouts` ⇒ `finance = readouts?.finance ?? null` ⇒ `detail = getTreasuryDetail(state, finance)`；
+2. 渲染 `detail.incomes`（**科目名 + amount**），**或**按下表把四个既有行改为查该列表：
+   | 现面板行 | 读 `tax_breakdown` 的键 | **改为在 `incomes` 里匹配的科目名** |
+   |---|---|---|
+   | 工商 | `commerce` | **`工商榷税`** |
+   | 役钱 | `poll` | **`身丁役钱`** |
+   | 二税折色 | `tax_color`（**该 dict 里不存在** ⇒ 恒 0） | **`两税折色`** |
+   | 盐课 | `salt`（**该 dict 里不存在；真名 `salt_coin`**） | **`盐铁官榷`** |
+3. **缺失语义**：`incomes` 里没有该科目＝**读数未就绪** ⇒ 显示 **「未定义」/占位**（**不补 0**，守 §3-3 与 store 既有口径 `:407`）；
+4. **删除**对 `state.tax_breakdown` 的读取（避免两套口径并存）。
+
+**验收断言（定向 vitest）**：① 科目缺 ⇒ 显示「未定义」而非 0；② 科目在且有值 ⇒ 显示 `amount`；
+③ **回归**：`GovernanceHub` 源码**不再出现** `tax_breakdown`。
