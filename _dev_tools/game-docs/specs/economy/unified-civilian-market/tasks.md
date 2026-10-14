@@ -1296,3 +1296,16 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 「无岗位建筑（开局 buildings 只有 水利/常平仓）⇒ 容量不可定义（不填 0）」）；数字与代码侧实测**一致**：
 `P1 缺口 4,545,108` · `内帑/国库比 48.5369` · `税收口径差额 9,834,320.67` · `链级诊断 4 环`
 ⇒ **截图台现已可验收「21 项正确显示」**（数据内容级），并**反证**我早前写的 `ok=19/undefined=2` 确为过期。
+
+### 附：截图台 mock 的 readout 顶层键补全（M266/M269/M271）
+
+> 背景：`getApiClient().readouts()` 是**单端点** `/api/readouts`（**无 kind 参数**），所谓 kind 就是该 payload 的**顶层键**（`client.ts` 的 `ReadoutsResult`）。截图台 mock 的 `fixtures.ts::READOUTS` 是**旧的部分形状**（`army`/`regions`），新面板按顶层键取数 ⇒ 缺键者**只显示空态**。
+
+| 键 | 状态 | 真实来源（口径单点） |
+|---|---|---|
+| `hub` | ✅ **M266** 补（真实 payload，21 项） | `core.domains.economy.readout_hub.collect` |
+| `situations` | ✅ **M271** 补（真实 payload，43KB） | `core.situations.build_situation_readout`（与 `backend/server.py:888` 同源调用） |
+| `plan` | ⬜ **仍缺**（`PlanReadoutPanel` 显示诚实空态「不以空白填充『无工程』」） | 待查（`backend/server.py` :913 `plan` 的来源函数） |
+| `army` / `regions` 等 | ✅ 旧 fixture 已含 | `fixtures.ts` |
+
+**实测效果**：`situation-pop.png` **37.3KB → 93.8KB** ⇒ 渲染出**在办 6 · 已解 2 · 全国截面 · 16 路逐路心气**；「局势读数为空」提示**消失** ⇒ **该面板已可内容验收**。
