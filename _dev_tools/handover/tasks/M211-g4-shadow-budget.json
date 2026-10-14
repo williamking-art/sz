@@ -1,0 +1,29 @@
+{
+ "id": "M211-g4-shadow-budget",
+ "title": "G-4 工坊营运资金 **影子预算**（只读零数值；按用户 2026-10-08 裁决口径；含守恒方案）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "用户裁决（reviews/裁决落地与分批计划 §一1+2 等三处互证）· 本会话 M210 定位",
+ "deliverable": [
+  "`workshop_fund_shadow.working_capital_budget(state)` —— stage=shadow、只读、零数值",
+  "逐座：owner / procure_budget（取 recipe_cost 单点）/ wage_budget=None（如实）/ quota=None（缺失≠0）/ verdict",
+  "**守恒方案**字段：转账非注资 · M_ALL 恒等 · 只按成交扣款 · 不足即停工 · 缺 owner/余额/买方/地点 ⇒ 停工或未定义",
+  "_dev_tools/game-dev/tests/test_m211_g4_working_capital_shadow.py（5 用例）"
+ ],
+ "compliance": [
+  "🔴 裁决强制顺序『先影子后接线』——本批**只做影子**、未接线、未划钱",
+  "🔴 缺失≠0：工资义务无权威口径 ⇒ wage/quota 一律 None + reason（不拿建筑口径硬套）",
+  "🔴 只读：货币槽/作坊条目/治所真账逐字不变"
+ ],
+ "verified": [
+  "M211 用例全绿（含只读、缺失≠0、原料预算同源、守恒方案要素、缺 owner ⇒ undefined）；全量串行见日志"
+ ],
+ "next": [
+  "① 影子经你确认后，再做**接线**（真划转：A/B + 60/240 月 + 全量）",
+  "② **工资义务**仍是硬卡点（Jev 裁丁）——若要算全额度，须你给史源或授权标定",
+  "③ P3 授权仍待你"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:44:13Z"
+}

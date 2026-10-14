@@ -119,6 +119,61 @@ def feed_price(state=None) -> Optional[float]:
         return None
 
 
+def working_capital_budget(state) -> Dict[str, Any]:
+    """**G-4 工坊营运资金 · 影子预算**（只读、**零数值**；用户 2026-10-08 裁决口径）。
+
+    🔴 **口径（逐字取自裁决）**：出资＝**实际货主**（`owner`）从其**已有账户**划入，**纳入 `M_ALL`
+    并记录转账**（**禁影子记账/凭空注资**）；**开办额度 ＝ 一个月预计工资义务 ＋ 一个生产周期原料预算**，
+    **受货主可用余额限制**，**不足 ⇒ 不启动或缩产**；支付顺序 ① **先预留工资预算** → ② 余款采购
+    （**只按实际成交扣款**，未成交**解冻**）。
+
+    🔴 **只是影子**（`stage="shadow"`）：**不写 state、不改结算、不划钱** ⇒ 同种子 A/B 应恒等。
+    ⚠️ **工资义务在作坊维度无权威口径**（`JOBS_PER_LEVEL` 不含作坊；Jev 裁丁 0.446）⇒ **额度不可定义**（如实）。
+    """
+    ws = getattr(state, "workshops", None)
+    if not isinstance(ws, dict):
+        return {"stage": "shadow", "rows": [], "reason": "无 workshops（缺失≠0）"}
+    rows: List[Dict[str, Any]] = []
+    tot_procure = 0
+    n_procure = 0
+    for wid in ws:
+        row = ws.get(wid) if isinstance(ws.get(wid), dict) else {}
+        owner = row.get("owner") or row.get("owner_ref")
+        pc = recipe_cost(state, wid)
+        procure = pc.get("cost")
+        if isinstance(procure, (int, float)) and not isinstance(procure, bool):
+            tot_procure += int(procure)
+            n_procure += 1
+        rows.append({
+            "workshop": wid, "owner": owner,
+            "procure_budget": (None if procure is None else int(procure)),
+            "procure_reason": pc.get("reason"),
+            "wage_budget": None,
+            "wage_reason": ("作坊维度**无工资义务权威口径**（`JOBS_PER_LEVEL` 只登记建筑；"
+                            "Jev 裁丁 0.446）⇒ 一个月工资义务**不可定义**（不拿建筑口径硬套）"),
+            "quota": None,
+            "quota_reason": "额度含『一个月工资义务』项 ⇒ 该项不可定义 ⇒ **额度不可定义（缺失≠0）**",
+            "verdict": ("undefined" if owner is None else "budget_undefined"),
+        })
+    return {
+        "stage": "shadow",
+        "rows": rows[:20],
+        "workshop_count": len(rows),
+        "procure_total": (tot_procure if n_procure == len(rows) else None),
+        "procure_readable_count": n_procure,
+        "wage_budget": None,
+        "quota": None,
+        "conservation_plan": (
+            "**接线的守恒方案（先方案、后接线）**：① 出资＝货主**既有账户**（`owner` 指向的 POP/国库/"
+            "内帑/地方府库）⇒ 属**转账**而非注资（付款方减少、收款方增加 ⇒ **`M_ALL` 恒等**）；"
+            "② 每笔划转**必须登记转账**，否则破坏货币恒等式（M0–M3）；③ 采购**只按实际成交扣款**、"
+            "未成交**解冻**（预留不离开货主账户）；④ **不足 ⇒ 不启动或缩产**（不借钱、不透支、不凭空注资）；"
+            "⑤ 无 owner / 余额 / 买方 / 地点 ⇒ **停工或显示未定义**。"),
+        "note": ("G-4 **影子预算**（裁决要求『先做影子预算，不接正式结算』）：**只读、零数值**；"
+                 "原料预算取 `recipe_cost`（既有单点）；**工资义务如实未定义** ⇒ **额度与不足判定一并不可定义**。"),
+    }
+
+
 def recipe_cost(state, wid: str) -> Dict[str, Any]:
     """作坊**采购预算**：Σ(配方量 × 既有基准价)；缺价维 ⇒ `None` + 列出。"""
     ws = (getattr(state, "workshops", None) or {}).get(wid)
