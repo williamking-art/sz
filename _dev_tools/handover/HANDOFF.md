@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 04:42 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 04:53 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
+e962076f7b docs(handover): M169 `HANDOFF.md` 证据入口增强 —— 待裁清单/接手指南/收口总表 + **长局哨兵跑法**
 a9a1dc551a docs(spec): M168 收口总表同步**会话末状态**（M158–M167）—— P5 收口 / P6 开工 / 主线E 更正
 79d9a395e3 docs(spec): M167 规格状态表**纠错** —— P5 由「⬜ 未开工」改为「🟢 已收口」
 9e1b023bd1 feat(ai): M166 **P5 收口** —— 程序真值月报并入**读数摘要** + 修 `pilot_chain_gap` 的「缺失≠0」缺陷
 22f6701d3a docs(spec): M165 月报归因（P5 收口）**落点已定位** —— 应落 `fallback_report`，不追写 AI 的 `rich_report`
-81f05beba7 test(economy): M164 长局哨兵支持**三档**（12/60/240 月）—— P6 第二层可强制执行
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -64,10 +64,21 @@ a9a1dc551a docs(spec): M168 收口总表同步**会话末状态**（M158–M167�
 |---|---|
 | 看板 / 全部任务状态 | `INDEX.md`（`handover.py summary` 重建） |
 | **所有 Jev 裁定与概率** | `DECISIONS-INDEX.md` |
+| **待拍板的决策（一页简报）** | `_dev_tools/game-docs/specs/cross-cutting/待裁清单_*.md` |
+| **接手指南 / 收口总表** | `_dev_tools/game-docs/specs/economy/unified-civilian-market/{接手指南,收口总表}_*.md` |
 | 逐批实测数字与门禁结论 | `worklog/`（追加式，一条一文件） |
 | 全量回归原始输出 | `_scratch/full_regression_*.log`（各 agent 约定） |
 | 规范与设计 | `_dev_tools/game-docs/specs/**`（含 `接手指南_*.md`） |
 | 提交与哈希 | `git log`（`claim finish --commit <hash>` 亦记录） |
+
+### P6 长局哨兵（60/240 月 · 固定种子）
+
+```powershell
+& $py -m pytest _dev_tools/game-dev/tests/test_m162_long_run_sentinel.py -q -p no:cacheprovider   # 12 月（默认档）
+$env:SONGZUO_LONG_RUN="1";   & $py -m pytest _dev_tools/game-dev/tests/test_m162_long_run_sentinel.py -q   # 60 月（约 46s）
+$env:SONGZUO_LONG_RUN="240"; & $py -m pytest _dev_tools/game-dev/tests/test_m162_long_run_sentinel.py -q   # 240 月（约 184s）
+```
+锁定四项：**无异常** · 货币恒等式残差 **0** · POP 守恒违规 **0** · 读数契约违规 **0**（60/240 月实测均通过）。
 
 ### 提交前门禁（每次提交不可省）
 
