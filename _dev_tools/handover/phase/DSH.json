@@ -1,20 +1,21 @@
 {
- "phase": "《宋祚》主顺序：**各阶段均已勘察完毕**，其中 **P0/P1/P5 已收口**，P2 达其诚实上限（建筑/作坊各 8/14，岗位数由 Jev 裁丁维持 undefined），**P3 是唯一未开工**（须授权）。**主线的口径 backlog 已 Jev 定案完毕**：①外贸载体＝甲 0.875 ②外贸维度分配＝甲 0.550 ③产能旋钮＝乙 0.591（作坊数量，量级待标定）④作坊岗位数＝丁 0.446 ⑤纯文档批免全量＝typesafe 0.720 采纳（已用）⑥4 目＝中央专税 0.674（已落地为文档）。**主线 F 实施已推进两片**：M176 `state.trade_journal` 容器（未接线）+ M177 `trade_ledger.py` 纯函数记账（守恒精确、4 用例全绿）⇒ **只剩「接线批」**：在 `settlement_econ.py:551-570` 调 `allocate_legs` → `state.trade_journal.extend(...)`（**只记不二次入账**——B1 修复立的规矩）+ `save_load` 登记 + `statistics` 单列 + **同种子 A/B（应恒等）+ 60/240 月长局 + 全量回归**。**仍待你一句的只有 2 项**：②营运资金载体（我建议甲：士绅恒 1.000；内帑 240 月 ~0.87 可作次选）· ⑤P3 授权。",
+ "phase": "《宋祚》主顺序『可自决部分』已全部收口（M37–M233）。P0 5/5 门；P1 收口（选点+归因+产能批：丝坊 7→28、recipe 共享根因修复、阈值公式 570 座、验收口径 Jev 甲 0.764、60/240 月复测）；P2 诚实的 8/14（未就绪字段的 reason 均已写明：不适用或已裁定 undefined；可选改进=applicable_* 语义键）；P3 批 5 收口（设计+API+门契约+形状+执行顺序+11 用例全绿，只剩接线）；P4/主线F 双落地（外贸真账四片 + 链级诊断读数第 21 项已有值）；主线E 诚实上限（6 目归属+三率三分+2 处自我更正，数据待史料）；主线D/G-4 影子预算+守恒方案（待确认后接线）；P5 收口（21 项读数+端点+面板+月报归因）；P6 长局三档（60/240 月四项全过）。只剩 4 项需用户一句话：A 授权 P3 接线、B 确认 G-4 影子后接线、C 工资义务史源、D affiliation 史料。",
  "updatedAt": "2026-10-14",
  "agent": "DSH",
  "verification": {
-  "pytest": "全量串行 **EXIT=0**（_scratch/full_regression_m177.log；各批日志同目录）",
-  "long_run": "**P6 长局哨兵三档**（默认 12 月纳入回归 · SONGZUO_LONG_RUN=1 → 60 月 45.9s · =240 → 240 月 184s）；**60/240 月四项全过**：无异常 · 货币恒等式残差 **0** · POP 守恒违规 **0** · 读数契约违规 **0**",
-  "gates": "提交前门禁**分档**（M172b）：纯文档/交接批 ⇒ 索引纪律 + JSON lint + check + --cached --check；含 `game/` ⇒ 全量不可省（判定以暂存清单为准）",
-  "tsc_vitest": "本批复测（见提交日志）",
-  "index_discipline": "test_readme_sync 48 passed（本会话踩坑 7 次，已内化为『新模块提前回填 README』）",
-  "handover": "check 见提交日志（本批回写后计数）",
-  "json_lint": "自建 lint 门累计 **14 次**挡住不合法 JSON（内层直引号 ×13、结构错 ×1、Python None ×1 归类）"
+  "pytest": "全量串行 EXIT=0（_scratch/full_regression_*.log；最近 M227/M228）",
+  "long_run": "60 月 EXIT=0（M204）· 240 月 EXIT=0（M230，含 21 项读数契约）",
+  "frontend": "tsc web/node = 0/0 · vitest = 0（M205 终验）",
+  "gates": "提交前门禁分档（M172b）：纯文档/交接批免全量；含 game/ 必全量；--cached --check 参与退出码",
+  "index_discipline": "test_readme_sync 48 passed",
+  "handover": "check 问题=0（tasks/decisions/worklog 计数以实际输出为准）",
+  "json_lint": "自建 lint 门累计 17 次拦下不合法 JSON"
  },
- "next": "**① 接线批（外贸真账收口）**：按上方「只剩接线批」执行——Jev 口径已全定、容器与纯函数已就绪，**一次可完成**（A/B 应恒等：只记账不进结算）。**② 产能批**：旋钮乙（作坊数量）+ 量级标定（Jev 或你给量级）+ A/B + 60/240 月。**③ 仍待你**：②营运资金载体（建议甲）· ⑤P3 授权。**④ 零风险余项**：截图台验收（需 Edge headless）· 多 AI 策略种子（需 provider）。",
+ "next": "① 可选零数值项：applicable_fields/applicable_ratio/not_applicable 三键（区分不适用与缺失）——动手前**逐字段读 reason** 定子集（M233 教训：低 defined_ratio ≠ 缺口）。② 待用户 4 项：A P3 接线（授权后：复用 decree-action-chain 最小闭环，先读 D-复述门/D9-D11；注意会卡死诏令通道）· B G-4 接线（确认影子后：真划转 + 记录转账 + A/B + 60/240 月）· C 工资义务史源（补全 G-4 额度公式的另一半）· D affiliation 史料（否则按裁定留 unclassified）。",
  "pending_decisions": [
-  "营运资金载体（建议甲；内帑 240 月 ~0.87 为次选）",
-  "P3 授权",
-  "产能旋钮乙的**量级**（每路 +几座 / 开局配比）"
+  "A 授权 P3 接线",
+  "B 确认 G-4 影子后接线",
+  "C 工资义务史源",
+  "D affiliation 史料"
  ]
 }
