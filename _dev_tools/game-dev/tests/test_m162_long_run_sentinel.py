@@ -32,7 +32,14 @@ def _run(state, months):
 
 
 def _months():
-    return 60 if os.environ.get("SONGZUO_LONG_RUN") == "1" else 12
+    """档位：默认 **12 月**（保持全量回归快）· `SONGZUO_LONG_RUN=60` 或 `=1` ⇒ **60 月** ·
+    `SONGZUO_LONG_RUN=240` ⇒ **240 月**（P6 第二层；单次约 3 分钟，实测 184s 四项全过）。"""
+    v = str(os.environ.get("SONGZUO_LONG_RUN", "")).strip()
+    if v == "240":
+        return 240
+    if v in ("1", "60"):
+        return 60
+    return 12
 
 
 def _fresh():
