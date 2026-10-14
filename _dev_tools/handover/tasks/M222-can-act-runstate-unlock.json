@@ -1,0 +1,41 @@
+{
+ "id": "M222-can-act-runstate-unlock",
+ "title": "P3 批 5 余四条用例的**解锁条件已定位**：`can_act` 需 ①actor 在 `_actor_store` ②`status==MINISTER_STATUS_IN_OFFICE` ③`authority` 为数值且 >0",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/domains/administration/minister_agent.py`（`can_act` :122-139 · `actor_view` :106-119 · 建档收尾 :100-103 · `remember` :142-）",
+ "unlock_conditions": {
+  "can_act 的判据（逐行）": [
+   "`actor = _actor_store(state).get(aid)`；**非 dict ⇒ `{\"ok\": False, \"reason\": \"unknown_actor\"}`**",
+   "`actor.get(\"status\") != MINISTER_STATUS_IN_OFFICE` ⇒ **`not_in_office`**",
+   "`_num(actor.get(\"authority\")) is None` ⇒ **`authority_undefined`**（**不按有权/无权擅自判定**）",
+   "`authority <= 0` ⇒ **`no_authority`**",
+   "否则 ⇒ **`{\"ok\": True, \"reason\": \"ok\", \"authority\": <值>}`**"
+  ],
+  "⇒ 要过门（授权维度）": "需在 `_actor_store(state)[aid]` 放一个 dict，且 `status == MINISTER_STATUS_IN_OFFICE`、`authority` 为 **>0 的数值**",
+  "⇒ 还要过『受命人』校验": "`canonical_decree(D)[\"addressees\"]` 若不为 None ⇒ `aid` **必须在其中**（`:608-613`）⇒ **测试的 decree 应把该 aid 写进 `addressees`**"
+ },
+ "record_path": {
+  "复述记录的载体": "`minister_agent.remember(state, actor_id, *, kind, text, turn=None, source=None)` —— **写入本人记忆**；`decree_confirm.record_recitation` 即经它落记（复述本体为可读句 ＋ `‖` ＋ JSON）",
+  "⇒ 幂等近似": "`record_recitation` 内部应对『已有记录』幂等（M217 契约：「已有记录不重写」）；`confirm_decree(record=True)` 两次的 `recitation_turn` 不变**已在 M218 实测过**"
+ },
+ "remaining_step_one_grep": "建档函数名（`:100-103` 的收尾说明其上方有创建函数，形如 `ensure_actor`/`create_actor`，**本轮上下文用尽未读其签名**）⇒ 下批 **1 次 grep** 取签名；若不便，测试也可**直接 seed `_actor_store`**（同进程内可访问；属测试夹具，不改产品代码）",
+ "test_recipe_for_four_cases": {
+  "前置": "① `aid = sorted(dc.MINISTERS)[0]`；② 造运行态：`_actor_store(s)[aid] = {\"actor_id\": aid, \"status\": MINISTER_STATUS_IN_OFFICE, \"authority\": 5, \"memory\": [], \"posts\": [], \"intents\": []}`；③ `D = {\"decree_id\":\"T\",\"title\":\"…\",\"body\":\"…\",\"visibility\":\"公\",\"addressees\":[aid]}`",
+  "① 一致⇒放行": "`confirm_decree(s, \"T\", aid, decree=D, recitation=compose_recitation(canonical_decree(D)))` ⇒ 期望 `authorized=True`、三列表空、`withheld=False`",
+  "② 不符⇒拒": "同上但传改坏副本 ⇒ 期望 `mismatched` 非空（且**若门另设拒态**，其 status 应与 ① 不同）",
+  "③ 未复述⇒拒": "`recitation=None` 且无记录、`record=False` ⇒ 期望 `recited=False` **且非通过**（与 ① 区分：比对项不可得）",
+  "④ 防伪（AI 候选）": "把 `backfill_candidates(s)` 的候选**直接**当 `recitation` 递上 ⇒ 期望**不得**判为通过"
+ },
+ "honesty_note": "本轮**只定位解锁条件，未写用例**（建档函数签名未读，直接 seed 内部 store 属测试夹具写法，须先确认是否合项目惯例——`test_*` 里是否已有同类 seed 用例，下批可 1 次 grep 查）",
+ "verified": [
+  "`can_act` 的四条判据、`actor_view`/`remember` 的职责、以及 `:100-103` 的建档收尾均为**逐行实测**"
+ ],
+ "next": [
+  "① 下批：1 次 grep 取建档函数签名（或查既有测试的 seed 惯例）⇒ 写那四条用例 ⇒ P3 批 5 完整收口",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:21:40Z"
+}
