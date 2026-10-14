@@ -9,7 +9,7 @@
 |---|---|---|
 | Cline.json | 阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期 | 2026-10-10T16:48:43Z |
 | DSH-JEV.json | Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。 | 2026-10-12T16:05:00Z |
-| DSH.json | 《宋祚》主顺序『可自决部分』已全部收口（M37–M233）。P0 5/5 门；P1 收口（选点+归因+产能批：丝坊 7→28、recipe 共享根因修复、阈值公式 570 座、验收口径 Jev 甲 0.764、60/240 月复测）；P2 诚实的 8/14（未就绪字段的 reason 均已写明：不适用或已裁定 unde… | 2026-10-14 |
+| DSH.json | 《宋祚》主顺序『可自决部分』全部收口（M37–M240）。P0 5/5 门；P1 收口（产能批：丝坊 7→28 · recipe 共享根因修复 · 阈值公式 570 座 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%，旧 def… | 2026-10-14 |
 | Qoder.json | 阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/） | 2026-10-09T23:58:31Z |
 | _legacy_shared_phase.json | - | - |
 | _retired.qoder.json | - | - |
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
+7d83db166a docs(spec): M240 文档正文同步 —— P2 就绪度**口径修正**与**两条不变量**写入正文
 dc2870391a test(economy): M239 `applicable_*` 口径修正**钉成不变量** —— 4 条守卫用例
 1ce7fa10db feat(economy): M238 P2 就绪度**口径修正**落地 —— `applicable_*` 四键（区分「不适用」与「缺失」）
 a26ff4ef97 fix(economy): M237 P2 可解释性**不变量** —— `undefined` 必带 `reason`（补 `level` 的 reason + 三条守卫）
 e314fe381d docs(spec): M236 `applicable_*` **三集已定**（依据 `reason` 原文）＋ 发现 `level` 缺 `reason`
-f12180280e docs(spec): M235 `applicable_*` 三键**距落地仅剩 1 步** —— 最短路径＝直接调 `project_*`
 ```
 
 ## 2. 下一步（什么尚未完成）
