@@ -1,0 +1,54 @@
+{
+ "id": "M146-coverage-timeseries",
+ "title": "内帑/国库**时点覆盖率重算** + 🔴 **更正 M145 的推断**（候选池口径与账户余额不一致）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮三时点只读实算（同种子；`owner_candidates_shadow.survey_owner_candidates`）",
+ "measured": {
+  "需求（三时点恒定）": 28400000,
+  "开局": {
+   "state_treasury": 0.176,
+   "imperial": 0.035,
+   "pop_gentry": 1.0,
+   "pop_merchant": 1.0,
+   "local_route": 0.579,
+   "workshop_self": null
+  },
+  "6月": {
+   "state_treasury": 0.176,
+   "imperial": 0.035,
+   "pop_gentry": 1.0,
+   "pop_merchant": 1.0,
+   "local_route": 0.579,
+   "workshop_self": null
+  },
+  "12月": {
+   "state_treasury": 0.003,
+   "imperial": 0.136,
+   "pop_gentry": 1.0,
+   "pop_merchant": 0.142,
+   "local_route": 0.745,
+   "workshop_self": null
+  }
+ },
+ "findings": {
+  "① 6 月与开局完全相同": "⇒ 候选池在**前 6 个月未被结算改变**（与 M71 给我的印象不同：M71 的时点是 0/12 月量级）",
+  "② 12 月才显著变化": "国库塌到 **0.003** · 商人塌到 **0.142** · 路级官府升到 **0.745** · 内帑升到 **0.136** ⇒ 与 M71 的『民营 12 月 0/20 路』方向一致",
+  "③ 士绅恒 1.000（三时点）": "**再次印证**『士绅是唯一稳定来源』⇒ 支持 M122「先甲」",
+  "④ workshop_self 恒 null": "与 M58『作坊自持』判为**违规**（需与 POP 平行的存量载体）一致 ⇒ 不可用",
+  "🔴 ⑤ **口径冲突（重要）**": "M145 实测 6 月 **内帑余额 = 3,852,211**，但同期候选池 `imperial` 覆盖率**仍为 0.035**（= 开局值，对应池约 994,000）⇒ **两者口径不同**：候选池**不是**直接取 `imperial_treasury` 余额（可能有上限/取另一槽/取未结算分支）"
+ },
+ "correction_of_M145": "M145 我写『若允许内帑出资，M122 的结论可能改变』——**该推断目前证据不足**：候选池在 6 月**未反映** 3.85M 内帑。⇒ **更正为**：先查清 `owner_candidates_shadow.pool_of(\"imperial\")` 的**取值口径**（读哪个槽、有无上限），再谈内帑能否改变排序。**在此之前，M122 的裁定依据仍以『士绅恒 1.000』为主**。",
+ "not_done_why": "查池口径需读 `owner_candidates_shadow` 的取值实现（含可能的按政权/按路分支），本轮只做量化与更正",
+ "verified": [
+  "三时点为同一存档连续采样（开局→6月→12月），需求恒定 28,400,000"
+ ],
+ "next": [
+  "① 下一批：只读查 `pool_of` 各候选的**取值点**（尤其 imperial/state_treasury），确认是否有上限或旁路",
+  "② 查清后回到 M122 裁定（士绅 vs 内帑）",
+  "③ 既有卡口不变：产能 · 作坊岗位数 · P3 授权；主线 F 三条口径待裁"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T00:25:43Z"
+}
