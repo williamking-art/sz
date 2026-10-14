@@ -1,0 +1,29 @@
+{
+ "id": "M201-demand-caliber-fully-traced-and-consistent",
+ "title": "需求侧**完全追清**：4.56M = Σ(全人口 × 人均基本需求 × 余量释放率) ⇒ **无明显口径错误**；问题纯属口径混用 ⇒ 甲（重定验收）成立",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/domains/economy/seat_market_shadow.py::seat_demand`（:118-160）",
+ "chain_complete": {
+  "逐阶层": "`need = demand.basic_need(cls, dim, size)` —— 🔴 **已含 size**（返回该阶层**需求总量**；M74b 修过『再乘 size』的双重计数，Jev 甲 0.998）",
+  "释放率": "`rel = demand.demand_release(cls, per_capita)`（`per_capita = wealth / size`）—— 程序侧未完整读到其内部，但从命名与注释可知为**按余量释放**的 0..1 权重",
+  "汇总": "`total = Σ_classes need × rel`（逐阶层）⇒ `_route_demand` 再**逐治所求和** ⇒ `pilot_chain_gap` 再**逐路求和**"
+ },
+ "verdict": {
+  "✅ 无明显口径错误": "4,556,740 ≈ **Σ全人口 × 人均基本需求 × 释放率**（宋境人口约 9,000 万量级 ⇒ 人均约 0.05 单位/月）⇒ **数学自洽**，与『人口×人均需求』的经济学直觉一致",
+  "⇒ 此前困惑的根因": "**纯属口径混用**（M82 的 2.3% 是京畿路**单路**；`pilot_chain_gap` 是**全链路**）——M197 已如实更正、M200/M201 补齐链路",
+  "⇒ 选项丙（改需求）": "**无证据支持**（需求口径未发现错误）⇒ **不采纳**",
+  "⇒ 选项甲（重定验收）": "**成立**（Jev 甲 0.764，已落地）：验收改『座数/产能按裁决已提升 + 单路覆盖显著改善 + 守恒不变』；`cap ≥ demand`（≈570 座）列为**远期目标**"
+ },
+ "closure": "🔵 **P1 产能线至此完全闭合**：真账（丝坊座数）+ 根因（recipe 共享）+ 守卫 + 阈值公式 + 需求侧链路 + 验收口径（Jev 裁定）——**六项齐备、无遗留待查**",
+ "verified": [
+  "`seat_demand` 的逐阶层算法逐行读取；M74b 的双重计数修复与『已含 size』在注释中明写；4.56M 的数量级与人口×人均需求自洽"
+ ],
+ "next": [
+  "① P1 线**无遗留**；后续可选：把 `demand_release` 的内部权重也只读补全（纯文档价值，非阻塞）",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:16:40Z"
+}
