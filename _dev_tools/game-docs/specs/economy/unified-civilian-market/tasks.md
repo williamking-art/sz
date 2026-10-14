@@ -1363,3 +1363,28 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 2. `GovernanceHub` 改为**从该分项**取 `commerce`/`poll`/`tax_color`/`salt_coin`（**面板不自算**，守口径单点）；
    缺失键 ⇒ **显示「未定义」**（守 §3-3），**不回落 0**；
 3. 前端定向用例 + `tsc`/`vitest` + 重拍 `governancehub.png` **目视**（税入四项应出现非 0 或「未定义」）。
+
+### M275 修复**施工图定稿**（M277：权威对象已定位）
+
+**权威暴露面（已读实）**：`gameStore.tsx` 的 **`incomes: BudgetCategoryItem[]`** ——「月入分项」由
+`finance_readout` 派生（`commerce`/`poll`/`maritime`/**`taxColor`←`tax_color`**/**`salt`←`salt_coin`**，见 `:389-405`），
+组装为科目项 `{name, amount, desc, formula}`：
+`两税折色`←`taxColor` · `工商榷税`←`commerce` · **`盐铁官榷`←`salt`** · `身丁役钱`←`poll`（`:408-439`）。
+
+🔴 **并且**：`:407` 注释明确 —— 「**只列读数存在且 >0 的科目，避免 0 值噪音**（读数未就绪时**全部不列** →
+悬浮卡显示占位提示）」。⇒ 这是**已实现好的口径**，面板**应当复用**，而不是自己去读 `tax_breakdown`。
+
+**⇒ 施工图（下批机械执行）**：
+1. `GovernanceHub.tsx` 的「税入构成」块（`:76-90` 附近）**改为读 store 的 `incomes`** 科目列表
+   （按 `name` 匹配「两税折色 / 工商榷税 / 盐铁官榷 / 身丁役钱」**或**直接渲染该列表），
+   **删除** 对 `state.tax_breakdown` 的 `commerce/poll/tax_color/salt` 读取；
+2. **缺失语义**：科目**不在列表**＝「读数未就绪」⇒ 显示 **「未定义」/占位提示**（**不是 0**）；
+   科目在列表且 `amount > 0` ⇒ 显示数值。**严禁**自己把缺项补 0（守 §3-3 与既有 store 口径）；
+3. 定向 vitest：① `incomes` 缺某科目 ⇒ 面板显示「未定义」而非 0 ② 有该科目 ⇒ 显示其 `amount`
+   ③ **回归**：面板**不再**引用 `tax_breakdown`（可用 grep 断言或快照）；
+4. `tsc` 双配置 + `vitest` ⇒ 重拍 `governancehub.png` ⇒ **目视**（税入四项应为真实值或「未定义」）；
+5. 文档：`tasks/M275` 状态改 `done` 并附实测；`收口总表`/`tasks.md` 记该项修复。
+
+**为何不是「后端补键」**：`finance_readout`（`core/game_state_econ.py:362`）已明确「**GUI 与终端共用，
+避免两处口径漂移**」⇒ **前端已有权威分项**，再让后端往 `tax_breakdown` 补 `tax_color`/`salt_coin`
+反而会**制造第二份口径**（违口径单点）⇒ **正解是前端改读既有权威面**。
