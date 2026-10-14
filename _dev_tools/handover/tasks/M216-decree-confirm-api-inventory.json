@@ -1,0 +1,62 @@
+{
+ "id": "M216-decree-confirm-api-inventory",
+ "title": "P3 批 5 前置：`decree_confirm` **公开 API 全清单 + 七条用例逐一映射**（下批写用例可机械完成）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/decree_confirm.py` 的函数清单（行号实测）",
+ "api_inventory": {
+  "身份与规范化": [
+   "`decree_id_of(decree)` :240",
+   "`ensure_decree_id(state, decree)` :251（幂等锚）",
+   "`decree_of(state, decree_id)` :297",
+   "`addressees_of(decree)` :310",
+   "`canonical_decree(decree)` :325",
+   "`decree_digest(canonical)` :339"
+  ],
+  "复述（产生）": [
+   "`compose_recitation(canonical)` :349 → 复述**元素**",
+   "`render_recitation(elements)` :362 → 文本",
+   "`recite_source(decree_id)` :384",
+   "`_parse_recitation(raw)` :389（内部：文本→元素）"
+  ],
+  "复述（记录/查询）": [
+   "`record_recitation(state, decree_id, actor_id, elements, *, …)` :411",
+   "`recitations_of(state, decree_id, actor_id)` :440",
+   "`latest_recitation(state, decree_id, actor_id)` :466"
+  ],
+  "**门**": [
+   "`compare_recitation(expected, recited)` :489 → 判定 dict（含逐项比对）",
+   "🔴 **`confirm_decree(state, decree_id, actor_id, *, decree=None, …)` :536**（承办前的门）"
+  ],
+  "执行记录": [
+   "`exec_ledger_of(state)` :678",
+   "`execution_of(state, decree_id)` :687",
+   "`_ledger_mut(state)` :694（内部）"
+  ],
+  "补录（历史）": [
+   "`backfill_candidates(state)` :707",
+   "`backfill_decree(state, decree, actor_id, *, …)` :729"
+  ]
+ },
+ "use_case_mapping": {
+  "1 正·一致⇒放行": "`canonical_decree` → `compose_recitation` → `record_recitation(…, elements)` → **`confirm_decree(state, did, actor)`** 应放行；再 `execution_of(state, did)` 可查",
+  "2 负·未复述⇒拒": "**不调** `record_recitation`，直接 `confirm_decree` ⇒ 应拒（理由应为『未复述/无复述』）",
+  "3 负·复述不符⇒拒": "`record_recitation` 传**改坏的元素**（如改文本/改数值）⇒ `compare_recitation` 判不一致 ⇒ `confirm_decree` 拒",
+  "4 负·无权限承办者⇒拒": "用**非受命者** `actor_id` 调 `confirm_decree` ⇒ 应拒（理由应为权限/承办者不符）",
+  "5 幂等·重复复述/承办": "重复 `record_recitation` 与重复 `confirm_decree` ⇒ `recitations_of` 不重复计、`execution_of` **不重复执行**（`ensure_decree_id` 锚）",
+  "6 防伪·AI 候选不得充当复述": "`backfill_candidates(state)` 的候选**直接**交给 `confirm_decree`（不经 `record_recitation` 由承办者产生）⇒ **不得**过门",
+  "7 补录·不改门判定": "`backfill_decree(state, decree, actor)` 后 ⇒ `confirm_decree` 的判定**不变**；`recitations_of` 可追"
+ },
+ "next_step_is_mechanical": "下批只需：① 读 `complete_decree`/`record_recitation` 的 **kwargs 与返回字段名**（1–2 次 grep 或小探针）② 按上表写 7 条用例 ③ 不接主链（裁定明文）",
+ "not_done_why": "写用例前仍需 kwargs/返回字段的**精确形状**（本轮已用尽上下文）⇒ 不盲写以免产生误导性红/绿",
+ "verified": [
+  "API 清单与行号均为 `decree_confirm.py` 的**只读实测**（两次检索合计 28 个定义，覆盖 000–729 行）"
+ ],
+ "next": [
+  "① 下批：读 kwargs/返回字段 ⇒ 写七条用例 ⇒ P3 批 5 收口",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:01:25Z"
+}
