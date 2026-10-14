@@ -1,0 +1,22 @@
+{
+ "id": "M245-readout-panel-failure",
+ "title": "读数面板失败行为：Jev 裁甲 0.737（明确失败提示 + 重试）—— 实施待下批",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M245-readout-panel-failure-behavior.json（Jev choose 甲 0.737）",
+ "deliverable": [
+  "裁定档（含理由：显式化未定义 · 乙因第二份真相被压至 0.006 · 丙即截图台踩到的问题 · 丁为甲的复合可后续）",
+  "实施计划五步"
+ ],
+ "not_implemented_why": "本轮只裁口径（上下文预算）；实施涉前端组件与 vitest，须整批一次做完",
+ "verified": [
+  "Jev 三项概率为实测输出；裁定与理由已入档（可复查）"
+ ],
+ "next": [
+  "① 下批按 implementation_plan 实施（纯前端、零数值）",
+  "② 其余：A P3 接线 · B G-4 接线 · C/D 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T11:09:33Z"
+}
