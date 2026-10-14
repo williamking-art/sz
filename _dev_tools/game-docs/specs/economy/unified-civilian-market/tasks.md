@@ -1309,3 +1309,17 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 | `army` / `regions` 等 | ✅ 旧 fixture 已含 | `fixtures.ts` |
 
 **实测效果**：`situation-pop.png` **37.3KB → 93.8KB** ⇒ 渲染出**在办 6 · 已解 2 · 全国截面 · 16 路逐路心气**；「局势读数为空」提示**消失** ⇒ **该面板已可内容验收**。
+
+### 关键口径差异（M272）：**`plan` 走 store，不走 `getApiClient()`**
+
+| 读数键 | 前端取数路径 | 补 fixture 的正确落点 |
+|---|---|---|
+| `hub` · `situations` | `getApiClient().readouts()`（**HTTP 客户端**） | `apiMock.ts` 的 `readouts()` 返回值 |
+| **`plan`** | **`useGameStore((s) => s.readouts)?.plan`**（**store**；见 `PlanReadoutPanel.tsx:23-24`） | **`storeMock.ts`** 的 `readouts`（**只补 apiMock 喂不到它**） |
+
+🔴 **教训**：截图台有**两条**读数通道（client 与 store）；补 fixture 前**必须先确认面板走哪条**，
+否则会「补了却没效果」（M272 实测：只补 apiMock 时 `planreadout.png` 仍是 16.4KB 旧空态，
+补 `storeMock` 后变 20.8KB 并渲染出**四层级**卡片）。
+
+**实测**：`situation-pop.png` 37.3KB→**93.8KB**（在办 6 · 已解 2 · 16 路）· `planreadout.png` 16.4KB→**20.8KB**
+（**受理 / 执行推进 / 工程告成 / 效果生效** 四层级；计数 **0 /（无）** 为**真实**——新局无在办工程）。
