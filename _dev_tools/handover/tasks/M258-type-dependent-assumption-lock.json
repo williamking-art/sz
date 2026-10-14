@@ -1,0 +1,23 @@
+{
+ "id": "M258-type-dependent-assumption-lock",
+ "title": "P2 not_applicable 的**类型相关假设锁**：若出现岗位类建筑则用例失败并提示改判",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M236/M238/M256 审计暴露的潜在语义风险（NOT_APPLICABLE_BUILDING 含 jobs_capacity/jobs_filled 属类型相关）",
+ "risk": "NOT_APPLICABLE_BUILDING 把 jobs_capacity/jobs_filled 列为不适用，其 reason 原文是『该建筑非岗位建筑』⇒ 该归类**只在开局建筑集全部为非岗位建筑时成立**。若日后出现岗位类建筑（有等级且 JOBS_PER_LEVEL 已登记），这两项应为**适用**，而常量仍标不适用 ⇒ **就绪度双口径系统性低估**（静默错误）",
+ "deliverable": [
+  "_dev_tools/game-dev/tests/test_m258_type_dependent_not_applicable.py（2 passed）",
+  "① 假设锁：遍历**全部**开局建筑的 jobs_capacity/jobs_filled，必须全 undefined；若任一有值则失败并**在断言消息里给出改判指令**（移出 NOT_APPLICABLE_BUILDING 或改为按建筑类型判定）",
+  "② 理由文本守卫：这两个字段在 NOT_APPLICABLE_BUILDING 里的理由**必须含『类型相关』**字样（防后人删注）"
+ ],
+ "verified": [
+  "M258 2 passed；遍历全部开局建筑（非抽样）"
+ ],
+ "next": [
+  "① 待用户 A/B/C/D",
+  "② 可选：把 NOT_APPLICABLE_* 改为按建筑/作坊类型动态判定（本次仅加锁，未改判定逻辑）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T14:08:03Z"
+}
