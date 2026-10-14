@@ -1,0 +1,34 @@
+{
+ "id": "M221-decree-gate-measurable-cases",
+ "title": "P3 批 5：复述门**六条可测用例**全部通过（不依赖建档）· 覆盖比对层 3 + 门前置 2 + 拒绝式 1",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M217 门契约 · M219 形状（扁平 {元素→值}）· M220 执行顺序（授权/受命人校验在比对之前）",
+ "deliverable": [
+  "`_dev_tools/game-dev/tests/test_m221_decree_gate_measurable.py`（**6 passed**）",
+  "按 M220 的结论**主动缩小范围**：只测**不依赖官员运行态**的部分，并**显式声明**另四条须建档"
+ ],
+ "cases": {
+  "比对层（3）": [
+   "正：`compose_recitation(canonical)` 与原旨一致 ⇒ `ok=True` 且三列表空；并断言**形状为扁平**（`\"elements\" not in rec`）",
+   "负：改坏 `body` ⇒ `ok=False` 且 `mismatched` 含 `body`（**不静默通过**）",
+   "严格性：漏 `title` ⇒ `missing`；塞 `野键` ⇒ `unsupported`（**不静默忽略**）"
+  ],
+  "门前置（2）": [
+   "未建档者 ⇒ `authorized=False` · `withheld=True` · `recited=False` · `status==STATUS_UNAUTHORIZED` · `in_roster=False`（**权限屏障如实**）",
+   "未知旨 ⇒ `defined=False` · `reason==\"unknown_decree\"` · `status==STATUS_UNDEFINED`（**缺失≠0**）"
+  ],
+  "拒绝式（1）": "自由文本复述 ⇒ `ValueError`（**不得**把自由文本当复述）"
+ },
+ "not_covered_why": "「一致⇒放行 / 不符⇒拒 / 未复述⇒拒 / 防伪（AI 候选）」四条**必须**先造**官员 Agent 运行态**（`can_act` 在建档后才可能通过；见 M220 的 `:584-613` 提前 return）⇒ **另批**（须先读 `can_act`/`minister_agent` 的建档入口）",
+ "verified": [
+  "M221 **6 passed**（真实运行）；全量串行见日志"
+ ],
+ "next": [
+  "① 下批可选：读 `can_act`/`minister_agent` 建档入口 ⇒ 补那四条『需建档』用例",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:08:45Z"
+}
