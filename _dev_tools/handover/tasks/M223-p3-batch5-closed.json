@@ -1,0 +1,30 @@
+{
+ "id": "M223-p3-batch5-closed",
+ "title": "P3 批 5 **收口**：需建档的四条用例落地（一致放行/不符拒/未复述拒/防伪）⇒ 批 5 累计 **11 用例**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M222 解锁条件（can_act 需 status=in_office + authority>0）· 公开建档入口 ensure_actor",
+ "deliverable": [
+  "`_dev_tools/game-dev/tests/test_m223_decree_gate_with_runstate.py`（**5 passed**：前置自检 + 四条门用例）",
+  "建档用**公开入口** `minister_agent.ensure_actor(state, aid, *, posts, authority)`（幂等、不覆盖记忆）；在朝状态按公开常量 `MINISTER_STATUS_IN_OFFICE` 置（测试夹具，**不改产品代码**）"
+ ],
+ "cases": {
+  "前置自检": "建档 + 在朝 + `authority=5` ⇒ `can_act(s, aid)['ok'] is True`",
+  "① 一致⇒放行": "`recitation=compose_recitation(canonical_decree(D))` ⇒ `authorized is True` · `withheld is False` · 三列表空",
+  "② 不符⇒不得放行": "改坏 `body` ⇒ `mismatched` 含 `body`（**不静默通过**）",
+  "③ 未复述⇒不得放行": "`recitation=None` 且无记录、`record=False` ⇒ `recited is False` 且**非**『三列表空且 authorized 且 recorded』",
+  "④ 防伪⇒不得放行": "`backfill_candidates` 候选**直接**当复述 ⇒ 三列表**不得**全空"
+ },
+ "batch5_total": "**11 用例**（M221 六条不依赖建档 + M223 五条含前置自检）—— 覆盖：比对层正/负/严格性 · 门前置（未建档者/未知旨）· 拒绝式 · 建档后可放行 · 不符/未复述/防伪",
+ "not_done_and_why": "**接线**（把 `confirm_decree` 挂进诏令主链）**未做**——裁定明文『**先设计与用例**』且接线会**卡死诏令通道**（『不宜自决』）⇒ **待你授权**",
+ "verified": [
+  "M223 **5 passed**（真实运行）；全量串行见日志"
+ ],
+ "next": [
+  "① **P3 批 5 已收口** ⇒ P3 只剩『**接线**』一步（待授权 A）",
+  "② G-4 影子确认接线（B）· 工资义务史源（C）· affiliation 史料（D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:23:28Z"
+}
