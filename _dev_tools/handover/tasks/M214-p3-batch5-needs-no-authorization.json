@@ -1,0 +1,27 @@
+{
+ "id": "M214-p3-batch5-needs-no-authorization",
+ "title": "更正框架：P3 批 5「复述门生产调用链设计 + 正负用例」按裁定只设计、门槛=无 ⇒ 不需要授权",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "reviews/裁决落地与分批计划_2026-10-08.md（裁决3 · 一-3 · 二 批5 · 三）· reviews/TODO_未完成事项总账.md（决策门 D）",
+ "findings": {
+  "裁决3": "D 诏令复述门：暂不接主链；接法=受命承办者承办前复述；AI 只出候选",
+  "机制已实现": "core/decree_confirm.py：compose/render/record_recitation · recitations_of · latest/compare_recitation · confirm_decree（门）· exec_ledger_of · execution_of · backfill_candidates · backfill_decree",
+  "真实缺口": "生产链无调用者（两调用方仅 import ensure_decree_id）",
+  "批5原文": "复述门生产调用链设计 + 正负用例 · 前置=无（只设计） · 待开工",
+  "三不做": "不接复述门主链（先设计与用例）",
+  "更正": "我自 M139 反复以『P3 须授权』不开工不准确——批5门槛=无且裁定要求先做；需授权的只是其后『接线』（挂进诏令主链会卡死通道，裁定称不宜自决）"
+ },
+ "batch5_scope": [
+  "生产调用链设计：承办前复述⇒record_recitation⇒过 confirm_decree 门⇒承办并 execution_of/exec_ledger_of 记账；AI 只出候选",
+  "正负用例：正=复述一致放行；负=未复述/不符/无权限⇒拒绝；幂等；AI候选不得充当复述",
+  "不接主链（裁定明文）⇒ 用例只针对 decree_confirm 的 API 行为"
+ ],
+ "next": [
+  "下一批直接做批5（零数值）",
+  "接线仍待授权 A：授权 P3"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:59:15Z"
+}
