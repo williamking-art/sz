@@ -1,0 +1,32 @@
+{
+ "id": "M149-line-e-tax-attribution",
+ "title": "主线 E 只读取证：税目**归属入账点**已定位 ⇒ **归属集中在中央、地方无分成**（并更正 M145 的一处口误）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮全库 grep（`tax_breakdown` 全部 14 处引用）+ 代码阅读",
+ "write_sites": {
+  "权威写点": "`core/settlement_finance.py:1274` —— **每月整表赋值** `state.tax_breakdown = {\"commerce\": commerce_tax, \"poll\": poll_tax, \"maritime\": maritime_tax, …}`",
+  "后写项": "`core/settlement_finance.py:1558/1561` —— `official_service`（助役钱实收）单独写；注释明说『原先只并入 actual_tax、无科目，玩家看不到「官户也在纳钱」』",
+  "默认与持久化": "`core/game_state.py:786`（默认 dict）· `core/save_load.py:196/533`（随档持久化 ✅）",
+  "读侧": "`core/domains/economy/read_models/flow_summary.py:99` · `core/game_state_econ.py:1693-1694`（poll/official_service 入 statistics）· 前端 `GovernanceHub.tsx:77` · `application/agent_router.py:39-40`（wake_diff 含 `tax_breakdown.`）"
+ },
+ "attribution_finding": {
+  "✅ 三目归国库（有注释口径）": "`flow_summary.py:6` 注释明写：『**国库收入 = tax_breakdown（工商税/役钱/市舶税，结算 Step4 权威分项）**』⇒ `commerce` / `poll` / `maritime` **入国库**",
+  "⚠️ `official_service` 归属未明": "它在 1274 的整表之后**单独补写**，且同时进 `statistics`；**没有任何注释/代码说明它进哪个账户** ⇒ **列为待确认**（待查 1550-1560 区段的入账去向）",
+  "🔴 **地方府库无税收分成**": "`tax_breakdown` 的**全部写点都不经过** `local_treasury_bridge`（后者只有 `local_treasury_add/set` 供其它用途）⇒ **税入中央、地方无分成**。这是主线 E（经济归属）的**关键缺口**：州府级**通道已就位**（M38 下沉成果），但**税不流经它**；也解释了 M145 的『地方府库 0.579→0.745 覆盖率』来自**其它来源**（非税分成）"
+ },
+ "correction_of_M145": "M145 我把税目写成『工商/役钱/二税折色/**盐课**』——🔴 **错**：`tax_breakdown` 的**实际键**是 `commerce` / `poll` / `maritime` / `official_service`，**没有 `salt`（盐课）键**。⇒ 更正：四目为 **工商 · 役钱 · 海税(市舶) · 助役钱(吏役类)**；盐课若存在，走的是**别的载体**（待查）。",
+ "not_done_why": "① `official_service` 的确切入账去向需读 1550–1560 区段（含上文变量）；② 盐课载体需另查 —— 二者都超出本轮预算",
+ "verified": [
+  "`tax_breakdown` 全库 14 处引用已逐一列出（写点 4 处、读侧 5 处、前端/路由 4 处、持久化 2 处，含重复计数说明）"
+ ],
+ "next": [
+  "① 下一批：读 `settlement_finance.py:1540-1565` 确认 `official_service` 入账去向",
+  "② 查盐课（若有）走哪个载体 ⇒ 补全四目归属表",
+  "③ 主线 E 的关键待裁：**地方是否应有税收分成**（现在没有）——这与 M37/M38『地方府库下沉』的**意图**是否一致，需你裁定",
+  "④ 既有卡口不变：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径待裁"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T00:57:42Z"
+}
