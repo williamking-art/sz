@@ -1,0 +1,44 @@
+{
+ "id": "M220-gate-order-found-m218-was-right",
+ "title": "🎯 根因：门在**比对之前**先做 `can_act` 与受命人校验 ⇒ 新局无建档 ⇒ **提前 return** ⇒ 比对不发生。**M218 的「假绿」判断其实是对的，M219 的降级错了（本条三方更正）**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `confirm_decree` 主体 :570-631（**执行顺序**逐行）",
+ "gate_order_actual": [
+  "1. `d = decree or decree_of(state, did)`：查不到 ⇒ `STATUS_UNDEFINED` / `unknown_decree` / `defined=False` + return",
+  "2. **`gate = can_act(state, aid)`**：`unknown_actor` ⇒ `STATUS_UNAUTHORIZED` + `withheld=True` + **return**；`authority_undefined` ⇒ UNDEFINED + withheld + return；`not ok` ⇒ UNAUTHORIZED + withheld + return",
+  "3. **受命人校验**：`addr is not None and aid not in addr` ⇒ `not_addressee` ⇒ UNAUTHORIZED + withheld + **return**",
+  "4. `out[\"authorized\"] = True`（**到此才可能有比对**）",
+  "5. `stored = latest_recitation(...)`；`recitation is not None ⇒ cand = {\"elements\": dict(recitation), \"origin\": \"caller\", …}`（**传入复述确实会被用**，但前提是已过 2/3）"
+ ],
+ "why_my_tests_saw_empty_lists": "`can_act(state, MINISTERS[i])` 在新局 **无官员 Agent 运行态（未建档）** ⇒ `unknown_actor` ⇒ **步骤 2 直接 return** ⇒ `mismatched/missing/unsupported` 全为空（**因为压根没比对**）⇒ `test_1`（正）的绿**是空通过** ⇒ 🔴 **我 M218 的判断（假绿）成立**",
+ "correction_chain": {
+  "M218": "判『test_1 疑为空通过（假绿）』⇒ **成立**（当时不提交正确）",
+  "M219": "我**降级**为『很可能是我的断言写错，非空通过』⇒ 🔴 **该降级错误**（本轮推翻）",
+  "M220（本条）": "**恢复 M218 的判断**：确为空通过，根因＝**门在比对前因未建档而提前 return**；M219 的『未复述⇒三列表空是正确表现』只说对了一半——**未复述时确实三列表空，但那是因为步骤 2/3 已 return**，与『正例也空』不可区分 ⇒ **判据确实不可靠**"
+ },
+ "feasible_test_plan_no_runstate": {
+  "可完整测（不触发授权屏障）": [
+   "① **比对层正例**：`compare_recitation(canonical_decree(D), compose_recitation(canonical_decree(D)))` ⇒ `ok is True` 且三列表空 **（此层即『复述比对』的核心，且不依赖授权）**",
+   "② **比对层负例**：同上但**改坏一个元素** ⇒ `ok is False` 且 `mismatched` 含被改键",
+   "③ **比对层严格性**：复述里塞**口径不认的键** ⇒ `unsupported` 非空（`record_recitation` 会 `ValueError`，`compare_recitation` 记 `unsupported`）",
+   "④ **门·未建档者**：`confirm_decree(..., actor_id=\"路人甲\")` ⇒ `UNAUTHORIZED` + `withheld=True` + `recited=False`（**权限屏障如实**）",
+   "⑤ **门·未知旨**：`confirm_decree(s, \"NOT-EXIST\", actor)` ⇒ `defined=False` / `unknown_decree`（**缺失≠0**）",
+   "⑥ **拒绝式**：`recitation=\"自由文本\"` ⇒ `ValueError`",
+   "⑦ **record 幂等**：`record_recitation` 两次（同旨同人同要素）⇒ 记忆条目不重复（幂等）"
+  ],
+  "须建档才能测（**暂不做/或另批**）": "『受命且建档的官员：一致⇒放行 / 不符⇒拒 / 未复述⇒拒 / 防伪（AI 候选）』——需先造官员 Agent 运行态（须读 `minister_agent`/`can_act` 的建档入口，属另一批）"
+ },
+ "discipline_note": "🔴 **同一结论我改了三次**（M218 判假绿 → M219 降级 → M220 恢复并给出根因）：说明**在缺『执行顺序』这一硬事实时，形式推断会来回摇摆** ⇒ 正确做法就是本轮所做的：**读主体、看顺序、再下结论**。",
+ "verified": [
+  "`confirm_decree` :570-631 的**六段顺序**与三处提前 return 为逐行实测；`recitation` 传入确实进入 `cand`（但须先过授权与受命人校验）"
+ ],
+ "next": [
+  "① 下批：按 `feasible_test_plan_no_runstate` 写**七条可测用例**（不依赖建档）⇒ P3 批 5 部分收口",
+  "② 『需建档』的四条（一致放行/不符拒/未复述拒/防伪）另批（须先读建档入口）",
+  "③ 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:07:17Z"
+}
