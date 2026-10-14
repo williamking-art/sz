@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGameStore, pick } from "../store/gameStore";
+import { useGameStore, pick, getTreasuryDetail } from "../store/gameStore";
 
 // 治务枢纽 —— 聚合 Tk 尚未迁至 Electron 的治理数据（只读展示）：
 //   资金流/税制 · 灾荒·时代·危机 · 帝国机制 · 纪事/奏折 · 条约/外交纪事 · AI计量
@@ -74,18 +74,35 @@ const GRANARY_LABELS: Record<string, string> = {
 
 function FundTab() {
   const state = useGameStore((s) => s.state);
-  const tax = asDict(pick<Dict>(state, "tax_breakdown", {}));
+  const readouts = useGameStore((s) => s.readouts);
+  // 🔴 M282（修 M275）：税入四项改从**权威分项**取 —— `getTreasuryDetail(...).incomes`
+  //   （来源＝`finance_readout`，store 注释明写「GUI 与终端共用，避免两处口径漂移」）。
+  //   ⚠️ 旧写法读 `state.tax_breakdown`：该 dict 由 `_settle_finance` 写入，**只有**
+  //   `commerce`/`poll`/`maritime`/`official_service` ⇒ 读 `tax_color`/`salt` 两键**永不存在**
+  //   ⇒ 恒显示 0（**把缺失显示成 0**，违 §3-3）。
+  const finance = readouts ? (readouts.finance ?? null) : null;
+  const incomeBy = new Map(
+    getTreasuryDetail(state, finance).incomes.map((it) => [it.name, it.amount] as const),
+  );
   const st = asDict(pick<Dict>(state, "statistics", {}));
   const gs = asDict(pick<Dict>(state, "granary_stats", {}));
-  const rows = [
-    ["工商", asNum(tax.commerce)], ["役钱", asNum(tax.poll)],
-    ["二税折色", asNum(tax.tax_color)], ["盐课", asNum(tax.salt)],
+  // 面板行名 → `incomes` 里的权威科目名；**不在列表 ⇒ null**（显示「未定义」，**不回落 0**）
+  const rows: Array<[string, number | null]> = [
+    ["工商", incomeBy.get("工商榷税") ?? null],
+    ["役钱", incomeBy.get("身丁役钱") ?? null],
+    ["二税折色", incomeBy.get("两税折色") ?? null],
+    ["盐课", incomeBy.get("盐铁官榷") ?? null],
   ];
   return (
     <div className="space-y-3">
       <Section title="税 入 构 成">
         {rows.map(([k, v]) => (
-          <p key={k as string} className="text-sm text-ink">{k}　{wan(v as number)} 贯</p>
+          <p key={k} className="text-sm text-ink">
+            {k}　
+            {v === null
+              ? <span className="text-dim" title="读数未就绪（后端未返回该科目）">未定义</span>
+              : wan(v) + " 贯"}
+          </p>
         ))}
       </Section>
       <Section title="累 计 统 计">

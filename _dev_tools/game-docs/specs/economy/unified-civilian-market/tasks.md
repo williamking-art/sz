@@ -1414,3 +1414,19 @@ const detail   = getTreasuryDetail(state, finance); // :92 → BudgetFlowData.in
 
 **验收断言（定向 vitest）**：① 科目缺 ⇒ 显示「未定义」而非 0；② 科目在且有值 ⇒ 显示 `amount`；
 ③ **回归**：`GovernanceHub` 源码**不再出现** `tax_breakdown`。
+
+
+### M275 **已修复**（M282）—— 「税入构成」不再把缺失显示成 0
+
+**改动**（`game/frontend/src/renderer/panels/GovernanceHub.tsx` 的 `FundTab`）：
+- 取数改为 **`readouts.finance` → `getTreasuryDetail(state, finance).incomes`**（**权威分项**，来源 `finance_readout`）
+- 四行**按权威科目名映射**：`工商`→`工商榷税` · `役钱`→`身丁役钱` · `二税折色`→`两税折色` · `盐课`→`盐铁官榷`
+- **科目不在列表 ⇒ 显示「未定义」**（带 title「读数未就绪（后端未返回该科目）」），**不回落 0**
+- **删除**对 `state.tax_breakdown` 的读取
+
+**验证（结构量 + 目视）**：文件 **407 → 424 行** · `tax_breakdown` 命中 **仅剩 1 处且为注释** · `getTreasuryDetail` 3 处 ·
+`tsc web = 0` · `vitest = 0` · `SHOT EXIT=0` · **`governancehub.png` 36.1KB → 37.2KB**；
+**目视**：「税入构成」显示 **工商未定义 · 役钱未定义 · 二税折色未定义 · 盐课未定义** ⇒ **不再是静默 0** ✅
+
+**边界（如实）**：截图台 **mock store 未提供 `readouts.finance`** ⇒ 截图里四项为「**未定义**」（**诚实**，正是本次修复想达到的语义）；
+**真实 app** 中该读数有值 ⇒ 四项将显示真实金额。若要**内容级**验收，可再补一份 `finance` **store fixture**（同 M272 做法）。
