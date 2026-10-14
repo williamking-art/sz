@@ -414,8 +414,42 @@ def _trade_line_status(state) -> Tuple[Optional[Any], Optional[str], Any]:
         except Exception:                                    # noqa: BLE001
             dry[fn] = False
     detail["纯函数可算"] = dry
-    detail["真账缺口"] = ("**无逐笔容器**：全 state 相关槽只有私有 `_trade_income`（无路/政权/商品维度）"
-                          "⇒ 现只能回答「有没有素材」，**不能**回答「哪一路、哪一货、跟谁、多少」")
+    # 🔴 M180：**真账下钻**（主线 F 已接线 M179）——从 `state.trade_journal` 聚合（**只读**）
+    try:
+        j = getattr(state, "trade_journal", None) or []
+        if isinstance(j, list) and j:
+            per_route: Dict[str, float] = {}
+            per_partner: Dict[str, float] = {}
+            per_dim: Dict[str, float] = {}
+            for leg in j:
+                if not isinstance(leg, dict):
+                    continue
+                v = leg.get("goods_value")
+                if not isinstance(v, (int, float)) or isinstance(v, bool):
+                    continue
+                per_route[str(leg.get("route"))] = per_route.get(str(leg.get("route")), 0.0) + float(v)
+                per_partner[str(leg.get("partner"))] = per_partner.get(str(leg.get("partner")), 0.0) + float(v)
+                per_dim[str(leg.get("dim"))] = per_dim.get(str(leg.get("dim")), 0.0) + float(v)
+            detail["真账_笔数"] = len(j)
+            detail["真账_货值合计"] = round(sum(per_dim.values()), 2)
+            detail["真账_逐路货值"] = {k: round(v, 2) for k, v in
+                                    sorted(per_route.items(), key=lambda kv: -kv[1])[:8]}
+            detail["真账_逐政权货值"] = {k: round(v, 2) for k, v in
+                                     sorted(per_partner.items(), key=lambda kv: -kv[1])[:8]}
+            detail["真账_逐商品货值"] = {k: round(v, 2) for k, v in
+                                     sorted(per_dim.items(), key=lambda kv: -kv[1])[:8]}
+            detail["真账_来源"] = ("state.trade_journal（M176 容器 · M177 纯函数拆分 · **M179 接线**；"
+                                 "**只记不二次入账**）")
+        else:
+            detail["真账_笔数"] = 0
+            detail["真账_来源"] = ("`state.trade_journal` 为空 ⇒ 市舶未开"
+                                 "（`state.maritime['open']`）或本局未产生外贸 ⇒ **不臆造外贸账**（缺失≠0）")
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 外贸真账下钻不可读（降级为仅素材就绪度）", exc_info=True)
+    # ⚠️ M180 **更正**：M140 此处原写「**无逐笔容器**」——该描述在 M176/M179 之后**已过时**：
+    # 逐笔容器（`trade_journal`）与接线均已落地 ⇒ 现可回答「哪一路、哪一货、跟谁、多少」。
+    detail["真账现状"] = ("**逐笔真账已接线**（M176 容器 / M177 纯函数 / M179 接线）："
+                        "可回答「哪一路、哪一货、跟谁、多少」；旧描述『无逐笔容器』**已作废**")
     detail["drill"] = src
     if not ready:
         return None, "外贸常量均不可读 ⇒ 素材就绪度不可定义（缺失≠0）", detail
