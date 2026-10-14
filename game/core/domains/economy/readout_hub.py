@@ -493,6 +493,18 @@ def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
                       "结论必须注明用哪套（M151 取证；历史误判见 `game_state_econ` 注释）。"
                       "另：**二税折色有地方分成**（`statistics.land_tax_local` 留州），"
                       "而 4 目**无**（M156 更正 M149/M150）")
+    # 🔴 M157：**三率三分（上供/留州/侵渔）**归属落点（M156 实测；只在 statistics，读字典无副作用）
+    try:
+        st2 = getattr(state, "statistics", None) or {}
+        split = {k: st2.get(k) for k in ("land_tax_assessed", "land_tax_collected",
+                                         "land_tax_central", "land_tax_local",
+                                         "land_tax_diverted", "land_tax_required")}
+        detail["二税折色·三率三分"] = {k: v for k, v in split.items() if v is not None} or None
+        detail["归属落点"] = {"上供 → 中央": st2.get("land_tax_central"),
+                            "留州 → **地方**（地方确有分成）": st2.get("land_tax_local"),
+                            "侵渔 → 吏（账实落差）": st2.get("land_tax_diverted")}
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 三率三分不可读（不影响主值）", exc_info=True)
     if full is None:
         return None, "全税收口径不可读（额外科目取不到）⇒ 差额不可定义（缺失≠0）", detail
     return round(float(full) - base_sum, 2), None, detail
