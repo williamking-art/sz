@@ -9,6 +9,7 @@
 //     ESM 里显式本地导出会**遮蔽** `export *` 的同名导出，故不会重复。
 import * as real from "../../src/renderer/api/client";
 import { READOUTS } from "./fixtures";
+import { HUB } from "./hubFixture";
 
 export * from "../../src/renderer/api/client";
 
@@ -21,7 +22,10 @@ export function getApiClient() {
   }
   return {
     ...base,
-    readouts: () => Promise.resolve(READOUTS),
+    // 🔴 M266：**同时**给出真实契约形状 `{hub}`（`ReadoutHubPanel` 取 `res.hub`，
+    //   旧形状 `READOUTS` 无 `hub` 键 ⇒ 面板恒停在「正在读取…」，此前被我误判为
+    //   「截图台无后端」。保留 `...READOUTS` 旧形状以免影响其它读 `readouts` 的面板。
+    readouts: () => Promise.resolve({ ...READOUTS, hub: HUB }),
     action: () => Promise.resolve({
       message: "批红：禁军·殿前第15军·整编（档 3）已饬行。", state: null
     })
