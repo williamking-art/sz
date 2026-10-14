@@ -95,7 +95,7 @@ dynamic_price.py
 | M152 | 20 项 | `tax_scope_contrast`（全口径 − `tax_breakdown` 4 目；下钻含真账笔数/货值/逐路/逐政权/逐商品） |
 | **M227** | **21 项** | **`market_chain_diagnosis`**（**市场切片·链级诊断**：产地→运输→成交→到货→加工五环贯通 + 端到端残差**方法** + `stock_snapshot` 透传；**只读零数值**，口径单点取 `stock_identity`） |
 
-**当前项数**：**21**（`ok=19` / `undefined=2`：`jobs_capacity`（非岗位建筑，`reason` 已写明）与
+**当前项数**：**21**（`ok=20` / `undefined=1`：`jobs_capacity`（非岗位建筑，`reason` 已写明）与
 `tax_scope_contrast`，均**如实** `undefined` + `reason`）。
 **契约**：由 `test_m125/m126/m129/m130` 与三处计数断言（`test_m81` / `test_m83` / `test_readouts_endpoint`）强制。
 

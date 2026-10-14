@@ -1,13 +1,13 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-14T13:59:08Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-14T14:06:18Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序『可自决部分』全部收口（M37–M247）。P0 5/5；P1 收口（产能批：丝坊 7→28 · recipe 共享根因修复 · 阈值公式 570 座 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%，旧 defin
+- **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序『可自决部分』全部收口并认证全绿（M37–M256）。四项剩余决策均有 Jev 依据：A P3 接线 typesafe gate 不成立 p=0.170 · B G-4 真划转 typesafe gate 不成立 p=0.180 · C 工资义务 choose 丁 0.446（无权威来源⇒undefine
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
 ## 任务板（未完成）
@@ -37,7 +37,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261014T112228Z-DSH` → [`worklog/20261014T112228Z-DSH.md`](worklog/20261014T112228Z-DSH.md)
 - `20261014T112331Z-DSH` → [`worklog/20261014T112331Z-DSH.md`](worklog/20261014T112331Z-DSH.md)
 - `20261014T112412Z-DSH` → [`worklog/20261014T112412Z-DSH.md`](worklog/20261014T112412Z-DSH.md)
 - `20261014T112439Z-DSH` → [`worklog/20261014T112439Z-DSH.md`](worklog/20261014T112439Z-DSH.md)
@@ -45,8 +44,9 @@
 - `20261014T135628Z-DSH` → [`worklog/20261014T135628Z-DSH.md`](worklog/20261014T135628Z-DSH.md)
 - `20261014T135726Z-DSH` → [`worklog/20261014T135726Z-DSH.md`](worklog/20261014T135726Z-DSH.md)
 - `20261014T135908Z-DSH` → [`worklog/20261014T135908Z-DSH.md`](worklog/20261014T135908Z-DSH.md)
+- `20261014T140618Z-DSH` → [`worklog/20261014T140618Z-DSH.md`](worklog/20261014T140618Z-DSH.md)
 
 ## 计数
 
-- tasks 172（未完成 13）· decisions 85（未闭环 6）· worklog 431 · phase 文件 4
+- tasks 172（未完成 13）· decisions 85（未闭环 6）· worklog 432 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

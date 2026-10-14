@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 13:57 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 14:06 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -9,7 +9,7 @@
 |---|---|---|
 | Cline.json | 阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期 | 2026-10-10T16:48:43Z |
 | DSH-JEV.json | Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。 | 2026-10-12T16:05:00Z |
-| DSH.json | 《宋祚》主顺序『可自决部分』全部收口（M37–M247）。P0 5/5；P1 收口（产能批：丝坊 7→28 · recipe 共享根因修复 · 阈值公式 570 座 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.7%，旧 defin… | 2026-10-14 |
+| DSH.json | 《宋祚》主顺序『可自决部分』全部收口并认证全绿（M37–M256）。四项剩余决策均有 Jev 依据：A P3 接线 typesafe gate 不成立 p=0.170 · B G-4 真划转 typesafe gate 不成立 p=0.180 · C 工资义务 choose 丁 0.446（无权威来源⇒undefine… | 2026-10-14 |
 | Qoder.json | 阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/） | 2026-10-09T23:58:31Z |
 | _legacy_shared_phase.json | - | - |
 | _retired.qoder.json | - | - |
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
+e341497006 docs: M255 **文档全面审计 + 修 4 处过期**（读数项数 12/20 → 21）
+120b681d67 docs(spec): M254 **补文档同步** —— 把剩余四项的 Jev 补裁写进 specs 正文与交接产物
 dd01453f45 docs(decisions): M253 **补齐剩余四项的 Jev 裁决**（承认此前漏问 A/B/D）
 1e63d486db chore(cert): M252 **最终认证** —— 后端全量 + 60 月哨兵 + 前端三合一（真实退出码）
 d14aad5d13 chore(handover): M251 **刷新交接产物**到最新（decisions 84 条）+ 前端复测
-c45be66616 docs(spec): M250 **用决策模型推进** —— 关闭最后一项可选增强：面板**不加自动重试**（Jev 甲 0.500）
-9dc87dea4b chore(handover): M249 终态核验 + 卫生清理（删除 3 个 .tmp 残留）
 ```
 
 ## 2. 下一步（什么尚未完成）
