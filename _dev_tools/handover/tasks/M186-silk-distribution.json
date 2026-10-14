@@ -1,0 +1,32 @@
+{
+ "id": "M186-silk-distribution",
+ "title": "产能批·分布口径＝**按丝产能加权**（Jev 丁 0.388，极近平手已自证）⇒ 前置 **100% 齐备**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M186-silk-workshop-distribution-scope.json（Jev choose 丁 0.388；甲 0.345）",
+ "deliverable": [
+  "裁定档（含**极近平手自证**：不引入因果循环 / 与史实一致 / 可复算可审计）",
+  "本任务档"
+ ],
+ "ready_checklist": {
+  "旋钮": "**作坊数量**（Jev 乙 0.591）",
+  "量级": "**温和 ~10%**（Jev 甲 0.450）⇒ 丝坊 7 → **约 28 座**（覆盖 2.3% → ≈9.2%）",
+  "公式": "**线性已实测**：单座 `yield=8000`、参数全同 ⇒ 产能 = 座数 × 8000/轮（非推断）",
+  "注入点": "`core/game_state.py:687`（`_js = WORKSHOP_RECIPES[\"丝坊\"]` 建实例处，仿 酒坊/畜栏/麻坊）",
+  "分布": "**按 `yields['丝']` 份额**分配 +21 座（最大余数法，**Σ ≡ 21**），只落丝禀赋 >0 的路，**确定性可复现**",
+  "迁移": "幂等迁移补**存量档**（失败不拒档）",
+  "标定": "**同种子 A/B**（查丝需求与工匠 POP 用工不异常、**不得造钱物**）+ **60/240 月长局** + 全量回归",
+  "验收读数": "`pilot_chain_gap` 下降 · `pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"
+ },
+ "verified": [
+  "裁定与清单均为文档；本批 docs-only（M172b ⇒ 免全量）"
+ ],
+ "next": [
+  "① **实施批**：按 ready_checklist 七项执行（改数值 ⇒ A/B + 60/240 月 + 全量回归）",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权",
+  "③ P2 字段收口后可再问 Jev 是否升到乙（25%）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T06:53:43Z"
+}
