@@ -1,0 +1,28 @@
+{
+ "id": "M233-correction-m231-jobs-capacity-was-already-derived",
+ "title": "更正 M231：建筑侧 jobs_capacity 早已实现（经 jobs_readout.capacity_of），0/40 属正确（开局建筑非岗位建筑）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 entity_projection.py 的 jobs_capacity 派生段（:107-109）与模块 docstring（:11-12）",
+ "correction": {
+  "我 M231 的判断": "建筑侧 jobs_capacity 是真缺口（本可算却报 0/40），系 JOBS_PER_LEVEL 只登记建筑所致",
+  "🔴 实际": "project_building 已实现 jobs_capacity，取 core.domains.economy.jobs_readout.capacity_of（等于 lv 乘每级），且 reason 字段写明未定义原因：该建筑非岗位建筑（JOBS_PER_LEVEL 未登记）",
+  "⇒ 正确解读": "开局 40 座建筑属 BUILDING_STD 闭集（水利/常平仓/官署/军营/学校/官营作坊），并非岗位类（岗位类如商铺默认 allow_job_class=False）⇒ 返回 None 且 reason 准确，0/40 是正确行为",
+  "另一处误读": "设计文档 §一 的 jobs_capacity：JOBS_PER_LEVEL 乘等级（已有）指的是代码已有实现（jobs_readout），我误读为字段尚未派生"
+ },
+ "what_still_holds": {
+  "发现②（分母口径）仍成立且有用": "14 字段套两类实体（建筑无 methods/recipe/io_stock；作坊无 blueprint/level）⇒ 现行 defined_ratio 把不适用计成缺失 ⇒ 增 applicable_fields / applicable_ratio / not_applicable 三键仍有价值（零数值、兼容既有键）",
+  "但要先做一步": "在动手前，应逐字段读 project_building / project_workshop 的 reason 文本，确认每个未就绪字段的官方理由是缺失还是不适用——投影本身已写明理由，这正是本轮教训"
+ },
+ "lesson": "🔴 这是本会话**第 3 次同类误报风险**：低 defined_ratio **不等于**缺口——投影的 reason 字段已写明准确原因（未登记/不适用/无权威来源）。⇒ 新纪律：判缺口前**先读该字段的 reason**，不要只看计数。",
+ "verified": [
+  "entity_projection.py 的 jobs_capacity 派生段与 docstring 均为逐行实测；jobs_readout.capacity_of 为既有口径单点"
+ ],
+ "next": [
+  "① 下批若要推进发现②：先逐字段读 reason，再定 applicable 子集",
+  "② 其余 4 项 A/B/C/D 仍待用户"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:26:28Z"
+}
