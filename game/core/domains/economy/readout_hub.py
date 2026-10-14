@@ -419,6 +419,33 @@ def _trade_line_status(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return len(ready), None, detail
 
 
+def _fiscal_structure(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**财政结构：内帑/国库比**（M148，只读·零数值）。
+
+    实测事实（M147）：内帑**持续增长**（1.0M → 3.85M → 5.93M，0/6/12 月）而国库**长期低位**
+    （5.0M → 8.2万 → 12.4万）⇒ 「**钱在沉淀进内帑**」。本读数把该结构做成可复查数字。
+
+    ⚠️ 国库 ≤ 0 ⇒ **比值不可定义**（除零）⇒ `None` + reason（**缺失≠0**，不返回 0/∞）。
+    """
+    src = "state.treasury / state.imperial_treasury（既有单点，无旁路）"
+    try:
+        t = getattr(state, "treasury", None)
+        i = getattr(state, "imperial_treasury", None)
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 财政结构不可读", exc_info=True)
+        return None, f"财政槽不可读：{type(e).__name__}", {"drill": src}
+    detail = {"国库": t, "内帑": i, "drill": src}
+    if not isinstance(t, (int, float)) or not isinstance(i, (int, float)):
+        return None, "国库或内帑不可读 ⇒ 比值不可定义（缺失≠0）", detail
+    if t <= 0:
+        return None, f"国库为 {t}（≤0）⇒ 比值不可定义（**不返回 ∞/0**）", detail
+    ratio = round(float(i) / float(t), 4)
+    detail["内帑/国库"] = ratio
+    detail["注"] = ("结构性事实（M147 实测）：内帑 0/6/12 月 = 1.0M/3.85M/5.93M（**持续增长**），"
+                    "国库 = 5.0M/8.2万/12.4万（**长期低位**）⇒ 钱在沉淀进内帑")
+    return ratio, None, detail
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -457,6 +484,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _d_funding_best, "source": "core.domains.economy.owner_candidates_shadow:survey_owner_candidates"},
     {"key": "trade_line_status", "label": "外贸素材就绪项数（主线 F）", "unit": "项",
      "fn": _trade_line_status, "source": "core.domains.economy.trade_shadow（纯函数影子）"},
+    {"key": "fiscal_structure", "label": "财政结构：内帑/国库比", "unit": "倍",
+     "fn": _fiscal_structure, "source": "state.treasury / state.imperial_treasury"},
 )
 
 

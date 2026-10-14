@@ -103,7 +103,7 @@ def test_readouts_shell_exposes_hub_readout_index(server_state):
     hub = data.get("hub")
     assert isinstance(hub, dict) and hub, "统一读数索引必须由本端点下发（M83 接线）"
     rows = hub.get("readouts") or {}
-    assert len(rows) == 18, f"读数项数漂移：{len(rows)}"
+    assert len(rows) == 19, f"读数项数漂移：{len(rows)}"
     assert hub.get("frontend_wired") is False
     for k, v in rows.items():
         assert isinstance(v.get("display"), str), k
