@@ -1,0 +1,93 @@
+{
+ "id": "M268-shot-coverage-gap",
+ "title": "截图台面板覆盖缺口：42 个面板组件里**只拍 10 个**（记录清单与优先级，不盲加）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测：列举 src/renderer/panels/*.tsx 与 shoot.mjs 表内 panel= 参数对比",
+ "measured": {
+  "面板总数": 42,
+  "已覆盖10": [
+   "AccountingPanel",
+   "CourtPanel",
+   "GranaryPanel",
+   "LandPanel",
+   "LocalArchivePanel",
+   "MilitaryPanel",
+   "PopPanel",
+   "ProvinceMilitaryPanel",
+   "ReadoutHubPanel",
+   "TodoPanel"
+  ],
+  "未覆盖32": [
+   "AdvancePanel",
+   "AudienceView",
+   "CentralOrgPanel",
+   "CodexPanel",
+   "ConcludePanel",
+   "DailyLogPanel",
+   "DecreePanel",
+   "DetailPanel",
+   "DiplomacyPanel",
+   "EngineeringPanel",
+   "EventPanel",
+   "FocusPanel",
+   "GazettePanel",
+   "GovernanceHub",
+   "IntroPanel",
+   "MemoryDrawer",
+   "MemoryPanel",
+   "MeterPanel",
+   "MinistersPanel",
+   "OverlayStack",
+   "PendingActionsPanel",
+   "PersonalPanel",
+   "PlaceholderPanel",
+   "PlanReadoutPanel",
+   "PrefecturePanel",
+   "ProvinceArchivePanel",
+   "SavePanel",
+   "SecretDecreePanel",
+   "SettingsPanel",
+   "SituationPanel",
+   "StartPanel",
+   "TechPanel"
+  ]
+ },
+ "readouts_consumers": {
+  "调 getApiClient().readouts() 的面板（6 个）": [
+   "ReadoutHubPanel",
+   "AccountingPanel",
+   "ProvinceMilitaryPanel",
+   "MilitaryPanel",
+   "PrefecturePanel",
+   "SituationPanel"
+  ],
+  "其中已覆盖": [
+   "ReadoutHubPanel",
+   "AccountingPanel",
+   "ProvinceMilitaryPanel",
+   "MilitaryPanel"
+  ],
+  "⇒ 未覆盖的 readouts 消费者": [
+   "PrefecturePanel",
+   "SituationPanel"
+  ]
+ },
+ "priority_plan": [
+  "**第一优先**（本专题相关）：`PrefecturePanel`（州府面板；调 readouts）· `SituationPanel`（局势；调 readouts）· `PlanReadoutPanel`（计划读数）· `GovernanceHub`（治理总览）",
+  "**第二优先**：`MinistersPanel` · `CentralOrgPanel` · `TechPanel` · `EngineeringPanel`（人事/机构/技术/工程）",
+  "**暂不加**：`OverlayStack` · `MemoryDrawer` · `DetailPanel` · `PlaceholderPanel`（容器/占位，非独立面板）· `StartPanel`/`IntroPanel`/`SavePanel`/`SettingsPanel`（非游戏内主流程）"
+ ],
+ "why_not_add_now": "每个面板所需的 URL 参数不同（如路由/治所/条目 id）；若参数给错会渲染出错误面板但**截图台仍报成功** ⇒ 产出误导图。🔴 **必须先逐个读组件的参数依赖，再逐张目视核验**（本轮上下文预算不足，故只记录缺口）。",
+ "hygiene_note": "顺带核验：其余 5 个 readouts 消费者在 M266 后均同时拿到**旧形状**与**新 `hub` 形状** ⇒ 不受影响；`action()`/`polishDecree`/`save`/`getAiConfig`/`health` 等方法**未 mock**（走真实 client），但它们只在**用户交互**时调用 ⇒ 不影响静态截图。",
+ "verified": [
+  "面板清单与已覆盖清单为实测列举；readouts 消费者清单来自对 panels 目录的 grep（getApiClient().readouts() 共 6 处）"
+ ],
+ "next": [
+  "① 下批：按优先级逐个读组件参数依赖 ⇒ 加截图条目 ⇒ 逐张目视核验（**不盲加**）",
+  "② 待用户：A/B 授权 · C/D 史料 · Lightpanda 是否要装（属环境变更）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T14:26:59Z"
+}
