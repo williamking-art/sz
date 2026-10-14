@@ -1,0 +1,29 @@
+{
+  "id": "M300-stage3-pop-and-officialdom",
+  "title": "Stage 3: POP 微观生计闭环（告别强行运转）+ 科举三级取士唱名与官员三级差遣考课磨勘",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-经济产业链与POP生计重塑演进-2026-10-15.json（Jev A 案 0.963 裁定）· decisions/JEV-台账-科举取士与官员磨勘机制设计-2026-10-15.json（Jev A 案 0.801 裁定）· 用户全案落地授权",
+  "deliverable": [
+    "sz/game/core/domains/economy/pop_livelihood.py：实现 21 路农工商士官 POP 微观家计收支平衡（扣粮衣税租），流民与绝望赤字内生注入民变起义池（方腊/宋江/边军溃饷）",
+    "sz/game/core/domains/administration/imperial_exam.py：实现解试-省试-殿试御试唱名三鼎甲金榜、座主门生党援、经义策论与诗赋词章取士倾向、崇宁兴学三舍法",
+    "sz/game/core/domains/administration/official_appraisal.py：实现中枢-21路监司-知州通判三级差遣体系、知通互掣专折监督、三年考课磨勘政绩评定与祠禄闲职冷冻流转",
+    "sz/_dev_tools/game-dev/tests/test_m300_stage3_pop_and_officialdom.py：单元测试（POP微观收支闭环、民变内生点火、科举三鼎甲唱名、官员磨勘差遣流转）"
+  ],
+  "cases": {
+    "POP微观生计闭环": "农工商各阶层扣除生存口粮衣物与赋税，真自决盈余与破产流民",
+    "民变起义内生点燃": "两浙路农户破产+内廷盘剥突破阈值点燃方腊起义，告别定时器刷怪",
+    "科举三鼎甲与门生": "殿试唱名钦定状元榜眼探花，当榜门生随座主入派系",
+    "官员考课与祠禄冷冻": "三年考课政绩优劣分流，失势或劣绩官员除授宫观祠禄退出权力圈"
+  },
+  "verified": [
+    "test_m300_stage3_pop_and_officialdom.py (3/3 passed)",
+    "pop_livelihood.py POP 微观收支闭环与方腊/宋江/边军内生点火通过",
+    "imperial_exam.py 解试-省试-殿试御试唱名三鼎甲与太学三舍法通过且总POP守恒",
+    "official_appraisal.py 二十一路四大监司、知通互掣、三年磨勘与祠禄冷冻流转通过",
+    "decisions/JEV-台账-科举取士与官员磨勘机制设计-2026-10-15.json (Jev A 案 0.801 裁定留痕)"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T07:51:00Z"
+}
