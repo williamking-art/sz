@@ -1,0 +1,34 @@
+{
+ "id": "M166-monthly-report-attribution",
+ "title": "月报归因落地（P5 收口）：程序真值月报并入**读数摘要** + 顺带修掉 `pilot_chain_gap` 的**缺失≠0** 缺陷",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M165 落点定位（`fallback_report`）＋ 本轮实现与测试",
+ "deliverables": {
+  "月报归因": "`game/ai/narrative_fallback.py` 新增 `_readout_summary(state)` 并在 `fallback_report` 末尾**追加**读数摘要（**只读、文本 only**）",
+  "内容": "「读数摘要：试点主瓶颈<值>；试点链条缺口 <值>。」——取自 `readout_hub.collect(keys=[pilot_bottleneck, pilot_chain_gap])`，即 P5 问句链的「哪里短缺／为何未运到」",
+  "用例": "`_dev_tools/game-dev/tests/test_m166_monthly_report_attribution.py`（4 passed）"
+ },
+ "contract_kept": [
+  "**只读**：不写 state、不改任何数值（月报文本 only ⇒ 同种子 A/B 应恒等）",
+  "**缺失≠0**：读数不可读 ⇒ 明写「**未定义**」（用例锁定）",
+  "**失败留痕**：连读数模块都不可用 ⇒ 把失败原因写进文本（`读数摘要：未定义（读数不可用：XxxError）。`），**不静默、且无需 logger**",
+  "**向后兼容**：`state=None`（无状态调用）⇒ 不追加（原模板行为不变）"
+ ],
+ "defect_found_and_fixed": {
+  "🔴 由本批用例抓到": "`readout_hub._pilot_chain_gap` 在**无试点数据**（本局无作坊且无需求）时返回 **`0`**，而非 `undefined` ⇒ **违反「缺失≠0」**",
+  "修法": "在 `_pilot_chain_gap` 增加 `if not (rep.get(\"routes\") or []): return None, \"无试点数据…（缺失≠0，不填 0）\"`（在取 `gap` 之前）",
+  "为何此前没发现": "既有用例都在**有作坊的真实局**上跑 ⇒ 从未覆盖『完全无试点数据』分支；本批的空状态用例第一次触发"
+ },
+ "verified": [
+  "test_m166 四用例全绿（含 缺失≠0 分支）；修改后全量串行回归 EXIT=0"
+ ],
+ "next": [
+  "① **P5 可视为收口**（读数 20 项 + 端点 + 前端面板/入口 + 月报归因；余『截图台验收』需 Edge headless）",
+  "② 其余卡口：外贸三条口径 · 营运资金 · 产能 · 作坊岗位数 · P3 授权 · 对照第 9 条 · 4 目分成",
+  "③ P6 第三层（多 AI 策略种子）需 provider"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T04:09:34Z"
+}

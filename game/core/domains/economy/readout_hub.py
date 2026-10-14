@@ -154,6 +154,9 @@ def _pilot_chain_gap(state) -> Tuple[Optional[Any], Optional[str], Any]:
     gap = totals.get("gap")
     drill = {"成品": totals.get("finished_output"), "需求": totals.get("demand"),
              "作坊数": totals.get("workshops"), "样本路": (rep.get("routes") or [{}])[0].get("route")}
+    # 🔴 M166：**无试点数据 ⇒ 缺口不可定义**（此前会返回 0 ⇒ 违反「缺失≠0」；由 M166 用例抓到）
+    if not (rep.get("routes") or []):
+        return None, "无试点数据（本局无作坊且无需求）⇒ 缺口不可定义（缺失≠0，不填 0）", {**drill, "drill": src}
     if gap is None:
         return None, "缺口不可读（原料/成品/需求任一段缺失 ⇒ 不填 0）", {**drill, "drill": src}
     return int(gap), None, {**drill, "drill": src}

@@ -82,6 +82,29 @@ def _pick(templates, seed_key):
     return templates[idx]
 
 
+def _readout_summary(state) -> str:
+    """**读数摘要**（M166 · P5 收口）：把 `readout_hub` 的关键读数并入**程序真值月报**。
+
+    - **只读**：不写 state、不改任何数值（月报文本 only）；
+    - 🔴 **不伪造、不显示 0**：读数不可读 ⇒ 明写「**未定义**」；
+    - 连读数模块都不可用 ⇒ 把**失败原因**写进文本（**不静默**，且无需 logger）。
+    """
+    if state is None:
+        return ""
+    try:
+        from core.domains.economy import readout_hub as _rh
+        rows = _rh.collect(state, keys=["pilot_bottleneck", "pilot_chain_gap"])["readouts"]
+    except Exception as e:                                   # noqa: BLE001
+        return f"读数摘要：未定义（读数不可用：{type(e).__name__}）。"
+
+    def _t(k: str) -> str:
+        row = rows.get(k) or {}
+        return "未定义" if row.get("value") is None else str(row.get("display"))
+
+    return (f"读数摘要：试点主瓶颈{_t('pilot_bottleneck')}；"
+            f"试点链条缺口 {_t('pilot_chain_gap')}。")
+
+
 def fallback_report(year=0, month=0, era_name="", state=None) -> dict:
     """月报模板兜底：本地句式 + 结构化真值组装（不伪造数字）。
 
@@ -93,6 +116,10 @@ def fallback_report(year=0, month=0, era_name="", state=None) -> dict:
     facts = _recent_facts(state, limit=2)
     if facts:
         txt = txt[:-1] + f"本月要略：{'；'.join(facts)}。）"
+    # M166（P5 收口）：读数摘要并入程序真值月报（**只读、文本 only**；不可读 ⇒ 明写「未定义」）
+    _summ = _readout_summary(state)
+    if _summ:
+        txt = txt[:-1] + _summ + "）"
     return {"report": txt, "_fallback": True}
 
 
