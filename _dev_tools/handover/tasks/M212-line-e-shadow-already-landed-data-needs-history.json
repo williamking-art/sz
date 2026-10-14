@@ -1,0 +1,31 @@
+{
+ "id": "M212-line-e-shadow-already-landed-data-needs-history",
+ "title": "主线E：**影子已落地**（`livelihood_shadow` 家计影子 + 归属守恒读数如实 `ok=None`）⇒ 落数据**须史料**，当前应留 `unclassified`",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读检索（`livelihood_shadow.py` · `pop_bridge.AFFILIATION_FIELDS` · econ README 索引）",
+ "findings": {
+  "✅ 影子已实现": "`core/domains/economy/livelihood_shadow.py`：① **家计影子**（可读分项 `wealth`/存粮×基准价；**整项按规格报 `None`**——因「生业应收/口粮/租/税/役」无权威单点；`tier` **须调用方传阈值**，缺省 ⇒ None）② **经济归属守恒读数**：逐 `(路, 类)` 核 **`Σ子池 == 父 POP`**（逐 8 字段）",
+  "✅ 如实不假装": "全库**无 `economic_affiliation` 子池** ⇒ 读数返回 **`{\"ok\": None, \"reason\": \"全库无 economic_affiliation 子池（未登记归属）\"}`**（**不假装通过**）——正是裁定要求的「历史局不套假设比例 / 缺证据留 unclassified」",
+  "通道已备": "`pop_bridge`：`AFFILIATION_FIELDS = (size, kou, ding, wealth, grain, 窖银, 欠税, 欠给)` · `split_affiliation_to_seats`；**命名纪律**：经济归属**不得叫 `faction`**（已被政治派系占用）；**挂载律**：子池是父 POP 的**分区**（`Σ child.size == parent.size`），**不适用时不造空池**",
+  "⇒ 裁定前置已满足": "裁定原文『⏸ **待州府真账与写入桥接稳定后再落数据**』——本会话已把镜像直写家族 **6 处全修** + 三盲区哨兵 + 恒等式残差 **0**（M56–M65）⇒ **前置已满足**",
+  "🔴 但仍不能落数据": "裁定同时要求『**无史料部分保留 unclassified**；**历史局不套假设比例**』⇒ **当前无史源** ⇒ 落任何假设比例都**违反裁定** ⇒ **正确做法＝留空池（unclassified）**，并把「已有通道 + 前置已满足 + 缺史料」写清"
+ },
+ "verdict": "🟢 **主线E 达诚实上限**：影子（家计 + 归属守恒读数）已实现且**如实报 None**；**落 `economic_affiliation` 数据待史料**（有史源即可按 `州府 × POP 类 × 生产关系` 落，并断言 `Σ子池 == 父 POP`）",
+ "unblock_options": [
+  "① 你给**史料**（各州府 × POP 类的生产关系份额）⇒ 我按通道落数据 + 守恒断言 + A/B + 60/240 月",
+  "② 授权**标定**（用可导出关系如 owner/职业分布**派生**份额）—— ⚠️ 与『不套假设比例』**冲突**，须你明确覆盖原裁定",
+  "③ 维持现状（留 unclassified）——**符合裁定**"
+ ],
+ "verified": [
+  "`livelihood_shadow` 的读数分支（`classes_with_aff == 0 ⇒ ok=None + reason`）与 `pop_bridge` 的字段/纪律均为代码实测；econ README 亦记『全库 economic_affiliation 子池为空 ⇒ 守恒 ok=None（不假装通过）』"
+ ],
+ "next": [
+  "① 主线E 待你（史料/授权/维持）",
+  "② G-4 影子已落地 ⇒ 待你确认后接线",
+  "③ **P3 授权**（唯一整条未开工）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:56:55Z"
+}
