@@ -1,0 +1,35 @@
+{
+ "id": "M153-tax-readout-prereq",
+ "title": "加公开读口的前置核查：`statistics` 无盐课/二税折色 · **存档已覆盖** · ✅ **盐课有公开方法 `calc_salt_coin`**（更正 M152 表述）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮真实局探针 + `save_load.py` 文本核查",
+ "verified_facts": {
+  "statistics 无盐课/二税折色": "6 月后 `statistics` 中命中 `salt/color/折色/盐/maritime/commerce/poll` 的键**只有** `poll_base_pop` / `poll_tax_nominal` ⇒ **确无 `salt_coin` / `tax_color_total` 键**",
+  "✅ 存档已覆盖": "`save_load.py` **含 `statistics` 与 `tax_breakdown`** ⇒ 新读口若放这两处，**自动随档持久化**，**无需改 save_load**",
+  "🔴 更正 M152（我的表述不准确）": "`state.calc_salt_coin` **是公开方法**（`hasattr(s, 'calc_salt_coin') is True`；`game_state_econ` 亦导入 `SALT_*` 常量）⇒ **盐课有公开读口**；我上一轮说『盐课与二税折色只存在于结算函数局部变量』**只对二税折色成立**",
+  "二税折色仍缺公开方法": "本轮未找到与 `tax_color_total` 对应的公开方法（`calc_*` 系列只匹配到 `calc_salt_coin` / `calc_monthly_grain`）"
+ },
+ "simplified_fix_path": {
+  "盐课": "**直接调用 `state.calc_salt_coin()`** 即可（无需改代码）——下一步只需**读它的口径**（月额/年额？是否已乘 arrival？`game_state_econ` 注释提示『已乘 arrival』）",
+  "二税折色": "若无公开方法 ⇒ 需**新增**（小改：从结算局部变量提升为方法或写入 `statistics`）；须先确认结算里 `tax_color_total` 的**计算时点**（新局即有？还是结算后才算），以免读口在结算前返回缺失",
+  "读口落点建议": "放 `tax_base_summary()`（新增键）或在读数里直接调 `calc_salt_coin` + （二税折色方法）⇒ 两者都能**自动随档**（因 statistics/tax_breakdown 已持久化；若新增独立方法则**无需持久化**，因为是纯派生）"
+ },
+ "next_action_preview": {
+  "第1步（只读，零风险）": "读 `calc_salt_coin` 的口径（月/年、arrival、是否含损耗）⇒ 决定读数里怎么用",
+  "第2步（小改，改代码）": "① 读数 `tax_scope_contrast` 改为**直接取 `calc_salt_coin()`**（盐课立刻有值）② 二税折色若确无公开方法 ⇒ 加**只读派生方法**（不改数值、只暴露）",
+  "第3步": "跑定向 + 全量回归；读数由 `undefined` 转为**部分有值**（盐课有、二税折色待补）"
+ },
+ "verified": [
+  "`statistics` 键集与 `save_load` 覆盖范围均为实测；`hasattr` 检查确认 `calc_salt_coin` 公开可调"
+ ],
+ "next": [
+  "① 下一批：读 `calc_salt_coin` 口径 ⇒ 让盐课部分先有值（只读改法，零数值）",
+  "② 二税折色公开读口（若需新增）⇒ 属小改，须确认计算时点",
+  "③ 主线 E 核心待裁不变：**地方是否应有税收分成**",
+  "④ 其余卡口：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T01:40:45Z"
+}
