@@ -1,0 +1,26 @@
+{
+ "id": "M246-readout-panel-retry",
+ "title": "读数面板失败行为落地（Jev 甲 0.737）：**失败提示已有**，本轮补**重试**按钮",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M245-readout-panel-failure-behavior.json（Jev choose 甲 0.737）",
+ "discovery": "读面板源码发现 **M84 已实现明确失败提示**（`if (err) return <p>读数不可用：{err}</p>`）⇒ Jev 甲的**前半已在**；**缺的是「重试」**（甲的另一半）",
+ "deliverable": [
+  "ReadoutHubPanel.tsx：新增 tick 状态用于重新触发取数；失败态改为『读数不可用（端点 /api/readouts 未响应或失败）：原因』+ **重试按钮**（清失败态并再次取数）+ 说明文案（只读、不重算、不用 store 兜底造数）"
+ ],
+ "constraints_kept": [
+  "口径单点：**不做 store 兜底造数**（Jev 明确排除乙案）",
+  "缺失≠0：既有『未定义』展示与原因展示保持不变",
+  "未改后端契约"
+ ],
+ "verified": [
+  "tsc web/node = 0/0；vitest = 0（前端全绿）；后端全量串行见日志"
+ ],
+ "next": [
+  "① 可选增强：自动重试 N 次（Jev 丁 0.243 的复合方案）",
+  "② 待用户：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T11:10:42Z"
+}

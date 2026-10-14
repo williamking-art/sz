@@ -49,6 +49,9 @@ export default function ReadoutHubPanel() {
   const [hub, setHub] = useState<Hub | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // 🔴 M246（Jev 甲 0.737「明确失败提示 + 重试」）：`tick` 只用于**重新触发取数**。
+  //   ⚠️ 前半（明确失败提示）本面板 **M84 已实现**；本次补的是**重试**。
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -65,10 +68,32 @@ export default function ReadoutHubPanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [tick]);
 
   if (err) {
-    return <p className="py-6 text-center text-[13px] text-dim">读数不可用：{err}</p>;
+    return (
+      <div className="space-y-2 py-6 text-center">
+        <p className="text-[13px] text-dim">
+          读数不可用（端点 <code>/api/readouts</code> 未响应或失败）：{err}
+        </p>
+        <button
+          type="button"
+          className="rounded border border-white/15 px-3 py-1 text-[13px] hover:bg-white/10"
+          onClick={() => {
+            // 重试：先清失败态（回到「正在读取」），再触发一次取数
+            setErr(null);
+            setHub(null);
+            setTick((t) => t + 1);
+          }}
+        >
+          重试
+        </button>
+        <p className="text-[11px] text-dim">
+          说明：本面板**只读**后端读数（口径单点，前端**不重算、不用 store 兜底造数**）；
+          缺失一律显示「未定义」。
+        </p>
+      </div>
+    );
   }
   if (!hub) {
     return (
