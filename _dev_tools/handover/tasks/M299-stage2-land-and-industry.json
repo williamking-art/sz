@@ -1,0 +1,27 @@
+{
+  "id": "M299-stage2-land-and-industry",
+  "title": "Stage 2: 21路田亩四分（民/官/庄园隐田/租佃主客）与四大实体多级产业链实体化",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-经济产业链与POP生计重塑演进-2026-10-15.json（Jev A 案 0.963 裁定）· 用户全案落地授权",
+  "deliverable": [
+    "sz/game/core/domains/economy/land_tenure.py：实现 21 路田亩四分（民田/官田/庄园隐田/主客租佃比率）与方田均税清丈清厘计算器",
+    "sz/game/core/domains/economy/industry_chains.py：实现四大实体多级产业链（纺织丝绢链、军工冶铁链、茶盐榷货专卖链、营造漕运水利链）及田亩内生原料产出",
+    "sz/_dev_tools/game-dev/tests/test_m299_stage2_land_and_industry.py：单元测试（田亩守恒不变量、租佃主客收支、四大产业链投入产出与物料守恒）"
+  ],
+  "cases": {
+    "田亩四分守恒": "民田 + 官田 + 庄园隐田 == 21路在册总田亩，不增不减",
+    "租佃主客动态": "自耕农主户与佃农客户真实承载田赋与地租，两税法主客税额自洽",
+    "原料田亩内生": "原粮、桑蚕丝、棉麻布、茶、糖原料由田亩地力内生产出，告别静态死值",
+    "四大产业链流转": "丝绢、冶铁军工、茶盐专卖、营造营造多级原料-中间品-终成品对账闭环"
+  },
+  "verified": [
+    "test_m299_stage2_land_and_industry.py 5 passed",
+    "21路田亩守恒断言 100% 通过（含黔中路）",
+    "方田均税清丈清查隐田守恒验证通过",
+    "四大产业链月度加工转化与国库分润验证通过"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T07:49:00Z"
+}
