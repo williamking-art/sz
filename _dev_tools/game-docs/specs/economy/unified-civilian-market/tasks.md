@@ -1169,3 +1169,41 @@ Step 3.85 民间营造与 Step 4.5 工程**之前**（消费侧读到分摊后�
 | **`applicable_*` 四键落地** | ✅ | M238（**兼容** `defined_ratio`/`defined_by_field`） |
 | 定向守卫 4 条 | ✅ | M239（互补性 / 不适用须有 reason / 分母口径 / 兼容性） |
 | **实测就绪度** | ✅ | **建筑 8/9 = 88.9%** · **作坊 8/11 = 72.7%**（原「8/14」为**系统性低估**） |
+---
+
+## P5 · **截图台验收**（2026-10-14 · M242–M243）
+
+### 怎么跑（🔴 **cwd 是硬要求**）
+
+```powershell
+$py = "D:\codebuddy\.audit-venv\Scripts\python.exe"
+$node = "D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe"
+$env:SHOT_PYTHON = $py
+$env:SHOT_OUT = "D:\codebuddy\sz\_dev_tools\analysis-shots\panels_cn"
+cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
+& $node scripts\shot\shoot.mjs              # 实测 SHOT EXIT=0，产出 15 张 PNG
+```
+
+🔴 **坑（本会话实踩）**：`shoot.mjs` 只 import **node 内建模块**（`child_process`/`fs`/`path`/`os`/`url`），
+**无外部依赖**。若在 `sz` 根跑 `scripts/shot/shoot.mjs`（**该路径不存在**）⇒ `MODULE_NOT_FOUND` 且
+**`requireStack` 为空** ⇒ **这是"入口路径问题"，不是"缺依赖"**（我曾据此误判要装无头浏览器依赖 ⇒ 已更正）。
+**判别法**：`requireStack` 为空 ⇒ 先怀疑**路径/cwd**。
+
+### 面板清单（`shoot.mjs` 内的表）
+
+按 `src/renderer/panels/<name>.tsx` 动态解析（`import.meta.glob`）。**M243 补入** `readouthub`
+（`panel=ReadoutHubPanel`）——**此前不在清单内** ⇒ 截图验收**不覆盖** P5 新增的读数面板。
+
+### 🖼️ 视觉验收的**能力边界**（如实）
+
+| 能验 | 不能验 |
+|---|---|
+| **挂载与布局**（面板能渲染、不崩；dev 首行显示 `store ok`） | ❌ **数据内容**：`ReadoutHubPanel` 走 **HTTP `/api/readouts`**，而**截图台无后端** ⇒ 截图停留在**加载态**「正在读取统一读数索引…」；对照 `PopPanel` 等读 `store` 状态故有内容 |
+
+⇒ **结论**：**读数「21 项正确显示」的验收靠契约用例**（21 项计数 · `drill` 为 `dict|None` · 载荷可序列化，
+**已用例强制**）；**截图台只覆盖挂载与布局**。
+
+### 改进候选（待裁）
+
+面板在**端点不可用**时只显示**无限加载态**（不发失败信号）⇒ 建议加**优雅降级**：
+优先显示明确的「**端点不可用**（含重试）」提示，**不复制读数计算**（守口径单点）。

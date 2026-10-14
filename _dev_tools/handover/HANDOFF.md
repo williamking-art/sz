@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 11:04 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 11:08 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
+92c103ae08 feat(frontend): M243 截图台**跑通**（更正 M242 的误诊）＋补齐读数面板一行；视觉验收**如实**
+423485deff docs(spec): M242 P5 截图台验收**未跑通**（`MODULE_NOT_FOUND`）—— 如实记录 + 诊断路径
+4d144fefb2 chore(handover): M241 phase 终态 v2 —— 并入 P2 双口径就绪度与两条不变量
 7d83db166a docs(spec): M240 文档正文同步 —— P2 就绪度**口径修正**与**两条不变量**写入正文
 dc2870391a test(economy): M239 `applicable_*` 口径修正**钉成不变量** —— 4 条守卫用例
-1ce7fa10db feat(economy): M238 P2 就绪度**口径修正**落地 —— `applicable_*` 四键（区分「不适用」与「缺失」）
-a26ff4ef97 fix(economy): M237 P2 可解释性**不变量** —— `undefined` 必带 `reason`（补 `level` 的 reason + 三条守卫）
-e314fe381d docs(spec): M236 `applicable_*` **三集已定**（依据 `reason` 原文）＋ 发现 `level` 缺 `reason`
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ e314fe381d docs(spec): M236 `applicable_*` **三集已定**（依据 `reason` �
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **152** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **154** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 
