@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-14T08:37:52Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-14T08:39:08Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -37,7 +37,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261014T081521Z-DSH` → [`worklog/20261014T081521Z-DSH.md`](worklog/20261014T081521Z-DSH.md)
 - `20261014T081641Z-DSH` → [`worklog/20261014T081641Z-DSH.md`](worklog/20261014T081641Z-DSH.md)
 - `20261014T081738Z-DSH` → [`worklog/20261014T081738Z-DSH.md`](worklog/20261014T081738Z-DSH.md)
 - `20261014T081858Z-DSH` → [`worklog/20261014T081858Z-DSH.md`](worklog/20261014T081858Z-DSH.md)
@@ -45,8 +44,9 @@
 - `20261014T083530Z-DSH` → [`worklog/20261014T083530Z-DSH.md`](worklog/20261014T083530Z-DSH.md)
 - `20261014T083623Z-DSH` → [`worklog/20261014T083623Z-DSH.md`](worklog/20261014T083623Z-DSH.md)
 - `20261014T083752Z-DSH` → [`worklog/20261014T083752Z-DSH.md`](worklog/20261014T083752Z-DSH.md)
+- `20261014T083907Z-DSH` → [`worklog/20261014T083907Z-DSH.md`](worklog/20261014T083907Z-DSH.md)
 
 ## 计数
 
-- tasks 139（未完成 13）· decisions 82（未闭环 6）· worklog 383 · phase 文件 4
+- tasks 140（未完成 13）· decisions 82（未闭环 6）· worklog 384 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
