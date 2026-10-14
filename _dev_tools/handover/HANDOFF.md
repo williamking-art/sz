@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-14 06:11 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 08:17 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
-1c53c27c7a feat(economy): M177 外贸**派生记账纯函数** `trade_ledger.py`（只算不写 · 守恒精确 · 零接线）
-215ab01904 chore(handover): M176b **补档并纠正计数** —— 上一条漏建任务档致 claim 失败（正文写 115，实际 114）
-18b0d83dfb feat(economy): M176 主线 F 实施**原子第一片** —— `state.trade_journal` 容器 + 守卫用例（零行为变化）
-e530d897a4 docs(spec): M175 外贸**维度分配＝甲（按产能/人口权重）**（Jev 0.550）⇒ 主线 F 前置 **100% 裁完**
-6b111313af docs(spec): M174 外贸真账**实施准备·只读侦察** —— 注入点 + **隐藏前置（维度分配口径）**
+89a4c72b38 docs(spec): M201 需求侧**完全追清** —— 4.56M = Σ(人口 × 人均基本需求 × 释放率) ⇒ 无口径错误；**P1 线闭合**
+a7540dec2c docs(spec): M200 需求侧链路确认（只读）—— `_route_demand` = Σ(**全 20 路 × 全治所 × 全阶层**)
+f167bf8567 docs(spec): M199 P1 产能**验收取向＝甲**（Jev 0.764）—— 重定验收口径 + 阈值公式写入文档
+524dd3116d docs(spec): M198 🎯 决定性口径 —— `capacity_shortage` **优先于** `demand_far_exceeds_supply` ⇒ 转档须 **cap ≥ demand（≈570 座）**
+91aa8eb9e3 docs(spec): M197 产能收口**复测（如实）** —— 成品 ×4 但主瓶颈**仍 capacity_shortage**（覆盖 0.23%）
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ e530d897a4 docs(spec): M175 外贸**维度分配＝甲（按产能/人口权重�
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **102** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **124** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 

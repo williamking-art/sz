@@ -3,7 +3,7 @@
 > 由 `_dev_tools/handover/decisions/*.json` 自动汇总。**一条裁定一文件**是本项目纪律；
 > 本索引只做导航（**权威仍是各 json**）。生成者：DSH（M116，2026-10-13）。
 
-- 决策档总数：**80**
+- 决策档总数：**83**
 - 非法 JSON：**0**
 
 | 档案 | verdict | 前二概率 | 裁定人/来源 | 问题（截断） |
@@ -37,6 +37,9 @@
 | `M172-four-taxes-central-only-scope.json` | 甲 | 甲 0.674 · 丙 0.172 | Jev (tokenrhyt | 4 目（工商/役钱/市舶/助役钱）是否也应给地方分成？ |
 | `M172b-doc-only-gate-scope.json` | 成立（holds=tru |  | Jev (typesafe  | Round 148：纯文档批是否免全量回归 —— **Jev(typesafe, 放行类) p=0.720 成立 ⇒ 采纳**（碰代码/数据 |
 | `M175-trade-dimension-allocation-scope.json` | 甲 | 甲 0.550 · 丙 0.189 | Jev (tokenrhyt | 怎么把外贸**总量**分配到「路 × 政权 × 商品」维度？ |
+| `M181-capacity-magnitude-scope.json` | 甲 | 甲 0.450 · 乙 0.346 | Jev (tokenrhyt | 产能（旋钮已裁＝**作坊数量**）调到哪个**量级档位**？ |
+| `M186-silk-workshop-distribution-scope.json` | 丁 | 丁 0.388 · 甲 0.345 | Jev (tokenrhyt | 新增的 21 座丝坊（7 → 约 28 座，Jev 甲 ~10%）**怎么分布**？ |
+| `M199-capacity-acceptance-scope.json` | 甲 | 甲 0.764 · 丁 0.184 | Jev (tokenrhyt | P1 产能的验收取向取哪个？ |
 | `M25-写站点拆环.json` | 路径①依赖注入，但注入面 |  | - | 11 个写站点的接口归属 |
 | `M38c-crop-buildings-authorization.json` | 待裁定 |  | - | 是否授权在本阶段新增桑田/麻田/果园/蔗田/茶园等 `content` 条目与可建选项（M38c）？若授权，按工程量评估的哪一档（0/1/2 |
 | `M40b-storage-applier-coupling.json` | 待设计 |  | - | 州仓 storage 下沉的前置：engine applier 路径 `prefectures.*.storage` 与 journal 判 |
