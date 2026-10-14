@@ -550,6 +550,24 @@ def _settle_extensions(state, log):
     if state.maritime["open"]:
         # 市舶外贸：关税抽解入国库 + 商人 POP 得外贸利润（白银流入民间）
         _trade_month = state.calc_maritime_trade() / 12.0                     # 月贸易额（贯）
+        # 🔴 M179（主线 F · 载体甲，Jev 甲 0.875 / 维度分配甲 0.550）：**外贸逐笔流水**。
+        # 纪律：① **只记不二次入账**——关税的**唯一**入账通道仍是 `_settle_finance`（见下方 B1 注释）；
+        #      ② 纯函数 `allocate_legs` 负责拆分（**Σ货值 ≡ 总量**，最大余数法），本处**只 append**；
+        #      ③ 失败**不影响结算**（warning 留痕）；④ 流水**不是账本**（无余额字段，存量仍落 POP/国库）。
+        try:
+            from core.domains.economy.trade_ledger import allocate_legs, assert_guards
+            _tj_total = int(_trade_month)
+            _tj_month = None
+            try:
+                from core.civil_building import abs_month_index as _ami
+                _tj_month = _ami(state)
+            except Exception:                                # noqa: BLE001
+                _tj_month = None
+            _tj = allocate_legs(state, _tj_total, month=_tj_month)
+            if _tj["legs"] and not assert_guards(_tj["legs"], state, _tj_total):
+                state.trade_journal.extend(_tj["legs"])
+        except Exception:                                    # noqa: BLE001
+            log.warning("外贸逐笔流水记账失败（不影响结算；缺失≠0）", exc_info=True)
         # 市舶调制（兴/衰：tariff ±0.02 clamp [0.05,0.20]、silver_in ±10 clamp [10,60]）
         _tf_cfg, _sv_cfg = _fdb["tariff"], _fdb["silver_in"]
         _mt = _fin.get("maritime", "平")

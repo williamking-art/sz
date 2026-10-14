@@ -151,6 +151,9 @@ def save_game(state, slot: int = 1) -> bool:
         "longterm_effects": getattr(state, "longterm_effects", []),
         "short_term_log": getattr(state, "short_term_log", []),
         "monthly_gazette": getattr(state, "monthly_gazette", [])[-12:],
+        # 🔴 M179：外贸逐笔流水（主线 F · 载体甲）——**只记不二次入账**的 append-only 事件流。
+        # 容量有界：只落**最近 2000 笔**（设计档 §8.3「流水不删但有界」；更早部分可由月/总量重算）。
+        "trade_journal": getattr(state, "trade_journal", [])[-2000:],
         "rich_report_scenes": getattr(state, "rich_report_scenes", []),
         "tool_registry": getattr(state, "tool_registry", {}),
         "branch_registry": getattr(state, "branch_registry", {}),
@@ -665,6 +668,8 @@ def _load_with_data(slot: int = 1):
     state.spy_network = data.get("spy_network", state.spy_network)
     state.settlement_log = data.get("settlement_log", [])
     state.monthly_gazette = data.get("monthly_gazette", []) or []
+    # 🔴 M179：外贸逐笔流水（旧档无此字段 ⇒ 空表，**不拒档、不臆造历史**）
+    state.trade_journal = data.get("trade_journal", []) or []
     state.rich_report_scenes = data.get("rich_report_scenes", []) or []
 
     # 恢复扩展维度

@@ -1,0 +1,35 @@
+{
+ "id": "M179-trade-journal-wiring",
+ "title": "外贸**逐笔流水接线**（主线 F 收口）：注入市舶段 + 存档登记 + 4 用例（含 **A/B 恒等**）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M175（载体甲 0.875 · 维度分配甲 0.550）· M176 容器 · M177 纯函数记账 · 设计档 §8/§9",
+ "deliverable": [
+  "`core/settlement_econ.py`：市舶段（`if state.maritime[\"open\"]:` 内、`_trade_month` 之后）注入流水记账——**只 append，不二次入账**；`abs_month_index` 取绝对月序；失败只 warning（**不影响结算**）",
+  "`core/save_load.py`：**两侧登记**（存 `[-2000:]` 容量有界 · 读 `data.get(..., []) or []` ⇒ **旧档空表不拒档**）",
+  "`_dev_tools/game-dev/tests/test_m179_trade_journal_wiring.py`（4 passed）"
+ ],
+ "evidence": {
+  "接线生效": "开启市舶后跑一月 ⇒ `state.trade_journal` 非空且 `assert_guards == []`（守恒/非账本/路名全过）",
+  "只记不二次入账": "**A/B**：接线 vs 清空流水 ⇒ 国库/内帑**恒等**（流水不参与结算）",
+  "持久化": "存档 `[-2000:]` 有界；读档缺字段 ⇒ 空表（**不拒档、不臆造历史**）",
+  "口径链": "总量＝`int(state.calc_maritime_trade()/12.0)`（**月**贸易额，既有量，未新造）；拆分＝`trade_ledger.allocate_legs`（**Σ ≡ 总量**，最大余数法）；税费/费率一律取既有单点"
+ },
+ "discipline_kept": [
+  "🔴 **只记不二次入账**（关税唯一通道仍是 `_settle_finance`，B1 修复立的规矩）",
+  "🔴 **不新增账本**（`trade_journal` 无余额字段；存量仍落 POP/国库/内帑/地方府库）",
+  "🔴 **缺失≠0**（无可用路/政权/总量 ≤0 ⇒ 不分配；读档缺字段 ⇒ 空表）",
+  "🔴 **失败不影响结算**（warning 留痕，不静默）"
+ ],
+ "verified": [
+  "M179 用例 **4 passed**（含 A/B 恒等与持久化两侧）；全量串行回归见提交日志"
+ ],
+ "next": [
+  "① 读数 `trade_line_status` 升级为可下钻（路/政权/商品）——零数值",
+  "② 产能批（旋钮乙 + 量级标定）；③ 仍待你：②营运资金载体（建议甲）· ⑤P3 授权",
+  "④ P6 第三层（多 AI 策略种子，需 provider）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T06:24:10Z"
+}
