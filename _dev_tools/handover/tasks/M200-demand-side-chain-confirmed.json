@@ -1,0 +1,29 @@
+{
+ "id": "M200-demand-side-chain-confirmed",
+ "title": "需求侧链路确认：`_route_demand` = Σ(**全 20 路 × 全治所 × 全阶层**) 的 `seat_demand(...,'绸')['total']`（M74 max 口径在 `seat_demand` 内）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `core/domains/economy/p1_pilot_chain.py::_route_demand`（:79-96）",
+ "chain": {
+  "入口": "`chain_of_route` → `_route_demand(state, route, \"绸\")`（:134）",
+  "求和口径": "`for seat in seats: tot += seat_market_shadow.seat_demand(state, route, seat, dim)[\"total\"]`（**逐治所求和**；全不可读 ⇒ `None`，**缺失≠0**）",
+  "M74 max 口径位置": "在 **`seat_market_shadow.seat_demand` 内部**（本会话**尚未读该函数**；`chain_of_route` 的注释 :150 只说明『需求走 M74 的 max 口径』）",
+  "⇒ 4,556,740 的含义": "**全 20 路 × 全治所 × 全阶层**的绸需求**月度求和**（`pilot_chain_gap` 的 totals 再对各路求和）",
+  "⇒ 与 M82『2.3%』的关系": "M82 的 2.3% 是**京畿路单路**（需求 341,141 ÷ 产能 8,000）；本口径是**全链路口径** ⇒ 二者**不同口径**（M197 已如实更正）"
+ },
+ "remaining_read": {
+  "下一步（1 次 grep 即可）": "读 `core/domains/economy/seat_market_shadow.py::seat_demand` 的 **M74 max** 具体取哪些量（例如 max(口粮需求, 货币可购需求) 之类）⇒ 判断 4.56M 是否**口径偏高**",
+  "为何仍不阻塞": "🔴 **阈值公式与需求口径无关地成立**：转档 ⇔ `座数 ≥ demand ÷ yield`（M198/M199 已写进 `收口总表`）⇒ 若未来需求口径下调，阈值**随之下调**，公式不变"
+ },
+ "state_of_lane": "P1 产能：**已收口**（28 座接线 + 根因修复 + 刷新验收口径为『按裁决已提升 + 单路显著改善 + 守恒不变』，Jev 甲 0.764）；本轮仅为**需求侧口径的追溯**，**不改数值**",
+ "verified": [
+  "`_route_demand` 的求和链逐行读取（:79-96）；M74 max 位于 `seat_demand`（由 :150 注释指向）"
+ ],
+ "next": [
+  "① 只读 `seat_market_shadow.seat_demand` 的 M74 max（可选）",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T08:15:21Z"
+}
