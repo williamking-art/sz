@@ -1,0 +1,33 @@
+{
+ "id": "M172-four-taxes-central-only",
+ "title": "主线 E 收口：4 目定为**中央专税**（Jev 甲 0.674）+ 纯文档批门禁（Jev typesafe p=0.720）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": [
+  "decisions/M172-four-taxes-central-only-scope.json（Jev choose 甲 0.674）",
+  "decisions/M172b-doc-only-gate-scope.json（Jev typesafe gate p=0.720 成立）"
+ ],
+ "deliverables": [
+  "收口总表附录『六』由「仍待裁定」改为**已裁定**：4 目为中央专税、地方分成仅来自二税折色留州（零数值）",
+  "handover/README §提交前门禁：新增「**纯文档/交接批免全量回归**」判定与边界（以暂存文件清单为准）",
+  "两份裁定档（M172 / M172b）"
+ ],
+ "key_numbers": {
+  "二税折色留州（地方）": 1583018,
+  "4 目合计": 1577843,
+  "全口径": 11412320,
+  "4 目占全口径": "13.8%",
+  "内帑/国库": "6月 47× · 60月 123× · 240月 112×"
+ },
+ "process_note": "本批为『用决策模型推进、不停下来等用户』的**自执行例子**：两项待裁点分别走 ⓐ tokenrhythm（口径）与 ⓑ typesafe（**放行类**，按 AGENTS.md 纪律第 4 条不用 tokenrhythm），均**零数值** ⇒ 当场落地。",
+ "verified": [
+  "两项裁定均为**零数值**改动（文档 + 纪律文本）；本批仍按**旧规**跑全量回归（新规自下一批生效，避免自我循环）"
+ ],
+ "next": [
+  "① 主线 E 待裁项**已清空** ⇒ 该线取证/口径完备；余下仅实现细节（如盐课/二税折色是否入 statistics）",
+  "② 其余卡口：外贸三条口径 · 营运资金（甲建议）· 产能方向 · 作坊岗位数 · P3 授权（5 项，仍需你或 Jev 口径 + 多为改数值批）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T05:29:23Z"
+}

@@ -141,6 +141,9 @@ if ($diffExit -ne 0 -or $fullExit -ne 0) { "❌ 门禁未过：不提交"; exit 
   原因：`edit` 的 `old_string` 不匹配时**会失败但流程可能继续**——若提交正文按"预期"写，就会**正文漂移**
   （M169 实例：正文声称做了 HANDOFF 增强，实际生成器未改；随后 M169b 补正）。
   一句话：**"我以为改了" ≠ "它改在暂存区里"**。
-- **碰了 `game/` 下任何代码或数据** ⇒ 全量回归**不可省**；
+- 🟢 **纯文档/交接材料批**（`git diff --cached --name-only` 全部不含 `game/` 前缀）⇒ 只需
+  **索引纪律 + JSON lint + `check` + `--cached --check`**，**免全量回归**
+  （Jev **typesafe p=0.720 成立**，2026-10-14；裁定档 `decisions/M172b-doc-only-gate-scope.json`）。
+- 🔴 **碰了 `game/` 下任何代码或数据** ⇒ 全量回归**不可省**（判定以**暂存文件清单**为准）；
   「纯文档批是否免全量」**待用户裁定**（见 `specs/cross-cutting/对照借鉴_外部交接项目handoff_2026-10-13.md` 第三节）。
 - 提交正文写明 **Jev 概率 + 实测数字 + 纪律声明**（只写正文不算留痕 ⇒ 裁定必须同时落 `decisions/`）。

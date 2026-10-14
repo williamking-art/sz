@@ -1,0 +1,25 @@
+{
+ "id": "M172b-doc-only-gate-scope",
+ "title": "Round 148：纯文档批是否免全量回归 —— **Jev(typesafe, 放行类) p=0.720 成立 ⇒ 采纳**（碰代码/数据仍全量）",
+ "status": "decided",
+ "askedAt": "2026-10-14",
+ "askedBy": "DSH",
+ "ruler": "Jev (typesafe / jev-latest) —— **放行类按 AGENTS.md 纪律第 4 条不用 tokenrhythm**",
+ "mode": "gate",
+ "condition": "纯文档/交接批只跑 索引纪律 + JSON lint + check（碰代码/数据仍全量）是否可接受？",
+ "verdict": "成立（holds=true）",
+ "probability": 0.72,
+ "threshold": 0.45,
+ "outcome": "**采纳**：① **纯文档/交接材料**批 ⇒ 只跑 **索引纪律（test_readme_sync）+ JSON lint + handover check**；② **只要碰 `game/` 下任何代码或数据文件** ⇒ **全量串行回归不可省**（含 `git diff --cached --check` 与真实退出码）。",
+ "motivation": "本会话为『只改文档』的批次也跑了数十次 ~10 分钟全量回归；外部参考项目 handoff 亦主张「纯文档改动不必跑应用测试」。**边界写死**：一旦触及代码/数据，门禁强度**不降**。",
+ "applied_in": {
+  "docs": "`_dev_tools/handover/README.md` §提交前门禁（更新示例与判定）",
+  "code": "无",
+  "task": "_dev_tools/handover/tasks/M172b-doc-only-gate.json",
+  "commit": "（本批提交）"
+ },
+ "safety": ["门禁**不弱化**：`check` / `--cached --check` / JSON lint 仍逐条执行；",
+            "**判定以暂存文件清单为准**（`git diff --cached --name-only` 出现 `game/` 前缀 ⇒ 走全量）；",
+            "本批（M172）仍按**旧规**跑了一次全量（新规自下一批生效，避免自我循环）"],
+ "reopen_if": "若出现『纯文档批掩盖了代码回归』的实例，立即回退为每批全量"
+}
