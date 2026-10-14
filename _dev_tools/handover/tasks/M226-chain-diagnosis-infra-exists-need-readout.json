@@ -1,0 +1,52 @@
+{
+ "id": "M226-chain-diagnosis-infra-exists-need-readout",
+ "title": "🎯 链级诊断**基础设施已存在**（`stock_identity`：快照/在途/待入库/残差报告 + `stock_flow` 流量桶）⇒ 缺的只是**五环贯通读数组装**（零数值）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读检索 `core/domains/economy/{stock_identity,stock_flow}.py` 的公开 API",
+ "existing_infra": {
+  "stock_identity.py（M42 批 · 仓储/商品存量）": [
+   "`pop_goods_by_dim(state)` — POP 侧各维存量",
+   "`national_resources_by_dim(state)` — 国库存量",
+   "**`in_transit_by_dim(state)`** — **在途**（运输环）",
+   "**`pending_stock_by_dim(state)`** — **待入库**（到货环）",
+   "**`stock_snapshot(state)`** — 五环存量的**统一快照**",
+   "**`money_identity(state)`** — 货币恒等式（M0–M3 口径）",
+   "**`identity_report(state)`** — 恒等式汇总报告",
+   "**`stock_delta(prev, curr)`** — 两快照之差",
+   "**`residual_report(prev, curr, …)`** — **逐维残差报告**（＝『守恒诊断』的核心：把差额归到维上）"
+  ],
+  "stock_flow.py（M42 批并行）": "`flows_container(state, create=False)` · `current_month` · `_bucket(custody=…)` · `_add(dim, qty, direction, reason, custody)` ⇒ **按保管方/方向/原因分类的流量账**（`CUSTODY_NATIONAL` 等）"
+ },
+ "what_is_missing": {
+  "结论": "**没有**一条把五环（产地→运输→成交→到货→加工）**按同一条货流**串起来、并**逐环标注可读性**的**读数**；但 `stock_snapshot` + `residual_report` 已提供**全部数值底座** ⇒ 缺的只是**组装（聚合）**，**不是**新算法",
+  "⇒ 待建（零数值、只读）": "**一条读数 `market_chain_diagnosis`**：对试点商品（绸）逐环给 `{数量, 可读性, 缺失原因}` + **端到端残差**（**一律取既有 `stock_identity` 口径**，不复制算法）"
+ },
+ "readout_design": {
+  "五环取值（全部既有单点）": {
+   "产地（投入）": "`pop_goods_by_dim(state)['丝']`（原料）＋ `national_resources_by_dim` 同维（若适用）",
+   "运输（在途）": "`in_transit_by_dim(state)['丝'/'绸']`",
+   "成交（市场）": "`seat_market_shadow.seat_supply/seat_purchasing_power`（治所级；本轮只需**可读性**与总量级）",
+   "到货（存量）": "`pending_stock_by_dim(state)` ＋ `pop_goods_by_dim(state)['绸']`（成品存量）",
+   "加工（作坊）": "`_settle_workshops` 的产出（经 `readout_hub` 既有 `pilot_chain_gap` 的成品量，**不重复算**）"
+  },
+  "端到端守恒": "`residual_report(prev, curr)` 的**逐维残差**（跨月调用两次 `stock_snapshot`）⇒ 读数同时给出**残差为 0 与否**与**不可读维清单**",
+  "契约": "只读（零数值）· **缺失≠0**（不可读环 ⇒ `None` + reason）· **口径单点**（各环一律调既有函数）· **不新增平行账本** · `drill_down` 为 dict（M125 契约）"
+ },
+ "plan_next_batch": [
+  "① 读 `stock_snapshot`/`residual_report` 的**返回结构**（1 次 grep 带上下文）",
+  "② 在 `readout_hub` 新增 `market_chain_diagnosis`（读数 20→21；同步三处计数断言）",
+  "③ 定向用例：五环可读性/缺失≠0/残差报告存在/只读（深拷）",
+  "④ **全量串行** + 文档（`tasks.md` 状态行 + 读数索引 README）+ log/commit"
+ ],
+ "verified": [
+  "两模块的公开 API 清单为**只读实测**（`stock_identity` 14 个定义、`stock_flow` 5 个，均含行号）"
+ ],
+ "next": [
+  "① 下批按 plan_next_batch 四步实现**链级诊断读数**（主顺序最后一个可自决项）",
+  "② 其余 4 项（A P3 接线 / B G-4 接线 / C 工资义务史源 / D affiliation 史料）仍待你"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:38:40Z"
+}
