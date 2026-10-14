@@ -1,0 +1,40 @@
+{
+ "id": "M175-trade-dimension-allocation",
+ "title": "外贸**维度分配＝甲（按产能/人口权重）**（Jev 0.550）⇒ 主线 F 前置 **100% 裁完**，成为一次可完成的改数值批",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M175-trade-dimension-allocation-scope.json（Jev choose 甲 0.550）",
+ "deliverables": [
+  "裁定档（含**薄margin 自证**与完整前置清单）",
+  "设计档追加 §9（维度分配甲 + 实施清单）",
+  "本任务档"
+ ],
+ "prereq_checklist_all_set": {
+  "载体": "甲（0.875）",
+  "维度分配": "甲（0.550，本轮）",
+  "注入点": "settlement_econ.py:551-570",
+  "唯一通道": "关税只由 `_settle_finance` 入账（账本只记不二次入账）",
+  "税费归属": "过税→沿途地方府库 / 住税→交易地",
+  "statistics": "单列",
+  "黔中路": "保留加注释 + 遍历集合断言",
+  "持久化": "登记 save_load 白名单"
+ },
+ "implementation_recipe": [
+  "① 在 `settlement_econ.py:551-570` 取 总量 `calc_maritime_trade()` 与 `silver_in`/`maritime_tax`（**只读它们**）",
+  "② 按 `yields['盐']`/`yields['丝']`（各路产能）与 `REGIME_IMPORTS` 政权人口**派生权重**，把总量拆成若干笔（**Σ ≡ 总量**，守恒断言）",
+  "③ 每笔写 `trade_journal`（15 字段；**无余额**；税/运费取 `trade_shadow` 单点）",
+  "④ `save_load` 登记；跑 **同种子 A/B（应恒等：只记账不进结算）** + **60/240 月长局** + 全量回归",
+  "⑤ 读数升级：`trade_line_status` 可下钻到 路/政权/商品"
+ ],
+ "process_note": "本批=『用决策模型推进』第三次自执行；**Jev 0.550 属薄margin** ⇒ 我按纪律**自证并留档**（甲：纯派生/可复算/Σ守恒/无史料依赖；乙需出处否则臆造；丙丢维度；丁不落地），并明确**保留升级为乙的接口**。本批为**纯文档/交接批** ⇒ 按 M172b **免全量回归**。",
+ "verified": [
+  "裁定与前置清单均为文档（零代码）；docs-only 门禁档（索引+lint+check+diff-check）"
+ ],
+ "next": [
+  "① **实施批**（改数值）：按上方 recipe ①–⑤，一次完成",
+  "② 仅剩两项需人：**②营运资金载体**（建议甲）· **⑤P3 授权**"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T05:44:32Z"
+}
