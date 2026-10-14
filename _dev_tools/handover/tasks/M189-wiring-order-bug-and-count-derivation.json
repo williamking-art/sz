@@ -1,0 +1,41 @@
+{
+ "id": "M189-wiring-order-bug-and-count-derivation",
+ "title": "🔴 接线批两处**精确修法**已定位：① **顺序 bug**（expansion 必须在 owners **之前**）② 3 处硬编码计数须**口径派生**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮只读检索 5 个失败用例的断言（行号实测）",
+ "finding_1_order_bug": {
+  "症状": "`test_m71_funding_summary` 断言 `rep[\"unreadable_workshops\"] == 0` 与 `test_workshop_owner::test_real_new_game_all_workshops_get_owner`（『107 座全部有货主』）在接线后红 ⇒ **不只是计数变了**",
+  "根因": "我在 `game_init.py` 把 `init_workshop_expansion(state)` 放在 `init_workshop_owners(state)` **之后** ⇒ **新增的 21 座丝坊从未登记货主** ⇒ `unreadable_workshops > 0`、货主覆盖率 < 100%",
+  "✅ 修法": "`game_init.py`：**把 `init_workshop_expansion` 提到 `init_workshop_owners` 之前**（先建座、再登记货主）",
+  "load_game 侧": "我的块加在 `assign_building_owners` 之后、**`assign_workshop_owners`（:128-133）之前** ⇒ 读档侧**顺序本就正确** ✅（仅新局侧需调序）",
+  "价值": "这是一处**功能性缺陷**，由 M71/owner 用例当场抓到——印证『接线后必须跑全量』而非只跑自测"
+ },
+ "finding_2_hardcoded_counts": {
+  "需要口径派生的 3 处（行号实测）": [
+   "`test_m127_projection_contract_guard.py:57` → `assert workshops == 107`",
+   "`test_m96_workshop_projection.py:56` → `assert rep[\"workshops\"] == 107`",
+   "`test_workshop_owner.py:92`（docstring『107 座全部有货主』+ 其断言）"
+  ],
+  "派生写法（口径单点）": "`from core.domains.economy import workshop_opening as _wo; _EXPECTED = 107 + (_wo.DEFAULT_TARGET_TOTAL - 7)` ⇒ 或更稳：**从实际 state 计算**（`len(s.workshops)` 与 `len([k for k in s.workshops if k.startswith(\"丝坊_\")]) == _wo.DEFAULT_TARGET_TOTAL`）",
+  "🔴 不许绿洗": "**不得**把 107 直接改成 128 了事——须**派生**并在 docstring 注明『期望值随 `DEFAULT_TARGET_TOTAL` 派生（M188 产能批）』，使将来分档（20/70 座）时用例**自动跟随**",
+  "M67 的失败": "`test_m67_workshop_wage_survey::test_real_game_survey_reports_types` 断言『真实新局报告的**类型集合**』⇒ 座数变化不改类型集合，**真正的红因很可能是同一处 order bug**（新座无货主/字段不全）⇒ **先修顺序再复测**，可能无需改用例"
+ },
+ "next_batch_plan": [
+  "① `game_init.py`：`init_workshop_expansion` 提到 `init_workshop_owners` **之前**（1 行位置调整）",
+  "② 重做 4 处接线（写法已验证）",
+  "③ 按口径**派生**改 3 处计数断言（+ 必要时 M67 复测）",
+  "④ **同种子 A/B**（查丝需求与工匠 POP 用工、**不造钱物**）+ **60/240 月长局** + 全量回归",
+  "⑤ 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"
+ ],
+ "verified": [
+  "5 个失败用例的断言行已逐一检索（3 处硬编码 107 为实测；order bug 由 M71 的 `unreadable_workshops == 0` 反推并给出精确修法）"
+ ],
+ "next": [
+  "① 下一批按 next_batch_plan 五步完成产能批",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:22:48Z"
+}
