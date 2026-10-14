@@ -1,0 +1,30 @@
+{
+ "id": "M242-screenshot-harness-needs-env-fix",
+ "title": "P5 截图台验收**未跑通**（MODULE_NOT_FOUND）—— 属环境依赖型验收，如实记录并给出诊断路径",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实跑（按 AGENTS.md 第 4 节的调用方式：SHOT_PYTHON + SHOT_OUT + 便携 node 运行 scripts/shot/shoot.mjs）",
+ "measured": {
+  "命令": "node scripts/shot/shoot.mjs（SHOT_PYTHON=审计 venv python；SHOT_OUT=_dev_tools/analysis-shots/panels）",
+  "结果": "SHOT EXIT=1",
+  "错误": "MODULE_NOT_FOUND，requireStack 为空（模块加载期即失败，非页面渲染期）",
+  "产物": "目录内的 PNG（MilitaryPanel/AccountingPanel/CourtPanel/GranaryPanel/LandPanel/PopPanel）时间戳为 **16:16**，**非本次运行产物** ⇒ 本次**未产出新截图**"
+ },
+ "diagnosis_path": [
+  "① 读 scripts/shot/shoot.mjs 的 require/import 清单（1 次 grep）⇒ 定位缺失模块（很可能是 playwright/puppeteer 之类的无头浏览器依赖，或需在 game/frontend 下的 node_modules 解析）",
+  "② 若缺依赖 ⇒ 需安装（属环境变更，**须用户确认**，且本会话不宜改动共享 node_modules）",
+  "③ 若需先构建 ⇒ 按 AGENTS.md 第 4 节的 electron-vite build 顺序（亦属环境/构建操作）"
+ ],
+ "why_not_fixed_here": "🔴 **不擅自装依赖或改构建产物**（属环境变更，非代码修复；且 `frontend/node_modules/electron/dist` 已知缺失 ⇒ 打包/无头链路本就不完整）",
+ "implication": "P5 的**读数/端点/契约**部分已由用例强制（21 项计数 · drill 类型 · 载荷可序列化）；**像素级/截图台验收仍待**（需先修运行方式或补依赖）",
+ "verified": [
+  "SHOT EXIT=1 与错误类型为实跑输出；PNG 时间戳 16:16 证实非本次产物"
+ ],
+ "next": [
+  "① 下批可只读读 shoot.mjs 的依赖清单给出精确安装/构建建议（不执行安装）",
+  "② 待用户 4 项：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T11:05:33Z"
+}
