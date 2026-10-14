@@ -1,0 +1,28 @@
+{
+ "id": "M165-monthly-report-attribution-scout",
+ "title": "月报归因（P5 收口）**落点已定位**：程序真值月报由 `fallback_report(state=...)` 组装 ⇒ 下一步两步可做",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "全库 grep（`rich_report` / `report` / `fallback_report`）",
+ "findings": {
+  "程序真值月报的组装点": "`core/commands.py:348`：`report = str(fallback_report(state=state).get(\"report\") or \"\")` ⇒ **`fallback_report(state=...)`** 是**程序真值月报**的组装函数（AI 不可用时的兜底；也是 `report` 的基线）",
+  "AI 富化月报（另一条线）": "`state.rich_report`：由 AI 管线写入（`commands.py:641` 取 `_rpt[\"report\"]` · `:646` 直接赋 `_rpt`），在 `:686` / `:737` 被清空；端点 `POST /api/monthly_report`（`server.py:1258`）与 `GET /api/advance`（`:566` 返回 `report`）对外下发；前端类型见 `client.ts:859/1036`",
+  "⇒ 结论": "**月报归因应落 `fallback_report`（程序真值）**，而**不是** `rich_report`（那是 AI 文本、只读模块不应追写）"
+ },
+ "planned_next_two_steps": {
+  "第1步（只读）": "读 `fallback_report` 的组装（行列表？字符串拼接？）⇒ 确定**追加行的插入点**与**现有测试对报告文本的断言**（避免破坏既有用例）",
+  "第2步（文本 only，零数值）": "在程序真值月报中追加**一行读数摘要**（建议取 `readout_hub.collect` 的 `pilot_bottleneck` / `pilot_chain_gap` / `p2_readiness`，即 P5 问句链的『哪里短缺 / 为何未运到』）；**新增定向用例**断言该行存在且**不可读时显示「未定义」而非 0**",
+  "风险与护栏": "① 只改**文本**，不改任何数值 ⇒ A/B 应恒等；② 必须**先确认**既有报告断言（`grep 报告/月报` 的用例）不受影响，否则改为**新增字段**而非改原文；③ 若 `fallback_report` 亦被 AI 管线复用，须保持**向后兼容**（追加而非替换）"
+ },
+ "verified": [
+  "`fallback_report` 调用点、`rich_report` 写入/清空点、两端点与前端类型均已定位（行号见 findings）"
+ ],
+ "next": [
+  "① 下一批：读 `fallback_report` + 查既有报告断言 ⇒ 按计划第 2 步实施（**文本 only**）",
+  "② 其余卡口不变：外贸三条口径 · 营运资金 · 产能 · 作坊岗位数 · P3 授权 · 对照第 9 条 · 4 目分成",
+  "③ P6 第三层（多 AI 策略种子）需 provider"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T03:57:00Z"
+}
