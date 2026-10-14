@@ -1275,3 +1275,24 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 **结论**：本轮**未发现新的文档不一致**（`fiscal_structure` 的 47×/123×/112× **只存在于我的会话汇报**，
 **不在现行层文档**——已 grep 确认 `specs/` 内无 `47× / 123× / 112×` 表述）；
 唯一需补的是**上表「开局值」**，已补入本复现注，防止读者误读。
+
+### 更正（M266/M267）：截图台**能**验数据内容 —— M243/M244 的「能力边界」归因**写错了**
+
+**我此前的说法**：「`ReadoutHubPanel` 走 HTTP `/api/readouts`，而**截图台无后端** ⇒ 截图停留在加载态 ⇒
+截图台**只能验挂载与布局**」。
+
+🔴 **实测更正**：截图台**本来就有 mock**（`fixtures.ts` / `storeMock.ts` / `apiMock.ts`，`fixtures.ts` 顶部即写明
+含 readouts），且 `apiMock.ts` **已 mock `readouts`**。真正原因是 **`READOUTS` 是旧形状 `{army, regions, …}`、
+没有 `hub` 键**，而 `ReadoutHubPanel` 取 `res.hub` ⇒ 恒为 `undefined` ⇒ **永远停在「正在读取…」**——
+**不是「截图台没有后端」**。
+
+**修法（M266，零数值、不改产品代码）**：用**真实后端**导出 fixture（**不手写数字**，守口径单点）——
+`python` 跑 `readout_hub.collect(commands.new_game())`（seed=20261013，先跑 6 个月结算）⇒ 生成
+`game/frontend/scripts/shot/hubFixture.ts`（**21 项 / 17.6KB 真实 payload**）⇒ `apiMock.readouts()` 返回
+`{ ...READOUTS, hub: HUB }`（**保留旧形状**，避免影响其它读 `readouts` 的面板）。
+
+**结果（实测）**：`tsc web = 0` · `SHOT EXIT = 0` · **`readouthub.png` 15.8KB → 96.8KB**，画面为
+**统一读数索引（21 项）**、右上「**有值 20 · 未定义 1**」（**仅 `jobs_capacity`**，行内带原因
+「无岗位建筑（开局 buildings 只有 水利/常平仓）⇒ 容量不可定义（不填 0）」）；数字与代码侧实测**一致**：
+`P1 缺口 4,545,108` · `内帑/国库比 48.5369` · `税收口径差额 9,834,320.67` · `链级诊断 4 环`
+⇒ **截图台现已可验收「21 项正确显示」**（数据内容级），并**反证**我早前写的 `ok=19/undefined=2` 确为过期。

@@ -13,6 +13,7 @@
 | `hud.tsx` | 61 | HUD 截图台入口（**dev-only**） |
 | `storeMock.ts` | 61 | store mock：面板需要有数据的 state |
 | `apiMock.ts` | 30 | api/client mock（**仅 dev 用**） |
+| `hubFixture.ts` | 452 | **hub fixture（仅 dev 用）**：`GET /api/readouts::hub` 的**真实 payload**（由 `readout_hub.collect` 导出，非手写；seed=20261013 且先跑 6 个月结算）⇒ 供 `apiMock` 让 `ReadoutHubPanel` 渲染 **21 项**读数 |
 | `bench-map.mjs` | 47 | 地图首帧成本基准：`JSON.parse`(13MB topojson) + 4 次 topojson 解析 |
 | `hud.html` / `panel.html` | 33 / 34 | 两个截图台入口 HTML |
 | `types.ts` | 2 | |
