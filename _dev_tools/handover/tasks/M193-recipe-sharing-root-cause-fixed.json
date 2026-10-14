@@ -1,0 +1,33 @@
+{
+ "id": "M193-recipe-sharing-root-cause-fixed",
+ "title": "🎯 **根因确证并修复**：新座 `recipe` **不得与 `WORKSHOP_RECIPES` 常量共享对象**（浅拷贝致 `recipe_cost=None` ⇒ unreadable）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "`workshop_fund_shadow.recipe_cost`（`:122-152` 逐字）＋ 本轮修复与守卫用例",
+ "root_cause_chain": {
+  "证据 1（判据）": "`recipe_cost(state,wid)`：`recipe = ws.get(\"recipe\") or {}`；逐维查 `MATERIAL_PRICE_BASE`；**任一维无价 ⇒ `missing` 非空 ⇒ `cost = None`**（M68 立的『不得静默跳过无价维』）",
+  "证据 2（为何既有座 OK）": "既有座写法为 `{\"name\": \"丝坊\", \"recipe\": **dict(_js[\"recipe\"])**, ...}` ⇒ `recipe` 是**独立副本**",
+  "🔴 我的缺陷": "`workshop_opening` 用 `{**tmpl, \"active\": True}`（**浅拷贝**）⇒ 新座的 `recipe` 与 `WORKSHOP_RECIPES[\"丝坊\"][\"recipe\"]` **同一对象** ⇒ 一旦被别处污染出**无基准价的维**，新座即 `cost=None` ⇒ 计入 `unreadable` ⇒ `procure_need` 整体 `None` ⇒ **M71 的 `unreadable_workshops==0`、M67、owner 三处红**（M96/M127 只查数量故绿）"
+ },
+ "fix": {
+  "改动（1 行）": "`store[key] = {**tmpl, \"recipe\": **dict(tmpl.get(\"recipe\") or {})**, \"active\": True}` ⇒ **内容一致（口径单点）、对象独立**",
+  "守卫用例": "`test_new_instances_do_not_share_recipe_object`：断言 `v[\"recipe\"] is not const_recipe` **且** `v[\"recipe\"] == const_recipe`"
+ },
+ "hypotheses_resolution": {
+  "① 键序号语义": "❌ **排除**（`recipe_cost` 只用 `wid` 取 `ws`，不解析序号）",
+  "② `recipe` 浅拷贝共享": "✅ **成立**（本轮确证并修复）",
+  "③ 别处补字段": "❌ 排除（`recipe_cost` 只读 `recipe`）"
+ },
+ "verified": [
+  "M187 用例 **6 passed**（含新守卫：recipe 不共享 + 内容一致）"
+ ],
+ "next": [
+  "① **重做 5 处接线**（写法已验证：game_state / migrations / game_init（**先 expansion 后 owners**）/ load_game）+ 保留 M127/M96 的**派生**改法",
+  "② **同种子 A/B**（丝需求与工匠 POP 用工、不造钱物）+ **60/240 月** + 全量回归 ⇒ 预期 M67/M71/owner **转绿**",
+  "③ 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`",
+  "④ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:39:45Z"
+}

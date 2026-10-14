@@ -60,6 +60,22 @@ def test_new_instances_share_recipe_params_and_do_not_overwrite():
         assert k in s.workshops
 
 
+def test_new_instances_do_not_share_recipe_object():
+    """🔴 M193 守卫：新座的 `recipe` **必须是独立副本**（浅拷贝会让别处污染基准配方）。
+
+    真因链：共享 recipe → 被污染出**无基准价的维** → `recipe_cost` 返回 `cost=None`
+    → 该座计入 `unreadable` → `procure_need` 整体 `None`（M71/M67/owner 用例红的根因）。
+    """
+    from content.data import WORKSHOP_RECIPES
+    s = _state()
+    wo.open_extra_workshops(s)
+    const_recipe = WORKSHOP_RECIPES["丝坊"]["recipe"]
+    for k, v in s.workshops.items():
+        if k.startswith("丝坊_"):
+            assert v["recipe"] is not const_recipe, k            # 不得与常量共享对象
+            assert v["recipe"] == const_recipe, k                # 但内容一致（口径单点）
+
+
 def test_no_silk_yields_means_no_invention():
     s = _state(with_yields=False)
     assert wo.silk_share_plan(s, 21) == {}

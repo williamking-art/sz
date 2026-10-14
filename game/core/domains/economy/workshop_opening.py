@@ -128,6 +128,10 @@ def open_extra_workshops(state, target_total: int = DEFAULT_TARGET_TOTAL) -> int
             while key in store:                              # 键冲突 ⇒ 顺延（幂等且不覆盖既有）
                 idx += 1
                 key = f"{SILK_TYPE}_{route}_{idx}"
-            store[key] = {**tmpl, "active": True}
+            # 🔴 M193 修正：**`recipe` 必须独立副本**（与既有座 `dict(_js["recipe"])` 写法一致）。
+            # 若浅拷贝 `{**tmpl}` ⇒ `recipe` 与 `WORKSHOP_RECIPES` 常量**同一对象**，一旦被别处
+            # 污染（出现无基准价的维）⇒ `workshop_fund_shadow.recipe_cost` 返回 `cost=None`
+            # ⇒ 该座计入 `unreadable` ⇒ `procure_need` 整体 `None`（M71/M67/owner 用例红的真因）。
+            store[key] = {**tmpl, "recipe": dict(tmpl.get("recipe") or {}), "active": True}
             added += 1
     return added
