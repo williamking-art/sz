@@ -569,36 +569,54 @@ def _market_chain_diagnosis(state) -> Tuple[Optional[Any], Optional[str], Any]:
         log.warning("readout_hub: stock_identity 不可读", exc_info=True)
         return None, f"stock_identity 不可读：{type(e).__name__}", {"drill": src}
 
-    def _by_dim(fn, dim: str):
+    # 🔴 M228 修正取值口径：**以既有 `stock_snapshot` 为唯一取值口**（`by_custody` 分保管方），
+    # 并用**既有 `all_readable`** 判「可读性」——可读时**缺维即真实 0**（有权威读数），
+    # 不可读时一律 `None` + reason（**缺失≠0**）。⚠️ `pop_goods_by_dim` 等**开局返回空 dict**（非嵌套）。
+    try:
+        snap = si.stock_snapshot(state)
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 链级诊断快照不可读", exc_info=True)
+        snap = None
+    snap = snap if isinstance(snap, dict) else None
+    all_readable = bool(snap.get("all_readable")) if snap else False
+    by = (snap or {}).get("by_custody") or {}
+    popg = by.get("pop_goods") if isinstance(by.get("pop_goods"), dict) else {}
+    nat = by.get("national_resources") if isinstance(by.get("national_resources"), dict) else {}
+
+    def _q(container, dim: str):
+        """从容器取维；容器可读但**缺维 ⇒ 真实 0**（`all_readable` 为真时）；否则 `None`（缺失≠0）。"""
+        v = container.get(dim) if isinstance(container, dict) else None
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return v
+        return 0 if (all_readable and isinstance(container, dict)) else None
+
+    def _from_fn(fn, dim: str):
         try:
-            v = fn(state)
-            if isinstance(v, dict):
-                x = v.get(dim)
-                if isinstance(x, (int, float)) and not isinstance(x, bool):
-                    return x
+            return _q(fn(state) or {}, dim)
         except Exception:                                    # noqa: BLE001
             log.warning("readout_hub: 链级诊断取维失败 dim=%s", dim, exc_info=True)
-        return None
+            return None
 
-    raw = _by_dim(si.pop_goods_by_dim, "丝")          # 产地
-    out = _by_dim(si.pop_goods_by_dim, "绸")          # 到货（成品存量）
-    transit = _by_dim(si.in_transit_by_dim, "绸")     # 运输
-    pending = _by_dim(si.pending_stock_by_dim, "绸")  # 到货（在途待入库）
+    raw = _q(popg, "丝")
+    if raw is None:
+        raw = _q(nat, "丝")                                  # 原料也允许取国库存量侧
+    out = _q(popg, "绸")                                     # 到货（成品存量）
+    transit = _from_fn(si.in_transit_by_dim, "绸")           # 运输
+    pending = _from_fn(si.pending_stock_by_dim, "绸")        # 到货（待入库）
 
     detail: Dict[str, Any] = {"drill": src,
                               "产地（丝存量）": raw, "运输（绸在途）": transit,
                               "到货（绸待入库）": pending, "到货（绸成品存量）": out,
                               "成交环": "见 `seat_market_shadow.seat_supply/seat_purchasing_power`（本读数不重算）",
                               "加工环": "见 `readout_hub.pilot_chain_gap`（成品/需求/缺口）",
+                              "odometer_readable": all_readable,
                               "端到端残差方法": ("跨月两次 `stock_snapshot(state)` 得 prev/curr ⇒ "
                                             "`stock_identity.residual_report(prev, curr)` 给**逐维残差**；"
                                             "本读数**单时点** ⇒ **不假造残差**（缺失≠0）")}
-    try:
-        snap = si.stock_snapshot(state)
-        detail["快照"] = snap if isinstance(snap, dict) else None
-    except Exception:                                        # noqa: BLE001
-        log.warning("readout_hub: 链级诊断快照不可读", exc_info=True)
-        detail["快照"] = None
+    detail["快照"] = snap
+    if snap:
+        detail["快照警告"] = snap.get("warnings") or None
+        detail["快照合计"] = snap.get("totals") or None
 
     readable = [x for x in (raw, transit, pending, out) if x is not None]
     if not readable:

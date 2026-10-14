@@ -1,0 +1,35 @@
+{
+ "id": "M228-chain-diagnosis-readout-valued",
+ "title": "第 21 项读数取值口径修正：链级诊断 now 有值（开局 4 环可读；3 月后产地 5842101、成品 12435）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮探针（M228）实测 stock_snapshot 结构 + all_readable 语义",
+ "root_cause_of_none": "pop_goods_by_dim / in_transit_by_dim / pending_stock_by_dim 在开局返回空 dict（不是嵌套结构）；真正唯一的取值口是 stock_snapshot 的 by_custody 分保管方，且它自带 all_readable 与 warnings",
+ "fix": "改从 stock_snapshot 取值：by_custody.pop_goods（丝=产地、绸=成品）与 by_custody.national_resources（丝=国库侧）；运输与到货仍调 in_transit_by_dim / pending_stock_by_dim；可读性用既有 all_readable 判定，可读且缺维则真实 0，不可读则 None 加 reason（缺失不等于 0）",
+ "measured": {
+  "开局": {
+   "value": 4,
+   "产地丝": 0,
+   "运输绸": 0,
+   "待入库绸": 0,
+   "成品绸": 0,
+   "all_readable": true,
+   "缺失环": []
+  },
+  "3月": {
+   "value": 4,
+   "产地丝": 5842101.0,
+   "成品绸": 12435.0
+  }
+ },
+ "verified": [
+  "读数相关用例全绿（含契约守卫）；开局与 3 月的取值均为运行时实测"
+ ],
+ "next": [
+  "主顺序自决项已收口",
+  "其余 4 项 A/B/C/D 仍待用户"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:56:50Z"
+}
