@@ -1,0 +1,35 @@
+{
+ "id": "M191-root-cause-hypothesis-workshop-key-index",
+ "title": "剩余红的**根因线索已锁定**：`unreadable_count` 来自 `owner_candidates_shadow.procure_need`；最可疑＝**新座键的序号语义**（全局 `_widx` vs 每路计数）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮静态检索（省去重新接线的成本）",
+ "findings": {
+  "`unreadable_workshops` 的出处（实测）": "`workshop_fund_shadow.py:238`：`out[\"unreadable_workshops\"] = need.get(\"unreadable_count\", 0)`，其中 `need = owner_candidates_shadow.procure_need(state)` ⇒ **M71 的红＝`procure_need.unreadable_count > 0`**（即新增座中**有座被判为不可读**）",
+  "`test_workshop_owner` 的断言口径（实测 docstring）": "只断言 **`undefined_no_owner == 0`**（货主维度 blocker 解除），**不谎报**整座 ready；并特别注明 `shadow_ready` 仍为 0（因工资单点缺失 M49/M51）",
+  "🔴 最可疑根因": {
+   "现象对比": "既有键为 **`丝坊_京畿路_3`**（`_widx` 是**跨路线性递增的全局计数**，见 `game_state.py:686-691` 的 `_widx` 用法）；我生成的是 **`丝坊_<路>_0/1/2…`**（**每路从 `have[route]` 起算**）",
+   "风险": "若下游（`procure_need` / `assign_workshop_owners` / 治所映射）**按 `_widx` 的语义解析**（例如视其为**治所序号**或要求**全局唯一递增**），则我的键会**解析失败 ⇒ 计入 unreadable**",
+   "为何 M96/M127 却绿": "那两处只查**数量**与**逐座字段**（不解析序号语义）⇒ 数量对了就绿；M67/M71/owner 关心**可读性/类型集合** ⇒ 暴露"
+  },
+  "次要候选": [
+   "② `procure_need` 可能要求每座有 **`recipe_cost`** 或**成本可判**（新座字段与既有**一致**，故此项可能性较低）",
+   "③ M67 的『类型集合』可能因键解析（`k.split(\"_\")[0]`）或**未登记类型**而变"
+  ],
+  "✅ 1 步即可确证（下一批第一步）": "带 **`--tb=short`** 重跑那 3 个用例读断言文本；或直接读 `owner_candidates_shadow.procure_need` 里 **`unreadable_count` 的累加条件**（哪个字段缺失即计不可读）",
+  "✅ 修法预判": "把新座键的序号改为**沿用既有全局 `_widx` 语义**（即在 `game_state.py` 的创建循环里**连续**给新座分配 `_widx`，而不是事后在模块里按每路计数）——**这会把补座从「事后追加」变成「开局即按目标铺座」**，更贴近既有写法（`_r_idx % 3 == 0` 条件可直接改为『按丝份额决定该路座数』）"
+ },
+ "recommended_next_batch": [
+  "① `--tb=short` 复跑 3 用例（或读 `procure_need` 的 unreadable 条件）⇒ 确证键序号假设",
+  "② 若确证 ⇒ **改注入方式**：不再事后 `extend`，而是在 `game_state.py` 的创建循环内**按丝份额决定每路座数**（沿用 `_widx` 连续递增语义）",
+  "③ 再按 M189/M190 的派生与顺序要点接线 ⇒ **A/B** + **60/240 月** + 全量回归",
+  "④ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "state_now": "🟢 树为 `dda96bd1e9`（模块已提交、**未接线**）；6 文件 25 passed",
+ "verified": [
+  "`unreadable_workshops` 的赋值链与 owner 用例断言口径均为**代码实测**（行号见 findings）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:37:08Z"
+}
