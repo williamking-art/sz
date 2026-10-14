@@ -1,0 +1,65 @@
+{
+ "id": "M195-exact-test-rewrites-for-capacity-batch",
+ "title": "产能批收口：**逐字改写清单**（M71 值型 / owner 计数与分布 / M187 两层 / M67 待读）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮逐字读取 4 处断言（行号实测）",
+ "literal_rewrites": [
+  {
+   "file": "_dev_tools/game-dev/tests/test_m71_funding_summary.py",
+   "line": "19",
+   "before": "    assert rep[\"procure_need\"] == need[\"value\"] == 28_400_000",
+   "after": "    # M195（产能批）：补座后基线 —— 21 座新丝坊（recipe 丝 10000）使开局采购需求 28,400,000 → 70,400,000\n    assert rep[\"procure_need\"] == need[\"value\"] == 70_400_000",
+   "口径": "值型基线**更新并注明来源**（该值是 Σ各作坊 recipe_cost 的合计，无法由常量派生 ⇒ 更新基线是正解）"
+  },
+  {
+   "file": "_dev_tools/game-dev/tests/test_workshop_owner.py",
+   "line": "102",
+   "before": "    assert rep[\"kept\"] == 107 and rep[\"assigned\"] == 0 and rep[\"undefined\"] == 0, rep",
+   "after": "    # M195 派生：随 workshop_opening.DEFAULT_TARGET_TOTAL（禁止硬编码）\n    from core.domains.economy import workshop_opening as _wo2\n    _N = 107 + (_wo2.DEFAULT_TARGET_TOTAL - 7)\n    assert rep[\"kept\"] == _N and rep[\"assigned\"] == 0 and rep[\"undefined\"] == 0, rep",
+   "口径": "计数型 ⇒ **派生化**"
+  },
+  {
+   "file": "_dev_tools/game-dev/tests/test_workshop_owner.py",
+   "line": "104",
+   "before": "    assert cov[\"with_owner\"] == 107 and cov[\"missing\"] == 0 and cov[\"undefined_rule\"] == 0",
+   "after": "    assert cov[\"with_owner\"] == _N and cov[\"missing\"] == 0 and cov[\"undefined_rule\"] == 0",
+   "口径": "同上"
+  },
+  {
+   "file": "_dev_tools/game-dev/tests/test_workshop_owner.py",
+   "line": "106",
+   "before": "    assert cov[\"by_kind\"][\"local\"] == 40 and cov[\"by_kind\"][\"pop:商人\"] == 67  # 2×20 酒坊 / 其余",
+   "after": "    # M195 派生：`local` 仍 40（酒坊 40 座归地方）· `pop:商人` = 67 + 新增丝坊数\n    assert cov[\"by_kind\"][\"local\"] == 40 and cov[\"by_kind\"][\"pop:商人\"] == 67 + (_wo2.DEFAULT_TARGET_TOTAL - 7)",
+   "口径": "**分布**也要派生化（新丝坊货主为 `pop:<路>:商人` ⇒ 商人计数增加；local 不变）"
+  },
+  {
+   "file": "_dev_tools/game-dev/tests/test_m187_workshop_opening.py",
+   "line": "整文件（两层改法）",
+   "before": "committed 版在**新局已是 28** 的前提下仍期望『再加 21』⇒ 2 项红",
+   "after": "① 插入 `_trim_to_open(s)` 助手（每路只留首座丝坊 ⇒ 回到 7 座，模拟 M194 之前的档案）并在其上测**模块语义**（+21 / 幂等 / 口径单点 / 不臆造）；② 另加**接线证明**用例：`new_game()` 丝坊数 == `DEFAULT_TARGET_TOTAL`。⚠️ 注意 committed 版**只有 `_state()`**，无 `_trim_to_open`（我先前那次写入因版本守卫失败，故未落盘）",
+   "口径": "模块语义 vs 真实开局**分层**，避免把接线效果混进模块单测"
+  }
+ ],
+ "still_unknown": {
+  "test_m67_workshop_wage_survey::test_real_game_survey_reports_types": "断言**尚未读取**（1 次 grep 即可）⇒ 若为**类型集合**（应不变）⇒ 红因可能源于**计数或某类缺失**；若含计数 ⇒ 同上派生化"
+ },
+ "application_order": [
+  "① 先读 M67 那处断言（1 次 grep）",
+  "② 按上表**逐字**改写 4 处（M71 1 处 · owner 3 处 · M187 整文件两层）＋ M67 视结果",
+  "③ 重做 **7 处接线** `ops_replace`（game_state / migrations / game_init×2（**先 expansion 后 owners**）/ load_game / test_m127 派生 / test_m96 派生）——**写法已 3 次验证**，逐字可复用",
+  "④ **同种子 A/B**（丝需求与工匠 POP 用工、不造钱物）+ **60/240 月** + 全量回归",
+  "⑤ 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"
+ ],
+ "state_now": "🟢 树为 `aa615b5ded`（模块 + 根因修复 + 守卫已提交；**未接线**）",
+ "verified": [
+  "4 处断言行逐字读取（M71:19-20 · owner:102/104/106 · M187 已知两层需求；M67 待读）"
+ ],
+ "next": [
+  "① 下一批按 application_order 五步**一次收口产能批**",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:53:58Z"
+}
