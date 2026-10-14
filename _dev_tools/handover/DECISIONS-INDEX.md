@@ -3,7 +3,7 @@
 > 由 `_dev_tools/handover/decisions/*.json` 自动汇总。**一条裁定一文件**是本项目纪律；
 > 本索引只做导航（**权威仍是各 json**）。生成者：DSH（M116，2026-10-13）。
 
-- 决策档总数：**83**
+- 决策档总数：**85**
 - 非法 JSON：**0**
 
 | 档案 | verdict | 前二概率 | 裁定人/来源 | 问题（截断） |
@@ -40,7 +40,9 @@
 | `M181-capacity-magnitude-scope.json` | 甲 | 甲 0.450 · 乙 0.346 | Jev (tokenrhyt | 产能（旋钮已裁＝**作坊数量**）调到哪个**量级档位**？ |
 | `M186-silk-workshop-distribution-scope.json` | 丁 | 丁 0.388 · 甲 0.345 | Jev (tokenrhyt | 新增的 21 座丝坊（7 → 约 28 座，Jev 甲 ~10%）**怎么分布**？ |
 | `M199-capacity-acceptance-scope.json` | 甲 | 甲 0.764 · 丁 0.184 | Jev (tokenrhyt | P1 产能的验收取向取哪个？ |
+| `M245-readout-panel-failure-behavior.json` | 甲 | 甲 0.737 · 丁 0.243 | Jev (tokenrhyt | 读数索引面板在**端点不可用**时应当如何表现？ |
 | `M25-写站点拆环.json` | 路径①依赖注入，但注入面 |  | - | 11 个写站点的接口归属 |
+| `M250-no-auto-retry.json` | 甲 | 甲 0.500 · 乙 0.287 | Jev (tokenrhyt | 读数面板是否再加自动重试（在前次裁定的甲=失败提示+手动重试之上）？ |
 | `M38c-crop-buildings-authorization.json` | 待裁定 |  | - | 是否授权在本阶段新增桑田/麻田/果园/蔗田/茶园等 `content` 条目与可建选项（M38c）？若授权，按工程量评估的哪一档（0/1/2 |
 | `M40b-storage-applier-coupling.json` | 待设计 |  | - | 州仓 storage 下沉的前置：engine applier 路径 `prefectures.*.storage` 与 journal 判 |
 | `M52-livelihood-shadow-scope.json` | A | A 0.948 · C 0.032 | Jev (tokenrhyt | 主线E（家计/经济归属/税制）本批取哪个切片？ |
