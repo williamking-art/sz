@@ -1,0 +1,34 @@
+{
+ "id": "M152-tax-scope-readout",
+ "title": "第 20 项读数 `tax_scope_contrast`（两套税收口径并列）—— **当前如实 undefined**，并发现**盐课/二税折色缺公开读口**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M151 取证（`tax_breakdown` 仅 4 目）＋ 本轮实探两个读口",
+ "deliverable": {
+  "readout": "`readout_hub.tax_scope_contrast`（第 20 项）：值＝**全口径 − `tax_breakdown` 4 目**；下钻给 4 目明细/合计、额外科目、全口径合计、**警示**（两套口径不可混用）",
+  "contract": "不可读 ⇒ `None` + reason（**缺失≠0**）；失败隔离（`tax_base_summary` 异常只 warning 并降级为仅 4 目）",
+  "counts": "三处计数断言 19→20 已同步（test_m81 / test_m83 / test_readouts_endpoint）"
+ },
+ "finding": {
+  "实测": "20 项 ok=18 / undefined=**2**（`jobs_capacity` + 本项）；`tax_scope_contrast = None` · `display=undefined` · reason=「全税收口径不可读（额外科目取不到）⇒ 差额不可定义」",
+  "两读口都取不到盐课/二税折色": "① `state.tax_breakdown` 只有 4 目（M151 已证）② `state.tax_base_summary()` 的 **11 键全是税基/免役口径**（`taxable_pop`/`farm_pop`/`tenant_pop`/`exempt_pop`/`exempt_share`/`poll_tax`/`official_service_tax`/`taxable_share`/`officials`/`redundant_officials`/`awaiting_posts`）——**无 salt/color 键**",
+  "🔴 根因": "**盐课（`calc_salt_coin`）与二税折色（`tax_color_total`）的值只存在于结算函数的局部变量**；`settlement_finance.py:1656` 里那句 `inc_parts = f\"工商…+盐课{salt_coin:.0f}\"` 只是**日志字符串**，**不是读口** ⇒ **『两套税收口径并列』这件事，代码里目前没有公开数据源**"
+ },
+ "fix_path": {
+  "第1步（改代码批，小）": "给盐课与二税折色**加公开只读入口**（例如 `state.tax_extra_summary()` 或在既有 `tax_base_summary()` 内**新增两键**——后者更符合『口径单点』，但需确认它是否被存档/前端消费）",
+  "第2步": "本读数即可自动由 `undefined` 转为有值（无需改读数本体）",
+  "须口径": "新增键是否入 `statistics`（防双重计数，M74 前例）· 是否随档持久化"
+ },
+ "why_undefined_is_correct": "本项**不是坏读数**：它在**如实报告『全口径不可读』**，并把原因与警示写进 `drill_down`。**在公开读口补上之前，保持 undefined 正是『缺失≠0』的正确行为**——若强行用 4 目当全口径，就会重演 M151 记录的历史误判（>100%）。",
+ "verified": [
+  "20 项读数形状/契约用例全绿（含 M125 的 drill 类型守卫、M126 的载荷可序列化守卫）；三处计数断言已同步"
+ ],
+ "next": [
+  "① 若你同意 ⇒ 下一批给盐课/二税折色**加公开只读入口**（我要先确认不重复入 `statistics`）",
+  "② 主线 E 核心待裁不变：**地方是否应有税收分成**",
+  "③ 其余卡口：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T01:30:14Z"
+}

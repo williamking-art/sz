@@ -446,6 +446,45 @@ def _fiscal_structure(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return ratio, None, detail
 
 
+def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**税收口径对照**（M152，只读·零数值）：`tax_breakdown`（4 目）vs **全税收**（含盐课·二税折色）。
+
+    🔴 动因（M151 取证）：`tax_breakdown` **只覆盖 4 目**，而月度应征是**五科目**
+    ⇒ 拿它当「全部税收」会**漏掉两项大额**（代码注释记录过历史误判：旧『名义岁入』>100% 正因分母缺这两项）。
+    本读数把两套口径**并列**出来，值＝**差额（全税收 − tax_breakdown）**；不可读 ⇒ `None` + reason。
+    """
+    src = "state.tax_breakdown + state.tax_base_summary()（既有读口）"
+    tb = getattr(state, "tax_breakdown", None) or {}
+    if not isinstance(tb, dict):
+        return None, "tax_breakdown 不可读（缺失≠0）", {"drill": src}
+    base_sum = sum(float(v) for v in tb.values() if isinstance(v, (int, float)))
+    detail: Dict[str, Any] = {"tax_breakdown_4目": {k: tb.get(k) for k in
+                                                 ("commerce", "poll", "maritime", "official_service")},
+                              "tax_breakdown_合计": base_sum, "drill": src}
+    extra: Dict[str, Any] = {}
+    full = None
+    try:
+        tbs = state.tax_base_summary()
+        if isinstance(tbs, dict):
+            for k, v in tbs.items():
+                kl = str(k).lower()
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and \
+                        ("salt" in kl or "color" in kl or "折色" in str(k) or "盐" in str(k)):
+                    extra[str(k)] = v
+            # 全税收 = tax_breakdown 合计 + 额外两项（**只在真取到额外项时**给全口径）
+            if extra:
+                full = base_sum + sum(float(v) for v in extra.values())
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 税收全口径不可读（降级为仅 4 目）", exc_info=True)
+    detail["额外科目（盐课/二税折色等）"] = extra or None
+    detail["全税收口径合计"] = full
+    detail["警示"] = ("**两套口径不可混用**：`tax_breakdown` 仅 4 目；任何「税收占比/到账率」"
+                      "结论必须注明用哪套（M151 取证；历史误判见 `game_state_econ` 注释）")
+    if full is None:
+        return None, "全税收口径不可读（额外科目取不到）⇒ 差额不可定义（缺失≠0）", detail
+    return round(float(full) - base_sum, 2), None, detail
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -486,6 +525,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _trade_line_status, "source": "core.domains.economy.trade_shadow（纯函数影子）"},
     {"key": "fiscal_structure", "label": "财政结构：内帑/国库比", "unit": "倍",
      "fn": _fiscal_structure, "source": "state.treasury / state.imperial_treasury"},
+    {"key": "tax_scope_contrast", "label": "税收口径差额（全口径 − tax_breakdown 4 目）", "unit": "贯",
+     "fn": _tax_scope_contrast, "source": "state.tax_breakdown + state.tax_base_summary()"},
 )
 
 
