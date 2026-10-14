@@ -1,0 +1,58 @@
+{
+ "id": "M236-three-sets-determined-and-level-reason-gap",
+ "title": "applicable_* 三集已定（依据 reason 原文）＋ 发现 level 在 defined=False 时 reason 为空（可顺手补）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮探针：直接调 entity_projection.project_building(state, 京畿路, 京畿路|开封府, 水利) 读 14 字段的 defined 与 reason 原文",
+ "signatures": {
+  "project_building": "(state, route, seat, building, level=None, jobs_ctx=None)",
+  "project_workshop": "(state, wid)"
+ },
+ "three_sets_for_building": {
+  "已就绪": [
+   "blueprint",
+   "seat",
+   "owner",
+   "operator",
+   "maintenance",
+   "operation_mode",
+   "income_to"
+  ],
+  "不适用（reason 明说语义不存在）": {
+   "methods": "无可选生产方法字段",
+   "jobs_capacity": "该建筑非岗位建筑（JOBS_PER_LEVEL 未登记）",
+   "jobs_filled": "实到不可算（该建筑非岗位建筑或无池）",
+   "recipe": "建筑无配方（配方在作坊上）",
+   "io_stock": "库存不在建筑上：货由 POP 持有（治所级）或入 resources 与工匠 goods 池"
+  },
+  "适用但缺失": {
+   "completed_month": "该建筑以标量登记（岗位类写法）或为开局建筑（无 built_month）⇒ 无建成月（缺失不等于 0，不臆造）",
+   "level": "标量登记建筑无等级（⚠️ 现 reason 为空，见下）"
+  },
+  "⇒ 建筑适用集": "14 减 5（methods/jobs_capacity/jobs_filled/recipe/io_stock）等于 9",
+  "⇒ 建筑 applicable_ratio 预期": "样例水利为 7/9（completed_month 与 level 适用但缺失）"
+ },
+ "new_gap_found": {
+  "缺口": "level 在 defined=False 时 reason 为 None（本轮 14 字段中**唯一**没有理由的字段）",
+  "依据纪律": "M233 教训的正面应用：读 reason 才暴露『该字段缺 reason』；低 defined_ratio 不等于缺口，但**无 reason 的 undefined 确是可解释性缺口**",
+  "修法（零数值、1 行）": "给 level 的 undefined 分支补 reason：该建筑以标量登记（岗位类写法）⇒ 无等级（缺失不等于 0）",
+  "注意": "须先读 project_building 的 level 分支确认其判定条件，避免把『可算但取不到』与『语义不存在』混同"
+ },
+ "implementation_plan": [
+  "① 在 survey_entity_projection / survey_workshop_projection 增三键：applicable_fields（按类型的不适用清单与依据）/ applicable_ratio（在适用子集上的就绪率）/ not_applicable；保留 defined_ratio 与 defined_by_field 兼容",
+  "② 每个 not_applicable 项**引用 reason 原文**（见上表）",
+  "③ 顺手补 level 的 reason（1 行）",
+  "④ 定向用例：不适用不计缺失；applicable_ratio 只统计适用子集；defined_ratio 保持旧值；level 的 undefined 必带 reason",
+  "⑤ 全量 + docs（P2 设计档 + tasks.md）+ log + commit"
+ ],
+ "verified": [
+  "project_building 签名与 14 字段的 defined/reason 原文均为运行时实测（样例＝京畿路/京畿路|开封府/水利）"
+ ],
+ "next": [
+  "① 下批按 implementation_plan 一次做完（零数值）",
+  "② 待用户 4 项：A/B/C/D"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:28:46Z"
+}
