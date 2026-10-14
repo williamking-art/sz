@@ -1,0 +1,46 @@
+{
+ "id": "M232-jobs-capacity-recipe-ready",
+ "title": "P2 建筑侧 jobs_capacity：口径已定（song_job_cfg 的 JOBS_PER_LEVEL 是阶层到每级岗位数），实施配方就绪",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读检索 core/building_jobs.py（song_job_cfg 返回含 JOBS_PER_LEVEL，宋侧标定为权威）与 content/data_external.py（JOBS_PER_LEVEL 结构示例：商铺的商人为 40）",
+ "caliber": {
+  "取值口": "core.building_jobs.song_job_cfg() 返回的 JOBS_PER_LEVEL（每次调用返回新 dict，可自由读取）",
+  "结构": "JOBS_PER_LEVEL[建筑类型] 是阶层到每级岗位数的映射（示例：商铺为 商人 40，即每级 40 个商人岗）",
+  "公式": "jobs_capacity = Σ阶层(JOBS_PER_LEVEL[类型][阶层]) × level（只读派生，零数值）",
+  "边界": "类型不在 JOBS_PER_LEVEL 中、或 level 不可读 ⇒ 返回 None 加 reason（缺失不等于 0，不得回落 0）",
+  "反例警戒": "粮田的每级岗位数为 0（粮维豁免岗位制）⇒ 结果 0 是真实的 0，须与不可读区分"
+ },
+ "where_to_add": {
+  "文件": "game/core/domains/economy/entity_projection.py",
+  "位置": "project_building 的派生段（与 owner/operator/maintenance/operation_mode/income_to 并列）",
+  "注意": "FIELDS 已是 14 项口径单点，本次不新增字段、只让既有 jobs_capacity 有值（就绪度 8 到 9）",
+  "配套": "survey_entity_projection 的 defined_by_field 会自动反映（无需改）"
+ },
+ "applicable_ratio_recipe": {
+  "目的": "区分不适用与缺失（现行 14 字段套两类实体导致 8/14 系统性低估）",
+  "做法": "在 survey_entity_projection / survey_workshop_projection 中并列新增三键：applicable_fields（按实体类型的适用字段）、applicable_ratio（在该子集上的就绪率）、not_applicable（不适用的字段与理由）；保留既有 defined_ratio 与 defined_by_field 不变（兼容既有用例）",
+  "子集依据（须逐字段给理由）": {
+   "建筑不适用": "methods、recipe、io_stock（建筑无配方与材料投入产出语义；库存不按主体分栏）",
+   "作坊不适用": "blueprint、level（作坊非建筑，无蓝图与等级）、io_stock（同上）",
+   "两类皆适用但可能缺失": "completed_month（仅 civil_building 有建成月）、jobs_*（建筑侧可算，作坊侧裁丁 undefined）"
+  }
+ },
+ "verification_plan": [
+  "定向用例：建筑侧 jobs_capacity 在真实新局全为可读且等于 Σ阶层×level；类型不在表或 level 缺失时为 None 加 reason",
+  "定向用例：粮田（每级 0）结果为 0 且 judged 为可读（真实 0）",
+  "定向用例：applicable_ratio 只统计适用子集；not_applicable 列出字段与理由；defined_ratio 保持旧值（兼容）",
+  "全量串行 + docs（P2 设计档与 tasks.md 状态行）+ log + commit"
+ ],
+ "not_done_why": "本轮只定口径与配方（上下文预算）；实施涉及 project_building 与两个 survey，须整批一次做完并配定向用例，避免半改",
+ "verified": [
+  "song_job_cfg 与 JOBS_PER_LEVEL 的结构与示例为只读实测（含行号来源）"
+ ],
+ "next": [
+  "下批按 where_to_add 与 applicable_ratio_recipe 实施",
+  "其余 4 项 A/B/C/D 仍待用户"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:25:37Z"
+}
