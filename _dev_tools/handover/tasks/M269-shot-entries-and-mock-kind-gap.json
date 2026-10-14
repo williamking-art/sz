@@ -1,0 +1,35 @@
+{
+ "id": "M269-shot-entries-and-mock-kind-gap",
+ "title": "截图台补 4 个面板条目（10→14）＋ 发现**同类 mock 缺口**：fixtures.READOUTS 只覆盖部分 readout kind（缺 situations/plan）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测：读 4 个组件参数依赖 + 重拍 + 目视核验 2 张",
+ "deliverable": [
+  "shoot.mjs 增 4 条目（参数均可选）：situation-pop（tab=pop）· planreadout（route=两浙路）· prefecture · governancehub",
+  "SHOT EXIT=0；4 张新产物：situation-pop 37.3KB · planreadout 16.4KB · prefecture 29.4KB · governancehub 36.1KB"
+ ],
+ "visual_verification": {
+  "已目视2张": {
+   "planreadout.png": "显示**诚实空态**：『计划读数未下发（后端 readouts 可能尚未下发）——不以空白填充「无工程」』⇒ **非错误面板**，且印证缺失不等于 0 纪律",
+   "situation-pop.png": "三个页签正常渲染（局势/六类心气/集团⇄POP）、说明文字正确；内容为『**局势读数为空（后端 /api/readouts 未返回 situations）**』"
+  },
+  "待目视": [
+   "prefecture.png",
+   "governancehub.png"
+  ]
+ },
+ "new_finding": {
+  "问题": "截图台 mock 的 `fixtures.READOUTS` 是**旧的部分形状**（含 `army`/`regions`），**缺 `situations` 与 `plan`**（`hub` 已在 M266 补）",
+  "影响": "`SituationPanel` / `PlanReadoutPanel` 在截图里只能显示**空态文案**（诚实但非内容验收）",
+  "同类性": "与 M266 的 `hub` 缺口**同源同因**：mock 的 readout **kind 覆盖不全**，而面板是按 kind 取数的",
+  "⇒ 正解（保持口径单点）": "**枚举后端支持的 readout kind**（`/api/readouts?kind=…` 的分派表）⇒ 对**每个 kind** 用真实后端导出 payload ⇒ 汇总成 `readoutsFixture.ts`（替代手工的 `READOUTS`）⇒ 重拍并**逐张目视** ⇒ 该面板族全部可内容验收"
+ },
+ "why_partial": "本轮上下文预算不足：只完成「加条目 + 目视 2 张 + 定位同类缺口」；**未**枚举全部 kind、**未**生成全量 fixture、**未**目视另 2 张",
+ "next": [
+  "① 下批：枚举 readout kind（backend 分派表）⇒ 真实导出每个 kind 的 payload ⇒ 生成 readoutsFixture ⇒ 重拍 ⇒ 逐张目视",
+  "② 待用户：A/B 授权 · C/D 史料 · Lightpanda 是否安装"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T14:28:56Z"
+}

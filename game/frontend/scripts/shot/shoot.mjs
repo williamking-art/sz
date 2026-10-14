@@ -36,6 +36,11 @@ const PAGES = [
   ["provincemilitary", "panel=ProvinceMilitaryPanel&route=两浙路", 1000, 1240],
   // M243：**读数索引**（P5 新增的 21 项读数面板）——此前**不在清单内** ⇒ 截图验收不覆盖它，本行补齐
   ["readouthub", "panel=ReadoutHubPanel", 1000, 1200],
+  // M269：按 M268 记录的覆盖缺口补 **第一优先** 4 个面板（参数均可选，逐一目视核验后才保留）
+  ["situation-pop", "panel=SituationPanel&tab=pop", 1000, 1100],
+  ["planreadout", "panel=PlanReadoutPanel&route=两浙路", 1000, 1000],
+  ["prefecture", "panel=PrefecturePanel", 1000, 1100],
+  ["governancehub", "panel=GovernanceHub", 1000, 1300],
   ["PopPanel", "panel=PopPanel", 1000, 1100],
   ["LandPanel", "panel=LandPanel", 1000, 900],
   ["GranaryPanel", "panel=GranaryPanel", 1000, 900],
