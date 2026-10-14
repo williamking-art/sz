@@ -73,9 +73,15 @@ const probe = (() => {
     //   若显示 16329544 ⇒ state 通道通、问题在面板取值路径；若无值 ⇒ state 通道未接通。
     //   （此处用字符串拼接而非模板字面量：替换工具会拒绝含美元大括号的替换文本。）
     const st = (s as { statistics?: { total_income?: unknown } } | null)?.statistics;
+    // M292：第二条探针 —— 直接数**同模块 import 的** `fixtures.STATE`，用于区分两种根因：
+    //   · 若此处显示 34 键且有 statistics 值 ⇒ bundle **含**注入 ⇒ 问题在 store 接线（面板拿到的 state 不是它）
+    //   · 若此处也只有 7 键/无值 ⇒ bundle **不含**注入（构建侧问题）
+    const FIXSTAT = (STATE as { statistics?: { total_income?: unknown } }).statistics;
     return s
-      ? ("store ok（state " + Object.keys(s as object).length + " 键｜statistics.total_income="
-         + String(st?.total_income) + "）")
+      ? ("store ok（store.state " + Object.keys(s as object).length + " 键｜store.state.statistics="
+         + String(st?.total_income)
+         + " ｜fixtures.STATE " + Object.keys(STATE as object).length + " 键｜fixtures.STATE.statistics="
+         + String(FIXSTAT?.total_income) + "）")
       : "store 返回 state=undefined";
   } catch (e) {
     return `store 探针异常：${String((e as Error)?.message ?? e)}`;
