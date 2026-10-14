@@ -462,24 +462,26 @@ def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
                                                  ("commerce", "poll", "maritime", "official_service")},
                               "tax_breakdown_合计": base_sum, "drill": src}
     extra: Dict[str, Any] = {}
-    full = None
+    missing: List[str] = []
+    # 盐课：**公开方法**（M154 核实：`calc_salt_coin(arrival=1.0) -> float`，口径=**月盐课**
+    # = Σ盐产量 × SALT_PROFIT_PER_JIN × price_factor × arrival × (人口/SALT_POP_BASE)）
     try:
-        tbs = state.tax_base_summary()
-        if isinstance(tbs, dict):
-            for k, v in tbs.items():
-                kl = str(k).lower()
-                if isinstance(v, (int, float)) and not isinstance(v, bool) and \
-                        ("salt" in kl or "color" in kl or "折色" in str(k) or "盐" in str(k)):
-                    extra[str(k)] = v
-            # 全税收 = tax_breakdown 合计 + 额外两项（**只在真取到额外项时**给全口径）
-            if extra:
-                full = base_sum + sum(float(v) for v in extra.values())
+        salt = state.calc_salt_coin()
+        if isinstance(salt, (int, float)) and not isinstance(salt, bool):
+            extra["calc_salt_coin（月盐课）"] = round(float(salt), 2)
     except Exception:                                        # noqa: BLE001
-        log.warning("readout_hub: 税收全口径不可读（降级为仅 4 目）", exc_info=True)
-    detail["额外科目（盐课/二税折色等）"] = extra or None
-    detail["全税收口径合计"] = full
+        log.warning("readout_hub: 盐课（calc_salt_coin）不可读", exc_info=True)
+        missing.append("盐课 calc_salt_coin 调用异常")
+    # 二税折色：M153 核查**无公开读口**（值只在结算局部变量）⇒ 如实标注
+    missing.append("tax_color 二税折色（无公开读口，M153）")
+    full = base_sum + sum(float(v) for v in extra.values()) if extra else None
+    detail["额外科目（已可读）"] = extra or None
+    detail["额外科目（仍缺读口）"] = missing or None
+    detail["partial"] = bool(missing)                        # 🔴 部分口径：盐课有、二税折色缺
+    detail["全税收口径合计（可读部分）"] = full
     detail["警示"] = ("**两套口径不可混用**：`tax_breakdown` 仅 4 目；任何「税收占比/到账率」"
-                      "结论必须注明用哪套（M151 取证；历史误判见 `game_state_econ` 注释）")
+                      "结论必须注明用哪套（M151 取证；历史误判见 `game_state_econ` 注释）。"
+                      "⚠️ 本项为**部分口径**：盐课已计入，**二税折色仍缺公开读口**")
     if full is None:
         return None, "全税收口径不可读（额外科目取不到）⇒ 差额不可定义（缺失≠0）", detail
     return round(float(full) - base_sum, 2), None, detail

@@ -1,0 +1,34 @@
+{
+ "id": "M154-salt-coin-readout-wired",
+ "title": "读数接通**盐课**：`tax_scope_contrast` 由 undefined 转为有值（**847,917 贯/月**）⇒ M151 的口径警示**被量化**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M153 前置核查（`calc_salt_coin` 是公开方法）＋ 本轮口径核实与接线",
+ "salt_coin_caliber": {
+  "签名": "`state.calc_salt_coin(arrival: float = 1.0) -> float`",
+  "口径（源码注释）": "**月盐课（贯）** ＝ Σ各路盐产量(斤/年) × `SALT_PROFIT_PER_JIN` × price_factor × arrival × (总人口 / `SALT_POP_BASE`)",
+  "构成说明": "盐产区产能＝各路七维物资 `yields[\"盐\"]` 之和（工程/市舶可改）· price_factor 夹在 [`SALT_PRICE_FLOOR`, `SALT_PRICE_CEIL`] · **不再用写死常量**",
+  "实测（6 月）": 847916.67
+ },
+ "wiring": {
+  "readout": "`readout_hub._tax_scope_contrast` 改为**直接调用** `state.calc_salt_coin()`（不再用 `tax_base_summary` 键名启发式）",
+  "输出现状": "20 项 **ok=19 / undefined=1**（仅剩 `jobs_capacity`）；`tax_scope_contrast = 847916.67` · `reason=None`",
+  "partial 标记": "`drill_down.partial = True` 并列出 `额外科目（仍缺读口）=[tax_color 二税折色（无公开读口，M153）]` ⇒ **如实标注「部分口径」**",
+  "零数值": "**纯读**：调用既有纯派生方法，不写 state、不进结算"
+ },
+ "quantified_warning": {
+  "🔴 M151 警示被量化": "6 月实测：`tax_breakdown` 4 目合计 **1,577,843** vs 盐课 **847,917**（**≈ 54%**）⇒ 若把 `tax_breakdown` 当「全部税收」，**低估约 35%**（847,917 / 2,425,760）。这正是 M151 记录的历史误判（名义岁入 >100%）的**量级根源**。",
+  "二税折色仍缺": "M153 核查：**无公开读口**（值只在结算局部变量）⇒ 全口径仍**不完全**；`partial=True` 已如实标注。"
+ },
+ "verified": [
+  "读数契约用例全绿（含 M125 drill 守卫 / M126 载荷守卫 / M127 投影守卫）；20 项 ok=19/undefined=1"
+ ],
+ "next": [
+  "① 若你要**全口径**：需给二税折色加公开只读方法（小改；须确认计算时点）",
+  "② 主线 E 核心待裁不变：**地方是否应有税收分成**",
+  "③ 其余卡口：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T01:52:42Z"
+}
