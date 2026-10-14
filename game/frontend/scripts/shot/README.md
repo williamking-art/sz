@@ -34,3 +34,32 @@ $env:SHOT_OUT    = "D:\codebuddy\sz\_dev_tools\analysis-shots\panels"
 - **dev-only**：`mock` 与 `fixtures` 只服务截图台，不得被产品代码 import。
 - **地图为何不拍舆图**：`maplibre` 需 WebGL，无头浏览器不保证 ⇒ 地图改用**数据级回归**
   （`tests/test_map_prefecture_geometry.py`），像素级验收仍须真机。
+
+
+## 🔴 已知限制：**`state` 通道未接通**（M287/M291 定论，dev-only）
+
+**决定性证据（可观测探针，M291）**：在页头探针里追加渲染 `state.statistics.total_income` 后，
+截图显示：
+
+```
+store ok（state 7 键｜statistics.total_income=undefined）
+```
+
+而 `fixtures.ts` 的 `STATE` **顶层确有** `statistics`（值 `total_income = 16329544`，由真实
+`state.statistics` 导出）。⇒ **面板通过 `useGameStore((s) => s.state)` 拿到的 `state`
+不是 `fixtures.STATE`**（**7 键 vs 34 键**；该 7 键对象没有 `statistics`）。
+
+**⇒ 结论（通道级）**：
+
+| 通道 | 状态 | 说明 |
+|---|---|---|
+| **`readouts`**（`useGameStore(s => s.readouts)` / `getApiClient().readouts()`） | ✅ **可用** | 本会话所有**成功**的数据内容验收（`hub` 21 项 · `situations` · `plan` · `finance`）**全部走此通道** |
+| **`state`**（`useGameStore(s => s.state)`） | ❌ **未接通** | 面板看到的是 7 键的空/桩对象 ⇒ **凡读 `s.state` 的块在截图里恒为空/0**（如 `GovernanceHub` 的「累计统计」「仓廪统计」、其它面板的 state 派生块） |
+
+**影响范围**：**仅截图台（dev-only）**；**生产不受影响**（真实后端下发完整 state）。
+**⇒ 使用纪律**：截图台**只应据 `readouts` 派生数据做内容验收**；凡结论涉及 `s.state` 的块，
+**不得**以截图为准（须用契约用例或**在生产环境**核对）。
+
+**可选修法（须单独一批）**：在截图台 bootstrap 里显式 `setState(STATE)`（或修 alias 使
+`storeMock` 真正生效），随后**逐张复核**并把本限制条删除。
+**页头探针**：`panel.tsx` 的探针已保留 `statistics.total_income` 一栏（诊断用；值为 `undefined` 即表示未接通）。

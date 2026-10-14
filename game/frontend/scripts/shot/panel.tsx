@@ -69,7 +69,14 @@ const Panel = entry?.default;
 const probe = (() => {
   try {
     const s = useGameStore((x: unknown) => (x as { state?: unknown }).state) as unknown;
-    return s ? `store ok（state ${Object.keys(s as object).length} 键）` : "store 返回 state=undefined";
+    // M291：可观测探针（dev-only）—— 追加渲染 state.statistics.total_income：
+    //   若显示 16329544 ⇒ state 通道通、问题在面板取值路径；若无值 ⇒ state 通道未接通。
+    //   （此处用字符串拼接而非模板字面量：替换工具会拒绝含美元大括号的替换文本。）
+    const st = (s as { statistics?: { total_income?: unknown } } | null)?.statistics;
+    return s
+      ? ("store ok（state " + Object.keys(s as object).length + " 键｜statistics.total_income="
+         + String(st?.total_income) + "）")
+      : "store 返回 state=undefined";
   } catch (e) {
     return `store 探针异常：${String((e as Error)?.message ?? e)}`;
   }
