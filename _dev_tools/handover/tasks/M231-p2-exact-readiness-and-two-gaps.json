@@ -1,0 +1,70 @@
+{
+ "id": "M231-p2-exact-readiness-and-two-gaps",
+ "title": "P2 精确就绪表（建筑 8/14 · 作坊 8/14 逐字段）＋两个真发现：建筑侧 jobs_capacity 本可算却报 0；14 字段套两类实体致分母失真",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮探针实测 survey_entity_projection / survey_workshop_projection 的 defined_by_field",
+ "exact_readiness": {
+  "建筑（40 座）": {
+   "就绪 8": [
+    "blueprint",
+    "seat",
+    "level",
+    "owner",
+    "operator",
+    "maintenance",
+    "operation_mode",
+    "income_to"
+   ],
+   "缺 6": {
+    "completed_month": "开局建筑无建成月（仅 civil_building 有）⇒ 不臆造，合理",
+    "methods": "**建筑无「可得方法」概念** ⇒ 应标**不适用**",
+    "jobs_capacity": "**本可算**（JOBS_PER_LEVEL × 等级；设计文档 §一 明写『已有』）⇒ **真缺口**",
+    "jobs_filled": "需在岗口径（M78 有纯函数 allocate_employment_detail）⇒ 可能可算",
+    "recipe": "**建筑无配方** ⇒ 不适用",
+    "io_stock": "库存不按主体分栏 ⇒ 不适用"
+   }
+  },
+  "作坊（128 座）": {
+   "就绪 8": [
+    "seat",
+    "owner",
+    "operator",
+    "maintenance",
+    "operation_mode",
+    "methods",
+    "recipe",
+    "income_to"
+   ],
+   "缺 6": {
+    "blueprint": "**作坊非建筑，无蓝图** ⇒ 不适用",
+    "level": "**作坊无等级** ⇒ 不适用",
+    "completed_month": "作坊无建成月 ⇒ 不臆造",
+    "jobs_capacity": "作坊维度**无权威来源**（JOBS_PER_LEVEL 不含作坊；Jev 裁丁 0.446）⇒ 如实 undefined",
+    "jobs_filled": "同上",
+    "io_stock": "库存不按主体分栏 ⇒ 不适用"
+   }
+  }
+ },
+ "two_findings": {
+  "① 建筑侧 jobs_capacity 真缺口": "`JOBS_PER_LEVEL` **只登记建筑**（设计文档 §一 明写建筑侧 `jobs_capacity`『已有、可算』），而 `level` 已就绪 ⇒ **建筑侧可算却报 0/40** ⇒ 这是**可真账补齐的一项**（只读投影；**零数值**）",
+  "② 分母口径失真": "**同一 14 字段集套两类实体**——建筑无 `methods`/`recipe`/`io_stock`；作坊无 `blueprint`/`level` ⇒ **『8/14』系统性低估**（把『不适用』计成『缺失』）⇒ 正确口径应为**按实体类型取适用字段子集**：建筑适用 10（14−methods−recipe−io_stock−? 需逐项定）、作坊适用 11（14−blueprint−level−io_stock）",
+  "⇒ 建议": "在 `survey_*` 中**并列给出** `defined_ratio`（现行 14 分母，兼容既有用例）与 **`applicable_ratio`（按类型适用字段）**，并列出**不适用字段**（区别于『缺失』）——**这是读数语义的改进，零数值**"
+ },
+ "next_batch_plan": [
+  "① 读 `entity_projection.project_building` 的 `level`/`jobs_capacity` 分支（1 次 grep）⇒ 若能算则补：**建筑侧 `jobs_capacity = JOBS_PER_LEVEL[类型] × level`**（口径单点，只读）",
+  "② 在 `survey_*` 增 `applicable_fields` / `applicable_ratio` / `not_applicable` 三键（**兼容**既有 `defined_ratio` 与用例）",
+  "③ 定向用例（不适用字段不计入缺失；建筑侧 jobs_capacity 有值）+ 全量 + 文档 + 提交"
+ ],
+ "caution": "① 作坊侧 `jobs_*` **仍须维持 undefined**（Jev 裁丁）——**不得**因建筑侧可算而顺手给作坊套建筑口径（设计文档明文『不拿建筑口径硬套』）；② `applicable` 子集须**逐字段给依据**（不得凭感觉删字段）",
+ "verified": [
+  "两投影的 `defined_by_field` 逐字段值为**运行时实测**（建筑 40 座 / 作坊 128 座）"
+ ],
+ "next": [
+  "① 下批按 plan ①–③ 实施（零数值）",
+  "② 其余 4 项（A/B/C/D）仍待用户"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:24:50Z"
+}
