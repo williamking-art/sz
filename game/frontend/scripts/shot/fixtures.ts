@@ -197,7 +197,10 @@ const ROUTE_JJL = {
   mood: 70, govern: 70, public_support: 72, gentry_resistance: 28,
   city_defense: 68, unrest: 8, security: 92, security_label: "太平",
   fiscal: 66, literacy: 38, grain_year: 4_200_000, grain_stock: 1_800_000, grain_months: 6.1,
-  tax_month: 420_000, tax_share: 0.19, army_cash_month: 78_000, army_grain_month: 64_000,
+  tax_month: 420_000, tax_share: 0.19,
+  // M275：`GovernanceHub` 的「税入构成」读 **state.tax_breakdown**（store 通道）
+  //   值取自真实后端（new_game + seed20261013 + 6 月结算）⇒ 非手写（口径单点）
+  tax_breakdown: {"commerce": 1116720, "poll": 390470, "tax_color": null, "salt": null}, army_cash_month: 78_000, army_grain_month: 64_000,
   risk_score: 8.2, risk_label: "安", risk_hints: []
 };
 

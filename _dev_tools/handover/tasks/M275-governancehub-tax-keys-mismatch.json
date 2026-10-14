@@ -1,0 +1,31 @@
+{
+ "id": "M275-governancehub-tax-keys-mismatch",
+ "title": "疑似真缺陷：GovernanceHub「税入构成」读 `tax_breakdown` 的 `tax_color`/`salt`，与后端键名不一致 ⇒ 两项**恒 0**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "found_by": "截图台内容级验收（M275：为 governancehub 补 store fixture 时对照真实值）",
+ "evidence": {
+  "面板读法": "`GovernanceHub.tsx:77-82`：`tax = pick(state, tax_breakdown, {})`，然后取 `commerce`/`poll`/**`tax_color`**/**`salt`**",
+  "后端实际写入": "`core/settlement_finance.py:1274`：`state.tax_breakdown = {commerce, poll, maritime, official_service, …}` ⇒ **无 `tax_color`、无 `salt`**",
+  "实测（new_game + seed20261013 + 6 月结算）": "`{\"commerce\": 1116720, \"poll\": 390470, \"maritime\": 0, \"official_service\": 70660}`",
+  "store 注释指出的权威来源": "`gameStore.tsx:389`：『月入分项（后端 **finance_readout**：commerce/poll/maritime/**tax_color**/**salt_coin**）』 ⇒ 分项权威键名是 **`salt_coin`**（不是 `salt`）",
+  "另有开局残留": "`game_state.py:808` 出现 `tax_color: 864322`（开局初始化路径）⇒ 结算后该键**不再写**，故中后期 `tax_color` 亦缺失",
+  "⇒ 结论": "`GovernanceHub` 的**「二税折色」**（读 `tax_color`）与**「盐课」**（读 `salt`，真名应为 `salt_coin`）在两处都不匹配 ⇒ **长期显示 0**——**违反「缺失≠0」的展示纪律**（把「没有这个键」显示成 0）"
+ },
+ "severity": "中（读数展示错误；不影响结算真账，`tax_breakdown` 本身与 `finance_readout` 各自有权威口径）",
+ "fix_plan": [
+  "① 先核 `finance_readout` 的权威键名与口径（`core` 内 grep `finance_readout`）——**这是分项的权威来源**",
+  "② 面板改为读 **store 的 finance 分项**（`commerce`/`poll`/`maritime`/`tax_color`/`salt_coin`），或后端在 `tax_breakdown` 中**按同一口径补齐**这两个键（择一，**口径单点**：不得面板自算）",
+  "③ 缺失时**显式显示「未定义」**（守 §3-3），不得回落 0",
+  "④ 定向前端用例（键缺失 ⇒ 显示未定义；键存在 ⇒ 显示数值）+ tsc/vitest + 重拍 `governancehub.png` 目视",
+  "⑤ 文档：`governancehub` 相关 README/面板索引 + `tasks.md`"
+ ],
+ "fixture_note": "本轮已把**真实**取值写入 `scripts/shot/fixtures.ts` 的 `STATE.tax_breakdown`（`tax_color`/`salt` 依现状显式写 `null`，以**忠实反映**后端未设该键），并注明来源与生成命令",
+ "next": [
+  "① 下批按 fix_plan 核实并修（**先核 finance_readout 权威键**，不臆断）",
+  "② 待用户：A/B 授权 · C/D 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T14:53:06Z"
+}
