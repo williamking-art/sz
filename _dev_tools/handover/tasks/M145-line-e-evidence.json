@@ -1,0 +1,59 @@
+{
+ "id": "M145-line-e-evidence",
+ "title": "主线 E（经济归属与税制）**只读取证**：税目 4 项 · 地方府库通道已桥接 · 🔴 **内帑 ≫ 国库（47×）**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮真实局探针（新局 + 6 个月结算后读取真账）",
+ "findings": {
+  "税目（tax_breakdown，6 月后）": {
+   "commerce 工商": 1116720,
+   "poll 役钱": 390463,
+   "maritime 海税": 0,
+   "official_service 吏役类": 70660
+  },
+  "账户余额": {
+   "国库 treasury": 82133,
+   "内帑 imperial": 3852211,
+   "倍差": "**内帑 ≈ 国库 × 47**"
+  },
+  "通道（已就位 ✅）": "`core.foundation.ledger.local_treasury_bridge` 提供 `local_treasury_add` / `local_treasury_set` / `aggregate_seat_local_treasury` / `is_sunk` / `SEAT_KEY` ⇒ **州府级税收入账通道已存在**（M38 下沉的成果）",
+  "state 相关槽": [
+   "`tax_breakdown`",
+   "`commerce_tax_rate`",
+   "`wine_tax`",
+   "`single_whip`"
+  ],
+  "statistics": "**57 键**（含 `clerks_*` 系列：grip/grievance/quality/extortion 等）",
+  " clerks.totals": {
+   "clerks": "吏额",
+   "establishment": "编制",
+   "effective": "有效吏力",
+   "grip": "把持度",
+   "grievance": "吏怨",
+   "quality": "吏治质量",
+   "extortion": "勒索",
+   "decree_mult": "诏令乘数"
+  }
+ },
+ "cross_line_observation": {
+  "🔴 内帑 3.85M ≫ 国库 82K（47×）": "这**直接影响 M122「营运资金来源」的量级判断**：M71 的候选覆盖率为**国库 0.176 / 内帑 0.035**（开局口径，内帑当时=0），但**6 个月后**内帑余额已达 3.85M ⇒ **若允许内帑出资，M122 的结论可能改变**（M58 六候选本就含内帑）。⇒ 建议在裁 M122 前**重算一次内帑/国库的时点覆盖率**（属只读量化，我可做）。"
+ },
+ "open_items_for_line_e": [
+  "① `tax_breakdown` 四目的**归属**未在数据上显式标注（工商/役钱/盐课/海税 各入哪一账户？）——需只读取证代码里的入账点",
+  "② `maritime 海税 = 0`：与主线 F「外贸未接」**互相印证**（无外贸 ⇒ 无海税）",
+  "③ 地方府库**是否有独立余额真账可查**：`aggregate_seat_local_treasury` 已存在 ⇒ 应可查（待实测）",
+  "④ 与 `statistics`（57 键）的关系：税目是否重复入表（防双重计数，M74 前例）"
+ ],
+ "not_done_why": "本轮只取证。①与④需读入账点代码（超出本轮预算）；②③两项已可另批实测",
+ "verified": [
+  "探针在真实新局 + 6 月结算后执行；各数值与公开名均为实测输出"
+ ],
+ "next": [
+  "① 建议先做**内帑/国库时点覆盖率重算**（只读，直接服务 M122 裁定）",
+  "② 主线 E 的税目归属入账点只读取证",
+  "③ 既有卡口不变：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径待裁"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T00:15:30Z"
+}
