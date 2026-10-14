@@ -1,0 +1,25 @@
+{
+ "id": "M196-capacity-batch-closed",
+ "title": "产能批收口：丝坊 7 → 28 座接线落地（旋钮乙/量级甲/分布丁）· 含根因修复与 6 处断言适配",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "deliverable": [
+  "7 处接线：game_state（丝坊块后调补座）· migrations.open_workshop_expansion · game_init（先 expansion 后 owners）· load_game 读档补齐",
+  "6 处断言适配：test_m127 / test_m96 / test_m67（计数派生）· test_m71（值型基线 28.4M→70.4M 并注明来源）· test_workshop_owner（计数+分布派生）· test_m187（两层：_trim_to_open 测模块语义 + 接线证明）"
+ ],
+ "measured": {
+  "丝坊": 28,
+  "总作坊": 128,
+  "unreadable_count": 0,
+  "丝坊分布路数": 17
+ },
+ "verified": [
+  "关键 6 文件全绿；M187 7 passed；全量串行见日志"
+ ],
+ "next": [
+  "验收读数：pilot_bottleneck 由 capacity_shortage 转 raw_shortage/ok（下批复测）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:57:26Z"
+}

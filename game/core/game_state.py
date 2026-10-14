@@ -689,6 +689,15 @@ class GameState(GameStateEconMixin):
                     "name": "丝坊", "recipe": dict(_js["recipe"]), "output_dim": _js["output_dim"],
                     "yield": _js["yield"], "active": True}
                 _widx += 1
+        # 🔴 M196（产能批·收口）：丝坊只铺 `_r_idx % 3 == 0` 的路（20 路⇒7 座），单座 yield=8000
+        # ⇒ 满产仅覆盖绸需求 2.3%（M82 的 P1 真瓶颈）。按 Jev 裁决补到 **28 座**（旋钮乙 0.591 /
+        # 量级甲 0.450 / 分布丁 0.388）；取**绝对目标⇒幂等**；只建实例、不动钱货、不改 yield（口径单点）。
+        # ⚠️ 必须在**登记作坊货主之前**（`game_init.init_workshop_owners`）⇒ 新座才有货主。
+        try:
+            from core.domains.economy.workshop_opening import open_extra_workshops
+            open_extra_workshops(self)
+        except Exception:                                    # noqa: BLE001
+            log.warning("开局丝坊补座失败（产能批；不影响新局，缺失≠0）", exc_info=True)
         # 内帑（甲口径）：imperial_treasury = 国库净结余抽成 + 榷酒课，与国库分理
         # 对话口谕内帑调拨（商量确认式）：皇帝谕发内帑入国库，大臣商量回奏、当场点「准」才守恒移库
         self.pending_inner_transfer = None   # {"amount": 贯, "turn": 回合}；None=无待准调拨

@@ -91,6 +91,18 @@ def init_building_owners(state):
     return assign_building_owners(state)
 
 
+def init_workshop_expansion(state):
+    """**丝坊补座**（产能批 · M196）——无条件**幂等**入口，新局与读档共用。
+
+    Jev：旋钮＝**作坊数量**（乙 0.591）· 量级＝**温和 ~10%**（甲 0.450）· 分布＝**按丝产能加权**（丁 0.388）
+    ⇒ 丝坊 **7 → 28 座**。只建实例、**不动钱货**、**不改 `yield`**（口径单点）。
+    ⚠️ 必须在 `init_workshop_owners` **之前**调用（否则新座无货主）。
+    """
+    from core.foundation.persistence.migrations import open_workshop_expansion
+
+    return open_workshop_expansion(state)
+
+
 def init_workshop_owners(state):
     """给作坊登记**货主**（产权落点 · M66；Jev choose A 0.665）。
 
@@ -139,6 +151,8 @@ def new_game(mode: str = "史实"):
     init_buildings_seats(state)         # 首府判定同样依赖治所人口
     init_canal_seats(state)             # 漕运同样按首府承载（依赖 seats 已建）
     init_storage_seats(state)           # 常平仓同型（批次 4 仓储片）
+    # 🔴 M196：丝坊补座**必须在登记货主之前**（新座才有货主）
+    init_workshop_expansion(state)      # M196：丝坊补座（绝对目标 28 座、幂等、不动钱货）
     init_workshop_owners(state)         # M66：作坊货主（产权落点，只登记字段、不动钱）
     init_building_owners(state)         # M91：建筑归属（P2 第一片，building_meta，零数值变化）
     return state

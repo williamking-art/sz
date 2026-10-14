@@ -41,7 +41,9 @@ def test_real_game_survey_reports_types():
     from core import commands
     s = commands.new_game()
     rep = wgr.workshop_wage_survey(s)
-    assert rep["workshops"] == 107
+    # M196 派生：期望值随 workshop_opening.DEFAULT_TARGET_TOTAL（禁止硬编码）
+    from core.domains.economy import workshop_opening as _wo
+    assert rep["workshops"] == 107 + (_wo.DEFAULT_TARGET_TOTAL - 7)
     assert set(rep["by_type"]) <= {"酒坊", "畜栏", "麻坊", "丝坊"}
     assert rep["wage_obligation"] is None       # 仍是 None（诚实）
 

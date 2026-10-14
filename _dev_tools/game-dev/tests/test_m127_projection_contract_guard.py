@@ -54,7 +54,9 @@ def test_real_game_projections_match_contract():
         rep = ep.project_workshop(s, wid)
         _check_projection(rep["fields"], rep["undefined_fields"], rep["defined_count"], wid)
         workshops += 1
-    assert workshops == 107
+    # M196 派生：期望值随 workshop_opening.DEFAULT_TARGET_TOTAL（禁止硬编码）
+    from core.domains.economy import workshop_opening as _wo
+    assert workshops == 107 + (_wo.DEFAULT_TARGET_TOTAL - 7)
 
 
 def test_survey_ratios_are_consistent_with_field_ratio():

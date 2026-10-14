@@ -99,11 +99,15 @@ def test_real_new_game_all_workshops_get_owner():
     s = commands.new_game()
     rep = wo.assign_owners(s)
     # 新局已在 init 里登记 ⇒ 这里应为 kept（幂等），不是 assigned
-    assert rep["kept"] == 107 and rep["assigned"] == 0 and rep["undefined"] == 0, rep
+    # M196 派生：随 workshop_opening.DEFAULT_TARGET_TOTAL（禁止硬编码；将来分档自动跟随）
+    from core.domains.economy import workshop_opening as _wo2
+    _N = 107 + (_wo2.DEFAULT_TARGET_TOTAL - 7)
+    assert rep["kept"] == _N and rep["assigned"] == 0 and rep["undefined"] == 0, rep
     cov = wo.survey_owner_assignment(s)
-    assert cov["with_owner"] == 107 and cov["missing"] == 0 and cov["undefined_rule"] == 0
+    assert cov["with_owner"] == _N and cov["missing"] == 0 and cov["undefined_rule"] == 0
     assert set(cov["by_kind"]) == {"local", "pop:商人"}
-    assert cov["by_kind"]["local"] == 40 and cov["by_kind"]["pop:商人"] == 67  # 2×20 酒坊 / 其余
+    # M196 派生：`local` 仍 40（酒坊 40 座归地方）· 新增丝坊货主为 `pop:<路>:商人` ⇒ 商人计数随补座增加
+    assert cov["by_kind"]["local"] == 40 and cov["by_kind"]["pop:商人"] == 67 + (_wo2.DEFAULT_TARGET_TOTAL - 7)
 
     # 🔴 影子读数：货主维度归零（**解除 M51 的 owner blocker**）
     from core.domains.economy import workshop_fund_shadow as wfs

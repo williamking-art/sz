@@ -122,6 +122,16 @@ def sink_buildings_to_seats(state) -> int:
     return building_bridge.sink_buildings_to_seats(state)
 
 
+def open_workshop_expansion(state) -> int:
+    """存量档**丝坊补座**（产能批 · M196）——与 `assign_building_owners` 同型的**无条件幂等入口**。
+
+    取**绝对目标**（`DEFAULT_TARGET_TOTAL = 28`）⇒ 已达标的档不再增座；只建实例、**不动钱货**、
+    **不改 `yield`**（口径单点）。⚠️ **调用顺序**：必须在**登记作坊货主之前**。
+    """
+    from core.domains.economy.workshop_opening import open_extra_workshops
+    return open_extra_workshops(state)
+
+
 def assign_building_owners(state) -> dict:
     """给**缺失归属**的建筑补 `building_meta[建筑]["owner"]`（P2 第一片 · M91；Jev 甲 0.866）。
 

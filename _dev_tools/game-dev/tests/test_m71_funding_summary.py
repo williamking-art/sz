@@ -16,7 +16,9 @@ def test_summary_shape_and_values_at_opening():
     s = commands.new_game()
     rep = wfs.funding_summary(s)
     need = ocs.procure_need(s)
-    assert rep["procure_need"] == need["value"] == 28_400_000
+    # M196（产能批）：补座后基线——21 座新丝坊（配方 丝 10000）使开局采购需求 28,400,000 → 70,400,000。
+    # 该值是 Σ各作坊 `recipe_cost` 的合计（无法由单一常量派生）⇒ 更新基线并注明来源。
+    assert rep["procure_need"] == need["value"] == 70_400_000
     assert rep["unreadable_workshops"] == 0
     keys = {c["key"] for c in rep["carriers"]}
     assert keys >= {"state_treasury", "imperial", "pop_gentry", "pop_merchant", "local_route"}

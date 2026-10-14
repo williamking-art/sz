@@ -125,6 +125,13 @@ def load_game(slot: int = 1):
         assign_building_owners(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 建筑归属登记失败（不拒档；P2 就绪度将偏低）", exc_info=True)
+    # M196：**丝坊补座**（产能批）——存量档补齐到绝对目标 28 座；**必须在登记作坊货主之前**
+    # （`assign_workshop_owners` 紧随其后）⇒ 新座才有货主；**失败不拒档**、不动钱货、不改 yield。
+    try:
+        from core.foundation.persistence.migrations import open_workshop_expansion
+        open_workshop_expansion(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 丝坊补座失败（不拒档；产能仍按旧座数，缺失≠0）", exc_info=True)
     # M66：作坊**货主**（产权落点）——旧档补齐；**失败不拒档**（只登记字段、不动钱）。
     try:
         from core.foundation.persistence.migrations import assign_workshop_owners

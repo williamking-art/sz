@@ -53,7 +53,9 @@ def test_survey_workshop_projection_and_readonly():
     s = commands.new_game()
     before = copy.deepcopy({k: dict(v) for k, v in (s.workshops or {}).items()})
     rep = ep.survey_workshop_projection(s)
-    assert rep["workshops"] == 107
+    # M196 派生：期望值随 workshop_opening.DEFAULT_TARGET_TOTAL（禁止硬编码）
+    from core.domains.economy import workshop_opening as _wo
+    assert rep["workshops"] == 107 + (_wo.DEFAULT_TARGET_TOTAL - 7)
     assert rep["defined_ratio"]["owner"] == 1.0                   # M66 已全登记
     assert rep["defined_ratio"]["recipe"] == 1.0
     assert rep["defined_ratio"]["jobs_filled"] == 0.0             # M67：如实不可定义

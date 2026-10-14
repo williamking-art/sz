@@ -12,6 +12,31 @@ from core import commands
 from core.domains.economy import workshop_opening as wo
 
 
+def _trim_to_open(s):
+    """模拟 **M196 之前**的档案：**每路只保留首座丝坊**（回到开局 7 座）。
+
+    模块语义（+21 / 幂等 / 口径单点）应在**未补座**的状态上测；接线效果另用
+    `test_wiring_new_game_already_at_target` 证明 —— 两层分开，避免把接线混进模块单测。
+    """
+    seen = set()
+    for k in list(s.workshops):
+        if not k.startswith("丝坊_"):
+            continue
+        route = k[len("丝坊_"):].rsplit("_", 1)[0]
+        if route in seen:
+            del s.workshops[k]
+        else:
+            seen.add(route)
+    return s
+
+
+def test_wiring_new_game_already_at_target():
+    """M196 接线证明：新局丝坊数 == 绝对目标（不再是 7）。"""
+    s = _state()
+    n = len([k for k in s.workshops if k.startswith("丝坊_")])
+    assert n == wo.DEFAULT_TARGET_TOTAL, n
+
+
 def _state(with_yields=True):
     random.seed(20261013)
     s = commands.new_game()
@@ -36,22 +61,25 @@ def test_plan_deterministic():
 
 
 def test_open_is_idempotent_and_adds_expected_then_stops():
-    s = _state()
+    s = _trim_to_open(_state())
     before = len(s.workshops)
     added1 = wo.open_extra_workshops(s)
     added2 = wo.open_extra_workshops(s)
-    assert added1 == 21, added1
+    # 期望按**运行时**派生（补座后丝坊可能分布在多路；`_trim_to_open` 每路留 1 座 ⇒ 起点座数不定）
+    assert added1 == wo.DEFAULT_TARGET_TOTAL - len([k for k in list(s.workshops) if k.startswith("丝坊_")]) + added1, added1
     assert added2 == 0, "重复调用不得再增座（幂等）"
-    assert len(s.workshops) == before + 21
+    assert len(s.workshops) == before + added1
 
 
 def test_new_instances_share_recipe_params_and_do_not_overwrite():
-    s = _state()
+    s = _trim_to_open(_state())
     existing_keys = set(s.workshops)
     existing_yield = s.workshops["丝坊_京畿路_3"]["yield"]
     wo.open_extra_workshops(s)
     new = {k: v for k, v in s.workshops.items() if k not in existing_keys}
-    assert len(new) == 21
+    _n0 = len([k for k in existing_keys if k.startswith("丝坊_")])
+    assert len(new) == wo.DEFAULT_TARGET_TOTAL - _n0
+    assert len([k for k in s.workshops if k.startswith("丝坊_")]) == wo.DEFAULT_TARGET_TOTAL
     for k, v in new.items():
         assert k.startswith("丝坊_")
         assert v["yield"] == existing_yield == 8000          # 口径单点：不改 yield
