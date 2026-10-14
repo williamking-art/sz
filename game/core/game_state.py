@@ -728,6 +728,16 @@ class GameState(GameStateEconMixin):
         # `construction.resolve_blueprint` 优先查它 → 动态蓝图与静态蓝图走同一套
         # can_build / propose_project / 五态状态机 / 完工落成路径。
         self.dynamic_blueprints: dict = {}
+        # 🔴 M176：**外贸逐笔流水**（主线 F · 载体甲，Jev 甲 0.875 / 维度分配甲 0.550）。
+        # **append-only 事件流**：每笔 `{month, route, seat, partner, dim, qty, unit_price,
+        # goods_value, freight, tax_over, tax_stay, tax_to, freight_to, direction, reason}`。
+        # 🔴 **不是账本**：**禁止** `balance`/`stock`/`inventory`/`on_hand`/`holdings` 语义键
+        #    （存量仍落 POP/国库/内帑/地方府库 ⇒ 守 §3-1「禁与 POP 平行的账本」）。
+        # ⚠️ **本槽当前仅"建容器"——尚无写入者（未接线）**：
+        #    · 因此**未登记** `save_load` 白名单（无写入者则无需持久化，避免"半接通"）；
+        #    · 待实施批在 `settlement_econ.py:551-570`（市舶段）注入记账时，**同批**登记持久化。
+        # 口径与守卫见 `specs/economy/unified-civilian-market/主线F_外贸真账_只读设计_2026-10-13.md` §8/§9。
+        self.trade_journal: list = []
         # 行动提交登记表（规格任务 2「跨提交幂等」）：`{action_id: {pid, turn, route, schema_version}}`。
         # 由 `core/plan_commit.commit_plan` 写入；**跨提交**按 action id 拒绝重复立项。
         self.plan_actions: dict = {}
