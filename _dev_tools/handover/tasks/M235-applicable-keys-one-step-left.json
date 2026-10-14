@@ -1,0 +1,32 @@
+{
+ "id": "M235-applicable-keys-one-step-left",
+ "title": "applicable_* 三键：仅剩 1 步（直接调 project_building / project_workshop 读字段与 reason）—— 行形状须再下探一层",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮探针实测：survey_entity_projection 的 rows 首项键为 route/seat/buildings；survey_workshop_projection 的 rows 首项键为 wid/route/defined_count",
+ "finding": {
+  "行形状（实测）": {
+   "建筑 survey": "rows 是**治所级**（route/seat/buildings），字段在 buildings 子项里（须再下探一层）",
+   "作坊 survey": "rows 是**逐座**（wid/route/defined_count），字段在该行内"
+  },
+  "⇒ 最短路径（下批 1 次探针即可定子集）": "**直接调** `entity_projection.project_building(state, route, seat, name)` 与 `project_workshop(state, wid)` —— 它们的返回**就是**字段到 {value, defined, source, reason} 的映射（`project_building` 的字段段已在 M233 读到：jobs_capacity 等均在返回 dict 里）⇒ 打印各字段的 `defined` 与 `reason` 即得**不适用 vs 缺失**的官方理由",
+  "为何不继续探": "本轮上下文预算用尽；且再下探一层属**同一探针的续步**，不宜半改 product 代码"
+ },
+ "implementation_plan_after_probe": [
+  "① 探针：对**一座建筑**（如 官署）与**一座作坊**（如 丝坊）调 project_* ⇒ 打印 14 字段的 defined/reason",
+  "② 依 reason 归类三集：`已就绪` / `不适用`（reason 明写无此概念）/ `可适用但缺失`（如 completed_month、jobs_* 侧差异）",
+  "③ 在 survey_* 增 `applicable_fields` / `applicable_ratio` / `not_applicable`（**保留** defined_ratio/defined_by_field 兼容）",
+  "④ 定向用例（不适用不计缺失；defined_ratio 不变）+ 全量 + 文档 + 提交"
+ ],
+ "caution": "🔴 **不得凭计数或直觉删字段**（M233 教训）：`not_applicable` 的每一项都必须引用该字段 `reason` 的**原文**作为依据；reason 说『未登记/无权威来源』⇒ 属**缺失**（不可标不适用），只有 reason 明说『建筑无配方』这类**语义不存在**才可标不适用",
+ "verified": [
+  "两 survey 的 rows 首项键为运行时实测；`project_building` 的字段段已在 M233 读过（字段到 {value,defined,source,reason} 的映射）"
+ ],
+ "next": [
+  "① 下批：1 次探针（project_building/project_workshop）⇒ 定三集 ⇒ 实施 applicable_*（零数值）",
+  "② 待用户 4 项：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:28:05Z"
+}
