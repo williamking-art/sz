@@ -1,0 +1,34 @@
+{
+ "id": "M150-tax-attribution-table-complete",
+ "title": "主线 E 四目**归属表补完**：`official_service` 归属钉死（从官僚 POP wealth 扣缴→**国库**）⇒ **全部四目入国库、州府零分成**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "读 `settlement_finance.py:1542-1561`（代码 + 注释双证）",
+ "evidence": {
+  "code_comment": "`# 官户免役钱（史实免役法·调参定案）：官户纳助役钱 = 俸钱总额 × 0.05，从官僚 POP wealth 按 size 扣缴入国库（钱守恒：官僚交钱、国库收钱，不凭空生钱）`",
+  "mechanism": "按路`官僚`POP 的 `size` 占比分摊扣 `wealth`（`_take = min(分摊额, 实际 wealth)`）· 只按**实收**入账（`actual_tax += official_service_tax - max(0, _tax_left)`）· `_pop_set(_p, \"官僚\", \"wealth\", _nw)` **桥接 + 回落原写法**（符合 POP 挂载律）",
+  "缺失≠0 实践": "『wealth 不足时**只按实收入账**（`_tax_left` 反映欠缴，**不再全额造币**）』——正是本仓库 §3-3 的正面样例"
+ },
+ "attribution_table_complete": {
+  "commerce 工商": "**国库**（`flow_summary.py:6`：『国库收入 = tax_breakdown（工商税/役钱/市舶税，结算 Step4 权威分项）』）",
+  "poll 役钱": "**国库**（同上）",
+  "maritime 市舶": "**国库**（同上）",
+  "official_service 助役钱": "**国库**（本轮钉死：从官僚 POP wealth 扣缴 → `actual_tax` → 国库）"
+ },
+ "conclusion": "🔴 **四目全入国库 ⇒ 州府（地方府库）税收分成 = 零**。州府级**通道已就位**（`local_treasury_bridge`，M38 下沉成果）但**税不流经它** ⇒ 与 M149 结论一致并**补全**。",
+ "still_open": {
+  "盐课载体": "`tax_breakdown` **无 salt 键** ⇒ 盐课（若启用）走**别的载体**（候选：`statistics` 内的盐课项 / `wine_tax` 同类专税槽 / 未启用）——**待查**",
+  "地方分成与否（待裁）": "现无分成；**是否符合 M37/M38『地方府库下沉』的意图**需你裁定：若有 ⇒ 应把部分税目分流到 `local_treasury_bridge`（改数值批，须标定）；若无 ⇒ 应在文档写明『地方府库只用于**非税**收支』以免误判"
+ },
+ "verified": [
+  "代码与注释逐行对照；归属链路（POP wealth → actual_tax → 国库）闭合"
+ ],
+ "next": [
+  "① 查盐课载体（只读）⇒ 五目/六目归属表完整",
+  "② **等你裁**『地方是否应有税收分成』——这是主线 E 的核心口径",
+  "③ 既有卡口不变：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径待裁"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T01:07:40Z"
+}
