@@ -1,0 +1,41 @@
+{
+ "id": "M190-order-fix-partial-and-correction-of-M189",
+ "title": "🔴 **订正 M189**：顺序修正 + M127/M96 派生**有效**，但 **M67/M71/owner 仍红** ⇒ 『顺序是唯一根因』**被推翻**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测（接线 + 顺序修正 + 2 处派生后重跑 6 文件）",
+ "what_worked": {
+  "接线（5 处，机械替换落地）": "game_state.py（丝坊块后调 `open_extra_workshops(self)`）· migrations.py（`open_workshop_expansion` 薄包装）· game_init.py（**先 expansion 后 owners** + 新函数）· load_game.py（读档补齐，位于 `assign_workshop_owners` 之前）",
+  "✅ 顺序修正生效": "`init_workshop_expansion` 提到 `init_workshop_owners` **之前**",
+  "✅ M127/M96 派生生效": "两处硬编码 `107` 改为**派生**（`107 + (workshop_opening.DEFAULT_TARGET_TOTAL - 7)`）⇒ **M127、M96 转绿**（证明派生写法正确、可复用）"
+ },
+ "correction_of_M189": {
+  "M189 原文": "「M67 的红因**很可能同源于** ①（顺序 bug）⇒ **先修顺序再复测**，可能无需改用例」",
+  "🔴 实测推翻": "顺序已修，**M67 / M71 / owner 三处仍红** ⇒ **顺序不是唯一根因**（至少还有一处未定位）",
+  "⇒ 结论": "M189 的判断**部分错误**；本轮**如实订正**，不把『已修顺序』当作问题已解"
+ },
+ "still_red_after_fix": [
+  "`test_m67_workshop_wage_survey::test_real_game_survey_reports_types`",
+  "`test_m71_funding_summary::test_summary_shape_and_values_at_opening`（断言含 `unreadable_workshops == 0`）",
+  "`test_workshop_owner::test_real_new_game_all_workshops_get_owner`（『107 座全部有货主』）"
+ ],
+ "hypotheses_for_next_batch": [
+  "① **新增座的货主仍未登记**：`init_workshop_owners` 可能只对**特定类型**或**特定键格式**工作（我生成键为 `丝坊_<路>_<idx>`，索引从 `have` 起算 ⇒ 可能与既有键**重号**或格式不符）⇒ 读 `assign_workshop_owners` 的遍历条件",
+  "② `unreadable_workshops` 的**定义**可能不是『缺 owner』而是『缺某字段/类型未登记』",
+  "③ M67 的**类型集合**可能因新键解析（`k.split(\"_\")[0]`）而多算/少算",
+  "⇒ **下一步（1 步即可定位）**：带 **`--tb=short`** 重跑这 3 个用例，直读断言文本（本轮因上下文所限未做）"
+ ],
+ "state_now": "🟢 树已**精确回退**到 `dda96bd1e9`（M187 模块已提交、**未接线**）；复测 6 文件 **25 passed**；暂存区无我的 `game/` 改动",
+ "verified": [
+  "两项真值对比：修顺序+派生后 → M127/M96 绿而 M67/M71/owner 仍红；回退后 → 25 绿"
+ ],
+ "next": [
+  "① 下一批第一步：`--tb=short` 重跑那 3 个用例，读断言文本 ⇒ 定位剩余根因",
+  "② 再重做接线（5 处写法已验证可复用，机械替换即可）",
+  "③ **A/B**（丝需求与工匠 POP 用工、不造钱物）+ **60/240 月** + 全量回归",
+  "④ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:35:59Z"
+}
