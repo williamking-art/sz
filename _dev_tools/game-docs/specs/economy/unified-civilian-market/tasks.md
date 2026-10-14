@@ -1340,3 +1340,26 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 原因是截图台 **store mock 未提供财政明细字段**（面板读 store 而非 HTTP）——**不是**「缺失被显示成 0」的
 口径错误（该面板对无数据显示的是「**— 暂无仓廪收支统计 —**」这类显式文案 ✅）。若要**内容级**验收该面板，
 需再补一份**财政 store fixture**（同 M272 的 store 通道做法）。
+
+### M275 复核结论（M276）：**确诊**，且修法已收窄到「换读取对象 + 改名」
+
+**权威源核实**：`core/game_state_econ.py:362` `finance_readout()` —— docstring 明写「本月财政预估读数（供会计录只读奏报台，GUI 与终端共用，**避免两处口径漂移**）」，键为：
+
+| 键 | 含义 |
+|---|---|
+| `commerce` | 月工商税（**实际到库**） |
+| `poll` | 月役钱 |
+| `maritime` | 月市舶抽解 |
+| **`tax_color`** | 月二税折色**应征**（**新模型**；M34-④ 口径统一） |
+| **`salt_coin`** | 月盐课（**单列，不进二税**） |
+| `tax_color_legacy` / `assessed_total` / `collection_rate_avg` / … | 兼容与回归锚、真账快照/累计 |
+
+**⇒ 结论**：`GovernanceHub` 的 `tax_color` **键名是对的**，但**读错了对象**（读 `state.tax_breakdown`，该 dict 由
+`settlement_finance.py:1274` 写入，只有 `commerce`/`poll`/`maritime`/`official_service`）；而 **`salt` 应为 `salt_coin`**
+（且它**本就不属于二税**，是单列项）。⇒ 两项**恒 0** 属**把缺失显示成 0**。
+
+**修法（收窄为三步，先读后改）**：
+1. `grep` `gameStore.tsx` 的月入分项字段名（注释指向 `finance_readout`）⇒ 确认前端拿得到这五个键；
+2. `GovernanceHub` 改为**从该分项**取 `commerce`/`poll`/`tax_color`/`salt_coin`（**面板不自算**，守口径单点）；
+   缺失键 ⇒ **显示「未定义」**（守 §3-3），**不回落 0**；
+3. 前端定向用例 + `tsc`/`vitest` + 重拍 `governancehub.png` **目视**（税入四项应出现非 0 或「未定义」）。
