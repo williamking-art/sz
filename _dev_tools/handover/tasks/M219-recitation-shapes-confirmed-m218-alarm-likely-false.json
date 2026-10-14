@@ -1,0 +1,35 @@
+{
+ "id": "M219-recitation-shapes-confirmed-m218-alarm-likely-false",
+ "title": "形状已确认（复述＝**扁平 `{元素→值}`**）⇒ 🔴 **M218 的『假绿』警报很可能是误报**（断言写错，非用例空通过）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "只读读取 `decree_confirm.py`（`compose_recitation` :349-353 · `_parse_recitation` :389-405 · `record_recitation` :411-425）",
+ "shapes_confirmed": {
+  "compose_recitation(canonical)": "返回 **扁平 dict `{元素: 值}`**（`{k: canonical[k] for k in ELEMENTS if canonical.get(k) is not None}`）——**不是** `{\"elements\": {...}}`（我 M218 的用法**形状本就正确**）",
+  "record_recitation(state, decree_id, actor_id, elements, *, turn)": "`elements` **须为 dict**（否则 `ValueError`）；**含 `ELEMENTS` 之外的键 ⇒ `ValueError`**（拒绝式，不静默丢键）",
+  "_parse_recitation(raw)": "从**记忆正文**解析：须含分隔符 `RECITE_SEP = \"‖\"`，取其**最后一段**做 `json.loads`；**键不在 `ELEMENTS` 或值为 None ⇒ 整条不可信 ⇒ `(None, False)`**（不猜）",
+  "ELEMENTS": "`(title, body, effects, visibility, delivery, addressees)` :163（口径单点）"
+ },
+ "m218_alarm_reassessment": {
+  "我 M218 的判断": "『`test_2`（未复述）三列表**也全空** ⇒ 与 `test_1`（正）不可区分 ⇒ `test_1` 疑为空通过（假绿）』",
+  "🔴 现更正": "**很可能是我的断言写错**：『未复述』的正确表现**本就是** `recited=False` 且**没有 mismatch 可报**（没有复述 ⇒ 无可比对项）⇒ **三列表空是正确行为，不是空通过**；同理 `test_1` 的绿**大概率是真绿**",
+  "⇒ 结论": "M218 的『假绿』警报**降级为误报**（但**当时不提交**仍是对的处置：判据不明时宁可不提交）；**新纪律仍保留**（不提交假绿），只是本例不构成假绿",
+  "仍待查（下批 1 次读）": "`confirm_decree` 主体（:570-676）中：**`recitation` 传入但无存记时**，是否**直接用它比对**（决定 `test_3`『改坏 body』为何未报 `mismatched`）——这是唯一未解之处"
+ },
+ "corrected_test_recipe": {
+  "正": "`confirm_decree(..., recitation=compose_recitation(canonical_decree(D)))` ⇒ 三列表空 **且**（若有 `status`）为通过态 ⇒ 断言可加 `recited` 相关字段",
+  "未复述": "`recitation=None` 且无记录 ⇒ 断言 **`recited is False`**（**不再**断言三列表非空——那是错的）",
+  "不符": "同上但传**改坏副本** ⇒ 断言 `mismatched` 含被改键（**若实测仍为空，则需先读 `confirm_decree` 主体确认传入复述是否参与比对**）",
+  "防伪": "候选当复述 ⇒ 断言**不得**判为通过（同理需先确认比对路径）"
+ },
+ "verified": [
+  "三处函数的返回/期望形状与 `ELEMENTS` 均为**逐行实测**；M218 的草稿已删除（工作树无残留）"
+ ],
+ "next": [
+  "① 下批：读 `confirm_decree` 主体（:570-676，1 次 grep）⇒ 按 corrected_test_recipe 写七条用例 ⇒ P3 批 5 收口",
+  "② 接线待你授权（A）· 其余 3 项可选（B/C/D）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:06:01Z"
+}
