@@ -1,0 +1,41 @@
+{
+ "id": "M181-capacity-magnitude",
+ "title": "产能**量级档位＝甲（温和 ~10%）**（Jev 0.450，近平手已自证）⇒ 实施批待做",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/M181-capacity-magnitude-scope.json（Jev choose 甲 0.450；乙 0.346 近平手）",
+ "deliverable": [
+  "量级裁定档（含**近平手自证**：归因可分离/结构旋钮宜渐进/可逆性）",
+  "本任务档"
+ ],
+ "current_facts": {
+  "7 路主瓶颈": "全 = `capacity_shortage`（M82）",
+  "京畿路丝坊产能上限": 8000,
+  "绸需求": 341141,
+  "满产覆盖": "**2.3%**",
+  "原料": "充足（丝 33–92 万/路）",
+  "P1 试点链条缺口": 1850540,
+  "需求": 1861770,
+  "作坊总数": 107
+ },
+ "implementation_plan": [
+  "盘点现有作坊数与 `content/data.py` 开局配比入口（只读）",
+  "按目标 ~10% 反推每路丝坊座数增量",
+  "幂等迁移（`migrations.*` + `game_init` + `load_game`，失败不拒档）",
+  "**同种子 A/B**：产能提高只应影响产量/缺口，**不得凭空造钱物**",
+  "**60/240 月长局**（P6 哨兵）+ 全量回归",
+  "验收读数：`pilot_chain_gap` 下降 · `pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"
+ ],
+ "not_done_why": "本轮只做**量级裁定**（零代码）：实施属改数值批，须单独一批走 A/B + 长局；且**先要盘点开局配比入口**（下批第一步）",
+ "verified": [
+  "裁定与计划均为文档；本批 docs-only（M172b 档位 ⇒ 免全量）"
+ ],
+ "next": [
+  "① 实施批：按 implementation_plan 六步执行",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权",
+  "③ P2 字段收口后可再问 Jev 是否升档（乙 25%/丙 50%）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T06:49:41Z"
+}
