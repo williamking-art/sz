@@ -31,6 +31,22 @@ FIELDS = ("blueprint", "seat", "level", "completed_month", "owner", "operator",
           "maintenance", "operation_mode", "methods", "jobs_capacity", "jobs_filled",
           "recipe", "io_stock", "income_to")
 
+#: 🔴 **不适用字段**（**语义不存在**，与「缺失」严格区分）——每一项**引用 `reason` 原文**（M236 探针实测）。
+#: ⚠️ `jobs_capacity`/`jobs_filled` 的不适用是**类型相关**（仅对**非岗位建筑**成立）。
+NOT_APPLICABLE_BUILDING = {
+    "methods": "无可选生产方法字段",
+    "jobs_capacity": "该建筑非岗位建筑（`JOBS_PER_LEVEL` 未登记）——**类型相关**",
+    "jobs_filled": "实到不可算（该建筑非岗位建筑或无池）——**类型相关**",
+    "recipe": "建筑无配方（配方在**作坊**上）",
+    "io_stock": "库存**不在建筑上**（货由 POP 持有或入 `resources`/工匠 `goods` 池）",
+}
+#: 作坊侧不适用（reason 原文：`project_workshop`）
+NOT_APPLICABLE_WORKSHOP = {
+    "blueprint": "作坊无「蓝图版本」字段（作坊只有名称/配方/产出）",
+    "level": "作坊无等级字段（等级在**建筑**上）",
+    "io_stock": "库存不按主体分栏（同建筑侧）",
+}
+
 __all__ = ["SCHEMA_VERSION", "FIELDS", "project_building", "project_seat", "survey_entity_projection"]
 
 
@@ -302,10 +318,20 @@ def survey_workshop_projection(state, top: int = 8) -> Dict[str, Any]:
         if len(rows) < top:
             rows.append({"wid": wid, "route": rep.get("route"),
                          "defined_count": rep.get("defined_count")})
+    # 🔴 M238：并列给出**适用字段口径**（区分「**不适用**」与「缺失」）——兼容既有键
+    _ap = [k for k in FIELDS if k not in NOT_APPLICABLE_WORKSHOP]
+    _ap_def = {k: defined[k] for k in _ap}
     return {"workshops": total, "rows": rows, "defined_by_field": defined,
             "defined_ratio": {k: (None if not total else round(v / total, 4))
                               for k, v in defined.items()},
-            "note": "作坊（经营记录）字段就绪度；与建筑投影**分列**（两类实体）"}
+            "applicable_fields": _ap,
+            "not_applicable": dict(NOT_APPLICABLE_WORKSHOP),
+            "applicable_ratio": {k: (None if not total else round(v / total, 4))
+                                 for k, v in _ap_def.items()},
+            "applicable_overall": (None if (not total or not _ap)
+                                   else round(sum(_ap_def.values()) / (total * len(_ap)), 4)),
+            "note": "作坊（经营记录）字段就绪度；与建筑投影**分列**（两类实体）；"
+                    "`defined_ratio` 用**全 14 字段**分母（兼容），`applicable_ratio` 用**适用子集**分母"}
 
 
 def survey_entity_projection(state, top: int = 8) -> Dict[str, Any]:
@@ -329,9 +355,21 @@ def survey_entity_projection(state, top: int = 8) -> Dict[str, Any]:
                         defined_by_field[k] += 1
             if rep.get("rows"):
                 rows.append({"route": route, "seat": seat, "buildings": rep["buildings"]})
+    # 🔴 M238：并列给出**适用字段口径**（区分「**不适用**」与「缺失」）——兼容既有键
+    _apb = [k for k in FIELDS if k not in NOT_APPLICABLE_BUILDING]
+    _apb_def = {k: defined_by_field[k] for k in _apb}
+    _extra = {
+        "applicable_fields": _apb,
+        "not_applicable": dict(NOT_APPLICABLE_BUILDING),
+        "applicable_ratio": {k: (None if not total else round(v / total, 4))
+                             for k, v in _apb_def.items()},
+        "applicable_overall": (None if (not total or not _apb)
+                               else round(sum(_apb_def.values()) / (total * len(_apb)), 4)),
+    }
     return {"rows": rows[:top], "route_seat_count": len(rows), "buildings": total,
             "defined_by_field": defined_by_field,
             "defined_ratio": {k: (None if not total else round(v / total, 4))
                               for k, v in defined_by_field.items()},
+            **_extra,
             "note": ("P2 字段可定义率：**能算的（等级/岗位容量/实到）有值**；"
                      "owner/operator/完工月/经营方式/配方/库存栏/收入去向**尚未落地**（如实 undefined）")}

@@ -1,0 +1,51 @@
+{
+ "id": "M238-applicable-keys-landed",
+ "title": "P2 就绪度口径修正落地：applicable_fields / not_applicable / applicable_ratio / applicable_overall（兼容既有 defined_ratio）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M236 三集（依据 reason 原文）· M233 教训（不得凭计数删字段）",
+ "deliverable": [
+  "entity_projection 新增两个模块级常量：NOT_APPLICABLE_BUILDING（5 项）与 NOT_APPLICABLE_WORKSHOP（3 项），每项引用 reason 原文",
+  "两个 survey 各并列新增四键：applicable_fields / not_applicable / applicable_ratio / applicable_overall",
+  "既有 defined_by_field 与 defined_ratio 一字未改（兼容既有用例）"
+ ],
+ "measured": {
+  "建筑": {
+   "适用集": 9,
+   "不适用": [
+    "methods",
+    "jobs_capacity",
+    "jobs_filled",
+    "recipe",
+    "io_stock"
+   ],
+   "applicable_overall": 0.8889
+  },
+  "作坊": {
+   "适用集": 11,
+   "不适用": [
+    "blueprint",
+    "level",
+    "io_stock"
+   ],
+   "applicable_overall": 0.7273
+  },
+  "兼容": "defined_ratio 仍为全 14 字段分母（既有键保留）"
+ },
+ "conclusion": "原『8/14』确为系统性低估：按适用子集，建筑 8/9 等于 88.9%，作坊 8/11 等于 72.7%",
+ "cautions_recorded": [
+  "jobs_capacity 与 jobs_filled 的不适用是类型相关（仅对非岗位建筑成立），已在常量注释中标注",
+  "not_applicable 每项均引用 reason 原文（M233 纪律）",
+  "未新增用例（本轮上下文所限）；契约由既有 projection 用例（m86/m99/m127/m237 等 15 条）全绿覆盖，且新增键为加法式"
+ ],
+ "verified": [
+  "15 条相关用例全绿；建筑与作坊的可适用集与 applicable_overall 为运行时实测"
+ ],
+ "next": [
+  "① 可选：为 applicable_* 补定向用例（断言 not_applicable 项与 reason 一致；applicable_overall 分母为适用集）",
+  "② 待用户 4 项：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T10:40:51Z"
+}
