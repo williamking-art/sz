@@ -1,0 +1,46 @@
+{
+ "id": "M188-wiring-fallout-analysis",
+ "title": "产能接线批的**前置发现**：接线（丝坊 7→28）触发 **5 个依赖开局作坊集的用例** ⇒ 须按**口径派生**适配，而非改期望值",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测：接线后全量跑出 7 红（2 自测 + 5 依赖），门禁 `FULL EXIT=1` **拦下提交**；随后**精确回退**并复测 25 用例全绿",
+ "what_happened": {
+  "接线（本轮试做）": "① `game_state.py` 丝坊创建块后调 `open_extra_workshops(self)` ② `migrations.open_workshop_expansion`（与 `assign_building_owners` 同型幂等入口）③ `game_init.init_workshop_expansion` ④ `load_game` 读档补齐（失败不拒档）",
+  "实测效果（符合预期）": "`new_game` 后丝坊 **28 座**（目标 28）· 总作坊 **128**（107+21）· 3 月结算后**货币恒等式残差 0**（**不造钱物**）· 丝坊 `yield` 仍 **8000**（口径单点）",
+  "🔴 连带 5 个依赖用例红": [
+   "`test_m67_workshop_wage_survey::test_real_game_survey_reports_types`",
+   "`test_m71_funding_summary::test_summary_shape_and_values_at_opening`",
+   "`test_m96_workshop_projection::test_survey_workshop_projection_and_readonly`",
+   "`test_m127_projection_contract_guard::test_real_game_projections_match_contract`",
+   "`test_workshop_owner::test_real_new_game_all_workshops_get_owner`"
+  ],
+  "✅ 门禁生效": "全量 `FULL EXIT=1` ⇒ **未提交**（`DIFF_CHECK_EXIT=0  FULL EXIT=1` ⇒ ❌ 门禁未过）——正是本轮立的『含 `game/` 必须全量、真实退出码』分档在起作用",
+  "✅ 精确回退": "`git restore --source=HEAD --staged --worktree -- <我本会话改的 4 个源文件 + 1 个用例文件>` ⇒ 暂存与工作树均干净，复测 6 文件 **25 passed**（回到 `dda96bd1e9` 的绿色、**未接线**状态）"
+ },
+ "why_those_5_fail": "它们的期望值**绑定『开局作坊集』**（107 座 / 各类计数 / 逐座投影与货主覆盖）⇒ 座数一变即红。**这不是 bug，而是『数值改变的正当连带』**。",
+ "required_fix_caliber": {
+  "🔴 不许绿洗": "**不得**直接把期望值改成 28/128 让它变绿——那会把『口径变化』伪装成『测试通过』",
+  "✅ 正确做法（口径派生）": [
+   "① 期望值**从单一出处派生**：作坊总数/丝坊数应以 `workshop_opening.DEFAULT_TARGET_TOTAL` 或**实际 state** 计算（如 `len([k for k in s.workshops if k.startswith(\"丝坊_\")]) == DEFAULT_TARGET_TOTAL`），而非硬编码 7/107",
+   "② **覆盖率类断言**改为『比例』或『≥ 阈值』（如货主覆盖 == 100%），与座数解耦",
+   "③ 若某用例**刻意**要测『开局集形态』⇒ 改为在**构造的固定状态**上测（如只留首座丝坊），与真实开局解耦（M187 用例即用此法）"
+  ],
+  "④ 记录": "在用例 docstring 写明『期望值随 `DEFAULT_TARGET_TOTAL` 派生（M188 产能批）』，便于后人分档"
+ },
+ "next_batch_plan": [
+  "① 先按 required_fix_caliber 改上述 5 个用例（**口径派生**）",
+  "② 再重做接线（4 处，已有可复用写法）",
+  "③ **同种子 A/B**（查丝需求与工匠 POP 用工不异常、**不造钱物**）+ **60/240 月长局** + 全量回归",
+  "④ 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok` · `pilot_chain_gap` 下降"
+ ],
+ "verified": [
+  "两项实测：接线后 7 红（真值）· 回退后 25 绿（真值）；门禁对比 `FULL EXIT=1` 未提交"
+ ],
+ "next": [
+  "① 下一批：按 next_batch_plan 四步完成产能批",
+  "② 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T07:21:52Z"
+}
