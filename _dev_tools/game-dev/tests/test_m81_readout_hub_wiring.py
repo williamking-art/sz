@@ -52,7 +52,7 @@ def test_all_readouts_shape_and_readonly():
     s = _state_with_months(commands.new_game())
     before = copy.deepcopy({r: p.get("seats") for r, p in s.prefectures.items()})
     rep = rh.collect(s)
-    assert len(rep["readouts"]) == len(rh.READOUTS) == 20      # …→19(M148)→20(M152)
+    assert len(rep["readouts"]) == len(rh.READOUTS) == 21      # …→20(M152)→21(M227)
     assert rep["frontend_wired"] is False
     for k, v in rep["readouts"].items():
         assert set(v) >= {"label", "value", "display", "unit", "source", "reason"}

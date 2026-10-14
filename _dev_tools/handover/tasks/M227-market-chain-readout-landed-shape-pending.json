@@ -1,0 +1,28 @@
+{
+ "id": "M227-market-chain-readout-landed-shape-pending",
+ "title": "读数 market_chain_diagnosis（第 21 项）已落地；逐维取值形状待对齐（如实 undefined）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "deliverable": [
+  "readout_hub._market_chain_diagnosis：五环贯通（产地丝存量/运输绸在途/到货绸待入库与成品存量 + 成交与加工指路不重算 + 端到端残差方法 + stock_snapshot 透传）",
+  "注册表末项，读数 20 到 21；三处计数断言同步",
+  "契约由既有守卫用例自动覆盖（M125 drill 类型、M126 载荷可序列化、M129/130）全绿"
+ ],
+ "measured": {
+  "读数": 21,
+  "ok": 19,
+  "undefined": 2,
+  "本项值": "None（undefined）",
+  "本项原因": "五环数量全不可读，链级诊断不可定义（缺失不等于 0）",
+  "快照": "stock_snapshot(state) 返回 dict，说明函数可用，属取值方式问题"
+ },
+ "diagnosis": "四个逐维取值全 None 而 stock_snapshot 为 dict，说明 pop_goods_by_dim / in_transit_by_dim / pending_stock_by_dim 很可能是嵌套结构（路或阶层到维），顶层 get 取不到，不是数据缺失",
+ "honesty": "未假造数值：取不到就报 undefined 加原因，并把方法与快照放进下钻以保留信息量",
+ "next_step_one_probe": "下批一次探针打印 stock_snapshot 与 pop_goods_by_dim 的键结构，按真实形状修 _by_dim，本项即有值",
+ "verified": [
+  "读数相关用例全绿（含契约守卫）；21 项 ok=19 undefined=2 与逐维 None 为运行时实测"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T09:42:22Z"
+}

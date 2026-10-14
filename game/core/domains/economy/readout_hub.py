@@ -547,6 +547,69 @@ def _tax_scope_contrast(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return round(float(full) - base_sum, 2), None, detail
 
 
+def _market_chain_diagnosis(state) -> Tuple[Optional[Any], Optional[str], Any]:
+    """**市场切片·链级诊断**（M227，只读·零数值）：产地→运输→成交→到货→加工**五环**贯通。
+
+    用户裁决（主线 F）：『必须完成**产地—运输—成交—到货—加工链条的守恒和缺失诊断**』。
+
+    🔴 **口径单点**：五环数量**一律调既有函数**（`stock_identity.*`），**不复制算法**：
+    * 产地（原料存量）＝ `pop_goods_by_dim(state)['丝']`
+    * 运输（在途）＝ `in_transit_by_dim(state)['绸']`
+    * 到货（待入库/成品存量）＝ `pending_stock_by_dim(state)['绸']` / `pop_goods_by_dim(state)['绸']`
+    * 成交/加工＝**只标注可读性**（分别走既有 `seat_market_shadow` 与 `readout_hub.pilot_chain_gap`，
+      本读数**不重算** ⇒ `drill_down` 指路）
+    * 端到端**残差**＝`residual_report(prev, curr)`（**跨月两次** `stock_snapshot`）⇒ 本读数**单时点
+      不假造残差**，只给**方法与现成快照**
+    """
+    src = ("core.domains.economy.stock_identity（stock_snapshot / in_transit_by_dim / "
+           "pending_stock_by_dim / pop_goods_by_dim / residual_report）")
+    try:
+        from core.domains.economy import stock_identity as si
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: stock_identity 不可读", exc_info=True)
+        return None, f"stock_identity 不可读：{type(e).__name__}", {"drill": src}
+
+    def _by_dim(fn, dim: str):
+        try:
+            v = fn(state)
+            if isinstance(v, dict):
+                x = v.get(dim)
+                if isinstance(x, (int, float)) and not isinstance(x, bool):
+                    return x
+        except Exception:                                    # noqa: BLE001
+            log.warning("readout_hub: 链级诊断取维失败 dim=%s", dim, exc_info=True)
+        return None
+
+    raw = _by_dim(si.pop_goods_by_dim, "丝")          # 产地
+    out = _by_dim(si.pop_goods_by_dim, "绸")          # 到货（成品存量）
+    transit = _by_dim(si.in_transit_by_dim, "绸")     # 运输
+    pending = _by_dim(si.pending_stock_by_dim, "绸")  # 到货（在途待入库）
+
+    detail: Dict[str, Any] = {"drill": src,
+                              "产地（丝存量）": raw, "运输（绸在途）": transit,
+                              "到货（绸待入库）": pending, "到货（绸成品存量）": out,
+                              "成交环": "见 `seat_market_shadow.seat_supply/seat_purchasing_power`（本读数不重算）",
+                              "加工环": "见 `readout_hub.pilot_chain_gap`（成品/需求/缺口）",
+                              "端到端残差方法": ("跨月两次 `stock_snapshot(state)` 得 prev/curr ⇒ "
+                                            "`stock_identity.residual_report(prev, curr)` 给**逐维残差**；"
+                                            "本读数**单时点** ⇒ **不假造残差**（缺失≠0）")}
+    try:
+        snap = si.stock_snapshot(state)
+        detail["快照"] = snap if isinstance(snap, dict) else None
+    except Exception:                                        # noqa: BLE001
+        log.warning("readout_hub: 链级诊断快照不可读", exc_info=True)
+        detail["快照"] = None
+
+    readable = [x for x in (raw, transit, pending, out) if x is not None]
+    if not readable:
+        return None, "五环数量全不可读 ⇒ 链级诊断不可定义（缺失≠0）", detail
+    detail["可读环数"] = len(readable)
+    detail["缺失环"] = [k for k, v in (("产地（丝存量）", raw), ("运输（绸在途）", transit),
+                                    ("到货（绸待入库）", pending), ("到货（绸成品存量）", out))
+                      if v is None]
+    return len(readable), None, detail
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -589,6 +652,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _fiscal_structure, "source": "state.treasury / state.imperial_treasury"},
     {"key": "tax_scope_contrast", "label": "税收口径差额（全口径 − tax_breakdown 4 目）", "unit": "贯",
      "fn": _tax_scope_contrast, "source": "state.tax_breakdown + state.tax_base_summary()"},
+    {"key": "market_chain_diagnosis", "label": "市场切片·链级诊断可读环数（产地→运输→成交→到货→加工）", "unit": "环",
+     "fn": _market_chain_diagnosis, "source": "core.domains.economy.stock_identity（stock_snapshot 等）"},
 )
 
 
