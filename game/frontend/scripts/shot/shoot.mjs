@@ -34,6 +34,8 @@ const PAGES = [
   ["localarchive-circuit", "panel=LocalArchivePanel&kind=circuit&route=两浙路", 1000, 1520],
   ["localarchive-city", "panel=LocalArchivePanel&kind=city&route=杭州", 1000, 1320],
   ["provincemilitary", "panel=ProvinceMilitaryPanel&route=两浙路", 1000, 1240],
+  // M243：**读数索引**（P5 新增的 21 项读数面板）——此前**不在清单内** ⇒ 截图验收不覆盖它，本行补齐
+  ["readouthub", "panel=ReadoutHubPanel", 1000, 1200],
   ["PopPanel", "panel=PopPanel", 1000, 1100],
   ["LandPanel", "panel=LandPanel", 1000, 900],
   ["GranaryPanel", "panel=GranaryPanel", 1000, 900],

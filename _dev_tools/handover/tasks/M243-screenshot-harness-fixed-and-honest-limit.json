@@ -1,0 +1,36 @@
+{
+ "id": "M243-screenshot-harness-fixed-and-honest-limit",
+ "title": "截图台**跑通**（根因＝我跑错目录）· 补齐读数面板一行 · 视觉验收如实：面板仅显示加载态（截图台无 /api/readouts）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "correction_of_M242": {
+  "M242 的判断": "截图台 MODULE_NOT_FOUND，疑为缺依赖（建议安装无头浏览器依赖）",
+  "🔴 实际根因": "**我跑错了目录**——shoot.mjs 位于 game/frontend/scripts/shot/，而我在 sz 根跑 scripts/shot/shoot.mjs（该路径不存在）⇒ Cannot find module（requireStack 为空正合此因）",
+  "证据": "shoot.mjs 只 import node 内建模块（child_process/fs/path/os/url），无外部依赖；从 game/frontend 运行即 SHOT EXIT=0",
+  "教训": "与 M233 同族：**报错文本要看全**（requireStack 为空＝入口路径问题，而非依赖缺失）——不得据此建议安装依赖"
+ },
+ "deliverable": [
+  "shoot.mjs 面板清单补一行 readouthub（panel=ReadoutHubPanel，1000x1200）——此前不在清单内 ⇒ 截图验收不覆盖 P5 新面板",
+  "从正确目录重跑：SHOT EXIT=0，产出 15 张 PNG（19:06），含 readouthub.png（15.8KB，19:07）"
+ ],
+ "visual_acceptance_honest": {
+  "✅ 结论": "面板**能挂载、不崩**（截图上首行 dev 信息显示 store ok、state 7 键）⇒ 布局与挂载链路可验证",
+  "⚠️ 但截图内容为加载态": "截图显示『正在读取统一读数索引…』⇒ **截图台环境取不到 `/api/readouts`**（其它面板读 store 状态故有内容，本面板走 HTTP）⇒ **截图不能作为『21 项读数正确显示』的证据**",
+  "⇒ 真正的验收仍是契约用例": "21 项计数 · drill 为 dict|None · 载荷可序列化（M125/M126/M129/M130）——这些**已用例强制**；截图台只覆盖**挂载与布局**"
+ },
+ "improvement_candidate": {
+  "问题": "面板在**取不到端点**时只显示无限加载态（不发失败信号）",
+  "建议（须你或 Jev 定）": "加**优雅降级**：HTTP 不可用时改为只读 store/或显示明确的『端点不可用』提示（含重试），而非无限『正在读取』——既是 UX 改进，也使截图台可验收",
+  "注意": "属前端行为改动，须定口径（降级到 store 是否会造成第二份真相？按口径单点原则：**优先只显示明确的不可用提示**，不复制读数计算）"
+ },
+ "verified": [
+  "两次实跑（错误目录 EXIT=1 / 正确目录 EXIT=0）与产物时间戳、文件名、字节数为实测；readouthub.png 已目视核对（加载态）"
+ ],
+ "next": [
+  "① 待用户：E 是否允许做面板优雅降级（并入库/前端用例）",
+  "② 待用户 4 项：A P3 接线 · B G-4 接线 · C 工资义务史源 · D affiliation 史料"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T11:08:00Z"
+}
