@@ -1,0 +1,24 @@
+{
+ "id": "M253-jev-supplementary-rulings",
+ "title": "剩余四项补齐 Jev 裁决（A/B 走 typesafe 均不成立 · D 甲 0.939 · C 早前丁 0.446）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "decisions/JEV-台账-剩余四项补裁-2026-10-14.json（本轮 Jev 实测输出）",
+ "correction": "用户指出此后我承认：A/B/D 此前**未交决策模型**，只引用了用户既有裁定与自身谨慎；本轮补齐并落 decisions 台账（AGENTS.md 强制：仅 commit 正文不算留痕）",
+ "rulings": {
+  "A": "typesafe gate 不成立 p=0.170（阈值 0.45）",
+  "B": "typesafe gate 不成立 p=0.180",
+  "D": "choose 甲 0.939（留 unclassified，不落数据）",
+  "C": "早前 choose 丁 0.446（无权威来源 ⇒ undefined）"
+ },
+ "conclusion": "四项全部有 Jev 依据；A/B 为放行类且判不成立 ⇒ 模型不得自行放行，须用户授权；D/C 由裁定与硬约束关闭",
+ "verified": [
+  "三条 Jev 输出为本轮实测（含概率与阈值）"
+ ],
+ "next": [
+  "等用户：A/B 授权 或 C/D 史料 或 明确覆盖原裁定"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T13:56:27Z"
+}

@@ -1,0 +1,52 @@
+{
+ "id": "JEV-台账-剩余四项补裁-2026-10-14",
+ "title": "剩余四项的 Jev 补裁（A/B/D 此前未问，本轮补齐；C 为早前裁定）",
+ "date": "2026-10-14",
+ "askedBy": "DSH",
+ "why_this_file": "用户指出『jev 没裁决？』——我此前对 A/B/D 只引用了用户 2026-10-08 既有裁定与自身谨慎，**未再交决策模型**，与『有问题找决策模型、别停』的元指令不符。本轮补齐并留痕。",
+ "rulings": [
+  {
+   "item": "A · P3 把 confirm_decree 接入诏令主链",
+   "provider": "typesafe",
+   "model": "jev-latest",
+   "mode": "gate（放行类，按纪律走 typesafe）",
+   "condition": "在当前证据与可回退前提下，放行『把复述门接入诏令主链』可以成立",
+   "verdict": "不成立（不放行）",
+   "p": 0.17,
+   "threshold": 0.45,
+   "premises_verified_by_me": ["机制已完整实现、缺的只是调用者", "批 5 设计 + 11 条用例已全绿", "可回退、影响单点"],
+   "note": "Jev 不支持在**无用户授权**下自行放行；用户可随时覆盖"
+  },
+  {
+   "item": "B · G-4 由影子转真实划转",
+   "provider": "typesafe",
+   "model": "jev-latest",
+   "mode": "gate（放行类）",
+   "condition": "在影子与守恒方案已完成且可 A/B 验证的前提下，放行『G-4 由影子转真实划转』可以成立",
+   "verdict": "不成立（不放行）",
+   "p": 0.18,
+   "threshold": 0.45,
+   "premises_verified_by_me": ["影子预算与守恒方案已落地并用例通过", "可同种子 A/B 验证 M_ALL 恒等", "工资义务项无权威来源（C 已裁丁）"],
+   "note": "同上：需用户明确授权方能接线"
+  },
+  {
+   "item": "D · economic_affiliation 落数据口径",
+   "provider": "tokenrhythm",
+   "model": "NeoHorse-Jev-4B",
+   "mode": "choose",
+   "options": {"甲": "维持空池留 unclassified（完全遵守既有裁定）", "乙": "用可导出关系派生份额并标注为玩法假设（须显式覆盖原裁定）", "丙": "只做校准读数不落数据"},
+   "verdict": "甲",
+   "probabilities": {"甲": 0.9394501447677612, "乙": 0.03471825271844864, "丙": 0.025831496343016624},
+   "note": "压倒性支持维持空池（与用户 2026-10-08 裁定一致）；乙被压到 0.035 ⇒ 不得用派生份额冒充史料"
+  }
+ ],
+ "existing_ruling_referenced": {
+  "item": "C · 作坊工资义务（G-4 额度公式的另一半）",
+  "verdict": "丁（维持 undefined）",
+  "p": 0.446,
+  "note": "早前已裁并留痕（M121）；本轮未重复提问"
+ },
+ "conclusion": "四项**全部有 Jev 依据**：A/B 属放行类且 Jev 判不成立 ⇒ **模型侧不得自行放行**；D 甲 0.939 ⇒ 不落数据；C 丁 ⇒ 恒 undefined。⇒ 与我此前的停手判断**一致**；差别在于我应**先补这三条裁定再停**（本文档即补正）。",
+ "applied_in": {"decisions": "本档", "task": "_dev_tools/handover/tasks/M253-jev-supplementary-rulings.json", "commit": "（本批提交）"},
+ "reopen_if": "用户授权 A/B（或提供 C/D 史料）⇒ 按裁定放行并完成任务；若用户明确覆盖『不套假设比例』⇒ 可走 D 的乙案"
+}
