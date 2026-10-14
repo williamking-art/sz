@@ -1,0 +1,32 @@
+{
+ "id": "M155-tax-color-readout-safety",
+ "title": "🔴 二税折色读口的安全红线 + **全口径表达式已在结算内算好但未落 state** ⇒ 正确修法＝结算时写 `statistics`",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "读 `settlement_finance.py:1278-1289`（含既有设计注释）",
+ "findings": {
+  "✅ 全口径表达式已存在": "`settlement_finance.py:1287`：`monthly_tax_full = monthly_tax + tax_color_total + salt_coin + material_coin  # 目标收入（展示/预期）` ⇒ **「全口径」在结算里已经算好**，只是**存在局部变量**、只在日志串里被用（`:1656` 的 `inc_parts`）",
+  "🔴 二税折色的来源有副作用": "`tax_color_total = int(_land_tax[\"assessed\"])`，其中 `_land_tax = _settle_land_tax_color(state, log)` —— **这是结算的一步**（紧接 `_book_tax_loss(...)` 落账）⇒ **有副作用**（写 state）",
+  "⇒ 安全红线": "**读口绝不能为了取二税折色而调用 `_settle_land_tax_color`**——那会触发本仓库已归档的『**读操作触发写**』家族缺陷（例：`transport.in_transit` 惰性建容器）。**这正是二税折色没有公开读口的原因**（是**有意为之**，不是遗漏）",
+  "🔔 既有设计债（代码自陈）": "`:1278-1280` 注释：『旧径：`calc_monthly_tax_income` 把 arrival 乘进税基——POP 少付、国库少收、截留无落点。新径：全额税基→征收率→实收→归一三率三分（上供／留州／侵渔）。**读数（econ summary / region_brief）暂留旧径，P2「账面系统」统一改造（终稿附 A.2）**』⇒ **已知债，且有计划**",
+  "🔔 一个额外事实": "`material_coin` 也参与全口径（`:1286` `= 0.0`）⇒ 全口径实为**4 项**（4 目税 + 二税折色 + 盐课 + 物料折色）"
+ },
+ "correct_fix_path": {
+  "第1步（小改，改代码但**不改数值**）": "在结算算完 `tax_color_total`/`salt_coin`/`monthly_tax_full` 之后，**写入 `state.statistics`**（该字典 M153 已核实**随档持久化**）⇒ **口径单点**：结算算一次、读数读一次，**不重复实现、不在读路径重算**",
+  "第2步": "读口 `_tax_scope_contrast` 改为**只读 `statistics` 缓存**（现已经读盐课；再加二税折色与全口径两键）⇒ `partial` 可置 False，成为**真全口径**",
+  "第3步": "跑定向 + 全量回归；**A/B 同种子应恒等**（仅写 `statistics` 展示键，不进结算逻辑）",
+  "须口径": "① 新增 `statistics` 键是否与既有键**重名/双计**（M74 前例）② 是否顺带把『读数暂留旧径』一并对齐（**那属 P2 账面系统**，可能需要更大授权）"
+ },
+ "why_not_implemented_this_round": "本轮只到『读代码定位』；实施需改 `settlement_finance.py`（**结算文件**）⇒ 按 §3-4 属核心模拟改动，**须先说明口径与影响 + 定向回归**，且我须先确认新增 `statistics` 键不与既有键冲突——留给下一批（或你授权）",
+ "verified": [
+  "`:1278-1289` 逐行阅读；全口径表达式、二税折色来源与其副作用、既有设计债注释均已定位"
+ ],
+ "next": [
+  "① 下一批：确认 `statistics` 既有键（防重名）⇒ 按 correct_fix_path 实施（**A/B 须恒等**）",
+  "② 主线 E 核心待裁不变：**地方是否应有税收分成**",
+  "③ 其余卡口：产能 · 营运资金 · 作坊岗位数 · P3 授权；主线 F 三条口径"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T02:03:11Z"
+}
