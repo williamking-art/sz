@@ -1,6 +1,6 @@
 # HANDOFF · 当前入口（自动生成，勿手改）
 
-> 生成时间：**2026-10-13 22:11 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
+> 生成时间：**2026-10-14 02:57 UTC** · 生成器：`_dev_tools/handover/make_handoff.py`（只读交接层与 git；**只链接，不复制正文**）。
 > 权威仍是各 `tasks/`、`decisions/`、`phase/`、`specs/` 与代码本身。
 
 ## 1. 当前状态（哪个版本有效 · 哪些结果已验证）
@@ -17,11 +17,11 @@
 最近提交：
 
 ```
-80e547520d fix(handover): M135 门禁「只打印没接线」事故修复（漏过 c848dbbe4b）+ 留档
-561017b01a docs(handover): M134 新增 **HANDOFF.md 四件事聚合页** + 生成器（借鉴 handoff 第 4 条）
-c848dbbe4b docs(handover): M134 新增 **HANDOFF.md 四件事聚合页** + 生成器（借鉴 handoff 第 4 条）
-1150f2d17e docs(handover): M133 落「提交前门禁」（借鉴 handoff 第 9 条）+ 修两处自身问题
-18b9cea7e1 docs(spec): M132 对照借鉴外部交接项目 `handoff`（逐条：现状→建议→成本→是否需裁定）
+c7c9516433 docs(spec): M159 **主线 F 就绪状态**写入规格状态表（`tasks.md`）
+da0d8998a0 docs(spec): M158 主线 E **归属图景**写入文档正文（§6.1；含两处更正与两套口径）
+99c046f184 feat(economy): M157 `tax_scope_contrast` 下钻新增 **二税折色·三率三分 + 归属落点**（只读，零数值）
+2334dd2418 fix(economy): M156 🔴 **重大更正** —— 二税折色**有地方分成（留州）**且**有读口** ⇒ 全口径达成（4 目仅 **13.8%**）
+045e88a53f docs(spec): M155 二税折色读口的**安全红线** + 全口径修法定位（本轮不改结算文件）
 ```
 
 ## 2. 下一步（什么尚未完成）
@@ -44,7 +44,7 @@ c848dbbe4b docs(handover): M134 新增 **HANDOFF.md 四件事聚合页** + 生�
 | `M50-job-track-config-fallback.json` | pending | 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） | - |
 | `_meta.json` | ? |  | - |
 
-> 已完成任务共 **79** 条，见 `INDEX.md`（看板）。
+> 已完成任务共 **92** 条，见 `INDEX.md`（看板）。
 
 ## 3. 关键约束 / **待人决定**
 

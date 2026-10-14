@@ -3,7 +3,7 @@
 > 由 `_dev_tools/handover/decisions/*.json` 自动汇总。**一条裁定一文件**是本项目纪律；
 > 本索引只做导航（**权威仍是各 json**）。生成者：DSH（M116，2026-10-13）。
 
-- 决策档总数：**73**
+- 决策档总数：**76**
 - 非法 JSON：**0**
 
 | 档案 | verdict | 前二概率 | 裁定人/来源 | 问题（截断） |
@@ -24,12 +24,15 @@
 | `IMPERIAL-ACTION-停用.json` | 甲 —— 停用，不删除 |  | - | 「帝王行动」暂时停用（选甲·可回退） |
 | `JEV-台账-logo替换与印玺抠图-2026-10-13.json` | - |  | - |  |
 | `JEV-台账-印玺与官网改版-2026-10-13.json` | - |  | - |  |
+| `JEV-台账-官网分页整体复审-2026-10-13.json` | - |  | - |  |
 | `JEV-台账-官网字体选择-2026-10-13.json` | - |  | - |  |
 | `JEV-台账-统一市场与生产线-2026-10-13.json` | record |  | - | 统一市场 / 生产 / 家计各批的 **Jev 裁定台账**（2026-10-13 会话） |
 | `LOCAL-HANDOVER.json` | 本机交接；载体=_dev |  | - | 交接通道：放弃 CloudBase MCP，改用仓库内本机交接层 |
 | `M104-maintenance-derivation-scope.json` | 甲 | 甲 0.907 · 乙 0.093 | Jev (tokenrhyt | P2 `maintenance`（维护责任）能否只读派生？ |
 | `M111-blueprint-derivation-scope.json` | 甲 | 甲 0.908 · 乙 0.059 | Jev (tokenrhyt | P2 `blueprint`（蓝图版本）只读派生怎么定？ |
 | `M117-income-to-derivation-scope.json` | 甲 | 甲 0.788 · 乙 0.212 | Jev (tokenrhyt | P2 `income_to` 能否只读派生为「应然去向」？ |
+| `M121-workshop-jobs-source-scope.json` | 丁 | 丁 0.696 · 丙 0.118 | Jev (tokenrhyt | M67 作坊岗位数（容量/在岗）来源取哪条？ |
+| `M122-operating-fund-source-scope.json` | 丙 | 丙 0.409 · 甲 0.344 | Jev (tokenrhyt | 作坊营运资金来源（D 线 G-4）取哪条？ |
 | `M25-写站点拆环.json` | 路径①依赖注入，但注入面 |  | - | 11 个写站点的接口归属 |
 | `M38c-crop-buildings-authorization.json` | 待裁定 |  | - | 是否授权在本阶段新增桑田/麻田/果园/蔗田/茶园等 `content` 条目与可建选项（M38c）？若授权，按工程量评估的哪一档（0/1/2 |
 | `M40b-storage-applier-coupling.json` | 待设计 |  | - | 州仓 storage 下沉的前置：engine applier 路径 `prefectures.*.storage` 与 journal 判 |
