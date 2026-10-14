@@ -1,0 +1,32 @@
+{
+ "id": "M176-trade-journal-container",
+ "title": "主线 F 实施**原子第一片**：`state.trade_journal` 容器 + 守卫用例（未接线、零行为变化）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M175（载体甲 0.875 · 维度分配甲 0.550）· 设计档 §8/§9",
+ "deliverable": [
+  "core/game_state.py：`self.trade_journal: list = []`（含五条注释：事件流/非账本/未接线/未登记 save_load/注入批同批登记）",
+  "_dev_tools/game-dev/tests/test_m176_trade_journal_container_guard.py（4 passed）"
+ ],
+ "guards_locked": [
+  "槽存在且为 `list` · 新局为空（零行为变化）",
+  "裸 `GameState` 也有该槽（旧档/构造路径不 AttributeError）",
+  "**禁止键集**（balance/stock/inventory/on_hand/holdings）非空且**不与 15 个合法字段重叠**",
+  "**结算后仍为空** ⇒ 证明未接线且不参与结算"
+ ],
+ "why_no_save_load": "本批**无写入者** ⇒ 登记持久化无意义，且会制造「看起来接好了」的假象；持久化与**注入记账**同批原子落地（避免本会话已立的「半接线最坏」教训）。",
+ "next_batch_recipe": [
+  "注入 `settlement_econ.py:551-570`（市舶段）记账（**只记不二次入账**——B1 修复立的规矩）",
+  "按 `yields`/政权人口权重拆分（**Σ ≡ `calc_maritime_trade()`**）",
+  "`save_load` 登记白名单 + `statistics` 单列",
+  "**同种子 A/B（应恒等）** + **60/240 月长局** + 全量回归",
+  "读数 `trade_line_status` 升级为可下钻（路/政权/商品）"
+ ],
+ "process_note": "🔴 **本批两处如实**：① claim **失败**（我**漏建本任务档**）⇒ 提交正文写的「tasks 115」与实际 **114** 不符 ⇒ 本轮补档并纠正计数（M170 立规：「正文所声称的每一项都必须核验」——含**计数**）；② 有写入者前**不登记 save_load**，避免半接通。",
+ "verified": [
+  "M176 用例 4 passed；`DIFF_CHECK_EXIT=0`；全量串行 EXIT=0（含 game/ ⇒ 走全量档）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T05:57:21Z"
+}
