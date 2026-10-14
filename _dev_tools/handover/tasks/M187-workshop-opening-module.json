@@ -1,0 +1,37 @@
+{
+ "id": "M187-workshop-opening-module",
+ "title": "产能批·**补座纯逻辑模块** `workshop_opening.py`（幂等 · Σ配平 · 口径单点）—— **未接线，零行为变化**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M181（旋钮乙/量级甲）· M185（公式线性实测）· M186（分布按丝产能加权，Jev 丁 0.388）",
+ "deliverable": [
+  "`game/core/domains/economy/workshop_opening.py`（`silk_share_plan` / `existing_silk_count` / `open_extra_workshops`）",
+  "econ README 索引行",
+  "_dev_tools/game-dev/tests/test_m187_workshop_opening.py（**5 passed**）"
+ ],
+ "design": {
+  "目标": "**绝对目标** `DEFAULT_TARGET_TOTAL = 28`（7 → 28 座，Jev 甲 ~10%）⇒ **天然幂等**：Σ现有 ≥ 目标 ⇒ 本次新增 0",
+  "分配": "`silk_share_plan(state, target_total)`：按 `prefectures[路]['yields']['丝']` **份额**（最大余数法），只落丝禀赋 >0 的路，**确定性可复现**",
+  "配平": "🔴 **对称配平**：`Σ新增 == max(0, target_total − Σ现有)` —— 正缺口补到权重最高路、负缺口从「新增最少」路扣减（**无丝路上的既有座不参与分布**）",
+  "口径单点": "实例模板取 `WORKSHOP_RECIPES['丝坊']`（**不改 `yield`**）；只建实例、**不动钱货**",
+  "键名": "沿用 `丝坊_<路>_<序号>`；键冲突顺延，**不覆盖既有**"
+ },
+ "bugs_found_by_tests_during_dev": [
+  "① 首版按『每路现有+extra』分摊 ⇒ 已有 7 座未计入总量 ⇒ 只加 **15** 座（真语义 bug）",
+  "② 改为总量后**幂等性被破坏**（每次调用目标都随现有膨胀 ⇒ 重复调用再加 21）⇒ 改**绝对目标**才幂等",
+  "③ 无丝路上的既有座导致差 1 溢出 ⇒ 加**对称配平**（补/扣）使 `Σ新增` 恒等",
+  "⇒ 三次都由**用例当场抓到**（本会话『先写守卫用例』的收益）"
+ ],
+ "not_wired_why": "本批**只落可测纯逻辑**（零行为变化）；接线（`game_state.__init__` 调用 + 幂等迁移补存量档）**另成一批**，届时须 **A/B（查丝需求与工匠 POP 用工、不造钱物）+ 60/240 月长局 + 全量回归**",
+ "verified": [
+  "M187 **5 passed**（Σ配平/确定性/幂等/口径单点/不臆造）；全量串行回归见提交日志（触 code ⇒ 全量档）"
+ ],
+ "next": [
+  "① **接线批**：`game_state.py:687` 后调 `open_extra_workshops(self)` + `migrations.*` 幂等入口 + `game_init` 复用 ⇒ A/B + 60/240 月 + 全量",
+  "② 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok` · `pilot_chain_gap` 下降",
+  "③ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T06:56:19Z"
+}
