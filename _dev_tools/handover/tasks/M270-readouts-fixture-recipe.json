@@ -1,0 +1,33 @@
+{
+ "id": "M270-readouts-fixture-recipe",
+ "title": "readouts 全量 fixture 的**精确施工图**（一次修净截图台 mock 的 kind 缺口）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测：client.ts 的 ReadoutsResult 接口 + backend/server.py 的 payload 组装处（:890-925）",
+ "findings": {
+  "接口形状": "`getApiClient().readouts()` = **单个端点 `/api/readouts`，无 kind 参数** ⇒ 所谓 kind 其实是**该 payload 的顶层键**（`ReadoutsResult` 接口里都是可选字段）",
+  "payload 组装处（口径单点）": "`game/backend/server.py` **:890–925** 附近组装：`tax_base` · `clerks` · `institution` · `regions` · **`hub`** · **`situations`** · `defense_lines` · `readout_errors`（更早处应还有 `army`/`arsenal`/`finance`/`meter` 等，需一并以实际组装为准）",
+  "现状缺口": "截图台 `scripts/shot/fixtures.ts` 的 `READOUTS` 是**旧的部分形状**（`army`/`regions`）；`hub` 已在 M266 用真实 payload 补；**`situations`/`plan` 等仍缺** ⇒ `SituationPanel`/`PlanReadoutPanel` 在截图里只显示空态"
+ },
+ "recipe": [
+  "① 读 `game/backend/server.py` 该端点处理函数，取**其 payload 构造**（若为独立的纯函数则直接复用；若内联在 handler 里则**照它的调用顺序**在脚本里复现，**不得自创字段**）",
+  "② Python 脚本：`commands.new_game()`（seed=20261013，先跑 6 个月结算）⇒ 构造**完整 payload**（含 `hub`）⇒ `json.dumps(default=str)`",
+  "③ 写入 `game/frontend/scripts/shot/readoutsFixture.ts`（头部注明**来源函数与生成命令**，并声明**不得手改数字**）",
+  "④ `apiMock.readouts()` 返回该完整 payload（**替代**现在的 `{...READOUTS, hub: HUB}`；保留 `...READOUTS` 仅为兼容可再评估）",
+  "⑤ 删/留 `hubFixture.ts`：若并入 readoutsFixture 则删除并在 `scripts/shot/README.md` 索引表相应更新（§6.1 新文件须回填、删除须同步）",
+  "⑥ 重跑 `shoot.mjs`（**cwd 必须 `game/frontend`**）⇒ **逐张目视** `situation-pop`/`planreadout`/`prefecture`/`governancehub` 与既有 14 张（重点：不再出现『读数为空/未下发』以外的空态）",
+  "⑦ 文档：`scripts/shot/README.md` · `tasks.md` P5 节（覆盖率 10→14→? 与 mock 完整性）· `收口总表`；log + commit"
+ ],
+ "risks": [
+  "后端 handler 可能依赖 FastAPI 上下文 ⇒ 若不便直接调用，**照其调用顺序复现**（并在 fixture 头注明『按 backend 组装顺序复现』，不得臆造字段）",
+  "`hub` 与 `situations` 的数据来源不同（前者 `readout_hub.collect`，后者 `state.situations`）⇒ 生成脚本须逐键核对**来源函数**，不可只调一个"
+ ],
+ "not_done_why": "本轮上下文预算用尽；且该步涉及后端组装复用与新 fixture 全量替换，**必须一次做完并逐张目视**，不宜半改",
+ "next": [
+  "① 下批按 recipe ①–⑦ 执行（零数值、只动截图台与文档）",
+  "② 待用户：A/B 授权 · C/D 史料 · Lightpanda 是否安装"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T14:29:48Z"
+}
