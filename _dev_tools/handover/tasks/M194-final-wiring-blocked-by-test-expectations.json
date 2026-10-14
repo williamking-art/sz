@@ -1,0 +1,30 @@
+{
+ "id": "M194-final-wiring-blocked-by-test-expectations",
+ "title": "🎯 根因修复**已验证生效**（`unreadable_count = 0`）；接线收口**仅剩断言适配**（含**数值型**期望）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "本轮实测（接线 + 根因修复后重跑 6 文件 + `procure_need` 探针）",
+ "proof_root_cause_fixed": {
+  "实测": "接线后 `commands.new_game()`：丝坊 **28** · 总作坊 **128** · **`procure_need.unreadable_count = 0`** · `unreadable` 样例 `[]`",
+  "⇒ 结论": "✅ M193 的 `recipe` 对象共享修复**确实生效**（M71 的直接阻碍『有座不可读』已消除）",
+  "🔴 新暴露的事实": "**采购需求 28,400,000 → 70,400,000**（+42M）——这是 21 座新丝坊带来的**正当数值变化**（每座 `丝 10000`）⇒ **M71 的值型断言必然红**"
+ },
+ "remaining_reds_and_why": {
+  "`test_m71_funding_summary`": "断言**具体数值**（开局采购需求等）⇒ 数值**依法**变为 70.4M ⇒ 需**按口径更新**（派生或注明新基线）",
+  "`test_m67_workshop_wage_survey`": "断言真实局**类型集合/计数** ⇒ 需读断言文本确认（可能是类型集合仍应不变、或计数相关）",
+  "`test_workshop_owner`": "『107 座全部有货主』 ⇒ **派生化**（`107 + (DEFAULT_TARGET_TOTAL - 7)`）或改为覆盖率断言",
+  "`test_m187_workshop_opening`（自测 2 项）": "committed 版在**新局已是 28** 的前提下仍期望『再加 21』⇒ 需**两层改法**（我先前写过但未成功落盘）：插入 `_trim_to_open` 助手（每路只留首座 ⇒ 回到 7）并在其上测模块语义 + 另加**接线证明**（新局即 28）"
+ },
+ "why_not_committed_this_round": "🔴 **不提交红树**（3 次尝试均坚持该纪律）；本轮上下文已尽，无法逐条读断言并适配 ⇒ **精确回退**（`git restore --source=HEAD --staged --worktree` 仅我本会话改的 7 个文件）⇒ 树回 `aa615b5ded` 绿色态",
+ "next_batch_steps": ["① 读 4 处断言文本（M71 值型 / M67 集合 / owner 计数 / M187 自测）",
+                       "② 按口径**适配**：数值型 ⇒ 更新基线并**注明来源**（如『含 M194 补座后的开局基线：采购需求 70,400,000』）；计数型 ⇒ **派生化**；M187 ⇒ **两层改法**（trim 助手 + 接线证明）",
+                       "③ 重做 7 处 ops_replace（写法已 3 次验证，逐字可复用）",
+                       "④ **同种子 A/B**（丝需求与工匠 POP 用工、不造钱物）+ **60/240 月** + 全量回归",
+                       "⑤ 验收读数：`pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"],
+ "verified": ["`unreadable_count = 0` 与 采购需求 70.4M 均为**运行时实测**；6 文件红/绿状态为真值"],
+ "next": ["① 下一批按 next_batch_steps 五步完成产能批（根因已修，**只差断言适配**）",
+          "② 仍待你：营运资金载体（建议甲）· P3 授权"],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14"
+}
