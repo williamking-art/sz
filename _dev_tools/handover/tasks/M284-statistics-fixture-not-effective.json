@@ -1,0 +1,22 @@
+{
+ "id": "M284-statistics-fixture-not-effective",
+ "title": "试图让 governancehub「累计统计」取真实值：**未生效**（截图与上次同 sha256）——原因待查，如实记录",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "what_tried": [
+  "取真实 `state.statistics` 五键（new_game + seed20261013 + 6 月结算）：total_income 16329544 · total_expenditure 17414649 · total_decrees 0 · total_wars 0 · total_disasters 0（该 dict 共 57 键）",
+  "把五键作为 `statistics` 写入 `game/frontend/scripts/shot/fixtures.ts` 的 STATE（**加法式**，fixtures 字节 13049 到 13376）",
+  "tsc web=0 · SHOT EXIT=0"
+ ],
+ "result": "🔴 **未生效**：`governancehub.png` 与上一次**同一 sha256**（ab6bec4be16aea9b7e78234d0ccabb2b7f4548e3588bc35c8a8264c289cf4809）⇒ 画面**逐像素相同**，「累计统计」仍为 0",
+ "conclusion": "面板读 `useGameStore(s => s.state)` 再 `pick(state, statistics, {})`；我注入的是 `fixtures.STATE.statistics` ⇒ **两者之间有一处未对齐**（待查：① `storeMock` 是否以 `fixtures.STATE` 作为 `s.state`；② 是否有中间层重建/裁剪 state；③ `pick` 的取值路径）",
+ "status_of_defect": "与 **M275 缺陷无关**（那是**代码缺陷**，已修并按内容级验收通过：税入四项显示 111/39/157/50 万贯）。本条只是**截图台 fixture 覆盖**的可选项**未达成**。",
+ "honesty": "本轮**不谎称成功**：以「同一 sha256」为证据判定未生效（此即 M281 立的纪律：用**结构量/产物指纹**而非手打串判断）",
+ "next": [
+  "① 如需继续：读 `storeMock.ts` 全文确认 `s.state` 的来源，再决定注入点（**先读后改**）",
+  "② 或直接将本项标为「可选、未达成」并搁置（不影响 M275 修复的验收）"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T15:03:13Z"
+}
