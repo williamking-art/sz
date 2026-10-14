@@ -1,0 +1,31 @@
+{
+ "id": "M177-trade-ledger-pure",
+ "title": "外贸**派生记账纯函数模块** `trade_ledger.py`（只算不写；守恒精确；零接线）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M175（载体甲 0.875 · 维度分配甲 0.550）· 设计档 §8/§9 · Jev-台账-Round149",
+ "deliverable": [
+  "game/core/domains/economy/trade_ledger.py（`route_weights` / `allocate_legs` / `assert_guards` / `BANNED_KEYS` / `LEG_FIELDS`）",
+  "_dev_tools/game-dev/tests/test_m177_trade_ledger.py（4 passed）",
+  "econ README 索引行（本会话第 7 次『新模块必须回填 README』——已**提前**补）"
+ ],
+ "properties": {
+  "纯函数": "`allocate_legs(state, total_value)` **只算不写** ⇒ 可独立测试、**零接线风险**（接线由结算批一次完成）",
+  "守恒精确": "**最大余数法** ⇒ `Σ(goods_value) ≡ total_value`（用例覆盖 1/7/123456/1e7/2.84e7 五档）",
+  "不新增账本": "元素只含 15 个 `LEG_FIELDS`；`assert_guards` 检查无 `BANNED_KEYS`",
+  "路名纪律": "只用 `state.prefectures` 的路 ⇒ **不受** `ROUTE_WATERWAY` 21 vs 20 差异影响（防幽灵路）",
+  "不臆造": "外邦**人口**不可得 ⇒ 政权侧权重用其**进口品种数**并在 `weight_basis` 里**写明**；无可用路/政权/总量≤0 ⇒ `legs=[]` + reason（**缺失≠0**）",
+  "口径单点": "`REGIME_IMPORTS` 取自 `trade_shadow`（不复制）"
+ },
+ "verified": [
+  "4 用例全绿（守恒/非账本/路名/缺失≠0/只读/权重依据已写明）；全量串行回归见提交日志"
+ ],
+ "next": [
+  "① **接线批**（最后的改数值批）：`settlement_econ.py:551-570` 调 `allocate_legs` → `state.trade_journal.extend(legs)`（**只记不二次入账**）+ `save_load` 登记 + `statistics` 单列 + **A/B（应恒等）+ 60/240 月 + 全量回归**",
+  "② 读数 `trade_line_status` 升级为可下钻（路/政权/商品）",
+  "③ 仍待你：②营运资金载体（建议甲）· ⑤P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T05:59:02Z"
+}
