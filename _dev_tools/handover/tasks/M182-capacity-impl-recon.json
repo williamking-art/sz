@@ -1,0 +1,36 @@
+{
+ "id": "M182-capacity-impl-recon",
+ "title": "产能实施批·第一步盘点：**改造点已缩小到两处**（`GameState.__init__` 作坊创建 + 存量档迁移），非 `data.py`",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "M181（量级＝甲 温和 ~10%）· 本轮只读盘点（`game_init.py` / `content/data.py`）",
+ "findings": {
+  "❌ 不是 game_init": "`application/game_init.py` 只做**归属/治所登记**（`init_workshop_owners` 注释明写『依赖 `workshops` 已建（`GameState.__init__` 建）』）⇒ **不在此处建作坊数**",
+  "❌ 不是 data.py 的配比表": "`content/data.py` 命中项为 `WORKSHOP_RECIPES`（配方/产能参数）、`官营作坊`（建筑类型）、`BUILDING_STD` 闭集 ⇒ **未见「每路丝坊座数」表**",
+  "✅ 改造点（据既有实证）": "**作坊实例在 `core/game_state.py` 的 `GameState.__init__` 建立**（M176 实测 `GameState(\"史实\")` 即有该槽与实例；既有指标『107 座 / 7 路各 1 座丝坊』应源于此或其调用的 content 表）"
+ },
+ "next_step_precise": [
+  "① 只读定位：`game_state.py` 中作坊实例的**创建循环**与**每路座数来源**（是内联常量还是 content 表）——这是改数值的**唯一注入点**",
+  "② 若为内联常量 ⇒ 用**幂等迁移**（`migrations.*`）把**存量档**补齐到目标座数；`new_game` 走同一入口（`game_init` 增一步或复用迁移）",
+  "③ 目标：覆盖 2.3% → **约 10%**（Jev 甲 0.450）⇒ 反推每路丝坊座数（现 1 座/路 ⇒ 若线性，约 4 座/路；**须以实测产能公式复核**，不臆断线性）",
+  "④ 标定：**同种子 A/B**（只应影响产量/缺口，**不得造钱物**）+ **60/240 月长局** + 全量回归",
+  "⑤ 验收读数：`pilot_chain_gap` 下降 · `pilot_bottleneck` 由 `capacity_shortage` 转 `raw_shortage`/`ok`"
+ ],
+ "not_done_why": "本轮为**只读盘点**（预算内只做一次定位）；改造点已从『data.py 配比表』缩小到『`GameState.__init__` 作坊创建 + 迁移』，但**具体创建循环未读**⇒ 不在未看清的情况下动数值（避免半接线/臆断）",
+ "risk_notes": [
+  "⚠️ **不得臆断线性**：产能与座数的关系须读 `WORKSHOP_RECIPES`/产能公式实测复核",
+  "⚠️ **存量档**必须幂等迁移且**失败不拒档**（老档不炸）",
+  "⚠️ 座数增加会**同时**提高丝（原料）需求与工匠 POP 用工 ⇒ A/B 须检查这两处不异常"
+ ],
+ "verified": [
+  "两处只读检索（`game_init.py` 全文件命中 3 条、`data.py` 命中 9 条）均为实测输出"
+ ],
+ "next": [
+  "① 只读读 `game_state.py` 作坊创建循环 ⇒ 完成改造点定位（下一批第一步）",
+  "② 随后按 M181 六步计划实施（改数值批）",
+  "③ 仍待你：营运资金载体（建议甲）· P3 授权"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T06:50:32Z"
+}
