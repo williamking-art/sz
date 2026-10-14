@@ -1,0 +1,46 @@
+{
+ "id": "M162-p6-long-run-sentinel",
+ "title": "**P6 首次开工**：长局质量门哨兵（默认 12 月 / `SONGZUO_LONG_RUN=1` 时 60 月）+ **60 月实测证据**",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-14",
+ "authority": "`specs/economy/unified-civilian-market/tasks.md` §8（P6：确定性断言 → 固定种子短局与 **60/240 月**长局 → 多 AI 策略种子）",
+ "p6_first_slice": {
+  "交付": "`_dev_tools/game-dev/tests/test_m162_long_run_sentinel.py`：默认 **12 月**（保持回归快）、设 `SONGZUO_LONG_RUN=1` 跑 **60 月**",
+  "锁定四项": [
+   "结算不抛异常（连续结算）",
+   "**货币恒等式** `m_all == Σ accounts`（残差 0）",
+   "**POP 守恒**：逐路 `Σ治所 == 路级`（农 size/wealth）",
+   "**读数契约**：全项 `display` 规则 + `drill_down` 为 `dict|None` + `undefined ≤ 3`"
+  ]
+ },
+ "measured_60_months": {
+  "耗时": "45.9s（单次 60 月结算）",
+  "异常": "**无**",
+  "国库": 144595,
+  "内帑": 17811335,
+  "内帑/国库": "≈ **123×**",
+  "货币恒等式": "`m_all = accounts_sum = 337,807,727` ⇒ **残差 0**（10 账户：pop_wealth/treasury/imperial/local_treasury/payraise_budget/invest_principal/hoard/melt_pool/bank_reserve/silver_stock）",
+  "POP 守恒": "逐路 Σ治所==路级（农 size/wealth）⇒ **违规 0**",
+  "读数契约": "20 项 ok=19 / undefined=1（仅 `jobs_capacity`）· **契约违规 0**"
+ },
+ "new_structural_finding": {
+  "🔴 内帑持续吸金、国库枯竭": "内帑/国库：6 月 **47×** → 12 月 **48×** → **60 月 123×**（内帑 17.81M vs 国库 0.145M）⇒ 这是**长期结构**，非短期波动",
+  "对 M122（营运资金来源）的意义": "营运资金的候选池里，**国库长期枯竭（0.003–0.004 覆盖率）**、**内帑虽大但覆盖 ≤21%**（且它是**皇室/专项**账户），**士绅恒 1.000** ⇒ **量级上继续支持「先甲（士绅）」**",
+  "对主线 E（归属）的意义": "税**大量沉淀进内帑**而非国库 ⇒ 若将来要给地方分成或给营运资金注资，**钱在哪个账户**比「收了多少」更关键"
+ },
+ "not_done": [
+  "**240 月长局**未跑（P6 要求之一；单次 60 月已 45.9s，240 月预计 ~3 分钟，可另批做）",
+  "**多 AI 策略种子**（P6 第三层）未做（需 AI provider 与策略脚本，超出本批）"
+ ],
+ "verified": [
+  "60 月实测四项全过（无异常 / 残差 0 / 守恒 0 违规 / 契约 0 违规）；哨兵用例在 12 月档下纳入全量回归"
+ ],
+ "next": [
+  "① 可另批做 **240 月**长局 + 记录趋势（内帑/国库 · 恒等式 · 守恒）",
+  "② P6 第三层「多 AI 策略种子」需 AI provider ⇒ 待授权",
+  "③ 其余卡口：外贸三条口径 · 营运资金 · 产能 · 作坊岗位数 · P3 授权 · 对照第 9 条 · 4 目分成"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-14T03:20:17Z"
+}
