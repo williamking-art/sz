@@ -1,0 +1,21 @@
+{
+  "id": "JEV-台账-省路级主要官员系统设计-2026-10-15",
+  "question": "省路级主要官员（21路四监司：帅漕宪仓 + 路治知府通判）的落账形态与机制深度该如何设计？",
+  "options": {
+    "A": "建立结构化路级主官真账（state.circuit_officials），每路明确四监司与首府知府的在任官员、官衔、派系、履职效能，接入考课与任免，并在 region_brief 与前端 ProvinceArchivePanel 完整渲染",
+    "B": "仅在读模型层面做虚构人名插值展示，state 不落存量人事账，保持纯派生读数"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.962,
+    "B": 0.038
+  },
+  "premises_verified_by_me": "北宋地方治理依托四监司（帅司安抚使、漕司转运使、宪司提刑使、仓司常平使）与路府知通互掣，缺乏具体人事承载将导致地方施政沦为抽象比率，无法承接玩家人事调动、磨勘考课与派系博弈；建立结构化人事底册符合整体真账与历史仿真原则",
+  "applied_in": [
+    "sz/game/core/domains/administration/circuit_officials.py",
+    "sz/game/core/domains/administration/official_appraisal.py",
+    "sz/game/core/region_brief.py",
+    "sz/game/frontend/src/renderer/panels/ProvinceArchivePanel.tsx"
+  ],
+  "reopen_if": "若发现21路全量具名官员导致存档体积剧增且性能严重劣变（实测21路×5=105人，数据量极轻，概率极低）"
+}

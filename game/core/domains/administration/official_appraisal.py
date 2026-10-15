@@ -60,7 +60,7 @@ def _get_pref(state, circuit: str) -> Dict[str, Any]:
 
 
 def derive_circuit_intendants(state, circuit: str) -> Dict[str, Any]:
-    """派生单一路的四大监司编制与效能（只读纯函数）。"""
+    """派生单一路的四大监司编制、长官人事与运转效能（只读纯函数）。"""
     p = _get_pref(state, circuit)
     if not p:
         return {"circuit": circuit, "defined": False}
@@ -71,11 +71,47 @@ def derive_circuit_intendants(state, circuit: str) -> Dict[str, Any]:
     # 各路监司完备度（在岗官额越足，监司运转越充分）
     readiness = min(1.0, max(0.4, on_post / 80.0)) if on_post > 0 else 0.5
 
+    from core.domains.administration.circuit_officials import get_circuit_officials
+    c_info = get_circuit_officials(state, circuit)
+    offs = c_info.get("officials", {})
+
     intendants = {
-        "帅司": {"title": "安抚使", "readiness": readiness, "focus": "沿边防务与禁厢军操演"},
-        "漕司": {"title": "转运使", "readiness": readiness, "focus": "两税经总钱征纳与漕运上供"},
-        "宪司": {"title": "提刑使", "readiness": readiness, "focus": "按察司疑狱与刑名风宪"},
-        "仓司": {"title": "提举常平使", "readiness": readiness, "focus": "常平积谷与青苗水利"},
+        "帅司": {
+            "title": offs.get("shuai", {}).get("official_title", "安抚使"),
+            "name": offs.get("shuai", {}).get("name", "未定"),
+            "faction": offs.get("shuai", {}).get("faction", "中立派"),
+            "rank": offs.get("shuai", {}).get("rank", "正三品"),
+            "readiness": readiness,
+            "effectiveness": offs.get("shuai", {}).get("effectiveness", readiness),
+            "focus": "沿边防务与禁厢军操演",
+        },
+        "漕司": {
+            "title": offs.get("cao", {}).get("official_title", "转运使"),
+            "name": offs.get("cao", {}).get("name", "未定"),
+            "faction": offs.get("cao", {}).get("faction", "中立派"),
+            "rank": offs.get("cao", {}).get("rank", "从三品"),
+            "readiness": readiness,
+            "effectiveness": offs.get("cao", {}).get("effectiveness", readiness),
+            "focus": "两税经总钱征纳与漕运上供",
+        },
+        "宪司": {
+            "title": offs.get("xian", {}).get("official_title", "提刑使"),
+            "name": offs.get("xian", {}).get("name", "未定"),
+            "faction": offs.get("xian", {}).get("faction", "旧党"),
+            "rank": offs.get("xian", {}).get("rank", "从四品"),
+            "readiness": readiness,
+            "effectiveness": offs.get("xian", {}).get("effectiveness", readiness),
+            "focus": "按察司疑狱与刑名风宪",
+        },
+        "仓司": {
+            "title": offs.get("cang", {}).get("official_title", "提举常平使"),
+            "name": offs.get("cang", {}).get("name", "未定"),
+            "faction": offs.get("cang", {}).get("faction", "新党"),
+            "rank": offs.get("cang", {}).get("rank", "正五品"),
+            "readiness": readiness,
+            "effectiveness": offs.get("cang", {}).get("effectiveness", readiness),
+            "focus": "常平积谷与青苗水利",
+        },
     }
 
     return {
@@ -88,7 +124,7 @@ def derive_circuit_intendants(state, circuit: str) -> Dict[str, Any]:
 
 
 def derive_prefecture_officials(state, circuit: str) -> Dict[str, Any]:
-    """派生单一路下州府知通互掣配置与监督状态（只读纯函数）。
+    """派生单一路下州府知通互掣配置、在任长官与监督状态（只读纯函数）。
 
     通判与知州职权互掣：通判有同签与监察专折之权。
     若通判缺员，则知州独揽大权，吏治腐败与贪墨风险上升；
@@ -105,11 +141,20 @@ def derive_prefecture_officials(state, circuit: str) -> Dict[str, Any]:
     has_vice_prefect = on_post >= 20
     check_and_balance = 1.0 if has_vice_prefect else 0.65
 
+    from core.domains.administration.circuit_officials import get_circuit_officials
+    c_info = get_circuit_officials(state, circuit)
+    offs = c_info.get("officials", {})
+
+    pref_official = offs.get("prefect", {})
+    vice_official = offs.get("vice_prefect", {})
+
     return {
         "circuit": circuit,
         "defined": True,
         "has_vice_prefect": has_vice_prefect,
         "check_and_balance_ratio": check_and_balance,
+        "prefect": pref_official,
+        "vice_prefect": vice_official,
         "mechanism": "通判非连署不发，专折纠劾无所避忌" if has_vice_prefect else "通判缺员，长官独断监察缺位",
     }
 

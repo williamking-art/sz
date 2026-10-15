@@ -294,8 +294,43 @@ export default function ProvinceArchivePanel({ props }: { props?: Dict }) {
     if (page === "governance") {
       const d = row.departments;
       const localTreasury = numOrNull(pref.local_treasury);
+      const offsRecord = row.officials?.officials;
+      const offsList = offsRecord ? Object.values(offsRecord) : [];
+
       return (
         <>
+          <BlockTitle text="省路主官（四监司与首府知通）" note="帅司/漕司/宪司/仓司分权制衡" />
+          {offsList.length === 0 ? (
+            <Undef />
+          ) : (
+            <div className="space-y-1.5 text-[12.5px]">
+              {offsList.map((o) => (
+                <div key={o.role_key} className="rounded border border-border/50 bg-card/40 p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-ink">
+                      <span className="mr-1.5 rounded bg-red/10 px-1 py-0.5 font-kai text-[11px] text-red">
+                        {o.role_name}
+                      </span>
+                      {o.official_title}
+                    </span>
+                    <span className="text-[11.5px] text-dim">{o.rank}</span>
+                  </div>
+                  <div className="mt-1 flex items-baseline justify-between text-dim">
+                    <span className="text-ink">
+                      {o.name}
+                      <span className="ml-1.5 text-[11px] text-dim">（{o.faction}）</span>
+                    </span>
+                    <span>效能: {Math.round(o.effectiveness * 100)}%</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between text-[11px] text-dim">
+                    <span>职掌: {o.domain}</span>
+                    <span>任期: {o.term_months}月</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <BlockTitle text="地方府库" />
           <Line label="本路府库">{localTreasury === null ? <Undef /> : <span>{wan(localTreasury, "贯")}</span>}</Line>
           <BlockTitle text="营造部门" note={d && d.mode ? (d.mode === "truth" ? "州府级真账" : "按人口权重派生") : ""} />

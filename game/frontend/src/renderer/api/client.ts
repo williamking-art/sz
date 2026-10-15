@@ -418,6 +418,28 @@ export interface RegionRoute {
   army_cash_month: number;
   /** 驻军月粮（石/月） */
   army_grain_month: number;
+  /** 省路级主要官员（四监司 + 路府知通，M303） */
+  officials?: {
+    circuit: string;
+    capital: string;
+    is_border: boolean;
+    officials: Record<string, {
+      role_key: string;
+      role_name: string;
+      official_title: string;
+      name: string;
+      faction: string;
+      rank: string;
+      domain: string;
+      integrity: number;
+      ability: number;
+      traits: string[];
+      term_months: number;
+      effectiveness: number;
+      historical?: boolean;
+      vacant?: boolean;
+    }>;
+  };
   risk_score: number;
   risk_label: "安" | "警" | "危";
   risk_hints: string[];

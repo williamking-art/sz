@@ -1,0 +1,28 @@
+{
+  "id": "M303-provincial-circuit-officials",
+  "title": "省路级主要官员体系实现（21路四监司与路府知通人事真账）",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-省路级主要官员系统设计-2026-10-15.json（Jev A 案 0.962 裁定）· 用户关于将省路级主要官员做出来的指令",
+  "deliverable": [
+    "sz/game/core/domains/administration/circuit_officials.py：21路省路级四监司（帅/漕/宪/仓）与首府知州通判人事底册、派系与职能模型",
+    "sz/game/core/domains/administration/official_appraisal.py：将三年磨勘考课与监司效能挂钩",
+    "sz/game/core/region_brief.py：在路级简报中暴露 circuit_officials 读数",
+    "sz/game/frontend/src/renderer/panels/ProvinceArchivePanel.tsx：在省路施政面板完整展示四监司长官与首府长官",
+    "sz/_dev_tools/game-dev/tests/test_m303_circuit_officials.py：全套功能单元测试"
+  ],
+  "cases": {
+    "全路主官覆盖": "21路四监司（帅司安抚使、漕司转运使、宪司提刑使、仓司常平使）与路治知府均有在任主官",
+    "人事派系联动": "主官带真实官阶、派系、任期，且履职效能与地方财赋军政产生因果影响",
+    "前端交互呈现": "ProvinceArchivePanel 施政页面清晰呈现四监司名号、主官姓名、派系与职守"
+  },
+  "verified": [
+    "test_m303_circuit_officials.py 4 tests all passed",
+    "test_m298 to test_m303 25 tests all passed",
+    "game/frontend vitest 12 suites 88 tests all passed"
+  ],
+  "completedAt": "2026-10-15T18:34:00Z",
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T18:29:00Z"
+}

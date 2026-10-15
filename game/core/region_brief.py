@@ -383,6 +383,8 @@ def build_region_brief(state) -> Dict[str, Any]:
             # 州府级**营造部门**（2026-10-05）：玩家可感知的「民间营造/官有营造」实体；
             # 优先真账（seats），否则派生（人口权重拆路级值）；`mode` 标明口径。
             "departments": _route_departments(state, name, p),
+            # 省路级主要官员（四监司 + 路府知通，M303）
+            "officials": _route_officials(state, name),
             "army_cash_month": round(max(0.0, _num(army_cash_by_route.get(name))), 2),
             "army_grain_month": round(army_grain, 1),
         }
@@ -586,3 +588,12 @@ def _route_departments(state, route: str, p: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 取不到就报「无」，不伪造，也不阻断面板
         return out
     return out
+
+
+def _route_officials(state, route: str) -> Dict[str, Any]:
+    """该路的省路级主要官员读数（四监司长官与路府知通）。"""
+    try:
+        from core.domains.administration.circuit_officials import get_circuit_officials
+        return get_circuit_officials(state, route)
+    except Exception:  # noqa: BLE001
+        return {}
