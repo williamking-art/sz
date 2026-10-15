@@ -6,6 +6,7 @@ import { PREFECTURE_BORDERS_ENABLED, PREFECTURE_BORDERS_MIN_ZOOM } from "./layer
 import { MarkerManager } from "./markers";
 import { deriveMapState } from "./state";
 import { useGameStore } from "../store/gameStore";
+import MapModesControl, { type MapMode } from "./MapModesControl";
 
 const DEFAULT_VIEW: MapViewData = {
   bounds: [60, -44, 150, 56],
@@ -38,12 +39,24 @@ export default function MapView() {
   // P2-3（M10）：地图资源错误必须有**玩家可见**的失败态，不能只 console.error；
   // 且瓦片/几何错误只汇总打印一次，避免 404 刷屏掩盖真实错误。
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [currentMode, setCurrentMode] = useState<MapMode>("political");
   const mapErrLoggedRef = useRef(false);
   const prefLoadStartedRef = useRef(false);
   const prefLoadedRef = useRef(false);
   const state = useGameStore((s) => s.state);
   const setSelected = useGameStore((s) => s.setSelected);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
+
+  const handleModeChange = (mode: MapMode) => {
+    setCurrentMode(mode);
+    controllerRef.current?.setMapMode(mode, state);
+  };
+
+  useEffect(() => {
+    if (controllerRef.current) {
+      controllerRef.current.setMapMode(currentMode, state);
+    }
+  }, [currentMode, state]);
 
   // 初始化舆图
   useEffect(() => {
@@ -75,6 +88,7 @@ export default function MapView() {
       onMapReady: () => {
         controllerRef.current = controller;
         markersRef.current = new MarkerManager(controller.getMap()!);
+        controller.setMapMode(currentMode, state);
         loadGeoData();
       }
     });
@@ -488,6 +502,7 @@ export default function MapView() {
   return (
     <>
       <div ref={containerRef} className="absolute inset-0" />
+      <MapModesControl currentMode={currentMode} onSelectMode={handleModeChange} />
       {/* P2-3（M10）：可观测失败态——原先加载失败只有控制台一行，界面与"空地图"无法区分 */}
       {geoError && (
         <div className="pointer-events-auto absolute left-1/2 top-1/2 z-30 w-[min(420px,86vw)] -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-red bg-card/95 px-5 py-4 text-center shadow-paper">

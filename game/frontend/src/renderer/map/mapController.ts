@@ -1,6 +1,6 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { buildLayerDefs, HILL_TILES_ENABLED, LAYER_IDS, PREFECTURE_BORDERS_ENABLED, THEME } from "./layers";
+import { buildLayerDefs, getCircuitFillExpression, HILL_TILES_ENABLED, LAYER_IDS, PREFECTURE_BORDERS_ENABLED, THEME } from "./layers";
 import type { Selected } from "../store/gameStore";
 
 // 舆图数据资产基址（构建期从 game/assets/map/web/ 平移）
@@ -273,6 +273,16 @@ export class MapController {
     if (!this.map || !PREFECTURE_BORDERS_ENABLED) return;
     const src = this.map.getSource("prefecture_borders") as maplibregl.GeoJSONSource | undefined;
     if (src) src.setData(fc);
+  }
+
+  setMapMode(mode: string, state?: unknown): void {
+    if (!this.map) return;
+    try {
+      const expr = getCircuitFillExpression(mode, state);
+      this.map.setPaintProperty(LAYER_IDS.circuits, "fill-color", expr);
+    } catch (e) {
+      console.warn("[map] 设置舆图模式失败", e);
+    }
   }
 
 

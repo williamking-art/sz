@@ -1,0 +1,29 @@
+{
+  "id": "M301-stage4-map-ui-and-aesthetics",
+  "title": "Stage 4: 全屏舆图青绿水墨重构、舆图四态（政区/物候/民怨/边备）与朝笏玉圭 HUD 视觉升级",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-全系统改良与UI美工重构推进策略-2026-10-15.json（Jev A 案 0.753 裁定）· 用户确认以全屏舆图为基础重构 UI 美工",
+  "deliverable": [
+    "sz/game/frontend/src/renderer/map/MapModesControl.tsx：新增舆图四态切换器（政区态、物候四价态、民怨生计态、边备关防态）",
+    "sz/game/frontend/src/renderer/map/layers.ts：全面升级青绿山水水墨风骨色系与四态动态着色表达式",
+    "sz/game/frontend/src/renderer/map/MapView.tsx：接入舆图四态控制与动态数据上色通道",
+    "sz/game/frontend/src/renderer/hud/Dock.tsx：朝笏象牙板与玉圭形制重构，传国玺印秉笔批红推演按钮",
+    "sz/game/frontend/src/renderer/styles/theme.css：黄绢敕命与奏章宣纸卷轴展开动效、朱砂御宝水印与金石墨线精细化",
+    "sz/game/frontend/src/renderer/map/__tests__/mapModes.test.ts：舆图四态与视觉着色测试"
+  ],
+  "cases": {
+    "舆图四态切换": "支持政区/物候/民怨/边备自由切换，动态反映真实经济气候与民变危险",
+    "青绿水墨风骨": "河流湖泊青绿叠翠，宣纸底衬与金石朱红印信交相辉映",
+    "朝笏玉圭HUD": "底部命令栏重塑为士大夫朝笏与传国玉宝质感，常行机务一目了然"
+  },
+  "verified": [
+    "sz/game/frontend 运行 vitest 12 文件 88/88 测试全绿通过",
+    "mapModes.test.ts 验证舆图四态（政区/物候/民怨/边备）着色表达式正确无误",
+    "tsc -p sz/game/frontend/tsconfig.json --noEmit 静态类型检查零错误",
+    "朝笏象牙板 Dock、传国玉玺秉笔批红、卷轴展开动效与朱砂御宝水印已全部装配完成"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T07:58:30Z"
+}

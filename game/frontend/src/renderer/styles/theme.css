@@ -468,8 +468,72 @@ button:focus-visible {
   .sz-map-compass { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sz-nav-drawer, .sz-nav-entry, .sz-advance-glint { animation: none; }
+  .sz-nav-drawer, .sz-nav-entry, .sz-advance-glint, .sz-scroll-panel { animation: none; }
   .sz-nav-entry, .sz-command-tile, .sz-advance-seal { transition: none; }
+}
+
+/* 朝笏象牙板 HUD 底部底座：温润牙玉色 + 金铜雕花包角 */
+.sz-hu-tablet {
+  background: linear-gradient(180deg, rgba(255, 252, 245, 0.98), rgba(246, 236, 214, 0.95));
+  border: 1px solid rgba(143, 110, 40, 0.65);
+  box-shadow:
+    0 12px 36px rgba(28, 18, 12, 0.28),
+    0 2px 0 rgba(202, 162, 74, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  position: relative;
+}
+.sz-hu-tablet::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(202, 162, 74, 0.35);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+/* 黄绢敕命与奏章宣纸卷轴展开动效 */
+.sz-scroll-panel {
+  background-color: var(--card);
+  background-image:
+    radial-gradient(ellipse at 50% 50%, rgba(202, 162, 74, 0.04), transparent 70%),
+    url("/images/panel_paper.jpg");
+  background-size: 420px;
+  border: 1.5px solid var(--gold-dark);
+  box-shadow:
+    0 0 0 1px rgba(202, 162, 74, 0.4),
+    0 20px 54px rgba(28, 18, 12, 0.4),
+    inset 0 1px 0 rgba(255, 250, 240, 0.7);
+  position: relative;
+  animation: sz-scroll-rollout 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sz-scroll-rollout {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 朱砂御宝水印戳记 */
+.sz-seal-watermark {
+  position: absolute;
+  right: 28px;
+  bottom: 24px;
+  pointer-events: none;
+  opacity: 0.12;
+  font-family: var(--kai);
+  font-weight: 900;
+  color: var(--red);
+  border: 4px solid var(--red);
+  padding: 8px 12px;
+  border-radius: 4px;
+  letter-spacing: 0.4em;
+  text-shadow: 0 0 2px rgba(138, 43, 34, 0.3);
+  transform: rotate(-8deg);
+  user-select: none;
 }
 .lbl-regime {
   font-family: var(--kai);

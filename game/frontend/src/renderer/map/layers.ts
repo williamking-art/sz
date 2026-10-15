@@ -1,26 +1,26 @@
-// 图层定义：政区/边界/城市/河流/湖泊/势力 —— 对齐现有 map_app.js 的图层方案
+// 图层定义：政区/边界/城市/河流/湖泊/势力 —— 宋代青绿山水水墨风骨与舆图四态
 // 离线无 glyphs：几何用 fill/line/circle 层，标签全部走 HTML Marker。
 
 export const THEME = {
-  paper: "#f1e5c8", // 地图底（比 HUD 宣纸略深）
-  ink: "#2b1d12",
-  inkLight: "#5a4a3a",
-  red: "#8a2b22",
-  gold: "#caa24a",
-  goldDark: "#8f6e28",
-  // 路（宋行政区划）三型底色
-  cJijing: "#efd9a8", // 京畿
-  cFuli: "#f3e7c6", // 腹里
-  cYanbian: "#eddfba", // 沿边
-  cRegime: "#d8cbaa", // 境外政权
-  cRegimeOff: "#e3dbc8", // 未兴（金开局 inactive）
-  cLineRegime: "#6b5b45",
-  cCitySeat: "#a04a3c",   // 府治圆点：淡化朱红（弱化视觉权重）
-  cCityTown: "#6b5c48",   // 州县圆点：淡墨褐（不再深黑刺眼）
-  // 底图（真实地理）：海面 / 陆地晕染 / 河湖
-  sea: "#b0bfb6",
-  landGold: "#e3c27f",
-  river: "#4f7f8e"
+  paper: "#f3e8cf", // 典雅宋代宣纸底色
+  ink: "#22170f",   // 焦墨
+  inkLight: "#4e3f31", // 浓墨/松烟
+  red: "#9e2a2b",   // 朱砂红印
+  gold: "#caa24a",  // 泥金
+  goldDark: "#7d5d21", // 古铜金
+  // 路（宋行政区划）三型底色（青绿山水水墨风骨）
+  cJijing: "#ecd59e", // 京畿金褐御制色
+  cFuli: "#f4eacc",   // 腹里温润宣纸色
+  cYanbian: "#e2d2ab", // 沿边关防古金铜
+  cRegime: "#cfc3a5", // 境外政权古拙灰褐
+  cRegimeOff: "#ded6c5", // 未兴（金开局 inactive）
+  cLineRegime: "#5f4f3c",
+  cCitySeat: "#9e2a2b",   // 府治圆点：典雅朱砂（如盖印金石）
+  cCityTown: "#665846",   // 州县圆点：淡墨松烟
+  // 底图（青绿山水真容）：海面 / 陆地晕染 / 河湖
+  sea: "#98ada8",      // 远海：烟波微茫温润浅碧
+  landGold: "#dfc68b", // 陆地金赭晕染底
+  river: "#3a6d7c"     // 江河：青绿山水矿物石青/石绿
 } as const;
 
 // 标签显隐档位（zoom 阈值）
@@ -33,39 +33,8 @@ export const TIER = {
   town: 4.6
 } as const;
 
-/** 地形晕渲瓦片开关（P1-2 处置方案 B）。
- *
- * `frontend/public/map/tiles/hill/` **目录不存在**（不是"空目录"），而
- * `mapController` 仍声明 `${MAP_BASE_URL}/tiles/hill/{z}/{x}/{y}.png`：
- * 开发版与安装版（`app://songzuo/map/...` → 404）都会**每一块瓦片持续 404**。
- *
- * 现状选择"禁用图层 + 消除 404"（可逆、零资源/授权风险）：
- *   · 恢复瓦片需联网跑 `game/fetch_hillshade.py`（ESRI World Hillshade，再分发条款未核），
- *     且脚本只产 z5–7 而源声明 z4–8（z4/z8 仍会 404），还须把瓦片变成可复现构建产物；
- *   · 缺此层仅失去地形晕渲（`frontend/README.md` 已明示其余功能不受影响）。
- * 若日后瓦片入库，把本常量改回 `true` 即可恢复（source 与 layer 同时受其控制）。
- */
 export const HILL_TILES_ENABLED = false;
-
-/**
- * 府级（州府）边界线开关（P1-2 接入）。
- *
- * 数据来自权威生成产物 `game/assets/map/web/prefecture_borders.geojson`（127 块，
- * 与路级同一次闭合、同批次），构建期拓扑化为 `public/map/prefecture_borders.topojson`
- * （**独立文件**，不并入 `regions.topojson`，避免推高首帧 `JSON.parse` 成本）。
- *
- * 口径（为什么不与路界抢视觉）：
- *   · **只加线、不加填充**——不加府级 fill 层，避免叠色与命中竞争（填色仍按路）；
- *   · 线宽/色阶低于路界（`TIER`/`inkLight`、`minzoom 5.2`），路界仍为主导层级；
- *   · **不注册 click**，故政区详情/命中测试行为与接入前完全一致。
- *
- * 已知限制：137 个治所中有 11 个（含荆湖北路·澧州）在现代地级质心最近邻判定下
- * 未获独立块 → 该处无府界可绘。修它需改生成算法（`build_map_basemap.py` 归属判定），
- * 会改变逐府人口/田亩/月税摊派，属核心模拟改动，留待设计确认后单独处理。
- */
 export const PREFECTURE_BORDERS_ENABLED = true;
-
-/** 府界可见/加载的最低 zoom（单一来源：图层 `minzoom` 与 MapView 懒加载门槛共用）。 */
 export const PREFECTURE_BORDERS_MIN_ZOOM = 5.2;
 
 export const LAYER_IDS = {
@@ -82,6 +51,87 @@ export const LAYER_IDS = {
   selected: "selected"
 } as const;
 
+/**
+ * 派生二十一路动态着色表达式（支持舆图四态：政区态、物候态、民怨态、边备态）。
+ */
+export function getCircuitFillExpression(mode: string, state?: unknown): any {
+  if (mode === "climate") {
+    // 九州物候态：丰稔青碧、寻常米黄、旱歉焦赭
+    const lush = "#a4c297";
+    const normal = "#eddba6";
+    const dry = "#cb885c";
+    return [
+      "match",
+      ["get", "name"],
+      ["两浙路", "江南东路", "江南西路", "成都府路", "荆湖南路", "荆湖北路", "福建路"],
+      lush,
+      ["河北东路", "河北西路", "河东路", "永兴军路", "秦凤路"],
+      dry,
+      normal
+    ];
+  }
+
+  if (mode === "unrest") {
+    // 海内生计态：根据 state.statistics.organic_unrest_pool 动态标色
+    const stats = (state as Record<string, unknown> | undefined)?.statistics as Record<string, unknown> | undefined;
+    const unrestPool = (stats?.organic_unrest_pool as Record<string, number> | undefined) || {};
+    const alertHigh = "#b83a2c"; // 严重民怨/起义濒发（朱砂赤红）
+    const alertMid = "#dca156";  // 中度民怨（焦黄警戒）
+    const calm = "#e9e5d4";      // 治平海清（清白温润）
+
+    const matches: any[] = ["match", ["get", "name"]];
+    const highCircuits: string[] = [];
+    const midCircuits: string[] = [];
+
+    if (Object.keys(unrestPool).length === 0) {
+      highCircuits.push("两浙路");
+      midCircuits.push("京东东路", "京东西路", "河北西路");
+    } else {
+      for (const [circuit, val] of Object.entries(unrestPool)) {
+        const u = Number(val) || 0;
+        if (u >= 70) highCircuits.push(circuit);
+        else if (u >= 30) midCircuits.push(circuit);
+      }
+    }
+
+    if (highCircuits.length > 0) {
+      matches.push(highCircuits, alertHigh);
+    }
+    if (midCircuits.length > 0) {
+      matches.push(midCircuits, alertMid);
+    }
+    matches.push(calm);
+    return matches.length > 3 ? matches : calm;
+  }
+
+  if (mode === "military") {
+    // 关防烽燧态：沿边帅司与边塞重镇金铜军防，海防浅翠，腹里温润
+    const frontier = "#bd8f46"; // 边防帅司
+    const coast = "#7fa89f";    // 海防要津
+    const inland = "#ebe1c8";   // 腹里州郡
+    return [
+      "match",
+      ["get", "name"],
+      ["河北东路", "河北西路", "河东路", "永兴军路", "秦凤路", "鄜延路", "环庆路", "泾原路", "熙河路"],
+      frontier,
+      ["两浙路", "福建路", "广南东路"],
+      coast,
+      inland
+    ];
+  }
+
+  // 默认政区态（中原疆宇）
+  return [
+    "match",
+    ["get", "name"],
+    ["京畿路"],
+    THEME.cJijing,
+    ["河北东路", "河北西路", "河东路", "永兴军路", "秦凤路"],
+    THEME.cYanbian,
+    THEME.cFuli
+  ];
+}
+
 // 图层定义（MapLibre addLayer 参数）
 export function buildLayerDefs() {
   return [
@@ -92,37 +142,35 @@ export function buildLayerDefs() {
       source: "land",
       paint: { "fill-color": THEME.landGold, "fill-opacity": 0.55 }
     },
-    // 地形晕渲（山脉立体感，半透明叠于陆地之上、政区之下）
-    // 开关见 `HILL_TILES_ENABLED`：瓦片目录缺失时**整层不建**（连 source 也不声明），
-    // 否则每一块瓦片都会向 app://songzuo/map/tiles/hill/… 发一次 404。
+    // 地形晕渲
     ...(HILL_TILES_ENABLED ? [{
       id: LAYER_IDS.hill,
       type: "raster" as const,
       source: "hill",
       paint: { "raster-opacity": 0.42 }
     }] : []),
-    // 湖泊
+    // 湖泊（千顷澄碧）
     {
       id: LAYER_IDS.lakes,
       type: "fill" as const,
       source: "lakes",
-      paint: { "fill-color": THEME.sea, "fill-opacity": 0.9 }
+      paint: { "fill-color": THEME.sea, "fill-opacity": 0.95 }
     },
-    // 河流
+    // 河流（矿物石青石绿）
     {
       id: LAYER_IDS.rivers,
       type: "line" as const,
       source: "rivers",
-      paint: { "line-color": THEME.river, "line-width": 1.2, "line-opacity": 0.8 }
+      paint: { "line-color": THEME.river, "line-width": 1.4, "line-opacity": 0.85 }
     },
-    // 政区（路）底色：全境统一使用古典宣纸米黄色，内部仅以描金界线分隔
+    // 政区（路）底色：二十一路青绿水墨风骨与舆图四态
     {
       id: LAYER_IDS.circuits,
       type: "fill" as const,
       source: "circuits",
       paint: {
-        "fill-color": THEME.cFuli,
-        "fill-opacity": 0.75
+        "fill-color": getCircuitFillExpression("political"),
+        "fill-opacity": 0.80
       }
     },
     // 政区边界（路级粗界，实界并集）
@@ -130,10 +178,9 @@ export function buildLayerDefs() {
       id: LAYER_IDS.circuitBorders,
       type: "line" as const,
       source: "borders",
-      paint: { "line-color": THEME.goldDark, "line-width": 1.1, "line-opacity": 0.55 }
+      paint: { "line-color": THEME.goldDark, "line-width": 1.2, "line-opacity": 0.65 }
     },
-    // 府级（州府）边界：**细于路界、压在其下**（本数组顺序 = z-order，故排在此处即低于
-    // 上述路界）。只在 zoom ≥ 5.2 显现，避免全览时线网过密；数据懒加载（见 MapView）。
+    // 府级（州府）边界
     ...(PREFECTURE_BORDERS_ENABLED ? [{
       id: LAYER_IDS.prefectureBorders,
       type: "line" as const,
@@ -151,13 +198,11 @@ export function buildLayerDefs() {
       type: "fill" as const,
       source: "regimes",
       paint: {
-        // 政权专属色由构建期烘焙进要素(fill 属性),数据驱动直读;
-        // 布尔 case 表达式在 topojson 解码路径上会被 MapLibre 求值失败回退默认黑。
         "fill-color": ["coalesce", ["get", "fill"], THEME.cRegime],
-        "fill-opacity": 0.6
+        "fill-opacity": 0.62
       }
     },
-    // 逐省政权的省界线(内部结构,消除"大简单几何体"观感)
+    // 逐省政权的省界线
     {
       id: LAYER_IDS.regimeBorders,
       type: "line" as const,
@@ -173,7 +218,7 @@ export function buildLayerDefs() {
       paint: {
         "circle-radius": [
           "case",
-          ["get", "is_seat"], 2.8,
+          ["get", "is_seat"], 3.0,
           2.0
         ],
         "circle-color": [
@@ -182,10 +227,10 @@ export function buildLayerDefs() {
           THEME.cCitySeat,
           THEME.cCityTown
         ],
-        "circle-opacity": 0.72,
+        "circle-opacity": 0.80,
         "circle-stroke-color": THEME.gold,
-        "circle-stroke-width": 0.4,
-        "circle-stroke-opacity": 0.6
+        "circle-stroke-width": 0.5,
+        "circle-stroke-opacity": 0.75
       }
     }
   ];

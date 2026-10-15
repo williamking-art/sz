@@ -95,8 +95,9 @@ export default function OverlayStack() {
               role="dialog"
               aria-modal="true"
               aria-label={ov.title}
-              className="sz-overlay-shell relative z-10 pointer-events-auto flex max-h-[92dvh] w-[min(1080px,96vw)] flex-col sz-panel select-text animate-card-in"
+              className="sz-overlay-shell sz-scroll-panel relative z-10 pointer-events-auto flex max-h-[92dvh] w-[min(1080px,96vw)] flex-col sz-panel select-text"
             >
+              <div className="sz-seal-watermark">宣和御宝</div>
               {/* 题头 */}
               <div className="sz-panel-header sz-overlay-header">
                 <div className="flex items-center gap-2 min-w-0">

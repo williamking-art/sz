@@ -147,19 +147,19 @@ export default function Dock() {
   }
 
   const primary = COMMANDS.filter((command) =>
-    ["court", "ministers", "gazette", "decree"].includes(command.key)
+    ["court", "ministers", "decree", "gazette", "situation"].includes(command.key)
   );
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 px-5 pb-4 sm:px-7 sm:pb-5">
-      {/* 高频政务置于案几式长栏；其余入口收进右侧职司图籍，避免十四枚圆钮压住天下舆图。 */}
-      <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 overflow-x-auto rounded-sm border border-[#8f6e28]/60 bg-[#f6ecd6]/90 p-2 shadow-[0_10px_34px_rgba(28,18,12,.22)] backdrop-blur-md sm:gap-2 sm:px-3">
+      {/* 朝笏象牙板：士大夫与御前高频机务长案 */}
+      <div className="sz-hu-tablet pointer-events-auto flex min-w-0 items-center gap-1.5 overflow-x-auto rounded-sm p-2 shadow-[0_12px_36px_rgba(28,18,12,.28)] backdrop-blur-md sm:gap-2 sm:px-3">
         <div className="mr-1 hidden h-10 w-10 shrink-0 items-center justify-center border border-[#caa24a]/60 bg-[#8a2b22] text-[#f6ecd6] shadow-sm sm:flex">
           <Landmark size={20} strokeWidth={1.5} />
         </div>
         <div className="mr-1 hidden shrink-0 border-r border-[#8f6e28]/35 pr-3 sm:block">
-          <p className="font-kai text-[10px] tracking-[.28em] text-[#8f6e28]">御 前 机 务</p>
-          <p className="font-kai text-[13px] font-bold tracking-[.12em] text-[#2b1d12]">常行四事</p>
+          <p className="font-kai text-[10px] tracking-[.28em] text-[#8f6e28]">朝 笏 象 牙</p>
+          <p className="font-kai text-[13px] font-bold tracking-[.12em] text-[#2b1d12]">御前机务</p>
         </div>
         {primary.map((c) => (
           <button
@@ -177,18 +177,18 @@ export default function Dock() {
         ))}
       </div>
 
-      {/* 回合推演独立成玺印式主操作，视觉上与日常面板入口分开。 */}
+      {/* 回合推演独立成玺印式主操作：受命宝玺 · 秉笔批红 */}
       <div className="pointer-events-auto">
         <button
           onClick={handleAdvance}
           disabled={advancing}
-          className="sz-advance-seal group relative flex h-[58px] min-w-[68px] shrink-0 items-center justify-center gap-2 px-3 disabled:cursor-wait disabled:opacity-65 sm:h-[66px] sm:min-w-[154px] sm:px-4"
+          className="sz-advance-seal group relative flex h-[58px] min-w-[68px] shrink-0 items-center justify-center gap-2.5 px-3.5 disabled:cursor-wait disabled:opacity-65 sm:h-[66px] sm:min-w-[160px] sm:px-4"
         >
           {!advancing && <span className="sz-advance-glint absolute inset-1" aria-hidden="true" />}
           <Play size={21} className="relative" fill="currentColor" />
           <span className="relative hidden text-left sm:block">
             <span className="block font-kai text-[15px] font-bold tracking-[.2em]">{advancing ? "推演中" : "推演天下"}</span>
-            <span className="mt-0.5 block text-[9px] tracking-[.2em] opacity-75">{advancing ? "諸司奏報彙集" : "頒旨後 · 推進一月"}</span>
+            <span className="mt-0.5 block text-[9px] tracking-[.18em] opacity-75">{advancing ? "諸司奏報彙集" : "秉筆批紅 · 推進一月"}</span>
           </span>
           <span className="relative font-kai text-[11px] font-bold sm:hidden">{advancing ? "稍候" : "推演"}</span>
         </button>
