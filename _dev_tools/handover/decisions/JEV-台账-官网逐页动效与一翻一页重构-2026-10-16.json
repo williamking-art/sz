@@ -1,0 +1,19 @@
+{
+  "id": "JEV-台账-官网逐页动效与一翻一页重构-2026-10-16",
+  "created_at": "2026-10-16T01:49:30+08:00",
+  "question": "针对用户明确纠偏的「动效要一页一页切页展卷播放」诉求，应当选择哪种方案？",
+  "options": {
+    "A": "全面实现一翻一页加逐页专属动效并根治闪烁",
+    "B": "保持静态长卷不翻页",
+    "C": "仅简单位移不做逐页动效"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.992073,
+    "B": 0.003968,
+    "C": 0.003959
+  },
+  "premises_verified_by_me": "已核验：用户原意为「为什么动效不是每翻一页播放一次，而是全站只在开头播放一次」。原版全站只有首屏 Hero 有墨韵入场动画，后面各屏翻到时皆为静态，未满足用户对每页切入时展卷动效的期望。必须恢复一翻一页单屏视口架构，并为每一页设计专属的水墨层叠入场动画，在当前页处于激活状态时触发，同时根治闪烁与视口尺寸适配。",
+  "applied_in": "songzuo-site/site-work/redesign-preview/ (index.html, preview.css, preview.js, site-work/tools/audit-browser.cjs, check_page_fit.py, audit-live-pages.cjs)",
+  "reopen_if": "用户明确要求取消所有翻页与切页动画"
+}
