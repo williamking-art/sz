@@ -82,45 +82,50 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     monthly_grain = (grain_land * yield_mult) / 12.0
 
     # 2. 经济作物内生产出（单位/月）
-    # 丝（桑蚕）：每万亩桑田产丝约 120 斤（单位）
+    # 丝（桑蚕）：宋代江浙 1 亩桑田年产经丝约 1.5 斤（折月产，年额对齐 PREFECTURE_INFO 450万斤）
     silk_share = float(crop_shares.get("丝", 0.0))
-    monthly_silk = (total_land * silk_share * 120.0 * yield_mult) / 12.0
+    monthly_silk = (total_land * silk_share * 1.5) / 12.0
 
-    # 麻：每万亩麻田产原麻约 150 斤
+    # 麻：1 亩麻田年产原麻约 1.0 斤
     hemp_share = float(crop_shares.get("麻", 0.0))
-    monthly_hemp = (total_land * hemp_share * 150.0 * yield_mult) / 12.0
+    monthly_hemp = (total_land * hemp_share * 1.0) / 12.0
 
-    # 茶：每万亩茶园产毛茶约 200 斤
+    # 茶：1 亩茶园年产毛茶约 3.3 斤
     tea_share = float(crop_shares.get("茶", 0.0))
-    monthly_tea = (total_land * tea_share * 200.0 * yield_mult) / 12.0
+    monthly_tea = (total_land * tea_share * 3.3) / 12.0
 
-    # 3. 矿产与地脉内生产出（单位/月）
-    # 铁矿：河北、河东、京西为北宋铁冶重地
-    if circuit in ("河北路", "河东路"):
-        monthly_iron_ore = 8500.0
-        monthly_coal = 6000.0
-    elif circuit in ("京西路", "京东西路", "陕西路"):
-        monthly_iron_ore = 3500.0
-        monthly_coal = 2500.0
+    # 3. 矿产与地脉内生产出（斤/月，对齐 PREFECTURE_INFO 史实年额 / 12）
+    # 铁矿：河北(年350万)、河东(年250万)、京西/江西为北宋铁冶重地
+    if circuit in ("河北路", "河北东路", "河北西路"):
+        monthly_iron_ore = 290000.0
+        monthly_coal = 200000.0
+    elif circuit == "河东路":
+        monthly_iron_ore = 210000.0
+        monthly_coal = 150000.0
+    elif circuit in ("京西路", "江南西路", "陕西路"):
+        monthly_iron_ore = 80000.0
+        monthly_coal = 60000.0
     else:
-        monthly_iron_ore = 300.0
-        monthly_coal = 200.0
+        monthly_iron_ore = 5000.0
+        monthly_coal = 3000.0
 
-    # 盐：两浙、淮南、京东东路、福建为海盐主产区，河东有解州池盐
-    if circuit in ("两浙路", "淮南东路", "京东东路", "福建路", "河东路"):
-        monthly_salt = 12000.0
-    elif circuit in ("广南东路", "广南西路", "陕西路"):
-        monthly_salt = 4000.0
+    # 盐：解州池盐（河东年6300万斤）、淮浙闽粤海盐（各年1500~2000万斤）、川峡井盐（年580万斤）
+    if circuit == "河东路":
+        monthly_salt = 5250000.0
+    elif circuit in ("两浙路", "淮南东路", "淮南西路", "京东东路", "福建路"):
+        monthly_salt = 1600000.0
+    elif circuit in ("成都府路", "利州路", "夔州路", "广南东路"):
+        monthly_salt = 480000.0
     else:
-        monthly_salt = 200.0
+        monthly_salt = 20000.0
 
     # 林石：荆湖、两江、川峡为木石大邦
     if circuit in ("江南西路", "荆湖南路", "利州路", "夔州路", "成都府路"):
-        monthly_timber = 5000.0
-        monthly_stone = 3000.0
+        monthly_timber = 120000.0
+        monthly_stone = 40000.0
     else:
-        monthly_timber = 1500.0
-        monthly_stone = 1000.0
+        monthly_timber = 25000.0
+        monthly_stone = 15000.0
 
     return {
         "grain": float(round(monthly_grain, 1)),
@@ -178,8 +183,12 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     salt_tax_coin = float(round(nat_raw["salt_raw"] / 10.0, 1))
     monopoly_tax_total = tea_tax_coin + salt_tax_coin
 
-    # 营造漕运链：每 200 根大木 + 100 方料石 打造 1 艘汴河平底漕船
+    # 营造漕运链：每 200 根大木 + 100 方料石 打造 1 艘汴河平底漕船与堤防修护
     barges_built = float(round(min(nat_raw["timber"] / 200.0, nat_raw["stone"] / 100.0), 1))
+    if barges_built > 0:
+        c_block = int(getattr(state, "canal_block", 0) or 0)
+        relief = min(4, max(1, int(barges_built / 500.0)))
+        state.canal_block = max(0, c_block - relief)
 
     # 3. 结果入账与沉淀
     chain_summary = {

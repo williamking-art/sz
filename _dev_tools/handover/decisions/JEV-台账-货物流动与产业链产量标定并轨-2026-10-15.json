@@ -1,0 +1,20 @@
+{
+  "id": "JEV-台账-货物流动与产业链产量标定并轨-2026-10-15",
+  "date": "2026-10-15",
+  "topic": "货物流动与产业链产量标定并轨",
+  "question": "货物流动与产业链产量应采取何种整改方案？",
+  "options": {
+    "A": "双轨并轨与史实标定（修复万倍bug，对齐史实，全面并轨进settlement大流水）",
+    "B": "仅修bug不并轨",
+    "C": "回退原静态表"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.8922228813171387,
+    "B": 0.10300438851118088,
+    "C": 0.004772774409502745
+  },
+  "premises_verified_by_me": "经深度实测与审计：industry_chains.py 中桑麻茶每万亩产出计算因漏除 10000.0，导致单月丝绢产出膨胀至 1.44 亿匹，茶盐月税膨胀至 9700 万贯，并直接导致农户微观月收入虚高到 14000 文（偏离宋代史实自耕农 800~1500 文水平）。此外新产业链与既有 settlement.py 处于脱节状态。选择方案 A 进行全面标定与双轨合流是唯一的物理守恒与史实自洽解。",
+  "applied_in": "game/core/domains/economy/industry_chains.py, game/core/domains/economy/pop_livelihood.py, game/core/settlement.py",
+  "reopen_if": "若合并后导致既有 regression tests 中非生产链用例产生意外耦合破裂，再行局部分离。"
+}

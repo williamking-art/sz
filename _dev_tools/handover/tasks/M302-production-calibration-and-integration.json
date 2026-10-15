@@ -1,0 +1,28 @@
+{
+  "id": "M302-production-calibration-and-integration",
+  "title": "货物流动与产业链产量史实标定及结算主流水全面并轨",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "decisions/JEV-台账-货物流动与产业链产量标定并轨-2026-10-15.json（Jev A 案 0.892 裁定）· 用户关于货物流动与产量的审查指令",
+  "deliverable": [
+    "sz/game/core/domains/economy/industry_chains.py：标定经济作物与矿盐木石亩产系数，修复万亩漏除10000倍Bug，与北宋史实年额严格吻合",
+    "sz/game/core/domains/economy/pop_livelihood.py：修正农户收支计算，还原北宋自耕农月均800~1500文真实生计水平",
+    "sz/game/core/settlement.py：将四大产业链推进（settle_industry_chains）与POP微观生计结算（settle_pop_livelihood）全面接入月度大流水 Step 4.4",
+    "sz/_dev_tools/game-dev/tests/test_m302_production_calibration.py：全链条端到端回归测试"
+  ],
+  "cases": {
+    "产量史实标定": "两浙/全国丝麻茶盐铁木产出与 PREFECTURE_INFO 及北宋史实年额闭合对账",
+    "生计收支自洽": "农户月收入回归千文量级，灾年重赋如实反映赤字破产",
+    "流水全面并轨": "推演推进后产业链与POP生计自然演化，漕运与物资进出国库"
+  },
+  "verified": [
+    "test_m302_production_calibration.py 4 tests all passed",
+    "test_m298_batch1_core_loop.py, test_m299, test_m300, test_b2r54 51 tests all passed",
+    "test_prefecture_entity.py, test_econ_price_review.py 69 tests all passed",
+    "game/frontend vitest 12 suites 88 tests all passed"
+  ],
+  "completedAt": "2026-10-15T17:54:00Z",
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T17:46:00Z"
+}

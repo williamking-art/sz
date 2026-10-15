@@ -546,6 +546,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     except Exception as _pc_e:  # noqa: BLE001
         log.append(f"[产出链][WARN] 原料入仓失败：{_pc_e!r}")
 
+    # 四大实体多级产业链（丝绢、军工冶铁、茶盐榷货、营造漕运）月度推进与造船修河
+    try:
+        from core.domains.economy.industry_chains import settle_industry_chains
+        settle_industry_chains(state, log)
+    except Exception as _ic_e:  # noqa: BLE001
+        log.append(f"[产业链][WARN] 推进失败：{_ic_e!r}")
+
     # ---- [建材供给] Step 4.45: 建材**入商人货栈**（口径 E-1）----
     # 排在 Step 4.4 产出链之后 ⇒ 搬的是**已含本月产出**的全国仓总量；
     # 排在 Step 3.85 民间营造与 Step 4.5 工程之前 ⇒ 消费侧读到的是**已配货**的商人。
@@ -609,6 +616,13 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- [粮食商品市场 + POP消费] Step 3.8: 仓廪漕运 / 常平籴粜 / 粮市 / 各POP消费 ----
     _settle_granary(state, log)
+
+    # ---- [POP生计真账] Step 3.82: 农工商微观家计与内生民变池演进（M300 / M302）----
+    try:
+        from core.domains.economy.pop_livelihood import settle_pop_livelihood
+        settle_pop_livelihood(state, log)
+    except Exception as _pl_e:  # noqa: BLE001
+        log.append(f"[生计][WARN] POP微观生计结算失败：{_pl_e!r}")
 
     # ---- Step 3.95: 官制（消灭 officials/POP 双账 + 子池一致性 + 镜像同步）----
     # 必须排在财政步之前：`calc_official_*` / `calc_clerk_*` 读的就是这里刷新后的官额与子池。
