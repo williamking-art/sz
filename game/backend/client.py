@@ -245,6 +245,10 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: (cmd.confirm_inner_transfer(s), s),
             "cancel_inner_transfer":
                 lambda s, p, ai: (cmd.cancel_inner_transfer(s), s),
+            "accept_memorial":
+                lambda s, p, ai: (cmd.accept_memorial(s, int(p.get("index", 0))).get("msg", ""), s),
+            "dismiss_memorial":
+                lambda s, p, ai: (cmd.dismiss_memorial(s, int(p.get("index", 0))).get("msg", ""), s),
         }
         handler = handlers.get(action)
         if handler is None:

@@ -1103,6 +1103,10 @@ def get_memory(slot: int) -> MemoryGraph:
     return g
 
 
+# 兼容别名
+get_memory_graph = get_memory
+
+
 # 状态：intentionally_unwired（有意未接线）—— 2026-09-19 代码质量全检确认零引用。
 # 接线位置：记忆写入便利入口：被 save 取代，可评估删除
 def save_memory(slot: int, graph: MemoryGraph) -> bool:

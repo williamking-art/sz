@@ -335,19 +335,42 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         state.pending_decrees.append(decree_full)
         state.direct_decree_used += 1
         state.statistics["total_decrees"] += 1
+
+        # 跟踪本年度御笔中旨次数与台谏积怨
+        curr_year = getattr(state, "year", 1101)
+        if getattr(state, "_direct_decree_year", None) != curr_year:
+            state._direct_decree_year = curr_year
+            state._direct_decrees_in_year = 0
+        state._direct_decrees_in_year = getattr(state, "_direct_decrees_in_year", 0) + 1
+
+        fu_ge_crisis = False
+        if state._direct_decrees_in_year >= 3:
+            fu_ge_crisis = True
+            if hasattr(state, "change_prestige"):
+                state.change_prestige(-2)
+            if hasattr(state, "factions") and isinstance(state.factions, dict):
+                for f_name in ("旧党", "中立派"):
+                    if f_name in state.factions and isinstance(state.factions[f_name], dict):
+                        state.factions[f_name]["satisfaction"] = max(0, state.factions[f_name].get("satisfaction", 50) - 5)
+
         # 两层记忆（Phase 3b）：短期行为日志（全量保留、不注入 AI）+ 短期喂长期（决策实体 + produces）
         try:
             state.short_term_log.append(
                 {"turn": state.turn, "kind": "decree", "title": decree_full["title"],
-                 "note": "御笔直发", "year": state.year, "month": state.month})
+                 "note": "御笔直发" + ("（台谏伏阁请退）" if fu_ge_crisis else ""),
+                 "year": state.year, "month": state.month})
             state.memory.turn = state.turn
             did = state.memory.record_decision(decree_full["title"], {"prestige": 1},
                                                turn=state.turn, note="御笔直发")
             state.memory.add_relation(did, "皇权", "produces", weight=1.0, turn=state.turn, note="皇威")
+            if fu_ge_crisis:
+                state.memory.add_relation("台谏官", "皇帝", "opposes", weight=1.0, turn=state.turn, note="怨望专断")
             state.memory.save(state.memory_slot)
         except Exception:
             pass
-        # 狼来了已取消：不再提示中旨公信力下降
+
+        if fu_ge_crisis:
+            return f"御笔直发：「{decree_full['title']}」（⚠ 连下御笔中旨，引爆【宣德门台谏伏阁请退】风波，清流怨望！）"
         return f"御笔直发：「{decree_full['title']}」"
     # 普通诏令
     if len(state.pending_decrees) >= state.decree_bandwidth:
@@ -848,5 +871,108 @@ def parse_inner_amount(text: str):
 
 # 兼容旧名（Tk 面板曾用 _parse_inner_amount）
 _parse_inner_amount = parse_inner_amount
+
+
+# ============================================================
+# 案头奏折批答（准奏 / 留中）—— 渗透式交互，零独立新 UI
+# ============================================================
+def _build_memorial_effects(memo: dict) -> dict:
+    """按奏折品类与规格推导诏草默认效果。"""
+    if isinstance(memo.get("effects"), dict) and memo["effects"]:
+        return dict(memo["effects"])
+    eff = {}
+    dim = memo.get("effect_dim")
+    tier = memo.get("effect_tier", "小")
+    tier_val = {"微": 1, "小": 2, "中": 3, "大": 5}.get(tier, 2)
+    if dim:
+        eff[dim] = tier_val
+    kind = memo.get("kind")
+    if kind == "finance":
+        eff.setdefault("treasury", 5000)
+    elif kind == "military":
+        eff.setdefault("defense_bonus", 2)
+    elif kind == "governance":
+        eff.setdefault("population_satisfaction", 2)
+    elif kind == "invention":
+        eff.setdefault("prestige", 1)
+    if not eff:
+        eff = {"prestige": 1}
+    return eff
+
+
+def accept_memorial(state: GameState, index: int) -> dict:
+    """案头奏折准奏：移出 memorials，生成待签诏草，直入三省会签。"""
+    memos = getattr(state, "memorials", None)
+    if not isinstance(memos, list) or not memos:
+        return {"ok": False, "msg": "案上无此折奏"}
+    if index < 0 or index >= len(memos):
+        return {"ok": False, "msg": f"奏折序号越界: {index}"}
+
+    m = memos.pop(index)
+    title = str(m.get("title", "臣工奏疏"))
+
+    # 同步记录决策进记忆库
+    try:
+        from memory.memory_graph import get_memory_graph
+        mem = get_memory_graph(state.slot)
+        did = mem.record_decision(f"accept_{title}", {"action": "准奏", "title": title}, turn=state.turn)
+        mem.add_relation(did, "皇权", "produces", weight=1.0, turn=state.turn, note="准奏批红")
+    except Exception:
+        pass
+
+    org_map = {
+        "finance": "户部", "military": "枢密院", "governance": "中书省",
+        "personnel": "吏部", "invention": "工部"
+    }
+    org_hint = org_map.get(m.get("kind"), "中书省")
+    if m.get("source") == "shumi":
+        org_hint = "枢密院"
+
+    clean_title = title.replace("《", "").replace("》", "").replace("请", "准")
+    draft = {
+        "title": clean_title,
+        "body": f"照准所奏：{m.get('body', '')}",
+        "org_hint": org_hint,
+        "effects": _build_memorial_effects(m),
+        "source": m.get("source_desc", m.get("source_tag", "臣工奏疏")),
+    }
+    did = state.add_edict_draft(draft)
+    return {"ok": True, "draft_id": did, "title": clean_title, "msg": f"已批「准奏」，诏草「{clean_title}」（草案 d{did}）已进三省六部会签。"}
+
+
+def dismiss_memorial(state: GameState, index: int) -> dict:
+    """案头奏折留中：移出 memorials，留中未决入案卷，记录怠政反噬。"""
+    memos = getattr(state, "memorials", None)
+    if not isinstance(memos, list) or not memos:
+        return {"ok": False, "msg": "案上无此折奏"}
+    if index < 0 or index >= len(memos):
+        return {"ok": False, "msg": f"奏折序号越界: {index}"}
+
+    m = memos.pop(index)
+    title = str(m.get("title", "臣工奏疏"))
+
+    # 同步记录决策进记忆库（留中边，怠政反噬）
+    try:
+        from memory.memory_graph import get_memory_graph
+        mem = get_memory_graph(state.slot)
+        did = mem.record_decision(f"dismiss_{title}", {"action": "留中", "title": title}, turn=state.turn)
+        mem.add_relation(did, "留中不发", "produces", weight=0.8, turn=state.turn, note="留中未决")
+    except Exception:
+        pass
+
+    try:
+        state.short_term_log.append({
+            "turn": state.turn,
+            "kind": "edict",
+            "title": f"留中：{title}",
+            "note": "留中不发，案卷暂缓归有司",
+            "year": state.year,
+            "month": state.month,
+        })
+    except Exception:
+        pass
+
+    return {"ok": True, "title": title, "msg": f"已批「留中」，奏疏「{title}」留中不发，已录案卷。"}
+
 
 

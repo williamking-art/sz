@@ -366,6 +366,23 @@ CENTRAL_ORG_INFO = {
                  "posts": [{"title": "内侍押班"}],
                  "holders": {"内侍押班": "童贯"}, "comissions": []},
 
+    # ---- 中枢中继与文书通达（通进银台司、都进奏院、登闻鼓院）----
+    "通进银台司": {"belong": "皇帝", "scope": "天下奏章进纳/封驳进退/内外章表总汇",
+                 "authority": ["奏章进纳", "公文通达"],
+                 "matter_keys": ["奏章进纳"],
+                 "posts": [{"title": "知通进银台司事"}],
+                 "holders": {"知通进银台司事": ""}, "comissions": []},
+    "都进奏院":   {"belong": "门下省", "scope": "各路驻京机构/地方情状邸报通传",
+                 "authority": ["邸报通达", "州府驿奏"],
+                 "matter_keys": ["邸报通达"],
+                 "posts": [{"title": "都进奏院提辖官"}],
+                 "holders": {"都进奏院提辖官": ""}, "comissions": []},
+    "登闻鼓院":   {"belong": "皇帝", "scope": "庶民击鼓进诉/直达天听申冤",
+                 "authority": ["民隐通达", "登闻进诉"],
+                 "matter_keys": ["民隐通达"],
+                 "posts": [{"title": "判登闻鼓院"}],
+                 "holders": {"判登闻鼓院": ""}, "comissions": []},
+
     # ---- 京畿（东京开封府，京畿要职，常由重臣领）----
     "开封府":   {"belong": "皇帝", "scope": "京畿民政/治安",
                  "authority": ["京畿", "京城治安"],
@@ -406,6 +423,9 @@ AUTHORITY_MATTERS = {
     "内廷":     {"owner": "内侍省"},
     "禁军":     {"owner": "殿前司"},
     "京畿":     {"owner": "开封府"},
+    "奏章进纳": {"owner": "通进银台司"},
+    "邸报通达": {"owner": "都进奏院"},
+    "民隐通达": {"owner": "登闻鼓院"},
 }
 
 # 改制类型枚举（完全自由，无硬性禁令）
@@ -576,6 +596,26 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
         if os.path.isfile(path):
             return path
     return None
+
+
+# ============================================================
+# 宋代官员服饰装备系统接入（RPG Equipment System）
+# ============================================================
+from content.ministers.costumes import (
+    EQUIPMENT_TIERS,
+    parse_costume_tier,
+    get_official_equipment,
+    generate_costume_prompt,
+    verify_costume_historical_integrity,
+)
+
+
+def get_minister_equipment(name: str) -> dict:
+    """返回指定大臣当前品级的全套 6 槽位公服装备配置（RPG 部件化装备）。"""
+    fig = MINISTERS.get(name, {})
+    rank = fig.get("rank") or ""
+    tier = minister_tier(name)
+    return get_official_equipment(rank=rank, tier=tier)
 
 
 # ============================================================

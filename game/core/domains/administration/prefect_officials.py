@@ -1,0 +1,374 @@
+# -*- coding: utf-8 -*-
+"""北宋 136 州府亲民官（知府/知州 + 通判）知通互掣与科举知县磨勘流转模型（单一权威源）。
+
+## 规格与背景（M304）
+
+落实北宋地方行政架构的核心亲民官层级：
+1. **全国 136 州府席位（272 位在任亲民长官）**：
+   - 每府设主官 1 名：**知府 / 知州 / 知军 / 知监**（中品绯袍，四至五品）；
+   - 每府设副贰 1 名：**通判**（低品绿袍，六至七品）；
+   - 与 `core.foundation.ledger.prefecture_entity.all_seats()`（136 个行政建制）严丝合缝对齐。
+2. **知通公事连署制（分权制约核心）**：
+   - 祖宗家法：“凡兵民钱谷文书，非通判连署不得施行”；
+   - 若知府苛敛急躁而通判清廉鲠亮，通判拒不连署，行政效率骤降至 30%；
+   - 若通判缺员，长官独断监察缺位，效率打折且滋生隐患；知通齐心则政通人和。
+3. **科举知县池与三年磨勘改官池**：
+   - 新科进士以知县、县丞起步（七至九品，绿袍公服）；
+   - 入仕即在 `MemoryGraph` 挂载终身履历树与举主保任关系（`supports/guarantor`）；
+   - 举主保任连坐：门生/荐举人因贪墨伏诛，举主连坐受罚夺秩。
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+from core.foundation.ledger.prefecture_entity import all_seats
+
+log = logging.getLogger("prefect_officials")
+
+__all__ = [
+    "init_all_prefect_officials",
+    "get_prefect_officials",
+    "check_countersign",
+    "appoint_prefect_official",
+    "dismiss_prefect_official",
+    "jinshi_to_county",
+    "trigger_joint_liability",
+]
+
+# 常见举主重臣备选池
+_CENTRAL_GUARANTORS = [
+    "韩忠彦", "曾布", "李清臣", "赵挺之", "邓洵武", "王古", "蒋之奇", "陆佃", "陈次升"
+]
+
+# 地方亲民官名字库（保证生成多样性与历史宋味）
+_PREFECT_NAMES = [
+    ("苏轼", "旧党", ["文采", "刚直"], 0.85, 0.90),
+    ("黄庭坚", "旧党", ["文士", "清正"], 0.88, 0.82),
+    ("苏辙", "旧党", ["文章", "通达"], 0.82, 0.85),
+    ("范百禄", "旧党", ["文雅", "厚重"], 0.78, 0.80),
+    ("孔道辅", "旧党", ["刚直", "严正"], 0.90, 0.75),
+    ("吕希绩", "旧党", ["守道", "奉公"], 0.80, 0.78),
+    ("钱顗", "旧党", ["清廉", "风宪"], 0.86, 0.76),
+    ("陈尧佐", "中立派", ["循良", "治水"], 0.78, 0.88),
+    ("王及", "中立派", ["端直", "循吏"], 0.75, 0.80),
+    ("胡宿", "旧党", ["老成", "持重"], 0.80, 0.82),
+    ("范镇", "旧党", ["正派", "直言"], 0.84, 0.78),
+    ("吴充", "中立派", ["守和", "调停"], 0.72, 0.75),
+    ("蔡确", "新党", ["变法", "干练"], 0.40, 0.88),
+    ("章惇", "新党", ["坚毅", "决断"], 0.45, 0.92),
+    ("吕惠卿", "新党", ["变法", "才干"], 0.35, 0.86),
+    ("李常", "旧党", ["笃实", "清慎"], 0.76, 0.74),
+    ("孙觉", "旧党", ["纯厚", "学识"], 0.80, 0.72),
+    ("程颐", "旧党", ["理学", "刚介"], 0.92, 0.65),
+    ("陆佃", "旧党", ["守正", "调停"], 0.78, 0.80),
+    ("温益", "新党", ["圆滑", "机变"], 0.42, 0.78),
+]
+
+_SUBPREFECT_NAMES = [
+    ("李若水", "旧党", ["忠勇", "刚正"], 0.92, 0.80),
+    ("陈东", "旧党", ["慷慨", "直谏"], 0.90, 0.72),
+    ("欧阳澈", "旧党", ["抗直", "敢言"], 0.88, 0.70),
+    ("汪伯彦", "新党", ["逢迎", "和戎"], 0.38, 0.65),
+    ("黄潜善", "新党", ["阿附", "聚敛"], 0.32, 0.60),
+    ("范宗尹", "中立派", ["敏悟", "通达"], 0.70, 0.75),
+    ("杜充", "新党", ["苛虐", "残暴"], 0.20, 0.50),
+    ("张浚", "中立派", ["志大", "规画"], 0.75, 0.82),
+    ("胡铨", "旧党", ["万言", "鲠骨"], 0.94, 0.78),
+    ("赵鼎", "中立派", ["持正", "经制"], 0.85, 0.85),
+    ("尹焞", "旧党", ["清心", "守道"], 0.88, 0.68),
+    ("谢克家", "中立派", ["通博", "吏干"], 0.72, 0.76),
+    ("折彦质", "军功集团", ["将门", "果毅"], 0.78, 0.80),
+    ("张守", "旧党", ["正色", "端凝"], 0.82, 0.78),
+    ("吕好问", "旧党", ["忠良", "避谤"], 0.80, 0.75),
+]
+
+
+def _get_prefect_title_and_rank(level: str) -> Tuple[str, str]:
+    """按州县级别推导正职长官差遣官名与官品。"""
+    lvl = (level or "").strip()
+    if lvl == "府":
+        return "知府", "从三品"
+    if lvl == "州":
+        return "知州", "正四品"
+    if lvl == "军":
+        return "知军", "从五品"
+    if lvl == "监":
+        return "知监", "正六品"
+    return "知州", "正四品"
+
+
+def check_countersign(prefecture_data: Dict[str, Any]) -> Dict[str, Any]:
+    """北宋知通公事连署核验（知通互掣）。
+    
+    规则：
+    - 若通判缺员，长官独断，无监督，效率 0.7，隐患滋生；
+    - 若知府贪劣（integrity < 0.45 或含聚敛/阿附特质）且通判风宪刚正（integrity >= 0.65），
+      党见不同触发“通判拒签加赋文移”，公文阻滞，效率骤降至 0.3；
+    - 否则正常连署施行，效率 1.0。
+    """
+    pref = prefecture_data.get("prefect") or {}
+    vice = prefecture_data.get("subprefect") or {}
+
+    if not vice or not vice.get("name"):
+        prefecture_data["countersigned"] = True
+        prefecture_data["efficiency"] = 0.70
+        prefecture_data["friction_reason"] = "通判缺员，长官独断监察缺位"
+        return prefecture_data
+
+    if not pref or not pref.get("name"):
+        prefecture_data["countersigned"] = False
+        prefecture_data["efficiency"] = 0.40
+        prefecture_data["friction_reason"] = "主官缺员，公事由通判署理"
+        return prefecture_data
+
+    p_integ = float(pref.get("integrity", 0.5))
+    v_integ = float(vice.get("integrity", 0.5))
+    p_traits = list(pref.get("traits", []))
+    v_traits = list(vice.get("traits", []))
+    p_fac = str(pref.get("faction", ""))
+    v_fac = str(vice.get("faction", ""))
+
+    is_corrupt_prefect = p_integ < 0.45 or any(t in p_traits for t in ("聚敛", "阿附", "搜括"))
+    is_upright_vice = v_integ >= 0.65 or any(t in v_traits for t in ("刚直", "清正", "严正", "直谏"))
+
+    if is_corrupt_prefect and is_upright_vice and p_fac != v_fac:
+        prefecture_data["countersigned"] = False
+        prefecture_data["efficiency"] = 0.30
+        prefecture_data["friction_reason"] = "通判拒签加赋文移，公文阻滞互掣"
+    else:
+        prefecture_data["countersigned"] = True
+        prefecture_data["efficiency"] = 1.0
+        prefecture_data["friction_reason"] = "知通同舟并书施行"
+
+    return prefecture_data
+
+
+def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
+    """初始化全国 136 州府席位知通人事底册。"""
+    raw_dict = getattr(state, "prefect_officials", None)
+    if not isinstance(raw_dict, dict):
+        raw_dict = {}
+        state.prefect_officials = raw_dict
+
+    seats = all_seats()
+    for idx, s in enumerate(seats):
+        sid = s.get("seat_id") or f"{s.get('circuit')}|{s.get('seat')}"
+        if sid in raw_dict:
+            continue
+
+        seat_name = s.get("seat", "州治")
+        circuit = s.get("circuit", "各路")
+        level = s.get("level", "州")
+        p_title, p_rank = _get_prefect_title_and_rank(level)
+
+        # 确定性指派
+        p_idx = (idx * 7 + 3) % len(_PREFECT_NAMES)
+        v_idx = (idx * 11 + 5) % len(_SUBPREFECT_NAMES)
+        g_idx = (idx * 3 + 1) % len(_CENTRAL_GUARANTORS)
+
+        p_name, p_fac, p_traits, p_integ, p_abil = _PREFECT_NAMES[p_idx]
+        v_name, v_fac, v_traits, v_integ, v_abil = _SUBPREFECT_NAMES[v_idx]
+        guarantor = _CENTRAL_GUARANTORS[g_idx]
+
+        entry: Dict[str, Any] = {
+            "seat_id": sid,
+            "seat": seat_name,
+            "circuit": circuit,
+            "level": level,
+            "prefect": {
+                "name": p_name,
+                "role": p_title,
+                "rank": p_rank,
+                "faction": p_fac,
+                "integrity": p_integ,
+                "ability": p_abil,
+                "traits": p_traits,
+                "tenure_months": 12 + (idx % 24),
+                "guarantor": guarantor,
+                "costume_tier": "fei",
+            },
+            "subprefect": {
+                "name": v_name,
+                "role": "通判",
+                "rank": "从六品",
+                "faction": v_fac,
+                "integrity": v_integ,
+                "ability": v_abil,
+                "traits": v_traits,
+                "tenure_months": 6 + (idx % 30),
+                "guarantor": guarantor,
+                "costume_tier": "lv",
+            },
+            "countersigned": True,
+            "efficiency": 1.0,
+            "friction_reason": "知通并书施行",
+        }
+        check_countersign(entry)
+        raw_dict[sid] = entry
+
+    return raw_dict
+
+
+def get_prefect_officials(state, seat_id: Optional[str] = None) -> Any:
+    """查询指定或全量 136 州府席位。"""
+    raw = getattr(state, "prefect_officials", None)
+    if not isinstance(raw, dict) or len(raw) < 136:
+        raw = init_all_prefect_officials(state)
+    if seat_id:
+        return raw.get(seat_id)
+    return raw
+
+
+def appoint_prefect_official(state, seat_id: str, role: str,
+                             official_info: Dict[str, Any]) -> Dict[str, Any]:
+    """任命或调换州府知通。"""
+    po = get_prefect_officials(state, seat_id)
+    if not po:
+        return {"ok": False, "msg": f"未找到该州府席位：{seat_id}"}
+
+    is_prefect = role in ("prefect", "知府", "知州", "知军", "知监")
+    slot_key = "prefect" if is_prefect else "subprefect"
+
+    old_holder = po.get(slot_key, {})
+    new_holder = dict(official_info)
+    new_holder["tenure_months"] = 0
+    if is_prefect:
+        p_title, p_rank = _get_prefect_title_and_rank(po.get("level", "州"))
+        new_holder.setdefault("role", p_title)
+        new_holder.setdefault("rank", p_rank)
+        new_holder.setdefault("costume_tier", "fei")
+    else:
+        new_holder.setdefault("role", "通判")
+        new_holder.setdefault("rank", "从六品")
+        new_holder.setdefault("costume_tier", "lv")
+
+    po[slot_key] = new_holder
+    check_countersign(po)
+
+    try:
+        state.short_term_log.append({
+            "turn": getattr(state, "turn", 0),
+            "kind": "personnel",
+            "title": f"除授{po.get('seat')}{new_holder.get('role')}",
+            "note": f"起用{new_holder.get('name')}，更易原任{old_holder.get('name', '原缺')}",
+            "year": getattr(state, "year", 1101),
+            "month": getattr(state, "month", 1),
+        })
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "seat_id": seat_id,
+        "seat": po.get("seat"),
+        "role": new_holder.get("role"),
+        "name": new_holder.get("name"),
+        "countersigned": po.get("countersigned"),
+        "efficiency": po.get("efficiency"),
+    }
+
+
+def dismiss_prefect_official(state, seat_id: str, role: str) -> Dict[str, Any]:
+    """罢免该州府知通，置为空缺待补。"""
+    po = get_prefect_officials(state, seat_id)
+    if not po:
+        return {"ok": False, "msg": f"未找到该州府席位：{seat_id}"}
+
+    is_prefect = role in ("prefect", "知府", "知州", "知军", "知监")
+    slot_key = "prefect" if is_prefect else "subprefect"
+    old = po.get(slot_key, {})
+    po[slot_key] = {}
+    check_countersign(po)
+    return {"ok": True, "seat_id": seat_id, "dismissed": old.get("name", "")}
+
+
+def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
+                     slot: Optional[int] = None) -> Dict[str, Any]:
+    """科举进士下沉知县蓄水池，并在 MemoryGraph 中建立履历与举主保任边。"""
+    assigned = []
+    slot_id = slot if slot is not None else getattr(state, "slot", 0)
+
+    try:
+        from memory.memory_graph import get_memory_graph
+        mem = get_memory_graph(slot_id)
+    except Exception:
+        mem = None
+
+    for i, j in enumerate(jinshi_list or []):
+        name = j.get("name", f"新科进士_{i}")
+        county = j.get("county", f"第{i+1}县")
+        guarantor = j.get("guarantor") or _CENTRAL_GUARANTORS[i % len(_CENTRAL_GUARANTORS)]
+
+        info = {
+            "name": name,
+            "role": "知县",
+            "rank": "从八品",
+            "county": county,
+            "guarantor": guarantor,
+            "costume_tier": "lv",
+        }
+        assigned.append(info)
+
+        if mem:
+            try:
+                mem.add_entity(
+                    name,
+                    "minister",
+                    name,
+                    attrs={
+                        "origin": "科举进士",
+                        "first_post": f"{county}知县",
+                        "rank": "从八品",
+                        "costume_tier": "lv",
+                        "year": getattr(state, "year", 1101),
+                    },
+                )
+                mem.add_relation(name, county, "governs", weight=1.0,
+                                 note="初仕知县", turn=getattr(state, "turn", 0))
+                mem.add_relation(guarantor, name, "supports", weight=1.0,
+                                 note="保任举主", turn=getattr(state, "turn", 0))
+                mem.save(slot_id)
+            except Exception as e:
+                log.warning("jinshi_to_county MemoryGraph 写入跳过: %s", e)
+
+    return {"ok": True, "count": len(assigned), "assigned": assigned}
+
+
+def trigger_joint_liability(state, official_name: str, crime: str = "贪墨",
+                            slot: Optional[int] = None) -> List[str]:
+    """举主保任同罪连坐：当地方官严重舞弊贪腐时，循 MemoryGraph 追索举主并受罚。"""
+    penalized = []
+    slot_id = slot if slot is not None else getattr(state, "slot", 0)
+
+    try:
+        from memory.memory_graph import get_memory_graph
+        mem = get_memory_graph(slot_id)
+        if mem:
+            # 查找以 official_name 为目标、rtype 为 supports 或 note 含举主的边
+            for r in mem.relations:
+                if isinstance(r, dict):
+                    if r.get("dst") == official_name and r.get("rtype") == "supports":
+                        guarantor = r.get("src")
+                        if guarantor and guarantor not in penalized:
+                            penalized.append(guarantor)
+    except Exception as e:
+        log.warning("trigger_joint_liability 读取 MemoryGraph 异常: %s", e)
+
+    for g in penalized:
+        # 扣除皇威或记录过咎
+        if hasattr(state, "change_prestige"):
+            state.change_prestige(-1)
+        try:
+            state.short_term_log.append({
+                "turn": getattr(state, "turn", 0),
+                "kind": "decree",
+                "title": f"举主连坐：{g}",
+                "note": f"所保之臣{official_name}因{crime}事发，举主同坐罚铜夺秩",
+                "year": getattr(state, "year", 1101),
+                "month": getattr(state, "month", 1),
+            })
+        except Exception:
+            pass
+
+    return penalized

@@ -76,6 +76,7 @@ from core.foundation.common.errors import AIRuntimeError
 
 from core.commands_decree import (
     _random_faction_stances, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_secret_decree, preview_draft,
+    accept_memorial, dismiss_memorial,
 )
 
 
@@ -1907,6 +1908,15 @@ def audience_dialogue_prepare(state: GameState, minister_name: str,
         q = dm.query_for_dialogue(minister_name, state.turn, top_k=2)
         if q and q.get("summary"):
             state_summary += f"\n【卿前番之言】{q['summary']}"
+    except Exception:
+        pass
+    # 动态记忆图谱分层检索注入（M304：图谱存史，召对按需切片，严格锁定 350 字以内防 Token 膨胀）
+    try:
+        from memory.memory_graph import get_memory_graph
+        mem = get_memory_graph(getattr(state, "slot", 0))
+        h_hits = mem.retrieve_hierarchical(minister_name, top_k=2)
+        if h_hits and h_hits.get("summary"):
+            state_summary += f"\n【前尘往事】{str(h_hits['summary'])[:350]}"
     except Exception:
         pass
     # 新旧产业认知层感知（用户指示）：召对注入产业状态（「铁路通了」「机器局开了」）

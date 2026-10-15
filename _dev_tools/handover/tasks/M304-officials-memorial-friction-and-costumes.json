@@ -1,0 +1,35 @@
+{
+  "id": "M304-officials-memorial-friction-and-costumes",
+  "title": "官员服饰RPG装备系统与中枢四府中继落地",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-15",
+  "authority": "JEV-台账-官员任命与上折博弈渗透设计-2026-10-15.json（0.828）· JEV-台账-银台司进奏院职权与奏报处理机制-2026-10-15.json（0.972）· JEV-台账-州府亲民官深度设计讨论-2026-10-15.json（0.687）· JEV-台账-官僚任免设计完善与连坐保护-2026-10-15.json（0.949）",
+  "deliverable": [
+    "sz/game/content/ministers/costumes.py：宋代公服RPG装备系统核心模型（品阶/服色/幞头/革带/鱼袋/笏板/靴履部件配置与生图元数据）",
+    "sz/game/content/ministers/data.py：在 CENTRAL_ORGS 挂载通进银台司、都进奏院、登闻鼓院；装备系统与立绘管线无缝接入",
+    "sz/game/core/domains/administration/prefect_officials.py：全国136州府席位（知府+通判知通互掣）与知县科举磨勘改官池",
+    "sz/game/core/commands_decree.py：实现 accept_memorial 与 dismiss_memorial，案头折子一键准奏转入待签诏草",
+    "sz/game/backend/client.py：在 LocalBackend 注册 accept_memorial / dismiss_memorial 动作",
+    "sz/game/frontend/src/renderer/panels/GovernanceHub.tsx：案头折子接入准奏/留中按钮与具奏人举主展示",
+    "sz/_dev_tools/game-assets-src/ministers-layers/OFFICIAL_COSTUME_RPG_SPEC.md：完整生图提示词与装备美术规格",
+    "sz/_dev_tools/game-dev/tests/test_m304_officials_friction_and_costumes.py：全套自动化回归测试"
+  ],
+  "cases": {
+    "装备系统结构化": "rank_equipment() 准确解析低中高三档公服装备槽位，杜绝明清禁忌元素",
+    "中继四府挂载": "central_orgs 正确注册 yintai_si / jinzou_yuan / dengwengu_yuan",
+    "折子准奏闭环": "accept_memorial 正确生成 edict_draft，记忆库同步记录决策，案头干净移出",
+    "亲民官知通互掣": "136州府知通实体完整生成，连署阻滞与三年磨勘改官逻辑健全"
+  },
+  "verified": [
+    "装备系统结构化：rank_equipment() 与 get_official_equipment() 准确解析低中高三档公服装备槽位，杜绝明清禁忌元素，测试通过",
+    "中继四府挂载：CENTRAL_ORG_INFO 正确注册通进银台司 / 都进奏院 / 登闻鼓院，测试通过",
+    "折子准奏闭环：accept_memorial 与 dismiss_memorial 闭环生成待签诏草与记忆库决策，测试通过",
+    "亲民官知通互掣：136州府知通实体完整生成，连署阻滞与三年磨勘改官逻辑健全，举主连坐受罚，测试通过",
+    "自动化测试覆盖：test_m304_officials_friction_and_costumes.py 6 个用例全数通过，回归测试 23 passed"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-15T19:44:00Z",
+  "completedBy": "Antigravity",
+  "completedAt": "2026-10-15T20:00:00Z"
+}

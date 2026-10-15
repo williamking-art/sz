@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useGameStore, pick, getTreasuryDetail } from "../store/gameStore";
+import { getApiClient } from "../api/client";
 
 // 治务枢纽 —— 聚合 Tk 尚未迁至 Electron 的治理数据（只读展示）：
 //   资金流/税制 · 灾荒·时代·危机 · 帝国机制 · 纪事/奏折 · 条约/外交纪事 · AI计量
@@ -237,9 +238,31 @@ function MechanismTab() {
 
 function ChronicleTab() {
   const state = useGameStore((s) => s.state);
+  const setState = useGameStore((s) => s.setState);
+  const pushUiLog = useGameStore((s) => s.pushUiLog);
   const dial = asArr(pick<unknown[]>(state, "dialogue_history", []));
   const memos = asArr(pick<unknown[]>(state, "memorials", []));
   const short = asArr(pick<unknown[]>(state, "short_term_log", []));
+
+  async function handleAccept(index: number) {
+    try {
+      const res = await getApiClient().action("accept_memorial", { index });
+      if (res.state) setState(res.state);
+      if (res.message) pushUiLog(res.message);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleDismiss(index: number) {
+    try {
+      const res = await getApiClient().action("dismiss_memorial", { index });
+      if (res.state) setState(res.state);
+      if (res.message) pushUiLog(res.message);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -261,17 +284,51 @@ function ChronicleTab() {
         )}
       </Section>
       <Section title="奏 折 / 疏">{
-        memos.length === 0 ? <p className="text-sm text-dim">— 案上无事 —</p> : memos.map((m, i) => {
-          const d = asDict(m);
-          const title = asStr(d.title) || asStr(d.text, "（无题）");
-          const body = asStr(d.body) || asStr(d.content);
-          return (
-            <p key={i} className="text-xs leading-relaxed text-ink-light">
-              <span className="font-kai text-ink">{title}</span>
-              {body && <span>　{body}</span>}
-            </p>
-          );
-        })
+        memos.length === 0 ? <p className="text-sm text-dim">— 案上无事 —</p> : (
+          <div className="space-y-2">
+            {memos.map((m, i) => {
+              const d = asDict(m);
+              const title = asStr(d.title) || asStr(d.text, "（无题）");
+              const body = asStr(d.body) || asStr(d.content);
+              const sourceTag = asStr(d.source_tag, "通进银台司进呈");
+              const official = asDict(d.official);
+              const offRole = asStr(official.role);
+              const offName = asStr(official.name);
+              const guarantor = asStr(d.guarantor);
+
+              return (
+                <div key={i} className="rounded border border-gold/40 bg-paper/40 p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-kai font-bold text-red">
+                      〔{sourceTag}〕{title}
+                    </span>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => handleAccept(i)}
+                        className="rounded bg-red px-2 py-0.5 font-kai text-[11px] text-paper shadow-sm hover:bg-red/80 transition"
+                      >
+                        准 奏
+                      </button>
+                      <button
+                        onClick={() => handleDismiss(i)}
+                        className="rounded border border-gold/60 bg-paper px-2 py-0.5 font-kai text-[11px] text-dim hover:text-ink transition"
+                      >
+                        留 中
+                      </button>
+                    </div>
+                  </div>
+                  {body && <p className="mt-1 leading-relaxed text-ink-light">{body}</p>}
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-dim font-kai">
+                    <span>
+                      {offName ? `具奏人：${offRole ? offRole + " " : ""}${offName}` : "具奏：有司"}
+                    </span>
+                    {guarantor && <span className="text-dim/80">举主保任：{guarantor}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       }</Section>
       <Section title="决 策 日 志">{
         short.length === 0 ? <p className="text-sm text-dim">— 暂无决策日志 —</p> : (

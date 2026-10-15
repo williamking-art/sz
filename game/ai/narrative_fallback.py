@@ -314,6 +314,9 @@ def fallback_memorials(state=None, turn=0) -> dict:
         "title": f"《请整饬{year or ''}年诸路政务疏》",
         "body": "臣闻为政之要，在察吏安民。今各路簿籍或有壅滞，请择清强官分巡勾校，"
                 "厘积案、核逋赋，以肃纲纪。伏惟圣裁。",
+        "source_tag": "通进银台司进呈",
+        "official": {"name": "陈瓘", "role": "右司谏"},
+        "guarantor": "韩忠彦",
         "_fallback": True,
     })
     if n_todo > 0:
@@ -322,6 +325,9 @@ def fallback_memorials(state=None, turn=0) -> dict:
             "title": "《请核度支出入疏》",
             "body": "臣掌度支，见在办政务所费颇钜。请命户部勾讦出入实数，"
                     "量入为出，节浮冗以固邦本。伏惟圣裁。",
+            "source_tag": "都进奏院急递",
+            "official": {"name": "王古", "role": "户部尚书"},
+            "guarantor": "曾布",
             "_fallback": True,
         })
     memos.append({
@@ -332,6 +338,9 @@ def fallback_memorials(state=None, turn=0) -> dict:
         "name": "龙骨翻车改良",
         "effect_dim": "canal_efficiency",
         "effect_tier": "小",
+        "source_tag": "登闻鼓院直奏",
+        "official": {"name": "李及", "role": "知县"},
+        "guarantor": "赵挺之",
         "_fallback": True,
     })
     return {"memorials": memos[:3], "_fallback": True}
