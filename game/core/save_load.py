@@ -270,6 +270,7 @@ def save_game(state, slot: int = 1) -> bool:
         "minister_memory": getattr(state, "minister_memory", {}),
         "player_minister_status": getattr(state, "player_minister_status", {}),
         "minister_equipment": getattr(state, "minister_equipment", {}),
+        "official_stats": getattr(state, "official_stats", {}),
 
         # 大臣忠诚度/贪腐度（后台隐藏，不可见）与中枢机构运行态（权限随职位）
         "loyalty": getattr(state, "loyalty", {}),
@@ -751,6 +752,7 @@ def _load_with_data(slot: int = 1):
             pass
     state.player_minister_status = data.get("player_minister_status", {}) or {}
     state.minister_equipment = data.get("minister_equipment", {}) or {}
+    state.official_stats = data.get("official_stats", {}) or {}
     state.loyalty = data.get("loyalty", state.loyalty)
     state.corruption = data.get("corruption", state.corruption)
     state.central_orgs = data.get("central_orgs", state.central_orgs)

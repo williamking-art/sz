@@ -219,6 +219,29 @@ def run_triennial_appraisal(state, log: Optional[List[str]] = None) -> Dict[str,
     stats["administrative_efficiency"] = float(round(new_eff, 3))
     stats["last_appraisal_turn"] = int(getattr(state, "turn", 0) or 0)
 
+    # 监司知通三年历练成长与全战式特质演进
+    try:
+        from core.domains.administration.circuit_officials import get_circuit_officials
+        from content.ministers.stats import record_official_action
+        for c in ALL_CIRCUITS_21:
+            c_offs = get_circuit_officials(state, c).get("officials", {})
+            for role_k, off in c_offs.items():
+                off_name = off.get("name")
+                if not off_name:
+                    continue
+                if role_k in ("cao", "cang"):
+                    record_official_action(state, off_name, "fiscal_months", amount=36, exp_dim="finance")
+                elif role_k == "shuai":
+                    record_official_action(state, off_name, "military_border_months", amount=36, exp_dim="military")
+                elif role_k == "xian":
+                    record_official_action(state, off_name, "remonstrance_count", amount=1, exp_dim="strategy")
+                elif role_k in ("prefect", "vice_prefect"):
+                    record_official_action(state, off_name, "governance_months", amount=36, exp_dim="governance")
+                    if c in promoted_circuits:
+                        record_official_action(state, off_name, "appease_count", amount=2, exp_dim="reputation")
+    except Exception:
+        pass
+
     return {
         "promoted_circuits": promoted_circuits,
         "demoted_circuits": demoted_circuits,

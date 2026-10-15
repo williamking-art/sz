@@ -511,6 +511,7 @@ class GameState(GameStateEconMixin):
         self.minister_memory: dict = {}    # {大臣名: [办差记录/长久偏好]}
         self.player_minister_status: dict = {}  # {大臣名: "active"|"dead"|"dismissed"} 角色状态校验
         self.minister_equipment: dict = {}      # {大臣名: {"slots": {...}, "bestowals": [...], "custom_tier": ...}} 官员独立公服与皇帝恩赏覆盖
+        self.official_stats: dict = {}          # {官员名: OfficialProfile (五维量化能力+经验+特质历练计数器)}
 
         # ---- 大臣忠诚度（后台隐藏，不可见；0.0 离心 ~ 1.0 死忠）----
         # 注意：权限归属机构/职位（见 central_orgs），忠诚度归属个人，二者分离。

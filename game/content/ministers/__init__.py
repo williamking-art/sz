@@ -24,6 +24,19 @@ from .data import (
     org_lead,
 )
 
+from .stats import (
+    ATTRIBUTE_NAMES,
+    HISTORICAL_MINISTER_STATS,
+    TRAIT_EVOLUTION_RULES,
+    format_official_stats,
+    init_official_profile,
+    get_or_create_official_stats,
+    add_official_experience,
+    record_official_action,
+    check_and_evolve_traits,
+    generate_jinshi_official,
+)
+
 # 兼容别名：旧代码 from content.data import HISTORICAL_FIGURES 已迁至此
 HISTORICAL_FIGURES = MINISTERS
 
@@ -32,4 +45,8 @@ __all__ = [
     "CENTRAL_ORG_INFO", "AUTHORITY_MATTERS", "REFORM_TYPES",
     "get_portrait_path", "compose_portrait", "rank_tier", "minister_tier",
     "org_lead",
+    "ATTRIBUTE_NAMES", "HISTORICAL_MINISTER_STATS", "TRAIT_EVOLUTION_RULES",
+    "format_official_stats", "init_official_profile", "get_or_create_official_stats",
+    "add_official_experience", "record_official_action", "check_and_evolve_traits",
+    "generate_jinshi_official",
 ]

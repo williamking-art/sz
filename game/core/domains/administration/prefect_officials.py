@@ -171,6 +171,10 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
         v_name, v_fac, v_traits, v_integ, v_abil = _SUBPREFECT_NAMES[v_idx]
         guarantor = _CENTRAL_GUARANTORS[g_idx]
 
+        from content.ministers.stats import get_or_create_official_stats, format_official_stats
+        p_stat = get_or_create_official_stats(state, p_name, fallback_rank=p_rank)
+        v_stat = get_or_create_official_stats(state, v_name, fallback_rank="从六品")
+
         entry: Dict[str, Any] = {
             "seat_id": sid,
             "seat": seat_name,
@@ -184,6 +188,8 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
                 "integrity": p_integ,
                 "ability": p_abil,
                 "traits": p_traits,
+                "attrs": p_stat["attrs"],
+                "stats_summary": format_official_stats(p_stat),
                 "tenure_months": 12 + (idx % 24),
                 "guarantor": guarantor,
                 "costume_tier": "fei",
@@ -196,6 +202,8 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
                 "integrity": v_integ,
                 "ability": v_abil,
                 "traits": v_traits,
+                "attrs": v_stat["attrs"],
+                "stats_summary": format_official_stats(v_stat),
                 "tenure_months": 6 + (idx % 30),
                 "guarantor": guarantor,
                 "costume_tier": "lv",
@@ -250,6 +258,10 @@ def appoint_prefect_official(state, seat_id: str, role: str,
     try:
         from content.ministers.costumes import refresh_minister_equipment_on_reassignment
         refresh_minister_equipment_on_reassignment(state, new_holder.get("name", ""), new_holder.get("rank", ""))
+        from content.ministers.stats import get_or_create_official_stats, format_official_stats
+        stat_prof = get_or_create_official_stats(state, new_holder.get("name", ""), fallback_rank=new_holder.get("rank", ""))
+        new_holder.setdefault("attrs", stat_prof["attrs"])
+        new_holder.setdefault("stats_summary", format_official_stats(stat_prof))
     except Exception:
         pass
 
@@ -307,6 +319,22 @@ def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
         county = j.get("county", f"第{i+1}县")
         guarantor = j.get("guarantor") or _CENTRAL_GUARANTORS[i % len(_CENTRAL_GUARANTORS)]
 
+        # 全量量化档案生成（杜绝后期白板，五维+资质+特质经历计数器全覆盖）
+        rank_type = j.get("exam_rank_type", "一甲" if i < 3 else ("二甲" if i < 15 else "三甲"))
+        ex_dict = getattr(state, "exam", {}) if hasattr(state, "exam") else {}
+        curr = j.get("curriculum", ex_dict.get("curriculum", "经律兼治") if isinstance(ex_dict, dict) else "经律兼治")
+        
+        from content.ministers.stats import generate_jinshi_official, format_official_stats
+        profile = generate_jinshi_official(
+            name=name,
+            exam_rank_type=rank_type,
+            curriculum=curr,
+            origin_circuit=county,
+            examiner_faction=guarantor,
+        )
+        if hasattr(state, "official_stats") and isinstance(state.official_stats, dict):
+            state.official_stats[name] = profile
+
         info = {
             "name": name,
             "role": "知县",
@@ -314,6 +342,11 @@ def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
             "county": county,
             "guarantor": guarantor,
             "costume_tier": "lv",
+            "faction": profile["faction"],
+            "attrs": profile["attrs"],
+            "potential": profile["potential"],
+            "traits": profile["traits"],
+            "stats_summary": format_official_stats(profile),
         }
         assigned.append(info)
 
@@ -324,11 +357,14 @@ def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
                     "minister",
                     name,
                     attrs={
-                        "origin": "科举进士",
+                        "origin": profile.get("origin", "科举进士"),
                         "first_post": f"{county}知县",
                         "rank": "从八品",
                         "costume_tier": "lv",
                         "year": getattr(state, "year", 1101),
+                        "attrs": profile["attrs"],
+                        "traits": profile["traits"],
+                        "stats_summary": format_official_stats(profile),
                     },
                 )
                 mem.add_relation(name, county, "governs", weight=1.0,
