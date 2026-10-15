@@ -1,0 +1,19 @@
+{
+  "id": "JEV-台账-官网动效回归整站一体化长卷-2026-10-15",
+  "created_at": "2026-10-15T20:14:00+08:00",
+  "question": "根据用户原话「网页动效不是一页一页的，是一整个网站一次的」，应当选择哪种网站交互与动效架构？",
+  "options": {
+    "A": "整站一体化长卷连续流动，移除分页吸附、点阵与滚动劫持",
+    "B": "保留分页仅改动效一次性触发",
+    "C": "仅移动端改长卷桌面保留分页"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.990018,
+    "B": 0.004060,
+    "C": 0.005922
+  },
+  "premises_verified_by_me": "已核验：用户明确指出动效不是一页一页的，而是一整个网站一次的；此前为了满足移动端一翻一页引入的 scroll-snap mandatory、.pager 点阵与 wheel/touch 劫持跳转，打碎了长卷水墨整体感并导致翻页闪烁。彻底移除分页锁死，回归长卷连续原生滚动与全站连贯动效完全符合用户原话与极简自然的美学定位。",
+  "applied_in": "songzuo-site/site-work/redesign-preview/ (index.html, preview.css, preview.js, site-work/tools/audit-browser.cjs, check_page_fit.py)",
+  "reopen_if": "用户明确要求恢复 PPT 幻灯片式逐页强制翻页模式"
+}
