@@ -51,6 +51,7 @@ __all__ = [
     "generate_jinshi_official",
     "derive_official_visual_dna", "assemble_official_portrait",
     "generate_modular_component_prompts", "FACE_MODELS", "BEARDS", "FUTOU_TIERS",
+    "DOLL_CATALOG", "POSES",
 ]
 
 from .portrait_assembler import (
@@ -60,4 +61,6 @@ from .portrait_assembler import (
     FACE_MODELS,
     BEARDS,
     FUTOU_TIERS,
+    DOLL_CATALOG,
+    POSES,
 )

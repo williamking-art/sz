@@ -99,8 +99,27 @@ ROBE_TIERS = {
     "shi":     {"name": "浅白素绢襕衫", "ranks": "士人白身/致仕"},
 }
 
-# 位姿（Poses）
-POSES = ["chihu", "gongshou", "longxiu", "zheng"]
+# 5 大核心 3D 动作姿态（3D Poses）
+POSES = ["chihu", "gongshou", "longxiu", "fuxu", "anjian"]
+
+# 3D 转 2D 布娃娃人形模板库（Dolls Catalog）
+DOLL_CATALOG = {
+    # 青年层（20~35 岁 · 少壮及第）
+    "doll_y_scholar":   {"age_group": "young",  "face": "scholar", "desc": "清俊修竹，玉面无须，儒雅英挺，书卷之气"},
+    "doll_y_resolute":  {"age_group": "young",  "face": "square",  "desc": "少年意气，英武方额，浓眉目朗，刚毅敢为"},
+    "doll_y_pragmatic": {"age_group": "young",  "face": "round",   "desc": "朴厚精整，端庄温润，循序渐进"},
+
+    # 中年层（36~50 岁 · 骨干中坚）
+    "doll_m_slender":   {"age_group": "middle", "face": "slender", "desc": "清瘦刚直，双眸如炬，蓄文人短髭，铁骨御史"},
+    "doll_m_square":    {"age_group": "middle", "face": "square",  "desc": "方阔重颌，浓眉直鼻，蓄刚正美髯，经略帅臣"},
+    "doll_m_round":     {"age_group": "middle", "face": "round",   "desc": "丰腴温润，耳大颐满，蓄精修短髭，财赋度支"},
+    "doll_m_counselor": {"age_group": "middle", "face": "scholar", "desc": "眉清目秀，深思熟虑，纵横机变机敏谋士"},
+
+    # 老年层（51~75+ 岁 · 耆宿元老）
+    "doll_e_veteran":   {"age_group": "elder",  "face": "veteran", "desc": "苍老清癯，额刻沧桑，长髯飘逸雪白，一代宗师"},
+    "doll_e_round":     {"age_group": "elder",  "face": "round",   "desc": "雍容从容，天庭饱满，三绺花白美髯，元老宰辅"},
+    "doll_e_iron":      {"age_group": "elder",  "face": "square",  "desc": "白发苍苍而目光如铁，老当益壮，百战宿将"},
+}
 
 
 def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = "",
@@ -111,7 +130,7 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
     """为任意官员生成唯一且确定性的视觉装配 DNA（Visual DNA）。
     
     43 位历史名臣保留专属头面，其余官员由种子哈希算法衍生出独一无二的
-    脸型、胡须、体格、位姿，并严格按官阶/恩赏分配宋代服饰部件。
+    3D转2D布娃娃人形底模（Doll）与动作姿态，并严格按官阶/恩赏穿戴宋代服饰部件。
     """
     traits = traits or []
     favor_equipment = favor_equipment or {}
@@ -129,7 +148,7 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
         seed = int(hashlib.md5(f"songzuo_dna_{name}_{rank}".encode("utf-8")).hexdigest()[:8], 16)
     rng = random.Random(seed)
 
-    # 4. 年龄段划分
+    # 4. 年龄段划分（青年/中年/老年）
     if age < 35:
         age_group = "young"
     elif age < 52:
@@ -137,10 +156,11 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
     else:
         age_group = "elder"
 
-    # 5. 脸型匹配（若非历史名臣）
+    # 5. 脸型与布娃娃匹配
     if is_historical:
         face_model = f"hist_{name}"
         beard = "historical"
+        doll_id = f"hist_{name}"
     else:
         # 按特质偏好评分
         candidates = []
@@ -158,7 +178,6 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
         beard_candidates = []
         for b_key, b_spec in BEARDS.items():
             if age_group in b_spec["suitable_ages"]:
-                # 清秀少年进士无须概率高，方正武将更倾向浓密胡须
                 weight = 10
                 if face_model == "scholar" and b_key in ("none", "short"):
                     weight += 20
@@ -169,13 +188,28 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
                 beard_candidates.extend([b_key] * weight)
         beard = rng.choice(beard_candidates) if beard_candidates else "short"
 
-    # 6. 位姿推断
-    # 枢密/帅臣偏持笏/拱手，宰执偏拢袖/正立
-    if any(k in rank for k in ("尚书", "门下", "中书", "宰相", "仆射")):
-        pose_pool = ["longxiu", "zheng", "chihu"]
-    elif any(k in rank for k in ("帅", "经略", "节度", "统制", "将")):
+        # 分配布娃娃底模 ID
+        doll_candidates = [
+            d_id for d_id, d_spec in DOLL_CATALOG.items()
+            if d_spec["age_group"] == age_group and d_spec["face"] == face_model
+        ]
+        doll_id = rng.choice(doll_candidates) if doll_candidates else f"doll_{age_group}_{face_model}"
+
+    # 6. 3D 动作姿态推断（持笏/拱揖/长袖/抚须/按剑）
+    if any(k in rank for k in ("帅", "经略", "节度", "统制", "将")):
+        # 武将/帅臣偏向按剑持节与持笏
+        pose_pool = ["anjian", "chihu", "gongshou"]
+    elif any(k in rank for k in ("尚书", "门下", "中书", "宰相", "仆射", "参政")):
+        # 宰执重臣偏向长袖雍容与抚须深思
+        pose_pool = ["longxiu", "fuxu", "chihu"]
+    elif any(k in rank for k in ("台", "谏", "御史", "给事", "提刑")):
+        # 言官台谏法吏偏向拱手作揖与持笏
         pose_pool = ["chihu", "gongshou"]
-    elif any(k in rank for k in ("通判", "知县", "县令")):
+    elif age_group == "elder":
+        # 老臣长者偏向抚须与长袖
+        pose_pool = ["fuxu", "longxiu", "gongshou"]
+    elif age_group == "young":
+        # 青年及第新官偏向持笏与拱手
         pose_pool = ["chihu", "gongshou"]
     else:
         pose_pool = POSES
@@ -248,6 +282,7 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
     dna_dict = {
         "name": name,
         "is_historical": is_historical,
+        "doll_id": doll_id,
         "age": age,
         "age_group": age_group,
         "face_model": face_model,
@@ -258,7 +293,7 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
         "belt": belt,
         "fish_pouch": fish,
         "hu_tablet": hu,
-        "dna_hash": hashlib.md5(f"{name}_{face_model}_{beard}_{costume_tier}_{pose}_{futou}_{belt}_{fish}_{hu}".encode("utf-8")).hexdigest()[:12],
+        "dna_hash": hashlib.md5(f"{name}_{doll_id}_{face_model}_{beard}_{costume_tier}_{pose}_{futou}_{belt}_{fish}_{hu}".encode("utf-8")).hexdigest()[:12],
     }
     return dna_dict
 

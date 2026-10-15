@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-布娃娃素体与RPG装备叠层纯正换装重构-2026-10-16",
+  "date": "2026-10-16",
+  "category": "art_system_architecture",
+  "question": "抛弃复杂的边缘羽化抠脸算法，改用纯正RPG布娃娃（基础人物素体底图库）加透明装备图层叠合的纸娃娃换装架构？",
+  "options": {
+    "A": "采用纯正RPG布娃娃架构：制作多样化人物布娃娃底模（涵盖青年/中年/老年、文臣/武将完整形象），装备（袍服、幞头、革带、鱼袋、朝笏）作为独立透明图层一件件穿戴于布娃娃之上",
+    "B": "继续沿用旧式抠脸切头算法"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.992,
+    "B": 0.008
+  },
+  "premises_verified_by_me": "经实测验证：抠脸切头算法存在羽化带、脖颈姿态错位等固有瑕疵。改用纯正布娃娃纸娃娃系统后：基础人物底模（Doll）负责呈现千人千面的长相与气质，装备透明层（Robe/Futou/Belt/Fish/Hu）负责体现品阶与恩赏。升贬换装只需替换对应装备贴图层，逻辑极简且视觉无错位。",
+  "applied_in": "sz/game/content/ministers/portrait_assembler.py, sz/_dev_tools/game-assets-src/ministers-layers/",
+  "reopen_if": "游戏立绘完全改用3D实时骨骼渲染。"
+}

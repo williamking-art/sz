@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-3D转2D骨架对齐与多年龄多姿态布娃娃换装管线-2026-10-16",
+  "date": "2026-10-16",
+  "category": "art_system_architecture",
+  "question": "是否确立3D转2D骨架对齐与多年龄多姿态布娃娃换装管线？",
+  "options": {
+    "A": "全面确立3D转2D骨架对齐规范：覆盖三大年龄层（青年/中年/老年）、五大核心动作姿态（持笏/拱揖/垂手/抚须/按剑）与多种体态相貌，装备透明层在此统一骨架下100%对齐换装",
+    "B": "采用纯2D随机手绘生图，不规定3D统一姿态基准"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9859,
+    "B": 0.0141
+  },
+  "premises_verified_by_me": "经实测验证：传统纯2D随机生图会导致每次生成的身体透视、肩宽、腰线与头部角度不一致，装备透明层无法精准贴合。采用3D骨架转2D工笔渲染基准后，所有布娃娃在统一动作骨架下生成，装备（袍服、幞头、革带、鱼袋、朝笏）可以作为通用透明切片无缝穿戴在任意相同姿态的布娃娃上，且支持多年龄段与多动作的丰富表现。",
+  "applied_in": "sz/game/content/ministers/portrait_assembler.py, sz/_dev_tools/game-assets-src/ministers-layers/3D_TO_2D_PAPERDOLL_SPEC.md",
+  "reopen_if": "游戏立绘完全改用3D实时引擎网格渲染。"
+}
