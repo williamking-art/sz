@@ -1,0 +1,20 @@
+{
+  "id": "JEV-台账-官员装备独立部件与皇帝恩赏机制-2026-10-15",
+  "question": "宋官员公服装备槽位独立化与皇帝恩赏（如赐紫、赐绯、赐金鱼袋、赐玉带）架构决策",
+  "options": {
+    "A": "动态覆盖与恩赏状态化：在 GameState.minister_equipment 维护官员装备槽位状态（常规公服按官品动态推导，特赐部件如赐紫金鱼袋在 dict 叠加覆盖），职位升降级时自动更新基础件但保留特赐件，提供 bestow_costume_item 恩赏接口并联动记忆库与忠诚度",
+    "B": "静态只读每次重算：不存个性化覆盖字典，每次仅通过 rank 动态解析，恩赏仅记录在自由文本 traits 中"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.972,
+    "B": 0.028
+  },
+  "premises_verified_by_me": "用户明确要求「进一步拆分独立部件，但不需要UI界面显示，官员职位变动自动改变，或皇帝恩赏后改变」。方案A将宋代著名的章服荣典（如赐紫金鱼袋、借绯、特赐玉带）作为装备槽位的动态特赐覆盖层，既严格契合宋代官制章服与职事官品的双轨分离史实，又保证职位变动时基础公服自动无感刷新，无需专设独立UI，完全渗透进君臣恩赏与履历记忆之中。",
+  "applied_in": [
+    "sz/game/content/ministers/costumes.py",
+    "sz/game/content/ministers/data.py",
+    "sz/game/core/commands_decree.py"
+  ],
+  "reopen_if": "若独立槽位覆盖层引起存档序列化不兼容或立绘合成异常"
+}

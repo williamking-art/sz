@@ -8,6 +8,7 @@
 - 中枢机构树 / 事权归属表一并置于此处，供改制类圣旨推演。
 """
 import os
+from typing import Any, Optional, Dict, List
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 PORTRAIT_DIR = os.path.join(_BASE, "portraits")
@@ -56,7 +57,7 @@ MINISTERS = {
                "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.28, "trait_ids": ["调停"]},
     "赵挺之": {"born": 1040, "role": "御史中丞", "faction": "旧党", "traits": "刚峭/与蔡京不合",
                "nobility": "", "rank": "从二品",
-               "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.32},
+               "portrait": "", "in_office": True, "loyalty": 0.40, "corruption": 0.32, "trait_ids": ["刚直"]},
     "邓洵武": {"born": 1055, "role": "吏部侍郎/枢密都承旨", "faction": "新党", "traits": "绍述/崇宁党人碑",
                "nobility": "", "rank": "从二品",
                "portrait": "", "in_office": True, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["权谋", "变法"]},
@@ -75,7 +76,7 @@ MINISTERS = {
     # ===================== 宦官（1101 初近幸，未掌大权） =====================
     "童贯":   {"born": 1054, "role": "供奉官/初近幸(未掌兵)", "faction": "皇党集团", "traits": "军略/逢迎/宦官",
                "nobility": "", "rank": "正五品",
-               "portrait": "", "in_office": True, "loyalty": 0.80, "corruption": 0.60},
+               "portrait": "", "in_office": True, "loyalty": 0.80, "corruption": 0.60, "trait_ids": ["军略", "阿附"]},
 
     # ===================== 西军（1101 在边） =====================
     "种师道": {"born": 1051, "role": "西军将领/后统帅", "faction": "军功集团", "traits": "老成/忠勇/将略",
@@ -108,7 +109,7 @@ MINISTERS = {
     # ===================== 皇子（1101 在）—— 皇子以亲王身份爵为尊 =====================
     "赵桓":   {"born": 1100, "role": "皇长子", "faction": "无", "traits": "平庸",
                "nobility": "京兆郡王", "rank": "",
-               "portrait": "", "in_office": True, "loyalty": 0.66, "corruption": 0.20},
+               "portrait": "", "in_office": True, "loyalty": 0.66, "corruption": 0.20, "trait_ids": []},
     "赵楷":   {"born": 1101, "role": "皇子", "faction": "无", "traits": "才华/夺嫡心",
                "nobility": "嘉王", "rank": "",
                "portrait": "", "in_office": True, "loyalty": 0.30, "corruption": 0.40, "trait_ids": ["才艺"]},
@@ -143,10 +144,10 @@ MINISTERS = {
     # ===================== 地方大员（1101 已入仕） =====================
     "唐恪":   {"born": 1057, "role": "地方大员/后入中枢", "faction": "中立派", "traits": "干练/后主和",
                "nobility": "", "rank": "从三品",
-               "portrait": "", "in_office": True, "loyalty": 0.52, "corruption": 0.30},
+               "portrait": "", "in_office": True, "loyalty": 0.52, "corruption": 0.30, "trait_ids": ["理财", "调停"]},
     "聂昌":   {"born": 1068, "role": "地方大员", "faction": "中立派", "traits": "峻急/敢任事",
                "nobility": "", "rank": "从四品",
-               "portrait": "", "in_office": True, "loyalty": 0.54, "corruption": 0.28},
+               "portrait": "", "in_office": True, "loyalty": 0.54, "corruption": 0.28, "trait_ids": ["刚直"]},
 
     # ===================== 在野/未起用（政和/宣和才得势，in_office=False） =====================
     # 规则铁律：在野/贬谪者不具职事官品（rank=""），若史实已封爵则保留爵位，未封者彻底白身。
@@ -155,7 +156,7 @@ MINISTERS = {
                "portrait": "", "in_office": False, "loyalty": 0.82, "corruption": 0.72, "trait_ids": ["揽权"]},
     "何执中": {"born": 1044, "role": "在野", "faction": "新党", "traits": "圆滑/持重/附蔡",
                "nobility": "", "rank": "",
-               "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.55},
+               "portrait": "", "in_office": False, "loyalty": 0.78, "corruption": 0.55, "trait_ids": ["阿附", "调停"]},
     "郑居中": {"born": 1059, "role": "在野(外戚)", "faction": "新党", "traits": "恭俭/善逢迎/外戚",
                "nobility": "", "rank": "",
                "portrait": "", "in_office": False, "loyalty": 0.76, "corruption": 0.50, "trait_ids": ["阿附"]},
@@ -190,7 +191,7 @@ MINISTERS = {
     # ===================== 未生（1101 尚未出生） =====================
     "岳飞":   {"born": 1103, "role": "未生(未来名将)", "faction": "军功集团", "traits": "精忠/神勇/军神",
                "nobility": "", "rank": "",
-               "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.10},
+               "portrait": "", "in_office": False, "loyalty": 0.50, "corruption": 0.10, "trait_ids": ["忠勇", "军略"]},
 }
 
 # 未在素材 2.2 标注特质的大臣，trait_ids 统一补空列表（不臆造，待考据单补齐）；
@@ -305,22 +306,22 @@ CENTRAL_ORG_INFO = {
                  "authority": ["礼仪", "科举", "外事"],
                  "matter_keys": ["礼仪", "科举", "外事"],
                  "posts": [{"title": "礼部尚书"}, {"title": "礼部侍郎"}],
-                 "holders": {"礼部尚书": "", "礼部侍郎": ""}, "comissions": []},
+                 "holders": {"礼部尚书": "陆佃", "礼部侍郎": ""}, "comissions": []},
     "兵部":     {"belong": "尚书省", "scope": "武官/军籍/后勤",
                  "authority": ["武官铨选", "军籍", "军需后勤"],
                  "matter_keys": ["武官铨选", "军籍", "军需后勤"],
                  "posts": [{"title": "兵部尚书"}, {"title": "兵部侍郎"}],
-                 "holders": {"兵部尚书": "", "兵部侍郎": ""}, "comissions": []},
+                 "holders": {"兵部尚书": "章楶", "兵部侍郎": ""}, "comissions": []},
     "刑部":     {"belong": "尚书省", "scope": "刑名/狱讼",
                  "authority": ["刑狱", "律令"],
                  "matter_keys": ["刑狱"],
                  "posts": [{"title": "刑部尚书"}, {"title": "刑部侍郎"}],
-                 "holders": {"刑部尚书": "", "刑部侍郎": ""}, "comissions": []},
+                 "holders": {"刑部尚书": "陈次升", "刑部侍郎": ""}, "comissions": []},
     "工部":     {"belong": "尚书省", "scope": "工程/营造/屯田",
                  "authority": ["工程营造", "屯田", "山泽"],
                  "matter_keys": ["工程营造"],
                  "posts": [{"title": "工部尚书"}, {"title": "工部侍郎"}],
-                 "holders": {"工部尚书": "", "工部侍郎": ""}, "comissions": []},
+                 "holders": {"工部尚书": "蒋之奇", "工部侍郎": ""}, "comissions": []},
 
     # ---- 枢密院与三衙：军务（蒋之奇知院事、章楶同知；三衙高俅领殿前）----
     "枢密院":   {"belong": "皇帝", "scope": "军国机务/兵防",
@@ -371,17 +372,17 @@ CENTRAL_ORG_INFO = {
                  "authority": ["奏章进纳", "公文通达"],
                  "matter_keys": ["奏章进纳"],
                  "posts": [{"title": "知通进银台司事"}],
-                 "holders": {"知通进银台司事": ""}, "comissions": []},
+                 "holders": {"知通进银台司事": "丰稷"}, "comissions": []},
     "都进奏院":   {"belong": "门下省", "scope": "各路驻京机构/地方情状邸报通传",
                  "authority": ["邸报通达", "州府驿奏"],
                  "matter_keys": ["邸报通达"],
                  "posts": [{"title": "都进奏院提辖官"}],
-                 "holders": {"都进奏院提辖官": ""}, "comissions": []},
+                 "holders": {"都进奏院提辖官": "唐恪"}, "comissions": []},
     "登闻鼓院":   {"belong": "皇帝", "scope": "庶民击鼓进诉/直达天听申冤",
                  "authority": ["民隐通达", "登闻进诉"],
                  "matter_keys": ["民隐通达"],
                  "posts": [{"title": "判登闻鼓院"}],
-                 "holders": {"判登闻鼓院": ""}, "comissions": []},
+                 "holders": {"判登闻鼓院": "陈师锡"}, "comissions": []},
 
     # ---- 京畿（东京开封府，京畿要职，常由重臣领）----
     "开封府":   {"belong": "皇帝", "scope": "京畿民政/治安",
@@ -494,11 +495,21 @@ def rank_tier(rank: str) -> str:
     return "shi"
 
 
-def minister_tier(name: str) -> str:
-    """大臣当前应着服色档：宗室→亲王；否则按档案品级（在野→士人）。"""
+def minister_tier(name: str, state: Any = None) -> str:
+    """大臣当前应着服色档：宗室→亲王；若受特赐借紫/借绯则按 custom_tier；否则按当前官品（在野→士人）。"""
     if _minister_kind(name) == "royal":
         return _TIER_KEYS["亲王"]
-    return rank_tier(MINISTERS.get(name, {}).get("rank") or "")
+    eff_rank = MINISTERS.get(name, {}).get("rank") or ""
+    if state is not None:
+        eq_store = getattr(state, "minister_equipment", None)
+        if isinstance(eq_store, dict) and name in eq_store:
+            rec = eq_store[name]
+            ct = rec.get("custom_tier")
+            if ct:
+                return ct
+            if rec.get("current_rank"):
+                eff_rank = rec["current_rank"]
+    return rank_tier(eff_rank)
 
 
 # 姿态枚举（官服层 body_{pose}_{tier}.png；头部位置差异由 _offsets.json 对位修正）
@@ -564,13 +575,14 @@ def compose_portrait(name: str, tier: str, pose: str = "zheng"):
 
 
 def get_portrait_path(name: str, kind: str = None, rank: str = None,
-                      pose: str = None, tier: str = None):
+                      pose: str = None, tier: str = None, state: Any = None):
     """返回大臣立绘绝对路径；资源未到位时回退 None。
 
     查找优先级：
       0. 分层合成：头部层 + 官服层（位姿 pose × 服色 tier）
          - rank 显式传入 = 当前官职品级（官级变化即换官服，头部不变）；
            缺省取档案品级；宗室→亲王服，在野/空品级→士人襕衫
+         - 若 state 记录特赐借紫/借绯，自然融合使用特赐服色
          - pose 缺省按派系/年龄指派（minister_pose：正立/拱手/持笏/拢袖）
       1. 大臣档案显式 ``portrait`` 文件名（如有且存在）
       2. 个人立绘 ``portraits/{name}.png``
@@ -579,7 +591,7 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
     """
     # tier 显式指定时优先（供"在任状态"驱动的服色：罢黜/致仕/身故 → 士人 shi），
     # 否则按显式 rank（运行态官品）→ 档案品级。
-    tier = tier or (rank_tier(rank) if rank else minister_tier(name))
+    tier = tier or (rank_tier(rank) if rank else minister_tier(name, state))
     composed = compose_portrait(name, tier, pose or minister_pose(name))
     if composed:
         return composed
@@ -603,18 +615,24 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
 # ============================================================
 from content.ministers.costumes import (
     EQUIPMENT_TIERS,
+    FAVOR_BESTOWALS,
     parse_costume_tier,
     get_official_equipment,
+    get_or_init_minister_equipment,
+    refresh_minister_equipment_on_reassignment,
+    bestow_costume_item,
     generate_costume_prompt,
     verify_costume_historical_integrity,
 )
 
 
-def get_minister_equipment(name: str) -> dict:
-    """返回指定大臣当前品级的全套 6 槽位公服装备配置（RPG 部件化装备）。"""
+def get_minister_equipment(name: str, state: Any = None) -> dict:
+    """返回指定大臣当前品级的全套 6 槽位公服装备配置（含皇帝特赐独立部件覆盖）。"""
+    if state is not None:
+        return get_or_init_minister_equipment(state, name)
     fig = MINISTERS.get(name, {})
     rank = fig.get("rank") or ""
-    tier = minister_tier(name)
+    tier = minister_tier(name, state)
     return get_official_equipment(rank=rank, tier=tier)
 
 

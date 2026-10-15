@@ -1,19 +1,34 @@
 # -*- coding: utf-8 -*-
 """M304: 北宋官员公服RPG装备系统、中枢四府中继、136州府亲民官知通互掣与案头折子准奏闭环测试套件。"""
+import os
+import sys
+
+_CUR = os.path.dirname(os.path.abspath(__file__))
+_SZ = os.path.normpath(os.path.join(_CUR, "..", "..", ".."))
+for _p in [_SZ, os.path.join(_SZ, "game"), os.path.normpath(os.path.join(_SZ, ".."))]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 import pytest
 from types import SimpleNamespace
 
 from game.content.ministers.costumes import (
     EQUIPMENT_TIERS,
+    FAVOR_BESTOWALS,
     parse_costume_tier,
     get_official_equipment,
+    get_or_init_minister_equipment,
+    refresh_minister_equipment_on_reassignment,
+    bestow_costume_item,
     generate_costume_prompt,
     verify_costume_historical_integrity,
 )
 from game.content.ministers.data import (
     CENTRAL_ORG_INFO,
     AUTHORITY_MATTERS,
+    MINISTERS,
     get_minister_equipment,
+    minister_tier,
 )
 from game.core.domains.administration.prefect_officials import (
     init_all_prefect_officials,
@@ -228,3 +243,115 @@ def test_direct_decree_fu_ge_crisis():
     assert "宣德门台谏伏阁请退" in m3
     assert state.prestige < init_prest
     assert any("台谏伏阁请退" in str(x.get("note", "")) for x in state.short_term_log)
+
+
+# ---------------------------------------------------------------------------
+# 7. 大臣机制特质与中枢六部、中继四府初任主官考据测试
+# ---------------------------------------------------------------------------
+def test_minister_traits_and_central_org_holders_completed():
+    """验证 7 位核心人物特质补齐（赵桓幼龄显式为空），及六部尚书与四府中继主官考据就位。"""
+    # 6 位大臣机制特质非空，赵桓为幼龄显式空列表
+    assert MINISTERS["赵挺之"]["trait_ids"] == ["刚直"]
+    assert MINISTERS["童贯"]["trait_ids"] == ["军略", "阿附"]
+    assert MINISTERS["唐恪"]["trait_ids"] == ["理财", "调停"]
+    assert MINISTERS["聂昌"]["trait_ids"] == ["刚直"]
+    assert MINISTERS["何执中"]["trait_ids"] == ["阿附", "调停"]
+    assert MINISTERS["岳飞"]["trait_ids"] == ["忠勇", "军略"]
+    assert MINISTERS["赵桓"]["trait_ids"] == []
+
+    # 六部尚书初任考据就位（尚书省下实际执行部门）
+    assert CENTRAL_ORG_INFO["吏部"]["holders"]["吏部尚书"] == "邓洵武"
+    assert CENTRAL_ORG_INFO["户部"]["holders"]["户部尚书"] == "王古"
+    assert CENTRAL_ORG_INFO["礼部"]["holders"]["礼部尚书"] == "陆佃"
+    assert CENTRAL_ORG_INFO["兵部"]["holders"]["兵部尚书"] == "章楶"
+    assert CENTRAL_ORG_INFO["刑部"]["holders"]["刑部尚书"] == "陈次升"
+    assert CENTRAL_ORG_INFO["工部"]["holders"]["工部尚书"] == "蒋之奇"
+
+    # 中继四府初任主官考据就位
+    assert CENTRAL_ORG_INFO["通进银台司"]["holders"]["知通进银台司事"] == "丰稷"
+    assert CENTRAL_ORG_INFO["都进奏院"]["holders"]["都进奏院提辖官"] == "唐恪"
+    assert CENTRAL_ORG_INFO["登闻鼓院"]["holders"]["判登闻鼓院"] == "陈师锡"
+    assert CENTRAL_ORG_INFO["枢密院"]["holders"]["知枢密院事"] == "蒋之奇"
+
+
+# ---------------------------------------------------------------------------
+# 8. 官员独立公服部件、皇帝特赐与职位变动自动更新测试
+# ---------------------------------------------------------------------------
+def test_minister_equipment_dynamic_bestowals_and_reassignment():
+    """验证皇帝恩赏特赐部件无感覆盖、职位变动自动刷新公服但保留特赐件。"""
+    state = GameState()
+    minister_name = "唐恪"
+
+    # 1. 初始状态：从三品，自然服色为紫/绯中坚（从三品按紫）
+    init_eq = get_minister_equipment(minister_name, state)
+    assert init_eq["slots"]["head"]["tier"] in ("高品", "中品")
+
+    # 2. 模拟官员调任地方为知县（七品，按自然官阶应为绿袍、角带、无鱼袋）
+    refresh_minister_equipment_on_reassignment(state, minister_name, "从七品知县")
+    county_eq = get_minister_equipment(minister_name, state)
+    assert county_eq["tier"] == "lv"
+    assert "碧绿" in county_eq["slots"]["robe"]["name"]
+    assert county_eq["slots"]["fish_pouch"]["tier"] == "无"
+    assert "黑角" in county_eq["slots"]["belt"]["name"]
+
+    # 3. 皇帝特赐「赐玉带」与「赐金鱼袋」
+    loyalty_before = state.loyalty[minister_name]
+    prestige_before = state.prestige
+    state.inner_treasury = 2000
+
+    r1 = bestow_costume_item(state, minister_name, "赐玉带")
+    assert r1["ok"] is True
+    r2 = bestow_costume_item(state, minister_name, "赐金鱼袋")
+    assert r2["ok"] is True
+
+    # 忠诚度与皇威成长，内帑扣除
+    assert state.loyalty[minister_name] > loyalty_before
+    assert state.prestige > prestige_before
+    assert state.inner_treasury == 2000 - 800 - 150
+
+    # 检查装备槽位被特赐部件覆盖
+    favored_eq = get_minister_equipment(minister_name, state)
+    assert favored_eq["tier"] == "lv"  # 官品仍为七品绿袍
+    assert "御赐羊脂白玉带" in favored_eq["slots"]["belt"]["name"]
+    assert favored_eq["slots"]["belt"]["tier"] == "特赐"
+    assert "鎏金金鱼袋" in favored_eq["slots"]["fish_pouch"]["name"]
+    assert favored_eq["slots"]["fish_pouch"]["tier"] == "高品"
+    assert "御赐十三銙羊脂白玉带" in favored_eq["bestowals"]
+    assert "特赐鎏金金鱼袋" in favored_eq["bestowals"]
+
+    # 4. 职位变动：拔擢升任知州（五品朱红公服）
+    # 职位升降自动改变基础部件（绿袍 -> 绯袍、平展幞头、象笏），但皇帝特赐的玉带与金鱼袋持续保留！
+    refresh_minister_equipment_on_reassignment(state, minister_name, "正五品知州")
+    promoted_eq = get_minister_equipment(minister_name, state)
+    assert promoted_eq["tier"] == "fei"
+    assert "朱红" in promoted_eq["slots"]["robe"]["name"]
+    # 特赐部件独立保留并覆盖
+    assert "御赐羊脂白玉带" in promoted_eq["slots"]["belt"]["name"]
+    assert "鎏金金鱼袋" in promoted_eq["slots"]["fish_pouch"]["name"]
+
+    # 5. 皇帝进一步加恩「赐紫金鱼袋」（借紫）
+    r3 = bestow_costume_item(state, minister_name, "赐紫")
+    assert r3["ok"] is True
+    borrow_purple_eq = get_minister_equipment(minister_name, state)
+    assert borrow_purple_eq["tier"] == "zi"
+    assert "深绛紫" in borrow_purple_eq["slots"]["robe"]["name"]
+    # 立绘服色联动确认
+    assert minister_tier(minister_name, state) == "zi"
+
+    # 6. 最终拜相：升任尚书右仆射（正一品）
+    # 自然官阶已达一品，自然服色即为紫袍，特赐玉带依然保留
+    refresh_minister_equipment_on_reassignment(state, minister_name, "正一品尚书右仆射")
+    prime_eq = get_minister_equipment(minister_name, state)
+    assert prime_eq["tier"] == "zi"
+    assert "御赐羊脂白玉带" in prime_eq["slots"]["belt"]["name"]
+
+
+def test_bestow_costume_item_insufficient_funds():
+    """库藏与内帑空虚时，御赐重典拦截并提示。"""
+    state = GameState()
+    state.inner_treasury = 0
+    state.treasury = 0
+    res = bestow_costume_item(state, "曾布", "赐玉带")
+    assert res["ok"] is False
+    assert "库藏空虚" in res["msg"]
+

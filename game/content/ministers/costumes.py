@@ -310,3 +310,299 @@ def verify_costume_historical_integrity(text: str) -> bool:
         if kw.lower() in t:
             return False
     return True
+
+
+# ============================================================
+# 皇帝恩赏章服部件定义（Imperial Bestowals & Slot Overrides）
+# 史实北宋章服与官阶双轨：天子可特赐紫、特赐绯、赐金鱼袋、赐玉带、赐象笏等荣典
+# ============================================================
+FAVOR_BESTOWALS: Dict[str, Dict[str, Any]] = {
+    "赐紫": {
+        "key": "赐紫",
+        "name": "赐紫金鱼袋",
+        "desc": "特赐身着高品深绛紫襕袍，佩纯金鱼袋，享一至四品重臣章服荣典（借紫）。",
+        "custom_tier": "zi",
+        "slot_overrides": {
+            "robe": EQUIPMENT_TIERS["zi"]["robe"],
+            "fish_pouch": EQUIPMENT_TIERS["zi"]["fish_pouch"],
+        },
+        "loyalty_delta": 0.15,
+        "prestige_delta": 2,
+        "treasury_cost": 500,
+    },
+    "赐绯": {
+        "key": "赐绯",
+        "name": "赐绯银鱼袋",
+        "desc": "特赐身着中品朱红纯素襕袍，佩白银鱼袋，标志跻身朝省中坚（借绯）。",
+        "custom_tier": "fei",
+        "slot_overrides": {
+            "robe": EQUIPMENT_TIERS["fei"]["robe"],
+            "fish_pouch": EQUIPMENT_TIERS["fei"]["fish_pouch"],
+        },
+        "loyalty_delta": 0.10,
+        "prestige_delta": 1,
+        "treasury_cost": 200,
+    },
+    "赐金鱼袋": {
+        "key": "赐金鱼袋",
+        "name": "特赐鎏金金鱼袋",
+        "desc": "革带右侧加佩纯金鱼袋，彰显天子腹心之重臣恩遇。",
+        "slot_overrides": {
+            "fish_pouch": EQUIPMENT_TIERS["zi"]["fish_pouch"],
+        },
+        "loyalty_delta": 0.08,
+        "prestige_delta": 1,
+        "treasury_cost": 150,
+    },
+    "赐银鱼袋": {
+        "key": "赐银鱼袋",
+        "name": "特赐白银鱼袋",
+        "desc": "革带右侧佩白银鱼囊，赐予拔擢初显之亲民能臣。",
+        "slot_overrides": {
+            "fish_pouch": EQUIPMENT_TIERS["fei"]["fish_pouch"],
+        },
+        "loyalty_delta": 0.05,
+        "prestige_delta": 1,
+        "treasury_cost": 100,
+    },
+    "赐玉带": {
+        "key": "赐玉带",
+        "name": "御赐十三銙羊脂白玉带",
+        "desc": "天子近臣无上荣典，红鞓皮排缀十三枚温润羊脂白玉带板。",
+        "slot_overrides": {
+            "belt": {
+                "name": "御赐羊脂白玉带",
+                "desc": "红鞓皮排缀十三枚温润羊脂白玉带板，起暗地云气纹，近臣绝顶恩遇。",
+                "material": "羊脂白玉/红革",
+                "tier": "特赐",
+            },
+        },
+        "loyalty_delta": 0.12,
+        "prestige_delta": 2,
+        "treasury_cost": 800,
+    },
+    "赐象笏": {
+        "key": "赐象笏",
+        "name": "御赐透润老象牙玉笏",
+        "desc": "御赐老象牙心通透玉笏，端奉胸前，出入禁省顾问朝政。",
+        "slot_overrides": {
+            "hu_tablet": EQUIPMENT_TIERS["zi"]["hu_tablet"],
+        },
+        "loyalty_delta": 0.06,
+        "prestige_delta": 1,
+        "treasury_cost": 300,
+    },
+    "赐金花幞头": {
+        "key": "赐金花幞头",
+        "name": "御赐长平展脚金花幞头",
+        "desc": "宫廷特制漆纱长平展脚幞头，冠侧缀贴金翠叶饰件，皇城亲幸荣典。",
+        "slot_overrides": {
+            "head": EQUIPMENT_TIERS["qinwang"]["head"],
+        },
+        "loyalty_delta": 0.08,
+        "prestige_delta": 1,
+        "treasury_cost": 400,
+    },
+}
+
+FAVOR_ALIASES: Dict[str, str] = {
+    "赐紫金鱼袋": "赐紫",
+    "借紫": "赐紫",
+    "赐绯银鱼袋": "赐绯",
+    "借绯": "赐绯",
+    "赐玉带": "赐玉带",
+    "赐白玉带": "赐玉带",
+    "白玉带": "赐玉带",
+    "赐象笏": "赐象笏",
+    "象笏": "赐象笏",
+    "金鱼袋": "赐金鱼袋",
+    "银鱼袋": "赐银鱼袋",
+}
+
+
+def get_or_init_minister_equipment(state: Optional[Any], minister_name: str, rank: Optional[str] = None) -> Dict[str, Any]:
+    """获取大臣装备全套 6 槽位配置（包含基础官品部件与皇帝特赐覆盖部件）。
+    
+    规则：
+    1. 基础部件按官品推导（低品绿、中品绯、高品紫）；
+    2. 若官员职位变动，优先取运行时 current_rank；
+    3. 若官员受天子恩赐（如赐紫金鱼袋、赐白玉带等），从 state.minister_equipment 叠加覆盖；
+    4. 无需独立UI界面，数据与立绘自然呈现。
+    """
+    from content.ministers.data import MINISTERS
+    fig = MINISTERS.get(minister_name, {})
+
+    equip_store = getattr(state, "minister_equipment", None) if state is not None else None
+    if state is not None and not isinstance(equip_store, dict):
+        state.minister_equipment = {}
+        equip_store = state.minister_equipment
+
+    m_record = equip_store.setdefault(minister_name, {
+        "bestowals": [],
+        "slot_overrides": {},
+        "custom_tier": None,
+        "current_rank": None,
+    }) if equip_store is not None else {}
+
+    if rank is not None:
+        eff_rank = rank
+    elif m_record.get("current_rank"):
+        eff_rank = m_record["current_rank"]
+    else:
+        eff_rank = fig.get("rank") or ""
+
+    natural_tier = parse_costume_tier(eff_rank)
+    base_eq = get_official_equipment(rank=eff_rank, tier=natural_tier)
+
+    if state is None:
+        return base_eq
+
+    # 判定有效服色档位（若受特赐借紫/借绯且自然官品尚不足以穿对应公服）
+    active_tier = natural_tier
+    if m_record.get("custom_tier"):
+        custom_t = m_record["custom_tier"]
+        tier_weight = {"zi": 3, "fei": 2, "lv": 1, "shi": 0, "qinwang": 4}
+        if tier_weight.get(custom_t, 0) >= tier_weight.get(natural_tier, 0):
+            active_tier = custom_t
+            base_eq = get_official_equipment(tier=active_tier)
+
+    # 覆盖特赐槽位
+    final_slots = dict(base_eq["slots"])
+    for slot_name, item in m_record.get("slot_overrides", {}).items():
+        if item:
+            final_slots[slot_name] = item
+
+    return {
+        "tier": active_tier,
+        "rank_name": EQUIPMENT_TIERS.get(active_tier, {}).get("rank_name", base_eq["rank_name"]),
+        "color_name": EQUIPMENT_TIERS.get(active_tier, {}).get("color_name", base_eq["color_name"]),
+        "slots": final_slots,
+        "bestowals": list(m_record.get("bestowals", [])),
+        "custom_tier": m_record.get("custom_tier"),
+    }
+
+
+def refresh_minister_equipment_on_reassignment(state: Any, minister_name: str, new_rank: str) -> Dict[str, Any]:
+    """官员职位变动时自动更新公服基础部件，但皇帝特赐恩赏部件持续保留。
+    
+    设计要求：不需要 UI 界面显示，官员职位变动时由官品驱动自动刷新基础部件，
+    而皇帝恩赐的玉带、金鱼袋、金花幞头、借紫/借绯等独立特赐件自动保留并继续挂载。
+    """
+    if state is None:
+        return get_official_equipment(rank=new_rank)
+
+    equip_store = getattr(state, "minister_equipment", None)
+    if not isinstance(equip_store, dict):
+        state.minister_equipment = {}
+        equip_store = state.minister_equipment
+
+    m_record = equip_store.setdefault(minister_name, {
+        "bestowals": [],
+        "slot_overrides": {},
+        "custom_tier": None,
+        "current_rank": None,
+    })
+
+    # 记录运行期新职衔官阶
+    m_record["current_rank"] = new_rank
+
+    # 若新官品的自然服色已达到或超过 custom_tier（如升为一品高官），则自然服色生效，借服转正
+    natural_tier = parse_costume_tier(new_rank)
+    tier_weight = {"zi": 3, "fei": 2, "lv": 1, "shi": 0, "qinwang": 4}
+    if m_record.get("custom_tier"):
+        if tier_weight.get(natural_tier, 0) >= tier_weight.get(m_record["custom_tier"], 0):
+            m_record["custom_tier"] = None
+
+    return get_or_init_minister_equipment(state, minister_name, rank=new_rank)
+
+
+def bestow_costume_item(state: Any, minister_name: str, favor_kind: str) -> Dict[str, Any]:
+    """皇帝恩赏官员服饰部件/特赐章服。
+
+    不需要 UI 独立界面，由天子圣旨/中旨或朝会恩赏触发。
+    增益忠诚度、消耗内帑或国库、提升皇威，并沉淀入记忆库与履历。
+    """
+    if not favor_kind:
+        return {"ok": False, "msg": "恩赏名目不可为空"}
+
+    norm_kind = FAVOR_ALIASES.get(favor_kind, favor_kind)
+    cfg = FAVOR_BESTOWALS.get(norm_kind)
+    if not cfg:
+        available = "、".join(FAVOR_BESTOWALS.keys())
+        return {"ok": False, "msg": f"未知恩赏项「{favor_kind}」，可选恩赏：{available}"}
+
+    cost = cfg.get("treasury_cost", 0)
+    # 优先扣内帑（皇帝私库赏赐），内帑不足扣国库
+    if getattr(state, "inner_treasury", 0) >= cost:
+        state.inner_treasury -= cost
+    elif getattr(state, "treasury", 0) >= cost:
+        state.treasury -= cost
+    else:
+        return {"ok": False, "msg": f"库藏空虚（需 {cost} 贯），不足以备办御赐重礼"}
+
+    equip_store = getattr(state, "minister_equipment", None)
+    if not isinstance(equip_store, dict):
+        state.minister_equipment = {}
+        equip_store = state.minister_equipment
+
+    m_record = equip_store.setdefault(minister_name, {
+        "bestowals": [],
+        "slot_overrides": {},
+        "custom_tier": None,
+    })
+
+    # 记录恩赏
+    if cfg["name"] not in m_record["bestowals"]:
+        m_record["bestowals"].append(cfg["name"])
+
+    # 覆盖槽位部件
+    for slot_k, item in cfg.get("slot_overrides", {}).items():
+        m_record["slot_overrides"][slot_k] = item
+
+    if cfg.get("custom_tier"):
+        m_record["custom_tier"] = cfg["custom_tier"]
+
+    # 忠诚度提升
+    loyalty_map = getattr(state, "loyalty", None)
+    if isinstance(loyalty_map, dict) and minister_name in loyalty_map:
+        old_loyalty = loyalty_map[minister_name]
+        loyalty_map[minister_name] = min(1.0, round(old_loyalty + cfg.get("loyalty_delta", 0.1), 3))
+
+    # 皇威增长
+    if hasattr(state, "change_prestige"):
+        state.change_prestige(cfg.get("prestige_delta", 1))
+
+    # 记入短期政务日志
+    log_msg = f"官家御赐【{minister_name}】{cfg['name']}，恩眷优渥，百僚咸服。"
+    if hasattr(state, "short_term_log"):
+        state.short_term_log.append({
+            "turn": getattr(state, "turn", 0),
+            "kind": "honor",
+            "title": f"御赐{minister_name}{cfg['name']}",
+            "note": log_msg,
+            "year": getattr(state, "year", 1101),
+            "month": getattr(state, "month", 1),
+        })
+
+    # 记忆图谱有机沉淀
+    mg = getattr(state, "memory_graph", None)
+    if mg is not None and hasattr(mg, "add_memory"):
+        try:
+            mg.add_memory(
+                actor="皇帝",
+                target=minister_name,
+                action="御赐章服",
+                content=f"天子御赐{cfg['name']}，优容厚加宠遇",
+                impact=cfg.get("loyalty_delta", 0.1),
+            )
+        except Exception:
+            pass
+
+    refreshed = get_or_init_minister_equipment(state, minister_name)
+    return {
+        "ok": True,
+        "msg": log_msg,
+        "minister": minister_name,
+        "favor": cfg["name"],
+        "equipment": refreshed,
+    }

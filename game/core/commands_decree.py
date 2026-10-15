@@ -975,4 +975,13 @@ def dismiss_memorial(state: GameState, index: int) -> dict:
     return {"ok": True, "title": title, "msg": f"已批「留中」，奏疏「{title}」留中不发，已录案卷。"}
 
 
+def bestow_imperial_favor(state: GameState, minister_name: str, favor_kind: str) -> dict:
+    """天子恩赏大臣公服部件/章服（赐紫、赐绯、赐玉带、赐金鱼袋等）。
+
+    不需要独立UI界面，官员受恩赏后公服部件自动更新并在立绘与叙事中体现。
+    """
+    from content.ministers.costumes import bestow_costume_item
+    return bestow_costume_item(state, minister_name, favor_kind)
+
+
 

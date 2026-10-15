@@ -249,6 +249,10 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: (cmd.accept_memorial(s, int(p.get("index", 0))).get("msg", ""), s),
             "dismiss_memorial":
                 lambda s, p, ai: (cmd.dismiss_memorial(s, int(p.get("index", 0))).get("msg", ""), s),
+            "bestow_imperial_favor":
+                lambda s, p, ai: (cmd.bestow_imperial_favor(
+                    s, str(p.get("minister_name", "")), str(p.get("favor_kind", ""))
+                ).get("msg", ""), s),
         }
         handler = handlers.get(action)
         if handler is None:

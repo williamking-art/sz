@@ -246,6 +246,13 @@ def appoint_prefect_official(state, seat_id: str, role: str,
     po[slot_key] = new_holder
     check_countersign(po)
 
+    # 职位变动自动刷新公服基础部件，但皇帝恩赏特赐部件无感持续保留
+    try:
+        from content.ministers.costumes import refresh_minister_equipment_on_reassignment
+        refresh_minister_equipment_on_reassignment(state, new_holder.get("name", ""), new_holder.get("rank", ""))
+    except Exception:
+        pass
+
     try:
         state.short_term_log.append({
             "turn": getattr(state, "turn", 0),

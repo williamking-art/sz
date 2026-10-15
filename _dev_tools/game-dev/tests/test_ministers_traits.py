@@ -26,8 +26,10 @@ def _new_state():
 def test_traits_of_and_departure_effects():
     # 标注大臣：蔡京 = 聚敛/变法/才艺（素材 2.2 代表）
     assert traits_of("蔡京") == ["聚敛", "变法", "才艺"]
-    # 未标注大臣：留空列表（不臆造，待考据单补齐）
-    assert traits_of("岳飞") == []
+    # 考据大臣：岳飞 = 忠勇/军略
+    assert traits_of("岳飞") == ["忠勇", "军略"]
+    # 幼龄大臣（赵桓1岁婴儿）：留空列表（1岁幼儿不施加成人机制特质）
+    assert traits_of("赵桓") == []
     # 未知大臣安全失败
     assert traits_of("不存在的人") == []
     # 全部 43 人都有 trait_ids 字段且引用 TRAITS 键（含 talent 才艺）
