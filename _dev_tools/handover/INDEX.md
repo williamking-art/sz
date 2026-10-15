@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-15T09:54:56Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-15T12:02:27Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -37,16 +37,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261014T152556Z-DSH` → [`worklog/20261014T152556Z-DSH.md`](worklog/20261014T152556Z-DSH.md)
-- `20261014T170519Z-Antigravity` → [`worklog/20261014T170519Z-Antigravity.md`](worklog/20261014T170519Z-Antigravity.md)
-- `20261014T172954Z-Antigravity` → [`worklog/20261014T172954Z-Antigravity.md`](worklog/20261014T172954Z-Antigravity.md)
-- `20261014T234640Z-unknown` → [`worklog/20261014T234640Z-unknown.md`](worklog/20261014T234640Z-unknown.md)
 - `20261014T235330Z-unknown` → [`worklog/20261014T235330Z-unknown.md`](worklog/20261014T235330Z-unknown.md)
 - `20261014T235713Z-unknown` → [`worklog/20261014T235713Z-unknown.md`](worklog/20261014T235713Z-unknown.md)
 - `20261015T000423Z-unknown` → [`worklog/20261015T000423Z-unknown.md`](worklog/20261015T000423Z-unknown.md)
 - `20261015T095352Z-unknown` → [`worklog/20261015T095352Z-unknown.md`](worklog/20261015T095352Z-unknown.md)
+- `20261015T100016Z-DSH` → [`worklog/20261015T100016Z-DSH.md`](worklog/20261015T100016Z-DSH.md)
+- `20261015T100804Z-DSH` → [`worklog/20261015T100804Z-DSH.md`](worklog/20261015T100804Z-DSH.md)
+- `20261015T103347Z-unknown` → [`worklog/20261015T103347Z-unknown.md`](worklog/20261015T103347Z-unknown.md)
+- `20261015T120105Z-unknown` → [`worklog/20261015T120105Z-unknown.md`](worklog/20261015T120105Z-unknown.md)
 
 ## 计数
 
-- tasks 184（未完成 13）· decisions 92（未闭环 6）· worklog 475 · phase 文件 4
+- tasks 186（未完成 13）· decisions 100（未闭环 6）· worklog 479 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
