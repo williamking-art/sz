@@ -1,0 +1,82 @@
+{
+  "face_bases": {
+    "scholar": {
+      "name": "清俊修竹",
+      "desc": "玉面明眸，清俊俊朗，多见于新科及第少年进士、翰林词臣",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, head and neck portrait of a Song Dynasty male scholar official, 玉面明眸，清俊俊朗，多见于新科及第少年进士、翰林词臣, highly refined facial expression, calm and dignified, strictly no hat, bald or topknot on clean transparent background --ar 3:4 --style raw --v 6.1",
+      "prompt_cn": "北宋院体工笔设色绢本。宋代官员头部肖像，玉面明眸，清俊俊朗，多见于新科及第少年进士、翰林词臣，神态沉稳肃穆，不戴官帽，透明背景，大师级线条。"
+    },
+    "slender": {
+      "name": "清瘦刚骨",
+      "desc": "颧骨微显，面容清矍，刚正不阿，典型台谏御史与清修诤臣",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, head and neck portrait of a Song Dynasty male scholar official, 颧骨微显，面容清矍，刚正不阿，典型台谏御史与清修诤臣, highly refined facial expression, calm and dignified, strictly no hat, bald or topknot on clean transparent background --ar 3:4 --style raw --v 6.1",
+      "prompt_cn": "北宋院体工笔设色绢本。宋代官员头部肖像，颧骨微显，面容清矍，刚正不阿，典型台谏御史与清修诤臣，神态沉稳肃穆，不戴官帽，透明背景，大师级线条。"
+    },
+    "square": {
+      "name": "方正刚毅",
+      "desc": "面如重枣，重眉阔目，威严肃杀，典型边防将领、帅司与提刑官",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, head and neck portrait of a Song Dynasty male scholar official, 面如重枣，重眉阔目，威严肃杀，典型边防将领、帅司与提刑官, highly refined facial expression, calm and dignified, strictly no hat, bald or topknot on clean transparent background --ar 3:4 --style raw --v 6.1",
+      "prompt_cn": "北宋院体工笔设色绢本。宋代官员头部肖像，面如重枣，重眉阔目，威严肃杀，典型边防将领、帅司与提刑官，神态沉稳肃穆，不戴官帽，透明背景，大师级线条。"
+    },
+    "round": {
+      "name": "温润雍容",
+      "desc": "面容丰腴，耳大颐丰，富态从容，多见于度支转运官、内省重臣与循吏",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, head and neck portrait of a Song Dynasty male scholar official, 面容丰腴，耳大颐丰，富态从容，多见于度支转运官、内省重臣与循吏, highly refined facial expression, calm and dignified, strictly no hat, bald or topknot on clean transparent background --ar 3:4 --style raw --v 6.1",
+      "prompt_cn": "北宋院体工笔设色绢本。宋代官员头部肖像，面容丰腴，耳大颐丰，富态从容，多见于度支转运官、内省重臣与循吏，神态沉稳肃穆，不戴官帽，透明背景，大师级线条。"
+    },
+    "veteran": {
+      "name": "苍老清癯",
+      "desc": "须眉染霜，沟壑深沉，阅尽沧桑，典型历经数朝的三朝元老与耆宿知州",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, head and neck portrait of a Song Dynasty male scholar official, 须眉染霜，沟壑深沉，阅尽沧桑，典型历经数朝的三朝元老与耆宿知州, highly refined facial expression, calm and dignified, strictly no hat, bald or topknot on clean transparent background --ar 3:4 --style raw --v 6.1",
+      "prompt_cn": "北宋院体工笔设色绢本。宋代官员头部肖像，须眉染霜，沟壑深沉，阅尽沧桑，典型历经数朝的三朝元老与耆宿知州，神态沉稳肃穆，不戴官帽，透明背景，大师级线条。"
+    }
+  },
+  "futou": {
+    "long": {
+      "name": "极展长直铁线角",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, authentic Northern Song Dynasty black lacquered gauze futou hat, 长两尺半至三尺，平展如弦，一品宰执与枢密重臣专用, horizontal stiff flat wings, isolated object on pure transparent background, museum grade historical costume accuracy --ar 3:4 --style raw",
+      "prompt_cn": "北宋漆纱幞头官帽，长两尺半至三尺，平展如弦，一品宰执与枢密重臣专用，左右展脚刚直平展，纯黑细纱蒙裱，透明背景。"
+    },
+    "mid": {
+      "name": "平展长硬脚",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, authentic Northern Song Dynasty black lacquered gauze futou hat, 长两尺余，横平挺秀，五至六品中品朝官与大郡知府, horizontal stiff flat wings, isolated object on pure transparent background, museum grade historical costume accuracy --ar 3:4 --style raw",
+      "prompt_cn": "北宋漆纱幞头官帽，长两尺余，横平挺秀，五至六品中品朝官与大郡知府，左右展脚刚直平展，纯黑细纱蒙裱，透明背景。"
+    },
+    "short": {
+      "name": "短窄平角",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, authentic Northern Song Dynasty black lacquered gauze futou hat, 长一尺半，轻便微展，七至九品通判知县公服, horizontal stiff flat wings, isolated object on pure transparent background, museum grade historical costume accuracy --ar 3:4 --style raw",
+      "prompt_cn": "北宋漆纱幞头官帽，长一尺半，轻便微展，七至九品通判知县公服，左右展脚刚直平展，纯黑细纱蒙裱，透明背景。"
+    },
+    "soft": {
+      "name": "软裹展角/儒巾",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, authentic Northern Song Dynasty black lacquered gauze futou hat, 自然垂展，士人常服与待仕进士使用, horizontal stiff flat wings, isolated object on pure transparent background, museum grade historical costume accuracy --ar 3:4 --style raw",
+      "prompt_cn": "北宋漆纱幞头官帽，自然垂展，士人常服与待仕进士使用，左右展脚刚直平展，纯黑细纱蒙裱，透明背景。"
+    }
+  },
+  "beards": {},
+  "belts": {},
+  "fish_pouches": {
+    "gold": {
+      "name": "金鱼袋",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, Northern Song court official golden fish pouch (yudai), ornate chased pure gold leather pouch with fish tally, hanging strap, museum relic --ar 1:1 --style raw",
+      "prompt_cn": "北宋一至四品紫袍金鱼袋，纯金錾花皮匣佩囊，挂带完备，宋代符契规制，透明底。"
+    },
+    "silver": {
+      "name": "银鱼袋",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, Northern Song court official silver fish pouch (yudai), chased sterling silver plaques, white silver fish tally, hanging strap --ar 1:1 --style raw",
+      "prompt_cn": "北宋五至六品绯袍银鱼袋，白银锁扣皮匣佩囊，透明底。"
+    }
+  },
+  "hu_tablets": {
+    "ivory": {
+      "name": "青润象牙朝笏",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, Northern Song Dynasty ivory hu tablet, smooth lustrous off-white elephant tusk, held vertically in court ceremonies --ar 1:3 --style raw",
+      "prompt_cn": "北宋交趾象牙朝笏手板，质地光润平挺，微有弧度，透明底。"
+    },
+    "wood": {
+      "name": "质朴槐木笏",
+      "prompt_en": "Traditional Chinese Northern Song Dynasty court portrait, gongbi painting on antique raw silk canvas (#C4A877), isolated element on pure transparent background, masterwork brushwork, museum artifact realism, Northern Song Dynasty plain locust wood hu tablet, simple dark grain wood court tablet --ar 1:3 --style raw",
+      "prompt_cn": "北宋低品官员槐木质朴手板，木纹朴实端整，透明底。"
+    }
+  }
+}

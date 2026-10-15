@@ -49,4 +49,15 @@ __all__ = [
     "format_official_stats", "init_official_profile", "get_or_create_official_stats",
     "add_official_experience", "record_official_action", "check_and_evolve_traits",
     "generate_jinshi_official",
+    "derive_official_visual_dna", "assemble_official_portrait",
+    "generate_modular_component_prompts", "FACE_MODELS", "BEARDS", "FUTOU_TIERS",
 ]
+
+from .portrait_assembler import (
+    derive_official_visual_dna,
+    assemble_official_portrait,
+    generate_modular_component_prompts,
+    FACE_MODELS,
+    BEARDS,
+    FUTOU_TIERS,
+)

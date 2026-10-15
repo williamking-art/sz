@@ -595,6 +595,27 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
     composed = compose_portrait(name, tier, pose or minister_pose(name))
     if composed:
         return composed
+
+    # 模块化官员立绘装配引擎（覆盖数百位地方官与科举知县，杜绝43张脸撞脸）
+    try:
+        from content.ministers.portrait_assembler import derive_official_visual_dna, assemble_official_portrait
+        favor_eq = {}
+        if state is not None and hasattr(state, "minister_equipment"):
+            eq_store = getattr(state, "minister_equipment", {})
+            if isinstance(eq_store, dict):
+                favor_eq = eq_store.get(name, {})
+        dna = derive_official_visual_dna(
+            name=name,
+            rank=rank or "",
+            costume_tier=tier,
+            favor_equipment=favor_eq,
+        )
+        modular_path = assemble_official_portrait(dna)
+        if modular_path and os.path.isfile(modular_path):
+            return modular_path
+    except Exception:
+        pass
+
     fig = MINISTERS.get(name, {})
     candidates = []
     if fig.get("portrait"):
