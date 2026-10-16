@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-16T10:23:21Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-16T11:14:41Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -37,16 +37,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261016T044321Z-unknown` → [`worklog/20261016T044321Z-unknown.md`](worklog/20261016T044321Z-unknown.md)
-- `20261016T045903Z-unknown` → [`worklog/20261016T045903Z-unknown.md`](worklog/20261016T045903Z-unknown.md)
 - `20261016T052658Z-unknown` → [`worklog/20261016T052658Z-unknown.md`](worklog/20261016T052658Z-unknown.md)
 - `20261016T062836Z-unknown` → [`worklog/20261016T062836Z-unknown.md`](worklog/20261016T062836Z-unknown.md)
 - `20261016T063853Z-unknown` → [`worklog/20261016T063853Z-unknown.md`](worklog/20261016T063853Z-unknown.md)
 - `20261016T064408Z-unknown` → [`worklog/20261016T064408Z-unknown.md`](worklog/20261016T064408Z-unknown.md)
 - `20261016T070145Z-CodeBuddy` → [`worklog/20261016T070145Z-CodeBuddy.md`](worklog/20261016T070145Z-CodeBuddy.md)
 - `20261016T102317Z-CodeBuddy` → [`worklog/20261016T102317Z-CodeBuddy.md`](worklog/20261016T102317Z-CodeBuddy.md)
+- `20261016T104921Z-unknown` → [`worklog/20261016T104921Z-unknown.md`](worklog/20261016T104921Z-unknown.md)
+- `20261016T105321Z-unknown` → [`worklog/20261016T105321Z-unknown.md`](worklog/20261016T105321Z-unknown.md)
 
 ## 计数
 
-- tasks 186（未完成 13）· decisions 119（未闭环 6）· worklog 493 · phase 文件 4
+- tasks 186（未完成 13）· decisions 123（未闭环 6）· worklog 495 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
