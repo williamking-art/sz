@@ -39,7 +39,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _GAME_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", "..", "game"))
 # tests 的父目录（game-dev）加入 sys.path → `from tests.fake_ai_backend import …` 稳定可用
 _GAME_DEV_ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-for _p in (_GAME_DEV_ROOT, _GAME_ROOT):
+# 仓库根：框架重构后（2026-10）新增测试以 `from game.xxx import …` 的**包前缀**导入
+# （如 test_m166_monthly_report_attribution.py:10，其注释「路径由测试运行器决定」
+#  正是把路径责任交给本文件），若仓库根不在 sys.path，从 game/ 跑会在收集期
+# ModuleNotFoundError: No module named 'game'。故一并前置（放在 game/ 之后，
+# 保证 `import core` 仍优先解析到 game/core，不被仓库根下的同名目录抢走）。
+_REPO_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", ".."))
+for _p in (_GAME_DEV_ROOT, _GAME_ROOT, _REPO_ROOT):
     if os.path.isdir(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -80,9 +86,14 @@ def _snapshot_dir(path: str) -> set:
 
 
 def pytest_configure(config):
-    """在收集任何测试模块之前，先把游戏根路径放到 sys.path 最前。"""
-    if os.path.isdir(_GAME_ROOT) and _GAME_ROOT not in sys.path:
-        sys.path.insert(0, _GAME_ROOT)
+    """在收集任何测试模块之前，先把游戏根路径放到 sys.path 最前。
+
+    仓库根同样前置（框架重构后部分测试以 `from game.xxx import …` 导入）；
+    插入顺序为「仓库根 → 游戏根」，最终游戏根在最前，`import core` 语义不变。
+    """
+    for _p in (_REPO_ROOT, _GAME_ROOT):
+        if os.path.isdir(_p) and _p not in sys.path:
+            sys.path.insert(0, _p)
 
 
 @pytest.fixture(scope="session", autouse=True)
