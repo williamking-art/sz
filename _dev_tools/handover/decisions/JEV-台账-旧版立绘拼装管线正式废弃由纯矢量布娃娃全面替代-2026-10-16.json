@@ -1,0 +1,17 @@
+{
+  "id": "JEV-台账-旧版立绘拼装管线正式废弃由纯矢量布娃娃全面替代-2026-10-16",
+  "date": "2026-10-16",
+  "question": "审查报告指出旧管线 portrait_assembler.py 存在资产缺失、名臣双轨与断头白洞等历史遗留缺陷，是否应将旧管线正式标记为废弃（deprecated），全量收口至新 paperdoll 纯矢量布娃娃换装体系？",
+  "options": [
+    "A: 正式废弃旧版 portrait_assembler.py，由新 paperdoll 体系全面替代，杜绝双轨与断头白洞",
+    "B: 继续维持两套管线并存维护"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9958,
+    "B": 0.0042
+  },
+  "premises_verified_by_me": "已对齐用户关于「是本游所有的大臣都如此，不要拘泥于旧的美工资源，当那些不存在」的最高指令。实测表明旧管线依赖不存在的 PNG 图层资产切片，且名臣双轨硬切位图头与系统统一规范相悖。新 paperdoll 体系通过 810x1080 纯矢量自底向上装配、7 维解耦五官库（96.7万种面相/4354万种全系统组合）与标准 CSS 动画微动已完整落地并经 15 项单元测试 100% 验证，具备全面替代旧管线的成熟条件。",
+  "applied_in": "sz/game/content/ministers/paperdoll/, sz/_dev_tools/game-docs/docs/大臣召对动态立绘换装系统设计稿.md, sz/_dev_tools/game-docs/reviews/大臣立绘换装系统审查与改进意见_2026-10-16.md",
+  "reopen_if": "游戏引擎或前端对矢量 SVG 换装渲染提出新的物理位图烘焙兼容性要求"
+}

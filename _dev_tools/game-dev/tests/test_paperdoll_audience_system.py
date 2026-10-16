@@ -305,3 +305,73 @@ class TestVNDialogDataDrivenConfig:
         assert loaded_ctrl.profile.rank == "从八品 承务郎"
         assert loaded_ctrl.profile.face_dna.to_dict() == ctrl.profile.face_dna.to_dict()
         assert loaded_ctrl.profile.equipped == ctrl.profile.equipped
+
+
+class TestSVGStructuralCompleteness:
+    """测试 SVG 装配产物结构完整性（回应审查 §二.2：不能只验逻辑不验输出）。"""
+
+    def test_svg_contains_all_8_layers(self):
+        """验证渲染输出的 SVG 中确实包含全部 8 个图层分组标签（Layer 1~9，跳过 Layer 0 背景用 rect）。"""
+        ctrl = MinisterAudienceController.create_for_minister(
+            minister_id="test_layers",
+            name="蔡京",
+            age=70,
+            rank="从一品 尚书左仆射",
+            traits=["理财"],
+        )
+        svg = ctrl.render_svg(animated=False)
+
+        # Layer 0: 老绢本背景 (rect, 不是 <g>)
+        assert 'fill="url(#silk_bg)"' in svg, "Layer 0 老绢本背景缺失"
+
+        # Layer 1~9: 每层都有对应的 <g id="layerN_xxx">
+        expected_layers = [
+            ("layer1_base_doll", "Layer 1 人形素体"),
+            ("layer2_face", "Layer 2 五官面模"),
+            ("layer3_beard", "Layer 3 胡须髯口"),
+            ("layer4_collar", "Layer 4 白色中单交领"),
+            ("layer5_robe", "Layer 5 官服大袍"),
+            ("layer6_belt", "Layer 6 革带"),
+            ("layer7_pouch", "Layer 7 鱼袋"),
+            ("layer8_hands_and_hu", "Layer 8 朝笏与双手"),
+            ("layer9_futou", "Layer 9 漆纱幞头"),
+        ]
+        for layer_id, desc in expected_layers:
+            assert f'id="{layer_id}"' in svg, f"{desc} ({layer_id}) 在 SVG 输出中缺失"
+
+    def test_svg_not_fallback_to_old_pipeline(self):
+        """验证输出是标准 810×1080 矢量 SVG，而非旧管线的 PIL 位图回退。"""
+        ctrl = MinisterAudienceController.create_for_minister(
+            minister_id="test_not_pil",
+            name="张知县",
+            age=35,
+            rank="从七品 知县",
+        )
+        svg = ctrl.render_svg(animated=False)
+
+        # 必须是 SVG 格式而非 PNG/位图
+        assert svg.strip().startswith("<svg"), "输出不是 SVG 格式，可能回退了旧 PIL 管线"
+        assert 'viewBox="0 0 810 1080"' in svg, "画幅不是标准 810×1080"
+        assert "</svg>" in svg, "SVG 未正常闭合"
+
+    def test_green_robe_vs_purple_robe_color_difference(self):
+        """验证绿袍知县与紫袍宰辅渲染出的 SVG 在袍色上确有视觉差异。"""
+        ctrl_green = MinisterAudienceController.create_for_minister(
+            minister_id="test_green",
+            name="张知县",
+            age=30,
+            rank="从八品 承务郎",
+        )
+        ctrl_purple = MinisterAudienceController.create_for_minister(
+            minister_id="test_purple",
+            name="蔡京",
+            age=70,
+            rank="从一品 尚书左仆射",
+        )
+        svg_green = ctrl_green.render_svg(animated=False)
+        svg_purple = ctrl_purple.render_svg(animated=False)
+
+        # 绿袍应包含绿色色值，紫袍应包含紫色色值
+        assert "#2F5C3E" in svg_green, "绿袍知县的 SVG 中缺少绿袍色值"
+        assert "#462255" in svg_purple, "紫袍宰辅的 SVG 中缺少紫袍色值"
+        assert svg_green != svg_purple, "绿袍与紫袍官员的 SVG 渲染不应完全相同"
