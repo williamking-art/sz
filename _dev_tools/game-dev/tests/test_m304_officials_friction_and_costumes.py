@@ -297,7 +297,11 @@ def test_minister_equipment_dynamic_bestowals_and_reassignment():
     # 3. 皇帝特赐「赐玉带」与「赐金鱼袋」
     loyalty_before = state.loyalty[minister_name]
     prestige_before = state.prestige
-    state.inner_treasury = 2000
+    # 审查修复：原写 `state.inner_treasury` —— 该属性**不存在**。内帑的权威字段是
+    # `imperial_treasury`（见 core/game_state.change_imperial_treasury，前端
+    # gameStore.tsx 亦注明「内帑 ← imperial_treasury」）。当时 costumes.py 误读同名，
+    # 二者恰好对上故测试通过 —— 即**测试把 bug 编码进了断言**。现同步更正。
+    state.imperial_treasury = 2000
 
     r1 = bestow_costume_item(state, minister_name, "赐玉带")
     assert r1["ok"] is True
@@ -307,7 +311,7 @@ def test_minister_equipment_dynamic_bestowals_and_reassignment():
     # 忠诚度与皇威成长，内帑扣除
     assert state.loyalty[minister_name] > loyalty_before
     assert state.prestige > prestige_before
-    assert state.inner_treasury == 2000 - 800 - 150
+    assert state.imperial_treasury == 2000 - 800 - 150
 
     # 检查装备槽位被特赐部件覆盖
     favored_eq = get_minister_equipment(minister_name, state)
@@ -349,7 +353,9 @@ def test_minister_equipment_dynamic_bestowals_and_reassignment():
 def test_bestow_costume_item_insufficient_funds():
     """库藏与内帑空虚时，御赐重典拦截并提示。"""
     state = GameState()
-    state.inner_treasury = 0
+    # 审查修复：同上，内帑权威字段是 imperial_treasury（原写 inner_treasury 使
+    # 本用例看似通过却未真正把内帑清零 —— 拦截其实是靠国库为 0 侥幸成立）。
+    state.imperial_treasury = 0
     state.treasury = 0
     res = bestow_costume_item(state, "曾布", "赐玉带")
     assert res["ok"] is False

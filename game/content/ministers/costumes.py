@@ -531,15 +531,6 @@ def bestow_costume_item(state: Any, minister_name: str, favor_kind: str) -> Dict
         available = "、".join(FAVOR_BESTOWALS.keys())
         return {"ok": False, "msg": f"未知恩赏项「{favor_kind}」，可选恩赏：{available}"}
 
-    cost = cfg.get("treasury_cost", 0)
-    # 优先扣内帑（皇帝私库赏赐），内帑不足扣国库
-    if getattr(state, "inner_treasury", 0) >= cost:
-        state.inner_treasury -= cost
-    elif getattr(state, "treasury", 0) >= cost:
-        state.treasury -= cost
-    else:
-        return {"ok": False, "msg": f"库藏空虚（需 {cost} 贯），不足以备办御赐重礼"}
-
     equip_store = getattr(state, "minister_equipment", None)
     if not isinstance(equip_store, dict):
         state.minister_equipment = {}
@@ -551,9 +542,28 @@ def bestow_costume_item(state: Any, minister_name: str, favor_kind: str) -> Dict
         "custom_tier": None,
     })
 
+    # 审查修复（重复赐予白扣钱）：原实现只防「重复入册」，不防「重复扣钱」——
+    # 实测连赐三次「赐紫」：忠诚 0.85 第一次即顶 1.0，后两次仍各扣 500 贯、
+    # 仍回报「恩眷优渥」。现改为同一件已赐过即拒绝，杜绝无声损耗与虚假回执。
+    if cfg["name"] in m_record["bestowals"]:
+        return {"ok": False,
+                "msg": f"{minister_name}已蒙赐{cfg['name']}，不必重叠恩赏（同物不再加恩）"}
+
+    cost = cfg.get("treasury_cost", 0)
+    # 优先扣内帑（皇帝私库赏赐），内帑不足扣国库。
+    # 审查修复：原写 `state.inner_treasury` —— **该属性不存在**（getattr 恒 0），
+    # 分支永不成立 → 实际永远扣国库，与注释相反（实测内帑 1,000,000 分文未动）；
+    # 且直改属性绕过统一通道、无非负保护。现改用
+    # `change_imperial_treasury` / `change_treasury`（二者皆 clamp 非负）。
+    if getattr(state, "imperial_treasury", 0) >= cost:
+        state.change_imperial_treasury(-cost)
+    elif getattr(state, "treasury", 0) >= cost:
+        state.change_treasury(-cost)
+    else:
+        return {"ok": False, "msg": f"库藏空虚（需 {cost} 贯），不足以备办御赐重礼"}
+
     # 记录恩赏
-    if cfg["name"] not in m_record["bestowals"]:
-        m_record["bestowals"].append(cfg["name"])
+    m_record["bestowals"].append(cfg["name"])
 
     # 覆盖槽位部件
     for slot_k, item in cfg.get("slot_overrides", {}).items():
@@ -584,19 +594,26 @@ def bestow_costume_item(state: Any, minister_name: str, favor_kind: str) -> Dict
             "month": getattr(state, "month", 1),
         })
 
-    # 记忆图谱有机沉淀
-    mg = getattr(state, "memory_graph", None)
-    if mg is not None and hasattr(mg, "add_memory"):
+    # 记忆图谱沉淀。
+    # 审查修复：原写 `state.memory_graph`（**该属性不存在**，应为 `state.memory`）
+    # 且调 `add_memory`（**MemoryGraph 无此方法**）→ 三重错位又被 except 静默吞掉，
+    # 恩赏从不进记忆库，履历断层（日后推演不知此人受过恩典）。
+    # 现改用既有 API `record_decision`（decision 实体 + involves 关联 + 大臣绑定）。
+    mg = getattr(state, "memory", None)
+    if mg is not None and hasattr(mg, "record_decision"):
         try:
-            mg.add_memory(
-                actor="皇帝",
-                target=minister_name,
-                action="御赐章服",
-                content=f"天子御赐{cfg['name']}，优容厚加宠遇",
-                impact=cfg.get("loyalty_delta", 0.1),
+            mg.record_decision(
+                f"御赐{minister_name}{cfg['name']}",
+                {"章服恩赏": cfg["name"],
+                 "忠诚": "+%.2f" % cfg.get("loyalty_delta", 0.1)},
+                minister=minister_name,
+                turn=getattr(state, "turn", 0),
+                note="天子御赐章服，优容厚加宠遇",
             )
-        except Exception:
-            pass
+        except Exception as _e:  # noqa: BLE001
+            # 不再静默：写入失败要留痕（原 pass 使其永久不可见）
+            import logging as _lg
+            _lg.getLogger("costumes").warning("恩赏未入记忆库：%r", _e)
 
     refreshed = get_or_init_minister_equipment(state, minister_name)
     return {
