@@ -1,0 +1,14 @@
+{
+  "id": "JEV-台账-官网纯文字页面册页收拢消灭荒芜空白-2026-10-16",
+  "question": "如何解决官网纯文字单屏页面在大屏上文字两头分居、中间与四周大片荒芜空白的视觉问题",
+  "options": "A=对开展卷收拢中央册页版式限定max-width并拢两栏;B=单栏居中文士版式720px中央单列;C=补入背景水墨暗纹插画强行填满",
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.87633,
+    "B": 0.10629,
+    "C": 0.01738
+  },
+  "premises_verified_by_me": "用户发来四张大屏截图并质问「这些空白是留给谁的」，均直指无大图插画的4个纯文字对开页（intro, court-detail, fields-detail, coupling）。原实现直接在全屏视口两端各取12vw内边距分列1fr 1fr，导致标题被甩到屏幕极左、正文被推到屏幕极右，中间出现数百像素荒芜鸿沟，上下也因文字体量小而空洞。采用A方案：将文字对开页的内容收拢于中央册页容器（max-width: min(1080px, 80vw); margin: 0 auto;），左右两栏紧凑并拢（gap: clamp(40px, 4.5vw, 64px)），标题与正文形成宋代对开册页的严谨呼应，辅以界行墨线与印章细节，使版面饱满考究、不落荒芜",
+  "applied_in": "songzuo-site/site-work/redesign-preview/preview.css",
+  "reopen_if": "用户明确要求改变册页双栏逻辑或合并页面"
+}
