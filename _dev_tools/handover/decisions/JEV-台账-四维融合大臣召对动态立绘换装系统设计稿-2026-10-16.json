@@ -1,0 +1,17 @@
+{
+  "id": "JEV-台账-四维融合大臣召对动态立绘换装系统设计稿-2026-10-16",
+  "date": "2026-10-16",
+  "question": "是否应将四大参考项目（Shinsekai对话联动 + VNDialog配置驱动 + Live2DMascot动态接口 + ChibiRigKit骨骼纸娃娃）与QQ秀换装模式深度融合，编写完整的《宋祚》大臣召对动态立绘系统设计稿供用户审阅确认？",
+  "options": [
+    "A: 深度融合四大开源项目与QQ秀模式，编写完整完备的技术设计稿，待用户确认后再开始工程落地",
+    "B: 仅做局部拼凑"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9777,
+    "B": 0.0223
+  },
+  "premises_verified_by_me": "已对齐用户明确给出的四大项目清单及「我们游戏内的召对的大臣立绘，跟QQ show的差不多」「先给我设计稿，我来确认后才落地」的核心指令。四维融合架构完美覆盖了立绘的数据配置、骨骼部件绑定、官仪微动与对话情绪联动的完整闭环。",
+  "applied_in": "sz/_dev_tools/game-docs/docs/大臣召对动态立绘换装系统设计稿.md, official_minister_audience_portrait_spec.md",
+  "reopen_if": "用户提出对四维技术栈的具体选型变更"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "JEV-台账-优先落地完备插槽与规则的布娃娃核心系统-2026-10-16",
+  "date": "2026-10-16",
+  "question": "是否应立即优先将「带完备插槽、锚点对齐与规则约束的布娃娃核心系统」作为基础闭环完整落地？",
+  "options": [
+    "A: 优先完整实现布娃娃系统核心（包含SlotManager、AnchorRig、LayerComposer、RulesEngine及独立可视化运行器）",
+    "B: 继续做外围文档或临时碎片修改"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9616,
+    "B": 0.0384
+  },
+  "premises_verified_by_me": "已实测与用户明确指令「先做出布娃娃的系统」。布娃娃换装系统是整个官员肖像千人千面的基石，必须具备清晰的插槽定义、锚点坐标对齐、遮罩层级、装备互斥与确定性装配管线，提供完全自包含的可运行闭环。",
+  "applied_in": "sz/game/content/ministers/paperdoll/",
+  "reopen_if": "布娃娃系统已满足全流程自动化换装且无新增插槽需求"
+}
