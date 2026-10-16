@@ -1,0 +1,19 @@
+{
+  "title": "方案B：3D骨架烘焙全新工笔图层全面替代旧资产与代码SVG",
+  "status": "decided",
+  "decidedBy": "用户裁定+Jev复核",
+  "decidedAt": "2026-10-16",
+  "question": "是否应当完全执行方案B管线并全面生成新工笔图层替代旧资产与代码SVG？",
+  "verdict": "执行方案B：以3D/2.5D骨骼规范烘焙全新2D工笔图层，废弃旧素材抠图与纯代码几何SVG",
+  "probabilities": {
+    "tokenrhythm": 0.9981
+  },
+  "premises_verified_by_me": [
+    "旧管线 _lay2.py 依赖从整图抠图，会导致断头白洞、重叠双帽、浮空黑块，被用户明确勒令禁止复用",
+    "纯代码硬画的几何 SVG 缺乏宋代院体工笔质感，被用户严厉批评『你这是啥啊』",
+    "方案B拥有统一骨骼锚点（Head 405,230 / Collar 405,360 / Waist 680 / Chest 405,520），保证装备自然贴合与无缝穿戴"
+  ],
+  "applied_in": "sz/game/content/ministers/paperdoll/ 与 sz/_dev_tools/game-assets-src/ministers-layers/",
+  "reopen_if": "用户明确要求改回前端纯 3D WebGL 实时网格渲染（方案A）",
+  "id": "JEV-方案B-3D骨架烘焙全新工笔图层全案-2026-10-16"
+}

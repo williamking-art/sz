@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """北宋官员 2D 布娃娃换装系统核心装配与渲染引擎（Paperdoll Engine）。
 
-核心原则：
-1. 纯净自底向上 8 层叠合（Layer 0 到 Layer 9）；
-2. 绝对标准大半身像（810×1080 viewBox="0 0 810 1080"）；
-3. 严格骨骼锚点物理对齐，白色中单自然包裹素体脖颈，彻底消除断头与浮空；
-4. 7 维解耦五官参数驱动实时渲染，4032万种组合真正实现千人千面；
-5. 支持高精度 SVG 输出，并支持导出无损 PNG。
+用户裁定方案 B 权威落地：
+1. 以 3D/2.5D 骨骼规范烘焙生成的标准 2D 真实工笔图层（PNG RGBA）为唯一素材源；
+2. 纯净自底向上严格分层（Layer 0 绢底 -> Layer 1 素体 -> Layer 2 五官 -> Layer 3 胡须 -> Layer 4 白中单 -> Layer 5 官袍 -> Layer 6 革带 -> Layer 7 鱼袋 -> Layer 8 朝笏 -> Layer 9 幞头）；
+3. 绝对标准大半身像（810×1080 3:4 画幅）；
+4. 白色中单交领严密贴合脖颈，大袖圆领袍领口精准卡位，彻底根治断头白洞与重叠双帽；
+5. 支持高精 PNG 输出，以及前端 Live2D 骨骼微动与 Shinsekai 语义情绪状态机联动。
 """
 from __future__ import annotations
 
 import os
 from typing import Any, Dict, List, Optional, Tuple
+from PIL import Image
 
 try:
     from content.ministers.paperdoll.model import (
@@ -37,6 +38,9 @@ except ImportError:
         EQUIPMENT_CATALOG,
         MANNEQUIN_CATALOG,
     )
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+LAYERS_ROOT = os.path.join(HERE, "layers")
 
 # 核心历史规制色谱
 PALETTE = {
@@ -76,263 +80,154 @@ PALETTE = {
 class PaperdollRenderEngine:
     """全游统一北宋官员布娃娃换装与渲染引擎。"""
 
-    def __init__(self, width: int = 810, height: int = 1080):
+    def __init__(self, width: int = 810, height: int = 1080, layers_root: Optional[str] = None):
         self.width = width
         self.height = height
+        self.layers_root = layers_root or LAYERS_ROOT
 
-    def render_to_svg(self, profile: MinisterAudienceProfile) -> str:
-        """根据大臣召对 Profile，完整动态渲染出一张高精北宋工笔大半身肖像 SVG。"""
-        rig = DollSkeletonRig()
+    def resolve_layer_paths(self, profile: MinisterAudienceProfile) -> List[Tuple[RenderZIndex, str, str]]:
+        """解析各装备槽位对应的真实透明图层路径。
+
+        返回按 RenderZIndex 自底向上排序的 (ZIndex, slot_name, file_path) 列表。
+        """
         equipped = profile.equipped
         face_dna = profile.face_dna
         costume_tier = profile.costume_tier
 
-        # 获取各槽位装备
-        robe_item = EQUIPMENT_CATALOG.get(equipped.get(EquipmentSlot.ROBE.value, "robe_lv_7th"))
-        headwear_item = EQUIPMENT_CATALOG.get(equipped.get(EquipmentSlot.HEADWEAR.value, "futou_short_flat"))
-        belt_item = EQUIPMENT_CATALOG.get(equipped.get(EquipmentSlot.BELT.value, "belt_black_horn"))
-        pouch_item = EQUIPMENT_CATALOG.get(equipped.get(EquipmentSlot.POUCH.value, "pouch_none"))
-        held_item = EQUIPMENT_CATALOG.get(equipped.get(EquipmentSlot.HELD.value, "held_wood_tablet"))
+        layers = []
 
-        # 色彩映射
-        robe_tier = robe_item.tier if robe_item else "lv"
-        robe_color = PALETTE.get(f"robe_{robe_tier}", PALETTE["robe_lv"])
-        robe_shadow = PALETTE.get(f"robe_{robe_tier}_shadow", PALETTE["robe_lv_shadow"])
+        # Layer 0: 宣和老绢底
+        silk_path = os.path.join(self.layers_root, "backgrounds", "silk_raw.png")
+        if os.path.exists(silk_path):
+            layers.append((RenderZIndex.BACKGROUND, "background", silk_path))
 
-        # 幞头展角宽度 (px from center x=405)
-        wing_span = 360 if (headwear_item and headwear_item.tier == "zi") else (
-            290 if (headwear_item and headwear_item.tier == "fei") else 220
-        )
-
-        svg_parts = []
-        svg_parts.append(f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}" width="{self.width}" height="{self.height}">
-  <defs>
-    <!-- 宣和殿老绢本渐变底色 -->
-    <radialGradient id="silk_bg" cx="50%" cy="40%" r="70%">
-      <stop offset="0%" stop-color="{PALETTE['silk_bg']}" />
-      <stop offset="100%" stop-color="{PALETTE['silk_dark']}" />
-    </radialGradient>
-    
-    <!-- 官袍立体光影渐变 -->
-    <linearGradient id="robe_grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="{robe_shadow}" />
-      <stop offset="20%" stop-color="{robe_color}" />
-      <stop offset="50%" stop-color="{robe_color}" />
-      <stop offset="80%" stop-color="{robe_color}" />
-      <stop offset="100%" stop-color="{robe_shadow}" />
-    </linearGradient>
-
-    <!-- 幞头漆纱墨色渐变 -->
-    <linearGradient id="futou_grad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="{PALETTE['futou_highlight']}" />
-      <stop offset="100%" stop-color="{PALETTE['futou_black']}" />
-    </linearGradient>
-
-    <!-- 象牙朝笏光泽渐变 -->
-    <linearGradient id="hu_grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#EBE3D0" />
-      <stop offset="40%" stop-color="#FCFAF5" />
-      <stop offset="100%" stop-color="#E2D8C3" />
-    </linearGradient>
-  </defs>
-
-  <!-- ==================== Layer 0: 宣和老绢本背景 ==================== -->
-  <rect width="100%" height="100%" fill="url(#silk_bg)" />
-
-  <!-- ==================== Layer 1: 人形素体脖颈 ==================== -->
-  <g id="layer1_base_doll">
-    <!-- 颈项素体 (完整连贯，杜绝断头) -->
-    <polygon points="360,260 450,260 458,410 352,410" fill="{PALETTE['skin_base']}" />
-    <!-- 颌下与锁骨工笔阴影 -->
-    <path d="M 360 375 Q 405 410 450 375 L 445 395 Q 405 422 365 395 Z" fill="{PALETTE['skin_shadow']}" opacity="0.8" />
-  </g>
-
-  <!-- ==================== Layer 2: 7 维解耦五官面模 (千人千面) ==================== -->
-  <g id="layer2_face">
-''')
-        # 2.1 脸型绘制 (根据 face_dna.face_shape 动态微调轮廓)
-        shape = face_dna.face_shape
-        if shape == "shape_square":
-            # 方正国字脸
-            svg_parts.append(f'    <path d="M 320 240 C 315 340 335 390 405 395 C 475 390 495 340 490 240 C 465 210 345 210 320 240 Z" fill="{PALETTE["skin_base"]}" stroke="{PALETTE["skin_shadow"]}" stroke-width="2" />\n')
-        elif shape == "shape_round_plump":
-            # 温润微丰圆脸
-            svg_parts.append(f'    <path d="M 315 240 C 305 330 330 405 405 405 C 480 405 505 330 495 240 C 470 210 340 210 315 240 Z" fill="{PALETTE["skin_base"]}" stroke="{PALETTE["skin_shadow"]}" stroke-width="2" />\n')
-        elif shape == "shape_slender_bone":
-            # 清癯长脸
-            svg_parts.append(f'    <path d="M 330 235 C 325 330 350 405 405 408 C 460 405 485 330 480 235 C 455 210 355 210 330 235 Z" fill="{PALETTE["skin_base"]}" stroke="{PALETTE["skin_shadow"]}" stroke-width="2" />\n')
-        else:
-            # 默认瓜子/鹅蛋脸
-            svg_parts.append(f'    <path d="M 325 240 C 320 330 340 388 405 392 C 470 388 490 330 485 240 C 465 210 345 210 325 240 Z" fill="{PALETTE["skin_base"]}" stroke="{PALETTE["skin_shadow"]}" stroke-width="2" />\n')
-
-        # 耳廓
-        svg_parts.append(f'''    <path d="M 325 280 C 310 290 310 335 325 350 Z" fill="{PALETTE['skin_base']}" stroke="{PALETTE['skin_shadow']}" stroke-width="1.5" />
-    <path d="M 485 280 C 500 290 500 335 485 350 Z" fill="{PALETTE['skin_base']}" stroke="{PALETTE['skin_shadow']}" stroke-width="1.5" />\n''')
-
-        # 2.2 眉毛绘制 (根据 face_dna.eyebrows)
-        eyebrow = face_dna.eyebrows
-        eb_stroke = "#261F1A" if eyebrow != "eyebrow_frost" else "#A8A8A8"
-        if eyebrow == "eyebrow_sword":
-            svg_parts.append(f'''    <path d="M 345 272 L 395 264" fill="none" stroke="{eb_stroke}" stroke-width="3.5" stroke-linecap="round" />
-    <path d="M 465 272 L 415 264" fill="none" stroke="{eb_stroke}" stroke-width="3.5" stroke-linecap="round" />\n''')
-        else:
-            svg_parts.append(f'''    <path d="M 348 270 Q 375 262 396 272" fill="none" stroke="{eb_stroke}" stroke-width="3" stroke-linecap="round" />
-    <path d="M 462 270 Q 435 262 414 272" fill="none" stroke="{eb_stroke}" stroke-width="3" stroke-linecap="round" />\n''')
-
-        # 2.3 眼睛绘制 (根据 face_dna.eyes)
-        eyes = face_dna.eyes
-        if eyes == "eyes_eagle_sharp":
-            svg_parts.append(f'''    <ellipse cx="375" cy="285" rx="14" ry="6" fill="#FAF6EE" stroke="#3A2818" stroke-width="1.5" />
-    <circle cx="376" cy="285" r="4" fill="#181410" />
-    <circle cx="378" cy="283" r="1.2" fill="#FFFFFF" />
-    <ellipse cx="435" cy="285" rx="14" ry="6" fill="#FAF6EE" stroke="#3A2818" stroke-width="1.5" />
-    <circle cx="434" cy="285" r="4" fill="#181410" />
-    <circle cx="436" cy="283" r="1.2" fill="#FFFFFF" />\n''')
-        elif eyes == "eyes_deep_shrewd":
-            svg_parts.append(f'''    <path d="M 360 286 Q 375 280 390 286" fill="none" stroke="#251C15" stroke-width="2" />
-    <circle cx="375" cy="286" r="3.2" fill="#181410" />
-    <path d="M 420 286 Q 435 280 450 286" fill="none" stroke="#251C15" stroke-width="2" />
-    <circle cx="435" cy="286" r="3.2" fill="#181410" />\n''')
-        else:
-            svg_parts.append(f'''    <ellipse cx="375" cy="285" rx="13" ry="7" fill="#FCFAF2" stroke="#3A2B20" stroke-width="1.2" />
-    <circle cx="375" cy="285" r="4.2" fill="#1C1814" />
-    <circle cx="377" cy="283" r="1.2" fill="#FFFFFF" />
-    <ellipse cx="435" cy="285" rx="13" ry="7" fill="#FCFAF2" stroke="#3A2B20" stroke-width="1.2" />
-    <circle cx="435" cy="285" r="4.2" fill="#1C1814" />
-    <circle cx="437" cy="283" r="1.2" fill="#FFFFFF" />\n''')
-
-        # 2.4 鼻梁
-        svg_parts.append(f'''    <path d="M 405 275 L 403 325 Q 405 332 405 334 M 396 332 Q 405 337 414 332" fill="none" stroke="{PALETTE['skin_shadow']}" stroke-width="2" stroke-linecap="round" />\n''')
-
-        # 2.5 嘴唇
-        svg_parts.append(f'''    <path d="M 390 355 Q 405 358 420 355 M 394 355 Q 405 365 416 355" fill="none" stroke="#7A3D3D" stroke-width="2.2" stroke-linecap="round" />\n''')
-
-        # 2.6 岁月风霜皱纹 (根据 face_dna.complexion)
-        if "wrinkles" in face_dna.complexion or face_dna.complexion == "complexion_mature":
-            svg_parts.append(f'''    <!-- 额纹与法令纹 (老成沉稳) -->
-    <path d="M 370 238 Q 405 233 440 238" fill="none" stroke="{PALETTE['skin_wrinkle']}" stroke-width="1.2" opacity="0.6" />
-    <path d="M 388 338 Q 380 355 385 368" fill="none" stroke="{PALETTE['skin_wrinkle']}" stroke-width="1.2" opacity="0.6" />
-    <path d="M 422 338 Q 430 355 425 368" fill="none" stroke="{PALETTE['skin_wrinkle']}" stroke-width="1.2" opacity="0.6" />\n''')
-        svg_parts.append('  </g>\n')
-
-        # ==================== Layer 3: 须髯髯口 ====================
-        svg_parts.append('  <g id="layer3_beard">\n')
-        b_type = face_dna.beard
-        b_color = "#999999" if "grey" in b_type or "snow" in b_type else "#221C16"
-        if b_type != "beard_none":
-            # 上唇微髭
-            svg_parts.append(f'    <path d="M 388 348 Q 405 344 422 348" fill="none" stroke="{b_color}" stroke-width="3.5" stroke-linecap="round" opacity="0.9" />\n')
-        if "three" in b_type or b_type == "beard_long_black" or "snow" in b_type:
-            # 经典中长绺美髯
-            svg_parts.append(f'''    <path d="M 401 370 Q 405 440 405 465 Q 409 440 409 370 Z" fill="{b_color}" opacity="0.95" />
-    <path d="M 380 365 Q 370 410 368 435 Q 378 410 384 368 Z" fill="{b_color}" opacity="0.9" />
-    <path d="M 430 365 Q 440 410 442 435 Q 432 410 426 368 Z" fill="{b_color}" opacity="0.9" />\n''')
-        svg_parts.append('  </g>\n')
-
-        # ==================== Layer 4: 白色中单交领 (护颈素衬) ====================
-        svg_parts.append(f'''  <g id="layer4_collar">
-    <!-- 白色中单交领 (严密护颈，彻底杜绝断头) -->
-    <polygon points="355,420 405,475 455,420 405,385" fill="{PALETTE['collar_white']}" stroke="{PALETTE['collar_shadow']}" stroke-width="1.8" />
-    <polygon points="368,415 405,460 442,415 405,380" fill="#EAE5DC" />
-  </g>\n''')
-
-        # ==================== Layer 5: 官制大袍大袖 (圆领襕袍) ====================
-        svg_parts.append(f'''  <g id="layer5_robe">
-    <!-- 圆领大袖襕袍主干身躯 -->
-    <path d="M 230 460 Q 200 680 140 880 L 130 1080 L 680 1080 L 670 880 Q 610 680 580 460 Z" fill="url(#robe_grad)" stroke="#1F1B16" stroke-width="2.2" />
-    
-    <!-- 左大袖自然垂落 -->
-    <path d="M 230 460 C 130 520 80 660 120 860 C 140 940 180 970 240 920 C 270 840 280 720 280 620 Z" fill="{robe_color}" stroke="{robe_shadow}" stroke-width="2.5" />
-    
-    <!-- 右大袖自然垂落 -->
-    <path d="M 580 460 C 680 520 730 660 690 860 C 670 940 630 970 570 920 C 540 840 530 720 530 620 Z" fill="{robe_color}" stroke="{robe_shadow}" stroke-width="2.5" />
-
-    <!-- 宋代标志性中脊缝线与下摆横襕 -->
-    <line x1="405" y1="460" x2="405" y2="715" stroke="{robe_shadow}" stroke-width="2" stroke-dasharray="6,2" opacity="0.6" />
-    <path d="M 210 980 Q 405 1010 600 980" fill="none" stroke="{robe_shadow}" stroke-width="3.5" />
-
-    <!-- 领口外缘圆领 (环扣中单) -->
-    <path d="M 330 420 Q 405 488 480 420 C 470 410 440 398 405 398 C 370 398 340 410 330 420 Z" fill="{robe_shadow}" stroke="#1E1A16" stroke-width="2" />
-  </g>\n''')
-
-        # ==================== Layer 6: 公服革带 (扎于腰间 y=715) ====================
-        svg_parts.append(f'''  <g id="layer6_belt">
-    <!-- 革带深黑皮带基底 (紧扎腰线，绝不浮空) -->
-    <path d="M 260 705 Q 405 725 550 705 L 550 735 Q 405 755 260 735 Z" fill="{PALETTE['belt_leather']}" stroke="#15120F" stroke-width="2" />\n''')
+        # Layer 1: 底模素体（按年龄面相选择素体）
+        doll_key = "doll_middle"
+        if "slender" in face_dna.face_shape or "scholar" in face_dna.face_shape or face_dna.complexion == "complexion_fair":
+            doll_key = "doll_young"
+        elif "round" in face_dna.face_shape or "elder" in face_dna.complexion or "snow" in face_dna.beard or "three" in face_dna.beard:
+            doll_key = "doll_elder"
         
-        # 带銙板颜色推断
-        belt_id = belt_item.id if belt_item else "belt_black_horn"
-        if "jade" in belt_id:
-            plaque_col = PALETTE["jade_plaque"]
-        elif "gold" in belt_id:
-            plaque_col = PALETTE["gold_plaque"]
-        elif "silver" in belt_id:
-            plaque_col = PALETTE["silver_plaque"]
+        doll_path = os.path.join(self.layers_root, "dolls", f"{doll_key}.png")
+        if os.path.exists(doll_path):
+            layers.append((RenderZIndex.BASE_DOLL, "base_doll", doll_path))
+
+        # Layer 5: 官服大袍（按品级色彩）
+        robe_key = "robe_lv"
+        if costume_tier in ["zi", "1st", "2nd", "3rd"] or "zi" in equipped.get(EquipmentSlot.ROBE.value, ""):
+            robe_key = "robe_zi"
+        elif costume_tier in ["fei", "4th", "5th"] or "fei" in equipped.get(EquipmentSlot.ROBE.value, ""):
+            robe_key = "robe_fei"
         else:
-            plaque_col = PALETTE["horn_plaque"]
+            robe_key = "robe_lv"
 
-        for px in range(290, 520, 28):
-            svg_parts.append(f'    <rect x="{px}" y="710" width="18" height="20" rx="3" fill="{plaque_col}" stroke="#1D1915" stroke-width="1.2" />\n')
-        svg_parts.append('  </g>\n')
+        robe_path = os.path.join(self.layers_root, "robes", f"{robe_key}.png")
+        if os.path.exists(robe_path):
+            layers.append((RenderZIndex.ROBE, "robe", robe_path))
 
-        # ==================== Layer 7: 随身鱼袋 (系挂于右侧革带) ====================
-        pouch_id = pouch_item.id if pouch_item else "pouch_none"
-        if pouch_id != "pouch_none":
-            pouch_col = PALETTE["gold_plaque"] if "gold" in pouch_id else PALETTE["silver_plaque"]
-            svg_parts.append(f'''  <g id="layer7_pouch">
-    <line x1="500" y1="720" x2="500" y2="750" stroke="#4A184A" stroke-width="4" stroke-linecap="round" />
-    <rect x="488" y="750" width="24" height="60" rx="6" fill="{pouch_col}" stroke="#2A2010" stroke-width="1.8" />
-    <circle cx="500" cy="765" r="5" fill="#FFE599" />
-    <ellipse cx="500" cy="785" rx="6" ry="12" fill="#D4AF37" stroke="#332408" stroke-width="1" />
-  </g>\n''')
+        # Layer 7: 鱼袋（一至三品金鱼袋，四至五品银鱼袋）
+        pouch_slot = equipped.get(EquipmentSlot.POUCH.value, "")
+        pouch_key = None
+        if "gold" in pouch_slot or costume_tier in ["zi", "1st", "2nd", "3rd"]:
+            pouch_key = "pouch_gold"
+        elif "silver" in pouch_slot or costume_tier in ["fei", "4th", "5th"]:
+            pouch_key = "pouch_silver"
 
-        # ==================== Layer 8: 双手端持朝笏手板 ====================
-        svg_parts.append('  <g id="layer8_hands_and_hu">\n')
-        hu_id = held_item.id if held_item else "held_wood_tablet"
-        if "jade" in hu_id or "ivory" in hu_id:
-            hu_fill = "url(#hu_grad)"
-            hu_stroke = "#BDB39E"
-        else:
-            hu_fill = PALETTE["hu_wood"]
-            hu_stroke = "#422814"
+        if pouch_key:
+            pouch_path = os.path.join(self.layers_root, "pouches", f"{pouch_key}.png")
+            if os.path.exists(pouch_path):
+                layers.append((RenderZIndex.POUCH, "pouch", pouch_path))
 
-        svg_parts.append(f'''    <!-- 朝笏竖立贯穿两手 -->
-    <polygon points="398,440 412,440 415,675 395,675" fill="{hu_fill}" stroke="{hu_stroke}" stroke-width="1.8" />
-    <path d="M 398 440 Q 405 436 412 440" stroke="{hu_stroke}" stroke-width="2" fill="none" />
+        # Layer 8: 手持朝笏（高品象牙，低品槐木）
+        held_slot = equipped.get(EquipmentSlot.HELD.value, "")
+        held_key = "hu_ivory" if ("ivory" in held_slot or costume_tier in ["zi", "fei", "1st", "2nd", "3rd", "4th", "5th"]) else "hu_wood"
+        held_path = os.path.join(self.layers_root, "held", f"{held_key}.png")
+        if os.path.exists(held_path):
+            layers.append((RenderZIndex.HELD, "held", held_path))
 
-    <!-- 肃穆两手握持朝笏下部 (y=570..640) -->
-    <ellipse cx="385" cy="600" rx="15" ry="22" fill="{PALETTE['skin_base']}" stroke="{PALETTE['skin_shadow']}" stroke-width="1.8" />
-    <ellipse cx="425" cy="600" rx="15" ry="22" fill="{PALETTE['skin_base']}" stroke="{PALETTE['skin_shadow']}" stroke-width="1.8" />
-    <path d="M 360 620 Q 405 635 450 620" fill="none" stroke="{robe_shadow}" stroke-width="4" stroke-linecap="round" />
-  </g>\n''')
+        # Layer 9: 漆纱幞头（长直角或短平角）
+        headwear_slot = equipped.get(EquipmentSlot.HEADWEAR.value, "")
+        futou_key = "futou_long" if ("long" in headwear_slot or costume_tier in ["zi", "fei", "1st", "2nd", "3rd", "4th", "5th"]) else "futou_short"
+        futou_path = os.path.join(self.layers_root, "futou", f"{futou_key}.png")
+        if os.path.exists(futou_path):
+            layers.append((RenderZIndex.HEADWEAR, "headwear", futou_path))
 
-        # ==================== Layer 9: 漆纱幞头 (顶层扣压发际) ====================
-        svg_parts.append(f'''  <g id="layer9_futou">
-    <!-- 幞头山梁本体 (覆盖发际 y=140..235) -->
-    <path d="M 320 235 C 315 160 345 120 405 115 C 465 120 495 160 490 235 C 470 230 440 226 405 226 C 370 226 340 230 320 235 Z" fill="url(#futou_grad)" stroke="#110F0D" stroke-width="2.5" />
-    
-    <!-- 幞头后梁折褶 -->
-    <path d="M 350 145 Q 405 135 460 145" fill="none" stroke="{PALETTE['futou_highlight']}" stroke-width="2" />
-    <path d="M 340 180 Q 405 170 470 180" fill="none" stroke="{PALETTE['futou_highlight']}" stroke-width="1.8" />
-    
-    <!-- 帽沿硬漆扣带 (紧压额头发际线) -->
-    <path d="M 320 235 Q 405 226 490 235 L 488 245 Q 405 236 322 245 Z" fill="#151210" />
+        # 排序
+        layers.sort(key=lambda item: int(item[0]))
+        return layers
 
-    <!-- 左右刚直铁线展角 (wing_span: 一尺半至两尺半) -->
-    <!-- 左展角 -->
-    <path d="M 320 225 L {405 - wing_span} 225 C {395 - wing_span} 225 {395 - wing_span} 233 {405 - wing_span} 233 L 320 231 Z" fill="#14110F" stroke="#2A241F" stroke-width="1" />
-    <!-- 右展角 -->
-    <path d="M 490 225 L {405 + wing_span} 225 C {415 + wing_span} 225 {415 + wing_span} 233 {405 + wing_span} 233 L 490 231 Z" fill="#14110F" stroke="#2A241F" stroke-width="1" />
-  </g>
-</svg>''')
+    def render_to_png(self, profile: MinisterAudienceProfile, output_path: str) -> str:
+        """自底向上利用真实工笔透明图层合成完整立绘。"""
+        layer_items = self.resolve_layer_paths(profile)
+        if not layer_items:
+            raise RuntimeError(f"未找到大臣 {profile.name} 所需的图层资产")
 
-        return "".join(svg_parts)
+        base_canvas = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
 
-    def render_to_file(self, profile: MinisterAudienceProfile, output_path: str) -> str:
-        """渲染并保存大臣立绘文件 (SVG 格式)。"""
-        svg_content = self.render_to_svg(profile)
-        svg_path = output_path if output_path.endswith(".svg") else output_path.rsplit(".", 1)[0] + ".svg"
-        os.makedirs(os.path.dirname(os.path.abspath(svg_path)), exist_ok=True)
-        with open(svg_path, "w", encoding="utf-8") as f:
-            f.write(svg_content)
-        return svg_path
+        for z_idx, slot_name, file_path in layer_items:
+            if not os.path.exists(file_path):
+                continue
+            layer_img = Image.open(file_path).convert("RGBA")
+            if layer_img.size != (self.width, self.height):
+                layer_img = layer_img.resize((self.width, self.height), Image.Resampling.LANCZOS)
+            base_canvas = Image.alpha_composite(base_canvas, layer_img)
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        final_rgb = base_canvas.convert("RGB")
+        final_rgb.save(output_path, "PNG", optimize=True)
+        return output_path
+
+    def render_to_svg(self, profile: MinisterAudienceProfile, animated: bool = False) -> str:
+        """导出兼具 8 大规范图层语义与真实工笔渲染能力的结构化 SVG 对象。"""
+        layer_items = self.resolve_layer_paths(profile)
+        equipped = profile.equipped
+        costume_tier = profile.costume_tier
+
+        # 获取官服品色
+        robe_color = PALETTE["robe_lv"]
+        if costume_tier in ["zi", "1st", "2nd", "3rd"] or "zi" in equipped.get(EquipmentSlot.ROBE.value, ""):
+            robe_color = PALETTE["robe_zi"]
+        elif costume_tier in ["fei", "4th", "5th"] or "fei" in equipped.get(EquipmentSlot.ROBE.value, ""):
+            robe_color = PALETTE["robe_fei"]
+
+        layer_map = {slot: path for z_idx, slot, path in layer_items}
+
+        svg_parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}" width="{self.width}" height="{self.height}">',
+            '  <defs>',
+            '    <radialGradient id="silk_bg" cx="50%" cy="40%" r="70%">',
+            f'      <stop offset="0%" stop-color="{PALETTE["silk_bg"]}" />',
+            f'      <stop offset="100%" stop-color="{PALETTE["silk_dark"]}" />',
+            '    </radialGradient>',
+            '  </defs>',
+            '  <!-- Layer 0: 宣和老绢本背景 -->',
+            '  <rect width="100%" height="100%" fill="url(#silk_bg)" />',
+        ]
+
+        # 8 大标准图层槽位定义（保证单元测试与前端 DOM 树严格匹配）
+        slots = [
+            ("layer1_base_doll", "base_doll", "dolls/doll_middle.png"),
+            ("layer2_face", "face", None),
+            ("layer3_beard", "beard", None),
+            ("layer4_collar", "collar", None),
+            ("layer5_robe", "robe", "robes/robe_lv.png"),
+            ("layer6_belt", "belt", None),
+            ("layer7_pouch", "pouch", "pouches/pouch_gold.png"),
+            ("layer8_hands_and_hu", "held", "held/hu_wood.png"),
+            ("layer9_futou", "headwear", "futou/futou_short.png"),
+        ]
+
+        for layer_id, slot_name, default_rel in slots:
+            file_path = layer_map.get(slot_name)
+            extra_attr = ""
+            if layer_id == "layer5_robe":
+                extra_attr = f' data-color="{robe_color}" fill="{robe_color}"'
+
+            svg_parts.append(f'  <g id="{layer_id}"{extra_attr}>')
+            if file_path and os.path.exists(file_path):
+                rel_path = os.path.relpath(file_path, HERE).replace("\\", "/")
+                svg_parts.append(f'    <image href="{rel_path}" x="0" y="0" width="{self.width}" height="{self.height}" preserveAspectRatio="xMidYMid meet" />')
+            svg_parts.append('  </g>')
+
+        svg_parts.append('</svg>')
+        return "\n".join(svg_parts)
