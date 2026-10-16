@@ -299,15 +299,31 @@ def derive_official_visual_dna(name: str, rank: str = "", costume_tier: str = ""
 
 
 def assemble_official_portrait(dna: Dict[str, Any], output_path: Optional[str] = None) -> str:
-    """根据官员 Visual DNA 进行立绘分层动态装配并输出。
+    """根据官员 Visual DNA 进行 8 大独立透明装备槽位动态装配并输出。
     
-    输出规格：统一 810×1080 3:4 比例，院体工笔设色绢本底。
+    输出规格：严格统一 810×1080 3:4 比例大半身像，院体工笔老绢本底色 (#C4A877)。
+    标准 RPG 纸娃娃层叠流水线（从底到顶）：
+      1. 老绢底画布 (Silk Canvas)
+      2. 基础人形素体 (Base Doll)
+      3. 五官面模 (Face Model)
+      4. 胡须髯口 (Beard)
+      5. 官制袍服 (Robe)
+      6. 公服革带 (Belt)
+      7. 随身鱼袋 (Fish Pouch)
+      8. 朝笏手板 (Held Hu)
+      9. 漆纱幞头官帽 (Futou Hat)
     """
     name = dna.get("name", "官员")
     dna_hash = dna.get("dna_hash", "default")
     is_historical = dna.get("is_historical", False)
     costume_tier = dna.get("costume_tier", "lv")
     pose = dna.get("pose", "chihu")
+    face_model = dna.get("face_model", "scholar")
+    beard = dna.get("beard", "none")
+    futou = dna.get("futou", "short")
+    belt = dna.get("belt", "horn")
+    fish_pouch = dna.get("fish_pouch", "none")
+    hu_tablet = dna.get("hu_tablet", "wood")
 
     os.makedirs(COMPOSED_DIR, exist_ok=True)
     if not output_path:
@@ -324,71 +340,81 @@ def assemble_official_portrait(dna: Dict[str, Any], output_path: Optional[str] =
         return ""
 
     canvas_w, canvas_h = 810, 1080
-    bg_color = (196, 168, 119)  # #C4A877 绢底底色
+    bg_color = (196, 168, 119)  # #C4A877 老绢本底色
 
     # 1. 创建绢底画布
     composed_img = Image.new("RGBA", (canvas_w, canvas_h), (*bg_color, 255))
 
-    # 2. 匹配身体层（Body Layer）
-    body_file = f"body_{pose}_{costume_tier}.png"
-    body_path = os.path.join(LAYERS_DIR, body_file)
-    if not os.path.isfile(body_path):
-        # 兜底找持笏
-        body_path = os.path.join(LAYERS_DIR, f"body_chihu_{costume_tier}.png")
-
-    if os.path.isfile(body_path):
-        body_img = Image.open(body_path).convert("RGBA")
-        if body_img.size != (canvas_w, canvas_h):
-            body_img = body_img.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
-        composed_img.alpha_composite(body_img)
-
-    # 3. 匹配面貌/头面层（Head Layer）
-    head_img = None
-    if is_historical:
-        head_path = os.path.join(LAYERS_DIR, f"head_{name}.png")
-        if os.path.isfile(head_path):
-            head_img = Image.open(head_path).convert("RGBA")
-    else:
-        # 非历史名臣：查找模块化脸模或按相貌哈希复用基础头面
-        face_model = dna.get("face_model", "scholar")
-        model_head_path = os.path.join(LAYERS_DIR, f"head_{face_model}.png")
-        if os.path.isfile(model_head_path):
-            head_img = Image.open(model_head_path).convert("RGBA")
-        else:
-            # 优雅兜底：从现有 43 张头脸中确定性抽取一位同气质的头面
-            sample_heads = [f for f in os.listdir(LAYERS_DIR) if f.startswith("head_") and f.endswith(".png")]
-            if sample_heads:
-                rnd = random.Random(sum(ord(c) for c in name))
-                fallback_head = rnd.choice(sample_heads)
-                head_img = Image.open(os.path.join(LAYERS_DIR, fallback_head)).convert("RGBA")
-
-    if head_img:
-        # 位姿微调偏移
-        offsets_file = os.path.join(LAYERS_DIR, "_offsets.json")
-        dx, dy = 0, 0
-        if os.path.isfile(offsets_file):
+    def _composite_layer(sub_dir: str, filename: str) -> bool:
+        """安全复合单个透明装备图层。"""
+        p = os.path.join(LAYERS_DIR, sub_dir, filename)
+        if os.path.isfile(p):
             try:
-                with open(offsets_file, "r", encoding="utf-8") as f:
-                    offsets = json.load(f)
-                    dx, dy = offsets.get(pose, [0, 0])
-            except Exception:
-                pass
+                layer_im = Image.open(p).convert("RGBA")
+                if layer_im.size != (canvas_w, canvas_h):
+                    layer_im = layer_im.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+                composed_img.alpha_composite(layer_im)
+                return True
+            except Exception as e:
+                log.warning(f"复合图层失败 {p}: {e}")
+        return False
 
-        if dx or dy:
-            shifted = Image.new("RGBA", head_img.size, (0, 0, 0, 0))
-            shifted.paste(head_img, (int(round(dx)), int(round(dy))))
-            head_img = shifted
+    # 2. 检查是否使用模块化独立装备图层 (Paper Doll Architecture)
+    doll_file = f"doll_{pose}.png" if os.path.isfile(os.path.join(LAYERS_DIR, "dolls", f"doll_{pose}.png")) else "doll_chihu.png"
+    has_doll = _composite_layer("dolls", doll_file)
 
-        if head_img.size != (canvas_w, canvas_h):
-            head_img = head_img.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+    # 3. 挂载五官面貌 (Face Model)
+    if is_historical:
+        # 名臣专属头面
+        hist_head = os.path.join(LAYERS_DIR, f"head_{name}.png")
+        if os.path.isfile(hist_head):
+            head_im = Image.open(hist_head).convert("RGBA")
+            if head_im.size != (canvas_w, canvas_h):
+                head_im = head_im.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+            composed_img.alpha_composite(head_im)
+    else:
+        # 通用官员面模
+        face_file = f"face_{face_model}.png"
+        if not _composite_layer("faces", face_file):
+            _composite_layer("faces", "face_scholar.png")
 
-        composed_img.alpha_composite(head_img)
+        # 4. 挂载胡须 (Beard)
+        beard_file = f"beard_{beard}.png"
+        _composite_layer("beards", beard_file)
 
-    # 4. 保存为成品立绘（RGB 格式，透明通道已与底绢复合）
+    # 5. 挂载官制袍服 (Robe)
+    robe_file = f"robe_{pose}_{costume_tier}.png"
+    if not _composite_layer("robes", robe_file):
+        # 兜底旧图层
+        body_file = f"body_{pose}_{costume_tier}.png"
+        body_path = os.path.join(LAYERS_DIR, body_file)
+        if not os.path.isfile(body_path):
+            body_path = os.path.join(LAYERS_DIR, f"body_chihu_{costume_tier}.png")
+        if os.path.isfile(body_path):
+            old_body = Image.open(body_path).convert("RGBA")
+            if old_body.size != (canvas_w, canvas_h):
+                old_body = old_body.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
+            composed_img.alpha_composite(old_body)
+
+    # 6. 挂载公服革带 (Belt)
+    _composite_layer("belts", f"belt_{belt}.png")
+
+    # 7. 挂载随身鱼袋 (Fish Pouch)
+    if fish_pouch and fish_pouch != "none":
+        _composite_layer("pouches", f"pouch_{fish_pouch}.png")
+
+    # 8. 挂载朝笏手板 (Held Hu)
+    _composite_layer("held", f"held_{hu_tablet}.png")
+
+    # 9. 挂载漆纱幞头 (Futou Hat - 顶层，帽口自然压在额前发际线上)
+    if not is_historical:
+        _composite_layer("futou", f"futou_{futou}.png")
+
+    # 10. 保存为无损 PNG（与绢底完全贴合，标准 810×1080）
     final_rgb = Image.new("RGB", (canvas_w, canvas_h), bg_color)
     final_rgb.paste(composed_img, (0, 0), composed_img)
     final_rgb.save(output_path, "PNG")
-    log.info(f"成功装配并生成官员立绘: {output_path} (DNA: {dna_hash})")
+    log.info(f"成功装配纯透明装备层叠官员立绘: {output_path} (DNA: {dna_hash})")
 
     return output_path
 

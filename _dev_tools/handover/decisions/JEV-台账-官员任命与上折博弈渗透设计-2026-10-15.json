@@ -1,0 +1,19 @@
+{
+  "id": "JEV-台账-官员任命与上折博弈渗透设计-2026-10-15",
+  "question": "皇帝任免天下官员与大臣博弈、上折子闭环、零新UI渗透的系统设计架构选型",
+  "options": {
+    "A": "复用三省会签与召对双轨闭环：案头奏折「准奏」直接生成待签诏草（复用 edict_drafts 与门下封驳 council_review），召对提议人事与发旨时注入四监司考课与大臣派系利益；零新 UI，复用既有审核与推演闭环，单点收敛",
+    "B": "独立新设官员任命状态机：新建独立的官员任命及批折通道，脱离现有三省会签与召对流程"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.828,
+    "B": 0.172
+  },
+  "premises_verified_by_me": "用户明确要求「不用专门做UI出来，渗透进游戏就行，比如跟大臣提议的时候大臣的反应，发旨的时候大臣们的反应」。方案A紧扣《宋祚》单点收敛律，完全复用既有的三省六部会签机制（edict_drafts / council_review）与文华殿召对（audience_dialogue），通过注入四监司数据与派系政治阻力，实现零新UI自然渗透，避免新增平行管道导致的系统臃肿与数据不一致。",
+  "applied_in": [
+    "sz/_dev_tools/game-docs/specs/administration/DESIGN-officials-appointment-and-memorial-friction.md",
+    "sz/_dev_tools/handover/tasks/M304-officials-memorial-friction.json"
+  ],
+  "reopen_if": "若三省会签推演与召对上下文在承载官员任免时发生 token 严重超限或语义冲突"
+}

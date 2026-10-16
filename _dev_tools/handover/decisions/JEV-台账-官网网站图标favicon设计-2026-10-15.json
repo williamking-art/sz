@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-官网网站图标favicon设计-2026-10-15",
+  "question": "给《宋祚》官网配置网站图标（favicon），图案选型与格式策略为何？",
+  "options": {
+    "A": "以四字方印「宋祚之印」（seal-4char）为主体生成多尺寸透明底图标（favicon.ico + 32x32 + apple-touch-icon 180x180）",
+    "B": "以两字竖印压缩为正方形",
+    "C": "仅单字宋重新绘制"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.7441023588180542,
+    "B": 0.2009020298719406,
+    "C": 0.05499563738703728
+  },
+  "premises_verified_by_me": "项目已有高清透明底四字方印「宋祚之印」（seal-4char.webp，490x508），天然为正方形比例，朱红方印在深浅色浏览器标签栏及书签栏上对比鲜明、金石印玺韵味浓郁；产出包含 root favicon.ico（含 16/32/48 多规格）、media/favicon-32x32.png、media/apple-touch-icon.png，兼顾所有现代浏览器与移动端快捷方式。",
+  "applied_in": "songzuo-site/site-work/redesign-preview/favicon.ico, media/favicon-32x32.png, media/apple-touch-icon.png, index.html",
+  "reopen_if": "用户要求指定特定的矢量图形或纯文字作为图标"
+}

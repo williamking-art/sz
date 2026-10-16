@@ -1,0 +1,69 @@
+{
+  "id": "JEV-台账-印玺与官网改版-2026-10-13",
+  "agent": "DSH",
+  "date": "2026-10-13",
+  "topic": "《宋祚》官网改版：印玺生成路线、四字印读序、预览是否可判为可发布、空印混合路线是否可行",
+  "note": "本台账依 AGENTS.md 2026-10-13 补强条款建立：Jev 裁定必须落 decisions/ 才算留痕。概率为原始读数，用户可见叙述只用档位词。",
+  "entries": [
+    {
+      "seq": 1,
+      "question": "印玺采用哪种生成路线？",
+      "options": ["AI直出", "程序化", "混合"],
+      "verdict": "程序化",
+      "probabilities": {"程序化": 0.879, "混合": 0.121, "AI直出": 0.0003},
+      "provider": "tokenrhythm",
+      "premises_verified_by_me": [
+        "本机字体实测存在隶书 SIMLI.TTF 与 STLITI.TTF，没有篆书字体",
+        "生图模型对牌匾与印章类汉字会出伪字：本会话多次实测，必须在提示词里反复写否定项才能压住"
+      ],
+      "applied_in": "make_seal_final.py 生成印玺；未采用 AI 直出",
+      "reopen_if": "获得可靠的中文篆书模型或可用篆书字体授权时"
+    },
+    {
+      "seq": 2,
+      "question": "四字印玺采用哪种读序排布？",
+      "options": ["传统印序（右起竖列）", "现代左起"],
+      "verdict": "现代左起",
+      "probabilities": {"现代左起": 0.834, "传统印序": 0.166},
+      "provider": "tokenrhythm",
+      "premises_verified_by_me": [
+        "旧素材 sz/game/assets/seal.png 为现代左起 2x2 排布",
+        "用户 2026-10-13 已把四字内容由「宋祚国玺」改为「宋祚之印」"
+      ],
+      "applied_in": "seal-4char 采用左起 2x2：上排宋祚、下排之印",
+      "reopen_if": "用户要求改用篆刻传统读序时"
+    },
+    {
+      "seq": 3,
+      "question": "实测检查结果是否足以支持暂不将此预览视作可发布完成版？",
+      "options": ["是", "否"],
+      "verdict": "是",
+      "probabilities": {"holds": true},
+      "provider": "tokenrhythm",
+      "premises_verified_by_me": [
+        "浅底正文对比度实测 4.485:1，低于 4.5",
+        "prefers-reduced-motion 下按钮标签与行为不一致（显示开启动效但点不动）",
+        "禁用 JS 时仍有 1 个 running 动画，且暂停按钮无事件处理程序",
+        "320px 视口下品牌与控制按钮拆行"
+      ],
+      "applied_in": "site-work/redesign-preview/audit/QUALITY-REVIEW.md 的必改项",
+      "reopen_if": "按同一套浏览器测试复跑且必改项清零后"
+    },
+    {
+      "seq": 4,
+      "question": "AI 生成空印再扣字的混合路线是否可行？",
+      "options": ["可行", "不可行"],
+      "verdict": "不可行",
+      "probabilities": {"混合路线（Jev 原始评分）": 0.121},
+      "provider": "tokenrhythm",
+      "note": "本条为实测推翻 Jev 次选排序的实例：用户指定走空印混合路线，实测两次均失败，最终回到程序化。",
+      "premises_verified_by_me": [
+        "两次生成（1:1 方印、2:3 竖长条）印面都被补满似是而非的伪字笔画，所谓空印并不空",
+        "对大半径模糊加阈值填实后，伪字仍以密度差形式残留，与真实字形叠成双重字形",
+        "结论：生图模型面对印章一定会补字，无法用于生产印面"
+      ],
+      "applied_in": "放弃 seal-blank 路线；seal-final 改为全程序化质感",
+      "reopen_if": "出现能生成真正空白印面的模型，或获得可控的印石纹理素材时"
+    }
+  ]
+}

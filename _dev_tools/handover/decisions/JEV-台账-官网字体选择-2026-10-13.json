@@ -1,0 +1,55 @@
+{
+  "id": "JEV-台账-官网字体选择-2026-10-13",
+  "agent": "DSH",
+  "date": "2026-10-13",
+  "topic": "《宋祚》官网站点字体：主标题与正文的字体选择（选项集含开源字体）",
+  "note": "依 AGENTS.md 2026-10-13 条款建立。概率为原始读数。",
+  "entries": [
+    {
+      "seq": 1,
+      "question": "首屏主标题「宋祚」采用哪种字体？",
+      "options": ["马善政毛笔楷", "思源宋体600", "霞鹜文楷粗", "站酷小薇", "隶书（本机）", "楷体（本机·原用）"],
+      "verdict": "马善政毛笔楷（接近平手，已自行复核）",
+      "probabilities": {"马善政毛笔楷": 0.3095, "思源宋体600": 0.2853, "霞鹜文楷粗": 0.2409, "站酷小薇": 0.1456},
+      "provider": "tokenrhythm",
+      "tie_disclosure": "马善政 0.3095 与 思源宋体600 0.2853 仅差 0.024，属 AGENTS.md 所称「概率接近平手」⇒ 不得直接照搬，必须自行再论证。",
+      "premises_verified_by_me": [
+        "用户原话是主标题「过于简洁」——马善政为毛笔行楷、笔意最足，直接针对这条；思源宋体600 偏端正书卷气，反而更接近用户所嫌的「简洁」",
+        "已用 PIL 将与上线同源的 TTF 逐字排出对比稿（font-compare-v2.png），确认马善政在 140px 下字形完整、无缺字",
+        "马善政为 SIL OFL 授权，可自托管分发；隶书 STLITI 与楷体 STKAITI 为本机字体，不可网页分发"
+      ],
+      "applied_in": "preview.css 的 --brush 改为 'Ma Shan Zheng' 优先；字体文件 fonts/mashanzheng-400.woff2（133 KB，按本站用字子集化）",
+      "reopen_if": "用户认为毛笔楷在长页面里过于跳脱，或需要更端正的标题时"
+    },
+    {
+      "seq": 2,
+      "question": "文章正文采用哪种字体？",
+      "options": ["思源宋体", "霞鹜文楷"],
+      "verdict": "思源宋体",
+      "probabilities": {"思源宋体": 0.6837, "霞鹜文楷": 0.3163},
+      "provider": "tokenrhythm",
+      "premises_verified_by_me": [
+        "正文为长段落阅读，宋体端正、横竖对比明确，长时间阅读负担低于楷体",
+        "思源宋体为 SIL OFL 授权，可自托管；此前站点用的 SimSun/STSong 属本机字体，无法随站分发",
+        "子集化后单文件 62 KB，对 3 Mbps 的 ECS 友好"
+      ],
+      "applied_in": "preview.css 的 --serif 改为 'Noto Serif SC' 优先；字体文件 fonts/noto-serif-400.woff2（62 KB）",
+      "reopen_if": "用户偏好楷体质感的正文，或需要更轻的正文观感时"
+    },
+    {
+      "seq": 3,
+      "question": "字体子集化的取舍：按本站实际用字裁剪，还是保留整包？",
+      "options": ["按用字裁剪（单文件，小但改文案会缺字）", "保留整包分片（大但任意文案都不缺字）"],
+      "verdict": "按用字裁剪（我自行判定，未问 Jev；此处记录为口径而非裁定）",
+      "probabilities": {},
+      "provider": "n/a",
+      "premises_verified_by_me": [
+        "整包分片：单套即 890 KB 至 1.6 MB，且首屏会命中 20 余个分片请求",
+        "裁剪后：标题 133 KB + 正文 62 KB = 195 KB，两个文件",
+        "裁剪的风险是「改文案出现缺字」——已用 audit-fonts.py 建**缺字守卫**：逐个核验页面可见字符是否都在子集内，漏字即 FAIL 并列出具体字"
+      ],
+      "applied_in": "build_fonts.py（子集化管线）+ audit-fonts.py（缺字守卫，EXIT 0 通过）",
+      "reopen_if": "页面文案频繁变动导致反复重新子集化不划算时，可改为保留整包分片"
+    }
+  ]
+}

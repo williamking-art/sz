@@ -8,6 +8,15 @@
  "impact": "**仅格式**（HANDOFF.md 尾部多一空行，内容无损）；已在后续提交修正。**但它暴露了流程缺陷**：门禁「打印 ≠ 拦截」。",
  "fix": "① 交接 README §提交前门禁 的示例改为**变量 + 显式判定**：`if ($diffExit -ne 0 -or $fullExit -ne 0) { exit 1 }`，并注明「只打印不拦 = 没接线」；② 本档留痕。",
  "lesson": "**任何门禁都必须以退出码参与分支**；只 echo 出退出码等于没做门禁。本会话此前多次自查「先看退出码再提交」——这次是**看是看了，却没接线**。",
- "evidence": ["git log：c848dbbe4b（漏过）→ 561017b01a（修正）", "当前 HANDOFF.md 尾部为**单换行**（已核）", "当前 git diff --cached --check = 0"],
- "verified": ["修复后门禁示例经人工复核", "HANDOFF.md EOF 已核为单换行"]
+ "evidence": [
+  "git log：c848dbbe4b（漏过）→ 561017b01a（修正）",
+  "当前 HANDOFF.md 尾部为**单换行**（已核）",
+  "当前 git diff --cached --check = 0"
+ ],
+ "verified": [
+  "修复后门禁示例经人工复核",
+  "HANDOFF.md EOF 已核为单换行"
+ ],
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-13T22:11:03Z"
 }

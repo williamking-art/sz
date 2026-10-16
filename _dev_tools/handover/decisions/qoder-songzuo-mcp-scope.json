@@ -1,0 +1,69 @@
+{
+ "id": "qoder-songzuo-mcp-scope",
+ "title": "Qoder CLI 接入 mcp-songzuo 的注册 scope 裁定",
+ "status": "decided",
+ "askedAt": "2026-10-13",
+ "askedBy": "Qoder",
+ "ruler": "Jev (tokenrhythm / NeoHorse-Jev-4B)",
+ "mode": "choose",
+ "question": "自托管交接状态 MCP（mcp-songzuo v2.0.0，8 工具，端点 http://120.25.223.23:18080/mcp）接入 Qoder CLI 时，mcpServers 条目应注册到哪个 scope？",
+ "options": {
+  "user": "写进 ~/.qoder-cn/settings.json，全局所有项目可见",
+  "local": "写进 D:/codebuddy/.qoder/settings.local.json，仅本工作区且 gitignore",
+  "project": "写进 D:/codebuddy/.qoder/settings.json，可能被提交"
+ },
+ "verdict": "local",
+ "probabilities": {
+  "user": 0.1953,
+  "local": 0.6225,
+  "project": 0.1821
+ },
+ "tie": false,
+ "premises_verified_by_me": [
+  "端点 healthz 返回 200，storage driver=local 且 ok=true，tools=8",
+  "无鉴权 POST /mcp 返回 401，失败关闭成立",
+  "用「qoder」专属 256-bit token 握手成功，服务端回 Mcp-Session-Id 与 serverInfo mcp-songzuo/2.0.0",
+  "tools/list 实得 8 个工具名（state_set/state_get/context_save/context_load/log_append/log_read/project_list/project_create）",
+  "域名 TLS 入口 https://mcp.songzuo.online:8443/mcp 已被阿里云按 SNI 拦截，故配置只能用 IP 直连（2026-10-12 既有裁定）",
+  "qoderclicn 不在 PATH，AppData/npm 全局也未找到，故按技能约定改为直接编辑文件",
+  "目标文件写前不存在，未覆盖任何既有配置"
+ ],
+ "applied_in": "D:/codebuddy/.qoder/settings.local.json（新增，条目名 songzuo，type=http，Bearer 头内联）",
+ "rationale": "该服务是宋祚工作区专用而非通用个人工具；local 与 project 的差别在于是否进 git 提交面，本条目含明文 Bearer token，local 最窄。",
+ "notes": [
+  "传输为明文 HTTP，token 可被链路嗅探，边界依赖逐 agent token 可单独吊销（沿用 2026-10-12 口径）。",
+  "凭据文件 _credentials/mcp_songzuo.md 已记录账号级阿里云 AK 曾两次在会话明文出现，仍待轮换为收窄权限的 RAM 子账号。",
+  "本次未写入任何阿里云 AK，MCP 用的是服务自身的 agent token。"
+ ],
+ "reopen_if": "若日后需要跨项目复用该交接服务（改 user scope），或域名备案后切回 TLS 入口，或 token 轮换后未同步本文件",
+ "second_ruling": {
+  "question": "qoderclicn 的 mcpServers 条目里远端 streamable-HTTP 写法应取 「type: http」 还是 「type: streamable-http」",
+  "mode": "gate",
+  "verdict": "保留 type=http",
+  "probabilities": {
+   "p": 0.4953,
+   "threshold": 0.4
+  },
+  "near_boundary": true,
+  "my_own_argument": "关于 qoderclicn 只有 mcp-config 技能文档一条直接证据，其 transport 枚举为 stdio|sse|http|ws，不含 streamable-http；app.asar 的字符串频次（http 128 / streamable-http 3）属 IDE 证据，不能当作 CLI 的证据。DSH 侧的 streamable-http 是 Cordis 的方言。",
+  "fallback_if_rejected": "若 /mcp reload 后该条目加载失败，依次尝试：改 type 为 streamable-http；或删掉 type 键只留 url+headers。改动成本一个字，且不影响其它 server。",
+  "cli_absence_evidence": "qoderclicn 可执行文件未在本机找到：PATH 试了 qoderclicn/qoder-cli/qoder 及 .cmd 共 5 个名、PowerShell Get-Command qoder*（只命中插件的 qoder-context）、~/.qoder-cn/bin 只有 7zr.exe 与 QoderComputerUse.exe、用户目录与 AppData/Local 深度查找无。故按技能约定回退为直接编辑文件。"
+ },
+ "collision_check": "三个 scope 全查：user settings.json 的 mcpServers 仅 cloudbase；D:/codebuddy/.qoder/settings.json 不存在；local 仅 songzuo。无重名、无覆盖。",
+ "third_ruling_proxy": {
+  "question": "MCP 未加载时，是否应先改系统代理绕过列表或 mihomo 规则",
+  "mode": "gate",
+  "verdict": "不改，先 reload/重启观察",
+  "probabilities": {
+   "p": 0.9555,
+   "threshold": 0.4
+  },
+  "evidence": [
+   "同一份 url+header：直连 initialize=200 并回 Mcp-Session-Id；强制经 mihomo 127.0.0.1:7890 = 502（curl -x 稳定复现）",
+   "注册表 ProxyEnable=1、ProxyServer=127.0.0.1:7890；本进程无任何 *_proxy 环境变量",
+   "Python urllib 读注册表代理故失败，curl 不读故成功 —— 502 是我探针侧走代理所致，非服务端故障"
+  ],
+  "open_risk": "qoderclicn 是否读取系统代理未证实（CLI 本体不在盘上）；Node/undici 默认不读 WinINET，故预期直连可用。若 reload 后仍连不上且日志显示 502，则需给 120.25.223.23 加代理绕过或在 mihomo 加 DIRECT 规则，属改全局配置、需用户确认。",
+  "applied_in": "未改动任何代理配置；仅记录"
+ }
+}

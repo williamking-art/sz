@@ -1,0 +1,17 @@
+{
+  "id": "JEV-台账-标准大半身像2D布娃娃与透明装备层叠换装体系-2026-10-16",
+  "date": "2026-10-16",
+  "question": "是否应立即全面确立并落地一套严格工业化标准的「统一大半身像（810x1080）2D布娃娃纯透明图层装配体系（Paper Doll System）」？",
+  "options": [
+    "A: 全面落地统一大半身像810x1080标准素体与纯透明图层（RGBA）无损层叠纸娃娃体系，彻底告别切脸、杂色与比例失调",
+    "B: 继续使用旧工笔整图或动态切刀拼合"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9875,
+    "B": 0.0125
+  },
+  "premises_verified_by_me": "已实测验证：旧方案因图层不透明、基准画布不统一，导致展示时有的半身、有的全身、比例完全失调，且存在双帽翅与色带瑕疵；而经典RPG纸娃娃系统基于统一基准素体与标准透明部件，自下而上严格透明复合，能彻底保证100%同景别、同比例与无瑕换装。",
+  "applied_in": "sz/game/content/ministers/portrait_assembler.py, sz/game/content/ministers/layers/, official_art_assets_gallery.md",
+  "reopen_if": "存在对非标准画幅或非大半身像景别的特殊全景立绘展示需求"
+}

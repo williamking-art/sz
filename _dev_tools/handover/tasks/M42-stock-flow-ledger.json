@@ -1,7 +1,7 @@
 {
  "id": "M42-stock-flow-ledger",
  "title": "逐维商品流量账（P1 第一句「逐月复原商品库存恒等式」的**缺失前置**）",
- "status": "pending",
+ "status": "in_progress",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "统一民间市场 P1 验收第一句『逐月复原货币与商品库存恒等式』",
@@ -20,6 +20,6 @@
   "改动触及生产/消费多写点 ⇒ 须先出改动清单 + 定向回归 + 全量 EXIT=0"
  ],
  "observation": "取证中 盐/茶/木/铁/石 首轮各 +3,000,000（整数且同量）——疑为开局补货/公式路径（未核）；本任务不含排查该现象，另记。",
- "claimedBy": "",
- "claimedAt": ""
+ "claimedBy": "DSH",
+ "claimedAt": "2026-10-12T19:03:54Z"
 }

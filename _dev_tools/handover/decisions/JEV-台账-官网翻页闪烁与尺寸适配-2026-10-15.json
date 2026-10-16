@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-官网翻页闪烁与尺寸适配-2026-10-15",
+  "question": "官网翻页的时候会闪烁，有些界面大小还没适配，最佳治理策略为何？",
+  "options": {
+    "A": "双管齐下系统修复（各页做纵向响应式紧凑适配，彻底保证各视口单屏贴合；移除重绘开销大的 SVG 滤镜改为轻量纯 CSS 宣纸色泽；平滑化 reveal 与触屏 snap 协调）",
+    "B": "仅修 CSS 高度尺寸",
+    "C": "仅修 JS 翻页事件"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9773570895195007,
+    "B": 0.019593212753534317,
+    "C": 0.0030496027320623398
+  },
+  "premises_verified_by_me": "经无头浏览器实测，在 375x667、360x780、1024x768、1366x768 下多页溢出 30~160px，导致 canAdvance 拦截与 snap 强行回弹抖动；同时 inline SVG feTurbulence 滤镜与 reveal opacity:0 造成翻页白闪。单纯改一边均无法根本解决问题，必须 A 方案系统协同修复。",
+  "applied_in": "songzuo-site/site-work/redesign-preview/preview.css, songzuo-site/site-work/redesign-preview/preview.js",
+  "reopen_if": "存在特定视口在不破坏可读性前提下无法压缩进单屏的情况"
+}

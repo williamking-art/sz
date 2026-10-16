@@ -1,0 +1,40 @@
+{
+  "id": "JEV-台账-logo替换与印玺抠图-2026-10-13",
+  "agent": "DSH",
+  "date": "2026-10-13",
+  "topic": "《宋祚》项目 logo/印玺：抠图路线选择、logo 更替范围",
+  "note": "依 AGENTS.md 2026-10-13 补强条款建立。概率为原始读数，用户可见叙述只用档位词。",
+  "entries": [
+    {
+      "seq": 1,
+      "question": "印玺定稿采用哪条路线：从用户提供的参考图抠透明印面 / 按该风格程序化重生成 / 两者都做？",
+      "options": ["A=从用户参考图抠透明印面", "B=按参考图风格程序化重生成", "C=两者都做交用户挑选"],
+      "verdict": "A（未过半，已自行复核）",
+      "probabilities": {"A": 0.498, "C": 0.324, "B": 0.178},
+      "provider": "tokenrhythm",
+      "tie_handling": "A 领先但未过半（0.498 vs 0.324），按纪律视为差距不大，由我自行复核后再执行。",
+      "premises_verified_by_me": [
+        "参考图由用户主动提供，两枚印的字符已逐字核对：竖印为宋祚；方印右列宋祚、左列之印，传统右起竖列读序，读作宋祚之印，正确",
+        "抠图可行性实测：棋盘格为灰白（R-G 约 0），印墨为朱红（R-G 很大），按偏红软阈值可干净分离；产出后实测不透明像素中非红占比 0.00%，确认无棋盘格残留",
+        "程序化成品 seal-final 已生成并视觉复核，直接留作备选，等于不额外花时间即获得 C 的好处"
+      ],
+      "applied_in": "seal-from-ref/ 两枚透明印面；已在站点与游戏安装 2 字印，预览另装 4 字印",
+      "reopen_if": "需要更高分辨率母版（原生仅 356x635）或需要真矢量时"
+    },
+    {
+      "seq": 2,
+      "question": "本项目 logo 更替采用哪种范围？",
+      "options": ["A=仅站点侧替换并保留游戏原方印", "B=站点与游戏 seal.png 全部替换为竖长 logo", "C=站点用竖长 logo、游戏方槽改用其方形版宋祚之印"],
+      "verdict": "B",
+      "probabilities": {"B": 0.835, "C": 0.103, "A": 0.062},
+      "provider": "tokenrhythm",
+      "premises_verified_by_me": [
+        "游戏前端引用 seal.png 共三处，CSS 均为 object-fit:contain，替换后不会被压扁",
+        "实测竖长 logo 在 28x28 槽位内渲染为 15.7x28（面积为旧方印的 56%），视觉会变小——此后果已在汇报中明示",
+        "seal_imperial.png 是不同语义的玺，用于 OverlayStack 与 StartPanel，不在本次范围"
+      ],
+      "applied_in": "sz/game/frontend/public/images/seal.png、sz/game/assets/seal.png、songzuo-site/assets/img/seal.webp、预览 media/seal.webp 四处；旧资产备份于 _scratch/logo-backup/",
+      "reopen_if": "游戏内 28px 方槽的观感不被接受时（可考虑 C 方案给方槽配方形印）"
+    }
+  ]
+}
