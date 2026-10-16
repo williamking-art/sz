@@ -1,0 +1,13 @@
+{
+  "id": "JEV-台账-官网单屏页面垂直居中排版优化-2026-10-16",
+  "question": "《宋祚》官网单屏页面居中排版优化方案选择",
+  "options": "A=桌面Grid加align-content:center且移动端flex垂直居中;B=仅加大padding-top硬顶",
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.98375,
+    "B": 0.01625
+  },
+  "premises_verified_by_me": "经多端截图排查确认，移动端单屏页面（intro, court, court-detail, fields, fields-detail, coupling）因 display: block 导致内容聚集在视口顶部（顶距仅30px，底距达380-480px），下半屏大片空白失衡；桌面端 Grid 容器未设 align-content: center 也偏上。采用 A 方案：桌面端通过 align-content: center 让双栏网格在 100svh 垂直居中，移动端通过 display: flex; flex-direction: column; justify-content: center 辅以底部安全留白实现自然垂直居中",
+  "applied_in": "songzuo-site/site-work/redesign-preview/preview.css",
+  "reopen_if": "存在特定手机极小屏高度不足导致内容溢出"
+}
