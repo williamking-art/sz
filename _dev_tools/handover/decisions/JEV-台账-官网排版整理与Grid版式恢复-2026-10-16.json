@@ -1,0 +1,13 @@
+{
+  "id": "JEV-台账-官网排版整理与Grid版式恢复-2026-10-16",
+  "question": "《宋祚》官网排版被改后的整理方案选择",
+  "options": "A=彻底恢复原有精美Grid与响应式版式并保留逐页动效;B=不恢复原有Grid而用内嵌wrapper修补",
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.95947,
+    "B": 0.04053
+  },
+  "premises_verified_by_me": "对比 4024bba 发现上一轮误在 .js .page 上添加了全局 display: flex; flex-direction: column; 覆盖冲垮了 .intro, .court, .fields 等原本的 Grid 版式，使朝堂图左文右、田亩图左文右以及双栏册页结构坍缩为纵向单列。按 A 方案彻底恢复原有精心调校的 Grid 与响应式结构，同时保留逐页水墨展卷动效与点阵联动",
+  "applied_in": "songzuo-site/site-work/redesign-preview/preview.css, preview.js",
+  "reopen_if": "移动端或特定极窄屏出现溢出需要针对性微调内边距"
+}
