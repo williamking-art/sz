@@ -1,0 +1,13 @@
+{
+  "id": "JEV-台账-官网纯文字页面空旷排版彻底重构-2026-10-16",
+  "question": "如何解决4个纯文字页面在宽屏下的空旷与大片死白问题",
+  "options": "A=方案A中央宋版册页收拢加大字体体量充实排版骨架;B=方案B桌面端直接合并页面消灭纯文字页",
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.87457,
+    "B": 0.12543
+  },
+  "premises_verified_by_me": "用户发来4张大屏截图直问「这些空白是留给谁的」，直指intro、court-detail、fields-detail、coupling 4个页面。真因是宽屏下1fr 1fr被甩到屏幕两极，中间裂开600px空洞，且字号过小、文字稀疏、撑不起100vh。采用A方案：将这4页在桌面端统一收拢至中央册页区域（max-width: 1040px; margin: 0 auto; gap: 72px），彻底并拢左右两栏；同时将大字标题、正文（18px/行高2.0）、引文与宋版界栏全面充实，使整页化为空灵而凝练的宋代线装书册页，消除满屏荒芜感",
+  "applied_in": "songzuo-site/site-work/redesign-preview/preview.css",
+  "reopen_if": "用户要求改变10屏分页模型直接合页"
+}
