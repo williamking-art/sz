@@ -1,0 +1,36 @@
+{
+  "minister_id": "li_gang",
+  "name": "李纲",
+  "age": 42,
+  "rank": "正四品 尚书右丞兼经略安抚使",
+  "costume_tier": "zi",
+  "base_mannequin": "mannequin_middle",
+  "face_dna": {
+    "face_shape": "shape_broad_strong",
+    "eyebrows": "eyebrow_cold_sharp",
+    "eyes": "eyes_phoenix",
+    "nose": "nose_hook_sharp",
+    "mouth": "mouth_meditating",
+    "beard": "beard_long_black",
+    "complexion": "complexion_tan"
+  },
+  "equipped": {
+    "base_doll": "mannequin_middle",
+    "collar": "collar_white_silk",
+    "robe": "robe_zi_3rd",
+    "headwear": "futou_long_straight",
+    "belt": "belt_gold_lychee",
+    "pouch": "pouch_gold_fish",
+    "held": "held_jade_ivory_hu"
+  },
+  "current_emotion": "respectful",
+  "historical": true,
+  "metadata": {
+    "traits": [
+      "主战",
+      "刚直",
+      "军略"
+    ],
+    "origin": "福建邵武"
+  }
+}

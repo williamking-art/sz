@@ -1,0 +1,36 @@
+{
+  "minister_id": "new_scholar_ouyang",
+  "name": "欧阳澈",
+  "age": 26,
+  "rank": "从八品 承务郎充江南东路抚州知县",
+  "costume_tier": "lv",
+  "base_mannequin": "mannequin_young",
+  "face_dna": {
+    "face_shape": "shape_round_plump",
+    "eyebrows": "eyebrow_sword",
+    "eyes": "eyes_eagle_sharp",
+    "nose": "nose_straight_high",
+    "mouth": "mouth_dignified",
+    "beard": "beard_none",
+    "complexion": "complexion_natural"
+  },
+  "equipped": {
+    "base_doll": "mannequin_young",
+    "collar": "collar_white_silk",
+    "robe": "robe_lv_7th",
+    "headwear": "futou_short_flat",
+    "belt": "belt_black_horn",
+    "pouch": "pouch_none",
+    "held": "held_wood_tablet"
+  },
+  "current_emotion": "respectful",
+  "historical": true,
+  "metadata": {
+    "traits": [
+      "文采",
+      "直谏",
+      "清廉"
+    ],
+    "origin": "抚州崇仁"
+  }
+}

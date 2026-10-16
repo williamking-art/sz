@@ -285,7 +285,7 @@ cd frontend
 
 本项目接入了一套**跨 agent 共享记忆**。**本文件仍是《宋祚》的唯一权威项目记忆**，共享记忆只提供索引。
 
-**记忆版本：v4**（权威值：`C:\Users\william\AI-Memory\MEMORY-VERSION`）
+**记忆版本：v5**（权威值：`C:\Users\william\AI-Memory\MEMORY-VERSION`）
 
 | 读什么 | 路径 | 作用 |
 |---|---|---|

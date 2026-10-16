@@ -1,0 +1,36 @@
+{
+  "minister_id": "zhong_shizhong",
+  "name": "种师中",
+  "age": 55,
+  "rank": "从四品 检校少保兼环庆路经略安抚使",
+  "costume_tier": "zi",
+  "base_mannequin": "mannequin_elder",
+  "face_dna": {
+    "face_shape": "shape_slender_bone",
+    "eyebrows": "eyebrow_cold_sharp",
+    "eyes": "eyes_benevolent",
+    "nose": "nose_broad",
+    "mouth": "mouth_meditating",
+    "beard": "beard_three_tuft_refined",
+    "complexion": "complexion_mature"
+  },
+  "equipped": {
+    "base_doll": "mannequin_elder",
+    "collar": "collar_white_silk",
+    "robe": "robe_zi_3rd",
+    "headwear": "futou_long_straight",
+    "belt": "belt_gold_lychee",
+    "pouch": "pouch_gold_fish",
+    "held": "held_jade_ivory_hu"
+  },
+  "current_emotion": "respectful",
+  "historical": true,
+  "metadata": {
+    "traits": [
+      "西军",
+      "军略",
+      "持重"
+    ],
+    "origin": "京兆洛阳"
+  }
+}

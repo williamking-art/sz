@@ -1,0 +1,36 @@
+{
+  "minister_id": "cai_jing",
+  "name": "蔡京",
+  "age": 70,
+  "rank": "从一品 尚书左仆射兼门下侍郎",
+  "costume_tier": "zi",
+  "base_mannequin": "mannequin_elder",
+  "face_dna": {
+    "face_shape": "shape_round_plump",
+    "eyebrows": "eyebrow_frost",
+    "eyes": "eyes_benevolent",
+    "nose": "nose_broad",
+    "mouth": "mouth_square_open",
+    "beard": "beard_snow_full",
+    "complexion": "complexion_mature"
+  },
+  "equipped": {
+    "base_doll": "mannequin_elder",
+    "collar": "collar_white_silk",
+    "robe": "robe_zi_3rd",
+    "headwear": "futou_long_straight",
+    "belt": "belt_gold_lychee",
+    "pouch": "pouch_gold_fish",
+    "held": "held_jade_ivory_hu"
+  },
+  "current_emotion": "respectful",
+  "historical": true,
+  "metadata": {
+    "traits": [
+      "理财",
+      "奸黠",
+      "书法"
+    ],
+    "origin": "福建仙游"
+  }
+}

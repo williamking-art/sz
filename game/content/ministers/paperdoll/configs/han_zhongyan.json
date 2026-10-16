@@ -1,0 +1,36 @@
+{
+  "minister_id": "han_zhongyan",
+  "name": "韩忠彦",
+  "age": 63,
+  "rank": "从一品 尚书右仆射兼中书侍郎",
+  "costume_tier": "zi",
+  "base_mannequin": "mannequin_elder",
+  "face_dna": {
+    "face_shape": "shape_scholar_soft",
+    "eyebrows": "eyebrow_frost",
+    "eyes": "eyes_aged_droop",
+    "nose": "nose_flat_smooth",
+    "mouth": "mouth_smile_subtle",
+    "beard": "beard_grey_three",
+    "complexion": "complexion_aged_wrinkles"
+  },
+  "equipped": {
+    "base_doll": "mannequin_elder",
+    "collar": "collar_white_silk",
+    "robe": "robe_zi_3rd",
+    "headwear": "futou_long_straight",
+    "belt": "belt_gold_lychee",
+    "pouch": "pouch_gold_fish",
+    "held": "held_jade_ivory_hu"
+  },
+  "current_emotion": "respectful",
+  "historical": true,
+  "metadata": {
+    "traits": [
+      "元老",
+      "宽厚",
+      "清名"
+    ],
+    "origin": "相州安阳"
+  }
+}

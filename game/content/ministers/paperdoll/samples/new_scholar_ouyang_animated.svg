@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 810 1080" width="810" height="1080">
+  <defs>
+    <!-- 宣和殿老绢本渐变底色 -->
+    <radialGradient id="silk_bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#C4A877" />
+      <stop offset="100%" stop-color="#B39562" />
+    </radialGradient>
+    
+    <!-- 官袍立体光影渐变 -->
+    <linearGradient id="robe_grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E3E29" />
+      <stop offset="20%" stop-color="#2F5C3E" />
+      <stop offset="50%" stop-color="#2F5C3E" />
+      <stop offset="80%" stop-color="#2F5C3E" />
+      <stop offset="100%" stop-color="#1E3E29" />
+    </linearGradient>
+
+    <!-- 幞头漆纱墨色渐变 -->
+    <linearGradient id="futou_grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38322D" />
+      <stop offset="100%" stop-color="#1A1715" />
+    </linearGradient>
+
+    <!-- 象牙朝笏光泽渐变 -->
+    <linearGradient id="hu_grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#EBE3D0" />
+      <stop offset="40%" stop-color="#FCFAF5" />
+      <stop offset="100%" stop-color="#E2D8C3" />
+    </linearGradient>
+  
+    <style>
+      @keyframes song_breath {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-2.2px); }
+      }
+      @keyframes song_blink {
+        0%, 94%, 100% { transform: scaleY(1); }
+        96%, 98% { transform: scaleY(0.08); }
+      }
+      @keyframes song_futou_wing {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(0.12deg); }
+      }
+      #layer5_robe, #layer4_collar, #layer6_belt, #layer7_pouch, #layer8_held {
+        animation: song_breath 3.6s ease-in-out infinite;
+        transform-origin: 405px 715px;
+      }
+      #layer2_face .eyes_pupil, #layer2_face .eye_opening {
+        animation: song_blink 4.2s ease-in-out infinite;
+        transform-origin: 405px 285px;
+      }
+      #layer9_futou {
+        animation: song_futou_wing 4.5s ease-in-out infinite;
+        transform-origin: 405px 225px;
+      }
+    </style>
+  </defs>
+
+  <!-- ==================== Layer 0: 宣和老绢本背景 ==================== -->
+  <rect width="100%" height="100%" fill="url(#silk_bg)" />
+
+  <!-- ==================== Layer 1: 人形素体脖颈 ==================== -->
+  <g id="layer1_base_doll">
+    <!-- 颈项素体 (完整连贯，杜绝断头) -->
+    <polygon points="360,260 450,260 458,410 352,410" fill="#E5C8A8" />
+    <!-- 颌下与锁骨工笔阴影 -->
+    <path d="M 360 375 Q 405 410 450 375 L 445 395 Q 405 422 365 395 Z" fill="#C9A782" opacity="0.8" />
+  </g>
+
+  <!-- ==================== Layer 2: 7 维解耦五官面模 (千人千面) ==================== -->
+  <g id="layer2_face">
+    <path d="M 315 240 C 305 330 330 405 405 405 C 480 405 505 330 495 240 C 470 210 340 210 315 240 Z" fill="#E5C8A8" stroke="#C9A782" stroke-width="2" />
+    <path d="M 325 280 C 310 290 310 335 325 350 Z" fill="#E5C8A8" stroke="#C9A782" stroke-width="1.5" />
+    <path d="M 485 280 C 500 290 500 335 485 350 Z" fill="#E5C8A8" stroke="#C9A782" stroke-width="1.5" />
+    <path d="M 345 272 L 395 264" fill="none" stroke="#261F1A" stroke-width="3.5" stroke-linecap="round" />
+    <path d="M 465 272 L 415 264" fill="none" stroke="#261F1A" stroke-width="3.5" stroke-linecap="round" />
+    <ellipse cx="375" cy="285" rx="14" ry="6" fill="#FAF6EE" stroke="#3A2818" stroke-width="1.5" />
+    <circle cx="376" cy="285" r="4" fill="#181410" />
+    <circle cx="378" cy="283" r="1.2" fill="#FFFFFF" />
+    <ellipse cx="435" cy="285" rx="14" ry="6" fill="#FAF6EE" stroke="#3A2818" stroke-width="1.5" />
+    <circle cx="434" cy="285" r="4" fill="#181410" />
+    <circle cx="436" cy="283" r="1.2" fill="#FFFFFF" />
+    <path d="M 405 275 L 403 325 Q 405 332 405 334 M 396 332 Q 405 337 414 332" fill="none" stroke="#C9A782" stroke-width="2" stroke-linecap="round" />
+    <path d="M 390 355 Q 405 358 420 355 M 394 355 Q 405 365 416 355" fill="none" stroke="#7A3D3D" stroke-width="2.2" stroke-linecap="round" />
+  </g>
+  <g id="layer3_beard">
+  </g>
+  <g id="layer4_collar">
+    <!-- 白色中单交领 (严密护颈，彻底杜绝断头) -->
+    <polygon points="355,420 405,475 455,420 405,385" fill="#F8F8F5" stroke="#DDD8CE" stroke-width="1.8" />
+    <polygon points="368,415 405,460 442,415 405,380" fill="#EAE5DC" />
+  </g>
+  <g id="layer5_robe">
+    <!-- 圆领大袖襕袍主干身躯 -->
+    <path d="M 230 460 Q 200 680 140 880 L 130 1080 L 680 1080 L 670 880 Q 610 680 580 460 Z" fill="url(#robe_grad)" stroke="#1F1B16" stroke-width="2.2" />
+    
+    <!-- 左大袖自然垂落 -->
+    <path d="M 230 460 C 130 520 80 660 120 860 C 140 940 180 970 240 920 C 270 840 280 720 280 620 Z" fill="#2F5C3E" stroke="#1E3E29" stroke-width="2.5" />
+    
+    <!-- 右大袖自然垂落 -->
+    <path d="M 580 460 C 680 520 730 660 690 860 C 670 940 630 970 570 920 C 540 840 530 720 530 620 Z" fill="#2F5C3E" stroke="#1E3E29" stroke-width="2.5" />
+
+    <!-- 宋代标志性中脊缝线与下摆横襕 -->
+    <line x1="405" y1="460" x2="405" y2="715" stroke="#1E3E29" stroke-width="2" stroke-dasharray="6,2" opacity="0.6" />
+    <path d="M 210 980 Q 405 1010 600 980" fill="none" stroke="#1E3E29" stroke-width="3.5" />
+
+    <!-- 领口外缘圆领 (环扣中单) -->
+    <path d="M 330 420 Q 405 488 480 420 C 470 410 440 398 405 398 C 370 398 340 410 330 420 Z" fill="#1E3E29" stroke="#1E1A16" stroke-width="2" />
+  </g>
+  <g id="layer6_belt">
+    <!-- 革带深黑皮带基底 (紧扎腰线，绝不浮空) -->
+    <path d="M 260 705 Q 405 725 550 705 L 550 735 Q 405 755 260 735 Z" fill="#26201B" stroke="#15120F" stroke-width="2" />
+    <rect x="290" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="318" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="346" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="374" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="402" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="430" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="458" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="486" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+    <rect x="514" y="710" width="18" height="20" rx="3" fill="#54463A" stroke="#1D1915" stroke-width="1.2" />
+  </g>
+  <g id="layer8_hands_and_hu">
+    <!-- 朝笏竖立贯穿两手 -->
+    <polygon points="398,440 412,440 415,675 395,675" fill="#68482A" stroke="#422814" stroke-width="1.8" />
+    <path d="M 398 440 Q 405 436 412 440" stroke="#422814" stroke-width="2" fill="none" />
+
+    <!-- 肃穆两手握持朝笏下部 (y=570..640) -->
+    <ellipse cx="385" cy="600" rx="15" ry="22" fill="#E5C8A8" stroke="#C9A782" stroke-width="1.8" />
+    <ellipse cx="425" cy="600" rx="15" ry="22" fill="#E5C8A8" stroke="#C9A782" stroke-width="1.8" />
+    <path d="M 360 620 Q 405 635 450 620" fill="none" stroke="#1E3E29" stroke-width="4" stroke-linecap="round" />
+  </g>
+  <g id="layer9_futou">
+    <!-- 幞头山梁本体 (覆盖发际 y=140..235) -->
+    <path d="M 320 235 C 315 160 345 120 405 115 C 465 120 495 160 490 235 C 470 230 440 226 405 226 C 370 226 340 230 320 235 Z" fill="url(#futou_grad)" stroke="#110F0D" stroke-width="2.5" />
+    
+    <!-- 幞头后梁折褶 -->
+    <path d="M 350 145 Q 405 135 460 145" fill="none" stroke="#38322D" stroke-width="2" />
+    <path d="M 340 180 Q 405 170 470 180" fill="none" stroke="#38322D" stroke-width="1.8" />
+    
+    <!-- 帽沿硬漆扣带 (紧压额头发际线) -->
+    <path d="M 320 235 Q 405 226 490 235 L 488 245 Q 405 236 322 245 Z" fill="#151210" />
+
+    <!-- 左右刚直铁线展角 (wing_span: 一尺半至两尺半) -->
+    <!-- 左展角 -->
+    <path d="M 320 225 L 185 225 C 175 225 175 233 185 233 L 320 231 Z" fill="#14110F" stroke="#2A241F" stroke-width="1" />
+    <!-- 右展角 -->
+    <path d="M 490 225 L 625 225 C 635 225 635 233 625 233 L 490 231 Z" fill="#14110F" stroke="#2A241F" stroke-width="1" />
+  </g>
+</svg>
