@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-彻底废黜半透明渐变叠图建立纯净RPG装备贴装体系-2026-10-16",
+  "date": "2026-10-16",
+  "category": "art_system_architecture",
+  "question": "是否彻底废黜一切半透明渐变混叠切图逻辑，建立纯净素体与独立装备贴装体系？",
+  "options": {
+    "A": "彻底废黜旧式垂直fade渐变半透明切头逻辑。建立标准工业级RPG纸娃娃体系：素体（仅保留人脸发髻与内衬，无外袍无官帽）+ 独立装备图层（镂空外袍、独立单顶幞头、独立腰带、独立笏板），完全以非重叠的透明通道物理覆盖穿戴，彻底根绝双帽重影、胸前双色渐变与白雾截断",
+    "B": "继续在旧有fade渐变算法上修修补补"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9922,
+    "B": 0.0078
+  },
+  "premises_verified_by_me": "经实测用户上传的4张灾难级合成图核验：旧式_headcut.py采用从胸口向下的透明度渐变（fade），导致两张全身图（原图紫袍与底图绿袍）半透明叠合，产生双层帽子、双层领口、紫绿混色肩膀及胡须被半透明白带截断的极其丑陋的瑕疵。必须彻底抛弃半透明渐变叠图，改用严格的纯净图层覆盖。",
+  "applied_in": "sz/game/content/ministers/portrait_assembler.py, sz/game/content/ministers/data.py, sz/_dev_tools/game-assets-src/ministers-layers/",
+  "reopen_if": "无"
+}

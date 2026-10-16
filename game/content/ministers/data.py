@@ -576,29 +576,28 @@ def compose_portrait(name: str, tier: str, pose: str = "zheng"):
 
 def get_portrait_path(name: str, kind: str = None, rank: str = None,
                       pose: str = None, tier: str = None, state: Any = None):
-    """返回大臣立绘绝对路径；资源未到位时回退 None。
+    """返回大臣立绘绝对路径；彻底铲除旧式半透明双帽渐变伪合成。
 
     查找优先级：
-      0. 分层合成：头部层 + 官服层（位姿 pose × 服色 tier）
-         - rank 显式传入 = 当前官职品级（官级变化即换官服，头部不变）；
-           缺省取档案品级；宗室→亲王服，在野/空品级→士人襕衫
-         - 若 state 记录特赐借紫/借绯，自然融合使用特赐服色
-         - pose 缺省按派系/年龄指派（minister_pose：正立/拱手/持笏/拢袖）
-      1. 大臣档案显式 ``portrait`` 文件名（如有且存在）
-      2. 个人立绘 ``portraits/{name}.png``
-      3. 分类默认图 ``portraits/{kind}.png``（kind 缺省按派系/role 自动推断：
-         civil / military / eunuch / royal）
+      0. 43 位历史名臣专属高清原画 portraits/{name}.png（保真大师级工笔，绝不二次半透明污染破坏）
+      1. 模块化布娃娃装配引擎 ModularPortraitAssembler（为地方知通与新科进士输出完整干净立绘）
+      2. 大臣档案显式 portrait 路径
+      3. 分类默认图 portraits/{kind}.png
     """
-    # tier 显式指定时优先（供"在任状态"驱动的服色：罢黜/致仕/身故 → 士人 shi），
-    # 否则按显式 rank（运行态官品）→ 档案品级。
-    tier = tier or (rank_tier(rank) if rank else minister_tier(name, state))
-    composed = compose_portrait(name, tier, pose or minister_pose(name))
-    if composed:
-        return composed
+    # 0. 历史名臣优先使用其专属原画，绝不调用半透明渐变伪合成
+    fig = MINISTERS.get(name, {})
+    if fig.get("portrait"):
+        c_path = os.path.join(PORTRAIT_DIR, fig["portrait"])
+        if os.path.isfile(c_path):
+            return c_path
+    named_p = os.path.join(PORTRAIT_DIR, f"{name}.png")
+    if os.path.isfile(named_p):
+        return named_p
 
-    # 模块化官员立绘装配引擎（覆盖数百位地方官与科举知县，杜绝43张脸撞脸）
+    # 1. 通用官员与新科进士：通过 ModularPortraitAssembler 装配
     try:
         from content.ministers.portrait_assembler import derive_official_visual_dna, assemble_official_portrait
+        tier = tier or (rank_tier(rank) if rank else minister_tier(name, state))
         favor_eq = {}
         if state is not None and hasattr(state, "minister_equipment"):
             eq_store = getattr(state, "minister_equipment", {})
@@ -616,18 +615,12 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
     except Exception:
         pass
 
-    fig = MINISTERS.get(name, {})
-    candidates = []
-    if fig.get("portrait"):
-        candidates.append(fig["portrait"])
-    candidates.append(f"{name}.png")
+    # 2. 兜底分类图
     if kind is None:
         kind = _minister_kind(name)
-    candidates.append(f"{kind}.png")
-    for fname in candidates:
-        path = os.path.join(PORTRAIT_DIR, fname)
-        if os.path.isfile(path):
-            return path
+    cand = os.path.join(PORTRAIT_DIR, f"{kind}.png")
+    if os.path.isfile(cand):
+        return cand
     return None
 
 

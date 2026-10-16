@@ -1,0 +1,18 @@
+{
+  "id": "JEV-台账-三位一体融合官员立绘最终权威架构-2026-10-16",
+  "date": "2026-10-16",
+  "category": "art_system_architecture",
+  "question": "是否将「CK2层级规范 + Paperbuddy槽位覆盖 + DiceBear种子DNA」三位一体融合确立为《宋祚》官员公服立绘最终权威架构？",
+  "options": {
+    "A": "正式确立三位一体融合架构：CK2严格Z-Index与品级触发器解决无穿模干净换装；Paperbuddy独立装备槽位解决特赐恩赏精准覆写；DiceBear确定性种子DNA解决数百名地方官与新科进士千人千面。三者合一构成完整严谨的宋代官员立绘展示体系",
+    "B": "继续采用单一分散或粗放方案"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9775,
+    "B": 0.0225
+  },
+  "premises_verified_by_me": "经实测论证：该三位一体融合完美回答了用户的核心诉求。DiceBear的种子机制保证全境官员与后期进士不撞脸；CK2的分层顺序消除了双顶帽子和混色穿模；Paperbuddy的槽位机制支撑了皇帝恩赏借紫、赐玉带、赐金鱼袋的RPG玩法。架构清晰完备，完全闭环。",
+  "applied_in": "sz/game/content/ministers/portrait_assembler.py, sz/game/content/ministers/costumes.py, sz/_dev_tools/game-assets-src/ministers-layers/",
+  "reopen_if": "无"
+}
