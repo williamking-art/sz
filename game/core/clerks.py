@@ -209,7 +209,11 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
     # **制度性俸薄**才是主因（§16.2：官吏待遇比 15:1，吏所得仅及家庭口粮一半），
     # `pay_ratio` 只是第二重。故用"维持生计线"作缺口基准，而非"应发额"。
     gap_ratio = max(0.0, min(1.0, 1.0 - received / max(0.01, CLERK_SUBSISTENCE_CASH)))
-    desired = clerks * max(0.0, CLERK_SUBSISTENCE_CASH - received) * EXACTION_RATE
+
+    # 阶段 C：接入 Jev 决策门面裁定地方官吏催科严厉度（strict/moderate/lenient）
+    from core.ai.clerk_decision import decide_clerk_enforcement
+    enforcement = decide_clerk_enforcement(state, p)
+    desired = clerks * max(0.0, CLERK_SUBSISTENCE_CASH - received) * EXACTION_RATE * enforcement.mult
 
     # 可抽取上限：民间三池按比例，且遵守"单月最多抽 EXACTION_MAX_SHARE"
     pools = {}
@@ -247,7 +251,7 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
         _muster = _inst.get(state, "muster_share")
         pen = min(1.5, given / max(1.0, float(p.get("population", 0) or 0)) / EXACTION_MOOD_DIVISOR)
         pen += max(0.0, (0.4 - _muster)) * MUSTER_MOOD_W
-        p["mood"] = max(0.0, float(p.get("mood", 55) or 55) - pen)
+        p["mood"] = max(0.0, min(100.0, float(p.get("mood", 55) or 55) - pen + enforcement.mood_delta))
     return {"desired": desired, "taken": float(given), "coverage": coverage,
             "gap_ratio": gap_ratio}
 

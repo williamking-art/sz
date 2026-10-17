@@ -1,0 +1,28 @@
+{
+  "id": "M310-jev-gate-official-and-merchant",
+  "title": "微观主体决策深化：地方官吏催税与商帮物资运作接入Jev决策门面",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "authority": "JEV-DEC-微观主体官吏催税与商帮投机决策架构裁定-2026-10-17（方案A概率0.9583）",
+  "goal": "在game/core/ai/下设立解耦的主体行为决策层（clerk_decision.py与merchant_decision.py），接入EmbeddedJevEngine门面，驱动地方官吏催税严厉度与商帮跨路物资调运投机；严守POP挂载律与货币实物守恒，支持零开销离线降级。",
+  "recon": {
+    "官吏决策": "知州廉洁度、务实度、地方民怨、灾情与国库饥渴度驱动催税倾向（strict/moderate/lenient），影响田赋实征率与民怨变动，税额严格从POP划扣",
+    "商帮决策": "路内物价指数、价差与常平仓存量驱动商贾运作（ship跨路转运平抑/hoard居奇/hold观望），实物通过空间四仓货栈流转",
+    "降级保护": "异常或无配置时无缝降级至确定性规则，绝不卡死结算管线；脱敏优先，不暴露底层概率"
+  },
+  "scope": [
+    "在game/core/ai/下实现clerk_decision.py与merchant_decision.py",
+    "在game/core/settlement_steps.py及相关结算步中无缝接入微观决策",
+    "编写专属单元测试test_entity_decisions.py",
+    "全量回归验证货币实物100%守恒（ΔM_ALL == 0）与管线稳定性"
+  ],
+  "explicitly_not": [
+    "不得因网络或配置不可用阻断结算管线",
+    "不得违背POP挂载律凭空增减货币或粮食实物",
+    "不得破坏现有外部调用方签名与测试镜像"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T05:46:20Z",
+  "completedAt": "2026-10-17T05:55:00Z"
+}

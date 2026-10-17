@@ -1,0 +1,21 @@
+{
+  "id": "JEV-DEC-微观主体官吏催税与商帮投机决策架构裁定-2026-10-17",
+  "date": "2026-10-17",
+  "category": "architecture",
+  "question": "微观主体行为决策架构方案选择（地方官吏催税严厉度与商帮跨路调拨投机）",
+  "options": {
+    "A": "模块化独立决策层：在game/core/ai/下提供专用的主体决策门面，包装EmbeddedJevEngine，并在结算步骤中解耦调用",
+    "B": "直接内嵌修改：在core/settlement_steps.py内部就地硬编码接入判断逻辑",
+    "C": "纯参数配置：不引入决策模型，仅使用静态配置"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9583,
+    "B": 0.0362,
+    "C": 0.0056
+  },
+  "provider": "tokenrhythm/NeoHorse-Jev-4B",
+  "premises_verified_by_me": "已核验：方案A具备纯解耦、易单测、零网络依赖可完全降级等优点，且不污染settlement_steps的纯规则逻辑；符合结算管线声明式架构规范与POP守恒约束。",
+  "applied_in": "M310-jev-gate-official-and-merchant",
+  "reopen_if": "微观决策调用引入不可接受的性能损耗（单月>5ms）或破坏测试镜像对齐"
+}

@@ -299,7 +299,12 @@ def _settle_land_local(state, log):
             _got_s = min(_gt, _avail_s)
             _grain_set(_nong, _avail_n - _got_n, state)
             _grain_set(_shen, _avail_s - _got_s, state)
-            p["storage"] = p.get("storage", 0) + _got_n + _got_s
+            _got_tot = _got_n + _got_s
+            # 🟢 M40b：州仓写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+            from core.foundation.ledger import storage_bridge as _sb
+            if _sb.storage_add(state, name, _got_tot) is None:
+                p["storage"] = p.get("storage", 0) + _got_tot
+
             _tax_grain_short = (_st - _got_n) + (_gt - _got_s)
             if _tax_grain_short > 0:
                 state.granary_stats["tax_grain_short"] = (
@@ -1550,8 +1555,15 @@ def _settle_civilian_hoard(state, log):
         if _ai_act:
             act, tier = _ai_act, _ai_tier   # AI 推演（全国统一景气下的士绅行为）
         elif not _eco:
-            # 全游戏级强制 AI（拒绝式）：无经济推演 → 不伪造囤/抛决策，士绅按兵不动
-            act, tier = "观望", "无"
+            # 阶段 C：接入 Jev 商帮微观决策门面（综合本地粮价、跨路价差与常平仓储备进行博弈）
+            from core.ai.merchant_decision import decide_merchant_operation
+            m_dec = decide_merchant_operation(state, p)
+            if m_dec.action == "hoard":
+                act, tier = "囤", m_dec.tier
+            elif m_dec.action == "dump":
+                act, tier = "抛", m_dec.tier
+            else:
+                act, tier = "观望", "无"
         else:
             # 兜底：丰收贱买囤积、高价惜售/抛售获利（不再高价囤，与常平粜粮方向一致）
             if price < 0.6:
