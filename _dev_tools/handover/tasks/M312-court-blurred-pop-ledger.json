@@ -1,0 +1,29 @@
+{
+  "id": "M312-court-blurred-pop-ledger",
+  "title": "朝廷层民间POP模糊账目：版籍奏报估算区间与信息摩擦建模",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "completedAt": "2026-10-17T06:12:00Z",
+  "authority": "JEV-DEC-朝廷层民间POP模糊账目与信息摩擦裁定-2026-10-17（方案A概率0.9789）与用户硬核指示",
+  "goal": "在spatial_warehouse_readout.py与readout_hub.py中新增court_blurred_pop_ledger读数；底层坚守POP物理真账绝对守恒，朝廷视角呈现由吏治把持度与隐田隐户驱动的模糊估算区间（在籍丁口vs隐匿丁口、税基申报估值）；前端ReadoutHubPanel呈现朝廷版籍失真读数。",
+  "recon": {
+    "信息摩擦机理": "吏员把持度grip高、无监察时，隐匿漏报率上升，清晰度下降；方田清丈或巡按御史在任时清晰度提升",
+    "朝廷读数输出": "输出reported_size_est与reported_wealth_est估算区间、在籍率与漏报率估算，拒绝在朝廷层暴露上帝浮点绝对值",
+    "底线守恒": "纯派生只读不改state，物理模拟继续运行于精确真账之上"
+  },
+  "scope": [
+    "在game/core/domains/economy/spatial_warehouse_readout.py实现court_blurred_pop_ledger",
+    "注册进game/core/domains/economy/readout_hub.py",
+    "更新前端ReadoutHubPanel.tsx呈现民间模糊奏报专区",
+    "编写专属单元测试test_court_blurred_pop_readout.py",
+    "全量回归跑通全域用例与README纪律断言"
+  ],
+  "explicitly_not": [
+    "不得修改底层POP真实账本物理字段（size/wealth/grain）",
+    "不得在朝廷读数缺失时显示为0",
+    "不得破坏现有结算与货币守恒断言"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T06:06:42Z"
+}

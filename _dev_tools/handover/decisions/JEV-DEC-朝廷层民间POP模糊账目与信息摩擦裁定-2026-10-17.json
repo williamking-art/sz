@@ -1,0 +1,21 @@
+{
+  "id": "JEV-DEC-朝廷层民间POP模糊账目与信息摩擦裁定-2026-10-17",
+  "date": "2026-10-17",
+  "category": "architecture",
+  "question": "朝廷层民间POP模糊账目设计方案选择",
+  "options": {
+    "A": "双轨明暗派生方案：底层保持物理真账绝对守恒，上层提供专用court_blurred_pop_ledger接口，按把持度与隐匿率派生模糊估算区间与在籍率",
+    "B": "扰动底层物理真账：直接在state.pops中加入随机误差",
+    "C": "仅前端加文字：前端简单加约字，无信息摩擦与制度机理"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9789,
+    "B": 0.0108,
+    "C": 0.0102
+  },
+  "provider": "tokenrhythm/NeoHorse-Jev-4B",
+  "premises_verified_by_me": "已核验：方案A严守POP挂载律与ΔM_ALL==0底线，同时真实再现古代朝廷受限于官僚把持度与巡按监察所产生的版籍失真与估算区间，符合用户指示。",
+  "applied_in": "M312-court-blurred-pop-ledger",
+  "reopen_if": "模糊化读数影响了底层POP生产消费结算算法或引发状态分叉"
+}

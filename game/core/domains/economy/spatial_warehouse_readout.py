@@ -23,6 +23,7 @@ __all__ = [
     "court_ledger_summary",
     "system_ledger_summary",
     "court_vs_system_contrast",
+    "court_blurred_pop_ledger",
 ]
 
 
@@ -342,4 +343,119 @@ def court_vs_system_contrast(state: Any) -> Dict[str, Any]:
         "verdict": "朝廷可用资金仅为系统子集，不可混同",
         "reason": None,
     }
+
+
+def court_blurred_pop_ledger(state: Any) -> Dict[str, Any]:
+    """【朝廷层民间 POP 模糊账目】（户部版籍·黄册青册奏报视角）。
+    
+    核心制度与历史逻辑：
+    - 朝廷无法穿透底层上帝视角获知民间每一个 POP 的精确财富与实有人丁；
+    - 朝廷所见皆为地方知州通判层层呈递的【簿籍奏报】；
+    - 受地方吏员把持度 (grip)、巡按御史监察度与豪强隐田隐户影响，奏报存在结构性漏报与模糊区间；
+    - 底层物理世界保持精确守恒（生产/消费/税收），朝廷决策面对的是带摩擦的模糊信息。
+    """
+    if state is None or not hasattr(state, "prefectures") or not isinstance(state.prefectures, dict):
+        return {
+            "reported_headcount_range": None,
+            "reported_wealth_range": None,
+            "in_register_ratio": None,
+            "concealment_ratio": None,
+            "display": "undefined",
+            "reason": "state.prefectures 不可读（缺失≠0）",
+        }
+
+    real_size_total = 0
+    real_wealth_total = 0.0
+    grips = []
+    by_class_real: Dict[str, Dict[str, float]] = {
+        c: {"size": 0, "wealth": 0.0} for c in ("农", "士绅", "工匠", "商人", "官僚", "兵")
+    }
+
+    for p in state.prefectures.values():
+        if not isinstance(p, dict):
+            continue
+        # 吏员把持度
+        d = p.get("clerks_detail")
+        if isinstance(d, dict) and "grip" in d:
+            grips.append(float(d.get("grip", 0.45) or 0.45))
+        elif "grip" in p:
+            grips.append(float(p.get("grip", 0.45) or 0.45))
+        
+        pops = p.get("pops")
+        if isinstance(pops, dict):
+            for c, pop in pops.items():
+                if isinstance(pop, dict) and c in by_class_real:
+                    s = int(pop.get("size", 0) or 0)
+                    w = float(pop.get("wealth", 0.0) or 0.0)
+                    by_class_real[c]["size"] += s
+                    by_class_real[c]["wealth"] += w
+                    real_size_total += s
+                    real_wealth_total += w
+
+    if real_size_total <= 0:
+        return {
+            "reported_headcount_range": None,
+            "reported_wealth_range": None,
+            "in_register_ratio": None,
+            "concealment_ratio": None,
+            "display": "undefined",
+            "reason": "民间 POP 数据为空",
+        }
+
+    # 1. 派生全域平均信息摩擦系数（由吏制把持度驱动）
+    avg_grip = (sum(grips) / len(grips)) if grips else 0.45
+
+    # 在籍率：把持度越高，隐匿逃丁越多，在籍率越低（通常在 72% ~ 86%）
+    in_register_ratio = max(0.60, min(0.95, 1.0 - (avg_grip * 0.35 + 0.05)))
+    # 财富隐匿漏报率：豪强隐产、诡名寄产（通常在 20% ~ 40%）
+    concealment_ratio = max(0.10, min(0.50, avg_grip * 0.45 + 0.08))
+
+    # 2. 构造朝廷视角的模糊估算区间（朝廷三司奏折形式）
+    # 人丁在籍估算区间 (±4% 簿籍统计浮动)
+    rep_size_base = real_size_total * in_register_ratio
+    rep_size_min = int(rep_size_base * 0.96)
+    rep_size_max = int(rep_size_base * 1.04)
+
+    # 申报税基资产估算区间 (±6% 查核误差)
+    rep_w_base = real_wealth_total * (1.0 - concealment_ratio)
+    rep_w_min = round(rep_w_base * 0.94, 0)
+    rep_w_max = round(rep_w_base * 1.06, 0)
+
+    # 3. 逐阶层模糊簿籍估算
+    class_blurred: Dict[str, Dict[str, Any]] = {}
+    for c, data in by_class_real.items():
+        # 士绅与商人隐匿率更高，农户在籍率相对高
+        cls_conceal = concealment_ratio * (1.3 if c in ("士绅", "商人") else 0.9)
+        cls_reg = in_register_ratio * (0.85 if c in ("士绅", "商人") else 1.05)
+        cls_conceal = max(0.05, min(0.60, cls_conceal))
+        cls_reg = max(0.50, min(0.98, cls_reg))
+
+        c_size_est = int(data["size"] * cls_reg)
+        c_w_est = round(data["wealth"] * (1.0 - cls_conceal), 0)
+        class_blurred[c] = {
+            "reported_size_est": c_size_est,
+            "reported_wealth_est": c_w_est,
+            "reg_ratio_est": round(cls_reg, 3),
+            "conceal_ratio_est": round(cls_conceal, 3),
+        }
+
+    clarity = "较为明晰" if avg_grip < 0.35 else ("版籍模糊" if avg_grip < 0.55 else "严重失真")
+
+    return {
+        "scope": "court_blurred_perspective",
+        "clarity_level": clarity,
+        "avg_clerk_grip": round(avg_grip, 3),
+        "in_register_ratio": round(in_register_ratio, 3),
+        "concealment_ratio": round(concealment_ratio, 3),
+        "reported_headcount_range": [rep_size_min, rep_size_max],
+        "reported_wealth_range": [rep_w_min, rep_w_max],
+        "class_blurred_breakdown": class_blurred,
+        "display": (
+            f"在籍约 {rep_size_min/10000:,.0f}~{rep_size_max/10000:,.0f} 万丁 "
+            f"(申报财富 {rep_w_min/10000:,.0f}~{rep_w_max/10000:,.0f} 万贯 · {clarity})"
+        ),
+        "verdict": "朝廷簿籍非物理真账：受吏强隐田影响，在籍率~" f"{in_register_ratio:.0%}，隐匿~{concealment_ratio:.0%}",
+        "reason": None,
+    }
+
 

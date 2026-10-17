@@ -699,6 +699,30 @@ def _court_vs_system_contrast(state) -> Tuple[Optional[float], Optional[str], An
         return None, f"两层口径对照异常：{type(e).__name__}", {"drill": src}
 
 
+def _court_blurred_pop_ledger(state) -> Tuple[Optional[str], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:court_blurred_pop_ledger"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.court_blurred_pop_ledger(state)
+        v = res.get("display")
+        r = res.get("reason")
+        if v == "undefined" or res.get("reported_headcount_range") is None:
+            return None, r or "民间POP数据不可读或为空", {"drill": src}
+        return v, r, {
+            "reported_headcount_range": res.get("reported_headcount_range"),
+            "reported_wealth_range": res.get("reported_wealth_range"),
+            "in_register_ratio": res.get("in_register_ratio"),
+            "concealment_ratio": res.get("concealment_ratio"),
+            "clarity_level": res.get("clarity_level"),
+            "class_blurred_breakdown": res.get("class_blurred_breakdown"),
+            "verdict": res.get("verdict"),
+            "drill": src,
+        }
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 朝廷版籍民间POP模糊账目读数失败", exc_info=True)
+        return None, f"朝廷民间模糊账目异常：{type(e).__name__}", {"drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -753,6 +777,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _settlement_pipeline_steps, "source": "core.domains.economy.spatial_warehouse_readout:pipeline_health_readout"},
     {"key": "court_vs_system_contrast", "label": "朝廷可用资金占全社会货币比重（两层账目对照）", "unit": "比",
      "fn": _court_vs_system_contrast, "source": "core.domains.economy.spatial_warehouse_readout:court_vs_system_contrast"},
+    {"key": "court_blurred_pop_ledger", "label": "朝廷版籍民间POP奏报估算（含隐匿与模糊区间）", "unit": "区间",
+     "fn": _court_blurred_pop_ledger, "source": "core.domains.economy.spatial_warehouse_readout:court_blurred_pop_ledger"},
 )
 
 
