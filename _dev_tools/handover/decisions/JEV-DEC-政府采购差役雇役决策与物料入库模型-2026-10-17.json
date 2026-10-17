@@ -1,0 +1,16 @@
+{
+  "id": "JEV-DEC-政府采购差役雇役决策与物料入库模型-2026-10-17",
+  "question": "宋祚政府采购（public_supply）落地中，差役强征与雇役双轨制下，工钱与物料的核算模型选择",
+  "options": {
+    "A": "完全由内嵌决策模型动态博弈决定雇役差役及浮动料价工费并真实入库料场",
+    "B": "固定物料占比基准仅由内嵌决策差役雇役，雇役付工匠工费，差役免付工费累加民怨，物料均真实入料场"
+  },
+  "verdict": "B",
+  "probabilities": {
+    "A": 0.2144,
+    "B": 0.7856
+  },
+  "premises_verified_by_me": "方案B既保留了物料采购的基准守恒与稳定性，又通过差役/雇役动态决策彻底打破了固定死比例，真实反映工役政策对民怨与府库的双重冲击，且确保物资真实入库官方料场。",
+  "applied_in": "game/core/domains/economy/procurement.py 与 game/core/settlement_finance.py",
+  "reopen_if": "后续引入复杂官办手工业作坊招投标机制时再议"
+}

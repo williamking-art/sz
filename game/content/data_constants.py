@@ -947,6 +947,8 @@ INSTITUTION_PARAM_SPEC = {
     "didang_loan_share":    {"default": 0.10, "min": 0.0,  "max": 0.50, "label": "抵当所放贷力度", "authority": "官营放贷"},
     "didang_deposit_share": {"default": 0.05, "min": 0.0,  "max": 0.20, "label": "抵当所吸储力度", "authority": "官营放贷"},
     "didang_deposit_cap":   {"default": 0.30, "min": 0.05, "max": 0.80, "label": "抵当所存款上限", "authority": "官营放贷"},
+    # ---- 度量衡体制（0=传统多轨宋制, 1=绍述统一度量衡, 2=现代科学公制）----
+    "metrology_system_id":  {"default": 0.0,  "min": 0.0,  "max": 2.0,  "label": "度量衡体制",     "authority": "度量衡"},
 }
 
 # ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与

@@ -1,0 +1,12 @@
+{
+  "id": "M321-appraisal-tiandao-and-de-magic-numbers",
+  "title": "天道裁决体系落地第三期：三年磨勘考课接入天道打分与财政安全垫动态化",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "执行天道方案 Phase 3：1. 改造既有 official_appraisal.py::run_triennial_appraisal，接入 TianDaoFacade.appraisal_score 多属性效用定等，严守四善三最三考原架构；2. 动态化 TREASURY_CRISIS_LINE，结合月度固定开支建立3个月动态安全垫；3. 编写专属单元测试验证。",
+  "created_at": "2026-10-17T16:48:40Z",
+  "dependencies": [
+    "M320-decree-pipeline-tiandao-integration"
+  ],
+  "completed_at": "2026-10-17T16:52:00Z"
+}

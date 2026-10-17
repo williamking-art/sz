@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-三年考课接入天道打分与财政安全垫动态化-2026-10-17",
+  "timestamp": "2026-10-17T16:52:00Z",
+  "question": "三年考课是否应接入TianDaoFacade.appraisal_score并对TREASURY_CRISIS_LINE做动态安全垫改造？",
+  "options": [
+    "A: 升级既有appraisal打分函数、增加dynamic_treasury_crisis_line、保持原架构结论不破坏",
+    "B: 新建7档平行考课系统或硬推翻常量"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.95,
+    "B": 0.05
+  },
+  "premises_verified_by_me": "实测official_appraisal四善三最三维度与上中下考结论稳定产出，dynamic_treasury_crisis_line根据月度刚性支出有界动态伸缩且缺失时平滑回落，test_appraisal_and_demagic 2项全绿",
+  "applied_in": "game/core/domains/administration/official_appraisal.py, game/core/ai/tiandao_facade.py, game/core/settlement_finance.py, tests/test_appraisal_and_demagic.py",
+  "reopen_if": "三年考课结论出现未定义档位或财政安全垫产生除以零异常"
+}

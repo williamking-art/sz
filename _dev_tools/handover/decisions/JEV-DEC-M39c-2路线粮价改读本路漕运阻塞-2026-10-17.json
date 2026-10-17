@@ -1,0 +1,23 @@
+{
+  "id": "JEV-DEC-M39c-2路线粮价改读本路漕运阻塞-2026-10-17",
+  "date": "2026-10-17",
+  "question": "game_state_econ._calc_grain_price_route 计算某路粮价时，是否应改由优先读本路 canal_block 派生镜像（p.get(\"canal_block\")），未下沉时安全回落到全国值？",
+  "options": {
+    "A": "优先读本路 p.get(\"canal_block\")，未下沉或缺失时安全回退 self.canal_block；开局初始值相等保证零行为破坏，后续使局部水路淤塞与本地粮价真实挂钩",
+    "B": "继续永久读全国单标量 self.canal_block"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9946528673171997,
+    "B": 0.0053471326828003
+  },
+  "premises_verified_by_me": [
+    "在已下沉档和新局中，p.get(\"canal_block\") 已由 canal_bridge 维护为各治所加权平均镜像，开局初始值与全国值逐字完全相等，A/B 对照保证零初始漂移",
+    "改读本路使得某段运河淤塞时，仅受阻路分粮价因运费上升，通畅路分不受牵连，彻底解开『一处淤塞全国连带涨粮价』的全国单标量弊病",
+    "采用 p.get(\"canal_block\") if _num(p.get(\"canal_block\")) is not None else self.canal_block，对未下沉档保持 100% 容错回退"
+  ],
+  "applied_in": [
+    "game/core/game_state_econ.py"
+  ],
+  "reopen_if": "若引入更精细的跨路多段水运寻径网时重新评估运费传递算法"
+}

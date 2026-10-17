@@ -1,0 +1,12 @@
+{
+  "id": "M319-tiandao-engine-phase0-phase1",
+  "title": "天道裁决体系落地第一期：修复前置缺陷与构建天道四大裁决核心底座",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "执行天道方案 Phase 0 与 Phase 1：1. 修复 procurement 缺失 treasury 导致差役恒定与 hash 种子缺陷；2. 构建 tiandao_engine (gate/choose/score/dice 与天地人三才 MAUT)；3. 构建 tiandao_facade 并向下兼容 embedded_jev/decision_facade；4. 编写专属单元测试验证。",
+  "created_at": "2026-10-17T16:38:00Z",
+  "dependencies": [
+    "M318-living-goods-recipes-and-organization-pm"
+  ],
+  "completed_at": "2026-10-17T16:40:00Z"
+}

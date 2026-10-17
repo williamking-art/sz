@@ -1,0 +1,31 @@
+{
+  "id": "JEV-DEC-纸娃娃唯一规范资产世代选型-2026-10-17",
+  "date": "2026-10-17",
+  "question": "百官换装纸娃娃系统重构时，唯一规范资产世代（单一画幅 + 单一资产根）应选哪一代？",
+  "options": {
+    "A": "game/assets/paperdoll/new_vector_modular（800x1000，31 部件、11 类齐全、mtime 2026-10-17 09:23）",
+    "B": "game/assets/paperdoll/modular_qqshow（896x1200，26 文件、无 bases/背景与 accessories，无法独立合成完整立绘）",
+    "C": "game/assets/paperdoll/qqshow_master（800x1000，30 文件，同画幅上一批，已被 A 取代）"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9990965127944946,
+    "B": 0.00045230123214423656,
+    "C": 0.0004511705774348229
+  },
+  "premises_verified_by_me": [
+    "逐目录实测 mtime：new_vector_modular 最新文件 2026-10-17 09:23；modular_qqshow 08:40；qqshow_master 08:54",
+    "逐张 PIL 实测画幅：new_vector_modular 全部 800x1000；modular_qqshow 全部 896x1200；810x1080 为更早整图/硬切世代",
+    "目录完整性实测：new_vector_modular 含 bases/bg_silk 与 bases/mannequin_rig_overlay 及 9 个可换槽位目录（faces/brows/eyes/nose/mouth/beards/robes/hats/accessories）；modular_qqshow 无 bases 与 accessories ⇒ 不能单独合成完整立绘",
+    "现有唯一在用查看器 songzuo_qqshow_app.html 的 ASSET_PATH 指向 new_vector_modular，导出画布 800x1000；其对应 worklog 为 2026-10-17T01:26Z「V4完美版」",
+    "项目近期 Jev 台账方向一致：2026-10-16 废黜位图硬切伪图层、工笔真迹插槽装配资产替代（p=0.9987 / 0.9962）"
+  ],
+  "applied_in": [
+    "sz/_dev_tools/paperdoll_experiment/spec/paperdoll.spec.json（canvas 800x1000 + asset_root 指向 new_vector_modular）",
+    "sz/_dev_tools/paperdoll_experiment/paperdoll/（spec.py / manifest.py / engine.py / cli.py）",
+    "sz/_dev_tools/paperdoll_experiment/viewer/（index.html / app.js / style.css / manifest.js）",
+    "sz/_dev_tools/paperdoll_experiment/tests/test_paperdoll.py（18 passed）"
+  ],
+  "reopen_if": "若将来改用 896x1200 或引入 3D 骨架实时渲染，或需要与 game/content/ministers/paperdoll 旧引擎合并时重新评估",
+  "note": "重构只确立「规范世代」，未删除任何旧世代资产与旧脚本；归档需用户另裁"
+}

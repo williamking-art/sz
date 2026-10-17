@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-度量衡系统与工部事权变法参数-2026-10-17",
+  "timestamp": "2026-10-17T17:18:00Z",
+  "question": "度量衡体制是否应注册入 INSTITUTION_PARAM_SPEC 并在 AUTHORITY_MATTERS 中归入工部事权？",
+  "options": [
+    "A: 注册metrology_system_id并归工部事权，提供动态校准比与改革博弈结算链路",
+    "B: 独立于体制参数硬编码或写死单位换算"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.999,
+    "B": 0.001
+  },
+  "premises_verified_by_me": "Jev裁定p=0.999支持A。MetrologyEngine覆盖容积/重量/长度/地积四维双向换算，支持注入自定义动态校准比（绝不写死数据），体制改革加成（工业标准化+30%、清丈防漏田+15%）与吏胥反弹阻力（把持度上升+0.12）全打通，test_metrology_engine 6项用例全绿",
+  "applied_in": "game/core/foundation/metrology.py, game/content/data_constants.py, game/content/ministers/data.py, tests/test_metrology_engine.py",
+  "reopen_if": "度量衡单位出现未定义维度或变法结算破坏国库收支守恒"
+}

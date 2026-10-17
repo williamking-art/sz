@@ -1,0 +1,25 @@
+{
+  "id": "JEV-DEC-QQ秀式插槽装配捏脸体系-2026-10-17",
+  "date": "2026-10-17",
+  "question": "《宋祚》百官换装纸娃娃系统技术架构应如何彻底重构以满足用户对五官解耦捏脸与QQ秀式自由装配的需求？",
+  "options": {
+    "A": "完全采纳 qq-show-game 经典换装游戏架构：不可见骨骼素体节点 + 彻底无五官空白脸型底模 + 眉眼鼻口须独立纯透明图层 + 独立官袍冠帽朝笏，纯前端 HTML5 Canvas 实时插槽层叠装配，支持任意部位即时热插拔与随机千人千面生成",
+    "B": "继续沿用预先整图合成切换方案"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9961631298065186,
+    "B": 0.0038368860259652138
+  },
+  "premises_verified_by_me": [
+    "用户明确给出标杆项目链接 https://gitcode.com/Eddygit/qq-show-game，核心痛点在于之前点击预设按钮仅仅是展示整图或预烘焙图，无法实现真正的点哪换哪自由捏脸",
+    "实测原五官提取存在微弱矩形灰度边框与背景色块，必须采用无色差松烟墨线与朱砂唇彩 Alpha 渐变抠图，确保零件纯净无边",
+    "所有部位图层必须统一对齐到标准画布空间，使前端 Canvas 能通过简单的 drawImage(layer, 0, 0) 瞬间完成任意部位的热插拔渲染与一键导出"
+  ],
+  "applied_in": [
+    "sz/game/assets/paperdoll/modular_qqshow/",
+    "sz/_dev_tools/paperdoll_experiment/songzuo_qqshow_app.html",
+    "sz/_dev_tools/paperdoll_experiment/build_flawless_qqshow_assets.py"
+  ],
+  "reopen_if": "若需要引入 3D Spine 骨骼动画或服务端无头渲染替代前端 Canvas 组合时重新评估"
+}

@@ -654,6 +654,22 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
                    message="此旨受命于「%s」，「%s」非受命人，不得代为确认。"
                            % ("、".join(addr), aid))
         return out
+
+    # 法统门禁守卫：若旨意指定调整制度参数或机构事权，调用 check_authority 深度核验
+    effects = d.get("effects") or {}
+    if isinstance(effects, dict):
+        try:
+            from core.domains.administration.institution import check_authority
+            for p_key in effects.keys():
+                auth_ok, auth_err = check_authority(state, p_key, aid)
+                if not auth_ok:
+                    out.update(status=STATUS_UNAUTHORIZED, reason="authority_violation",
+                               authorized=False, withheld=True,
+                               message=f"法统门禁阻断：{auth_err}")
+                    return out
+        except Exception as e:  # noqa: BLE001
+            log.debug("decree_confirm 事权深度校验跳过：%s", e)
+
     out["authorized"] = True
 
     stored = latest_recitation(state, did, aid)

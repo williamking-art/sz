@@ -71,12 +71,14 @@ CHAIN_CONSTRUCTION = CHAIN_MACHINERY
 
 
 def _get_pref(state, circuit: str) -> Dict[str, Any]:
-    """读取某路的 pref 对象。"""
+    """读取某路的 pref 对象（无 state pref 时回落 EXTRA_CIRCUIT_DEMOG）。"""
     prefs = getattr(state, "prefectures", None)
     if isinstance(prefs, dict):
         p = prefs.get(circuit)
         if isinstance(p, dict):
             return p
+    if circuit in EXTRA_CIRCUIT_DEMOG:
+        return dict(EXTRA_CIRCUIT_DEMOG[circuit])
     return {}
 
 

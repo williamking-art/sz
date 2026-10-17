@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-天道引擎Phase0前置修复与Phase1底座落成-2026-10-17",
+  "timestamp": "2026-10-17T16:40:00Z",
+  "question": "天道引擎是否应先落地Phase0前置缺陷修复与Phase1四大裁决底座并保持向后兼容？",
+  "options": [
+    "A: 落地tiandao_engine/tiandao_facade，修procurement与hash缺陷，旧桩平滑转发",
+    "B: 直接改动业务全链路"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.95,
+    "B": 0.05
+  },
+  "premises_verified_by_me": "实测旧桩embedded_jev与decision_facade转发无缝，procurement修复后hired工费拆分正确，test_tiandao_engine_core 5用例全绿",
+  "applied_in": "game/core/ai/tiandao_engine.py, game/core/ai/tiandao_facade.py, game/core/domains/economy/procurement.py",
+  "reopen_if": "业务模块出现老名字引用失效或确定性种子冲突"
+}

@@ -914,6 +914,15 @@ def _settle_local_expenditure(state, log) -> dict:
                 paid_by_kind[k] += amt
                 route_paid += amt
                 continue
+            if k == "public_supply":
+                from core.domains.economy.procurement import execute_public_supply_procurement
+                proc_res = execute_public_supply_procurement(state, name, amt)
+                given = int(proc_res.get("paid_total", 0))
+                if given <= 0:
+                    continue
+                paid_by_kind[k] += given
+                route_paid += given
+                continue
             shares = _payout[k]
             given = 0
             for _i, (_cls, _w) in enumerate(shares):
@@ -1641,6 +1650,11 @@ def _settle_finance(state, log):
     state.imperial_treasury = max(0, state.imperial_treasury + int(imp_share) + int(_wine_tax_cash))
     state.statistics["total_income"] += int(actual_tax)
     state.statistics["total_expenditure"] += total_out
+    # 🔴 2026-10-17 修复：天道财政安全垫线要的是**本月货币支出**真值。
+    # 旧实现只写了读方（`TianDaoFacade.dynamic_treasury_crisis_line` 读
+    # `statistics["last_monthly_expense"]`）却**全库没有写入方** ⇒ 该线恒等于
+    # 校准基准 5,000,000，"去魔数"实际是空转。现于本处落真实月度支出。
+    state.statistics["last_monthly_expense"] = int(total_out)
 
     # 恒等式：未穿底时 Δtreasury == actual_net − imp − 冲抵亏空额；
     # 穿底钳到 0（差额已入 treasury_deficit）时 Δ == -treasury_before
@@ -1678,9 +1692,13 @@ def _settle_finance(state, log):
                 "text": f"输岁币岁赐 {int(sui_gong)}贯（{'、'.join(_parts) or '北境'}），纳贡以安边",
             })
 
-    from content.data import TREASURY_CRISIS_LINE
+    from core.ai.tiandao_facade import TianDaoFacade
+    # 天道动态财政安全垫线：月支出 × 3 个月刚性安全垫（读数见上方
+    # `statistics["last_monthly_expense"]`；缺失时才回落校准基准 5,000,000，
+    # 来源可由 `TianDaoFacade.crisis_line_source` 诊断）。
+    crisis_line = TianDaoFacade.dynamic_treasury_crisis_line(state)
     # B3：判据由「负国库」改为「累计亏空深度」（国库禁穿底，负值不可达）。
-    if state.deficit_depth() > TREASURY_CRISIS_LINE:
+    if state.deficit_depth() > crisis_line:
         state.population_satisfaction = max(0, state.population_satisfaction - 2)
         log.append("[民生] 国库亏空严重，民怨渐起")
 

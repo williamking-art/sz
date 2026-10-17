@@ -1,0 +1,19 @@
+{
+  "id": "JEV-DEC-产业链专卖税POP出资守恒裁定-2026-10-17",
+  "date": "2026-10-17",
+  "question": "四大实体多级产业链（settle_industry_chains）中茶盐专卖税入国库方式如何满足POP挂载律与M_ALL守恒？",
+  "options": {
+    "A": "走POP挂载律守恒转移：专卖引钞由21路商人POP出资扑买（从商人wealth划转国库，按实付，ΔM_ALL == 0）",
+    "B": "纯统计产值不直写国库：专卖税收由Step 4既有盐课与商税统揽，不在此处直写国库",
+    "C": "视为体外特许经营净利：保留国库直写，但必须调用register_flow(state, 'external', ...)登记体外注入"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.4482,
+    "B": 0.3269,
+    "C": 0.2249
+  },
+  "premises_verified_by_me": "经审查发现settle_industry_chains直接执行state.treasury += int(monopoly_tax_total * 0.15)，无出资方且未登记flow，导致每月凭空造币330,607贯，直接打爆货币守恒断言。按方案A由商人POP扑买出资划转，完全守恒且符合宋代榷货扑买史实。",
+  "applied_in": "game/core/domains/economy/industry_chains.py",
+  "reopen_if": "若引入中央与地方官营茶盐榷货专营机构独立法人账户时再复核"
+}

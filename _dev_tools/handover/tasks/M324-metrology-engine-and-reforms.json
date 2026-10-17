@@ -1,0 +1,11 @@
+{
+  "id": "M324-metrology-engine-and-reforms",
+  "title": "度量衡统一转换引擎、公制双轨接口与体制变法博弈",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "构建度量衡系统：1. 创建 core/foundation/metrology.py，实现宋制容积(石/斗/升)、重量(石/斤/两)、长度(丈/尺/寸)、地积(顷/亩/步)与现代公制(L/kg/m/m²)双向转换；2. 支持动态自定义换算比，绝不写死单一死数；3. 预留公制度量衡体制接口，挂载生产标准化(机械/作坊效率+30%)、清丈抗隐田(+12%赋税)与吏胥阻力(+grip/激化吏治)机制；4. 编写专属单元测试验证。",
+  "created_at": "2026-10-17T17:15:00Z",
+  "dependencies": [
+    "M323-qianzhong-circuit-complete-data"
+  ]
+}

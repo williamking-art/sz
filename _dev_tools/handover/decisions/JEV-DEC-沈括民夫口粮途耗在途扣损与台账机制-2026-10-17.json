@@ -1,0 +1,16 @@
+{
+  "id": "JEV-DEC-沈括民夫口粮途耗在途扣损与台账机制-2026-10-17",
+  "question": "沈括民夫口粮途耗模型中，粮食运输在途消耗的残差处理与入库机制",
+  "options": {
+    "A": "在途直接扣除载运粮食作为民夫口粮，运抵净值入库，台账记录途耗",
+    "B": "运载粮食全额入库，另行扣除治所官仓实粮补足"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.8269,
+    "B": 0.1731
+  },
+  "premises_verified_by_me": "方案A忠实还原沈括《梦溪笔谈》经典的运粮自然递减物理学，避免隔空记账与二次跨地转粮，物流途耗自然清算，全息账目可审计。",
+  "applied_in": "game/core/foundation/ledger/spatial_warehouse_bridge.py 与 game/core/transport.py",
+  "reopen_if": "后续引入自带干粮民夫雇佣契约时再议"
+}

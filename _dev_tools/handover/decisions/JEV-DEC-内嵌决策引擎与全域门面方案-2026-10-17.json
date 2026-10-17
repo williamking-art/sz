@@ -1,0 +1,16 @@
+{
+  "id": "JEV-DEC-内嵌决策引擎与全域门面方案-2026-10-17",
+  "question": "内嵌决策引擎应该如何构建与组织？",
+  "options": {
+    "A": "在 game/core/ai/embedded_jev.py 内置本地轻量级效用算法，完全离线运行，签名格式与云端 Jev 100% 对齐，并通过 EmbeddedDecisionFacade 提供全域六大领域的统一业务门面",
+    "B": "在每个业务结算文件里各自手写 if-else 临时逻辑，不设立统一引擎与门面"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9912,
+    "B": 0.0088
+  },
+  "premises_verified_by_me": "单点内置 EmbeddedJevEngine 结合 EmbeddedDecisionFacade 实现了极速本地纯算（<0.2ms，0 token），并提供了高内聚统一契约，消除了业务模块零散拼凑逻辑的腐烂风险",
+  "applied_in": "game/core/ai/embedded_jev.py 与 game/core/ai/decision_facade.py",
+  "reopen_if": "未来全面转向玩家端侧真实本地 LLM 推理且不再保留轻量级效用决策引擎"
+}

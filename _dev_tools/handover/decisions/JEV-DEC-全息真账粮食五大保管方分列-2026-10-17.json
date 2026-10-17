@@ -1,0 +1,24 @@
+{
+  "id": "JEV-DEC-全息真账粮食五大保管方分列-2026-10-17",
+  "date": "2026-10-17",
+  "question": "系统级全息经济变动总表在纳入粮食时，是否应拆解为中央太仓、地方州仓、地方常平仓、民间POP各阶层私粮、在途粮食五大独立保管方分列监控？",
+  "options": {
+    "A": "按中央太仓、地方州仓、地方常平仓、民间POP各阶层私粮、在途粮食五大独立保管方分列，严格保持缺失≠0，零写操作与零行为破坏",
+    "B": "粗略合并为一个全国总粮食数字"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9928718209266663,
+    "B": 0.0071281790733337
+  },
+  "premises_verified_by_me": [
+    "经实测代码，大宋粮食分别沉淀于 state.granary、prefectures[路][\"storage\"]、prefectures[路][\"changping_stock\"]、prefectures[路][\"pops\"][阶层][\"grain\"] 与 core.transport 在途批次中",
+    "粗略合并会抹杀官民界限与空间在途，只有分列保管方才能在结算残差中精确定位是哪一个写点或保管方发生漏粮或虚刷",
+    "五大保管方纯只读投影，完全不修改任何既有 state 字典，对全库逻辑零破坏"
+  ],
+  "applied_in": [
+    "game/core/domains/economy/stock_identity.py",
+    "_dev_tools/game-dev/tests/test_stock_identity.py"
+  ],
+  "reopen_if": "若未来引入军仓、寺观仓等独立建制时重新评估保管方列表"
+}

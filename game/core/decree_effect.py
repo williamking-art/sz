@@ -147,30 +147,63 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
 
     返回：
       `strong`              = `"clerks"`（唯一强关联通道）
-      `clerks_mult`         = 吏胥折扣（强关联；`core/clerks.decree_execution_mult`）
+      `clerks_mult`         = 吏胥折扣**本体**（强关联；`core/clerks.decree_execution_mult`）
+      `clerks_compliance`   = 知州遵从反应（天道，`{"verdict","mult",...}`；无 route 或不可算 ⇒ `None`）
       `official_support`    = 官场配合度**代理**（会签执行率的盘面近似；`proxy=True`）
       `civil_mult`          = 民心/识字率弱关联系数（0.85–1.0）
       `kind`                = `"军政"` / `"民政"`
       `military`            = `{..., "applies": bool, "enforced": bool}`
-      `effect_mult`         = `clerks_mult × civil_mult`（军队参与时再 × 督行）
+      `effect_mult`         = `clerks_mult × clerks_compliance × civil_mult`（军队参与时再补缺口）
+
+    🔴 **口径分层（2026-10-17 修复）**：`clerks_mult` 只表示**吏胥折扣**，不得把遵从度乘进去
+    （否则该读数的含义被悄悄改写，撞掉既有验收）。遵从度单列在 `clerks_compliance`，
+    在**合成 `effect_mult` 时**作为吏治通道内部的输入参与——通道仍是三条，没有新增乘数。
     """
     kind = kind or decree_kind(org_hint, text)
     clerks_mult = None
     clerks_scope = "全国"
     clerks_view: Dict[str, Any] = {}
+    clerks_compliance: Optional[Dict[str, Any]] = None
     try:
         from core.clerks import decree_execution_mult, route_decree_mult, totals
         clerks_view = totals(state) or {}
         # Q12 已决·乙：给了 route 且该路 `clerks_detail` 可用 → 走**该路**把持度；
         # 否则回落全国口径（对无 route 调用方零影响）。
         _rm = route_decree_mult(state, route) if route else None
-        if _rm is not None:
-            clerks_mult = round(_clamp(_rm, 0.0, 1.0), 4)
-            clerks_scope = f"按路（{route}）"
+        base_clerk = _rm if _rm is not None else decree_execution_mult(state)
+        if base_clerk is not None:
+            # 🔴 **`clerks_mult` = 吏胥折扣本体**（口径不变，既有单点用例锁定）。
+            # 2026-10-17 修复：上一版把「知州遵从度」乘进 clerks_mult，把这条读数的
+            # 语义从"吏胥折扣"改成了"吏胥折扣×遵从度"，撞掉既有验收
+            # （test_finance_reform_p4::test_route_grip_discount_and_scope 期望 0.79 实得 0.8295）。
+            # 现改为：**读数保持纯净**，遵从度作为**合成层**的吏治输入（见下方 base 计算）。
+            clerks_mult = round(_clamp(_num(base_clerk, 1.0), 0.0, 1.0), 4)
+            clerks_scope = f"按路（{route}）" if route else "全国"
         else:
-            clerks_mult = round(_clamp(_num(decree_execution_mult(state), 1.0), 0.0, 1.0), 4)
+            clerks_mult = None
     except Exception as e:  # noqa: BLE001
         log.warning("decree_effect 取吏治折扣失败：%s", e)
+
+    # 天道遵从度（吏治通道**内部**的输入；只在合成层生效，不改 clerks_mult 读数）
+    if clerks_mult is not None and route:
+        try:
+            from core.ai.tiandao_facade import TianDaoFacade
+            pdata = (getattr(state, "prefectures", {}) or {}).get(route, {})
+            from core.domains.administration.circuit_officials import get_circuit_officials
+            c_info = get_circuit_officials(state, route)
+            pref_official = c_info.get("officials", {}).get("prefect", {})
+            compliance_ctx = {
+                "route": route,
+                "gov": pref_official,
+                "unrest": (pdata.get("unrest") if isinstance(pdata, dict) else None),
+                "treasury": (pdata.get("local_treasury") if isinstance(pdata, dict) else None),
+                "org_hint": org_hint,
+            }
+            comp = TianDaoFacade.circuit_decree_compliance(compliance_ctx)
+            clerks_compliance = comp if comp.get("defined") else None
+        except Exception as e:  # noqa: BLE001
+            log.debug("decree_effect 计算天道路级遵从度失败（本通道未计入）：%s", e)
+            clerks_compliance = None
 
     applies = (kind == "军政") or bool(enforce_troops)
     if kind == "军政":
@@ -205,11 +238,17 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
     # （那等于默认"吏治完美"，与用户口径"缺失值禁止回落 0/1.0 假装无事"冲突）。
     # 此时 `defined=False` 且 `effect_mult=None`，由调用方决定是否按"无折扣"结算**并留痕**。
     defined = clerks_mult is not None
+    compliance_mult: Optional[float] = None
+    if clerks_compliance is not None:
+        compliance_mult = _clamp(_num(clerks_compliance.get("mult"), 1.0), 0.0, 2.0)
     if not defined:
         base = None
         mult = None
     else:
+        # 吏治**通道**（唯一强关联）＝ 吏胥折扣 × 知州遵从度；再乘弱关联（民心/识字率）
         base = _num(clerks_mult, 1.0) * _num(civil, 1.0)
+        if compliance_mult is not None:
+            base = base * compliance_mult
         mult = base
         if military["applies"] and army_mult is not None:
             # **加成**（非折扣）：军队把"因吏治/民心而办不到的那部分"向上补——
@@ -221,6 +260,8 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
         "defined": defined,
         "kind": kind,
         "clerks_mult": clerks_mult,
+        # 🔴 `clerks_mult` 是**吏胥折扣本体**（不含遵从度）；遵从度单列，供面板/诊断分开看
+        "clerks_compliance": clerks_compliance,
         # Q12（V1.3 §7）：吏治折扣口径——"全国"或"按路（<路名>）"
         "clerks_scope": clerks_scope,
         "clerks": {"grievance": clerks_view.get("grievance"),
@@ -233,7 +274,7 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
         "literacy": _literacy_of(state, route),
         "military": military,
         "effect_mult": None if mult is None else round(_clamp(mult, 0.0, 2.0), 4),
-        "note": _note(kind, clerks_mult, civil, military, army_mult, route),
+        "note": _note(kind, clerks_mult, civil, military, army_mult, route, clerks_compliance),
     }
 
 
@@ -249,11 +290,14 @@ def _literacy_of(state, route: Optional[str]):
     return None if v is None else round(v, 2)
 
 
-def _note(kind: str, clerks_mult, civil, military, army_mult, route) -> str:
+def _note(kind: str, clerks_mult, civil, military, army_mult, route,
+          clerks_compliance=None) -> str:
     """人类可读一行（面板与 AI 权衡共用；**不掺入任何未定义的数**）。"""
     bits = []
     if clerks_mult is not None:
         bits.append(f"吏治（强）折扣 ×{clerks_mult:.2f}")
+    if clerks_compliance is not None:
+        bits.append(f"知州遵从（{clerks_compliance.get('verdict')}）×{clerks_compliance.get('mult'):.2f}")
     if civil is not None:
         bits.append(f"民心/识字率（弱）×{civil:.2f}")
     if not military.get("applies"):

@@ -91,6 +91,7 @@ def estimate_messages_tokens(messages, out_text: str = "", model: str = "") -> t
 # ============================================================
 TOKEN_GROUPS = {
     "召对·AI": {"dialogue"},
+    "奏折": {"generate_memorials"},
     "拟旨": {"polish_decree", "draft_decree", "parse_decree"},
     "会签": {"council_review"},
     "推演": {"economy_decide", "diplomacy_decide", "military_decide", "relief_decide",
@@ -104,7 +105,7 @@ TOKEN_GROUPS = {
              "decree_action_plan", "decree_narrative_decide"},
     "月报叙事": {"monthly_report", "event_narrative", "advice", "final_eval"},
 }
-TOKEN_GROUP_ORDER = ("拟旨", "会签", "推演", "月报叙事")
+TOKEN_GROUP_ORDER = ("奏折", "拟旨", "会签", "推演", "月报叙事")
 
 
 def token_group_of(method: str) -> str:

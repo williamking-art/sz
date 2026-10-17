@@ -1,0 +1,12 @@
+{
+  "id": "M323-qianzhong-circuit-complete-data",
+  "title": "黔中路全套数据补齐与生产原料地脉对齐",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "执行黔中路数据全套补齐：1. 在 mineral_deposit.py 为黔中路配置林木、石料、铁矿、茶麻等真实地脉储量；2. 在 data_geo_tables.py 补充 ROAD_YIELD、CASH_CROP_LAND 对齐 yields；3. 在 industry_chains.py 与 trade_shadow.py 确保黔中原料与贸易内生产出闭环；4. 编写专属单元测试验证。",
+  "created_at": "2026-10-17T17:04:00Z",
+  "dependencies": [
+    "M322-ai-pipeline-guards-and-seeds"
+  ],
+  "completed_at": "2026-10-17T17:06:00Z"
+}

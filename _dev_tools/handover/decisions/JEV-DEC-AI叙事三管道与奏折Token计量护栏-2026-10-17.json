@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-AI叙事三管道与奏折Token计量护栏-2026-10-17",
+  "timestamp": "2026-10-17T16:56:00Z",
+  "question": "天道与大模型结合是否应通过事实签白名单映射、御前内心定势锚定与显式Token计量组装？",
+  "options": [
+    "A: 落地三管道、白名单映射至5大奏折、token_meter补齐奏折组、测试断言闭环",
+    "B: 允许大模型自由发挥无事实签约束"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.96,
+    "B": 0.04
+  },
+  "premises_verified_by_me": "实测scan_memorial_seeds白名单映射严格为5大类，derive_dialogue_stance派系内心定势稳定产出，token_group_of精准命中奏折组，test_ai_narrative_pipelines 4项全绿",
+  "applied_in": "game/core/ai/tiandao_facade.py, game/ai/token_meter.py, tests/test_ai_narrative_pipelines.py",
+  "reopen_if": "奏折分类出现未定义白名单或AI生成脱离事实签"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "JEV-DEC-州仓storage治所级下沉口径-2026-10-17",
+  "date": "2026-10-17",
+  "question": "M40b 州仓（storage，上供/漕粮）治所级下沉口径是否应与常平仓保持一致，采用首府承载、路级为各治所之和派生镜像、写点走 storage_add/set、缺失≠0？",
+  "options": {
+    "A": "采用首府承载（无来源不臆造差异）、路级保留为各治所之和的派生镜像、写点走 storage_add/set 桥接、未下沉或缺失返回 None，确保 A/B 对照宏观存量零差异",
+    "B": "按各治所某种比例虚拟猜测初值分摊"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.990760326385498,
+    "B": 0.009239673614502
+  },
+  "premises_verified_by_me": [
+    "与 M40a 常平仓及 M38 建筑下沉逻辑完全一致，首府承载保证迁移前后逐路、逐国总粮食存量完全恒等（A/B 差异为 0）",
+    "未下沉或缺失返回 None，严格遵循缺失不作 0 的 AGENTS.md 硬约束",
+    "写点走 storage_add/set 桥接，未下沉时安全回退，保证零破坏"
+  ],
+  "applied_in": [
+    "game/core/foundation/ledger/storage_bridge.py",
+    "game/core/foundation/persistence/migrations.py",
+    "game/core/settlement_granary.py",
+    "game/core/settlement_econ.py"
+  ],
+  "reopen_if": "若获得北宋各州府详尽的地方州仓实物史料数据时重新评估逐治所初始分摊"
+}

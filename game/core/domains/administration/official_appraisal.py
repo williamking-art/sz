@@ -189,12 +189,62 @@ def run_triennial_appraisal(state, log: Optional[List[str]] = None) -> Dict[str,
         c_unrest = float(unrest_pool.get(c, 0.0) or 0.0)
         on_post = int(guan.get("on_post", 0) or 0)
 
-        # 考课定等
-        if c_unrest < 20.0 and on_post > 0:
-            # 上考（政平民和）
+        # 考课定等：天道 `score` 给四善三最综合分；**分档边界保留既有考课法口径**
+        # （旧规则：民怨 <20 且在岗 ⇒ 上考；民怨 >60 ⇒ 下考；其余中考）。
+        # 🔴 2026-10-17 修复：上一版直接用 `score` 的档位，而 `score` 的考课分支在
+        # 民怨 ≥80 时饱和、治绩项有 0.5 地板 ⇒ **下考实际不可达**（实测民怨 70/80/100
+        # 全判中考，罢黜与祠禄冷冻机制失效）。现改为：天道分只在**中段**决定磨勘升降，
+        # 治平/风纪劣迹仍**一票下考**，民和政平才可能上考。
+        grade = "中考"
+        try:
+            from core.ai.tiandao_facade import TianDaoFacade
+            from core.domains.administration.circuit_officials import get_circuit_officials
+            c_info = get_circuit_officials(state, c)
+            pref_official = c_info.get("officials", {}).get("prefect", {})
+            _integ_raw = pref_official.get("integrity")
+            try:
+                pref_integrity = float(_integ_raw) if _integ_raw is not None else None
+            except (TypeError, ValueError):
+                pref_integrity = None
+
+            # 治绩：赋税履约率代理（以民意与农业收成平允度为基础）
+            _ps_raw = p.get("public_support")
+            try:
+                public_support = (float(_ps_raw) if _ps_raw is not None else 50.0) / 100.0
+            except (TypeError, ValueError):
+                public_support = 0.5
+            tax_completion = min(1.2, max(0.5, public_support * 1.5))
+
+            appraisal_ctx = {
+                "circuit": c,
+                "unrest": c_unrest,
+                "tax_completion": tax_completion,
+                "official_integrity": pref_integrity,
+                "on_post": on_post,
+            }
+            res = TianDaoFacade.appraisal_score(appraisal_ctx, levels=["下考", "中考", "上考"])
+            score = res.get("score")
+
+            if c_unrest > 60.0 or (pref_integrity is not None and pref_integrity < 0.35):
+                grade = "下考"          # 治平不力 / 操守有玷：一票下考（罢黜 + 祠禄冷冻）
+            elif on_post <= 0:
+                grade = "中考"          # 无在岗官额：不评优、也不罚
+            elif c_unrest < 20.0 and score is not None and score >= 0.72:
+                grade = "上考"          # 民和政平且四善三最综合分达标
+            else:
+                grade = "中考"
+        except Exception:  # noqa: BLE001
+            # 降级兜底：与旧规则完全一致（不得因取不到分就全员上考）
+            if c_unrest < 20.0 and on_post > 0:
+                grade = "上考"
+            elif c_unrest > 60.0:
+                grade = "下考"
+
+        if grade == "上考" and on_post > 0:
+            # 上考（政平民和，治绩优异）
             promoted_circuits.append(c)
-        elif c_unrest > 60.0:
-            # 下考（民变流民滋生，考课劣等）
+        elif grade == "下考":
+            # 下考（治平不力或操守有玷，考课劣等）
             demoted_circuits.append(c)
             # 劣等官吏挤入祠禄闲职
             weed_out = max(1, int(on_post * 0.08))

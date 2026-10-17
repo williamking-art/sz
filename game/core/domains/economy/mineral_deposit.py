@@ -176,6 +176,12 @@ CIRCUIT_MINERAL_DEPOSITS: Dict[str, Dict[str, Dict[str, float]]] = {
         DIM_TIMBER: {"reserves": 220000000.0, "cap": 125000.0, "purity": 0.92},
         DIM_STONE: {"reserves": 80000000.0, "cap": 33000.0, "purity": 0.90},
     },
+    "黔中路": {
+        # 西南边地羁縻区：大山深林林木极盛，石料丰富，伴生铁矿
+        DIM_TIMBER: {"reserves": 350000000.0, "cap": 166000.0, "purity": 0.95},
+        DIM_STONE: {"reserves": 90000000.0, "cap": 33000.0, "purity": 0.90},
+        DIM_IRON: {"reserves": 50000000.0, "cap": 25000.0, "purity": 0.65},
+    },
 }
 
 

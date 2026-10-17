@@ -1,0 +1,12 @@
+{
+  "id": "M322-ai-pipeline-guards-and-seeds",
+  "title": "天道裁决体系落地第四期：大模型AI叙事三管道挂接、事实签映射与Token计量护栏",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "执行天道方案 Phase 4：1. 在 ai/token_meter.py 补齐 generate_memorials 计量注册；2. 在 TianDaoFacade 增设 scan_memorial_seeds，提炼真实矛盾生成事实签并白名单映射至 5 大奏折分类 (invention/governance/military/personnel/finance)；3. 增设 derive_dialogue_stance 与 summarize_monthly_omen，并挂接脱敏与 fallback 护栏；4. 编写专属单元测试验证。",
+  "created_at": "2026-10-17T16:54:30Z",
+  "dependencies": [
+    "M321-appraisal-tiandao-and-de-magic-numbers"
+  ],
+  "completed_at": "2026-10-17T16:56:00Z"
+}

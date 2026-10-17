@@ -1,0 +1,25 @@
+{
+  "id": "JEV-DEC-工笔真迹插槽装配资产替代-2026-10-17",
+  "date": "2026-10-17",
+  "question": "是否应全面采用北宋工笔真迹标准处理层替换 new_vector_modular 粗糙多边形资产？",
+  "options": {
+    "A": "全面采用高规格工笔设色真迹资产（3款空白素脸、3组独立五官、3款正统圆领袍、长短幞头、象牙槐木朝笏），经过标准 800x1000 画幅、透明通道与统一骨骼节点标尺校准，彻底淘汰 Pillow 粗糙多边形与劣质碎料，实现 100% 台北故宫院体画风与零偏移 QQ 秀插槽装配",
+    "B": "继续使用简易多边形线框图"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9987363219261169,
+    "B": 0.0012636780738831
+  },
+  "premises_verified_by_me": [
+    "用户明确训诫：严禁再使用粗糙碎料和拼贴物，必须建立基于真实美术资产、有关节点的解耦纸娃娃系统",
+    "实测由美术模型生成的 3 款空白脸型底模（瓜子/国字/圆润）与五官分层素材具有纯正北宋院体工笔设色绢本品质，符合《宋祚》严肃政略基调",
+    "所有部件经统一骨骼锚点（额头、眉、眼、鼻、唇、须、领口、腰带200px、双手）校准并输出为标准 800x1000 RGBA PNG，前端无需二次计算偏移即可实现即插即用"
+  ],
+  "applied_in": [
+    "sz/game/assets/paperdoll/new_vector_modular/",
+    "sz/_dev_tools/paperdoll_experiment/build_songzuo_masterpiece_paperdoll.py",
+    "sz/_dev_tools/paperdoll_experiment/songzuo_qqshow_app.html"
+  ],
+  "reopen_if": "若用户要求更换现代扁平化或完全不同历史画风时重新评估"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "JEV-DEC-空间确权底座挂载与专用桥接方案-2026-10-17",
+  "question": "治所物理仓储容器应该如何挂载与接入？",
+  "options": {
+    "A": "并列在 seats[治所]['warehouses']，与 buildings/storage 同级，通过专用桥接模块 spatial_warehouse_bridge 统一读写，保持形态稳定且零破坏既有字段",
+    "B": "直接侵入修改既有的 goods 或 resources 内部字典结构，打破现有结构"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9925,
+    "B": 0.0075
+  },
+  "premises_verified_by_me": "并列挂载 seats[治所]['warehouses'] 完全符合 M38 建筑下沉与 M40 仓储下沉的成熟模式，不破坏既有 goods/pops 字典键，且便于单独开辟专用桥接和单测覆盖",
+  "applied_in": "game/core/foundation/ledger/spatial_warehouse_bridge.py",
+  "reopen_if": "未来发生全域统一商品数据结构整体底层重构且不再保留单独 warehouses 字典"
+}

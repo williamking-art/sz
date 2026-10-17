@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-天道遵从度并入decree_effect与法统门禁守卫-2026-10-17",
+  "timestamp": "2026-10-17T16:46:00Z",
+  "question": "天道知州遵从度是否应严格作为吏治通道输入并入decree_effect并由confirm_decree法统门禁阻断越权？",
+  "options": [
+    "A: 并入clerks通道保持三通道口径不增，confirm_decree校验check_authority",
+    "B: 新增独立乘数或跳过门禁"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.96,
+    "B": 0.04
+  },
+  "premises_verified_by_me": "实测地方知州遵从度成功调制clerks_mult，民政调兵军队加成单调不劣，越权承办被法统门禁成功拦截并阻断，test_decree_pipeline_tiandao 3项全绿",
+  "applied_in": "game/core/decree_effect.py, game/core/decree_confirm.py, tests/test_decree_pipeline_tiandao.py",
+  "reopen_if": "诏令实效出现第四条通道或事权校验漏判"
+}

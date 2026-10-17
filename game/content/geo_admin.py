@@ -214,7 +214,7 @@ CIRCUIT_INFO: dict = {
     #   不开局生成作坊（避免改动经济平衡），人口经济走
     #   content.demography.EXTRA_CIRCUIT_DEMOG，仅供舆图州府层与划省使用。
     "黔中路": {
-        "type": "沿边", "seat": "矩州", "game_unit": None,
+        "type": "羁縻", "seat": "矩州", "game_unit": None,
         "members": [
             ("矩州", "州", 106.63, 26.65),      # 今贵阳
             ("播州", "州", 106.93, 27.73),      # 今遵义

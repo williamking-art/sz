@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-黔中路全套数据补齐与外贸地缘对齐-2026-10-17",
+  "timestamp": "2026-10-17T17:06:00Z",
+  "question": "黔中路是否应补齐矿藏储量作物配比并与周围外贸伙伴地缘口径全对齐？",
+  "options": [
+    "A: 补齐mineral_deposit与data_geo_tables，对齐9席治所，扩充交趾等外贸线",
+    "B: 保持黔中路空缺或部分缺失"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.95,
+    "B": 0.05
+  },
+  "premises_verified_by_me": "实测黔中路9席治所人口田亩粮税与EXTRA_CIRCUIT_DEMOG 100%加总吻合，内生月度林木石料铁矿茶麻产出全部打通，外贸伙伴全覆盖，test_qianzhong_complete_data 3项全绿",
+  "applied_in": "game/core/domains/economy/mineral_deposit.py, game/content/data_geo_tables.py, game/core/domains/economy/industry_chains.py, game/core/domains/economy/trade_shadow.py, tests/test_qianzhong_complete_data.py",
+  "reopen_if": "黔中治所出现数据失配或外贸出现未定义伙伴"
+}
