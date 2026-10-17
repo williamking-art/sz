@@ -462,12 +462,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # ---- Step 0: 破产兜底（在其它步骤补血国库前，先按真实财政恶化程度判定）----
     # B3：国库禁穿底，改以「累计亏空深度」为判据（详见 GameState.deficit_depth）。
-    if state.deficit_depth() > TREASURY_COLLAPSE_LINE:
+    # 2026-10-17 审计修复（B-2）：与 _settle_finance 统一采用天道动态危机线判据，消除双判据漂移
+    from core.ai.tiandao_facade import TianDaoFacade
+    crisis_line = TianDaoFacade.dynamic_treasury_crisis_line(state)
+    collapse_line = crisis_line * 2
+
+    if state.deficit_depth() > collapse_line:
         state.game_over = True
         state.game_result = "国用耗竭，天下鼎沸——大宋府库空虚，纲纪尽弛"
         log.append("[民生] 国库崩坏至不可复救，国用耗竭，天下鼎沸！")
         return log
-    if state.deficit_depth() > TREASURY_CRISIS_LINE and not any(
+    if state.deficit_depth() > crisis_line and not any(
             e.get("title") == "库藏空虚" for e in state.active_events):
         state.population_satisfaction = max(0, state.population_satisfaction - 2)
         log.append("[民生] 库藏空虚，中外忧惧，民怨渐起")

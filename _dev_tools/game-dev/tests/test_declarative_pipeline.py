@@ -22,7 +22,8 @@ def test_pipeline_registration_and_phases():
     """验证默认管线步骤数、相位划分与唯一性。"""
     pipeline = get_default_pipeline()
     steps = pipeline.steps
-    assert len(steps) == 48, f"权威管线应包含 48 个步骤，实测 {len(steps)}"
+    # 2026-10-17 审计校准：新增 spatial_logistics 真实步骤，总步数由 48 调整为 49
+    assert len(steps) == 49, f"权威管线应包含 49 个步骤，实测 {len(steps)}"
 
     # ID 唯一性
     step_ids = [s.id for s in steps]
@@ -108,7 +109,7 @@ def test_step_error_isolation():
 def test_get_pipeline_step_pairs():
     """验证对账接口导出格式规范。"""
     pairs = get_pipeline_step_pairs()
-    assert len(pairs) == 48
+    assert len(pairs) == 49
     for step_id, exec_fn in pairs:
         assert isinstance(step_id, str) and step_id
         assert callable(exec_fn)

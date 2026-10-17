@@ -69,16 +69,17 @@ def _pop_wealth(s):
 
 
 def _pipeline_settle_calls():
-    """从 run_monthly_settlement 的 AST 取**真实**调用序列（行号排序，去掉票据步）。"""
-    import core.settlement as S
-    tree = ast.parse(inspect.getsource(S.run_monthly_settlement))
-    calls = []
-    for node in ast.walk(tree):
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                and node.func.id.startswith("_settle")):
-            calls.append((node.lineno, node.func.id))
-    calls.sort()
-    return [name for _, name in calls]
+    """从声明式管线（get_default_pipeline）取真实步骤的函数名调用序列。"""
+    from core.settlement_pipeline import get_default_pipeline
+    pipe = get_default_pipeline()
+    res = []
+    for s in pipe.steps:
+        if callable(s.target_func):
+            name = s.target_func.__name__
+            if name == "settle_factions_from_pop":
+                name = "_settle_faction_metrics"
+            res.append(name)
+    return res
 
 
 # ---------------------------------------------------------------
@@ -131,7 +132,11 @@ def test_failed_settlement_rolls_back_whole_month(monkeypatch):
     def _boom(state, log):
         raise RuntimeError("模拟结算步失败（整改①-1 回滚用例）")
 
-    monkeypatch.setattr(_S, "_settle_finance", _boom)
+    # 2026-10-17 审计修复：管线注册的是函数引用，monkeypatch 打在管线对应 step 对象的 func 上
+    from core.settlement_pipeline import get_default_pipeline
+    pipe = get_default_pipeline()
+    step = pipe.get_step("finance")
+    monkeypatch.setattr(step, "func", _boom)
     with pytest.raises(RuntimeError):
         settle_local(s)
 

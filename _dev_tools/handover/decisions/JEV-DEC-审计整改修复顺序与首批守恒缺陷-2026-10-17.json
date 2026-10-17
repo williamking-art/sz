@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-审计整改修复顺序与首批守恒缺陷-2026-10-17",
+  "timestamp": "2026-10-17T18:27:00Z",
+  "question": "是否按建议顺序推进审计整改：第一步修过期测试与回滚注入，第二步修 A-6 采购物权资金守恒，第三步修 A-4 交子皇威截断、A-7 逃兵 POP 守恒、A-8 科举调 change_prestige？",
+  "options": [
+    "A: 按建议顺序立即开修过期测试断言、A-6采购守恒与A-4/A-7/A-8硬核缺陷",
+    "B: 停下等待或颠倒顺序"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.994,
+    "B": 0.006
+  },
+  "premises_verified_by_me": "Jev裁定p=0.994支持A。全量审计报告精准指出物权未扣减、交子超限、逃兵脱离POP真账等硬核缺陷。按步骤推进能立即恢复守恒断言与全量测试可信度",
+  "applied_in": "game/core/domains/economy/procurement.py, game/core/game_state_econ.py, game/core/settlement_military.py, game/core/domains/administration/imperial_exam.py",
+  "reopen_if": "整改过程中破坏现有守恒或引入新漂移"
+}

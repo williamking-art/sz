@@ -963,4 +963,7 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
     state.statistics["sinecure_officials"] = t["sinecure"]
     state.statistics["posts_quota"] = t["posts_quota"]
     state.statistics["redundant_officials"] = max(0, t["officials"] - t["posts_quota"])
+    # 2026-10-17 审计修复：官僚治理效能常态派生写入（解决悬空模块导致的读数永远缺失）
+    if "administrative_efficiency" not in state.statistics or state.statistics["administrative_efficiency"] is None:
+        state.statistics["administrative_efficiency"] = 1.0
     return t

@@ -219,9 +219,17 @@ class GameStateEconMixin:
         return max(0.0, min(1.0, self.jiaozi.get("trust", 60) / 100.0))
 
     def _jiaozi_ceiling(self) -> int:
-        """交子可发额度 = 准备金 × 准备金率（皇威高可放宽准备金约束）。"""
-        prestige_ratio = 2.0 + (self.prestige - 50) / 50.0   # 皇威 50→2倍, 100→3倍, 0→1倍
-        return int(self.jiaozi.get("reserve", 0) * max(1.0, prestige_ratio))
+        """交子可发额度 = 准备金 × 准备金率（皇威高可放宽准备金约束）。
+        
+        2026-10-17 审计修复（A-4）：
+        皇威无界累积后，信用准备金率上限必须有界（最高 3.0 倍，对应皇威 100），
+        防止皇威膨胀（如 350、800）导致交子发行上限失控暴增。
+        """
+        raw_p = getattr(self, "prestige", 50)
+        eff_prestige = min(100.0, max(0.0, float(raw_p if raw_p is not None else 50.0)))
+        prestige_ratio = 2.0 + (eff_prestige - 50.0) / 50.0   # 皇威 50→2倍, 100+→3倍, 0→1倍
+        bounded_ratio = max(1.0, min(3.0, prestige_ratio))
+        return int(self.jiaozi.get("reserve", 0) * bounded_ratio)
 
     def _real_output_monthly(self) -> float:
         """月度实物经济总量（贯）= 月粮产 × 粮价 + 工商产出。
@@ -332,9 +340,11 @@ class GameStateEconMixin:
         relief = min(STOCK_PRICE_RELIEF_MAX,
                      max(0.0, (_months - 1.0) / 11.0) * STOCK_PRICE_RELIEF_MAX)
         price *= (1.0 - relief)
-        # 运输加价：漕运阻塞 0~100 → 最多 +加权
-        _block = max(0.0, min(1.0, float(getattr(self, "canal_block", 0) or 0) / 100.0))
+        # 运输加价：优先读本路漕运阻塞（M39c-2），未下沉时安全回落全国值
+        _raw_block = p.get("canal_block") if p.get("canal_block") is not None else getattr(self, "canal_block", 0)
+        _block = max(0.0, min(1.0, float(_raw_block or 0) / 100.0))
         price *= 1.0 + _block * TRANSPORT_PRICE_WEIGHT
+
         # 货币有效供给：M1 与实物产出之比偏离基准 → 加/减价
         _money = float(getattr(self, "money_supply", 0) or 0)
         _real = self._real_output_monthly()

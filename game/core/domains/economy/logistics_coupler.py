@@ -148,7 +148,8 @@ def dispatch_industry_logistics(
     can_waterway = (orig_w_tier in ("强", "有") and targ_w_tier in ("强", "有"))
 
     stats = getattr(state, "statistics", {}) or {}
-    barges_avail = int(stats.get("barges_pool", 50) or 50)
+    bp_val = stats.get("barges_pool")
+    barges_avail = 50 if bp_val is None else int(bp_val)
     canal_block = int(getattr(state, "canal_block", 0) or 0)
 
     # 若漕运严重淤塞 (>35) 或无漕船，水路运力受限降级为陆运
@@ -220,7 +221,8 @@ def survey_logistics_coupling(state: Any) -> Dict[str, Any]:
         by_mode[mode] = by_mode.get(mode, 0) + 1
 
     stats = getattr(state, "statistics", {}) or {}
-    barges_pool = int(stats.get("barges_pool", 50) or 50)
+    bp_pool_val = stats.get("barges_pool")
+    barges_pool = 50 if bp_pool_val is None else int(bp_pool_val)
 
     return {
         "active_batches_count": len(batches),

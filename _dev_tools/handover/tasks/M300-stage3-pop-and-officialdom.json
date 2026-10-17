@@ -1,7 +1,8 @@
 {
   "id": "M300-stage3-pop-and-officialdom",
   "title": "Stage 3: POP 微观生计闭环（告别强行运转）+ 科举三级取士唱名与官员三级差遣考课磨勘",
-  "status": "done",
+  "status": "in_progress",
+  "audit_status": "【2026-10-17 审计降级】pop_livelihood 已接线，但 imperial_exam 与 official_appraisal（三年考课磨勘）尚未插入结算管线，待后续专项任务接入 36 月节律。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-15",
   "authority": "decisions/JEV-台账-经济产业链与POP生计重塑演进-2026-10-15.json（Jev A 案 0.963 裁定）· decisions/JEV-台账-科举取士与官员磨勘机制设计-2026-10-15.json（Jev A 案 0.801 裁定）· 用户全案落地授权",

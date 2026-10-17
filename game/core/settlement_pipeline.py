@@ -86,6 +86,13 @@ class SettlementPipeline:
         """获取已注册的全部步骤只读列表。"""
         return list(self._steps)
 
+    def get_step(self, step_id: str) -> Optional[SettlementStep]:
+        """按 ID 检索步骤对象。"""
+        for s in self._steps:
+            if s.id == step_id:
+                return s
+        return None
+
     def execute(self, state: Any, log_sink: List[str], **kwargs: Any) -> List[str]:
         """按声明顺序顺序执行全部步骤。"""
         for step in self._steps:

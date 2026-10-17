@@ -1,0 +1,22 @@
+{
+  "id": "JEV-DEC-三大悬空模块处置与任务状态降级-2026-10-17",
+  "question": "对于 A-1 度量衡、A-2 生产方式 PM、A-3 科举与磨勘三大模块，当前应在本轮强行全面接入主线管线，还是如实降级任务状态并明确标注「模块就绪、未接管线」？",
+  "options": {
+    "A": "本轮强行全量接线（涉及宏观作坊产出、官制节律与全量经济循环），改动范围大",
+    "B": "如实降级并注明模块就绪待接线，在 tasks 与交接板登记待接线入口，收口硬核守恒缺陷"
+  },
+  "verdict": "B",
+  "probabilities": {
+    "A": 0.0025664090644568205,
+    "B": 0.997433602809906
+  },
+  "premises_verified_by_me": "已核查审计报告定位：MetrologyEngine 效果字段、production_methods 生产方式、imperial_exam 及 run_triennial_appraisal 均为完整高质量自包含代码且自带单元测试，但未插入 run_monthly_settlement 生产调用路径。若在本轮盲目接入，将对作坊投料、吏治抗拒、三年节律等全盘经济/官制产生连锁反应，违背本次审计首要目标（修复 A-6 采购双重扣款、A-4 交子上限无界膨胀、A-7 逃兵人口脱节等 P0 守恒破坏）。故采取 B 方案如实降级任务卡为 in_progress/就绪待接线，符合诚实交接规范。",
+  "applied_in": [
+    "_dev_tools/handover/tasks/M300-stage3-pop-and-officialdom.json",
+    "_dev_tools/handover/tasks/M317-v3-production-methods-and-neutral-intermediates.json",
+    "_dev_tools/handover/tasks/M318-organization-pm-and-living-goods.json",
+    "_dev_tools/handover/tasks/M324-metrology-engine-and-reforms.json",
+    "_dev_tools/game-docs/analysis/review_antigravity_M298-M325_2026-10-17.md"
+  ],
+  "reopen_if": "若专门开辟后续专项接线任务包（如 M327 生产方式接线、M328 人事闭环接线）"
+}

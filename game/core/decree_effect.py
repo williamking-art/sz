@@ -203,12 +203,15 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
             clerks_compliance = comp if comp.get("defined") else None
 
             # 2026-10-17 祖宗家法知通互掣：凡兵民钱谷文书非通判连署不得施行
+            # 口径规范（B-3 审计整改）：
+            # 连署因子 cs_factor = 0.35 + 0.65 * 连署率 ∈ [0.35, 1.00] 作为二级乘数调节遵从度。
+            # 缺失值处理：显式判定 is True；若 countersigned 为 None，防御性回落为 True。
             try:
                 from core.domains.administration.prefect_officials import get_prefect_officials
                 po_dict = get_prefect_officials(state)
                 route_seats = [v for v in po_dict.values() if v.get("circuit") == route] if isinstance(po_dict, dict) else []
                 if route_seats:
-                    signed_count = sum(1 for s in route_seats if s.get("countersigned", True))
+                    signed_count = sum(1 for s in route_seats if (s.get("countersigned") if s.get("countersigned") is not None else True))
                     signed_ratio = signed_count / len(route_seats)
                     cs_factor = 0.35 + 0.65 * signed_ratio
                     if clerks_compliance and "mult" in clerks_compliance:

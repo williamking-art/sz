@@ -142,8 +142,10 @@ def _settle_military_diplomacy(state, log):
         cmd_name = getattr(u, "commander", "")
         if cmd_name and cmd_name in MINISTERS:
             c_info = MINISTERS[cmd_name]
-            c_abil = float(c_info.get("ability", 0.5) or 0.5)
-            c_corr = float(c_info.get("corruption", 0.3) or 0.3)
+            c_abil_val = c_info.get("ability")
+            c_corr_val = c_info.get("corruption")
+            c_abil = float(c_abil_val if c_abil_val is not None else 0.5)
+            c_corr = float(c_corr_val if c_corr_val is not None else 0.3)
             cmd_delta = int(round((c_abil - 0.5) * 3 - (c_corr - 0.2) * 2))
             if cmd_delta != 0:
                 u.morale = max(10, min(100, u.morale + cmd_delta))
@@ -155,6 +157,8 @@ def _settle_military_diplomacy(state, log):
         if u_arr >= 250000 and u.troops > 1000:
             desert_count = min(u.troops // 100, 300)
             u.add_troops(-desert_count)
+            # 2026-10-17 审计修复（A-7）：逃兵人丁回归本路农/流民，守恒闭环
+            _return_men(state, u.station, desert_count)
             pdata = (getattr(state, "prefectures", {}) or {}).get(u.station)
             if isinstance(pdata, dict):
                 pdata["unrest"] = min(100.0, float(pdata.get("unrest", 20.0)) + 1.2)

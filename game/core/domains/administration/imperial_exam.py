@@ -230,8 +230,11 @@ def run_triennial_exam_full(
     elif curr == CURRICULUM_POETRY:
         if isinstance(log, list):
             log.append(f"📜【御试唱名·诗赋词章】集英殿金榜题名，诗赋雅乐动京华。赐进士及第 {taken} 人，天下士林咸颂圣德！")
-        # 皇威与声名增益
-        state.prestige = int(getattr(state, "prestige", 50) or 50) + 5
+        # 皇威与声名增益（走权威单点）
+        if hasattr(state, "change_prestige"):
+            state.change_prestige(5, reason="殿试唱名", is_major=True)
+        else:
+            state.prestige = int(getattr(state, "prestige", 50) or 50) + 5
     else:
         if isinstance(log, list):
             log.append(f"📜【御试唱名·经律兼治】集英殿大比唱名，经术政理兼收。赐进士及第 {taken} 人，入官待阙。")

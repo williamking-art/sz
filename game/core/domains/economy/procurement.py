@@ -144,23 +144,19 @@ def settle_procurement_order(state: Any, order: ProcurementOrder) -> Dict[str, A
     paid_merchant = 0
     paid_artisan = 0
 
-    # 1. 支付商贾物料款
-    if order.material_cost > 0 and hasattr(state, "transfer_money"):
-        paid_merchant = state.transfer_money(
-            f"local:{order.route}",
-            f"pop:{order.route}:商人",
-            order.material_cost
-        )
-        # 记录物权转移
-        transfer_goods_ownership(
+    # 1. 支付商贾物料款并交割物权（单点交割，杜绝二次划款）
+    if order.goods_qty > 0 or order.material_cost > 0:
+        tx_res = transfer_goods_ownership(
             state,
             dim=order.goods_dim,
             amount=order.goods_qty,
             from_owner=f"pop:{order.route}:商人",
             to_owner=f"local:{order.route}",
             reason="procurement_delivery",
-            money_consideration=paid_merchant
+            money_consideration=order.material_cost,
+            seat_id=order.seat_id
         )
+        paid_merchant = int(tx_res.get("money_paid", 0.0) or 0)
 
     # 2. 支付工匠工钱（若是雇役）
     if order.service_cost > 0 and hasattr(state, "transfer_money"):

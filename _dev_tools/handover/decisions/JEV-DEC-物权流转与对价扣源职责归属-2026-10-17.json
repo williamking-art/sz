@@ -1,0 +1,19 @@
+{
+  "id": "JEV-DEC-物权流转与对价扣源职责归属-2026-10-17",
+  "question": "政府采购物权流转与对价划扣的职责归属：应该由 transfer_goods_ownership 作为原子单点统一处理划款与扣源，还是由 procurement 统一划款而 transfer_goods_ownership 只动货物并记台账？",
+  "options": {
+    "A": "transfer_goods_ownership 作为物权对价原子单点，负责真扣货源（consume_for_seat）与划付对价（transfer_money），settle_procurement_order 不再预先划拨物料款，消除重复划款",
+    "B": "procurement 统一划款而 transfer_goods_ownership 只动货物并记台账"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.8759427070617676,
+    "B": 0.1240573450922966
+  },
+  "premises_verified_by_me": "已核查 procurement.py 第 148-163 行与 spatial_warehouse_bridge.py 第 164-169 行，确认双重调用 state.transfer_money 导致 local 被扣两次（各 10000 贯单中多扣物料款）；且 transfer_goods_ownership 之前未调用 consume_for_seat 导致商人 POP 物料未减而官仓凭空增加。按 A 方案将原子物权转移与对价支付闭环在 transfer_goods_ownership 单点，保证 Δlocal + Δ商 + Δ工 == 0 且 Δ商人物料 + Δ官仓 == 0。",
+  "applied_in": [
+    "game/core/domains/economy/procurement.py",
+    "game/core/foundation/ledger/spatial_warehouse_bridge.py"
+  ],
+  "reopen_if": "若未来出现非对价赠予或无偿征发（免对价物权流转），或出现纯粹虚拟台账登记无需实物流转场景"
+}

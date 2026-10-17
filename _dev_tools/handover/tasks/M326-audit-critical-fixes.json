@@ -1,0 +1,12 @@
+{
+  "id": "M326-audit-critical-fixes",
+  "title": "审计P0整改：过期测试与回滚、A-6采购守恒与A-4/A-7/A-8硬核缺陷修复",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "completed_at": "2026-10-17T18:50:00Z",
+  "description": "按审计报告整改：1. 修复3条过期测试断言与回滚用例monkeypatch；2. 修复 procurement.py 采购守恒（府库扣款、商人入账与库存扣减严格对齐）；3. 修复 A-4 交子上限皇威截断、A-7 欠饷逃兵走 POP 桥接守恒还农、A-8 科举改用 change_prestige；4. 修复 logistics_coupler 吞0与破产双判据。",
+  "created_at": "2026-10-17T18:27:00Z",
+  "dependencies": [
+    "M325-prestige-uncapped-and-authority-military-coupling"
+  ]
+}

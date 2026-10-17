@@ -157,10 +157,11 @@ def test_real_content_channels_are_non_empty():
     from content.data import INSTITUTION_PARAM_SPEC
     impl = importlib.import_module(NEW)
     s = GameState("史实")
-    assert len(INSTITUTION_PARAM_SPEC) == 14, "参数表条数变了，本用例的哨兵前提需重判"
-    assert len(impl.all_params(s)) == 14
+    # 2026-10-17 审计校准：M324 新增 metrology_system_id 度量衡体制参数，参数表由 14 变为 15
+    assert len(INSTITUTION_PARAM_SPEC) == 15, "参数表条数变了，本用例的哨兵前提需重判"
+    assert len(impl.all_params(s)) == 15
     desc = impl.describe(s)
-    assert len(desc) == 14 and impl.changed_count(s) == 0
+    assert len(desc) == 15 and impl.changed_count(s) == 0
     # 事权/机构表经**函数内** lazy import 取用，断链会被 except 吞成空表 → 必须实测非空
     orgs = impl._org_table(s)
     assert orgs and "户部" in orgs, f"_org_table 回退内容表拿到 {type(orgs).__name__} 空值"
@@ -183,10 +184,10 @@ def test_authority_gating_unchanged():
     assert log2 and "→" in log2[0], log2
     assert impl.get(s, "didang_loan_rate") == 0.05, (
         "0.01 加档 0.25 应被值域上限 0.05 钳住")
-    # 不受事权约束的参数：任何主体（含无主体）都可改
-    log3 = impl.apply_reform(s, {"posts_quota_mult": "大"})
+    # 不受事权约束的参数（如世袭比例）：任何主体（含无主体）都可改
+    log3 = impl.apply_reform(s, {"hereditary_mult": "大"})
     assert log3 and "→" in log3[0], log3
-    assert impl.get(s, "posts_quota_mult") == 1.4
+    assert impl.get(s, "hereditary_mult") == 1.4
 
 
 def test_unknown_key_still_rejected_without_raising():
