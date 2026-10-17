@@ -2,7 +2,7 @@
   "id": "M318-organization-pm-and-living-goods",
   "title": "组织形态生产方式（作坊vs工厂）与民生文教消费闭环",
   "status": "in_progress",
-  "audit_status": "【2026-10-17 审计降级】组织形态第四槽位与民生文教配方数据已就绪，待随 PM 系统统一接线。",
+  "audit_status": "【2026-10-17 审计降级】组织形态第四槽位与民生文教配方数据已就绪，待随 PM 系统统一接线。B-4 仅把民生文教链成品（糖/纸/油墨/书籍/文房四宝/薪炭/食用油/酱醋）真实入治所物理仓；**组织形态 PM 仍未接入生产调用路径，作坊产量公式尚未受 PM 驱动**（未接线）。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-17",
   "authority": "JEV-20261017-M318-organization-pm-and-living-goods（方案A概率0.9935）与用户指示",

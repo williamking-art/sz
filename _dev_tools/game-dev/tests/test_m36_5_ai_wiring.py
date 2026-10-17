@@ -243,7 +243,10 @@ def test_fiscal_isolation_with_wiring():
     _seed(b, next(iter(b.prefectures)))
     _decree(a, {"inspect_dispatch": {"route": rk, "kind": "查赋"}})
     tid = a.inspection_tasks[0]["id"]
+    # 2026-10-17 全审：对照组必须同历法；只改 a.year 会让统计里的
+    # active_rebellions['year'] 天然不同，误报财政隔离失败。
     a.year, a.month = 990, 3
+    b.year, b.month = 990, 3
     inspection_tick(a)
     _decree(a, {"inspect_report": {"task_id": tid, "summary": "回报"}})
     _decree(a, {"inspect_allege": {"task_id": tid, "text": "账目有亏空"}})

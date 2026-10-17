@@ -243,29 +243,49 @@ function ChronicleTab() {
   const dial = asArr(pick<unknown[]>(state, "dialogue_history", []));
   const memos = asArr(pick<unknown[]>(state, "memorials", []));
   const short = asArr(pick<unknown[]>(state, "short_term_log", []));
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [busyIndex, setBusyIndex] = useState<number | null>(null);
 
-  async function handleAccept(index: number) {
+  /** 准奏/留中共用：失败必须在界面可见，且**不得**改动本地 state（避免失败被当成成功）。 */
+  async function handleMemorial(index: number, action: "accept_memorial" | "dismiss_memorial", label: string) {
+    if (busyIndex !== null) return;
+    setBusyIndex(index);
+    setNotice(null);
     try {
-      const res = await getApiClient().action("accept_memorial", { index });
+      const res = await getApiClient().action(action, { index });
       if (res.state) setState(res.state);
       if (res.message) pushUiLog(res.message);
+      setNotice({ kind: "ok", text: res.message || `${label}已办` });
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setNotice({ kind: "error", text: `${label}未成：${msg}` });
+    } finally {
+      setBusyIndex(null);
     }
   }
 
-  async function handleDismiss(index: number) {
-    try {
-      const res = await getApiClient().action("dismiss_memorial", { index });
-      if (res.state) setState(res.state);
-      if (res.message) pushUiLog(res.message);
-    } catch (e) {
-      console.error(e);
-    }
+  function handleAccept(index: number) {
+    return handleMemorial(index, "accept_memorial", "准奏");
+  }
+
+  function handleDismiss(index: number) {
+    return handleMemorial(index, "dismiss_memorial", "留中");
   }
 
   return (
     <div className="space-y-3">
+      {notice && (
+        <p
+          role="alert"
+          className={`rounded border px-3 py-1.5 text-sm ${
+            notice.kind === "error"
+              ? "border-red/50 bg-red/5 text-red"
+              : "border-emerald-700/50 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {notice.text}
+        </p>
+      )}
       <Section title="君 臣 纪 事（奏对）">
         {dial.length === 0 ? <p className="text-sm text-dim">— 暂无奏对 —</p> : (
           <div className="max-h-32 overflow-y-auto">
@@ -305,13 +325,15 @@ function ChronicleTab() {
                     <div className="flex space-x-1">
                       <button
                         onClick={() => handleAccept(i)}
-                        className="rounded bg-red px-2 py-0.5 font-kai text-[11px] text-paper shadow-sm hover:bg-red/80 transition"
+                        disabled={busyIndex !== null}
+                        className="rounded bg-red px-2 py-0.5 font-kai text-[11px] text-paper shadow-sm hover:bg-red/80 transition disabled:opacity-50"
                       >
                         准 奏
                       </button>
                       <button
                         onClick={() => handleDismiss(i)}
-                        className="rounded border border-gold/60 bg-paper px-2 py-0.5 font-kai text-[11px] text-dim hover:text-ink transition"
+                        disabled={busyIndex !== null}
+                        className="rounded border border-gold/60 bg-paper px-2 py-0.5 font-kai text-[11px] text-dim hover:text-ink transition disabled:opacity-50"
                       >
                         留 中
                       </button>

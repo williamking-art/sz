@@ -80,19 +80,25 @@ def test_free_effect_accepts_institution_field():
     assert err and "未授权参数" in err, f"未授权参数未被拒：{err!r}"
 
     # 落地：给个负增量（大幅延长磨勘年限 → 升迁变慢）
+    # 2026-10-17 全审：rank_up_mult/clerk_pay_mult/yinben_mult 已带 authority，
+    # 必须指定掌权执行主体；未指定会被逐项拒绝（这正是「不能绕过」的契约）。
     before = inst.get(s, "rank_up_mult")
-    _apply_effect_to_state(s, {"institution": {"rank_up_mult": -0.4}})
+    _apply_effect_to_state(s, {"institution": {"rank_up_mult": -0.4}}, executor="吏部")
     assert inst.get(s, "rank_up_mult") < before, "institution 字段未落地"
     # 绝对值写法
-    _apply_effect_to_state(s, {"institution": {"clerk_pay_mult": "=2.5"}})
+    _apply_effect_to_state(s, {"institution": {"clerk_pay_mult": "=2.5"}}, executor="户部")
     assert abs(inst.get(s, "clerk_pay_mult") - 2.5) < 1e-9, "绝对值写法未生效"
     # 档位词写法（增量）：往 **下** 调要写负号
     inst.set_param(s, "yinben_mult", 1.0)
-    _apply_effect_to_state(s, {"institution": {"yinben_mult": "-中"}})
+    _apply_effect_to_state(s, {"institution": {"yinben_mult": "-中"}}, executor="吏部")
     assert inst.get(s, "yinben_mult") < 1.0, "档位词增量未生效"
     inst.set_param(s, "yinben_mult", 1.0)
-    _apply_effect_to_state(s, {"institution": {"yinben_mult": "小"}})
+    _apply_effect_to_state(s, {"institution": {"yinben_mult": "小"}}, executor="吏部")
     assert inst.get(s, "yinben_mult") > 1.0, "正向档位词未生效"
+    # 未指定主体 ⇒ 拒绝、不落地
+    inst.set_param(s, "yinben_mult", 1.0)
+    _apply_effect_to_state(s, {"institution": {"yinben_mult": "小"}})
+    assert inst.get(s, "yinben_mult") == 1.0, "无执行主体不得落地受事权参数"
 
 
 # ---------------------------------------------------------------- 参数被结算真正消费

@@ -111,6 +111,7 @@ export default function ReadoutHubPanel() {
         <span className="text-[12px] text-dim">
           有值 {hub.ok_count ?? 0} · 未定义 {hub.undefined_count ?? 0}
         </span>
+      </div>
       {hub.note ? <p className="text-[12px] text-dim">{hub.note}</p> : null}
       {hub.readouts?.court_vs_system_contrast ? (
         <div className="rounded border border-amber-500/30 bg-amber-950/20 p-2.5 text-[12px] text-amber-200/90">

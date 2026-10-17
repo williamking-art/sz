@@ -107,9 +107,47 @@ def test_survey_clean_then_detects(cap):
 
 
 def test_new_game_all_routes_sunk():
-    """真实新局：20/20 路已下沉且对账 0 失配（首府判定走生产口径）。"""
-    from core import commands
-    s = commands.new_game()
-    rep = sb.survey_storage(s)
-    assert rep["已下沉路由"] == rep["路由数"] == 20
-    assert rep["字段失配"] == []
+    """真实新局：常平仓与州仓 20/20 路均已下沉且对账 0 失配（首府判定走生产口径）。"""
+    from application import game_init
+    s = game_init.new_game()
+
+    # 常平仓 (M40a)
+    rep_cp = sb.survey_storage(s, key=sb.CHANGPING_KEY)
+    assert rep_cp["已下沉路由"] == rep_cp["路由数"] == 20
+    assert rep_cp["字段失配"] == []
+
+    # 州仓 (M40b)
+    rep_st = sb.survey_storage(s, key=sb.STORAGE_KEY)
+    assert rep_st["已下沉路由"] == rep_st["路由数"] == 20
+    assert rep_st["字段失配"] == []
+
+
+# ------------------------------------------------------------------ 5. M40b 州仓（storage）专项
+def test_storage_sink_puts_route_stock_on_capital(cap):
+    cap({"路J": "J|首府"})
+    s = _state({"路J": {"storage": 5678, "seats": {"J|首府": {}, "J|次": {}}}})
+    assert sb.sink_state_storage_to_seats(s) == 1
+    seats = s.prefectures["路J"]["seats"]
+    assert seats["J|首府"][sb.STORAGE_KEY] == 5678
+    assert sb.STORAGE_KEY not in seats["J|次"]
+    assert s.prefectures["路J"][sb.STORAGE_KEY] == 5678
+    assert sb.storage_get(s, "路J") == 5678
+
+
+def test_storage_add_and_clamps_at_zero(cap):
+    cap({"路K": "K|首府"})
+    s = _state({"路K": {"storage": 1000, "seats": {"K|首府": {}}}})
+    sb.sink_state_storage_to_seats(s)
+    assert sb.storage_add(s, "路K", 500) == 1500       # 税收入库 +
+    assert s.prefectures["路K"][sb.STORAGE_KEY] == 1500
+    assert sb.storage_add(s, "路K", -3000) == 0       # 漕粮起运 − 钳 0
+    assert s.prefectures["路K"][sb.STORAGE_KEY] == 0
+    assert sb.storage_get(s, "路K") == 0
+
+
+def test_storage_writes_none_when_not_sunk():
+    s = _state({"路L": {"storage": 50, "seats": {"L|首府": {}}}})
+    assert sb.storage_add(s, "路L", 10) is None
+    assert sb.storage_set(s, "路L", 10) is None
+    assert sb.storage_get(s, "路L") is None
+

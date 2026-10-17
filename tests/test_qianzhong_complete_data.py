@@ -64,18 +64,14 @@ def test_cash_crop_land_aligned():
 # 3. 产业链与贸易通道可用（走通用机制，不依赖硬编码特例）
 # =============================================================================
 def test_trade_waterway_tier_covers_qianzhong():
-    """"黔中路属「弱」水道档 —— 贸易成本按通用档位表计算，不需特例。"""
-    weak = [k for k, v in trade_shadow.WATERWAY_TIER.items() if v == "弱"] \
-        if hasattr(trade_shadow, "WATERWAY_TIER") else None
-    if weak is not None:
-        assert QIANZHONG in weak
-
-    tiers = None
-    for name in dir(trade_shadow):
-        obj = getattr(trade_shadow, name)
-        if isinstance(obj, dict) and QIANZHONG in obj:
-            tiers = {k: v for k, v in obj.items()}
-    assert tiers is not None, "贸易模块未把黔中路纳入任何通用表"
+    """黔中路属「弱」水道档 —— 贸易成本按通用档位表计算，不需特例。"""
+    assert QIANZHONG in trade_shadow.ROUTE_WATERWAY["弱"]
+    # 全部 21 路（含黔中路）必须且只能落在一个档位里
+    listed = [c for group in trade_shadow.ROUTE_WATERWAY.values() for c in group]
+    assert len(listed) == len(set(listed)) == 21
+    # 弱档成本倍数最不利（淤浅/礁险 ⇒ 水运优势变小）
+    mults = trade_shadow.WATERWAY_TIER_MULT
+    assert mults["强"] < mults["有"] < mults["弱"]
 
 
 def test_mineral_deposit_rows_are_numeric():

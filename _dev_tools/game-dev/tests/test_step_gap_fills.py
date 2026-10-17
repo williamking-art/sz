@@ -154,14 +154,15 @@ def test_institution_apply_reform_rejects_bad_entries_per_item():
     """逐项拒绝：未知键 / 非数值 → 该项拒绝，其余照常落地（不整单回滚）。"""
     s = GameState("史实")
     base = inst.get(s, "rank_up_mult")
+    # 2026-10-17 全审：rank_up_mult/yinben_mult 已带 authority，须指定掌权主体
     log = inst.apply_reform(s, {
         "不存在的参数": 1.0,        # 未知键 → 拒绝
         "rank_up_mult": "-中",      # 合法档位词 → 落地
-    })
+    }, executor="吏部")
     assert any("不在白名单" in x for x in log), "未知键未被拒绝"
     assert inst.get(s, "rank_up_mult") < base, "合法项未落地"
     # 值既非数字也非可解析档位词 → 该项拒绝
-    log2 = inst.apply_reform(s, {"yinben_mult": []})
+    log2 = inst.apply_reform(s, {"yinben_mult": []}, executor="吏部")
     assert any("须为数字或档位词" in x for x in log2), "非法值类型未被拒绝"
 
 

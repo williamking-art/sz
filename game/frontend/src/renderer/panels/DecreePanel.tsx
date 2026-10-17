@@ -110,9 +110,14 @@ export default function DecreePanel() {
         is_secret: secret
       });
       if (res.state) setState(res.state);
-      setResult(res.message || "诏敕已传宣尚书省，有司领旨奉行。");
-      setFreeText("");
-      setTitle("");
+      const _msg = res.message || "";
+      setResult(_msg || "诏敕已传宣尚书省，有司领旨奉行。");
+      // C-4：后端对「缺少解析结果」的诏意会明确拒绝；失败时保留原文供玩家改拟，
+      // 不再清空输入制造“已下发”的错觉。
+      if (!/^未成/.test(_msg)) {
+        setFreeText("");
+        setTitle("");
+      }
     } catch (e) {
       console.error("[issue_decree]", e);
       // P0-7：**禁止**在任意失败后自动二次提交（非幂等）。仅当后端明确表示

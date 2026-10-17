@@ -28,7 +28,8 @@
 | `grain_ledger.py` | 99 | 🔴 **G-3 迁移基座**：把 `pops[].grain` 迁入 `goods[治所][米/麦]`（裁定 H·甲） |
 | `local_treasury_bridge.py` | 307 | 🔴 **地方府库（`local_treasury`）下沉桥**（M37，2026-10-13 **新建**、非迁移）。真账在 `prefectures[路]["seats"][治所]["local_treasury"]`，路级降为 **Σ 派生镜像**；含聚合（未下沉⇒`None`）· 对账 `survey_local_treasury` · 写桥 `local_treasury_set/add`（未下沉⇒`None` 回落）· **治所级精确写** `seat_local_treasury_set` + `seat_local_treasury_writable`。⚠️ **别与中央 `state.treasury` 混淆**（两者不同账户） |
 | `building_bridge.py` | ~310 | 🔴 **建筑（`buildings`）下沉桥**（M38a/M38b-1/M38b-2，2026-10-13 **新建**）。真账在 `seats[治所]["buildings"]`，路级 = **Σ 各治所等级**（**保形态**：任一条目是字典 ⇒ 镜像也写字典）；含 `aggregate_seat_buildings`（未下沉⇒`None`）· `survey_buildings` 逐建筑对账 · `capital_seat_id`（首府＝`SEAT_LEVELS` 序最优、同级取人口权重大者）· `sink_buildings_to_seats`（**首府承载 + 原始条目原样搬运** ⇒ Σ 与原值逐字相等）· 写桥 `building_add`（增量保形态）/ `building_set`（按原始条目精确写）/ **`building_remove`（删键，对齐 `era_mechanic` 原 `del`）** / `norm_level`（标量·`{"lv":n}`·`{"closed":true}`⇒0）。✅ **2026-10-13 已接 new_game/读档**（M38b-2；4 写点全桥：含 `era_mechanic.damage_buildings`），**A/B 对照证明零行为变化**（逐路 buildings 差异 0/20）。⚠️ 阈值类读者待「建筑落到多治所」时再改逐治所 |
-| `storage_bridge.py` | ~215 | 🔴 **仓储（`changping_stock` 常平仓 / `storage` 州仓）下沉桥**（M40a，2026-10-13 **新建**）。真账在 `seats[治所][<键>]`（石），路级 = **Σ 各治所**；含 `route_stock_total`/`aggregate_route_changping`（未下沉⇒`None`）· `survey_storage` 对账 · `changping_sink_route`/`sink_storage_to_seats`（**首府承载**，Σ 与原值逐字相等）· 写桥 `changping_add`（含 **0 下限钳**，同原 `max(0, x-total)`）/ `changping_set`/`changping_get`。✅ 2026-10-13 已接 new_game/读档；**M40a 已桥 `_changping_trade` 两处写点**，A/B 轨迹与逐路存量差异 **0/20**。⚠️ `storage`（州仓）待 M40b（其读点含 `situations` 条件路径，须单独核对）；**不动中央太仓 `state.granary`** |
+| `storage_bridge.py` | ~300 | 🔴 **仓储（`changping_stock` 常平仓 / `storage` 州仓）下沉桥**（M40a/M40b，2026-10-13 新建，2026-10-17 M40b 收口）。真账在 `seats[治所][<键>]`（石），路级 = **Σ 各治所**；含 `route_stock_total`/`aggregate_route_changping`/`aggregate_route_storage`（未下沉⇒`None`）· `survey_storage` 对账 · `sink_storage_to_seats`/`sink_prefectural_storage_to_seats`（**首府承载**，Σ 与原值逐字相等，已接 `new_game` 与 `load_game` 读档幂等下沉）· 写桥 `changping_add`/`storage_add`（含 **0 下限钳**）/ `changping_set`/`storage_set`/`changping_get`/`storage_get`。✅ **M40a+M40b 全收口**：已桥接 `_changping_trade` 两处写点、`settlement_granary.py` 漕粮起运扣减、`settlement_econ.py` 本色田赋征收入库；单测 12 项全过，20/20 路仓储对账失配为 0。**不动中央太仓 `state.granary`** |
+| `spatial_warehouse_bridge.py` | ~380 | 🔴 **空间确权底座与三维物流在途桥**（Bundle 1 & Bundle 4，2026-10-17 新建）。真账在 `seats[治所]["warehouses"]`，四大物理仓位：官粮廪 `public_granary` / 官工料场 `public_depot` / 商贾货栈塌房 `civilian_depots` / 私家地窖 `private_storage`。支持四大物权主体（`state:` / `imperial:` / `local:` / `pop:`）流转原子操作 `transfer_goods_ownership`；三维交通（水运/陆运/海运）跨治所调拨 `dispatch_spatial_transfer`；**沈括民夫口粮途耗模型**（运粮在途自然递减与严格守恒，运抵净值入库）`advance_in_transit_batches`；客运时空流动 `dispatch_passenger_trip` / `advance_passenger_trips`。已接 `new_game` 与 `load_game` 读档幂等下沉。 |
 
 ## 🔴 不可绕过的纪律
 
@@ -129,3 +130,10 @@
    `granary_stats['procure_take_mismatch']` 留痕「算出取走量却观测不到减少」的情形。
    **POP custody 复测（同种子 6 个月）**：7 维有变动、7 维有账、**5 维精确闭合**、0 未闭合；
    余 **丝 +18,841／麻 +15** 的未登记入账（已登记待查，量级 0.17% / 0.0002%）。
+
+9. 🔴 **地方仓储（`changping_stock` 常平仓 / `storage` 州仓）真账下沉治所**（M40a/M40b，2026-10-17 全收口）：
+   真账落在 `seats[治所]["storage"]` 与 `seats[治所]["changping_stock"]`，路级 `storage`/`changping_stock`
+   是纯 **Σ 治所派生镜像**。
+   所有仓储增减必须走 `storage_bridge` 对应单点（`storage_add`/`storage_set`、`changping_add`/`changping_set`），
+   未下沉路回落原写法；写操作内部带 `max(0, val)` 零下限钳位，并在更新治所真账后同步刷新路级镜像。
+   中央太仓 `state.granary` 保持独立账户，不与地方仓储混淆。

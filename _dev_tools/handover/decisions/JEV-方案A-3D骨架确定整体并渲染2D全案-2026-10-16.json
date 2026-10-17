@@ -1,0 +1,20 @@
+{
+  "title": "方案A：在3D骨架上把整体确定再渲染出2D院体工笔肖像全案",
+  "status": "decided",
+  "decidedBy": "用户裁定+Jev复核",
+  "decidedAt": "2026-10-16",
+  "question": "是否采用方案A：在3D骨架人偶上绑定服装与饰品挂载槽位，确定整体姿态与结构后再渲染出2D？",
+  "verdict": "执行方案A：以3D骨骼人形人偶（Rigged Base Doll）为刚性几何与动作基准，外袍与衣袖蒙皮跟随骨骼变形，各饰品（幞头/革带/鱼袋/朝笏）挂载于骨骼槽位，在3D中完成装配与动作姿态后，通过院体工笔NPR材质渲染为2D肖像",
+  "probabilities": {
+    "typesafe": 0.75
+  },
+  "premises_verified_by_me": [
+    "用户明确指令：『a，在3d骨架上把整体确定再渲染出来』",
+    "旧2D硬切方案导致衣服领口白塑料模特脖子挡住人头、幞头仰视悬空、横切平肩、小腹浮空朝笏，已被彻底废弃",
+    "只有在3D骨骼上驱动手臂与宽袖（如持笏pose_chihu、作揖pose_gongshou、垂手pose_longxiu），才能从根本上解决『衣物画死则动作无法变化』的顽疾",
+    "渲染规格严格对齐台北故宫北宋名臣像标准：膝盖以上大半身（7头身，810x1080），老绢本宣和底色（#C4A877）"
+  ],
+  "applied_in": "sz/game/content/ministers/paperdoll/ 与 sz/_dev_tools/game-assets-src/ministers-layers/",
+  "reopen_if": "用户提出新的架构或美术需求变更",
+  "id": "JEV-方案A-3D骨架确定整体并渲染2D全案-2026-10-16"
+}

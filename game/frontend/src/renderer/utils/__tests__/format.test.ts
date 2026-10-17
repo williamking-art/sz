@@ -45,9 +45,11 @@ describe("format utils", () => {
   });
 
   describe("humanizeCoin", () => {
-    it("货币以贯为单位", () => {
+    it("货币以贯为单位；缺失显式占位，不回落 0", () => {
       expect(humanizeCoin(12345)).toBe("1.2万贯");
-      expect(humanizeCoin(null)).toBe("0贯");
+      expect(humanizeCoin(null)).toBe("—");
+      expect(humanizeCoin(undefined)).toBe("—");
+      expect(humanizeCoin(0)).toBe("0贯");
     });
   });
 

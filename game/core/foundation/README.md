@@ -9,7 +9,7 @@
 ## 子包
 
 - `state/` GameState、初始状态构建与状态字段注册 —— ⬜ **空（0 个实现文件）**
-- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入 7 个**（含 `material_holding` 账本侧拆分）
+- `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入/新建 12 个**（含 `material_holding` 账本侧拆分，及 `local_treasury_bridge` / `building_bridge` / `storage_bridge` / `spatial_warehouse_bridge`）
 - `persistence/` 存档读写与版本迁移 —— ✅ **已迁入 2 个**（第七包：`slots.py` + `migrations.py`，
   只取实测无业务依赖的部分；`save_game`/`load_game` **有意留下**，原因见 §五）
 - `common/` numeric、errors 等无领域语义的共享工具 —— ✅ **已迁入 2 个模块**（`numeric` + `errors`；

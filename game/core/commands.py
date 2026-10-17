@@ -77,6 +77,13 @@ from core.foundation.common.errors import AIRuntimeError
 from core.commands_decree import (
     _random_faction_stances, confirm_timeline_break, dismiss_pending_break, issue_decree, issue_drafted_decree, issue_secret_decree, preview_draft,
     accept_memorial, dismiss_memorial,
+    # 2026-10-17 全审 A-3：backend/client.py 的 action 分派表直接引用这些符号，
+    # 但此前未在 core.commands 重导出 ⇒ /api/action 抛 AttributeError -> 500。
+    # 新增分派动作时必须同步本清单（契约测试见 test_backend_action_contract.py）。
+    issue_free_decree, issue_kouyu, merge_drafts,
+    issue_edict_from_review, reject_edict_draft,
+    propose_inner_transfer, confirm_inner_transfer, cancel_inner_transfer,
+    bestow_imperial_favor,
 )
 
 
@@ -583,7 +590,7 @@ def advance_and_settle(state, ai_client=None) -> tuple:
             _memos = None
             if ai_client is not None and getattr(ai_client, "available", False):
                 _res = ai_client.generate_memorials(
-                    getattr(state, "posture", ""), state=state, count=3)
+                    _memorial_posture(state), state=state, count=3)
                 _memos = (_res or {}).get("memorials") if isinstance(_res, dict) else None
             if not _memos:
                 from ai.narrative_fallback import fallback_memorials
@@ -628,7 +635,7 @@ def _rich_narrative(state, ai_client) -> None:
             # ② AI 奏章（memorials）
             try:
                 _res = ai_client.generate_memorials(
-                    getattr(state, "posture", ""), state=state, count=3)
+                    _memorial_posture(state), state=state, count=3)
                 _memos = (_res or {}).get("memorials") if isinstance(_res, dict) else None
                 if _memos:
                     state.memorials = _memos
@@ -747,9 +754,22 @@ def advance_two_phase(state, ai_client=None) -> tuple:
     from ai.narrative_fallback import civilian_situation as _civ_prog
     civilian = str(_civ_prog(state) or "")
     # —— 数值结算与 AI 三路富化 押后台（daemon）——
+    # 结算窗口标记：server 层据此对 action/save/propose 返回 409，避免与后台写并发。
+    state._settle_in_progress = True
+
+    def _run_async_settle():
+        try:
+            _async_settle(state, ai_client, snap)
+        finally:
+            state._settle_in_progress = False
+
     _th = __import__("threading")
-    _th.Thread(target=_async_settle, args=(state, ai_client, snap),
-               daemon=True, name=f"settle-{state.turn}").start()
+    try:
+        _th.Thread(target=_run_async_settle, args=(),
+                   daemon=True, name=f"settle-{state.turn}").start()
+    except Exception:
+        state._settle_in_progress = False
+        raise
     return events, [], civilian
 
 
@@ -818,6 +838,33 @@ def finish_turn(state) -> None:
     _finish_turn(state)
 
 
+def _memorial_posture(state) -> str:
+    """奏折入参 = 时局 posture ＋ **天道事实签**（管道一）。
+
+    事实签由 `TianDaoFacade.scan_memorial_seeds` 从真实账本提炼（受命大臣取自
+    `state.central_orgs` 在任主官），注入后大模型据实拟折，不再凭空选题。
+    取不到事实签 ⇒ 原样返回 base posture（**不伪造**、不影响无 AI 兜底）。
+    """
+    base = getattr(state, "posture", "") or ""
+    try:
+        from core.ai.tiandao_facade import TianDaoFacade
+        seeds = TianDaoFacade.scan_memorial_seeds(state, limit=3)
+    except Exception:  # noqa: BLE001 — 事实签失败不得阻断上折
+        return base
+    if not seeds:
+        return base
+    lines = ["【天道事实签｜据真实账本，拟折须据此，不得虚构人物与数据】"]
+    for i, s in enumerate(seeds, 1):
+        lines.append(
+            f"{i}) 类别={s.get('matter_domain')}"
+            f"｜建议受命大臣={s.get('target_minister')}"
+            f"｜事实={s.get('trigger_fact')}"
+            f"｜主张={s.get('core_claim')}"
+            f"｜拟题={s.get('suggested_title')}"
+        )
+    return base + "\n" + "\n".join(lines)
+
+
 def monthly_report_args(state) -> tuple:
     """构建月报调用入参（主线程快照）：(year, month, era_name, posture_with_memory)。
 
@@ -851,6 +898,21 @@ def monthly_report_args(state) -> tuple:
     try:
         _posture += "\n" + pop_sentiment_brief(state)
     except Exception:
+        pass
+    # 天道月度天机实录（管道三）：给月报一个真实因果骨架（气数档 / 民怨告警 / 行政效能）
+    try:
+        from core.ai.tiandao_facade import TianDaoFacade
+        _omen = TianDaoFacade.summarize_monthly_omen(state)
+        _bits = []
+        if _omen.get("omen_defined"):
+            _bits.append(f"气数{_omen['omen_level']}（皇威{_omen['prestige']}）")
+        if _omen.get("unrest_circuits"):
+            _bits.append("民怨告警：" + "、".join(_omen["unrest_circuits"]))
+        if _omen.get("admin_efficiency_defined"):
+            _bits.append(f"行政效能×{_omen['admin_efficiency']:.2f}")
+        if _bits:
+            _posture += "\n【天道月度实录】" + "；".join(_bits)
+    except Exception:  # noqa: BLE001 — 实录失败不得阻断月报
         pass
     return state.year, state.month, state.era_name, _posture
 
@@ -1466,7 +1528,8 @@ _MILITARY_BUTTON_ACTS = {
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
                          scale: int = 3, target: str = "", new_name: str = "",
-                         merge_unit_id: str = "", commander: str = "") -> str:
+                         merge_unit_id: str = "", commander: str = "",
+                         executor: str = "") -> str:
     """**玩家亲裁军令**：对象是**编制单位**（非兵种、非军籍整批），入队后即时批红。
 
     为什么这样接（三条，缺一不可）：
@@ -1485,6 +1548,20 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
                  if str(getattr(u, "unit_id", "") or "") == uid), None)
     if unit is None:
         return f"未成：无此编制单位「{uid}」。"
+
+    # C-2：军令的增募/调赴/换帅/裁撤/合并/拆分都改变兵额或驻地，须由掌「调兵」
+    # 事权主体执行。默认按枢密院（玩家亲裁军令的法定承办机构），调用方可显式传
+    # executor（部门/官职/人名）以便拒绝越权主体；纯展示的整编/改名不在此门禁。
+    if act in ("增募", "调赴", "换帅", "裁撤", "合并", "拆分"):
+        _executor = str(executor or "枢密院").strip()
+        try:
+            from core.domains.administration.institution import resolve_executor
+            _matters, _label, _err = resolve_executor(state, _executor)
+        except Exception as e:  # noqa: BLE001
+            return f"未成：军令事权核验异常（{type(e).__name__}），不予执行。"
+        if _err or "调兵" not in _matters:
+            return (f"未成：军令须由掌「调兵」事权主体执行；"
+                    f"「{_label or _executor}」{_err or '不掌「调兵」事权'}。")
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}
@@ -1706,12 +1783,29 @@ def audience_dialogue(state: GameState, minister_name: str, player_input: str,
         reply = audience_dialogue_apply(state, minister_name, obj)
         return reply or "（大臣未及应诏。）"
     _ai_ok = True       # AI 是否真正产出该回复（决定是否计 token / 写召对缓存）
+    # 管道二：天道立场定势注入（天理定立场，防大模型被玩家口吻牵着走）
+    _summary = kwargs["state_summary"]
+    try:
+        from core.ai.tiandao_facade import TianDaoFacade
+        _st = TianDaoFacade.derive_dialogue_stance(
+            kwargs["minister_name"], kwargs["player_input"], kwargs["state"])
+        if _st.get("defined"):
+            _floor = _st.get("compromise_threshold")
+            _summary = (
+                f"{_summary}\n【天道定势·须恪守，不得因圣意口吻改易】"
+                f"立场={_st.get('stance')}（强度{_st.get('intensity')}"
+                f"{'，在任' if _st.get('in_office') else '，已去职'}）"
+                f"；核心论据={_st.get('argument_anchor')}"
+                + (f"；可让步底线={_floor}" if _floor is not None else "")
+            )
+    except Exception:  # noqa: BLE001 — 定势失败退回原始摘要，不阻断召对
+        _summary = kwargs["state_summary"]
     try:
         # 按位置传递（兼容真实 AIClient 与测试替身的参数名差异），state 走关键字
         obj = ai_client.dialogue(
             kwargs["minister_name"], kwargs["faction"], kwargs["faction_stance"],
             kwargs["minister_traits"], kwargs["minister_role"], kwargs["era_name"],
-            kwargs["history"], kwargs["player_input"], kwargs["state_summary"],
+            kwargs["history"], kwargs["player_input"], _summary,
             state=kwargs["state"],
         )
     except Exception:

@@ -393,9 +393,26 @@ def test_hill_tiles_dir_absence_matches_disabled_layer():
     assert enabled or disabled, "layers.ts 未声明 HILL_TILES_ENABLED（hill 源/图层开关）"
     has_tiles = os.path.isdir(tiles) and any(
         os.scandir(tiles)) if os.path.isdir(tiles) else False
-    if has_tiles:
-        assert enabled, ("瓦片目录已存在却仍关闭 hill 图层——请把 HILL_TILES_ENABLED 改回 true；"
-                         "并核对 fetch_hillshade.py 的 ZOOMS 与 source 的 minzoom/maxzoom 是否一致")
-    else:
+    if not has_tiles:
         assert disabled, ("瓦片目录缺失却仍启用 hill 图层 → 每块瓦片都会向 "
                           "app://songzuo/map/tiles/hill/… 发一次 404；请设 HILL_TILES_ENABLED=false")
+    else:
+        # 2026-10-17 全审：`game/frontend/public/map/tiles/` 是 .gitignore:341 的
+        # **本地生成物**（本机 2170 块/13.2MB）。本地有瓦片不等于要改提交里的开关：
+        # 干净 clone 没有瓦片，若代码 enabled 反而每块 404。只有瓦片**随仓库分发**
+        # （被 git 跟踪）时，才要求 enabled 与之一致。
+        _rel = os.path.relpath(tiles, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+        try:
+            import subprocess
+            _tracked = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", _rel],
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")),
+                capture_output=True, text=True,
+            ).returncode == 0
+        except Exception:
+            _tracked = False
+        if _tracked:
+            assert enabled, ("随仓库分发的 hill 瓦片已存在却关闭图层——请打开 HILL_TILES_ENABLED")
+        else:
+            assert disabled, ("hill 瓦片是 gitignored 的本地生成物：不得据此把 "
+                              "HILL_TILES_ENABLED 改成 true（干净 clone 会 404）")

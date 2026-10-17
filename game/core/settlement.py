@@ -266,14 +266,46 @@ def _settle_focus(state, log):
 # ============================================================
 # 机构改制结算（原 settlement_reform.py）
 # ============================================================
-def settle_reform(state, decree: dict) -> dict:
+def _reject_reform(reason: str) -> dict:
+    """机构改制拒绝式返回（不写 state；供 issue_free_decree/UI 显示真实原因）。"""
+    return {
+        "ok": False,
+        "outcome": "rejected",
+        "court_report": f"法统门禁阻断：{reason}",
+        "gazette": "",
+        "loyalty_delta": {},
+        "org_effects": {},
+        "faction_effects": {},
+        "rejected_reason": reason,
+    }
+
+
+def settle_reform(state, decree: dict, executor=None) -> dict:
     """结算一道 reform_org 类圣旨的后果。
+
+    **C-2 权限边界**：机构改名/裁撤/新建/改下辖/改权限属于官制事权，必须由掌
+    「官吏铨选」的主体执行；未指定 executor 或非掌权者一律拒绝（fail-closed），
+    绝不把客户端/AI 自报的 reform 直接写进 `central_orgs`/`authority_matters`。
 
     后果完全由 AI 依「威望 + 相关大臣隐藏忠诚度 + 派系立场」推演决定，
     不做写死的规则拒绝。返回叙事字典供 UI 展示（绝不泄露忠诚度数值）。
     """
-
     reform = decree.get("reform") or {}
+    if not isinstance(reform, dict) or not reform:
+        return _reject_reform("改制契约为空或非法")
+    executor = executor or decree.get("executor") or decree.get("executor_hint")
+    if not executor:
+        return _reject_reform("改制须指定执行主体（掌「官吏铨选」的部门/官职/任职人）")
+    try:
+        from core.domains.administration.institution import resolve_executor
+        matters, label, executor_err = resolve_executor(state, executor)
+    except Exception as e:  # noqa: BLE001
+        return _reject_reform(f"执行主体核验异常（{type(e).__name__}）：{e}")
+    if executor_err:
+        return _reject_reform(f"执行主体「{label or executor}」不可用：{executor_err}")
+    if "官吏铨选" not in matters:
+        return _reject_reform(
+            f"执行主体「{label or executor}」不掌「官吏铨选」事权，不能改官制/机构权限")
     # 2026-09-27：原在此组装 reform_settle 提示词上下文（算完即弃）；该模板与
     # `authority_brief_for_ai` 已按「如无必要勿增实体」一并移除（审查报告 §14.1/§14.2）。
     target = reform.get("target_org", "")

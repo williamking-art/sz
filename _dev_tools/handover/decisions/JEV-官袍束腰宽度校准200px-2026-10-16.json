@@ -1,0 +1,17 @@
+{
+  "id": "JEV-官袍束腰宽度校准200px-2026-10-16",
+  "topic": "官袍革带收腰宽度按用户裁定精准校准为200px",
+  "question": "官袍束腰宽度是否按用户明确指令『200』从180px调整为200px？",
+  "options": {
+    "true": "按200px重绘（x=298到498，对称于中轴398），兼具束腰收身感与士大夫沉稳体态",
+    "false": "保持180px"
+  },
+  "verdict": "true",
+  "probabilities": {
+    "true": 0.999,
+    "false": 0.001
+  },
+  "premises_verified_by_me": "用户明确回复『200』，指上一轮汇报中提到的180px束腰宽度。180px略显紧绷，200px既消除大直筒，又完美契合中国传统官服宽中有束、端肃大气的体量感。",
+  "applied_in": "d:/codebuddy/sz/_dev_tools/paperdoll_experiment/generate_components.py 中 create_robe 函数",
+  "reopen_if": "用户提出其他数值调整"
+}

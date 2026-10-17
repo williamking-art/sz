@@ -246,10 +246,15 @@ def run_triennial_appraisal(state, log: Optional[List[str]] = None) -> Dict[str,
         elif grade == "下考":
             # 下考（治平不力或操守有玷，考课劣等）
             demoted_circuits.append(c)
-            # 劣等官吏挤入祠禄闲职
+            # 劣等官吏挤入祠禄闲职（🔴 2026-10-17 修复：原调用
+            # `_officialdom.weed_out_officials` **该 API 不存在**（正确名
+            # `remove_officials`，且语义是"裁员"不是"转祠禄"）⇒ 下考分支一旦真的
+            # 被触发就 AttributeError。改走本模块既有 `assign_sinecure_retirement`
+            # （在岗 → 祠禄，走 POP 子池桥接 + 守恒）。
             weed_out = max(1, int(on_post * 0.08))
-            _officialdom.weed_out_officials(p, weed_out)
-            sinecure_count += weed_out
+            _res_sin = assign_sinecure_retirement(
+                state, c, weed_out, reason="三年考课下考殿罚", log=None)
+            sinecure_count += int(_res_sin.get("assigned", 0))
 
     # 全局行政效能调整
     current_eff = float(stats.get("administrative_efficiency", 1.0) or 1.0)

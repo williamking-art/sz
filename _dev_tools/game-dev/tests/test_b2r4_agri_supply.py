@@ -805,7 +805,9 @@ def test_agri_effects_is_wired_into_settlement_pipeline():
     """
     import inspect
     import core.settlement as mod
-    src = inspect.getsource(mod)
+    import core.settlement_pipeline as pipeline
+    # 2026-10-17 全审：M309 后农业步登记在 SettlementPipeline，不在 settlement.py 正文。
+    src = inspect.getsource(mod) + "\n" + inspect.getsource(pipeline)
     assert "apply_agri_effects" in src, "农业效果接线被误删"
 
 

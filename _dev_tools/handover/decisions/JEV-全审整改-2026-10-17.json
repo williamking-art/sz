@@ -1,0 +1,38 @@
+{
+  "id": "JEV-全审整改-2026-10-17",
+  "date": "2026-10-17",
+  "agent": "DSH",
+  "purpose": "全审整改三项设计取舍的 Jev 留痕（用户裁定「修」后）",
+  "items": [
+    {
+      "question": "作坊成品此前同时写 POP goods 与 state.resources（ΔPOP+Δresources=2×产量）。是否应把成品唯一权威载体定为 POP goods？",
+      "options": ["A=POP goods 单腿", "B=resources 单腿", "C=维持双记"],
+      "verdict": "A 成立",
+      "probability": 0.9802,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": ["探针实测 绸 POP +10510 且 resources +11116", "meat +75947 且 +80000", "两处均计入 stock_identity，可被重复消费"],
+      "applied_in": "game/core/settlement_econ.py::_settle_workshops；_dev_tools/game-dev/tests/test_audit_settlement_b3_b4.py",
+      "reopen_if": "若未来确定国家仓为成品唯一权威（需同时改销售出库腿）则重开"
+    },
+    {
+      "question": "SettlementPipeline 49 步中仅 13 步 critical，动账步异常被 WARN 吞掉导致半结算月。是否应全部 49 步 critical 以保证整月原子性？",
+      "options": ["A=全部 critical", "B=仅动账步 critical", "C=维持现状"],
+      "verdict": "A 成立",
+      "probability": 0.8552,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": ["注入 supply 失败仍 turn+1 且资源已落账", "49 步逐一注入异常均整月逐字段回滚（51 条用例）", "代价：纯叙事/读数步失败也中止当月"],
+      "applied_in": "game/core/settlement_pipeline.py；test_audit_settlement_b9_atomicity.py",
+      "reopen_if": "若实测纯叙事步失败率过高影响可玩性，可把明确只读/叙事步降级并逐条列白名单"
+    },
+    {
+      "question": "M315/M317 新增 13 型作坊配方未登记货主。是否可按既有 M66/M67 口径「收益是否走官府账户」推导货主并逐条写依据？",
+      "options": ["A=按收益归属推导", "B=全部标未定义待裁定", "C=统一默认民营"],
+      "verdict": "A 成立",
+      "probability": 0.7073,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": ["OWNER_BY_TYPE 原有 6 型均有逐条依据", "WORKSHOP_RECIPES 实有 19 型，缺 13 型", "官营/民营判据与 M66/M67 注释一致"],
+      "applied_in": "game/core/domains/economy/workshop_owner.py；test_workshop_owner.py",
+      "reopen_if": "若史料对某作坊官民属性有相反证据，按该维单独改并保留来源标记"
+    }
+  ]
+}

@@ -28,6 +28,15 @@ function asRatio(v: unknown): number | null {
 function fmtRatio(v: number | null): string {
   return v === null ? "未定义" : `${(v * 100).toFixed(1)}%`;
 }
+/** 财政读数：非有限数一律 null（未取到 → 显示「未定义」，绝不回落 0）。 */
+function financeNum(fin: Dict | null, key: string): number | null {
+  if (!fin) return null;
+  const v = fin[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function fmtCoin(v: number | null): string {
+  return v === null ? "未定义" : humanizeCoin(v);
+}
 // 口径说明串由后端下发（单点口径）；仅在后端缺字段时用同文案兜底。
 function asText(v: unknown, def: string): string {
   return typeof v === "string" && v.trim() ? v : def;
@@ -126,11 +135,11 @@ export default function AccountingPanel() {
     );
   }
 
-  const nominalAnnual = asNum(fin.nominal_annual);
-  const nominalAnnualFull = asNum(fin.nominal_annual_full);
-  const monthlyIn = asNum(fin.monthly_in);
-  const monthlyInTaxed = asNum(fin.monthly_in_taxed);
-  const diff = nominalAnnual / 12 - monthlyIn;
+  const nominalAnnual = financeNum(fin, "nominal_annual");
+  const nominalAnnualFull = financeNum(fin, "nominal_annual_full");
+  const monthlyIn = financeNum(fin, "monthly_in");
+  const monthlyInTaxed = financeNum(fin, "monthly_in_taxed");
+  const diff = nominalAnnual !== null && monthlyIn !== null ? nominalAnnual / 12 - monthlyIn : null;
   // 批1 · 财政三值 / P2-2 会计指标口径核对：到账率**直读后端单点派生**，前端不再自算。
   // 原实现此处自行相除 `monthlyIn / (nominalAnnual / 12)`——分子是**五项**月度应征、
   // 分母只是**三项**账面（缺二税折色与盐课），属跨口径比值：开局 3,098,770 ÷ 2,416,672
@@ -145,22 +154,22 @@ export default function AccountingPanel() {
     "三税（工商·役钱·市舶）——不含二税折色与盐课（诊断口径·勿当到账率）");
   const scopeFull = asText(fin.arrival_ratio_scope_full,
     "五科目（工商·役钱·市舶·二税折色[按应征]·盐课）（诊断口径·勿当到账率）");
-  const totalOut = asNum(fin.total_out);
-  const net = asNum(fin.net);
+  const totalOut = financeNum(fin, "total_out");
+  const net = financeNum(fin, "net");
 
   const inParts = [
-    `工商 ${humanizeCoin(asNum(fin.commerce))}`,
-    `役钱 ${humanizeCoin(asNum(fin.poll))}`,
-    asNum(fin.maritime) > 0 ? `市舶 ${humanizeCoin(asNum(fin.maritime))}` : "",
-    `二税折色 ${humanizeCoin(asNum(fin.tax_color))}`,
-    `盐课 ${humanizeCoin(asNum(fin.salt_coin))}`
+    `工商 ${fmtCoin(financeNum(fin, "commerce"))}`,
+    `役钱 ${fmtCoin(financeNum(fin, "poll"))}`,
+    (financeNum(fin, "maritime") ?? 0) > 0 ? `市舶 ${fmtCoin(financeNum(fin, "maritime"))}` : "",
+    `二税折色 ${fmtCoin(financeNum(fin, "tax_color"))}`,
+    `盐课 ${fmtCoin(financeNum(fin, "salt_coin"))}`
   ].filter(Boolean);
 
   const outParts = [
-    `常支 ${humanizeCoin(asNum(fin.expenditure))}`,
-    asNum(fin.army_cash) > 0 ? `军费 ${humanizeCoin(asNum(fin.army_cash))}` : "",
-    asNum(fin.official_cash) > 0 ? `官俸 ${humanizeCoin(asNum(fin.official_cash))}` : "",
-    asNum(fin.sui_gong) > 0 ? `岁币 ${humanizeCoin(asNum(fin.sui_gong))}` : ""
+    `常支 ${fmtCoin(financeNum(fin, "expenditure"))}`,
+    (financeNum(fin, "army_cash") ?? 0) > 0 ? `军费 ${fmtCoin(financeNum(fin, "army_cash"))}` : "",
+    (financeNum(fin, "official_cash") ?? 0) > 0 ? `官俸 ${fmtCoin(financeNum(fin, "official_cash"))}` : "",
+    (financeNum(fin, "sui_gong") ?? 0) > 0 ? `岁币 ${fmtCoin(financeNum(fin, "sui_gong"))}` : ""
   ].filter(Boolean);
 
   return (
@@ -182,19 +191,23 @@ export default function AccountingPanel() {
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
         <SectionTitle text="岁 入 盈 虚" />
         <p className="mt-1.5 text-sm font-bold text-ink">
-          账面岁入（工商·役钱·市舶三项）：{humanizeCoin(nominalAnnual)}/年
+          账面岁入（工商·役钱·市舶三项）：{fmtCoin(nominalAnnual)}/年
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-dim">
           不含二税折色与盐课——故本月应征可高于此账面数。
         </p>
         <p className="mt-1 text-sm text-ink">
-          本月应征（预估到库）：{humanizeCoin(monthlyIn)}/月　（{inParts.join(" + ")}）
+          本月应征（预估到库）：{fmtCoin(monthlyIn)}/月　（{inParts.join(" + ")}）
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-dim">
           未扣 POP 支付力与欠税（保底豁免部分不入库），故略高于结算日志的实收。
         </p>
         <p className="mt-1 text-xs leading-relaxed text-dim">
-          {diff > 0 ? (
+          {diff === null ? (
+            <>
+              差额未定义（读数不全，无法计算账面差额）。
+            </>
+          ) : diff > 0 ? (
             <>
               差额 {humanizeCoin(diff)}/月即「隐漏与拖欠」——账面名义与实到之距，正田赋隐漏、胥吏侵蚀之漏出。
             </>
@@ -206,12 +219,12 @@ export default function AccountingPanel() {
           <span
             className="ml-2 cursor-help underline decoration-dotted underline-offset-2"
             title={
-              `三税到账率（${scopeTaxed}）= 三税应征 ÷ (三税账面年额 ÷ 12) = `
-              + `${humanizeCoin(monthlyInTaxed)} ÷ ${humanizeCoin(nominalAnnual / 12)} = ${fmtRatio(arrivalTaxed)}；`
+              "三税到账率（" + scopeTaxed + "）= 三税应征 ÷ (三税账面年额 ÷ 12) = "
+              + fmtCoin(monthlyInTaxed) + " ÷ " + fmtCoin(nominalAnnual === null ? null : nominalAnnual / 12) + " = " + fmtRatio(arrivalTaxed) + "；"
               + "本比率不含二税折色与盐课，为诊断口径（勿当精确到账率）"
               + (mechanismArrival === null
                 ? "；旧口径到账率（含隐漏/钱荒）见机制。"
-                : `；旧口径到账率（含隐漏/钱荒）为 ${(mechanismArrival * 100).toFixed(1)}%。`)
+                : "；旧口径到账率（含隐漏/钱荒）为 " + (mechanismArrival * 100).toFixed(1) + "%。")
             }
           >
             三税到账率 {fmtRatio(arrivalTaxed)}
@@ -221,8 +234,8 @@ export default function AccountingPanel() {
           <span
             className="cursor-help underline decoration-dotted underline-offset-2"
             title={
-              `综合到账率（${scopeFull}）= 五项应征 ÷ (五项年报应征 ÷ 12) = `
-              + `${humanizeCoin(monthlyIn)} ÷ ${humanizeCoin(nominalAnnualFull / 12)} = ${fmtRatio(arrivalFull)}；`
+              "综合到账率（" + scopeFull + "）= 五项应征 ÷ (五项年报应征 ÷ 12) = "
+              + fmtCoin(monthlyIn) + " ÷ " + fmtCoin(nominalAnnualFull === null ? null : nominalAnnualFull / 12) + " = " + fmtRatio(arrivalFull) + "；"
               + "分子分母同口径，故与「三税到账率」不同（两者不可互相换算）；"
               + "二税折色按应征计入（实收须待月结），故为诊断口径。"
             }
@@ -236,7 +249,7 @@ export default function AccountingPanel() {
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
         <SectionTitle text="月 用 度" />
         <p className="mt-1.5 text-sm text-ink">
-          月用度：{humanizeCoin(totalOut)}/月　（{outParts.join(" + ")}）
+          月用度：{fmtCoin(totalOut)}/月　（{outParts.join(" + ")}）
         </p>
         <div className="mt-1.5 space-y-1">
           <p className="text-xs text-dim">
@@ -265,14 +278,14 @@ export default function AccountingPanel() {
         {wasteReform.active === true && (
           <p className="mt-1 text-xs text-dim">
             变法{wasteReform.kind === "reduce_office" ? "裁汰冗员" : "省浮费"}推进中：
-            月省 {humanizeCoin(asNum(wasteReform.savings))}，用度渐降。
+            月省 {fmtCoin(financeNum(wasteReform, "savings"))}，用度渐降。
           </p>
         )}
         <p className="mt-1 text-xs leading-relaxed text-dim">
           用度止呈总盘——冗官冗费深藏其中，账目无从分辨。欲治三冗，唯经拟旨下「省浮费/裁汰冗员」长期变法。
         </p>
-        <p className={`mt-1.5 text-sm font-bold ${net >= 0 ? "text-emerald-800" : "text-red"}`}>
-          净额：{net >= 0 ? `月结余 +${humanizeCoin(net)}` : `月亏空 -${humanizeCoin(Math.abs(net))}`}
+        <p className={`mt-1.5 text-sm font-bold ${net === null ? "text-dim" : net >= 0 ? "text-emerald-800" : "text-red"}`}>
+          净额：{net === null ? "未定义" : net >= 0 ? "月结余 +" + humanizeCoin(net) : "月亏空 -" + humanizeCoin(Math.abs(net))}
         </p>
       </div>
 
@@ -281,7 +294,7 @@ export default function AccountingPanel() {
         <SectionTitle text="库 藏 泉 货" />
         <p className="mt-1.5 text-sm text-ink">
           国库：{humanizeCoin(treasury)}　内帑：{humanizeCoin(imperialTreasury)}
-          {asNum(fin.wine_coin) > 0 ? `（含酒课月 ${humanizeCoin(asNum(fin.wine_coin))}）` : ""}
+          {(financeNum(fin, "wine_coin") ?? 0) > 0 ? "（含酒课月 " + fmtCoin(financeNum(fin, "wine_coin")) + "）" : ""}
         </p>
         <p className="mt-1 text-sm text-dim">
           货币供给：{humanizeCoin(moneySupply)}　物价：{priceLevel.toFixed(2)}（钱/物之比）　
@@ -311,8 +324,8 @@ export default function AccountingPanel() {
         if (tRows.length === 0) tRows.push(["（本月无分项收支）", "", ""]);
         tRows.push([
           "本月合计",
-          `+${humanizeCoin(asNum(t.month_in))}`,
-          `-${humanizeCoin(asNum(t.month_out))}`,
+          "+" + fmtCoin(financeNum(t as Dict, "month_in")),
+          "-" + fmtCoin(financeNum(t as Dict, "month_out")),
         ]);
         const imRows: [string, string][] = [];
         for (const [lab, v] of im.regular_in || []) {
@@ -346,7 +359,7 @@ export default function AccountingPanel() {
                 </tbody>
               </table>
               <p className="mt-1.5 text-[11px] text-dim">
-                累计：入 {humanizeCoin(asNum(t.total_in))}　出 {humanizeCoin(asNum(t.total_out))}
+                累计：入 {fmtCoin(financeNum(t as Dict, "total_in"))}　出 {fmtCoin(financeNum(t as Dict, "total_out"))}
               </p>
             </div>
             <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
@@ -368,7 +381,7 @@ export default function AccountingPanel() {
                 </tbody>
               </table>
               <p className="mt-1.5 text-[11px] text-dim">
-                现存 {humanizeCoin(asNum(im.balance))}　内廷支度不列外朝会计
+                现存 {fmtCoin(financeNum(im as Dict, "balance"))}　内廷支度不列外朝会计
               </p>
             </div>
           </div>

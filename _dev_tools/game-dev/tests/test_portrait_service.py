@@ -64,17 +64,23 @@ def test_costume_follows_service_status():
     s.mark_minister_status("韩忠彦", "dismissed")
     prof2 = build_minister_profiles(s)
     assert prof2["韩忠彦"]["tier"] == "shi", "罢黜后应换士人服"
-    assert prof2["韩忠彦"]["portrait"] != prof["韩忠彦"]["portrait"], "换服应换立绘 key"
+    # 2026-10-16 权威架构（commit 40c4938ea2）：历史名臣专属原画优先，
+    # 不因换服做二次合成；换服只改 tier 字段，portrait key 保持专属原画。
+    assert prof2["韩忠彦"]["portrait"] == prof["韩忠彦"]["portrait"]
 
 
 def test_get_portrait_path_accepts_explicit_tier():
-    """`tier` 显式指定时优先（供在任状态驱动的服色）。"""
-    a = get_portrait_path("韩忠彦", tier="shi")
-    b = get_portrait_path("韩忠彦", tier="zi")
+    """显式 `tier` 对**可合成官员**生效；历史名臣专属原画优先（2026-10-16 架构）。"""
+    # 可合成官员：不同 tier 必须命中不同合成图（文件名是 DNA hash，不保证含 tier 字样）
+    a = get_portrait_path("张知县", tier="shi")
+    b = get_portrait_path("张知县", tier="zi")
     assert a and b
     assert a != b, "不同 tier 应命中不同合成图"
-    assert "shi" in os.path.basename(a)
-    assert "zi" in os.path.basename(b)
+    # 历史名臣：专属原画优先，tier 不得触发二次半透明合成
+    ha = get_portrait_path("韩忠彦", tier="shi")
+    hb = get_portrait_path("韩忠彦", tier="zi")
+    assert ha and hb
+    assert ha == hb, "历史名臣专属原画不得因 tier 二次合成"
 
 
 def test_portrait_route_rejects_bad_names():

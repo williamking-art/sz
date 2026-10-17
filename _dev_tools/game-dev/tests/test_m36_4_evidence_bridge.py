@@ -230,7 +230,12 @@ def test_single_point_guards():
 
 def test_no_auto_path_from_settlement():
     """禁止自动：结算链**只**接线 `inspection_tick`，不得自动桥接/自动查账。"""
-    settle = open(os.path.join(_GAME_ROOT, "core", "settlement.py"), encoding="utf-8").read()
+    # 2026-10-17 全审：M309 后 inspection_tick 移到 settlement_pipeline 的
+    # _step_inspection_tick；source-boundary 必须同时检查调度器与步骤注册表。
+    _parts = []
+    for _fname in ("settlement.py", "settlement_pipeline.py"):
+        _parts.append(open(os.path.join(_GAME_ROOT, "core", _fname), encoding="utf-8").read())
+    settle = "\n".join(_parts)
     assert "inspection_tick" in settle
     for banned in ("record_report_suspicion", "record_suspicion",
                    "resolve_audit", "enqueue_inspection", "file_inspection_report"):
@@ -247,7 +252,10 @@ def test_fiscal_isolation_control_with_bridge():
     r = enqueue_inspection(a, rk, "查赋")
     assert r["ok"]
     tid = r["task"]["id"]
+    # 2026-10-17 全审：对照组必须同历法；只改 a.year 会让统计里的
+    # active_rebellions['year'] 天然不同，误报财政隔离失败。
     a.year, a.month = 990, 3
+    b.year, b.month = 990, 3
     inspection_tick(a)
     file_inspection_report(a, tid, summary="回报")
     record_report_suspicion(a, tid, "账目有亏空")

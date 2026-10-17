@@ -1,0 +1,17 @@
+{
+  "id": "JEV-官袍束腰收身版型重构-2026-10-16",
+  "topic": "官袍革带收腰剪裁与立体廓形重构",
+  "question": "官袍版型是否在腰带处引入明显束腰内收曲线（宽肩-收腰-散摆）？",
+  "options": {
+    "true": "执行束腰廓形重构：腰部显著内收，腰带紧束袍服，下摆散褶垂顺",
+    "false": "保持直筒"
+  },
+  "verdict": "true",
+  "probabilities": {
+    "true": 0.990,
+    "false": 0.010
+  },
+  "premises_verified_by_me": "用户明确批评『腰带就是来收腰的，你这大直筒下来』。旧版躯干直线贯通毫无收腰感。重构后在 waist_y=660 处明显向内凹进收束，符合中国传统圆领袍系带束腰后的真实物理结构与仪态美感。",
+  "applied_in": "d:/codebuddy/sz/_dev_tools/paperdoll_experiment/generate_components.py 中 create_robe 函数",
+  "reopen_if": "用户提出不同版型要求"
+}

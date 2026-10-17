@@ -42,8 +42,8 @@
 
 | 项 | 最近实测快照 | 复跑命令 |
 |---|---|---|
-| pytest 全量 | **tests 2689 / failures 0 / errors 0 / skipped 2**（2026-10-11 · 提交 `1a56085641` · junit `_dev_tools/_scratch/m36_6_final.xml`，耗时 397.6s） | `cd D:\codebuddy\sz; $env:PYTHONPATH=""; & "D:\codebuddy\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
-| 前端 | tsc 双配置 0 错；vitest 80 passed（2026-10-11） | 见 `docs/开发服务器与回归测试说明.md` |
+| pytest 全量 | **tests 3437 / failures 0 / errors 0 / skipped 2**（2026-10-17 · 全审整改批次 · junit `_scratch/audit-20261017/junit-final2.xml`，耗时 1072.8s） | `cd D:\codebuddy\sz; $env:PYTHONPATH=""; & "D:\codebuddy\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
+| 前端 | tsc 双配置 0 错；vitest **17 files / 98 passed**（2026-10-17） | 见 `docs/开发服务器与回归测试说明.md` |
 
 ⚠️ 本表是**带日期与提交的快照**，不是永久真值；**任何一批改动后应重跑并更新本行**，引用前先核对日期。
 ⚠️ 物料维已于 `865cc251d6` **全中文化**（`盐/茶/丝/麻/蔗/果/木/石/铁/金/铜/银/牲畜/马/药材`），

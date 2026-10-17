@@ -1,0 +1,28 @@
+{
+  "id": "M308-spatial-warehouse-project-and-granary",
+  "title": "物理四仓深化：国家工程官方料场真领料与常平仓同源化改造",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "completedAt": "2026-10-17T05:32:00Z",
+  "authority": "JEV-DEC-结算机制与经济底层后续改良优先级裁定-2026-10-17（A方案权重0.4169），贯彻『经济基础决定上层建筑』与物理确权硬约束",
+  "goal": "消灭国家重点工程与常平仓中最后的抽象池子残留；工程施工优先从治所官方料场（public_depot）原子领料，常平仓平籴平粜同源下沉至治所官方粮仓（public_granary）。",
+  "recon": {
+    "工程领料改造": "construction/settlement_tech.py:_settle_projects 原从商人goods直接扣建材，改造为优先从治所public_depot实物领料；不足时向商人采购，商亦无货或府库无钱则缺料停滞；余料退回public_depot",
+    "常平仓同源化": "settlement_granary.py 原各路changping_stock浮点镜像下沉对接治所public_granary['grain']，平籴真入库、平粜真出库"
+  },
+  "scope": [
+    "在spatial_warehouse_bridge.py中扩充工程领料与常平仓原子接口",
+    "在construction/settlement_tech.py中接驳治所料场真领料",
+    "在settlement_granary.py中接驳常平仓实物粮食吞吐",
+    "编写专属回归测试test_spatial_project_and_granary.py",
+    "回归全量测试确保48项README与63项回归全绿"
+  ],
+  "explicitly_not": [
+    "不得在无料时凭空造料使工程推进",
+    "不得破坏M_ALL货币对账（平籴平粜必须钱粮双向守恒）",
+    "不得打破旧档与开局兼容性"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T05:27:00Z"
+}

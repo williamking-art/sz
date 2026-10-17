@@ -294,6 +294,20 @@ def issue_drafted_decree(state: GameState, minister_advice: str, player_intent: 
     return f"已下诏：「{d['title']}」", d
 
 
+def _decree_addressees(decree: dict) -> list:
+    """统一受命人来源：addressees / minister / target（不把 targets[派系列表] 误当受命人）。"""
+    raw = decree.get("addressees")
+    if raw is None:
+        raw = decree.get("minister")
+    if raw is None:
+        raw = decree.get("target")
+    if isinstance(raw, str):
+        raw = [raw]
+    if isinstance(raw, (list, tuple, set)):
+        return [str(x).strip() for x in raw if str(x or "").strip()]
+    return []
+
+
 def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     """下达一份普通诏令 / 御笔直发 / 密谕。decree 需含 title/category。
     targets 为受影响派系列表。返回消息。
@@ -321,16 +335,24 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     if direct:
         if state.direct_decree_used >= DIRECT_DECREE_MAX:
             return "本月御笔已用尽。"
+        _direct_effects = decree.get("effects")
+        if not isinstance(_direct_effects, dict) or not _direct_effects:
+            _direct_effects = {"prestige": 1}   # 兼容旧行为：无 effects 的御笔只记 1 点皇威
         decree_full = {
             "title": decree.get("title", "御笔诏令"),
             "category": decree.get("category", "御笔"),
             "is_secret": False,
             "is_direct": True,
+            "is_zhongzhi": bool(decree.get("is_zhongzhi", False)),
             "turn_issued": state.turn,
             "faction_stances": _random_faction_stances(state),
-            "effects": {"prestige": 1},
+            "effects": dict(_direct_effects),
+            "enforce_troops": bool(decree.get("enforce_troops", False)),
+            "route": str(decree.get("route") or ""),
+            "addressees": _decree_addressees(decree),
+            "targets": decree.get("targets", []),
             "duration": 1,
-            "desc": decree.get("desc", ""),
+            "desc": decree.get("desc") or decree.get("text", ""),
         }
         state.pending_decrees.append(decree_full)
         state.direct_decree_used += 1
@@ -375,12 +397,19 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     # 普通诏令
     if len(state.pending_decrees) >= state.decree_bandwidth:
         return "诏令带宽已满！"
-    cat = decree.get("category", "财政")
+    cat = decree.get("category")
+    _raw_effects = decree.get("effects")
+    _has_effects = isinstance(_raw_effects, dict) and bool(_raw_effects)
+    # C-4：前端自由诏（submitFree）只发 text/title/minister，缺解析结果时绝不能
+    # 默认落「财政」模板。显式 category 的旧测试/工具路径仍兼容。
+    if not cat and not _has_effects:
+        return "未成：缺少诏令解析结果（category/effects）。请先解析诏意后再颁诏。"
+    cat = cat or "财政"
     # 计算效果序号：用 targets 不强求，这里直接生成默认效果
     idx = 0
-    if "effects" in decree and isinstance(decree["effects"], int):
+    if isinstance(_raw_effects, int):
         # 审查 P3：非负校验（负 idx 会在 _generate_decree_effects 里取到列表末端错误项）
-        idx = max(0, int(decree["effects"]))
+        idx = max(0, int(_raw_effects))
     decree_full = {
         "title": decree.get("title", "诏令"),
         "category": cat,
@@ -388,7 +417,10 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         "is_direct": False,
         "turn_issued": state.turn,
         "faction_stances": _random_faction_stances(state),
-        "effects": decree.get("effects") if isinstance(decree.get("effects"), dict) else _generate_decree_effects(cat, idx),
+        "effects": dict(_raw_effects) if _has_effects else _generate_decree_effects(cat, idx),
+        "enforce_troops": bool(decree.get("enforce_troops", False)),
+        "route": str(decree.get("route") or ""),
+        "addressees": _decree_addressees(decree),
         "duration": 1,
         "targets": decree.get("targets", []),
         "desc": decree.get("desc") or decree.get("text", ""),   # 正文随诏落档（审查 P1）
@@ -526,22 +558,27 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
     if cat == "reform_org":
         from core.settlement import settle_reform
         reform = parse_result.get("reform") or {}
+        executor = parse_result.get("executor") or minister
         decree_for_settle = {
             "title": parse_result.get("title", "改制诏"),
             "body": parse_result.get("body", ""),
             "text": parse_result.get("body", ""),
             "reform": reform,
+            "executor": executor,
             "is_zhongzhi": parse_result.get("is_zhongzhi", False),
             "is_secret": is_secret,
             "faction_stances": _random_faction_stances(state),
         }
-        res = settle_reform(state, decree_for_settle)
+        res = settle_reform(state, decree_for_settle, executor=executor)
         report = res.get("court_report", "")
         gazette = res.get("gazette", "")
         rtype = reform.get("reform_type", "改制")
         line = f"〔{parse_result.get('title','改制诏')}〕{rtype}：{report}"
         if gazette:
             line += f"\n〔邸报〕{gazette}"
+        # 权限门禁拒绝时不得登记长期政务（C-2）
+        if res.get("ok") is False:
+            return line
         # 也记入长期政务，便于月度复盘
         task = parse_result.get("task")
         if task and mode == "longterm":

@@ -32,9 +32,12 @@ STORAGE_KEY = "storage"
 
 __all__ = [
     "CHANGPING_KEY", "STORAGE_KEY", "is_sunk", "seat_stock", "route_stock_total",
-    "aggregate_route_changping", "survey_storage", "changping_sink_route",
-    "sink_storage_to_seats", "changping_add", "changping_set", "changping_get",
+    "aggregate_route_changping", "aggregate_route_storage", "survey_storage",
+    "changping_sink_route", "storage_sink_route", "sink_storage_to_seats",
+    "sink_state_storage_to_seats", "changping_add", "changping_set", "changping_get",
+    "storage_add", "storage_set", "storage_get",
 ]
+
 
 
 def _seats_map(pdata) -> Dict[str, dict]:
@@ -90,7 +93,15 @@ def aggregate_route_changping(pdata) -> Optional[int]:
     return route_stock_total(pdata, CHANGPING_KEY)
 
 
+def aggregate_route_storage(pdata) -> Optional[int]:
+    """**州仓路级派生聚合**：Σ 各治所；未下沉 ⇒ `None`。"""
+    if not is_sunk(pdata, STORAGE_KEY):
+        return None
+    return route_stock_total(pdata, STORAGE_KEY)
+
+
 def survey_storage(state, key: str = CHANGPING_KEY) -> dict:
+
     """**迁移对账**：逐路比对「路级镜像」与「Σ 治所」。"""
     prefs = getattr(state, "prefectures", {}) or {}
     out = {"键": key, "路由数": len(prefs), "已下沉路由": 0, "未下沉路由": 0, "字段失配": []}
@@ -184,7 +195,21 @@ def changping_set(state, route: str, value, seat_id: Optional[str] = None) -> Op
     seat = _seats_map(pdata).get(str(sid)) if sid else None
     if not isinstance(seat, dict):
         return None
+    # 🔴 B-2（2026-10-17）：常平仓 `changping_stock` 与官仓实物
+    # `warehouses["public_granary"]["stocks"]["grain"]` 是**两个独立账户**，
+    # 不得无对价互相覆盖。此写点只写常平账；公共官仓实物只由真实收/支
+    # （仓门入出、平粜/平籴的实际货腿）改动。若将来裁定二者同一权威账，
+    # 必须改为单点写入 + 另一侧只读派生（并在此加断言），不得再复制数值。
+    _wh = seat.get("warehouses")
+    _pub_before = None
+    if isinstance(_wh, dict) and isinstance(_wh.get("public_granary"), dict):
+        _pub_before = ((_wh["public_granary"].get("stocks") or {}).get("grain"))
     seat[CHANGPING_KEY] = max(0, int(v))
+    _pub_after = None
+    if isinstance(_wh, dict) and isinstance(_wh.get("public_granary"), dict):
+        _pub_after = ((_wh["public_granary"].get("stocks") or {}).get("grain"))
+    assert _pub_after == _pub_before, \
+        "changping_set 不得改写 public_granary.stocks['grain']（常平账与官仓实物账分离）"
     pdata[CHANGPING_KEY] = route_stock_total(pdata, CHANGPING_KEY)
     return seat[CHANGPING_KEY]
 
@@ -207,3 +232,57 @@ def changping_add(state, route: str, delta, seat_id: Optional[str] = None) -> Op
         log.warning("storage_bridge: route=%s 常平仓触零夹紧（cur=%s delta=%s）", route, cur, d)
         new = 0
     return changping_set(state, route, new, seat_id=str(sid))
+
+
+def storage_sink_route(pdata, route: str, value=None) -> bool:
+    """把路级州仓存量**全部落到首府治所**并刷新路级 Σ 镜像。已下沉 ⇒ False。"""
+    return changping_sink_route(pdata, route, value=value, key=STORAGE_KEY)
+
+
+def sink_state_storage_to_seats(state, routes=None) -> int:
+    """**无条件幂等入口**：把路级州仓（storage）下沉到治所首府。返回实际下沉路数。"""
+    return sink_storage_to_seats(state, routes=routes, key=STORAGE_KEY)
+
+
+def storage_get(state, route: str) -> Optional[int]:
+    """读该路州仓（Σ 镜像口径）；未下沉 ⇒ `None`。"""
+    pdata = _routed(state, route)
+    if pdata is None or not is_sunk(pdata, STORAGE_KEY):
+        return None
+    return route_stock_total(pdata, STORAGE_KEY)
+
+
+def storage_set(state, route: str, value, seat_id: Optional[str] = None) -> Optional[int]:
+    """**写**州仓为 `value`（默认写首府治所）并刷新路级 Σ 镜像。未下沉 ⇒ `None`。"""
+    v = _int_or_none(value)
+    pdata = _routed(state, route)
+    if v is None or pdata is None or not is_sunk(pdata, STORAGE_KEY):
+        return None
+    sid = seat_id or _capital_of(pdata, route)
+    seat = _seats_map(pdata).get(str(sid)) if sid else None
+    if not isinstance(seat, dict):
+        return None
+    seat[STORAGE_KEY] = max(0, int(v))
+    pdata[STORAGE_KEY] = route_stock_total(pdata, STORAGE_KEY)
+    return seat[STORAGE_KEY]
+
+
+def storage_add(state, route: str, delta, seat_id: Optional[str] = None) -> Optional[int]:
+    """**写**州仓增量（征收入库 + / 漕运起运 −）。未下沉 ⇒ `None`。
+
+    下限 0（防止透支触负；夹紧时记录 warning）。
+    """
+    d = _int_or_none(delta)
+    pdata = _routed(state, route)
+    if d is None or pdata is None or not is_sunk(pdata, STORAGE_KEY):
+        return None
+    sid = seat_id or _capital_of(pdata, route)
+    cur = seat_stock(pdata, str(sid), STORAGE_KEY) if sid else None
+    if cur is None:
+        return None
+    new = cur + int(d)
+    if new < 0:
+        log.warning("storage_bridge: route=%s 州仓触零夹紧（cur=%s delta=%s）", route, cur, d)
+        new = 0
+    return storage_set(state, route, new, seat_id=str(sid))
+

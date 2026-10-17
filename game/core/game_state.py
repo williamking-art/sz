@@ -654,6 +654,10 @@ class GameState(GameStateEconMixin):
         # 能够成立的前提——没有在途，"运没运到"就不可观测，物流便无意义。
         # ⚠️ 缺货/缺坐标时**不产生凭空在途**（钱货两清或两不做）。
         self.material_transit: list = []
+        # 🔴 B-7（2026-10-17）：空间桥接层（spatial_warehouse_bridge）的独立在途账。
+        # 必须与 material_transit 一样随档往返，否则“货已离源、尚未到”会在读档时蒸发。
+        self.in_transit_batches: list = []
+        self.passenger_trips: list = []
         # 制作/作坊系统（配方：粮→酒/肉 等）：{wid: {...}}
         # 加消耗修正·加工型消耗依托建筑：开局每路 2 酒坊 + 2 畜栏（各 ×5万石/月太仓粮耗 → 120万石/月），
         # 酒坊产酒增 wine_tax、畜栏产肉折钱入内帑（玩家可建更多；存档已序列化 workshops）

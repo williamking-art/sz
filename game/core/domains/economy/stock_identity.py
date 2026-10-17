@@ -31,12 +31,25 @@ __all__ = [
     "national_resources_by_dim", "in_transit_by_dim", "pending_stock_by_dim",
     "stock_snapshot", "money_identity", "identity_report",
     "stock_delta", "residual_report",
+    "GRAIN_CUSTODY_KEYS", "central_granary", "prefectural_storage",
+    "prefectural_changping", "pop_grain", "in_transit_grain",
+    "grain_snapshot", "grain_delta", "master_economic_balance_sheet",
+    "format_master_balance_sheet",
 ]
 
 SCHEMA_VERSION = 1
 
-#: 保管方（**顺序即报表顺序**；不合并——合并会把"待定"与"在途"混进合计）
+#: 商品保管方（**顺序即报表顺序**；不合并——合并会把"待定"与"在途"混进合计）
 CUSTODY_KEYS = ("pop_goods", "national_resources", "in_transit", "pending_stock")
+
+#: 粮食保管方（Jev 裁定 P=0.993：官民分立、中央与地方分列、在途独立）
+GRAIN_CUSTODY_KEYS = (
+    "central_granary",      # 中央太仓 state.granary
+    "prefectural_storage",  # 地方州仓 storage
+    "changping_stock",      # 地方常平仓 changping_stock
+    "pop_grain",            # 民间各阶层手持私粮 pops[*].grain
+    "in_transit_grain",     # 漕运与商队在途批次粮
+)
 
 
 def _num(v) -> Optional[float]:
@@ -300,3 +313,365 @@ def residual_report(prev: Dict[str, Any], curr: Dict[str, Any],
     return {"delta": delta, "flows_provided": isinstance(flows, dict),
             "residual": residual, "unclosed": sorted(unclosed), "nonzero": bad,
             "ok": bool(not bad and not unclosed)}
+
+
+# --------------------------------------------------------------------------
+# 粮食全息保管方（Jev 裁定 P=0.993：官民分立、中央与地方分列、在途独立）
+# --------------------------------------------------------------------------
+def central_granary(state) -> Optional[float]:
+    """中央太仓存粮（石）。无 `granary` 属性 ⇒ None（缺失≠0）。"""
+    if not hasattr(state, "granary"):
+        return None
+    return _num(getattr(state, "granary", None))
+
+
+def prefectural_storage(state) -> Optional[float]:
+    """全域州仓/上供仓粮食合计（石）。
+
+    无 `prefectures` 属性 ⇒ None（缺失≠0）。
+    兼容治所下沉：若路下有 `seats`，优先累加治所真账中的 `storage`，
+    否则累加路级 `storage`（保双向兼容与零破坏）。
+    """
+    prefs = getattr(state, "prefectures", None)
+    if prefs is None or not isinstance(prefs, dict):
+        return None
+    total = 0.0
+    for pdata in prefs.values():
+        if not isinstance(pdata, dict):
+            continue
+        seats = pdata.get("seats")
+        if isinstance(seats, dict) and seats:
+            for s in seats.values():
+                if isinstance(s, dict):
+                    q = _num(s.get("storage"))
+                    if q is not None:
+                        total += q
+        else:
+            q = _num(pdata.get("storage"))
+            if q is not None:
+                total += q
+    return total
+
+
+def prefectural_changping(state) -> Optional[float]:
+    """全域常平仓粮食合计（石）。
+
+    无 `prefectures` 属性 ⇒ None（缺失≠0）。
+    兼容治所下沉：若路下有 `seats`，优先累加治所真账中的 `changping_stock`，
+    否则累加路级 `changping_stock`。
+    """
+    prefs = getattr(state, "prefectures", None)
+    if prefs is None or not isinstance(prefs, dict):
+        return None
+    total = 0.0
+    for pdata in prefs.values():
+        if not isinstance(pdata, dict):
+            continue
+        seats = pdata.get("seats")
+        if isinstance(seats, dict) and seats:
+            for s in seats.values():
+                if isinstance(s, dict):
+                    q = _num(s.get("changping_stock"))
+                    if q is not None:
+                        total += q
+        else:
+            q = _num(pdata.get("changping_stock"))
+            if q is not None:
+                total += q
+    return total
+
+
+def pop_grain(state) -> Optional[float]:
+    """全域民间 POP 手持粮食合计（石，包含自耕农口粮、士绅窖藏等）。
+
+    无 `prefectures` 属性 ⇒ None（缺失≠0）。
+    兼容治所桶形态：`pop["grain"]` 可能是数值，也可能是 `{治所: n}` 字典。
+    """
+    prefs = getattr(state, "prefectures", None)
+    if prefs is None or not isinstance(prefs, dict):
+        return None
+    total = 0.0
+    for pdata in prefs.values():
+        pops = (pdata or {}).get("pops") if isinstance(pdata, dict) else None
+        if not isinstance(pops, dict):
+            continue
+        for slot in pops.values():
+            if not isinstance(slot, dict):
+                continue
+            g = slot.get("grain")
+            q = _num(g)
+            if q is not None:
+                total += q
+            elif isinstance(g, dict):
+                for val in g.values():
+                    vq = _num(val)
+                    if vq is not None:
+                        total += vq
+    return total
+
+
+def in_transit_grain(state) -> Optional[float]:
+    """在途批次中的粮食合计（石）。
+
+    真·只读：无 `material_transit` 属性 ⇒ 返回 0.0 且不创建该容器。
+    容器在但读数不可用 ⇒ None（不冒充无在途）。
+    """
+    if getattr(state, "material_transit", None) is None:
+        return 0.0
+    try:
+        from core.transport import in_transit
+        batches = in_transit(state)
+    except Exception:
+        log.warning("stock_identity: 粮食在途读数不可用", exc_info=True)
+        return None
+    if batches is None:
+        return None
+    total = 0.0
+    for b in batches or ():
+        if not isinstance(b, dict):
+            continue
+        qty = b.get("qty")
+        if isinstance(qty, dict):
+            for k, v in qty.items():
+                if str(k) in ("grain", "粮", "粮食"):
+                    q = _num(v)
+                    if q is not None:
+                        total += q
+        else:
+            dim = b.get("dim")
+            if str(dim) in ("grain", "粮", "粮食"):
+                q = _num(b.get("qty"))
+                if q is not None:
+                    total += q
+    return total
+
+
+def grain_snapshot(state) -> Dict[str, Any]:
+    """全域粮食保管方快照（只读）。
+
+    返回：`{schema_version, by_custody: {...}, total: 合计|None, all_readable: bool, warnings: [...]}`。
+    """
+    parts = {
+        "central_granary": central_granary(state),
+        "prefectural_storage": prefectural_storage(state),
+        "changping_stock": prefectural_changping(state),
+        "pop_grain": pop_grain(state),
+        "in_transit_grain": in_transit_grain(state),
+    }
+    warnings: List[str] = []
+    for k, v in parts.items():
+        if v is None:
+            warnings.append(f"粮食保管方 {k} 不可读（缺失≠0）")
+    all_readable = all(v is not None for v in parts.values())
+    total = sum(float(v) for v in parts.values()) if all_readable else None
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "by_custody": parts,
+        "total": total,
+        "all_readable": all_readable,
+        "warnings": warnings,
+    }
+
+
+def grain_delta(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """两次 `grain_snapshot` 的保管方差额（纯函数）。"""
+    def _parts(snap):
+        if not isinstance(snap, dict):
+            return None
+        return snap.get("by_custody")
+
+    p, c = _parts(prev), _parts(curr)
+    out: Dict[str, Any] = {"by_custody": {}, "total": None, "all_readable": False}
+    if not isinstance(p, dict) or not isinstance(c, dict):
+        return out
+    for k in GRAIN_CUSTODY_KEYS:
+        pv, cv = p.get(k), c.get(k)
+        if pv is None or cv is None:
+            out["by_custody"][k] = None
+        else:
+            out["by_custody"][k] = float(cv) - float(pv)
+    all_readable = all(out["by_custody"].get(k) is not None for k in GRAIN_CUSTODY_KEYS)
+    out["all_readable"] = all_readable
+    if all_readable:
+        out["total"] = sum(float(out["by_custody"][k]) for k in GRAIN_CUSTODY_KEYS)
+    return out
+
+
+# --------------------------------------------------------------------------
+# 系统级全息经济变动总表（Master Economic Balance Sheet）
+# --------------------------------------------------------------------------
+def master_economic_balance_sheet(
+    prev_state,
+    curr_state,
+    monthly_flows: Optional[Dict[str, Any]] = None,
+    tol: float = 1e-6,
+) -> Dict[str, Any]:
+    """系统级全息经济变动总表（开发与测试生命体征监护仪）。
+
+    支持传入 state 对象，或预先取样的 snapshot。
+    涵盖：
+    - 粮食（太仓 + 州仓 + 常平仓 + POP私粮 + 在途）
+    - 20 维商品（POP手持 + 全国仓 + 在途）
+    - 货币（M_ALL 与各账户核验）
+
+    :param prev_state: 期初 state 或其 snapshot 字典
+    :param curr_state: 期末 state 或其 snapshot 字典
+    :param monthly_flows: 可选的月度产耗流量表，形如：
+           `{"grain": {"harvest": 100, "consume": -80, ...}, "timber": 20, ...}`
+           若对应维为 dict，净流量 = sum(flows.values())；若为数值，净流量即该值。
+    :param tol: 残差容差（默认 1e-6）
+    :return: 包含 balance_sheet、all_closed、unclosed、nonzero 的完整全息审计报告
+    """
+    # 1. 粮食快照与 Δ
+    p_grain = prev_state.get("grain") if isinstance(prev_state, dict) and "grain" in prev_state else grain_snapshot(prev_state)
+    c_grain = curr_state.get("grain") if isinstance(curr_state, dict) and "grain" in curr_state else grain_snapshot(curr_state)
+    g_delta = grain_delta(p_grain, c_grain)
+
+    # 2. 商品快照与 Δ
+    p_stock = prev_state.get("stock") if isinstance(prev_state, dict) and "stock" in prev_state else stock_snapshot(prev_state)
+    c_stock = curr_state.get("stock") if isinstance(curr_state, dict) and "stock" in curr_state else stock_snapshot(curr_state)
+    s_delta = stock_delta(p_stock, c_stock)
+
+    # 3. 货币快照
+    c_money = curr_state.get("money") if isinstance(curr_state, dict) and "money" in curr_state else money_identity(curr_state)
+
+    # 4. 构建全维度总表
+    balance_sheet: Dict[str, Any] = {}
+    unclosed: List[str] = []
+    nonzero: List[str] = []
+
+    # (a) 粮食项
+    g_init = p_grain.get("total") if p_grain.get("all_readable") else None
+    g_final = c_grain.get("total") if c_grain.get("all_readable") else None
+    g_diff = g_delta.get("total") if g_delta.get("all_readable") else None
+
+    g_flows_entry = (monthly_flows or {}).get("grain")
+    g_net_flow: Optional[float] = None
+    if isinstance(g_flows_entry, dict):
+        g_net_flow = sum(float(_num(v) or 0.0) for v in g_flows_entry.values())
+    elif isinstance(g_flows_entry, (int, float)):
+        g_net_flow = float(g_flows_entry)
+
+    g_res: Optional[float] = None
+    g_closed = False
+    if g_diff is not None:
+        if g_net_flow is not None:
+            g_res = float(g_diff) - float(g_net_flow)
+            g_closed = abs(g_res) <= tol
+            if not g_closed:
+                nonzero.append("grain")
+        elif abs(float(g_diff)) < 1e-9:
+            g_res = 0.0
+            g_closed = True
+        else:
+            unclosed.append("grain")
+    else:
+        unclosed.append("grain")
+
+    balance_sheet["grain"] = {
+        "unit": "石",
+        "initial": g_init,
+        "final": g_final,
+        "delta": g_diff,
+        "flows": g_flows_entry,
+        "net_flow": g_net_flow,
+        "residual": g_res,
+        "is_closed": g_closed,
+        "by_custody": {
+            "initial": p_grain.get("by_custody"),
+            "final": c_grain.get("by_custody"),
+            "delta": g_delta.get("by_custody"),
+        },
+    }
+
+    # (b) 20 维商品项
+    all_dims = sorted(list(p_stock.get("dims") or []) + list(c_stock.get("dims") or []))
+    for dim in all_dims:
+        d_init = (p_stock.get("totals") or {}).get(dim)
+        d_final = (c_stock.get("totals") or {}).get(dim)
+        d_diff = (s_delta.get("net") or {}).get(dim)
+
+        d_flows_entry = (monthly_flows or {}).get(dim)
+        d_net_flow = None
+        if isinstance(d_flows_entry, dict):
+            d_net_flow = sum(float(_num(v) or 0.0) for v in d_flows_entry.values())
+        elif isinstance(d_flows_entry, (int, float)):
+            d_net_flow = float(d_flows_entry)
+
+        d_res = None
+        d_closed = False
+        if d_diff is not None:
+            if d_net_flow is not None:
+                d_res = float(d_diff) - float(d_net_flow)
+                d_closed = abs(d_res) <= tol
+                if not d_closed:
+                    nonzero.append(dim)
+            elif abs(float(d_diff)) < 1e-9:
+                d_res = 0.0
+                d_closed = True
+            else:
+                unclosed.append(dim)
+        else:
+            unclosed.append(dim)
+
+        balance_sheet[dim] = {
+            "unit": "单位",
+            "initial": d_init,
+            "final": d_final,
+            "delta": d_diff,
+            "flows": d_flows_entry,
+            "net_flow": d_net_flow,
+            "residual": d_res,
+            "is_closed": d_closed,
+        }
+
+    # (c) 货币核验
+    mon_res = c_money.get("residual")
+    mon_ok = (mon_res is not None and abs(float(mon_res)) <= tol) if c_money.get("available") else False
+
+    warnings: List[str] = []
+    warnings.extend(p_grain.get("warnings") or [])
+    warnings.extend(c_grain.get("warnings") or [])
+    warnings.extend(p_stock.get("warnings") or [])
+    warnings.extend(c_stock.get("warnings") or [])
+    if not mon_ok and c_money.get("available"):
+        warnings.append(f"货币账户核验残差非零：{mon_res}")
+
+    all_closed = (not unclosed) and (not nonzero) and (mon_ok or not c_money.get("available"))
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "balance_sheet": balance_sheet,
+        "money": c_money,
+        "grain": {"initial": p_grain, "final": c_grain, "delta": g_delta},
+        "all_closed": all_closed,
+        "unclosed": sorted(unclosed),
+        "nonzero": sorted(nonzero),
+        "warnings": warnings,
+    }
+
+
+def format_master_balance_sheet(report: Dict[str, Any]) -> str:
+    """将全息变动总表渲染为整齐易读的 ASCII 控制台报表。"""
+    bs = report.get("balance_sheet") or {}
+    lines = [
+        "========================= 宋祚 · 系统级全息经济变动总表 =========================",
+        f"{'物资维度':<10} | {'期初全域存量':>14} | {'净流量 (产-耗)':>14} | {'实际期末存量':>14} | {'残差 (差额)':>12} | {'闭合状态'}",
+        "-" * 81,
+    ]
+    for dim, row in bs.items():
+        init_s = f"{row['initial']:,.1f}" if row['initial'] is not None else "None"
+        final_s = f"{row['final']:,.1f}" if row['final'] is not None else "None"
+        flow_s = f"{row['net_flow']:+,.1f}" if row['net_flow'] is not None else "-"
+        res_s = f"{row['residual']:+,.2f}" if row['residual'] is not None else "未闭合"
+        status_s = "[OK]" if row['is_closed'] else "[UNCLOSED]"
+        lines.append(f"{dim:<10} | {init_s:>14} | {flow_s:>14} | {final_s:>14} | {res_s:>12} | {status_s}")
+    lines.append("=" * 81)
+    mon = report.get("money") or {}
+    if mon.get("available"):
+        m_all = f"{mon.get('m_all'):,.1f}" if mon.get('m_all') is not None else "None"
+        m_res = f"{mon.get('residual'):,.2f}" if mon.get('residual') is not None else "None"
+        lines.append(f"货币 M_ALL: {m_all} 贯 | 账户与总量残差: {m_res} 贯")
+        lines.append("=" * 81)
+    return "\n".join(lines)
+

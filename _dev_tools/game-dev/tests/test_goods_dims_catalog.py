@@ -40,9 +40,17 @@ def test_goods_dims_is_unique_and_complete():
 
 
 def test_goods_dims_count_matches_components():
-    """目录长度 = 原料 + **可交易成品** + 米麦（即产即销的 wine/meat 不计）。"""
+    """目录 = 原料 ∪ **可交易成品** ∪ 米麦（即产即销的 wine 仍入目录供定价）。
+
+    2026-10-17 全审：纸/油墨/薪炭/食用油/酱醋 同时出现在原料与成品子表，
+    故按**集合并集**核对；目录本身已去重（不得重复登记同一维）。
+    """
     tradeable = [d for d in FINISHED_DIMS if d not in FINISHED_TAX_DIMS] + ["wine"]
-    assert len(GOODS_DIMS) == len(RAW_DIMS) + len(tradeable) + len(GRAIN_DIMS)
+    expected = set(RAW_DIMS) | set(tradeable) | set(GRAIN_DIMS)
+    assert set(GOODS_DIMS) == expected, (
+        f"目录与子表不一致：多出 {sorted(set(GOODS_DIMS) - expected)}，"
+        f"缺少 {sorted(expected - set(GOODS_DIMS))}")
+    assert len(GOODS_DIMS) == len(expected), "目录存在重复登记"
 
 
 def test_goods_dims_importable_from_content_data():

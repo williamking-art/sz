@@ -43,15 +43,22 @@ def test_o3_hidden_feed_stat_matches_actual_deduction(state):
     """O3：士绅兜底不足时，`hidden_feed` 只记**实扣额**，不得记全额需求。"""
     from core import settlement_granary as SG
     _setup_all_routes(state, hidden=1000, farm_grain=0, gentry_grain=10)
-    genty_total = sum(pref["pops"]["士绅"]["grain"] for pref in state.prefectures.values())
     before = int(state.granary_stats.get("hidden_feed", 0))
+    before_short = int(state.granary_stats.get("hidden_feed_short", 0))
     log = []
     SG._settle_granary(state, log)
     fed_stat = int(state.granary_stats.get("hidden_feed", 0)) - before
-    # 实际被扣的粮 = Σ士绅被扣量 ≤ 全图士绅总粮
-    assert fed_stat <= genty_total, \
-        f"统计的实喂额({fed_stat:,})不得多于士绅实际被扣的粮({genty_total:,})"
-    assert fed_stat >= 0
+    short_stat = int(state.granary_stats.get("hidden_feed_short", 0)) - before_short
+    # 2026-10-17 全审：月结在 Step 6 之前会产出粮（农自产自食 + 士绅新增），
+    # 因此不能用「月结前士绅总粮」当实扣上限。正确恒等式是：
+    #   实喂 + 缺口 == 应喂（Σ 每路 int(hidden × 人均耗粮)）。
+    demand = sum(
+        int(int(pref["pops"]["农"].get("hidden", 0) or 0) * SG.HIDDEN_CONSUME_PER_CAPITA)
+        for pref in state.prefectures.values()
+    )
+    assert fed_stat + short_stat == demand, \
+        f"实喂({fed_stat:,}) + 缺口({short_stat:,}) != 应喂({demand:,})"
+    assert 0 <= fed_stat <= demand
 
 
 def test_o3_shortfall_is_recorded(state):

@@ -1,18 +1,39 @@
-# core/ai — 双层智能分工与内嵌决策系统
+# core/ai — 双层智能分工与天道裁决引擎
 
-> 承 2026-10-17 架构裁定：贯彻“双层智能分工”战略原则，将大模型叙事与高频微观决策解耦。
-> 宏观大模型（玩家配置）：负责历史叙事、君臣奏折、朝会廷议、危机裁决；
-> 内嵌决策引擎（系统原生）：负责全域微观高频博弈决策，本地纯算，零配置，零 Token，开箱即玩。
+> 承 2026-10-17 架构（原「双层智能分工」2026-10-17 + 天道裁决体系 2026-10-17 修复批）：
+> 贯彻「天道定因果骨肉，大模型着春秋笔墨」——**微观高频决策本地纯算（零 Token、确定性）**，
+> **宏观叙事交大模型（只出文字，不出数值）**。
+> 逐项接线状态见 [`specs/cross-cutting/tiandao-engine/tasks.md`](../../../_dev_tools/game-docs/specs/cross-cutting/tiandao-engine/tasks.md) §2。
 
 ## 模块结构
 
 | 模块 | 职责 | 契约与特性 |
 |---|---|---|
-| `embedded_jev.py` | 🔴 **本地轻量级 Jev 决策引擎**（`EmbeddedJevEngine`） | 纯本地纯算实现 `gate` (二值是非闸门)、`choose` (离散多选一)、`score` (多级评价打分)。单次耗时 < 0.2ms，零 Token 消耗，零网络依赖。以效用扰动与加权概率模型驱动微观涌现。 |
-| `decision_facade.py` | 🔴 **全域微观决策统一门面**（`EmbeddedDecisionFacade`） | 统一收敛大宋全域六大核心领域高频博弈决策入口，全部静态标准契约：<br/>1. 财政与税收：征管宽严倾向、陈年逋欠豁免；<br/>2. 市场与商贸：商贾长途贩运vs居奇囤积、常平仓平粜开仓闸门；<br/>3. 仓储与物流：工役制度选择（差役/雇役）、漕运遇阻改道决断、雀鼠耗贪墨虚报；<br/>4. 乡村与社会：破产小农出路（典田vs流亡）、士绅灾荒赈济vs放贷兼并；<br/>5. 官僚治理：知州变法新政切实贯彻闸门；<br/>6. 军事治安：招募饥民流民充为地方厢军。 |
+| `tiandao_engine.py` | 🔴 **天道裁决核心引擎**（`TianDaoEngine`） | 四大裁决：`gate`（天命是非）/ `choose`（造化殊途，Softmax 严格归一）/ `score`（气数品位）/ `dice`（天意机变，显式种子的确定性微扰）。**纯函数**：不写 state、不碰账本、零网络。首参同时接受 `context=` 与旧关键字 `state_context=`。 |
+| `tiandao_facade.py` | 🔴 **全域天道业务门面**（`TianDaoFacade`） | 六域裁决入口（财政/商贸/仓储物流/乡村社会/官僚治理/军事治安）＋三条 AI 管道的事实提炼（`scan_memorial_seeds` / `derive_dialogue_stance` / `summarize_monthly_omen`）＋动态财政安全垫线。所有裁决**显式传 `objective`**，不靠文案子串分派。 |
+| `embedded_jev.py` | 兼容薄桩 | `EmbeddedJevEngine = TianDaoEngine`（**别名，不是新类**；旧关键字签名继续可用）。 |
+| `decision_facade.py` | 兼容薄桩 | `EmbeddedDecisionFacade = TianDaoFacade`。 |
+| `clerk_decision.py` / `merchant_decision.py` | 吏/商个体决断 | 全委派 `EmbeddedJevEngine`（→ 天道）；失败留 warning 并回落兜底。 |
 
-## 纪律与原则
+## 契约（改这些等于改契约）
 
-1. **零 Token 依赖**：全域高频循环（月度结算、州县微观决策、商人货流）凡涉及博弈抉择，**严禁调用外部大模型 API**，一律经由 `EmbeddedDecisionFacade`；
-2. **纯函数与防越权**：决策引擎只负责提供类型化决断与倾向，不直接修改底层账本，状态变更与物理交割必须回归各业务域与 `ledger` 桥接层；
-3. **确定性与随机扰动**：基于 `state_context` 状态特征进行效用计算，支持轻量级微观涌现。
+1. **`provider` 值 = `"tiandao_local"`**（2026-10-17 由 `embedded_local` 改名，Jev p=0.994；全库无生产消费方）。
+2. **缺失 ≠ 0 ≠ 1.0**：`gate` 无依据时 `verdict=False`、`probability=None`、`defined=False`；
+   `score` 无上下文时 `score=None`。取数一律 `is None` 判缺失，**禁止 `x or default`**（会吞掉合法的 `0`）。
+3. **`score` 的 `levels` 必须「差 → 好」排列**（如 `("下考","中考","上考")`）；两个分支都归一为"越好分越高"。
+4. **Softmax 概率严格归一为 1.0**（舍入残差回填最大项，别再用 `approx(1.0, abs=1e-4)` 掩盖）。
+5. **`dice` 必须由调用方给种子**（回合号 / 存档内种子），引擎不自取随机源；同种子跨进程结果一致（splitmix64）。
+6. **`objective` 显式优先**：`gate` / `choose` 的旧 `condition` 子串与 `criteria` 键名分派只作向后兼容回退。
+7. **零 Token 依赖**：全域高频循环（月度结算、州县微观决策、商人货流）**严禁调用外部大模型 API**；
+   文字类输出只走 `game/ai/` 契约。
+8. **只出决断不落地**：门面不修改账本；状态变更与物理交割必须回归各业务域与 `ledger` 桥接层。
+9. **口径分层（吏治通道）**：`core/decree_effect.py` 的 `clerks_mult` = **吏胥折扣本体**；
+   知州遵从度单列 `clerks_compliance`，只在 `effect_mult` 合成层参与——**通道仍是三条，不新增乘数**。
+10. **"有实现 + 有单测" ≠ "已生效"**：未接线的门面方法在 `tasks.md` 里显式标注，对外不得描述为已改变玩法。
+
+## 已验证（本批回归）
+
+`_dev_tools/game-dev/tests/test_tiandao_engine_core.py`、`test_tiandao_facade_wiring.py`、
+`test_ai_narrative_pipelines.py`、`test_decree_pipeline_tiandao.py`、`test_appraisal_and_demagic.py`、
+`test_embedded_decision_facade.py` —— 覆盖确定性、缺失值、Softmax 归一、四类抉择非恒定、
+贪墨闸门可达性与单调性、考课下考可达性、安全垫线真动态、三管道接线。

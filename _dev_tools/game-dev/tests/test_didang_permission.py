@@ -124,10 +124,16 @@ def test_power_follows_office_not_person():
 
 
 def test_params_without_authority_need_no_executor():
-    """未标注 authority 的编制参数（六杠杆等）不受事权约束，照旧可直接改。"""
+    """未标注 authority 的编制参数（如 hereditary_mult）不受事权约束，照旧可直接改；
+    已标注 authority 的（如 yinben_mult 归「官吏铨选」）未指定执行主体必须拒绝。"""
     s = GameState("史实")
-    _inst.apply_reform(s, {"yinben_mult": "=1.4"})
-    assert _inst.get(s, "yinben_mult") == 1.4
+    _inst.apply_reform(s, {"hereditary_mult": "=1.4"})
+    assert _inst.get(s, "hereditary_mult") == 1.4
+
+    # 2026-10-17 全审：M325 给 yinben_mult 补了 authority，不能再无主体直改
+    log = _inst.apply_reform(s, {"yinben_mult": "=1.4"})
+    assert _inst.get(s, "yinben_mult") == 1.0, log
+    assert any("拒绝" in x for x in log), log
 
 
 def test_free_effect_path_enforces_executor():

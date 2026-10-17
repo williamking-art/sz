@@ -158,7 +158,7 @@ def _settle_military_diplomacy(state, log):
             desert_count = min(u.troops // 100, 300)
             u.add_troops(-desert_count)
             # 2026-10-17 审计修复（A-7）：逃兵人丁回归本路农/流民，守恒闭环
-            _return_men(state, u.station, desert_count)
+            _return_men(state, u.station, desert_count, from_army_pop=True)
             pdata = (getattr(state, "prefectures", {}) or {}).get(u.station)
             if isinstance(pdata, dict):
                 pdata["unrest"] = min(100.0, float(pdata.get("unrest", 20.0)) + 1.2)
@@ -181,7 +181,7 @@ def _settle_military_diplomacy(state, log):
             _cut = min(_cut, u.troops)
             if _cut > 0:
                 u.add_troops(-_cut)
-                _return_men(state, u.station, _cut)
+                _return_men(state, u.station, _cut, from_army_pop=True)
                 log.append(f"[枢密] 裁汰冗兵 {_cut} 人（人丁还民）")
         levy = _P1_LEVY_COST.get(_mil.get("levy", "微"), 100000)
         if getattr(state, "treasury", 0) >= levy:

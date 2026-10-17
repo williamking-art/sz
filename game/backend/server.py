@@ -436,6 +436,25 @@ def _state_to_dict(s) -> dict:
 def _require_state():
     if _state is None:
         raise HTTPException(status_code=409, detail="尚未开局，请先行开新局。")
+    return _state
+
+
+def _reject_if_settling():
+    """若当前局正在后台结算，拒绝会写状态/存档的请求（不要求已有开局）。"""
+    if _state is not None and getattr(_state, "_settle_in_progress", False):
+        raise HTTPException(
+            status_code=409,
+            detail="回合结算进行中（后台正在写入本月账目），请稍候再操作。")
+
+
+def _require_settle_idle():
+    """回合后台结算窗口内拒绝会写状态/存档的请求（C-1/P1 并发硬化）。
+
+    读取端点（readouts/round2/health）不受限：玩家需要在结算期间轮询进度。
+    """
+    s = _require_state()
+    _reject_if_settling()
+    return s
 
 
 def _find_frontend_event(s, title: str):
@@ -521,6 +540,7 @@ def api_new_game(req: NewGameReq, request: Request):
     global _state
     _require_auth(request)
     with _lock:
+        _reject_if_settling()
         _state = _backend.new_game(req.difficulty, _get_ai())
         return {"state": _state_to_dict(_state)}
 
@@ -534,7 +554,7 @@ def api_advance(request: Request):
     # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
     # 对旧 state 执行动作）。
     with _lock:
-        _require_state()
+        _require_settle_idle()
         try:
             events, log, report, _state = _backend.advance(_state, _get_ai())
         except AIRuntimeError as e:
@@ -605,7 +625,7 @@ def api_project_propose(req: ProposeProjectReq, request: Request):
     global _state
     _require_auth(request)
     with _lock:
-        s0 = _require_state()
+        s0 = _require_settle_idle()
         from core.construction import propose_project
         res = propose_project(s0, req.route, req.name, req.key or None, req.levels)
         if not res.get("ok"):
@@ -628,7 +648,7 @@ def api_action(req: ActionReq, request: Request):
     # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
     # 对旧 state 执行动作）。
     with _lock:
-        _require_state()
+        _require_settle_idle()
         try:
             message, _state = _backend.action(_state, req.action, req.params, _get_ai())
         except ValueError as e:
@@ -654,8 +674,12 @@ def api_resolve_event(req: ResolveReq, request: Request):
     # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
     # 对旧 state 执行动作）。
     with _lock:
-        _require_state()
-        ev = req.event or _find_frontend_event(_state, req.title)
+        _require_settle_idle()
+        # 安全边界：客户端只能提交 title/choice，**不得**提交 event 对象。
+        # 服务端从本回合缓存/active_events 反查完整事件，避免伪造 choices.effects
+        # 直接改 prestige/treasury/army 等数值。`req.event` 仅为旧客户端兼容字段，
+        # 此处刻意忽略（见 test_audit_ai_admin_p0_fixes）。
+        ev = _find_frontend_event(_state, req.title)
         if not isinstance(ev, dict) or not ev:
             raise HTTPException(
                 status_code=404,
@@ -673,7 +697,7 @@ def api_save(req: SlotReq, request: Request):
     # 并发请求可能读到刚被替换/尚未替换的旧对象（「刚 load 完却判未开局 409」或
     # 对旧 state 执行动作）。
     with _lock:
-        _require_state()
+        _require_settle_idle()
         # M2（审查 P2-3）：原实现**丢弃** save_game 的布尔返回、恒回 `{"ok": True}`，
         # 前端 SavePanel 据此显示「已保存至槽位 N」——**把存档失败伪装成成功**。
         # 现如实回传：失败（槽位非法/磁盘写入失败）→ 500 + 中文原因。
@@ -690,6 +714,7 @@ def api_load(req: SlotReq, request: Request):
     global _state
     _require_auth(request)
     with _lock:
+        _reject_if_settling()
         # M1（审查 P2-3）：原实现 `_state = _backend.load(req.slot)` 不判 None →
         # 损坏档/空槽返回 None 时**全局 _state 被置 None**，随后 `_state_to_dict(None)`
         # 抛 TypeError（500）；玩家点一次坏档即把**当前这一局**从后端抹掉，之后所有

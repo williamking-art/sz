@@ -314,6 +314,15 @@ def save_game(state, slot: int = 1) -> bool:
             dict(b) for b in (getattr(state, "material_transit", None) or [])
             if isinstance(b, dict)
         ],
+        # 🔴 B-7：空间桥接层在途/客运账（与 material_transit 分开的真实载体）。
+        "in_transit_batches": [
+            dict(b) for b in (getattr(state, "in_transit_batches", None) or [])
+            if isinstance(b, dict)
+        ],
+        "passenger_trips": [
+            dict(t) for t in (getattr(state, "passenger_trips", None) or [])
+            if isinstance(t, dict)
+        ],
         # 注（2026-09-18 全审 F601）：本键在 `:101` 已写过一次（`state.defense_lines`），
         # 此处原为重复键（`getattr(state, "defense_lines", {})`，读同一属性，值等价），
         # 属无声重复定义 —— 已删除。详见 review_2026-09-18.md 与 ruff `--select F601`。
@@ -1044,6 +1053,18 @@ def _load_with_data(slot: int = 1):
         _log = __import__("logging").getLogger(__name__)
         _log.warning("存档 material_transit 非 list（%s），已按空在途读取",
                      type(_mt).__name__)
+    # 🔴 B-7：空间桥接层在途/客运账；旧档无键 ⇒ 空列表（不拒档）。
+    _log = __import__("logging").getLogger(__name__)
+    for _attr in ("in_transit_batches", "passenger_trips"):
+        _raw_list = data.get(_attr)
+        if _raw_list is None:
+            setattr(state, _attr, [])
+        elif isinstance(_raw_list, list):
+            setattr(state, _attr, [dict(x) for x in _raw_list if isinstance(x, dict)])
+        else:
+            setattr(state, _attr, [])
+            _log.warning("存档 %s 非 list（%s），已按空读取",
+                         _attr, type(_raw_list).__name__)
     if data.get("defense_lines"):
         state.defense_lines = data.get("defense_lines")
     state._derive_defense_lines() if hasattr(state, "_derive_defense_lines") else None

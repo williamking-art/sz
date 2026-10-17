@@ -1,0 +1,11 @@
+{
+  "id": "INC-2026-10-17-dsh-deleted-tests",
+  "title": "事故：DSH 清理 sz/tests/ 时误删 antigravity 名下 M323/M324 的两个测试文件",
+  "status": "mitigated",
+  "claimedBy": "DSH",
+  "created_at": "2026-10-17T09:35:00Z",
+  "description": "DSH 为把天道批次的 4 个验收用例迁入官方测试路径，执行 Remove-Item -Recurse sz/tests，连带删除了同目录下 antigravity 在 M323/M324 期间新建的 test_qianzhong_complete_data.py 与 test_metrology_engine.py（两者均为 untracked，未被 git 跟踪，且不在我此前的 git status 快照里 —— 说明是并发会话新建）。已尝试 VSS 卷影/回收站/全盘同名搜索，均无副本。已按任务 JSON 描述与源码 API 重新编写等价用例并以 regenerated 标注：tests/test_qianzhong_complete_data.py、tests/test_metrology_engine.py（各带 sys.path bootstrap，可独立运行；实测 20 passed）。",
+  "impact": "原文件内容不可恢复；覆盖范围按任务描述重建（metrology：四维双向转换/自定义换算比/三档体制收益/变法落地；qianzhong：地脉储量/ROAD_YIELD/CASH_CROP_LAND/贸易可航档）。若原作者另有更细的断言，需以本档为准补齐。 补充（同日 09:42 核查）：antigravity 的提交 740058db34 已把 regenerated 的两个用例随批入库（其父提交无 tests/ 目录），因此「原文件」仍不可恢复，但当前版本已在 git 中。",
+  "lesson": "删除任何目录前必须逐项列出将被删除的文件并确认归属；untracked 目录不得整体 Remove-Item。并发会话可能在两次命令之间新建文件。",
+  "follow_up": "antigravity 下次接手时复核这两个 regenerated 用例是否覆盖其原意；M324 仍为 in_progress。 另注：该提交用 git add -A 顺带入库了 DSH 在途的天道产物，多 agent 共树时提交前须逐条确认归属。"
+}

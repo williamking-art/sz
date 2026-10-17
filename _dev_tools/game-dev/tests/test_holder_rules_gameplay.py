@@ -4,9 +4,14 @@
 用户 2026-10-05 裁定（Y）：用**合理可调的游戏规则**定货主；
 **保留「玩法设定」来源标记**，避免以后被误读成史实数据。
 """
+import os
 import sys
 
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+# 2026-10-17 全审：去掉机器绝对路径，按仓库相对位置推导（干净 clone 可跑）
+_GAME = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "game"))
+if _GAME not in sys.path:
+    sys.path.insert(0, _GAME)
 
 from content.data_constants import RAW_DIMS
 from core.game_state import GameState

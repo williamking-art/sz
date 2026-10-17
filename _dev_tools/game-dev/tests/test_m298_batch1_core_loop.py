@@ -129,10 +129,14 @@ def test_p3_minister_veto_sovereign_override():
         "effects": {"treasury": 100000},
         "override_by_sovereign": True,
     }
+    _before = state.prestige
     gate = confirm_decree(state, "DEC-TEST-003", "韩忠彦", decree=decree, record=True)
     assert gate["status"] == STATUS_CONFIRMED
     assert gate.get("overridden_by_sovereign") is True
-    assert gate.get("sovereign_prestige_cost") == 3
+    # 2026-10-17 全审：M325 起「御笔强推」成本为 6（中旨不override 才是 3）；
+    # 且 confirm 只扣一次，settlement_decree 不得二次扣。
+    assert gate.get("sovereign_prestige_cost") == 6
+    assert state.prestige == max(0, _before - 6)
 
 
 # ============================================================

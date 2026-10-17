@@ -280,8 +280,13 @@ def test_source_boundary_lifecycle():
         assert f"from core.{forbidden}" not in src and f"import {forbidden}" not in src
     assert "audit_cases[" not in src and "audit_cases.pop" not in src, \
         "监察模块不得写入案卷（只做只读引用校验）"
-    with open(os.path.join(_GAME_ROOT, "core", "settlement.py"), "r", encoding="utf-8") as f:
-        settle = f.read()
+    # 2026-10-17 全审：M309 后 inspection_tick 移到 settlement_pipeline 的
+    # _step_inspection_tick；source-boundary 必须同时检查调度器与步骤注册表。
+    _parts = []
+    for _fname in ("settlement.py", "settlement_pipeline.py"):
+        with open(os.path.join(_GAME_ROOT, "core", _fname), "r", encoding="utf-8") as f:
+            _parts.append(f.read())
+    settle = "\n".join(_parts)
     assert "inspection_tick" in settle
     for auto in ("enqueue_inspection", "file_inspection_report"):
         assert auto not in settle, f"结算不得自动调用 {auto}"

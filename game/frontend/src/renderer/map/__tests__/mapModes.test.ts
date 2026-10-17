@@ -53,4 +53,20 @@ describe("MapModes & Layer Palette", () => {
     expect(expr).toContain("#bd8f46");
     expect(expr).toContain("#7fa89f");
   });
+
+  it("民怨池为空/缺失时不得伪造警戒色（缺失≠0≠危机）", () => {
+    for (const state of [undefined, { statistics: {} }, { statistics: { organic_unrest_pool: {} } }]) {
+      const expr = getCircuitFillExpression("unrest", state);
+      expect(expr).toBe("#e9e5d4");
+      expect(expr).not.toContain("#b83a2c");
+      expect(expr).not.toContain("#dca156");
+    }
+  });
+
+  it("民怨池含非数值项时跳过该项，不按 0 分级", () => {
+    const expr = getCircuitFillExpression("unrest", {
+      statistics: { organic_unrest_pool: { 两浙路: "not-a-number" } },
+    });
+    expect(expr).toBe("#e9e5d4");
+  });
 });

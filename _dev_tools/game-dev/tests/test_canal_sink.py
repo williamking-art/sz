@@ -154,3 +154,31 @@ def test_survey_reports_unsunk(cap):
     rep = cb.survey_canal(s)
     assert rep["未下沉路由"] == 1
     assert rep["已下沉路由"] == 0
+
+
+def test_grain_price_consumes_route_canal_block_and_falls_back():
+    """M39c-2：路线粮价优先消费本路 canal_block，未下沉时安全回退全国值。"""
+    from core.game_state import GameState
+    state = GameState("史实")
+    route_name = "两浙路"
+    p = state.prefectures[route_name]
+
+    # 1. 初始情况下：两浙路 canal_block 尚未特殊改动，粮价正常计算
+    p0 = state.calc_region_grain_price(route_name)
+
+    # 2. 本路发生重度淤塞 (canal_block = 90)
+    p["canal_block"] = 90
+    p_blocked = state.calc_region_grain_price(route_name)
+    assert p_blocked > p0  # 运输加价生效，粮价显著升高
+
+    # 3. 本路疏浚畅通 (canal_block = 0)
+    p["canal_block"] = 0
+    p_clear = state.calc_region_grain_price(route_name)
+    assert p_clear < p0    # 运费消除，粮价降低
+
+    # 4. 回退测试：删除本路键，安全回退读 state.canal_block
+    del p["canal_block"]
+    p_fallback = state.calc_region_grain_price(route_name)
+    assert abs(p_fallback - p0) < 1e-6
+
+

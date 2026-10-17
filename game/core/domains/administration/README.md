@@ -24,6 +24,10 @@
 | `minister_agent.py` | `core/minister_agent.py` | 桩 **19** 名 | ✓ 只 import `__future__`+`typing`，**零 core 依赖**；4 个生产调用方（`decree_confidential` / `decree_confirm` / `ministry_council` / `settlement_decree`）已同批改指新路径 |
 | `estate_mechanic.py` | `core/estate_mechanic.py`（第三十三包 2026-10-07，`git mv`）| 桩 **31** 名 | ✓ 只 import `content.data` / `content.ministers.*` ⇒ 零 `core` 依赖；6 个消费方（`game_state` / `save_load` / `settlement_econ` / `backend/server` / `content/ministers/persona` / `foundation/ledger/money`（docstring 引用））已同批改指新路径。⚠️ M7 + M9 两处 monkeypatch 已改指实现模块，否则会打在旧桩上静默失效 |
 | `settlement_officialdom.py` | `core/settlement_officialdom.py`（**阶段 3 首包** 2026-10-07，`git mv`）| 桩 **7** 名 | ✓ 4 个结算步骤（`_settle_officialdom`/`_settle_clerks`/`_settle_clan`/`_settle_upkeep`）**同属官制吏制一域**，无跨域混入；自身依赖仅 `officialdom`/`clerks`/`domains.administration.institution`/`building_jobs`/`settlement_common`；唯一调用方 `settlement_steps.py`（编排器）已同批改指新路径。⚠️ 该模块**原不在 [17] 大环内**（是挂环外的叶子）⇒ 本包不减环，收益在「结算步骤归属业务部」本身 |
+| `circuit_officials.py` | **新建**（M303）| `ALL_CIRCUITS_21` `CIRCUIT_OFFICIAL_ROLES` `init_circuit_officials` `get_circuit_official` `assign_circuit_official` `retire_circuit_official` `survey_circuit_officials` | 🔴 **北宋 21 路省路级四监司与路府知通人事底册与运转模型**（单一权威源）：落实帅司（安抚）、漕司（转运）、宪司（提刑）、仓司（提举）四权分立与路府知通互掣机制，支持底册生成、任免调动与考课联动。 |
+| `imperial_exam.py` | **新建**（M304）| `EXAM_RANKS` `EXAM_CYCLES` `run_provincial_exam` `run_palace_exam` `survey_exam_candidates` | 🔴 **三年大比科举解试、省试、殿试考选模型**：贡院考选诸路士子举人，进士登第授官，解甲入仕，支撑官僚阶层梯队新陈代谢。 |
+| `official_appraisal.py` | **新建**（M305）| `APPRAISAL_TIERS` `evaluate_official_performance` `apply_promotion_demotion` | 🔴 **官员磨勘考课与监司按察考评模型**：依考课四善三最律评定政绩，关联监司纠察、御史弹劾与升降迁转。 |
+| `prefect_officials.py` | **新建**（M306）| `PREFECT_ROLES` `init_prefecture_officials` `get_prefect_official` `survey_prefect_officials` | 🔴 **州府级知州通判知县基层官僚底册**：州府亲民官与属官任职底册，挂接州府治理与民情政务。 |
 
 职责边界（本模块自己的口径，不是本次迁移新增）：**改制＝移动参数，不是新建系统**——
 只做三件事：单点约束参数值域、给结算提供 `get()`/`set_param()`、给 `free_effect`

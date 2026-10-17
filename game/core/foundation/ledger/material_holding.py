@@ -161,6 +161,19 @@ HOLDER_MAP: Dict[str, str] = {
     "金": "state_operator",
     "银": "state_operator",
     "铜": "state_operator",
+    # 🏺 M317 新增原料（2026-10-17 全审补齐；此前只加进目录未登货主）：
+    #    山泽之利归官 ⇒ 黏土归内帑；矿冶/窑业原料归国库；纸墨/薪炭/食油/酱醋
+    #    为民间作坊与农家产物 ⇒ 归农户自持。均为**玩法设定**，可调。
+    "黏土": "imperial_operator",
+    "煤炭": "state_operator",
+    "木炭": "state_operator",
+    "硝石": "state_operator",
+    "硫磺": "state_operator",
+    "纸": "household_self",
+    "油墨": "household_self",
+    "薪炭": "household_self",
+    "食用油": "household_self",
+    "酱醋": "household_self",
 }
 
 
@@ -179,6 +192,10 @@ HOLDER_PROVENANCE: Dict[str, str] = {
     "果": "玩法设定", "牲畜": "玩法设定",
     "茶": "玩法设定", "马": "玩法设定",
     "金": "玩法设定", "银": "玩法设定", "铜": "玩法设定",
+    "黏土": "史实·定性",
+    "煤炭": "玩法设定", "木炭": "玩法设定", "硝石": "玩法设定", "硫磺": "玩法设定",
+    "纸": "玩法设定", "油墨": "玩法设定", "薪炭": "玩法设定",
+    "食用油": "玩法设定", "酱醋": "玩法设定",
 }
 
 
@@ -593,15 +610,19 @@ def tribute_circuits() -> Dict[str, frozenset]:
 __all_TAIL__ = None
 
 
-def _attribute_by_weights(pop: Optional[dict], weights: List[SEAT_W],
+def _attribute_by_weights(pop_or_goods: Optional[dict], weights: List[SEAT_W],
                         dim: str, qty: int) -> int:
     """按**给定权重**把 `qty` 拆进州府桶；尾差归权重最大者，Σ 精确等于 qty。
 
     与 `attribute_to_seats`（旧私有名 `_attribute_to_seats` 仍为兼容别名，固定人口权重）同手法，只是权重来源可外部给定。
+    🔴 B-5（2026-10-17）：兼容传入 **POP 字典**（含 `goods`）或 **goods 字典本身**；
+    `supply_goods_to_seats` 手上是 `goods`，旧实现却按 POP 取 `pop["goods"]` ⇒ 永远 0。
     """
     if not weights or qty <= 0:
         return 0
-    goods = pop.get("goods") if isinstance(pop, dict) else None
+    goods = pop_or_goods
+    if isinstance(pop_or_goods, dict) and isinstance(pop_or_goods.get("goods"), dict):
+        goods = pop_or_goods.get("goods")
     if not isinstance(goods, dict):
         return 0
     tw = sum(x for _s, x in weights)
@@ -634,35 +655,84 @@ def supply_goods_to_seats(state, total: Optional[Dict[str, int]] = None,
     res = getattr(state, "resources", None) or {}
     out: Dict[str, int] = {}
     for dim in use_dims:
-        stock = int((res.get(dim) or {}).get("stock", 0) or 0) \
+        cell = res.get(dim)
+        stock = int((cell or {}).get("stock", 0) or 0) \
             if total is None else int(total.get(dim, 0) or 0)
         if stock <= 0:
             continue
         held = 0
         holders = []
         for route in prefs:
-            goods = merchant_goods(state, route)
-            if goods is None:
+            m = merchant_of(state, route)
+            if not isinstance(m, dict):
                 continue
+            goods = m.get("goods")
+            if not isinstance(goods, dict):
+                # 🔴 B-5：商人存在但 goods 为空也是**合法持有 0**，必须参与配货；
+                # 旧实现把空 dict 当“无持有”跳过 ⇒ 首月永远没有 holder，配货空转。
+                goods = {}
+                m["goods"] = goods
+            # 空 goods 没有该维 ⇒ 持有 0；不能按缺失丢掉这个 holder。
             cur = goods_amount(goods, dim)
             if cur is None:
-                continue
-            m = merchant_of(state, route)
+                cur = 0
             holders.append([route, max(1.0, float(m.get("size", 0) or 0))])
             held += int(cur)
         need = stock - held
         if need <= 0 or not holders:
             continue
         wsum = sum(h[1] for h in holders)
+        # 尾差归权重最大者，保证 Σ实际搬运 == need（否则 resources 会留下
+        # 永远配不出去的“取整余量”，holding_report 的 gap 不为 0）。
+        _anchor = max(holders, key=lambda h: h[1])[0]
+        _route_parts = {r: int(round(need * w / wsum)) for r, w in holders}
+        _route_parts[_anchor] += need - sum(_route_parts.values())
         for route, w in holders:
-            give = int(round(need * w / wsum))
+            give = int(_route_parts.get(route, 0))
             if give <= 0:
                 continue
-            goods = merchant_goods(state, route)
-            if goods is None:
+            m = merchant_of(state, route)
+            if not isinstance(m, dict):
                 continue
-            put = _attribute_by_weights(goods,
-                                       seat_weights_for(state, route, dim), dim, give)
+            goods = m.get("goods")
+            if not isinstance(goods, dict):
+                goods = {}
+                m["goods"] = goods
+            # 🔴 B-5：必须写**治所 POP goods 真账**。旧实现写路级镜像
+            # `merchant.goods`，下一次 `sync_route_pops` 会用 Σ治所覆盖它，
+            # 配货静默蒸发。这里按州府权重逐席 `pop_goods_add`；未下沉才回落扁平。
+            _w = seat_weights_for(state, route, dim)
+            _pdata = prefs.get(route)
+            put = 0
+            if isinstance(_pdata, dict) and (_pdata.get("seats") or {}) and _w:
+                from core.foundation.ledger import pop_bridge as _pb
+                _tw = sum(x for _s, x in _w) or 1.0
+                _seat_anchor = max(_w, key=lambda kv: kv[1])[0]
+                _seat_parts = {sid: int(round(give * x / _tw)) for sid, x in _w}
+                _seat_parts[_seat_anchor] += give - sum(_seat_parts.values())
+                for _sid, _q in _seat_parts.items():
+                    if _q <= 0:
+                        continue
+                    if _pb.pop_goods_add(_pdata, "商人", dim, int(_q), seat_id=_sid) is not None:
+                        put += int(_q)
+            if put <= 0:
+                put = _attribute_by_weights(
+                    m, seat_weights_for(state, route, dim), dim, give)
+            if put <= 0:
+                continue
+            # 🔴 B-5：配货是**搬运**，不是复制：resources 必须同额减少。
+            # 旧实现只写商人 goods、不扣 resources ⇒ 同一批料被算两次。
+            _cell = res.get(dim)
+            if isinstance(_cell, dict):
+                _cur = int(_cell.get("stock", 0) or 0)
+                _cell["stock"] = max(0, _cur - int(put))
+            try:
+                from core.domains.economy import stock_flow as _sf
+                _sf.record_out(state, dim, int(put), reason="supply_goods_to_seats")
+                _sf.record_in(state, dim, int(put), reason="supply_goods_to_seats",
+                              custody=_sf.CUSTODY_POP)
+            except Exception:  # noqa: BLE001 — 测量仪器不得中断配货
+                pass
             out[dim] = out.get(dim, 0) + put
     return out
 
@@ -746,6 +816,7 @@ def consume_for_seat(state, seat_id: str, dim: str, amount: int) -> int:
             continue
         goods_set(goods, dim, cur - take, seat_id)
         taken += take
+    __decrement_national_stock(state, dim, taken, reason="consume_for_seat")
     return taken
 
 
@@ -817,6 +888,33 @@ def material_holding_for_circuit(state, circuit: str, dim: str) -> Optional[int]
 
 
 
+def __decrement_national_stock(state, dim: str, taken: int, reason: str) -> None:
+    """B-5：消费/配货是真实出库，`resources` 总账须同额减少（不留下幽灵库存）。"""
+    if taken <= 0:
+        return
+    res = getattr(state, "resources", None)
+    if not isinstance(res, dict):
+        return
+    cell = res.get(dim)
+    _cur_stock = int((cell or {}).get("stock", 0) or 0) if isinstance(cell, dict) else 0
+    if isinstance(cell, dict) and _cur_stock > 0:
+        # 目标总账模式（旧夹具/未配货）：消费同额扣 resources，保持
+        # resources == ΣPOP goods 的等式。
+        cell["stock"] = max(0, _cur_stock - int(taken))
+        _national_out = min(int(taken), _cur_stock)
+    else:
+        # 源池已全部分配（stock==0）：消费只减 POP custody，不再造负资源。
+        _national_out = 0
+    try:
+        from core.domains.economy import stock_flow as _sf
+        if _national_out > 0:
+            _sf.record_out(state, dim, _national_out, reason=reason)
+        _sf.record_out(state, dim, int(taken), reason=reason,
+                       custody=_sf.CUSTODY_POP)
+    except Exception:  # noqa: BLE001 — 测量仪器不得中断真实扣减
+        pass
+
+
 def consume_for_circuit(state, circuit: str, dim: str, amount: int) -> int:
     """🔴 **路级扣料**（C-c 落笔口）：从**本路商人 `goods`** 扣，返回**实扣量**。
 
@@ -840,6 +938,21 @@ def consume_for_circuit(state, circuit: str, dim: str, amount: int) -> int:
     goods = merchant_goods(state, circuit)
     if not goods:
         return 0
+    # 🔴 B-5：有 seats 时扣**治所 POP goods 真账**（旧实现只改路级镜像，
+    # 随后 sync_route_pops 会把扣减刷回去 ⇒ 消耗静默失效/流量账残差）。
+    _pdata = ((getattr(state, "prefectures", None) or {}).get(circuit)
+              if isinstance(getattr(state, "prefectures", None), dict) else None)
+    if isinstance(_pdata, dict) and (_pdata.get("seats") or {}):
+        try:
+            from core.foundation.ledger import pop_bridge as _pb
+            _taken = _pb.pop_goods_sub(_pdata, "商人", dim, want)
+            if _taken is not None:
+                if _taken > 0:
+                    __decrement_national_stock(state, dim, int(_taken),
+                                               reason="consume_for_circuit")
+                return int(_taken)
+        except Exception:  # noqa: BLE001 — 桥失败时保留旧路径，由调用方归因缺料
+            pass
     taken = 0
     for sid in sorted(k for k in goods if is_seat_bucket_key(k)):
         if taken >= want:
@@ -856,6 +969,7 @@ def consume_for_circuit(state, circuit: str, dim: str, amount: int) -> int:
             take = min(flat, want - taken)
             goods_set(goods, dim, flat - take)
             taken += take
+    __decrement_national_stock(state, dim, taken, reason="consume_for_circuit")
     return taken
 
 
@@ -900,8 +1014,14 @@ def holding_report(state) -> Dict[str, Any]:
             held += int(cur)
             n += 1
         stock = int((res.get(dim) or {}).get("stock", 0) or 0)
+        # 🔴 B-5（2026-10-17）：
+        # · stock>0 时：`resources` 是配货目标/总账，必须与商人持有相等；
+        # · stock==0 表示源池已全部分配（或已消费），此时 `merchant_total`
+        #   就是唯一 custody，没有“未配余额”，gap 记 0。
+        # 旧实现只判 `held > stock`，把“仓有 162 万木、商人 0”也判 ok。
+        gap = 0 if (stock == 0 and held > 0) else (stock - held)
         rows[dim] = {"merchant_total": held, "stock_total": stock,
-                     "gap": stock - held, "route_count": n}
-        if held > stock:
+                     "gap": gap, "route_count": n}
+        if gap != 0:
             ok = False
     return {"ok": ok, "dims": rows}

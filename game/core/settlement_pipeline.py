@@ -32,6 +32,9 @@ class SettlementStep:
     name: str                # 中文名称（如 "四大实体产业链"）
     func: Callable           # 执行函数：签名通常为 fn(state, log) 或 fn(state)
     critical: bool = False   # 是否关键核心步（True: 失败直接抛出并整月回滚；False: 失败记 WARN 不阻断）
+    # 🔴 B-9（2026-10-17 审计）：默认管线**所有**步骤都落地为 critical=True ——
+    #    结算内几乎每一步都会写账本/POP/库存/statistics，任何一步失败若只 WARN 继续，
+    #    都会留下"半结算脏月"（实测注入 supply 失败仍 turn+1）。原子性优先于"尽量跑完"。
     description: str = ""    # 机制说明
     raw_func: Optional[Callable] = None  # 原始权威函数对象（若 func 为包装层，此处保留原生引用供镜像核验）
 
@@ -190,72 +193,78 @@ def build_default_steps() -> List[SettlementStep]:
         if tot > 0:
             log.append(f"[垦荒] 本月民间自发辟荒开垦 {tot:,.1f} 亩（民田与庄园隐田并进）")
 
+    # 🔴 B-9（2026-10-17 审计）：本表**全部 48+1 步均为 critical=True**。
+    #    判据：步骤只要会改动账本（treasury/coin）、POP（size/wealth/goods/grain）、
+    #    库存（resources/granary/warehouses/在途）或 statistics，就不得在失败后继续推进；
+    #    `SettlementStep.execute` 对 critical=True 直接 raise，由 settle_local 快照整月回滚。
+    #    回归：`_dev_tools/game-dev/tests/test_audit_settlement_b9_atomicity.py`
+    #    逐一步注入异常并断言 treasury/POP/resources/statistics 与月初逐字段一致。
     steps = [
         # Phase 1: 诏令与前置政治
         SettlementStep("decrees", "control", "诏令执行", _settle_decrees, critical=True),
-        SettlementStep("factions", "politics", "派系态度冲击", _settle_factions, critical=False),
+        SettlementStep("factions", "politics", "派系态度冲击", _settle_factions, critical=True),
 
         # Phase 2: 实体生产与地力内生
         SettlementStep("economy", "production", "经济基础", _settle_economy, critical=True),
-        SettlementStep("land_local", "production", "田亩地方", _settle_land_local, critical=False),
-        SettlementStep("land_reclamation", "production", "民间自发辟荒", _step_spontaneous_reclamation, critical=False),
-        SettlementStep("agri_effects", "production", "农业投资效果", apply_agri_effects, critical=False),
-        SettlementStep("region_deepen", "production", "地区模型深化", _settle_region_deepen, critical=False),
-        SettlementStep("literacy", "culture", "识字率演化", _settle_literacy, critical=False),
-        SettlementStep("longterm", "decree", "长期拟旨推进", _settle_longterm_decrees, critical=False),
-        SettlementStep("external", "diplomacy", "外部政权模拟", _simulate_external, critical=False),
+        SettlementStep("land_local", "production", "田亩地方", _settle_land_local, critical=True),
+        SettlementStep("land_reclamation", "production", "民间自发辟荒", _step_spontaneous_reclamation, critical=True),
+        SettlementStep("agri_effects", "production", "农业投资效果", apply_agri_effects, critical=True),
+        SettlementStep("region_deepen", "production", "地区模型深化", _settle_region_deepen, critical=True),
+        SettlementStep("literacy", "culture", "识字率演化", _settle_literacy, critical=True),
+        SettlementStep("longterm", "decree", "长期拟旨推进", _settle_longterm_decrees, critical=True),
+        SettlementStep("external", "diplomacy", "外部政权模拟", _simulate_external, critical=True),
 
         # Phase 3: 物料加工、产业链与空间物流
-        SettlementStep("production_chain", "industry", "原料内生产出", settle_production_chain, critical=False),
-        SettlementStep("procure_from_farmers", "trade", "官府和买", procure_from_farmers, critical=False),
-        SettlementStep("sell_surplus_to_merchants", "trade", "民间余料售出", sell_surplus_to_merchants, critical=False),
-        SettlementStep("industry_chains", "industry", "四大实体产业链", settle_industry_chains, critical=False),
-        SettlementStep("supply_goods_to_seats", "logistics", "建材入货栈配货", supply_goods_to_seats, critical=False),
-        SettlementStep("arrive_due", "logistics", "建材在途到货", arrive_due, critical=False),
-        SettlementStep("spatial_logistics", "logistics", "沈括途耗与客运时空", _step_spatial_in_transit, critical=False),
-        SettlementStep("procure_materials", "trade", "商人补货下单", procure_materials, critical=False),
+        SettlementStep("production_chain", "industry", "原料内生产出", settle_production_chain, critical=True),
+        SettlementStep("procure_from_farmers", "trade", "官府和买", procure_from_farmers, critical=True),
+        SettlementStep("sell_surplus_to_merchants", "trade", "民间余料售出", sell_surplus_to_merchants, critical=True),
+        SettlementStep("industry_chains", "industry", "四大实体产业链", settle_industry_chains, critical=True),
+        SettlementStep("supply_goods_to_seats", "logistics", "建材入货栈配货", supply_goods_to_seats, critical=True),
+        SettlementStep("arrive_due", "logistics", "建材在途到货", arrive_due, critical=True),
+        SettlementStep("spatial_logistics", "logistics", "沈括途耗与客运时空", _step_spatial_in_transit, critical=True),
+        SettlementStep("procure_materials", "trade", "商人补货下单", procure_materials, critical=True),
 
         # Phase 4: 工程、营造与维持费
         SettlementStep("projects", "construction", "国家工程营建", _settle_projects, critical=True),
-        SettlementStep("workshops", "industry", "作坊配方生产", _settle_workshops, critical=False),
-        SettlementStep("civil_construction", "construction", "民间自发营造", apply_civil_construction, critical=False),
+        SettlementStep("workshops", "industry", "作坊配方生产", _settle_workshops, critical=True),
+        SettlementStep("civil_construction", "construction", "民间自发营造", apply_civil_construction, critical=True),
         SettlementStep("upkeep", "finance", "资产维持费", _settle_upkeep, critical=True),
 
         # Phase 5: 生计消费与官吏制度
         SettlementStep("granary", "granary", "仓廪漕运与粮市", _settle_granary, critical=True),
-        SettlementStep("pop_livelihood", "pop", "POP微观家计与民怨", settle_pop_livelihood, critical=False),
+        SettlementStep("pop_livelihood", "pop", "POP微观家计与民怨", settle_pop_livelihood, critical=True),
         SettlementStep("officialdom", "administration", "官制与有阙授职", _settle_officialdom, critical=True),
         SettlementStep("clan", "administration", "宗室俸禄", _settle_clan, critical=True),
         SettlementStep("clerks", "administration", "吏制吏额与把持度", _settle_clerks, critical=True),
 
         # Phase 6: 宏观财政再分配与信用
         SettlementStep("finance", "finance", "财政收支与政府采购", _settle_finance, critical=True),
-        SettlementStep("external_economy", "economy", "辽夏省域经济", _settle_external_economy, critical=False),
-        SettlementStep("extensions", "credit", "货币信用与交子", _settle_extensions, critical=False),
-        SettlementStep("econ_prices", "market", "路线物价指数", _settle_econ_prices, critical=False),
+        SettlementStep("external_economy", "economy", "辽夏省域经济", _settle_external_economy, critical=True),
+        SettlementStep("extensions", "credit", "货币信用与交子", _settle_extensions, critical=True),
+        SettlementStep("econ_prices", "market", "路线物价指数", _settle_econ_prices, critical=True),
         SettlementStep("treasury", "finance", "国库封桩", _settle_treasury, critical=True),
 
         # Phase 7: 政治上层建筑派生与军事天下
         SettlementStep("faction_metrics", "politics", "利益集团满意度派生", _settle_faction_metrics, critical=True),
-        SettlementStep("military", "military", "军事外交", _settle_military_diplomacy, critical=False),
-        SettlementStep("timeline", "history", "历史改写位评估", _evaluate_timeline_breaks, critical=False),
-        SettlementStep("mechanisms", "legacy", "机制槽修正", _settle_mechanisms, critical=False),
-        SettlementStep("tech", "tech", "科技研发管线", _settle_tech, critical=False),
-        SettlementStep("org_economy", "institution", "机构经济生命周期", _settle_org_economy, critical=False),
-        SettlementStep("legacies", "legacy", "帝国修正", _settle_legacies, critical=False),
-        SettlementStep("focus", "focus", "国策树度支与效果", _settle_focus, critical=False),
-        SettlementStep("events", "event", "史官事件压力", _settle_events, critical=False),
-        SettlementStep("disaster", "disaster", "灾荒与开仓赈济", _settle_disaster, critical=False),
-        SettlementStep("situations", "situation", "局势系统DSL", _settle_situations, critical=False),
+        SettlementStep("military", "military", "军事外交", _settle_military_diplomacy, critical=True),
+        SettlementStep("timeline", "history", "历史改写位评估", _evaluate_timeline_breaks, critical=True),
+        SettlementStep("mechanisms", "legacy", "机制槽修正", _settle_mechanisms, critical=True),
+        SettlementStep("tech", "tech", "科技研发管线", _settle_tech, critical=True),
+        SettlementStep("org_economy", "institution", "机构经济生命周期", _settle_org_economy, critical=True),
+        SettlementStep("legacies", "legacy", "帝国修正", _settle_legacies, critical=True),
+        SettlementStep("focus", "focus", "国策树度支与效果", _settle_focus, critical=True),
+        SettlementStep("events", "event", "史官事件压力", _settle_events, critical=True),
+        SettlementStep("disaster", "disaster", "灾荒与开仓赈济", _settle_disaster, critical=True),
+        SettlementStep("situations", "situation", "局势系统DSL", _settle_situations, critical=True),
 
         # Phase 8: 皇帝行动与隐藏状态
-        SettlementStep("emperor", "imperial", "皇帝个人行动", _step_emperor_wrapper, critical=False, raw_func=_settle_emperor_personal),
-        SettlementStep("hidden", "hidden", "隐藏状态激变", _settle_hidden, critical=False),
+        SettlementStep("emperor", "imperial", "皇帝个人行动", _step_emperor_wrapper, critical=True, raw_func=_settle_emperor_personal),
+        SettlementStep("hidden", "hidden", "隐藏状态激变", _settle_hidden, critical=True),
 
         # Phase 9: 会计不变量硬收敛对账
         SettlementStep("population_align", "audit", "在籍人口总账校正", _step_population_alignment, critical=True),
-        SettlementStep("inspection_tick", "administration", "差遣在途状态迁移", _step_inspection_tick, critical=False),
-        SettlementStep("farm_slices_sync", "audit", "农丁口职位子池对齐", _step_farm_slices_sync, critical=False),
+        SettlementStep("inspection_tick", "administration", "差遣在途状态迁移", _step_inspection_tick, critical=True),
+        SettlementStep("farm_slices_sync", "audit", "农丁口职位子池对齐", _step_farm_slices_sync, critical=True),
         SettlementStep("bank_stock", "finance", "抵当所存款硬收敛", _settle_bank_stock, critical=True),
     ]
     return steps

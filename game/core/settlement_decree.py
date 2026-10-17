@@ -112,6 +112,7 @@ def _settle_decrees(state, log):
         OUTCOME_VETOED,
         STATUS_CONFIRMED,
         STATUS_MISMATCH,
+        STATUS_UNAUTHORIZED,
         STATUS_UNDEFINED,
         STATUS_VETO,
         addressees_of,
@@ -152,6 +153,25 @@ def _settle_decrees(state, log):
             return None, "吏治读数未定义"
         return float(m), ""
 
+    def _authority_gate_required(d: dict) -> str:
+        """返回本诏必须经过的事权名（"" = 不需要）；用于无受命人时 fail-closed。"""
+        if bool(d.get("enforce_troops")):
+            return "调兵"
+        _reform = d.get("reform")
+        if isinstance(_reform, dict) and _reform:
+            return "官吏铨选"
+        _eff = d.get("effects")
+        if isinstance(_eff, dict):
+            if isinstance(_eff.get("institution"), dict):
+                return "官吏铨选"
+            try:
+                from content.data import INSTITUTION_PARAM_SPEC
+                if any(k in INSTITUTION_PARAM_SPEC for k in _eff):
+                    return "官吏铨选"
+            except Exception:  # noqa: BLE001 — 规格表不可读时不影响普通诏令
+                pass
+        return ""
+
     # B5-4：去重集合改用**统一 `decree_id`**。原`{d.get("id")}` 恒为空集
     # （全仓从不写 `id`），该守卫实际从未生效。
     active_ids = {str(d.get("decree_id") or "").strip()
@@ -180,11 +200,13 @@ def _settle_decrees(state, log):
 
         _gate_digest = None
         _recitation_turn = None
+        _gate_status = "not_required"
         if _is_minister:
             try:
                 _gate = confirm_decree(state, _did, _aid, decree=decree, record=True, turn=state.turn)
                 _gate_digest = _gate.get("digest")
                 _recitation_turn = _gate.get("recitation_turn")
+                _gate_status = _gate.get("status")
                 if _gate.get("status") == STATUS_UNDEFINED:
                     remaining.append(decree)
                     _undefined_suspended += 1
@@ -222,10 +244,32 @@ def _settle_decrees(state, log):
                 else:
                     if _gate.get("overridden_by_sovereign"):
                         _scost = int(_gate.get("sovereign_prestige_cost") or 3)
-                        state.prestige = max(0, getattr(state, "prestige", 50) - _scost)
+                        # 2026-10-17 全审 P1-2：confirm_decree 已在 record=True 时扣过皇威
+                        # 并置 `_override_prestige_deducted`；此处不得二次直写扣减。
+                        # 未扣过时也必须走 change_prestige 单点（保 _prestige_history）。
+                        if not decree.get("_override_prestige_deducted"):
+                            state.change_prestige(
+                                -_scost,
+                                f"特旨强推「{decree.get('title', '（无题）')}」",
+                            )
+                            decree["_override_prestige_deducted"] = True
                         log.append(f"[特旨强行] 「{decree.get('title', '（无题）')}」虽遭大臣力谏，上降中旨特批强行放行（皇威 -{_scost}）。")
             except Exception as _ge:
-                log.warning("[诏令] 复述门校验异常: %s", _ge, exc_info=True)
+                log.warning("[诏令] 复述门校验异常（fail-closed）: %s", _ge, exc_info=True)
+                failed += 1
+                _gate_status = STATUS_UNDEFINED
+                _detail = f"复述门校验异常（{type(_ge).__name__}）：不予执行"
+                if _did:
+                    record_execution(
+                        state, _did, by=_aid or "朝廷",
+                        digest=decree_digest(canonical_decree(decree)),
+                        title=decree.get("title"), confirm_status=STATUS_UNDEFINED,
+                        outcome=OUTCOME_FAILED, detail=_detail)
+                log.append(f"[诏令] 「{decree.get('title', '（无题）')}」{_detail}。")
+                if decree.get("task_id"):
+                    from core.longterm_task import apply_decree_to_task
+                    apply_decree_to_task(state, decree, False, log, rate=0.0)
+                continue
 
         # 局势意图（规范 §5.2）：诏令可选携带 `situation_intent`；无则该诏行为不变。
         # 此处**只登记**（运行时态，不落档），校验与消费由 Step 8.5 局势结算负责——
@@ -271,6 +315,24 @@ def _settle_decrees(state, log):
                        f"效果系数未定义（{_why_undef}），本月不执行，待读数可用后另行结算。")
             continue
 
+        # C-1：需要军权/事权校验的诏令，无在册受命人时不得直接执行（fail-closed）。
+        _required_matter = _authority_gate_required(decree)
+        if _required_matter and not _is_minister:
+            failed += 1
+            _deny = (f"该诏需要「{_required_matter}」事权校验，但未指定可承办的在册大臣"
+                     f"（addressees={_addrs or '无'}）")
+            log.append(f"[诏令] 「{decree.get('title', '（无题）')}」被拒：{_deny}。")
+            if _did:
+                record_execution(
+                    state, _did, by="朝廷",
+                    digest=decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"), confirm_status=STATUS_UNAUTHORIZED,
+                    outcome=OUTCOME_FAILED, detail=_deny)
+            if decree.get("task_id"):
+                from core.longterm_task import apply_decree_to_task
+                apply_decree_to_task(state, decree, False, log, rate=0.0)
+            continue
+
         # 双轨施政分流：外廷宰执路线 vs 内廷私局路线
         _track = str(decree.get("track") or "outer_court")
         if _track == "inner_court":
@@ -302,7 +364,7 @@ def _settle_decrees(state, log):
                     by=_aid if _is_minister else "朝廷",
                     digest=_gate_digest or decree_digest(canonical_decree(decree)),
                     title=decree.get("title"),
-                    confirm_status=STATUS_CONFIRMED,
+                    confirm_status=_gate_status,
                     outcome=OUTCOME_EXECUTED,
                     recitation_turn=_recitation_turn if _recitation_turn is not None else state.turn,
                 )
@@ -316,7 +378,7 @@ def _settle_decrees(state, log):
                     by=_aid if _is_minister else "朝廷",
                     digest=_gate_digest or decree_digest(canonical_decree(decree)),
                     title=decree.get("title"),
-                    confirm_status=STATUS_CONFIRMED,
+                    confirm_status=_gate_status,
                     outcome=OUTCOME_FAILED,
                     recitation_turn=_recitation_turn if _recitation_turn is not None else state.turn,
                 )
@@ -363,11 +425,13 @@ def _settle_decrees(state, log):
 
         _s_gate_digest = None
         _s_recitation_turn = None
+        _s_gate_status = "not_required"
         if _s_is_minister:
             try:
                 _sgate = confirm_decree(state, _did, _s_aid, decree=decree, record=True, turn=state.turn)
                 _s_gate_digest = _sgate.get("digest")
                 _s_recitation_turn = _sgate.get("recitation_turn")
+                _s_gate_status = _sgate.get("status")
                 if _sgate.get("status") == STATUS_UNDEFINED:
                     state.pending_secret_decrees.remove(decree)
                     state.pending_secret_decrees.append(decree)   # 退回待办，次月再议
@@ -408,10 +472,31 @@ def _settle_decrees(state, log):
                 else:
                     if _sgate.get("overridden_by_sovereign"):
                         _scost = int(_sgate.get("sovereign_prestige_cost") or 3)
-                        state.prestige = max(0, getattr(state, "prestige", 50) - _scost)
+                        # 2026-10-17 全审 P1-2：同正旨路径，避免 confirm 已扣后再扣一次。
+                        if not decree.get("_override_prestige_deducted"):
+                            state.change_prestige(
+                                -_scost,
+                                f"特旨强推密令「{decree.get('title', '密令')}」",
+                            )
+                            decree["_override_prestige_deducted"] = True
                         log.append(f"[特旨强行] 「{decree.get('title', '密令')}」虽遭大臣力谏，上降中旨特批强行放行（皇威 -{_scost}）。")
             except Exception as _sge:
-                log.warning("[密旨] 复述门校验异常: %s", _sge, exc_info=True)
+                log.warning("[密旨] 复述门校验异常（fail-closed）: %s", _sge, exc_info=True)
+                failed += 1
+                _s_gate_status = STATUS_UNDEFINED
+                _s_detail = f"复述门校验异常（{type(_sge).__name__}）：不予执行"
+                if _did:
+                    record_execution(
+                        state, _did, by=_s_aid or "朝廷",
+                        digest=decree_digest(canonical_decree(decree)),
+                        title=decree.get("title"), confirm_status=STATUS_UNDEFINED,
+                        outcome=OUTCOME_FAILED, detail=_s_detail)
+                log.append(f"[密旨] 「{decree.get('title', '（无题）')}」{_s_detail}。")
+                if decree.get("task_id"):
+                    from core.longterm_task import apply_decree_to_task
+                    apply_decree_to_task(state, decree, False, log, rate=0.0)
+                state.pending_secret_decrees.remove(decree)
+                continue
 
         rate = state.calc_decree_execution_rate(
             decree.get("faction_stances", {}),
@@ -428,6 +513,23 @@ def _settle_decrees(state, log):
             _undefined_suspended += 1
             log.append(f"[密旨] 「{decree.get('title', '密令')}」**挂起**："
                        f"效果系数未定义（{_why_s}），本月不执行。")
+            continue
+        _s_required = _authority_gate_required(decree)
+        if _s_required and not _s_is_minister:
+            failed += 1
+            _s_deny = (f"该密旨需要「{_s_required}」事权校验，但未指定可承办的在册大臣"
+                       f"（addressees={_s_addrs or '无'}）")
+            log.append(f"[密旨] 「{decree.get('title', '密令')}」被拒：{_s_deny}。")
+            if _did:
+                record_execution(
+                    state, _did, by="朝廷",
+                    digest=decree_digest(canonical_decree(decree)),
+                    title=decree.get("title"), confirm_status=STATUS_UNAUTHORIZED,
+                    outcome=OUTCOME_FAILED, detail=_s_deny)
+            if decree.get("task_id"):
+                from core.longterm_task import apply_decree_to_task
+                apply_decree_to_task(state, decree, False, log, rate=0.0)
+            state.pending_secret_decrees.remove(decree)
             continue
         _strack = str(decree.get("track") or "outer_court")
         if _strack == "inner_court":
@@ -452,7 +554,7 @@ def _settle_decrees(state, log):
                     by=_s_aid if _s_is_minister else "朝廷",
                     digest=_s_gate_digest or decree_digest(canonical_decree(decree)),
                     title=decree.get("title"),
-                    confirm_status=STATUS_CONFIRMED,
+                    confirm_status=_s_gate_status,
                     outcome=OUTCOME_EXECUTED,
                     recitation_turn=_s_recitation_turn if _s_recitation_turn is not None else state.turn,
                 )
@@ -490,7 +592,7 @@ def _settle_decrees(state, log):
                     by=_s_aid if _s_is_minister else "朝廷",
                     digest=_s_gate_digest or decree_digest(canonical_decree(decree)),
                     title=decree.get("title"),
-                    confirm_status=STATUS_CONFIRMED,
+                    confirm_status=_s_gate_status,
                     outcome=OUTCOME_FAILED,
                     recitation_turn=_s_recitation_turn if _s_recitation_turn is not None else state.turn,
                 )

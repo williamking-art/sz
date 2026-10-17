@@ -19,9 +19,9 @@ export function wan(n: number | null | undefined, unit = ""): string {
   return `${neg}${group(a)}${unit}`;
 }
 
-/** 货币：后台单位=贯，展示 ≥1万 换算为万贯。 */
+/** 货币：后台单位=贯，展示 ≥1万 换算为万贯；缺失 → "—"（不回落 0）。 */
 export function humanizeCoin(guan: number | null | undefined): string {
-  return wan(guan ?? 0, "贯");
+  return wan(guan, "贯");
 }
 
 /** 季节名：12/1/2 冬，3/4/5 春，6/7/8 夏，其余秋。 */

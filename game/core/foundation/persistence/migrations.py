@@ -180,3 +180,27 @@ def sink_changping_to_seats(state) -> int:
     """
     from core.foundation.ledger import storage_bridge
     return storage_bridge.sink_storage_to_seats(state, key=storage_bridge.CHANGPING_KEY)
+
+
+def sink_prefectural_storage_to_seats(state) -> int:
+    """把**州仓/上供仓**（`storage`）下沉到州府级 seats（主线 B 批次 4 · M40b）。
+
+    与 `sink_changping_to_seats` 同型：**无条件幂等入口**，新局与读档共用。
+    路级存量全部落**首府**治所（无逐治所来源 ⇒ **不编造差异**）；路级降为 **Σ 派生镜像**。
+
+    ⚠️ 必须在 `sink_pops_to_seats` **之后**调用——首府判定依赖治所存在。
+    返回实际下沉的路数。
+    """
+    from core.foundation.ledger import storage_bridge
+    return storage_bridge.sink_state_storage_to_seats(state)
+
+
+def sink_spatial_warehouses_to_seats(state) -> dict:
+    """把治所物理四仓位（warehouses）下沉到全域 seats（空间确权底座 · Bundle 1）。
+
+    与 `sink_prefectural_storage_to_seats` 同型：**无条件幂等入口**，新局与读档共用。
+    四大物理仓位：public_granary, public_depot, civilian_depots, private_storage。
+    """
+    from core.foundation.ledger import spatial_warehouse_bridge
+    return spatial_warehouse_bridge.sink_spatial_warehouses_to_seats(state)
+

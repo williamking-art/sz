@@ -8,7 +8,8 @@ import constants from "../data/constants.json";
 // 州县治理 —— 三视图（列表 / 单路详情 / 田亩户籍总览）。
 // 派生读数来自 /api/readouts::regions（core/region_brief.py 为单一权威源）：
 // 到账后月税、驻军月饷、粮储安全垫、风险分与原因 —— 前端只展示，不复制算法。
-// 后端读数不可用时回落 state.prefectures（保证面板不空、不假造派生值）。
+// 🔴 后端读数不可用时显示失败态 + 重试，**不得**用 50/30/40/0 等默认值伪造派生读数
+//    （缺失≠0≠1.0；根 AGENTS.md §3-3）。
 type Dict = Record<string, unknown>;
 
 const PREFECTURE_LIST = constants.prefecture_list as string[];
@@ -19,6 +20,11 @@ function asDict(v: unknown): Dict {
 function pnum(p: Dict, key: string, def = 0): number {
   const v = p[key];
   return typeof v === "number" && Number.isFinite(v) ? v : def;
+}
+/** 缺失/非有限数一律 null（展示层据此显示「未定义」，不得回落 0/1.0）。 */
+function pnumOrNull(p: Dict, key: string): number | null {
+  const v = p[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 /** 真实进度条（替代旧 ASCII 条 █▓▒░）：tone 表语义，红色=需要处置。 */
@@ -40,49 +46,14 @@ const RISK_BADGE: Record<string, string> = {
 const toneOf = (v: number, goodHigh = true): "good" | "warn" | "bad" =>
   goodHigh ? (v >= 60 ? "good" : v >= 40 ? "warn" : "bad") : (v <= 30 ? "good" : v <= 55 ? "warn" : "bad");
 
-/** 后端不可用时的最小回落行（不做任何派生，缺的字段留空） */
-function fallbackRows(prefectures: Dict): RegionRoute[] {
-  return PREFECTURE_LIST.map((name) => {
-    const p = asDict(prefectures[name]);
-    const support = pnum(p, "public_support", pnum(p, "mood", 50));
-    const unrest = pnum(p, "unrest", 0);
-    return {
-      name,
-      display_name: String(p.name ?? name),
-      controlled_by: String(p.controlled_by ?? "宋"),
-      households: pnum(p, "households"),
-      population: pnum(p, "population"),
-      land: pnum(p, "land"),
-      hidden_land: pnum(p, "hidden_land"),
-      mood: pnum(p, "mood"),
-      govern: pnum(p, "govern"),
-      public_support: support,
-      gentry_resistance: pnum(p, "gentry_resistance", 30),
-      city_defense: pnum(p, "city_defense", 40),
-      unrest,
-      fiscal: pnum(p, "fiscal", 50),
-      literacy: typeof p.literacy === "number" ? (p.literacy as number) : null,
-      grain_year: pnum(p, "grain"),
-      grain_stock: pnum(p, "storage") + pnum(p, "changping_stock"),
-      grain_months: null,
-      tax_month: 0,
-      tax_share: 0,
-      army_cash_month: 0,
-      army_grain_month: 0,
-      risk_score: -1,
-      risk_label: "警",
-      risk_hints: ["读数未就绪（后端 /api/readouts 不可用）"]
-    };
-  });
-}
-
 export default function PrefecturePanel({ props }: { props?: { picked?: string } }) {
   const state = useGameStore((s) => s.state);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
   const [brief, setBrief] = useState<RegionBriefResult | null>(null);
   const [sits, setSits] = useState<SituationItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
   const [view, setView] = useState<"list" | "detail" | "land">("list");
   const [sortKey, setSortKey] = useState<"risk" | "support" | "unrest" | "tax">("risk");
   const [selected, setSelected] = useState<string | null>(props?.picked ?? null);
@@ -96,19 +67,31 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
         if (!alive) return;
         if (res.regions && Array.isArray(res.regions.routes) && res.regions.routes.length) {
           setBrief(res.regions);
+          setErr(null);
         } else {
-          setErr("州路读数为空，已回落本地快照");
+          setBrief(null);
+          setErr("州路读数为空（后端未下发 regions.routes）");
         }
         // 本路局势（core/situations.py 派生）：州路与局势**双向联动**（§12 第 10 项）
         setSits(res.situations?.items ?? []);
       } catch (e) {
-        if (alive) setErr(e instanceof Error ? e.message : String(e));
+        if (alive) {
+          setBrief(null);
+          setErr(e instanceof Error ? e.message : String(e));
+        }
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [reloadTick]);
+
+  function retryReadouts() {
+    setErr(null);
+    setBrief(null);
+    setLoading(true);
+    setReloadTick((t) => t + 1);
+  }
 
   // 与 `props.picked` 同步（从局势面板「跳州路」打开时定位到该路详情）
   useEffect(() => {
@@ -119,10 +102,8 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
   }, [props?.picked]);
 
   const prefectures = asDict(pick(state, "prefectures", {}));
-  const rows: RegionRoute[] = useMemo(
-    () => brief?.routes ?? fallbackRows(prefectures),
-    [brief, prefectures]
-  );
+  // 没有派生读数就**不给行**；由失败态显示原因/重试，绝不用本地快照伪造 50/30/40/0。
+  const rows: RegionRoute[] = useMemo(() => brief?.routes ?? [], [brief]);
   const sorted = useMemo(() => {
     const key = sortKey;
     return [...rows].sort((a, b) => {
@@ -137,6 +118,7 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
   if (view === "land") {
     const land = asDict(pick(state, "land", {}));
     const population = pick<number>(state, "population", 0);
+    const yieldFactor = pnumOrNull(land, "yield");
     let wealth = 0;
     let grain = 0;
     for (const name of PREFECTURE_LIST) {
@@ -158,7 +140,7 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
           <div className="space-y-1 text-[13px] leading-relaxed text-ink">
             <p>全国垦田：{wan(pnum(land, "cultivated"), "亩")}（隐漏率 {Math.round(pnum(land, "hidden_rate") * 100)}%）</p>
             <p>在籍户数：{wan(pnum(land, "households"), "户")}　约 {wan(population, "口")}</p>
-            <p>荒闲田土：{wan(pnum(land, "wasteland"), "亩")}　亩产系数：{pnum(land, "yield", 1).toFixed(2)}</p>
+            <p>荒闲田土：{wan(pnum(land, "wasteland"), "亩")}　亩产系数：{yieldFactor === null ? "未定义" : yieldFactor.toFixed(2)}</p>
             <p>民间 POP 汇总：持钱 {wan(wealth, "贯")}　存粮 {wan(grain, "石")}</p>
           </div>
         </div>
@@ -182,6 +164,43 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
     );
   }
 
+  // ---- 读数未就绪：明确失败态 + 重试（不伪造派生值） ----
+  if (!brief) {
+    if (loading) {
+      return (
+        <p className="flex items-center justify-center gap-2 py-10 text-sm text-dim">
+          <Loader2 size={16} className="animate-spin" /> 州路读数读取中…
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-3 rounded-lg border border-red/40 bg-paper/60 p-4">
+        <p className="font-kai text-[15px] font-bold text-red">州路读数不可用</p>
+        <p className="text-sm text-ink">
+          原因：{err ?? "后端未返回 /api/readouts::regions（未知原因）"}
+        </p>
+        <p className="text-xs leading-relaxed text-dim">
+          缺失≠0：本面板不以本地快照伪造民心/城防/税入等派生数值。请修复后端读数后重试，
+          或查看不含派生读数的本地田亩户籍总览。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={retryReadouts}
+            className="rounded border border-red/50 bg-red/10 px-4 py-1.5 font-kai text-sm text-red-dark transition hover:bg-red/20"
+          >
+            重试
+          </button>
+          <button
+            onClick={() => setView("land")}
+            className="rounded border border-gold/60 bg-card px-4 py-1.5 font-kai text-sm text-ink transition hover:bg-gold-light"
+          >
+            田 亩 户 籍 总 览
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ---- 视图二：单路详情（含派生解释） ----
   if (view === "detail" && selected) {
     const r = rows.find((x) => x.name === selected);
@@ -194,8 +213,8 @@ export default function PrefecturePanel({ props }: { props?: { picked?: string }
           ["人口", wan(r.population, "口")],
           ["垦田",
             `${wan(r.land, "亩")}（隐田 ${r.surveyed
-              ? wan(r.hidden_land ?? 0, "亩")
-              : `约 ${wan(r.hidden_land_est ?? 0, "亩")}${r.hidden_land_band ? `·${r.hidden_land_band}` : ""}`}）`]
+              ? wan(r.hidden_land, "亩")
+              : `约 ${wan(r.hidden_land_est, "亩")}${r.hidden_land_band ? `·${r.hidden_land_band}` : ""}`}）`]
         ]
       },
       {

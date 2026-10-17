@@ -1,0 +1,52 @@
+{
+  "id": "JEV-tiandao-fix-2026-10-17",
+  "kind": "JEV-台账",
+  "topic": "天道批次 P0 修复的三个口径裁定",
+  "created_at": "2026-10-17T09:40:00Z",
+  "agent": "DSH",
+  "entries": [
+    {
+      "id": "JEV-TD-1",
+      "question": "是否应接受 provider 字段值由 embedded_local 重命名为 tiandao_local（并同步更新既有用例），而不是保留旧值？",
+      "options": ["接受重命名并同步用例", "保留 embedded_local"],
+      "verdict": "接受重命名为 tiandao_local",
+      "probabilities": {"provider": "tokenrhythm/NeoHorse-Jev-4B", "p": 0.9939, "threshold": 0.4, "holds": true},
+      "premises_verified_by_me": [
+        "既有官方用例 test_embedded_decision_facade.py:12,25 断言 embedded_local（修复前红）",
+        "全库 grep 无任何生产代码读取 provider 字段，仅测试读取",
+        "模块本体已重命名为天道引擎，公开文档将改称 tiandao_local"
+      ],
+      "applied_in": ["game/core/ai/tiandao_engine.py", "_dev_tools/game-dev/tests/test_embedded_decision_facade.py"],
+      "reopen_if": "若前端/存档开始消费 provider 字段且需向后兼容旧值"
+    },
+    {
+      "id": "JEV-TD-2",
+      "question": "是否应保持 core/decree_effect.py 为唯一口径单点、把地方遵从反应并入吏治通道，而不是新增独立的地方态度系数？",
+      "options": ["并入吏治通道（不新增乘数）", "新增独立地方态度乘数"],
+      "verdict": "并入吏治通道",
+      "probabilities": {"provider": "tokenrhythm/NeoHorse-Jev-4B", "p": 0.9451, "threshold": 0.4, "holds": true},
+      "premises_verified_by_me": [
+        "decree_effect.py 模块头逐字记录用户 2026-09-19 定稿：吏治为唯一强关联，会签执行率本身是吏治的表达",
+        "ARMY_ENFORCE_BONUS=0.30 语义是补缺口而非乘 1.3",
+        "设计稿 4.6 新增地方态度系数并漏掉民心/识字率弱通道，与定稿冲突"
+      ],
+      "applied_in": ["game/core/decree_effect.py"],
+      "reopen_if": "若要改「吏治唯一强关联」这个定稿口径本身"
+    },
+    {
+      "id": "JEV-TD-3",
+      "question": "是否应先修掉现有天道模块的 4 处缺陷（缺失值回落、hash 不确定性、恒定档位等），再执行改名与四大裁决形态扩展？",
+      "options": ["先修后改", "先改名扩展后修"],
+      "verdict": "先修后改",
+      "probabilities": {"provider": "tokenrhythm/NeoHorse-Jev-4B", "p": 0.8389, "threshold": 0.4, "holds": true},
+      "premises_verified_by_me": [
+        "门面 8 方法中 7 个生产零调用",
+        "labor_service_policy 因 budget/treasury 键名不符恒判差役（实测 200~50万贯全 corvee）",
+        "hash(str) 跨进程不确定（三次进程 京畿路%3 = 0/0/1）"
+      ],
+      "applied_in": ["game/core/ai/tiandao_engine.py", "game/core/ai/tiandao_facade.py", "game/core/domains/economy/procurement.py"],
+      "reopen_if": "若用户要求直接按设计稿全新重写而不修存量"
+    }
+  ],
+  "note": "概率不脱敏只入档；玩家可见文案不出现原始概率。裁定与实测冲突时以实测为准。"
+}

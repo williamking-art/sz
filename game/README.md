@@ -31,6 +31,11 @@
 3. `ai/` 的契约和校验约束模型输出；`engine/state_applier.py` 是结构化 AI 变更进入游戏状态的受控应用路径。确定性规则仍由核心程序结算。
 4. 圣旨行动、长期事务和营造相关实现分布在 `decree_plan.py`、`longterm_task.py`、`blueprint_dynamic.py`、`construction.py`、`plan_commit.py`、`settlement_tech.py` 等模块。具体接线和遗留事项以 [`decree-action-chain/tasks.md`](../_dev_tools/game-docs/specs/cross-cutting/decree-action-chain/tasks.md) 及代码调用链为准。
 5. 民间交易、需求、价格、人口与营造等实现正在分模块演进。存在代码文件或只读读数，不等于它已经进入月结算生产链；按 [`market-civilian-economy/tasks.md`](../_dev_tools/game-docs/specs/economy/market-civilian-economy/tasks.md) 的逐项状态核实，不把计划态写成已生效。
+6. 底层经济闭环与全息真账机制已全面接驳主链：
+   - 治所物理四仓位确权与四大物权流转原子操作（`game/core/foundation/ledger/spatial_warehouse_bridge.py`），挂载于开局初始化、读档与全域仓储结算；
+   - 政府采购订单引擎（`game/core/domains/economy/procurement.py`），切除硬编码比例，实现实物料场入库与差役/雇役动态工役博弈（`settlement_finance.py`）；
+   - 三维交通沈括途耗模型与客运时空流动（Step 4.46b），在途批次按沈括《梦溪笔谈》民夫日食六升口粮递减，运抵物理入库；
+   - 双层智能协同架构：宏观叙事与复杂行动由大模型承担，微观高频即时决策收敛至内嵌 0 Token 决策引擎与领域门面（`game/core/ai/embedded_jev.py`、`decision_facade.py`）。
 
 ## 开发入口
 
@@ -46,7 +51,7 @@ Python 回归用例在仓库根 `_dev_tools/game-dev/tests/`，运行入口和�
 
 ## 机制与状态来源
 
-- 已确认的当前机制口径：[`_dev_tools/game-docs/docs/`](../_dev_tools/game-docs/docs/README.md)。
+- 已确认的当前机制口径：[`_dev_tools/game-docs/docs/`](../_dev_tools/game-docs/docs/README.md)（含 [`底层经济闭环与全息真账机制规范_2026-10-17.md`](../_dev_tools/game-docs/docs/底层经济闭环与全息真账机制规范_2026-10-17.md)、财政供需、POP 等规范）。
 - 目标设计及实施状态：[`_dev_tools/game-docs/specs/`](../_dev_tools/game-docs/specs/README.md) 和各规格 `tasks.md`。
 - 代码调用路径决定能力是否实际生效。标记为“只读”“预留”“未接线”或“计划中”的实现不得描述为已改变游戏行为。
 

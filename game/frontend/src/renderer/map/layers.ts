@@ -51,6 +51,18 @@ export const LAYER_IDS = {
   selected: "selected"
 } as const;
 
+/** 民怨池是否有**可判定**的数据：必须是对象且至少一个有限数值。
+ *  - 空对象/缺失/全为非数值 ⇒ false（调用方据此显示「无数据」，不得伪造警戒色）。
+ *  - 有 0 值也算有数据（真实治平），与「缺失」区分。 */
+export function hasUnrestData(state?: unknown): boolean {
+  const stats = (state as Record<string, unknown> | undefined)?.statistics as Record<string, unknown> | undefined;
+  const pool = stats?.organic_unrest_pool;
+  if (!pool || typeof pool !== "object" || Array.isArray(pool)) return false;
+  return Object.values(pool as Record<string, unknown>).some(
+    (v) => typeof v === "number" && Number.isFinite(v),
+  );
+}
+
 /**
  * 派生二十一路动态着色表达式（支持舆图四态：政区态、物候态、民怨态、边备态）。
  */
@@ -72,26 +84,26 @@ export function getCircuitFillExpression(mode: string, state?: unknown): any {
   }
 
   if (mode === "unrest") {
-    // 海内生计态：根据 state.statistics.organic_unrest_pool 动态标色
+    // 海内生计态：根据 state.statistics.organic_unrest_pool 动态标色。
+    // 🔴 缺失≠0≠危机：池为空/缺失时**不得**伪造任何路的警戒色，
+    //   统一返回 calm 平色，并由调用方（MapView）显示「民怨读数未定义」。
     const stats = (state as Record<string, unknown> | undefined)?.statistics as Record<string, unknown> | undefined;
-    const unrestPool = (stats?.organic_unrest_pool as Record<string, number> | undefined) || {};
+    const unrestPool = (stats?.organic_unrest_pool as Record<string, unknown> | undefined) || {};
     const alertHigh = "#b83a2c"; // 严重民怨/起义濒发（朱砂赤红）
     const alertMid = "#dca156";  // 中度民怨（焦黄警戒）
     const calm = "#e9e5d4";      // 治平海清（清白温润）
+
+    if (!hasUnrestData(state)) return calm;
 
     const matches: any[] = ["match", ["get", "name"]];
     const highCircuits: string[] = [];
     const midCircuits: string[] = [];
 
-    if (Object.keys(unrestPool).length === 0) {
-      highCircuits.push("两浙路");
-      midCircuits.push("京东东路", "京东西路", "河北西路");
-    } else {
-      for (const [circuit, val] of Object.entries(unrestPool)) {
-        const u = Number(val) || 0;
-        if (u >= 70) highCircuits.push(circuit);
-        else if (u >= 30) midCircuits.push(circuit);
-      }
+    for (const [circuit, val] of Object.entries(unrestPool)) {
+      // 非数值/非有限值不是 0，直接跳过；否则会把"读不到"画成"治平"。
+      if (typeof val !== "number" || !Number.isFinite(val)) continue;
+      if (val >= 70) highCircuits.push(circuit);
+      else if (val >= 30) midCircuits.push(circuit);
     }
 
     if (highCircuits.length > 0) {

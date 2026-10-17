@@ -251,9 +251,12 @@ def _extort(state, p: Dict[str, Any], log: List[str]) -> Dict[str, float]:
         _muster = _inst.get(state, "muster_share")
         pen = min(1.5, given / max(1.0, float(p.get("population", 0) or 0)) / EXACTION_MOOD_DIVISOR)
         pen += max(0.0, (0.4 - _muster)) * MUSTER_MOOD_W
-        p["mood"] = max(0.0, min(100.0, float(p.get("mood", 55) or 55) - pen + enforcement.mood_delta))
+        # 2026-10-17 全审：_extort 是「陋规转移」本身，只应扣民心；
+        # 宽/严执法的政策冲击（enforcement.mood_delta）由调用方按月单独落，
+        # 否则宽恩 +0.8 会盖过小额陋规的 -0.2，出现「抽了陋规民心反升」。
+        p["mood"] = max(0.0, min(100.0, float(p.get("mood", 55) or 55) - pen))
     return {"desired": desired, "taken": float(given), "coverage": coverage,
-            "gap_ratio": gap_ratio}
+            "gap_ratio": gap_ratio, "mood_delta": float(enforcement.mood_delta or 0.0)}
 
 
 def _next_grievance(d: Dict[str, Any], gap_ratio: float, coverage: float) -> float:
@@ -440,6 +443,10 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
         r = _extort(state, p, log)
         nat_extort += r["taken"]
         d["grip"] = _next_grip(d, r["coverage"], _muster)
+        # 执法宽严的政策冲击单独落（与陋规转移解耦，见 _extort 注释）
+        _md = float(r.get("mood_delta") or 0.0)
+        if _md:
+            p["mood"] = max(0.0, min(100.0, float(p.get("mood", 55) or 55) + _md))
 
     t = totals(state)
     # 吏额在本步发生了变化 → 必须刷新**派生镜像**（`p["clerks"]` 的唯一写入点仍是

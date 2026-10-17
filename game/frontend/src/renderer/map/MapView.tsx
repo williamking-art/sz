@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { feature } from "topojson-client";
 import { MapController, MAP_BASE_URL, type MapView as MapViewData } from "./mapController";
-import { PREFECTURE_BORDERS_ENABLED, PREFECTURE_BORDERS_MIN_ZOOM } from "./layers";
+import { PREFECTURE_BORDERS_ENABLED, PREFECTURE_BORDERS_MIN_ZOOM, hasUnrestData } from "./layers";
 import { MarkerManager } from "./markers";
 import { deriveMapState } from "./state";
 import { useGameStore } from "../store/gameStore";
@@ -46,6 +46,8 @@ export default function MapView() {
   const state = useGameStore((s) => s.state);
   const setSelected = useGameStore((s) => s.setSelected);
   const pushOverlay = useGameStore((s) => s.pushOverlay);
+  // 民怨读数缺失时，舆图保持平色，并在界面明示「无数据」——不得用硬编码警戒色冒充。
+  const unrestDataMissing = currentMode === "unrest" && !hasUnrestData(state);
 
   const handleModeChange = (mode: MapMode) => {
     setCurrentMode(mode);
@@ -503,6 +505,11 @@ export default function MapView() {
     <>
       <div ref={containerRef} className="absolute inset-0" />
       <MapModesControl currentMode={currentMode} onSelectMode={handleModeChange} />
+      {unrestDataMissing && (
+        <div className="pointer-events-none absolute left-1/2 top-[5.4rem] z-20 -translate-x-1/2 rounded-sm border border-gold/60 bg-card/90 px-3 py-1.5 text-[12px] text-ink-light shadow-paper">
+          民怨读数未定义（后端未下发 organic_unrest_pool）——舆图暂以平色显示
+        </div>
+      )}
       {/* P2-3（M10）：可观测失败态——原先加载失败只有控制台一行，界面与"空地图"无法区分 */}
       {geoError && (
         <div className="pointer-events-auto absolute left-1/2 top-1/2 z-30 w-[min(420px,86vw)] -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-red bg-card/95 px-5 py-4 text-center shadow-paper">

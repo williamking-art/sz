@@ -36,10 +36,11 @@
   }
  },
  "scope": [
-  "M40a：常平仓 changping_stock 治所级下沉（桥 + 幂等迁移 + 写点单点桥接 + 接线 + A/B）",
-  "M40b：州仓 storage 治所级下沉（桥 + 幂等迁移 + 2 写点桥接 + situations 条件路径核对 + A/B）",
+  "M40a（✅ 2026-10-13）：常平仓 changping_stock 治所级下沉（桥 + 幂等迁移 + 写点单点桥接 + 接线 + A/B 0 失配）",
+  "M40b（✅ 2026-10-17）：州仓 storage 治所级下沉（桥 storage_bridge + 幂等迁移 + 2 写点全桥 + situations 验证 + test_storage_sink 12 例全过 + A/B 0 失配）",
   "M40c：商品/物料存量（state.resources 全国口径）州府化 —— 属同批后续片，需单独取证"
  ],
+
  "explicitly_not": [
   "不动中央太仓 state.granary（中央库存，非州府仓）",
   "不臆造逐治所仓储初始值（无来源 ⇒ 首府承载，不编造差异）",

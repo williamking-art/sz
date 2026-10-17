@@ -2,6 +2,7 @@
   "id": "M316-eight-pillar-industry-chains",
   "title": "八大支柱多级产业链网络与工坊配方谱系完整闭环",
   "status": "done",
+  "audit_status": "【2026-10-17 审计修复 B-4】原实现「只写报表」已纠正：industry_chains.settle_industry_chains 现于治所物理四仓真实 stock-to-stock（先扣原料 copper_ore/silk_raw/iron_ore/timber/...，再按各路原料权重把成品入官工料场或民间货栈，逐笔记入 stock_settlement.ledger；铜=先扣 copper_ore 再加 铜锭，不再额外写非法 resources['铜']）。无治所物理仓时显式 mode=report_only 并列出 report_only_outputs，不伪造入仓。遗留（不在本卡范围）：工坊消费仍读 state.resources，产业链仓存与作坊投料尚未打通；采矿双提取由 audit-core 处理。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-17",
   "completedAt": "2026-10-17T07:15:00Z",

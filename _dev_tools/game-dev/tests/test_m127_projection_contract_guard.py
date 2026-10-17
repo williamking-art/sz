@@ -48,7 +48,9 @@ def test_real_game_projections_match_contract():
                 _check_projection(rep["fields"], rep["undefined_fields"], rep["defined_count"],
                                   f"{route}/{seat}/{b}")
                 buildings += 1
-    assert buildings == 40
+    # 2026-10-17 全审：M315/M316/M317 新增建筑后为 60（40 是旧快照）；
+    # 本用例的契约是「每座建筑投影字段自洽」，数量只作覆盖哨兵。
+    assert buildings == 60, f"建筑覆盖数漂移：{buildings}"
     workshops = 0
     for wid in s.workshops:
         rep = ep.project_workshop(s, wid)

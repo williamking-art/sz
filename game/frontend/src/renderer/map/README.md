@@ -11,6 +11,7 @@
 | `markers.ts` | 263 | 标签记录：HTML Marker + 显隐档位 + 数据侧可见性 |
 | `layers.ts` | 192 | 图层定义：政区/边界/城市/河流/湖泊/势力 |
 | `state.ts` | 75 | 从游戏快照推导舆图状态（对齐 `map_app.js` 的 `applyStateInner`） |
+| `MapModesControl.tsx` | ~120 | 舆图模式切换控件（政区/水系/地貌/商贸等图层模式切换） |
 | `avoid.ts` | 73 | 标签避让：屏幕空间碰撞剔除（`d3-delaunay` 加速近邻查询） |
 
 ## 纪律

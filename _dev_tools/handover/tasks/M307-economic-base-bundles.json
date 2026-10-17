@@ -1,0 +1,30 @@
+{
+  "id": "M307-economic-base-bundles",
+  "title": "底层经济闭环四大合并工程包落地（Bundle 1~4）：空间确权、内嵌微观决策、政府采购闭环、三维交通与沈括途耗",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "authority": "economic_base_closed_loop_proposal.md 与 economic_base_implementation_design.md；贯彻『经济基础决定上层建筑』战略原则与双层智能解耦",
+  "goal": "落实系统全息真账与客观物理守恒；破除政府采购4:6死比例与差役/雇役动态挂钩；治所物理四仓位确权与沈括民夫口粮在途递减；内嵌本地决策引擎0 Token离线开箱即玩。",
+  "recon": {
+    "Bundle_1_空间确权底座": "spatial_warehouse_bridge.py 实现治所物理四仓位（官粮廪、官料场、民间塌房、私家地窖）下沉与四大物权流转，已接 new_game/load_game",
+    "Bundle_2_内嵌决策门面": "embedded_jev.py 纯本地算法与 decision_facade.py 六大领域静态门面，<0.2ms，0 Token",
+    "Bundle_3_政府采购闭环": "procurement.py 采购订单引擎废除 4:6 死比例，Jev 裁定 B 方案（P=0.7856），差役增民怨/雇役付工钱，实物入料场，接入 settlement_finance.py",
+    "Bundle_4_三维交通客运": "沈括民夫口粮途耗模型（Jev 裁定 A 方案 P=0.8269）自然递减守恒，水陆海效能比，客运四类时空旅程，接入 settlement.py Step 4.46b"
+  },
+  "scope": [
+    "Bundle 1（✅ 2026-10-17）：test_spatial_warehouses.py 4 项单测全绿",
+    "Bundle 2（✅ 2026-10-17）：test_embedded_decision_facade.py 3 项单测全绿",
+    "Bundle 3（✅ 2026-10-17）：test_procurement_order_settlement.py 2 项单测全绿",
+    "Bundle 4（✅ 2026-10-17）：test_shenkuo_logistics_and_passengers.py 3 项单测全绿",
+    "全域回归（✅ 2026-10-17）：test_readme_sync.py 48 项全绿，综合回归 63 项全绿"
+  ],
+  "explicitly_not": [
+    "不得臆造无依据数据，缺失值严格保持 None，缺失≠0",
+    "不得高频微观循环调用外部大模型 API（严守 0 Token 内嵌）",
+    "不得破坏全域货币与实物大一统守恒恒等式"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T04:45:00Z",
+  "completedAt": "2026-10-17T05:05:00Z"
+}

@@ -112,16 +112,20 @@ def _settle_granary(state, log):
     corrupt_avg = _avg_corruption(state)
     loss_rate = CANAL_LOSS_BASE + corrupt_avg * CANAL_LOSS_CORRUPT_WEIGHT
     canal = 0
-    for p in state.prefectures.values():
+    for rname, p in state.prefectures.items():
         movable = int(p.get("storage", 0) * canal_eff)
         room = max(0, state.granary_cap - state.granary)
         take = min(movable, room)
         if take > 0:
             loss = int(take * loss_rate)
-            p["storage"] -= take
+            # 🟢 M40b：州仓写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
+            from core.foundation.ledger import storage_bridge as _sb
+            if _sb.storage_add(state, rname, -take) is None:
+                p["storage"] -= take
             state.change_granary(take - loss)
             state.granary_stats["canal_loss"] += loss
             canal += (take - loss)
+
     if canal > 0:
         state.granary_stats["canal_in"] += canal
         log.append(f"[漕运] 诸路上供输粟 {canal}石（途中耗 {state.granary_stats['canal_loss']}石），太仓现 {state.granary}石")

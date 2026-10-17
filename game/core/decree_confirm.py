@@ -105,12 +105,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from typing import Any, Dict, List, Optional
 
 from content.ministers.data import MINISTERS
 from core.domains.administration.minister_agent import can_act, recall, remember
+
+log = logging.getLogger("decree_confirm")
 
 __all__ = [
     "DECREE_CONFIRM_SCHEMA_VERSION", "LEDGER_STAT_KEY",
@@ -660,33 +663,56 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
                            % ("、".join(addr), aid))
         return out
 
-    # 法统门禁守卫：若旨意指定调整制度参数或机构事权，调用 check_authority 深度核验
+    # 法统门禁守卫：若旨意指定调整制度参数或机构事权，调用 check_authority 深度核验。
+    # fail-closed（C-3）：读表/校验异常不得跳过，更不得继续 authorized=True。
     effects = d.get("effects") or {}
     if isinstance(effects, dict):
         try:
             from core.domains.administration.institution import check_authority
-            for p_key in effects.keys():
-                auth_ok, auth_err = check_authority(state, p_key, aid)
-                if not auth_ok:
-                    out.update(status=STATUS_UNAUTHORIZED, reason="authority_violation",
-                               authorized=False, withheld=True,
-                               message=f"法统门禁阻断：{auth_err}")
-                    return out
+            for p_key, p_val in effects.items():
+                # 顶层 effects 可能是 institution 容器；真正的编制参数在内层键上，
+                # 必须逐项核验，否则 {"institution": {...}} 只拿容器名去 check_authority 会放行。
+                _auth_keys = ([str(k) for k in p_val.keys()]
+                              if p_key == "institution" and isinstance(p_val, dict)
+                              else [str(p_key)])
+                for _auth_key in _auth_keys:
+                    auth_ok, auth_err = check_authority(state, _auth_key, aid)
+                    if not auth_ok:
+                        out.update(status=STATUS_UNAUTHORIZED, reason="authority_violation",
+                                   authorized=False, withheld=True,
+                                   message=f"法统门禁阻断：{auth_err}")
+                        return out
         except Exception as e:  # noqa: BLE001
-            log.debug("decree_confirm 事权深度校验跳过：%s", e)
+            log.warning("decree_confirm 事权深度校验异常（fail-closed）：%s", e, exc_info=True)
+            out.update(status=STATUS_UNDEFINED, reason="authority_check_error",
+                       defined=False, authorized=False, withheld=True,
+                       undefined_basis=list(out.get("undefined_basis") or []) + ["authority"],
+                       message="法统门禁无法核验（读数/权限表异常）：不予确认，fail-closed。")
+            return out
 
-    # 2026-10-17 枢密院调兵事权门禁：民政诏令若调兵强制施行，须由掌「调兵」事权主体签发
+    # 2026-10-17 枢密院调兵事权门禁：民政诏令若调兵强制施行，须由掌「调兵」事权主体签发。
+    # 异常同样 fail-closed（C-3）。
     if d.get("enforce_troops") and not (d.get("is_zhongzhi") or d.get("override_by_sovereign")):
         try:
             from core.domains.administration.institution import resolve_executor
-            matters, label, _ = resolve_executor(state, aid)
-            if "调兵" not in matters:
-                out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
-                           authorized=False, withheld=True,
-                           message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，执行主体「{label}」无调兵权。")
-                return out
+            matters, label, executor_err = resolve_executor(state, aid)
         except Exception as e:  # noqa: BLE001
-            log.debug("decree_confirm 调兵事权深度校验跳过：%s", e)
+            log.warning("decree_confirm 调兵事权深度校验异常（fail-closed）：%s", e, exc_info=True)
+            out.update(status=STATUS_UNDEFINED, reason="authority_check_error",
+                       defined=False, authorized=False, withheld=True,
+                       undefined_basis=list(out.get("undefined_basis") or []) + ["authority"],
+                       message="法统门禁无法核验调兵事权（读数/权限表异常）：不予确认，fail-closed。")
+            return out
+        if executor_err:
+            out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
+                       authorized=False, withheld=True,
+                       message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，{executor_err}")
+            return out
+        if "调兵" not in matters:
+            out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
+                       authorized=False, withheld=True,
+                       message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，执行主体「{label}」无调兵权。")
+            return out
 
     out["authorized"] = True
 

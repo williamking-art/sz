@@ -151,4 +151,17 @@ def load_game(slot: int = 1):
         sink_changping_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 常平仓州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
+    # 批次 4 仓储片：**州仓**（storage）州府级下沉（M40b，旧档补齐；新档已幂等跳过）。
+    try:
+        from core.foundation.persistence.migrations import sink_prefectural_storage_to_seats
+        sink_prefectural_storage_to_seats(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 州仓州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
+    # 空间确权底座（Bundle 1）：**物理四仓位**（warehouses）州府级下沉（旧档补齐；新档已幂等跳过）。
+    try:
+        from core.foundation.persistence.migrations import sink_spatial_warehouses_to_seats
+        sink_spatial_warehouses_to_seats(state)
+    except Exception:  # noqa: BLE001 — 同上
+        _dlog.warning("[读档] 物理仓位州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
     return state
+

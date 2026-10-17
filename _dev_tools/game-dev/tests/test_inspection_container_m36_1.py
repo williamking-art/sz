@@ -287,8 +287,13 @@ def test_source_boundary_no_finance_layers_touched():
         assert f"from core.{forbidden}" not in src and f"import {forbidden}" not in src, \
             f"监察模块不得依赖 {forbidden}（零财政耦合 / 不成案）"
     assert "resolve_audit(" not in src, "到期不得自动成案（证据/审理属后续阶段）"
-    with open(os.path.join(_GAME_ROOT, "core", "settlement.py"), "r", encoding="utf-8") as f:
-        settle = f.read()
+    # 2026-10-17 全审：M309 后 inspection_tick 移到 settlement_pipeline 的
+    # _step_inspection_tick；source-boundary 必须同时检查调度器与步骤注册表。
+    _parts = []
+    for _fname in ("settlement.py", "settlement_pipeline.py"):
+        with open(os.path.join(_GAME_ROOT, "core", _fname), "r", encoding="utf-8") as f:
+            _parts.append(f.read())
+    settle = "\n".join(_parts)
     assert "enqueue_inspection" not in settle, "结算**不得**自动派遣（决策权归 AI）"
     assert "inspection_tick" in settle, "结算需推进在途任务（状态迁移）"
 

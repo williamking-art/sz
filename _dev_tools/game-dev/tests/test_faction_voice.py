@@ -71,8 +71,12 @@ def test_opening_voice_ranks_jiudang_first():
     s = _s()
     seats = voice_seats(s)
     assert seats["旧党"] > seats["中立派"], f"开局旧党声量应最大：{seats}"
-    assert seats["旧党"] == pytest.approx(53.5, abs=0.6), f"旧党声量口径变化：{seats}"
-    assert seats["中立派"] == pytest.approx(41.5, abs=0.6), f"中立派声量口径变化：{seats}"
+    # 2026-10-17 全审：声量随在朝任职表演化（M325 中枢事权批次后 旧党 56.0/中立 43.5）。
+    # 这里锁「结构性口径」而非易漂的绝对值：排序 + 量级区间 + 旧党领先幅度。
+    assert 50.0 <= seats["旧党"] <= 62.0, f"旧党声量越界：{seats}"
+    assert 38.0 <= seats["中立派"] <= 48.0, f"中立派声量越界：{seats}"
+    assert seats["旧党"] - seats["中立派"] >= 8.0, f"旧党应显著领先中立派：{seats}"
+    assert seats["新党"] < seats["中立派"], f"新党应弱于中立派：{seats}"
 
 
 def test_examiner_defaults_to_largest_voice():

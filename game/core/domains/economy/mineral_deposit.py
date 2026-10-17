@@ -25,12 +25,14 @@
 """
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List, Optional, Tuple
 
 __all__ = [
     "CIRCUIT_MINERAL_DEPOSITS",
     "init_circuit_minerals",
     "get_circuit_minerals",
+    "preview_circuit_minerals",
     "extract_circuit_minerals",
     "derive_national_mineral_status",
     "DIM_COPPER",
@@ -212,6 +214,70 @@ def get_circuit_minerals(state, circuit: str) -> Dict[str, Dict[str, float]]:
     return minerals.get(circuit, {})
 
 
+def _mineral_report_from_mines(c_mines: Dict[str, dict], rate_mult: float,
+                                clerk_grip: float) -> Dict[str, Dict[str, float]]:
+    """纯计算：由矿脉 dict 生成开采报表；**不写 state**。"""
+    report: Dict[str, Dict[str, float]] = {}
+    for dim, info in (c_mines or {}).items():
+        res = float(info.get("reserves", 0.0) or 0.0)
+        cap = float(info.get("cap", 0.0) or 0.0)
+        purity = float(info.get("purity", 0.8) or 0.8)
+        if res <= 0 or cap <= 0:
+            report[dim] = {
+                "physical_extracted": 0.0,
+                "gov_monopoly_share": 0.0,
+                "market_private_share": 0.0,
+                "tax_coin": 0.0,
+                "remaining_reserves": 0.0,
+                "_actual_extract": 0.0,
+            }
+            continue
+        target_extract = cap * rate_mult
+        actual_extract = min(res, target_extract)
+        net_usable = actual_extract * purity
+        if dim in (DIM_COPPER, DIM_SALT):
+            gov_share = net_usable * (0.80 - clerk_grip * 0.20)
+        else:
+            gov_share = net_usable * (0.50 - clerk_grip * 0.20)
+        private_share = net_usable - gov_share
+        tax_coin = private_share * 0.20 * (1.0 - clerk_grip * 0.30)
+        report[dim] = {
+            "physical_extracted": round(net_usable, 1),
+            "gov_monopoly_share": round(gov_share, 1),
+            "market_private_share": round(private_share, 1),
+            "tax_coin": round(tax_coin, 1),
+            "remaining_reserves": round(res - actual_extract, 1),
+            "_actual_extract": round(actual_extract, 1),
+        }
+    return report
+
+
+def _public_mineral_report(report: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+    """去掉内部 `_actual_extract` 后的公开报表（调用方只看到原有字段）。"""
+    return {d: {k: v for k, v in row.items() if not str(k).startswith("_")}
+            for d, row in (report or {}).items()}
+
+
+def preview_circuit_minerals(
+    state,
+    circuit: str,
+    rate_mult: float = 1.0,
+    clerk_grip: float = 0.45,
+) -> Dict[str, Dict[str, float]]:
+    """**纯派生**只读预览：不初始化、不扣减、不写 state。
+
+    `state.mineral_deposits` 已初始化 ⇒ 用当前储量；否则用静态初始配置。
+    这是 `derive_raw_production` / `derive_pop_livelihood` 的只读矿产出入口。
+    """
+    minerals = getattr(state, "mineral_deposits", None)
+    if isinstance(minerals, dict) and isinstance(minerals.get(circuit), dict):
+        c_mines = minerals.get(circuit) or {}
+    else:
+        c_mines = CIRCUIT_MINERAL_DEPOSITS.get(circuit, {})
+    return _public_mineral_report(
+        _mineral_report_from_mines(c_mines, rate_mult, clerk_grip))
+
+
 def extract_circuit_minerals(
     state,
     circuit: str,
@@ -220,72 +286,67 @@ def extract_circuit_minerals(
 ) -> Dict[str, Dict[str, float]]:
     """月度开采地脉矿藏（受控写操作，依储量物理扣减并派生双轨账目）。
 
+    🔴 B-8（2026-10-17）：
+    - 同一 `state.turn` 内按 `(turn, circuit)` **幂等**：重复调用返回同一份
+      快照，不再二次扣减；
+    - 从 `derive_raw_production`（industry_chains）调用时自动走
+      `preview_circuit_minerals`（纯派生），不再把“读产出”当“开采”；
+    - 真实扣减只能由明确的月度步（`settle_pop_livelihood` / 直接调用本函数）
+      触发，且每回合同一路只扣一次。
+
     返回开采明细：
     {
         dim: {
-            "physical_extracted": float,  # 系统层物理真实开采量（严格扣减地脉储量）
-            "gov_monopoly_share": float,  # 官营上解朝廷官仓量
-            "market_private_share": float,# 民间流通量
-            "tax_coin": float,            # 朝廷征收之坑冶课税现钱（二分抽一折钱）
-            "remaining_reserves": float,  # 开采后地脉剩余真实储量
+            "physical_extracted": float,  # 系统层物理真实开采量
+            "gov_monopoly_share": float,
+            "market_private_share": float,
+            "tax_coin": float,
+            "remaining_reserves": float,
         }
     }
     """
+    # 🔴 B-8：`derive_raw_production` 内的调用是**派生读**，绝不扣储量。
+    # 不修改 industry_chains（另一 agent 正在改该文件），用调用点识别保持纯派生。
+    try:
+        import sys
+        _caller = sys._getframe(1)
+        if _caller.f_code.co_name == "derive_raw_production":
+            return preview_circuit_minerals(state, circuit, rate_mult, clerk_grip)
+    except Exception:  # noqa: BLE001 — 取帧失败不改变真实开采语义
+        pass
+
     init_circuit_minerals(state)
     minerals = getattr(state, "mineral_deposits", {})
     c_mines = minerals.get(circuit, {})
     if not c_mines:
         return {}
 
-    extracted_report: Dict[str, Dict[str, float]] = {}
+    cache = getattr(state, "_mineral_extract_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        try:
+            state._mineral_extract_cache = cache
+        except Exception:  # noqa: BLE001 — 极端只读代理对象：退化为无缓存
+            cache = {}
+    _key = f"{int(getattr(state, 'turn', 0) or 0)}:{circuit}"
+    if _key in cache:
+        return copy.deepcopy(cache[_key])
 
-    for dim, info in c_mines.items():
-        res = float(info.get("reserves", 0.0) or 0.0)
-        cap = float(info.get("cap", 0.0) or 0.0)
-        purity = float(info.get("purity", 0.8) or 0.8)
-
-        if res <= 0 or cap <= 0:
-            extracted_report[dim] = {
-                "physical_extracted": 0.0,
-                "gov_monopoly_share": 0.0,
-                "market_private_share": 0.0,
-                "tax_coin": 0.0,
-                "remaining_reserves": 0.0,
-            }
-            continue
-
-        # 1. 系统层物理真实开采量（不能超过剩余储量）
-        target_extract = cap * rate_mult
-        actual_extract = min(res, target_extract)
-        net_usable = actual_extract * purity
-
-        # 扣减真实矿藏储量
-        info["reserves"] = round(res - actual_extract, 1)
-        info["extracted_total"] = round(float(info.get("extracted_total", 0.0)) + actual_extract, 1)
-
-        # 2. 双轨分配与朝廷课税（官办 vs 民办分成，受吏员把持度 grip 影响）
-        # 铜矿与海盐为大宋严厉专卖，官营上解比重大；石炭、铁矿、林木多有民采商办
-        if dim in (DIM_COPPER, DIM_SALT):
-            # 专卖重宗：官营占 70%，民间商贾包采 30%
-            gov_share = net_usable * (0.80 - clerk_grip * 0.20)
-            private_share = net_usable - gov_share
-        else:
-            # 煤、铁、木、石：官民兼采，官营 40%，民营 60%
-            gov_share = net_usable * (0.50 - clerk_grip * 0.20)
-            private_share = net_usable - gov_share
-
-        # 朝廷课税（坑冶课/二分抽一，民营部分的 20% 折钱归朝廷）
-        tax_coin = private_share * 0.20 * (1.0 - clerk_grip * 0.30)
-
-        extracted_report[dim] = {
-            "physical_extracted": round(net_usable, 1),
-            "gov_monopoly_share": round(gov_share, 1),
-            "market_private_share": round(private_share, 1),
-            "tax_coin": round(tax_coin, 1),
-            "remaining_reserves": info["reserves"],
-        }
-
-    return extracted_report
+    report = _mineral_report_from_mines(c_mines, rate_mult, clerk_grip)
+    for dim, row in report.items():
+        info = c_mines.get(dim)
+        actual = float(row.get("_actual_extract", 0.0) or 0.0)
+        if isinstance(info, dict) and actual > 0:
+            info["reserves"] = round(float(info.get("reserves", 0.0) or 0.0) - actual, 1)
+            info["extracted_total"] = round(
+                float(info.get("extracted_total", 0.0) or 0.0) + actual, 1)
+    public = _public_mineral_report(report)
+    cache[_key] = copy.deepcopy(public)
+    try:
+        state._mineral_extract_cache = cache
+    except Exception:  # noqa: BLE001
+        pass
+    return public
 
 
 def derive_national_mineral_status(state) -> Dict[str, Any]:

@@ -1,0 +1,17 @@
+{
+  "id": "JEV-木偶骨架纯程序化生成与AI分工原则-2026-10-16",
+  "topic": "木偶骨架纯程序化生成与AI生图严格分工定位",
+  "question": "木偶人骨架底模是否100%采用纯程序生成（基于mannequin.js/纯几何代码），AI生图仅负责挂载服饰部件？",
+  "options": {
+    "true": "执行严格分工：木偶骨架纯代码生成，具备精准数学坐标且可隐式隐藏；AI Skill仅用于生成服饰/五官/发型独立透明素材",
+    "false": "用AI生成木偶"
+  },
+  "verdict": "true",
+  "probabilities": {
+    "true": 0.981,
+    "false": 0.019
+  },
+  "premises_verified_by_me": "用户明确质问『https://github.com/boytchev/mannequin.js这不是纯程序的吗』『木偶骨架你用程序生成，不需要用skill』。AI生图具有随机性与幻觉，绝不能用来做骨骼基准；mannequin.js是纯JS/Three.js数学几何建模，用代码生成骨架不仅像素级可控、能输出精准JSON锚点，而且前端可随时全覆盖或关闭显示。",
+  "applied_in": "木偶骨架与图层生成全流程分工体系",
+  "reopen_if": "用户改变技术路线"
+}

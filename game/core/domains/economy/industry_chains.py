@@ -28,6 +28,11 @@
 3. **物理入仓与守恒律**：
    - 所有产出物理入治所四仓（官营 `public_depot` / `public_granary`，民间 `civilian_depots`）；
    - 原料消耗必定产出相应中间品或成品，严守进销存对账。
+   - 🔴 B-4（2026-10-17 审计）：报表 `outputs` 只是**理论产量**；真实账本在
+     `summary["stock_settlement"]`——先从治所四仓扣原料（`inputs[*].taken`），
+     再按各路原料权重把成品写入物理仓（`outputs_booked[*]`），逐笔记 `ledger`。
+     无治所物理仓或完全无料时 `mode=report_only` 并显式列出 `report_only_outputs`，
+     **绝不把报表数字冒充仓存**。
 """
 from __future__ import annotations
 
@@ -173,6 +178,350 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     }
 
 
+# ---------------------------------------------------------------------------
+# B-4（2026-10-17 审计）：八大链真实 **stock-to-stock** 记账
+# ---------------------------------------------------------------------------
+#: 报表产出键 → 物理仓商品维（**同一批货只入仓一次**；别名不重复登记）。
+_OUTPUT_STOCK_DIM: Dict[str, str] = {
+    "silk_cloth_pi": "绸",
+    "cloth_pi": "布",
+    "garments_pieces": "被服军衣",
+    "iron_ingots": "铁锭",
+    "steel_ingots": "钢锭",
+    "timber_beams": "木方",
+    "machinery_parts": "机械零件",
+    "weapons_pieces": "兵刃器械",
+    "barges_built": "漕船海舶",
+    "gunpowder_jin": "火药",
+    "firearms_pieces": "火器弹药",
+    "copper_ingots": "铜锭",
+    "coins_minted_guan": "官铸铜钱",
+    "tanned_leather_jin": "熟皮",
+    "saddle_armor_pieces": "鞍具皮甲",
+    "fine_china_pieces": "精品瓷器",
+    "sugar_jin": "糖",
+    "paper": "纸",
+    "ink_jin": "油墨",
+    "books_printed": "印造书籍",
+    "four_treasures_pieces": "文房四宝",
+    "firewood_dan": "薪炭",
+    "cooking_oil_jin": "食用油",
+    "paste_vinegar_jin": "酱醋",
+}
+
+#: 报表中**同一批货**的别名键：与主键同量，**不再二次入仓**（否则同一批货记两次）。
+_OUTPUT_ALIAS_OF: Dict[str, str] = {
+    "refined_iron": "iron_ingots",       # 熟铁/铁锭同一炉次
+    "refined_copper": "copper_ingots",   # 精炼熟铜/铜锭同一炉次
+    "leather": "tanned_leather_jin",     # 皮革/熟皮同一批
+    "paper_sheets": "paper",             # 纸张/纸同一批
+}
+
+#: 消费/贸易类成品入**民间货栈**；重工/军器/官铸入**官工料场**。
+_CONSUMER_OUTPUT_KEYS = frozenset({
+    "silk_cloth_pi", "cloth_pi", "sugar_jin", "paper", "ink_jin",
+    "books_printed", "four_treasures_pieces", "firewood_dan",
+    "cooking_oil_jin", "paste_vinegar_jin", "fine_china_pieces",
+})
+
+#: 现钱类报表项（入国库，不进商品仓；单独标注，不算"仅报表货物"）。
+_MONETARY_OUTPUT_KEYS = frozenset({"monopoly_tax_coin", "mine_tax_coin"})
+
+#: 原料扣仓顺序：官工料场 → 民间货栈 → 官廪 → 私窖（确定性，便于对账）。
+_WAREHOUSE_TAKE_ORDER = ("public_depot", "civilian_depots", "public_granary", "private_storage")
+
+
+def _iter_seat_slots(state) -> List[Tuple[str, str, Dict[str, Any]]]:
+    """按 21 路 → 治所 ID 的确定顺序摊平物理仓位（只读遍历）。"""
+    prefs = getattr(state, "prefectures", None)
+    if not isinstance(prefs, dict):
+        return []
+    out: List[Tuple[str, str, Dict[str, Any]]] = []
+    for route in ALL_CIRCUITS_21:
+        pdata = prefs.get(route)
+        if not isinstance(pdata, dict):
+            continue
+        seats = pdata.get("seats")
+        if not isinstance(seats, dict):
+            continue
+        for sid in sorted(seats):
+            seat = seats.get(sid)
+            if isinstance(seat, dict):
+                out.append((route, str(sid), seat))
+    return out
+
+
+def _warehouse_available(state, dim: str) -> float:
+    """全域治所四仓某维可用存量（只读；缺失按 0，不凭空空耗）。"""
+    total = 0.0
+    for _route, _sid, seat in _iter_seat_slots(state):
+        whs = seat.get("warehouses")
+        if not isinstance(whs, dict):
+            continue
+        for wtype in _WAREHOUSE_TAKE_ORDER:
+            cell = whs.get(wtype)
+            stocks = cell.get("stocks") if isinstance(cell, dict) else None
+            if not isinstance(stocks, dict):
+                continue
+            v = stocks.get(dim)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                total += float(v)
+    return total
+
+
+def _warehouse_take(state, dim: str, want: float) -> float:
+    """从全域治所四仓按确定顺序扣减原料，返回**实际扣减量**（不得为负/凭空）。"""
+    remaining = max(0.0, float(want))
+    if remaining <= 0:
+        return 0.0
+    from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_add
+    taken = 0.0
+    for _route, sid, seat in _iter_seat_slots(state):
+        if remaining <= 1e-9:
+            break
+        whs = seat.get("warehouses")
+        if not isinstance(whs, dict):
+            continue
+        for wtype in _WAREHOUSE_TAKE_ORDER:
+            if remaining <= 1e-9:
+                break
+            cell = whs.get(wtype)
+            stocks = cell.get("stocks") if isinstance(cell, dict) else None
+            if not isinstance(stocks, dict):
+                continue
+            avail = stocks.get(dim)
+            if not isinstance(avail, (int, float)) or isinstance(avail, bool):
+                continue
+            avail = float(avail)
+            if avail <= 0:
+                continue
+            take = min(avail, remaining)
+            got = warehouse_stock_add(state, sid, wtype, dim, -take,
+                                      reason="industry_chain_feed")
+            if got is None:
+                continue
+            actual = max(0.0, avail - float(got))
+            if actual <= 0:
+                continue
+            taken += actual
+            remaining -= actual
+    return taken
+
+
+def _route_capital_seat(state, route: str) -> Optional[str]:
+    """取某路承载成品的治所（首府优先、退化到确定顺序首座）；无治所 ⇒ None。"""
+    prefs = getattr(state, "prefectures", None)
+    pdata = prefs.get(route) if isinstance(prefs, dict) else None
+    if not isinstance(pdata, dict):
+        return None
+    seats = pdata.get("seats")
+    if not isinstance(seats, dict) or not seats:
+        return None
+    try:
+        from core.foundation.ledger.building_bridge import capital_seat_id
+        sid = capital_seat_id(pdata, route)
+        if sid and sid in seats and isinstance(seats.get(sid), dict):
+            return str(sid)
+    except Exception:                                       # noqa: BLE001
+        pass
+    return str(sorted(seats)[0])
+
+
+def _warehouse_add_distributed(state, dim: str, qty: float, wtype: str,
+                               weights: Dict[str, float], reason: str) -> float:
+    """把成品按各路原料权重分派入该路首府治所指定仓位，返回实际入仓量。"""
+    q = float(qty)
+    if q <= 0:
+        return 0.0
+    rows: List[Tuple[str, str, float]] = []
+    for route in ALL_CIRCUITS_21:
+        sid = _route_capital_seat(state, route)
+        if sid is None:
+            continue
+        rows.append((route, sid, float((weights or {}).get(route, 0.0) or 0.0)))
+    if not rows:
+        return 0.0
+    if not any(w > 0 for _r, _s, w in rows):
+        rows = [(route, sid, 1.0) for route, sid, _w in rows]
+    total_w = sum(w for _r, _s, w in rows)
+    if total_w <= 0:
+        return 0.0
+    from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_add
+    parts: List[float] = []
+    allocated = 0.0
+    for route, _sid, w in rows[:-1]:
+        part = round(q * w / total_w, 4)
+        parts.append(part)
+        allocated += part
+    parts.append(round(q - allocated, 4))          # 尾差归末位，Σ 精确
+    added = 0.0
+    for (route, sid, _w), part in zip(rows, parts):
+        if part <= 0:
+            continue
+        got = warehouse_stock_add(state, sid, wtype, dim, part, reason=reason)
+        if got is not None:
+            added += part
+    return added
+
+
+def _warehouse_weights(state, dims) -> Dict[str, float]:
+    """各路参与加工的原料权重（扣料**前**取样，用于成品产地分摊）。"""
+    weights: Dict[str, float] = {}
+    for route, _sid, seat in _iter_seat_slots(state):
+        whs = seat.get("warehouses")
+        if not isinstance(whs, dict):
+            continue
+        sub = 0.0
+        for wtype in _WAREHOUSE_TAKE_ORDER:
+            cell = whs.get(wtype)
+            stocks = cell.get("stocks") if isinstance(cell, dict) else None
+            if not isinstance(stocks, dict):
+                continue
+            for dim in dims:
+                v = stocks.get(dim)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    sub += float(v)
+        if sub > 0:
+            weights[route] = weights.get(route, 0.0) + sub
+    return weights
+
+
+def _estimate_chain_input_demand(outputs: Dict[str, Any]) -> Dict[str, float]:
+    """由成品产出反推本月八大链的原料加工需求（用于覆盖度与「无料不产」）。
+
+    口径：每个原料维按**主用途**估算（`max` 而非累加，避免把同一批麻在三链重复计入）。
+    """
+    def _q(key: str) -> float:
+        v = outputs.get(key, 0.0)
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+    return {
+        "silk_raw": _q("silk_cloth_pi") * 3.0,
+        "hemp_raw": max(_q("cloth_pi") * 2.0,
+                        _q("paper") * 5.0,
+                        _q("cooking_oil_jin") * 20.0),
+        "iron_ore": _q("iron_ingots") * 2.0,
+        "copper_ore": _q("copper_ingots") / 0.7,
+        "coal": _q("iron_ingots") + _q("fine_china_pieces") * 20.0,
+        "timber": max(_q("timber_beams") / 0.8,
+                      _q("gunpowder_jin") * 10.0,
+                      _q("ink_jin") * 10.0,
+                      _q("firewood_dan") / 0.3),
+        "clay": _q("fine_china_pieces") * 10.0,
+        "sulfur_niter": _q("gunpowder_jin") * 2.0,
+        "hides_raw": _q("tanned_leather_jin") / 0.8,
+        "sugar_cane": _q("sugar_jin") * 3.0,
+        "stone": _q("four_treasures_pieces") * 40.0,
+        "grain": _q("paste_vinegar_jin") * 75.0,
+    }
+
+
+def _apply_chain_stock_settlement(state, outputs: Dict[str, Any]) -> Dict[str, Any]:
+    """把八大链报表产出落到**真实物理仓**：先扣原料、再入成品、逐笔记账。
+
+    契约：
+    * **有治所物理仓且原料覆盖度 > 0** ⇒ `mode=warehouse_stock_to_stock`：
+      - `inputs[dim].taken > 0` 且从治所四仓真实扣减；
+      - `outputs_booked[key].qty` 为真实入仓增量（≤ 报表量 × 覆盖度）；
+      - `alias_of` 标明同批货的报表别名（不重复入仓）。
+    * **无物理仓 / 完全无料** ⇒ `mode=report_only`：
+      - **不伪造入仓**，把所有正产出键显式列入 `report_only_outputs`
+        （审计口径：报表产出必须有仓存增量，或显式标注"仅报表"）。
+    """
+    positive = sorted(
+        k for k, v in outputs.items()
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) > 0
+    )
+    report: Dict[str, Any] = {
+        "mode": "report_only",
+        # 权威载体：治所物理四仓（与 `state.resources` 全国池**不并行记账**，
+        # 避免同一批货在两个 custody 各记一次）。
+        "authority": "seats[*].warehouses",
+        "reason": "",
+        "alias_of": dict(_OUTPUT_ALIAS_OF),
+        "monetary_outputs": [k for k in positive if k in _MONETARY_OUTPUT_KEYS],
+        "inputs": {},
+        "outputs_booked": {},
+        "report_only_outputs": [],
+        "ledger": [],
+    }
+    slots = _iter_seat_slots(state)
+    if not slots:
+        report["reason"] = ("无治所物理仓（state.prefectures[*].seats 缺失）"
+                            "⇒ 产出仅报表，不伪造入仓")
+        report["report_only_outputs"] = [k for k in positive if k not in _MONETARY_OUTPUT_KEYS]
+        return report
+
+    demand = _estimate_chain_input_demand(outputs)
+    available = {dim: _warehouse_available(state, dim) for dim in demand}
+    coverage = 1.0
+    for dim, need in demand.items():
+        if need <= 0:
+            continue
+        avail = float(available.get(dim, 0.0) or 0.0)
+        coverage = min(coverage, max(0.0, min(1.0, avail / need)))
+    report["input_coverage"] = round(coverage, 6)
+    if coverage <= 0:
+        report["reason"] = ("当月物理仓无对应原料（input_coverage=0）"
+                            "⇒ 产出仅报表，不凭空入仓")
+        report["report_only_outputs"] = [k for k in positive if k not in _MONETARY_OUTPUT_KEYS]
+        return report
+
+    report["mode"] = "warehouse_stock_to_stock"
+    report["note"] = ("outputs 为理论产量；outputs_booked 为实际入仓量"
+                      "（按 input_coverage 同比缩放）。若二者不等，差额来自"
+                      "当月物理原料不足/未下沉路线，已在 inputs/ledger 留痕，"
+                      "**不得把理论产量当作仓存**。")
+    # 1) 先扣原料（按各维需求，不超可用）
+    # 成品产地权重用**工业原料**（排除 grain 这种民生大宗，避免权重被粮仓淹没）
+    weights = _warehouse_weights(state, [d for d in demand if d != "grain"])
+    for dim in sorted(demand):
+        need = float(demand[dim])
+        if need <= 0:
+            continue
+        # 按全局覆盖度同比扣料：产出只按 coverage 入仓，投入也必须同比例，
+        # 不得出现「扣满原料却只入 90% 成品」的隐形成本黑洞。
+        want = min(need * coverage, float(available.get(dim, 0.0) or 0.0))
+        taken = _warehouse_take(state, dim, want)
+        report["inputs"][dim] = {
+            "requested": round(need, 4),
+            "available_before": round(float(available.get(dim, 0.0) or 0.0), 4),
+            "taken": round(taken, 4),
+        }
+        report["ledger"].append({
+            "step": "input", "dim": dim,
+            "requested": round(need, 4), "taken": round(taken, 4),
+        })
+
+    # 2) 再入成品（同一批货只入一次；别名不入仓）
+    for key in sorted(_OUTPUT_STOCK_DIM):
+        qty = outputs.get(key, 0.0)
+        if not isinstance(qty, (int, float)) or isinstance(qty, bool) or float(qty) <= 0:
+            continue
+        booked = float(int(round(float(qty) * coverage)))
+        if booked <= 0:
+            report["report_only_outputs"].append(key)
+            continue
+        dim = _OUTPUT_STOCK_DIM[key]
+        wtype = "civilian_depots" if key in _CONSUMER_OUTPUT_KEYS else "public_depot"
+        added = _warehouse_add_distributed(
+            state, dim, booked, wtype, weights, reason="industry_chain_output")
+        report["outputs_booked"][key] = {
+            "dim": dim, "warehouse": wtype, "qty": round(added, 4),
+        }
+        report["ledger"].append({
+            "step": "output", "key": key, "dim": dim,
+            "warehouse": wtype, "booked": round(added, 4),
+        })
+
+    # 3) 既非入仓键、也非别名、也非现钱的报表项 ⇒ 显式标注"仅报表"
+    for key in positive:
+        if key in _OUTPUT_STOCK_DIM or key in _OUTPUT_ALIAS_OF or key in _MONETARY_OUTPUT_KEYS:
+            continue
+        report["report_only_outputs"].append(key)
+    return report
+
+
 def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, Any]:
     """月度产业链推进与工坊深加工结算（受控写操作）。
 
@@ -243,11 +592,11 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     gunpowder_produced = float(round(min(nat_raw["sulfur_niter"] / 2.0, nat_raw["timber"] * 0.10), 1))
     copper_refined = float(round(nat_raw["copper_ore"] * 0.7, 1))
     copper_ingots_neutral = copper_refined
-    if copper_refined > 0:
-        res_slot = getattr(state, "resources", None)
-        if isinstance(res_slot, dict):
-            c_slot = res_slot.setdefault("铜", {"stock": 0, "cap": 5000000})
-            c_slot["stock"] = int(round(float(c_slot.get("stock", 0) or 0) + copper_refined))
+    # 🔴 B-4（2026-10-17 审计）：旧实现把 `copper_refined` **额外**加进
+    #   `state.resources["铜"]`，却从未扣减 `copper_ore`（双记 + 凭空造铜），
+    #   且「铜」并非合法商品维（`RESOURCE_DIMS` 无此项）。
+    #   现统一由下方 `_apply_chain_stock_settlement`：先扣治所四仓 `copper_ore`，
+    #   再把 `铜锭` 写入物理仓（同一炉次只记一次）。
     # 火器下游链式消费：钢锭 + 铜锭 + 火药 + 木方 -> 突火枪/火器弹药
     firearms_produced = float(round(min(gunpowder_produced * 0.40 / 4.0, steel_ingots_neutral * 0.30 / 3.0, copper_ingots_neutral * 0.20 / 2.0, timber_beams_neutral * 0.05 / 2.0), 1))
 
@@ -369,6 +718,11 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             },
         },
     }
+
+    # 🔴 B-4：报表不是账本。产出必须真实入仓（或显式标注"仅报表"），
+    #   原料必须先从物理仓扣减——逐笔写入 `chain_summary["stock_settlement"]`。
+    chain_summary["stock_settlement"] = _apply_chain_stock_settlement(
+        state, chain_summary["outputs"])
 
     chain_ledger[str(getattr(state, "turn", 0))] = chain_summary
 

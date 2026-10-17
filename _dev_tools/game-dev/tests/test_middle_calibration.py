@@ -228,7 +228,8 @@ def test_test_mirror_covers_full_pipeline():
     )
 
     pipeline = get_default_pipeline()
-    assert len(pipeline.steps) == 48, f"声明式管线应包含 48 个步骤，实测 {len(pipeline.steps)}"
+    # 2026-10-17 全审：M309 新增 spatial_logistics 步后为 49（48 为旧快照）
+    assert len(pipeline.steps) == 49, f"声明式管线应包含 49 个步骤，实测 {len(pipeline.steps)}"
 
     mirror_fns = [fn for _, fn in T._STEPS]
     real_fns = [s.target_func for s in pipeline.steps if s.target_func in mirror_fns]

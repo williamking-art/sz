@@ -58,10 +58,14 @@ def test_arrival_rate_has_no_hardcoded_constants():
 
 
 def test_prestige_clamp_uses_named_constants():
+    """2026-10-17 全审：M325 裁定「皇威物理累积无上限，UI 对外截断 100」，
+    因此 change_prestige 不再使用 PRESTIGE_MAX；但仍必须走命名常量
+    （下限/月度 cap/大事件 cap）并写 `_prestige_history` 台账，否则等于绕单点。"""
     src = _src(GameState.change_prestige)
-    for name in ("PRESTIGE_MAX", "PRESTIGE_MIN", "PRESTIGE_MONTHLY_CAP",
-                 "PRESTIGE_MAJOR_EVENT_CAP"):
+    for name in ("PRESTIGE_MIN", "PRESTIGE_MONTHLY_CAP", "PRESTIGE_MAJOR_EVENT_CAP"):
         assert name in src, f"皇威钳位未引用常量 {name}"
+    assert "_prestige_history" in src, "皇威变更必须写历史台账"
+    assert "PRESTIGE_MAX" not in src, "M325 起皇威无物理上限，不得再回落到 PRESTIGE_MAX 硬钳"
 
 
 def test_constants_actually_drive_behaviour(monkeypatch):

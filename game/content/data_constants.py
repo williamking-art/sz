@@ -543,7 +543,8 @@ FINISHED_DIMS = ["绸", "布", "wine", "meat", "纸", "糖"] + NEW_FINISHED_DIMS
 FINISHED_TAX_DIMS = ("wine",)
 # 物资仓维度 = 原料 + 成品（wine 走内帑不入仓，见 FINISHED_TAX_DIMS）
 #: `meat` 在此（2026-10-08 由「即产即销折钱」改为商品，产出需有仓可落）。
-RESOURCE_DIMS = RAW_DIMS + [d for d in FINISHED_DIMS if d not in FINISHED_TAX_DIMS]
+RESOURCE_DIMS = list(dict.fromkeys(
+    RAW_DIMS + [d for d in FINISHED_DIMS if d not in FINISHED_TAX_DIMS]))
 # 14 维原料（外邦/宋统一表，§4.1）：与 EXTERNAL_ECON.RAW_DIMS 同名同义
 # 金属 ≠ 钱（§4.3）：金/银/铜/铁是实物存量，禁止"仓里有银→自动加 treasury"
 RAW_DIMS_14 = ("石", "木", "粮", "麻", "丝", "金", "铁", "铜", "银",
@@ -569,7 +570,10 @@ GRAIN_DIMS = ["米", "麦"]
 #:   不再「即产即销、按人口摊派折钱」（那等于凭空给每个 POP 记一笔税式扣款、无对应买方）。
 #:   现与「绸/布/纸/糖」同路：产出落物资仓 + 工匠 `goods` 池，由民间成交付钱。
 #: `wine` 在此目录内（供价格与读数用），仍然**不进物资仓、不进工匠货栈**（酒课即产即销）。
-GOODS_DIMS = RAW_DIMS + FINISHED_DIMS + GRAIN_DIMS
+# 2026-10-17 全审：纸/油墨/薪炭/食用油/酱醋 同时是原料与成品（可在两条链上流转），
+# 因此 RAW_DIMS 与 FINISHED_DIMS 天然有交集；**目录本身必须唯一**，
+# 用 dict.fromkeys 保序去重（分类归属仍保留在各自子表里）。
+GOODS_DIMS = list(dict.fromkeys(RAW_DIMS + FINISHED_DIMS + GRAIN_DIMS))
 # 原料单位表（供注册/展示；成品单位：绸/布=匹、wine=酒单位）
 # 民间屯粮（士绅囤积居奇，模拟南方地主操纵粮价）：
 #   开局屯粮 = 月产 × 系数（南方士绅势力大）。士绅每月囤/抛多少由 AI 推演（返回档位），

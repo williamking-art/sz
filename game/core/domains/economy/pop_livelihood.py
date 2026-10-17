@@ -162,6 +162,21 @@ def settle_pop_livelihood(state, log: Optional[List[str]] = None) -> Dict[str, A
     total_refugees_this_turn = 0
     circuit_reports = {}
 
+    # 🔴 B-8（2026-10-17）：真实矿脉扣减只放在月度步里，按 (turn, 路) 幂等。
+    # `derive_pop_livelihood` 内的 `derive_raw_production` 是纯派生（不扣矿）；
+    # 本步显式调用一次 extract，保证真实一月结算只扣一次；若 industry_chains
+    # 同回合已处理，`_mineral_extract_cache` 会让这里直接命中快照。
+    from core.domains.economy.mineral_deposit import extract_circuit_minerals
+    _prefs = getattr(state, "prefectures", None) or {}
+    for _c in ALL_CIRCUITS_21:
+        _p = _prefs.get(_c) if isinstance(_prefs, dict) else None
+        if not isinstance(_p, dict):
+            continue
+        _cd = _p.get("clerks_detail")
+        _grip = float(_cd.get("grip", 0.45) if isinstance(_cd, dict)
+                      else (_p.get("grip", 0.45) or 0.45))
+        extract_circuit_minerals(state, _c, rate_mult=1.0, clerk_grip=_grip)
+
     for c in ALL_CIRCUITS_21:
         res = derive_pop_livelihood(state, c)
         if not res.get("defined"):

@@ -9,7 +9,10 @@ import constants from "../data/constants.json";
 // 科技树 —— 对齐 game/ui/panels_economy.py::_panel_tech（L771）
 // 6 干线分列、节点按 era 排布的树状图（Tk Canvas 绘制 → CSS Grid 等价实现）。
 // 研发 → action("start_tech_research", { node_id, silver, fund, source: "panel", signoff? })。
-// 节点状态/跨时代成本为纯前端复刻（core/asset_context.py::node_status + data.py::tech_cost_with_era）。
+// 🔴 纪律（根 AGENTS.md §3-2）：节点可研状态/跨时代成本**只读后端下发**，
+//    前端不得复刻 core/asset_context.py::node_status 或 data.py::tech_cost_with_era。
+//    后端未下发 node 读数时，状态/费用显式显示「未定义」；立项动作只传 node_id，
+//    silver=0 让后端按权威口径计算与扣拨。
 type Dict = Record<string, unknown>;
 
 interface TechNode {
@@ -19,10 +22,6 @@ interface TechNode {
   name: string;
   desc: string;
   prereq: string[];
-  /** 总体 level 门槛（content/data.py 科技节点元组 n[6]；后端 asset_context 同源） */
-  need_level: number;
-  /** 副指标门槛 [(维度, 门槛)]（n[7]）；("west", N) 按承接模式跳过，不设硬门槛 */
-  need_sub: [string, number][];
   cost: { silver: number; months: number; masters: number; idea?: boolean };
   effect: Dict;
 }
@@ -30,17 +29,8 @@ interface TechNode {
 const NODES = (constants.tech_nodes as unknown as TechNode[]).filter((n) => !n.id.startsWith("gen_"));
 const LINES = constants.tech_lines as string[];
 
-// content/data.py::TECH_ERAS（静态表）
-const TECH_ERAS: [number, number, number][] = [
-  [960, 1100, 0], [1100, 1279, 1], [1279, 1368, 2], [1368, 1600, 3],
-  [1600, 1800, 4], [1800, 1870, 5], [1870, 1900, 6]
-];
-
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
 }
 function asStr(v: unknown, def = ""): string {
   return typeof v === "string" ? v : def;
@@ -51,55 +41,56 @@ function SectionTitle({ text }: { text: string }) {
   );
 }
 
-function currentEra(year: number): number {
-  for (const [lo, hi, idx] of TECH_ERAS) {
-    if (lo <= year && year <= hi) return idx;
-  }
-  return 0;
+type TechStatus = "unlocked" | "researching" | "researchable" | "locked" | "unknown";
+interface TechNodeReadout {
+  status: TechStatus;
+  silver: number | null;
+  months: number | null;
+  idea: boolean | null;
+  reason: string | null;
 }
 
-// 节点状态（core/asset_context.py::node_status 前端复刻）
-// 审查修复：原只校验 prereq，而后端 node_prereqs_met 还校验 tech.level（need_level）
-// 与副指标（need_sub）→ 面板显示「可研发」、点下去被后端拒（"前置未备，暂不可研"）。
-// 现与后端同口径；("west", N) 副指标按承接模式跳过（不设硬门槛）。
-function nodeStatus(tech: Dict, node: TechNode): "unlocked" | "researching" | "researchable" | "locked" {
-  const unlocked = new Set((tech.unlocked as string[] | undefined) ?? []);
-  const researching = asDict(tech.researching);
-  if (unlocked.has(node.id)) return "unlocked";
-  if (node.id in researching) return "researching";
-  if (!(node.prereq ?? []).every((p) => unlocked.has(p))) return "locked";
-  if (asNum(tech.level) < asNum(node.need_level)) return "locked";
-  for (const [dim, need] of node.need_sub ?? []) {
-    if (dim === "west") continue;
-    if (asNum(tech[dim]) < asNum(need)) return "locked";
-  }
-  return "researchable";
+function finiteOrNull(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+  return null;
 }
 
-// 跨时代成本（content/data.py::tech_cost_with_era 前端复刻）
-function costWithEra(node: TechNode, curEra: number): { silver: number; months: number; idea: boolean } {
-  const mult = 1 + Math.max(0, node.era - curEra) * 0.2;
-  const isIdea = node.cost?.idea === true;
-  return {
-    silver: isIdea ? 0 : Math.round(asNum(node.cost?.silver) * mult),
-    months: Math.max(1, Math.round(asNum(node.cost?.months) * mult)),
-    idea: isIdea
-  };
+function parseStatus(v: unknown): TechStatus | null {
+  return v === "unlocked" || v === "researching" || v === "researchable" || v === "locked"
+    ? v
+    : null;
+}
+
+/** 解析后端节点读数（兼容 silver / 银 两种键名）；字段缺失保持 null，不本地重算。 */
+function parseNodeReadout(raw: unknown): TechNodeReadout | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = asDict(raw);
+  const status = parseStatus(d.status);
+  const silver = "silver" in d ? finiteOrNull(d.silver) : finiteOrNull(d["银"]);
+  const months = finiteOrNull(d.months);
+  const idea = typeof d.idea === "boolean" ? d.idea : null;
+  const reason = typeof d.reason === "string" ? d.reason : null;
+  if (!status && silver === null && months === null) return null;
+  return { status: status ?? "unknown", silver, months, idea, reason };
 }
 
 const ST_STYLE: Record<string, string> = {
   unlocked: "border-gold bg-[#7a1f1a] text-[#f3e6c4]",
   researchable: "border-gold bg-[#f3e6c4] text-[#3a2a17]",
   researching: "border-[#7fd4e6] bg-[#1f4a5a] text-[#eaf7fb]",
-  locked: "border-[#9c9486] bg-[#cfc6b4] text-[#6b6151]"
+  locked: "border-[#9c9486] bg-[#cfc6b4] text-[#6b6151]",
+  unknown: "border-dashed border-gold/60 bg-paper/60 text-dim"
 };
 const ST_TXT: Record<string, string> = {
-  unlocked: "已点亮", researchable: "可研发", researching: "攻关中", locked: "未解锁"
+  unlocked: "已点亮", researchable: "可研发", researching: "攻关中", locked: "未解锁",
+  unknown: "未定义（后端未下发判定）"
 };
 
 export default function TechPanel() {
   const state = useGameStore((s) => s.state);
   const setState = useGameStore((s) => s.setState);
+  const readouts = useGameStore((s) => s.readouts);
   const [detail, setDetail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -112,8 +103,27 @@ export default function TechPanel() {
   const inventions = Array.isArray(tech.pending_inventions)
     ? (tech.pending_inventions as unknown as Dict[])
     : [];
-  const year = pick<number>(state, "year", 1101);
-  const curEra = currentEra(year);
+  // 后端节点读数：兼容 `readouts.tech.nodes` 与 `state.tech.node_readouts` 两种下发布局；
+  // 未下发则节点状态/费用保持「未定义」，绝不在前端用 level/need_sub/era 重算。
+  const backendTech = asDict((readouts as unknown as Dict | null)?.tech);
+  const backendNodes = asDict(backendTech.nodes);
+  const stateNodes = asDict(tech.node_readouts);
+  const unlockedSet = new Set(Array.isArray(tech.unlocked) ? (tech.unlocked as string[]) : []);
+  const researchingMap = asDict(tech.researching);
+  function nodeReadoutFor(n: TechNode): TechNodeReadout {
+    const parsed = parseNodeReadout(backendNodes[n.id] ?? stateNodes[n.id]);
+    if (parsed) return parsed;
+    if (unlockedSet.has(n.id)) {
+      return { status: "unlocked", silver: null, months: null, idea: null, reason: null };
+    }
+    if (n.id in researchingMap) {
+      return { status: "researching", silver: null, months: null, idea: null, reason: null };
+    }
+    return {
+      status: "unknown", silver: null, months: null, idea: null,
+      reason: "后端未下发该节点可研判定/成本",
+    };
+  }
 
   // 按线分列、era 排序（对齐 Tk _draw_tech_tree）
   const columns = useMemo(
@@ -131,17 +141,18 @@ export default function TechPanel() {
   }
 
   const node = detail ? nodeById.get(detail) : null;
-  const st = node ? nodeStatus(tech, node) : null;
-  const realCost = node ? costWithEra(node, curEra) : null;
+  const nodeInfo = node ? nodeReadoutFor(node) : null;
+  const st = nodeInfo?.status ?? null;
 
   async function research(fund: "treasury" | "inner") {
-    if (busy || !node || !realCost) return;
+    if (busy || !node || !nodeInfo) return;
     setBusy(true);
     setResult(null);
     try {
       const res = await getApiClient().action("start_tech_research", {
         node_id: node.id,
-        silver: fund === "inner" ? 0 : realCost.silver,
+        // 费用未知时传 0：后端 start_research 会按 tech_cost_with_era 权威口径计算并扣拨。
+        silver: fund === "inner" ? 0 : (nodeInfo.silver ?? 0),
         fund,
         source: "panel",
         signoff: fund === "treasury" ? true : undefined,
@@ -272,7 +283,7 @@ export default function TechPanel() {
                   return (
                     <div key={li} className="flex flex-col justify-center gap-1.5">
                       {cells.map((n) => {
-                        const s = nodeStatus(tech, n);
+                        const s = nodeReadoutFor(n).status;
                         return (
                           <button
                             key={n.id}
@@ -293,7 +304,7 @@ export default function TechPanel() {
       </div>
 
       {/* 节点详情（内联展开，对齐 Tk _tech_detail） */}
-      {node && st && realCost && (
+      {node && nodeInfo && st && (
         <div className="rounded-lg border-2 border-gold bg-card p-4">
           <div className="flex items-start justify-between">
             <p className="font-kai text-lg font-bold text-red">〔{node.line}〕{node.name}</p>
@@ -313,11 +324,15 @@ export default function TechPanel() {
               ? node.prereq.map((p) => nodeById.get(p)?.name ?? p).join("、")
               : "无"}
           </p>
-          <p className="mt-1 text-sm text-dim">
-            {realCost.silver || realCost.months
-              ? `耗帑 ${humanizeCoin(realCost.silver)}　·　工期 ${realCost.months}月　·　工部领办，匠役由将作监调拨`
-              : "近零成本（观念/基础）"}
-          </p>
+          {st === "unlocked" || st === "researching" ? (
+            <p className="mt-1 text-sm text-dim">该节点已{st === "unlocked" ? "点亮" : "在攻关"}，无需再次立项。</p>
+          ) : (
+            <p className="mt-1 text-sm text-dim">
+              耗帑 {nodeInfo.silver === null ? "未定义（后端结算时按权威口径计算）" : humanizeCoin(nodeInfo.silver)}
+              　·　工期 {nodeInfo.months === null ? "未定义" : `${nodeInfo.months}月`}
+              　·　{nodeInfo.reason ? `后端：${nodeInfo.reason}` : "工部领办，匠役由将作监调拨"}
+            </p>
+          )}
           {Object.keys(node.effect ?? {}).length > 0 && (
             <p className="mt-1 text-sm text-dim">
               {/* 复用统一效果词表：内部键名不得直出 */}
@@ -345,7 +360,7 @@ export default function TechPanel() {
             />
           </div>
           <div className="mt-3 flex justify-end gap-3">
-            {st === "researchable" ? (
+            {st === "researchable" || st === "unknown" ? (
               <>
                 <button
                   onClick={() => research("treasury")}
@@ -363,7 +378,11 @@ export default function TechPanel() {
                 </button>
               </>
             ) : (
-              <p className="py-2 text-sm text-dim">（当前不可立项）</p>
+              <p className="py-2 text-sm text-dim">
+                {st === "locked"
+                  ? `（后端判定不可立项${nodeInfo.reason ? `：${nodeInfo.reason}` : ""}）`
+                  : "（已点亮/攻关中，无需立项）"}
+              </p>
             )}
           </div>
         </div>

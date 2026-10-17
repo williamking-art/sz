@@ -1690,7 +1690,13 @@ def _pool_dims_any(got_dims: dict, got_grain: float, pool_dims, ws: dict) -> boo
 
 
 def _settle_workshops(state, log):
-    """作坊月度推进：配方消耗 inputs（如粮→酒），产出 outputs 入 resources/内帑。"""
+    """作坊月度推进：配方消耗 inputs（如粮→酒），产出按**单一权威载体**入账。
+
+    B-3 口径（2026-10-17 审计）：
+      · 成品维（`_POOL_DIMS`，绸/布/纸/糖/meat/熟铁…）⇒ **只入民间 POP `goods`**；
+      · 即产即销维（`wine`）⇒ 折酒课入内帑；
+      · 非成品原料/中间维（若未来出现）⇒ 入 `state.resources`。
+    """
     _wine_bonus = 0     # 本月酒课**加成**汇总；下方据此**重算** wine_tax（不做月度累加，见 A-5）
     # 2026-10-11（B1）：成品维（布/绸）产出另计入工匠 goods 池（待售位）。
     # 依 `building_jobs.produce_job_track`「原料维 → resources；成品维 → goods_pool」。
@@ -1704,9 +1710,11 @@ def _settle_workshops(state, log):
     _unattributed_dims: dict = {}
     from content.data_constants import (FINISHED_DIMS as _FIN_DIMS,
                                       FINISHED_TAX_DIMS as _FIN_TAX_DIMS)
-    # 工匠货栈（可交易）= 成品维 − 即产即销折钱入内帑的维（wine 酒课 / meat 按人口征收）。
-    # ⚠️ 2026-10-04：`meat` 已登记进 `FINISHED_DIMS`，但它**不可交易** ——
-    # 若沿用旧的「排除 wine」写法，`meat` 会自动进池，改变「畜栏产肉折钱入内帑」的业务语义。
+    # 工匠货栈（可交易）= 成品维 − 即产即销折钱入内帑的维（wine 酒课）。
+    # 🔴 B-3（2026-10-17）：`_POOL_DIMS` 同时就是「成品唯一权威载体=POP goods」的判定集；
+    #    命中该集合的产出**不再写 `state.resources`**（此前双记，ΔPOP+Δresources=2×产量）。
+    # ⚠️ 2026-10-04：`meat` 已登记进 `FINISHED_DIMS` 且已改为商品（不再是即产即销），
+    #    故它属于 `_POOL_DIMS`，与绸/布同走 POP goods 单腿。
     _POOL_DIMS = tuple(d for d in _FIN_DIMS if d not in _FIN_TAX_DIMS)
     # 🔴 **L1′ 同源争抢仲裁**（2026-10-04）：此前按 `state.workshops` 字典序逐坊「先到先得」——
     # 绢坊/绫罗坊/紬坊共读同一味「丝」时，谁先跑谁拿满，后跑的全额缺料停产，
@@ -1813,47 +1821,55 @@ def _settle_workshops(state, log):
             _wine_bonus += int(yld * MATERIAL_PRICE_BASE.get("wine", 0) * 0.1)
         # U0001f534 2026-10-08 用户裁定：肉是**商品**，不再「按人口摊派折钱」。
         #   原分支用 `_collect_from_pops` 向六类 POP 等比例扣钱，无对应买方（等价于税），
-        #   且与 `goods` 成品通道双记账。现与「绢/布/纸/糖」同路：落 `resources` + 工匠 `goods` 池，
-        #   由民间成交付钱。排除下方 `elif out_dim in RESOURCE_DIMS` 保留分支。
-
+        #   且与 `goods` 成品通道双记账。肉现与「绢/布/纸/糖」同路：**只落工匠 `goods` 池**。
+        #
+        # 🔴 B-3（2026-10-17 审计）：**成品维唯一权威载体 = 民间 POP `goods`**。
+        #   同一批成品此前既写 `state.resources[dim]`（仓储读数）又写 POP `goods`（待售），
+        #   实测同一月 绸 POP +10,510 且 resources +11,116、meat POP +75,947 且 +80,000，
+        #   即 ΔPOP + Δresources = **2×产量**。现规定：
+        #     · `_POOL_DIMS`（成品维）⇒ 只入 POP goods，**不再二次加 resources**；
+        #     · 非成品的原料/中间维（若未来工坊产出）⇒ 仍走 resources 单腿（内部桥优先）。
+        #   两处不是两个用途槽，而是**同一批货的一本账**；恒等式：
+        #     ΔPOP_goods[成品] + Δresources[成品] == 当月该成品产量。
         elif out_dim in RESOURCE_DIMS:
             # 审查防御：同上（缺槽即 KeyError）；且 cap<=0 时原式 min(0, …) 会把
             # 全部产出抹成 0（静默丢料），故仅在 cap>0 时封顶。
             # 🟢 M64b（**先桥**步）：作坊可定路（键内路名）⇒ 先问资源存量桥。
             #   桥接管 ⇒ 写治所真账、**无全国 cap** ⇒ 实际入账 = round(yld)；
             #   未接管（`None`）⇒ **保留原写法**（今日零行为变化）。
-            _bridge_added = None
-            try:
-                from core.domains.economy.seat_goods_readout import route_of_workshop as _row_s
-                _wroute_s = _row_s(state, wid)
-            except Exception:                                   # noqa: BLE001
-                _wroute_s = None
-            if _wroute_s:
-                from core.foundation.ledger import resource_stock_bridge as _rsb_out
-                _q_yld = int(round(yld))
-                if _rsb_out.stock_add(state, out_dim, _q_yld, route=_wroute_s) is not None:
-                    _bridge_added = _q_yld
-            if _bridge_added is None:
-                _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
-                _cap = int(_slot.get("cap", 0) or 0)
-                _before_s = int(_slot.get("stock", 0) or 0)
-                _new = _before_s + yld
-                # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
-                # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
-                # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
-                _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
-                _added_s = int(_slot["stock"]) - _before_s
-            else:
-                _added_s = int(_bridge_added)
+            _is_pool_dim = out_dim in _POOL_DIMS
+            _added_s = 0
+            if not _is_pool_dim:
+                _bridge_added = None
+                try:
+                    from core.domains.economy.seat_goods_readout import route_of_workshop as _row_s
+                    _wroute_s = _row_s(state, wid)
+                except Exception:                                   # noqa: BLE001
+                    _wroute_s = None
+                if _wroute_s:
+                    from core.foundation.ledger import resource_stock_bridge as _rsb_out
+                    _q_yld = int(round(yld))
+                    if _rsb_out.stock_add(state, out_dim, _q_yld, route=_wroute_s) is not None:
+                        _bridge_added = _q_yld
+                if _bridge_added is None:
+                    _slot = state.resources.setdefault(out_dim, {"stock": 0, "cap": 0})
+                    _cap = int(_slot.get("cap", 0) or 0)
+                    _before_s = int(_slot.get("stock", 0) or 0)
+                    _new = _before_s + yld
+                    # 审查 O6：`yld` 是 float，cap<=0 时旧式直接赋值 → `resources[dim]["stock"]`
+                    # **变成 float**（落档 `_safe_int` 会再截一次，读数面板类型不稳）。
+                    # 现归一为 int（round 而非截断，避免 0.5 进位丢失）。
+                    _slot["stock"] = min(_cap, int(round(_new))) if _cap > 0 else int(round(_new))
+                    _added_s = int(_slot["stock"]) - _before_s
+                else:
+                    _added_s = int(_bridge_added)
             if _added_s > 0:
                 from core.domains.economy import stock_flow as _sf
                 _sf.record_in(state, out_dim, _added_s, reason="workshop_output")
-            # 2026-10-11（规格 market-civilian-economy B1）：**成品维（布/绸）另入工匠 goods 池**。
-            # 口径依 `building_jobs.produce_job_track`（:327-331）「原料维 → resources；
-            # 成品维 → goods_pool，单一产出通道原则」——宋侧此前只写 resources，
-            # 导致 B1 消费端改真成交后**没有可售成品**（民间买到 0）。
-            # 两处是**同一批货的两个用途槽**（`storage` 仓储读数 / `resale` 待售），
-            # 不是两批货：B1-3 台账须标明，**不得相加当"总产量"**。
+            # 2026-10-11（规格 market-civilian-economy B1）：**成品维（布/绸）入工匠 goods 池**。
+            # 口径依 `building_jobs.produce_job_track`「原料维 → resources；
+            # 成品维 → goods_pool，单一产出通道原则」。
+            # 🔴 B-3 后这是成品**唯一**入账通道（resources 不再并行记一次）。
             if out_dim in _POOL_DIMS:
                 # 🟢 M47：能归属到作坊所属路 ⇒ 记到**该路**（产出先入本地经营库存）；
                 #   判不出路 ⇒ 仍走原全局分派（**不销毁产出**），并计入 `workshop_unattributed`

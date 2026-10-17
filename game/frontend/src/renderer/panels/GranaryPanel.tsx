@@ -15,8 +15,16 @@ const PREFECTURE_LIST = constants.prefecture_list as string[];
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
 }
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
+function numOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function fmtWan(v: unknown, unit = ""): string {
+  const n = numOrNull(v);
+  return n === null ? "未定义" : wan(n, unit);
+}
+function fmtNum(v: unknown): string {
+  const n = numOrNull(v);
+  return n === null ? "未定义" : String(Math.round(n));
 }
 function grainPrice(v: number): string {
   return v > 0 ? `${v.toFixed(3)}贯/石` : "—";
@@ -49,19 +57,21 @@ export default function GranaryPanel() {
     return <p className="py-10 text-center text-dim">尚未开局，无仓廪可览。</p>;
   }
 
-  const granary = pick<number>(state, "granary", 0);
-  const granaryCap = Math.max(pick<number>(state, "granary_cap", 1), 1);
-  const grainPriceState = pick<number>(state, "grain_price", 0);
-  const canalBlock = pick<number>(state, "canal_block", 0);
+  const granary = numOrNull(pick<unknown>(state, "granary", null));
+  const granaryCap = numOrNull(pick<unknown>(state, "granary_cap", null));
+  const grainPriceState = numOrNull(pick<unknown>(state, "grain_price", null));
+  const canalBlock = numOrNull(pick<unknown>(state, "canal_block", null));
   const coin = asDict(pick(state, "coin", {}));
-  const priceLevel = pick<number>(state, "price_level", 1);
+  const priceLevel = numOrNull(pick<unknown>(state, "price_level", null));
   const paySystem = asDict(pick(state, "pay_system", {}));
   const singleWhip = Boolean(pick<boolean>(state, "single_whip", false));
   const prefectures = asDict(pick(state, "prefectures", {}));
 
   const fin = asDict(ro?.finance);
   const gr = ro?.granary;
-  const util = typeof gr?.capacity_used === "number" ? gr.capacity_used : granary / granaryCap;
+  const util = typeof gr?.capacity_used === "number"
+    ? gr.capacity_used
+    : (granary !== null && granaryCap !== null && granaryCap > 0 ? granary / granaryCap : null);
   const trend = typeof fin.price_trend === "string" ? fin.price_trend : "（初设）";
   const shortageDesc = typeof fin.shortage_desc === "string" ? fin.shortage_desc : "";
 
@@ -79,7 +89,7 @@ export default function GranaryPanel() {
           <div className="h-3.5 flex-1 overflow-hidden rounded-full border border-gold/60 bg-[#efe2c4]">
             <div
               className="h-full rounded-full bg-[#8a671e] transition-all"
-              style={{ width: `${Math.min(100, util * 100)}%` }}
+              style={{ width: `${util === null ? 0 : Math.min(100, util * 100)}%` }}
             />
           </div>
           <span className="shrink-0 text-xs text-dim">
@@ -89,9 +99,9 @@ export default function GranaryPanel() {
         <p className="mt-2 text-xs leading-relaxed text-dim">
           {ro ? (
             <>
-              太仓月入（田赋本色）：{wan(asNum(gr?.monthly), "石")}　
-              月出（军粮{Math.round(asNum(gr?.army))}+官禄{Math.round(asNum(gr?.official))}+
-              吏禄{Math.round(asNum(gr?.clerk))}+雀鼠耗+贪腐损耗）
+              太仓月入（田赋本色）：{fmtWan(gr?.monthly, "石")}　
+              月出（军粮{fmtNum(gr?.army)}+官禄{fmtNum(gr?.official)}+
+              吏禄{fmtNum(gr?.clerk)}+雀鼠耗+贪腐损耗）
             </>
           ) : error ? (
             <>派生读数读取失败：{error}</>
@@ -102,8 +112,8 @@ export default function GranaryPanel() {
           )}
         </p>
         <p className="mt-1.5 text-sm text-dim">
-          米价趋势：{trend}　|　米价约 {grainPrice(grainPriceState)}　|　
-          漕运：{canalBlock >= 40 ? "阻塞" : "通畅"}（{canalBlock}）
+          米价趋势：{trend}　|　米价约 {grainPriceState === null ? "未定义" : grainPrice(grainPriceState)}　|　
+          漕运：{canalBlock === null ? "未定义" : (canalBlock >= 40 ? "阻塞" : "通畅")}（{canalBlock === null ? "—" : canalBlock}）
         </p>
       </div>
 
@@ -111,7 +121,7 @@ export default function GranaryPanel() {
       <div className="rounded-lg border border-gold/40 bg-paper/60 p-3">
         <SectionTitle text="泉 货 通 滞" />
         <p className="mt-2 text-sm text-ink">
-          钱荒：{shortageDesc || "—"}　|　物价水平：{priceLevel.toFixed(2)}（钱/物之比）　|　
+          钱荒：{shortageDesc || "—"}　|　物价水平：{priceLevel === null ? "未定义" : priceLevel.toFixed(2)}（钱/物之比）　|　
           俸禄：{String(paySystem.mode ?? "本色折色")}　|　
           {singleWhip ? "一条鞭（折银）" : "本色征粮"}
         </p>
@@ -126,8 +136,8 @@ export default function GranaryPanel() {
             const gp = typeof p.grain_price === "number" ? p.grain_price : grainPriceState;
             return (
               <p key={name} className="py-1 text-sm text-ink">
-                · {name}　储粮 {wan(asNum(p.storage), "石")}　粮产 {wan(asNum(p.grain), "石")}　
-                米价 {grainPrice(gp)}
+                · {name}　储粮 {fmtWan(p.storage, "石")}　粮产 {fmtWan(p.grain, "石")}　
+                米价 {gp === null ? "未定义" : grainPrice(gp)}
               </p>
             );
           })}

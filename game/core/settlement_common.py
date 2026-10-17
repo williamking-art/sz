@@ -345,11 +345,13 @@ def _levy_men(state, road: str, need: int) -> int:
     return got
 
 
-def _return_men(state, road: str, n: int) -> int:
-    """裁汰兵力回流本路农户（人守恒：兵 → 农）；无农户时归流民池。
+def _return_men(state, road: str, n: int, *, from_army_pop: bool = False) -> int:
+    """裁汰/逃亡兵力回流本路农户（人守恒：兵 → 农）；无农户时归流民池。
 
-    与 _levy_men 对称：凡减少兵额（裁汰/整编）都应把人丁送回民户，
-    否则 _settle_finance 以 Σbranches 重聚合兵 POP 时表现为人口凭空消失。
+    `from_army_pop=True`：调用方已经减少 `branches`（如欠饷逃亡/AI 裁汰），
+    本函数必须同时扣减兵 POP 再回流农户，否则 ΣPOP 净增；这是 P0-4 的生产口径。
+    默认 False 仅兼容旧合成调用（`_levy_men` 之后尚未经财政步重聚合兵 POP 的
+    测试场景），不用于真实裁汰。
     """
     if n <= 0:
         return 0
@@ -357,12 +359,27 @@ def _return_men(state, road: str, n: int) -> int:
     if not isinstance(p, dict):
         return 0
     pops = p.get("pops") or {}
+    moved = max(0, int(n))
+    if from_army_pop:
+        # 先扣兵 POP（源账户），再按实扣数回流农/流民；只加不减会造成 ΣPOP 净增。
+        army = pops.get("兵") if isinstance(pops, dict) else None
+        if not isinstance(army, dict):
+            return 0
+        _before = max(0, int(army.get("size", 0) or 0))
+        moved = min(moved, _before)
+        if moved <= 0:
+            return 0
+        if _pop_obj_add(state, army, "size", -moved) is None:
+            army["size"] = _before - moved
     farmer = pops.get("农") if isinstance(pops, dict) else None
     if isinstance(farmer, dict):
-        farmer["size"] = int(farmer.get("size", 0) or 0) + n
+        # 方案乙：路级 pops 是只读派生镜像；必须走桥接先落 seats 真账，
+        # 否则本函数返回 n 但下一次 sync_route_pops 会把这笔“还民”静默冲回。
+        if _pop_obj_add(state, farmer, "size", moved) is None:
+            farmer["size"] = int(farmer.get("size", 0) or 0) + moved
     else:
-        p["refugees"] = int(p.get("refugees", 0) or 0) + n
-    return n
+        p["refugees"] = int(p.get("refugees", 0) or 0) + moved
+    return moved
 
 
 def _collect_from_pops(state, amount: int) -> int:
@@ -481,10 +498,12 @@ _distribute_cash = distribute_cash
 def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
                                   source_account: str = "treasury",
                                   raise_on_unavailable: bool = False) -> int:
-    """公共资金（国库/内帑）→ 民间 POP wealth 的**守恒转移**（走 applier_pipeline）。
+    """公共资金（国库/内帑/加俸池）→ 民间 POP wealth 的**守恒转移**。
 
-    用于研发经费、工程款等**新增支出通道**：批量事务 + 路径白名单 + ΣΔ==0 + 原子回滚，
-    绝不绕开另起第三套写状态通道（engine/state_applier 铁律）。
+    B-6（2026-10-17）：收款落 `seats` 真账（通过 `pop_obj_add` 桥接），
+    不再写 `prefectures.<路>.pops.<类>.wealth` 派生镜像；发放成功后才扣来源，
+    失败按实际已发额回滚，确保同步后 M_ALL 不变。保留 `engine.state_applier`
+    可用性探测以维持既有“通道不可用 ≠ 拨了 0”的异常语义。
 
     口径：
       · 国库/内帑不足 → 按实付（返回 < amount，调用方须据实记录，不得静默成功）；
@@ -511,9 +530,25 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
     roads = [r for r, p in prefs.items() if isinstance(p, dict)]
     if not roads:
         return 0
-    changes = [{"path": source_account, "op": "add", "value": -amount,
-                "reason": reason, "source_agent": "settlement"}]
+    # 保留“写入通道不可用”的显式信号：即使当前实现改走 pop_bridge，
+    # 仍先探一次既有受管通道；import 失败时严格模式必须抛 MoneyChannelUnavailable。
+    try:
+        from engine.state_applier import applier_pipeline  # noqa: F401
+    except Exception as e:  # noqa: BLE001
+        _log.warning("[公共资金→POP] 状态写入通道不可用（source=%s reason=%s，"
+                     "本次按 0 处理，与「国库不足」不可区分）", source_account, reason,
+                     exc_info=True)
+        if raise_on_unavailable:
+            raise MoneyChannelUnavailable(
+                f"engine.state_applier 不可用（{type(e).__name__}）："
+                f"公共资金→POP 转移无法执行（reason={reason}）") from e
+        return 0
+
+    # 🔴 B-6（2026-10-17）：收款必须落 **seats 真账**，不能再写
+    # `prefectures.<路>.pops.<类>.wealth`（路级派生镜像，下一次
+    # `sync_route_pops` 会用 Σ治所覆盖它，到账静默消失）。
     items = [(c, float(s)) for c, s in (shares or {}).items() if float(s) > 0]
+    plan = []
     allocated = 0
     for i, (cls, share) in enumerate(items):
         want = (amount - allocated) if i == len(items) - 1 else int(amount * share)
@@ -528,31 +563,58 @@ def transfer_public_funds_to_pops(state, amount: int, shares: dict, reason: str,
             v = (want - given) if j == len(pools) - 1 else int(want / len(pools))
             if v <= 0:
                 continue
-            changes.append({"path": f"prefectures.{r}.pops.{cls}.wealth",
-                            "op": "add", "value": v,
-                            "reason": reason, "source_agent": "settlement"})
+            plan.append((r, cls, v))
             given += v
         allocated += given
     if allocated <= 0:
         return 0
-    changes[0]["value"] = -allocated
+
+    applied = []
+    credited = 0
     try:
-        from engine.state_applier import applier_pipeline
-    except Exception as e:  # noqa: BLE001
-        # 通道不可用 ≠ 拨了 0：默认（范围外调用方）仍返回 0 但**留 WARNING**；
-        # 授权范围内的调用方传 raise_on_unavailable=True 以区分（见 docstring）。
-        _log.warning("[公共资金→POP] 状态写入通道不可用（source=%s reason=%s，"
-                     "本次按 0 处理，与「国库不足」不可区分）", source_account, reason,
-                     exc_info=True)
+        for r, cls, v in plan:
+            pool = (prefs[r].get("pops") or {}).get(cls)
+            if not isinstance(pool, dict):
+                continue
+            before = int(pool.get("wealth", 0) or 0)
+            new_total = _pop_obj_add(state, pool, "wealth", v)
+            if new_total is None:
+                # 未下沉旧档：路级就是真账，直接写是合法回落。
+                pool["wealth"] = before + int(v)
+                after = int(pool["wealth"])
+            else:
+                after = int(new_total)
+            got = max(0, after - before)
+            if got > 0:
+                applied.append((r, cls, got))
+                credited += got
+    except Exception as e:  # noqa: BLE001 — 失败必须回滚已发部分，不得半发
+        for r, cls, got in applied:
+            pool = (prefs[r].get("pops") or {}).get(cls)
+            if isinstance(pool, dict):
+                if _pop_obj_add(state, pool, "wealth", -got) is None:
+                    pool["wealth"] = int(pool.get("wealth", 0) or 0) - got
+        _log.warning("[公共资金→POP] 发放异常，已回滚 %s 贯（source=%s reason=%s）",
+                     credited, source_account, reason, exc_info=True)
         if raise_on_unavailable:
             raise MoneyChannelUnavailable(
-                f"engine.state_applier 不可用（{type(e).__name__}）："
-                f"公共资金→POP 转移无法执行（reason={reason}）") from e
+                f"公共资金→POP 发放异常（{type(e).__name__}）：已回滚 {credited} 贯"
+                f"（reason={reason}）") from e
         return 0
-    res = applier_pipeline(state, [("settlement", changes)])
-    if not (res.get("applied") or []):
+
+    if credited <= 0:
         return 0
-    return allocated
+    # 发放成功后才扣来源，且只扣**实际到账**；国库/内帑走既有单点，预算池直接减。
+    if source_account == "treasury":
+        state.change_treasury(-credited)
+    elif source_account == "imperial_treasury":
+        state.change_imperial_treasury(-credited)
+    elif source_account == "payraise_budget":
+        state.payraise_budget = max(0, int(getattr(state, "payraise_budget", 0) or 0) - credited)
+    else:
+        setattr(state, source_account,
+                max(0, int(getattr(state, source_account, 0) or 0) - credited))
+    return credited
 
 
 _TA = 5 / 3.0          # 大 → 巨 倍率（2.0/1.5）

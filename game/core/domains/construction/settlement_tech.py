@@ -370,8 +370,15 @@ def _settle_projects(state, log):
                 # 非建材维度（如 `粮`）：仍查仓总账，保持既有口径
                 _mat_view[_d] = (getattr(state, "resources", {}) or {}).get(_d)
                 continue
-            # 建材：值取**本路商人货栈**（E-1/C-c），形状须为 `{"stock": n}`
-            _mat_view[_d] = {"stock": int(_mh(state, _route0, _md) or 0)}
+            # 建材：可用存量 ＝ 官方料场 (public_depot) 存量 ＋ 本路商人货栈存量
+            _depot_st = 0.0
+            try:
+                from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_get
+                _depot_st = float(warehouse_stock_get(state, _route0, "public_depot", _d) or 0.0)
+            except Exception:
+                pass
+            _merch_st = float(_mh(state, _route0, _md) or 0)
+            _mat_view[_d] = {"stock": int(round(_depot_st + _merch_st))}
         ratio = float(project_supply_ratio(
             proj, _mat_view or (getattr(state, "resources", {}) or {}),
             getattr(state, "treasury", 0) or 0))
@@ -426,20 +433,9 @@ def _settle_projects(state, log):
             take = min(_left, float(need or 0) * ratio)
             if take <= 0:
                 continue
-            # ✅ **已并入州府仓**（用户 2026-10-02 裁定「合并」）：政府工程原用
-            # `RAW_DIMS_14` 中文名（`铁`/`石`/`木`），民间营造用 `RAW_DIMS`
-            # 英文名（`iron`/`stone`/`timber`），二者本是**两个不同单元格**、
-            # 会**同一物料双记**。现经 `to_material_dim()` 在**仓边界**
-            # 翻译成**同一套英文名**，两处消费方共用 `consume_for_circuit()`
-            # ——**口径单点**，政府工程也因此**享受州府级物流**（缺料须先运到）。
-            # 项目台账内部（`cost_material` / `_mat_left_<dim>`）**仍用中文键**，
-            # 翻译只发生在落仓那一刻。
-            from core.foundation.ledger.material_holding import consume_for_circuit, to_material_dim
-            _mdim = to_material_dim(dim)
-            if _mdim is None:
-                continue          # 非建材维度（如 `粮` 走 pops[].grain）⇒ 跳过，不臆断
+            from core.foundation.ledger.spatial_warehouse_bridge import consume_project_materials_spatial
             _route = proj.get("route") or proj.get("prefecture") or ""
-            _got = consume_for_circuit(state, _route, _mdim, int(round(take)))
+            _got, _src = consume_project_materials_spatial(state, _route, dim, take)
             if _got > 0:
                 take = float(_got)
                 proj[_left_key] = round(_left - take, 6)
@@ -497,9 +493,16 @@ def _settle_projects(state, log):
                 stats["project_coin_unspent"] = \
                     float(stats.get("project_coin_unspent", 0) or 0) + _left_coin
                 proj["_coin_left"] = 0.0
+            _droute = str(proj.get("route") or proj.get("prefecture") or "")
             for dim in list(proj.get("cost_material") or {}):
                 _lk = f"_mat_left_{dim}"
-                if float(proj.get(_lk, 0) or 0) > 0:
+                _rem_m = float(proj.get(_lk, 0) or 0)
+                if _rem_m > 0:
+                    try:
+                        from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_add
+                        warehouse_stock_add(state, _droute, "public_depot", dim, _rem_m, reason="project_completion_refund")
+                    except Exception:
+                        pass
                     proj[_lk] = 0.0
             proj["capacity"] = float(proj.get("capacity", 1.0) or 1.0)
             proj["_upkeep_arrears_seen"] = int(stats.get("upkeep_arrears", 0) or 0)

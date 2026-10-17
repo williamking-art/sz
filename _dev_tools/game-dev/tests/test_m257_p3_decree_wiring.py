@@ -65,7 +65,8 @@ def test_unassigned_decree_passes_and_records_ledger(monkeypatch):
     assert rec is not None, "未指派诏令执行后应登记执行台账"
     assert rec["outcome"] == OUTCOME_EXECUTED
     assert rec["by"] == "朝廷"
-    assert rec["confirm_status"] == STATUS_CONFIRMED
+    # C-1：未指派在册大臣的普发诏令没有经过 confirm_decree，不得伪记 confirmed。
+    assert rec["confirm_status"] == "not_required"
     assert rec["title"] == "普开仓赈济"
 
 
@@ -175,6 +176,9 @@ def test_designated_minister_unauthorized_is_rejected(monkeypatch):
     """5. 指定在册大臣无权承办（authority=0 或在野）：门禁驳回。"""
     s = _state()
     ma.ensure_actor(s, AID_B, posts=["中书舍人"], authority=0.0)  # authority=0 无权
+    # 新局可能已预建档（init_minister_agents）；ensure_actor 不覆盖既有条目，
+    # 故这里显式把测试所需的“无权”写回运行态（C-1 建档后的测试适配）。
+    s.minister_agents[AID_B]["authority"] = 0.0
     s.minister_agents[AID_B]["status"] = ma.MINISTER_STATUS_IN_OFFICE
 
     did = "d_unauth_005"
@@ -204,6 +208,7 @@ def test_designated_minister_authority_undefined_is_suspended():
     """6. 指定在册大臣权限未定义（authority=None）：按硬约束挂起，留在待办。"""
     s = _state()
     ma.ensure_actor(s, AID_B, posts=["中书舍人"], authority=None)  # authority 未定义
+    s.minister_agents[AID_B]["authority"] = None  # 覆盖新局预建档的默认值
 
     did = "d_undef_006"
     decree = {
