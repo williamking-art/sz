@@ -449,4 +449,45 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 1. **M314 自动调拨相位**：需要调度策略（阈值/优先级/预算），建议单独裁定后接入 `settlement_pipeline`。
 2. **paperdoll**：按用户裁定**冻结**，不再改动。
 3. `.git` 806.8MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
-4. PM 多级产业链全面驱动（八大链按 PM 算投入产出）仍属后续。
+4. PM 多级产业链全面驱动（八大链按 PM 算投入产出）仍属后续。---
+
+## 16. 第七批整改（长局性能退化修复 · 附带 POP 交易写入口缺陷）
+
+### 16.1 问题
+跑 `SONGZUO_LONG_RUN=240` 长局哨兵时，4×240 月超过 24 分钟仍未完成。cProfile（12 月）显示：
+- `pop_bridge.sync_route_pops` 被调用 **3.7 万次**（每次写入都全量聚合 6 阶层 × 30+ 字段）；
+- `aggregate_seat_pops` 23.8 万次、`_nums` 710 万次；
+- `prefecture_entity.all_seats` 每次调用都从静态表重建 136 个 dict（2.2 万次）。
+根因是「桥接写入 = 每次全量对账」的 O(n²) 结构，属性能退化（非死循环）。
+
+### 16.2 修复
+1. **单类增量镜像**：`pop_set`/`pop_goods_add`/`pop_goods_sub`/`pop_goods_decay` 只刷新被写入的那一个阶层；
+   `pop_set` 直接写回该字段的精确合计（O(1)），不再全 6 类聚合。
+2. **静态表缓存**：`prefecture_entity.all_seats`/`seats_of` 用 `lru_cache`（源为 content 静态表，只读）。
+3. **月末一次对账**：`SettlementPipeline.execute` 末尾对 20 路各做一次 `sync_route_pops`，
+   保证「路级镜像 == Σ治所」，同时归一并兼容历史遗留直写。
+4. **附带修复（被全量 sync 掩盖的真实缺陷）**：`market._trade_goods_core` 原先把
+   `(state, buyer, dim, qty)` 传给 pdata 版 `pop_goods_add/sub`（签名不符恒 `None`）⇒
+   POP 间商品成交从未落治所真账、月末被 sync 抹掉。新增 `pop_obj_goods_add/pop_obj_goods_sub`
+   按 POP 对象定位，成交真实落账。
+
+### 16.3 实测
+| 指标 | 修复前 | 修复后 |
+|---|---|---|
+| 12 月结算（cProfile） | 83.6s | **约 9–15s** |
+| 全量 pytest | 1236s | **419.8s** |
+| `test_stock_flow_identity` POP 逐维残差 | 绸 +3794 | **0（逐维闭合）** |
+| 60 月长局哨兵 | — | **68 条相关用例全绿** |
+
+### 16.4 最终基线（第七批后）
+| 项 | 结果 |
+|---|---|
+| pytest | **3485 tests / 0 failed / 0 errors / 2 skipped**（junit `_scratch/audit-20261017/junit-batch7-green.xml`，419.8s） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+
+### 16.5 仍未闭环
+1. 240 月长局哨兵可重跑（本轮已验证 60 月与性能门槛；240 月约 10 分钟）。
+2. 部分历史路径仍直写路级镜像（如外邦省域经济），依赖月末对账归一；后续可按模块逐个桥接。
+3. **paperdoll**：按用户裁定**冻结**，不再改动。
+4. `.git` 806.8MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。

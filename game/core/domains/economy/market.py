@@ -187,12 +187,15 @@ def _trade_goods_core(state, *, dim: str, qty: int, price: float,
         buyer["wealth"] = buyer_wealth - paid
     if buyer_goods_key == "goods":
         # 桥只认标准 goods 槽；自定义槽名（少见）保持原写法
-        if _pb.pop_goods_add(state, buyer, dim, trade_qty) is None:
+        # 2026-10-18 全审：原先把 (state, buyer, dim, qty) 传给 pdata 版 pop_goods_add
+        # （签名不符 ⇒ 恒 None ⇒ 回落直写路级镜像，成交在月末对账时被抹掉）。
+        # 改用按 POP 对象定位的 pop_obj_goods_add，真实落治所真账。
+        if _pb.pop_obj_goods_add(state, buyer, dim, trade_qty) is None:
             buyer[buyer_goods_key][dim] = _int(buyer[buyer_goods_key].get(dim), 0) + trade_qty
     else:
         buyer[buyer_goods_key][dim] = _int(buyer[buyer_goods_key].get(dim), 0) + trade_qty
     # 卖方出货：从其**治所真账**按现有持仓占比扣、逐个夹紧 ≥0（无持仓治所不参与）
-    if _pb.pop_goods_sub(state, seller, dim, trade_qty) is None:
+    if _pb.pop_obj_goods_sub(state, seller, dim, trade_qty) is None:
         seller_goods[dim] = _int(seller_goods.get(dim), 0) - trade_qty
     if _pb.pop_obj_add(state, seller, "wealth", paid) is None:
         seller["wealth"] = max(0, _int(seller.get("wealth"), 0)) + paid

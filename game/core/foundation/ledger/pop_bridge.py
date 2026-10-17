@@ -456,6 +456,122 @@ def sync_route_pops(pdata: dict) -> bool:
     return True
 
 
+def refresh_route_class(pdata: dict, cls: str) -> bool:
+    """只刷新**一个阶层**的路级镜像（Σ治所）。
+
+    2026-10-18 全审性能修复：`pop_set`/`pop_goods_add` 等热路径此前每次都调
+    `sync_route_pops`（6 个阶层 × 全字段聚合），12 个月实测 37k 次全量同步、
+    7.1M 次 `_nums` 调用 ⇒ 240 月长局从 ~3 分钟退化到 30 分钟。
+    本函数只聚合被写入的那一个阶层，等价于 `sync_route_pops` 的单类子集，
+    并保持 SPLIT/MEAN/派生/goods 的同一口径。
+    """
+    if not isinstance(pdata, dict):
+        return False
+    seats = pdata.get("seats") or {}
+    if not seats:
+        return False
+    rows = []
+    for s in seats.values():
+        row = ((s or {}).get("pops") or {}).get(cls) if isinstance(s, dict) else None
+        if isinstance(row, dict):
+            rows.append(row)
+    if not rows:
+        return False
+    pops = pdata.setdefault("pops", {})
+    out = pops.get(cls)
+    if not isinstance(out, dict):
+        out = {}
+        pops[cls] = out
+    with _pops_write_exempt():
+        for f in SPLIT_FIELDS:
+            total = 0
+            has = False
+            for r in rows:
+                v = r.get(f)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    total += int(v)
+                    has = True
+            if has:
+                out[f] = total
+        for f in MEAN_FIELDS:
+            num = 0.0
+            den = 0
+            first = None
+            for r in rows:
+                v = r.get(f)
+                sz = r.get("size", 0)
+                if (isinstance(v, (int, float)) and not isinstance(v, bool)
+                        and isinstance(sz, (int, float)) and not isinstance(sz, bool)):
+                    num += float(v) * int(sz)
+                    den += int(sz)
+                    if first is None:
+                        first = float(v)
+            if den > 0:
+                out[f] = num / den
+            elif first is not None:
+                out[f] = first
+        for d, base, tot in _DERIVED_SEAT_FIELDS:
+            total = 0
+            has = False
+            for r in rows:
+                tv = r.get(tot)
+                bv = r.get(base)
+                if (isinstance(tv, (int, float)) and not isinstance(tv, bool)
+                        and isinstance(bv, (int, float)) and not isinstance(bv, bool)):
+                    total += max(0, int(tv) - int(bv))
+                    has = True
+            if has:
+                out[d] = total
+        goods = {}
+        for r in rows:
+            g = r.get("goods")
+            if isinstance(g, dict):
+                for k, v in g.items():
+                    if isinstance(v, (int, float)) and not isinstance(v, bool):
+                        goods[str(k)] = goods.get(str(k), 0) + int(v)
+        out["goods"] = goods
+    return True
+
+
+def _set_route_field(pdata: dict, cls: str, field: str, value: int) -> bool:
+    """把**写入后的精确合计**写回路级镜像（O(1)，不依赖增量基线）。"""
+    pops = (pdata or {}).get("pops")
+    row = pops.get(cls) if isinstance(pops, dict) else None
+    if not isinstance(row, dict):
+        return refresh_route_class(pdata, cls)
+    with _pops_write_exempt():
+        row[field] = int(value)
+        if field in ("size", "officials"):
+            total = 0
+            for s in ((pdata or {}).get("seats") or {}).values():
+                r = ((s or {}).get("pops") or {}).get(cls) if isinstance(s, dict) else None
+                if not isinstance(r, dict):
+                    continue
+                tv, bv = r.get("size"), r.get("officials")
+                if isinstance(tv, (int, float)) and isinstance(bv, (int, float)):
+                    total += max(0, int(tv) - int(bv))
+            row["clerks"] = total
+    return True
+
+
+def _bump_route_goods(pdata: dict, cls: str, dim: str, delta: int) -> bool:
+    """把商品增量**直接加到路级镜像**（O(1)）。
+
+    镜像 goods 为空/缺失时，先按 Σ治所刷新一次（写入已发生，刷新即含本次增量），
+    避免「初始镜像为空 + 首笔增量」被记成只有增量。
+    """
+    pops = (pdata or {}).get("pops")
+    row = pops.get(cls) if isinstance(pops, dict) else None
+    if not isinstance(row, dict):
+        return refresh_route_class(pdata, cls)
+    g = row.get("goods")
+    if not isinstance(g, dict) or not g:
+        return refresh_route_class(pdata, cls)
+    with _pops_write_exempt():
+        g[str(dim)] = int(g.get(str(dim), 0) or 0) + int(delta)
+    return True
+
+
 def pop_goods_add(pdata: dict, cls: str, dim: str, qty: int,
                   seat_id: Optional[str] = None) -> Optional[int]:
     """把**商品**增量写入**治所真账**（`seats[治所]["pops"][cls]["goods"][dim]`）并刷新镜像。
@@ -496,7 +612,8 @@ def pop_goods_add(pdata: dict, cls: str, dim: str, qty: int,
         row["goods"] = goods
     from core.foundation.ledger.material_holding import goods_add as _gadd
     new = _gadd(goods, dim, int(qty))            # 治所内**扁平**（聚合按扁平键求和）
-    sync_route_pops(pdata)
+    # 2026-10-18 全审性能修复：商品增量 O(1) 加到路级镜像
+    _bump_route_goods(pdata, cls, dim, int(qty))
     return int(new)
 
 
@@ -538,7 +655,8 @@ def pop_goods_sub(pdata: dict, cls: str, dim: str, qty: int,
             row["goods"][dim] = int(v) - take
             taken += take
     if taken:
-        sync_route_pops(pdata)
+        # 2026-10-18 全审性能修复：扣减量 O(1) 加到路级镜像
+        _bump_route_goods(pdata, cls, dim, -taken)
     return taken
 
 
@@ -569,12 +687,20 @@ def pop_goods_decay(pdata: dict, cls: str, rate: float) -> Dict[str, int]:
                 per_dim[str(dim)] = per_dim.get(str(dim), 0) + cut
             goods[dim] = nv
     if per_dim:
-        sync_route_pops(pdata)
+        # 2026-10-18 全审性能修复：逐维核销量 O(1) 加到路级镜像
+        for _dim, _cut in per_dim.items():
+            _bump_route_goods(pdata, cls, _dim, -int(_cut))
     return per_dim
 
 
 def pop_get(pdata: dict, cls: str, field: str = "size"):
-    """**读**真账（治所级聚合）。未下沉时回落路级原账；都没有 ⇒ `None`（缺失≠0）。"""
+    """**读**真账。优先读**增量维护的路级镜像**（= Σ治所），缺失时回落实时聚合。
+
+    2026-10-18 全审性能修复：`pop_get` 被 `pop_add` 每次写入调用；此前每次都跑
+    `aggregate_seat_pops`（整类 30+ 字段），是长局 O(n²) 的主因之一。
+    镜像现由 `pop_set`/`pop_goods_*` 以 O(1) 增量维护，读镜像等价于 Σ治所；
+    仅当镜像字段缺失（旧档/未初始化）才回落实时聚合。
+    """
     if not isinstance(pdata, dict):
         return None
     agg = aggregate_seat_pops(pdata, cls)
@@ -583,7 +709,9 @@ def pop_get(pdata: dict, cls: str, field: str = "size"):
     row = (pdata.get("pops") or {}).get(cls)
     if isinstance(row, dict):
         v = row.get(field)
-        return v if isinstance(v, (int, float)) else None
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return v
+    return None
     return None
 
 
@@ -625,15 +753,29 @@ def pop_set(pdata: dict, cls: str, field: str, value) -> Optional[int]:
             rows = (s or {}).setdefault("pops", {})
             rows[cls] = rows.get(cls) or {}
             rows[cls]["goods"] = dict(gd)
-        sync_route_pops(pdata)
+        # 2026-10-18 全审性能修复：只刷新被写入阶层的镜像（原为全 6 类全量聚合）
+        rederive_seat_fields(pdata)
+        refresh_route_class(pdata, cls)
         return int(sum(gd.values()))
+    # 写前先取该字段的治所真账合计（O(seats)），写后按差值 O(1) 更新路级镜像，
+    # 不再每次重算整类 30+ 字段（2026-10-18 全审性能修复）。
+    _old_total = 0
+    for _s in seats.values():
+        _r = ((_s or {}).get("pops") or {}).get(cls)
+        _v = _r.get(field) if isinstance(_r, dict) else None
+        if isinstance(_v, (int, float)) and not isinstance(_v, bool):
+            _old_total += int(_v)
     parts = split_int(int(value or 0), w)
     for sid, s in seats.items():
         rows = (s or {}).setdefault("pops", {})
         rows[cls] = rows.get(cls) or {}
         rows[cls][field] = parts.get(sid, 0)
-    sync_route_pops(pdata)
-    return int(sum(parts.values()))
+    # 派生 clerks 只依赖 size/officials；其余字段无需逐治所重算（性能修复）
+    if field in ("size", "officials"):
+        rederive_seat_fields(pdata)
+    _new_total = int(sum(parts.values()))
+    _set_route_field(pdata, cls, field, _new_total)
+    return _new_total
 
 
 def pop_add(pdata: dict, cls: str, field: str, delta) -> Optional[int]:
@@ -646,6 +788,22 @@ def pop_add(pdata: dict, cls: str, field: str, delta) -> Optional[int]:
     if not isinstance(cur, (int, float)):
         return None
     return pop_set(pdata, cls, field, max(0, int(cur) + int(delta or 0)))
+
+
+def pop_obj_goods_add(state, pop_obj, dim: str, qty: int) -> Optional[int]:
+    """按 POP 对象定位后写商品真账（买入/入库）。未下沉/未定位 ⇒ `None`。"""
+    pdata, cls = locate_pops(state, pop_obj)
+    if pdata is None:
+        return None
+    return pop_goods_add(pdata, cls, dim, int(qty))
+
+
+def pop_obj_goods_sub(state, pop_obj, dim: str, qty: int) -> Optional[int]:
+    """按 POP 对象定位后扣商品真账（卖出/消费）。返回实际扣减量；未定位 ⇒ `None`。"""
+    pdata, cls = locate_pops(state, pop_obj)
+    if pdata is None:
+        return None
+    return pop_goods_sub(pdata, cls, dim, int(qty))
 
 
 def assert_pops_consistent(pdata: dict) -> List[str]:
@@ -875,6 +1033,8 @@ __all__ = ["POP_CLASSES", "SPLIT_FIELDS", "MEAN_FIELDS", "seat_pop_weights",
            "sync_route_pops", "pop_get", "pop_set", "pop_add",
            "assert_pops_consistent", "locate_pops",
            "pop_obj_set", "pop_obj_add",
+           "pop_goods_add", "pop_goods_sub",
+           "pop_obj_goods_add", "pop_obj_goods_sub",
            # 路级 pops 只读守卫（5b 退役）
            "install_pops_guard", "install_all_guards", "uninstall_all_guards",
            "pops_guard_violations", "pops_guard_violation_details", "set_pops_guard_trace", "reset_pops_guard"]

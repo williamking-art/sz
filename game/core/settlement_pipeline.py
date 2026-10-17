@@ -100,6 +100,16 @@ class SettlementPipeline:
         """按声明顺序顺序执行全部步骤。"""
         for step in self._steps:
             step.execute(state, log_sink, **kwargs)
+        # 2026-10-18 全审性能修复的收口：月内用 O(1) 增量维护路级镜像，
+        # 月末再做**一次**全量对账（20 路 × 6 阶层），保证「镜像 == Σ治所」，
+        # 同时把历史遗留的少量直写（如外邦/旧路径）重新归一到真账口径。
+        try:
+            from core.foundation.ledger.pop_bridge import sync_route_pops
+            for _pdata in (getattr(state, "prefectures", {}) or {}).values():
+                if isinstance(_pdata, dict):
+                    sync_route_pops(_pdata)
+        except Exception:  # noqa: BLE001 — 对账失败不掩盖主结算结果，交由测试兜底
+            log.warning("月末 POP 镜像对账失败", exc_info=True)
         return log_sink
 
 

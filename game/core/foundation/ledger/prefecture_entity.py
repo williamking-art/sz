@@ -38,6 +38,7 @@
 """
 from __future__ import annotations
 
+from functools import lru_cache as _lru_cache
 from typing import Any, Dict, List, Optional
 
 __all__ = [
@@ -112,13 +113,12 @@ def _table():
     return T
 
 
-def all_seats(include_merged: bool = True) -> List[Dict[str, Any]]:
-    """全部治所实体（默认含省级归入席）。
+@_lru_cache(maxsize=4)
+def _all_seats_cached(include_merged: bool = True) -> tuple:
+    """治所实体表的**只读缓存**（源数据来自 content 静态表，不随回合变化）。
 
-    返回 `[{seat, circuit, level, lon, lat, blocked, basis, demog}]`：
-    - `level/lon/lat` 取自 `CIRCUIT_INFO.members`（**实测地图点**）；
-    - `demog`：有块者给出人口/户/田/粮/税/产出；归入席为 `None`（**缺失≠0**）；
-    - `basis`：见模块头精度声明。
+    2026-10-18 全审性能修复：`all_seats()` 此前每次从静态表重建 136 个 dict，
+    240 月结算中调用 2.2 万次 ⇒ 长局严重退化。缓存后调用方**只读**，不得原地修改。
     """
     T = _table()
     out: List[Dict[str, Any]] = []
@@ -131,7 +131,6 @@ def all_seats(include_merged: bool = True) -> List[Dict[str, Any]]:
             if not include_merged and not blocked:
                 continue
             if blocked:
-                # `basis` 由**生成表单一来源**给出（不再在此二次推断，避免两套口径分叉）
                 basis = row.get("basis") or BASIS_AREA_ONLY
                 demog = {k: v for k, v in row.items()
                          if k not in ("name", "blocked", "note", "basis")}
@@ -141,13 +140,29 @@ def all_seats(include_merged: bool = True) -> List[Dict[str, Any]]:
                         "circuit": circuit, "level": lvl,
                         "lon": lon, "lat": lat, "blocked": blocked,
                         "basis": basis, "demog": demog})
-    return out
+    return tuple(out)
+
+
+def all_seats(include_merged: bool = True) -> List[Dict[str, Any]]:
+    """全部治所实体（默认含省级归入席）。**返回只读缓存列表的浅拷贝**。
+
+    返回 `[{seat, circuit, level, lon, lat, blocked, basis, demog}]`：
+    - `level/lon/lat` 取自 `CIRCUIT_INFO.members`（**实测地图点**）；
+    - `demog`：有块者给出人口/户/田/粮/税/产出；归入席为 `None`（**缺失≠0**）；
+    - `basis`：见模块头精度声明。
+    """
+    return list(_all_seats_cached(include_merged))
+
+
+@_lru_cache(maxsize=64)
+def _seats_of_cached(circuit: str, include_merged: bool = True) -> tuple:
+    return tuple(s for s in _all_seats_cached(include_merged)
+                 if s["circuit"] == circuit)
 
 
 def seats_of(circuit: str, include_merged: bool = True) -> List[Dict[str, Any]]:
     """某路下辖治所实体；未知路返回 `[]`（**不抛**，便于 UI 容错）。"""
-    return [s for s in all_seats(include_merged=include_merged)
-            if s["circuit"] == circuit]
+    return list(_seats_of_cached(circuit, include_merged))
 
 
 def circuit_of(seat_id: str) -> Optional[str]:

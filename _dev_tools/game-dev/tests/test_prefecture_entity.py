@@ -237,10 +237,14 @@ def test_stub_reexports_same_objects_as_new_module():
     from core import prefecture_entity as OLD
     from core.foundation.ledger import prefecture_entity as NEW
     assert OLD.__file__ != NEW.__file__
-    names = sorted(n for n in dir(NEW) if not n.startswith('__'))
-    assert len(names) == 24, f"dir() 符号数变化（迁移桩需同步）：{len(names)}"
+    # 2026-10-18 全审：以 `__all__` 为对外契约（私有缓存助手 lru_cache 等不计入），
+    # 逐符号核验旧桩与新实现是**同一对象**（无复制实现）。
+    names = sorted(NEW.__all__)
+    assert len(names) == 16, f"对外符号数变化（迁移桩需同步）：{len(names)}"
     for n in names:
         assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
+    for key in ("all_seats", "seats_of", "seat_id_of", "circuit_of"):
+        assert key in names, f"关键读口 {key} 不在对外契约内"
 
 
 def test_pop_bridge_seat_weights_resolves_via_new_path():
