@@ -327,9 +327,29 @@ def _route_capital_seat(state, route: str) -> Optional[str]:
     return str(sorted(seats)[0])
 
 
+#: 产业链成品键 → 代表建筑（用于消费 M317/M318 生产方式相对倍率）。
+#: 未列出的成品键（绸/布/糖/纸/熟皮/食用油等）回退 1.0，保持默认中性。
+_OUTPUT_PM_BUILDING = {
+    "iron_ingots": "冶铁工场", "steel_ingots": "冶铁工场",
+    "weapons_pieces": "冶铁工场",
+    "copper_ingots": "冶铁工场", "coins_minted_guan": "冶铁工场",
+    "machinery_parts": "木作机械坊", "timber_beams": "木作机械坊",
+    "barges_built": "造船作坊",
+    "gunpowder_jin": "火药局", "firearms_pieces": "火器制造坊",
+    "fine_china_pieces": "官窑瓷坊",
+    "books_printed": "印造经籍局", "paper": "印造经籍局",
+    "ink_jin": "印造经籍局", "four_treasures_pieces": "印造经籍局",
+}
+
+
 def _warehouse_add_distributed(state, dim: str, qty: float, wtype: str,
-                               weights: Dict[str, float], reason: str) -> float:
-    """把成品按各路原料权重分派入该路首府治所指定仓位，返回实际入仓量。"""
+                               weights: Dict[str, float], reason: str,
+                               pm_building: Optional[str] = None) -> float:
+    """把成品按各路原料权重分派入该路首府治所指定仓位，返回实际入仓量。
+
+    2026-10-18 全审：可选 `pm_building` ⇒ 按该路建筑的生产方式**相对倍率**
+    缩放产出（默认 PM 恒 1.0，逐位不变；切换到更优 PM 则同投入多产出）。
+    """
     q = float(qty)
     if q <= 0:
         return 0.0
@@ -343,19 +363,45 @@ def _warehouse_add_distributed(state, dim: str, qty: float, wtype: str,
         return 0.0
     if not any(w > 0 for _r, _s, w in rows):
         rows = [(route, sid, 1.0) for route, sid, _w in rows]
-    total_w = sum(w for _r, _s, w in rows)
-    if total_w <= 0:
+    base_total = sum(w for _r, _s, w in rows)
+    if base_total <= 0:
         return 0.0
+
+    # 生产方式相对倍率（按路；默认 PM ⇒ 1.0）
+    mults = {route: 1.0 for route, _sid, _w in rows}
+    if pm_building:
+        try:
+            from core.domains.economy.production_methods import (
+                relative_throughput_multiplier,
+            )
+            for route, sid, _w in rows:
+                try:
+                    m = relative_throughput_multiplier(state, route, sid, pm_building)
+                except Exception:  # noqa: BLE001 — 单路失败回中性
+                    m = 1.0
+                mults[route] = max(0.0, float(m or 1.0))
+        except Exception:  # noqa: BLE001 — 模块不可用 ⇒ 中性
+            mults = {route: 1.0 for route, _sid, _w in rows}
+
+    weighted = [(route, sid, w * mults.get(route, 1.0))
+                for route, sid, w in rows]
+    scaled_total = sum(w for _r, _s, w in weighted)
+    if scaled_total <= 0:
+        weighted = rows
+        scaled_total = base_total
+    # 总产出 = 理论量 × 加权平均倍率（默认 1.0 时与原实现逐位一致）
+    total_q = q * (scaled_total / base_total)
+
     from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_add
     parts: List[float] = []
     allocated = 0.0
-    for route, _sid, w in rows[:-1]:
-        part = round(q * w / total_w, 4)
+    for route, _sid, w in weighted[:-1]:
+        part = round(total_q * w / scaled_total, 4)
         parts.append(part)
         allocated += part
-    parts.append(round(q - allocated, 4))          # 尾差归末位，Σ 精确
+    parts.append(round(total_q - allocated, 4))     # 尾差归末位，Σ 精确
     added = 0.0
-    for (route, sid, _w), part in zip(rows, parts):
+    for (route, sid, _w), part in zip(weighted, parts):
         if part <= 0:
             continue
         got = warehouse_stock_add(state, sid, wtype, dim, part, reason=reason)
@@ -505,7 +551,8 @@ def _apply_chain_stock_settlement(state, outputs: Dict[str, Any]) -> Dict[str, A
         dim = _OUTPUT_STOCK_DIM[key]
         wtype = "civilian_depots" if key in _CONSUMER_OUTPUT_KEYS else "public_depot"
         added = _warehouse_add_distributed(
-            state, dim, booked, wtype, weights, reason="industry_chain_output")
+            state, dim, booked, wtype, weights, reason="industry_chain_output",
+            pm_building=_OUTPUT_PM_BUILDING.get(key))
         report["outputs_booked"][key] = {
             "dim": dim, "warehouse": wtype, "qty": round(added, 4),
         }
