@@ -145,7 +145,9 @@ def check_countersign(prefecture_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def init_all_prefect_officials(state, *, include_stats: bool = True,
-                               store: bool = True) -> Dict[str, Dict[str, Any]]:
+                               store: bool = True,
+                               reserved_names: Optional[set] = None,
+                               reserved_ids: Optional[set] = None) -> Dict[str, Dict[str, Any]]:
     """初始化全国 136 州府席位知通人事底册。
 
     `include_stats=False`：纯读数兜底，不调用 `get_or_create_official_stats`（不写
@@ -158,6 +160,21 @@ def init_all_prefect_officials(state, *, include_stats: bool = True,
         raw_dict = {}
         if store:
             state.prefect_officials = raw_dict
+
+    # 跨册共享的 reserved 集合：已有条目 + 上游册已用姓名/person_id 都纳入。
+    used_names = reserved_names if isinstance(reserved_names, set) else set(reserved_names or ())
+    used_ids = reserved_ids if isinstance(reserved_ids, set) else set(reserved_ids or ())
+    for _entry in raw_dict.values():
+        if not isinstance(_entry, dict):
+            continue
+        for _slot in ("prefect", "subprefect"):
+            _holder = _entry.get(_slot) or {}
+            if isinstance(_holder, dict):
+                if _holder.get("name"):
+                    used_names.add(str(_holder["name"]))
+                if _holder.get("person_id"):
+                    used_ids.add(str(_holder["person_id"]))
+    allocator = OfficialNameAllocator(used_names, used_ids)
 
     seats = all_seats()
     for idx, s in enumerate(seats):
@@ -178,6 +195,9 @@ def init_all_prefect_officials(state, *, include_stats: bool = True,
         p_name, p_fac, p_traits, p_integ, p_abil = _PREFECT_NAMES[p_idx]
         v_name, v_fac, v_traits, v_integ, v_abil = _SUBPREFECT_NAMES[v_idx]
         guarantor = _CENTRAL_GUARANTORS[g_idx]
+        # P1-6：每个任命唯一 person_id；同名池重复时确定性生成新姓名，历史/池名优先保留。
+        p_name, p_pid, p_hist = allocator.make(p_name, prefix="pf", historical=True)
+        v_name, v_pid, v_hist = allocator.make(v_name, prefix="pf", historical=True)
 
         p_stat = v_stat = None
         if include_stats:
@@ -192,6 +212,8 @@ def init_all_prefect_officials(state, *, include_stats: bool = True,
             "level": level,
             "prefect": {
                 "name": p_name,
+                "person_id": p_pid,
+                "historical": p_hist,
                 "role": p_title,
                 "rank": p_rank,
                 "faction": p_fac,
@@ -206,6 +228,8 @@ def init_all_prefect_officials(state, *, include_stats: bool = True,
             },
             "subprefect": {
                 "name": v_name,
+                "person_id": v_pid,
+                "historical": v_hist,
                 "role": "通判",
                 "rank": "从六品",
                 "faction": v_fac,
@@ -248,8 +272,12 @@ def get_prefect_officials(state, seat_id: Optional[str] = None) -> Any:
 
 def appoint_prefect_official(state, seat_id: str, role: str,
                              official_info: Dict[str, Any]) -> Dict[str, Any]:
-    """任命或调换州府知通。"""
-    po = get_prefect_officials(state, seat_id)
+    """任命或调换州府知通（显式写路径：先保证官员册存在于 state）。"""
+    raw = getattr(state, "prefect_officials", None)
+    if not isinstance(raw, dict) or len(raw) < 136:
+        init_all_prefect_officials(state)
+        raw = state.prefect_officials
+    po = raw.get(seat_id)
     if not po:
         return {"ok": False, "msg": f"未找到该州府席位：{seat_id}"}
 
@@ -258,6 +286,14 @@ def appoint_prefect_official(state, seat_id: str, role: str,
 
     old_holder = po.get(slot_key, {})
     new_holder = dict(official_info)
+    _pref_name = str(new_holder.get("name") or "").strip()
+    if not new_holder.get("person_id"):
+        _name, _pid, _hist = ensure_person_identity(
+            state, _pref_name, prefix="pf", historical=bool(new_holder.get("historical", False)))
+        new_holder["name"] = _name
+        new_holder["person_id"] = _pid
+        new_holder["historical"] = _hist
+    new_holder.setdefault("historical", bool(new_holder.get("historical", False)))
     new_holder["tenure_months"] = 0
     if is_prefect:
         p_title, p_rank = _get_prefect_title_and_rank(po.get("level", "州"))
@@ -307,8 +343,12 @@ def appoint_prefect_official(state, seat_id: str, role: str,
 
 
 def dismiss_prefect_official(state, seat_id: str, role: str) -> Dict[str, Any]:
-    """罢免该州府知通，置为空缺待补。"""
-    po = get_prefect_officials(state, seat_id)
+    """罢免该州府知通，置为空缺待补（显式写路径）。"""
+    raw = getattr(state, "prefect_officials", None)
+    if not isinstance(raw, dict) or len(raw) < 136:
+        init_all_prefect_officials(state)
+        raw = state.prefect_officials
+    po = raw.get(seat_id)
     if not po:
         return {"ok": False, "msg": f"未找到该州府席位：{seat_id}"}
 
@@ -433,3 +473,107 @@ def trigger_joint_liability(state, official_name: str, crime: str = "贪墨",
             pass
 
     return penalized
+
+# ============================================================================
+# P1-6：稳定 person_id + 确定性姓名分配器（跨两册共享，避免同名/同 id 多岗）
+# ============================================================================
+_SURNAME_POOL = tuple("赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹")
+_GIVEN_POOL = tuple((
+    "承之", "道德", "仁义", "礼智", "守信", "温良", "恭俭", "文行", "忠孝",
+    "廉明", "清和", "平安", "安定", "康宁", "福寿", "昌隆", "盛茂", "荣华",
+    "富贵", "显达", "彦伯", "仲叔", "季公", "卿良", "元辅", "景行", "修远",
+    "思齐", "守正", "持中", "克勤", "惟俭", "允文", "允武", "德彰", "善庆",
+))
+
+
+class OfficialNameAllocator:
+    """确定性别名/姓名分配器（P1-6）。
+
+    - 每个任命分配唯一 `person_id`，同一册内绝不重复；传入跨册 `reserved_names/
+      reserved_ids` 时，跨册也保持唯一。
+    - 历史/池内姓名优先保留；若已被占用则用「姓氏池 × 名字池」确定性组合补足。
+    - 生成结果只依赖分配顺序与输入，跨进程/重开可复现。
+    """
+
+    def __init__(self, reserved_names=None, reserved_ids=None):
+        self.names = reserved_names if isinstance(reserved_names, set) else set(reserved_names or ())
+        self.ids = reserved_ids if isinstance(reserved_ids, set) else set(reserved_ids or ())
+        self._counter = 0
+        self._reserved_preferred = set()
+
+    def reserve(self, name):
+        """预占一个历史姓名（不占用 person_id，供后续 make(preferred=...) 使用）。"""
+        if name and name not in self.names:
+            self._reserved_preferred.add(str(name))
+
+    def _generate_name(self) -> str:
+        n_s, n_g = len(_SURNAME_POOL), len(_GIVEN_POOL)
+        for k in range(10000):
+            i = self._counter + k
+            surname = _SURNAME_POOL[i % n_s]
+            given = _GIVEN_POOL[(i * 7 + i // n_s) % n_g]
+            name = surname + given
+            if name not in self.names:
+                return name
+        # 极端兜底：加序号，保证函数不会返回重复/空
+        base = _SURNAME_POOL[self._counter % n_s] + "承之"
+        j = 2
+        while f"{base}{j}" in self.names:
+            j += 1
+        return f"{base}{j}"
+
+    def make(self, preferred=None, *, prefix="p", historical=False):
+        """返回 `(name, person_id, historical)`；preferred 被占用时生成替代姓名。"""
+        preferred = str(preferred).strip() if preferred else ""
+        name = None
+        if preferred and (preferred not in self.names or preferred in self._reserved_preferred):
+            name = preferred
+            self._reserved_preferred.discard(preferred)
+        if name is None:
+            name = self._generate_name()
+        self.names.add(name)
+        while True:
+            pid = f"{prefix}_{self._counter:04d}"
+            self._counter += 1
+            if pid not in self.ids:
+                break
+        self.ids.add(pid)
+        return name, pid, bool(historical and name == preferred)
+
+def collect_used_official_names_ids(state):
+    """跨两册收集已用姓名/person_id（供显式任免分配唯一 person_id）。"""
+    names, ids = set(), set()
+    prefects = getattr(state, "prefect_officials", None) or {}
+    if isinstance(prefects, dict):
+        for entry in prefects.values():
+            if not isinstance(entry, dict):
+                continue
+            for slot in ("prefect", "subprefect"):
+                holder = entry.get(slot) or {}
+                if not isinstance(holder, dict):
+                    continue
+                if holder.get("name"):
+                    names.add(str(holder["name"]))
+                if holder.get("person_id"):
+                    ids.add(str(holder["person_id"]))
+    circuits = getattr(state, "circuit_officials", None) or {}
+    if isinstance(circuits, dict):
+        for entry in circuits.values():
+            if not isinstance(entry, dict):
+                continue
+            for holder in (entry.get("officials") or {}).values():
+                if not isinstance(holder, dict):
+                    continue
+                if holder.get("name"):
+                    names.add(str(holder["name"]))
+                if holder.get("person_id"):
+                    ids.add(str(holder["person_id"]))
+    return names, ids
+
+
+def ensure_person_identity(state, preferred_name, *, prefix: str,
+                           historical: bool = False):
+    """显式任免前的唯一身份分配：返回 `(name, person_id, historical)`。"""
+    names, ids = collect_used_official_names_ids(state)
+    alloc = OfficialNameAllocator(names, ids)
+    return alloc.make(preferred_name, prefix=prefix, historical=historical)

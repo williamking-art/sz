@@ -224,3 +224,66 @@ def ensure_mineral_deposits(state) -> int:
     after = getattr(state, "mineral_deposits", {}) or {}
     return max(0, len(after) - before_routes)
 
+
+# ══ P1-6：官员册持久化/旧档重建（2026-10-17） ══
+def _ensure_book_person_ids(book, prefix: str) -> None:
+    """给已有官员册中缺 person_id 的任命补稳定 id（不覆盖已有 id/姓名）。"""
+    import hashlib
+    if not isinstance(book, dict):
+        return
+    used = set()
+    holders = []
+    for entry_key, entry in book.items():
+        if not isinstance(entry, dict):
+            continue
+        if isinstance(entry.get("officials"), dict):
+            for role_key, holder in entry["officials"].items():
+                if isinstance(holder, dict):
+                    holders.append((f"{entry_key}|{role_key}", holder))
+        else:
+            for slot in ("prefect", "subprefect"):
+                holder = entry.get(slot)
+                if isinstance(holder, dict):
+                    holders.append((f"{entry_key}|{slot}", holder))
+    for _key, holder in holders:
+        pid = holder.get("person_id")
+        if pid:
+            used.add(str(pid))
+    for key, holder in holders:
+        if holder.get("person_id") or not holder.get("name"):
+            continue
+        base = f"{prefix}_mig_" + hashlib.sha1(
+            f"{key}|{holder.get('name')}".encode("utf-8")).hexdigest()[:10]
+        pid = base
+        n = 2
+        while pid in used:
+            pid = f"{base}{n}"
+            n += 1
+        holder["person_id"] = pid
+        used.add(pid)
+
+
+def ensure_official_books(state) -> dict:
+    """P1-6 读档/旧档幂等：两册缺则重建，已有则只补 person_id，不覆盖已任命。
+
+    返回 `{prefect_officials: n, circuit_officials: n}`，便于读档日志/测试断言。
+    """
+    from core.domains.administration.prefect_officials import (
+        collect_used_official_names_ids, init_all_prefect_officials,
+    )
+    from core.domains.administration.circuit_officials import init_all_circuit_officials
+
+    used_names, used_ids = collect_used_official_names_ids(state)
+    prefect = init_all_prefect_officials(
+        state, reserved_names=used_names, reserved_ids=used_ids)
+    # 已有条目若缺 person_id（旧版局部书），补稳定 id（不重建、不覆盖）
+    _ensure_book_person_ids(prefect, "pf")
+
+    used_names, used_ids = collect_used_official_names_ids(state)
+    circuit = init_all_circuit_officials(
+        state, reserved_names=used_names, reserved_ids=used_ids)
+    _ensure_book_person_ids(circuit, "cb")
+    return {
+        "prefect_officials": len(prefect) if isinstance(prefect, dict) else 0,
+        "circuit_officials": len(circuit) if isinstance(circuit, dict) else 0,
+    }

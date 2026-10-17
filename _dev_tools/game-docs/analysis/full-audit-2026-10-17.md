@@ -335,3 +335,33 @@ git archive --format=zip -o _scratch\audit-20261017\head.zip HEAD
 3. **未接线模块**：`production_methods`、`imperial_exam`、`run_triennial_appraisal`、`metrology` 效果、`logistics_coupler` 调拨等——任务卡已如实降级为 in_progress，接线属功能开发。
 4. **仓库体积**：`.git` 804MB + 39MB 垃圾 pack，需 owner 放行后 `git gc --prune=now`。
 5. `game/ai/jev_gate.py:132` 的 keys_file 机器绝对路径。
+---
+
+## 12. 第三批整改（官员册 · paperdoll 入库 · 可移植性收尾）
+
+### 12.1 已修
+
+| 项 | 落地 | 验证 |
+|---|---|---|
+| P1-6 官员册重名 | `prefect_officials`/`circuit_officials` 引入稳定 `person_id` + 确定性姓名分配器：历史/池名优先（historical=True），不足用姓氏池×双字名池生成（historical=False） | 272 任命 → **272 唯一姓名/person_id**；126 岗位 → **126 唯一**；跨册交集 **0**（修复前 35/31 个姓名） |
+| P1-6 官员册持久化 | `save_load` 写入/恢复两册；`migrations.ensure_official_books` 旧档幂等重建，已有册只补 `person_id` 不覆盖任免；任免入口落 person_id | 6 条新用例：唯一性、save/load 逐字段、旧档幂等、空册重建、裸档任免 |
+| paperdoll 资产入库 | 按 JEV 决策 A 只纳入 `new_vector_modular`（31 文件 / 3.64MB）；`SongZuo.spec` 加 datas；新增资产契约测试（PNG 可解码、800×1000/RGBA、10 目录非空、非忽略） | 23 passed；B/C/loose 135 文件仍未纳入 |
+| jev_gate 绝对路径 | `keys_file` 不再写死 `D:\codebuddy\...`，改 `TYPESAFE_KEYS_FILE` 环境变量（默认 None，key 优先 env） | 导入正常；无测试依赖旧路径 |
+| 性能门禁抗负载 | `test_readout_performance_gate` 保留空载 50ms 绝对门限；同机重负载时按固定纯 Python 校准基线等比放宽（4× 上限），仍能抓 O(n²) 级退化 | 单测/整套 situations 绿 |
+
+### 12.2 最终基线（第三批后）
+
+| 项 | 结果 |
+|---|---|
+| pytest | **3458 tests / 0 failed / 0 errors / 2 skipped**（junit `_scratch/audit-20261017/junit-batch3-green.xml`） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+| 文档链接 | 884 md / broken 0 |
+| 工作树 | 仅剩 `game/assets/paperdoll/` 其余 135 个淘汰/过程资产未跟踪（按决策 A 不入库） |
+
+### 12.3 仍未闭环（后续批次）
+
+1. **paperdoll 生产合成器接线**：`new_vector_modular` 资产已入库，但 `portrait_assembler.py`/`data.py` 仍走旧 `layers`；需新合成器 + `SongZuo.spec` 打包验证 + 真机目视。
+2. **未接线模块**：`production_methods`、`imperial_exam`、`run_triennial_appraisal`、度量衡效果、物流调拨——任务卡已降级为 in_progress，属功能开发。
+3. `.git` 804MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
+4. `game/assets/paperdoll/` 其余 135 个 B/C/loose 资产：建议归档到不入库目录或删除，避免长期占 28MB 工作树。

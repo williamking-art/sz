@@ -118,7 +118,7 @@ def enabled() -> bool:
 
 
 #: 供应商登记表。**阈值必须按供应商各自校准**（概率标度不同）。24 条中文样例实测
-#: （`D:\codebuddy\tools\jev\jev_calibrate.py --both --write`，产出 thresholds.json）：
+#: （`tools/jev/jev_calibrate.py --both --write`，产出 thresholds.json）：
 #:   tokenrhythm 正例 0.654–0.990 / 负例 0.003–0.127 → 100% 窗口 0.15–0.65 → 取 **0.40**
 #:   typesafe    正例 0.65–0.97   / 负例 0.04–0.19    → 100% 窗口 0.20–0.65 → 取 **0.45**
 #:   两家判定一致率 24/24。样本仍非真实语料，正式上线应用真实数据重跑。
@@ -129,7 +129,9 @@ _PROVIDERS = {
         "endpoint": "https://api.typesafe.ai/v1/systemone",
         "model": "jev-latest",
         "key_env": "TYPESAFE_API_KEY",
-        "keys_file": r"D:\codebuddy\_credentials\typesafe_jev_keys.txt",
+        # 2026-10-17 全审：去掉机器绝对路径；key 优先走 key_env，
+        # 需要本地 key 文件时由部署方设 TYPESAFE_KEYS_FILE（不随仓库分发）。
+        "keys_file": os.environ.get("TYPESAFE_KEYS_FILE") or None,
         "threshold": 0.45,
     },
     "tokenrhythm": {

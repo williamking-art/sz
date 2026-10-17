@@ -165,10 +165,15 @@ def init_official_books(state):
     - `prefect_officials`：136 州府 seat（含 stats/countersign）
     - `circuit_officials`：21 路四监司/首府官
     """
-    from core.domains.administration.prefect_officials import init_all_prefect_officials
+    from core.domains.administration.prefect_officials import (
+        init_all_prefect_officials, collect_used_official_names_ids,
+    )
     from core.domains.administration.circuit_officials import init_all_circuit_officials
-    prefect = init_all_prefect_officials(state)
-    circuit = init_all_circuit_officials(state)
+    used_names, used_ids = collect_used_official_names_ids(state)
+    prefect = init_all_prefect_officials(
+        state, reserved_names=used_names, reserved_ids=used_ids)
+    circuit = init_all_circuit_officials(
+        state, reserved_names=used_names, reserved_ids=used_ids)
     return {"prefect_officials": len(prefect), "circuit_officials": len(circuit)}
 
 

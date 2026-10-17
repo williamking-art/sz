@@ -271,6 +271,10 @@ def save_game(state, slot: int = 1) -> bool:
         "player_minister_status": getattr(state, "player_minister_status", {}),
         "minister_equipment": getattr(state, "minister_equipment", {}),
         "official_stats": getattr(state, "official_stats", {}),
+        # P1-6：具名地方官员两册（136 州府 / 21 路）；旧档缺键由
+        # foundation.persistence.migrations.ensure_official_books 幂等重建。
+        "prefect_officials": getattr(state, "prefect_officials", {}) or {},
+        "circuit_officials": getattr(state, "circuit_officials", {}) or {},
 
         # 大臣忠诚度/贪腐度（后台隐藏，不可见）与中枢机构运行态（权限随职位）
         "loyalty": getattr(state, "loyalty", {}),
@@ -764,6 +768,10 @@ def _load_with_data(slot: int = 1):
     state.player_minister_status = data.get("player_minister_status", {}) or {}
     state.minister_equipment = data.get("minister_equipment", {}) or {}
     state.official_stats = data.get("official_stats", {}) or {}
+    _pf_saved = data.get("prefect_officials")
+    _cb_saved = data.get("circuit_officials")
+    state.prefect_officials = _pf_saved if isinstance(_pf_saved, dict) else {}
+    state.circuit_officials = _cb_saved if isinstance(_cb_saved, dict) else {}
     state.loyalty = data.get("loyalty", state.loyalty)
     state.corruption = data.get("corruption", state.corruption)
     state.central_orgs = data.get("central_orgs", state.central_orgs)
@@ -1179,6 +1187,15 @@ def _load_with_data(slot: int = 1):
     state.game_over = data.get("game_over", False)
     state.game_result = data.get("game_result", "")
     state.victory = data.get("victory", False)
+
+    # P1-6：旧档无官员册键 -> 幂等重建；已有册 -> 只补缺失 person_id，不覆盖任免。
+    try:
+        from core.foundation.persistence.migrations import ensure_official_books
+        ensure_official_books(state)
+    except Exception as e:  # noqa: BLE001 — 迁移失败不拒档，但留痕
+        import logging as _lg_ob
+        _lg_ob.getLogger("save_load").warning(
+            "官员册旧档迁移失败（不拒档）：%s", e, exc_info=True)
 
     return state, data
 

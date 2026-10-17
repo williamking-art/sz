@@ -40,6 +40,7 @@ def _datas():
         (os.path.join(_ROOT, 'assets', 'map', 'desk_bg.png'), 'assets/map'),
         (os.path.join(_ROOT, 'assets', 'icon.ico'), 'assets'),
         (os.path.join(_ROOT, 'content', 'ministers', 'layers'), 'content/ministers/layers'),
+        (os.path.join(_ROOT, 'assets', 'paperdoll', 'new_vector_modular'), 'assets/paperdoll/new_vector_modular'),
     ]
     items += _files_without_cached(
         os.path.join(_ROOT, 'content', 'ministers', 'portraits'),

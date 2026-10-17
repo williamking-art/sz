@@ -21,6 +21,9 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.domains.economy.macro_climate import ALL_CIRCUITS_21
+from core.domains.administration.prefect_officials import (
+    OfficialNameAllocator, ensure_person_identity,
+)
 
 log = logging.getLogger("circuit_officials")
 
@@ -107,11 +110,13 @@ _DEFAULT_NAME_POOLS = [
 ]
 
 
-def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
-    """为某一单路生成标准四监司与首府知通档案。"""
+def _build_default_circuit(circuit: str, index: int,
+                           allocator: Optional[OfficialNameAllocator] = None) -> Dict[str, Any]:
+    """为某一单路生成标准四监司与首府知通档案（P1-6：唯一 person_id/姓名）。"""
     is_border = circuit in BORDER_CIRCUITS
     capital_city = CIRCUIT_CAPITALS.get(circuit, "首府")
     historical = HISTORICAL_ASSIGNMENTS.get(circuit, {})
+    allocator = allocator or OfficialNameAllocator()
 
     officials = {}
     
@@ -127,11 +132,14 @@ def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
 
         if r_key in historical:
             h_data = historical[r_key]
+            _name, _pid, _hist = allocator.make(
+                h_data["name"], prefix="cb", historical=True)
             officials[r_key] = {
                 "role_key": r_key,
                 "role_name": spec["name"],
                 "official_title": title,
-                "name": h_data["name"],
+                "name": _name,
+                "person_id": _pid,
                 "faction": h_data.get("faction", "中立派"),
                 "rank": h_data.get("rank", spec["rank"]),
                 "domain": spec["domain"],
@@ -140,18 +148,21 @@ def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
                 "traits": list(h_data.get("traits", ["恪尽职守"])),
                 "term_months": 12,
                 "effectiveness": float(round((h_data.get("integrity", 0.7) + h_data.get("ability", 0.75)) / 2.0, 2)),
-                "historical": True,
+                "historical": _hist,
             }
         else:
             name_tuple = _DEFAULT_NAME_POOLS[(index * 7 + step_i) % len(_DEFAULT_NAME_POOLS)]
-            name, faction, traits = name_tuple
+            _pref_name, faction, traits = name_tuple
+            _name, _pid, _hist = allocator.make(
+                _pref_name, prefix="cb", historical=True)
             integrity = 0.60 + ((index + step_i) % 5) * 0.06
             ability = 0.65 + ((index * 2 + step_i) % 5) * 0.05
             officials[r_key] = {
                 "role_key": r_key,
                 "role_name": spec["name"],
                 "official_title": title,
-                "name": name,
+                "name": _name,
+                "person_id": _pid,
                 "faction": faction,
                 "rank": spec["rank"],
                 "domain": spec["domain"],
@@ -160,7 +171,7 @@ def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
                 "traits": traits,
                 "term_months": (index + step_i * 3) % 24 + 6,
                 "effectiveness": float(round((integrity + ability) / 2.0, 2)),
-                "historical": False,
+                "historical": _hist,
             }
 
     return {
@@ -171,18 +182,40 @@ def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
     }
 
 
-def init_all_circuit_officials(state, *, store: bool = True) -> Dict[str, Dict[str, Any]]:
+def init_all_circuit_officials(state, *, store: bool = True,
+                               reserved_names: Optional[set] = None,
+                               reserved_ids: Optional[set] = None) -> Dict[str, Dict[str, Any]]:
     """初始化全国 21 路省路级四监司与知通官制底册。
 
     `store=False` 时只返回派生副本，不写 `state.circuit_officials`（供读函数兜底）。
+    `reserved_names/ids` 与 prefect 册共享，保证跨册 person_id/姓名唯一（P1-6）。
     """
     c_officials = getattr(state, "circuit_officials", None)
     if isinstance(c_officials, dict) and len(c_officials) >= len(ALL_CIRCUITS_21):
+        # 已存在册也要把其姓名/id 回填到 reserved，供后续调用者跨册分配
+        for _entry in c_officials.values():
+            if not isinstance(_entry, dict):
+                continue
+            for _holder in (_entry.get("officials") or {}).values():
+                if not isinstance(_holder, dict):
+                    continue
+                if reserved_names is not None and _holder.get("name"):
+                    reserved_names.add(str(_holder["name"]))
+                if reserved_ids is not None and _holder.get("person_id"):
+                    reserved_ids.add(str(_holder["person_id"]))
         return c_officials
+
+    used_names = reserved_names if isinstance(reserved_names, set) else set(reserved_names or ())
+    used_ids = reserved_ids if isinstance(reserved_ids, set) else set(reserved_ids or ())
+    allocator = OfficialNameAllocator(used_names, used_ids)
+    # 先预占全部历史指派姓名，防止默认池先消耗同名历史人物
+    for _roles in HISTORICAL_ASSIGNMENTS.values():
+        for _h in _roles.values():
+            allocator.reserve(_h.get("name"))
 
     all_data = {}
     for idx, c in enumerate(ALL_CIRCUITS_21):
-        all_data[c] = _build_default_circuit(c, idx)
+        all_data[c] = _build_default_circuit(c, idx, allocator)
 
     if store:
         state.circuit_officials = all_data
@@ -239,6 +272,11 @@ def appoint_circuit_official(
         title = f"{circuit_entry.get('capital', '本州')}通判"
 
     name = str(official_data.get("name", "待命官员"))
+    person_id = str(official_data.get("person_id") or "").strip()
+    historical = bool(official_data.get("historical", False))
+    if not person_id:
+        name, person_id, historical = ensure_person_identity(
+            state, name, prefix="cb", historical=historical)
     faction = str(official_data.get("faction", "中立派"))
     rank = str(official_data.get("rank", spec["rank"]))
     integ = float(official_data.get("integrity", 0.70))
@@ -250,6 +288,7 @@ def appoint_circuit_official(
         "role_name": spec["name"],
         "official_title": title,
         "name": name,
+        "person_id": person_id,
         "faction": faction,
         "rank": rank,
         "domain": spec["domain"],
@@ -258,7 +297,7 @@ def appoint_circuit_official(
         "traits": traits,
         "term_months": 0,
         "effectiveness": float(round((integ + abil) / 2.0, 2)),
-        "historical": bool(official_data.get("historical", False)),
+        "historical": historical,
     }
     return True
 
@@ -280,6 +319,7 @@ def dismiss_circuit_official(state, circuit: str, role_key: str, reason: str = "
         "role_name": spec.get("name", "监司"),
         "official_title": f"权发遣{spec.get('name', '司事')}",
         "name": "（缺员·通判权知）",
+        "person_id": None,
         "faction": "无",
         "rank": "从七品",
         "domain": spec.get("domain", "杂务"),
