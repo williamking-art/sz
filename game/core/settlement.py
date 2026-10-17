@@ -50,6 +50,13 @@ from core.faction_settle import settle_factions_from_pop as _settle_faction_metr
 #   恢复方法：本常量改 True，并去掉 tests/test_imperial_action.py 的 module 级 skip 标记。
 IMPERIAL_ACTION_ENABLED = False
 
+from core.settlement_pipeline import (  # noqa: E402
+    SettlementStep,
+    SettlementPipeline,
+    get_default_pipeline,
+    get_pipeline_step_pairs,
+)
+
 # 兼容旧调用方可能直接引用这些符号
 __all__ = [
     "run_monthly_settlement",
@@ -57,6 +64,10 @@ __all__ = [
     "_apply_decree_effect",
     "_normalize_disaster_region",
     "MECHANISMS",
+    "SettlementStep",
+    "SettlementPipeline",
+    "get_default_pipeline",
+    "get_pipeline_step_pairs",
 ]
 
 
@@ -475,294 +486,9 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
         }
         state.active_events.append({"title": crisis["title"], "message": crisis["desc"], "choices": crisis["choices"]})
 
-    # ---- Step 1: 诏令执行 ----
-    _settle_decrees(state, log)
-
-    # ---- Step 2: 派系结算 ----
-    _settle_factions(state, log)
-
-    # ============================================================
-    # 经济相位（整改①-1 固定回合顺序）：
-    #   生产 → 工程投入 → POP收入消费 → 粮食商品市场 → 税收转移
-    #   → 货币信用 → 物价 → 集团读数 → 提交
-    # 说明：现行步骤是单函数多相位（如 `_settle_granary` 含「POP 消费 + 粮食市场」、
-    # `_settle_finance` 含「俸禄入 POP + 税收转移」），故按**相对顺序**落实，不拆函数：
-    # 生产段 → 工程段 → 市场段 → 税收段 → 货币信用段 → 物价段 → 集团读数段。
-    # 失败整月回滚：异常由 `core/commands.settle_local` / `advance_and_settle`
-    # 在本函数外包裹快照，抛出时整月回滚、回合不推进。
-    # ============================================================
-
-    # ---- [生产] Step 3: 经济（人口→田土→工商） ----
-    _settle_economy(state, log)
-
-    # ---- [生产] Step 3.5: 田亩与地方州县 ----
-    _settle_land_local(state, log)
-
-    # ---- [生产] Step 3.5.2: 农业投资效果（B2-R4 · 2026-10-11 接线）----
-    # 放在 `_settle_land_local` 之后、`_settle_region_deepen` 之前：
-    # ① 紧随收获分配/田赋 ⇒ 增产**不二次计税**（与"田赋按核定田亩"不冲突）；
-    # ② 早于 Step 4.5 的粮市撮合 ⇒ 同月即形成可售粮与农户收入；
-    # ③ 晚于 `_settle_economy` ⇒ 人口/阶层流动先于增产落账。
-    # 口径：增产只落 `pops["农"]["grain"]`；四项成本（土地/材料/工时/维护）
-    # **先扣后产**，最短板降效，**不存在零成本增产**；从不给 POP 加 wealth。
-    try:
-        from core.domains.production.settlement_agri import apply_agri_effects
-        apply_agri_effects(state, log)
-    except Exception as _ae_e:      # noqa: BLE001 — 农业效果失败不阻断结算
-        log.append(f"[农业][WARN] 投资效果结算失败：{_ae_e!r}")
-
-    # ---- [生产] Step 3.5.5: 地区模型深化（民心/士绅抵抗/城防/财政） ----
-    _settle_region_deepen(state, log)
-
-    # ---- [生产] Step 3.5.6: 识字率缓动（2026-09-19 新增；教育慢变量，诏令效果弱关联项）----
-    _settle_literacy(state, log)
-
-    # ---- Step 3.7: 长期拟旨（公开 / 密令）推进与外部政权简单模拟 ----
-    _settle_longterm_decrees(state, log)
-    _simulate_external(state, log)
-
-    # ---- [工程投入] Step 4.5: 工程 / 制作系统 ----
-    # 顺序修正（整改①-1）：工程投入必须排在粮食市场与税收之前——工程量在当月
-    # 形成产能/耗料/占款，才能被当月市场与财政读到。
-    # Step 4.4 产出链（批 4 S1）：原料 yields 年额/12 × 建筑乘数 → state.resources
-    # （消除「原料只出不进」缺口；须在作坊耗料之前入仓）。
-    try:
-        from core.domains.production.production_chain import settle_production_chain
-        settle_production_chain(state, log)
-        # 🔴 Y 轨（用户 2026-10-05 裁定）：农家产物先归农户，官府**和买**后方入官仓供工坊。
-        # 钱货同时转移；未买走的仍归农户（不无偿入库）。
-        try:
-            from core.domains.production.farm_procurement import procure_from_farmers
-            procure_from_farmers(state, log)
-            # 丙（用户 2026-10-05 裁定）：农户余料向本路商人售出（民间售料）。
-            # 钱货同时；成交受商人资金约束 ⇒ 自限。
-            try:
-                from core.domains.production.farm_procurement import sell_surplus_to_merchants
-                sell_surplus_to_merchants(state, log)
-            except Exception as _ms_e:  # noqa: BLE001
-                log.append("[民间售料] [WARN] %r" % (_ms_e,))
-        except Exception as _fp_e:  # noqa: BLE001
-            log.append("[和买][WARN] 采购失败：%r" % (_fp_e,))
-    except Exception as _pc_e:  # noqa: BLE001
-        log.append(f"[产出链][WARN] 原料入仓失败：{_pc_e!r}")
-
-    # 四大实体多级产业链（丝绢、军工冶铁、茶盐榷货、营造漕运）月度推进与造船修河
-    try:
-        from core.domains.economy.industry_chains import settle_industry_chains
-        settle_industry_chains(state, log)
-    except Exception as _ic_e:  # noqa: BLE001
-        log.append(f"[产业链][WARN] 推进失败：{_ic_e!r}")
-
-    # ---- [建材供给] Step 4.45: 建材**入商人货栈**（口径 E-1）----
-    # 排在 Step 4.4 产出链之后 ⇒ 搬的是**已含本月产出**的全国仓总量；
-    # 排在 Step 3.85 民间营造与 Step 4.5 工程之前 ⇒ 消费侧读到的是**已配货**的商人。
-    #
-    # 🔴 E-1（用户 2026-10-02「建材也是商品啊」）：建材是**商品**，存量落在
-    # **商人 POP `goods`**（POP 挂载律），商人因此有囤货与定价动机；
-    # 施工侧（C-c）仍**只从本地取、取不到即缺料** ⇒ 物流仍有意义。
-    # 本步只把 `state.resources[dim]["stock"]` **搬到商人**，**总量守恒、不凭空增物**。
-    try:
-        # 🔴 G-2 收口：走 `supply_goods_to_seats`（**全商品**入州府桶），
-        # 取代只服务建材三维的旧入口 `supply_merchant_materials`。
-        # 旧入口保留为**历史 API**（外部若有引用不致断裂），但不再走流水线。
-        from core.foundation.ledger.material_holding import supply_goods_to_seats
-        supply_goods_to_seats(state)
-    except Exception as _mh_e:  # noqa: BLE001
-        log.append(f"[供给][WARN] 商品配货失败：{_mh_e!r}")
-
-    # ---- [建材在途] Step 4.46: 本月到期的建材批次入账（P0 · 2026-10-02）----
-    # 🔴 C-c「只从本地取、取不到即缺料」要成立，**必须能观测"运没运到"** ⇒ 需要在途。
-    # 排在 Step 4.45 配货**之后**：这样"本月新发货"与"本月到货"都能被读到；
-    # 排在消费侧（Step 3.85 / 4.5）**之前** ⇒ 当月到货当月即可用。
-    try:
-        from core.transport import arrive_due
-        _arrived = arrive_due(state)
-        if _arrived:
-            _tot = sum(int(b.get("qty", 0) or 0) for b in _arrived)
-            log.append(f"[建材在途] 本月到货 {_tot} 件（{len(_arrived)} 批）")
-    except Exception as _tr_e:  # noqa: BLE001
-        log.append(f"[建材在途][WARN] 到货结算失败：{_tr_e!r}")
-
-    # ---- [建材采购] Step 4.47: 商人**补货下单**（E-1 的囤货动机落地）----
-    # 排在 4.46 到货**之后**：先把本月到的算进存量，再判断还缺不缺。
-    # 🔴 建材是商品（E-1）⇒ 商人有囤货动机；C-c ⇒ 货必须**走在途**，不能瞬移。
-    # 每月只跑一次；失败只记 WARN，不阻断结算。
-    try:
-        from core.material_trade import procure_materials
-        _proc = procure_materials(state)
-        if _proc.get("bought"):
-            _b = sum(int(x["qty"]) for x in _proc["bought"])
-            log.append(f"[建材采购] 本月下单 {_b} 件（{len(_proc['bought'])} 笔，均为在途）")
-    except Exception as _pm_e:  # noqa: BLE001
-        log.append(f"[建材采购][WARN] 补货下单失败：{_pm_e!r}")
-
-    _settle_projects(state, log)
-    _settle_workshops(state, log)
-
-    # ---- [民间营造] Step 3.85: B4-7 民间自发造房（2026-11 接线）----
-    # 排在 Step 4.4 产出链之后 ⇒ 本月入仓的建材当月可用；
-    # 排在 Step 3.9 `_settle_upkeep` 之前 ⇒ 新造民居/货栈**当月即进资产维持费**
-    # （否则出现"造完当月免维护"的漏洞）。
-    # 口径：料真扣 `state.resources`、钱经`transfer_money` 由出资阶层划转本路工匠
-    #（**有付款对手方**）、工时只记 `statistics`；**全程不写任何 POP `size`**。
-    try:
-        from core.civil_building import apply_civil_construction
-        apply_civil_construction(state, log)
-    except Exception as _cb_e:      # noqa: BLE001 — 民间营造失败不阻断结算
-        log.append(f"[营造][WARN] 民间营造触发结算失败：{_cb_e!r}")
-
-    # ---- [工程运行维护] Step 3.9: 资产维持费（L1 money sink，B-3）----
-    _settle_upkeep(state, log)
-
-    # ---- [粮食商品市场 + POP消费] Step 3.8: 仓廪漕运 / 常平籴粜 / 粮市 / 各POP消费 ----
-    _settle_granary(state, log)
-
-    # ---- [POP生计真账] Step 3.82: 农工商微观家计与内生民变池演进（M300 / M302）----
-    try:
-        from core.domains.economy.pop_livelihood import settle_pop_livelihood
-        settle_pop_livelihood(state, log)
-    except Exception as _pl_e:  # noqa: BLE001
-        log.append(f"[生计][WARN] POP微观生计结算失败：{_pl_e!r}")
-
-    # ---- Step 3.95: 官制（消灭 officials/POP 双账 + 子池一致性 + 镜像同步）----
-    # 必须排在财政步之前：`calc_official_*` / `calc_clerk_*` 读的就是这里刷新后的官额与子池。
-    _settle_officialdom(state, log)
-
-    # ---- Step 3.96: 宗室俸禄（L2c sink，内帑 → 士绅 POP，零残差转移）----
-    _settle_clan(state, log)
-
-    # ---- Step 3.97: 吏制（吏额由政务量驱动 / 吏禄→陋规 / 把持度 / 吏怨，§16）----
-    # 必须排在财政步之前：俸禄与贪腐要读**本月**吏额与吏怨。
-    # 注（2026-09-18 结算步专项检查更正）：Step 1 诏令执行用的把持度折扣读的是**上月**
-    # 吏治状态（`clerks.decree_execution_mult` 由本步在上月写入）。这是**构造性滞后 1 月**，
-    # 不是 bug —— 吏治是存量、月度结算一次，诏令执行时本月吏治尚未结算。原注释称
-    # "诏令执行也要读本月吏额与吏怨"与实现不符，已更正。
-    _settle_clerks(state, log)
-
-    # ---- [税收转移 + POP收入] Step 4: 财政 ----
-    # 税从 POP wealth/grain 征（先改 POP、再入国库）；俸禄按实付回流兵/官僚 POP；
-    # 禁止直接给集团发钱（集团读数由下方 Step 5.5 从 POP 实际变化派生）。
-    _settle_finance(state, log)
-
-    # ---- [外邦经济] Step 4.1: 辽/西夏月度经济循环（2026-09-19）----
-    # 位置：紧随宋财政之后——岁币本月入辽/夏库藏（_settle_finance 岁币落账），
-    # 随即参与其税饷/粮市循环，同月闭环。外邦账户不在宋 ACCOUNTS，
-    # 宋 M_ALL 对账不受影响（岁币仍为 burn）。
-    _settle_external_economy(state, log)
-
-    # ---- [货币信用] Step 4.2: 扩展维度自然演进（交子/铸币/熔化/金融/科举/科技/外交）----
-    # 顺序修正（整改①-1）：货币信用排在税收之后——税率/税额先落账，货币发行与
-    # 信用变化再影响物价（由下方物价相位读取），避免“先通胀再收税”的次序倒置。
-    _settle_extensions(state, log)
-
-    # ---- [物价] Step 4.3: 物价相位（整改①-3）----
-    # 由货币有效供给/供需/库存/运输派生路线粮价；全国 PRICE_LEVEL 仅加权读数，月度上限。
-    _settle_econ_prices(state, log)
-
-    # ---- Step 5: 国库 ----
-    _settle_treasury(state, log)
-
-    # ---- [集团读数] Step 5.5: 利益集团指标由 POP 派生（方案第 3 步）----
-    # 位置：生产/工程/市场/税收/货币信用/物价**之后**——文档要求
-    # “满意度在 POP、财政、制度结算后计算”，且“最终利益集团只读取 POP 实际变化”。
-    # `state.factions` 的**唯一写入点**；本步之前任何对满意度的直写（事件/诏令/AI 契约）
-    # 只作为即时冲击，在此被消化（实际满意度以本步算出的存量为准）。构造性滞后 1 月：
-    # 灾荒（Step 8）等在本步之后的 POP 变化，从下月的派生中体现。
-    _settle_faction_metrics(state, log)
-
-    # ---- Step 6: 军事/外交 ----
-    _settle_military_diplomacy(state, log)
-
-    # ---- Step 6.5: 历史改写位评估 ----
-    _evaluate_timeline_breaks(state, log)
-
-    # ---- Step 6.8: 五层承接层月度钩子 ----
-    _settle_mechanisms(state, log)      # 层②机制槽：纯加成/减耗
-    _settle_tech(state, log)            # 层③研发管线：资源×时间×人才推进
-    _settle_org_economy(state, log)     # 层④机构经济生命周期：受崩盘线约束
-
-    # ---- Step 6.9: 帝国修正（legacies）结算 ----
-    _settle_legacies(state, log)
-
-    # ---- Step 6.10: 国策树（focus）长期效果结算 ----
-    _settle_focus(state, log)
-
-    # ---- Step 7: 事件压力 ----
-    _settle_events(state, log)
-
-    # ---- Step 8: 灾荒 ----
-    _settle_disaster(state, log)
-
-    # ---- Step 8.5: 局势结算（规范 §4.1：灾荒之后、皇帝个人之前）----
-    # 唯一写 `state.situations` 的地方；扣费/效果走 state_applier 同一批量事务 API，
-    # intent 只按本回合事务记录校验（`_situation_journal_base` 游标）。
-    _settle_situations(state, log, _situation_journal_base)
-
-    # ---- Step 9: 皇帝个人 ----
-    # 🔴 2026-10-07 用户裁定（选甲）：「帝王行动」此时尚未定型，从结算中**暂时停用**。
-    # 幂等性：改一个常量（settlement.IMPERIAL_ACTION_ENABLED）即可恢复；代码与 16 个专用用例均原样保留。
-    # 🔴 旧档：已开局存的档不会自动获得帝王行动，且报告中的动作记录仍在。
-    if IMPERIAL_ACTION_ENABLED:
-        _settle_emperor_personal(state, log)
-
-    # ---- Step 10: 隐藏状态 ----
-    _settle_hidden(state, log)
-
-    # ---- Step 10.5: 人口总账校正（P1-3）----
-    # 全局在籍人口 population 与「Σ六类 POP + 流民」对齐：逃荒/归籍/职业流动等
-    # 在 POP 规模上的净变化此前不回写 population，长期回放背离数百万（60 月差 600万+），
-    # 导致按 population 比例分配的逻辑（人口增长分摊、隐户比例、税收人口）失真。
-    # growth 已在 Step 3 分配到农 POP，故校正后 population 仍含当月增长效果，数学一致。
-    # 2026-09-27（方案 A）：隐户人口已并入 `农` POP 的加法子池 `hidden`（口），但**不在籍**
-    # （不落籍、不纳税）→ 本式**不含**隐户；「总口」口径 = 本式结果 ＋ Σ`农.hidden`。
-    # 🟢 M35-C-1（裁决 D1 甲）：**职业人口（occupation）计入在籍人口**——役人是实际人口，
-    #   但不进任何 POP 桶的 `size`（不破 `size == officials+clerks`、不被兵额月度重算抹掉），
-    #   故在此**读侧并入**：Σ六桶 size ＋ Σ occupation(runner_count) ＋ 流民。
-    _occ_total = 0
-    for _p in state.prefectures.values():
-        _guan = ((_p.get("pops") or {}).get("官僚")
-                 if isinstance(_p.get("pops"), dict) else None)
-        if isinstance(_guan, dict):
-            _occ_total += int(_guan.get("runner_count", 0) or 0)
-    _pop_total = sum(_pop["size"] for _p in state.prefectures.values()
-                     for _pop in _p["pops"].values()) + state.refugee_count + _occ_total
-    state.population = max(10_000_000, _pop_total)
-
-    # ---- 🟢 M36-1：【察访】差遣在途任务**状态迁移**（时间推进；幂等）----
-    # 纪律：只推进任务窗口/到期标记（**不成案、不写财政/POP/欠给**）；
-    #       无在途任务时**完全无操作**（⇒ 校准门与既有行为逐位一致）。
-    try:
-        from core.inspection import inspection_tick
-        inspection_tick(state, log)
-    except Exception as _e:                       # noqa: BLE001 — 监察推演不得阻断结算
-        log.append(f"[察访] 状态迁移异常（已跳过）：{type(_e).__name__}")
-
-    # ---- Step 10.55: 农的职位/丁口子池对齐（B1d-a **月度兜底**，幂等）----
-    # 本月内一切改动 `农.size` 的通道（城市化/回乡、就业流动、逃荒赈济、征兵裁兵、逃籍归籍、
-    # 人口自然增长…）都可能让「Σ职位 == size」「ding+kou == size」暂时失衡；此处按**现有比例**
-    # 一次性对齐（**只改子池、不改 size**，不掩盖人口守恒）。诊断读数：
-    # `farm_slice_fixes > 0` 长期出现 ⇒ 有通道漏挂钩（可观测、不阻断）；`farm_slice_violations`
-    # 用于记录兜底后仍不成立的异常（应为空）。
-    try:
-        from core.foundation.ledger.pop_structure import check_farm_invariants, sync_all_farm_slices
-        _audit = getattr(state, "settlement_audit", None)
-        if not isinstance(_audit, dict):
-            _audit = {}
-            state.settlement_audit = _audit
-        _fixed = sync_all_farm_slices(state)
-        if _fixed:
-            _audit["farm_slice_fixes"] = _fixed
-        _bad = check_farm_invariants(state)
-        if _bad:
-            _audit["farm_slice_violations"] = _bad[:5]
-    except Exception:  # noqa: BLE001  兜底失败不得阻断结算
-        pass
-
-    # ---- Step 10.6: 银行（抵当所）存款**存量**月末硬收敛 ----
-    # 必须在全部结算步之后：存款上限 = 目标阶层财富 × didang_deposit_cap，而 wealth 在
-    # 银行步（Step 4.2）之后仍会被赋税/俸禄/物价改变；银行步内收敛月末仍会超限
-    # （240 月压力测试：15,541,569 贯 vs 上限 5,897,845 贯）。
-    _settle_bank_stock(state, log)
+    # ---- 声明式结算管线调度（Phase 1 ~ Phase 9，覆盖全部48个子步骤）----
+    pipeline = get_default_pipeline()
+    pipeline.execute(state, log, _situation_journal_base=_situation_journal_base)
 
     # ---- Step 10.9: 货币口径对账（阶段 B-1；**只读视图**，不改任何货币账户）----
     # 把本月各账户余额与上月末对比：`ΔM_ALL  = 外部净注入（白银流入）− 销毁 ＋ 残差`，

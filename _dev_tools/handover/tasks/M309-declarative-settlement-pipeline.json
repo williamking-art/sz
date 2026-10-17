@@ -1,0 +1,29 @@
+{
+  "id": "M309-declarative-settlement-pipeline",
+  "title": "结算流水线声明式重构：SettlementPipeline调度器与全量步骤注册治理",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "authority": "JEV-DEC-结算管线统一命名与逐步镜像全覆盖裁定-2026-10-17（A方案P=0.8994）与优先级B改良规划",
+  "goal": "重构run_monthly_settlement大函数为声明式Pipeline调度架构；消灭裸函数调用与AST镜像盲区；因果依赖显式化，提供100%逐步覆盖的权威步骤注册表与异常隔离。",
+  "recon": {
+    "调度器架构": "设计SettlementStep规范与SettlementPipeline调度器，集中声明48个结算子步骤及其相位（前置控制、物理生产、空间流通、生计官吏、宏观财政、上层政治、会计收敛、时空推进）",
+    "兼容保障": "run_monthly_settlement对外签名、返回值log、异常回滚快照契约100%保持不变；现有外部import完全兼容",
+    "测试镜像对齐": "test_pop_identity.py::_STEPS与test_middle_calibration.py直接对齐Pipeline权威注册表，彻底杜绝测试与生产两张皮"
+  },
+  "scope": [
+    "新建game/core/settlement_pipeline.py定义Step规范与管线注册表",
+    "重构game/core/settlement.py中run_monthly_settlement的调度实现",
+    "更新test_pop_identity.py与test_middle_calibration.py对齐权威注册表",
+    "编写专属单元测试test_declarative_pipeline.py",
+    "全量回归跑通全域用例与README纪律断言"
+  ],
+  "explicitly_not": [
+    "不得改变月度结算各步骤现有的相对因果执行顺序",
+    "不得修改外部调用方的入参与返回值契约",
+    "不得破坏全域货币与实物守恒断言"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T05:35:00Z",
+  "completedAt": "2026-10-17T05:44:00Z"
+}

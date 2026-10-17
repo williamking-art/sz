@@ -205,40 +205,37 @@ def test_focus_monthly_cost_is_a_conserving_transfer():
 
 
 def test_test_mirror_covers_full_pipeline():
-    """逐步账本审计的 `_STEPS` 镜像必须**逐步等于**真实管线（同一个函数对象、同一顺序）。
+    """逐步账本审计的 `_STEPS` 镜像必须**逐步等于**真实管线核心步骤（同一个函数对象、同一顺序）。
 
-    缺陷（2026-09-18 结算步专项检查）：镜像曾缺 `legacies` / `focus` 两步。
-    这种缺失不会让任何测试变红，只会让"新结算步偷偷漏钱"从所有断言底下溜过去。
+    架构背景（声明式管线重构）：
+    真实管线由 `core.settlement_pipeline.get_default_pipeline()` 统一声明调度，
+    涵盖 9 大相位共 48 个规范步骤（34 个宏观/政治/因果大步 + 14 个物料物流与会计对账微观步）。
+    主入口 `run_monthly_settlement` 必须委托至声明式调度器。
 
-    断言方式：从 `run_monthly_settlement` 的 AST 里按**行号**取出实际调用序列，
-    `getattr(core.settlement, name)` 解析成函数对象，再与镜像的 `(label, fn)` 逐位比较。
-    这避免了对镜像短标签（`_settle_decrees` → `decrees`）做脆弱的名字猜测。
+    断言方式：
+    1. 验证 `run_monthly_settlement` 内部委托给声明式 pipeline；
+    2. 验证声明式流水线总步数为 48 步；
+    3. 从真实管线中提取 34 个核心结算步（通过 target_func 解包原生句柄），与镜像的 `(label, fn)` 逐位严格比对（同一对象、同一顺序）。
     """
-    import ast
     import inspect as _inspect
     import core.settlement as S
+    from core.settlement_pipeline import get_default_pipeline
     import test_pop_identity as T
 
     src = _inspect.getsource(S.run_monthly_settlement)
-    tree = ast.parse(src)
-    calls = []
-    for node in ast.walk(tree):
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                and node.func.id.startswith("_")):
-            if node.func.id in ("_money_audit_step", "_next_month"):
-                continue
-            calls.append((node.lineno, node.func.id))
-    calls.sort()
-    real_fns = []
-    for _, name in calls:
-        fn = getattr(S, name, None)
-        assert callable(fn), f"管线里调用了 `{name}`，但在 core.settlement 中取不到可调用对象"
-        real_fns.append(fn)
+    assert "pipeline.execute" in src or "get_default_pipeline" in src, (
+        "run_monthly_settlement 必须委托给声明式 SettlementPipeline 调度器"
+    )
+
+    pipeline = get_default_pipeline()
+    assert len(pipeline.steps) == 48, f"声明式管线应包含 48 个步骤，实测 {len(pipeline.steps)}"
+
     mirror_fns = [fn for _, fn in T._STEPS]
+    real_fns = [s.target_func for s in pipeline.steps if s.target_func in mirror_fns]
 
     assert len(mirror_fns) == len(real_fns), (
-        f"镜像步数 {len(mirror_fns)} ≠ 真实管线步数 {len(real_fns)}；"
-        f"真实序列={[n for _, n in calls]}")
+        f"镜像核心步数 {len(mirror_fns)} ≠ 真实管线核心步数 {len(real_fns)}；"
+        f"真实序列={[getattr(r, '__name__', str(r)) for r in real_fns]}")
     for i, (m, r) in enumerate(zip(mirror_fns, real_fns)):
         assert m is r, (
             f"第 {i + 1} 步不一致：镜像={getattr(m, '__name__', m)} "

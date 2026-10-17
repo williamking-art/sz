@@ -1,0 +1,19 @@
+{
+  "id": "JEV-DEC-结算管线统一命名与逐步镜像全覆盖裁定-2026-10-17",
+  "date": "2026-10-17",
+  "question": "结算流水线run_monthly_settlement中非下划线扩展步骤如何纳入逐步账本审计与AST比较以消除盲区？",
+  "options": {
+    "A": "统一包装或登记：在settlement.py中将扩展步骤以统一私有函数包装或登记，使AST检查与逐步镜像覆盖100%结算调用",
+    "B": "放宽AST检查器：在test_middle_calibration中扩充AST提取逻辑识别所有子调用，但不强制函数命名统一",
+    "C": "豁免扩展步骤：维持现状，仅核心步比对，扩展步不纳入逐步镜像"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.8994,
+    "B": 0.0903,
+    "C": 0.0103
+  },
+  "premises_verified_by_me": "经审查发现，扩展步骤以裸函数直接调用导致AST检查器漏检，逐步镜像未覆盖全部步骤，违规操作（如凭空造币）无法在第一时间被账本审计捕获。统一规范化包装后，可彻底消灭审计盲区。",
+  "applied_in": "game/core/settlement.py",
+  "reopen_if": "若重构结算管线为基于声明式Pipeline对象调度时再复核"
+}
