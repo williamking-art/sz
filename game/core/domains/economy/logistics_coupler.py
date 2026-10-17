@@ -174,9 +174,27 @@ def dispatch_industry_logistics(
         days = res.get("days", 30)
         porters = res.get("porters", 10)
         mode_desc = "汴淮漕运水路" if transit_mode == "waterway" else "驿道陆运大车"
-        if isinstance(log, list):
-            log.append(f"[产业物流] 从{origin_circuit}调拨{amount:,.0f}单位【{goods_dim}】发往{target_circuit}："
-                       f"经{mode_desc}，预计耗时{days}日，征调夫役{porters}人（沈括途耗清算中）。")
+
+        # 3. 沿线盗贼劫掠风险与镖局走镖护卫联动 (M315)
+        from core.domains.economy.livestock_and_escort import (
+            calculate_route_bandit_risk, hire_escort_guard
+        )
+        b_risk = max(calculate_route_bandit_risk(state, origin_circuit),
+                     calculate_route_bandit_risk(state, target_circuit))
+        
+        batches = getattr(state, "in_transit_batches", []) or []
+        if batches and b_risk > 0.08:
+            latest_batch = batches[-1]
+            escort_res = hire_escort_guard(state, latest_batch, escort_tier="standard")
+            fee = escort_res.get("escort_fee", 0)
+            if isinstance(log, list):
+                log.append(f"[产业物流] 从{origin_circuit}调拨{amount:,.0f}单位【{goods_dim}】发往{target_circuit}："
+                           f"经{mode_desc}，预计耗时{days}日，征调夫役{porters}人；"
+                           f"沿线盗贼风险{b_risk:.1%}，商帮已雇镖局走镖护送（护费{fee}文，保全八成五）。")
+        else:
+            if isinstance(log, list):
+                log.append(f"[产业物流] 从{origin_circuit}调拨{amount:,.0f}单位【{goods_dim}】发往{target_circuit}："
+                           f"经{mode_desc}，预计耗时{days}日，征调夫役{porters}人（沈括途耗清算中）。")
 
     return {
         "ok": res.get("ok", False),

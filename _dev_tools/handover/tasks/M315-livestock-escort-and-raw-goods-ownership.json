@@ -1,0 +1,28 @@
+{
+  "id": "M315-livestock-escort-and-raw-goods-ownership",
+  "title": "畜牧马政、镖局护卫产业链深化与原料全面商品物权化",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "completedAt": "2026-10-17T06:48:00Z",
+  "authority": "JEV-DEC-畜牧业与镖局护卫产业链及原料全面商品物权化裁定-2026-10-17（方案A概率0.9923）与用户指示",
+  "goal": "落实原料全面商品化与物权归属（生丝/原麻/熟铜/熟铁/煤炭/生革皆具备物权与挂牌价格）；新建livestock_and_escort.py建立畜牧业与马政模型（产出耕牛挽马物流加成、战马军备、生革与肉食）；引入长途物流盗贼劫掠风险（bandit_risk）与镖局走镖护卫商业机制（商帮付保费雇镖师、压低在途失窃），闭环运转。",
+  "recon": {
+    "原料商品物权": "所有原料皆为合法流通商品，具备货主物权（state/imperial/local/pop）与进仓资质",
+    "畜牧马政链条": "官营牧监+农户兼养：产出耕牛（农产乘数）、挽马（大车速度）、战马（军力备蓄）、生革（制甲作坊）与肉食",
+    "镖局走镖护卫": "各路盗贼风险（沿线unrest）导致在途物料失窃；商帮出资雇佣镖局走镖，降险保全，镖师赚取佣金，守恒闭环"
+  },
+  "scope": [
+    "新建game/core/domains/economy/livestock_and_escort.py实现畜牧马政与镖局护送机制",
+    "在logistics_coupler.py中引入沿线盗贼风险与镖局护送减免逻辑",
+    "在settlement_pipeline.py中接线畜牧生革与镖局结算相位",
+    "编写专属单元测试验证畜牧产出、生革加工与镖局护运避险",
+    "更新README索引并通过全量回归测试"
+  ],
+  "explicitly_not": [
+    "不得允许无物权的虚拟物料流转",
+    "不得破坏既有POP挂载律与守恒断言"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T06:45:00Z"
+}
