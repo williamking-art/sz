@@ -2,7 +2,7 @@
   "id": "M317-v3-production-methods-and-neutral-intermediates",
   "title": "中性通用中间物体系与维多利亚3风格生产方式（PM）建筑架构重构",
   "status": "in_progress",
-  "audit_status": "【2026-10-17 审计降级】生产方式PM注册与切换引擎及单测已就绪，但与建筑/作坊生产管线的接线尚未接入生产调用路径，待后续专项任务接线。B-4 仅把八大产业链的原料/成品接入治所物理四仓真实记账；**PM 仍未驱动产业链与作坊生产**（未接线）。",
+  "audit_status": "【2026-10-17 第五批接线】PM 已接线：相对倍率（默认中性），切换 PM 生效。`production_methods.relative_throughput_multiplier` 被 `settlement_econ._settle_workshops` 消费：默认 `BUILDING_DEFAULT_PMS` 四槽乘积恒为 1.0（产出逐位不变），切换更优/更差 PM 后产出按 current/default 倍率变化；非法/缺失 PM 回退 1.0。八大产业链的 PM 多级配方仍属后续改造，不在本批。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-17",
   "completedAt": "2026-10-17T07:29:00Z",
@@ -25,5 +25,6 @@
     "不得破坏既有POP挂载律与ΔM_ALL等于0断言"
   ],
   "claimedBy": "Antigravity",
-  "claimedAt": "2026-10-17T07:25:00Z"
+  "claimedAt": "2026-10-17T07:25:00Z",
+  "pm_wiring": "done: relative throughput multiplier (default neutral)"
 }

@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from content.data_geo_tables import PREFECTURE_INFO
 from core.domains.economy.land_tenure import derive_circuit_tenure
 from core.domains.economy.macro_climate import ALL_CIRCUITS_21
+from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +119,11 @@ def reclaim_land_government(
         return {"ok": False, "reason": "该路已无荒地可供官方垦殖", "reclaimed_mu": 0}
 
     # 资金与劳力制约（每亩基础垦造工本 0.8 贯）
-    mu_by_fund = silver_funding / 0.8 if silver_funding > 0 else 0
+    # 2026-10-18 全审 P1-13：不得超出国库实有；工本钱必须付给本路农/工匠 POP
+    # （国库 → POP 的守恒转移），不得只扣国库造成 M_ALL 凭空减少。
+    cur_t = float(getattr(state, "treasury", 0.0) or 0.0)
+    fund = max(0.0, min(float(silver_funding), cur_t))
+    mu_by_fund = fund / 0.8 if fund > 0 else 0
     actual_mu = min(target_mu, avail_w, mu_by_fund)
     actual_mu = round(actual_mu, 1)
 
@@ -127,14 +132,38 @@ def reclaim_land_government(
 
     cost_silver = int(round(actual_mu * 0.8))
 
-    # 1. 扣减荒地池，增加该路土地
+    # 1. 付款：国库 → 本路农（60%）/工匠（40%），桥接优先
+    state.treasury = int(round(max(0.0, cur_t - cost_silver)))
+    _pops = p.get("pops") or {}
+    # 收款池按「农 60% / 工匠 40%」优先；缺失的阶层由下一个可用池吃尾差，
+    # 全缺时退到本路商人（工本钱必须在本地落地，不能凭空消失）。
+    _recipients = []
+    for _cls, _share in (("农", 0.6), ("工匠", 0.4)):
+        if isinstance(_pops.get(_cls), dict):
+            _recipients.append((_cls, _share))
+    if not _recipients and isinstance(_pops.get("商人"), dict):
+        _recipients.append(("商人", 1.0))
+    _given = 0
+    for _i, (_cls, _share) in enumerate(_recipients):
+        _amt = (cost_silver - _given) if _i == len(_recipients) - 1 else int(cost_silver * _share)
+        _pop = _pops.get(_cls)
+        if not isinstance(_pop, dict) or _amt <= 0:
+            continue
+        if _pop_obj_add(state, _pop, "wealth", _amt) is None:
+            _pop["wealth"] = int(_pop.get("wealth", 0) or 0) + _amt
+        _given += _amt
+    if _given < cost_silver:
+        # 收款池缺失：差额退回国库，只按实付亩数落地（不造币/不毁币）
+        state.treasury = int(state.treasury) + (cost_silver - _given)
+        cost_silver = _given
+        actual_mu = round(cost_silver / 0.8, 1)
+    if cost_silver <= 0 or actual_mu <= 0:
+        return {"ok": False, "reason": "无可用收款 POP，垦荒未执行", "reclaimed_mu": 0}
+
+    # 2. 扣减荒地池，增加该路土地
     p["wasteland"] = round(avail_w - actual_mu, 1)
     p["land"] = float(p.get("land", 0.0) or 0.0) + actual_mu
     p["guan_tian"] = float(p.get("guan_tian", 0.0) or 0.0) + actual_mu
-
-    # 2. 真实扣减朝廷国库
-    cur_t = float(getattr(state, "treasury", 0.0) or 0.0)
-    state.treasury = int(round(max(0.0, cur_t - cost_silver)))
 
     return {
         "ok": True,

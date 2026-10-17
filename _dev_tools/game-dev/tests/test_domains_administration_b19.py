@@ -157,11 +157,12 @@ def test_real_content_channels_are_non_empty():
     from content.data import INSTITUTION_PARAM_SPEC
     impl = importlib.import_module(NEW)
     s = GameState("史实")
-    # 2026-10-17 审计校准：M324 新增 metrology_system_id 度量衡体制参数，参数表由 14 变为 15
-    assert len(INSTITUTION_PARAM_SPEC) == 15, "参数表条数变了，本用例的哨兵前提需重判"
-    assert len(impl.all_params(s)) == 15
+    # 2026-10-18 审计校准：M324 新增 metrology_system_id（15）、
+    # 官方垦荒新增 gov_reclamation_share（16）
+    assert len(INSTITUTION_PARAM_SPEC) == 16, "参数表条数变了，本用例的哨兵前提需重判"
+    assert len(impl.all_params(s)) == 16
     desc = impl.describe(s)
-    assert len(desc) == 15 and impl.changed_count(s) == 0
+    assert len(desc) == 16 and impl.changed_count(s) == 0
     # 事权/机构表经**函数内** lazy import 取用，断链会被 except 吞成空表 → 必须实测非空
     orgs = impl._org_table(s)
     assert orgs and "户部" in orgs, f"_org_table 回退内容表拿到 {type(orgs).__name__} 空值"

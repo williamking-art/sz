@@ -1689,6 +1689,31 @@ def _pool_dims_any(got_dims: dict, got_grain: float, pool_dims, ws: dict) -> boo
     return False
 
 
+def _workshop_pm_multiplier(state, wid: str, ws: dict) -> float:
+    """读作坊当前 PM 相对默认四槽的产出倍率；判不出地点/类型 ⇒ 1.0。"""
+    try:
+        from core.domains.economy.workshop_owner import workshop_type_of
+        from core.domains.economy.seat_goods_readout import route_of_workshop
+        from core.domains.economy.production_methods import relative_throughput_multiplier
+        wtype = workshop_type_of(wid)
+        route = route_of_workshop(state, wid)
+        if not wtype or not route:
+            return 1.0
+        pdata = (getattr(state, "prefectures", None) or {}).get(route)
+        if not isinstance(pdata, dict):
+            return 1.0
+        seat = ws.get("seat") or ws.get("seat_id")
+        if not seat:
+            from core.foundation.ledger.building_bridge import capital_seat_id
+            seat = capital_seat_id(pdata, route)
+        if not seat or not isinstance((pdata.get("seats") or {}).get(str(seat)), dict):
+            return 1.0
+        return float(relative_throughput_multiplier(
+            state, route, str(seat), wtype) or 1.0)
+    except Exception:  # noqa: BLE001 — PM 读数失败不得影响结算
+        return 1.0
+
+
 def _settle_workshops(state, log):
     """作坊月度推进：配方消耗 inputs（如粮→酒），产出按**单一权威载体**入账。
 
@@ -1813,7 +1838,9 @@ def _settle_workshops(state, log):
         out_dim = ws.get("output_dim")
         # 欠产同比例缩放：拿到 60% 料只产 60%（L1′ 核心约束）
         # M324/P1：制造倍率只乘产出，不改变投入；传统体制 1.0 时逐位不变。
-        yld = float(ws.get("yield", 0)) * _scale * _mfg_mult
+        # M317/P1：再乘「当前 PM / 建筑默认 PM」相对倍率；默认配置恒 1.0。
+        _pm_mult = _workshop_pm_multiplier(state, wid, ws)
+        yld = float(ws.get("yield", 0)) * _scale * _mfg_mult * _pm_mult
         if out_dim == "wine":
             # 酒坊产能 → 酒课**加成**（汇入下方重算，**不在此累加**）
             # 审查 A-5 修复（2026-09-18 阶段 B-1 实测：内帑 +2.91M/月、民间 −2.28M/月、

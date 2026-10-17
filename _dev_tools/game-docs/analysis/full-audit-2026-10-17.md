@@ -396,4 +396,31 @@ git archive --format=zip -o _scratch\audit-20261017\head.zip HEAD
 2. **M314 物流调拨**：logistics_coupler.dispatch_industry_logistics 仍零生产调用；需接管线调拨相位。
 3. **官方垦荒**：reclaim_land_government 仍零生产调用。
 4. **paperdoll**：按用户裁定**冻结**，不再改动（新资产已入库，合成器接线不做）。
-5. `.git` 804MB + 39MB 垃圾 pack：需 owner 放行后 git gc --prune=now。
+5. `.git` 804MB + 39MB 垃圾 pack：需 owner 放行后 git gc --prune=now。---
+
+## 14. 第五批整改（生产方式 PM · 官方垦荒）
+
+### 14.1 已修
+
+| 项 | 落地 | 验证 |
+|---|---|---|
+| M317/M318 生产方式（PM） | production_methods 新增只读 `relative_throughput_multiplier`（current/default 四槽乘积）；`_settle_workshops` 对作坊产出乘该相对倍率（只乘产出、不改投入；找不到 seat 回退 1.0） | 造船作坊 yield=100：默认 PM 100 / 切 pm_org_manufactory（relative=1.8）180 / 切回复原 100；非法 PM=1.0 |
+| M317/M318 任务卡 | M317/M318 audit_status 改为「PM 已接线：相对倍率（默认中性），切换 PM 生效」；多级产业链全面驱动仍注明后续 | 任务卡 JSON |
+| P1-13 官方垦荒 | 新增机构参数 `gov_reclamation_share`（默认 0、0–5%、度支调度事权）；每年二月按国库比例向荒地最多的路拨款；`reclaim_land_government` 付款腿改为「国库 → 本路农/工匠 POP」守恒转移，并禁止超国库实有 | 默认 0 零变化；share=2% 时荒地↓、官田↑、国库支出 ≤5%、ΔM_ALL=0；非二月不触发 |
+
+Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0.982**（`decisions/JEV-全审整改第五批-2026-10-18.json`）。
+
+### 14.2 最终基线（第五批后）
+
+| 项 | 结果 |
+|---|---|
+| pytest | **3476 tests / 0 failed / 0 errors / 2 skipped**（junit `_scratch/audit-20261017/junit-batch5.xml`，945.8s） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+
+### 14.3 仍未闭环
+
+1. **M314 物流调拨**：`logistics_coupler.dispatch_industry_logistics` 仍零生产调用；需要「何时/向谁调拨」的调度策略（会改平衡），建议单独裁定后接管线调拨相位。
+2. **paperdoll**：按用户裁定**冻结**，不再改动。
+3. `.git` 806.8MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
+4. PM 多级产业链全面驱动（八大链按 PM 计算投入产出）仍属后续；本轮只接作坊产出相对倍率。

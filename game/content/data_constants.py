@@ -955,6 +955,9 @@ INSTITUTION_PARAM_SPEC = {
     "didang_deposit_cap":   {"default": 0.30, "min": 0.05, "max": 0.80, "label": "抵当所存款上限", "authority": "官营放贷"},
     # ---- 度量衡体制（0=传统多轨宋制, 1=绍述统一度量衡, 2=现代科学公制）----
     "metrology_system_id":  {"default": 0.0,  "min": 0.0,  "max": 2.0,  "label": "度量衡体制",     "authority": "度量衡"},
+    # 2026-10-18 全审：官方屯田垦荒的年度国库拨款比例（默认 0 = 不自动开垦）。
+    # 玩家/AI 经政令把该参数设为 >0 后，每年二月按国库比例向荒地最多的路拨款。
+    "gov_reclamation_share": {"default": 0.0, "min": 0.0, "max": 0.05, "label": "官方垦荒比例", "authority": "度支调度"},
 }
 
 # ---- 档位→数值换算单一权威源（审查 P1-2/P2-3 修复：消除 _TIER_BASE/_TIER_CAP 与

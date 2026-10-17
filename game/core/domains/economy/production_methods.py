@@ -42,6 +42,7 @@ __all__ = [
     "switch_pm",
     "get_building_pms",
     "calculate_building_throughput",
+    "relative_throughput_multiplier",
 ]
 
 #: 十大通用中性中间物目录（大宗流通商品）
@@ -349,13 +350,15 @@ BUILDING_DEFAULT_PMS: Dict[str, Dict[str, str]] = {
 
 
 def get_building_pms(state: Any, circuit: str, seat_id: str, building_name: str) -> Dict[str, str]:
-    """读取某治所某建筑当前生效的四大生产方式槽位（幂等回退）。"""
+    """读取某治所某建筑当前生效的四大生产方式槽位（幂等回退；只读，不建空键）。"""
     stats = getattr(state, "statistics", None)
     if isinstance(stats, dict):
-        pm_store = stats.setdefault("seat_production_methods", {})
+        pm_store = stats.get("seat_production_methods")
         key = f"{circuit}:{seat_id}:{building_name}"
-        if key in pm_store:
-            return dict(pm_store[key])
+        if isinstance(pm_store, dict) and key in pm_store:
+            row = pm_store[key]
+            if isinstance(row, dict):
+                return dict(row)
 
     # 回退到默认配置
     return dict(BUILDING_DEFAULT_PMS.get(building_name, {
@@ -364,6 +367,48 @@ def get_building_pms(state: Any, circuit: str, seat_id: str, building_name: str)
         "ownership": "pm_ownership_private",
         "organization": "pm_org_craft_guild",
     }))
+
+
+def _pm_product(pms: Dict[str, str]) -> Optional[float]:
+    """四槽 `throughput_mult` 乘积；任一槽缺失/未知/非有限 ⇒ None（不猜）。"""
+    total = 1.0
+    for slot in ("base", "power", "ownership", "organization"):
+        pid = (pms or {}).get(slot)
+        pm = PM_REGISTRY.get(pid) if isinstance(pid, str) else None
+        if pm is None:
+            return None
+        try:
+            val = float(pm.throughput_mult)
+        except (TypeError, ValueError):
+            return None
+        if val != val or val in (float("inf"), float("-inf")):
+            return None
+        total *= val
+    return total
+
+
+def relative_throughput_multiplier(
+    state: Any, circuit: str, seat_id: str, building_name: str,
+) -> float:
+    """当前 PM 相对**建筑默认四槽**的产出倍率（只读；默认配置恒 1.0）。
+
+    默认中性：`current_mult / default_mult`。非法/缺失 PM、未知建筑、
+    default 非正/不可读 ⇒ 1.0（安全中性，不改变平衡）。
+    """
+    try:
+        default = BUILDING_DEFAULT_PMS.get(building_name)
+        if not isinstance(default, dict):
+            return 1.0
+        default_mult = _pm_product(default)
+        if default_mult is None or default_mult <= 0:
+            return 1.0
+        current = get_building_pms(state, circuit, seat_id, building_name)
+        current_mult = _pm_product(current)
+        if current_mult is None or current_mult <= 0:
+            return 1.0
+        return float(current_mult / default_mult)
+    except Exception:  # noqa: BLE001 — 读侧失败必须中性，不影响结算
+        return 1.0
 
 
 def can_switch_pm(

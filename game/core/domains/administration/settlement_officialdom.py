@@ -117,16 +117,64 @@ def _run_personnel_cycle(state, log):
                 log.append(f"[磨勘][WARN] 三年考课推进失败：{e!r}")
 
 
+def _run_annual_reclamation(state, log):
+    """年度官方屯田垦荒：每年二月按 `gov_reclamation_share` 从国库拨款。
+
+    2026-10-18 全审 P1-13：`reclaim_land_government` 此前零生产调用。
+    默认 share=0 ⇒ 完全不改变现状；设为 >0 后按荒地占比向各路拨款，
+    国库 → 本路农/工匠 POP 的守恒转移（不造币/不毁币），荒地 → 官田。
+    """
+    if int(getattr(state, "month", 0) or 0) != 2:
+        return
+    from core.domains.administration import institution as _inst
+    share = float(_inst.get(state, "gov_reclamation_share", 0.0) or 0.0)
+    if share <= 0.0:
+        return
+    budget = int(max(0.0, float(getattr(state, "treasury", 0) or 0)) * share)
+    if budget <= 0:
+        return
+    from core.domains.economy.land_reclamation import (
+        init_circuit_wasteland, get_circuit_wasteland, reclaim_land_government,
+    )
+    init_circuit_wasteland(state)
+    prefs = getattr(state, "prefectures", {}) or {}
+    cands = [(c, float(get_circuit_wasteland(state, c) or 0.0)) for c in prefs]
+    cands = [(c, w) for c, w in cands if w > 0.0]
+    if not cands:
+        return
+    total_w = sum(w for _, w in cands) or 1.0
+    total_mu = 0.0
+    spent = 0
+    for c, w in cands:
+        b = int(budget * w / total_w)
+        if b <= 0:
+            continue
+        res = reclaim_land_government(state, c, target_mu=w, silver_funding=b)
+        if res.get("ok"):
+            total_mu += float(res.get("reclaimed_mu", 0) or 0)
+            spent += int(res.get("cost_silver", 0) or 0)
+    if total_mu > 0:
+        stats = getattr(state, "statistics", None)
+        if not isinstance(stats, dict):
+            stats = {}
+            state.statistics = stats
+        stats["gov_reclamation_mu"] = float(stats.get("gov_reclamation_mu", 0.0) or 0.0) + total_mu
+        stats["gov_reclamation_spent"] = int(stats.get("gov_reclamation_spent", 0) or 0) + spent
+        log.append(
+            f"[垦荒] 官方屯田年度开垦 {total_mu:,.1f} 亩（工本 {spent:,} 贯，国库→本路农/工匠）")
+
+
 def _settle_officialdom(state, log):
     """Step 3.95 官制结算（薄封装，实现在 `core/domains/administration/officialdom.py`——单一权威源）。
 
     职责：旧档子池迁移修复 → 不变量校验（size == officials + clerks；
     officials == on_post + waiting + sinecure）→ 派生镜像同步（`p["officials"]`/`["clerks"]`
     的唯一写入点）→ 把冗官关键指标写进 `state.statistics` 供面板与审计读取。
-    末尾接三年周期人事闭环（科举 / 磨勘，见 `_run_personnel_cycle`）。
+    末尾接三年周期人事闭环（磨勘）与年度官方垦荒。
     """
     result = _officialdom.settle_officialdom(state, log)
     _run_personnel_cycle(state, log)
+    _run_annual_reclamation(state, log)
     return result
 
 

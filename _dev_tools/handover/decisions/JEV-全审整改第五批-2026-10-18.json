@@ -1,0 +1,18 @@
+{
+  "id": "JEV-全审整改第五批-2026-10-18",
+  "date": "2026-10-18",
+  "agent": "DSH",
+  "purpose": "官方垦荒接线方式的 Jev 留痕（第五批）",
+  "items": [
+    {
+      "question": "官方垦荒 reclaim_land_government 零生产调用。是否应新增机构参数 gov_reclamation_share（默认 0，范围 0-5%，年度按国库比例向荒地最多的路拨款开垦）？",
+      "options": ["A=默认 0 的机构参数 + 年度拨款", "B=每月自动固定预算", "C=保持未接线"],
+      "verdict": "A 成立",
+      "probability": 0.9816,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": ["reclaim_land_government 全库零外部调用", "原实现直接扣国库、无 POP 收款方（M_ALL 凭空减少）", "默认 share=0 时零行为变化"],
+      "applied_in": "game/content/data_constants.py INSTITUTION_PARAM_SPEC；game/core/domains/administration/settlement_officialdom.py::_run_annual_reclamation；land_reclamation.py 付款腿改国库→本路农/工匠",
+      "reopen_if": "若平衡测试显示 5% 上限过高/过低，调 max 或改为分档"
+    }
+  ]
+}
