@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """`resolve_holder`：只落到唯一账户；声明式规则（Y 轨）。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core import material_holding as MH
 from core.material_holding import (HOLDER_IMPERIAL, HOLDER_MAP, HOLDER_TREASURY,

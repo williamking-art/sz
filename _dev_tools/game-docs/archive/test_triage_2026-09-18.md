@@ -108,7 +108,7 @@ def test_async_ai_is_still_unwired():
 
 ## 五、D 类 · 弱断言（20 条）
 
-完整清单见 [H-tests-quality.md](../../_scratch/audit-2026/H-tests-quality.md)（14 条弱断言 ＋ 6 条过拟合）。代表：
+完整清单见 `_scratch/audit-2026/H-tests-quality.md`（14 条弱断言 ＋ 6 条过拟合）。代表：
 
 | 位置 | 问题 |
 |---|---|

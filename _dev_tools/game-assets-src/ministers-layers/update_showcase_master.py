@@ -3,7 +3,10 @@ import base64
 import json
 import os
 
-BRAIN_DIR = r"C:\Users\william\.gemini\antigravity\brain\21dc1567-8824-46b3-91a5-6021d8db2a9f"
+BRAIN_DIR = os.environ.get(
+    "SONGZUO_BRAIN_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain"),
+)
 p_master = os.path.join(BRAIN_DIR, "knee_up_cai_jing_master.png")
 
 with open(p_master, "rb") as f:

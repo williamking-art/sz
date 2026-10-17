@@ -203,20 +203,34 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
             clerks_compliance = comp if comp.get("defined") else None
 
             # 2026-10-17 祖宗家法知通互掣：凡兵民钱谷文书非通判连署不得施行
-            # 口径规范（B-3 审计整改）：
+            # 口径规范（B-3/P1-12 审计整改）：
             # 连署因子 cs_factor = 0.35 + 0.65 * 连署率 ∈ [0.35, 1.00] 作为二级乘数调节遵从度。
-            # 缺失值处理：显式判定 is True；若 countersigned 为 None，防御性回落为 True。
+            # countersigned 缺失/None **不得默认已签**：按“未签”计入保守比率，
+            # 同时输出 countersign_undefined/reason，供面板/日志诊断。
             try:
                 from core.domains.administration.prefect_officials import get_prefect_officials
                 po_dict = get_prefect_officials(state)
                 route_seats = [v for v in po_dict.values() if v.get("circuit") == route] if isinstance(po_dict, dict) else []
                 if route_seats:
-                    signed_count = sum(1 for s in route_seats if (s.get("countersigned") if s.get("countersigned") is not None else True))
+                    signed_count = 0
+                    undefined_count = 0
+                    for seat in route_seats:
+                        v = seat.get("countersigned")
+                        if v is True:
+                            signed_count += 1
+                        elif v is False:
+                            pass
+                        else:
+                            undefined_count += 1
                     signed_ratio = signed_count / len(route_seats)
                     cs_factor = 0.35 + 0.65 * signed_ratio
                     if clerks_compliance and "mult" in clerks_compliance:
                         clerks_compliance["mult"] = round(float(clerks_compliance["mult"]) * cs_factor, 4)
                         clerks_compliance["countersign_ratio"] = round(signed_ratio, 2)
+                        clerks_compliance["countersign_undefined"] = undefined_count
+                        clerks_compliance["countersign_reason"] = (
+                            f"{undefined_count} 席 countersigned 缺失/未定义，按未签处理"
+                            if undefined_count else "全部席位 countersigned 已定义")
             except Exception as _e_cs:
                 log.debug("decree_effect 知通连署率提取跳过：%s", _e_cs)
         except Exception as e:  # noqa: BLE001

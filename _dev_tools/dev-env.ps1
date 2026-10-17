@@ -10,12 +10,13 @@
 #     node -v ; cargo -V
 #
 # 想每次打开 PowerShell 自动生效？把下面这行加到 $PROFILE：
-#     . D:\codebuddy\sz\_dev_tools\dev-env.ps1
+#     . $PSScriptRoot\dev-env.ps1
 
 $ErrorActionPreference = 'Stop'
 
 # —— 定位各工具链（对版本号变化做容错，不写死具体版本目录）——
-$nodeRoot = 'D:\codebuddy\tools\nodejs'
+$WorkspaceRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$nodeRoot = Join-Path $WorkspaceRoot 'tools\nodejs'
 $nodeDir = $null
 if (Test-Path $nodeRoot) {
     $nodeDir = (Get-ChildItem $nodeRoot -Directory -Filter 'node-v*-win-x64' -ErrorAction SilentlyContinue |
@@ -24,7 +25,7 @@ if (Test-Path $nodeRoot) {
 
 $targets = @(
     @{ Name = 'Node';   Path = $nodeDir },
-    @{ Name = 'Python'; Path = 'D:\codebuddy\.audit-venv\Scripts' },
+    @{ Name = 'Python'; Path = (Join-Path $WorkspaceRoot '.audit-venv\Scripts') },
     @{ Name = 'Rust';   Path = (Join-Path $env:USERPROFILE '.cargo\bin') }
 )
 

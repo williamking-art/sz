@@ -171,8 +171,11 @@ def _build_default_circuit(circuit: str, index: int) -> Dict[str, Any]:
     }
 
 
-def init_all_circuit_officials(state) -> Dict[str, Dict[str, Any]]:
-    """初始化全国 21 路省路级四监司与知通官制底册，挂载于 state.circuit_officials。"""
+def init_all_circuit_officials(state, *, store: bool = True) -> Dict[str, Dict[str, Any]]:
+    """初始化全国 21 路省路级四监司与知通官制底册。
+
+    `store=False` 时只返回派生副本，不写 `state.circuit_officials`（供读函数兜底）。
+    """
     c_officials = getattr(state, "circuit_officials", None)
     if isinstance(c_officials, dict) and len(c_officials) >= len(ALL_CIRCUITS_21):
         return c_officials
@@ -181,16 +184,22 @@ def init_all_circuit_officials(state) -> Dict[str, Dict[str, Any]]:
     for idx, c in enumerate(ALL_CIRCUITS_21):
         all_data[c] = _build_default_circuit(c, idx)
 
-    state.circuit_officials = all_data
+    if store:
+        state.circuit_officials = all_data
     return all_data
 
 
 def get_circuit_officials(state, circuit: str) -> Dict[str, Any]:
-    """读取单一路的省路级主要官员（纯函数只读派生视图）。"""
+    """读取单一路的省路级主要官员（**纯只读**；未初始化时返回派生副本）。
+
+    P1-5：不再惰性写 `state.circuit_officials`；显式初始化由
+    `application/game_init.init_official_books` 负责。
+    """
     c_officials = getattr(state, "circuit_officials", None)
     if not isinstance(c_officials, dict) or circuit not in c_officials:
-        init_all_circuit_officials(state)
-        c_officials = getattr(state, "circuit_officials", {})
+        from types import SimpleNamespace
+        c_officials = init_all_circuit_officials(
+            SimpleNamespace(circuit_officials={}), store=False)
 
     record = c_officials.get(circuit)
     if isinstance(record, dict):

@@ -122,7 +122,7 @@ def test_b7_transit_batches_survive_save_load_and_arrive_conserved():
         for key in ("batch_id", "origin_seat", "target_seat", "goods_dim", "gross_amount", "remaining_days"):
             assert after[0].get(key) == before[0].get(key)
         assert warehouse_stock_get(loaded, origin, "public_depot", "铁") == 200.0
-        assert warehouse_stock_get(loaded, target, "public_depot", "铁") == 0.0
+        assert warehouse_stock_get(loaded, target, "public_depot", "铁") is None
         arrived = advance_in_transit_batches(loaded, days=30)
         assert len(arrived) == 1
         assert warehouse_stock_get(loaded, origin, "public_depot", "铁") == 200.0

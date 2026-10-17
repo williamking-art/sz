@@ -112,10 +112,12 @@ def warehouse_stock_get(
     if not isinstance(wh, dict):
         return None
     stocks = wh.get("stocks")
+    # P1-3（2026-10-17）：仓位存在但该维未登记 ⇒ **None**（缺失≠0）；
+    # 只有 stocks 里显式写了数值 0 才返回 0.0（“空仓”这一声明）。
     if not isinstance(stocks, dict) or dim not in stocks:
-        return 0.0
+        return None
     val = stocks.get(dim)
-    return float(val) if val is not None else 0.0
+    return float(val) if val is not None else None
 
 
 def warehouse_stock_add(
@@ -207,8 +209,9 @@ def transfer_goods_ownership(
         elif from_owner.startswith("local:") or from_owner.startswith("state:"):
             src_seat = seat_id or from_owner.split(":")[-1]
             wh_type = "public_granary" if dim == "grain" else "public_depot"
-            cur_wh = warehouse_stock_get(state, src_seat, wh_type, dim) or 0.0
-            take_wh = min(cur_wh, amt)
+            cur_wh = warehouse_stock_get(state, src_seat, wh_type, dim)
+            # 缺失维 = 无该货可转，不是数值 0；只有显式库存才参与 min。
+            take_wh = min(cur_wh, amt) if cur_wh is not None else 0.0
             if take_wh > 0:
                 warehouse_stock_add(state, src_seat, wh_type, dim, -take_wh, reason=f"transfer_out:{reason}")
                 stock_deducted = float(take_wh)
@@ -246,9 +249,10 @@ def dispatch_spatial_transfer(
     else:
         wh_source = "public_depot" if owner.startswith("local:") or owner.startswith("state:") else "civilian_depots"
     
-    avail = warehouse_stock_get(state, origin_seat, wh_source, goods_dim) or 0.0
-    if avail < amt:
-        return {"ok": False, "reason": "insufficient_source_stock", "available": avail, "required": amt}
+    avail = warehouse_stock_get(state, origin_seat, wh_source, goods_dim)
+    if avail is None or avail < amt:
+        return {"ok": False, "reason": "insufficient_source_stock",
+                "available": avail, "required": amt}
     
     # 2. 扣减始发地物理仓库
     warehouse_stock_add(state, origin_seat, wh_source, goods_dim, -amt, reason="dispatch_out")

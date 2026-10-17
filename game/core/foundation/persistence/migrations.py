@@ -204,3 +204,23 @@ def sink_spatial_warehouses_to_seats(state) -> dict:
     from core.foundation.ledger import spatial_warehouse_bridge
     return spatial_warehouse_bridge.sink_spatial_warehouses_to_seats(state)
 
+
+def ensure_mineral_deposits(state) -> int:
+    """P1-2：**无条件幂等入口**——旧档无 `mineral_deposits` 时补 21 路合法初始值。
+
+    已存在的储量/`extracted_total` 一律保留（不重置开采进度）；只补缺失字段。
+    返回本次实际初始化的路数（0 表示原本就完整）。
+    """
+    try:
+        from core.domains.economy.mineral_deposit import init_circuit_minerals, CIRCUIT_MINERAL_DEPOSITS
+    except Exception as e:  # noqa: BLE001 — 领域模块不可用不得阻断载入
+        import logging
+        logging.getLogger(__name__).warning(
+            "矿藏旧档迁移不可用（缺失≠0，不伪造）：%r", e)
+        return 0
+    before = getattr(state, "mineral_deposits", None)
+    before_routes = len(before) if isinstance(before, dict) else 0
+    init_circuit_minerals(state)
+    after = getattr(state, "mineral_deposits", {}) or {}
+    return max(0, len(after) - before_routes)
+

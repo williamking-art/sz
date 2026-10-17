@@ -19,7 +19,7 @@
 | `stats.py` | 大臣能力与属性数据结构定义 |
 
 ## 关联
-- 合成器：`game/core/minister_profile.py::compose_portrait`（经 `/api/portrait/<file>` 供前端）；
+- 合成器：`game/content/ministers/data.py::compose_portrait`（经 `/api/portrait/<file>` 供前端）；
 - 打包白名单：`SongZuo.spec` 的 datas 明确包含 `content/ministers/layers/` 与 `portraits/*.png`（排除 `_composed`）。
 ---
 最后更新：2026-09-27（补目录文档）

@@ -38,7 +38,7 @@ from core.foundation.persistence.slots import (  # noqa: F401
     SLOT_MIN, _slot_ok, _slot_path, get_save_slots,
 )
 from core.foundation.persistence.migrations import (  # noqa: F401
-    _merge_regions, _migrate_pops_to_seats,
+    _merge_regions, _migrate_pops_to_seats, ensure_mineral_deposits,
 )
 
 
@@ -284,6 +284,8 @@ def save_game(state, slot: int = 1) -> bool:
         "resources": getattr(state, "resources", {}),
         # 6.33：归属待定库存**必须随档持久化**（否则读档即灭失、破坏实物守恒）
         "pending_stock": getattr(state, "pending_stock", {}) or {},
+        # P1-2（2026-10-17）：矿藏储量是真实存量；不落档会让枯竭读档回满。
+        "mineral_deposits": getattr(state, "mineral_deposits", {}) or {},
         # 动态蓝图注册表（规格任务 3）：不落档则读档后动态蓝图全部消失，
         # 已在办/已完工的动态建筑会变成"无图纸可依"的孤儿工程。
         "dynamic_blueprints": getattr(state, "dynamic_blueprints", {}) or {},
@@ -1039,6 +1041,16 @@ def _load_with_data(slot: int = 1):
                 state.resources[_d] = {"stock": max(0, _stock), "cap": max(0, _cap)}
     for d in RESOURCE_DIMS:
         state.resources.setdefault(d, {"stock": 0, "cap": 5000})
+    # P1-2：矿藏储量随档恢复，旧档/坏值幂等补初始配置（不重置已开采进度）
+    _md_saved = data.get("mineral_deposits")
+    if isinstance(_md_saved, dict):
+        try:
+            state.mineral_deposits = json.loads(json.dumps(_md_saved))
+        except (TypeError, ValueError):
+            state.mineral_deposits = {}
+    else:
+        state.mineral_deposits = {}
+    ensure_mineral_deposits(state)
     state.projects = data.get("projects", getattr(state, "projects", {}))
     state.workshops = data.get("workshops", getattr(state, "workshops", {}))
     # 🔴 建材在途批次（读侧）：旧档无此键 ⇒ 读成**空列表**（不拒档）。

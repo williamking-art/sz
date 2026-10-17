@@ -20,12 +20,13 @@ param([switch]$Fix, [switch]$Shot)
 
 $ErrorActionPreference = 'Continue'
 $RepoRoot     = Split-Path -Parent $PSScriptRoot          # _dev_tools 的上级 = 仓库根
-$McpCwd       = 'D:\codebuddy'                            # MCP 进程 cwd（§8.0 实测）
+$WorkspaceRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$McpCwd       = $WorkspaceRoot                            # MCP 进程 cwd（§8.0 实测）
 $EnvId        = 'william-1-d5grtya3z0b5e143d'
 $Region       = 'ap-singapore'
 $Site         = 'domestic'
-$NodeDir      = 'D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64'
-$PyDir        = 'D:\codebuddy\.audit-venv\Scripts'
+$NodeDir      = Join-Path $WorkspaceRoot 'tools\nodejs\node-v20.19.5-win-x64'
+$PyDir        = Join-Path $WorkspaceRoot '.audit-venv\Scripts'
 $CargoDir     = Join-Path $env:USERPROFILE '.cargo\bin'
 $McpLogDir    = Join-Path $env:USERPROFILE '.cloudbase-mcp\logs'
 $CfgPaths     = @((Join-Path $McpCwd '.cloudbase\project.json'),
@@ -47,7 +48,7 @@ function Invoke-ShotCheck {
     $feRoot  = Join-Path $RepoRoot 'game\frontend'
     $shotJs  = Join-Path $feRoot 'scripts\shot\shoot.mjs'
     $shotPy  = Join-Path $PyDir 'python.exe'
-    $edgeExe = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    $edgeExe = if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe' } else { '' }
     $shotOut = Join-Path $env:TEMP 'songzuo-shots'
     $nodeExe = $null
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue

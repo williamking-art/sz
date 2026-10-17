@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-17T10:10:22Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-17T14:36:25Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -15,6 +15,10 @@
 - `B2-guard-quality-gate` B-2 守卫进质量放行门：先只读设计与取证，评审后再实施 ｜status=**in_progress**｜claimedBy=DSH
 - `INC-2026-10-17-dsh-deleted-tests` 事故：DSH 清理 sz/tests/ 时误删 antigravity 名下 M323/M324 的两个测试文件 ｜status=**mitigated**｜claimedBy=DSH
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
+- `M300-stage3-pop-and-officialdom` Stage 3: POP 微观生计闭环（告别强行运转）+ 科举三级取士唱名与官员三级差遣考课磨勘 ｜status=**in_progress**｜claimedBy=Antigravity
+- `M317-v3-production-methods-and-neutral-intermediates` 中性通用中间物体系与维多利亚3风格生产方式（PM）建筑架构重构 ｜status=**in_progress**｜claimedBy=Antigravity
+- `M318-organization-pm-and-living-goods` 组织形态生产方式（作坊vs工厂）与民生文教消费闭环 ｜status=**in_progress**｜claimedBy=Antigravity
+- `M324-metrology-engine-and-reforms` 度量衡统一转换引擎、公制双轨接口与体制变法博弈 ｜status=**in_progress**｜claimedBy=antigravity
 - `M36-5-ai-decision-wiring` M36.5《AI 决策接线》：让外部 AI 能正确使用 M36 的信息与行动接口（不开 M37） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-6-A-minister-proposal-contract` M36.6-A《AI 大臣人格化事实视图与提案契约》：数据结构/权限继承/提案格式/状态转换（设计已出，待 P1–P3 裁定后编码） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-7-A-professional-decision-ledger` M36.7-A《AI 大臣专业决策模型》总设计裁定台账（零代码）——八层分析模型/四落点/Q1–Q7 与 P1–P3 已裁 ｜status=**in_progress**｜claimedBy=Cline
@@ -38,16 +42,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261017T085619Z-unknown` → [`worklog/20261017T085619Z-unknown.md`](worklog/20261017T085619Z-unknown.md)
-- `20261017T090641Z-unknown` → [`worklog/20261017T090641Z-unknown.md`](worklog/20261017T090641Z-unknown.md)
-- `20261017T092209Z-DSH` → [`worklog/20261017T092209Z-DSH.md`](worklog/20261017T092209Z-DSH.md)
-- `20261017T092817Z-antigravity` → [`worklog/20261017T092817Z-antigravity.md`](worklog/20261017T092817Z-antigravity.md)
-- `20261017T094220Z-DSH` → [`worklog/20261017T094220Z-DSH.md`](worklog/20261017T094220Z-DSH.md)
-- `20261017T094255Z-DSH` → [`worklog/20261017T094255Z-DSH.md`](worklog/20261017T094255Z-DSH.md)
 - `20261017T095049Z-antigravity` → [`worklog/20261017T095049Z-antigravity.md`](worklog/20261017T095049Z-antigravity.md)
 - `20261017T101022Z-DSH` → [`worklog/20261017T101022Z-DSH.md`](worklog/20261017T101022Z-DSH.md)
+- `20261017T104349Z-DSH` → [`worklog/20261017T104349Z-DSH.md`](worklog/20261017T104349Z-DSH.md)
+- `20261017T105055Z-unknown` → [`worklog/20261017T105055Z-unknown.md`](worklog/20261017T105055Z-unknown.md)
+- `20261017T132211Z-DSH` → [`worklog/20261017T132211Z-DSH.md`](worklog/20261017T132211Z-DSH.md)
+- `20261017T134241Z-DSH` → [`worklog/20261017T134241Z-DSH.md`](worklog/20261017T134241Z-DSH.md)
+- `20261017T140019Z-DSH` → [`worklog/20261017T140019Z-DSH.md`](worklog/20261017T140019Z-DSH.md)
+- `20261017T143624Z-DSH` → [`worklog/20261017T143624Z-DSH.md`](worklog/20261017T143624Z-DSH.md)
 
 ## 计数
 
-- tasks 206（未完成 14）· decisions 178（未闭环 6）· worklog 556 · phase 文件 4
+- tasks 208（未完成 18）· decisions 182（未闭环 6）· worklog 562 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

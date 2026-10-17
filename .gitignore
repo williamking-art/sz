@@ -76,7 +76,7 @@ assets/map/web/tiles/
 # `\bsk-` + 长度下限后命中 0，目录内亦无 key/token/secret/password 赋值形态，
 # 且该路径**从未进过 git 历史**（`git log --all -- .qoder/` = 0 提交）。
 # ⇒ 无凭据泄露、无需轮换。本规则按「本地运行产物」理由保留（无关密钥判断）。
-# 复扫脚本：D:\codebuddy\_scratch\scan_qoder_secrets.py（只输出掩码与哈希前缀）。
+# 复扫脚本：<工作区>\_scratch\scan_qoder_secrets.py（只输出掩码与哈希前缀）。
 # 不锚定根目录：harness 的嵌套 .qoder/ 副本同样覆盖。
 .qoder/
 

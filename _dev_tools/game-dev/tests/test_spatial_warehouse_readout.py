@@ -25,7 +25,8 @@ def test_spatial_warehouse_readout_basic():
 
     granary = swr.public_granary_summary(state)
     assert granary["total_grain"] is not None
-    assert granary["total_grain"] > 0
+    # 官仓实物账在 seats.warehouses；新局可为显式 0（不再回退 changping 镜像）
+    assert granary["total_grain"] >= 0
 
     transit = swr.in_transit_summary(state)
     assert transit["batch_count"] is not None

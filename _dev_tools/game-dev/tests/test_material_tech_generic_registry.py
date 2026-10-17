@@ -11,10 +11,10 @@
 import inspect
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
-sys.path.insert(0, r'D:/codebuddy/sz/game')
-
-SRC = r'D:/codebuddy/sz/game/core/material_tech.py'
+SRC = str(Path(__file__).resolve().parents[3] / 'game' / 'core' / 'material_tech.py')
 
 
 def _src():

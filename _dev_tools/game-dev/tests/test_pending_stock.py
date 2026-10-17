@@ -5,8 +5,8 @@
 本文件通过**临时清空 `HOLDER_MAP`** 复现 Missing 路径，以持续守护该机制。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

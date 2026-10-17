@@ -913,27 +913,64 @@ _parse_inner_amount = parse_inner_amount
 # ============================================================
 # 案头奏折批答（准奏 / 留中）—— 渗透式交互，零独立新 UI
 # ============================================================
+_MEMORIAL_TIERS = ("无", "微", "小", "中", "大")
+
+
+def _memo_value_to_tier(value) -> str:
+    """把旧数值档位（1/2/3/5）或丰富词归一为 `effects_to_dict` 能吃的档位词。"""
+    from content.data import normalize_tier
+    if isinstance(value, str):
+        nv = normalize_tier(value)
+        return nv if nv in _MEMORIAL_TIERS else "无"
+    if isinstance(value, bool):
+        return "无"
+    if isinstance(value, (int, float)):
+        if value <= 0:
+            return "无"
+        if value <= 1:
+            return "微"
+        if value <= 2:
+            return "小"
+        if value <= 3:
+            return "中"
+        return "大"
+    return "无"
+
+
 def _build_memorial_effects(memo: dict) -> dict:
-    """按奏折品类与规格推导诏草默认效果。"""
-    if isinstance(memo.get("effects"), dict) and memo["effects"]:
-        return dict(memo["effects"])
+    """按奏折品类与规格推导诏草默认效果。
+
+    P1-3：本函数输出必须走**档位词**（无/微/小/中/大），不能输出 1/2/3/5。
+    下游 `_draft_to_effects_dict -> ai.client.effects_to_dict` 按 tier_to_value
+    换算；数值会被 normalize_tier 当成未知词 -> "无" -> 0，导致准奏效果全空。
+    """
+    raw_effects = memo.get("effects")
+    if isinstance(raw_effects, dict) and raw_effects:
+        out = {}
+        for k, v in raw_effects.items():
+            if k == "faction_change" and isinstance(v, dict):
+                out[k] = {str(fn): _memo_value_to_tier(fv) for fn, fv in v.items()}
+            elif k == "commerce_tax" and isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[k] = v       # 税率是设定值，effects_to_dict 有专用分支
+            else:
+                out[k] = _memo_value_to_tier(v)
+        return out
     eff = {}
     dim = memo.get("effect_dim")
-    tier = memo.get("effect_tier", "小")
-    tier_val = {"微": 1, "小": 2, "中": 3, "大": 5}.get(tier, 2)
+    tier = _memo_value_to_tier(memo.get("effect_tier", "小"))
     if dim:
-        eff[dim] = tier_val
+        eff[str(dim)] = tier
     kind = memo.get("kind")
     if kind == "finance":
-        eff.setdefault("treasury", 5000)
+        eff.setdefault("treasury", "小")
     elif kind == "military":
-        eff.setdefault("defense_bonus", 2)
+        eff.setdefault("defense_bonus", "小")
     elif kind == "governance":
-        eff.setdefault("population_satisfaction", 2)
+        eff.setdefault("population_satisfaction", "小")
     elif kind == "invention":
-        eff.setdefault("prestige", 1)
+        eff.setdefault("prestige", "微")
     if not eff:
-        eff = {"prestige": 1}
+        eff = {"prestige": "微"}
     return eff
 
 

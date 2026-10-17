@@ -27,120 +27,117 @@ __all__ = [
 ]
 
 
+def _sum_seat_warehouse(state: Any, wh_type: str,
+                        only_dim: Optional[str] = None):
+    """按 `seats[治所].warehouses[wh_type].stocks` 汇总；无该仓位 ⇒ `None`。"""
+    if not isinstance(getattr(state, "prefectures", None), dict):
+        return None, None
+    total = 0.0
+    by_route: Dict[str, Dict[str, float]] = {}
+    covered_routes = set()
+    found = False
+    for rname, p in state.prefectures.items():
+        if not isinstance(p, dict):
+            continue
+        for _sid, seat in (p.get("seats") or {}).items():
+            if not isinstance(seat, dict):
+                continue
+            wh = (seat.get("warehouses") or {}).get(wh_type)
+            if not isinstance(wh, dict):
+                continue
+            stocks = wh.get("stocks")
+            if not isinstance(stocks, dict):
+                continue
+            found = True
+            covered_routes.add(rname)
+            row = by_route.setdefault(rname, {})
+            for d, v in stocks.items():
+                if only_dim is not None and d != only_dim:
+                    continue
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    row[d] = round(float(row.get(d, 0.0)) + float(v), 4)
+                    total += float(v)
+    if not found:
+        return None, None
+    return total, {"routes": len(covered_routes), "by_route": by_route}
+
+
 def public_depot_summary(state: Any) -> Dict[str, Any]:
-    """汇总全国官方料场（public_depot）建材储备。"""
-    if not hasattr(state, "prefectures") or not isinstance(state.prefectures, dict):
+    """汇总全国官方料场（public_depot）建材储备（seats 真账）。"""
+    if not isinstance(getattr(state, "prefectures", None), dict):
         return {
             "total_materials": None,
             "routes_covered": None,
             "display": "undefined",
             "reason": "state.prefectures 缺失或不可读",
         }
-
-    total_mat = 0.0
-    covered = 0
-    by_route: Dict[str, Dict[str, float]] = {}
-
-    for rname, p in state.prefectures.items():
-        if not isinstance(p, dict):
-            continue
-        depot = p.get("public_depot")
-        if isinstance(depot, dict):
-            stocks = depot.get("stocks") or {}
-            if isinstance(stocks, dict):
-                r_sum = sum(float(v or 0.0) for v in stocks.values())
-                by_route[rname] = {k: float(v or 0.0) for k, v in stocks.items()}
-                total_mat += r_sum
-                covered += 1
-
-    if covered == 0:
+    total, meta = _sum_seat_warehouse(state, "public_depot")
+    if total is None:
         return {
             "total_materials": None,
             "routes_covered": 0,
             "display": "undefined",
-            "reason": "各路尚未开辟官方料场",
+            "reason": "治所尚未开辟官方料场",
         }
-
     return {
-        "total_materials": round(total_mat, 2),
-        "routes_covered": covered,
-        "by_route": by_route,
-        "display": f"{total_mat:,.1f} 围/方",
+        "total_materials": round(total, 2),
+        "routes_covered": meta["routes"],
+        "by_route": meta["by_route"],
+        "display": f"{total:,.1f} 围/方",
         "reason": None,
     }
 
 
 def public_granary_summary(state: Any) -> Dict[str, Any]:
-    """汇总全国常平官仓（public_granary）粮食储备。"""
-    if not hasattr(state, "prefectures") or not isinstance(state.prefectures, dict):
+    """汇总全国官仓 `public_granary` 实粮（seats 真账；不再回退 changping 镜像）。"""
+    if not isinstance(getattr(state, "prefectures", None), dict):
         return {
             "total_grain": None,
             "routes_covered": None,
             "display": "undefined",
             "reason": "state.prefectures 缺失或不可读",
         }
-
-    total_grain = 0.0
-    covered = 0
-
-    for rname, p in state.prefectures.items():
-        if not isinstance(p, dict):
-            continue
-        # 优先读物理四仓 public_granary，同源比照 changping_stock
-        granary = p.get("public_granary")
-        if isinstance(granary, dict):
-            stocks = granary.get("stocks") or {}
-            g = float(stocks.get("grain", 0.0) or 0.0)
-            total_grain += g
-            covered += 1
-        elif "changping_stock" in p:
-            total_grain += float(p.get("changping_stock", 0.0) or 0.0)
-            covered += 1
-
-    if covered == 0:
+    total, meta = _sum_seat_warehouse(state, "public_granary", only_dim="grain")
+    if total is None:
         return {
             "total_grain": None,
             "routes_covered": 0,
             "display": "undefined",
-            "reason": "未找到常平官仓储备数据",
+            "reason": "治所未找到官仓实物储备",
         }
-
     return {
-        "total_grain": round(total_grain, 1),
-        "routes_covered": covered,
-        "display": f"{total_grain:,.0f} 石",
+        "total_grain": round(total, 1),
+        "routes_covered": meta["routes"],
+        "by_route": meta["by_route"],
+        "display": f"{total:,.0f} 石",
         "reason": None,
     }
 
 
 def merchant_warehouse_summary(state: Any) -> Dict[str, Any]:
-    """汇总民间商人行栈（merchant_warehouse）存货储备。"""
-    if not hasattr(state, "prefectures") or not isinstance(state.prefectures, dict):
+    """汇总民间商贾货栈 `civilian_depots`（seats 真账）。"""
+    if not isinstance(getattr(state, "prefectures", None), dict):
         return {
             "total_holdings": None,
             "routes_active": None,
             "display": "undefined",
             "reason": "state.prefectures 缺失",
         }
-
-    total_holdings = 0.0
-    active_routes = 0
-
-    for rname, p in state.prefectures.items():
-        if not isinstance(p, dict):
-            continue
-        mw = p.get("merchant_warehouse")
-        if isinstance(mw, dict):
-            stocks = mw.get("stocks") or {}
-            r_sum = sum(float(v or 0.0) for v in stocks.values())
-            total_holdings += r_sum
-            if r_sum > 0:
-                active_routes += 1
-
+    total, meta = _sum_seat_warehouse(state, "civilian_depots")
+    if total is None:
+        return {
+            "total_holdings": None,
+            "routes_active": 0,
+            "display": "undefined",
+            "reason": "治所未找到商贾货栈",
+        }
+    active_routes = sum(1 for row in (meta["by_route"] or {}).values()
+                        if any(float(v) > 0 for v in row.values()))
     return {
-        "total_holdings": round(total_holdings, 2),
+        "total_holdings": round(total, 2),
         "routes_active": active_routes,
-        "display": f"{total_holdings:,.1f} 件/围",
+        "by_route": meta["by_route"],
+        "display": f"{total:,.1f} 件/围",
         "reason": None,
     }
 

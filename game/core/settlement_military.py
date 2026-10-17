@@ -12,6 +12,7 @@ from content.data import (
     ECONOMY_PRESSURE_THRESHOLD_PRICE,
 )
 
+from core.foundation.common.numeric import parse_number
 from core.settlement_common import (
     _return_men,
     _P1_ATT_DELTA,
@@ -161,7 +162,9 @@ def _settle_military_diplomacy(state, log):
             _return_men(state, u.station, desert_count, from_army_pop=True)
             pdata = (getattr(state, "prefectures", {}) or {}).get(u.station)
             if isinstance(pdata, dict):
-                pdata["unrest"] = min(100.0, float(pdata.get("unrest", 20.0)) + 1.2)
+                # P1-11：键存在但值为 None 时不得 float(None)；缺失/非法按 20 基线，
+                # 合法的 0 保留（parse_number 不吞 0）。
+                pdata["unrest"] = min(100.0, parse_number(pdata.get("unrest"), 20.0) + 1.2)
             log.append(f"[军伍] {u.name} 欠饷久滞（欠 {u_arr:,} 贯），{desert_count} 卒鼓噪逃亡")
     if isinstance(_mil, dict) and not _mil.get("_error"):
         for u in state.army_units:

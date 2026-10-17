@@ -5,8 +5,8 @@
 窗口过滤／月报「度支录」臣工风闻／存档往返。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.audit_case import (discovery_readout, record_suspicion,
                              scan_fiscal_suspicion)

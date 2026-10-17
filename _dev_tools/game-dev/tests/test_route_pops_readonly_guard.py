@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """路级 `pops` 只读守卫：证明「写入已全部桥接化」，并锁定剩余直写字段的基线。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

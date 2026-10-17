@@ -159,6 +159,19 @@ def init_spatial_warehouses_seats(state):
     return sink_spatial_warehouses_to_seats(state)
 
 
+def init_official_books(state):
+    """显式初始化具名官员两册（P1-5；读函数不再惰性写 state）。
+
+    - `prefect_officials`：136 州府 seat（含 stats/countersign）
+    - `circuit_officials`：21 路四监司/首府官
+    """
+    from core.domains.administration.prefect_officials import init_all_prefect_officials
+    from core.domains.administration.circuit_officials import init_all_circuit_officials
+    prefect = init_all_prefect_officials(state)
+    circuit = init_all_circuit_officials(state)
+    return {"prefect_officials": len(prefect), "circuit_officials": len(circuit)}
+
+
 def init_minister_agents(state):
     """为中枢在任 holders 建立 `minister_agents` 运行态（C-1）。
 
@@ -228,5 +241,6 @@ def new_game(mode: str = "史实"):
     init_workshop_expansion(state)      # M196：丝坊补座（绝对目标 28 座、幂等、不动钱货）
     init_workshop_owners(state)         # M66：作坊货主（产权落点，只登记字段、不动钱）
     init_building_owners(state)         # M91：建筑归属（P2 第一片，building_meta，零数值变化）
+    init_official_books(state)          # P1-5：显式初始化 136 州府/21 路具名官册（读函数不再懒写）
     init_minister_agents(state)         # C-1：中枢在任官员 Agent 运行态（复述/事权门禁前置）
     return state

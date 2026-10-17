@@ -97,7 +97,7 @@ def normalize_portrait(src_path: str, dst_path: str, key: str) -> bool:
 
 
 if __name__ == "__main__":
-    artifact_dir = r"C:\Users\william\.gemini\antigravity\brain\21dc1567-8824-46b3-91a5-6021d8db2a9f"
+    artifact_dir = os.environ.get("SONGZUO_BRAIN_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain"))
     out_dir = os.path.join(artifact_dir, "normalized")
     os.makedirs(out_dir, exist_ok=True)
 

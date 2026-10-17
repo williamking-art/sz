@@ -10,8 +10,8 @@
   4. **非空转**：注入一处绕过桥接的路级直写，守卫确实记账（否则「零违规」是假象）。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

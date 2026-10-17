@@ -8,8 +8,8 @@
 - 存档迁移 `_migrate_finance` 幂等补值。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

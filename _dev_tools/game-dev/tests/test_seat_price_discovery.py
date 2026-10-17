@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """G-5 治所级价格发现：键格式、回落、缺失≠0、向后兼容。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.market_price import (discover_seat_price, pref_good_key,
                                 record_seat_trade_price, seat_good_key)

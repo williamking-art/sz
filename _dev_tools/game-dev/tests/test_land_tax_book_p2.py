@@ -4,8 +4,8 @@
 验收对应：§12 断言 7（账面/真账对核）＋ 账面自洽 ＋ 月报叙事钩子可触发。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.commands import new_game
 from core.monthly_gazette import CHAPTER_ORDER, build_monthly_gazette

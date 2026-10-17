@@ -374,7 +374,8 @@ def _settle_projects(state, log):
             _depot_st = 0.0
             try:
                 from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_get
-                _depot_st = float(warehouse_stock_get(state, _route0, "public_depot", _d) or 0.0)
+                _depot_raw = warehouse_stock_get(state, _route0, "public_depot", _d)
+                _depot_st = float(_depot_raw) if _depot_raw is not None else 0.0
             except Exception:
                 pass
             _merch_st = float(_mh(state, _route0, _md) or 0)

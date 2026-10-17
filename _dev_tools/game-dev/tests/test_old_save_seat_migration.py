@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """方案乙旧档迁移：载入无 `seats` 的旧档后，POP 真账应下沉到州府级且逐字段守恒。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.game_state import GameState
 from core.pop_bridge import (POP_CLASSES, aggregate_seat_pops,

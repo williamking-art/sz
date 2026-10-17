@@ -144,12 +144,20 @@ def check_countersign(prefecture_data: Dict[str, Any]) -> Dict[str, Any]:
     return prefecture_data
 
 
-def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
-    """初始化全国 136 州府席位知通人事底册。"""
+def init_all_prefect_officials(state, *, include_stats: bool = True,
+                               store: bool = True) -> Dict[str, Dict[str, Any]]:
+    """初始化全国 136 州府席位知通人事底册。
+
+    `include_stats=False`：纯读数兜底，不调用 `get_or_create_official_stats`（不写
+    state.official_stats）；`store=False`：只返回派生结果，不写 state.prefect_officials。
+    `game_init` 新局用默认参数做**显式初始化**；`get_prefect_officials` 的未初始化
+    兜底使用 `store=False/include_stats=False`，保证读函数不再惰性写 state。
+    """
     raw_dict = getattr(state, "prefect_officials", None)
     if not isinstance(raw_dict, dict):
         raw_dict = {}
-        state.prefect_officials = raw_dict
+        if store:
+            state.prefect_officials = raw_dict
 
     seats = all_seats()
     for idx, s in enumerate(seats):
@@ -171,9 +179,11 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
         v_name, v_fac, v_traits, v_integ, v_abil = _SUBPREFECT_NAMES[v_idx]
         guarantor = _CENTRAL_GUARANTORS[g_idx]
 
-        from content.ministers.stats import get_or_create_official_stats, format_official_stats
-        p_stat = get_or_create_official_stats(state, p_name, fallback_rank=p_rank)
-        v_stat = get_or_create_official_stats(state, v_name, fallback_rank="从六品")
+        p_stat = v_stat = None
+        if include_stats:
+            from content.ministers.stats import get_or_create_official_stats, format_official_stats
+            p_stat = get_or_create_official_stats(state, p_name, fallback_rank=p_rank)
+            v_stat = get_or_create_official_stats(state, v_name, fallback_rank="从六品")
 
         entry: Dict[str, Any] = {
             "seat_id": sid,
@@ -188,8 +198,8 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
                 "integrity": p_integ,
                 "ability": p_abil,
                 "traits": p_traits,
-                "attrs": p_stat["attrs"],
-                "stats_summary": format_official_stats(p_stat),
+                "attrs": (p_stat["attrs"] if p_stat else {}),
+                "stats_summary": (format_official_stats(p_stat) if p_stat else ""),
                 "tenure_months": 12 + (idx % 24),
                 "guarantor": guarantor,
                 "costume_tier": "fei",
@@ -202,8 +212,8 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
                 "integrity": v_integ,
                 "ability": v_abil,
                 "traits": v_traits,
-                "attrs": v_stat["attrs"],
-                "stats_summary": format_official_stats(v_stat),
+                "attrs": (v_stat["attrs"] if v_stat else {}),
+                "stats_summary": (format_official_stats(v_stat) if v_stat else ""),
                 "tenure_months": 6 + (idx % 30),
                 "guarantor": guarantor,
                 "costume_tier": "lv",
@@ -219,10 +229,18 @@ def init_all_prefect_officials(state) -> Dict[str, Dict[str, Any]]:
 
 
 def get_prefect_officials(state, seat_id: Optional[str] = None) -> Any:
-    """查询指定或全量 136 州府席位。"""
+    """查询指定或全量 136 州府席位（**纯只读**；未初始化时返回派生副本）。
+
+    P1-5：旧实现会在此惰性 `init_all_prefect_officials(state)`，把 136 席写进
+    state。现改为在临时命名空间构建、绝不回写；显式初始化由
+    `application/game_init.init_official_books` 负责。
+    """
     raw = getattr(state, "prefect_officials", None)
     if not isinstance(raw, dict) or len(raw) < 136:
-        raw = init_all_prefect_officials(state)
+        from types import SimpleNamespace
+        raw = init_all_prefect_officials(
+            SimpleNamespace(prefect_officials={}),
+            include_stats=False, store=False)
     if seat_id:
         return raw.get(seat_id)
     return raw

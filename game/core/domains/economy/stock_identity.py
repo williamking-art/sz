@@ -28,7 +28,8 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     "SCHEMA_VERSION", "CUSTODY_KEYS", "pop_goods_by_dim",
-    "national_resources_by_dim", "in_transit_by_dim", "pending_stock_by_dim",
+    "national_resources_by_dim", "seat_warehouses_by_dim",
+    "in_transit_by_dim", "pending_stock_by_dim",
     "stock_snapshot", "money_identity", "identity_report",
     "stock_delta", "residual_report",
     "GRAIN_CUSTODY_KEYS", "central_granary", "prefectural_storage",
@@ -40,7 +41,8 @@ __all__ = [
 SCHEMA_VERSION = 1
 
 #: 商品保管方（**顺序即报表顺序**；不合并——合并会把"待定"与"在途"混进合计）
-CUSTODY_KEYS = ("pop_goods", "national_resources", "in_transit", "pending_stock")
+CUSTODY_KEYS = ("pop_goods", "national_resources", "seat_warehouses",
+                "in_transit", "pending_stock")
 
 #: 粮食保管方（Jev 裁定 P=0.993：官民分立、中央与地方分列、在途独立）
 GRAIN_CUSTODY_KEYS = (
@@ -121,48 +123,115 @@ def national_resources_by_dim(state) -> Optional[Dict[str, float]]:
     return out
 
 
-def in_transit_by_dim(state) -> Optional[Dict[str, float]]:
-    """在途批次合计（逐维）。
+def seat_warehouses_by_dim(state) -> Optional[Dict[str, float]]:
+    """Σ 治所物理四仓（`seats[治所].warehouses[*].stocks`）逐维合计。
 
-    ⚠️ **真·只读**：`core.transport.in_transit` 读时会**惰性创建** `state.material_transit`（实测）
-    ⇒ 先判容器是否存在：**不存在 ⇒ 返回 `{}`（"没有在途"是可读事实），且不去触发那次写**；
-    容器在但读数不可用 ⇒ `None`（**不冒充"没有在途"**）。
+    无任何 `warehouses` 桶 ⇒ `None`（缺失≠0）；桶存在但为空 ⇒ `{}`。
     """
-    if getattr(state, "material_transit", None) is None:
-        return {}
-    try:
-        from core.transport import in_transit
-        batches = in_transit(state)
-    except Exception:                                       # noqa: BLE001
-        log.warning("stock_identity: 在途读数不可用", exc_info=True)
-        return None
-    if batches is None:
+    prefs = getattr(state, "prefectures", None)
+    if not isinstance(prefs, dict):
         return None
     out: Dict[str, float] = {}
-    for b in batches or ():
-        if not isinstance(b, dict):
+    for pdata in prefs.values():
+        seats = (pdata or {}).get("seats") if isinstance(pdata, dict) else None
+        if not isinstance(seats, dict):
             continue
-        qty = b.get("qty")
-        if isinstance(qty, dict):
-            for dim, q in qty.items():
-                _add(out, dim, q)
-        else:
-            dim = b.get("dim")
-            if dim is not None:
-                _add(out, dim, b.get("qty"))
+        for seat in seats.values():
+            if not isinstance(seat, dict):
+                continue
+            warehouses = seat.get("warehouses")
+            if not isinstance(warehouses, dict):
+                continue
+            for cell in warehouses.values():
+                stocks = cell.get("stocks") if isinstance(cell, dict) else None
+                if not isinstance(stocks, dict):
+                    continue
+                for dim, q in stocks.items():
+                    _add(out, dim, q)
+    # prefectures 存在但尚无 warehouses ⇒ 空持仓（可读零），不是 None；
+    # 只有 prefectures 容器本身缺失才返回 None（缺失≠0）。
+    return out
+
+
+def in_transit_by_dim(state) -> Optional[Dict[str, float]]:
+    """在途批次合计（逐维）：兼容 `material_transit` 与 `in_transit_batches` 两账。
+
+    真·只读：不创建没出现的容器；两者都不存在 ⇒ `{}`（没有在途是可读事实）；
+    `material_transit` 存在时沿用 `transport.in_transit`（既有 monkeypatch 契约），
+    再额外并入 `in_transit_batches`（空间桥接账）。
+    """
+    _mt = getattr(state, "material_transit", None)
+    _it = getattr(state, "in_transit_batches", None)
+    if _mt is None and _it is None:
+        return {}
+    if (_mt is not None and not isinstance(_mt, list)) or \
+            (_it is not None and not isinstance(_it, list)):
+        return None
+    out: Dict[str, float] = {}
+
+    def _consume(batches, spatial=False):
+        for b in batches or ():
+            if not isinstance(b, dict):
+                continue
+            qty = b.get("qty")
+            if isinstance(qty, dict):
+                for dim, q in qty.items():
+                    _add(out, dim, q)
+                continue
+            dim = b.get("dim") or (b.get("goods_dim") if spatial else None)
+            if dim is None:
+                continue
+            q = b.get("qty")
+            if q is None:
+                q = b.get("gross_amount", b.get("net_delivered", b.get("volume")))
+            _add(out, dim, q)
+
+    if _mt is not None:
+        try:
+            from core.transport import in_transit
+            batches = in_transit(state)
+        except Exception:  # noqa: BLE001
+            log.warning("stock_identity: 在途读数不可用", exc_info=True)
+            return None
+        if batches is None:
+            return None
+        _consume(batches, spatial=False)
+    if _it is not None:
+        _consume(_it, spatial=True)
     return out
 
 
 def pending_stock_by_dim(state) -> Optional[Dict[str, float]]:
-    """**归属待定**槽（逐维）。缺失 ⇒ `None`（用户裁定 6.33：**不并入** `state.resources`）。"""
+    """**归属待定**槽（逐维）。缺失 ⇒ `None`（用户裁定 6.33：**不并入** `state.resources`）。
+
+    真实结构是 `{路: {dim: {qty, owner_status, ...}}}`；旧实现按 `{dim: qty}` 展平
+    ⇒ 读到 dict 就跳过，待定货永远从恒等式消失。
+    """
     pend = getattr(state, "pending_stock", None)
     if pend is None:
         return None
     if not isinstance(pend, dict):
         return None
     out: Dict[str, float] = {}
-    for dim, q in pend.items():
-        _add(out, dim, q)
+    for key, value in pend.items():
+        if isinstance(value, dict) and "qty" in value:
+            # 兼容旧的扁平形态 `{dim: {qty, ...}}`
+            if value.get("owner_status") != "已确权":
+                _add(out, key, value.get("qty"))
+            continue
+        if not isinstance(value, dict):
+            # 兼容旧的扁平形态 `{dim: qty}`
+            _add(out, key, value)
+            continue
+        # 真实结构 `{路: {dim: {qty, owner_status, ...}}}`
+        for dim, entry in value.items():
+            if isinstance(entry, dict):
+                if entry.get("owner_status") == "已确权":
+                    continue
+                q = entry.get("qty")
+            else:
+                q = entry
+            _add(out, dim, q)
     return out
 
 
@@ -176,6 +245,7 @@ def stock_snapshot(state) -> Dict[str, Any]:
     parts = {
         "pop_goods": pop_goods_by_dim(state),
         "national_resources": national_resources_by_dim(state),
+        "seat_warehouses": seat_warehouses_by_dim(state),
         "in_transit": in_transit_by_dim(state),
         "pending_stock": pending_stock_by_dim(state),
     }
@@ -195,8 +265,8 @@ def stock_snapshot(state) -> Dict[str, Any]:
             totals[d] = sum(float(parts[k].get(d, 0.0)) for k in addable)
     return {"schema_version": SCHEMA_VERSION, "by_custody": parts, "dims": dims,
             "totals": totals, "all_readable": all_readable, "warnings": warnings,
-            "note": ("totals 只含 民间POP + 全国仓 + 在途；**不含**归属待定"
-                     "（裁定 6.33：不并入 resources）")}
+            "note": ("totals 只含 民间POP + 全国仓 + 治所四仓 + 在途；"
+                     "**不含**归属待定（裁定 6.33：不并入 resources）")}
 
 
 # --------------------------------------------------------------------------
@@ -247,9 +317,10 @@ def stock_delta(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
     """两次 `stock_snapshot` 的**逐保管方／逐维**差额（纯函数、只读）。
 
     * `by_custody[k][dim] = curr − prev`（任一侧该保管方不可读 ⇒ 该维 `None`——缺失≠0）；
-    * `net[dim]` ＝ **可加三方**（民间 POP ＋ 全国仓 ＋ 在途）的 Δ合计；任一项不可读 ⇒ `None`；
-      **不含** `pending_stock`（归属待定，单列在 `by_custody` 里，便于发现"待定池变动"）；
-    * `all_readable` 为两侧三方均可读。
+    * `net[dim]` ＝ **可加四方**（民间 POP ＋ 全国仓 ＋ 治所四仓 ＋ 在途）的 Δ合计；
+      任一项不可读 ⇒ `None`；**不含** `pending_stock`（归属待定，单列在
+      `by_custody` 里，便于发现"待定池变动"）；
+    * `all_readable` 为两侧可加 custody 均可读。
     """
     def _parts(snap):
         if not isinstance(snap, dict):
@@ -265,6 +336,10 @@ def stock_delta(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
     addable = [k for k in CUSTODY_KEYS if k != "pending_stock"]
     for k in CUSTODY_KEYS:
         pv, cv = p.get(k), c.get(k)
+        # 旧快照（资产字段引入前）没有 seat_warehouses：按空持仓兼容，
+        # 否则所有历史快照的 net 都会因缺键变 None。
+        if k == "seat_warehouses" and pv is None and cv is None:
+            pv = cv = {}
         row: Dict[str, Optional[float]] = {}
         for d in dims:
             if not isinstance(pv, dict) or not isinstance(cv, dict):
@@ -272,13 +347,15 @@ def stock_delta(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 row[d] = float(cv.get(d, 0.0)) - float(pv.get(d, 0.0))
         out["by_custody"][k] = row
+    def _readable(snap, k):
+        return isinstance(snap.get(k), dict) or (k == "seat_warehouses" and snap.get(k) is None)
+
     for d in dims:
-        if all(isinstance(p.get(k), dict) and isinstance(c.get(k), dict) for k in addable):
+        if all(_readable(p, k) and _readable(c, k) for k in addable):
             out["net"][d] = sum(out["by_custody"][k][d] for k in addable)
         else:
             out["net"][d] = None
-    out["all_readable"] = all(isinstance(p.get(k), dict) and isinstance(c.get(k), dict)
-                              for k in addable)
+    out["all_readable"] = all(_readable(p, k) and _readable(c, k) for k in addable)
     return out
 
 

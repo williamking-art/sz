@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """G-3 片5：粮回填到州府级 —— 守恒、幂等、路级转为派生。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.game_state import GameState
 from core.grain_bridge import (backfill_grain_to_seats, grain_add, grain_get,

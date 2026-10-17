@@ -5,8 +5,8 @@ Y 轨（2026-10-05）后逐维有货主 ⇒ 正常局面无待定；
 本文件用**清空货主表**复现 Missing，以持续守护面板隔离。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

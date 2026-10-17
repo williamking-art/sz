@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """G-6 产业链扩充：新增加工链的**口径契约**守护。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from content.data import (FINISHED_DIMS, FINISHED_TAX_DIMS, GOODS_DIMS,
                            MATERIAL_PRICE_BASE, RESOURCE_DIMS,

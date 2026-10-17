@@ -21,8 +21,9 @@
 # =============================================================================
 $ErrorActionPreference = 'Continue'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$PyDir    = 'D:\codebuddy\.audit-venv\Scripts'
-$NodeDir  = 'D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64'
+$WorkspaceRoot = Split-Path -Parent $RepoRoot
+$PyDir    = Join-Path $WorkspaceRoot '.audit-venv\Scripts'
+$NodeDir  = Join-Path $WorkspaceRoot 'tools\nodejs\node-v20.19.5-win-x64'
 $script:pass = 0; $script:fail = 0; $script:skip = 0
 
 function Ok  ($m)       { Write-Host "  [ OK ] $m" -ForegroundColor Green;  $script:pass++ }

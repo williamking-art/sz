@@ -15,7 +15,7 @@
 | `game/ai/` | AI 契约（**只出档位/叙事**，数值一律程序算） |
 | `game/backend/` | FastAPI 薄壳（`/api/action` 等；`client.py` 是动作分派表） |
 | `game/frontend/` | Electron + React（`src/renderer/` 地图/HUD/面板） |
-| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-17 实测 **3437 tests / 0 failed / 0 errors / 2 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
+| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-17 实测 **3449 tests / 0 failed / 0 errors / 2 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
 | `_dev_tools/game-docs/docs/` | **权威机制文档**（见 §2） |
 | `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、CloudBase 检查、Rust 实验后端）——**不接游戏运行时** |
 
@@ -85,7 +85,7 @@ sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令�
 | 文件 | 讲什么 |
 |---|---|
 | `_dev_tools/game-docs/docs/游戏机制说明.md` | **当前真实机制** + §十一「设计稿：已成文机制的状态索引」（判断"已生效/待实现"；含自相矛盾文档清单与跨文档阻断链） |
-| `_dev_tools/game-docs/docs/局势系统实施规范.md` | 局势系统 v1/v2 唯一规范（注意：`D:\codebuddy\宋祚局势系统实施规范.md` 是**失效路径**） |
+| `_dev_tools/game-docs/docs/局势系统实施规范.md` | 局势系统 v1/v2 唯一规范（注意：`<工作区根>\宋祚局势系统实施规范.md` 是**失效路径**） |
 | `_dev_tools/game-docs/docs/货币口径规范_M0M1M2.md` | M0–M3 口径与月度对账恒等式 |
 | `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` | 开发/测试环境 + CloudBase 接入现状（§8） |
 | `game/README.md` | 游戏本体说明（含「舆图资源需重建」「后端连接」） |
@@ -146,29 +146,31 @@ sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令�
 ## 4. 复跑命令（本机已实测）
 
 ```powershell
-$py   = "D:\codebuddy\.audit-venv\Scripts\python.exe"
-$node = "D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe"
+$repo = git rev-parse --show-toplevel
+$ws   = Split-Path $repo -Parent
+$py   = Join-Path $ws ".audit-venv\Scripts\python.exe"
+$node = Join-Path $ws "tools\nodejs\node-v20.19.5-win-x64\node.exe"
 
-# 后端全量测试（最近 2026-10-17 实测 3437 tests / 0 failed / 0 errors / 2 skipped；用例数会变，以本次输出为准；
+# 后端全量测试（最近 2026-10-17 实测 3449 tests / 0 failed / 0 errors / 2 skipped；用例数会变，以本次输出为准；
 #            唯一基线出处见 _dev_tools/game-docs/README.md §验证基线（各文档内的用例数多为历史快照）；
 #            先清 shim，否则 pytest tmp_path 会 PermissionError）
 $env:PYTHONPATH=""; $env:CODEBUDDY_SAFE_DELETE_ENABLED="0"
-cd D:\codebuddy\sz
+cd $repo
 & $py -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider
 
 # 前端：类型检查（双配置）+ 单测（最近 2026-10-17 实测 17 files / 98 passed；同上以本次输出为准）
-cd D:\codebuddy\sz\game\frontend
+cd (Join-Path $repo "game\frontend")
 & $node .\node_modules\typescript\bin\tsc --noEmit -p tsconfig.web.json
 & $node .\node_modules\typescript\bin\tsc --noEmit -p tsconfig.node.json
 & $node .\node_modules\vitest\vitest.mjs run
 
 # 面板/HUD 截图台（Edge headless，真实组件渲染）→ PNG
 $env:SHOT_PYTHON = $py
-$env:SHOT_OUT = "D:\codebuddy\sz\_dev_tools\analysis-shots\panels"
+$env:SHOT_OUT = Join-Path $repo "_dev_tools\analysis-shots\panels"
 & $node scripts\shot\shoot.mjs
 
 # 舆图产物重建（改了生成器/资产后必须按序跑）
-cd D:\codebuddy\sz\game
+cd (Join-Path $repo "game")
 & $py build_map_basemap.py        # → assets/map/web/*.geojson + circuit_seat_ledger.json
 & $py content\build_map_geo.py    # → assets/map/web/{regimes,regime_borders,regime_prefectures,cities,view.json}
 cd frontend
@@ -178,7 +180,7 @@ cd frontend
 
 ## 5. 环境要点（踩过的坑，省你半小时）
 
-- **无系统 node** → 用便携版 `D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe`（含 npm/npx）。
+- **无系统 node** → 用便携版 `<工作区>\tools\nodejs\node-v20.19.5-win-x64\node.exe`（含 npm/npx）。
 - **`frontend/node_modules/electron/dist` 缺失** → 能 build，**不能** `electron-builder` 打包（安装包当前停留在 2026-09-28）。
 - **本机无 httpx** → 端点测试必须**直调端点函数 + 伪造 Request**（范例 `tests/test_readouts_endpoint.py`）。
 - **PowerShell 读 UTF-8 中文会按 GBK 解码**（实测：`ConvertFrom-Json` 报错、参数退化）。要往云端/JSON 写中文，**用 Python**（`_dev_tools/sync_mcp_state.py` 与各测试即如此）。
@@ -259,7 +261,7 @@ cd frontend
 | 项 | 状态 |
 |---|---|
 | 旧环境 `william-1-d6genf4wb9988a74a` + 云托管 `songzuo-server` + 其域名 | **已删除**——任何引用都别照抄（2026-09-29 已修 2 处，见下） |
-| `.cloudbase/project.json`（sz 根 与 `D:\codebuddy\.cloudbase`） | `site: domestic` + `region: ap-singapore` 是**实测可用的组合**（国内账号 + 新加坡地域体验版），**不是**冲突；此前把它当"site/region 冲突"是误判，**不要改** |
+| `.cloudbase/project.json`（sz 根 与 `<工作区>\.cloudbase`） | `site: domestic` + `region: ap-singapore` 是**实测可用的组合**（国内账号 + 新加坡地域体验版），**不是**冲突；此前把它当"site/region 冲突"是误判，**不要改** |
 | `~/.codebuddy/integration/tcb.json` | 🔴 **2026-10-09 实测：该文件已不存在**（本行原记 2026-09-29 的改法，已随文件删除而失效）。要用 CodeBuddy 内置连接器得重新配置，别照抄本行 |
 | `songzuo_server/cloudbaserc.json` | `envId` 已改为当前环境并加 `_note`（提示该地域不支持云托管）。注意**该文件被 `.gitignore:59 cloudbaserc.json` 全局忽略**，改动只在本机生效 |
 | `tcb` CLI | **未登录**，且 2026-10-09 实测 **本机连 `~/.tcb` 目录都不存在**（= 从未在这台机器登录过，不只是设备码过期）。要管环境/PG 需 `tcb login --key` 或给 william-1 建环境级 API Key |
@@ -278,21 +280,21 @@ cd frontend
 > （`git ls-files --error-unmatch` 返回 rc=0），干净 clone 可取得协议与同步脚本。
 > ⚠️ 前一版本此处曾记「两文件仍是未跟踪状态」——那是 2026-09-29 的事实，**已于同日提交中解决，此处更正以免误导**。
 >
-> 另注：`sz/README.md`（`.gitignore:264`）与 `game/frontend/README.md`（`:268`）**仍被排除**，
-> 而入库的 `game/README.md:16` 恰恰外链后者，构成**断链** —— **此项仍未处理**（低优先，属仓库分发范围问题）。
+> 另注：`README.md` 与 `game/*/README.md` 现已入库（`.gitignore:317/321` 的否定规则）；
+> `game/README.md` 外链 `game/frontend/README.md` 不再构成干净 clone 断链。
 
 ## 9. 共享记忆（跨项目，2026-10-01 接入）
 
 本项目接入了一套**跨 agent 共享记忆**。**本文件仍是《宋祚》的唯一权威项目记忆**，共享记忆只提供索引。
 
-**记忆版本：v5**（权威值：`C:\Users\william\AI-Memory\MEMORY-VERSION`）
+**记忆版本：v5**（权威值：`$env:USERPROFILE\AI-Memory\MEMORY-VERSION`）
 
 | 读什么 | 路径 | 作用 |
 |---|---|---|
-| 共享记忆索引 | `C:\Users\william\AI-Memory\README.md` | 全局/项目记忆边界、各 agent 接入方式、更新规则 |
-| 变更日志 | `C:\Users\william\AI-Memory\CHANGELOG.md` | 记忆最近改了什么 |
-| 全局偏好 | `C:\Users\william\AI-Memory\GLOBAL.md` | 跨项目通用约定与本机环境要点 |
-| 本项目指针 | `C:\Users\william\AI-Memory\projects\songzuo.md` | 指向本文件，不复制内容 |
+| 共享记忆索引 | `$env:USERPROFILE\AI-Memory\README.md` | 全局/项目记忆边界、各 agent 接入方式、更新规则 |
+| 变更日志 | `$env:USERPROFILE\AI-Memory\CHANGELOG.md` | 记忆最近改了什么 |
+| 全局偏好 | `$env:USERPROFILE\AI-Memory\GLOBAL.md` | 跨项目通用约定与本机环境要点 |
+| 本项目指针 | `$env:USERPROFILE\AI-Memory\projects\songzuo.md` | 指向本文件，不复制内容 |
 
 **开工第一件事**：读 `MEMORY-VERSION` 并与上面的版本标记比对；**不一致就重读** `GLOBAL.md` 与本文件再开工，
 并告知用户"记忆已过期，已重读"——本机所有 agent 都只在会话首轮读一次记忆，**不会自动刷新**。

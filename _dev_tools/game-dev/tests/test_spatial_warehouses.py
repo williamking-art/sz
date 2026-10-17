@@ -29,10 +29,10 @@ def test_spatial_warehouses_init_and_survey():
     assert survey["with_warehouses"] == survey["total_seats"]
     assert survey["ratio"] == 1.0
 
-    # 抽检开封府 (kaifeng)
+    # 抽检开封府 (kaifeng)：仓位存在但该维未登记 ⇒ None（缺失≠0）
     for wh_type in WAREHOUSE_TYPES:
         val = warehouse_stock_get(state, "kaifeng", wh_type, "grain")
-        assert val == 0.0
+        assert val is None
 
 
 def test_warehouse_stock_add_and_get():
@@ -99,13 +99,13 @@ def test_dispatch_spatial_transfer_and_advance():
     assert disp["days"] == 15
     # 始发地即刻扣除
     assert warehouse_stock_get(state, "kaifeng", "public_depot", "iron") == 600.0
-    # 目的地尚未到达
-    assert warehouse_stock_get(state, "jiangning", "public_depot", "iron") == 0.0
+    # 目的地尚未到达（未登记该维 ⇒ None，缺失≠0）
+    assert warehouse_stock_get(state, "jiangning", "public_depot", "iron") is None
 
     # 3. 推进 10 天 (尚未到达)
     arrived_mid = advance_in_transit_batches(state, days=10)
     assert len(arrived_mid) == 0
-    assert warehouse_stock_get(state, "jiangning", "public_depot", "iron") == 0.0
+    assert warehouse_stock_get(state, "jiangning", "public_depot", "iron") is None
 
     # 4. 再推进 10 天 (累计 20 天 > 15 天，运抵入库)
     arrived_final = advance_in_transit_batches(state, days=10)

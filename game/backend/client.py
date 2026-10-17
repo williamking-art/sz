@@ -374,7 +374,7 @@ class HttpBackend(BackendClient):
                 return False
             time.sleep(_WARMUP_POLL)
 
-    def _post(self, path, payload=None, _attempt=0, _cold=False):
+    def _post(self, path, payload=None, _attempt=0, _cold=False, *, _method="POST"):
         # 冷启动前置防护：非幂等端点若距上次确证在线已久（疑似实例已缩容到 0），
         # 先做无副作用的就绪等待，免得把「推演 / 下诏 / 存档」白白打进冷启动窗口。
         if (not _cold
@@ -383,7 +383,10 @@ class HttpBackend(BackendClient):
                 and not self._wait_ready(_COLD_START_WAIT)):
             raise RuntimeError(_COLD_START_MSG)
         body = json.dumps(payload if payload is not None else {}).encode("utf-8")
-        req = urllib.request.Request(self.base + path, data=body, headers=self._headers())
+        # GET 端点（如 /api/save_slots）不得携带请求体；保留同一 _post 的错误/重试骨架。
+        data = None if str(_method).upper() == "GET" else body
+        req = urllib.request.Request(self.base + path, data=data,
+                                     headers=self._headers(), method=str(_method).upper())
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 self._last_ok = time.time()
@@ -535,16 +538,17 @@ class HttpBackend(BackendClient):
         return self._to_state(r["state"])
 
     def save_slots(self):
-        # M2（审查 P2-3）：原先异常 → `return []`，把"读不到槽位"**误报为空槽**
-        # （与 core/save_load.get_save_slots 已修的"损坏槽要显示存档损坏"契约相反，
-        # 且 SavePanel 会把所有槽位显示成空的）。现**抛错**，由 UI 明确提示读取失败。
-        # 选"抛错"而非改返回结构：`core/commands.py::save_slots` 的调用方不在本次
-        # 授权范围，抛错可避免跨文件改动（前端 SavePanel 已 catch 并显示"槽位读取失败"）。
+        # P1-9：远程模式必须读**服务端**存档槽，不得回退到 cmd.save_slots()
+        # （那会读客户端本机目录，界面看到空槽/错误槽）。失败按现有契约抛错。
         try:
-            return cmd.save_slots()
+            r = self._post("/api/save_slots", _method="GET")
         except Exception as e:  # noqa: BLE001
-            _lg.warning("存档槽位列表读取失败（不回落空表）：%s", e, exc_info=True)
-            raise RuntimeError("存档槽位列表读取失败：存档目录不可读或已损坏") from e
+            _lg.warning("远程存档槽位读取失败（不回落本地）：%s", e, exc_info=True)
+            raise RuntimeError("存档槽位列表读取失败：后端不可达或响应异常") from e
+        if not isinstance(r, dict) or not isinstance(r.get("slots"), list):
+            _lg.warning("远程存档槽位响应非法：%r", r)
+            raise RuntimeError("存档槽位列表读取失败：后端响应格式非法")
+        return r["slots"]
 
     def conclude(self, state, ai_client=None):
         # 优先走远程 Rust 后端；若后端未实现 /api/conclude 或不可达，

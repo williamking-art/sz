@@ -4,8 +4,8 @@
 保真度输入＝执行者 corruption × 目标路 clerks_detail.grip × spy_network × 是否密查（C3 初值）。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.audit_case import (audit_fidelity, case_is_evidenced,
                              discovery_readout, resolve_audit)

@@ -637,6 +637,14 @@ class GameState(GameStateEconMixin):
         # ---- 经济全浮动重构新增状态 ----
         # 七维物资仓：{dim: {"stock": 现有, "cap": 容量}}
         self.resources: dict = {d: {"stock": 0, "cap": RAW_STORE_CAP} for d in RESOURCE_DIMS}
+        # P1-2（2026-10-17）：21 路地脉矿藏是真实存量，必须随档持久化；
+        # 新局在这里初始化，旧档由 save_load 的 ensure_mineral_deposits 幂等补全。
+        self.mineral_deposits: dict = {}
+        try:
+            from core.domains.economy.mineral_deposit import init_circuit_minerals
+            init_circuit_minerals(self)
+        except Exception:  # noqa: BLE001 — 初始化失败不阻断 GameState 构造（读档会再补）
+            log.warning("矿藏初始化失败（缺失≠0；读档迁移会重试）", exc_info=True)
         # === 归属待定库存（2026-10-05 用户裁定 6.33） ===
         # 未归属原料（resolve_holder 缺失或证据不足）的**物理存放槽**。
         #

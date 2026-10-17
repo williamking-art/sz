@@ -13,7 +13,7 @@
 `game/engine/state_applier.py` 里同一个"这条路径允许 AI 写吗 / 是不是钱粮 / 能不能为负"的概念，
 被拆成 **6 个手写集合**、由 **5 个各写一遍的匹配函数**消费；新增一个字段要人工同步多处，
 漏一处不报错、只在运行期以"整批被拒"的形式暴露，报错点离病因很远
-（[`engine/README.md`](../../../../game/engine/README.md) 自记的 2026-10-01 `payraise_budget` 教训）。
+（[`engine/README.md`](../../../../../game/engine/README.md) 自记的 2026-10-01 `payraise_budget` 教训）。
 
 **实测规模（2026-10-12，静态解析 `state_applier.py`）**：
 

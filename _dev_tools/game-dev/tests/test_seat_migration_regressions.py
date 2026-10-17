@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """方案乙旧档迁移的根因回归：均值类字段、goods 州府桶、sync 合并语义。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.game_state import GameState
 from core.literacy import national_literacy

@@ -113,7 +113,7 @@ flowchart TD
 
 ## 五、知通互掣直接咬合中央圣旨执行率
 
-在 [`game/core/decree_effect.py`](file:///d:/codebuddy/sz/game/core/decree_effect.py) 的 `calc_decree_execution_rate` 中：
+在 [`game/core/decree_effect.py`](../../../../game/core/decree_effect.py) 的 `calc_decree_execution_rate` 中：
 - 严格保留定稿口径（吏治为唯一强关联通道，不新增通道）；
 - 地方遵从度（`circuit_compliance`）平滑注入通判连署率：
   $$\text{地方遵从有效值} = \text{circuit\_compliance} \times (0.35 + 0.65 \times \text{seat\_countersign\_ratio})$$

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """P4 治理改革（V1.3 终稿 §9/§13）：route 级 grip（Q12）／改革轴（四率归一）／抄没前置（Q11）。"""
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 import pytest
 

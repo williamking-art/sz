@@ -16,7 +16,10 @@ from game.content.ministers.paperdoll.engine import PaperdollRenderEngine
 
 engine = PaperdollRenderEngine()
 samples_dir = os.path.join(ROOT, "game", "content", "ministers", "paperdoll", "samples")
-brain_dir = r"C:\Users\william\.gemini\antigravity\brain\21dc1567-8824-46b3-91a5-6021d8db2a9f"
+brain_dir = os.environ.get(
+    "SONGZUO_BRAIN_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain"),
+)
 
 ministers = [
     {

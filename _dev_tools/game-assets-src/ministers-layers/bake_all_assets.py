@@ -17,7 +17,10 @@ import os
 import numpy as np
 from PIL import Image, ImageFilter
 
-BRAIN_DIR = r"C:\Users\william\.gemini\antigravity\brain\21dc1567-8824-46b3-91a5-6021d8db2a9f"
+BRAIN_DIR = os.environ.get(
+    "SONGZUO_BRAIN_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain"),
+)
 OUT_BASE = r"sz/game/content/ministers/paperdoll/layers"
 
 TARGET_W, TARGET_H = 810, 1080

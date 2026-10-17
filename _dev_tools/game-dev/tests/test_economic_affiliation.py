@@ -10,8 +10,8 @@
 ③ **不误用政治派系键名**。
 """
 import sys
-
-sys.path.insert(0, r'D:/codebuddy/sz/game')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from core.pop_bridge import (AFFILIATION_FIELDS, aggregate_affiliation,
                                 split_affiliation_to_seats)

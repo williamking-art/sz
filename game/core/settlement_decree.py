@@ -711,7 +711,19 @@ def _apply_decree_effect(state, decree, log):
             if got < _it:
                 log.append(f"[诏令·守恒] 内帑增收应 {_it}，实征 {got}")
         elif _it < 0:
-            state.change_imperial_treasury(_it)
+            # P1-9（2026-10-17）：内帑向外拨付必须有对手方，不得直接扣成无主销毁。
+            # 按官僚 POP 逐路划转（与 treasury 支出口径一致）；不足则按实付，
+            # 未付部分留在内帑并留日志——不登记 burn、不凭空灭币。
+            need = abs(_it)
+            paid = 0
+            for _road in state.prefectures:
+                if paid >= need:
+                    break
+                paid += state.transfer_money(
+                    "imperial_treasury", f"pop:{_road}:官僚", need - paid)
+            if paid < need:
+                log.append(f"[诏令·守恒] 内帑拨付应 {need} 贯，实际划转 {paid} 贯，"
+                           f"余额保留内帑")
     if "population_satisfaction" in effects:
         state.population_satisfaction = max(0, min(100,
             state.population_satisfaction + effects["population_satisfaction"]))

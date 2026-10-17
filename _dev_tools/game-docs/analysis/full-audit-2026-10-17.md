@@ -295,3 +295,43 @@ git archive --format=zip -o _scratch\audit-20261017\head.zip HEAD
 1. `game/assets/paperdoll/` 新资产接线（`data.py`/`portrait_assembler.py`/`SongZuo.spec`）与旧 layers 退场顺序 —— 需单独分支。
 2. 文档卫生：`specs/README.md` 计数（36 vs 90）、48 个断链、30 个机器绝对路径、`.git` 804MB/39MB 垃圾 pack（`git gc` 未执行）。
 3. P1/P2 未接项：`effect_channels` 只读写 state、官员册不入档/重名、后台结算锁的完整队列化、`administrative_efficiency` 以外的考课/科举接线等（见四份专项报告 §3）。
+---
+
+## 11. 第二批整改（P1 · 2026-10-17 晚）
+
+> 在 `4b0e555df2` 之上继续修 P1；全量回归 *3449 tests / 0 failed / 0 errors / 2 skipped*。
+
+### 11.1 已修
+
+| 项 | 落地 | 验证 |
+|---|---|---|
+| P1-2 矿藏不落档 | `mineral_deposits` 入 save/load；`migrations.ensure_mineral_deposits` 旧档幂等补全 | 开采后 499,710,000 → save/load 仍 499,710,000 |
+| P1-3 四仓缺失维返回 0 | `warehouse_stock_get` 缺失维/仓位 → `None`；同步 `or 0.0` 调用方与测试 | missing=None / explicit-zero=0.0 |
+| P1-4 四仓看板读错路径 | `spatial_warehouse_readout` 改遍历 `seats[治所].warehouses` | depot 13,615,976.3 == summary；空 state 为 None |
+| P1-5 库存恒等式漏四仓 | `CUSTODY_KEYS += seat_warehouses`；pending 展平；在途兼容两套账 | snapshot 含四仓；pending 木=123；in_transit 铁=100 |
+| P1-9 内帑造币/毁币 | 负值向官僚 POP 守恒划转，正值从 POP 实征 | ΔM_ALL=0（-1000 / +500） |
+| P1-3 准奏奏折效果归 0 | `_build_memorial_effects` 输出档位词并兼容旧数值 | 5 类中档实测 treasury 800000 / defense_bonus 3 / satisfaction 3 / prestige 4 |
+| P1-5 只读读数写 state | `get_prefect_officials`/`get_circuit_officials` 纯只读；`game_init.init_official_books` 新局显式建册 | effect_channels 前后 vars(state) 键不变；new_game 136/21 |
+| P1-9 远程 save_slots 读本地 | `HttpBackend.save_slots` → GET `/api/save_slots` | mock 断言 path+GET；失败抛 RuntimeError |
+| P1-11 unrest=None | `parse_number` 处理 | None→21.2 不抛 |
+| P1-12 连署缺失当已签 | 缺失按未签并输出 `countersign_undefined/reason` | 9 席全缺失 → ratio 0.0 / undefined 9 / mult 0.315 |
+| 文档卫生 | 断链 48 → **0**（884 md）；`specs/README` 去写死计数；代码/测试/脚本/AGENTS 绝对路径 31 → 1 | `check_links_all.py` / `test_readme_sync` 48 passed |
+| 可移植性 | 21 个测试 `sys.path` 改 `Path(__file__)`；5 个资产脚本/3 个 ps1 改路径推导 | 140 passed；ps1 parse 0 错 |
+
+### 11.2 最终基线（第二批后）
+
+| 项 | 结果 |
+|---|---|
+| pytest | **3449 tests / 0 failed / 0 errors / 2 skipped**（junit `_scratch/audit-20261017/junit-batch2.xml`，1227.5s） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+| 链接检查 | 884 md / **broken 0** |
+| 绝对路径 | 代码/测试/脚本/AGENTS 31 → 1（剩 `game/ai/jev_gate.py:132` keys_file，建议改环境变量） |
+
+### 11.3 仍未闭环（第三批候选）
+
+1. **官员册持久化**：`state.prefect_officials` / `state.circuit_officials` 尚未入 save/load（本轮已改为新局显式建册 + 只读纯函数，但读档后需重建）；同人重复任职（136 席仅 20 个知州名）需统一人物 ID/姓名池。
+2. **paperdoll 新资产接线**：`game/assets/paperdoll/`（166 文件/31.5MB）仍未入库/接线；旧 layers 已止血恢复。
+3. **未接线模块**：`production_methods`、`imperial_exam`、`run_triennial_appraisal`、`metrology` 效果、`logistics_coupler` 调拨等——任务卡已如实降级为 in_progress，接线属功能开发。
+4. **仓库体积**：`.git` 804MB + 39MB 垃圾 pack，需 owner 放行后 `git gc --prune=now`。
+5. `game/ai/jev_gate.py:132` 的 keys_file 机器绝对路径。

@@ -9,8 +9,8 @@
 5. 综合物料吞吐、用工结构与全产业链月度结算推进。
 """
 import sys
-
-sys.path.insert(0, r"D:/codebuddy/sz/game")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'game'))
 
 from content.data import (
     FINISHED_DIMS,
