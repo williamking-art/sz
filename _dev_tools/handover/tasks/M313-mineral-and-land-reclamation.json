@@ -1,0 +1,30 @@
+{
+  "id": "M313-mineral-and-land-reclamation",
+  "title": "地脉矿藏储量、铜煤真账与官方民间双轨垦荒内生化闭环",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "completedAt": "2026-10-17T06:33:00Z",
+  "authority": "JEV-DEC-产量矿藏与官方民间双轨垦荒闭环架构裁定-2026-10-17（方案A概率0.9951）与用户核心指示",
+  "goal": "在不触动独立科技端的前提下，充分体现现代玩家的意志与影响：①建立21路真实地脉矿脉储量谱系（补齐铜矿与石炭真账，终结用铁代铜）；②建立21路荒地资源池与双轨垦荒机制（官方度支屯田增guan_tian vs 民间自发流民辟荒/隐匿围湖增min_tian/yin_tian）；③产量由真实熟化田亩与地力内生驱动；④延续朝廷层模糊奏报与系统层物理真账双轨分离。",
+  "recon": {
+    "矿脉特征": "21路赋予铜/铁/煤炭/盐/石/木初始储量与月度开采上限，铜料真实流通并打通铸钱",
+    "双轨垦荒机制": "官方垦荒由朝廷下旨出资落入官田屯田；民间自发垦荒由人口压力、粮价刺激与流民驱动落入民田，豪强隐占落入隐田；朝廷只能拿到带漏报率的模糊申报数",
+    "守恒底线": "所有开支必有出资方，所有矿物原料出产遵循质量守恒，ΔM_ALL == 0"
+  },
+  "scope": [
+    "新建game/core/domains/economy/mineral_deposit.py定义21路矿藏储量、开采与铜煤真账",
+    "新建game/core/domains/economy/land_reclamation.py实现官方与民间双轨垦荒及熟化机制",
+    "完善industry_chains.py与production_chain.py对接真实矿脉与田亩产出",
+    "更新settlement_pipeline.py调度对应结算相位",
+    "编写专属单元测试验证矿脉衰减、双轨垦荒与守恒律",
+    "更新README索引并通过全量回归测试"
+  ],
+  "explicitly_not": [
+    "不得触动科技树data_tech.py等独立科技端配置",
+    "不得在朝廷读数缺失时填0",
+    "不得破坏既有POP挂载律与货币守恒断言"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T06:30:00Z"
+}

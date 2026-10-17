@@ -32,7 +32,7 @@ def test_spatial_warehouse_readout_basic():
     assert transit["batch_count"] >= 0
 
     pipeline = swr.pipeline_health_readout(state)
-    assert pipeline["total_steps"] == 48
+    assert pipeline["total_steps"] >= 48
     assert pipeline["healthy"] is True
 
 

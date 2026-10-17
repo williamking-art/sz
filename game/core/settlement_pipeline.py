@@ -170,6 +170,19 @@ def build_default_steps() -> List[SettlementStep]:
         if IMPERIAL_ACTION_ENABLED:
             _settle_emperor_personal(state, log)
 
+    def _step_spontaneous_reclamation(state: Any, log: List[str]) -> None:
+        from core.domains.economy.land_reclamation import reclaim_land_civilian_spontaneous
+        from core.domains.economy.macro_climate import ALL_CIRCUITS_21
+        tot = 0.0
+        g_price = float(getattr(state, "grain_price", 1.0) or 1.0)
+        for r in ALL_CIRCUITS_21:
+            p = (getattr(state, "prefectures", {}) or {}).get(r, {})
+            grip = float(p.get("clerks_detail", {}).get("grip", 0.45) if isinstance(p.get("clerks_detail"), dict) else (p.get("grip", 0.45) or 0.45))
+            res = reclaim_land_civilian_spontaneous(state, r, clerk_grip=grip, grain_price=g_price)
+            tot += res.get("reclaimed_total", 0.0)
+        if tot > 0:
+            log.append(f"[垦荒] 本月民间自发辟荒开垦 {tot:,.1f} 亩（民田与庄园隐田并进）")
+
     steps = [
         # Phase 1: 诏令与前置政治
         SettlementStep("decrees", "control", "诏令执行", _settle_decrees, critical=True),
@@ -178,6 +191,7 @@ def build_default_steps() -> List[SettlementStep]:
         # Phase 2: 实体生产与地力内生
         SettlementStep("economy", "production", "经济基础", _settle_economy, critical=True),
         SettlementStep("land_local", "production", "田亩地方", _settle_land_local, critical=False),
+        SettlementStep("land_reclamation", "production", "民间自发辟荒", _step_spontaneous_reclamation, critical=False),
         SettlementStep("agri_effects", "production", "农业投资效果", apply_agri_effects, critical=False),
         SettlementStep("region_deepen", "production", "地区模型深化", _settle_region_deepen, critical=False),
         SettlementStep("literacy", "culture", "识字率演化", _settle_literacy, critical=False),

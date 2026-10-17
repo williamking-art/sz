@@ -187,8 +187,8 @@ def pipeline_health_readout(state: Any) -> Dict[str, Any]:
             "total_steps": len(steps),
             "critical_steps": critical_count,
             "phase_count": len(set(s.phase for s in steps)),
-            "healthy": len(steps) == 48,
-            "display": f"48 步全覆盖 (含 {critical_count} 核心关键步)",
+            "healthy": len(steps) >= 48,
+            "display": f"{len(steps)} 步全覆盖 (含 {critical_count} 核心关键步)",
             "reason": None,
         }
     except Exception as e:

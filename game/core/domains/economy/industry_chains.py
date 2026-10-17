@@ -94,38 +94,22 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     tea_share = float(crop_shares.get("茶", 0.0))
     monthly_tea = (total_land * tea_share * 3.3) / 12.0
 
-    # 3. 矿产与地脉内生产出（斤/月，对齐 PREFECTURE_INFO 史实年额 / 12）
-    # 铁矿：河北(年350万)、河东(年250万)、京西/江西为北宋铁冶重地
-    if circuit in ("河北路", "河北东路", "河北西路"):
-        monthly_iron_ore = 290000.0
-        monthly_coal = 200000.0
-    elif circuit == "河东路":
-        monthly_iron_ore = 210000.0
-        monthly_coal = 150000.0
-    elif circuit in ("京西路", "江南西路", "陕西路"):
-        monthly_iron_ore = 80000.0
-        monthly_coal = 60000.0
-    else:
-        monthly_iron_ore = 5000.0
-        monthly_coal = 3000.0
+    # 3. 矿产与林石内生产出：对接 mineral_deposit 真实地脉储量
+    from core.domains.economy.mineral_deposit import (
+        extract_circuit_minerals, DIM_COPPER, DIM_COAL, DIM_IRON, DIM_SALT, DIM_TIMBER, DIM_STONE
+    )
+    clerk_grip = float(p.get("clerks_detail", {}).get("grip", 0.45) if isinstance(p.get("clerks_detail"), dict) else (p.get("grip", 0.45) or 0.45))
+    mine_res = extract_circuit_minerals(state, circuit, rate_mult=1.0, clerk_grip=clerk_grip)
 
-    # 盐：解州池盐（河东年6300万斤）、淮浙闽粤海盐（各年1500~2000万斤）、川峡井盐（年580万斤）
-    if circuit == "河东路":
-        monthly_salt = 5250000.0
-    elif circuit in ("两浙路", "淮南东路", "淮南西路", "京东东路", "福建路"):
-        monthly_salt = 1600000.0
-    elif circuit in ("成都府路", "利州路", "夔州路", "广南东路"):
-        monthly_salt = 480000.0
-    else:
-        monthly_salt = 20000.0
+    monthly_iron_ore = mine_res.get(DIM_IRON, {}).get("physical_extracted", 0.0)
+    monthly_copper_ore = mine_res.get(DIM_COPPER, {}).get("physical_extracted", 0.0)
+    monthly_coal = mine_res.get(DIM_COAL, {}).get("physical_extracted", 0.0)
+    monthly_salt = mine_res.get(DIM_SALT, {}).get("physical_extracted", 0.0)
+    monthly_timber = mine_res.get(DIM_TIMBER, {}).get("physical_extracted", 0.0)
+    monthly_stone = mine_res.get(DIM_STONE, {}).get("physical_extracted", 0.0)
 
-    # 林石：荆湖、两江、川峡为木石大邦
-    if circuit in ("江南西路", "荆湖南路", "利州路", "夔州路", "成都府路"):
-        monthly_timber = 120000.0
-        monthly_stone = 40000.0
-    else:
-        monthly_timber = 25000.0
-        monthly_stone = 15000.0
+    # 矿税现钱（坑冶课税二分抽一折钱）
+    mine_tax_coin = sum(m.get("tax_coin", 0.0) for m in mine_res.values())
 
     return {
         "grain": float(round(monthly_grain, 1)),
@@ -133,10 +117,12 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
         "hemp_raw": float(round(monthly_hemp, 1)),
         "tea_raw": float(round(monthly_tea, 1)),
         "iron_ore": float(round(monthly_iron_ore, 1)),
+        "copper_ore": float(round(monthly_copper_ore, 1)),
         "coal": float(round(monthly_coal, 1)),
         "salt_raw": float(round(monthly_salt, 1)),
         "timber": float(round(monthly_timber, 1)),
         "stone": float(round(monthly_stone, 1)),
+        "mine_tax_coin": float(round(mine_tax_coin, 1)),
     }
 
 
@@ -161,14 +147,15 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     # 1. 汇总 21 路当月原料内生产量
     nat_raw = {
         "grain": 0.0, "silk_raw": 0.0, "hemp_raw": 0.0, "tea_raw": 0.0,
-        "iron_ore": 0.0, "coal": 0.0, "salt_raw": 0.0, "timber": 0.0, "stone": 0.0,
+        "iron_ore": 0.0, "copper_ore": 0.0, "coal": 0.0, "salt_raw": 0.0,
+        "timber": 0.0, "stone": 0.0, "mine_tax_coin": 0.0,
     }
     for c in ALL_CIRCUITS_21:
         prod = derive_raw_production(state, c)
         for k, v in prod.items():
             nat_raw[k] = nat_raw.get(k, 0.0) + v
 
-    # 2. 加工转化（四大产业链）
+    # 2. 加工转化（四大产业链 + 铜矿冶炼）
     # 纺织链转化：3 斤生丝产 1 匹绫罗绢帛；2 斤原麻产 1 匹布
     silk_cloth_produced = float(round(nat_raw["silk_raw"] / 3.0, 1))
     hemp_cloth_produced = float(round(nat_raw["hemp_raw"] / 2.0, 1))
@@ -176,6 +163,14 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     # 军工冶铁链转化：2 斤铁矿 + 1 斤煤炭 产 1 斤熟铁；每 5 斤熟铁打造 1 领兵刃器械
     iron_melted = float(round(min(nat_raw["iron_ore"] / 2.0, nat_raw["coal"]), 1))
     weapons_produced = float(round(iron_melted / 5.0, 1))
+
+    # 铜矿冶炼：1 斤铜矿产出 0.7 斤高纯精炼熟铜，直入国家铜料仓或流通
+    copper_refined = float(round(nat_raw["copper_ore"] * 0.7, 1))
+    if copper_refined > 0:
+        res_slot = getattr(state, "resources", None)
+        if isinstance(res_slot, dict):
+            c_slot = res_slot.setdefault("铜", {"stock": 0, "cap": 5000000})
+            c_slot["stock"] = int(round(float(c_slot.get("stock", 0) or 0) + copper_refined))
 
     # 茶盐专卖链：茶盐深加工，折纳榷货钞引现钱
     # 每 10 斤官盐创正税 1 贯，每 5 斤榷茶创正税 1 贯
@@ -198,8 +193,10 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             "silk_cloth_pi": silk_cloth_produced,
             "cloth_pi": hemp_cloth_produced,
             "refined_iron": iron_melted,
+            "refined_copper": copper_refined,
             "weapons_pieces": weapons_produced,
             "monopoly_tax_coin": monopoly_tax_total,
+            "mine_tax_coin": nat_raw.get("mine_tax_coin", 0.0),
             "barges_built": barges_built,
         },
         "chains": {
@@ -224,10 +221,35 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
 
     chain_ledger[str(getattr(state, "turn", 0))] = chain_summary
 
-    # 部分现钱增益真实并入国库税入
+    # 部分现钱增益真实并入国库税入（Jev 裁定方案 A：由各路商人 POP 扑买出资划转，严守 POP 挂载律与 ΔM_ALL == 0）
     if monopoly_tax_total > 0:
-        treasury_now = float(getattr(state, "treasury", 0) or 0)
-        state.treasury = int(round(treasury_now + monopoly_tax_total * 0.15))
+        tax_target = int(round(monopoly_tax_total * 0.15))
+        prefs = getattr(state, "prefectures", {})
+        merchant_pops = []
+        if isinstance(prefs, dict):
+            for p in prefs.values():
+                if isinstance(p, dict) and "pops" in p and isinstance(p["pops"], dict):
+                    m = p["pops"].get("商人")
+                    if isinstance(m, dict):
+                        merchant_pops.append(m)
+
+        actual_paid = 0
+        if merchant_pops and tax_target > 0:
+            quota_per = tax_target // len(merchant_pops)
+            rem = tax_target % len(merchant_pops)
+            for i, pop in enumerate(merchant_pops):
+                due = quota_per + (rem if i == len(merchant_pops) - 1 else 0)
+                cur_w = float(pop.get("wealth", 0.0) or 0.0)
+                paid = min(cur_w, float(due))
+                if paid > 0:
+                    from core.foundation.ledger.pop_bridge import pop_obj_add
+                    if pop_obj_add(state, pop, "wealth", -int(paid)) is None:
+                        pop["wealth"] = cur_w - paid
+                    actual_paid += int(paid)
+
+        if actual_paid > 0:
+            treasury_now = float(getattr(state, "treasury", 0) or 0)
+            state.treasury = int(round(treasury_now + actual_paid))
 
     if isinstance(log, list):
         log.append(f"[产业链] 本月四大产业链推进：纺织得绢{int(silk_cloth_produced)}匹/布{int(hemp_cloth_produced)}匹；"
