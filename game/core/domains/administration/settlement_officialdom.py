@@ -74,14 +74,60 @@ def _settle_clerks(state, log):
     return _clerks.settle_clerks(state, log)
 
 
+def _run_personnel_cycle(state, log):
+    """三年周期人事闭环：磨勘考课（turn % 36 == 18）。
+
+    2026-10-18 全审接线（M300）：
+      · **科举**由 `officialdom` 的科次年正月触发，委托 `imperial_exam.run_triennial_exam_full`
+        （解试→省试→殿试全流程；`last_exam_year` 幂等）；
+      · **磨勘**在此按回合节律触发（第 18/54/… 回合），委托
+        `official_appraisal.run_triennial_appraisal`（上考/中考/下考、罢黜与祠禄冷冻）。
+    幂等：`statistics.last_appraisal_turn` 防止同回合重复触发。
+    失败只记 WARN 与 `personnel_cycle_error`，不阻断当月其余官制结算（可诊断、不静默）。
+    """
+    stats = getattr(state, "statistics", None)
+    if not isinstance(stats, dict):
+        stats = {}
+        state.statistics = stats
+    turn = int(getattr(state, "turn", 0) or 0)
+    if turn <= 0:
+        return
+
+    # 科举不在此处：由 officialdom 科次年正月走 `_triennial_exam_wired`
+    # → `imperial_exam.run_triennial_exam_full`（避免双开科）。
+    if turn >= 18 and turn % 36 == 18:
+        last_appr = int(stats.get("last_appraisal_turn", 0) or 0)
+        if turn > last_appr:
+            try:
+                from core.domains.administration.official_appraisal import (
+                    run_triennial_appraisal,
+                )
+                result = run_triennial_appraisal(state, log)
+                stats["last_appraisal_turn"] = turn
+                stats["last_appraisal_summary"] = {
+                    k: result.get(k) for k in
+                    ("promoted", "demoted", "sinecure", "grades")
+                    if k in result
+                }
+                log.append(
+                    f"[磨勘] 三年考课：升 {result.get('promoted', 0)} / "
+                    f"降 {result.get('demoted', 0)} / 祠禄 {result.get('sinecure', 0)}")
+            except Exception as e:  # noqa: BLE001
+                stats["personnel_cycle_error"] = f"appraisal:{type(e).__name__}:{e}"
+                log.append(f"[磨勘][WARN] 三年考课推进失败：{e!r}")
+
+
 def _settle_officialdom(state, log):
     """Step 3.95 官制结算（薄封装，实现在 `core/domains/administration/officialdom.py`——单一权威源）。
 
     职责：旧档子池迁移修复 → 不变量校验（size == officials + clerks；
     officials == on_post + waiting + sinecure）→ 派生镜像同步（`p["officials"]`/`["clerks"]`
     的唯一写入点）→ 把冗官关键指标写进 `state.statistics` 供面板与审计读取。
+    末尾接三年周期人事闭环（科举 / 磨勘，见 `_run_personnel_cycle`）。
     """
-    return _officialdom.settle_officialdom(state, log)
+    result = _officialdom.settle_officialdom(state, log)
+    _run_personnel_cycle(state, log)
+    return result
 
 
 def _settle_upkeep(state, log):

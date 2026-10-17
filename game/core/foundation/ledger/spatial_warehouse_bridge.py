@@ -301,7 +301,13 @@ def advance_in_transit_batches(state: Any, days: int = 30) -> List[Dict[str, Any
     batches = getattr(state, "in_transit_batches", None)
     if not batches or not isinstance(batches, list):
         return []
-    
+
+    # M324/P1：度量衡统一降低跨路运输途耗；传统体制 reduction=0 时逐位不变。
+    from core.foundation.metrology import active_effects
+    _loss_reduction = float(active_effects(state).get("logistics_loss_reduction", 0.0) or 0.0)
+    _loss_reduction = max(0.0, min(1.0, _loss_reduction))
+    _loss_mult = 1.0 - _loss_reduction
+
     arrived = []
     active = []
     for b in batches:
@@ -309,7 +315,7 @@ def advance_in_transit_batches(state: Any, days: int = 30) -> List[Dict[str, Any
         # 沈括口粮途耗计算（仅粮食扣减实物途耗）
         if b.get("goods_dim") == "grain":
             consumed = b.get("porters_count", 1) * b.get("daily_ration", 0.02) * elapsed
-            actual_loss = min(float(b["gross_amount"]), consumed)
+            actual_loss = min(float(b["gross_amount"]), consumed) * _loss_mult
             b["gross_amount"] = max(0.0, round(float(b["gross_amount"]) - actual_loss, 4))
             b["rations_consumed"] = round(float(b.get("rations_consumed", 0.0)) + actual_loss, 4)
 

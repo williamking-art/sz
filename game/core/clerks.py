@@ -272,11 +272,11 @@ def _next_grievance(d: Dict[str, Any], gap_ratio: float, coverage: float) -> flo
 
 
 # ---------------------------------------------------------------- 把持度（吏强官弱，§16.4）
-def _next_grip(d: Dict[str, Any], coverage: float, muster_share: float = 0.4) -> float:
-    """把持度 0–1：由**世袭比例**（世代本地、掌握簿书）与**陋规补足率**（有动力把持）驱动。
+def _next_grip(d: Dict[str, Any], coverage: float, muster_share: float = 0.4,
+               grip_resistance: float = 0.0) -> float:
+    """把持度 0–1：由**世袭比例**与**陋规补足率**驱动，再乘度量衡抗性。
 
-    玩家杠杆：`hereditary_mult`（禁世袭 → 降把持度）与 `muster_share`（募吏较专业可裁，
-    把持度略低；差役世代相承，把持度更高。§16.7）。
+    `grip_resistance` 来自当前度量衡体制（0/0.05/0.12）；默认 0 时逐位不变。
     """
     hereditary = float(d.get("hereditary", HEREDITARY_BASE) or 0.0)
     target = (GRIP_BASE + GRIP_HEREDITARY_W * hereditary
@@ -284,7 +284,9 @@ def _next_grip(d: Dict[str, Any], coverage: float, muster_share: float = 0.4) ->
               - MUSTER_GRIP_W * (muster_share - 0.4) * 2.0)
     target = max(0.0, min(GRIP_MAX, target))
     cur = float(d.get("grip", GRIP_BASE) or GRIP_BASE)
-    return max(0.0, min(GRIP_MAX, cur + (target - cur) * GRIP_DECAY_TOWARD))
+    nxt = max(0.0, min(GRIP_MAX, cur + (target - cur) * GRIP_DECAY_TOWARD))
+    _res = max(0.0, min(1.0, float(grip_resistance or 0.0)))
+    return max(0.0, min(GRIP_MAX, nxt * (1.0 - _res)))
 
 
 # ---------------------------------------------------------------- 全国派生视图 / 杠杆
@@ -399,6 +401,11 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
     if fixed:
         log.append(f"[吏制] 修复 {fixed} 路 clerks_detail（旧档迁移）")
 
+    # M324/P1：当前度量衡体制的吏胥抗拒（传统 0 ⇒ 逐位不变）
+    from core.foundation.metrology import active_effects
+    _grip_resistance = float(active_effects(state).get("clerk_grip_resistance", 0.0) or 0.0)
+    _grip_resistance = max(0.0, min(1.0, _grip_resistance))
+
     # ---- ② 吏额：政务量 → 需求；需求 ＋ 编制惯性 → 编制存量；编制存量 ← 吏额 ----
     alpha = CLERK_STAFFING_ALPHA
     base_total = 0
@@ -442,7 +449,8 @@ def settle_clerks(state, log: Optional[list] = None) -> Dict[str, Any]:
         d["hereditary"] = max(0.0, min(1.0, _here))
         r = _extort(state, p, log)
         nat_extort += r["taken"]
-        d["grip"] = _next_grip(d, r["coverage"], _muster)
+        d["grip"] = _next_grip(d, r["coverage"], _muster,
+                               grip_resistance=_grip_resistance)
         # 执法宽严的政策冲击单独落（与陋规转移解耦，见 _extort 注释）
         _md = float(r.get("mood_delta") or 0.0)
         if _md:

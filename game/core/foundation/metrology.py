@@ -30,6 +30,7 @@ __all__ = [
     "SYSTEM_SONG_UNIFIED",
     "SYSTEM_MODERN_METRIC",
     "METROLOGY_SYSTEMS",
+    "active_effects",
 ]
 
 # 度量衡体系枚举
@@ -297,19 +298,28 @@ class MetrologyEngine:
 
     @classmethod
     def get_active_system(cls, state: Any = None) -> str:
-        """从 GameState 中获取当前生效的度量衡体系（缺省或异常时回退传统宋制）。"""
+        """从 GameState 中获取当前生效的度量衡体系（缺省/非法/异常回退传统宋制）。
+
+        P1（2026-10-17）：只接受枚举值 0/1/2；1.5、NaN、越界等**非法值**
+        一律按传统 0 处理，不按阈值猜成“半统一/现代”。
+        """
         if state is None:
             return SYSTEM_SONG_TRADITIONAL
         try:
             from core.domains.administration import institution
-            sys_id = institution.get(state, "metrology_system_id", 0.0)
-            if sys_id >= 1.5:
+            sys_id = float(institution.get(state, "metrology_system_id", 0.0))
+            if abs(sys_id - 2.0) < 1e-9:
                 return SYSTEM_MODERN_METRIC
-            elif sys_id >= 0.5:
+            if abs(sys_id - 1.0) < 1e-9:
                 return SYSTEM_SONG_UNIFIED
             return SYSTEM_SONG_TRADITIONAL
         except Exception:
             return SYSTEM_SONG_TRADITIONAL
+
+    @classmethod
+    def active_effects(cls, state: Any = None) -> Dict[str, Any]:
+        """当前体制的只读效果字典（缺省/非法=传统；绝不写 state）。"""
+        return cls.get_system_effects(cls.get_active_system(state))
 
     @classmethod
     def apply_reform(cls, state: Any, target_system: str) -> Tuple[bool, str, Dict[str, Any]]:
@@ -344,5 +354,16 @@ class MetrologyEngine:
         cur_grip = getattr(state, "clerk_grip", 0.3)
         state.clerk_grip = min(1.0, max(0.0, cur_grip + grip_spike))
 
+        # 变法当次一次性触动地方宗族利益 → 全国民心/民怨读数下降（短期）
+        gentry_spike = float(effects.get("gentry_unrest_spike", 0.0) or 0.0)
+        if gentry_spike > 0:
+            _sat = float(getattr(state, "population_satisfaction", 0) or 0)
+            state.population_satisfaction = max(0.0, min(100.0, _sat - gentry_spike))
+
         msg = f"成功颁行「{effects['name']}」：铸衡经费 {cost:,} 贯已支应，生产效率倍率 ×{effects['manufacturing_mult']}。"
         return True, msg, effects
+
+
+def active_effects(state: Any = None) -> Dict[str, Any]:
+    """模块级只读入口：当前度量衡体制的 effects（默认/非法=传统 0）。"""
+    return MetrologyEngine.active_effects(state)

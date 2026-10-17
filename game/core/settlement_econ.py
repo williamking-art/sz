@@ -1697,6 +1697,9 @@ def _settle_workshops(state, log):
       · 即产即销维（`wine`）⇒ 折酒课入内帑；
       · 非成品原料/中间维（若未来出现）⇒ 入 `state.resources`。
     """
+    # M324/P1：度量衡制造倍率只作用于**作坊产出**（输入不缩放；默认传统=1.0）
+    from core.foundation.metrology import MetrologyEngine
+    _mfg_mult = float(MetrologyEngine.active_effects(state).get("manufacturing_mult", 1.0) or 1.0)
     _wine_bonus = 0     # 本月酒课**加成**汇总；下方据此**重算** wine_tax（不做月度累加，见 A-5）
     # 2026-10-11（B1）：成品维（布/绸）产出另计入工匠 goods 池（待售位）。
     # 依 `building_jobs.produce_job_track`「原料维 → resources；成品维 → goods_pool」。
@@ -1809,7 +1812,8 @@ def _settle_workshops(state, log):
         _scale = _input_scale(got_dims, got_grain, recipe)
         out_dim = ws.get("output_dim")
         # 欠产同比例缩放：拿到 60% 料只产 60%（L1′ 核心约束）
-        yld = float(ws.get("yield", 0)) * _scale
+        # M324/P1：制造倍率只乘产出，不改变投入；传统体制 1.0 时逐位不变。
+        yld = float(ws.get("yield", 0)) * _scale * _mfg_mult
         if out_dim == "wine":
             # 酒坊产能 → 酒课**加成**（汇入下方重算，**不在此累加**）
             # 审查 A-5 修复（2026-09-18 阶段 B-1 实测：内帑 +2.91M/月、民间 −2.28M/月、

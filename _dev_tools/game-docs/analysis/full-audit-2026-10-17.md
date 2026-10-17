@@ -364,4 +364,36 @@ git archive --format=zip -o _scratch\audit-20261017\head.zip HEAD
 1. **paperdoll 生产合成器接线**：`new_vector_modular` 资产已入库，但 `portrait_assembler.py`/`data.py` 仍走旧 `layers`；需新合成器 + `SongZuo.spec` 打包验证 + 真机目视。
 2. **未接线模块**：`production_methods`、`imperial_exam`、`run_triennial_appraisal`、度量衡效果、物流调拨——任务卡已降级为 in_progress，属功能开发。
 3. `.git` 804MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
-4. `game/assets/paperdoll/` 其余 135 个 B/C/loose 资产：建议归档到不入库目录或删除，避免长期占 28MB 工作树。
+4. `game/assets/paperdoll/` 其余 135 个 B/C/loose 资产：建议归档到不入库目录或删除，避免长期占 28MB 工作树。---
+
+## 13. 第四批整改（科举/磨勘接线 · 度量衡效果接线）
+
+### 13.1 已修
+
+| 项 | 落地 | 验证 |
+|---|---|---|
+| M300 科举全流程接线 | officialdom._triennial_exam_wired 在科次年正月委托 imperial_exam.run_triennial_exam_full（解试→省试→殿试）；last_exam_year 幂等；recruit_log 记账；失败记 personnel_cycle_error+WARN | 科次年开科、同年不重复、非科次年不开、失败不静默（5 条用例） |
+| M300 三年磨勘接线 | settlement_officialdom._run_personnel_cycle 在第 18/54… 回合委托 official_appraisal.run_triennial_appraisal | 第 18 回合触发、同回合幂等、第 17 回合不触发 |
+| M324 制造倍率 | _settle_workshops 产出乘 manufacturing_mult（只乘产出） | 真实月结作坊产出：传统 100 / 统一 110 / 公制 130 |
+| M324 物流损耗 | advance_in_transit_batches 途耗乘 (1-logistics_loss_reduction) | 1000 石陆运净到：700 / 730 / 775 |
+| M324 清丈抗隐田 | apply_fangtian_survey 的 effective_intensity 加 tax_leakage_resistance | 京畿路查出隐田 2,224,375 / 2,758,225 / 3,559,000 |
+| M324 吏胥抗拒 | _next_grip 增 grip_resistance，结算传当前体制值 | 月结 clerks_grip：0.1125 / 0.1069 / 0.0990（单调下降） |
+| M324 宗族民怨 | apply_reform 按 gentry_unrest_spike 一次性扣民心 | 传统 0 / 统一 -2 / 公制 -6 |
+
+> 说明：传统体制（0）下五项效果均为中性，默认行为逐位不变；清丈入口原本就无月度自动调用，本轮只把体制效果接进该入口。
+
+### 13.2 最终基线（第四批后）
+
+| 项 | 结果 |
+|---|---|
+| pytest | **3469 tests / 0 failed / 0 errors / 2 skipped**（junit _scratch/audit-20261017/junit-batch4.xml，957.6s） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+
+### 13.3 仍未闭环
+
+1. **M317/M318 生产方式（PM）**：production_methods 8 个 API 仍零生产调用；需接作坊产出/建筑吞吐。
+2. **M314 物流调拨**：logistics_coupler.dispatch_industry_logistics 仍零生产调用；需接管线调拨相位。
+3. **官方垦荒**：reclaim_land_government 仍零生产调用。
+4. **paperdoll**：按用户裁定**冻结**，不再改动（新资产已入库，合成器接线不做）。
+5. `.git` 804MB + 39MB 垃圾 pack：需 owner 放行后 git gc --prune=now。

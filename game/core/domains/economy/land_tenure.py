@@ -184,7 +184,11 @@ def apply_fangtian_survey(state, circuit: str, intensity: float = 0.25) -> Dict[
         return {"ok": False, "reason": "no_hidden_land"}
 
     clamped_intensity = max(0.05, min(0.60, float(intensity)))
-    cleared = float(round(yin_now * clamped_intensity, 1))
+    # M324/P1：统一度量衡抗隐田漏报；传统体制 resistance=0 时与接线前逐位一致。
+    from core.foundation.metrology import active_effects
+    _resistance = float(active_effects(state).get("tax_leakage_resistance", 0.0) or 0.0)
+    _effective_intensity = min(1.0, clamped_intensity + max(0.0, _resistance))
+    cleared = float(round(yin_now * _effective_intensity, 1))
     new_yin = yin_now - cleared
     new_min = cur["min_tian"] + cleared
 

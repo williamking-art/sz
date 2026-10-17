@@ -874,6 +874,49 @@ def _triennial_exam(state, log) -> int:
     return taken
 
 
+def _triennial_exam_wired(state, log) -> int:
+    """生产入口：委托 `imperial_exam.run_triennial_exam_full`（单一权威源）。
+
+    2026-10-18 全审 M300：`_triennial_exam` 旧实现是「按人口比例直接入待阙」的精简版，
+    与 `imperial_exam` 的解试→省试→殿试全流程重复。现生产改用全流程版，
+    并加 `last_exam_year` 幂等（同一年重复调用不重复开科）。
+    """
+    ex = state.exam if isinstance(getattr(state, "exam", None), dict) else {}
+    if not ex:
+        state.exam = ex = {}
+    if not ex.get("open", True):
+        log.append("[科举] 停科，本届不取士")
+        ex["last_cohort"] = 0
+        return 0
+    year = int(getattr(state, "year", 0) or 0)
+    if int(ex.get("last_exam_year", 0) or 0) == year:
+        return int(ex.get("last_cohort", 0) or 0)
+    tier = "中"
+    try:
+        ai = getattr(state, "_economy_ai", None) or {}
+        if ai.get("科举"):
+            tier = ai["科举"]
+    except Exception:  # noqa: BLE001 — 档位缺失退化为「中」，不影响守恒
+        tier = "中"
+    try:
+        from core.domains.administration.imperial_exam import run_triennial_exam_full
+        detail = run_triennial_exam_full(state, tier=tier, log=log)
+        ex["last_exam_year"] = year
+        _taken = int((detail or {}).get("taken", 0) or 0)
+        if _taken:
+            # 与旧精简版同口径：入仕台账记「科举」来源
+            state.recruit_log["科举"] = state.recruit_log.get("科举", 0) + _taken
+        return _taken
+    except Exception as e:  # noqa: BLE001
+        stats = getattr(state, "statistics", None)
+        if not isinstance(stats, dict):
+            stats = {}
+            state.statistics = stats
+        stats["personnel_cycle_error"] = f"exam:{type(e).__name__}:{e}"
+        log.append(f"[科举][WARN] 三年大比推进失败：{e!r}")
+        return 0
+
+
 def _triennial_yinben(state, log) -> int:
     """每 3 年（郊祀之年正月）：恩荫 —— 士绅子弟荫补入官（**转移**，ΣPOP 守恒）。
 
@@ -949,7 +992,8 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
         _annual_rank_up(state, log)
         _annual_clan(state, log)
         if (year - 1101) % EXAM_INTERVAL_YEARS == 0:      # 科次年（每 3 年一次，§15）
-            _triennial_exam(state, log)
+            # 2026-10-18 M300：生产走 imperial_exam 全流程（旧 _triennial_exam 留作历史参考）
+            _triennial_exam_wired(state, log)
         if (year - 1101) % 3 == 0:                        # 郊祀之年（恩荫，§七）
             _triennial_yinben(state, log)
 
