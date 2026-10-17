@@ -1,0 +1,31 @@
+{
+  "id": "M311-spatial-warehouse-and-settlement-dashboard",
+  "title": "结算机制可视化看板：空间四仓存量明细与48步管线调度可观测性读数",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "authority": "JEV-DEC-空间四仓与结算看板双向打通裁定-2026-10-17（方案A概率0.9725）",
+  "goal": "新建game/core/domains/economy/spatial_warehouse_readout.py，将空间四仓（官方料场、常平官仓、商人行栈、沈括途耗在途）与48步管线调度状态统一注册进readout_hub；严守系统层与朝廷层账目口径分离硬约束，在前端ReadoutHubPanel增设空间四仓与结算管线观测专区；严守缺失值不作0与纯派生只读纪律。",
+  "recon": {
+    "后端读数": "空间四仓总储量、在途批次、官料建材与常平粮实物覆盖，按府路汇总；管线48步执行耗时与关键性读数",
+    "两层账目分离": "朝廷层账目仅限国库、内帑、太仓与官方料场；系统层全账涵盖M_ALL与民间POP财富；两层账目绝不混同",
+    "前端看板": "ReadoutHubPanel增加空间四仓与两层账目对照专区，提供下钻路径（source/drill_down）与undefined告警",
+    "口径硬约束": "纯派生只读，不新增账本；缺失值display='undefined'，严禁写成0"
+  },
+  "scope": [
+    "新建game/core/domains/economy/spatial_warehouse_readout.py",
+    "注册进game/core/domains/economy/readout_hub.py",
+    "更新前端ReadoutHubPanel.tsx提供四仓与双轨账目可视化呈现",
+    "编写专属单元测试test_spatial_warehouse_readout.py与前端测试",
+    "全量回归跑通72+用例与README纪律断言"
+  ],
+  "explicitly_not": [
+    "不得在readout中写回修改state",
+    "不得在数据缺失时展示为0",
+    "不得将民间POP财富与地方府库算作朝廷可用国库",
+    "不得破坏现有readout_hub的schema_version与API契约"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T05:58:00Z",
+  "completedAt": "2026-10-17T06:03:00Z"
+}

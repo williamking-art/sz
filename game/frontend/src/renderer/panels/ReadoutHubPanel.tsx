@@ -111,8 +111,18 @@ export default function ReadoutHubPanel() {
         <span className="text-[12px] text-dim">
           有值 {hub.ok_count ?? 0} · 未定义 {hub.undefined_count ?? 0}
         </span>
-      </div>
       {hub.note ? <p className="text-[12px] text-dim">{hub.note}</p> : null}
+      {hub.readouts?.court_vs_system_contrast ? (
+        <div className="rounded border border-amber-500/30 bg-amber-950/20 p-2.5 text-[12px] text-amber-200/90">
+          <div className="font-semibold text-amber-300">
+            🏛️ 朝廷层度支 vs 🌐 系统层物理账目严格分离（硬约束口径）
+          </div>
+          <div className="mt-1 text-[11px] leading-relaxed text-amber-200/70">
+            朝廷层（国库/内帑/太仓）仅为朝廷直接掌握头寸；民间 POP 财富与治所府库为百姓与地方存留，非朝廷可用款。
+            当前读数：{hub.readouts.court_vs_system_contrast.display}
+          </div>
+        </div>
+      ) : null}
       <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-dim">

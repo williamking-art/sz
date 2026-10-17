@@ -628,6 +628,77 @@ def _market_chain_diagnosis(state) -> Tuple[Optional[Any], Optional[str], Any]:
     return len(readable), None, detail
 
 
+def _public_depot_materials(state) -> Tuple[Optional[float], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:public_depot_summary"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.public_depot_summary(state)
+        v = res.get("total_materials")
+        r = res.get("reason")
+        return v, r, {"by_route": res.get("by_route"), "routes_covered": res.get("routes_covered"), "drill": src}
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 官方料场建材读数失败", exc_info=True)
+        return None, f"料场读数异常：{type(e).__name__}", {"drill": src}
+
+
+def _public_granary_grain(state) -> Tuple[Optional[float], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:public_granary_summary"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.public_granary_summary(state)
+        v = res.get("total_grain")
+        r = res.get("reason")
+        return v, r, {"routes_covered": res.get("routes_covered"), "drill": src}
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 常平官仓粮存读数失败", exc_info=True)
+        return None, f"常平仓读数异常：{type(e).__name__}", {"drill": src}
+
+
+def _spatial_in_transit_batches(state) -> Tuple[Optional[int], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:in_transit_summary"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.in_transit_summary(state)
+        v = res.get("batch_count")
+        r = res.get("reason")
+        return v, r, {"net_volume": res.get("net_volume"), "passenger_trips": res.get("passenger_trips"), "drill": src}
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 在途批次读数失败", exc_info=True)
+        return None, f"在途读数异常：{type(e).__name__}", {"drill": src}
+
+
+def _settlement_pipeline_steps(state) -> Tuple[Optional[int], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:pipeline_health_readout"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.pipeline_health_readout(state)
+        v = res.get("total_steps")
+        r = res.get("reason")
+        return v, r, {"critical_steps": res.get("critical_steps"), "healthy": res.get("healthy"), "drill": src}
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 结算管线步骤读数失败", exc_info=True)
+        return None, f"管线步骤读数异常：{type(e).__name__}", {"drill": src}
+
+
+def _court_vs_system_contrast(state) -> Tuple[Optional[float], Optional[str], Any]:
+    src = "core.domains.economy.spatial_warehouse_readout:court_vs_system_contrast"
+    try:
+        from core.domains.economy import spatial_warehouse_readout as swr
+        res = swr.court_vs_system_contrast(state)
+        v = res.get("court_money_share")
+        r = res.get("reason")
+        return v, r, {
+            "court_available_cash": res.get("court_available_cash"),
+            "system_m_all": res.get("system_m_all"),
+            "civilian_wealth_share": res.get("civilian_wealth_share"),
+            "verdict": res.get("verdict"),
+            "drill": src,
+        }
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 朝廷与系统层对照读数失败", exc_info=True)
+        return None, f"两层口径对照异常：{type(e).__name__}", {"drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -672,6 +743,16 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _tax_scope_contrast, "source": "state.tax_breakdown + state.tax_base_summary()"},
     {"key": "market_chain_diagnosis", "label": "市场切片·链级诊断可读环数（产地→运输→成交→到货→加工）", "unit": "环",
      "fn": _market_chain_diagnosis, "source": "core.domains.economy.stock_identity（stock_snapshot 等）"},
+    {"key": "public_depot_materials", "label": "官方料场建材储备总额", "unit": "围/方",
+     "fn": _public_depot_materials, "source": "core.domains.economy.spatial_warehouse_readout:public_depot_summary"},
+    {"key": "public_granary_grain", "label": "常平官仓实物粮储备总额", "unit": "石",
+     "fn": _public_granary_grain, "source": "core.domains.economy.spatial_warehouse_readout:public_granary_summary"},
+    {"key": "spatial_in_transit_batches", "label": "沈括途耗在途物流批次数", "unit": "批",
+     "fn": _spatial_in_transit_batches, "source": "core.domains.economy.spatial_warehouse_readout:in_transit_summary"},
+    {"key": "settlement_pipeline_steps", "label": "月度结算声明式管线步骤覆盖数", "unit": "步",
+     "fn": _settlement_pipeline_steps, "source": "core.domains.economy.spatial_warehouse_readout:pipeline_health_readout"},
+    {"key": "court_vs_system_contrast", "label": "朝廷可用资金占全社会货币比重（两层账目对照）", "unit": "比",
+     "fn": _court_vs_system_contrast, "source": "core.domains.economy.spatial_warehouse_readout:court_vs_system_contrast"},
 )
 
 

@@ -1,0 +1,21 @@
+{
+  "id": "JEV-DEC-空间四仓与结算看板双向打通裁定-2026-10-17",
+  "date": "2026-10-17",
+  "category": "architecture",
+  "question": "阶段D空间四仓与结算看板实现方案选择",
+  "options": {
+    "A": "双向打通方案：在后端新建spatial_warehouse_readout.py并注册进readout_hub，前端在ReadoutHubPanel中增加空间四仓专区，并提供独立看板组件",
+    "B": "仅后端数据：只在后端提供JSON接口，不接前端",
+    "C": "独立全屏页面：跳过现有ReadoutHubPanel，新造庞大全屏SPA面板"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9725,
+    "B": 0.0188,
+    "C": 0.0087
+  },
+  "provider": "tokenrhythm/NeoHorse-Jev-4B",
+  "premises_verified_by_me": "已核验：方案A复用既有readout_hub基础设施与ReadoutHubPanel面板，无缝满足缺失值display='undefined'不作0口径硬约束，兼顾单测完整性与前后端可观测性。",
+  "applied_in": "M311-spatial-warehouse-and-settlement-dashboard",
+  "reopen_if": "前端组件重绘引入不可接受的性能卡顿（>16ms）或打破无账本只读原则"
+}
