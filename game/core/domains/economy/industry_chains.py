@@ -211,59 +211,67 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
 
     # 2. 八大实体产业链多级深加工转化
 
-    # ① 纤维纺织被服链：3 斤生丝产 1 匹绸；2 斤原麻产 1 匹布；部分布绸做被服军衣
+    # 2. 八大实体产业链多级深加工转化（中性中间物流转 + 链式装配）
+
+    # ① 纤维与被服中性物（丝绸与布料）
     silk_cloth_produced = float(round(nat_raw["silk_raw"] / 3.0, 1))
     hemp_cloth_produced = float(round(nat_raw["hemp_raw"] / 2.0, 1))
-    # 每 10 匹布 + 2 匹绸 缝制 1 领被服军衣（战备与冬防物资）
-    garments_produced = float(round(min(hemp_cloth_produced * 0.20 / 10.0, silk_cloth_produced * 0.10 / 2.0), 1))
+    fabric_neutral = hemp_cloth_produced
+    silk_neutral = silk_cloth_produced
+    # 下游被服链式组装：消耗布料 + 丝绸 缝制 1 领被服军衣
+    garments_produced = float(round(min(fabric_neutral * 0.20 / 10.0, silk_neutral * 0.10 / 2.0), 1))
 
-    # ② 黑色冶金重工链：2 斤铁矿 + 1 斤焦煤 产 1 斤熟铁；每 5 斤熟铁打造 1 领兵刃器械
+    # ② 黑色冶金中性物：铁矿 + 焦煤 -> 铁锭（熟铁）与钢锭
     iron_melted = float(round(min(nat_raw["iron_ore"] / 2.0, nat_raw["coal"]), 1))
-    weapons_produced = float(round(iron_melted * 0.40 / 5.0, 1))
+    iron_ingots_neutral = iron_melted
+    steel_ingots_neutral = float(round(iron_ingots_neutral * 0.25, 1))  # 炒钢与百炼钢法精炼钢锭
 
-    # ③ 水陆动力机械链：大木+熟铁制造机械构件与漕船海舶
-    # 每 10 根大木 + 5 斤熟铁 打造 1 套机械构件（水排鼓风机、水力大纺车齿轮、翻车构件）
-    machinery_parts_produced = float(round(min(nat_raw["timber"] * 0.20 / 10.0, iron_melted * 0.20 / 5.0), 1))
-    # 每 200 根大木 + 100 方料石 + 20 斤熟铁 打造 1 艘平底漕船与堤防修护
-    barges_built = float(round(min(nat_raw["timber"] * 0.40 / 200.0, nat_raw["stone"] * 0.40 / 100.0), 1))
+    # ③ 木作与机械中性物：原木经水碓锯解为中性木方；铁锭+木方精锻为机械零件
+    timber_beams_neutral = float(round(nat_raw["timber"] * 0.8, 1))
+    machinery_parts_produced = float(round(min(timber_beams_neutral * 0.25 / 10.0, iron_ingots_neutral * 0.20 / 5.0), 1))
+
+    # ④ 造船坞下游链式装配：消耗中性木方 + 铁锭 + 布料（麻帆）装配漕船海舶
+    barges_built = float(round(min(timber_beams_neutral * 0.35 / 150.0, iron_ingots_neutral * 0.15 / 20.0, fabric_neutral * 0.10 / 15.0), 1))
     if barges_built > 0:
         c_block = int(getattr(state, "canal_block", 0) or 0)
         relief = min(4, max(1, int(barges_built / 500.0)))
         state.canal_block = max(0, c_block - relief)
 
-    # ④ 火药化工军器链：硫硝 + 木炭 配火药；再结合铁铜制火器弹药
-    # 每 2 斤硫硝 + 1 斤木料（木炭）配制 1 斤火药
+    # ⑤ 火工与军器下游链式装配：硝石 + 硫磺 + 木炭 配火药；再结合钢锭、铜锭、木方制造火器
     gunpowder_produced = float(round(min(nat_raw["sulfur_niter"] / 2.0, nat_raw["timber"] * 0.10), 1))
-    # 每 5 斤火药 + 3 斤熟铁 + 2 斤铜 铸造 1 具火器弹药（突火枪/震天雷）
-    firearms_produced = float(round(min(gunpowder_produced / 5.0, iron_melted * 0.10 / 3.0), 1))
-
-    # ⑤ 有色金属铸造链：生铜冶炼为熟铜；熟铜+熟铁铸造铜钱
     copper_refined = float(round(nat_raw["copper_ore"] * 0.7, 1))
+    copper_ingots_neutral = copper_refined
     if copper_refined > 0:
         res_slot = getattr(state, "resources", None)
         if isinstance(res_slot, dict):
             c_slot = res_slot.setdefault("铜", {"stock": 0, "cap": 5000000})
             c_slot["stock"] = int(round(float(c_slot.get("stock", 0) or 0) + copper_refined))
-    # 每 10 斤熟铜 + 2 斤熟铁 铸造 1 贯官铸铜钱（平抑钱荒）
-    coins_minted = float(round(min(copper_refined * 0.30 / 10.0, iron_melted * 0.10 / 2.0), 1))
+    # 火器下游链式消费：钢锭 + 铜锭 + 火药 + 木方 -> 突火枪/火器弹药
+    firearms_produced = float(round(min(gunpowder_produced * 0.40 / 4.0, steel_ingots_neutral * 0.30 / 3.0, copper_ingots_neutral * 0.20 / 2.0, timber_beams_neutral * 0.05 / 2.0), 1))
 
-    # ⑥ 畜牧皮具传动链：生革硝制为熟皮；熟皮做鞍具皮甲与传动带
+    # ⑥ 兵刃器械下游装配：钢锭/铁锭 + 木方 -> 兵刃器械与农具铁铧
+    weapons_produced = float(round(min(iron_ingots_neutral * 0.30 / 5.0, timber_beams_neutral * 0.10 / 2.0), 1))
+
+    # ⑦ 官铸铜钱：铜锭 + 铁锭合铸
+    coins_minted = float(round(min(copper_ingots_neutral * 0.40 / 10.0, iron_ingots_neutral * 0.10 / 2.0), 1))
+
+    # ⑧ 畜牧皮革中性物与下游鞍具装配：生革硝制熟皮；熟皮+铁锭制造鞍具皮甲与传动带
     tanned_leather_produced = float(round(nat_raw["hides_raw"] * 0.8, 1))
-    saddle_armor_produced = float(round(min(tanned_leather_produced * 0.5 / 5.0, iron_melted * 0.10 / 1.0), 1))
+    leather_neutral = tanned_leather_produced
+    saddle_armor_produced = float(round(min(leather_neutral * 0.50 / 5.0, iron_ingots_neutral * 0.08 / 1.0), 1))
 
-    # ⑦ 陶瓷琉璃外贸链：瓷土+焦煤烧造精品瓷器，折算市舶外贸收益
-    fine_china_produced = float(round(min(nat_raw["clay"] / 10.0, nat_raw["coal"] * 0.20 / 5.0), 1))
+    # ⑨ 陶瓷琉璃规范配方：黏土（高岭土）+ 焦煤 烧造精品青白瓷
+    fine_china_produced = float(round(min(nat_raw["clay"] / 10.0, nat_raw["coal"] * 0.20 / 4.0), 1))
     export_trade_tax_coin = float(round(fine_china_produced * 15.0, 1))
 
-    # ⑧ 农副食货文教链：茶盐专卖正税 + 蔗糖 + 纸张与经籍印书
+    # ⑩ 农副食货文教与造纸印书：原麻造纸（中性纸张）；纸张 + 木方雕版活字印造经籍书籍
     tea_tax_coin = float(round(nat_raw["tea_raw"] / 5.0, 1))
     salt_tax_coin = float(round(nat_raw["salt_raw"] / 10.0, 1))
     monopoly_tax_total = tea_tax_coin + salt_tax_coin + export_trade_tax_coin
-    # 蔗糖：每 3 斤甘蔗出 1 斤糖
     sugar_produced = float(round(nat_raw["sugar_cane"] / 3.0, 1))
-    # 造纸与书籍：原麻造纸，每 10 张纸 + 1 根木料 印造 1 部经籍书籍
     paper_produced = float(round(nat_raw["hemp_raw"] * 0.30 / 1.5, 1))
-    books_printed = float(round(min(paper_produced / 10.0, nat_raw["timber"] * 0.05), 1))
+    paper_neutral = paper_produced
+    books_printed = float(round(min(paper_neutral * 0.60 / 8.0, timber_beams_neutral * 0.05 / 2.0), 1))
 
     # 3. 结果入账与沉淀
     chain_summary = {
@@ -274,18 +282,24 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             "cloth_pi": hemp_cloth_produced,
             "garments_pieces": garments_produced,
             "refined_iron": iron_melted,
-            "weapons_pieces": weapons_produced,
+            "iron_ingots": iron_ingots_neutral,
+            "steel_ingots": steel_ingots_neutral,
+            "timber_beams": timber_beams_neutral,
             "machinery_parts": machinery_parts_produced,
+            "weapons_pieces": weapons_produced,
             "barges_built": barges_built,
             "gunpowder_jin": gunpowder_produced,
             "firearms_pieces": firearms_produced,
             "refined_copper": copper_refined,
+            "copper_ingots": copper_ingots_neutral,
             "coins_minted_guan": coins_minted,
             "tanned_leather_jin": tanned_leather_produced,
+            "leather": leather_neutral,
             "saddle_armor_pieces": saddle_armor_produced,
             "fine_china_pieces": fine_china_produced,
             "sugar_jin": sugar_produced,
             "paper_sheets": paper_produced,
+            "paper": paper_neutral,
             "books_printed": books_printed,
             "monopoly_tax_coin": monopoly_tax_total,
             "mine_tax_coin": nat_raw.get("mine_tax_coin", 0.0),
