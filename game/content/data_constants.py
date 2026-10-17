@@ -17,7 +17,9 @@ END_YEAR = 1135
 # 皇威系统
 # ============================================================
 PRESTIGE_START = 55
-PRESTIGE_MAX = 100
+# 2026-10-17 用户定稿：皇威积累无上限（物理真账不设硬顶），UI与对外显示层截断为100
+PRESTIGE_DISPLAY_MAX = 100
+PRESTIGE_MAX = 100                 # 兼容旧常数引用（展示上限）
 PRESTIGE_MIN = 0
 PRESTIGE_MONTHLY_CAP = 8          # 单月变动上限
 PRESTIGE_MAJOR_EVENT_CAP = 15     # 大事件突破上限
@@ -916,24 +918,24 @@ FREE_EFFECT_CAP = {
 # 值域由 `INSTITUTION_PARAM_SPEC` 单点约束；`state.institution_params` 存**增量后的倍率**。
 # ============================================================
 INSTITUTION_PARAM_SPEC = {
-    # §12.3 杠杆 1：定编宽严 → 差遣定员（= 冗官的闸门）
-    "posts_quota_mult":    {"default": 1.0, "min": 0.4, "max": 1.6, "label": "定编宽严"},
-    # §17.4：吏职级薪基 → 吏禄充足度 → 陋规强度（"花钱买治理"的核心旋钮）
-    "clerk_pay_mult":      {"default": 1.0, "min": 0.0, "max": 5.0, "label": "吏职级薪基"},
-    # §12.3 杠杆 2：荫补之门 → 恩荫规模（**冗官主源**）
-    "yinben_mult":         {"default": 1.0, "min": 0.0, "max": 3.0, "label": "荫补之门"},
-    # §12.3 杠杆 3：磨勘年限（越大升迁越快→人均俸禄膨胀越快）
-    "rank_up_mult":        {"default": 1.0, "min": 0.0, "max": 3.0, "label": "磨勘年限"},
-    # §12.3 杠杆 4：祠禄比例 → 待阙转宫观闲职的阈值
-    "sinecure_mult":       {"default": 1.0, "min": 0.0, "max": 3.0, "label": "祠禄比例"},
+    # §12.3 杠杆 1：定编宽严 → 差遣定员（= 冗官的闸门，吏部铨选事权）
+    "posts_quota_mult":    {"default": 1.0, "min": 0.4, "max": 1.6, "label": "定编宽严",   "authority": "官吏铨选"},
+    # §17.4：吏职级薪基 → 吏禄充足度 → 陋规强度（户部度支调度事权）
+    "clerk_pay_mult":      {"default": 1.0, "min": 0.0, "max": 5.0, "label": "吏职级薪基", "authority": "度支调度"},
+    # §12.3 杠杆 2：荫补之门 → 恩荫规模（冗官主源，吏部铨选事权）
+    "yinben_mult":         {"default": 1.0, "min": 0.0, "max": 3.0, "label": "荫补之门",   "authority": "官吏铨选"},
+    # §12.3 杠杆 3：磨勘年限（越大升迁越快→俸禄膨胀，吏部考课事权）
+    "rank_up_mult":        {"default": 1.0, "min": 0.0, "max": 3.0, "label": "磨勘年限",   "authority": "官员考课"},
+    # §12.3 杠杆 4：祠禄比例 → 待阙转宫观闲职阈值（吏部考课事权）
+    "sinecure_mult":       {"default": 1.0, "min": 0.0, "max": 3.0, "label": "祠禄比例",   "authority": "官员考课"},
     # §12.3 杠杆 5/§17.4：世袭比例 → 把持度
     "hereditary_mult":     {"default": 1.0, "min": 0.0, "max": 2.0, "label": "世袭比例"},
     # §12.3 杠杆 5/§17.4：差役 ↔ 募吏结构（比例：募吏占比）
     "muster_share":        {"default": 0.4, "min": 0.0, "max": 1.0, "label": "募吏比例"},
-    # §12.3 杠杆 6：考课黜落 → 每年在岗官退出率
-    "retire_mult":         {"default": 1.0, "min": 0.2, "max": 2.5, "label": "考课黜落"},
-    # 财力消耗设计 S-D6：玩家**主动降维持费**（裁汰冗费）
-    "asset_maintain_mult": {"default": 1.0, "min": 0.0, "max": 2.0, "label": "资产维持费"},
+    # §12.3 杠杆 6：考课黜落 → 每年在岗官退出率（吏部考课事权）
+    "retire_mult":         {"default": 1.0, "min": 0.2, "max": 2.5, "label": "考课黜落",   "authority": "官员考课"},
+    # 财力消耗设计 S-D6：玩家主动降维持费（户部度支调度事权）
+    "asset_maintain_mult": {"default": 1.0, "min": 0.0, "max": 2.0, "label": "资产维持费", "authority": "度支调度"},
     # ---- 金融：抵当所旋钮（第二节§3；史实为「抵当所」，宋无银行）----
     # **权限归属**：这些不是"定义"，而是**户部（部门）+ 抵当所提举（官职）的权限**；
     # 调整须经圣旨、由掌「官营放贷」事权者执行（人是载体，换人不换权）。

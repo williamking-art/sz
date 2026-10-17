@@ -1,0 +1,11 @@
+{
+  "id": "M325-prestige-uncapped-and-authority-military-coupling",
+  "title": "皇威物理无上限累积与中枢事权、军队控制权深度耦合",
+  "status": "done",
+  "claimedBy": "antigravity",
+  "description": "落实用户定稿与架构规格：1. 皇威物理积累无上限，UI与对外读数截断为100；2. 中旨扣除皇威政治资本，低皇威触发门下封驳；3. 游离编制参数补齐吏部户部事权门禁；4. 调兵令受枢密院审查，通判连署咬合decree_effect吏治通道；5. 统帅战力实效与欠饷衰减；6. 编写全量单元测试。",
+  "created_at": "2026-10-17T17:44:00Z",
+  "dependencies": [
+    "M324-metrology-engine-and-reforms"
+  ]
+}

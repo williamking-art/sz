@@ -1150,24 +1150,22 @@ class GameState(GameStateEconMixin):
     # ================================================================
     def get_prestige_info(self) -> dict:
         level, w, authority = get_prestige_level(self.prestige)
+        from content.data_constants import PRESTIGE_DISPLAY_MAX
+        display_val = min(PRESTIGE_DISPLAY_MAX, self.prestige)
         return {
-            "value": self.prestige,
+            "value": display_val,             # UI/对外展示层截断到 100
+            "raw_value": self.prestige,       # 物理真账无上限积累
             "level": level,
             "multiplier": w,
             "authority_index": authority,
-            "description": desensitize_prestige(self.prestige),
+            "description": desensitize_prestige(display_val),
         }
 
     def change_prestige(self, delta: int, reason: str = "", is_major: bool = False):
-        """修改皇威，自动做上限截断。
-
-        **单点回收（2026-09-19 代码质量全检）**：月变上限/事件上限/上下界一律引用
-        `content/data.py` 常量——此前 15/8/0/100 在此硬编码，使 `PRESTIGE_MONTHLY_CAP`
-        等常量定义了却无人引用（改常量不生效）。
-        """
+        """修改皇威（物理累积无上限，仅保下限 PRESTIGE_MIN=0；UI对外截断为 100）。"""
         cap = PRESTIGE_MAJOR_EVENT_CAP if is_major else PRESTIGE_MONTHLY_CAP
         delta = max(-cap, min(cap, delta))
-        self.prestige = max(PRESTIGE_MIN, min(PRESTIGE_MAX, self.prestige + delta))
+        self.prestige = max(PRESTIGE_MIN, self.prestige + delta)
         self._prestige_history.append((self.turn, delta, reason, self.prestige))
 
     # ================================================================

@@ -570,6 +570,11 @@ def _check_minister_veto(state, aid: str, decree: Dict[str, Any]) -> Optional[st
         if any(k in title for k in ("花石", "造作局", "应奉局", "进奉", "加征", "括田", "搜括")):
             return f"直臣「{aid}」伏阙力谏：搜括赋敛必致民变，乞收回成命"
 
+    # 4. 皇威不振时的中旨封还（用户 2026-10-17 裁定：皇威不振时门下省封还御笔中旨）
+    if decree.get("is_zhongzhi") and getattr(state, "prestige", 50) <= 40:
+        if aid == "李清臣" or fac == "旧党" or any(t in traits or t in tids for t in ("守正", "刚直", "老成")):
+            return f"门下省「{aid}」封还御笔中旨：主上威权有损而绕过外廷，不合祖宗家法，臣不敢奉诏"
+
     return None
 
 
@@ -670,6 +675,19 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
         except Exception as e:  # noqa: BLE001
             log.debug("decree_confirm 事权深度校验跳过：%s", e)
 
+    # 2026-10-17 枢密院调兵事权门禁：民政诏令若调兵强制施行，须由掌「调兵」事权主体签发
+    if d.get("enforce_troops") and not (d.get("is_zhongzhi") or d.get("override_by_sovereign")):
+        try:
+            from core.domains.administration.institution import resolve_executor
+            matters, label, _ = resolve_executor(state, aid)
+            if "调兵" not in matters:
+                out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
+                           authorized=False, withheld=True,
+                           message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，执行主体「{label}」无调兵权。")
+                return out
+        except Exception as e:  # noqa: BLE001
+            log.debug("decree_confirm 调兵事权深度校验跳过：%s", e)
+
     out["authorized"] = True
 
     stored = latest_recitation(state, did, aid)
@@ -722,12 +740,38 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
     out["unsupported"] = cmp_["unsupported"]
     if cmp_["ok"]:
         veto_reason = _check_minister_veto(state, aid, d)
-        if veto_reason and not (d.get("override_by_sovereign") or d.get("is_zhongzhi") or d.get("is_direct")):
+        is_zhongzhi = bool(d.get("is_zhongzhi") or d.get("is_direct"))
+        cur_prestige = getattr(state, "prestige", 50)
+
+        # 2026-10-17 皇威政治资本消耗：下发中旨扣减 4 点皇威
+        if is_zhongzhi and record and hasattr(state, "change_prestige"):
+            if not d.get("_prestige_deducted"):
+                state.change_prestige(-4, f"下达御笔中旨「{d.get('title', did)}」")
+                d["_prestige_deducted"] = True
+                out["zhongzhi_prestige_deducted"] = 4
+
+        # 封驳判定：皇威不振(<=40)时中旨不可免除大臣封还，除非显式严旨强推(override_by_sovereign)
+        veto_blocked = False
+        if veto_reason:
+            if d.get("override_by_sovereign"):
+                veto_blocked = False
+            elif is_zhongzhi and cur_prestige > 40:
+                veto_blocked = False
+            else:
+                veto_blocked = True
+
+        if veto_blocked:
             out.update(status=STATUS_VETO, reason="minister_veto",
                        veto_reason=veto_reason,
                        message="「%s」封还词头拒不奉诏（%s）：不予承办。" % (aid, veto_reason))
         else:
-            if veto_reason:
+            if veto_reason and d.get("override_by_sovereign"):
+                out["overridden_by_sovereign"] = True
+                out["sovereign_prestige_cost"] = 6
+                if record and hasattr(state, "change_prestige") and not d.get("_override_prestige_deducted"):
+                    state.change_prestige(-6, f"降严旨内批强推「{d.get('title', did)}」")
+                    d["_override_prestige_deducted"] = True
+            elif veto_reason:
                 out["overridden_by_sovereign"] = True
                 out["sovereign_prestige_cost"] = 3
             out.update(status=STATUS_CONFIRMED, reason="recitation_matches",

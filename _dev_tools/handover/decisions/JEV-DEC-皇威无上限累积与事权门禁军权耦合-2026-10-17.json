@@ -1,0 +1,17 @@
+{
+  "id": "JEV-DEC-皇威无上限累积与事权门禁军权耦合-2026-10-17",
+  "timestamp": "2026-10-17T17:44:00Z",
+  "question": "皇威是否应改为物理真账无上限累积且UI截断100，并完善中旨扣减与事权门禁？",
+  "options": [
+    "A: 皇威物理无上限累积/UI截断100，下发中旨扣皇威，低皇威门下封驳，游离编制参数补齐吏部户部事权门禁，枢密调兵与知通连署闭环",
+    "B: 维持原先皇威100物理顶死与游离参数无事权门禁状态"
+  ],
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.995,
+    "B": 0.005
+  },
+  "premises_verified_by_me": "Jev裁定p=0.995支持A。用户明确裁定「皇威积累无上限，只是UI上只显示100」并要求完善权限体系与军队控制权耦合。方案严格守卫POP挂载律与decree_effect单一权威单点，测试用例定向覆盖",
+  "applied_in": "game/core/game_state.py, game/content/data_constants.py, game/core/decree_confirm.py, game/core/decree_effect.py, game/core/domains/military/army_models.py, game/core/settlement_military.py",
+  "reopen_if": "皇威数值出现负数溢出或破坏既有decree_effect三通道口径"
+}

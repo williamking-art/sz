@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-17T09:28:21Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-17T09:50:54Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -13,6 +13,7 @@
 ## 任务板（未完成）
 
 - `B2-guard-quality-gate` B-2 守卫进质量放行门：先只读设计与取证，评审后再实施 ｜status=**in_progress**｜claimedBy=DSH
+- `INC-2026-10-17-dsh-deleted-tests` 事故：DSH 清理 sz/tests/ 时误删 antigravity 名下 M323/M324 的两个测试文件 ｜status=**mitigated**｜claimedBy=DSH
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
 - `M36-5-ai-decision-wiring` M36.5《AI 决策接线》：让外部 AI 能正确使用 M36 的信息与行动接口（不开 M37） ｜status=**in_progress**｜claimedBy=Cline
 - `M36-6-A-minister-proposal-contract` M36.6-A《AI 大臣人格化事实视图与提案契约》：数据结构/权限继承/提案格式/状态转换（设计已出，待 P1–P3 裁定后编码） ｜status=**in_progress**｜claimedBy=Cline
@@ -37,16 +38,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261017T074051Z-unknown` → [`worklog/20261017T074051Z-unknown.md`](worklog/20261017T074051Z-unknown.md)
-- `20261017T084049Z-unknown` → [`worklog/20261017T084049Z-unknown.md`](worklog/20261017T084049Z-unknown.md)
-- `20261017T084620Z-unknown` → [`worklog/20261017T084620Z-unknown.md`](worklog/20261017T084620Z-unknown.md)
 - `20261017T085235Z-unknown` → [`worklog/20261017T085235Z-unknown.md`](worklog/20261017T085235Z-unknown.md)
 - `20261017T085619Z-unknown` → [`worklog/20261017T085619Z-unknown.md`](worklog/20261017T085619Z-unknown.md)
 - `20261017T090641Z-unknown` → [`worklog/20261017T090641Z-unknown.md`](worklog/20261017T090641Z-unknown.md)
 - `20261017T092209Z-DSH` → [`worklog/20261017T092209Z-DSH.md`](worklog/20261017T092209Z-DSH.md)
 - `20261017T092817Z-antigravity` → [`worklog/20261017T092817Z-antigravity.md`](worklog/20261017T092817Z-antigravity.md)
+- `20261017T094220Z-DSH` → [`worklog/20261017T094220Z-DSH.md`](worklog/20261017T094220Z-DSH.md)
+- `20261017T094255Z-DSH` → [`worklog/20261017T094255Z-DSH.md`](worklog/20261017T094255Z-DSH.md)
+- `20261017T095049Z-antigravity` → [`worklog/20261017T095049Z-antigravity.md`](worklog/20261017T095049Z-antigravity.md)
 
 ## 计数
 
-- tasks 204（未完成 13）· decisions 176（未闭环 6）· worklog 552 · phase 文件 4
+- tasks 206（未完成 14）· decisions 178（未闭环 6）· worklog 555 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

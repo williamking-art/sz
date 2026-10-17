@@ -131,11 +131,34 @@ def _settle_military_diplomacy(state, log):
 
     # 军事契约（power%/兵额/训练士气/征发——训练士气与兵额调整程序换算，cost 由守恒步扣）
     # 审查 P1：无论有无 AI，一律叠加月度衰减基线（防只增不减导致士气/训练长期膨胀）
+    from content.ministers.data import MINISTERS
     for u in state.army_units:
         if random.random() < 0.15:
             u.training = max(10, u.training - random.randint(1, 2))
         if random.random() < 0.10:
             u.morale = max(10, u.morale - 1)
+
+        # 2026-10-17 统帅能力实效（名将提振士气，贪官压低士气）
+        cmd_name = getattr(u, "commander", "")
+        if cmd_name and cmd_name in MINISTERS:
+            c_info = MINISTERS[cmd_name]
+            c_abil = float(c_info.get("ability", 0.5) or 0.5)
+            c_corr = float(c_info.get("corruption", 0.3) or 0.3)
+            cmd_delta = int(round((c_abil - 0.5) * 3 - (c_corr - 0.2) * 2))
+            if cmd_delta != 0:
+                u.morale = max(10, min(100, u.morale + cmd_delta))
+
+        # 2026-10-17 欠饷久滞惩罚（ arrears 严重激化士气暴跌与士兵逃亡）
+        u_arr = getattr(u, "arrears", 0)
+        if u_arr >= 100000:
+            u.morale = max(10, u.morale - 2)
+        if u_arr >= 250000 and u.troops > 1000:
+            desert_count = min(u.troops // 100, 300)
+            u.add_troops(-desert_count)
+            pdata = (getattr(state, "prefectures", {}) or {}).get(u.station)
+            if isinstance(pdata, dict):
+                pdata["unrest"] = min(100.0, float(pdata.get("unrest", 20.0)) + 1.2)
+            log.append(f"[军伍] {u.name} 欠饷久滞（欠 {u_arr:,} 贯），{desert_count} 卒鼓噪逃亡")
     if isinstance(_mil, dict) and not _mil.get("_error"):
         for u in state.army_units:
             u.training = max(10, min(100, u.training + _P1_TRAIN_DELTA.get(_mil.get("training", "微"), 2)))

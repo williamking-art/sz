@@ -201,6 +201,21 @@ def effect_channels(state, *, org_hint: Optional[str] = None, text: str = "",
             }
             comp = TianDaoFacade.circuit_decree_compliance(compliance_ctx)
             clerks_compliance = comp if comp.get("defined") else None
+
+            # 2026-10-17 祖宗家法知通互掣：凡兵民钱谷文书非通判连署不得施行
+            try:
+                from core.domains.administration.prefect_officials import get_prefect_officials
+                po_dict = get_prefect_officials(state)
+                route_seats = [v for v in po_dict.values() if v.get("circuit") == route] if isinstance(po_dict, dict) else []
+                if route_seats:
+                    signed_count = sum(1 for s in route_seats if s.get("countersigned", True))
+                    signed_ratio = signed_count / len(route_seats)
+                    cs_factor = 0.35 + 0.65 * signed_ratio
+                    if clerks_compliance and "mult" in clerks_compliance:
+                        clerks_compliance["mult"] = round(float(clerks_compliance["mult"]) * cs_factor, 4)
+                        clerks_compliance["countersign_ratio"] = round(signed_ratio, 2)
+            except Exception as _e_cs:
+                log.debug("decree_effect 知通连署率提取跳过：%s", _e_cs)
         except Exception as e:  # noqa: BLE001
             log.debug("decree_effect 计算天道路级遵从度失败（本通道未计入）：%s", e)
             clerks_compliance = None
