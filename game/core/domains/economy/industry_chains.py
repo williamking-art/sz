@@ -144,7 +144,8 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
 
     chain_ledger = stats.setdefault("industry_chains_ledger", {})
 
-    # 1. 汇总 21 路当月原料内生产量
+    # 1. 汇总 21 路当月原料内生产量，并物理确权写入各路治所四仓（物流上游底座）
+    from core.domains.economy.logistics_coupler import ingest_upstream_production
     nat_raw = {
         "grain": 0.0, "silk_raw": 0.0, "hemp_raw": 0.0, "tea_raw": 0.0,
         "iron_ore": 0.0, "copper_ore": 0.0, "coal": 0.0, "salt_raw": 0.0,
@@ -154,6 +155,8 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
         prod = derive_raw_production(state, c)
         for k, v in prod.items():
             nat_raw[k] = nat_raw.get(k, 0.0) + v
+        # 物理确权入各路四仓
+        ingest_upstream_production(state, c, prod)
 
     # 2. 加工转化（四大产业链 + 铜矿冶炼）
     # 纺织链转化：3 斤生丝产 1 匹绫罗绢帛；2 斤原麻产 1 匹布

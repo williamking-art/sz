@@ -1,0 +1,31 @@
+{
+  "id": "M314-upstream-industry-and-logistics-coupling",
+  "title": "产业上游原料物理确权与水陆物流运力调拨深度耦合",
+  "status": "done",
+  "registeredBy": "Antigravity",
+  "registeredAt": "2026-10-17",
+  "completedAt": "2026-10-17T06:42:00Z",
+  "authority": "JEV-DEC-产业上游物理确权与水陆物流运力耦合架构裁定-2026-10-17（方案A概率0.9938）与用户指示",
+  "goal": "将21路矿产与农林上游产出物理确权注入各路治所四仓（官营入public_depot，民营入civilian_depots）；建立跨路产业原料物流调拨调度器logistics_coupler.py；下游工坊、营造与朝廷太仓缺料时，经transport交通路网与waterway航道发起真实在途调拨；受漕运淤塞canal_block、水路档位与新造漕船barges运力池物理制约；计入沈括民夫在途途耗；双轨账目呈现纲运到京奏折。",
+  "recon": {
+    "上游确权点": "21路矿产（铜/煤/铁/盐/石/木）与农林物料实入治所物理四仓，拒绝瞬移与空中虚拟池",
+    "物流网络路由": "沿transport与waterway航道寻径，水路优先（耗时半月、损耗0.5%）、陆运为辅（耗时一月、损耗2.0%）",
+    "运力与飞轮": "漕船barges作为水路运力池，疏浚运河提升通航率，形成营造与物流正向飞轮",
+    "守恒与防悬挂": "dispatch扣减始发仓，在途批次按日清算途耗，抵达后确权注入目标仓，质量严格守恒"
+  },
+  "scope": [
+    "新建game/core/domains/economy/logistics_coupler.py实现产业原料物流调拨与运力约束调度器",
+    "打通上游原料产出直接入仓seats[治所].warehouses",
+    "对接spatial_warehouse_bridge.py的在途批次与沈括民夫途耗",
+    "在settlement_pipeline.py中接线物流调拨调度相位",
+    "编写专属单元测试验证上游确权、跨州物流调拨与运力瓶颈",
+    "更新README索引并通过全量回归测试"
+  ],
+  "explicitly_not": [
+    "不得允许物料无在途瞬移",
+    "不得破坏现有空间四仓物权前缀规则",
+    "不得在朝廷读数缺失时填0"
+  ],
+  "claimedBy": "Antigravity",
+  "claimedAt": "2026-10-17T06:40:00Z"
+}

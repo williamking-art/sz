@@ -1,0 +1,21 @@
+{
+  "id": "JEV-DEC-产业上游物理确权与水陆物流运力耦合架构裁定-2026-10-17",
+  "question": "如何系统性重构产业上游原料流动并与《宋祚》空间物流体系深度耦合？",
+  "options": {
+    "A": "产业上游物理确权+水陆交通网运力与在途途耗深度耦合（各路上游矿产与农林原料物理落入治所四仓；下游工坊、工程与朝廷太仓缺料时，经transport交通路网与waterway航道发起跨州物流调拨；严格受漕运淤塞canal_block、漕船barges与民夫力役制约；计入沈括民夫在途途耗；双轨账目呈现纲运到京奏折）",
+    "B": "简单点对点跨路直接加减数字，不走交通网与批次"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9938,
+    "B": 0.0062
+  },
+  "premises_verified_by_me": [
+    "经核实，game/core/transport.py 与 spatial_warehouse_bridge.py 已经具备完整的经纬度距离、邻接路网判定与沈括民夫途耗在途批次模型",
+    "上游各路产出的焦煤、铁矿、生铜、原丝如果只在全局汇总，下游工坊将无法体现千里转运的真实物流成本与断供风险",
+    "将营造漕运链新造的漕船（barges）作为水路运力池，可彻底盘活『建造漕船-疏浚运河-提升运力-降低途耗』的正向反馈飞轮",
+    "严格坚守物权归属、空间四仓契约与货币实物守恒律（ΔM_ALL == 0）"
+  ],
+  "applied_in": "game/core/domains/economy/logistics_coupler.py, spatial_warehouse_bridge.py 与 settlement_pipeline.py",
+  "reopen_if": "用户要求不模拟具体物流路径与途耗"
+}
