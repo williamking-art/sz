@@ -2199,3 +2199,35 @@ def apply_minister_departure(state: GameState, name: str, reason: str) -> list:
     # ⑤ 日志
     log.insert(0, f"[离任] {name} {reason}")
     return log
+
+
+# ============================================================
+# M314 产业物流调拨（2026-10-18 全审生产入口）
+# ============================================================
+def dispatch_logistics(state, origin: str, target: str, dim: str,
+                       amount, owner: str = "state:treasury") -> str:
+    """玩家/AI 调拨产业原料：`dispatch_industry_logistics` 的唯一命令入口。
+
+    - origin/target 为路名；实际收发治所由物流耦合层取首府治所；
+    - 货从始发地官仓（state:/local: 货主）或民仓（其它货主）真扣；
+    - 走到货才入账的**在途批次**，并清算沈括途耗/镖局风险；
+    - 参数非法或货源不足 ⇒ ValueError（由 `/api/action` 映射为 4xx）。
+    """
+    from core.domains.economy.logistics_coupler import dispatch_industry_logistics
+    try:
+        amt = float(amount)
+    except (TypeError, ValueError):
+        raise ValueError("调拨量须为数字")
+    if amt <= 0:
+        raise ValueError("调拨量须大于 0")
+    if not str(origin).strip() or not str(target).strip():
+        raise ValueError("始发路与目标路均不能为空")
+    if str(origin).strip() == str(target).strip():
+        raise ValueError("同路无需调拨（请用市集内成交）")
+    res = dispatch_industry_logistics(
+        state, str(origin).strip(), str(target).strip(), str(dim).strip(),
+        amt, owner=str(owner or "state:treasury"))
+    if not res.get("ok"):
+        raise ValueError(f"调拨失败：{res.get('reason') or '未知原因'}")
+    return (f"已调拨 {amt:,.0f} 单位「{dim}」：{origin} → {target}"
+            f"（{res.get('transit_mode', 'overland')}，批次 {res.get('batch_id')}）")

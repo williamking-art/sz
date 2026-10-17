@@ -42,7 +42,7 @@
 
 | 项 | 最近实测快照 | 复跑命令 |
 |---|---|---|
-| pytest 全量 | **tests 3476 / failures 0 / errors 0 / skipped 2**（2026-10-18 · 全审整改批次 5 · junit `_scratch/audit-20261017/junit-batch5.xml`，945.8s） | `cd (git rev-parse --show-toplevel); $ws = Split-Path (Get-Location) -Parent; $env:PYTHONPATH=""; & "$ws\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
+| pytest 全量 | **tests 3479 / failures 0 / errors 0 / skipped 2**（2026-10-18 · 全审整改批次 6 · junit `_scratch/audit-20261017/junit-batch6.xml`，1236.4s） | `cd (git rev-parse --show-toplevel); $ws = Split-Path (Get-Location) -Parent; $env:PYTHONPATH=""; & "$ws\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
 | 前端 | tsc 双配置 0 错；vitest **17 files / 98 passed**（2026-10-17） | 见 `docs/开发服务器与回归测试说明.md` |
 
 ⚠️ 本表是**带日期与提交的快照**，不是永久真值；**任何一批改动后应重跑并更新本行**，引用前先核对日期。

@@ -69,18 +69,23 @@ def test_costume_follows_service_status():
     assert prof2["韩忠彦"]["portrait"] == prof["韩忠彦"]["portrait"]
 
 
-def test_get_portrait_path_accepts_explicit_tier():
-    """显式 `tier` 对**可合成官员**生效；历史名臣专属原画优先（2026-10-16 架构）。"""
-    # 可合成官员：不同 tier 必须命中不同合成图（文件名是 DNA hash，不保证含 tier 字样）
+def test_get_portrait_path_is_stable_under_tier():
+    """v4 整幅肖像阶段（2026-10-18 用户裁定）：**同一官员的任何 tier 都映射到同一张图**。
+
+    口径变更记录：旧实现按 tier 合成不同官服图（本用例原名
+    `test_get_portrait_path_accepts_explicit_tier`，断言"不同 tier 命中不同合成图"）；
+    v4 起立绘为整幅肖像、按姓名稳定分配，tier 只作为将来"同脸跨级版"的键；
+    索引未登记 tiers 时**不得**因 tier 改变选图（否则同一官员会因升贬换脸）。
+    """
     a = get_portrait_path("张知县", tier="shi")
     b = get_portrait_path("张知县", tier="zi")
     assert a and b
-    assert a != b, "不同 tier 应命中不同合成图"
-    # 历史名臣：专属原画优先，tier 不得触发二次半透明合成
+    assert a == b, "同一官员不同 tier 必须同一张（同脸）"
+    # 已登记官员：同样稳定
     ha = get_portrait_path("韩忠彦", tier="shi")
     hb = get_portrait_path("韩忠彦", tier="zi")
     assert ha and hb
-    assert ha == hb, "历史名臣专属原画不得因 tier 二次合成"
+    assert ha == hb, "已登记官员的立绘不得因 tier 改变"
 
 
 def test_portrait_route_rejects_bad_names():

@@ -630,7 +630,9 @@ export type ActionName =
   // 2026-10-17 全审 A-3：后端分派表已有、前端类型此前漏登记的 3 个动作
   | "accept_memorial"
   | "dismiss_memorial"
-  | "bestow_imperial_favor";
+  | "bestow_imperial_favor"
+  // 2026-10-18 全审 M314：产业物流调拨
+  | "dispatch_logistics";
 
 /**
  * 非幂等端点前缀（安全审查 C4）：这些端点的 5xx/超时重试会造成重复副作用

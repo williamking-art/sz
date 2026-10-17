@@ -1329,6 +1329,15 @@ def api_portrait(fname: str, request: Request):
         raise HTTPException(status_code=400, detail="立绘文件名不合法")
     if not name.lower().endswith((".png", ".webp")):
         raise HTTPException(status_code=400, detail="立绘格式不支持")
+    # v4 整幅肖像（主路径）：资产在 game/assets/portraits/v4/，不经合成缓存
+    try:
+        from content.ministers.portrait_v4 import asset_dir as _v4_dir
+        _v4_path = _os.path.join(_v4_dir(), name)
+        if _os.path.isfile(_v4_path):
+            _media = "image/webp" if name.lower().endswith(".webp") else "image/png"
+            return FileResponse(_v4_path, media_type=_media)
+    except Exception:  # noqa: BLE001
+        pass
     try:
         from content.ministers.data import COMPOSE_DIR
     except Exception:  # noqa: BLE001

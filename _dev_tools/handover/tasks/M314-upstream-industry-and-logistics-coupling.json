@@ -27,5 +27,6 @@
     "不得在朝廷读数缺失时填0"
   ],
   "claimedBy": "Antigravity",
-  "claimedAt": "2026-10-17T06:40:00Z"
+  "claimedAt": "2026-10-17T06:40:00Z",
+  "audit_status": "2026-10-18 全审：dispatch_industry_logistics 已接玩家/AI 命令入口（commands.dispatch_logistics / 后端 dispatch_logistics action），真实扣仓、在途批次、途耗守恒有回归；settlement_pipeline 自动调拨相位仍未接（需「何时向谁调拨」的策略裁定）。"
 }

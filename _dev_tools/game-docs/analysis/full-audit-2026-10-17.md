@@ -423,4 +423,30 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 1. **M314 物流调拨**：`logistics_coupler.dispatch_industry_logistics` 仍零生产调用；需要「何时/向谁调拨」的调度策略（会改平衡），建议单独裁定后接管线调拨相位。
 2. **paperdoll**：按用户裁定**冻结**，不再改动。
 3. `.git` 806.8MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
-4. PM 多级产业链全面驱动（八大链按 PM 计算投入产出）仍属后续；本轮只接作坊产出相对倍率。
+4. PM 多级产业链全面驱动（八大链按 PM 计算投入产出）仍属后续；本轮只接作坊产出相对倍率。---
+
+## 15. 第六批整改（M314 物流调拨生产入口）
+
+### 15.1 已修
+
+| 项 | 落地 | 验证 |
+|---|---|---|
+| M314 调拨命令入口 | `commands.dispatch_logistics(state, origin, target, dim, amount, owner)` 成为 `dispatch_industry_logistics` 的唯一命令入口；后端分派表新增 `dispatch_logistics` action；前端 `ActionName` 补类型 | 3 条用例：真实扣仓 300 铁、建在途批次、`survey_logistics_coupling` 可见；同路/数量非正/未知物料/未知路/无库存均 `ValueError` |
+| M314 任务卡 | `audit_status` 如实写：命令入口已接、`settlement_pipeline` 自动调拨相位仍未接（需「何时向谁调拨」策略裁定） | 任务卡 JSON |
+
+> 说明：本轮不改变默认结算行为（不自动调拨）；调拨由玩家/AI 经 `/api/action` 显式发起，走真实官仓扣减 → 在途批次 → 途耗清算。
+
+### 15.2 最终基线（第六批后）
+
+| 项 | 结果 |
+|---|---|
+| pytest | **3479 tests / 0 failed / 0 errors / 2 skipped**（junit `_scratch/audit-20261017/junit-batch6.xml`，1236.4s） |
+| tsc | web 0 / node 0 |
+| vitest | 17 files / 98 passed |
+
+### 15.3 仍未闭环
+
+1. **M314 自动调拨相位**：需要调度策略（阈值/优先级/预算），建议单独裁定后接入 `settlement_pipeline`。
+2. **paperdoll**：按用户裁定**冻结**，不再改动。
+3. `.git` 806.8MB + 39MB 垃圾 pack：需 owner 放行后 `git gc --prune=now`。
+4. PM 多级产业链全面驱动（八大链按 PM 算投入产出）仍属后续。

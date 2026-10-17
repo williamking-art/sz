@@ -581,11 +581,23 @@ def get_portrait_path(name: str, kind: str = None, rank: str = None,
     """返回大臣立绘绝对路径；彻底铲除旧式半透明双帽渐变伪合成。
 
     查找优先级：
-      0. 43 位历史名臣专属高清原画 portraits/{name}.png（保真大师级工笔，绝不二次半透明污染破坏）
-      1. 模块化布娃娃装配引擎 ModularPortraitAssembler（为地方知通与新科进士输出完整干净立绘）
+      -1. **v4 整幅肖像**（`assets/portraits/v4` + `portrait_index_v4.json`）：
+          已登记官员取专属图；未登记官员（科举新人等）按姓名哈希稳定落池 ⇒ **同名必同图**。
+          这一层是 2026-10-18 用户裁定后的主路径（整幅像，不再分件拼装）。
+      0. 43 位历史名臣专属高清原画 portraits/{name}.png（旧路径，v4 缺失时回退）
+      1. 模块化布娃娃装配引擎 ModularPortraitAssembler（旧路径）
       2. 大臣档案显式 portrait 路径
       3. 分类默认图 portraits/{kind}.png
     """
+    # -1. v4 整幅肖像（主路径；失败静默回退旧逻辑，缺失 ≠ 0）
+    try:
+        from content.ministers.portrait_v4 import portrait_path as _v4_path
+        _v4 = _v4_path(name, tier=tier)
+        if _v4:
+            return _v4
+    except Exception:  # noqa: BLE001
+        pass
+
     # 0. 历史名臣优先使用其专属原画，绝不调用半透明渐变伪合成
     fig = MINISTERS.get(name, {})
     if fig.get("portrait"):

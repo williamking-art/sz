@@ -254,6 +254,12 @@ class LocalBackend(BackendClient):
                 lambda s, p, ai: (cmd.bestow_imperial_favor(
                     s, str(p.get("minister_name", "")), str(p.get("favor_kind", ""))
                 ).get("msg", ""), s),
+            # 2026-10-18 全审 M314：产业物流调拨生产入口
+            "dispatch_logistics":
+                lambda s, p, ai: (cmd.dispatch_logistics(
+                    s, str(p.get("origin", "")), str(p.get("target", "")),
+                    str(p.get("dim", "")), p.get("amount", 0),
+                    str(p.get("owner", "state:treasury"))), s),
         }
         handler = handlers.get(action)
         if handler is None:
