@@ -1,25 +1,33 @@
 # -*- coding: utf-8 -*-
-"""四大实体多级产业链与田亩内生原料产出（单一权威源）。
+"""八大实体多级产业链网络与田亩/地脉内生原料产出（单一权威源）。
 
-## 规格与背景（M299 / Stage 2）
+## 规格与背景（M316 / 八大支柱实体产业链）
 
-为解决《宋祚》原料生产不够完善、静态写死数字、产业链粗糙脱节的根本痛点，
-本模块建立四大实体多级产业链，使原料从 21 路耕地地力与矿脉中内生产出，
-并经由工坊逐步加工为终端物资：
+为彻底解决《宋祚》产业链过少、工坊谱系单薄、无法承载现代玩家向机械化与近代工业革命演进的根本痛点，
+本模块建立八大实体多级产业链网络，使原料从 21 路田亩地力、地脉矿藏与牧场内生产出，
+并经由工坊逐步加工为高附加值终端物资，物理确权写入治所物理四仓：
 
-1. **原料田亩地力内生化**：
-   - 粮食：在册主粮田亩 × 路级亩产（南丰 2.5 石 vs 北歉 1.0 石）÷ 12 月；
-   - 纺织原料：桑麻经济田亩（`CASH_CROP_LAND`）× 地力产出生丝与原麻；
-   - 矿产资源：依地缘矿脉产出铁矿、煤炭、铜矿；
-   - 盐茶资源：淮浙闽粤盐场产盐、江南东南茶山产茶；
-   - 林石资源：山林采伐木材与石料。
-2. **四大实体多级产业链（原料 → 中间品 → 终成品）**：
-   - **纺织丝绢链**：桑蚕/原麻 → 缫丝织造 → 绫罗绸缎/布匹（折帛赋税/百姓穿衣/军服）；
-   - **军工冶铁链**：铁矿+煤炭 → 冶炼生熟铁 → 军器监打造神臂弓/铁甲/兵刃（装备禁军）；
-   - **茶盐专卖链**：茶园+盐场 → 榷货务加工 → 茶钞/盐引流通扑买（国库现钱专卖正税）；
-   - **营造漕运链**：木材+采石 → 船坞修造漕船海船/修筑黄河堤防与城郭。
-3. **输入输出与质量守恒对账**：
-   - 原料消耗必定产出相应中间品或废料，物料进出受严格对账守卫。
+1. **原料田亩地力与地脉内生化**：
+   - 粮食：在册主粮田亩 × 路级亩产 ÷ 12 月（原粮，酿酒与常平仓储备）；
+   - 纤维：桑麻经济田亩（`CASH_CROP_LAND`）产出生丝与原麻；
+   - 经济作物：两广、福建等路蔗田产出甘蔗原料（`sugar_cane`）；
+   - 地脉矿产：铁矿、焦煤、生铜、海井池盐、山林木料与采石；
+   - 伴生与化工原料：瓷土石料（`clay`）、矿脉伴生硫硝（`sulfur_niter`）；
+   - 畜牧产出：牲畜生革（`hides_raw`）与肉食商品（`meat_raw`）。
+
+2. **八大实体多级产业链网络（原料 → 中间品 → 终成品）**：
+   - 1. **纤维纺织被服链**（`CHAIN_TEXTILE`）：生丝/原麻 → 缫丝织造为绸缎/布匹 → 加工为被服军衣；
+   - 2. **黑色冶金重工链**（`CHAIN_METALLURGY`）：铁矿+焦煤 → 高炉冶炼为熟铁/铸铁 → 锻造兵刃器械与农具铁铧；
+   - 3. **水陆动力机械链**（`CHAIN_MACHINERY`）：木材+熟铁 → 水排/大纺车齿轮/机械构件 → 船坞修造漕船海舶；
+   - 4. **火药化工军器链**（`CHAIN_GUNPOWDER`）：硫硝+木材木炭 → 配制火药 → 浇铸突火枪/震天雷/火器弹药；
+   - 5. **有色金属铸造链**（`CHAIN_NONFERROUS`）：生铜矿石 → 精炼高纯熟铜 → 铸钱监官铸铜钱（平抑钱荒）；
+   - 6. **畜牧皮具传动链**（`CHAIN_LEATHER`）：牧场生革 → 硝制熟皮 → 制造军用皮甲/战马鞍鞯/机械传动带；
+   - 7. **陶瓷琉璃外贸链**（`CHAIN_CERAMICS`）：瓷土+煤炭柴薪 → 官窑/民窑烧制精品瓷器 → 市舶司外销创汇；
+   - 8. **农副食货文教链**（`CHAIN_FOOD_CULTURE`）：原粮酿酒、甘蔗制糖、原麻造纸、木石雕版印刷经籍书籍与印版。
+
+3. **物理入仓与守恒律**：
+   - 所有产出物理入治所四仓（官营 `public_depot` / `public_granary`，民间 `civilian_depots`）；
+   - 原料消耗必定产出相应中间品或成品，严守进销存对账。
 """
 from __future__ import annotations
 
@@ -34,15 +42,32 @@ __all__ = [
     "derive_raw_production",
     "settle_industry_chains",
     "CHAIN_TEXTILE",
+    "CHAIN_METALLURGY",
+    "CHAIN_MACHINERY",
+    "CHAIN_GUNPOWDER",
+    "CHAIN_NONFERROUS",
+    "CHAIN_LEATHER",
+    "CHAIN_CERAMICS",
+    "CHAIN_FOOD_CULTURE",
+    # 历史向后兼容别名
     "CHAIN_ARMAMENT",
     "CHAIN_SALT_TEA",
     "CHAIN_CONSTRUCTION",
 ]
 
-CHAIN_TEXTILE = "纺织丝绢链"
-CHAIN_ARMAMENT = "军工冶铁链"
-CHAIN_SALT_TEA = "茶盐专卖链"
-CHAIN_CONSTRUCTION = "营造漕运链"
+CHAIN_TEXTILE = "纤维纺织被服链"
+CHAIN_METALLURGY = "黑色冶金重工链"
+CHAIN_MACHINERY = "水陆动力机械链"
+CHAIN_GUNPOWDER = "火药化工军器链"
+CHAIN_NONFERROUS = "有色金属铸造链"
+CHAIN_LEATHER = "畜牧皮具传动链"
+CHAIN_CERAMICS = "陶瓷琉璃外贸链"
+CHAIN_FOOD_CULTURE = "农副食货文教链"
+
+# 历史向后兼容别名
+CHAIN_ARMAMENT = CHAIN_GUNPOWDER
+CHAIN_SALT_TEA = CHAIN_FOOD_CULTURE
+CHAIN_CONSTRUCTION = CHAIN_MACHINERY
 
 
 def _get_pref(state, circuit: str) -> Dict[str, Any]:
@@ -58,7 +83,7 @@ def _get_pref(state, circuit: str) -> Dict[str, Any]:
 def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     """根据该路田亩地力、作物比例与地脉，派生当月内生原料产出（纯函数，只读）。
 
-    产出完全由田亩与地力驱动，告别静态死值。
+    产出完全由田亩、地脉矿藏与牧场内生驱动，告别静态死值。
     """
     if circuit not in ALL_CIRCUITS_21:
         return {}
@@ -94,6 +119,10 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     tea_share = float(crop_shares.get("茶", 0.0))
     monthly_tea = (total_land * tea_share * 3.3) / 12.0
 
+    # 蔗：1 亩蔗田年产甘蔗约 5.0 斤（两广、福建等主产）
+    cane_share = float(crop_shares.get("蔗", 0.0))
+    monthly_cane = (total_land * cane_share * 5.0) / 12.0
+
     # 3. 矿产与林石内生产出：对接 mineral_deposit 真实地脉储量
     from core.domains.economy.mineral_deposit import (
         extract_circuit_minerals, DIM_COPPER, DIM_COAL, DIM_IRON, DIM_SALT, DIM_TIMBER, DIM_STONE
@@ -108,6 +137,17 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
     monthly_timber = mine_res.get(DIM_TIMBER, {}).get("physical_extracted", 0.0)
     monthly_stone = mine_res.get(DIM_STONE, {}).get("physical_extracted", 0.0)
 
+    # 瓷土石料（用于陶瓷琉璃）：约占采石总量的 20%
+    monthly_clay = monthly_stone * 0.20
+    # 矿石硫硝（用于火药化工）：约占采矿伴生石料的 10%
+    monthly_sulfur_niter = monthly_stone * 0.10
+
+    # 4. 畜牧业产出内生对接（生革与肉食）
+    from core.domains.economy.livestock_and_escort import derive_circuit_livestock
+    ls = derive_circuit_livestock(state, circuit)
+    monthly_hides = float(ls.get("hides", 0.0))
+    monthly_meat = float(ls.get("meat", 0.0))
+
     # 矿税现钱（坑冶课税二分抽一折钱）
     mine_tax_coin = sum(m.get("tax_coin", 0.0) for m in mine_res.values())
 
@@ -116,12 +156,17 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
         "silk_raw": float(round(monthly_silk, 1)),
         "hemp_raw": float(round(monthly_hemp, 1)),
         "tea_raw": float(round(monthly_tea, 1)),
+        "sugar_cane": float(round(monthly_cane, 1)),
         "iron_ore": float(round(monthly_iron_ore, 1)),
         "copper_ore": float(round(monthly_copper_ore, 1)),
         "coal": float(round(monthly_coal, 1)),
         "salt_raw": float(round(monthly_salt, 1)),
         "timber": float(round(monthly_timber, 1)),
         "stone": float(round(monthly_stone, 1)),
+        "clay": float(round(monthly_clay, 1)),
+        "sulfur_niter": float(round(monthly_sulfur_niter, 1)),
+        "hides_raw": float(round(monthly_hides, 1)),
+        "meat_raw": float(round(monthly_meat, 1)),
         "mine_tax_coin": float(round(mine_tax_coin, 1)),
     }
 
@@ -129,11 +174,15 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
 def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, Any]:
     """月度产业链推进与工坊深加工结算（受控写操作）。
 
-    推进四大产业链：
-    1. 纺织丝绢链：silk_raw/hemp_raw → 织造为 silk_cloth(匹)/cloth(匹)；
-    2. 军工冶铁链：iron_ore + coal → 炼铁并打造 weapons(领件)/armor(领件)；
-    3. 茶盐专卖链：tea_raw/salt_raw → 榷货务加工为专卖茶引与官盐入库，贡献正税现钱；
-    4. 营造漕运链：timber + stone → 船坞修造 barges(漕船) 与水利堤防修备。
+    推进八大实体产业链网络：
+    1. 纤维纺织被服链：生丝/原麻 → 织造绸布 → 加工为被服军衣；
+    2. 黑色冶金重工链：铁矿+焦煤 → 高炉冶炼生熟铁 → 锻造兵刃器械与工具；
+    3. 水陆动力机械链：木材+熟铁 → 打造水力机械构件与平底漕船/远洋海舶；
+    4. 火药化工军器链：硫硝+木炭 → 配制火药 → 铸造火器弹药；
+    5. 有色金属铸造链：生铜矿石 → 精炼熟铜 → 铸钱监官铸铜钱；
+    6. 畜牧皮具传动链：生革 → 硝制熟皮 → 制造鞍具皮甲与传动带；
+    7. 陶瓷琉璃外贸链：瓷土+焦煤 → 烧制官窑精品瓷器 → 出海创汇；
+    8. 农副食货文教链：原粮酿酒、甘蔗精糖、造纸印制经籍书册。
 
     返回当月全链条投入、产出与对账结果。
     """
@@ -148,8 +197,10 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     from core.domains.economy.logistics_coupler import ingest_upstream_production
     nat_raw = {
         "grain": 0.0, "silk_raw": 0.0, "hemp_raw": 0.0, "tea_raw": 0.0,
-        "iron_ore": 0.0, "copper_ore": 0.0, "coal": 0.0, "salt_raw": 0.0,
-        "timber": 0.0, "stone": 0.0, "mine_tax_coin": 0.0,
+        "sugar_cane": 0.0, "iron_ore": 0.0, "copper_ore": 0.0, "coal": 0.0,
+        "salt_raw": 0.0, "timber": 0.0, "stone": 0.0, "clay": 0.0,
+        "sulfur_niter": 0.0, "hides_raw": 0.0, "meat_raw": 0.0,
+        "mine_tax_coin": 0.0,
     }
     for c in ALL_CIRCUITS_21:
         prod = derive_raw_production(state, c)
@@ -158,35 +209,61 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
         # 物理确权入各路四仓
         ingest_upstream_production(state, c, prod)
 
-    # 2. 加工转化（四大产业链 + 铜矿冶炼）
-    # 纺织链转化：3 斤生丝产 1 匹绫罗绢帛；2 斤原麻产 1 匹布
+    # 2. 八大实体产业链多级深加工转化
+
+    # ① 纤维纺织被服链：3 斤生丝产 1 匹绸；2 斤原麻产 1 匹布；部分布绸做被服军衣
     silk_cloth_produced = float(round(nat_raw["silk_raw"] / 3.0, 1))
     hemp_cloth_produced = float(round(nat_raw["hemp_raw"] / 2.0, 1))
+    # 每 10 匹布 + 2 匹绸 缝制 1 领被服军衣（战备与冬防物资）
+    garments_produced = float(round(min(hemp_cloth_produced * 0.20 / 10.0, silk_cloth_produced * 0.10 / 2.0), 1))
 
-    # 军工冶铁链转化：2 斤铁矿 + 1 斤煤炭 产 1 斤熟铁；每 5 斤熟铁打造 1 领兵刃器械
+    # ② 黑色冶金重工链：2 斤铁矿 + 1 斤焦煤 产 1 斤熟铁；每 5 斤熟铁打造 1 领兵刃器械
     iron_melted = float(round(min(nat_raw["iron_ore"] / 2.0, nat_raw["coal"]), 1))
-    weapons_produced = float(round(iron_melted / 5.0, 1))
+    weapons_produced = float(round(iron_melted * 0.40 / 5.0, 1))
 
-    # 铜矿冶炼：1 斤铜矿产出 0.7 斤高纯精炼熟铜，直入国家铜料仓或流通
+    # ③ 水陆动力机械链：大木+熟铁制造机械构件与漕船海舶
+    # 每 10 根大木 + 5 斤熟铁 打造 1 套机械构件（水排鼓风机、水力大纺车齿轮、翻车构件）
+    machinery_parts_produced = float(round(min(nat_raw["timber"] * 0.20 / 10.0, iron_melted * 0.20 / 5.0), 1))
+    # 每 200 根大木 + 100 方料石 + 20 斤熟铁 打造 1 艘平底漕船与堤防修护
+    barges_built = float(round(min(nat_raw["timber"] * 0.40 / 200.0, nat_raw["stone"] * 0.40 / 100.0), 1))
+    if barges_built > 0:
+        c_block = int(getattr(state, "canal_block", 0) or 0)
+        relief = min(4, max(1, int(barges_built / 500.0)))
+        state.canal_block = max(0, c_block - relief)
+
+    # ④ 火药化工军器链：硫硝 + 木炭 配火药；再结合铁铜制火器弹药
+    # 每 2 斤硫硝 + 1 斤木料（木炭）配制 1 斤火药
+    gunpowder_produced = float(round(min(nat_raw["sulfur_niter"] / 2.0, nat_raw["timber"] * 0.10), 1))
+    # 每 5 斤火药 + 3 斤熟铁 + 2 斤铜 铸造 1 具火器弹药（突火枪/震天雷）
+    firearms_produced = float(round(min(gunpowder_produced / 5.0, iron_melted * 0.10 / 3.0), 1))
+
+    # ⑤ 有色金属铸造链：生铜冶炼为熟铜；熟铜+熟铁铸造铜钱
     copper_refined = float(round(nat_raw["copper_ore"] * 0.7, 1))
     if copper_refined > 0:
         res_slot = getattr(state, "resources", None)
         if isinstance(res_slot, dict):
             c_slot = res_slot.setdefault("铜", {"stock": 0, "cap": 5000000})
             c_slot["stock"] = int(round(float(c_slot.get("stock", 0) or 0) + copper_refined))
+    # 每 10 斤熟铜 + 2 斤熟铁 铸造 1 贯官铸铜钱（平抑钱荒）
+    coins_minted = float(round(min(copper_refined * 0.30 / 10.0, iron_melted * 0.10 / 2.0), 1))
 
-    # 茶盐专卖链：茶盐深加工，折纳榷货钞引现钱
-    # 每 10 斤官盐创正税 1 贯，每 5 斤榷茶创正税 1 贯
+    # ⑥ 畜牧皮具传动链：生革硝制为熟皮；熟皮做鞍具皮甲与传动带
+    tanned_leather_produced = float(round(nat_raw["hides_raw"] * 0.8, 1))
+    saddle_armor_produced = float(round(min(tanned_leather_produced * 0.5 / 5.0, iron_melted * 0.10 / 1.0), 1))
+
+    # ⑦ 陶瓷琉璃外贸链：瓷土+焦煤烧造精品瓷器，折算市舶外贸收益
+    fine_china_produced = float(round(min(nat_raw["clay"] / 10.0, nat_raw["coal"] * 0.20 / 5.0), 1))
+    export_trade_tax_coin = float(round(fine_china_produced * 15.0, 1))
+
+    # ⑧ 农副食货文教链：茶盐专卖正税 + 蔗糖 + 纸张与经籍印书
     tea_tax_coin = float(round(nat_raw["tea_raw"] / 5.0, 1))
     salt_tax_coin = float(round(nat_raw["salt_raw"] / 10.0, 1))
-    monopoly_tax_total = tea_tax_coin + salt_tax_coin
-
-    # 营造漕运链：每 200 根大木 + 100 方料石 打造 1 艘汴河平底漕船与堤防修护
-    barges_built = float(round(min(nat_raw["timber"] / 200.0, nat_raw["stone"] / 100.0), 1))
-    if barges_built > 0:
-        c_block = int(getattr(state, "canal_block", 0) or 0)
-        relief = min(4, max(1, int(barges_built / 500.0)))
-        state.canal_block = max(0, c_block - relief)
+    monopoly_tax_total = tea_tax_coin + salt_tax_coin + export_trade_tax_coin
+    # 蔗糖：每 3 斤甘蔗出 1 斤糖
+    sugar_produced = float(round(nat_raw["sugar_cane"] / 3.0, 1))
+    # 造纸与书籍：原麻造纸，每 10 张纸 + 1 根木料 印造 1 部经籍书籍
+    paper_produced = float(round(nat_raw["hemp_raw"] * 0.30 / 1.5, 1))
+    books_printed = float(round(min(paper_produced / 10.0, nat_raw["timber"] * 0.05), 1))
 
     # 3. 结果入账与沉淀
     chain_summary = {
@@ -195,29 +272,56 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
         "outputs": {
             "silk_cloth_pi": silk_cloth_produced,
             "cloth_pi": hemp_cloth_produced,
+            "garments_pieces": garments_produced,
             "refined_iron": iron_melted,
-            "refined_copper": copper_refined,
             "weapons_pieces": weapons_produced,
+            "machinery_parts": machinery_parts_produced,
+            "barges_built": barges_built,
+            "gunpowder_jin": gunpowder_produced,
+            "firearms_pieces": firearms_produced,
+            "refined_copper": copper_refined,
+            "coins_minted_guan": coins_minted,
+            "tanned_leather_jin": tanned_leather_produced,
+            "saddle_armor_pieces": saddle_armor_produced,
+            "fine_china_pieces": fine_china_produced,
+            "sugar_jin": sugar_produced,
+            "paper_sheets": paper_produced,
+            "books_printed": books_printed,
             "monopoly_tax_coin": monopoly_tax_total,
             "mine_tax_coin": nat_raw.get("mine_tax_coin", 0.0),
-            "barges_built": barges_built,
         },
         "chains": {
             CHAIN_TEXTILE: {
                 "inputs": {"silk_raw": nat_raw["silk_raw"], "hemp_raw": nat_raw["hemp_raw"]},
-                "outputs": {"silk_cloth": silk_cloth_produced, "cloth": hemp_cloth_produced},
+                "outputs": {"silk_cloth": silk_cloth_produced, "cloth": hemp_cloth_produced, "garments": garments_produced},
             },
-            CHAIN_ARMAMENT: {
+            CHAIN_METALLURGY: {
                 "inputs": {"iron_ore": nat_raw["iron_ore"], "coal": nat_raw["coal"]},
-                "outputs": {"weapons": weapons_produced, "refined_iron": iron_melted},
+                "outputs": {"refined_iron": iron_melted, "weapons": weapons_produced},
             },
-            CHAIN_SALT_TEA: {
-                "inputs": {"tea_raw": nat_raw["tea_raw"], "salt_raw": nat_raw["salt_raw"]},
-                "outputs": {"tax_coin": monopoly_tax_total},
+            CHAIN_MACHINERY: {
+                "inputs": {"timber": nat_raw["timber"], "stone": nat_raw["stone"], "refined_iron": iron_melted * 0.20},
+                "outputs": {"machinery_parts": machinery_parts_produced, "barges": barges_built},
             },
-            CHAIN_CONSTRUCTION: {
-                "inputs": {"timber": nat_raw["timber"], "stone": nat_raw["stone"]},
-                "outputs": {"barges": barges_built},
+            CHAIN_GUNPOWDER: {
+                "inputs": {"sulfur_niter": nat_raw["sulfur_niter"], "timber": nat_raw["timber"] * 0.10},
+                "outputs": {"gunpowder": gunpowder_produced, "firearms": firearms_produced},
+            },
+            CHAIN_NONFERROUS: {
+                "inputs": {"copper_ore": nat_raw["copper_ore"]},
+                "outputs": {"refined_copper": copper_refined, "coins_minted": coins_minted},
+            },
+            CHAIN_LEATHER: {
+                "inputs": {"hides_raw": nat_raw["hides_raw"]},
+                "outputs": {"tanned_leather": tanned_leather_produced, "saddle_armor": saddle_armor_produced},
+            },
+            CHAIN_CERAMICS: {
+                "inputs": {"clay": nat_raw["clay"], "coal": nat_raw["coal"] * 0.20},
+                "outputs": {"fine_china": fine_china_produced, "export_tax_coin": export_trade_tax_coin},
+            },
+            CHAIN_FOOD_CULTURE: {
+                "inputs": {"tea_raw": nat_raw["tea_raw"], "salt_raw": nat_raw["salt_raw"], "sugar_cane": nat_raw["sugar_cane"]},
+                "outputs": {"sugar": sugar_produced, "paper": paper_produced, "books": books_printed, "tax_coin": monopoly_tax_total},
             },
         }
     }
@@ -255,7 +359,10 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             state.treasury = int(round(treasury_now + actual_paid))
 
     if isinstance(log, list):
-        log.append(f"[产业链] 本月四大产业链推进：纺织得绢{int(silk_cloth_produced)}匹/布{int(hemp_cloth_produced)}匹；"
-                   f"军工得兵械{int(weapons_produced)}领；茶盐榷引纳现钱{int(monopoly_tax_total)}贯；船坞新造漕船{int(barges_built)}艘。")
+        log.append(f"[产业链] 本月八大实体产业链（全面深化升级四大产业链）网络推进：纺织得绢{int(silk_cloth_produced)}匹/被服{int(garments_produced)}领；"
+                   f"冶金得熟铁{int(iron_melted)}斤/兵械{int(weapons_produced)}领；机械制构件{int(machinery_parts_produced)}件/漕船{int(barges_built)}艘；"
+                   f"军工制火药{int(gunpowder_produced)}斤/火器{int(firearms_produced)}具；铸钱监铸钱{int(coins_minted)}贯；"
+                   f"皮具坊得熟皮{int(tanned_leather_produced)}斤/鞍甲{int(saddle_armor_produced)}具；官窑烧瓷{int(fine_china_produced)}件；"
+                   f"食货文教得砂糖{int(sugar_produced)}斤/经书{int(books_printed)}部；专卖外贸正税纳现钱{int(monopoly_tax_total)}贯。")
 
     return chain_summary

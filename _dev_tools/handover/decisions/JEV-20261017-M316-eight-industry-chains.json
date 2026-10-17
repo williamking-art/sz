@@ -1,0 +1,16 @@
+{
+  "id": "JEV-20261017-M316-eight-industry-chains",
+  "question": "八大实体产业链扩充时采取何种架构落地策略？",
+  "options": {
+    "A": "将八大产业链的工坊配方、中间品与成品完整并入 WORKSHOP_RECIPES、FINISHED_DIMS、GOODS_DIMS 与 MATERIAL_PRICE_BASE，并在 industry_chains 中全闭环结算入仓",
+    "B": "仅在 industry_chains.py 中做虚拟推导，不扩充全局工坊配方与商品基准价字典"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9204,
+    "B": 0.0796
+  },
+  "premises_verified_by_me": "经实测核验，用户明确要求八大支柱产业链一步到位成套构建并打通商品定价与仓储流转，且现代玩家需借由中间品（生熟铁、机械构件、火药、熟铜、熟皮、瓷器）作为工业革命与蒸汽时代的物理承载。若仅在局部模块做虚拟推导，将造成商品无法进入治所四仓、无法在市场交易、无法支持后续科技研发，故必须完整注册全局单点并闭环结算。",
+  "applied_in": "M316 任务卡与八大产业链全局闭环落地",
+  "reopen_if": "若引入新配方导致既有非相关用例因键集合断言出现不可调和的冲突时重议"
+}

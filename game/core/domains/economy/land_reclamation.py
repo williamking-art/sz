@@ -77,7 +77,9 @@ def init_circuit_wasteland(state) -> None:
         return
 
     for r in ALL_CIRCUITS_21:
-        p = prefs.setdefault(r, {})
+        if r not in prefs:
+            continue
+        p = prefs[r]
         if "wasteland" not in p or p["wasteland"] is None:
             base_w = CIRCUIT_WASTELAND_BASE.get(r, 6000000.0)
             p["wasteland"] = float(base_w)

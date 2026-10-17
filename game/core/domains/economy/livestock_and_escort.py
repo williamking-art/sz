@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     "RAW_COMMODITY_PRICES",
+    "derive_circuit_livestock",
     "advance_livestock_production",
     "calculate_route_bandit_risk",
     "hire_escort_guard",
@@ -63,6 +64,27 @@ RAW_COMMODITY_PRICES: Dict[str, int] = {
     "挽马": 15000,     # 匹（大车牵引）
     "战马": 25000,     # 匹（骑兵军需）
 }
+
+
+def derive_circuit_livestock(state: Any, circuit: str) -> Dict[str, float]:
+    """月度畜牧业产出只读派生（纯函数，无写操作）。"""
+    if state is None:
+        return {"meat": 0.0, "hides": 0.0}
+    prefs = getattr(state, "prefectures", {}) or {}
+    p = prefs.get(circuit, {})
+    if not isinstance(p, dict):
+        return {"meat": 0.0, "hides": 0.0}
+    pops = p.get("pops", {})
+    if not isinstance(pops, dict):
+        return {"meat": 0.0, "hides": 0.0}
+    nong = pops.get("农")
+    nong_size = int(nong.get("size", 0) or 0) if isinstance(nong, dict) else 0
+    if nong_size <= 0:
+        return {"meat": 0.0, "hides": 0.0}
+    base_pop_unit = nong_size / 50000.0
+    meat_yield = round(base_pop_unit * 1200.0, 1)
+    leather_yield = round(base_pop_unit * 350.0, 1)
+    return {"meat": meat_yield, "hides": leather_yield}
 
 
 def advance_livestock_production(
