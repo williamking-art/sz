@@ -15,10 +15,11 @@
    - 彻底终结下游每种终端产品都需要特定专用中间件的孤儿物料困境；
    - 所有终端装备（兵器、火器、战船、鞍甲、经书、被服、未来蒸汽机）全部链式消费中性中间物。
 3. **维多利亚3风格生产方式（Production Methods, PM）架构**：
-   - 产业建筑是实体容器，拥有三大 PM 槽位：
+   - 产业建筑是实体容器，拥有四大 PM 槽位：
      - **主工艺槽（Base PM）**：决定物料配方与投入产出比；
      - **动力方式槽（Power PM）**：决定动力源（人力手摇 / 水力机械 / 蒸汽动力机组），提供全局产能跃升乘数；
      - **所有权模式槽（Ownership PM）**：决定经营与收益归属（官营直辖 / 民办商贾 / 官督民办特许扑买）；
+     - **组织形态槽（Organization PM）**：决定工匠与劳工分工（行会作坊 1.0x / 工场手工业 1.8x / 机械化动力大工厂 4.0x）；
    - 支持随玩家科技演进、地理水利条件（如临近大河水运）与产业政策动态切换 PM。
 """
 from __future__ import annotations
@@ -55,7 +56,7 @@ class ProductionMethod:
     """单个生产方式（Production Method）规范。"""
     id: str                                    # 唯一标识符
     name: str                                  # 中文名
-    category: str                              # "base" (基础工艺) | "power" (动力方式) | "ownership" (所有权)
+    category: str                              # "base" (基础工艺) | "power" (动力方式) | "ownership" (所有权) | "organization" (生产组织形态)
     building_types: List[str]                  # 适用的建筑类型
     inputs: Dict[str, float] = field(default_factory=dict)       # 单位输入消耗
     outputs: Dict[str, float] = field(default_factory=dict)      # 单位产出
@@ -221,11 +222,44 @@ PM_REGISTRY: Dict[str, ProductionMethod] = {
         name="活字雕版印造",
         category="base",
         building_types=["印造经籍局", "工坊"],
-        inputs={"纸张": 10.0, "木方": 2.0},
-        outputs={"印造书籍": 4.0},
+        inputs={"纸张": 8.0, "油墨": 2.0},
+        outputs={"印造书籍": 3.0},
         worker_demand={"工匠": 15},
         throughput_mult=1.0,
-        description="经纸张浸润、木方雕版或铜活字压印成册，印行经史与交子。",
+        description="经纸张浸润、松烟油墨覆刷、活字雕版压印成册，印行经史子集与交子盐引。",
+    ),
+    "pm_ink_making": ProductionMethod(
+        id="pm_ink_making",
+        name="松烟桐油炼墨",
+        category="base",
+        building_types=["墨坊", "造纸印书局", "工坊"],
+        inputs={"木炭": 4.0},
+        outputs={"油墨": 6.0},
+        worker_demand={"工匠": 10},
+        throughput_mult=1.0,
+        description="烧松取烟、桐油点烟，配入麝香皮胶，研制徽墨与印刷重油墨。",
+    ),
+    "pm_four_treasures": ProductionMethod(
+        id="pm_four_treasures",
+        name="文房雅玩手作",
+        category="base",
+        building_types=["文房作坊", "工坊"],
+        inputs={"纸张": 4.0, "油墨": 2.0, "石": 2.0},
+        outputs={"文房四宝": 1.0},
+        worker_demand={"工匠": 20},
+        throughput_mult=1.0,
+        description="湖笔、徽墨、宣纸、端歙名砚，士绅科举与文人唱和雅致刚需消费。",
+    ),
+    "pm_living_oil_paste": ProductionMethod(
+        id="pm_living_oil_paste",
+        name="粮油酱醋工坊",
+        category="base",
+        building_types=["粮油酱园", "工坊"],
+        inputs={"麻": 4.0, "铁": 1.0},
+        outputs={"食用油": 3.0, "酱醋": 3.0},
+        worker_demand={"工匠": 12},
+        throughput_mult=1.0,
+        description="柴米油盐酱醋茶民生七事工坊，压榨麻油菜籽油，发酵酱油陈醋。",
     ),
 
     # ---------------- 7. 所有权与经营模式槽位 ----------------
@@ -262,22 +296,60 @@ PM_REGISTRY: Dict[str, ProductionMethod] = {
         throughput_mult=1.2,
         description="官府核发特许牌照，商人竞标承包，官府坐收巨额榷税。",
     ),
+
+    # ---------------- 8. 生产组织形态槽位（作坊 vs 工场 vs 工业化大生产） ----------------
+    "pm_org_craft_guild": ProductionMethod(
+        id="pm_org_craft_guild",
+        name="行会手工作坊",
+        category="organization",
+        building_types=["冶铁工场", "纺织工场", "木作机械坊", "官窑瓷坊", "火药局", "火器制造坊", "造船作坊", "印造经籍局", "工坊"],
+        inputs={},
+        outputs={},
+        worker_demand={"工匠": 100},
+        maintenance={},
+        throughput_mult=1.0,
+        description="传统行会师徒制，精工细作，完全依赖高熟练度工匠，受个体体力技艺制约，无流水规模效益。",
+    ),
+    "pm_org_manufactory": ProductionMethod(
+        id="pm_org_manufactory",
+        name="工场手工业分工",
+        category="organization",
+        building_types=["冶铁工场", "纺织工场", "木作机械坊", "官窑瓷坊", "火药局", "火器制造坊", "造船作坊", "印造经籍局", "工坊"],
+        inputs={},
+        outputs={},
+        worker_demand={"工匠": 8, "工人": 25},
+        maintenance={"铁锭": 0.05},
+        throughput_mult=1.8,
+        description="手工业工场分工协作，工匠充任监工与技师，大量雇佣散工流水装配，产能达到传统作坊1.8倍。",
+    ),
+    "pm_org_industrial_factory": ProductionMethod(
+        id="pm_org_industrial_factory",
+        name="机械化动力大工厂",
+        category="organization",
+        building_types=["冶铁工场", "纺织工场", "木作机械坊", "官窑瓷坊", "火药局", "火器制造坊", "造船作坊", "印造经籍局", "工坊"],
+        inputs={},
+        outputs={},
+        worker_demand={"工匠": 5, "工人": 60},
+        maintenance={"机械零件": 1.0},
+        throughput_mult=4.0,
+        description="近代动力流水线大工厂，母机日夜轰鸣，彻底实现标准化工业化大生产，产能暴增4倍，吸纳海量城市劳工。",
+    ),
 }
 
 #: 默认初始建筑生产方式配置
 BUILDING_DEFAULT_PMS: Dict[str, Dict[str, str]] = {
-    "冶铁工场": {"base": "pm_smelting_coke", "power": "pm_power_manual", "ownership": "pm_ownership_state"},
-    "官窑瓷坊": {"base": "pm_ceramics_coal", "power": "pm_power_manual", "ownership": "pm_ownership_state"},
-    "火药局": {"base": "pm_gunpowder_standard", "power": "pm_power_manual", "ownership": "pm_ownership_state"},
-    "木作机械坊": {"base": "pm_tools_machinery", "power": "pm_power_manual", "ownership": "pm_ownership_private"},
-    "火器制造坊": {"base": "pm_firearms_assembly", "power": "pm_power_manual", "ownership": "pm_ownership_state"},
-    "造船作坊": {"base": "pm_shipbuilding_barges", "power": "pm_power_manual", "ownership": "pm_ownership_state"},
-    "印造经籍局": {"base": "pm_printing_press", "power": "pm_power_manual", "ownership": "pm_ownership_private"},
+    "冶铁工场": {"base": "pm_smelting_coke", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "官窑瓷坊": {"base": "pm_ceramics_coal", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "火药局": {"base": "pm_gunpowder_standard", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "木作机械坊": {"base": "pm_tools_machinery", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "火器制造坊": {"base": "pm_firearms_assembly", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "造船作坊": {"base": "pm_shipbuilding_barges", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "印造经籍局": {"base": "pm_printing_press", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
 }
 
 
 def get_building_pms(state: Any, circuit: str, seat_id: str, building_name: str) -> Dict[str, str]:
-    """读取某治所某建筑当前生效的三大生产方式槽位（幂等回退）。"""
+    """读取某治所某建筑当前生效的四大生产方式槽位（幂等回退）。"""
     stats = getattr(state, "statistics", None)
     if isinstance(stats, dict):
         pm_store = stats.setdefault("seat_production_methods", {})
@@ -290,6 +362,7 @@ def get_building_pms(state: Any, circuit: str, seat_id: str, building_name: str)
         "base": "pm_smelting_charcoal",
         "power": "pm_power_manual",
         "ownership": "pm_ownership_private",
+        "organization": "pm_org_craft_guild",
     }))
 
 
@@ -323,6 +396,13 @@ def can_switch_pm(
         if tier not in ("强", "有"):
             return False, f"{circuit} 缺乏大江水运条件，无法架设水排机组"
 
+    # 4. 工业化大工厂动力前置检查（必须依托水力或蒸汽动力，严禁人力手摇流水线工厂）
+    if target_pm_id == "pm_org_industrial_factory":
+        cur_pms = get_building_pms(state, circuit, seat_id, building_name)
+        cur_power = cur_pms.get("power", "pm_power_manual")
+        if cur_power not in ("pm_power_water", "pm_power_steam"):
+            return False, "机械化大工厂必须依赖水力或蒸汽动力机组，无法在纯手工驱动下运转"
+
     return True, "满足切换前置条件"
 
 
@@ -348,7 +428,7 @@ def switch_pm(
     pm_store = stats.setdefault("seat_production_methods", {})
     key = f"{circuit}:{seat_id}:{building_name}"
     cur_pms = pm_store.setdefault(key, dict(BUILDING_DEFAULT_PMS.get(building_name, {
-        "base": "pm_smelting_charcoal", "power": "pm_power_manual", "ownership": "pm_ownership_private"
+        "base": "pm_smelting_charcoal", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"
     })))
 
     # 更新对应槽位
@@ -364,22 +444,30 @@ def calculate_building_throughput(
     building_name: str,
     scale: float = 1.0,
 ) -> Dict[str, Any]:
-    """计算某建筑在当前激活的生产方式组合下的综合物料吞吐、用工与产出。"""
+    """计算某建筑在当前激活的四大生产方式组合下的综合物料吞吐、用工与产出。"""
     active_pms = get_building_pms(state, circuit, seat_id, building_name)
     base_pm = PM_REGISTRY.get(active_pms.get("base", ""))
     power_pm = PM_REGISTRY.get(active_pms.get("power", ""))
     ownership_pm = PM_REGISTRY.get(active_pms.get("ownership", ""))
+    org_pm = PM_REGISTRY.get(active_pms.get("organization", ""))
 
     if not base_pm:
         return {"inputs": {}, "outputs": {}, "net_value": 0.0}
 
-    # 综合产能倍数 = 基础工艺倍数 × 动力倍数 × 所有权加成
-    total_mult = (base_pm.throughput_mult) * (power_pm.throughput_mult if power_pm else 1.0) * (ownership_pm.throughput_mult if ownership_pm else 1.0) * scale
+    # 综合产能倍数 = 基础工艺倍数 × 动力倍数 × 所有权加成 × 组织形态乘数
+    total_mult = (
+        (base_pm.throughput_mult)
+        * (power_pm.throughput_mult if power_pm else 1.0)
+        * (ownership_pm.throughput_mult if ownership_pm else 1.0)
+        * (org_pm.throughput_mult if org_pm else 1.0)
+        * scale
+    )
 
     inputs: Dict[str, float] = {}
     for k, v in base_pm.inputs.items():
         inputs[k] = round(v * total_mult, 2)
-    # 叠加动力额外消耗（如蒸汽机耗焦煤）
+
+    # 叠加动力额外消耗（如蒸汽机耗焦煤）与维持损耗
     if power_pm and power_pm.inputs:
         for k, v in power_pm.inputs.items():
             inputs[k] = round(inputs.get(k, 0.0) + v * total_mult, 2)
@@ -387,9 +475,23 @@ def calculate_building_throughput(
         for k, v in power_pm.maintenance.items():
             inputs[k] = round(inputs.get(k, 0.0) + v * total_mult, 2)
 
+    # 叠加组织形态维保消耗（如工场磨损、大工厂母机磨损）
+    if org_pm and org_pm.maintenance:
+        for k, v in org_pm.maintenance.items():
+            inputs[k] = round(inputs.get(k, 0.0) + v * total_mult, 2)
+
     outputs: Dict[str, float] = {}
     for k, v in base_pm.outputs.items():
         outputs[k] = round(v * total_mult, 2)
+
+    # 用工结构核算（工匠 vs 劳工）
+    worker_demand: Dict[str, int] = {}
+    if org_pm and org_pm.worker_demand:
+        for role, count in org_pm.worker_demand.items():
+            worker_demand[role] = int(round(count * scale))
+    elif base_pm.worker_demand:
+        for role, count in base_pm.worker_demand.items():
+            worker_demand[role] = int(round(count * scale))
 
     # 计算物料加工净增值
     input_cost = sum(inputs.get(k, 0.0) * MATERIAL_PRICE_BASE.get(k, 50) for k in inputs)
@@ -404,6 +506,9 @@ def calculate_building_throughput(
         "total_mult": round(total_mult, 2),
         "inputs": inputs,
         "outputs": outputs,
+        "worker_demand": worker_demand,
         "net_value": net_value,
         "ownership": ownership_pm.name if ownership_pm else "民办商营",
+        "organization": org_pm.name if org_pm else "行会手工作坊",
     }
+

@@ -264,14 +264,28 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
     fine_china_produced = float(round(min(nat_raw["clay"] / 10.0, nat_raw["coal"] * 0.20 / 4.0), 1))
     export_trade_tax_coin = float(round(fine_china_produced * 15.0, 1))
 
-    # ⑩ 农副食货文教与造纸印书：原麻造纸（中性纸张）；纸张 + 木方雕版活字印造经籍书籍
+    # ⑩ 农副食货文教与民生七事：
+    # 柴米油盐酱醋茶（民生刚需）+ 笔墨纸砚诗酒茶（文教消费）
     tea_tax_coin = float(round(nat_raw["tea_raw"] / 5.0, 1))
     salt_tax_coin = float(round(nat_raw["salt_raw"] / 10.0, 1))
     monopoly_tax_total = tea_tax_coin + salt_tax_coin + export_trade_tax_coin
     sugar_produced = float(round(nat_raw["sugar_cane"] / 3.0, 1))
     paper_produced = float(round(nat_raw["hemp_raw"] * 0.30 / 1.5, 1))
     paper_neutral = paper_produced
-    books_printed = float(round(min(paper_neutral * 0.60 / 8.0, timber_beams_neutral * 0.05 / 2.0), 1))
+
+    # 松烟炼墨（油墨原料）
+    ink_produced = float(round(nat_raw["timber"] * 0.05 * 2.0, 1))
+
+    # 🔴 书籍规范配方：纯耗 纸张 + 油墨（雕版与铜活字为耐用固定资产，非每册消耗品）
+    books_printed = float(round(min(paper_neutral * 0.60 / 8.0, (ink_produced * 0.50 / 2.0) if ink_produced > 0 else paper_neutral * 0.60 / 8.0), 1))
+
+    # 笔墨纸砚（文房四宝）：纸张 + 油墨 + 石料（名砚）
+    four_treasures_produced = float(round(min(paper_neutral * 0.20 / 4.0, (ink_produced * 0.20 / 2.0) if ink_produced > 0 else 1.0, nat_raw["stone"] * 0.05 / 2.0), 1))
+
+    # 柴米油盐酱醋茶（民生七事产出）
+    firewood_produced = float(round(nat_raw["timber"] * 0.20 + nat_raw["coal"] * 0.10, 1))      # 薪炭
+    cooking_oil_produced = float(round(nat_raw["hemp_raw"] * 0.10 / 2.0, 1))                     # 食用油（麻油/菜籽油）
+    paste_vinegar_produced = float(round(nat_raw["grain"] * 0.02 / 1.5, 1))                     # 酱醋调味品
 
     # 3. 结果入账与沉淀
     chain_summary = {
@@ -300,7 +314,12 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             "sugar_jin": sugar_produced,
             "paper_sheets": paper_produced,
             "paper": paper_neutral,
+            "ink_jin": ink_produced,
             "books_printed": books_printed,
+            "four_treasures_pieces": four_treasures_produced,
+            "firewood_dan": firewood_produced,
+            "cooking_oil_jin": cooking_oil_produced,
+            "paste_vinegar_jin": paste_vinegar_produced,
             "monopoly_tax_coin": monopoly_tax_total,
             "mine_tax_coin": nat_raw.get("mine_tax_coin", 0.0),
         },
@@ -331,13 +350,22 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
             },
             CHAIN_CERAMICS: {
                 "inputs": {"clay": nat_raw["clay"], "coal": nat_raw["coal"] * 0.20},
-                "outputs": {"fine_china": fine_china_produced, "export_tax_coin": export_trade_tax_coin},
+                "outputs": {"fine_china": fine_china_produced, "export_trade_tax_coin": export_trade_tax_coin},
             },
             CHAIN_FOOD_CULTURE: {
-                "inputs": {"tea_raw": nat_raw["tea_raw"], "salt_raw": nat_raw["salt_raw"], "sugar_cane": nat_raw["sugar_cane"]},
-                "outputs": {"sugar": sugar_produced, "paper": paper_produced, "books": books_printed, "tax_coin": monopoly_tax_total},
+                "inputs": {"sugar_cane": nat_raw["sugar_cane"], "hemp_raw": nat_raw["hemp_raw"] * 0.30, "tea_raw": nat_raw["tea_raw"], "grain": nat_raw["grain"] * 0.02},
+                "outputs": {
+                    "sugar": sugar_produced,
+                    "paper": paper_neutral,
+                    "ink": ink_produced,
+                    "books": books_printed,
+                    "four_treasures": four_treasures_produced,
+                    "firewood": firewood_produced,
+                    "cooking_oil": cooking_oil_produced,
+                    "paste_vinegar": paste_vinegar_produced,
+                },
             },
-        }
+        },
     }
 
     chain_ledger[str(getattr(state, "turn", 0))] = chain_summary
