@@ -398,8 +398,8 @@ def test_ledger_split_stub_is_same_objects():
     from core import material_holding as OLD
     from core.foundation.ledger import material_holding as NEW
     impl_names = sorted(n for n in dir(NEW) if not n.startswith('__'))
-    # 49（丙批一冻结面）+ 2（第十包新增显式接口）
-    assert len(impl_names) == 51, f"ledger dir() 符号数变化（拆分桩需同步）：{len(impl_names)}"
+    # 49（丙批一冻结面）+ 2（第十包新增显式接口）+ 1（P5 库存单点写入口 stock_adjust）
+    assert len(impl_names) == 52, f"ledger dir() 符号数变化（拆分桩需同步）：{len(impl_names)}"
     # 桩**分两个家**（账本项在 ledger，丙批二 3 个交易项在 domains/economy），
     # 所以不能拿单一 NEW 模块去比全部桩名——每个名字按桩自己的转发语句找家。
     import ast as _ast

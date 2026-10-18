@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-外贸货腿默认关-2026-10-18",
+ "createdAt": "2026-10-19T00:30:00+08:00",
+ "agent": "DSH",
+ "question": "P5 外贸货腿合入后默认开关：默认关 / 默认开 / 默认开但只海路",
+ "options": [
+  "A 默认关闭（FOREIGN_TRADE_LEGS=0）",
+  "B 默认开启",
+  "C 默认开但只海路"
+ ],
+ "verdict": "A 默认关闭",
+ "probabilities": {
+  "A": 0.9702,
+  "B": 0.0173,
+  "C": 0.0125
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定（用户授权：决策用 Jev）",
+ "premises_verified_by_me": [
+  "P5 一旦生效会改物价/商人 wealth/税收/粮价，影响面大",
+  "当前无 ≥60 月长局对账数据，无法证明量级安全",
+  "开关为零行为变更：settle_foreign_trade 直接返回 enabled=False（已实测 settlement 日志无该行）",
+  "缩量/关税按实际额/运力排队均已在门里钉住"
+ ],
+ "applied_in": "content/data_constants.FOREIGN_TRADE_LEGS=0 + core/domains/economy/trade_legs.py + settlement_econ 钩子",
+ "reopen_if": "影子/长局对账通过后再切成 1；或需要演示效果时临时开"
+}

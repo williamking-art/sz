@@ -629,6 +629,27 @@ def _settle_extensions(state, log):
             state.silver_stock = int(getattr(state, "silver_stock", 0) or 0) + int(_sv_annual / 12.0)
         except Exception:  # noqa: BLE001 — 对账辅助字段，失败不影响结算
             pass
+
+        # ---- P5 外贸货腿（2026-10-18；Jev：默认关 0.970）----
+        # 开关 FOREIGN_TRADE_LEGS=0 时 settle_foreign_trade 直接返回 enabled=False，
+        # **零行为变更**；开=1 才走真实扣货/加货/缩量/关税/占运力。
+        try:
+            from core.domains.economy.trade_legs import settle_foreign_trade
+            _legs_report = settle_foreign_trade(state, month=getattr(state, "turn", None))
+            if _legs_report.get("enabled"):
+                _msg = ("外贸货腿：%d/%d 条；出口 %s 贯、进口 %s 贯、关税 %s 贯、排队 %s 石" % (
+                    int(_legs_report.get("executed") or 0), int(_legs_report.get("legs") or 0),
+                    format(int(_legs_report.get("export_value") or 0), ","),
+                    format(int(_legs_report.get("import_value") or 0), ","),
+                    format(int(_legs_report.get("tax") or 0), ","),
+                    format(int(_legs_report.get("queued_stone") or 0), ",")))
+                try:
+                    log.append(_msg)
+                except Exception:  # noqa: BLE001 — 日志容器不可写不影响结算
+                    pass
+        except Exception as _legs_exc:  # noqa: BLE001 — 货腿失败必须留痕，不得静默
+            import logging as _lg
+            _lg.getLogger(__name__).warning("外贸货腿结算失败：%r", _legs_exc, exc_info=True)
     # 银行调制（扩/损——仅 established；capital ±20%、准备金 ±50万）
     # 第二节§3 修复：原 `reserve += 50万` 无对手方 = 凭空造币（污染货币对账残差）；
     # 现改为守恒口径——扩 → 国库划入准备金（不足不划）；损 → 准备金核销并记 burn。

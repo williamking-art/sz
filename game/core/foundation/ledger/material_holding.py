@@ -87,6 +87,7 @@ __all__ = [
     "supply_goods_to_seats",
     "to_material_dim",
     "tribute_circuits",
+    "stock_adjust",
 ]
 
 
@@ -1031,3 +1032,28 @@ def holding_report(state) -> Dict[str, Any]:
         if gap != 0:
             ok = False
     return {"ok": ok, "dims": rows}
+
+def stock_adjust(state, dim: str, delta: float) -> Optional[float]:
+    """**旧池库存单点写入口**（未下沉时的回落路径，2026-10-18 P5）。
+
+    为什么放在这里：库存写点有棘轮门（test_quality_gate_resource_stock），
+    新模块不得直接写 resources[dim]['stock']；统一走本模块是**口径单点**。
+    截断到非负、按 cap 封顶；返回写后值（无法写 ⇒ None）。
+    """
+    resources = getattr(state, "resources", None)
+    if not isinstance(resources, dict):
+        return None
+    meta = resources.get(dim)
+    if not isinstance(meta, dict):
+        meta = {"stock": 0}
+        resources[dim] = meta
+    cur = meta.get("stock")
+    cur = float(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else 0.0
+    new = cur + float(delta)
+    if new < 0:
+        new = 0.0
+    cap = meta.get("cap")
+    if isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap > 0:
+        new = min(new, float(cap))
+    meta["stock"] = new
+    return new
