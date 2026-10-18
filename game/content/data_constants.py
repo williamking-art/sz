@@ -1747,3 +1747,7 @@ SEASON_RULES = {
                  "speed_mult": {12: 0.5, 1: 0.5, 2: 0.5}, "risk_mult": {6: 1.2, 7: 1.2, 8: 1.2}},
     "post": {"closed_months": (), "capacity_mult": {}, "speed_mult": {}, "risk_mult": {}},
 }
+
+
+#: 客运占运力折算（设定值：1 人 ≈ 0.5 石体积/重量当量）
+PASSENGER_STONE_PER_HEAD = 0.5

@@ -1153,7 +1153,7 @@ def _now(state) -> Optional[int]:
 
 
 def dispatch(state, *, frm: str, to: str, dim: str, qty: int,
-             trade_id: Optional[str] = None) -> Dict[str, Any]:
+             trade_id: Optional[str] = None, mode: str = "overland") -> Dict[str, Any]:
     """发货：**立刻从卖方扣货**，建一条**在途批次**，`arrive_month` 月才入账。
 
     🔴 **钱货两清或两不做**：扣不到货就**不建批次**，不产生"凭空在途"。
@@ -1174,6 +1174,18 @@ def dispatch(state, *, frm: str, to: str, dim: str, qty: int,
     if now is None:
         # 🔴 时点未定义 ⇒ **拒绝建批次**（不猜、不回落 0）
         return {"ok": False, "reason": "time_undefined", "from": frm, "to": to}
+    # P3 季节通航：停航 ⇒ 拒建批次并给下一窗口（不瞬移）；减载/降速按倍率（缺省 1.0）
+    _month = (int(now) % 12) or 12
+    _season = route_season(mode, _month)
+    if _season.get("open") is False:
+        return {"ok": False, "reason": "season_closed", "mode": mode,
+                "month": _month, "deferred_to": _season.get("deferred_to")}
+    _cap_mult = float(_season.get("capacity_mult") or 1.0)
+    if 0 < _cap_mult < 1:
+        want = max(1, int(want * _cap_mult)) if want > 0 else 0
+    _speed_mult = float(_season.get("speed_mult") or 1.0)
+    if 0 < _speed_mult < 1:
+        days = max(1, int(round(days / _speed_mult)))
     circuit = a["circuit"]
     shipped = consume_for_circuit(state, circuit, dim, want)
     if shipped <= 0:
@@ -1187,6 +1199,9 @@ def dispatch(state, *, frm: str, to: str, dim: str, qty: int,
         "from_circuit": a["circuit"], "to_circuit": dst0.get("circuit"),
         "arrive_month": now + int(days),
         "days": int(days),
+        "mode": mode,
+        "season_risk_mult": float(_season.get("risk_mult") or 1.0),
+        "season_capacity_mult": float(_season.get("capacity_mult") or 1.0),
     }
     book = _book(state)
     book.append(batch)

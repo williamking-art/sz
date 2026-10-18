@@ -369,13 +369,32 @@ def dispatch_passenger_trip(
                         (15 if transit_mode == "waterway" else (45 if transit_mode == "maritime" else 30)))
     except Exception:  # noqa: BLE001
         base_days = 15 if transit_mode == "waterway" else (45 if transit_mode == "maritime" else 30)
+    # ---- P4 客运占运力（2026-10-18）：客货共用同一池；不足则减载（不拒办、不瞬移）
+    carried, left_behind = int(count), 0
+    try:
+        from content.data_constants import PASSENGER_STONE_PER_HEAD
+        from core.transport import transport_consume as _tconsume
+        from core.transport import transport_remaining
+        _per = float(PASSENGER_STONE_PER_HEAD or 0.5)
+        _rem = transport_remaining(state, transit_mode)
+        if float(count) * _per > _rem:
+            carried = int(_rem / _per) if _per > 0 else 0
+            left_behind = int(count) - carried
+        _tconsume(state, transit_mode, float(carried) * _per, kind="passenger")
+    except Exception as _pse:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger(__name__).warning("客运占运力失败：%r", _pse, exc_info=True)
+    if carried <= 0:
+        return {"ok": False, "reason": "no_capacity", "left_behind": int(count)}
     trip_id = f"trip_{origin_seat}_{target_seat}_{passenger_type}_{len(trips)+1}"
     trip = {
         "trip_id": trip_id,
         "origin_seat": origin_seat,
         "target_seat": target_seat,
         "passenger_type": passenger_type,
-        "count": max(1, int(count)),
+        "count": max(1, int(carried)),
+        "requested_count": max(1, int(count)),
+        "left_behind": left_behind,
         "transit_mode": transit_mode,
         "remaining_days": base_days,
         "status": "in_transit"
