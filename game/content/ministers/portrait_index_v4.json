@@ -1,0 +1,959 @@
+{
+ "schema": "songzuo.portrait.index/1",
+ "note": "v4 立绘索引：name -> 文件（750x1000 webp）；由 DSH 2026-10-18 生成",
+ "dir": "assets/portraits/v4",
+ "officials": {
+  "丰稷": {
+   "file": "丰稷.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "何执中": {
+   "file": "何执中.webp",
+   "tier": null,
+   "military": false
+  },
+  "余深": {
+   "file": "余深.webp",
+   "tier": null,
+   "military": false
+  },
+  "侯蒙": {
+   "file": "侯蒙.webp",
+   "tier": null,
+   "military": false
+  },
+  "刘仲武": {
+   "file": "刘仲武.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "刘延庆": {
+   "file": "刘延庆.webp",
+   "tier": "fei",
+   "military": true
+  },
+  "刘法": {
+   "file": "刘法.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "吕好问": {
+   "file": "吕好问.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "吕希绩": {
+   "file": "吕希绩.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "吕惠卿": {
+   "file": "吕惠卿.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "吴充": {
+   "file": "吴充.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "吴居厚": {
+   "file": "吴居厚.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "唐恪": {
+   "file": "唐恪.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "姚古": {
+   "file": "姚古.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "孔道辅": {
+   "file": "孔道辅.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "孙觉": {
+   "file": "孙觉.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "宇文昌龄": {
+   "file": "宇文昌龄.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "宗泽": {
+   "file": "宗泽.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "尹焞": {
+   "file": "尹焞.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "岳飞": {
+   "file": "岳飞.webp",
+   "tier": null,
+   "military": true
+  },
+  "张叔夜": {
+   "file": "张叔夜.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "张商英": {
+   "file": "张商英.webp",
+   "tier": null,
+   "military": false
+  },
+  "张守": {
+   "file": "张守.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "张浚": {
+   "file": "张浚.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "张询": {
+   "file": "张询.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "徐禧": {
+   "file": "徐禧.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "折可适": {
+   "file": "折可适.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "折彦质": {
+   "file": "折彦质.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "曾布": {
+   "file": "曾布.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "朱勔": {
+   "file": "朱勔.webp",
+   "tier": null,
+   "military": false
+  },
+  "李及": {
+   "file": "李及.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "李夔": {
+   "file": "李夔.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "李常": {
+   "file": "李常.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "李清臣": {
+   "file": "李清臣.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "李纲": {
+   "file": "李纲.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "李若水": {
+   "file": "李若水.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "杜充": {
+   "file": "杜充.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "杨戬": {
+   "file": "杨戬.webp",
+   "tier": null,
+   "military": false
+  },
+  "林摅": {
+   "file": "林摅.webp",
+   "tier": null,
+   "military": false
+  },
+  "梁师成": {
+   "file": "梁师成.webp",
+   "tier": null,
+   "military": false
+  },
+  "欧阳澈": {
+   "file": "欧阳澈.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "江公望": {
+   "file": "江公望.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "汪伯彦": {
+   "file": "汪伯彦.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "沈括": {
+   "file": "沈括.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "温益": {
+   "file": "温益.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "王及": {
+   "file": "王及.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "王古": {
+   "file": "王古.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "王宗望": {
+   "file": "王宗望.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "王恩": {
+   "file": "王恩.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "王黼": {
+   "file": "王黼.webp",
+   "tier": null,
+   "military": false
+  },
+  "种师道": {
+   "file": "种师道.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "程颐": {
+   "file": "程颐.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "章惇": {
+   "file": "章惇.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "章楶": {
+   "file": "章楶.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "童贯": {
+   "file": "童贯.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "聂昌": {
+   "file": "聂昌.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "胡宿": {
+   "file": "胡宿.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "胡铨": {
+   "file": "胡铨.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "苏轼": {
+   "file": "苏轼.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "苏辙": {
+   "file": "苏辙.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "苗履": {
+   "file": "苗履.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "范宗尹": {
+   "file": "范宗尹.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "范百禄": {
+   "file": "范百禄.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "范镇": {
+   "file": "范镇.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "蒋之奇": {
+   "file": "蒋之奇.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "蔡京": {
+   "file": "蔡京.webp",
+   "tier": null,
+   "military": false
+  },
+  "蔡卞": {
+   "file": "蔡卞.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "蔡攸": {
+   "file": "蔡攸.webp",
+   "tier": null,
+   "military": false
+  },
+  "蔡确": {
+   "file": "蔡确.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "谢克家": {
+   "file": "谢克家.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "贾易": {
+   "file": "贾易.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "赵挺之": {
+   "file": "赵挺之.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "赵桓": {
+   "file": "赵桓.webp",
+   "tier": null,
+   "military": false
+  },
+  "赵楷": {
+   "file": "赵楷.webp",
+   "tier": null,
+   "military": false
+  },
+  "赵瞻": {
+   "file": "赵瞻.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "赵鼎": {
+   "file": "赵鼎.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "邓洵武": {
+   "file": "邓洵武.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "郑居中": {
+   "file": "郑居中.webp",
+   "tier": null,
+   "military": false
+  },
+  "钱顗": {
+   "file": "钱顗.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陆佃": {
+   "file": "陆佃.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陆师闵": {
+   "file": "陆师闵.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陈东": {
+   "file": "陈东.webp",
+   "tier": "fei",
+   "military": false
+  },
+  "陈尧佐": {
+   "file": "陈尧佐.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陈师锡": {
+   "file": "陈师锡.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陈次升": {
+   "file": "陈次升.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "陈瓘": {
+   "file": "陈瓘.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "韩世忠": {
+   "file": "韩世忠.webp",
+   "tier": "qing",
+   "military": true
+  },
+  "韩忠彦": {
+   "file": "韩忠彦.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "高俅": {
+   "file": "高俅.webp",
+   "tier": "zi",
+   "military": true
+  },
+  "黄庭坚": {
+   "file": "黄庭坚.webp",
+   "tier": "zi",
+   "military": false
+  },
+  "黄潜善": {
+   "file": "黄潜善.webp",
+   "tier": "fei",
+   "military": false
+  }
+ },
+ "pool": {
+  "pool_c001": {
+   "file": "pool_c001.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c002": {
+   "file": "pool_c002.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c003": {
+   "file": "pool_c003.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c004": {
+   "file": "pool_c004.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c005": {
+   "file": "pool_c005.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c006": {
+   "file": "pool_c006.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c007": {
+   "file": "pool_c007.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c008": {
+   "file": "pool_c008.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c009": {
+   "file": "pool_c009.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c010": {
+   "file": "pool_c010.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c011": {
+   "file": "pool_c011.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c012": {
+   "file": "pool_c012.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c014": {
+   "file": "pool_c014.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c015": {
+   "file": "pool_c015.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c016": {
+   "file": "pool_c016.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c017": {
+   "file": "pool_c017.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c018": {
+   "file": "pool_c018.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c019": {
+   "file": "pool_c019.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c020": {
+   "file": "pool_c020.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c021": {
+   "file": "pool_c021.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c022": {
+   "file": "pool_c022.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c023": {
+   "file": "pool_c023.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c024": {
+   "file": "pool_c024.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c025": {
+   "file": "pool_c025.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c026": {
+   "file": "pool_c026.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c027": {
+   "file": "pool_c027.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c028": {
+   "file": "pool_c028.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c029": {
+   "file": "pool_c029.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c030": {
+   "file": "pool_c030.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c031": {
+   "file": "pool_c031.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c032": {
+   "file": "pool_c032.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c033": {
+   "file": "pool_c033.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c034": {
+   "file": "pool_c034.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c035": {
+   "file": "pool_c035.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c036": {
+   "file": "pool_c036.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c037": {
+   "file": "pool_c037.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c038": {
+   "file": "pool_c038.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c039": {
+   "file": "pool_c039.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c040": {
+   "file": "pool_c040.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c041": {
+   "file": "pool_c041.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c042": {
+   "file": "pool_c042.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c043": {
+   "file": "pool_c043.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c044": {
+   "file": "pool_c044.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c045": {
+   "file": "pool_c045.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c046": {
+   "file": "pool_c046.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c047": {
+   "file": "pool_c047.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c048": {
+   "file": "pool_c048.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c049": {
+   "file": "pool_c049.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c050": {
+   "file": "pool_c050.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c051": {
+   "file": "pool_c051.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c052": {
+   "file": "pool_c052.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c053": {
+   "file": "pool_c053.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c054": {
+   "file": "pool_c054.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c055": {
+   "file": "pool_c055.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c056": {
+   "file": "pool_c056.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c057": {
+   "file": "pool_c057.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c058": {
+   "file": "pool_c058.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c059": {
+   "file": "pool_c059.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c060": {
+   "file": "pool_c060.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c061": {
+   "file": "pool_c061.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c062": {
+   "file": "pool_c062.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c063": {
+   "file": "pool_c063.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c064": {
+   "file": "pool_c064.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c065": {
+   "file": "pool_c065.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c066": {
+   "file": "pool_c066.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c067": {
+   "file": "pool_c067.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c068": {
+   "file": "pool_c068.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c069": {
+   "file": "pool_c069.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c070": {
+   "file": "pool_c070.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c071": {
+   "file": "pool_c071.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c072": {
+   "file": "pool_c072.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c073": {
+   "file": "pool_c073.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c074": {
+   "file": "pool_c074.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c075": {
+   "file": "pool_c075.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c076": {
+   "file": "pool_c076.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c077": {
+   "file": "pool_c077.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c078": {
+   "file": "pool_c078.webp",
+   "tier": "lv",
+   "military": false
+  },
+  "pool_c079": {
+   "file": "pool_c079.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_c080": {
+   "file": "pool_c080.webp",
+   "tier": "qing",
+   "military": false
+  },
+  "pool_m001": {
+   "file": "pool_m001.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m002": {
+   "file": "pool_m002.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m003": {
+   "file": "pool_m003.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m004": {
+   "file": "pool_m004.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m005": {
+   "file": "pool_m005.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m006": {
+   "file": "pool_m006.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m007": {
+   "file": "pool_m007.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m008": {
+   "file": "pool_m008.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m009": {
+   "file": "pool_m009.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m010": {
+   "file": "pool_m010.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m011": {
+   "file": "pool_m011.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m012": {
+   "file": "pool_m012.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m013": {
+   "file": "pool_m013.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m014": {
+   "file": "pool_m014.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m015": {
+   "file": "pool_m015.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m016": {
+   "file": "pool_m016.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m017": {
+   "file": "pool_m017.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m018": {
+   "file": "pool_m018.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m019": {
+   "file": "pool_m019.webp",
+   "tier": null,
+   "military": true
+  },
+  "pool_m020": {
+   "file": "pool_m020.webp",
+   "tier": null,
+   "military": true
+  }
+ }
+}

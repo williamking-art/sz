@@ -1,7 +1,8 @@
-﻿param(
+param(
     [switch]$Fast,        # 后端只跑快路径（-m "not slow"，约省 30s）
     [switch]$SkipShot,    # 跳过截图矩阵（约 30s）
-    [switch]$Bench        # 追加地图首帧基准（信息性，不计失败）
+    [switch]$Bench,       # 追加地图首帧基准（信息性，不计失败）
+    [switch]$LongRun      # 追加 240 月长局哨兵（约 10 分钟）
 )
 # =============================================================================
 # 《宋祚》一条命令全量验证（2026-09-27）
@@ -43,6 +44,18 @@ $fe = Join-Path $RepoRoot 'game\frontend'
 $game = Join-Path $RepoRoot 'game'
 $tsb = Join-Path $env:TEMP 'songzuo-verify'
 
+# ---------------------------------------------------------------- 0. 仓库完整性
+Head '0. 仓库完整性（tracked 删除 / 未跟踪测试 / 关键文件）与文档断链'
+if (-not (Test-Path $py)) { Skip "无 Python：$py" }
+else {
+    & $py (Join-Path $PSScriptRoot 'check_repo_integrity.py') 2>&1 | ForEach-Object { Write-Host "  $_" }
+    if ($LASTEXITCODE -eq 0) { Ok '仓库完整性通过（未跟踪测试仅告警；发版请加 --strict）' }
+    else { Bad '仓库完整性失败' 'python _dev_tools/check_repo_integrity.py' }
+    & $py (Join-Path $PSScriptRoot 'check_doc_links.py') 2>&1 | ForEach-Object { Write-Host "  $_" }
+    if ($LASTEXITCODE -eq 0) { Ok '文档断链检查通过' }
+    else { Bad '存在 Markdown 断链' 'python _dev_tools/check_doc_links.py' }
+}
+
 Write-Host "宋祚 · 全量验证（Fast=$Fast SkipShot=$SkipShot Bench=$Bench）" -ForegroundColor White
 Write-Host "  repo=$RepoRoot"
 
@@ -59,6 +72,29 @@ else {
     $sum = ($out | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
     if ($code -eq 0) { Ok "pytest 通过：$sum" }
     else { Bad "pytest 失败（exit $code）：$sum" 'cd game; python -m pytest -q --tb=short' }
+}
+
+# ------------------------------------------- 1b. 质量放行门 · POP 守卫（B-2a）
+# 为什么单列一层：主 pytest **默认不装守卫**（SONGZUO_POPS_GUARD 缺省关），
+# 所以"全绿"并不能证明账本状态合规。本层显式开守卫跑门用例（逐月零违规 + 注入即红）。
+Head '1b. 质量放行门 · POP 守卫（SONGZUO_POPS_GUARD=1）'
+if (-not (Test-Path $py)) { Skip "无 Python：$py" }
+else {
+    $prevGuard = $env:SONGZUO_POPS_GUARD
+    $prevMonths = $env:SONGZUO_GATE_MONTHS
+    $env:SONGZUO_POPS_GUARD = '1'
+    $env:SONGZUO_GATE_MONTHS = '15'
+    try {
+        $gout = & $py -m pytest -p no:cacheprovider -o addopts= -q --tb=line `
+            ../_dev_tools/game-dev/tests/test_quality_gate_pops_guard.py 2>&1
+        $gcode = $LASTEXITCODE
+    } finally {
+        $env:SONGZUO_POPS_GUARD = $prevGuard
+        $env:SONGZUO_GATE_MONTHS = $prevMonths
+    }
+    $gsum = ($gout | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
+    if ($gcode -eq 0) { Ok "POP 守卫门通过：$gsum" }
+    else { Bad "POP 守卫门失败（exit $gcode）：$gsum" 'cd game; $env:SONGZUO_POPS_GUARD=1; python -m pytest ../_dev_tools/game-dev/tests/test_quality_gate_pops_guard.py -q' }
 }
 
 # ---------------------------------------------------------------- 2. 前端 vitest
@@ -117,6 +153,45 @@ if ($Bench) {
         Pop-Location
         Ok '基准已输出（对照报告 §11 的区间，不作失败判据）'
     }
+}
+
+# ---------------------------------------------------------------- 6. 干净导出 import 冒烟
+Head '6. 干净导出 import 冒烟（git archive HEAD）'
+if (-not (Test-Path $py)) { Skip '无 Python' }
+else {
+    $zip = Join-Path $env:TEMP 'songzuo-head.zip'
+    $exp = Join-Path $env:TEMP 'songzuo-head-export'
+    Push-Location $RepoRoot
+    git archive --format=zip -o $zip HEAD 2>&1 | Out-Null
+    Pop-Location
+    if (Test-Path $exp) { Remove-Item -Recurse -Force $exp }
+    Expand-Archive -Path $zip -DestinationPath $exp -Force
+    $oldPyPath = $env:PYTHONPATH
+    $env:PYTHONPATH = Join-Path $exp 'game'
+    $mods = @('core.commands','core.settlement_pipeline','application.game_init',
+              'core.domains.economy.market','core.foundation.ledger.pop_bridge')
+    $bad = 0
+    foreach ($m in $mods) {
+        & $py -c "import $m" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { $bad++ }
+    }
+    $env:PYTHONPATH = $oldPyPath
+    if ($bad -eq 0) { Ok "HEAD 导出 $($mods.Count) 个关键模块 import 通过" }
+    else { Bad "$bad 个关键模块在干净导出中 import 失败" '检查是否有未入库模块/资源' }
+}
+
+# ---------------------------------------------------------------- 7. 240 月长局（可选）
+if ($LongRun) {
+    Head '7. 240 月长局哨兵（SONGZUO_LONG_RUN=240）'
+    $oldLr = $env:SONGZUO_LONG_RUN
+    $env:SONGZUO_LONG_RUN = '240'
+    Push-Location $RepoRoot
+    $out = & $py -m pytest '_dev_tools/game-dev/tests/test_m162_long_run_sentinel.py' -q -p no:cacheprovider -o addopts= --tb=line 2>&1
+    $code = $LASTEXITCODE
+    Pop-Location
+    $env:SONGZUO_LONG_RUN = $oldLr
+    $sum = ($out | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
+    if ($code -eq 0) { Ok "240 月长局通过：$sum" } else { Bad "240 月长局失败（exit $code）：$sum" }
 }
 
 # ---------------------------------------------------------------- 汇总

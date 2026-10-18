@@ -4,7 +4,9 @@
 证明四件事：
   1. **缺省关闭**：不设环境变量时 `settle_local` 不装守卫，路级 `pops` 保持 plain dict。
   2. **开关打开成对还原**：`SONGZUO_POPS_GUARD=1` 时装守卫，结算后**必须还原 plain dict**
-     （不把 `_GuardedPops` 子类残留进 state / 存档），正常局零违规。
+     （不把 `_GuardedPops` 子类残留进 state / 存档）。
+     ⚠️ "正常局零违规"**不在本文件断言**（本文件只证装配/还原配对）——零违规由
+     `test_quality_gate_pops_guard.py` 逐月断言（N2：docstring 不得替代断言）。
   3. **异常路径也成对**：结算中途抛错，`_restore_state` 用装守卫前的 plain 快照整体
      替换 `prefectures`，守卫子类随之卸除；且回滚后仍可安全重试。
   4. **非空转**：注入一处绕过桥接的路级直写，守卫确实记账（否则「零违规」是假象）。

@@ -801,6 +801,9 @@ def settle_local(state) -> list:
             reset_pops_guard()
             install_all_guards(state)
         except Exception:  # noqa: BLE001 —— 守卫接线失败绝不影响结算
+            # N1：装配失败必须留痕（否则"守卫没启用"与"守卫零违规"在日志上无法区分）
+            _lg.getLogger("settle_local").warning(
+                "路级 pops 守卫装配失败，本回合按未启用处理（结算照常）：", exc_info=True)
             _guard_on = False
     try:
         return run_monthly_settlement(state)
