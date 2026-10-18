@@ -109,7 +109,10 @@ _STEPS = [
 
 
 def _new_state():
-    return new_game()
+    _s = new_game()
+    # 2026-10-18: 交子口径用例钉住闭合经济（避免外贸注入干扰钱荒读数）
+    _s.maritime["open"] = False
+    return _s
 
 
 def _pop_total(s):

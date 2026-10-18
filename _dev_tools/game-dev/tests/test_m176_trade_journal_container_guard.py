@@ -43,6 +43,7 @@ def test_stays_empty_after_settlement_and_no_behavior_change():
     import random
     random.seed(20261013)
     a = commands.new_game()
+    a.maritime["open"] = False  # 2026-10-18: 本用例测「未接线 ⇒ 空」
     for _ in range(3):
         import core.settlement as S
         S.run_monthly_settlement(a)
@@ -50,6 +51,7 @@ def test_stays_empty_after_settlement_and_no_behavior_change():
 
     random.seed(20261013)
     b = commands.new_game()
+    b.maritime["open"] = False  # 同上，保持两局同源
     for _ in range(3):
         import core.settlement as S
         S.run_monthly_settlement(b)

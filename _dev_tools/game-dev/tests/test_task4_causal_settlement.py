@@ -36,6 +36,8 @@ def _state():
     s = GameState("史实")
     init_legacies(s)
     s.treasury = 5_000_000_000
+    # 2026-10-18: 市舶默认开放后，闭合经济用例显式钉住关闭
+    s.maritime["open"] = False
     return s
 
 

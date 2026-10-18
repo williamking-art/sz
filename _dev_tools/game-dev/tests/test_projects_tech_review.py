@@ -343,6 +343,8 @@ def test_adoption_decays_when_maintenance_unpaid():
 # ================================================================
 def test_west_requires_concrete_sources_and_is_not_universal():
     s = _new_state()
+    # 2026-10-18: 市舶默认开放后「海路通商」本身是 west 来源，本用例先测「无来源」
+    s.maritime["open"] = False
     w0 = float(s.tech.get("west", 0) or 0)
     assert accrue_west(s) == 0.0, "无来源却增长 west"
     assert float(s.tech.get("west", 0) or 0) == w0
