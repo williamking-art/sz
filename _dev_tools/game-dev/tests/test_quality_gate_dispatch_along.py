@@ -45,7 +45,9 @@ def test_land_dispatch_records_path_and_arrives_at_end():
     r = dispatch_along(s, frm_kind="treasury", to_kind="local_treasury",
                        amount=400, to_seat=JIANGNAN, mode="land")
     assert r["ok"], r
-    assert int(s.treasury) == src0 - 400, "源必须立刻扣"
+    freight = int(r["batch"]["freight"])
+    assert freight > 0, "运费应按货值计（不可为 0）"
+    assert int(s.treasury) == src0 - 400 - freight, "源必须扣本金+运费"
     batch = r["batch"]
     assert batch["mode"] == "land" and batch["path"][0] == CAPITAL and batch["path"][-1] == JIANGNAN
     assert batch["legs"], "多段批次必须带分段时刻表"
@@ -84,6 +86,27 @@ def test_over_capacity_reports_batches_needed():
     assert r["capacity"] == 500 and r["batches_needed"] == 1000, r
 
 
+def test_sea_route_after_opening_policy():
+    """海运：未开海 ⇒ sea_not_open；开海后可从内陆沿海口岸直达孤岛（琼州）。"""
+    s = _state()
+    # 海运需要**港口起点**：用杭州（两浙，沿海）的地方府库发运
+    src_seat = "两浙路|杭州"
+    s.prefectures["两浙路"]["seats"][src_seat]["local_treasury"] = 5000
+    s.prefectures["广南西路"]["seats"]["广南西路|琼州"]["local_treasury"] = 0
+    closed = dispatch_along(s, frm_kind="local_treasury", to_kind="local_treasury",
+                            amount=100, frm_seat=src_seat,
+                            to_seat="广南西路|琼州", mode="sea")
+    assert not closed["ok"] and closed["reason"] == "sea_not_open", closed
+    s.transport_policy = {"open_sea": True}
+    opened = dispatch_along(s, frm_kind="local_treasury", to_kind="local_treasury",
+                            amount=100, frm_seat=src_seat,
+                            to_seat="广南西路|琼州", mode="sea")
+    assert opened["ok"], opened
+    assert opened["days"] >= 1
+    assert opened["batch"]["path"] == [src_seat, "广南西路|琼州"]
+    assert int(opened["batch"]["capacity"] if "capacity" in opened["batch"] else opened["capacity"]) > 0
+
+
 def test_insufficient_funds_and_escort_fee():
     s = _state()
     # 先造「余额不足」：把国库压到 600（>500 单批运力、< 需要的 2000）
@@ -98,6 +121,6 @@ def test_insufficient_funds_and_escort_fee():
     ok = dispatch_along(s, frm_kind="treasury", to_kind="local_treasury",
                         amount=100, to_seat=JIANGNAN, mode="land", escort_fee=10)
     assert ok["ok"], ok
-    assert int(s.treasury) == src0 - 110, "押运费必须一并从源扣除"
+    assert int(s.treasury) == src0 - 100 - int(ok["batch"]["freight"]) - 10, "本金+运费+押运费一并扣"
     assert int(ok["batch"]["escort_fee"]) == 10
-    assert money_in_transit(s)[0]["qty"] == 100, "押运费不得计入在途本金"
+    assert money_in_transit(s)[0]["qty"] == 100, "运费/押运费不得计入在途本金"

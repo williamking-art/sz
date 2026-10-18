@@ -1247,10 +1247,11 @@ CHANGPING_INIT_MONTHLY_SHARE = 0.2 / 12  # = grain/12*0.2，单点权威
 #: ⚠️ 全部为**设定值，非史料**：宋代驿路/河运/海运的具体运力与运费无可靠逐程记载。
 #: 结构固定、数值可替换；后续得史料只改本表，不改算法。
 TRANSPORT_MODES: dict = {
-    "land":  {"name": "陆运", "speed": 1.0, "capacity": 500,  "cost_per_km": 1.0, "loss": 0.0},
-    "water": {"name": "水运", "speed": 0.9, "capacity": 2000, "cost_per_km": 0.4, "loss": 0.0},
-    "post":  {"name": "驿传", "speed": 1.6, "capacity": 50,   "cost_per_km": 3.0, "loss": 0.0},
-    "sea":   {"name": "海运", "speed": 1.2, "capacity": 5000, "cost_per_km": 0.3, "loss": 0.0},
+    # fee_rate = 每 1000km 的运费占货值比例（标定后：陆 2%、水 0.5%、海 0.3%、驿 5%）
+    "land":  {"name": "陆运", "speed": 1.0, "capacity": 500,  "fee_rate": 0.020, "loss": 0.0},
+    "water": {"name": "水运", "speed": 0.9, "capacity": 2000, "fee_rate": 0.005, "loss": 0.0},
+    "post":  {"name": "驿传", "speed": 1.6, "capacity": 50,   "fee_rate": 0.050, "loss": 0.0},
+    "sea":   {"name": "海运", "speed": 1.2, "capacity": 5000, "fee_rate": 0.003, "loss": 0.0},
 }
 #: 水运可达的**路**（设定表；空集 ⇒ 水运不可用）。汴河/淮南/两浙/江南/荆湖/京畿。
 WATER_ROUTE_CIRCUITS = frozenset({
@@ -1267,3 +1268,6 @@ POST_CARGO_KINDS = frozenset({"docs", "coins_small", "orders"})
 CANAL_BLOCK_WATER_LIMIT = 35
 #: 漕船运力池缺省（与 logistics_coupler 一致）
 BARGES_POOL_DEFAULT = 50
+
+#: 海运绕行系数（航线非直线；设定值非史料）
+SEA_DETOUR_FACTOR = 1.2

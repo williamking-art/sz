@@ -250,6 +250,43 @@ def route_path(frm: str, to: str) -> Optional[Dict[str, Any]]:
     return dict(res)
 
 
+def transport_fee(mode: str, value: float, km: float) -> Optional[int]:
+    """运费（设定模型）：`货值 × fee_rate × (km/1000)`，向上取整；未知方式 ⇒ None。
+
+    2026-10-18 标定：原实现按「批数 × 每 km 固定价」，50 万贯陆运会算出 90 万贯运费（超本金），
+    不合理；改为**按货值比例**计费（陆 2%/千km、水 0.5%、海 0.3%、驿 5%）。
+    """
+    from content.data_constants import TRANSPORT_MODES
+
+    spec = TRANSPORT_MODES.get(str(mode or ""))
+    if not spec:
+        return None
+    rate = float(spec.get("fee_rate", 0) or 0)
+    v = max(0.0, float(value or 0))
+    d = max(0.0, float(km or 0))
+    return int(math.ceil(v * rate * (d / 1000.0)))
+
+
+def sea_route(frm: str, to: str) -> Optional[Dict[str, Any]]:
+    """海运航线（绕行系数 × 大圆距离）：不依陆路连通，只要求两端存在。
+
+    · 未知治所 ⇒ None；
+    · `km = 大圆距离 × SEA_DETOUR_FACTOR`；`days = ceil(km / (KM_PER_MONTH × 速度))`，至少 1；
+    · **是否准航**（开海政策/沿海资格）由 `transport_capability` 判定，本函数只算几何。
+    """
+    from content.data_constants import SEA_DETOUR_FACTOR, TRANSPORT_MODES
+
+    idx = _seat_index()
+    if frm not in idx or to not in idx:
+        return None
+    a, b = idx[frm], idx[to]
+    km = haversine_km(float(a["lon"]), float(a["lat"]),
+                      float(b["lon"]), float(b["lat"])) * float(SEA_DETOUR_FACTOR)
+    speed = float((TRANSPORT_MODES.get("sea") or {}).get("speed") or 1.0)
+    days = 0 if frm == to else max(1, int(math.ceil(km / (KM_PER_MONTH * speed))))
+    return {"km": round(km, 1), "days": days}
+
+
 def transport_capability(state, frm: str, to: str, mode: str = "land",
                          cargo: Optional[str] = None) -> Dict[str, Any]:
     """**能力判定（只读）**：该方式此刻能否承运该对治所、运力上限、耗时与费率。
@@ -269,11 +306,20 @@ def transport_capability(state, frm: str, to: str, mode: str = "land",
     spec = TRANSPORT_MODES.get(m)
     if not spec:
         return {"ok": False, "mode": m, "reason": "unknown_mode"}
-    rp = route_path(frm, to)
-    if rp is None:
-        return {"ok": False, "mode": m, "reason": "unknown_seat"}
-    if not rp.get("reachable"):
-        return {"ok": False, "mode": m, "reason": "unreachable"}
+    _sea_days_final = False
+    if m == "sea":
+        sr = sea_route(frm, to)
+        if sr is None:
+            return {"ok": False, "mode": m, "reason": "unknown_seat"}
+        rp = {"reachable": True, "path": [frm, to], "km": sr["km"],
+              "days": sr["days"], "hops": 1}
+        _sea_days_final = True
+    else:
+        rp = route_path(frm, to)
+        if rp is None:
+            return {"ok": False, "mode": m, "reason": "unknown_seat"}
+        if not rp.get("reachable"):
+            return {"ok": False, "mode": m, "reason": "unreachable"}
 
     idx = _seat_index()
     circuits = {str((idx.get(s) or {}).get("circuit") or "") for s in rp["path"]}
@@ -308,11 +354,14 @@ def transport_capability(state, frm: str, to: str, mode: str = "land",
 
     base_days = int(rp.get("days") or 0)
     speed = float(spec.get("speed") or 1.0)
-    days = 0 if base_days == 0 else max(1, int(math.ceil(base_days / speed)))
+    if _sea_days_final:
+        days = base_days
+    else:
+        days = 0 if base_days == 0 else max(1, int(math.ceil(base_days / speed)))
     return {"ok": True, "mode": m, "name": spec.get("name", m),
             "days": days, "hops": int(rp.get("hops") or 0),
             "km": rp.get("km"), "capacity": capacity,
-            "cost_per_km": float(spec.get("cost_per_km") or 1.0)}
+            "fee_rate": float(spec.get("fee_rate") or 0.0)}
 
 
 def available_modes(state, frm: str, to: str, cargo: Optional[str] = None) -> Dict[str, Any]:

@@ -152,7 +152,7 @@ def dispatch_along(state, *, frm_kind: str, to_kind: str, amount: int,
     · **钱只在终点入账**（`arrive_month` 到期一次入账），中途不落任何账户；
     · 分批：一批不超过该方式月运力；超出 ⇒ 返回 `over_capacity` 与可分批数（调用方决定是否分批）。
     """
-    from core.transport import _book, _now, route_path, transport_capability
+    from core.transport import _book, _now, route_path, transport_capability, transport_fee
 
     want = max(0, int(amount))
     if want <= 0:
@@ -171,24 +171,29 @@ def dispatch_along(state, *, frm_kind: str, to_kind: str, amount: int,
     if want > capacity:
         return {"ok": False, "reason": "over_capacity", "mode": mode,
                 "capacity": capacity, "batches_needed": (want + capacity - 1) // capacity}
-    rp = route_path(frm_seat, to_seat)
-    if not rp or not rp.get("reachable"):
-        return {"ok": False, "reason": "unreachable"}
+    if str(mode) == "sea":
+        path = [frm_seat, to_seat]
+    else:
+        rp = route_path(frm_seat, to_seat)
+        if not rp or not rp.get("reachable"):
+            return {"ok": False, "reason": "unreachable"}
+        path = list(rp["path"])
     now = _now(state)
     if now is None:
         return {"ok": False, "reason": "time_undefined"}
     read, write = resolve_holder(state, frm_kind, frm_seat)
     if read is None:
         return {"ok": False, "reason": "source_unavailable", "from": frm_kind}
-    fee = max(0, int(escort_fee))
+    escort = max(0, int(escort_fee))
+    freight = int(transport_fee(str(mode), want, float(cap.get("km") or 0)) or 0)
+    total_cost = want + freight + escort
     cur = read()
-    if cur < want + fee:
+    if cur < total_cost:
         return {"ok": False, "reason": "insufficient_funds", "available": int(cur),
-                "need": int(want + fee)}
-    write(int(cur) - (want + fee))
+                "need": int(total_cost), "freight": freight, "escort_fee": escort}
+    write(int(cur) - total_cost)
     days = int(cap.get("days") or 0) or 1
-    # 分段时刻表：按每段里的天数比例分配到各段（仅用于读数，不落账）
-    path = list(rp["path"])
+    # 分段时刻表：按每段均分天数（仅用于读数，不落账）
     per_leg = max(0, days // max(1, len(path) - 1))
     legs = []
     acc = 0
@@ -205,7 +210,8 @@ def dispatch_along(state, *, frm_kind: str, to_kind: str, amount: int,
         "from_seat": frm_seat, "to_seat_holder": to_seat,
         "path": path, "legs": legs,
         "arrive_month": now + days, "days": days,
-        "escort_fee": int(fee),
+        "escort_fee": int(escort),
+        "freight": int(freight),
         "km": cap.get("km"),
     }
     _book(state).append(batch)
