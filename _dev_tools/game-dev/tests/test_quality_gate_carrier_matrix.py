@@ -26,7 +26,7 @@ from content.data_constants import (  # noqa: E402
 from core.foundation.registries import TECH_EFFECT_WHITELIST  # noqa: E402
 from core.transport import (  # noqa: E402
     baseline_carrier, carrier_labor, carrier_params, carrier_ration, carriers_for,
-    transport_effects)
+    transport_effect_sources, transport_effects)
 
 MODES = ("waterway", "maritime", "overland", "post")
 
@@ -114,3 +114,45 @@ def test_caps_apply():
     s.tech_registry = {"p_absurd": {"active": True, "effect": {"transport_water_speed": 99.0}}}
     eff = transport_effects(s)
     assert eff["transport_water_speed"] == TRANSPORT_EFFECT_CAPS["transport_water_speed"]
+
+def test_multiple_sources_sum():
+    """科技与国策都是**复数**：多条同时生效时求和（不是覆盖）。"""
+    from core.commands import new_game
+
+    s = new_game()
+    s.tech_registry = {
+        "p_a": {"active": True, "effect": {"transport_water_speed": 0.08}},
+        "p_b": {"active": True, "effect": {"transport_water_speed": 0.05,
+                                          "transport_water_load": 0.10}},
+    }
+    s.active_decrees = [
+        {"title": "兴漕运", "effects": {"transport_water_speed": 0.04}},
+        {"title": "修闸堰", "effects": {"transport_water_speed": 0.03}},
+    ]
+    eff = transport_effects(s)
+    assert abs(eff["transport_water_speed"] - 0.20) < 1e-9, eff
+    assert abs(eff["transport_water_load"] - 0.10) < 1e-9, eff
+    rows = transport_effect_sources(s)
+    assert sum(1 for r in rows if r["source_type"] == "tech_player") == 3
+    assert sum(1 for r in rows if r["source_type"] == "decree") == 2
+
+
+def test_sum_is_capped_not_per_source():
+    """封顶作用于**合计**：三条各 0.2 合计 0.6 ⇒ 压到 cap。"""
+    from core.commands import new_game
+
+    s = new_game()
+    s.tech_registry = {
+        f"p_{i}": {"active": True, "effect": {"transport_water_speed": 0.2}}
+        for i in range(3)
+    }
+    assert transport_effects(s)["transport_water_speed"] == TRANSPORT_EFFECT_CAPS["transport_water_speed"]
+
+
+def test_inactive_decree_or_node_not_counted():
+    from core.commands import new_game
+
+    s = new_game()
+    s.tech_registry = {"p_off": {"active": False, "effect": {"transport_water_speed": 0.2}}}
+    s.active_decrees = [{"title": "空诏", "effects": {}}]
+    assert transport_effects(s) == {}

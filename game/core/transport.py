@@ -339,22 +339,21 @@ def _tech_value(tech: dict, src: str) -> Optional[float]:
 
 
 
-def transport_effects(state) -> dict:
-    """聚合**运输类科技效果**（开放词条驱动，不绑节点 id）。
+def transport_effect_sources(state) -> list:
+    """**多来源**运输类效果明细（科技可多个、国策可多条，逐条列出，可溯源）。
 
-    来源（两者相加）：
-    · 官方 `TECH_NODES` 中**已解锁**节点的 `effects`；
-    · `state.tech_registry` 中 **active=True** 的玩家自创节点 `effect`。
-    只取 `TRANSPORT_EFFECT_CAPS` 登记过的键；未登记键**忽略**（不报错，缺失≠0）。
+    来源三类（都是**复数**）：
+    1. `tech.unlocked` 里已解锁的官方 `TECH_NODES`（可多条）；
+    2. `state.tech_registry` 中 active 的**玩家自创科技**（可多条）；
+    3. `state.active_decrees` 中**持续国策/诏令**的 `effects`（可多条）。
+    只收 `TRANSPORT_EFFECT_CAPS` 登记的键；其它键忽略。
     """
     from content.data_constants import TRANSPORT_EFFECT_CAPS
 
     caps = TRANSPORT_EFFECT_CAPS or {}
-    acc: Dict[str, float] = {}
-    tech = getattr(state, "tech", None) or {}
-    unlocked = set(tech.get("unlocked") or [])
+    rows = []
 
-    def _add(eff):
+    def _push(source_type, source_id, eff):
         if not isinstance(eff, dict):
             return
         for k, v in eff.items():
@@ -362,8 +361,11 @@ def transport_effects(state) -> dict:
                 continue
             if isinstance(v, bool) or not isinstance(v, (int, float)):
                 continue
-            acc[k] = acc.get(k, 0.0) + float(v)
+            rows.append({"source_type": source_type, "source_id": source_id,
+                         "key": k, "value": float(v)})
 
+    tech = getattr(state, "tech", None) or {}
+    unlocked = set(tech.get("unlocked") or [])
     try:
         from content.data import TECH_NODES
 
@@ -373,14 +375,35 @@ def transport_effects(state) -> dict:
             except (IndexError, TypeError):
                 continue
             if nid in unlocked:
-                _add(eff)
+                _push("tech", nid, eff)
     except Exception:  # noqa: BLE001
         pass
     for nid, node in (getattr(state, "tech_registry", None) or {}).items():
         if isinstance(node, dict) and node.get("active"):
-            _add(node.get("effect"))
+            _push("tech_player", nid, node.get("effect"))
+    for i, dec in enumerate(getattr(state, "active_decrees", None) or []):
+        if isinstance(dec, dict):
+            _push("decree", str(dec.get("title") or f"decree#{i}"), dec.get("effects"))
+    return rows
+
+
+def transport_effects(state) -> dict:
+    """聚合运输类科技/国策效果（**多项相加**，按 cap 封顶）。
+
+    · 来源见 `transport_effect_sources`（科技多项 + 玩家科技多项 + 国策多条）；
+    · 无任何来源 ⇒ `{}`（缺失≠0，不做默认加成）；
+    · 同键多来源**求和**后按 `TRANSPORT_EFFECT_CAPS` 封顶（可为负，如关海令）。
+    """
+    from content.data_constants import TRANSPORT_EFFECT_CAPS
+
+    caps = TRANSPORT_EFFECT_CAPS or {}
+    acc: Dict[str, float] = {}
+    for row in transport_effect_sources(state):
+        k = row["key"]
+        acc[k] = acc.get(k, 0.0) + float(row["value"])
     for k in list(acc):
-        acc[k] = max(-float(caps[k]), min(float(caps[k]), acc[k]))
+        cap = abs(float(caps[k]))
+        acc[k] = max(-cap, min(cap, acc[k]))
     return acc
 
 def carrier_params(state, mode: str, carrier: dict) -> dict:
