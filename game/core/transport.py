@@ -250,6 +250,79 @@ def route_path(frm: str, to: str) -> Optional[Dict[str, Any]]:
     return dict(res)
 
 
+def transport_capability(state, frm: str, to: str, mode: str = "land",
+                         cargo: Optional[str] = None) -> Dict[str, Any]:
+    """**能力判定（只读）**：该方式此刻能否承运该对治所、运力上限、耗时与费率。
+
+    语义：
+    · 未知方式 / 未知治所 / 不连通 / 方式不可用 ⇒ `ok=False` + 明确 `reason`（**不回落、不臆造**）；
+    · `water`：需全路径各段所属路都在 `WATER_ROUTE_CIRCUITS`（设定表）内 + 漕淤 ≤ 阈值 + 有漕船；
+    · `sea`：需政策开海（`state.transport_policy.open_sea`）+ 沿海路；
+    · `post`：只允许 `POST_CARGO_KINDS` 里的轻货（运钱粮大宗 ⇒ 拒绝）；
+    · 耗时 = ceil(路径天数 / 速度倍率)，至少 1 月；运力 = 方式基数（水/海按漕船数放大）。
+    """
+    from content.data_constants import (BARGES_POOL_DEFAULT, CANAL_BLOCK_WATER_LIMIT,
+                                        POST_CARGO_KINDS, SEA_ROUTE_CIRCUITS,
+                                        TRANSPORT_MODES, WATER_ROUTE_CIRCUITS)
+
+    m = str(mode or "land")
+    spec = TRANSPORT_MODES.get(m)
+    if not spec:
+        return {"ok": False, "mode": m, "reason": "unknown_mode"}
+    rp = route_path(frm, to)
+    if rp is None:
+        return {"ok": False, "mode": m, "reason": "unknown_seat"}
+    if not rp.get("reachable"):
+        return {"ok": False, "mode": m, "reason": "unreachable"}
+
+    idx = _seat_index()
+    circuits = {str((idx.get(s) or {}).get("circuit") or "") for s in rp["path"]}
+    circuits.discard("")
+    stats = getattr(state, "statistics", None)
+    barges = int(stats.get("barges_pool", BARGES_POOL_DEFAULT) or 0) if isinstance(stats, dict) else BARGES_POOL_DEFAULT
+    canal = int(getattr(state, "canal_block", 0) or 0)
+    capacity = int(spec["capacity"])
+
+    if m == "water":
+        if not WATER_ROUTE_CIRCUITS or not circuits.issubset(WATER_ROUTE_CIRCUITS):
+            return {"ok": False, "mode": m, "reason": "not_waterway", "circuits": sorted(circuits)}
+        if canal > int(CANAL_BLOCK_WATER_LIMIT):
+            return {"ok": False, "mode": m, "reason": "canal_blocked", "canal_block": canal}
+        if barges < 1:
+            return {"ok": False, "mode": m, "reason": "no_barges"}
+        capacity *= max(1, barges)
+    elif m == "sea":
+        policy = getattr(state, "transport_policy", None) or {}
+        if not (isinstance(policy, dict) and policy.get("open_sea")):
+            return {"ok": False, "mode": m, "reason": "sea_not_open"}
+        # 海运不沿陆路走：只要求**两端**都是沿海路（路径经内陆不影响海运资格）
+        ends = {str((idx.get(frm) or {}).get("circuit") or ""),
+                str((idx.get(to) or {}).get("circuit") or "")}
+        ends.discard("")
+        if not SEA_ROUTE_CIRCUITS or not ends or not ends.issubset(SEA_ROUTE_CIRCUITS):
+            return {"ok": False, "mode": m, "reason": "not_coastal", "circuits": sorted(ends)}
+        capacity *= max(1, barges)
+    elif m == "post":
+        if cargo is not None and str(cargo) not in POST_CARGO_KINDS:
+            return {"ok": False, "mode": m, "reason": "cargo_not_allowed", "cargo": str(cargo)}
+
+    base_days = int(rp.get("days") or 0)
+    speed = float(spec.get("speed") or 1.0)
+    days = 0 if base_days == 0 else max(1, int(math.ceil(base_days / speed)))
+    return {"ok": True, "mode": m, "name": spec.get("name", m),
+            "days": days, "hops": int(rp.get("hops") or 0),
+            "km": rp.get("km"), "capacity": capacity,
+            "cost_per_km": float(spec.get("cost_per_km") or 1.0)}
+
+
+def available_modes(state, frm: str, to: str, cargo: Optional[str] = None) -> Dict[str, Any]:
+    """列出各方式此刻的可用性（只读，供 AI 快照/面板用）。"""
+    from content.data_constants import TRANSPORT_MODES
+
+    return {m: transport_capability(state, frm, to, mode=m, cargo=cargo)
+            for m in TRANSPORT_MODES}
+
+
 def connectivity_report() -> Dict[str, Any]:
     """全图连通性分析：`{components: [[seat...]], isolated: [...], connected: bool}`。
 

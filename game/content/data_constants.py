@@ -1239,3 +1239,31 @@ def desensitize_tech(value: int) -> str:
 
 # 常平仓初值：月产占比（原 game_state/save_load 双处硬编码 /12*0.2）
 CHANGPING_INIT_MONTHLY_SHARE = 0.2 / 12  # = grain/12*0.2，单点权威
+
+
+# ============================================================
+# 交通方式与运力（G-3/P5b，2026-10-18）
+# ============================================================
+#: ⚠️ 全部为**设定值，非史料**：宋代驿路/河运/海运的具体运力与运费无可靠逐程记载。
+#: 结构固定、数值可替换；后续得史料只改本表，不改算法。
+TRANSPORT_MODES: dict = {
+    "land":  {"name": "陆运", "speed": 1.0, "capacity": 500,  "cost_per_km": 1.0, "loss": 0.0},
+    "water": {"name": "水运", "speed": 0.9, "capacity": 2000, "cost_per_km": 0.4, "loss": 0.0},
+    "post":  {"name": "驿传", "speed": 1.6, "capacity": 50,   "cost_per_km": 3.0, "loss": 0.0},
+    "sea":   {"name": "海运", "speed": 1.2, "capacity": 5000, "cost_per_km": 0.3, "loss": 0.0},
+}
+#: 水运可达的**路**（设定表；空集 ⇒ 水运不可用）。汴河/淮南/两浙/江南/荆湖/京畿。
+WATER_ROUTE_CIRCUITS = frozenset({
+    "京畿路", "淮南东路", "淮南西路", "两浙路", "江南东路", "江南西路",
+    "荆湖北路", "荆湖南路",
+})
+#: 海运可达的**路**（设定表；空集 ⇒ 海运不可用）。沿海诸路。
+SEA_ROUTE_CIRCUITS = frozenset({
+    "京东东路", "淮南东路", "两浙路", "福建路", "广南东路", "广南西路",
+})
+#: 驿传允许的 cargo 类别（只走轻货/文书，不运大宗钱粮）
+POST_CARGO_KINDS = frozenset({"docs", "coins_small", "orders"})
+#: 漕运淤塞阈值：超过即水路降级（与 logistics_coupler 既有口径一致）
+CANAL_BLOCK_WATER_LIMIT = 35
+#: 漕船运力池缺省（与 logistics_coupler 一致）
+BARGES_POOL_DEFAULT = 50
