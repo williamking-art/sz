@@ -1,0 +1,32 @@
+{
+ "id": "JEV-DEC-B2a-POP守卫放行门落地-2026-10-18",
+ "createdAt": "2026-10-18T08:32:00+08:00",
+ "agent": "DSH",
+ "question": "B-2a（POP 守卫进质量放行门）是否已达成设计验收、可判定为落地收口？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.9907,
+ "holds": true,
+ "threshold": 0.4,
+ "verdict": "可判落地：A1–A6/A8 均有用例或脚本落地，N1/N2/N7/N8 反例均已覆盖",
+ "premises_verified_by_me": [
+  "门用例 15 个月全绿，耗时 10.4 秒（默认 SONGZUO_GATE_MONTHS=15）",
+  "注入路级直写后门变红（N7 非空转证明），归因明细含 file/line/function",
+  "guard/pops/settle_local 相关 102 条测试通过",
+  "verify-all.ps1 第 1b 层显式置 env 并计入 FAIL（A8）",
+  "未改账本口径/桥接语义，未把守卫改成生产硬失败"
+ ],
+ "explicitly_not_done": [
+  "B-2b 粮载体单一性",
+  "B-2c 商品越层写入",
+  "B-2d 资源桶守恒方向"
+ ],
+ "applied_in": "commit 8c7dce4879",
+ "reopen_if": "出现『门绿但账本不一致』的实证，或 verify-all 第 1b 层被跳过",
+ "artifacts": [
+  "_dev_tools/game-dev/tests/test_quality_gate_pops_guard.py",
+  "_dev_tools/verify-all.ps1",
+  "game/core/commands.py"
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-B2b-粮载体单一性取证与哨兵-2026-10-18",
+ "createdAt": "2026-10-18T09:05:00+08:00",
+ "agent": "DSH",
+ "question": "B-2b（粮载体单一性）以「取证 + 门哨兵」作为交付是否已达标（而非必须连带实施 G-3 迁移）？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.6743,
+ "holds": true,
+ "threshold": 0.4,
+ "verdict": "达标：取证结论 + 门哨兵作为 B-2b 交付成立；G-3 迁移属口径变更，单独走用户裁定",
+ "premises_verified_by_me": [
+  "18 月 × 702 POP 全量扫描：米桶 0、legacy 非零 569 ⇒ 当前无双源（实测）",
+  "grain_ledger 只有纯函数、无迁移调用点（静态）",
+  "46 处 grain_add/set 中 44 处未传 state（静态扫描）",
+  "8 条门用例全绿（POP 5 + 粮 3），verify-all 第 1b 层已改为 -k quality_gate 全批"
+ ],
+ "judge_note": "概率 0.674 属中等偏高而非强结论：它只判「以本交付收口」成立，不判「粮口径已终局」",
+ "explicitly_not_done": [
+  "G-3 迁移实施",
+  "44 处未传 state 的改写",
+  "grain_bridge 语义变更"
+ ],
+ "applied_in": "commit（本轮）",
+ "reopen_if": "开始实施 G-3 迁移时，门判据自动切到「100% 桶」"
+}

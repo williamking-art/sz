@@ -21,6 +21,8 @@ param(
 #   · Node 可能不在 PATH → 先 Get-Command，再回落到固定目录；缺工具一律 SKIP，不造假失败。
 # =============================================================================
 $ErrorActionPreference = 'Continue'
+$env:PYTHONIOENCODING = 'utf-8'
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $WorkspaceRoot = Split-Path -Parent $RepoRoot
 $PyDir    = Join-Path $WorkspaceRoot '.audit-venv\Scripts'
@@ -71,13 +73,18 @@ else {
     Pop-Location
     $sum = ($out | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
     if ($code -eq 0) { Ok "pytest 通过：$sum" }
-    else { Bad "pytest 失败（exit $code）：$sum" 'cd game; python -m pytest -q --tb=short' }
+    else {
+        $out | Select-String -Pattern '^FAILED|^ERROR' | Select-Object -First 20 | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        Bad "pytest 失败（exit $code）：$sum" 'cd game; python -m pytest -q --tb=short'
+    }
 }
 
-# ------------------------------------------- 1b. 质量放行门 · POP 守卫（B-2a）
+# ------------------------------------------- 1b. 质量放行门（B-2a / B-2b）
 # 为什么单列一层：主 pytest **默认不装守卫**（SONGZUO_POPS_GUARD 缺省关），
-# 所以"全绿"并不能证明账本状态合规。本层显式开守卫跑门用例（逐月零违规 + 注入即红）。
-Head '1b. 质量放行门 · POP 守卫（SONGZUO_POPS_GUARD=1）'
+# 所以"全绿"并不能证明账本状态合规。本层显式开守卫跑全部门用例：
+#   · POP 守卫（B-2a）：逐月零违规 + 注入即红
+#   · 粮载体单一性（B-2b）：0% 或 100%，禁止半迁移
+Head '1b. 质量放行门（POP 守卫 + 粮载体单一性）'
 if (-not (Test-Path $py)) { Skip "无 Python：$py" }
 else {
     $prevGuard = $env:SONGZUO_POPS_GUARD
@@ -86,7 +93,7 @@ else {
     $env:SONGZUO_GATE_MONTHS = '15'
     try {
         $gout = & $py -m pytest -p no:cacheprovider -o addopts= -q --tb=line `
-            ../_dev_tools/game-dev/tests/test_quality_gate_pops_guard.py 2>&1
+            -k quality_gate _dev_tools/game-dev/tests 2>&1
         $gcode = $LASTEXITCODE
     } finally {
         $env:SONGZUO_POPS_GUARD = $prevGuard
@@ -94,7 +101,7 @@ else {
     }
     $gsum = ($gout | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
     if ($gcode -eq 0) { Ok "POP 守卫门通过：$gsum" }
-    else { Bad "POP 守卫门失败（exit $gcode）：$gsum" 'cd game; $env:SONGZUO_POPS_GUARD=1; python -m pytest ../_dev_tools/game-dev/tests/test_quality_gate_pops_guard.py -q' }
+    else { Bad "质量放行门失败（exit $gcode）：$gsum" 'cd <repo>; $env:SONGZUO_POPS_GUARD=1; python -m pytest _dev_tools/game-dev/tests -k quality_gate -q' }
 }
 
 # ---------------------------------------------------------------- 2. 前端 vitest

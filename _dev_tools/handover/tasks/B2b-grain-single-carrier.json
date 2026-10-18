@@ -1,0 +1,40 @@
+{
+ "id": "B2b-grain-single-carrier",
+ "title": "B-2b 粮载体单一性：取证 + 门哨兵（不实施 G-3 迁移）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-18",
+ "finishedAt": "2026-10-18",
+ "authority": "用户 2026-10-12 授权 B-2 只读取证；本轮经 Jev 选定先做 B-2b（p=0.615）",
+ "goal": "确认粮是否存在双载体，并把「载体必须单一」变成门判据，而不是靠人工记得。",
+ "findings": [
+  "实测 new_game + 18 月：702 个 POP 全量扫描，米桶数 0；粮仍由 legacy .grain 承载（569 个非零）⇒ 当前无双源",
+  "原因：G-3 迁移（H·甲）grain_ledger 只提供纯函数，全库无迁移调用点（未接线）",
+  "风险面：grain_add/grain_set 共 46 处调用，44 处未传 state；一旦迁移只做一半，grain_get 优先读桶 ⇒ 静默分叉",
+  "因此判据取全体一致性（0% 或 100%），而非「桶数必须为 0」"
+ ],
+ "deliverable": [
+  "_dev_tools/game-dev/tests/test_quality_gate_grain_single_carrier.py（3 条：全或全无 / 读口与载体一致 / 注入半迁移即红）",
+  "_dev_tools/game-docs/specs/cross-cutting/B2b_粮载体单一性_取证_2026-10-18.md",
+  "_dev_tools/verify-all.ps1 第 1b 层改为跑 test_quality_gate_*.py 全批"
+ ],
+ "explicitly_not": [
+  "不实施 G-3 迁移（改口径，需用户裁定）",
+  "不改 grain_bridge/grain_ledger 语义",
+  "不动那 44 处未传 state 的调用点（迁移前无实际影响；迁移时集中改）"
+ ],
+ "reopen_if": "开始实施 G-3 迁移时（届时门自动切到「100% 桶」判据）",
+ "evidence": {
+  "probe_scripts": [
+   "D:\\codebuddy\\_scratch\\_b2b_probe1.py",
+   "D:\\codebuddy\\_scratch\\_b2b_probe2.py"
+  ],
+  "measured": {
+   "pop_total": 702,
+   "bucket_pops": 0,
+   "legacy_nonzero": 569,
+   "grain_call_sites": 46,
+   "missing_state": 44
+  }
+ }
+}
