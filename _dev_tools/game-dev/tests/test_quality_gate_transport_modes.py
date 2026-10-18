@@ -72,13 +72,14 @@ def test_water_blocked_by_canal_or_no_barges():
     assert not no_barge["ok"] and no_barge["reason"] == "no_barges", no_barge
 
 
-def test_sea_requires_policy():
+def test_sea_is_open_by_default_and_closable_by_policy():
+    """2026-10-18 用户质疑后的口径：史实海运本开 ⇒ **缺失 = 开放**；显式禁海才关闭。"""
     s = _state()
-    off = transport_capability(s, "两浙路|台州", "福建路|福州", "sea")
-    assert not off["ok"] and off["reason"] == "sea_not_open", off
-    s.transport_policy = {"open_sea": True}
     on = transport_capability(s, "两浙路|台州", "福建路|福州", "sea")
-    assert on["ok"], f"开海后沿海应可走：{on}"
+    assert on["ok"], f"默认应可海运：{on}"
+    s.transport_policy = {"open_sea": False}
+    off = transport_capability(s, "两浙路|台州", "福建路|福州", "sea")
+    assert not off["ok"] and off["reason"] == "sea_closed_by_policy", off
 
 
 def test_post_allows_only_light_cargo():

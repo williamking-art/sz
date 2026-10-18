@@ -338,9 +338,13 @@ def transport_capability(state, frm: str, to: str, mode: str = "land",
             return {"ok": False, "mode": m, "reason": "no_barges"}
         capacity *= max(1, barges)
     elif m == "sea":
-        policy = getattr(state, "transport_policy", None) or {}
-        if not (isinstance(policy, dict) and policy.get("open_sea")):
-            return {"ok": False, "mode": m, "reason": "sea_not_open"}
+        # 2026-10-18 用户质疑「怎么会没开海呢」：此前默认**关闭**且无任何代码能开
+        # （与 `MARITIME_INFO[open]` 同型的实现缺陷）。史实：宋代海运/海贸本开，
+        # 故**缺失 = 开放**；只有显式 open_sea=False（禁海令）才关闭。
+        policy = getattr(state, "transport_policy", None)
+        policy = policy if isinstance(policy, dict) else {}
+        if policy.get("open_sea") is False:
+            return {"ok": False, "mode": m, "reason": "sea_closed_by_policy"}
         # 海运不沿陆路走：只要求**两端**都是沿海路（路径经内陆不影响海运资格）
         ends = {str((idx.get(frm) or {}).get("circuit") or ""),
                 str((idx.get(to) or {}).get("circuit") or "")}

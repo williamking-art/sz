@@ -86,17 +86,18 @@ def test_over_capacity_reports_batches_needed():
     assert r["capacity"] == 500 and r["batches_needed"] == 1000, r
 
 
-def test_sea_route_after_opening_policy():
+def test_sea_route_default_open_and_closable():
     """海运：未开海 ⇒ sea_not_open；开海后可从内陆沿海口岸直达孤岛（琼州）。"""
     s = _state()
     # 海运需要**港口起点**：用杭州（两浙，沿海）的地方府库发运
     src_seat = "两浙路|杭州"
     s.prefectures["两浙路"]["seats"][src_seat]["local_treasury"] = 5000
     s.prefectures["广南西路"]["seats"]["广南西路|琼州"]["local_treasury"] = 0
+    s.transport_policy = {"open_sea": False}
     closed = dispatch_along(s, frm_kind="local_treasury", to_kind="local_treasury",
                             amount=100, frm_seat=src_seat,
                             to_seat="广南西路|琼州", mode="sea")
-    assert not closed["ok"] and closed["reason"] == "sea_not_open", closed
+    assert not closed["ok"] and closed["reason"] == "sea_closed_by_policy", closed
     s.transport_policy = {"open_sea": True}
     opened = dispatch_along(s, frm_kind="local_treasury", to_kind="local_treasury",
                             amount=100, frm_seat=src_seat,
