@@ -1,0 +1,25 @@
+{
+ "id": "JEV-DEC-立绘跨级版暂缓-2026-10-18",
+ "createdAt": "2026-10-18T08:05:00+08:00",
+ "agent": "DSH",
+ "question": "是否应立即交付带瑕疵的程序换色跨级立绘（同一官员紫/绯/绿/常服），而非暂缓等低峰用 i2i 重跑？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.0583,
+ "holds": false,
+ "threshold": 0.4,
+ "verdict": "不交付：暂缓跨级版，保留 190 张整幅像为主路径；跨级版待低峰用 i2i 重跑",
+ "premises_verified_by_me": [
+  "i2i 实测：夜间 image queue is full（HTTP 503），单张 60–200 秒且多次失败，257 张需数天",
+  "程序换色实测：v4 资产上仍出现紫色斑块（袍面肌理色相离散）、领口/腰侧残留原色",
+  "换色无法改变冠形（长/短展角）与革带/鱼袋，只能改袍色",
+  "用户硬要求：同一套脸一致、不接受明显瑕疵物料"
+ ],
+ "applied_in": "game/content/ministers/portrait_index_v4.json（无 tiers 字段）、portrait_v4.py（tiers 读取逻辑保留待用）",
+ "reopen_if": "低峰时段 i2i 成功率 >80% 且单张 <120 秒时，对 43 名臣先跑 129 张跨级版",
+ "artifacts": [
+  "sz/_dev_tools/paperdoll_experiment/portraits/gen_tiers_v2_log.jsonl",
+  "sz/_dev_tools/paperdoll_experiment/portraits/gen_tiers_v2.py（批量驱动，已停）"
+ ]
+}

@@ -67,6 +67,7 @@
 
 - [`外贸缺失是实现缺陷非史实认定.md`](./diplomacy/外贸缺失是实现缺陷非史实认定.md)
 - [`外贸调研_开局关闭且不走货.md`](./diplomacy/外贸调研_开局关闭且不走货.md)
+- [`外贸货种与货腿设计稿_2026-10-18.md`](./diplomacy/外贸货种与货腿设计稿_2026-10-18.md) —— 两条通道（海路市舶/陆路榷场）、7 个类目维、逐笔货腿与双守恒、分步 F1–F5
 - [`宋与外邦贸易设计.md`](./diplomacy/宋与外邦贸易设计.md)
 - [`接入前规则收口与接入方案.md`](./diplomacy/接入前规则收口与接入方案.md)
 - [`接入条件5_6事实核查.md`](./diplomacy/接入条件5_6事实核查.md)
@@ -78,6 +79,8 @@
 - [`tiandao-engine/`](./cross-cutting/tiandao-engine/) —— 天道裁决引擎（0 Token 本地决断）+ 三条 AI 叙事管道；`tasks.md` 逐项标「已接线 / 仅声明未接线」（**本目录计数未计入上表**，计入留给 `D1-设计文档对齐`）
 - [`field-registry/`](./cross-cutting/field-registry/) —— 🔴 现行：`engine/state_applier` 写契约单点注册（B-1，B-1a/B-1b 两阶段）
 - [`代码层机制模块化架构方案_2026-10-06.md`](./cross-cutting/代码层机制模块化架构方案_2026-10-06.md)
+
+- `cross-cutting/G3_粮迁移设计稿_2026-10-18.md` — 粮从 legacy 字段迁入 goods[类目成员] 的四片设计（**未实施**）
 - [`阶段1_依赖图与循环依赖.md`](./cross-cutting/阶段1_依赖图与循环依赖.md)
 - [`甲批_符号归属与新旧路径表.md`](./cross-cutting/甲批_符号归属与新旧路径表.md)
 - [`存档schema版本消费实况_2026-10-07.md`](./cross-cutting/存档schema版本消费实况_2026-10-07.md)
