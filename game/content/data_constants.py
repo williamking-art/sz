@@ -1707,3 +1707,7 @@ FOREIGN_LEG_BASE_UNITS = 400
 FOREIGN_LEG_STONE_PER_UNIT = 1.0
 #: 关税（按**实际成交额**）
 FOREIGN_TARIFF_RATE = {"sea": 0.10, "land": 0.05}
+
+#: P6 榷场（陆路互市）：态度阈值（低于即闭场）与榷税拆分（过税占比）
+LAND_MARKET_MIN_ATTITUDE = 30
+LAND_TAX_OVER_SHARE = 0.4    # 过税 40% → 沿途路府库；住税 60% → 交易地府库

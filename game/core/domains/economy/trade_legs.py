@@ -161,6 +161,54 @@ def apply_tariff(leg: Dict[str, Any], actual_value: Optional[int]) -> Dict[str, 
     return {"ok": True, "tax": tax, "rate": rate}
 
 
+def land_market_open(state, partner: str) -> Dict[str, Any]:
+    """榷场（陆路互市）开关：**战时闭场**；态度低于阈值亦闭场（玩法设定）。
+
+    · 战时判据：`state._at_war[partner]` 为真；
+    · 态度判据：`state.external_regimes[partner].attitude < LAND_MARKET_MIN_ATTITUDE`；
+    · 无该外邦（如大理/交趾未登记）⇒ 按**开放**处理但 reason 记 `partner_unmodeled`（不臆断为敌）。
+    """
+    from content.data_constants import LAND_MARKET_MIN_ATTITUDE
+
+    war = getattr(state, "_at_war", None) or {}
+    if isinstance(war, dict) and war.get(partner):
+        return {"open": False, "reason": "at_war"}
+    regimes = getattr(state, "external_regimes", None) or {}
+    info = regimes.get(partner) if isinstance(regimes, dict) else None
+    if not isinstance(info, dict):
+        return {"open": True, "reason": "partner_unmodeled"}
+    att = info.get("attitude")
+    if isinstance(att, (int, float)) and not isinstance(att, bool):
+        if float(att) < float(LAND_MARKET_MIN_ATTITUDE or 0):
+            return {"open": False, "reason": f"low_attitude:{int(att)}", "attitude": att}
+        return {"open": True, "reason": None, "attitude": att}
+    return {"open": True, "reason": "attitude_missing"}
+
+
+def settle_land_tariff(state, leg: Dict[str, Any], tax: Optional[int]) -> Dict[str, Any]:
+    """陆路榷税入账：**过税 40% → 沿途路府库；住税 60% → 交易地府库**（设定值）。
+
+    缺 `local_treasury` 字段 ⇒ 不入账并返回 reason（不臆造入账通道）。
+    """
+    from content.data_constants import LAND_TAX_OVER_SHARE
+
+    if tax is None:
+        return {"ok": False, "reason": "tax_missing"}
+    if tax <= 0:
+        return {"ok": True, "over_tax": 0, "stay_tax": 0, "credited": 0}
+    over_share = float(LAND_TAX_OVER_SHARE or 0.4)
+    over_tax = int(round(int(tax) * over_share))
+    stay_tax = int(tax) - over_tax
+    route = str(leg.get("route") or "")
+    prefs = getattr(state, "prefectures", None) or {}
+    pdata = prefs.get(route) if isinstance(prefs, dict) else None
+    if not isinstance(pdata, dict) or "local_treasury" not in pdata:
+        return {"ok": False, "reason": "no_local_treasury", "route": route,
+                "over_tax": over_tax, "stay_tax": stay_tax}
+    pdata["local_treasury"] = int(pdata.get("local_treasury", 0) or 0) + int(tax)
+    return {"ok": True, "over_tax": over_tax, "stay_tax": stay_tax, "credited": int(tax),
+            "route": route}
+
 def settle_foreign_trade(state, month: Optional[int] = None,
                          dry_run: Optional[bool] = None) -> Dict[str, Any]:
     """跑一个月的外贸货腿（**总开关默认关**）。
@@ -182,6 +230,14 @@ def settle_foreign_trade(state, month: Optional[int] = None,
     totals = {"export_value": 0, "import_value": 0, "tax": 0,
               "queued_stone": 0.0, "blocked": 0}
     for leg in legs:
+        # P6：陆路榷场受**和战/态度**约束（战时闭场）
+        if leg.get("channel") == "land":
+            _gate = land_market_open(state, str(leg.get("partner") or ""))
+            if not _gate.get("open"):
+                totals["blocked"] += 1
+                rows.append({**leg, "j": {"ok": False,
+                                           "reason": "market_closed:" + str(_gate.get("reason"))}})
+                continue
         out = execute_leg(state, leg) if not dry_run else {"ok": True,
                                                           "shipped_qty": leg.get("planned_qty"),
                                                           "received_qty": 0.0, "short_qty": 0.0,
@@ -192,6 +248,9 @@ def settle_foreign_trade(state, month: Optional[int] = None,
             continue
         value = out.get("value")
         tax = apply_tariff(leg, value)
+        _split = None
+        if leg.get("channel") == "land" and not dry_run:
+            _split = settle_land_tariff(state, leg, tax.get("tax"))
         qty = float(out.get("shipped_qty") or 0) + float(out.get("received_qty") or 0)
         stone = qty * float(FOREIGN_LEG_STONE_PER_UNIT or 1.0)
         if not dry_run and stone > 0:
@@ -214,7 +273,9 @@ def settle_foreign_trade(state, month: Optional[int] = None,
             journal.append({"month": month, "route": leg.get("route"), "seat": leg.get("seat"),
                             "partner": leg.get("partner"), "dim": leg.get("dim"),
                             "qty": qty, "unit_price": leg.get("unit_price"),
-                            "goods_value": value, "tax_over": tax.get("tax"),
+                            "goods_value": value,
+                            "tax_over": (_split or {}).get("over_tax", tax.get("tax")),
+                            "tax_stay": (_split or {}).get("stay_tax"),
                             "direction": leg.get("direction"), "freight": None,
                             "reason": out.get("reason")})
     return {"enabled": True, "dry_run": bool(dry_run), "legs": len(legs),
