@@ -13,6 +13,7 @@ from core.decree_confirm import (
     confirm_decree,
 )
 from core.domains.administration import institution as inst
+from core.domains.administration.minister_agent import ensure_actor
 
 
 def _state():
@@ -86,7 +87,7 @@ def test_rejection_does_not_mutate_state():
 
 def test_decree_confirm_authority_exception_is_fail_closed(monkeypatch):
     s = _state()
-    s.central_orgs["门下省"]["holders"]["门下侍郎"] = "李清臣"
+    ensure_actor(s, "李清臣", posts=["门下侍郎"], authority=0.8)
     decree = {
         "decree_id": "d_gate_fail", "title": "改编制", "category": "变法",
         "addressees": ["李清臣"],

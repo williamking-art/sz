@@ -308,6 +308,27 @@ def _decree_addressees(decree: dict) -> list:
     return []
 
 
+def _executor_text(executor) -> str:
+    """executor 的可读文本（org/post/holder/person/minister 或字符串）。"""
+    if isinstance(executor, dict):
+        for key in ("org", "post", "holder", "person", "minister"):
+            value = str(executor.get(key) or "").strip()
+            if value:
+                return value
+        return ""
+    return str(executor or "").strip()
+
+
+def _authority_label(executor, actor: str) -> str:
+    """机构/职位上下文 + 具体承办人，如「吏部（邓洵武）」；不丢旧断言。"""
+    base = _executor_text(executor)
+    if not base:
+        return actor
+    if not actor or actor == base:
+        return base
+    return f"{base}（{actor}）"
+
+
 def _decree_authority_check(state, decree) -> dict:
     """M1b-1：显式事权校验（默认中性）。
 
@@ -338,21 +359,23 @@ def _decree_authority_check(state, decree) -> dict:
             required.append(m)
     try:
         from core.authority_gate import check_matter_authority
-        label = ""
+        actor = ""
         for m in required:
-            ok, label = check_matter_authority(state, executor, m)
+            ok, actor_or_reason = check_matter_authority(state, executor, m)
             if not ok:
                 return {
                     **empty, "explicit": True, "ok": False, "primary": primary,
                     "co": co, "matters": required, "label": "",
-                    "reason": label, "legacy_unchecked": False,
+                    "reason": actor_or_reason, "legacy_unchecked": False,
                 }
+            actor = actor_or_reason
     except Exception as e:  # noqa: BLE001 — 解析失败不得放行
         return {**empty, "explicit": True, "ok": False,
                 "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
     return {
         "explicit": True, "ok": True, "reason": "", "primary": primary,
-        "co": co, "matters": required, "label": label,
+        "co": co, "matters": required,
+        "label": _authority_label(executor, actor),
         "legacy_unchecked": False,
     }
 
