@@ -361,36 +361,155 @@ def transport_capacity(state, mode: str) -> dict:
             "trips_per_month": trips, "availability": round(avail, 4),
             "capacity": round(eff, 1), "bottleneck": bottleneck}
 
-def transport_used(state, mode: str) -> float:
-    used = getattr(state, "transport_used", None) or {}
+def _used_book(state) -> dict:
+    """运力占用账（**货/客分列**，共用同一池）：{"goods": {mode: 石}, "passenger": {mode: 石}}。
+
+    兼容旧格式（扁平的 `{mode: number}` 视为货运用量，自动迁移一次）。
+    """
+    u = getattr(state, "transport_used", None)
+    if not isinstance(u, dict):
+        u = {}
+    if any(isinstance(v, (int, float)) and not isinstance(v, bool) for v in u.values()):
+        legacy = {k: float(v) for k, v in u.items()
+                  if isinstance(v, (int, float)) and not isinstance(v, bool)}
+        u = {"goods": legacy, "passenger": {}}
+    u.setdefault("goods", {})
+    u.setdefault("passenger", {})
+    state.transport_used = u
+    return u
+
+
+def transport_used(state, mode: str, kind: str = "goods") -> float:
+    """本月已用运力（默认货运；kind=passenger 为客运）。"""
+    book = _used_book(state).get(kind) or {}
     try:
-        return float(used.get(mode, 0) or 0)
+        return float(book.get(mode, 0) or 0)
     except (TypeError, ValueError):
         return 0.0
 
 
-def transport_remaining(state, mode: str) -> float:
-    """本月剩余运力（石）；负数按 0。"""
-    return max(0.0, float(transport_capacity(state, mode)["capacity"]) - transport_used(state, mode))
+def transport_remaining(state, mode: str, kind: str = "goods") -> float:
+    """本月剩余运力（石）——**客货共用同一池**：货占则客少、客占则货少。"""
+    book = _used_book(state)
+    used = float((book.get("goods") or {}).get(mode, 0) or 0) \
+        + float((book.get("passenger") or {}).get(mode, 0) or 0)
+    return max(0.0, float(transport_capacity(state, mode)["capacity"]) - used)
 
 
-def transport_consume(state, mode: str, qty: float) -> dict:
-    """占用本月运力（**不足则按剩余截断**，返回实占与缺口；不拒办）。"""
+def transport_consume(state, mode: str, qty: float, kind: str = "goods") -> dict:
+    """占用本月运力（不足按剩余截断，不拒办）；kind 只影响**分列记账**。"""
     want = max(0.0, float(qty or 0))
     rem = transport_remaining(state, mode)
     take = min(want, rem)
-    used = getattr(state, "transport_used", None)
-    if not isinstance(used, dict):
-        used = {}
-    used[mode] = float(used.get(mode, 0) or 0) + take
-    state.transport_used = used
+    book = _used_book(state)
+    slot = book.setdefault(kind, {})
+    slot[mode] = float(slot.get(mode, 0) or 0) + take
+    state.transport_used = book
     return {"ok": take > 0, "taken": round(take, 1), "short": round(want - take, 1),
-            "remaining": round(rem - take, 1)}
+            "remaining": round(rem - take, 1), "kind": kind}
 
+
+def transport_queue(state) -> list:
+    """待运队列（超额部分，下回合继续；瞬态，不落档）。"""
+    q = getattr(state, "transport_queue", None)
+    if not isinstance(q, list):
+        q = []
+        state.transport_queue = q
+    return q
+
+
+def transport_ship_or_queue(state, mode: str, qty: float, kind: str = "goods",
+                            payload: Optional[dict] = None) -> dict:
+    """**发运或排队**：能运多少运多少，余量入队（回合制下的正确语义：不拒办）。"""
+    want = max(0.0, float(qty or 0))
+    took = transport_consume(state, mode, want, kind=kind)
+    shipped = float(took["taken"])
+    queued = float(took["short"])
+    if queued > 0:
+        transport_queue(state).append({"mode": mode, "qty": queued, "kind": kind,
+                                      "payload": dict(payload or {})})
+    return {"ok": shipped > 0, "shipped": round(shipped, 1), "queued": round(queued, 1),
+            "remaining": took["remaining"]}
+
+
+def transport_flush_queue(state, dispatcher=None) -> dict:
+    """回合初**续发**队列：FIFO，能运多少运多少；`dispatcher(payload)` 返回真表示已建批次。
+
+    · 无 `dispatcher` 时只做账（用于纯运力回归）；
+    · 容量不足的条目**原样留在队里**（不丢弃、不臆造）。
+    """
+    q = transport_queue(state)
+    shipped, kept = 0.0, []
+    for item in q:
+        mode = str(item.get("mode") or "")
+        remain_qty = float(item.get("qty") or 0)
+        if remain_qty <= 0 or not mode:
+            continue
+        took = transport_consume(state, mode, remain_qty, kind=str(item.get("kind") or "goods"))
+        take = float(took["taken"])
+        if take > 0 and callable(dispatcher):
+            item["payload"] = dict(item.get("payload") or {})
+            item["payload"]["qty"] = take
+            try:
+                ok = bool(dispatcher(item["payload"]))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("队列续发回调失败：%r", exc, exc_info=True)
+                ok = False
+            if not ok:
+                # 回调失败 ⇒ 退回额度，条目留在队列
+                book = _used_book(state)
+                kind = str(item.get("kind") or "goods")
+                slot = book.setdefault(kind, {})
+                slot[mode] = max(0.0, float(slot.get(mode, 0) or 0) - take)
+                kept.append(item)
+                continue
+        shipped += take
+        left = remain_qty - take
+        if left > 1e-9:
+            item["qty"] = round(left, 3)
+            kept.append(item)
+    state.transport_queue = kept
+    return {"shipped": round(shipped, 1), "pending": len(kept),
+            "pending_qty": round(sum(float(x.get("qty") or 0) for x in kept), 1)}
+
+
+def hire_private(state, mode: str, qty: float, fee_per_stone: float) -> dict:
+    """**和雇**民运力：付钱补运力（费用 = 石 × 单价），国库不足即失败。"""
+    from core.transport import transport_consume as _tc
+
+    want = max(0.0, float(qty or 0))
+    fee = int(round(want * max(0.0, float(fee_per_stone or 0))))
+    treasury = int(getattr(state, "treasury", 0) or 0)
+    if fee > treasury:
+        return {"ok": False, "reason": "insufficient_treasury", "fee": fee,
+                "available": treasury}
+    took = _tc(state, mode, want, kind="goods")
+    if took["taken"] <= 0:
+        return {"ok": False, "reason": "no_capacity", "fee": 0}
+    state.treasury = treasury - fee
+    return {"ok": True, "hired": took["taken"], "fee": fee,
+            "remaining": took["remaining"]}
+
+
+def impress_private(state, mode: str, qty: float, penalty_per_1000: float = 0.05,
+                    penalty_cap: float = 0.3) -> dict:
+    """**差雇**民运力：免运费，但降民心（按征用量，封顶 `penalty_cap`）。"""
+    from core.transport import transport_consume as _tc
+
+    want = max(0.0, float(qty or 0))
+    took = _tc(state, mode, want, kind="goods")
+    if took["taken"] <= 0:
+        return {"ok": False, "reason": "no_capacity"}
+    raw = float(took["taken"]) / 1000.0 * float(penalty_per_1000 or 0)
+    penalty = min(float(penalty_cap or 0.3), max(0.0, raw))
+    sat = float(getattr(state, "population_satisfaction", 0) or 0)
+    state.population_satisfaction = max(0.0, sat - penalty)
+    return {"ok": True, "impressed": took["taken"], "penalty": round(penalty, 4),
+            "satisfaction": round(state.population_satisfaction, 4)}
 
 def transport_reset_month(state) -> None:
-    """回合初清空本月运力占用（瞬态，不落档）。"""
-    state.transport_used = {}
+    """回合初清空本月运力占用（货/客两本账；**队列保留**待续发）。"""
+    state.transport_used = {"goods": {}, "passenger": {}}
 
 def transit_km(frm: str, to: str, mode: str) -> Optional[float]:
     """两治所间该方式的**实际里程**（km）；取不到 ⇒ None（不臆造）。

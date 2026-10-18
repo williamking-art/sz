@@ -152,6 +152,7 @@ dynamic_price.py
 | 检查 | 结果 |
 |---|---|
 | 误用 `workshops[...].get("type")` 分类 | **仅 `entity_projection.py:218` 命中，且写法正确** —— `row.get("name") or row.get("workshop_type") or row.get("type")` 是**防御式回退**（`name` 优先）⇒ **不是缺陷** |
+| `foreign_trade_readout.py` | **新建**（P2 2026-10-18）| `survey_foreign_trade` `survey_transport` `survey_all` | **只读**：外贸读数（贸易额/通道/税费/货种TopN/blocked）+ 运输读数（运力/剩余/在途剩余回合）；缺失字段一律 None+reason（缺失≠0）；不复制算法（税费直接汇总流水）|
 | 误用 `workshop.get("kind")` 当类型 | **0 处** ✅ |
 | 误用 `workshop.get("dim")` | **0 处** ✅ |
 
