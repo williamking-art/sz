@@ -489,6 +489,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
 
     # 更新年号
     state.update_era_name()
+
+    # 钱在途到期入账（G-3/P4a，2026-10-18）：无在途批次时是**空操作**，零行为变更。
+    # 放在结算最前：本月打款上月到期的钱先入账，再跑本月支出/收入。
+    try:
+        from core.foundation.ledger.money_transport import arrive_money_due as _arrive_money
+        _arrived = _arrive_money(state)
+        if _arrived:
+            _sum = sum(int(b.get("qty", 0) or 0) for b in _arrived)
+            log.append(f"[钱运] 在途钱款到账 {len(_arrived)} 批 / {_sum} 贯")
+    except Exception as _me:  # noqa: BLE001 —— 测量仪器不得中断结算
+        log.append(f"[钱运][WARN] 到账处理失败：{_me!r}")
     from core.asset_context import era_switch
     era_switch(state)
 
