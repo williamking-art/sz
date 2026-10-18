@@ -1,0 +1,25 @@
+{
+ "id": "JEV-DEC-B2c-商品单点访问层取证与棘轮-2026-10-18",
+ "createdAt": "2026-10-18T09:35:00+08:00",
+ "agent": "DSH",
+ "question": "B-2c（商品单点访问层）以「取证 + 门棘轮、零行为变更」收口是否达标？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.9058,
+ "holds": true,
+ "threshold": 0.4,
+ "verdict": "达标：16 处直写全部可解释（层本体/桥/容器/旧档/外邦无桥/未下沉兜底），裸遍历 0；门棘轮已固化为 6 条用例",
+ "premises_verified_by_me": [
+  "AST 全库扫描：goods 直写 16、裸遍历 0（脚本可复跑）",
+  "运行时 3 月 × 822 个 goods 字典：扁平数值、州府桶 0、非法值 0",
+  "扫描器初版漏检链式写法，补强后才是有效判据（已固化注入即红用例）",
+  "外邦与未下沉兜底两类站点逐一读码确认（非推测）"
+ ],
+ "applied_in": "commit（本轮）",
+ "explicitly_not_done": [
+  "不修改任何调用点",
+  "不把未下沉兜底改走桥"
+ ],
+ "reopen_if": "新增 goods 直写文件/函数时（门会直接红）"
+}

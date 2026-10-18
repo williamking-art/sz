@@ -1,0 +1,31 @@
+{
+ "id": "B2c-goods-single-access",
+ "title": "B-2c 商品单点访问层：取证 + 门棘轮（零行为变更）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-18",
+ "finishedAt": "2026-10-18",
+ "authority": "用户 2026-10-12 授权 B-2 只读取证",
+ "goal": "确认是否还有绕过 material_holding 的 goods 直写/裸遍历，并把判据固化成门。",
+ "findings": [
+  "静态：goods 直写 16 处，全部可解释（层本体/桥/容器初始化/旧档兼容/外邦无桥/未下沉兜底）；裸遍历 0 处",
+  "运行时：3 月后 822 个 goods 字典全为扁平数值，州府桶 0、非法值 0",
+  "扫描器初版漏检链式写法 p['goods']['米']=1，补强后才扫出 settlement_econ 4 处 + settlement_granary 1 处",
+  "settlement_econ::_ext_econ_phases 属外邦（辽/西夏/大理）省域 POP，无治所下沉层",
+  "settlement_granary::_settle_granary 为未下沉兜底（桥返回空才走旧写法）"
+ ],
+ "deliverable": [
+  "_dev_tools/game-dev/tests/test_quality_gate_goods_single_access.py（6 条棘轮 + 非空转自证）",
+  "_dev_tools/game-docs/specs/cross-cutting/B2c_商品单点访问层_取证_2026-10-18.md"
+ ],
+ "explicitly_not": [
+  "不改任何调用点（零行为变更）",
+  "不把兜底分支改走桥（会变旧档行为）",
+  "不重新口径化 goods 形态"
+ ],
+ "reopen_if": "出现新的 goods 直写文件/函数，或州府桶开始承载商品维",
+ "evidence": {
+  "scan": "D:\\codebuddy\\_scratch\\_b2c_scan.py",
+  "probe": "D:\\codebuddy\\_scratch\\_b2c_probe2.py"
+ }
+}
