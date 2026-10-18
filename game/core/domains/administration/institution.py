@@ -241,6 +241,23 @@ def check_authority(state, key: str, executor) -> Tuple[bool, str]:
     return True, ""
 
 
+def require_matter(state, executor, matter: str) -> Tuple[bool, str]:
+    """校验执行主体是否掌某**具体事权** → `(ok, label_or_reason)`。
+
+    与 `check_authority(key)` 不同：这里直接给事权名（如「官吏铨选」），
+    供人事/财政等**非参数型**入口复用；未指定事权/解析失败/不掌该权一律拒绝。
+    """
+    key = str(matter or "").strip()
+    if not key:
+        return False, "未指定事权"
+    matters, label, err = resolve_executor(state, executor)
+    if err:
+        return False, err
+    if key not in matters:
+        return False, f"执行主体「{label}」不掌「{key}」事权，拒绝"
+    return True, label
+
+
 def apply_reform(state, reform: Any, executor: Any = None) -> list:
     """落地一份编制改革契约 `{参数名: 绝对值或档位词}`（`free_effect` 的 `institution` 字段）。
 
