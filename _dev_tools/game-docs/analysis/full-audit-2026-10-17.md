@@ -559,4 +559,31 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 ### 19.3 仍未闭环
 1. 外部 agent 仍在向 `specs/cross-cutting/` 提交取证文档；README 索引需随提交同步（本轮已补 B2b/B2c）。
 2. 部分历史路径仍直写路级镜像（外邦省域经济），依赖月末对账归一。
-3. **paperdoll**：按用户裁定**冻结**，不再改动。
+3. **paperdoll**：按用户裁定**冻结**，不再改动。---
+
+## 20. 第十一批整改（验证债清零：全量 / 长局 / 干净 clone）
+
+### 20.1 实测
+| 验证 | 结果 |
+|---|---|
+| 工作树全量 pytest | **3535 tests / 0 failed / 0 errors / 3 skipped**（junit `_scratch/audit-20261017/junit-batchB.xml`，896.1s） |
+| `verify-all -Fast -SkipShot -LongRun` | §0/1b/2/3/6 全绿；**240 月长局 4/4 通过**（484.1s）；§1 仅性能门禁在旧实现下受负载误红（已改相对基线） |
+| **真实 `git clone` 全量** | **3535 tests / 0 failed / 0 errors / 12 skipped**（junit `_scratch/audit-20261017/junit-cleanC.xml`，479.4s） |
+| 干净 clone 的 12 skip | 3 个常规 + 9 个「舆图生成物不入库/未重建」跳过，**无代码失败** |
+
+### 20.2 已修
+1. **`core/grain_ledger.py` 转发桩补齐**：`STORAGE_LOSS_TIERS` / `storage_loss_rate` / `assert_loss_tiers_sane` 现已从新实现转发；旧路径与新实现同一对象。
+2. **README 索引**：`foundation/ledger/README.md` 补 `goods_class.py` / `goods_kind.py`；`specs/cross-cutting/README.md` 补 B2d、G3 粮迁移/粮与粮仓、商品类目词条。
+3. **性能门禁改相对基线**：300k 纯 Python 校准循环，`P95/calibration < 6.0`（空载实测 ~0.7–1.0）；不再因并行负载误红，仍能抓 O(n²) 级退化。
+4. **舆图测试缺产物改 skip**：`prefecture_borders.topojson` / `regions.topojson` 缺失时 `pytest.skip`（生成物不入库，干净 clone 先重建），不再 `fail`。
+
+### 20.3 结论
+- **工作树与真实干净 clone 均无代码失败**；干净 clone 只需按 README 重建舆图产物即可把 9 个 skip 转绿。
+- 外部 B2 会话仍在其分支推进；本轮未改 B2 专有逻辑，只修复了其提交带来的转发桩/索引/门禁集成问题。
+- paperdoll 按用户裁定冻结，未改动。
+
+### 20.4 仍未闭环
+1. 舆图产物（`assets/map/web/*`、`public/map/*.topojson`）仍不入库；干净 clone 需先重建（已由 skip 明示）。
+2. 发布打包链：`electron/dist` 缺失、安装包停在 2026-09-28。
+3. 真机截图矩阵未跑（`-SkipShot`）。
+4. PM 投入配方结构（只乘产出）仍属后续平衡批次。
