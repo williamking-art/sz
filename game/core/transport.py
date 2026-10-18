@@ -511,6 +511,40 @@ def transport_reset_month(state) -> None:
     """回合初清空本月运力占用（货/客两本账；**队列保留**待续发）。"""
     state.transport_used = {"goods": {}, "passenger": {}}
 
+def route_season(mode: str, month: Optional[int] = None) -> dict:
+    """季节通航窗口（P3）：返回 `{open, capacity_mult, speed_mult, risk_mult, deferred_to}`。
+
+    · `month` 缺失 ⇒ `open=None`（未知，不臆断为通航或不通风）；
+    · 停航月 ⇒ `open=False` 且 `deferred_to` = 下一个开放月（1–12 循环）；
+    · 倍率缺省 1.0（不在表里即无影响）。
+    """
+    from content.data_constants import SEASON_RULES
+
+    rule = (SEASON_RULES or {}).get(str(mode or "")) or {}
+    if month is None:
+        return {"open": None, "capacity_mult": 1.0, "speed_mult": 1.0,
+                "risk_mult": 1.0, "deferred_to": None, "reason": "month_missing"}
+    try:
+        m = int(month) % 12 or 12
+    except (TypeError, ValueError):
+        return {"open": None, "capacity_mult": 1.0, "speed_mult": 1.0,
+                "risk_mult": 1.0, "deferred_to": None, "reason": "month_invalid"}
+    closed = tuple(int(x) for x in (rule.get("closed_months") or ()))
+    out = {"open": m not in closed,
+           "capacity_mult": float((rule.get("capacity_mult") or {}).get(m, 1.0)),
+           "speed_mult": float((rule.get("speed_mult") or {}).get(m, 1.0)),
+           "risk_mult": float((rule.get("risk_mult") or {}).get(m, 1.0)),
+           "deferred_to": None, "reason": None}
+    if not out["open"]:
+        nxt = m
+        for _ in range(12):
+            nxt = nxt % 12 + 1
+            if nxt not in closed:
+                out["deferred_to"] = nxt
+                break
+        out["reason"] = "closed"
+    return out
+
 def transit_km(frm: str, to: str, mode: str) -> Optional[float]:
     """两治所间该方式的**实际里程**（km）；取不到 ⇒ None（不臆造）。
 

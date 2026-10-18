@@ -1734,3 +1734,16 @@ POP_INVEST_MAX_PROPOSALS = 40
 
 #: P8 商人自主投资总开关（Jev：默认关 0.676 / 默认开 0.263 / 只买船 0.061）
 MERCHANT_INVEST_ENABLED = 0
+
+#: 季节通航窗口（P3，2026-10-18；设定值·宋制量级）
+#: closed_months：该方式**停航**的月份（等下一窗口）
+#: capacity_mult：载重倍率（枯水减载）；speed_mult：速度倍率；risk_mult：途耗/风险倍率
+SEASON_RULES = {
+    "waterway": {"closed_months": (11, 12, 1, 2), "capacity_mult": {3: 0.6, 4: 0.6},
+                 "speed_mult": {3: 0.8, 4: 0.8, 6: 0.7, 7: 0.7, 8: 0.7}, "risk_mult": {6: 1.5, 7: 2.0, 8: 1.5}},
+    "maritime": {"closed_months": (), "capacity_mult": {},
+                 "speed_mult": {}, "risk_mult": {7: 2.0, 8: 2.0, 9: 1.5}},
+    "overland": {"closed_months": (), "capacity_mult": {},
+                 "speed_mult": {12: 0.5, 1: 0.5, 2: 0.5}, "risk_mult": {6: 1.2, 7: 1.2, 8: 1.2}},
+    "post": {"closed_months": (), "capacity_mult": {}, "speed_mult": {}, "risk_mult": {}},
+}
