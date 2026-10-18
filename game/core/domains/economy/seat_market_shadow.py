@@ -40,6 +40,18 @@ __all__ = [
 ]
 
 
+def _is_grain_dim(dim) -> bool:
+    """该维是否属粮：谷物别名（粮/grain）+ 类目属性（COMMODITY_KINDS）双判据。"""
+    d = str(dim or "")
+    if d in ("粮", "grain"):
+        return True
+    try:
+        from core.foundation.ledger.goods_kind import is_grain
+
+        return bool(is_grain(d))
+    except Exception:  # noqa: BLE001
+        return False
+
 def _num(v) -> Optional[float]:
     if isinstance(v, (int, float)) and not isinstance(v, bool):
         return float(v)
@@ -328,7 +340,8 @@ def demand_coverage(state, dims=None) -> Dict[str, Any]:
             ch.append("basket")
         if _num(durable.get(dim)) is not None:
             ch.append("durable")
-        if dim in ("粮", "grain", "米", "麦") and grain_pc:
+        # 2026-10-18：粮按**类目**判定（粮/谷物别名 + is_grain），不硬编码成员集合
+        if _is_grain_dim(dim) and grain_pc:
             ch.append("grain")
         rows.append({"dim": dim, "channels": ch,
                      "basket_per_capita": _num(basket.get(dim)),

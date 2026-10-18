@@ -31,16 +31,13 @@ def grain_get(pop: Optional[dict]) -> Optional[int]:
     if not isinstance(pop, dict):
         return None
     if has_grain_bucket(pop):
-        goods = pop.get("goods") or {}
-        tot = 0
-        has = False
-        for d in ("米", "麦"):
-            v = goods.get(d)
-            if isinstance(v, (int, float)):
-                has = True
-                tot += int(v)
-        if has:
-            return tot
+        # 2026-10-18：粮是**类目**（GOODS_CLASSES 粮 = 米/麦/面…），不在本处硬编码成员集合
+        from content.data_constants import GRAIN_CLASS
+        from core.foundation.ledger.goods_class import class_total
+
+        tot = class_total(pop.get("goods") or {}, GRAIN_CLASS)
+        if tot is not None:
+            return int(tot)
     g = pop.get("grain")
     return int(g) if isinstance(g, (int, float)) else None
 

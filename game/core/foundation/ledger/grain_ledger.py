@@ -96,7 +96,14 @@ def has_grain_bucket(pop: Optional[dict]) -> bool:
     goods = pop.get("goods")
     if not isinstance(goods, dict):
         return False
-    return any(isinstance(goods.get(d), (int, float)) for d in ("米", "麦"))
+    # 2026-10-18：按**类目**判定（粮 = 米/麦/面…），不硬编码成员集合
+    try:
+        from content.data_constants import GRAIN_CLASS
+        from core.foundation.ledger.goods_class import class_total
+
+        return class_total(goods, GRAIN_CLASS) is not None
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def survey_grain(state) -> Dict[str, object]:
