@@ -65,8 +65,10 @@ def test_workshop_manufacturing_multiplier_from_monthly_settlement():
 
 def _transport_net(system_id):
     s = new_game()
-    origin = next(iter(s.prefectures["京畿路"]["seats"]))
-    target = next(iter(s.prefectures["两浙路"]["seats"]))
+    # 2026-10-18：时效已分档（京畿→两浙陆路 36 天 > 1 个月），本用例需「单月内到货」，
+    # 故改走同路短途（开封府→郑州，62km ⇒ 近程基准 15 天）。
+    seats = list(s.prefectures["京畿路"]["seats"])
+    origin, target = seats[0], seats[1]
     warehouse_stock_add(s, origin, "public_granary", "grain", 1000.0)
     disp = dispatch_spatial_transfer(
         s, origin, target, "grain", 1000.0, "state:treasury", "overland")
@@ -76,17 +78,18 @@ def _transport_net(system_id):
     line = next((str(x) for x in log if "本月运抵" in str(x)), "")
     m = re.search(r"本月运抵 ([\d.]+) 实物", line)
     assert m, line
-    return float(m.group(1))
+    return float(m.group(1)), int(disp["days"])
 
 
 def test_logistics_loss_reduction_from_monthly_settlement():
-    net0 = _transport_net(0)
-    net1 = _transport_net(1)
-    net2 = _transport_net(2)
-    assert abs(net0 - 700.0) < 1e-6, net0              # 1000 - 500*0.02*30
+    net0, days = _transport_net(0)
+    net1, _d1 = _transport_net(1)
+    net2, _d2 = _transport_net(2)
+    loss = 500 * 0.020 * days          # 运 1000 石陆路：porters=500、0.02 石/人·日
+    assert abs(net0 - (1000.0 - loss)) < 1e-6, (net0, loss, days)
     assert net0 < net1 < net2
-    assert abs(net1 - 730.0) < 1e-6, net1             # loss 300 * (1-0.10)
-    assert abs(net2 - 775.0) < 1e-6, net2             # loss 300 * (1-0.25)
+    assert abs(net1 - (1000.0 - loss * 0.90)) < 1e-6, net1
+    assert abs(net2 - (1000.0 - loss * 0.75)) < 1e-6, net2
 
 
 def test_fangtian_survey_tax_leakage_resistance():
