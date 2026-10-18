@@ -500,11 +500,14 @@ def arrive_due(state) -> List[Dict[str, Any]]:
             continue
         dst = idx.get(b["to"])
         goods = merchant_goods(state, dst["circuit"]) if dst else None
-        if goods is None or b["dim"] not in goods:
-            # 目的地无商人货栈 ⇒ 无法入账，**保留批次**并如实记账，
+        if goods is None:
+            # 目的地**无商人货栈** ⇒ 无法入账，保留批次并如实记账，
             # 绝不静默丢弃（缺失≠0）。
             keep.append(b)
             continue
+        # 2026-10-18 修：此前还要求 `b["dim"] in goods`，导致「货栈存在但缺该维」
+        # 的批次**永远到不了账**（实测：京西路商人 goods={} 时，跨路到货永久挂起）。
+        # 缺该维 = 该维库存为 0，不是「货栈不存在」⇒ 建键入账。
         goods[b["dim"]] = int(goods.get(b["dim"], 0) or 0) + int(b["qty"])
         # 2026-10-03（方案 C）：到货**落在哪个治所**必须可观测。
         # 料仍入「本路商人货栈」（路级持有口径未动），但把目的地治所显式带出，

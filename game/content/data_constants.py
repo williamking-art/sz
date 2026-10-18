@@ -1271,3 +1271,13 @@ BARGES_POOL_DEFAULT = 50
 
 #: 海运绕行系数（航线非直线；设定值非史料）
 SEA_DETOUR_FACTOR = 1.2
+
+#: 拨款三方式（G-3/P6a，2026-10-18）：划账 / 押运 / 交子便换
+#: draft 划账：仅限**同路或 1 月内可达**（远路大额应走押运或交子）
+DRAFT_MAX_DAYS = 1
+#: 交子便换手续费率（占汇兑额；设定值，低于运费的 0.5%/千km 量级）
+JIAOZI_DRAFT_FEE_RATE = 0.002
+#: 交子兑付的信任下限：trust 低于此值 ⇒ 视为「难以兑付」，便换拒办
+JIAOZI_DRAFT_MIN_TRUST = 40
+#: 交子挤兑压力上限：超过此值 ⇒ 便换拒办（先保兑付）
+JIAOZI_DRAFT_MAX_RUN = 0.5

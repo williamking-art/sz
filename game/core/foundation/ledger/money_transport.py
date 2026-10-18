@@ -29,9 +29,12 @@
 """
 from __future__ import annotations
 
+import math
+
 from typing import Any, Dict, Optional
 
 __all__ = [
+    "allocate_funds",
     "MONEY_CARGO_KIND", "HOLDER_KINDS", "resolve_holder", "dispatch_money",
     "arrive_money_due", "money_in_transit", "money_transit_total",
 ]
@@ -257,3 +260,81 @@ def money_in_transit(state) -> list:
 def money_transit_total(state) -> int:
     """在途钱合计（贯）；无在途 ⇒ 0（这是**真零**，不是缺失）。"""
     return sum(int(b.get("qty", 0) or 0) for b in money_in_transit(state))
+
+
+def allocate_funds(state, *, dst_seat: str, amount: int, src: str = "treasury",
+                   mode: str = "draft", transport_mode: str = "land",
+                   escort_fee: int = 0) -> Dict[str, Any]:
+    """拨款三方式（G-3/P6a）：国库/内帑 → 指定治所地方府库。
+
+    用户 2026-10-18 定调，三选一：
+    · draft      划账：立刻到账；仅限同路或 1 月内可达，远路大额拒办并给建议；
+    · transport  押运：走 dispatch_along（陆/水/海/驿），按路程天数到账，收运费；
+    · jiaozi     交子便换：立刻兑付，收手续费；按交子信任/挤兑状态承担兑付损失或拒办。
+
+    不改任何既有 transfer_money 调用；本函数是新增的显式动作。
+    返回 {ok, mode, reason?, days, fee, credited, loss?, batch?}。
+    """
+    from content.data_constants import (DRAFT_MAX_DAYS, JIAOZI_DRAFT_FEE_RATE,
+                                        JIAOZI_DRAFT_MAX_RUN, JIAOZI_DRAFT_MIN_TRUST)
+    from core.transport import route_path
+
+    if not dst_seat or "|" not in str(dst_seat):
+        return {"ok": False, "mode": mode, "reason": "bad_destination"}
+    want = max(0, int(amount))
+    if want <= 0:
+        return {"ok": True, "mode": mode, "reason": "no_demand", "credited": 0}
+    if src not in ("treasury", "imperial_treasury"):
+        return {"ok": False, "mode": mode, "reason": "bad_source"}
+    route = str(dst_seat).split("|", 1)[0]
+    dst_acct = "local:%s:%s" % (route, dst_seat)
+    dst_read, dst_write = resolve_holder(state, "local_treasury", dst_seat)
+
+    if mode == "draft":
+        rp = route_path("京畿路|开封府", dst_seat)
+        days = int((rp or {}).get("days") or 0) if (rp or {}).get("reachable") else None
+        if days is None:
+            return {"ok": False, "mode": mode, "reason": "unreachable"}
+        if days > int(DRAFT_MAX_DAYS):
+            return {"ok": False, "mode": mode, "reason": "draft_too_far",
+                    "days": days, "suggest": ["transport", "jiaozi"]}
+        moved = int(state.transfer_money(src, dst_acct, want))
+        if moved <= 0:
+            return {"ok": False, "mode": mode, "reason": "transfer_failed"}
+        return {"ok": True, "mode": mode, "days": 0, "fee": 0, "credited": moved}
+
+    if mode == "transport":
+        r = dispatch_along(state, frm_kind=src, to_kind="local_treasury", amount=want,
+                           to_seat=dst_seat, mode=transport_mode, escort_fee=escort_fee)
+        if not r.get("ok"):
+            return {"ok": False, "mode": mode, "reason": r.get("reason"),
+                    "detail": {k: r.get(k) for k in ("capacity", "batches_needed") if k in r}}
+        return {"ok": True, "mode": mode, "days": int(r.get("days") or 0),
+                "fee": int(r["batch"].get("freight") or 0) + int(r["batch"].get("escort_fee") or 0),
+                "credited": 0, "arrive_month": r.get("arrive_month"), "batch": r.get("batch")}
+
+    if mode == "jiaozi":
+        jz = getattr(state, "jiaozi", None) or {}
+        trust = float(jz.get("trust", 100) or 0)
+        run = float(jz.get("run_pressure", 0) or 0)
+        if trust < float(JIAOZI_DRAFT_MIN_TRUST):
+            return {"ok": False, "mode": mode, "reason": "jiaozi_distrusted", "trust": trust}
+        if run > float(JIAOZI_DRAFT_MAX_RUN):
+            return {"ok": False, "mode": mode, "reason": "jiaozi_run", "run_pressure": run}
+        fee = int(math.ceil(want * float(JIAOZI_DRAFT_FEE_RATE)))
+        avail = int(getattr(state, src, 0) or 0)
+        if avail < want + fee:
+            return {"ok": False, "mode": mode, "reason": "insufficient_funds",
+                    "available": avail, "need": want + fee}
+        discount = float(jz.get("discount", 0) or 0)
+        loss = int(round(want * discount))
+        credited = max(0, want - loss)
+        setattr(state, src, avail - want - fee)
+        if dst_write is None:
+            return {"ok": False, "mode": mode, "reason": "destination_unavailable"}
+        dst_write(int(dst_read() if dst_read else 0) + credited)
+        return {"ok": True, "mode": mode, "days": 0, "fee": fee,
+                "credited": credited, "loss": loss}
+
+    return {"ok": False, "mode": mode, "reason": "unknown_mode"}
+

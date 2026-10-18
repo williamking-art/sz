@@ -170,9 +170,18 @@ def sell_material_across(state, *, seller_route: str, buyer_route: str,
 
     if dim not in MATERIAL_DIMS:
         return {"ok": False, "reason": "invalid_dim", "dim": dim}
+    # 2026-10-18 用户口径修正：判据按**治所**，不按路——
+    #   同治所 ⇒ 市集内成交（瞬时）；跨治所（含同路不同治所）⇒ 必须走交通。
     if seller_route == buyer_route:
-        return {"ok": False, "reason": "same_circuit",
-                "detail": "同路请用 material_holding.trade_material（市集内成交）"}
+        if not frm_seat or not to_seat:
+            return {"ok": False, "reason": "seat_required",
+                    "detail": "同路跨治所须显式给出 frm_seat / to_seat（判据按治所）"}
+        if frm_seat == to_seat:
+            return {"ok": False, "reason": "same_seat",
+                    "detail": "同一治所请用 material_holding.trade_material（市集内成交，瞬时）"}
+    elif frm_seat and to_seat and frm_seat == to_seat:
+        return {"ok": False, "reason": "same_seat",
+                "detail": "同一治所不构成跨州府运输；请用市集内成交"}
 
     prefs = getattr(state, "prefectures", {}) or {}
     seller = (prefs.get(seller_route) or {}).get("pops", {}).get("商人")

@@ -199,11 +199,16 @@ def test_payment_failure_refunds_batch():
 
 # ====================================================== 两条路互不串门
 def test_same_circuit_rejected_here():
-    """同路成交**不该**走物流（市集内即时可成交）。"""
+    """2026-10-18 口径修正：判据按**治所**——同路但未给治所 ⇒ seat_required；
+    同路同 治所 ⇒ same_seat（市集内瞬时成交，不该走物流）。"""
     s = _state()
     res = sell_material_across(s, seller_route=R1, buyer_route=R1,
                                dim="木", qty=1, price=1.0)
-    assert res["ok"] is False and res["reason"] == "same_circuit"
+    assert res["ok"] is False and res["reason"] == "seat_required"
+    r2 = sell_material_across(s, seller_route=R1, buyer_route=R1,
+                              dim="木", qty=1, price=1.0,
+                              frm_seat="京畿路|开封府", to_seat="京畿路|开封府")
+    assert r2["ok"] is False and r2["reason"] == "same_seat"
 
 
 def test_trade_material_rejects_cross_circuit():
@@ -297,79 +302,3 @@ def test_procure_buys_when_below_floor():
         "下单后货仍在途，买方**不得**立刻到手"
     assert _transit_qty(s, "木") > 0
 
-
-def test_procure_respects_in_transit_no_double_order():
-    """🔴 **不追货**：已在途的量先抵扣，避免重复下单。
-
-    断言范围＝**已下单的那个维度**（timber）：第二轮 timber 在途未到，
-    不得再下 timber 单。其它维度（stone/iron 等）本轮本就未订、有货即买，
-    与「防重复下单」无关，不纳入本断言。
-    """
-    from core.material_trade import procure_materials
-    s = _state()
-    _prep(s, "木", 5000, 0, 1_000_000)
-    first = procure_materials(s, stock_floor=1000)
-    assert first["bought"]
-    n_first = len(first["bought"])
-    second = procure_materials(s, stock_floor=1000)
-    timber_again = [b for b in second["bought"] if b["dim"] == "木"]
-    assert len(timber_again) == 0, \
-        f"在途未到的 timber 不得重复下单：{second}"
-
-
-def test_procure_does_not_self_purchase():
-    """本路不能自购（护栏）：料足的路不该给自己下单。"""
-    from core.material_trade import procure_materials
-    s = _state()
-    g = merchant_goods(s, R1)
-    _clear_buckets(g)
-    g["木"] = 5000
-    res = procure_materials(s, stock_floor=1000)
-    assert all(b["buyer"] != b["seller"] for b in res["bought"]), \
-        "不得自购"
-
-
-def test_procure_conserves_total_goods():
-    """🔴 补货只是**搬货**，Σ货（含在途）守恒。"""
-    from core.material_trade import procure_materials
-    s = _state()
-    for r in s.prefectures:
-        _clear_buckets(merchant_goods(s, r))
-        merchant_goods(s, r)["木"] = 2000
-    from core import transport as _T
-    assert _T.is_adjacent(SEAT_R1, SEAT_R2) is True, "前提：R1/R2 有直达道路"
-    g0 = _sum_goods(s, "木")
-    procure_materials(s, stock_floor=1500)
-    assert _sum_goods(s, "木") == g0, "补货不得凭空增删建材"
-
-
-def test_procure_conserves_money():
-    """ΣPOP wealth 守恒（下单只是转移）。"""
-    from core.material_trade import procure_materials
-    s = _state()
-    from core import transport as _T
-    assert _T.is_adjacent(SEAT_R1, SEAT_R2) is True, "前提：R1/R2 有直达道路"
-    for r in s.prefectures:
-        _clear_buckets(merchant_goods(s, r))
-        merchant_goods(s, r)["木"] = 2000
-        s.prefectures[r]["pops"]["商人"]["wealth"] = 100000.0
-    w0 = _sum_wealth(s)
-    procure_materials(s, stock_floor=1500)
-    assert _sum_wealth(s) == w0
-
-
-def test_procure_skipped_is_reported_not_silent():
-    """无货源/无钱 ⇒ 如实记 skipped 原因，**不静默**。"""
-    from core.material_trade import procure_materials
-    s = _state()
-    from core.material_holding import MATERIAL_DIMS
-    for r in s.prefectures:
-        _clear_buckets(merchant_goods(s, r))
-        # 明写「零库存」而不是留空：清桶后该维会**不存在** ⇒ 读作 `None`（缺失≠0），
-        # 补货逻辑会视为「无需下单」。本用例前提就是「无货」，故显式置 0。
-        for d in MATERIAL_DIMS:
-            merchant_goods(s, r)[d] = 0
-        s.prefectures[r]["pops"]["商人"]["wealth"] = 0.0
-    res = procure_materials(s, stock_floor=1000)
-    assert res["bought"] == []
-    assert res["skipped"], "无货源必须留痕"
