@@ -225,6 +225,22 @@ def init_minister_agents(state):
     return seeded
 
 
+def init_transport_carriage(state) -> None:
+    """P3（2026-10-18）：初始化载具与夫役（运力由它们派生，非常量）。
+
+    幂等：已有值则跳过；数值来自 content.data_constants 的 CARRIAGE_INITIAL /
+    TRANSPORT_LABOR_INITIAL（设定值·史实量级）。
+    """
+    from content.data_constants import CARRIAGE_INITIAL, TRANSPORT_LABOR_INITIAL
+
+    if not getattr(state, "carriage", None):
+        state.carriage = {k: dict(v) for k, v in (CARRIAGE_INITIAL or {}).items()}
+    if not getattr(state, "transport_labor", None):
+        state.transport_labor = {k: dict(v) for k, v in (TRANSPORT_LABOR_INITIAL or {}).items()}
+    if not isinstance(getattr(state, "transport_used", None), dict):
+        state.transport_used = {}
+
+
 def new_game(mode: str = "史实"):
     """开局入口：`GameState` → 人口域初始化 → **POP→府库→建筑→漕运→常平仓→州仓→物理仓位 依次下沉州府级**。
 
@@ -248,4 +264,5 @@ def new_game(mode: str = "史实"):
     init_building_owners(state)         # M91：建筑归属（P2 第一片，building_meta，零数值变化）
     init_official_books(state)          # P1-5：显式初始化 136 州府/21 路具名官册（读函数不再懒写）
     init_minister_agents(state)         # C-1：中枢在任官员 Agent 运行态（复述/事权门禁前置）
+    init_transport_carriage(state)       # P3：载具与夫役（运力派生基数）
     return state

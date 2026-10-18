@@ -482,6 +482,10 @@ class GameState(GameStateEconMixin):
         self.coin = dict(COIN_INFO)
         self.bank = dict(BANK_INFO)
         self.standard = dict(STANDARD_INFO)
+        # ---- P3（2026-10-18）：载具与夫役（运力由它们派生，非常量）+ 本月已用 ----
+        self.carriage: dict = {}          # {"official": {...}, "private": {...}}
+        self.transport_labor: dict = {}   # 夫役数（人上限的分子）
+        self.transport_used: dict = {}    # 本月已用（按 mode，瞬态）
 
         # ---- 扩展维度：科举/学校 ----
         self.exam = dict(EXAM_INFO)

@@ -1569,3 +1569,30 @@ TRANSPORT_EFFECT_CAPS = {
 #: 同一效果键的多个来源按**绝对值降序**加权，第 i 项权重 = DIMINISH^i（首项 1.0）。
 #: 理由：多份科技/国策在同一方向上会重叠（造两艘同类快船不等于速度翻倍）。
 TRANSPORT_EFFECT_DIMINISH = 0.85
+
+# ============================================================
+# 开局载具与夫役（2026-10-18 P3；史实量级，游戏人口 1.0075 亿）
+# ============================================================
+#: 官有/私有载具数。运力由它们**派生**（§1.2）：不是常量！
+CARRIAGE_INITIAL = {
+    "official": {"boat": 2000, "sea_boat": 30, "cart": 500, "horse": 20000},
+    "private": {"small_boat": 8000, "sea_small": 200, "cart": 50000,
+                "mule": 200000, "porter": 200000},
+}
+#: 夫役（人力上限的分子）：人 ÷ 人石比 = 月可运石
+TRANSPORT_LABOR_INITIAL = {
+    "official": {"boatman": 50000, "post_soldier": 30000, "sailor": 20000},
+    "private": {"hired_porter": 100000},
+}
+#: 可用率：基线 1.0，按漕淤/战损/征调扣减（各为设定值，按月）
+TRANSPORT_AVAILABILITY = {"base": 1.0, "canal_block_penalty": 0.006, "canal_block_cap": 0.4}
+
+#: 载具键 → TRANSPORT_CARRIERS 里的载具名（容量估算用真实载重，不混用 baseline）
+CARRIAGE_CARRIER_MAP = {
+    "waterway": {"boat": "漕船(500石)", "small_boat": "内河小船(50石)"},
+    "maritime": {"sea_boat": "海船(2000石)", "sea_small": "海舶(200石)"},
+    "overland": {"cart": "马车(10石)", "mule": "骡驮(2.5石)", "porter": "挑夫(1石)"},
+    "post": {"horse": "驿马(0.5石)"},
+}
+#: 月趟数（长途单程 >15 日 ⇒ 约 0.5 趟/月；陆路/驿传更快）
+CARRIAGE_MONTHLY_TRIPS = {"waterway": 0.5, "maritime": 0.5, "overland": 1.0, "post": 2.0}

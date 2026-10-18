@@ -271,6 +271,127 @@ def route_path(frm: str, to: str) -> Optional[Dict[str, Any]]:
 
 
 
+def _carriage_of(state, owner: str) -> dict:
+    """某所有权的载具数；缺失 ⇒ 空表（不臆造 0）。"""
+    car = getattr(state, "carriage", None) or {}
+    got = car.get(owner)
+    return got if isinstance(got, dict) else {}
+
+
+def _labor_of(state, owner: str) -> dict:
+    """某所有权的夫役数；缺失 ⇒ 空表。"""
+    lab = getattr(state, "transport_labor", None) or {}
+    got = lab.get(owner)
+    return got if isinstance(got, dict) else {}
+
+
+def _carrier_keys(mode: str) -> tuple:
+    """路网 → 载具键（与 CARRIAGE_INITIAL 的命名对应）。"""
+    return {
+        "waterway": ("boat",),
+        "maritime": ("sea_boat",),
+        "overland": ("cart", "mule", "porter"),
+        "post": ("horse",),
+    }.get(mode, ())
+
+
+def _labor_keys(mode: str) -> tuple:
+    return {
+        "waterway": ("boatman",),
+        "maritime": ("sailor",),
+        "overland": ("hired_porter",),
+        "post": ("post_soldier",),
+    }.get(mode, ())
+
+
+def transport_availability(state, mode: str) -> float:
+    """可用率（1 − 漕淤惩罚，clamp 到 [1−cap, 1]）；非水运不受漕淤影响。"""
+    from content.data_constants import TRANSPORT_AVAILABILITY as AV
+
+    base = float((AV or {}).get("base", 1.0))
+    if mode not in ("waterway", "maritime"):
+        return base
+    block = float(getattr(state, "canal_block", 0) or 0)
+    pen = min(float((AV or {}).get("canal_block_cap", 0.4)),
+              block * float((AV or {}).get("canal_block_penalty", 0.006)))
+    return max(0.0, base - pen)
+
+
+def transport_capacity(state, mode: str) -> dict:
+    """**派生运力**（P3）：`min(载具上限, 人力上限) × 可用率`，并标出瓶颈。
+
+    · 载具上限 = Σ(官私载具数 × **该载具真实载重**) × 月趟数（`CARRIAGE_CARRIER_MAP`）；
+    · 人力上限 = Σ夫役数 ÷ 既有矩阵人石比；
+    · 官私**相加**（不是覆盖）；缺失 ⇒ 该项 0 且 bottleneck 说明。
+    """
+    from content.data_constants import (CARRIAGE_CARRIER_MAP, CARRIAGE_MONTHLY_TRIPS,
+                                        TRANSIT_LABOR_PER_STONE)
+
+    by_name = {c.get("name"): c for c in carriers_for(mode)}
+    key_map = CARRIAGE_CARRIER_MAP.get(mode) or {}
+    trips = float((CARRIAGE_MONTHLY_TRIPS or {}).get(mode, 1.0))
+    base_labor_rate = float(TRANSIT_LABOR_PER_STONE.get(mode, 0.5) or 0.5)
+    avail = transport_availability(state, mode)
+
+    counts: Dict[str, int] = {}
+    vehicle_cap = 0.0
+    for owner in ("official", "private"):
+        own = _carriage_of(state, owner)
+        for key, carrier_name in key_map.items():
+            n = int(own.get(key) or 0)
+            if n <= 0:
+                continue
+            counts[key] = counts.get(key, 0) + n
+            c = by_name.get(carrier_name) or {}
+            vehicle_cap += n * float(c.get("load") or 0)
+    vehicle_cap *= trips
+    lab_total = sum(int(_labor_of(state, owner).get(k) or 0)
+                    for owner in ("official", "private")
+                    for k in _labor_keys(mode))
+    labor_cap = (lab_total / base_labor_rate) if base_labor_rate > 0 else 0.0
+    eff = min(vehicle_cap, labor_cap) * avail
+    if vehicle_cap <= 0 and labor_cap <= 0:
+        bottleneck = "none"
+    elif vehicle_cap <= labor_cap:
+        bottleneck = "vehicles"
+    else:
+        bottleneck = "labor"
+    return {"mode": mode, "vehicles": counts, "vehicle_cap": round(vehicle_cap, 1),
+            "labor_total": lab_total, "labor_cap": round(labor_cap, 1),
+            "trips_per_month": trips, "availability": round(avail, 4),
+            "capacity": round(eff, 1), "bottleneck": bottleneck}
+
+def transport_used(state, mode: str) -> float:
+    used = getattr(state, "transport_used", None) or {}
+    try:
+        return float(used.get(mode, 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def transport_remaining(state, mode: str) -> float:
+    """本月剩余运力（石）；负数按 0。"""
+    return max(0.0, float(transport_capacity(state, mode)["capacity"]) - transport_used(state, mode))
+
+
+def transport_consume(state, mode: str, qty: float) -> dict:
+    """占用本月运力（**不足则按剩余截断**，返回实占与缺口；不拒办）。"""
+    want = max(0.0, float(qty or 0))
+    rem = transport_remaining(state, mode)
+    take = min(want, rem)
+    used = getattr(state, "transport_used", None)
+    if not isinstance(used, dict):
+        used = {}
+    used[mode] = float(used.get(mode, 0) or 0) + take
+    state.transport_used = used
+    return {"ok": take > 0, "taken": round(take, 1), "short": round(want - take, 1),
+            "remaining": round(rem - take, 1)}
+
+
+def transport_reset_month(state) -> None:
+    """回合初清空本月运力占用（瞬态，不落档）。"""
+    state.transport_used = {}
+
 def transit_km(frm: str, to: str, mode: str) -> Optional[float]:
     """两治所间该方式的**实际里程**（km）；取不到 ⇒ None（不臆造）。
 
