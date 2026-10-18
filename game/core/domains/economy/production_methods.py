@@ -43,6 +43,7 @@ __all__ = [
     "get_building_pms",
     "calculate_building_throughput",
     "relative_throughput_multiplier",
+    "PM_INPUT_RULES", "adjusted_recipe",
 ]
 
 #: 十大通用中性中间物目录（大宗流通商品）
@@ -351,6 +352,74 @@ PM_REGISTRY: Dict[str, ProductionMethod] = {
 }
 
 #: 默认初始建筑生产方式配置
+#: 生产方式对**投入配方**的调整（2026-10-18 全审平衡批次）。
+#: 只在「当前 PM 槽位 != 该建筑默认槽位」时生效 ⇒ **默认 PM 恒中性**。
+#: - replace：把旧维整量换成新维（燃料替换，数量守恒）
+#: - scale：按比例缩放某维
+#: - scale_all：按比例缩放全部投入（水力的低损耗）
+#: - extra_share：按当前总投入质量追加某维（蒸汽/工场/工厂的额外消耗）
+PM_INPUT_RULES: Dict[str, Dict[str, Any]] = {
+    "pm_smelting_charcoal": {"replace": {"煤炭": "木炭"}},
+    "pm_smelting_coke": {"scale": {"煤炭": 0.8}},
+    "pm_ceramics_charcoal": {"replace": {"煤炭": "木炭"}},
+    "pm_ceramics_coal": {"scale": {"煤炭": 0.9}},
+    "pm_crucible_steel": {"extra_share": {"煤炭": 0.10}},
+    "pm_power_water": {"scale_all": 0.98},
+    "pm_power_steam": {"extra_share": {"煤炭": 0.02}},
+    "pm_org_manufactory": {"extra_share": {"木": 0.01}},
+    "pm_org_industrial_factory": {"extra_share": {"铁": 0.02}},
+}
+
+
+def adjusted_recipe(
+    state: Any, circuit: str, seat_id: str, building_name: str,
+    recipe: Dict[str, Any],
+) -> Dict[str, Any]:
+    """按当前 PM 与默认四槽的差异，返回**调整后的投入配方**（默认中性）。
+
+    规则只在某槽位的当前 PM 与该建筑默认 PM 不同时应用；
+    因此默认配置下逐字段等于输入 `recipe`（不改平衡）。
+    `grain_feed` / `ration_weight` 原样保留。
+    """
+    original = dict(recipe or {})
+    base = {k: float(v or 0) for k, v in original.items()
+            if k not in ("grain_feed", "ration_weight")
+            and isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if not base:
+        return original
+    cur = get_building_pms(state, circuit, seat_id, building_name)
+    default = BUILDING_DEFAULT_PMS.get(building_name, {
+        "base": "pm_smelting_charcoal",
+        "power": "pm_power_manual",
+        "ownership": "pm_ownership_private",
+        "organization": "pm_org_craft_guild",
+    })
+    out = dict(base)
+    for slot in ("base", "power", "organization", "ownership"):
+        pid = str(cur.get(slot) or "")
+        if not pid or pid == str(default.get(slot) or ""):
+            continue
+        rule = PM_INPUT_RULES.get(pid)
+        if not rule:
+            continue
+        for old_dim, new_dim in (rule.get("replace") or {}).items():
+            q = out.pop(old_dim, 0.0)
+            if q > 0:
+                out[new_dim] = out.get(new_dim, 0.0) + q
+        for dim, mult in (rule.get("scale") or {}).items():
+            if dim in out:
+                out[dim] = out[dim] * float(mult)
+        if rule.get("scale_all"):
+            out = {k: v * float(rule["scale_all"]) for k, v in out.items()}
+        total = sum(v for v in out.values() if v > 0)
+        for dim, share in (rule.get("extra_share") or {}).items():
+            out[dim] = out.get(dim, 0.0) + total * float(share)
+    for k in ("grain_feed", "ration_weight"):
+        if k in original:
+            out[k] = original[k]
+    return out
+
+
 BUILDING_DEFAULT_PMS: Dict[str, Dict[str, str]] = {
     # 2026-10-18 全审：补齐其余 13 类作坊 + 食品坊（产业链虚拟生产方）的中性默认，
     # 使 PM 相对倍率可覆盖全部作坊与产业链；默认 base 为 pm_craft_generic（1.0）。
@@ -360,7 +429,9 @@ BUILDING_DEFAULT_PMS: Dict[str, Dict[str, str]] = {
     "造纸坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
     "糖坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
     "畜栏": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
-    "冶铁作坊": {"base": "pm_smelting_charcoal", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    # 2026-10-18 平衡批次：冶铁作坊配方为「铁 + 煤炭」⇒ 默认基础工艺改为焦炭高炉，
+    # 与配方一致；切回木炭土炉才触发「煤炭→木炭」替换并降产出（相对倍率 1.0/1.5）。
+    "冶铁作坊": {"base": "pm_smelting_coke", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
     "兵器营造坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
     "冶铜熔铸所": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
     "铸钱监": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},

@@ -2,7 +2,7 @@
   "id": "M317-v3-production-methods-and-neutral-intermediates",
   "title": "中性通用中间物体系与维多利亚3风格生产方式（PM）建筑架构重构",
   "status": "in_progress",
-  "audit_status": "2026-10-18 全审：PM 已覆盖全部 19 类作坊（新增 pm_craft_generic 中性基线 + 13 类作坊默认四槽）与全部产业链成品键（纺织/皮革/食品/造纸/印书等）；相对倍率默认 1.0，切换 PM 后作坊与产业链产出同步提升。",
+  "audit_status": "2026-10-18 平衡批次：PM 已同时驱动**产出倍率与投入配方**——PM_INPUT_RULES 支持燃料替换（煤炭↔木炭）、焦炭省料、蒸汽/工场/工厂额外消耗；规则仅在当前 PM≠默认 PM 时生效（默认中性）。作坊投料已接线；产业链投入待后续。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-17",
   "completedAt": "2026-10-17T07:29:00Z",

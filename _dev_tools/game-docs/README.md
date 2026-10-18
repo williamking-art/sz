@@ -42,7 +42,7 @@
 
 | 项 | 最近实测快照 | 复跑命令 |
 |---|---|---|
-| pytest 全量 | **tests 3535 / failures 0 / errors 0 / skipped 3**（2026-10-18 · 全审整改批次 11 · junit `_scratch/audit-20261017/junit-batchB.xml`，896.1s）；**真实干净 clone：3535 / 0 failed / 12 skipped**（junit `junit-cleanC.xml`，479.4s；9 skip 为舆图生成物未重建） | `cd (git rev-parse --show-toplevel); $ws = Split-Path (Get-Location) -Parent; $env:PYTHONPATH=""; & "$ws\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
+| pytest 全量 | **tests 3541 / failures 0 / errors 0 / skipped 3**（2026-10-18 · 全审整改批次 13 · junit `_scratch/audit-20261017/junit-pm.xml`，460.4s）；**真实干净 clone：3535 / 0 failed / 12 skipped**（junit `junit-cleanC.xml`，479.4s；9 skip 为舆图生成物未重建） | `cd (git rev-parse --show-toplevel); $ws = Split-Path (Get-Location) -Parent; $env:PYTHONPATH=""; & "$ws\.audit-venv\Scripts\python.exe" -m pytest _dev_tools/game-dev/tests -q -p no:cacheprovider --junitxml=out.xml` |
 | 前端 | tsc 双配置 0 错；vitest **17 files / 98 passed**（2026-10-17） | 见 `docs/开发服务器与回归测试说明.md` |
 
 ⚠️ 本表是**带日期与提交的快照**，不是永久真值；**任何一批改动后应重跑并更新本行**，引用前先核对日期。

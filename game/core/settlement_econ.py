@@ -1714,6 +1714,30 @@ def _workshop_pm_multiplier(state, wid: str, ws: dict) -> float:
         return 1.0
 
 
+def _workshop_pm_recipe(state, wid: str, ws: dict, recipe: dict) -> dict:
+    """按作坊当前 PM 调整投入配方；判不出地点/类型/无 seats ⇒ 原配方（默认中性）。"""
+    try:
+        from core.domains.economy.workshop_owner import workshop_type_of
+        from core.domains.economy.seat_goods_readout import route_of_workshop
+        from core.domains.economy.production_methods import adjusted_recipe
+        wtype = workshop_type_of(wid)
+        route = route_of_workshop(state, wid)
+        if not wtype or not route:
+            return recipe
+        pdata = (getattr(state, "prefectures", None) or {}).get(route)
+        if not isinstance(pdata, dict):
+            return recipe
+        seat = ws.get("seat") or ws.get("seat_id")
+        if not seat:
+            from core.foundation.ledger.building_bridge import capital_seat_id
+            seat = capital_seat_id(pdata, route)
+        if not seat or not isinstance((pdata.get("seats") or {}).get(str(seat)), dict):
+            return recipe
+        return adjusted_recipe(state, route, str(seat), wtype, recipe)
+    except Exception:  # noqa: BLE001 — PM 配方调整失败不得影响结算
+        return recipe
+
+
 def _settle_workshops(state, log):
     """作坊月度推进：配方消耗 inputs（如粮→酒），产出按**单一权威载体**入账。
 
@@ -1758,7 +1782,8 @@ def _settle_workshops(state, log):
         if not ws.get("active"):
             continue
         _order.append(wid)
-        recipe = ws.get("recipe") or {}
+        # 2026-10-18 平衡批次：PM 可改变投入配方（默认 PM 恒中性）
+        recipe = _workshop_pm_recipe(state, wid, ws, ws.get("recipe") or {})
         # 用 get 而非 pop：recipe 是存档持久 dict，pop 会销毁 grain_feed 键，
         # 导致次月起作坊不再耗粮、白嫖产出。
         w = float(recipe.get("ration_weight", 1.0) or 1.0)
@@ -1817,7 +1842,7 @@ def _settle_workshops(state, log):
                 state.granary_stats.get("workshop_feed", 0) + int(round(g)))
     for wid in _order:
         ws = state.workshops.get(wid) or {}
-        recipe = ws.get("recipe") or {}
+        recipe = _workshop_pm_recipe(state, wid, ws, ws.get("recipe") or {})
         # 本坊实际拿到的各维量（粮另计）
         got_dims = {d: _alloc.get(d, {}).get(wid, 0.0) for d in _demands}
         got_grain = _grain_alloc.get(wid, 0.0)
