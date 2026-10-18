@@ -258,12 +258,11 @@ def appoint_circuit_official(
         official_data: 官员字典（含 name, faction, rank, integrity, ability 等）
         executor: 可选承办主体；**不传 = 旧行为**；传了则必须掌「官吏铨选」
     """
-    if executor is not None:
-        from core.domains.administration.institution import require_matter
-        ok, _label = require_matter(state, executor, "官吏铨选")
-        if not ok:
-            return False
     if circuit not in ALL_CIRCUITS_21 or role_key not in CIRCUIT_OFFICIAL_ROLES:
+        return False
+    from core.domains.administration.institution import personnel_authority
+    ok, _label, _mode = personnel_authority(state, executor)
+    if not ok:
         return False
 
     c_map = init_all_circuit_officials(state)
@@ -315,11 +314,10 @@ def dismiss_circuit_official(state, circuit: str, role_key: str, reason: str = "
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `None` 且不改 state。
     """
-    if executor is not None:
-        from core.domains.administration.institution import require_matter
-        ok, _label = require_matter(state, executor, "官吏铨选")
-        if not ok:
-            return None
+    from core.domains.administration.institution import personnel_authority
+    ok, _label, _mode = personnel_authority(state, executor)
+    if not ok:
+        return None
     c_map = init_all_circuit_officials(state)
     circuit_entry = c_map.get(circuit)
     if not circuit_entry:

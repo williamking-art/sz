@@ -277,11 +277,10 @@ def appoint_prefect_official(state, seat_id: str, role: str,
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    if executor is not None:
-        from core.domains.administration.institution import require_matter
-        ok, reason = require_matter(state, executor, "官吏铨选")
-        if not ok:
-            return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
+    from core.domains.administration.institution import personnel_authority
+    ok, reason, _mode = personnel_authority(state, executor)
+    if not ok:
+        return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
     raw = getattr(state, "prefect_officials", None)
     if not isinstance(raw, dict) or len(raw) < 136:
         init_all_prefect_officials(state)
@@ -357,11 +356,10 @@ def dismiss_prefect_official(state, seat_id: str, role: str,
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    if executor is not None:
-        from core.domains.administration.institution import require_matter
-        ok, reason = require_matter(state, executor, "官吏铨选")
-        if not ok:
-            return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
+    from core.domains.administration.institution import personnel_authority
+    ok, reason, _mode = personnel_authority(state, executor)
+    if not ok:
+        return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
     raw = getattr(state, "prefect_officials", None)
     if not isinstance(raw, dict) or len(raw) < 136:
         init_all_prefect_officials(state)

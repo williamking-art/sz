@@ -258,6 +258,64 @@ def require_matter(state, executor, matter: str) -> Tuple[bool, str]:
     return True, label
 
 
+def authority_strict(state) -> bool:
+    """M1b-3：严格模式开关（`state.authority_strict`；默认 False = 兼容旧行为）。"""
+    return bool(getattr(state, "authority_strict", False))
+
+
+def _bump_stat(state, key: str) -> None:
+    stats = getattr(state, "statistics", None)
+    if isinstance(stats, dict):
+        stats[key] = int(stats.get(key, 0) or 0) + 1
+
+
+def auto_executor_for_matter(state, matter: str):
+    """自动解析掌某事的机构（优先事权表 owner，其次 central_orgs 的 matter_keys）。"""
+    key = str(matter or "").strip()
+    if not key:
+        return None
+    table = getattr(state, "authority_matters", None)
+    if isinstance(table, dict):
+        info = table.get(key)
+        owner = str((info or {}).get("owner") or "").strip()
+        if owner:
+            ok, _ = require_matter(state, owner, key)
+            if ok:
+                return owner
+    orgs = getattr(state, "central_orgs", None)
+    if isinstance(orgs, dict):
+        for name, org in orgs.items():
+            if not isinstance(org, dict) or org.get("abolished"):
+                continue
+            keys = set(org.get("matter_keys") or []) | set(org.get("authority") or [])
+            if key in keys:
+                ok, _ = require_matter(state, name, key)
+                if ok:
+                    return str(name)
+    return None
+
+
+def personnel_authority(state, executor, matter: str = "官吏铨选"):
+    """人事入口的统一权限判定 → `(ok, label_or_reason, mode)`。
+
+    mode：`explicit`（调用方显式传 executor）/ `auto`（自动解析）/
+    `legacy_unchecked`（非严格模式解析失败，保留旧行为）/ `rejected`。
+    """
+    if executor is not None:
+        ok, label = require_matter(state, executor, matter)
+        return ok, label, ("explicit" if ok else "rejected")
+    auto = auto_executor_for_matter(state, matter)
+    if auto is not None:
+        ok, label = require_matter(state, auto, matter)
+        if ok:
+            _bump_stat(state, "authority_auto_resolved_personnel")
+            return True, label, "auto"
+    if authority_strict(state):
+        return False, f"无法解析掌「{matter}」的承办主体", "rejected"
+    _bump_stat(state, "legacy_unchecked_personnel")
+    return True, "", "legacy_unchecked"
+
+
 def apply_reform(state, reform: Any, executor: Any = None) -> list:
     """落地一份编制改革契约 `{参数名: 绝对值或档位词}`（`free_effect` 的 `institution` 字段）。
 
