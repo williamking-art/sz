@@ -130,8 +130,10 @@ def test_multiple_sources_sum():
         {"title": "修闸堰", "effects": {"transport_water_speed": 0.03}},
     ]
     eff = transport_effects(s)
-    assert abs(eff["transport_water_speed"] - 0.20) < 1e-9, eff
-    assert abs(eff["transport_water_load"] - 0.10) < 1e-9, eff
+    # 边际递减：0.08 + 0.05×0.85 + 0.04×0.85² + 0.03×0.85³
+    expect = 0.08 + 0.05 * 0.85 + 0.04 * 0.85 ** 2 + 0.03 * 0.85 ** 3
+    assert abs(eff["transport_water_speed"] - expect) < 1e-6, eff
+    assert abs(eff["transport_water_load"] - 0.10) < 1e-6, eff
     rows = transport_effect_sources(s)
     assert sum(1 for r in rows if r["source_type"] == "tech_player") == 3
     assert sum(1 for r in rows if r["source_type"] == "decree") == 2
@@ -156,3 +158,29 @@ def test_inactive_decree_or_node_not_counted():
     s.tech_registry = {"p_off": {"active": False, "effect": {"transport_water_speed": 0.2}}}
     s.active_decrees = [{"title": "空诏", "effects": {}}]
     assert transport_effects(s) == {}
+
+def test_marginal_decay_for_repeated_bonuses():
+    """同向加成**边际递减**：两份 0.10 不等于 0.20。"""
+    from core.commands import new_game
+
+    s = new_game()
+    s.tech_registry = {"p1": {"active": True, "effect": {"transport_water_speed": 0.10}}}
+    one = transport_effects(s)["transport_water_speed"]
+    s.tech_registry["p2"] = {"active": True, "effect": {"transport_water_speed": 0.10}}
+    two = transport_effects(s)["transport_water_speed"]
+    assert abs(one - 0.10) < 1e-9, one
+    assert two > one and two < 0.20, two
+    assert abs(two - (0.10 + 0.10 * 0.85)) < 1e-9, two
+
+
+def test_negative_effects_also_decay():
+    """负向（如禁漕）同样按边际递减。"""
+    from core.commands import new_game
+
+    s = new_game()
+    s.tech_registry = {
+        "p1": {"active": True, "effect": {"transport_water_speed": -0.10}},
+        "p2": {"active": True, "effect": {"transport_water_speed": -0.10}},
+    }
+    eff = transport_effects(s)["transport_water_speed"]
+    assert abs(eff - (-0.10 - 0.085)) < 1e-9, eff

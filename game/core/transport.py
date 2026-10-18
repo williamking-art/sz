@@ -339,31 +339,65 @@ def _tech_value(tech: dict, src: str) -> Optional[float]:
 
 
 
-def transport_effect_sources(state) -> list:
-    """**多来源**运输类效果明细（科技可多个、国策可多条，逐条列出，可溯源）。
+# ---------------------------------------------------------------------------
+# 运输效果**接口层**（2026-10-18：国策/科技模型未定，先留可插拔接口）
+# ---------------------------------------------------------------------------
+#: 效果提供者注册表：name -> callable(state) -> list[{source_type, source_id, key, value}]
+#: 约定：提供者只返回「原始效果值」，**不负责封顶**；封顶统一在 transport_effects 做。
+#: 将来国策模型/科技模型定稿后，只需 `register_transport_effect_provider(...)` 接入，
+#: 运输层与载具参数**不用改**。
+_EFFECT_PROVIDERS: Dict[str, Any] = {}
+#: 运行期新增效果键（模型未定时的扩展口）：key -> cap
+_EFFECT_KEY_OVERLAY: Dict[str, float] = {}
 
-    来源三类（都是**复数**）：
-    1. `tech.unlocked` 里已解锁的官方 `TECH_NODES`（可多条）；
-    2. `state.tech_registry` 中 active 的**玩家自创科技**（可多条）；
-    3. `state.active_decrees` 中**持续国策/诏令**的 `effects`（可多条）。
-    只收 `TRANSPORT_EFFECT_CAPS` 登记的键；其它键忽略。
-    """
+
+def register_transport_effect_provider(name: str, fn) -> Dict[str, Any]:
+    """注册效果提供者（幂等覆盖同名）。`fn(state)` 返回 row 列表或 `{key: value}`。"""
+    key = str(name or "").strip()
+    if not key or not callable(fn):
+        return {"ok": False, "reason": "bad_provider"}
+    _EFFECT_PROVIDERS[key] = fn
+    return {"ok": True, "name": key}
+
+
+def unregister_transport_effect_provider(name: str) -> bool:
+    return _EFFECT_PROVIDERS.pop(str(name or ""), None) is not None
+
+
+def list_transport_effect_providers() -> list:
+    return sorted(_EFFECT_PROVIDERS)
+
+
+def register_transport_effect_key(key: str, cap: float, note: str = "") -> Dict[str, Any]:
+    """运行期新增/覆盖一个效果键及封顶（供未定型的科技/国策模型先接）。"""
+    k = str(key or "").strip()
+    if not k:
+        return {"ok": False, "reason": "bad_key"}
+    try:
+        c = abs(float(cap))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad_cap"}
+    _EFFECT_KEY_OVERLAY[k] = c
+    return {"ok": True, "key": k, "cap": c, "note": note}
+
+
+def transport_effect_caps() -> Dict[str, float]:
+    """当前生效的效果键封顶表（数据表 + 运行期覆盖）。"""
     from content.data_constants import TRANSPORT_EFFECT_CAPS
 
-    caps = TRANSPORT_EFFECT_CAPS or {}
+    merged: Dict[str, float] = {k: abs(float(v)) for k, v in (TRANSPORT_EFFECT_CAPS or {}).items()}
+    for k, v in _EFFECT_KEY_OVERLAY.items():
+        merged[k] = abs(float(v))
+    return merged
+
+
+def _default_effect_providers() -> list:
+    """默认三源实现（**可被替换/停用**，不是硬口径）。"""
+    return [_provider_official_tech, _provider_player_tech, _provider_decrees]
+
+
+def _provider_official_tech(state) -> list:
     rows = []
-
-    def _push(source_type, source_id, eff):
-        if not isinstance(eff, dict):
-            return
-        for k, v in eff.items():
-            if k not in caps:
-                continue
-            if isinstance(v, bool) or not isinstance(v, (int, float)):
-                continue
-            rows.append({"source_type": source_type, "source_id": source_id,
-                         "key": k, "value": float(v)})
-
     tech = getattr(state, "tech", None) or {}
     unlocked = set(tech.get("unlocked") or [])
     try:
@@ -375,35 +409,97 @@ def transport_effect_sources(state) -> list:
             except (IndexError, TypeError):
                 continue
             if nid in unlocked:
-                _push("tech", nid, eff)
+                rows.extend(_rows_from_effect("tech", nid, eff))
     except Exception:  # noqa: BLE001
         pass
-    for nid, node in (getattr(state, "tech_registry", None) or {}).items():
-        if isinstance(node, dict) and node.get("active"):
-            _push("tech_player", nid, node.get("effect"))
-    for i, dec in enumerate(getattr(state, "active_decrees", None) or []):
-        if isinstance(dec, dict):
-            _push("decree", str(dec.get("title") or f"decree#{i}"), dec.get("effects"))
     return rows
 
 
-def transport_effects(state) -> dict:
-    """聚合运输类科技/国策效果（**多项相加**，按 cap 封顶）。
+def _provider_player_tech(state) -> list:
+    rows = []
+    for nid, node in (getattr(state, "tech_registry", None) or {}).items():
+        if isinstance(node, dict) and node.get("active"):
+            rows.extend(_rows_from_effect("tech_player", nid, node.get("effect")))
+    return rows
 
-    · 来源见 `transport_effect_sources`（科技多项 + 玩家科技多项 + 国策多条）；
-    · 无任何来源 ⇒ `{}`（缺失≠0，不做默认加成）；
-    · 同键多来源**求和**后按 `TRANSPORT_EFFECT_CAPS` 封顶（可为负，如关海令）。
+
+def _provider_decrees(state) -> list:
+    rows = []
+    for i, dec in enumerate(getattr(state, "active_decrees", None) or []):
+        if isinstance(dec, dict):
+            rows.extend(_rows_from_effect("decree",
+                                        str(dec.get("title") or f"decree#{i}"),
+                                        dec.get("effects")))
+    return rows
+
+
+def _rows_from_effect(source_type: str, source_id: str, eff) -> list:
+    """把 {key: value} 归一成 row 列表（只保留数值、跳过布尔）。"""
+    rows = []
+    if not isinstance(eff, dict):
+        return rows
+    for k, v in eff.items():
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        rows.append({"source_type": str(source_type), "source_id": str(source_id),
+                     "key": str(k), "value": float(v)})
+    return rows
+
+def transport_effect_sources(state) -> list:
+    """**多来源**运输类效果明细（逐条，可溯源）。
+
+    🔴 模型未定，本函数只是**接口**：默认挂三个提供者（官方科技 / 玩家科技 / 国策-诏令），
+    将来科技或国策模型定稿后，用 `register_transport_effect_provider()` 替换或追加即可，
+    **调用方（carrier_params / 面板）无需改动**。
+
+    返回 `[{source_type, source_id, key, value}]`；只保留 `transport_effect_caps()` 登记的键。
     """
-    from content.data_constants import TRANSPORT_EFFECT_CAPS
+    caps = transport_effect_caps()
+    if not _EFFECT_PROVIDERS:
+        for fn in _default_effect_providers():
+            register_transport_effect_provider(getattr(fn, "__name__", str(fn)), fn)
+    rows = []
+    for name, fn in sorted(_EFFECT_PROVIDERS.items()):
+        try:
+            got = fn(state)
+        except Exception as exc:  # noqa: BLE001 — 单个提供者失败不得拖垮运输
+            log.warning("transport 效果提供者 %s 失败：%r", name, exc, exc_info=True)
+            continue
+        if isinstance(got, dict):
+            got = _rows_from_effect(name, name, got)
+        for row in got or ():
+            if not isinstance(row, dict):
+                continue
+            k = row.get("key")
+            if k not in caps:
+                continue
+            rows.append(row)
+    return rows
 
-    caps = TRANSPORT_EFFECT_CAPS or {}
+def transport_effects(state) -> dict:
+    """聚合运输类科技/国策效果（**多项 + 边际递减**，再按 cap 封顶）。
+
+    · 来源：`transport_effect_sources`（官方科技 / 玩家科技 / 国策，均可多项）；
+    · **边际递减**：同键各来源按 |值| 降序，第 i 项权重 = `TRANSPORT_EFFECT_DIMINISH^i`
+      （首项 1.0、次项 0.85、再 0.72…）——多份同向加成会重叠，不线性叠加；
+    · 求和后按 `transport_effect_caps()` 封顶（可为负）；无来源 ⇒ `{}`（缺失≠0）。
+    """
+    from content.data_constants import TRANSPORT_EFFECT_DIMINISH
+
+    caps = transport_effect_caps()
+    decay = float(TRANSPORT_EFFECT_DIMINISH)
     acc: Dict[str, float] = {}
+    by_key: Dict[str, list] = {}
     for row in transport_effect_sources(state):
-        k = row["key"]
-        acc[k] = acc.get(k, 0.0) + float(row["value"])
-    for k in list(acc):
-        cap = abs(float(caps[k]))
-        acc[k] = max(-cap, min(cap, acc[k]))
+        by_key.setdefault(row["key"], []).append(float(row["value"]))
+    for key, values in by_key.items():
+        # 边际递减：按绝对值从大到小，逐项乘衰减权重
+        ordered = sorted(values, key=abs, reverse=True)
+        total = 0.0
+        for i, v in enumerate(ordered):
+            total += v * (decay ** i)
+        cap = abs(float(caps.get(key, 0.0)))
+        acc[key] = max(-cap, min(cap, total))
     return acc
 
 def carrier_params(state, mode: str, carrier: dict) -> dict:

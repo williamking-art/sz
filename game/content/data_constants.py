@@ -1564,3 +1564,8 @@ TRANSPORT_EFFECT_CAPS = {
     "transport_land_load": 0.20,
     "transport_labor_save": 0.20,
 }
+
+#: 效果**边际递减**（2026-10-18 用户「注意边际效应」）：
+#: 同一效果键的多个来源按**绝对值降序**加权，第 i 项权重 = DIMINISH^i（首项 1.0）。
+#: 理由：多份科技/国策在同一方向上会重叠（造两艘同类快船不等于速度翻倍）。
+TRANSPORT_EFFECT_DIMINISH = 0.85
