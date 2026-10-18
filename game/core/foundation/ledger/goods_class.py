@@ -26,8 +26,20 @@ from typing import Dict, List, Optional
 
 __all__ = [
     "class_names", "class_of", "members", "class_total", "class_add",
-    "assert_exclusive", "default_member",
+    "assert_exclusive", "default_member", "is_active",
 ]
+
+
+def is_active(dim: str) -> bool:
+    """该维**是否已立商品维**（在 GOODS_DIMS 内）。
+
+    惰性判定：数据表定义位置早于 GOODS_DIMS，故不能把结果烤进 GOODS_CLASSES。
+    """
+    try:
+        from content.data_constants import GOODS_DIMS
+    except Exception:  # noqa: BLE001
+        return True
+    return dim in GOODS_DIMS
 
 
 def _classes() -> Dict[str, dict]:
@@ -56,7 +68,8 @@ def members(cls: str, active_only: bool = False) -> List[str]:
     if not active_only:
         return ms
     act = spec.get("active") or {}
-    return [m for m in ms if act.get(m, True)]
+    # 数据里的 active 若为空 ⇒ 以 GOODS_DIMS 为准（惰性）
+    return [m for m in ms if act.get(m, True) and is_active(m)]
 
 
 def default_member(cls: str) -> Optional[str]:

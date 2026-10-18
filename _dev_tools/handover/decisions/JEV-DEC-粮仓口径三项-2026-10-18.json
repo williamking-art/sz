@@ -1,0 +1,48 @@
+{
+ "id": "JEV-DEC-粮仓口径三项-2026-10-18",
+ "createdAt": "2026-10-18T10:50:00+08:00",
+ "agent": "DSH",
+ "mode": "choice",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "decisions": [
+  {
+   "question": "民间 POP 粮仓容量口径",
+   "choice": "A 按人口×人均石数",
+   "probabilities": {
+    "A": 0.623,
+    "B": 0.0722,
+    "C": 0.3048
+   },
+   "rationale": "可解释、随人口自动伸缩；B 富户系数留待阶层微调；C 固定定额与人口脱节"
+  },
+  {
+   "question": "粮腐损口径",
+   "choice": "A 统一 SPARROW_RAT 1.2%/月",
+   "probabilities": {
+    "A": 0.9816,
+    "B": 0.0124,
+    "C": 0.006
+   },
+   "rationale": "现有常量即全粮统一；分维率无史料依据，按纪律不得编造"
+  },
+  {
+   "question": "朝廷粮仓本轮范围",
+   "choice": "A 只做京师太仓一座",
+   "probabilities": {
+    "A": 0.3989,
+    "B": 0.2352,
+    "C": 0.3658
+   },
+   "tie_note": "A 与 C 接近平手（0.399 vs 0.366），自行论证：太仓已有现成常量 GRANARY_START=15,000,000 石 / GRANARY_START_CAP=20,000,000 石 与 capacity_used 读数；选 A 是沿用既有，成本最低；C（只做数据模型不建实体）会留下有模型无对象的空转状态。",
+   "rationale": "最小可行 + 复用现有常量；每路常平仓（B）留待 P3 之后按需扩"
+  }
+ ],
+ "premises_verified_by_me": [
+  "SPARROW_RAT=0.012 与 GRANARY_START/CAP 均实测自 content/data.py",
+  "常平仓建筑 effect=granary_cap、CHANGPING_CAP_RATIO=1.0（月产 100%）已存在",
+  "民间现存载体是标量 pops[].grain，无任何容量概念 ⇒ 仓容属新增口径，不与其他账本冲突"
+ ],
+ "applied_in": "G3 设计稿 v2 §5 待裁三条 → 已定；P0 起实施",
+ "reopen_if": "民间仓容实测出现饥荒/爆仓异常，或需要分维腐损史料"
+}
