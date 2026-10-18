@@ -143,6 +143,140 @@ def route_days(frm: str, to: str) -> Optional[int]:
     return max(1, int(math.ceil(months)))       # 至少 1 月，不做"同月到达"
 
 
+# ---------------------------------------------------------------------------
+# 多跳路由（G-3/P5a，2026-10-18）：邻接图最短路
+# ---------------------------------------------------------------------------
+_ROUTE_CACHE: Dict[str, Dict[Any, Any]] = {}
+
+
+def _graph_cache_key() -> str:
+    import core.foundation.ledger.prefecture_entity as pe
+
+    return str(id(pe))
+
+
+def transport_graph():
+    """构建**邻接图**：返回 (nodes, adj)。adj[a][b] = km（无向，仅 ≤ ADJACENT_KM 的边）。
+
+    与 `is_adjacent` **同源同阈值**（200km 设定值，非史料）；不另造一套连通规则。
+    节点 = 治所 id；孤立节点保留在 nodes 里（连通性分析需要看到它们）。
+    """
+    key = _graph_cache_key()
+    cached = _ROUTE_CACHE.get("__graph__")
+    if isinstance(cached, dict) and cached.get("key") == key:
+        return cached["nodes"], cached["adj"]
+    idx = _seat_index()
+    nodes = list(idx)
+    coords = {sid: (float(idx[sid]["lon"]), float(idx[sid]["lat"])) for sid in nodes}
+    adj: Dict[str, Dict[str, float]] = {sid: {} for sid in nodes}
+    for i, a in enumerate(nodes):
+        alon, alat = coords[a]
+        for b in nodes[i + 1:]:
+            blon, blat = coords[b]
+            km = haversine_km(alon, alat, blon, blat)
+            if km <= float(ADJACENT_KM):
+                adj[a][b] = km
+                adj[b][a] = km
+    _ROUTE_CACHE["__graph__"] = {"key": key, "nodes": nodes, "adj": adj}
+    return nodes, adj
+
+
+def route_path(frm: str, to: str) -> Optional[Dict[str, Any]]:
+    """**多跳最短路**（Dijkstra，边权 km）。
+
+    返回：`{reachable, path, km, days, hops}`；`path` 含起终点。
+
+    · 未知治所 ⇒ **None**（读不出，不是『不通』）；
+    · 同点 ⇒ `reachable=True, path=[点], km=0, days=0, hops=0`；
+    · 连通但无路径 / 全图不连通 ⇒ `reachable=False`（**显式**，不回落 0、不臆造直线）。
+
+    ⚠️ 与 `route_days` 分工：`route_days` 仍只判**相邻**（既有 6 处调用方依赖该语义），
+    本函数才是『怎么走、几天到』的入口。
+    """
+    import heapq
+
+    if not frm or not to or frm not in _seat_index() or to not in _seat_index():
+        return None
+    if frm == to:
+        return {"reachable": True, "path": [frm], "km": 0.0, "days": 0, "hops": 0}
+    key = (frm, to)
+    cache = _ROUTE_CACHE.get("__routes__")
+    if not isinstance(cache, dict) or cache.get("key") != _graph_cache_key():
+        cache = {"key": _graph_cache_key(), "items": {}}
+        _ROUTE_CACHE["__routes__"] = cache
+    hit = cache["items"].get(key)
+    if hit is not None:
+        return dict(hit)
+
+    _nodes, adj = transport_graph()
+    dist: Dict[str, float] = {frm: 0.0}
+    prev: Dict[str, str] = {}
+    heap = [(0.0, frm)]
+    seen = set()
+    while heap:
+        d, u = heapq.heappop(heap)
+        if u in seen:
+            continue
+        seen.add(u)
+        if u == to:
+            break
+        for v, w in adj.get(u, {}).items():
+            nd = d + w
+            if nd < dist.get(v, float("inf")):
+                dist[v] = nd
+                prev[v] = u
+                heapq.heappush(heap, (nd, v))
+    if to not in dist:
+        res = {"reachable": False, "path": [], "km": None, "days": None, "hops": 0}
+    else:
+        path = [to]
+        cur = to
+        while cur != frm:
+            cur = prev[cur]
+            path.append(cur)
+        path.reverse()
+        km = float(dist[to])
+        mult = 1.0
+        for sid in path:
+            mult *= float(ROAD_QUALITY.get(sid, 1.0))
+        if mult <= 0:
+            res = {"reachable": False, "path": path, "km": km, "days": None,
+                   "hops": len(path) - 1}
+        else:
+            months = km / (KM_PER_MONTH * mult)
+            res = {"reachable": True, "path": path, "km": round(km, 1),
+                   "days": max(1, int(math.ceil(months))), "hops": len(path) - 1}
+    cache["items"][key] = dict(res)
+    return dict(res)
+
+
+def connectivity_report() -> Dict[str, Any]:
+    """全图连通性分析：`{components: [[seat...]], isolated: [...], connected: bool}`。
+
+    治所间无驿路（>200km 且无中转）时如实报**分裂**，**不硬连**。
+    """
+    nodes, adj = transport_graph()
+    seen = set()
+    comps = []
+    for n in nodes:
+        if n in seen:
+            continue
+        stack = [n]
+        comp = []
+        seen.add(n)
+        while stack:
+            u = stack.pop()
+            comp.append(u)
+            for v in adj.get(u, {}):
+                if v not in seen:
+                    seen.add(v)
+                    stack.append(v)
+        comps.append(sorted(comp))
+    comps.sort(key=len, reverse=True)
+    return {"components": comps, "isolated": [c[0] for c in comps if len(c) == 1],
+            "connected": len(comps) <= 1, "node_count": len(nodes)}
+
+
 def transport_links(circuit: Optional[str] = None) -> List[Dict[str, Any]]:
     """列出**同一州府内**的治所对（同路调拨 ⇒ 0 耗时），供读数与测试用。
 
