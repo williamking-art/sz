@@ -366,6 +366,55 @@ def sea_route(frm: str, to: str, month: Optional[int] = None) -> Optional[Dict[s
 
 
 
+def overseas_route(from_seat: str, partner: str) -> Optional[Dict[str, Any]]:
+    """**外海航线**（日本/高丽/南洋）：返回 {km, days, port, partner, note}；无航线 ⇒ None。
+
+    · 外邦港是虚拟节点（无 POP、不落库存），只用于算运费/耗时；
+    · 里程/开航季是设定值非史料（见 content/data_constants.SEA_OVERSEAS_LANES 的 note）；
+    · `days = ceil(km / (1000 × 海速))`；季风修正仅在 SEA_MONSOON_ENABLED 时生效。
+    """
+    from content.data_constants import SEA_OVERSEAS_LANES, TRANSPORT_MODES
+
+    best = None
+    transship_via = None
+    for lane in SEA_OVERSEAS_LANES:
+        if str(lane.get("partner")) != str(partner):
+            continue
+        km = float(lane.get("km") or 0)
+        if km <= 0:
+            continue
+        origin = str(lane.get("from"))
+        total = km
+        via = None
+        if origin != str(from_seat):
+            # 转口：境内先沿海路到该港，再出外海（如 明州→广州→三佛齐）
+            domestic = sea_route(from_seat, origin)
+            if domestic is None:
+                continue
+            total = float(domestic["km"]) + km
+            via = origin
+        if best is None or total < float(best.get("km") or 0):
+            best = {"km": total, "port": lane.get("port"),
+                    "partner": lane.get("partner"), "note": lane.get("note")}
+            transship_via = via
+    if best is None:
+        return None
+    speed = float((TRANSPORT_MODES.get("sea") or {}).get("speed") or 1.0)
+    km = float(best["km"])
+    days = max(1, int(math.ceil(km / (KM_PER_MONTH * speed))))
+    return {"km": round(km, 1), "days": days, "port": best.get("port"),
+            "partner": best.get("partner"), "transship_via": transship_via,
+            "note": best.get("note")}
+
+
+def overseas_partners() -> list:
+    """全部外海对家（含境内航线覆盖情况）。"""
+    from content.data_constants import OVERSEAS_PARTNERS
+
+    return list(OVERSEAS_PARTNERS)
+
+
+
 def transport_capability(state, frm: str, to: str, mode: str = "land",
                          cargo: Optional[str] = None) -> Dict[str, Any]:
     """**能力判定（只读）**：该方式此刻能否承运该对治所、运力上限、耗时与费率。
