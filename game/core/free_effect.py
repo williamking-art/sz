@@ -419,6 +419,38 @@ def _money_effects_feasible(state, effects, cost):
     return True
 
 
+def _authority_matters(effects) -> list:
+    """提取 `effects.institution` 中受事权约束的参数对应的事权键（去重保序）。"""
+    if not isinstance(effects, dict):
+        return []
+    inst = effects.get("institution")
+    if not isinstance(inst, dict):
+        return []
+    from content.data import INSTITUTION_PARAM_SPEC
+    out = []
+    for key in inst:
+        spec = INSTITUTION_PARAM_SPEC.get(str(key)) or {}
+        auth = str(spec.get("authority") or "").strip()
+        if auth and auth not in out:
+            out.append(auth)
+    return out
+
+
+def _authority_precheck(state, effects, executor):
+    """F1：受限制度参数的 actor 预检；返回 `(ok, reason)`，不写 state。"""
+    matters = _authority_matters(effects)
+    if not matters:
+        return True, ""
+    if not executor:
+        return False, "缺少执行主体（受限事权必须显式 actor）"
+    from core.authority_gate import check_matter_authority
+    for matter in matters:
+        ok, why = check_matter_authority(state, executor, matter)
+        if not ok:
+            return False, why
+    return True, ""
+
+
 def _apply_free_effect(state, contract) -> list:
     """AI free_effect 契约落地（拒绝式）：白名单校验 → cost 承受 → 成本平衡 → 落地。
 
@@ -429,6 +461,10 @@ def _apply_free_effect(state, contract) -> list:
     err = validate_free_effect(contract)
     if err:
         return [f"[自由动作] 契约拒绝：{err}"]
+    _auth_ok, _auth_why = _authority_precheck(
+        state, contract.get("effects", {}), contract.get("executor"))
+    if not _auth_ok:
+        return [f"[自由动作] 事权拒绝：{_auth_why}（未落地、未扣成本）"]
     cost = contract.get("cost") or {}
     if not _cost_affordable(state, cost):
         return [f"[自由动作] 成本不足，整单不执行（需 {cost}）"]
@@ -456,6 +492,8 @@ def _apply_free_effect(state, contract) -> list:
             # 执行主体随长期诏留存：月度复用时仍按同一主体校验（换人换权即随之失效）
             "executor": executor,
         }
+        if _authority_matters(contract.get("effects", {})):
+            item["authority_mode"] = "actor_position"
         state.longterm_effects.append(item)
         log.append(f"[自由动作] 立长期制度「{item['name']}」（duration={item['duration']}，0=永久）")
     return log
@@ -479,6 +517,14 @@ def _settle_free_effects(state, log) -> None:
     for item in state.longterm_effects:
         effects = item.get("effects", {})
         cost = item.get("cost", {})
+        _auth_ok, _auth_why = _authority_precheck(
+            state, effects, item.get("executor"))
+        if not _auth_ok:
+            item["last_error"] = "authority_denied"
+            log.append(
+                f"[制度] {item.get('name', '')} 事权失效（{_auth_why}），本月暂缓")
+            keep.append(item)
+            continue
         # 审查 P0-5：成本承受 + 国库/民间资财可行性（money 效果成对划转）
         _afford = bool(_cost_affordable(state, cost))
         _feas = _money_effects_feasible(state, effects, cost) if _afford else False

@@ -1112,7 +1112,7 @@ def _settle_local_expenditure(state, log) -> dict:
 
 
 def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "coffer",
-                        kinds=None, log=None) -> dict:
+                        kinds=None, log=None, executor=None, strict=None) -> dict:
     """欠给**补发**（M35-3）：财政改善 → 补发欠给 → 压力下降 → 治理恢复的**接口**（**不自动调用**）。
 
     纪律（裁决 2026-10-11）：
@@ -1131,6 +1131,26 @@ def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "
     if not LOCAL_REPAY_ENABLED:
         return {"repaid": 0, "by_kind": {}, "by_route": {}, "source": source,
                 "skipped": "disabled"}
+    _authority_mode = ""
+    if source == "treasury":
+        if executor:
+            from core.authority_gate import check_matter_authority
+            _ok, _why = check_matter_authority(state, executor, "度支调度")
+            if not _ok:
+                return {"repaid": 0, "by_kind": {}, "by_route": {},
+                        "source": source, "skipped": "authority_denied",
+                        "reason": _why}
+            _authority_mode = "actor_position"
+        else:
+            from core.permission_model import authority_strict
+            _strict = authority_strict(state) if strict is None else bool(strict)
+            if _strict:
+                return {"repaid": 0, "by_kind": {}, "by_route": {},
+                        "source": source, "skipped": "authority_denied",
+                        "reason": "未指定执行主体（严格模式）"}
+            state.statistics["legacy_unchecked_fiscal"] = int(
+                state.statistics.get("legacy_unchecked_fiscal", 0) or 0) + 1
+            _authority_mode = "legacy_unchecked_fiscal"
     _payout = {"official_salary": (("官僚", 1.0),), "clerk_pay": (("官僚", 1.0),),
                "runner_pay": (("兵", 1.0),),
                "public_supply": (("工匠", 0.4), ("商人", 0.6))}
@@ -1250,9 +1270,12 @@ def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "
         state.statistics["local_arrears_repaid"] = \
             int(state.statistics.get("local_arrears_repaid", 0) or 0) + total
         _log.append(f"[欠给补发] {source} → 补发 {total:,}贯（{len(by_route)} 路）")
-    return {"repaid": total, "by_kind": repaid_by_kind, "by_route": by_route,
-            "source": source,
-            "skipped": "" if total else "no_surplus_or_no_arrears"}
+    result = {"repaid": total, "by_kind": repaid_by_kind, "by_route": by_route,
+              "source": source,
+              "skipped": "" if total else "no_surplus_or_no_arrears"}
+    if source == "treasury":
+        result["authority_mode"] = _authority_mode
+    return result
 
 def _settle_finance(state, log):
     """月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
