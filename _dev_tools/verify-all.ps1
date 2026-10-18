@@ -1,24 +1,21 @@
-param(
-    [switch]$Fast,        # 后端只跑快路径（-m "not slow"，约省 30s）
-    [switch]$SkipShot,    # 跳过截图矩阵（约 30s）
-    [switch]$Bench,       # 追加地图首帧基准（信息性，不计失败）
+﻿param(
+    [switch]$Fast,        # 后端只跑快路径（-m "not slow"）
+    [switch]$SkipShot,    # 跳过截图矩阵
+    [switch]$Bench,       # 追加地图首帧基准（信息性）
     [switch]$LongRun      # 追加 240 月长局哨兵（约 10 分钟）
 )
 # =============================================================================
-# 《宋祚》一条命令全量验证（2026-09-27）
+# 《宋祚》一条命令全量验证（2026-10-18 重建）
 #
-# 为什么需要它：验证层已从 1 层长到 5 层（后端 pytest / 前端 vitest / tsc / 截图矩阵 / 基准），
-# 散落在 README 与 cloudbase-check.ps1 的 §8 里 → **可复现的验证入口本身就是地基**，
-# 否则"我跑过了"永远无法被复述。
-#
-# 分工：
-#   · 本脚本 = **代码验证**（写代码后跑这个）；
-#   · `_dev_tools/cloudbase-check.ps1` = **环境/云端/知识库**自检（含其 §8 会调截图回路）。
-#
-# 约定（都是踩过的坑）：
-#   · 本文件必须存为 **UTF-8 with BOM**（PS 5.1 按 GBK 读无 BOM 的 .ps1 → 中文乱码）；
-#   · `pytest.ini` 的 addopts=-q 与命令行 -q 叠加成 -qq 会**抑制摘要行** → 这里用 `-o addopts=` 覆盖；
-#   · Node 可能不在 PATH → 先 Get-Command，再回落到固定目录；缺工具一律 SKIP，不造假失败。
+# 层次：
+#   0. 仓库完整性（tracked 删除 / 未跟踪测试 / 关键文件）+ Markdown 断链
+#   1. 后端 pytest
+#   1b. 质量放行门 · POP 守卫（SONGZUO_POPS_GUARD=1）
+#   2. 前端 vitest
+#   3. TypeScript 双配置类型检查
+#   4. 面板截图矩阵（可 -SkipShot）
+#   6. HEAD 干净导出 import 冒烟
+#   7. 240 月长局哨兵（-LongRun）
 # =============================================================================
 $ErrorActionPreference = 'Continue'
 $env:PYTHONIOENCODING = 'utf-8'
@@ -46,6 +43,9 @@ $fe = Join-Path $RepoRoot 'game\frontend'
 $game = Join-Path $RepoRoot 'game'
 $tsb = Join-Path $env:TEMP 'songzuo-verify'
 
+Write-Host "宋祚 · 全量验证（Fast=$Fast SkipShot=$SkipShot Bench=$Bench LongRun=$LongRun）" -ForegroundColor White
+Write-Host "  repo=$RepoRoot"
+
 # ---------------------------------------------------------------- 0. 仓库完整性
 Head '0. 仓库完整性（tracked 删除 / 未跟踪测试 / 关键文件）与文档断链'
 if (-not (Test-Path $py)) { Skip "无 Python：$py" }
@@ -57,9 +57,6 @@ else {
     if ($LASTEXITCODE -eq 0) { Ok '文档断链检查通过' }
     else { Bad '存在 Markdown 断链' 'python _dev_tools/check_doc_links.py' }
 }
-
-Write-Host "宋祚 · 全量验证（Fast=$Fast SkipShot=$SkipShot Bench=$Bench）" -ForegroundColor White
-Write-Host "  repo=$RepoRoot"
 
 # ---------------------------------------------------------------- 1. 后端 pytest
 Head '1. 后端 pytest（core/settlement/州县…）'
@@ -79,12 +76,8 @@ else {
     }
 }
 
-# ------------------------------------------- 1b. 质量放行门（B-2a / B-2b）
-# 为什么单列一层：主 pytest **默认不装守卫**（SONGZUO_POPS_GUARD 缺省关），
-# 所以"全绿"并不能证明账本状态合规。本层显式开守卫跑全部门用例：
-#   · POP 守卫（B-2a）：逐月零违规 + 注入即红
-#   · 粮载体单一性（B-2b）：0% 或 100%，禁止半迁移
-Head '1b. 质量放行门（POP 守卫 + 粮载体单一性）'
+# ---------------------------------------------------------------- 1b. POP 守卫门
+Head '1b. 质量放行门 · POP 守卫（SONGZUO_POPS_GUARD=1）'
 if (-not (Test-Path $py)) { Skip "无 Python：$py" }
 else {
     $prevGuard = $env:SONGZUO_POPS_GUARD
@@ -92,16 +85,18 @@ else {
     $env:SONGZUO_POPS_GUARD = '1'
     $env:SONGZUO_GATE_MONTHS = '15'
     try {
+        Push-Location $RepoRoot
         $gout = & $py -m pytest -p no:cacheprovider -o addopts= -q --tb=line `
-            -k quality_gate _dev_tools/game-dev/tests 2>&1
+            _dev_tools/game-dev/tests/test_quality_gate_pops_guard.py 2>&1
         $gcode = $LASTEXITCODE
+        Pop-Location
     } finally {
         $env:SONGZUO_POPS_GUARD = $prevGuard
         $env:SONGZUO_GATE_MONTHS = $prevMonths
     }
     $gsum = ($gout | Select-String -Pattern 'passed|failed|error' | Select-Object -Last 1)
     if ($gcode -eq 0) { Ok "POP 守卫门通过：$gsum" }
-    else { Bad "质量放行门失败（exit $gcode）：$gsum" 'cd <repo>; $env:SONGZUO_POPS_GUARD=1; python -m pytest _dev_tools/game-dev/tests -k quality_gate -q' }
+    else { Bad "POP 守卫门失败（exit $gcode）：$gsum" 'cd <repo>; $env:SONGZUO_POPS_GUARD=1; python -m pytest _dev_tools/game-dev/tests/test_quality_gate_pops_guard.py -q' }
 }
 
 # ---------------------------------------------------------------- 2. 前端 vitest
@@ -116,7 +111,7 @@ else {
     if ($code -eq 0) { Ok "vitest 通过：$sum" } else { Bad "vitest 失败（exit $code）：$sum" 'cd game\frontend; npm test' }
 }
 
-# ---------------------------------------------------------------- 3. 类型检查（双配置）
+# ---------------------------------------------------------------- 3. 类型检查
 Head '3. TypeScript 类型检查（web + node 两套 tsconfig）'
 if (-not $nodeExe) { Skip '无 node' }
 else {
@@ -130,7 +125,7 @@ else {
     }
 }
 
-# ---------------------------------------------------------------- 4. 截图矩阵（目视层）
+# ---------------------------------------------------------------- 4. 截图矩阵
 Head '4. 面板截图矩阵（9 张；空白页会被体积识别）'
 if ($SkipShot) { Skip '按 -SkipShot 跳过' }
 elseif (-not ($nodeExe -and $npmCmd)) { Skip '无 node/npm' }
@@ -146,11 +141,11 @@ else {
     $small = @($pngs | Where-Object { $_.Length -lt 10KB }).Count
     if ($code -ne 0) { Bad "截图回路失败（exit $code）" 'cd game\frontend; npm run shot' }
     elseif ($pngs.Count -lt 9) { Bad "只生成 $($pngs.Count) 张（应 ≥9）" '检查 scripts/shot/shoot.mjs 的 PAGES' }
-    elseif ($small -gt 0) { Bad "$small 张 <10KB（疑似空白：崩了或 mock 没喂上）" '看页头探针 store ok / 引导期错误；方案 §8.2' }
+    elseif ($small -gt 0) { Bad "$small 张 <10KB（疑似空白：崩了或 mock 没喂上）" '看页头探针 store ok / 引导期错误' }
     else { Ok "截图 $($pngs.Count) 张 → $shotOut" }
 }
 
-# ---------------------------------------------------------------- 5. 基准（信息性）
+# ---------------------------------------------------------------- 5. 基准（可选）
 if ($Bench) {
     Head '5. 地图首帧基准（信息性，不计失败）'
     if (-not ($nodeExe -and $npmCmd)) { Skip '无 node/npm' }
@@ -158,11 +153,11 @@ if ($Bench) {
         Push-Location $fe
         & $nodeExe 'scripts\shot\bench-map.mjs' 2>&1 | Select-String -Pattern 'JSON.parse|feature|合计|文件' | ForEach-Object { Write-Host "  $_" }
         Pop-Location
-        Ok '基准已输出（对照报告 §11 的区间，不作失败判据）'
+        Ok '基准已输出（不作失败判据）'
     }
 }
 
-# ---------------------------------------------------------------- 6. 干净导出 import 冒烟
+# ---------------------------------------------------------------- 6. HEAD 导出冒烟
 Head '6. 干净导出 import 冒烟（git archive HEAD）'
 if (-not (Test-Path $py)) { Skip '无 Python' }
 else {

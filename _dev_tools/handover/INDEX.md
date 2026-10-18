@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-18T00:04:42Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-18T01:48:18Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -12,7 +12,6 @@
 
 ## 任务板（未完成）
 
-- `B2-guard-quality-gate` B-2 守卫进质量放行门：先只读设计与取证，评审后再实施 ｜status=**in_progress**｜claimedBy=DSH
 - `INC-2026-10-17-dsh-deleted-tests` 事故：DSH 清理 sz/tests/ 时误删 antigravity 名下 M323/M324 的两个测试文件 ｜status=**mitigated**｜claimedBy=DSH
 - `M25-blocked-writesites` 阶段3收尾：落实 M25 已裁定的有限依赖注入边界 ｜status=**open-registered**｜claimedBy=DSH
 - `M300-stage3-pop-and-officialdom` Stage 3: POP 微观生计闭环（告别强行运转）+ 科举三级取士唱名与官员三级差遣考课磨勘 ｜status=**in_progress**｜claimedBy=Antigravity
@@ -42,16 +41,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261017T172438Z-DSH` → [`worklog/20261017T172438Z-DSH.md`](worklog/20261017T172438Z-DSH.md)
-- `20261017T175909Z-DSH` → [`worklog/20261017T175909Z-DSH.md`](worklog/20261017T175909Z-DSH.md)
-- `20261017T181452Z-DSH` → [`worklog/20261017T181452Z-DSH.md`](worklog/20261017T181452Z-DSH.md)
-- `20261017T193226Z-DSH` → [`worklog/20261017T193226Z-DSH.md`](worklog/20261017T193226Z-DSH.md)
 - `20261017T233706Z-DSH` → [`worklog/20261017T233706Z-DSH.md`](worklog/20261017T233706Z-DSH.md)
 - `20261017T234632Z-DSH` → [`worklog/20261017T234632Z-DSH.md`](worklog/20261017T234632Z-DSH.md)
 - `20261017T235258Z-DSH` → [`worklog/20261017T235258Z-DSH.md`](worklog/20261017T235258Z-DSH.md)
 - `20261018T000441Z-DSH` → [`worklog/20261018T000441Z-DSH.md`](worklog/20261018T000441Z-DSH.md)
+- `20261018T003158Z-DSH` → [`worklog/20261018T003158Z-DSH.md`](worklog/20261018T003158Z-DSH.md)
+- `20261018T005753Z-DSH` → [`worklog/20261018T005753Z-DSH.md`](worklog/20261018T005753Z-DSH.md)
+- `20261018T013041Z-DSH` → [`worklog/20261018T013041Z-DSH.md`](worklog/20261018T013041Z-DSH.md)
+- `20261018T014817Z-DSH` → [`worklog/20261018T014817Z-DSH.md`](worklog/20261018T014817Z-DSH.md)
 
 ## 计数
 
-- tasks 208（未完成 18）· decisions 184（未闭环 6）· worklog 573 · phase 文件 4
+- tasks 210（未完成 17）· decisions 187（未闭环 6）· worklog 577 · phase 文件 4
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
