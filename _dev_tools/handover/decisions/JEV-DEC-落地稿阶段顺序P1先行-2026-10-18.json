@@ -1,0 +1,26 @@
+{
+ "id": "JEV-DEC-落地稿阶段顺序P1先行-2026-10-18",
+ "createdAt": "2026-10-18T23:55:00+08:00",
+ "agent": "DSH",
+ "question": "落地稿下一阶段先做哪个（P1 数据层 / P4 运力账 / P2 读数层）",
+ "options": [
+  "A P1 数据层（纯数据，零行为变更）",
+  "B P4 运力账",
+  "C P2 读数层"
+ ],
+ "verdict": "A P1 数据层先行",
+ "probabilities": {
+  "A": 0.9126,
+  "B": 0.0557,
+  "C": 0.0316
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定（用户授权：用 jev 裁决，不要一直问）",
+ "premises_verified_by_me": [
+  "P3 载具/夫役/派生运力已完成并过门",
+  "P1 为纯数据：加 7 维 + 口岸表 + 篮 + 禁榷 + 需求矩阵，无行为变更",
+  "新增维会触发类目覆盖门与死货门，需同步类目成员与需求/豁免"
+ ],
+ "applied_in": "data_constants(7 维/16 口岸/进出口篮/禁榷/POP_DEMAND_MATRIX/DEMAND_EXEMPT_DIMS) + test_quality_gate_foreign_trade_data.py",
+ "reopen_if": "P1 数据导致既有货物流转/物价异常；或死货门豁免过多失去意义"
+}
