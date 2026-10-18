@@ -29,8 +29,19 @@ FISCAL_EFFECT_MATTERS = {
     "land_tax": "赋税",
     "finance_rates": "度支调度",
     "granary": "国库",
-    "audit": "财政勾稽",
-    "confiscate": "国库",
+    # 实际诏令/结算 handler 使用的键（2026-10-18 JEV P1b 复审补登）
+    "audit_route": "财政勾稽",
+    "relief": "度支调度",
+    "he_mi": "度支调度",
+    "military_supply": "度支调度",
+    "grain_stabilize": "度支调度",
+    "granary_reform": "度支调度",
+    "single_whip": "赋税",
+    "pay_reform": "度支调度",
+    "curtail_waste": "度支调度",
+    "reduce_office": "度支调度",
+    "anti_corruption": "财政勾稽",
+    "confiscate": "财政勾稽",
 }
 
 # 财政草案 change.path → 事权（按路径关键词）

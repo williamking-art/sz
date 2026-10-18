@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """P1b：财政 effect→事权注册表 + F3–F7 入口 actor 门。"""
+import pytest
+
 from core import commands
 from core import authority_gate
 from core.commands import approve_ai_action, enqueue_finance_proposal
@@ -15,17 +17,38 @@ def _state():
     return commands.new_game()
 
 
+ACTUAL_FISCAL_KEYS = {
+    "audit_route": "财政勾稽",
+    "relief": "度支调度",
+    "he_mi": "度支调度",
+    "military_supply": "度支调度",
+    "grain_stabilize": "度支调度",
+    "granary_reform": "度支调度",
+    "single_whip": "赋税",
+    "pay_reform": "度支调度",
+    "curtail_waste": "度支调度",
+    "reduce_office": "度支调度",
+    "anti_corruption": "财政勾稽",
+    "confiscate": "财政勾稽",
+}
+
+
 def test_fiscal_effect_registry_covers_required_keys():
     effects = {
         "treasury": 1000,
         "commerce_tax": 0.2,
         "finance_rates": 1,
-        "audit": {},
+        "audit_route": "两浙路",
         "confiscate": {},
         "institution": {"didang_loan_rate": "=0.03"},
     }
     matters = authority_gate.matters_for_effects(effects)
-    assert set(matters) >= {"度支调度", "赋税", "财政勾稽", "国库", "官营放贷"}
+    assert set(matters) >= {"度支调度", "赋税", "财政勾稽", "官营放贷"}
+
+
+@pytest.mark.parametrize("key,matter", sorted(ACTUAL_FISCAL_KEYS.items()))
+def test_actual_fiscal_keys_registered(key, matter):
+    assert matter in authority_gate.matters_for_effects({key: 1})
 
 
 def test_finance_path_registry():
@@ -183,4 +206,31 @@ def test_issue_decree_primary_plus_extra_fiscal_rejected():
             "primary_matter": "官吏铨选", "executor": "吏部",
             "effects": {"treasury": 1000}})
     assert "事权不合法" in msg, msg
+
+
+def test_issue_decree_audit_route_actor_gate():
+    s = _state()
+    ok = issue_decree(
+        s, {"title": "勾校两浙", "category": "民政",
+            "effects": {"audit_route": "两浙路"}, "executor": "王古"})
+    assert "已下诏" in ok, ok
+    bad = issue_decree(
+        s, {"title": "勾校两浙2", "category": "民政",
+            "effects": {"audit_route": "两浙路"}, "executor": "李清臣"})
+    assert "事权不合法" in bad, bad
+
+
+def test_backend_edict_review_passes_executor():
+    from game.backend.client import LocalBackend
+
+    s = _state()
+    did = s.add_edict_draft({
+        "title": "拨帑", "org_hint": "户部",
+        "effects": [{"dim": "treasury", "value": 1000}],
+    })
+    msg, _ = LocalBackend().action(
+        s, "issue_edict_from_review",
+        {"draft_id": did, "decision": "approve", "executor": "李清臣"},
+    )
+    assert "诏草未发" in msg, msg
 

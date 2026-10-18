@@ -187,7 +187,9 @@ class LocalBackend(BackendClient):
             "issue_secret_decree":
                 lambda s, p, ai: (cmd.issue_secret_decree(s, p.get("target", ""), p.get("content", "")), s),
             "issue_edict_from_review":
-                lambda s, p, ai: (cmd.issue_edict_from_review(s, p.get("draft_id", ""), p.get("decision", "approve")), s),
+                lambda s, p, ai: (cmd.issue_edict_from_review(
+                    s, p.get("draft_id", ""), p.get("decision", "approve"),
+                    executor=p.get("executor")), s),
             "reject_edict_draft":
                 lambda s, p, ai: (cmd.reject_edict_draft(s, p.get("draft_id", "")), s),
             "issue_free_decree":
