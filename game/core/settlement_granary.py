@@ -149,15 +149,22 @@ def _settle_granary(state, log):
         log.append(f"[雀鼠耗] 仓储月耗 {sparrow}石（存粮折损）")
 
     pay = state.pay_system.get("grain_ratio", 0.5)
+    # 🟢 P2c（2026-10-18）：outflow = 本月**发仓总闸门**（天道对"该发多少粮出太仓"的裁决）。
+    # 旧实现把 outflow 当损耗倍率用（语义错位，已由 storage_loss 接管）；
+    # 现改为作用于本色支出总量：无=0（停发）、微=0.5、小=1.0（与旧行为一致）、中=1.5、大=2.0…
+    # 军粮份额仍由 army_supply 决定；赈济走独立契约档位，不在此闸门内。
+    _outflow_gate = float(outflow_mult)
     # 兵口粮联动（蔡权衡定案）：军粮实发按「禁/厢加权实发 + 乡兵缺口自备」口径
     # （乡兵军粮自备，太仓不造粮），故用 calc_army_grain(for_issue=True)
     army_grain_total, _ = state.calc_army_grain(for_issue=True)
-    # AI 契约：军粮保障档位调制
-    mil_grain = int(army_grain_total * pay * army_supply_mult)
+    # AI 契约：军粮保障档位调制 × 发仓总闸门
+    mil_grain = int(army_grain_total * pay * army_supply_mult * _outflow_gate)
     official_grain_total, _ = state.calc_official_grain()
-    off_grain = int(official_grain_total * pay)
+    off_grain = int(official_grain_total * pay * _outflow_gate)
     clerk_grain_total, _ = state.calc_clerk_grain()
-    clerk_grain = int(clerk_grain_total * pay)
+    clerk_grain = int(clerk_grain_total * pay * _outflow_gate)
+    if _outflow_gate != 1.0:
+        log.append(f"[发仓闸门] 天道裁定 outflow 档位 ⇒ 本色支出 ×{_outflow_gate:g}")
     _, corruption_grain_loss = state.calc_corruption_deduction()
     corr_grain = int(corruption_grain_loss * pay)
 
