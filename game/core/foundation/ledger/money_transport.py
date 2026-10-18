@@ -139,6 +139,81 @@ def dispatch_money(state, *, frm_kind: str, to_kind: str, amount: int,
             "arrive_month": batch["arrive_month"], "days": int(days), "batch": batch}
 
 
+def dispatch_along(state, *, frm_kind: str, to_kind: str, amount: int,
+                   frm_seat: Optional[str] = None, to_seat: Optional[str] = None,
+                   mode: str = "land", escort_fee: int = 0) -> Dict[str, Any]:
+    """**多段运输**（P5c）：按 `route_path` 的最短路径与指定方式建**一个**在途批次。
+
+    与 `dispatch_money` 的差别：本函数先做**能力校验**（`transport_capability`：方式可用/运力/耗时），
+    并把**分段时刻表**（`legs`）写进批次，供读数与 AI 判断「走到哪一段」。
+
+    账务语义（刻意简化，避免中转仓平账）：
+    · 源账户**立刻**扣 `amount + escort_fee`；
+    · **钱只在终点入账**（`arrive_month` 到期一次入账），中途不落任何账户；
+    · 分批：一批不超过该方式月运力；超出 ⇒ 返回 `over_capacity` 与可分批数（调用方决定是否分批）。
+    """
+    from core.transport import _book, _now, route_path, transport_capability
+
+    want = max(0, int(amount))
+    if want <= 0:
+        return {"ok": True, "reason": "no_demand", "shipped": 0}
+    if frm_kind not in HOLDER_KINDS or to_kind not in HOLDER_KINDS:
+        return {"ok": False, "reason": "bad_holder_kind"}
+    if not to_seat:
+        return {"ok": False, "reason": "missing_destination"}
+    frm_seat = frm_seat or ("京畿路|开封府" if frm_kind in ("treasury", "imperial_treasury") else to_seat)
+    cap = transport_capability(state, frm_seat, to_seat, mode)
+    if not cap.get("ok"):
+        return {"ok": False, "reason": cap.get("reason"), "mode": mode, "capability": cap}
+    capacity = int(cap.get("capacity") or 0)
+    if capacity <= 0:
+        return {"ok": False, "reason": "zero_capacity", "mode": mode}
+    if want > capacity:
+        return {"ok": False, "reason": "over_capacity", "mode": mode,
+                "capacity": capacity, "batches_needed": (want + capacity - 1) // capacity}
+    rp = route_path(frm_seat, to_seat)
+    if not rp or not rp.get("reachable"):
+        return {"ok": False, "reason": "unreachable"}
+    now = _now(state)
+    if now is None:
+        return {"ok": False, "reason": "time_undefined"}
+    read, write = resolve_holder(state, frm_kind, frm_seat)
+    if read is None:
+        return {"ok": False, "reason": "source_unavailable", "from": frm_kind}
+    fee = max(0, int(escort_fee))
+    cur = read()
+    if cur < want + fee:
+        return {"ok": False, "reason": "insufficient_funds", "available": int(cur),
+                "need": int(want + fee)}
+    write(int(cur) - (want + fee))
+    days = int(cap.get("days") or 0) or 1
+    # 分段时刻表：按每段里的天数比例分配到各段（仅用于读数，不落账）
+    path = list(rp["path"])
+    per_leg = max(0, days // max(1, len(path) - 1))
+    legs = []
+    acc = 0
+    for i, (a, b) in enumerate(zip(path, path[1:])):
+        acc += per_leg
+        legs.append({"from": a, "to": b, "arrive_month": now + acc})
+    batch = {
+        "trade_id": None,
+        "cargo_kind": MONEY_CARGO_KIND,
+        "from": frm_seat, "to": to_seat,
+        "dim": "coins", "qty": int(want),
+        "mode": str(mode),
+        "from_kind": frm_kind, "to_kind": to_kind,
+        "from_seat": frm_seat, "to_seat_holder": to_seat,
+        "path": path, "legs": legs,
+        "arrive_month": now + days, "days": days,
+        "escort_fee": int(fee),
+        "km": cap.get("km"),
+    }
+    _book(state).append(batch)
+    return {"ok": True, "reason": "ok", "shipped": int(want), "mode": mode,
+            "arrive_month": batch["arrive_month"], "days": days,
+            "capacity": capacity, "km": cap.get("km"), "batch": batch}
+
+
 def arrive_money_due(state) -> list:
     """把本月至期的**钱批次**入账到目标持有方；货物批次原样保留（互不干扰）。"""
     from core.transport import _now, _book, _set_book
