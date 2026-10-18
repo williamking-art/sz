@@ -1197,6 +1197,12 @@ MILITARY_GRAIN_MONTHLY = 600_000    # 军粮月耗 (石)，从中央仓支取（
 OFFICIAL_GRAIN_MONTHLY = 200_000    # 官俸本色禄米月耗 (石)，从中央仓支取
 DISASTER_RELIEF_GRAIN = 200_000     # 单次开仓赈济耗粮 (石)
 SPARROW_RAT = 0.012            # 雀鼠耗：存粮月自然损耗率（加消耗定案 1%→1.2%）
+#: 🔴 **仓储损耗档位倍率**（2026-10-18 用户裁定：「粮的损耗不是有天道系统来裁决多寡吗」）。
+#: 口径：**天道只出档位（无/轻/中/重），程序按表换算率** —— 落实「AI 只出档位、数值由程序算」。
+#: 实际月损耗率 = SPARROW_RAT × STORAGE_LOSS_TIER_MULT[tier]（「中」= 现状基准 1.2%，故默认零行为变更）。
+#: 仓吏贪墨另走 TianDao.granary_corruption_check（是非判定）⇒ 转走私邸地窖，**不并入损耗**。
+STORAGE_LOSS_TIER_MULT = {"无": 0.0, "轻": 0.5, "中": 1.0, "重": 1.8}
+STORAGE_LOSS_TIER_DEFAULT = "中"
 CANAL_LOSS_BASE = 0.06         # 漕运漂没基础损耗（加消耗定案 4%→6%）
 CANAL_LOSS_CORRUPT_WEIGHT = 0.06  # 漕运侵盗损耗随押运官贪腐放大系数
 # 注：田赋率单一权威源见上方 LAND_TAX_RATE（0.15 综合率）+ LAND_TAX_RATE_BENEFIT（0.10 本色率）；

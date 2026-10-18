@@ -1,0 +1,32 @@
+{
+ "id": "JEV-DEC-粮仓口径修订-天道损耗与全国三层-2026-10-18",
+ "createdAt": "2026-10-18T11:05:00+08:00",
+ "agent": "DSH",
+ "supersedes": [
+  "JEV-DEC-粮仓口径三项-2026-10-18 的第 3 项（朝廷仓只做太仓）",
+  "JEV-DEC-粮仓口径三项-2026-10-18 的第 2 项（腐损统一固定率）"
+ ],
+ "authority": "用户 2026-10-18 两条指示：朝廷仓做完全国（州府→路级）；粮损由天道裁决多寡",
+ "revisions": [
+  {
+   "item": "朝廷仓范围",
+   "from": "只做京师太仓（Jev A 0.399）",
+   "to": "全国三层：州府仓（已有 storage/changping）+ 路级转运仓（新增）+ 中央太仓（已有）"
+  },
+  {
+   "item": "损耗口径",
+   "from": "统一 SPARROW_RAT 1.2%/月（Jev A 0.982）",
+   "to": "天道裁决档位（无/轻/中/重）× 程序查表倍率（0.0/0.5/1.0/1.8），SPARROW_RAT 作中档基准"
+  }
+ ],
+ "premises_verified_by_me": [
+  "州仓 p['storage'] 与常平仓 p['changping'] 已存在且分离（game_state.py:1029-1030）",
+  "中央太仓 state.granary/granary_cap + change_granary 已存在（game_state.py:783-785,1346-1355）",
+  "路级仓当前不存在（storage_bridge 只有州/中央两级）",
+  "损耗现值挂在 outflow_mult（出仓档位）上，属语义错位（settlement_granary.py:136）",
+  "天道已有 granary_corruption_check（是非判定，判仓吏贪墨），可复用为额外走私通道"
+ ],
+ "principle": "AI 只出档位、数值由程序算（项目硬约束）；档位倍率表落 content 常量，不落 AI 输出",
+ "applied_in": "G3 设计稿 v2 §修订；本轮实现 P2a（常量+查表+门）",
+ "reopen_if": "天道档位与结算接线后出现损耗异常，或用户要求路仓参与平粜"
+}

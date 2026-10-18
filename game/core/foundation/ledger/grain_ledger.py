@@ -29,6 +29,46 @@ from typing import Dict, List, Optional
 #: 迁移目标维。见上文约束 3：单一无单位总量无米麦分项，全额入「米」。
 GRAIN_MIGRATION_DIM = "米"
 
+#: 仓储损耗档位（天道裁决，2026-10-18 用户裁定：「粮的损耗不是有天道系统来裁决多寡吗」）
+STORAGE_LOSS_TIERS = ("无", "轻", "中", "重")
+
+
+def storage_loss_rate(tier: object = None) -> float:
+    """**仓储月损耗率**：天道给档位 → 程序查表换算率（AI 不给数）。
+
+    · 返回 SPARROW_RAT × STORAGE_LOSS_TIER_MULT[tier]；
+    · 档位缺失/未知 ⇒ 按默认档（「中」= 1.2%，与改前行为完全一致）；
+    · 不做隐式换算、不写账，只算率。
+    """
+    from content.data import SPARROW_RAT, STORAGE_LOSS_TIER_DEFAULT, STORAGE_LOSS_TIER_MULT
+
+    t = str(tier) if isinstance(tier, str) else ""
+    mult = STORAGE_LOSS_TIER_MULT.get(t)
+    if mult is None:
+        mult = STORAGE_LOSS_TIER_MULT[STORAGE_LOSS_TIER_DEFAULT]
+    return float(SPARROW_RAT) * float(mult)
+
+
+def assert_loss_tiers_sane() -> list:
+    """档位表自检：默认档存在、倍率非负且随档位单调不减。返回问题清单。"""
+    from content.data import STORAGE_LOSS_TIER_DEFAULT, STORAGE_LOSS_TIER_MULT
+
+    issues = []
+    if STORAGE_LOSS_TIER_DEFAULT not in STORAGE_LOSS_TIER_MULT:
+        issues.append("默认档不在档位表中")
+    prev = None
+    for t in STORAGE_LOSS_TIERS:
+        v = STORAGE_LOSS_TIER_MULT.get(t)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            issues.append(f"档位 {t} 缺少数值倍率")
+            continue
+        if v < 0:
+            issues.append(f"档位 {t} 倍率为负：{v}")
+        if prev is not None and v < prev:
+            issues.append(f"档位 {t} 倍率低于上一档（应单调不减）")
+        prev = v
+    return issues
+
 
 def grain_of(pop: Optional[dict]) -> Optional[int]:
     """**派生读口**：该 POP 的粮 = `goods[米] + goods[麦]`。
