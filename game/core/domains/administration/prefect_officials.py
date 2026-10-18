@@ -272,15 +272,17 @@ def get_prefect_officials(state, seat_id: Optional[str] = None) -> Any:
 
 def appoint_prefect_official(state, seat_id: str, role: str,
                              official_info: Dict[str, Any],
-                             executor: Any = None) -> Dict[str, Any]:
+                             executor: Any = None,
+                             imperial_direct: bool = False) -> Dict[str, Any]:
     """任命或调换州府知通（显式写路径：先保证官员册存在于 state）。
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    from core.permission_model import personnel_authority
-    ok, reason, _mode = personnel_authority(state, executor)
-    if not ok:
-        return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
+    if not imperial_direct:
+        from core.permission_model import personnel_authority
+        ok, reason, _mode = personnel_authority(state, executor)
+        if not ok:
+            return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
     raw = getattr(state, "prefect_officials", None)
     if not isinstance(raw, dict) or len(raw) < 136:
         init_all_prefect_officials(state)
@@ -351,15 +353,17 @@ def appoint_prefect_official(state, seat_id: str, role: str,
 
 
 def dismiss_prefect_official(state, seat_id: str, role: str,
-                             executor: Any = None) -> Dict[str, Any]:
+                             executor: Any = None,
+                             imperial_direct: bool = False) -> Dict[str, Any]:
     """罢免该州府知通，置为空缺待补（显式写路径）。
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    from core.permission_model import personnel_authority
-    ok, reason, _mode = personnel_authority(state, executor)
-    if not ok:
-        return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
+    if not imperial_direct:
+        from core.permission_model import personnel_authority
+        ok, reason, _mode = personnel_authority(state, executor)
+        if not ok:
+            return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
     raw = getattr(state, "prefect_officials", None)
     if not isinstance(raw, dict) or len(raw) < 136:
         init_all_prefect_officials(state)

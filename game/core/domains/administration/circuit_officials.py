@@ -249,6 +249,7 @@ def appoint_circuit_official(
     role_key: str,
     official_data: Dict[str, Any],
     executor: Any = None,
+    imperial_direct: bool = False,
 ) -> bool:
     """任命/改任某一省路级主官（受控写操作）。
 
@@ -260,10 +261,11 @@ def appoint_circuit_official(
     """
     if circuit not in ALL_CIRCUITS_21 or role_key not in CIRCUIT_OFFICIAL_ROLES:
         return False
-    from core.permission_model import personnel_authority
-    ok, _label, _mode = personnel_authority(state, executor)
-    if not ok:
-        return False
+    if not imperial_direct:
+        from core.permission_model import personnel_authority
+        ok, _label, _mode = personnel_authority(state, executor)
+        if not ok:
+            return False
 
     c_map = init_all_circuit_officials(state)
     circuit_entry = c_map.setdefault(circuit, _build_default_circuit(circuit, 0))
@@ -309,15 +311,17 @@ def appoint_circuit_official(
 
 
 def dismiss_circuit_official(state, circuit: str, role_key: str, reason: str = "罢免",
-                             executor: Any = None) -> Optional[Dict[str, Any]]:
+                             executor: Any = None,
+                             imperial_direct: bool = False) -> Optional[Dict[str, Any]]:
     """罢免调离某一省路主官，暂时空缺由通判/判官权知代理。
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `None` 且不改 state。
     """
-    from core.permission_model import personnel_authority
-    ok, _label, _mode = personnel_authority(state, executor)
-    if not ok:
-        return None
+    if not imperial_direct:
+        from core.permission_model import personnel_authority
+        ok, _label, _mode = personnel_authority(state, executor)
+        if not ok:
+            return None
     c_map = init_all_circuit_officials(state)
     circuit_entry = c_map.get(circuit)
     if not circuit_entry:

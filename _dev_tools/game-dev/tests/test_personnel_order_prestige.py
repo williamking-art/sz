@@ -58,12 +58,20 @@ def test_queued_order_applies_next_turn():
     assert s.statistics["personnel_order_ledger"]
 
 
-def test_high_prestige_does_not_bypass_permission():
+def test_direct_bypasses_executor_permission_but_target_must_exist():
     s = _state()
-    s.prestige = 81
+    s.prestige = 90
     out = _appoint(s, "丁", executor={"org": "户部"})
-    assert out["ok"] is False
+    assert out["ok"] is True and out["immediate"] is True
+    assert s.circuit_officials["京畿路"]["officials"]["cao"]["name"] == "丁"
     assert s.statistics.get(PENDING_KEY, []) == []
+
+    bad = issue_personnel_order(
+        s, action="appoint_circuit", executor={"org": "户部"},
+        circuit="不存在", role_key="cao",
+        official_data={"name": "戊", "faction": "中立派"},
+    )
+    assert bad["ok"] is False
 
 
 def test_low_prestige_also_rejects_illegal_executor():
@@ -76,7 +84,7 @@ def test_low_prestige_also_rejects_illegal_executor():
 
 def test_immediate_dismiss_at_high_prestige():
     s = _state()
-    s.prestige = 81
+    s.prestige = 90
     _appoint(s, "己")
     out = _dismiss(s)
     assert out["ok"] is True and out["immediate"] is True
@@ -85,7 +93,7 @@ def test_immediate_dismiss_at_high_prestige():
 
 def test_queued_dismiss_applies_next_turn():
     s = _state()
-    s.prestige = 81
+    s.prestige = 90
     _appoint(s, "庚")
     s.prestige = 80
     out = _dismiss(s)
@@ -127,4 +135,31 @@ def test_threshold_boundary_80_vs_81():
     s81 = _state()
     s81.prestige = 81
     assert _appoint(s81, "子")["immediate"] is True
+
+
+def test_direct_action_charges_prestige():
+    s = _state()
+    s.prestige = 90
+    out = _appoint(s, "丑")
+    assert out["ok"] is True
+    assert out["prestige_cost"] == 2
+    assert s.prestige == 88
+
+
+def test_registry_declares_military_dispatch_as_pending():
+    from core import imperial_mandate
+    s = _state()
+    s.prestige = 99
+    military = imperial_mandate.spec("military_dispatch")
+    assert military is not None
+    assert military.threshold == 85
+    assert military.implemented is False
+    assert imperial_mandate.can_direct(s, "military_dispatch") is False
+
+
+def test_unknown_action_not_direct():
+    from core import imperial_mandate
+    s = _state()
+    s.prestige = 100
+    assert imperial_mandate.can_direct(s, "not_an_action") is False
 

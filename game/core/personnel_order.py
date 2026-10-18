@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
-"""人事令（2026-10-18 用户设定）：**皇威 > 80 当场任免；否则走流程（下一回合生效）**。
+"""人事令（2026-10-18 用户设定）：**皇威权柄 > 阈值 ⇒ 当场任免；否则走流程**。
 
-- 权限仍按 `permission_model`：承办人必须因**在任职位**而持有「官吏铨选」；
-- 皇威只决定**即时/走流程**，不创造权限；
-- 走流程的令进入 `state.statistics["pending_personnel_orders"]`，
-  在下一回合 `_settle_officialdom` 的 `settle_personnel_orders()` 中重校验并落地；
+- 直行：皇威高于 `imperial_mandate` 的 `appoint` 阈值 ⇒ 皇帝言出即行，
+  跳过执行侧权限与程序，但仍校验目标合法/职位存在，并支付皇威代价；
+- 走流程：皇威不足 ⇒ 承办人必须因**在任职位**持有「官吏铨选」，
+  令进入 `state.statistics["pending_personnel_orders"]`，`due_turn=T+1` 结算；
 - 幂等键 `order_id`，已落地/失败的令不重复执行；
-- 低层 `appoint_*`/`dismiss_*` 仍是**即时写入口**；本模块是玩家/诏令侧的通道。
+- 低层 `appoint_*`/`dismiss_*` 仍是即时写入口；本模块是玩家/诏令侧通道。
 """
 from __future__ import annotations
 
 import hashlib
 from typing import Any, Dict, Optional
 
+from core import imperial_mandate
 from core.permission_model import personnel_authority
 
 __all__ = [
@@ -21,7 +22,7 @@ __all__ = [
     "PENDING_KEY", "LEDGER_KEY",
 ]
 
-PRESTIGE_IMMEDIATE_THRESHOLD = 80
+PRESTIGE_IMMEDIATE_THRESHOLD = imperial_mandate.threshold("appoint") or 80
 PENDING_KEY = "pending_personnel_orders"
 LEDGER_KEY = "personnel_order_ledger"
 
@@ -32,12 +33,8 @@ _ACTIONS = (
 
 
 def can_appoint_immediately(state) -> bool:
-    """皇威 > 80 ⇒ 可当场任免；≤80 必须走流程。"""
-    try:
-        prestige = int(getattr(state, "prestige", 0) or 0)
-    except (TypeError, ValueError):
-        return False
-    return prestige > PRESTIGE_IMMEDIATE_THRESHOLD
+    """皇威权柄：`appoint` 已接线且皇威 > 阈值 ⇒ 可当场任免。"""
+    return imperial_mandate.can_direct(state, "appoint")
 
 
 def _stats(state) -> Dict[str, Any]:
@@ -93,6 +90,7 @@ def _apply(state, order: Dict[str, Any]) -> Dict[str, Any]:
             ok = appoint_circuit_official(
                 state, order.get("circuit"), order.get("role_key"),
                 order.get("official_data") or {}, executor=executor,
+                imperial_direct=bool(order.get("imperial_direct")),
             )
             return {"ok": bool(ok), "result": ok}
         if action == "dismiss_circuit":
@@ -102,6 +100,7 @@ def _apply(state, order: Dict[str, Any]) -> Dict[str, Any]:
             result = dismiss_circuit_official(
                 state, order.get("circuit"), order.get("role_key"),
                 reason=order.get("reason") or "罢免", executor=executor,
+                imperial_direct=bool(order.get("imperial_direct")),
             )
             return {"ok": result is not None, "result": result}
         if action == "appoint_prefect":
@@ -111,6 +110,7 @@ def _apply(state, order: Dict[str, Any]) -> Dict[str, Any]:
             result = appoint_prefect_official(
                 state, order.get("seat_id"), order.get("role"),
                 order.get("official_data") or {}, executor=executor,
+                imperial_direct=bool(order.get("imperial_direct")),
             )
             return {"ok": bool((result or {}).get("ok")), "result": result}
         if action == "dismiss_prefect":
@@ -120,6 +120,7 @@ def _apply(state, order: Dict[str, Any]) -> Dict[str, Any]:
             result = dismiss_prefect_official(
                 state, order.get("seat_id"), order.get("role"),
                 executor=executor,
+                imperial_direct=bool(order.get("imperial_direct")),
             )
             return {"ok": bool((result or {}).get("ok")), "result": result}
     except Exception as e:  # noqa: BLE001 — 单令人事失败不炸结算
@@ -146,11 +147,8 @@ def issue_personnel_order(
     if act.startswith("appoint") and not isinstance(official_data, dict):
         return {"ok": False, "immediate": False, "reason": "任命缺 official_data"}
 
-    ok, actor_or_reason, mode = personnel_authority(state, executor, strict=True)
-    if not ok:
-        return {"ok": False, "immediate": False, "reason": actor_or_reason, "mode": mode}
-
     turn = int(getattr(state, "turn", 0) or 0)
+    direct = can_appoint_immediately(state)
     order = {
         "action": act, "executor": executor,
         "circuit": circuit, "role_key": role_key,
@@ -158,21 +156,28 @@ def issue_personnel_order(
         "official_data": dict(official_data or {}),
         "reason": reason, "created_turn": turn,
         "due_turn": turn + 1, "status": "pending",
+        "imperial_direct": direct,
     }
     oid = _order_id(act, order, turn)
     order["order_id"] = oid
 
-    if can_appoint_immediately(state):
+    if direct:
         res = _apply(state, order)
         status = "applied" if res.get("ok") else "failed"
+        cost = imperial_mandate.charge_direct_cost(state, "appoint") if res.get("ok") else 0
         _ledger(state)[oid] = {
-            "status": status, "turn": turn, "action": act, "mode": mode,
-            "error": res.get("error"), "immediate": True,
+            "status": status, "turn": turn, "action": act, "mode": "imperial_direct",
+            "error": res.get("error"), "immediate": True, "prestige_cost": cost,
         }
         return {
             "ok": bool(res.get("ok")), "immediate": True, "order_id": oid,
-            "mode": mode, "result": res.get("result"), "error": res.get("error"),
+            "mode": "imperial_direct", "prestige_cost": cost,
+            "result": res.get("result"), "error": res.get("error"),
         }
+
+    ok, actor_or_reason, mode = personnel_authority(state, executor, strict=True)
+    if not ok:
+        return {"ok": False, "immediate": False, "reason": actor_or_reason, "mode": mode}
 
     queue = _queue(state)
     if any(str(o.get("order_id")) == oid for o in queue):
