@@ -269,6 +269,51 @@ def route_path(frm: str, to: str) -> Optional[Dict[str, Any]]:
     return dict(res)
 
 
+
+
+def transit_km(frm: str, to: str, mode: str) -> Optional[float]:
+    """两治所间该方式的**实际里程**（km）；取不到 ⇒ None（不臆造）。
+
+    · maritime ⇒ `sea_route` 海路图（非海港 ⇒ 回落大圆距离）；
+    · 其它 ⇒ `route_path` 陆路图（不可达 ⇒ 回落大圆距离）。
+    """
+    if mode == "maritime":
+        r = sea_route(frm, to)
+        if r and r.get("km"):
+            return float(r["km"])
+    else:
+        r = route_path(frm, to)
+        if r and r.get("reachable") and r.get("km"):
+            return float(r["km"])
+    idx = _seat_index()
+    if frm not in idx or to not in idx:
+        return None
+    a, b = idx[frm], idx[to]
+    return haversine_km(float(a["lon"]), float(a["lat"]), float(b["lon"]), float(b["lat"]))
+
+
+def transit_days(mode: str, frm: str, to: str) -> Optional[int]:
+    """**分档时效**（2026-10-18 Jev A 0.881）：近程用近程基准，超阈值按距离放大。
+
+    ```text
+    days = 近程基准                      （km ≤ TRANSIT_NEAR_KM）
+         = max(方式基准, ceil(km/speed))  （km >  阈值）
+    ```
+    缺失里程 ⇒ None（调用方回落既有常量，不臆造）。
+    """
+    import math as _m
+
+    from content.data_constants import (TRANSIT_MODE_BASE_DAYS, TRANSIT_NEAR_DAYS,
+                                        TRANSIT_NEAR_KM, TRANSIT_SPEED_KM_PER_DAY)
+
+    km = transit_km(frm, to, mode)
+    if km is None:
+        return None
+    near = int(TRANSIT_NEAR_DAYS.get(mode, TRANSIT_MODE_BASE_DAYS.get(mode, 30)))
+    speed = float(TRANSIT_SPEED_KM_PER_DAY.get(mode, 25))
+    # 平滑：近程用近程基准作**下限**，超阈值后按距离线性放大（阈值处不跳变）
+    return max(near, int(_m.ceil(km / speed)))
+
 def transport_fee(mode: str, value: float, km: float) -> Optional[int]:
     """运费（设定模型）：`货值 × fee_rate × (km/1000)`，向上取整；未知方式 ⇒ None。
 

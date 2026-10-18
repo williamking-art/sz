@@ -1489,3 +1489,15 @@ SEA_OVERSEAS_LANES = (
 )
 #: 开航季（设定值）：冬季北风南下、夏季南风北上
 OVERSEAS_SAILING_MONTHS = {"southbound": (10, 11, 12, 1, 2, 3), "northbound": (4, 5, 6, 7, 8, 9)}
+
+# ============================================================
+# 交通时效分档（2026-10-18 用户「对比一下」+ Jev：A 分档 0.881）
+# ============================================================
+#: 基准时效（天）——沿用既有「三维交通效能矩阵」远洋/长途基准，**不改旧数**
+TRANSIT_MODE_BASE_DAYS = {"waterway": 15, "overland": 30, "maritime": 45, "post": 2}
+#: 近程阈值（km）：≤ 此距离用「近程基准」，> 用「基准 + 距离放大」
+TRANSIT_NEAR_KM = 1000
+#: 近程基准（天）：短途比长途快（海运近海 15 天、内河短途 10 天）
+TRANSIT_NEAR_DAYS = {"waterway": 10, "maritime": 15, "overland": 15, "post": 2}
+#: 距离放大速度（km/日）：仅用于超过近程阈值后的放大
+TRANSIT_SPEED_KM_PER_DAY = {"waterway": 40, "overland": 25, "maritime": 60, "post": 250}

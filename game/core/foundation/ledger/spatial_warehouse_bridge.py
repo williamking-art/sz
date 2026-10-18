@@ -263,16 +263,23 @@ def dispatch_spatial_transfer(
         batches = []
         setattr(state, "in_transit_batches", batches)
     
+    # 2026-10-18（Jev A 0.881）：时效分档——近程用近程基准，长途按距离放大；
+    # 取不到里程 ⇒ 回落既有常量（不臆造）。运力配比与途耗率保持原值不动。
+    try:
+        from core.transport import transit_days as _td
+        _tier_days = _td(transit_mode, origin_seat, target_seat)
+    except Exception:  # noqa: BLE001
+        _tier_days = None
     if transit_mode == "waterway":
-        base_days = 15
+        base_days = int(_tier_days or 15)
         porters = max(2, int(amt * 0.05))
         daily_ration = 0.005
     elif transit_mode == "maritime":
-        base_days = 45
+        base_days = int(_tier_days or 45)
         porters = max(5, int(amt * 0.02))
         daily_ration = 0.008
     else:  # overland
-        base_days = 30
+        base_days = int(_tier_days or 30)
         porters = max(2, int(amt * 0.5))
         daily_ration = 0.020
 
@@ -356,7 +363,12 @@ def dispatch_passenger_trip(
         trips = []
         setattr(state, "passenger_trips", trips)
     
-    base_days = 15 if transit_mode == "waterway" else (45 if transit_mode == "maritime" else 30)
+    try:
+        from core.transport import transit_days as _td2
+        base_days = int(_td2(transit_mode, origin_seat, target_seat) or
+                        (15 if transit_mode == "waterway" else (45 if transit_mode == "maritime" else 30)))
+    except Exception:  # noqa: BLE001
+        base_days = 15 if transit_mode == "waterway" else (45 if transit_mode == "maritime" else 30)
     trip_id = f"trip_{origin_seat}_{target_seat}_{passenger_type}_{len(trips)+1}"
     trip = {
         "trip_id": trip_id,
