@@ -179,6 +179,40 @@ def contraband_check(leg: Dict[str, Any]) -> Dict[str, Any]:
                 "reason": f"contraband:{dim}", "smuggling": "pending_p8"}
     return {"forbidden": False, "reason": None}
 
+def attempt_smuggle(state, leg: Dict[str, Any]) -> Dict[str, Any]:
+    """禁榷品**走私**（P7）：只走**商人私货**，按固定查获率拆分没收/流出。
+
+    · 私货来源：该路商人 POP 的 `goods`（无 ⇒ `no_merchant_stock`，不外流）；
+    · 查获 = 尝试量 × `CONTRABAND_SEIZURE_RATE`，**没收入官仓**（`stock_adjust` 加回）；
+    · 走私成功部分**无税**（不走 `apply_tariff`），记 `direction=smuggle`；
+    · 守恒：商人池减少 = 走私流出 + 查获没收；官仓增加 = 查获没收。
+    """
+    from content.data_constants import CONTRABAND_SEIZURE_RATE
+    from core.foundation.ledger.material_holding import (consume_for_circuit, goods_amount,
+                                                        merchant_goods, stock_adjust)
+
+    dim = str(leg.get("dim") or "")
+    route = str(leg.get("route") or "")
+    want = float(leg.get("planned_qty") or 0)
+    if not dim or not route or want <= 0:
+        return {"ok": False, "reason": "bad_leg"}
+    goods = merchant_goods(state, route)
+    have = int(goods_amount(goods, dim) or 0) if isinstance(goods, dict) else 0
+    if have <= 0:
+        return {"ok": False, "reason": "no_merchant_stock", "dim": dim}
+    try_qty = min(int(want), have)
+    taken = int(consume_for_circuit(state, route, dim, try_qty))
+    if taken <= 0:
+        return {"ok": False, "reason": "consume_failed", "dim": dim}
+    rate = float(CONTRABAND_SEIZURE_RATE or 0)
+    seized = max(0, min(taken, int(round(taken * rate))))
+    smuggled = taken - seized
+    if seized > 0:
+        stock_adjust(state, dim, float(seized))          # 没收入官仓
+    return {"ok": smuggled > 0 or seized > 0, "smuggled_qty": smuggled,
+            "seized_qty": seized, "consumed_qty": taken,
+            "reason": None if smuggled > 0 else "all_seized"}
+
 def land_market_open(state, partner: str) -> Dict[str, Any]:
     """榷场（陆路互市）开关：**战时闭场**；态度低于阈值亦闭场（玩法设定）。
 
@@ -259,10 +293,33 @@ def settle_foreign_trade(state, month: Optional[int] = None,
         # P7：禁榷查验（出口禁榷品 ⇒ 拦截；走私待 P8 商人持有货后接）
         _cb = contraband_check(leg)
         if _cb.get("forbidden"):
+            if not dry_run:
+                _sm = attempt_smuggle(state, leg)
+            else:
+                _sm = {"ok": False, "reason": "dry_run"}
+            if _sm.get("ok"):
+                # 走私：无税、记 smuggle；查获部分已没收入官仓
+                totals["smuggled_qty"] = totals.get("smuggled_qty", 0) + int(_sm.get("smuggled_qty") or 0)
+                totals["seized_qty"] = totals.get("seized_qty", 0) + int(_sm.get("seized_qty") or 0)
+                _row = {**leg, "shipped_qty": float(_sm.get("smuggled_qty") or 0),
+                        "received_qty": 0.0, "short_qty": 0.0, "goods_value": None,
+                        "tax": 0, "reason": _sm.get("reason"), "smuggled": True,
+                        "seized_qty": int(_sm.get("seized_qty") or 0)}
+                rows.append(_row)
+                if not dry_run and isinstance(journal, list):
+                    journal.append({"month": month, "route": leg.get("route"),
+                                    "seat": leg.get("seat"), "partner": leg.get("partner"),
+                                    "dim": leg.get("dim"),
+                                    "qty": float(_sm.get("smuggled_qty") or 0),
+                                    "unit_price": leg.get("unit_price"),
+                                    "goods_value": None, "tax_over": 0,
+                                    "direction": "smuggle",
+                                    "reason": _sm.get("reason") or "smuggled"})
+                continue
             totals["blocked"] += 1
             totals["contraband_blocked"] = totals.get("contraband_blocked", 0) + 1
             rows.append({**leg, "j": {"ok": False, "reason": _cb.get("reason"),
-                                       "smuggling": _cb.get("smuggling")}})
+                                       "smuggling": _sm.get("reason") or "no_merchant_stock"}})
             continue
         out = execute_leg(state, leg) if not dry_run else {"ok": True,
                                                           "shipped_qty": leg.get("planned_qty"),

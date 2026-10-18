@@ -1751,3 +1751,6 @@ SEASON_RULES = {
 
 #: 客运占运力折算（设定值：1 人 ≈ 0.5 石体积/重量当量）
 PASSENGER_STONE_PER_HEAD = 0.5
+
+#: P7 走私（2026-10-19）：查获率——按私货尝试量固定比例没收（设定值，非随机，便于对账）
+CONTRABAND_SEIZURE_RATE = 0.5
