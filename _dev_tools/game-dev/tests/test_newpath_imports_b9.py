@@ -103,7 +103,13 @@ def test_new_path_import_names_resolve():
                 if nm == '*':
                     continue
                 checked += 1
-                if not hasattr(m, nm):
+                if hasattr(m, nm):
+                    continue
+                # `from package import submodule` 的 nm 是**子模块**，不是包的属性；
+                # 需尝试导入 `package.submodule` 后再判缺失（否则会把合法子模块误报为缺失）。
+                try:
+                    importlib.import_module(f"{mod}.{nm}")
+                except Exception:
                     broken.append('%s:%d ← %s.%s' % (
                         os.path.relpath(p, BASE).replace(os.sep, '/'), ln, mod, nm))
     assert checked > 60, f"扫描到 {checked} 个新路径导入名，太少，疑扫错目录"
