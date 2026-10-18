@@ -161,6 +161,24 @@ def apply_tariff(leg: Dict[str, Any], actual_value: Optional[int]) -> Dict[str, 
     return {"ok": True, "tax": tax, "rate": rate}
 
 
+def contraband_check(leg: Dict[str, Any]) -> Dict[str, Any]:
+    """禁榷查验：**出口**禁榷品 ⇒ 不放行（`blocked`），并给出明确 reason。
+
+    · 清单：`CONTRABAND_DIMS`（官铸铜钱/铁/熟铁/铁锭/兵刃器械）；
+    · 只查**出口**（进口不禁）；进口铜钱/铁不属此闸；
+    · ⚠️ 走私实现现状：私贩需**商人持有货**才有货可走（P8 商人资产落地后接），
+      现在只拦截 + 归因，**不凭空生成私货**（`smuggling: pending_p8` 写进 reason）。
+    """
+    from content.data_constants import CONTRABAND_DIMS
+
+    dim = str(leg.get("dim") or "")
+    if str(leg.get("direction") or "") != "export":
+        return {"forbidden": False, "reason": None}
+    if dim in set(CONTRABAND_DIMS or ()):
+        return {"forbidden": True, "dim": dim,
+                "reason": f"contraband:{dim}", "smuggling": "pending_p8"}
+    return {"forbidden": False, "reason": None}
+
 def land_market_open(state, partner: str) -> Dict[str, Any]:
     """榷场（陆路互市）开关：**战时闭场**；态度低于阈值亦闭场（玩法设定）。
 
@@ -238,6 +256,14 @@ def settle_foreign_trade(state, month: Optional[int] = None,
                 rows.append({**leg, "j": {"ok": False,
                                            "reason": "market_closed:" + str(_gate.get("reason"))}})
                 continue
+        # P7：禁榷查验（出口禁榷品 ⇒ 拦截；走私待 P8 商人持有货后接）
+        _cb = contraband_check(leg)
+        if _cb.get("forbidden"):
+            totals["blocked"] += 1
+            totals["contraband_blocked"] = totals.get("contraband_blocked", 0) + 1
+            rows.append({**leg, "j": {"ok": False, "reason": _cb.get("reason"),
+                                       "smuggling": _cb.get("smuggling")}})
+            continue
         out = execute_leg(state, leg) if not dry_run else {"ok": True,
                                                           "shipped_qty": leg.get("planned_qty"),
                                                           "received_qty": 0.0, "short_qty": 0.0,
