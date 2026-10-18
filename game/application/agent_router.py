@@ -155,6 +155,9 @@ PENDING_CONTRACTS = (
      "core/settlement_steps.py::_settle_finance（未消费；2026-09-27 起 AGENT_DEFS 已置 wired=False 停用唤醒）"),
     # 半接线：结算侧已有消费者（settle_investments），但落地入口 invest() 无生产调用方
     ("_invest_ai", "invest_decide", "core/estate_mechanic.py::invest（无调用方）"),
+    # 半接线（2026-10-18 外部 pop_investment 引入）：消费侧已读，生产侧未登记
+    ("_merchant_ai", "merchant_decide",
+     "core/domains/economy/pop_investment.py 消费；待接生产者"),
 )
 
 def _wake_by_keywords(agent_def: dict, player_input: str) -> bool:
