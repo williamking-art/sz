@@ -277,7 +277,7 @@ def appoint_prefect_official(state, seat_id: str, role: str,
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    from core.domains.administration.institution import personnel_authority
+    from core.permission_model import personnel_authority
     ok, reason, _mode = personnel_authority(state, executor)
     if not ok:
         return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}
@@ -356,7 +356,7 @@ def dismiss_prefect_official(state, seat_id: str, role: str,
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `ok=False` 且不改 state。
     """
-    from core.domains.administration.institution import personnel_authority
+    from core.permission_model import personnel_authority
     ok, reason, _mode = personnel_authority(state, executor)
     if not ok:
         return {"ok": False, "msg": f"事权不合法：{reason}", "reason": reason}

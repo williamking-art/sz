@@ -260,7 +260,7 @@ def appoint_circuit_official(
     """
     if circuit not in ALL_CIRCUITS_21 or role_key not in CIRCUIT_OFFICIAL_ROLES:
         return False
-    from core.domains.administration.institution import personnel_authority
+    from core.permission_model import personnel_authority
     ok, _label, _mode = personnel_authority(state, executor)
     if not ok:
         return False
@@ -314,7 +314,7 @@ def dismiss_circuit_official(state, circuit: str, role_key: str, reason: str = "
 
     `executor` 不传 = 旧行为；传了则必须掌「官吏铨选」，否则返回 `None` 且不改 state。
     """
-    from core.domains.administration.institution import personnel_authority
+    from core.permission_model import personnel_authority
     ok, _label, _mode = personnel_authority(state, executor)
     if not ok:
         return None
