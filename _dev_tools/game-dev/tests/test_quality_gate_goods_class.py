@@ -28,6 +28,10 @@ def test_definitions_are_self_consistent():
         ms = gc.members(name)
         assert ms, f'类目 {name} 没有成员'
         assert len(ms) == len(set(ms)), f'类目 {name} 成员重复：{ms}'
+        if not gc.is_writable(name):
+            # 聚合专用类目（如 食品）：只读合计，不承载写入，允许无 default_member
+            assert gc.class_add({}, name, 5) is None, f'聚合类目 {name} 不得接受写入'
+            continue
         dm = gc.default_member(name)
         assert dm in ms, f'类目 {name} 的默认成员 {dm} 不在成员内'
         active = (GOODS_CLASSES[name].get('active') or {})

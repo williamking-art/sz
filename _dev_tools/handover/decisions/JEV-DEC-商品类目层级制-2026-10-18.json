@@ -1,0 +1,25 @@
+{
+ "id": "JEV-DEC-商品类目层级制-2026-10-18",
+ "createdAt": "2026-10-18T21:40:00+08:00",
+ "agent": "DSH",
+ "question": "商品类目体系结构：平铺互斥 vs 带 parent 的层级",
+ "options": [
+  "A 平铺互斥：每维唯一类目；食品类必须排除粮成员（用户指出这与『粮⊂食品』矛盾）",
+  "B 类目层级：类目带 parent，叶子类目列维，父类目合计=递归Σ子类目；聚合时父子不可同加"
+ ],
+ "verdict": "B 层级制",
+ "probabilities": {
+  "A": 0.0068,
+  "B": 0.9932
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定 + 用户指出 粮⊂食品",
+ "premises_verified_by_me": [
+  "GOODS_CLASSES 原先只有 粮 一个类目（成员 米/麦/面），无层级",
+  "实测：把 米/麦/面 同时放进 粮 与 食品 会双计（试算发现 duplicated_members=[米,面,麦]）",
+  "库存只落维（POP.goods[维]、resources[维].stock）；类目不得持库存",
+  "加工链（麦→面）与类目正交，不能替代"
+ ],
+ "applied_in": "content/data_constants.py（食品 parent=None/writable=False，粮 parent=食品）+ core/foundation/ledger/goods_class.py（parent/children/members_deep/class_total_deep/assert_tree/is_writable/assert_no_class_in_keys）+ test_quality_gate_goods_class_tree.py",
+ "reopen_if": "出现跨类目多归属需求（如 茶 既是饮品又是专卖原料）；或层级过深导致口径歧义"
+}

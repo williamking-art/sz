@@ -610,8 +610,21 @@ PROCESS_CHAINS: dict = {
 #:  ① 一个商品维至多属一个类目；② default_member ∈ members 且 active；
 #:  ③ 类目合计 = Σ 成员值（缺失成员跳过，不得按 0 计）。
 GOODS_CLASSES: dict = {
+    #: 2026-10-18 用户指出「粮不是食品的子集吗」+ Jev 裁定 B（层级制 0.993）：
+    #: 类目**允许父子**；库存仍只落**维**，父类目合计 = 递归 Σ 子类目成员（派生视图）。
+    "食品": {
+        "kind": "类目",
+        "parent": None,
+        "children": ["粮"],
+        "writable": False,          # 聚合专用：写库存必须落具体维（父类目无 default_member）
+        # 只列**非粮**食品；粮的成员在子类目里（父子不可同时相加）
+        "members": ["meat", "wine", "酱醋", "食用油", "糖", "果"],
+        "note": "粮是食品的子集：聚合时用『食品（递归）』或『粮』其一，不得相加。",
+    },
     "粮": {
         "kind": "类目",
+        "parent": "食品",
+        "children": [],
         # 成员由 COMMODITY_KINDS 派生（单一真源），此处只声明顺序偏好
         "members": [d for d, k in COMMODITY_KINDS.items() if k == GRAIN_KIND],
         # active 不再落数据：由 goods_class.is_active() 按 GOODS_DIMS 惰性判定

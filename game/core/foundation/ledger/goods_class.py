@@ -26,7 +26,9 @@ from typing import Dict, List, Optional
 
 __all__ = [
     "class_names", "class_of", "members", "class_total", "class_add",
-    "assert_exclusive", "default_member", "is_active",
+    "assert_exclusive", "default_member", "is_active", "parent", "children",
+    "members_deep", "class_total_deep", "assert_tree", "is_writable",
+    "assert_no_class_in_keys",
 ]
 
 
@@ -105,6 +107,8 @@ def class_add(goods, cls: str, qty: int, member: Optional[str] = None) -> Option
     """
     if not isinstance(goods, dict):
         return None
+    if not is_writable(cls):
+        return None                      # 聚合类目（如 食品）不承载写入
     m = member or default_member(cls)
     if not m or m not in members(cls):
         return None
@@ -125,3 +129,94 @@ def assert_exclusive() -> List[str]:
                 issues.append(f"{m} 同时属于 {owner[m]} 与 {name}")
             owner[m] = name
     return issues
+
+
+def parent(cls: str) -> Optional[str]:
+    """父类目；顶层 ⇒ None。"""
+    spec = _classes().get(cls) or {}
+    p = spec.get("parent")
+    return p if p in _classes() else None
+
+
+def children(cls: str) -> List[str]:
+    """子类目（数据里声明的 existed 子类目）。"""
+    spec = _classes().get(cls) or {}
+    return [c for c in (spec.get("children") or []) if c in _classes()]
+
+
+def members_deep(cls: str, active_only: bool = False) -> List[str]:
+    """**递归**成员（自身成员 + 全部子类目成员），去重保序。
+
+    ⚠️ 聚合纪律：一次求和的类目集合里**不得同时含父子**（否则同一维被加两次）。
+    """
+    out: List[str] = []
+    seen = set()
+
+    def _walk(name: str) -> None:
+        for m in members(name, active_only=active_only):
+            if m not in seen:
+                seen.add(m)
+                out.append(m)
+        for c in children(name):
+            _walk(c)
+
+    _walk(cls)
+    return out
+
+
+def class_total_deep(goods, cls: str) -> Optional[int]:
+    """**递归**类目合计（派生视图）：Σ 自身 + 全部子类目成员；无成员 ⇒ None。"""
+    if not isinstance(goods, dict):
+        return None
+    total = 0
+    seen = False
+    for m in members_deep(cls):
+        v = goods.get(m)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        total += int(v)
+        seen = True
+    return total if seen else None
+
+
+def assert_tree() -> List[str]:
+    """层级自检：无环、parent 与 children 互指一致、成员不跨类目重复。"""
+    issues: List[str] = []
+    cls_all = _classes()
+    for name in cls_all:
+        seen = set()
+        cur = name
+        while cur is not None:
+            if cur in seen:
+                issues.append(f"类目成环：{name} → … → {cur}")
+                break
+            seen.add(cur)
+            cur = parent(cur)
+    for name in cls_all:
+        for c in children(name):
+            if parent(c) != name:
+                issues.append(f"父子不一致：{name} 声称子类目 {c}，但 {c}.parent={parent(c)}")
+    for name in cls_all:
+        for c in children(name):
+            if c in (cls_all[name].get("members") or []):
+                issues.append(f"{c} 既被列为 {name} 的成员又是子类目（语义冲突）")
+    issues.extend(assert_exclusive())
+    return issues
+
+
+def is_writable(cls: str) -> bool:
+    """该类目能否写入库存：父/聚合类目（writable=False）只能读合计，不能写。
+
+    纪律：库存只落**维**；父类目没有 default_member，写入必然无处落账 ⇒ 拒绝。
+    """
+    spec = _classes().get(cls) or {}
+    if spec.get("writable") is False:
+        return False
+    return bool(spec.get("default_member") or spec.get("members"))
+
+
+def assert_no_class_in_keys(keys) -> List[str]:
+    """库存键里出现**类目名** ⇒ 违反「类目不持库存」。返回违规键列表。"""
+    names = set(_classes())
+    return [k for k in (keys or []) if str(k) in names]
+
