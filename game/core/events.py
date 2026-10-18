@@ -674,6 +674,18 @@ def apply_event_choice(state, event: dict, choice_idx: int) -> list:
         else:
             log.append("市舶 未落地：state.maritime 缺失")
 
+    # 交通政策（2026-10-18 P5d）：政令/事件可拨交通开关（禁海/开海、水陆优先、押运规格）
+    # 以前这类"开关"只写在文本里、无写入者 ⇒ 市舶/海运永远关着（同型缺陷）。
+    if "transport_policy" in effects and isinstance(effects["transport_policy"], dict):
+        from core.transport import set_transport_policy
+        _tp = set_transport_policy(state, **effects["transport_policy"])
+        _ap = _tp.get("applied") or {}
+        _rj = _tp.get("rejected") or {}
+        if _ap:
+            log.append("交通政策：" + "、".join(f"{k}={v}" for k, v in _ap.items()))
+        if _rj:
+            log.append("交通政策 未落地：" + "、".join(f"{k}({v})" for k, v in _rj.items()))
+
     # 皇威
     if "prestige" in effects:
         state.change_prestige(effects["prestige"], event.get("title", ""))

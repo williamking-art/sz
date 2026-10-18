@@ -585,3 +585,86 @@ def _book(state) -> List[Dict[str, Any]]:
 
 def _set_book(state, book: List[Dict[str, Any]]) -> None:
     setattr(state, "material_transit", list(book))
+
+#: 交通政策白名单（P5d）：这些键才允许由政令/AI 调整，且取值受限
+TRANSPORT_POLICY_KEYS: Dict[str, tuple] = {
+    "open_sea": (True, False),
+    "mode_pref": ("水运优先", "陆运优先", "驿传优先"),
+    "escort": ("无", "镖", "军"),
+    "batch": ("整批", "分批", "随到随运"),
+    "priority": ("军需", "赈济", "上供", "商货"),
+    "use_jiaozi": ("是", "否"),
+}
+
+#: 政策默认值（缺失 = 取默认；open_sea 缺省 True = 史实开海）
+TRANSPORT_POLICY_DEFAULTS: Dict[str, Any] = {
+    "open_sea": True,
+    "mode_pref": "水运优先",
+    "escort": "无",
+    "batch": "随到随运",
+    "priority": "商货",
+    "use_jiaozi": "否",
+}
+
+
+def transport_policy(state) -> Dict[str, Any]:
+    """读取交通政策（补默认值；非法存量值回落默认，**不抛错**）。"""
+    cur = getattr(state, "transport_policy", None)
+    cur = cur if isinstance(cur, dict) else {}
+    out = dict(TRANSPORT_POLICY_DEFAULTS)
+    for k, v in cur.items():
+        if k in TRANSPORT_POLICY_KEYS and v in TRANSPORT_POLICY_KEYS[k]:
+            out[k] = v
+    return out
+
+
+def set_transport_policy(state, **kw) -> Dict[str, Any]:
+    """设置交通政策（白名单 + 取值校验）：返回 {ok, applied, rejected}。
+
+    · 未知键 ⇒ 进 rejected（**拒绝式**，不静默忽略）；
+    · 非法取值 ⇒ 进 rejected，不写；
+    · 一次调用只写通过校验的键，其余存量保持不变。
+    """
+    applied, rejected = {}, {}
+    for k, v in kw.items():
+        allowed = TRANSPORT_POLICY_KEYS.get(k)
+        if allowed is None:
+            rejected[k] = "unknown_key"
+        elif v not in allowed:
+            rejected[k] = "bad_value（允许：%s）" % (list(allowed),)
+        else:
+            applied[k] = v
+    cur = getattr(state, "transport_policy", None)
+    if not isinstance(cur, dict):
+        cur = {}
+    cur.update(applied)
+    state.transport_policy = cur
+    return {"ok": not rejected, "applied": applied, "rejected": rejected}
+
+
+def _tier_of(value: float, cuts) -> str:
+    for label, limit in cuts:
+        if value <= limit:
+            return label
+    return cuts[-1][0]
+
+
+def transport_snapshot(state, route: Optional[str] = None) -> Dict[str, Any]:
+    """**区间化快照**（喂 AI prompt）：不吐精密数值，只吐档位区间（审查 P0-2）。"""
+    from content.data_constants import BARGES_POOL_DEFAULT
+
+    stats = getattr(state, "statistics", None)
+    barges = int(stats.get("barges_pool", BARGES_POOL_DEFAULT) or 0) if isinstance(stats, dict) else BARGES_POOL_DEFAULT
+    canal = int(getattr(state, "canal_block", 0) or 0)
+    batches = len(in_transit(state))
+    nodes, _adj = transport_graph()
+    reach = None if route is None else sum(1 for n in nodes if n.startswith(str(route) + "|"))
+    return {
+        "barges": _tier_of(barges, [("无", 0), ("少", 10), ("中", 30), ("多", 10 ** 9)]),
+        "canal": _tier_of(canal, [("通", 10), ("缓", 35), ("淤", 60), ("断", 10 ** 9)]),
+        "in_transit": "有" if batches > 0 else "无",
+        "in_transit_batches": _tier_of(batches, [("无", 0), ("少", 5), ("多", 10 ** 9)]),
+        "reachable": reach,
+        "policy": transport_policy(state),
+        "note": "区间化快照：精确数值不进 prompt",
+    }
