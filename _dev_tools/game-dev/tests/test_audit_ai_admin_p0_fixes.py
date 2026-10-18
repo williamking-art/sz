@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """AI/行政/军事/后端审计 P0 修复回归（audit-ai-admin · 2026-10-17）。
 
 覆盖：
@@ -27,6 +27,7 @@ from core.decree_confirm import (                         # noqa: E402
 )
 from core.domains.administration.minister_agent import ensure_actor  # noqa: E402
 import core.domains.administration.institution as inst   # noqa: E402
+from core import authority_gate                            # noqa: E402
 from core.settlement import settle_reform                  # noqa: E402
 import core.settlement_decree as sd                        # noqa: E402
 
@@ -45,7 +46,7 @@ def test_decree_confirm_military_authority_exception_fails_closed(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated authority read failure")
 
-    monkeypatch.setattr(inst, "resolve_executor", _boom)
+    monkeypatch.setattr(authority_gate, "check_matter_authority", _boom)
     out = confirm_decree(s, "d_fail_closed", "蒋之奇", decree=decree, record=True)
     assert out["status"] in (STATUS_UNDEFINED, STATUS_UNAUTHORIZED), out
     assert out.get("authorized") is False
@@ -63,7 +64,7 @@ def test_decree_confirm_institution_authority_exception_fails_closed(monkeypatch
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated check_authority failure")
 
-    monkeypatch.setattr(inst, "check_authority", _boom)
+    monkeypatch.setattr(authority_gate, "check_decree_authority", _boom)
     out = confirm_decree(s, "d_inst_fail", "李清臣", decree=decree, record=True)
     assert out["status"] in (STATUS_UNDEFINED, STATUS_UNAUTHORIZED), out
     assert out.get("authorized") is False

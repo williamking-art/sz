@@ -668,7 +668,7 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
     effects = d.get("effects") or {}
     if isinstance(effects, dict):
         try:
-            from core.domains.administration.institution import check_authority
+            from core.authority_gate import check_decree_authority
             for p_key, p_val in effects.items():
                 # 顶层 effects 可能是 institution 容器；真正的编制参数在内层键上，
                 # 必须逐项核验，否则 {"institution": {...}} 只拿容器名去 check_authority 会放行。
@@ -676,7 +676,7 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
                               if p_key == "institution" and isinstance(p_val, dict)
                               else [str(p_key)])
                 for _auth_key in _auth_keys:
-                    auth_ok, auth_err = check_authority(state, _auth_key, aid)
+                    auth_ok, auth_err = check_decree_authority(state, _auth_key, aid)
                     if not auth_ok:
                         out.update(status=STATUS_UNAUTHORIZED, reason="authority_violation",
                                    authorized=False, withheld=True,
@@ -694,8 +694,8 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
     # 异常同样 fail-closed（C-3）。
     if d.get("enforce_troops") and not (d.get("is_zhongzhi") or d.get("override_by_sovereign")):
         try:
-            from core.domains.administration.institution import resolve_executor
-            matters, label, executor_err = resolve_executor(state, aid)
+            from core.authority_gate import check_matter_authority
+            _ok, _label = check_matter_authority(state, aid, "调兵")
         except Exception as e:  # noqa: BLE001
             log.warning("decree_confirm 调兵事权深度校验异常（fail-closed）：%s", e, exc_info=True)
             out.update(status=STATUS_UNDEFINED, reason="authority_check_error",
@@ -703,15 +703,10 @@ def confirm_decree(state, decree_id: str, actor_id: str, *, decree: Any = None,
                        undefined_basis=list(out.get("undefined_basis") or []) + ["authority"],
                        message="法统门禁无法核验调兵事权（读数/权限表异常）：不予确认，fail-closed。")
             return out
-        if executor_err:
+        if not _ok:
             out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
                        authorized=False, withheld=True,
-                       message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，{executor_err}")
-            return out
-        if "调兵" not in matters:
-            out.update(status=STATUS_UNAUTHORIZED, reason="military_authority_denied",
-                       authorized=False, withheld=True,
-                       message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行，执行主体「{label}」无调兵权。")
+                       message=f"法统门禁阻断：调兵强制施行须由掌「调兵」事权主体执行；{_label}。")
             return out
 
     out["authorized"] = True

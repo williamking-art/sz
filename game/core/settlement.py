@@ -297,15 +297,12 @@ def settle_reform(state, decree: dict, executor=None) -> dict:
     if not executor:
         return _reject_reform("改制须指定执行主体（掌「官吏铨选」的部门/官职/任职人）")
     try:
-        from core.domains.administration.institution import resolve_executor
-        matters, label, executor_err = resolve_executor(state, executor)
+        from core.authority_gate import check_matter_authority
+        _ok, _label = check_matter_authority(state, executor, "官吏铨选")
     except Exception as e:  # noqa: BLE001
         return _reject_reform(f"执行主体核验异常（{type(e).__name__}）：{e}")
-    if executor_err:
-        return _reject_reform(f"执行主体「{label or executor}」不可用：{executor_err}")
-    if "官吏铨选" not in matters:
-        return _reject_reform(
-            f"执行主体「{label or executor}」不掌「官吏铨选」事权，不能改官制/机构权限")
+    if not _ok:
+        return _reject_reform(f"执行主体核验失败：{_label}")
     # 2026-09-27：原在此组装 reform_settle 提示词上下文（算完即弃）；该模板与
     # `authority_brief_for_ai` 已按「如无必要勿增实体」一并移除（审查报告 §14.1/§14.2）。
     target = reform.get("target_org", "")

@@ -227,6 +227,10 @@ def resolve_executor(state, executor) -> Tuple[set, str, str]:
 def check_authority(state, key: str, executor) -> Tuple[bool, str]:
     """校验参数 `key` 可否由 `executor` 执行 → `(是否放行, 原因)`。
 
+    **legacy_authority: department/post parameter gate**——参数型旧口径门面，
+    只服务 `apply_reform`/旧测试兼容；玩家诏令/确认/改革/调兵等新代码一律走
+    `core.authority_gate.check_matter_authority`（actor 判权）。
+
     无 `authority` 字段的参数（如磨勘/荫补等六杠杆）**不受事权约束**，恒放行；
     受约束参数**未指定主体即拒绝**（圣旨不能绕过执行侧校验）。
     """
@@ -242,10 +246,10 @@ def check_authority(state, key: str, executor) -> Tuple[bool, str]:
 
 
 def require_matter(state, executor, matter: str) -> Tuple[bool, str]:
-    """校验执行主体是否掌某**具体事权** → `(ok, label_or_reason)`。
+    """**deprecated / 0 新调用**：参数型旧口径的辅助函数。
 
-    与 `check_authority(key)` 不同：这里直接给事权名（如「官吏铨选」），
-    供人事/财政等**非参数型**入口复用；未指定事权/解析失败/不掌该权一律拒绝。
+    新代码请用 `core.authority_gate.check_matter_authority(state, executor, matter)`
+    （actor 判权）。本函数保留只为旧调用/旧测试兼容，不得新增调用点。
     """
     key = str(matter or "").strip()
     if not key:
@@ -281,7 +285,8 @@ def apply_reform(state, reform: Any, executor: Any = None) -> list:
         label = _SPEC[key]["label"]
         allowed, why = check_authority(state, key, executor)
         if not allowed:
-            log.append(f"[编制] 「{label}」拒绝：{why}")
+            _legacy = "（legacy_authority）" if _SPEC[key].get("authority") else ""
+            log.append(f"[编制] 「{label}」拒绝：{why}{_legacy}")
             continue
         absolute = False
         val = raw
@@ -304,7 +309,8 @@ def apply_reform(state, reform: Any, executor: Any = None) -> list:
             log.append(f"[编制] 「{key}」值须为数字或档位词，拒绝")
             continue
         ok, msg = (set_param(state, key, val) if absolute else set_by_delta(state, key, val))
-        log.append(f"[编制] {msg}" + ("" if ok else "（未改动）"))
+        _legacy = "（legacy_authority）" if _SPEC[key].get("authority") else ""
+        log.append(f"[编制] {msg}" + ("" if ok else "（未改动）") + _legacy)
     return log
 
 

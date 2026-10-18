@@ -1558,13 +1558,12 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     if act in ("增募", "调赴", "换帅", "裁撤", "合并", "拆分"):
         _executor = str(executor or "枢密院").strip()
         try:
-            from core.domains.administration.institution import resolve_executor
-            _matters, _label, _err = resolve_executor(state, _executor)
+            from core.authority_gate import check_matter_authority
+            _ok, _label = check_matter_authority(state, _executor, "调兵")
         except Exception as e:  # noqa: BLE001
             return f"未成：军令事权核验异常（{type(e).__name__}），不予执行。"
-        if _err or "调兵" not in _matters:
-            return (f"未成：军令须由掌「调兵」事权主体执行；"
-                    f"「{_label or _executor}」{_err or '不掌「调兵」事权'}。")
+        if not _ok:
+            return f"未成：军令须由掌「调兵」事权主体执行；{_label}。"
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}

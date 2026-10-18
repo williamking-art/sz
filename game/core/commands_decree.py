@@ -332,27 +332,24 @@ def _decree_authority_check(state, decree) -> dict:
     if not executor:
         return {**empty, "explicit": True, "ok": False,
                 "reason": "缺少 executor（承办主体）", "legacy_unchecked": False}
-    try:
-        from core.domains.administration.institution import resolve_executor
-        matters, label, err = resolve_executor(state, executor)
-    except Exception as e:  # noqa: BLE001 — 解析失败不得放行
-        return {**empty, "explicit": True, "ok": False,
-                "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
-    if err:
-        return {**empty, "explicit": True, "ok": False,
-                "reason": err, "legacy_unchecked": False}
     required: list = []
     for m in [primary] + co:
         if m not in required:
             required.append(m)
-    missing = [m for m in required if m not in matters]
-    if missing:
-        return {
-            **empty, "explicit": True, "ok": False, "primary": primary,
-            "co": co, "matters": required, "label": label,
-            "reason": f"「{label or '承办主体'}」不掌事权：{'、'.join(missing)}",
-            "legacy_unchecked": False,
-        }
+    try:
+        from core.authority_gate import check_matter_authority
+        label = ""
+        for m in required:
+            ok, label = check_matter_authority(state, executor, m)
+            if not ok:
+                return {
+                    **empty, "explicit": True, "ok": False, "primary": primary,
+                    "co": co, "matters": required, "label": "",
+                    "reason": label, "legacy_unchecked": False,
+                }
+    except Exception as e:  # noqa: BLE001 — 解析失败不得放行
+        return {**empty, "explicit": True, "ok": False,
+                "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
     return {
         "explicit": True, "ok": True, "reason": "", "primary": primary,
         "co": co, "matters": required, "label": label,
