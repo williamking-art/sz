@@ -146,6 +146,8 @@ STATUS_UNAUTHORIZED = "unauthorized"    # 无权 / 非受命人 / 不在名册
 STATUS_UNDEFINED = "undefined"          # 读数缺失，不判
 STATUS_VETO = "veto"                    # 大臣力谏 / 给事中封还词头拒不奉诏
 STATUSES = (STATUS_CONFIRMED, STATUS_MISMATCH, STATUS_UNAUTHORIZED, STATUS_UNDEFINED)
+# 复述结果超集：包含封驳终态，但不改变「复述四态」的旧语义/API。
+CONFIRM_RESULTS = STATUSES + (STATUS_VETO,)
 
 OUTCOME_EXECUTED = "executed"              # 已调执行器并成功返回
 OUTCOME_REGISTERED_ONLY = "registered_only"  # 只落幂等身份，数值留给既有通道
@@ -154,6 +156,8 @@ OUTCOME_CLAIMED = "claimed"                # 已占位未完成（崩溃留痕�
 OUTCOME_VETOED = "vetoed"                  # 遭封驳停滞（已如实记账，不自动重试）
 OUTCOMES = (OUTCOME_EXECUTED, OUTCOME_REGISTERED_ONLY,
             OUTCOME_FAILED, OUTCOME_CLAIMED)
+# 执行台账合法结果超集：包含封驳终态，但不改变旧 OUTCOMES 四态。
+LEDGER_OUTCOMES = OUTCOMES + (OUTCOME_VETOED,)
 
 # ============================================================
 # 复述记录的记忆口径（与 `core/minister_agent` 的落档方式对齐）

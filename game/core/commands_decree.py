@@ -379,7 +379,7 @@ def _decree_authority_check(state, decree) -> dict:
                         "reason": actor_or_reason, "legacy_unchecked": False}
             return {
                 "explicit": True, "ok": True, "reason": "", "primary": "",
-                "co": [], "matters": fiscal_matters,
+                "co": [], "matters": fiscal_matters, "actor": actor_or_reason,
                 "label": _authority_label(executor, actor_or_reason),
                 "legacy_unchecked": False,
             }
@@ -423,7 +423,7 @@ def _decree_authority_check(state, decree) -> dict:
                 "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
     return {
         "explicit": True, "ok": True, "reason": "", "primary": primary,
-        "co": co, "matters": required + _extra_fiscal,
+        "co": co, "matters": required + _extra_fiscal, "actor": actor,
         "label": _authority_label(executor, actor),
         "legacy_unchecked": False,
     }
@@ -446,6 +446,56 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         if isinstance(_stats, dict):
             _stats["legacy_unchecked_fiscal"] = int(
                 _stats.get("legacy_unchecked_fiscal", 0) or 0) + 1
+
+    # ---- M2a：显式路径三关字段（旧调用不写）----
+    _m2a = {}
+    try:
+        from core.decree_gates import M2A_PROCEDURE_INTENTS, is_m2a_decree
+        if _auth.get("explicit") and is_m2a_decree(decree):
+            from core.decree_confirm import ensure_decree_id
+            _did = ensure_decree_id(state, decree)
+            _intent = str(decree.get("intent") or "")
+            _proc = ("bypassed" if direct else
+                     "pending_review"
+                     if (_intent in M2A_PROCEDURE_INTENTS
+                         or bool(decree.get("procedure_required")))
+                     else "not_required")
+            _matters = list(_auth.get("matters") or [])
+            _actor = str(_auth.get("actor") or "")
+            _addrs = [str(x).strip() for x in (decree.get("addressees") or [])
+                      if str(x).strip()]
+            if _addrs and _actor and _actor not in _addrs:
+                return (f"⚠ 受命人不含承办人：承办「{_actor}」不在 addressees "
+                        f"{_addrs} 中，诏令未颁。")
+            if not _addrs and _actor:
+                decree["addressees"] = [_actor]
+            _m2a = {
+                "decree_id": _did,
+                "legal": True,
+                "legal_reason": "",
+                "executor_actor": _auth.get("actor") or "",
+                "procedure_state": _proc,
+                "procedure_reason": "",
+                "procedure_reviewer": decree.get("procedure_reviewer"),
+                "intent": _intent,
+                "veto_ministers": list(decree.get("veto_ministers") or []),
+                "oppose_factions": list(decree.get("oppose_factions") or []),
+                "procedure_required": bool(decree.get("procedure_required")),
+                "procedure_reviewed_turn": None,
+                "exec_state": "not_entered",
+                "exec_reason": "",
+                "matter_exec": {
+                    m: {"status": "pending", "executor": _auth.get("actor") or "",
+                        "attempts": 0, "last_turn": None, "due_turn": None, "error": ""}
+                    for m in _matters
+                },
+                "resist_period": 0,
+                "due_turn": None,
+                "completed_turn": None,
+                "refusal_fact": None,
+            }
+    except Exception:  # noqa: BLE001 — M2a 字段失败不得阻断旧路径
+        _m2a = {}
 
     # ---- 批 5 C2 · 409 未决呈请守卫 ----
     # 颁诏前若有大臣呈请未决 → 显式拦截（把「漏看」从静默丢数据变成 409）。
@@ -480,6 +530,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
             "executor": decree.get("executor"),
             "authority_label": _auth["label"] or "",
             "legacy_unchecked": bool(_auth["legacy_unchecked"]),
+            **_m2a,
             "turn_issued": state.turn,
             "faction_stances": _random_faction_stances(state),
             "effects": dict(_direct_effects),
@@ -556,6 +607,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         "executor": decree.get("executor"),
         "authority_label": _auth["label"] or "",
         "legacy_unchecked": bool(_auth["legacy_unchecked"]),
+        **_m2a,
         "turn_issued": state.turn,
         "faction_stances": _random_faction_stances(state),
         "effects": dict(_raw_effects) if _has_effects else _generate_decree_effects(cat, idx),

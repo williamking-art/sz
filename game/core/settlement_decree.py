@@ -180,6 +180,14 @@ def _settle_decrees(state, log):
 
     remaining = []
     for decree in state.pending_decrees[:]:
+        # M2a：显式事权路径走独立三关状态机；旧诏令完全不进入。
+        from core.decree_gates import is_m2a_decree, settle_m2a_decree
+        if is_m2a_decree(decree):
+            _m2a_res = settle_m2a_decree(state, decree, log)
+            if _m2a_res == "pending":
+                remaining.append(decree)
+            continue
+
         # B5-4/B5-5：先补确定性 `decree_id`（幂等与知情范围的锚）。
         # 原实现全仓从不写该键⇒ B5-5 分支恒假、泄露推演从未执行。
         _ensure_decree_id(state, decree)
