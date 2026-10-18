@@ -308,6 +308,58 @@ def _decree_addressees(decree: dict) -> list:
     return []
 
 
+def _decree_authority_check(state, decree) -> dict:
+    """M1b-1：显式事权校验（默认中性）。
+
+    仅当诏令显式携带 `primary_matter` / `co_matters` 时启用；
+    旧调用（无这两个字段）一律 `legacy_unchecked=True`，行为不变。
+    """
+    empty = {
+        "explicit": False, "ok": True, "reason": "", "primary": "",
+        "co": [], "matters": [], "label": "", "legacy_unchecked": True,
+    }
+    if not isinstance(decree, dict):
+        return empty
+    primary = str(decree.get("primary_matter") or "").strip()
+    co = [str(x).strip() for x in (decree.get("co_matters") or [])
+          if str(x).strip()]
+    if not primary and not co:
+        return empty
+    if not primary:
+        return {**empty, "explicit": True, "ok": False,
+                "reason": "缺少 primary_matter", "legacy_unchecked": False}
+    executor = decree.get("executor")
+    if not executor:
+        return {**empty, "explicit": True, "ok": False,
+                "reason": "缺少 executor（承办主体）", "legacy_unchecked": False}
+    try:
+        from core.domains.administration.institution import resolve_executor
+        matters, label, err = resolve_executor(state, executor)
+    except Exception as e:  # noqa: BLE001 — 解析失败不得放行
+        return {**empty, "explicit": True, "ok": False,
+                "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
+    if err:
+        return {**empty, "explicit": True, "ok": False,
+                "reason": err, "legacy_unchecked": False}
+    required: list = []
+    for m in [primary] + co:
+        if m not in required:
+            required.append(m)
+    missing = [m for m in required if m not in matters]
+    if missing:
+        return {
+            **empty, "explicit": True, "ok": False, "primary": primary,
+            "co": co, "matters": required, "label": label,
+            "reason": f"「{label or '承办主体'}」不掌事权：{'、'.join(missing)}",
+            "legacy_unchecked": False,
+        }
+    return {
+        "explicit": True, "ok": True, "reason": "", "primary": primary,
+        "co": co, "matters": required, "label": label,
+        "legacy_unchecked": False,
+    }
+
+
 def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     """下达一份普通诏令 / 御笔直发 / 密谕。decree 需含 title/category。
     targets 为受影响派系列表。返回消息。
@@ -316,6 +368,11 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     is_secret=True 转密旨通道（text/title 为密旨内容、minister 为目标）；
     text 落 desc（正文随诏存档/叙事显示），不再静默丢弃玩家正文。
     """
+    # ---- M1b-1：显式事权校验（默认中性）----
+    _auth = _decree_authority_check(state, decree)
+    if not _auth["ok"]:
+        return f"⚠ 事权不合法：{_auth['reason']}。诏令未颁。"
+
     # ---- 批 5 C2 · 409 未决呈请守卫 ----
     # 颁诏前若有大臣呈请未决 → 显式拦截（把「漏看」从静默丢数据变成 409）。
     _pending = [a for a in (getattr(state, "ai_pending_actions", None) or [])
@@ -344,6 +401,11 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
             "is_secret": False,
             "is_direct": True,
             "is_zhongzhi": bool(decree.get("is_zhongzhi", False)),
+            "primary_matter": _auth["primary"] or None,
+            "co_matters": list(_auth["co"]),
+            "executor": decree.get("executor"),
+            "authority_label": _auth["label"] or "",
+            "legacy_unchecked": bool(_auth["legacy_unchecked"]),
             "turn_issued": state.turn,
             "faction_stances": _random_faction_stances(state),
             "effects": dict(_direct_effects),
@@ -415,6 +477,11 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
         "category": cat,
         "is_secret": False,
         "is_direct": False,
+        "primary_matter": _auth["primary"] or None,
+        "co_matters": list(_auth["co"]),
+        "executor": decree.get("executor"),
+        "authority_label": _auth["label"] or "",
+        "legacy_unchecked": bool(_auth["legacy_unchecked"]),
         "turn_issued": state.turn,
         "faction_stances": _random_faction_stances(state),
         "effects": dict(_raw_effects) if _has_effects else _generate_decree_effects(cat, idx),
