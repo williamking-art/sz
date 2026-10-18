@@ -283,24 +283,87 @@ def transport_fee(mode: str, value: float, km: float) -> Optional[int]:
     return int(math.ceil(v * rate * (d / 1000.0)))
 
 
-def sea_route(frm: str, to: str) -> Optional[Dict[str, Any]]:
-    """海运航线（绕行系数 × 大圆距离）：不依陆路连通，只要求两端存在。
+def sea_lanes_graph():
+    """海路图（**沿海岸线**）：返回 (nodes, adj)；边权为**沿岸航线里程**。
 
-    · 未知治所 ⇒ None；
-    · `km = 大圆距离 × SEA_DETOUR_FACTOR`；`days = ceil(km / (KM_PER_MONTH × 速度))`，至少 1；
-    · **是否准航**（开海政策/沿海资格）由 `transport_capability` 判定，本函数只算几何。
+    ⚠️ 里程是**设定值非史料**（见 content/data_constants.SEA_LANES 的 note）。
+    旧口径「大圆距离 × 1.2」已废弃：它不绕半岛（登州—密州直线 235km，实际须绕成山头）。
     """
-    from content.data_constants import SEA_DETOUR_FACTOR, TRANSPORT_MODES
+    from content.data_constants import SEA_LANES
 
-    idx = _seat_index()
-    if frm not in idx or to not in idx:
+    adj: Dict[str, Dict[str, float]] = {}
+    for link in SEA_LANES:
+        a, b = str(link.get("a") or ""), str(link.get("b") or "")
+        km = float(link.get("km") or 0)
+        if not a or not b or km <= 0:
+            continue
+        adj.setdefault(a, {})[b] = km
+        adj.setdefault(b, {})[a] = km
+    return list(adj), adj
+
+
+def sea_route(frm: str, to: str, month: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """海运航线（**沿海路图最短路**）：{km, days, path, hops}；非海港 ⇒ None。
+
+    · 端点必须是海路图节点（沿海治所）——不在图里 ⇒ **None**（不臆造直线）；
+    · km = Dijkstra 累计段里程 + 两端河口加价；days = ceil(km / (1000 × 海速))；
+    · 季风修正默认关闭（SEA_MONSOON_ENABLED）。
+    """
+    import heapq
+
+    from content.data_constants import (SEA_INLET_EXTRA_KM,
+                                        SEA_MONSOON_ENABLED, SEA_MONSOON_NORTHBOUND,
+                                        SEA_MONSOON_SOUTHBOUND, TRANSPORT_MODES)
+    _KM = KM_PER_MONTH
+
+    _nodes, adj = sea_lanes_graph()
+    if frm == to:
+        return {"km": 0.0, "days": 0, "path": [frm], "hops": 0}
+    if frm not in adj or to not in adj:
         return None
-    a, b = idx[frm], idx[to]
-    km = haversine_km(float(a["lon"]), float(a["lat"]),
-                      float(b["lon"]), float(b["lat"])) * float(SEA_DETOUR_FACTOR)
+    dist: Dict[str, float] = {frm: 0.0}
+    prev: Dict[str, str] = {}
+    heap = [(0.0, frm)]
+    seen = set()
+    while heap:
+        d, u = heapq.heappop(heap)
+        if u in seen:
+            continue
+        seen.add(u)
+        if u == to:
+            break
+        for v, w in adj.get(u, {}).items():
+            nd = d + w
+            if nd < dist.get(v, float("inf")):
+                dist[v] = nd
+                prev[v] = u
+                heapq.heappush(heap, (nd, v))
+    if to not in dist:
+        return None
+    path = [to]
+    cur = to
+    while cur != frm:
+        cur = prev[cur]
+        path.append(cur)
+    path.reverse()
+    km = (float(dist[to])
+          + float(SEA_INLET_EXTRA_KM.get(frm, 0))
+          + float(SEA_INLET_EXTRA_KM.get(to, 0)))
     speed = float((TRANSPORT_MODES.get("sea") or {}).get("speed") or 1.0)
-    days = 0 if frm == to else max(1, int(math.ceil(km / (KM_PER_MONTH * speed))))
-    return {"km": round(km, 1), "days": days}
+    if SEA_MONSOON_ENABLED and month is not None:
+        idx = _seat_index()
+        lat_a = float((idx.get(frm) or {}).get("lat") or 0)
+        lat_b = float((idx.get(to) or {}).get("lat") or 0)
+        winter = int(month) % 12 in (11, 12, 1, 2)
+        season = 1.0
+        if lat_b < lat_a and winter:
+            season = float(SEA_MONSOON_SOUTHBOUND)
+        elif lat_b > lat_a and not winter:
+            season = float(SEA_MONSOON_NORTHBOUND)
+        speed *= season
+    days = 0 if km == 0 else max(1, int(math.ceil(km / (_KM * speed))))
+    return {"km": round(km, 1), "days": days, "path": path, "hops": len(path) - 1}
+
 
 
 def transport_capability(state, frm: str, to: str, mode: str = "land",
@@ -327,8 +390,9 @@ def transport_capability(state, frm: str, to: str, mode: str = "land",
         sr = sea_route(frm, to)
         if sr is None:
             return {"ok": False, "mode": m, "reason": "unknown_seat"}
-        rp = {"reachable": True, "path": [frm, to], "km": sr["km"],
-              "days": sr["days"], "hops": 1}
+        rp = {"reachable": True, "path": list(sr.get("path") or [frm, to]),
+              "km": sr["km"], "days": sr["days"],
+              "hops": int(sr.get("hops") or len(sr.get("path") or [frm, to]) - 1)}
         _sea_days_final = True
     else:
         rp = route_path(frm, to)
