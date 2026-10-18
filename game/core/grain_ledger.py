@@ -4,7 +4,10 @@
 # 🔴 符号清单以**运行时 dir()** 枚举（AST 定义清单会漏 import 名，见迁移坑1）。
 from core.foundation.ledger.grain_ledger import (
     Dict, List, Optional,
-    GRAIN_MIGRATION_DIM, grain_of, has_grain_bucket, survey_grain,
+    GRAIN_MIGRATION_DIM, STORAGE_LOSS_TIERS, assert_loss_tiers_sane,
+    grain_of, has_grain_bucket, storage_loss_rate, survey_grain,
 )
 
-__all__ = ['Dict', 'GRAIN_MIGRATION_DIM', 'List', 'Optional', 'grain_of', 'has_grain_bucket', 'survey_grain']
+__all__ = ['Dict', 'GRAIN_MIGRATION_DIM', 'List', 'Optional',
+           'STORAGE_LOSS_TIERS', 'assert_loss_tiers_sane', 'grain_of',
+           'has_grain_bucket', 'storage_loss_rate', 'survey_grain']

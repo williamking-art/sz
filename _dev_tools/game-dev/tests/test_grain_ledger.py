@@ -68,8 +68,10 @@ def test_stub_reexports_same_objects_as_new_module():
     from core import grain_ledger as OLD
     from core.foundation.ledger import grain_ledger as NEW
     assert OLD.__file__ != NEW.__file__
+    # 2026-10-18 全审：以运行时 dir() 为准逐符号核验同一性；
+    # 不再写死数量（迁移桩新增符号时只要求同步转发，不因计数变化误红）。
     names = sorted(n for n in dir(NEW) if not n.startswith('__'))
-    assert len(names) == 7, f"dir() 符号数变化（迁移桩需同步）：{len(names)}"
+    assert len(names) >= 7, f"dir() 符号数异常减少：{len(names)}"
     for n in names:
         assert getattr(OLD, n) is getattr(NEW, n), f"符号 {n} 非同一实现（疑似副本）"
 
