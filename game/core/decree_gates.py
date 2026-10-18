@@ -67,13 +67,14 @@ def _event_once(state, event_id: str, payload: Dict[str, Any]) -> bool:
     return True
 
 
-def _fail(state, decree, log, *, did, reason, digest, outcome=OUTCOME_FAILED, detail=""):
+def _fail(state, decree, log, *, did, reason, digest, outcome=OUTCOME_FAILED,
+          detail="", confirm_status=STATUS_UNAUTHORIZED):
     decree["exec_state"] = "not_entered"
     decree["exec_reason"] = reason
     record_execution(
         state, did, by=decree.get("executor_actor") or "朝廷",
         digest=digest, title=decree.get("title"),
-        confirm_status=STATUS_UNAUTHORIZED, outcome=outcome, detail=detail or reason,
+        confirm_status=confirm_status, outcome=outcome, detail=detail or reason,
     )
     log.append(f"[诏令] 「{decree.get('title', '')}」M2a 未执行：{reason}。")
     return "done"
@@ -125,10 +126,15 @@ def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
                 state, decree, log, did=did,
                 reason="程序封驳：reviewer 明示反对", digest=digest,
                 outcome=OUTCOME_VETOED, detail="procedure_returned",
+                confirm_status=STATUS_VETO,
             )
         decree["procedure_state"] = "passed"
     if procedure == "returned":
         return "done"
+    if procedure not in ("not_required", "passed", "bypassed"):
+        decree["exec_state"] = "not_entered"
+        decree["exec_reason"] = f"unknown_procedure_state:{procedure}"
+        return "pending"
 
     # 等待期：due_turn 未到，不重评、不掷点
     due = decree.get("due_turn")
@@ -153,7 +159,8 @@ def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
                 decree["procedure_state"] = "returned"
                 return _fail(state, decree, log, did=did,
                              reason="封驳", digest=digest,
-                             outcome=OUTCOME_VETOED, detail="veto")
+                             outcome=OUTCOME_VETOED, detail="veto",
+                             confirm_status=STATUS_VETO)
             decree["refusal_fact"] = {
                 "who": aid, "when": int(state.turn), "decree_id": did,
                 "reason_code": "unknown", "reason_text": str(gate.get("reason") or ""),
@@ -176,6 +183,7 @@ def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
         ))
     except Exception:
         rate = 0.5
+        decree["rate_undefined"] = True
     rate = max(0.05, min(0.95, rate))
     seed = int(hashlib.sha1(
         f"{did}|{matters[0]}|{state.turn}|{period}|{actor}".encode("utf-8")
@@ -199,7 +207,7 @@ def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
         )
         return "done"
 
-    if period < 3:
+    if period < 2:
         decree["exec_state"] = "resisted"
         decree["resist_period"] = period + 1
         decree["due_turn"] = int(state.turn) + 1

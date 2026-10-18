@@ -494,7 +494,10 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
                 "completed_turn": None,
                 "refusal_fact": None,
             }
-    except Exception:  # noqa: BLE001 — M2a 字段失败不得阻断旧路径
+    except Exception as e:  # noqa: BLE001 — 显式路径必须 fail-closed
+        if _auth.get("explicit"):
+            return (f"⚠ M2a 字段构建异常（{type(e).__name__}），诏令未颁；"
+                    f"不得静默退回旧路径。")
         _m2a = {}
 
     # ---- 批 5 C2 · 409 未决呈请守卫 ----

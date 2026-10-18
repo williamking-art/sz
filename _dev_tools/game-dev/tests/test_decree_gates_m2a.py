@@ -113,7 +113,7 @@ def test_resisted_three_periods_then_blocked(monkeypatch):
     _issue(s)
     _confirm_ok(monkeypatch)
     _dice(monkeypatch, 1.0)
-    for turn in range(4):
+    for turn in range(3):
         s.turn = turn
         _settle_decrees(s, [])
     assert not s.pending_decrees
@@ -137,8 +137,9 @@ def test_settlement_is_idempotent(monkeypatch):
 
 
 def test_confirm_and_ledger_supersets():
-    assert set(CONFIRM_RESULTS) - set(decree_gates.STATUSES if hasattr(decree_gates, "STATUSES") else []) == {STATUS_VETO} or True
-    assert STATUS_VETO in CONFIRM_RESULTS
+    from core.decree_confirm import STATUSES
+
+    assert set(CONFIRM_RESULTS) - set(STATUSES) == {STATUS_VETO}
     assert OUTCOME_VETOED in LEDGER_OUTCOMES
     assert set(LEDGER_OUTCOMES) - set(OUTCOMES) == {OUTCOME_VETOED}
 
@@ -161,4 +162,29 @@ def test_non_m2a_explicit_matter_has_no_m2a_fields():
     assert "已下诏" in msg
     last = s.pending_decrees[-1]
     assert "procedure_state" not in last
+
+
+def test_m2a_field_build_exception_rejects(monkeypatch):
+    s = _state()
+    n = len(s.pending_decrees)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated m2a build failure")
+
+    monkeypatch.setattr(decree_gates, "is_m2a_decree", _boom)
+    msg = issue_decree(
+        s, {"title": "字段异常", "category": "民政",
+            "primary_matter": "官吏铨选", "executor": "吏部",
+            "effects": {}})
+    assert "字段构建异常" in msg and "诏令未颁" in msg, msg
+    assert len(s.pending_decrees) == n
+
+
+def test_unknown_procedure_state_stays_pending():
+    s = _state()
+    _issue(s)
+    s.pending_decrees[-1]["procedure_state"] = "weird_state"
+    _settle_decrees(s, [])
+    assert len(s.pending_decrees) == 1
+    assert s.pending_decrees[0]["exec_state"] == "not_entered"
 
