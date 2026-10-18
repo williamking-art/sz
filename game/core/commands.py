@@ -1189,7 +1189,8 @@ def issue_task_decree(state: GameState, task_id: str, kind: str = "督行",
 
 
 def enqueue_finance_proposal(state: GameState, title: str, summary: str,
-                              changes: list, proposer: str = "") -> str:
+                              changes: list, proposer: str = "",
+                              executor=None) -> str:
     """批 5 C1 · 财政域草案入队：大臣工具产物先落草案，玩家「准/驳」后才立项。
 
     `changes` 为 `update_state` 契约的 changes 数组（`{path, op, value, reason}`）；
@@ -1198,7 +1199,8 @@ def enqueue_finance_proposal(state: GameState, title: str, summary: str,
     """
     return state.enqueue_ai_action(
         kind="finance_proposal", title=title, summary=summary,
-        payload={"changes": list(changes or [])}, proposer=proposer)
+        payload={"changes": list(changes or []), "executor": executor},
+        proposer=proposer)
 
 
 def _apply_finance_proposal(state: GameState, action_id: str, payload: dict,
@@ -1208,6 +1210,28 @@ def _apply_finance_proposal(state: GameState, action_id: str, payload: dict,
     if not changes:
         state.set_ai_pending_status(action_id, "rejected")
         return f"批红驳回：「{title}」无变更明细。"
+    executor = payload.get("executor")
+    try:
+        from core.authority_gate import (
+            check_matter_authority,
+            matters_for_finance_changes,
+        )
+        _matters = matters_for_finance_changes(changes)
+        if _matters and executor:
+            for _matter in _matters:
+                _ok, _why = check_matter_authority(state, executor, _matter)
+                if not _ok:
+                    state.set_ai_pending_status(action_id, "rejected")
+                    return f"批红未成：「{title}」（财政事权拒绝：{_why}）。"
+        elif _matters:
+            stats = getattr(state, "statistics", None)
+            if isinstance(stats, dict):
+                stats["legacy_unchecked_fiscal"] = int(
+                    stats.get("legacy_unchecked_fiscal", 0) or 0) + 1
+    except Exception as e:  # noqa: BLE001 — 权限核验异常 fail-closed
+        state.set_ai_pending_status(action_id, "rejected")
+        log.warning("[finance_proposal] 事权核验异常: %s", e, exc_info=True)
+        return f"批红未成：「{title}」（财政事权核验异常，未落地）。"
     try:
         from engine.state_applier import applier_pipeline
         res = applier_pipeline(state, [("大臣财政草案", changes)])

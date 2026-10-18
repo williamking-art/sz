@@ -13,7 +13,85 @@ from typing import Any, Tuple
 
 from core.permission_model import has_permission, resolve_actor
 
-__all__ = ["check_matter_authority", "check_decree_authority"]
+__all__ = [
+    "check_matter_authority", "check_decree_authority",
+    "matters_for_effects", "matters_for_finance_changes",
+    "check_effects_authority",
+]
+
+# 财政 effect → 事权（单一来源；新增财政 effect 必须登记在这里）
+FISCAL_EFFECT_MATTERS = {
+    "treasury": "度支调度",
+    "treasury_income": "国库",
+    "treasury_spend": "度支调度",
+    "commerce_tax": "赋税",
+    "tax": "赋税",
+    "land_tax": "赋税",
+    "finance_rates": "度支调度",
+    "granary": "国库",
+    "audit": "财政勾稽",
+    "confiscate": "国库",
+}
+
+# 财政草案 change.path → 事权（按路径关键词）
+FINANCE_PATH_MATTERS = {
+    "treasury": "度支调度",
+    "commerce_tax": "赋税",
+    "tax": "赋税",
+    "finance": "度支调度",
+    "audit": "财政勾稽",
+    "confiscate": "国库",
+}
+
+
+def matters_for_effects(effects) -> list:
+    """从诏令/口谕 effects 提取财政事权（含 institution 参数的 authority）。"""
+    if not isinstance(effects, dict):
+        return []
+    out = []
+    inst = effects.get("institution")
+    if isinstance(inst, dict):
+        from content.data import INSTITUTION_PARAM_SPEC
+        for key in inst:
+            spec = INSTITUTION_PARAM_SPEC.get(str(key)) or {}
+            matter = str(spec.get("authority") or "").strip()
+            if matter and matter not in out:
+                out.append(matter)
+    for key in effects:
+        matter = FISCAL_EFFECT_MATTERS.get(str(key))
+        if matter and matter not in out:
+            out.append(matter)
+    return out
+
+
+def matters_for_finance_changes(changes) -> list:
+    """从财政草案 changes[*].path 提取事权。"""
+    out = []
+    for change in changes or []:
+        if not isinstance(change, dict):
+            continue
+        path = str(change.get("path") or "")
+        for token, matter in FINANCE_PATH_MATTERS.items():
+            if token in path and matter not in out:
+                out.append(matter)
+    return out
+
+
+def check_effects_authority(state, effects, executor):
+    """财政 effects 的 actor 判权 → `(ok, actor_or_reason, matters)`。"""
+    matters = matters_for_effects(effects)
+    if not matters:
+        return True, "", []
+    if not executor:
+        # 默认中性：无 executor 的旧调用保留，由调用方计 legacy_unchecked_fiscal。
+        return True, "legacy_unchecked", matters
+    actor = ""
+    for matter in matters:
+        ok, actor_or_reason = check_matter_authority(state, executor, matter)
+        if not ok:
+            return False, actor_or_reason, matters
+        actor = actor_or_reason
+    return True, actor, matters
 
 
 def check_matter_authority(state, executor, matter: str) -> Tuple[bool, str]:

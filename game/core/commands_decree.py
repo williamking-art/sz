@@ -139,7 +139,8 @@ def _apply_rename(state, old_name, new_name):
 
 
 def issue_edict_from_review(state: GameState, draft_id: str,
-                            decision: str = "approve", revised_effects=None) -> str:
+                            decision: str = "approve", revised_effects=None,
+                            executor=None) -> str:
     """据会签意见下发诏草。
     decision: 'approve'(准奏，走会签生效) | 'force'(御笔直发，转中旨)。
     返回消息。"""
@@ -148,6 +149,11 @@ def issue_edict_from_review(state: GameState, draft_id: str,
         return "诏草已不存在。"
     org = draft.get("org_hint", "政府")
     effs = revised_effects if revised_effects is not None else draft.get("effects", [])
+    _executor = executor or draft.get("executor")
+    _eff_dict = _draft_to_effects_dict(state, {**draft, "effects": effs})
+    _ok, _why, _matters = _fiscal_effects_gate(state, _eff_dict, _executor)
+    if not _ok:
+        return f"诏草未发：财政效果事权拒绝（{_why}）。"
 
     if decision == "force":
         # 御笔直发：绕过会签，转中旨
@@ -163,7 +169,7 @@ def issue_edict_from_review(state: GameState, draft_id: str,
             "turn_issued": state.turn,
             "faction_stances": _random_faction_stances(state),
             "secret_loyalty": 0.7,
-            "effects": _draft_to_effects_dict(state, {**draft, "effects": effs}),
+            "effects": _eff_dict,
             "duration": 1,
             "desc": draft.get("body", ""),
         }
@@ -184,7 +190,7 @@ def issue_edict_from_review(state: GameState, draft_id: str,
             "org_hint": org,
             "turn_issued": state.turn,
             "faction_stances": _random_faction_stances(state),
-            "effects": _draft_to_effects_dict(state, {**draft, "effects": effs}),
+            "effects": _eff_dict,
             "duration": 1,
             "desc": draft.get("body", ""),
         }
@@ -329,6 +335,21 @@ def _authority_label(executor, actor: str) -> str:
     return f"{base}（{actor}）"
 
 
+def _fiscal_effects_gate(state, effects, executor):
+    """P1b：财政 effects 的 actor 门；无 executor 时计 legacy_unchecked_fiscal。"""
+    from core.authority_gate import check_effects_authority
+    ok, actor_or_reason, matters = check_effects_authority(state, effects, executor)
+    if not ok:
+        return False, actor_or_reason, matters
+    if matters and actor_or_reason == "legacy_unchecked":
+        stats = getattr(state, "statistics", None)
+        if isinstance(stats, dict):
+            stats["legacy_unchecked_fiscal"] = int(
+                stats.get("legacy_unchecked_fiscal", 0) or 0) + 1
+        return True, "", matters
+    return True, actor_or_reason, matters
+
+
 def _decree_authority_check(state, decree) -> dict:
     """M1b-1：显式事权校验（默认中性）。
 
@@ -344,12 +365,28 @@ def _decree_authority_check(state, decree) -> dict:
     primary = str(decree.get("primary_matter") or "").strip()
     co = [str(x).strip() for x in (decree.get("co_matters") or [])
           if str(x).strip()]
+    executor = decree.get("executor")
+    effects = decree.get("effects")
+    from core.authority_gate import matters_for_effects
+    fiscal_matters = matters_for_effects(effects)
     if not primary and not co:
-        return empty
+        if executor and fiscal_matters:
+            from core.authority_gate import check_effects_authority
+            ok, actor_or_reason, _matters = check_effects_authority(
+                state, effects, executor)
+            if not ok:
+                return {**empty, "explicit": True, "ok": False,
+                        "reason": actor_or_reason, "legacy_unchecked": False}
+            return {
+                "explicit": True, "ok": True, "reason": "", "primary": "",
+                "co": [], "matters": fiscal_matters,
+                "label": _authority_label(executor, actor_or_reason),
+                "legacy_unchecked": False,
+            }
+        return {**empty, "legacy_fiscal": bool(fiscal_matters)}
     if not primary:
         return {**empty, "explicit": True, "ok": False,
                 "reason": "缺少 primary_matter", "legacy_unchecked": False}
-    executor = decree.get("executor")
     if not executor:
         return {**empty, "explicit": True, "ok": False,
                 "reason": "缺少 executor（承办主体）", "legacy_unchecked": False}
@@ -369,12 +406,24 @@ def _decree_authority_check(state, decree) -> dict:
                     "reason": actor_or_reason, "legacy_unchecked": False,
                 }
             actor = actor_or_reason
+        _extra_fiscal = [m for m in fiscal_matters if m not in required]
+        if _extra_fiscal:
+            from core.authority_gate import check_effects_authority
+            ok, actor_or_reason, _matters = check_effects_authority(
+                state, effects, executor)
+            if not ok:
+                return {
+                    **empty, "explicit": True, "ok": False, "primary": primary,
+                    "co": co, "matters": required + _extra_fiscal, "label": "",
+                    "reason": actor_or_reason, "legacy_unchecked": False,
+                }
+            actor = actor_or_reason
     except Exception as e:  # noqa: BLE001 — 解析失败不得放行
         return {**empty, "explicit": True, "ok": False,
                 "reason": f"事权解析失败：{e}", "legacy_unchecked": False}
     return {
         "explicit": True, "ok": True, "reason": "", "primary": primary,
-        "co": co, "matters": required,
+        "co": co, "matters": required + _extra_fiscal,
         "label": _authority_label(executor, actor),
         "legacy_unchecked": False,
     }
@@ -392,6 +441,11 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
     _auth = _decree_authority_check(state, decree)
     if not _auth["ok"]:
         return f"⚠ 事权不合法：{_auth['reason']}。诏令未颁。"
+    if _auth.get("legacy_fiscal"):
+        _stats = getattr(state, "statistics", None)
+        if isinstance(_stats, dict):
+            _stats["legacy_unchecked_fiscal"] = int(
+                _stats.get("legacy_unchecked_fiscal", 0) or 0) + 1
 
     # ---- 批 5 C2 · 409 未决呈请守卫 ----
     # 颁诏前若有大臣呈请未决 → 显式拦截（把「漏看」从静默丢数据变成 409）。
@@ -598,6 +652,10 @@ def issue_free_decree(state, parse_result, minister, is_secret=False):
     # 这些效果不需走长期任务，落地后反馈在月度结算中体现（改税即时、节流逐月挤出水分）。
     effects = parse_result.get("effects")
     if effects:
+        _ok, _why, _matters = _fiscal_effects_gate(
+            state, effects, parse_result.get("executor"))
+        if not _ok:
+            return f"未成：财政效果事权拒绝（{_why}），未落地。"
         from core.settlement import _apply_decree_effect
         decree_holder = {
             "title": parse_result.get("title", "御笔诏"),
@@ -868,6 +926,10 @@ def issue_kouyu(state: GameState, draft: dict) -> str:
                 eff_dict[k] = {fn: int(d * _k) for fn, d in eff_dict[k].items()}
             else:
                 eff_dict[k] = int(eff_dict[k] * _k)
+    _ok, _why, _matters = _fiscal_effects_gate(
+        state, eff_dict, draft.get("executor"))
+    if not _ok:
+        return f"口宣未发：财政效果事权拒绝（{_why}）。"
     decree_full = {
         "title": draft.get("title", "口谕") + "（口宣）",
         "category": "口谕",
