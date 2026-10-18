@@ -175,13 +175,20 @@ cd (Join-Path $repo "game")
 & $py content\build_map_geo.py    # → assets/map/web/{regimes,regime_borders,regime_prefectures,cities,view.json}
 cd frontend
 & $node .\node_modules\tsx\dist\cli.mjs scripts/build-topo.ts   # → public/map/*.topojson
-& $node .\node_modules\electron-vite\bin\electron-vite.js build  # → out/renderer（**安装包需另打包**）
+& $node .\node_modules\electron-vite\bin\electron-vite.js build  # → out/renderer
+
+# 发布打包（PyInstaller 后端 one-dir → electron-vite → electron-builder NSIS → 产物校验）
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo "_dev_tools\build-release.ps1")
 ```
 
 ## 5. 环境要点（踩过的坑，省你半小时）
 
 - **无系统 node** → 用便携版 `<工作区>\tools\nodejs\node-v20.19.5-win-x64\node.exe`（含 npm/npx）。
-- **`frontend/node_modules/electron/dist` 缺失** → 能 build，**不能** `electron-builder` 打包（安装包当前停留在 2026-09-28）。
+- **`frontend/node_modules/electron/dist`**：2026-10-18 已从本机
+  `%LOCALAPPDATA%\electron\Cache\electron-v33.0.0-win32-x64.zip` 解压恢复，并写
+  `node_modules/electron/path.txt = electron.exe`；现可 `electron-builder` 打包。
+  安装包 2026-10-18 已重出：`sz/songzuo/SongZuo Setup 0.1.0.exe`（约 302 MB），
+  `win-unpacked/SongZuo.exe` 约 180 MB，`resources/backend` 内含 PyInstaller one-dir。
 - **本机无 httpx** → 端点测试必须**直调端点函数 + 伪造 Request**（范例 `tests/test_readouts_endpoint.py`）。
 - **PowerShell 读 UTF-8 中文会按 GBK 解码**（实测：`ConvertFrom-Json` 报错、参数退化）。要往云端/JSON 写中文，**用 Python**（`_dev_tools/sync_mcp_state.py` 与各测试即如此）。
 - 截图台为何不拍舆图：**maplibre 需 WebGL**，无头浏览器不保证 → 地图用**数据级回归**（`tests/test_map_prefecture_geometry.py`），像素级验收仍需真机。

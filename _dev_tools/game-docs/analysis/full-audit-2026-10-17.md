@@ -196,7 +196,7 @@ C-3（fail-open）→ C-2（越权）→ C-1（诏令字段/Agent）→ C-4（UI
 ## 7. 本次未覆盖 / 材料不足
 
 - 240 月长局平衡与性能（需 `SONGZUO_LONG_RUN=1`，本轮未跑）。
-- 前端像素级/交互验收与真机 Electron 打包（本机缺 `electron/dist`，`electron-builder` 不可用）。
+- 前端像素级/交互验收（2026-10-18 已恢复 `electron/dist` 并成功出包，见 §21；像素级/真机交互验收仍需人工）。
 - 外邦 38 政权、Rust 后端与 Python 本体的功能对齐。
 - 立绘/舆图美术质量本身（只验证了资产存在性与引用完整性）。
 - 历史提交的完整回归（本轮聚焦 HEAD + 工作树）。
@@ -584,6 +584,37 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 
 ### 20.4 仍未闭环
 1. 舆图产物（`assets/map/web/*`、`public/map/*.topojson`）仍不入库；干净 clone 需先重建（已由 skip 明示）。
-2. 发布打包链：`electron/dist` 缺失、安装包停在 2026-09-28。
+2. 发布打包链：2026-10-18 已恢复 `electron/dist` 并重出安装包（见 §21）；仅剩真机安装冒烟与代码签名。
 3. 真机截图矩阵未跑（`-SkipShot`）。
-4. PM 投入配方结构（只乘产出）仍属后续平衡批次。
+4. PM 投入配方结构（只乘产出）仍属后续平衡批次。---
+
+## 21. 第十二批整改（发布打包链打通）
+
+### 21.1 已修
+| 项 | 落地 | 验证 |
+|---|---|---|
+| electron/dist 缺失 | 从本机 `%LOCALAPPDATA%\electron\Cache\electron-v33.0.0-win32-x64.zip` 解压恢复（73 文件），并写 `node_modules/electron/path.txt = electron.exe` | `require('electron')` 返回 `dist\electron.exe` |
+| 前端构建 | `electron-vite build` | `out/renderer/index.html` + 资源生成（JS 2.16 MB / CSS 162 KB） |
+| NSIS 打包 | `electron-builder --win nsis --publish never` | 安装包生成成功 |
+| 可复现入口 | 新增 `_dev_tools/build-release.ps1`：PyInstaller → electron-vite → electron-builder → 产物校验（存在性/体积/新鲜度） | Parser 0 错；已实测跑通 |
+
+### 21.2 产物实测（2026-10-18）
+| 产物 | 路径 | 大小 / 说明 |
+|---|---|---|
+| NSIS 安装包 | `sz/songzuo/SongZuo Setup 0.1.0.exe` | **302.4 MB**（旧包为 2026-09-28，已更新） |
+| blockmap | `SongZuo Setup 0.1.0.exe.blockmap` | 0.3 MB |
+| 解包可执行 | `songzuo/win-unpacked/SongZuo.exe` | **180.1 MB**，版本 `0.1.0.0` |
+| app.asar | `win-unpacked/resources/app.asar` | 116.2 MB |
+| 后端 one-dir | `win-unpacked/resources/backend/` | 234 文件，含 `SongZuo.exe` |
+
+**OPSEC 复核**：包内**未发现** `ai_config.json` / `*.key` / `*.pem` / `*.credentials`（PyInstaller 与 electron-builder 输入均为白名单）。
+
+### 21.3 结论
+- **打包链从「不可用」恢复为「一条命令可复现」**；安装包已刷新到 2026-10-18。
+- 未做：真机安装/启动冒烟、代码签名（`no signing info identified, signing is skipped`）、截图矩阵像素级验收。
+
+### 21.4 仍未闭环
+1. 真机安装 + 启动 + 关键页面冒烟（本机可做，但需图形会话）。
+2. 代码签名（需证书）。
+3. 截图矩阵（`-SkipShot` 未跑）与舆图像素级验收。
+4. 打包脚本尚未接入 CI（本地跑通）。
