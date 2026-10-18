@@ -49,7 +49,10 @@ EARTH_RADIUS_KM = 6371.0
 #: ⚠️ 这是**设定值**，不是史料——宋代驿路的具体速度无可靠逐程记载。
 #: 取宋制"千里之程约一月"量级，故 1000 km/月。**凡由此推出的耗时都带此不确定性**，
 #: 故本模块所有读数都随附该说明，**不得**当成史料。
-KM_PER_MONTH = 1000.0
+KM_PER_MONTH = 2400.0   # 2026-10-18 重标定（设定值）：境内任意两地**月度内可达**——
+                        # 实测境内陆路最长 2,356km；2400km/月 ≈ 80km/日（驿传/商旅换乘
+                        # 混合量级）。原 1000km/月 会让 4,515/8,912 对超过 1 月，
+                        # 与回合制（1 回合 = 1 月）及宋境驿路密度不符。
 
 #: ⚠️ **路况修正表默认为空**——宋代各路道路等级无可靠史料，**不臆造**。
 #: 结构预留：`{州府主键: 速度倍率}`；空 ⇒ 耗时按平地常数计。
@@ -485,12 +488,14 @@ def transport_capability(state, frm: str, to: str, mode: str = "land",
         if cargo is not None and str(cargo) not in POST_CARGO_KINDS:
             return {"ok": False, "mode": m, "reason": "cargo_not_allowed", "cargo": str(cargo)}
 
-    base_days = int(rp.get("days") or 0)
     speed = float(spec.get("speed") or 1.0)
     if _sea_days_final:
-        days = base_days
+        days = int(rp.get("days") or 0)
     else:
-        days = 0 if base_days == 0 else max(1, int(math.ceil(base_days / speed)))
+        # 2026-10-18：改为**按里程算**，不再拿已取整的天数去除速度
+        # （base_days=1 时 ÷0.9 会变成 2，把"同一个月内可达"放大成两个月）
+        km_val = float(rp.get("km") or 0)
+        days = 0 if km_val <= 0 else max(1, int(math.ceil(km_val / (KM_PER_MONTH * speed))))
     return {"ok": True, "mode": m, "name": spec.get("name", m),
             "days": days, "hops": int(rp.get("hops") or 0),
             "km": rp.get("km"), "capacity": capacity,

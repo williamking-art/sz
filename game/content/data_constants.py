@@ -1264,7 +1264,7 @@ TRANSPORT_MODES: dict = {
     "land":  {"name": "陆运", "speed": 1.0, "capacity": 500,  "fee_rate": 0.020, "loss": 0.0},
     "water": {"name": "水运", "speed": 0.9, "capacity": 2000, "fee_rate": 0.005, "loss": 0.0},
     "post":  {"name": "驿传", "speed": 1.6, "capacity": 50,   "fee_rate": 0.050, "loss": 0.0},
-    "sea":   {"name": "海运", "speed": 1.2, "capacity": 5000, "fee_rate": 0.003, "loss": 0.0},
+    "sea":   {"name": "海运", "speed": 1.8, "capacity": 5000, "fee_rate": 0.003, "loss": 0.0},
 }
 #: 水运可达的**路**（设定表；空集 ⇒ 水运不可用）。汴河/淮南/两浙/江南/荆湖/京畿。
 WATER_ROUTE_CIRCUITS = frozenset({
@@ -1288,6 +1288,9 @@ SEA_DETOUR_FACTOR = 1.2
 #: 拨款三方式（G-3/P6a，2026-10-18）：划账 / 押运 / 交子便换
 #: draft 划账：仅限**同路或 1 月内可达**（远路大额应走押运或交子）
 DRAFT_MAX_DAYS = 1
+#: 2026-10-18 复核：境内运输已统一为 1 回合可达 ⇒ 划账限额不能按月判（否则处处可划账），
+#: 改用**里程**：仅近畿/同路（≤400km）允许直接划账，更远须押运或交子。
+DRAFT_MAX_KM = 400
 #: 交子便换手续费率（占汇兑额；设定值，低于运费的 0.5%/千km 量级）
 JIAOZI_DRAFT_FEE_RATE = 0.002
 #: 交子兑付的信任下限：trust 低于此值 ⇒ 视为「难以兑付」，便换拒办

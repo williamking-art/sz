@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 
 from content.data_constants import (  # noqa: E402
-    DRAFT_MAX_DAYS, JIAOZI_DRAFT_FEE_RATE)
+    DRAFT_MAX_KM, JIAOZI_DRAFT_FEE_RATE)
 from core.foundation.ledger.money_transport import (  # noqa: E402
     allocate_funds, arrive_money_due, money_transit_total)
 from core.transport import route_path  # noqa: E402
@@ -62,10 +62,11 @@ def test_draft_near_is_instant_and_free():
 
 def test_draft_far_is_refused_with_suggestion():
     s = _state()
-    days = route_path("京畿路|开封府", FAR)["days"]
-    assert days > DRAFT_MAX_DAYS, "测试前置：该目的地必须超过 draft 上限"
+    km = route_path("京畿路|开封府", FAR)["km"]
+    assert km > DRAFT_MAX_KM, "测试前置：该目的地必须超过 draft 里程上限"
     r = allocate_funds(s, dst_seat=FAR, amount=1000, mode="draft")
     assert not r["ok"] and r["reason"] == "draft_too_far", r
+    assert r["limit_km"] == int(DRAFT_MAX_KM)
     assert set(r["suggest"]) == {"transport", "jiaozi"}
 
 

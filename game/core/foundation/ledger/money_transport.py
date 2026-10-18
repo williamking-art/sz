@@ -275,7 +275,7 @@ def allocate_funds(state, *, dst_seat: str, amount: int, src: str = "treasury",
     不改任何既有 transfer_money 调用；本函数是新增的显式动作。
     返回 {ok, mode, reason?, days, fee, credited, loss?, batch?}。
     """
-    from content.data_constants import (DRAFT_MAX_DAYS, JIAOZI_DRAFT_FEE_RATE,
+    from content.data_constants import (DRAFT_MAX_KM, JIAOZI_DRAFT_FEE_RATE,
                                         JIAOZI_DRAFT_MAX_RUN, JIAOZI_DRAFT_MIN_TRUST)
     from core.transport import route_path
 
@@ -292,12 +292,13 @@ def allocate_funds(state, *, dst_seat: str, amount: int, src: str = "treasury",
 
     if mode == "draft":
         rp = route_path("京畿路|开封府", dst_seat)
-        days = int((rp or {}).get("days") or 0) if (rp or {}).get("reachable") else None
-        if days is None:
+        km = float((rp or {}).get("km") or 0) if (rp or {}).get("reachable") else None
+        if km is None:
             return {"ok": False, "mode": mode, "reason": "unreachable"}
-        if days > int(DRAFT_MAX_DAYS):
+        if km > float(DRAFT_MAX_KM):
             return {"ok": False, "mode": mode, "reason": "draft_too_far",
-                    "days": days, "suggest": ["transport", "jiaozi"]}
+                    "km": round(km, 1), "limit_km": int(DRAFT_MAX_KM),
+                    "suggest": ["transport", "jiaozi"]}
         moved = int(state.transfer_money(src, dst_acct, want))
         if moved <= 0:
             return {"ok": False, "mode": mode, "reason": "transfer_failed"}
