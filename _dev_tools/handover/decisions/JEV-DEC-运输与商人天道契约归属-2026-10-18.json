@@ -1,0 +1,25 @@
+{
+ "id": "JEV-DEC-运输与商人天道契约归属-2026-10-18",
+ "createdAt": "2026-10-18T22:15:00+08:00",
+ "agent": "DSH",
+ "question": "运输方式/载具选择、官私运力调配、POP 商人投资倾向，应新增专用天道契约还是扩展现有契约",
+ "options": [
+  "A 新增专用契约：transport_decide（mode_pref/carrier_pref/requisition/escort/use_jiaozi）+ merchant_decide（posture/focus）",
+  "B 扩展到 economy_decide 字段，不新增 Agent"
+ ],
+ "verdict": "A 新增专用契约",
+ "probabilities": {
+  "A": 0.9607,
+  "B": 0.0393
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定 + 用户指出『总是忘了天道机制』",
+ "premises_verified_by_me": [
+  "既有 11 个 Agent 已接线、3 个待接（_reform_ai/_invest_ai，_finance_ai 已断开）",
+  "运输/商人取向属『取舍』，按架构纪律不得由程序或玩家直接定数值",
+  "一致性门 test_quality_gate_ai_wiring.py 要求『先有消费者再登记 Agent』",
+  "运输快照 transport_snapshot 已实现（区间化：barges 无/少/中/多、canal 通/缓/淤/断）"
+ ],
+ "applied_in": "specs/diplomacy/外贸货腿_落地稿_2026-10-18.md §25（天道介入点映射）；待落地 N-1..N-5",
+ "reopen_if": "新增契约导致唤醒/token 成本超预算；或 transport_decide 与 granary_decide 职责重叠无法划清"
+}
