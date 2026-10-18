@@ -26,7 +26,12 @@ def test_definitions_are_self_consistent():
     assert gc.assert_exclusive() == [], f'成员跨类目：{gc.assert_exclusive()}'
     for name in gc.class_names():
         ms = gc.members(name)
-        assert ms, f'类目 {name} 没有成员'
+        if not ms:
+            # 聚合节点（如 商品）必须有子类目；预备类目（如 进口奢侈，维尚未立）必须有 pending_members
+            pend = (GOODS_CLASSES[name].get('pending_members') or [])
+            assert gc.children(name) or pend, \
+                f'类目 {name} 既无成员、无子类目、也无 pending_members（空壳）'
+            continue
         assert len(ms) == len(set(ms)), f'类目 {name} 成员重复：{ms}'
         if not gc.is_writable(name):
             # 聚合专用类目（如 食品）：只读合计，不承载写入，允许无 default_member

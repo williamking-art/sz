@@ -59,6 +59,34 @@ def test_class_names_not_in_stock_keys_helper():
     assert gc.assert_no_class_in_keys({"食品": 1, "米": 1}) == ["食品"]
 
 
+def test_all_dims_are_covered_by_classes():
+    """C1 完整覆盖：每个商品维都必须属于某个类目（或显式登记为未归类）。"""
+    from content.data_constants import GOODS_DIMS
+
+    active = set(gc.members_deep('商品', active_only=True))
+    dims = set(GOODS_DIMS)
+    uncovered = sorted(dims - active)
+    assert not uncovered, f'未归类的商品维：{uncovered}'
+    phantom = sorted(active - dims)
+    assert not phantom, f'类目声明了不存在的维：{phantom}'
+
+
+def test_root_class_total_equals_sum_of_all_dims():
+    """根类目递归合计 == 全部维之和（派生视图自洽）。"""
+    goods = {'米': 10, '麦': 5, '铁': 3, '糖': 2, '马': 1}
+    root = gc.class_total_deep(goods, '商品')
+    assert root == sum(goods.values()), f'{root} vs {sum(goods.values())}'
+
+
+def test_class_count_is_meaningful():
+    """防空转：类目数量与层级都要有实义。"""
+    names = gc.class_names()
+    assert len(names) >= 8, f'类目过少，C1 未真正接入：{names}'
+    assert gc.parent('食品') == '商品'
+    assert gc.parent('粮') == '食品'
+    assert gc.parent('商品') is None
+
+
 def test_assert_tree_detects_cycle(monkeypatch):
     bad = {
         "A": {"kind": "类目", "parent": "B", "children": [], "members": ["x"]},
