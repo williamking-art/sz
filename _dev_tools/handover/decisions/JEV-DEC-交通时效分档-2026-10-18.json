@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-交通时效分档-2026-10-18",
+ "createdAt": "2026-10-18T22:50:00+08:00",
+ "agent": "DSH",
+ "question": "海运/内河时效：按距离分档 还是 保持既有单档 还是 取消基准全用距离",
+ "options": [
+  "A 分档：近程 ≤1000km 用近程基准（海运15/内河10/陆路15天），超过按 max(近程基准, ceil(km/speed)) 放大",
+  "B 保持既有单档 15/30/45 不动",
+  "C 取消基准，全部用 距离/speed"
+ ],
+ "verdict": "A 分档（近程基准 + 距离放大）",
+ "probabilities": {
+  "A": 0.8812,
+  "B": 0.0802,
+  "C": 0.0386
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定",
+ "premises_verified_by_me": [
+  "既有口径：三维交通矩阵（内河 15 天 / 陆路 30 天 / 海运 45 天）+ spatial_warehouse_bridge base_days 已实现",
+  "实测：固定 45 天海运对近海 280km 偏慢（2 回合）；固定 30 天陆路对 2356km 低估",
+  "既有矩阵给的是时效+成本（人/石、口粮），不含运力 ⇒ 运力另算 min(载具, 人力)",
+  "改动已跑定向 + 全量回归（EXIT=0）"
+ ],
+ "applied_in": "content/data_constants.py(TRANSIT_*) + core/transport.py(transit_km/transit_days) + spatial_warehouse_bridge 接线 + 落地稿 §1.1/§1.2",
+ "reopen_if": "近程基准导致短途运输过快影响玩法；或既有测试/存档依赖固定 15/30/45"
+}
