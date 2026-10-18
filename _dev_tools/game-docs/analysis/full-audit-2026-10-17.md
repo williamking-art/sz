@@ -609,12 +609,23 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 
 **OPSEC 复核**：包内**未发现** `ai_config.json` / `*.key` / `*.pem` / `*.credentials`（PyInstaller 与 electron-builder 输入均为白名单）。
 
-### 21.3 结论
-- **打包链从「不可用」恢复为「一条命令可复现」**；安装包已刷新到 2026-10-18。
-- 未做：真机安装/启动冒烟、代码签名（`no signing info identified, signing is skipped`）、截图矩阵像素级验收。
+### 21.3 打包运行时冒烟
+直接启动 `win-unpacked/resources/backend/SongZuo.exe`（打包后的 Python one-dir）：
+- `GET /health` → **200** `{"ok":true,"backend":"python-reference","has_state":false}`；
+- `POST /api/new_game {"difficulty":"史实"}` → **200**，`turn=0 / year=1101 / prefectures=20`；
+- `GET /api/readouts` → **200**（102,610 bytes）。
 
-### 21.4 仍未闭环
-1. 真机安装 + 启动 + 关键页面冒烟（本机可做，但需图形会话）。
+⇒ 打包后的后端与内容/资产可启动、可开局、可出读数。
+⚠️ Electron GUI（`win-unpacked/SongZuo.exe`）在本会话启动即退出——本会话无交互式桌面；
+**GUI 首帧/交互仍需真机桌面会话复验**。
+
+### 21.4 结论
+- **打包链从「不可用」恢复为「一条命令可复现」**；安装包已刷新到 2026-10-18。
+- 打包后端已冒烟（health/new_game/readouts 全 200）；Electron GUI 待真机。
+- 未做：真机桌面 GUI 冒烟、代码签名（`no signing info identified, signing is skipped`）、截图矩阵像素级验收。
+
+### 21.5 仍未闭环
+1. 真机桌面 GUI 冒烟：安装包安装 → 首帧 → 关键页面（本会话无交互桌面，未验）。
 2. 代码签名（需证书）。
 3. 截图矩阵（`-SkipShot` 未跑）与舆图像素级验收。
 4. 打包脚本尚未接入 CI（本地跑通）。
