@@ -172,6 +172,11 @@ def _settle_officialdom(state, log):
     的唯一写入点）→ 把冗官关键指标写进 `state.statistics` 供面板与审计读取。
     末尾接三年周期人事闭环（磨勘）与年度官方垦荒。
     """
+    try:
+        from core.personnel_order import settle_personnel_orders
+        settle_personnel_orders(state)
+    except Exception as e:  # noqa: BLE001 — 单条人事令失败不得炸整月
+        log.append(f"[人事令] 结算失败：{type(e).__name__}: {e}")
     result = _officialdom.settle_officialdom(state, log)
     _run_personnel_cycle(state, log)
     _run_annual_reclamation(state, log)

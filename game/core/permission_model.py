@@ -188,7 +188,8 @@ def _bump_stat(state, key: str) -> None:
         stats[key] = int(stats.get(key, 0) or 0) + 1
 
 
-def personnel_authority(state, executor, matter: str = "官吏铨选"):
+def personnel_authority(state, executor, matter: str = "官吏铨选",
+                        strict: Optional[bool] = None):
     """人事入口的统一**权限**判定 → `(ok, actor_or_reason, mode)`。
 
     - 显式 executor：解析为具体人 → 其在任职位是否含该事权；
@@ -205,7 +206,8 @@ def personnel_authority(state, executor, matter: str = "官吏铨选"):
     if holders:
         _bump_stat(state, "authority_auto_resolved_personnel")
         return True, holders[0], "auto"
-    if authority_strict(state):
+    is_strict = authority_strict(state) if strict is None else bool(strict)
+    if is_strict:
         return False, f"无法解析掌「{key}」的在任职位持有人", "rejected"
     _bump_stat(state, "legacy_unchecked_personnel")
     return True, "", "legacy_unchecked"
