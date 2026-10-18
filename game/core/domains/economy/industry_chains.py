@@ -330,6 +330,7 @@ def _route_capital_seat(state, route: str) -> Optional[str]:
 #: 产业链成品键 → 代表建筑（用于消费 M317/M318 生产方式相对倍率）。
 #: 未列出的成品键（绸/布/糖/纸/熟皮/食用油等）回退 1.0，保持默认中性。
 _OUTPUT_PM_BUILDING = {
+    # 重工/军工
     "iron_ingots": "冶铁工场", "steel_ingots": "冶铁工场",
     "weapons_pieces": "冶铁工场",
     "copper_ingots": "冶铁工场", "coins_minted_guan": "冶铁工场",
@@ -337,7 +338,16 @@ _OUTPUT_PM_BUILDING = {
     "barges_built": "造船作坊",
     "gunpowder_jin": "火药局", "firearms_pieces": "火器制造坊",
     "fine_china_pieces": "官窑瓷坊",
-    "books_printed": "印造经籍局", "paper": "印造经籍局",
+    # 纺织/皮革/服饰（2026-10-18 扩展：全作坊 PM 覆盖）
+    "silk_cloth_pi": "丝坊", "cloth_pi": "麻坊",
+    "garments_pieces": "被服工坊",
+    "tanned_leather_jin": "硝皮熟皮坊",
+    "saddle_armor_pieces": "鞍具皮甲作",
+    # 食品/文化
+    "sugar_jin": "糖坊",
+    "cooking_oil_jin": "食品坊", "paste_vinegar_jin": "食品坊",
+    "firewood_dan": "食品坊",
+    "books_printed": "印造经籍局", "paper": "造纸坊",
     "ink_jin": "印造经籍局", "four_treasures_pieces": "印造经籍局",
 }
 

@@ -6,7 +6,7 @@
   "completed_at": "2026-10-17T13:22:00Z",
   "description": "按全审报告（analysis/full-audit-2026-10-17.md）整改并全量回归：前端 ReadoutHubPanel/ActionName、后端9个 action 符号、130个资产恢复；常平覆盖、作坊双记、八链 stock-to-stock、配货空转、转账镜像、在途落档、采矿双提、49/49 critical、兵额 POP；issue_decree 字段/Agent、settle_reform 与军令事权、decree_confirm fail-closed、UI 敕命模板；resolve_event 伪造、结算窗口409、前端假读数/算法复制；GOODS_DIMS 去重与货主补齐。Jev 留痕 decisions/JEV-全审整改-2026-10-17.json（0.980/0.855/0.707）。",
   "verification": {
-    "pytest": "3488 tests / 0 failed / 0 errors / 2 skipped（junit _scratch/audit-20261017/junit-batch8.xml，437.3s）",
+    "pytest": "3491 tests / 0 failed / 0 errors / 2 skipped（junit _scratch/audit-20261017/junit-batch9.xml，774.7s）",
     "tsc": "web 0 / node 0",
     "vitest": "17 files / 98 passed",
     "clean_clone_import": "procurement/logistics_coupler/commands/decree_confirm/settlement_pipeline/game_init 全 OK",

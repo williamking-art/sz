@@ -71,6 +71,19 @@ class ProductionMethod:
 
 #: 全局权威生产方式注册表（PM Registry）
 PM_REGISTRY: Dict[str, ProductionMethod] = {
+    # ---------------- 0. 通用手工常法（无专属基础工艺的作坊默认；相对倍率中性） ----------------
+    "pm_craft_generic": ProductionMethod(
+        id="pm_craft_generic",
+        name="手工常法",
+        category="base",
+        building_types=["丝坊", "麻坊", "酒坊", "造纸坊", "糖坊", "畜栏",
+                        "被服工坊", "硝皮熟皮坊", "鞍具皮甲作", "食品坊"],
+        inputs={},
+        outputs={},
+        worker_demand={"工匠": 10},
+        throughput_mult=1.0,
+        description="通用手工常法：为无专属基础工艺的作坊提供中性的 PM 基线。",
+    ),
     # ---------------- 1. 冶铁重工业生产方式 ----------------
     "pm_smelting_charcoal": ProductionMethod(
         id="pm_smelting_charcoal",
@@ -339,6 +352,22 @@ PM_REGISTRY: Dict[str, ProductionMethod] = {
 
 #: 默认初始建筑生产方式配置
 BUILDING_DEFAULT_PMS: Dict[str, Dict[str, str]] = {
+    # 2026-10-18 全审：补齐其余 13 类作坊 + 食品坊（产业链虚拟生产方）的中性默认，
+    # 使 PM 相对倍率可覆盖全部作坊与产业链；默认 base 为 pm_craft_generic（1.0）。
+    "丝坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "麻坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "酒坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "造纸坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "糖坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "畜栏": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "冶铁作坊": {"base": "pm_smelting_charcoal", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "兵器营造坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "冶铜熔铸所": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "铸钱监": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
+    "硝皮熟皮坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "鞍具皮甲作": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "被服工坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
+    "食品坊": {"base": "pm_craft_generic", "power": "pm_power_manual", "ownership": "pm_ownership_private", "organization": "pm_org_craft_guild"},
     "冶铁工场": {"base": "pm_smelting_coke", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
     "官窑瓷坊": {"base": "pm_ceramics_coal", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},
     "火药局": {"base": "pm_gunpowder_standard", "power": "pm_power_manual", "ownership": "pm_ownership_state", "organization": "pm_org_craft_guild"},

@@ -64,3 +64,38 @@ def test_unknown_building_falls_back_neutral():
     # 无对应建筑的成品（绸/布）不应因 PM 关闭而报错或改变
     _, base = _settle()
     assert float(base.get("silk_cloth_pi", {}).get("qty", 0) or 0) > 0
+
+def test_pm_switch_increases_textile_chain_output():
+    """纺织链（丝坊）也必须消费 PM 相对倍率。"""
+    _, base = _settle()
+    base_q = float(base.get("silk_cloth_pi", {}).get("qty", 0) or 0)
+    assert base_q > 0
+
+    random.seed(20261013)
+    s = new_game("史实")
+    assert _switch_all(s, "丝坊", "pm_org_manufactory") > 0
+    rep = settle_industry_chains(s, [])
+    q = float(rep["stock_settlement"]["outputs_booked"].get("silk_cloth_pi", {}).get("qty", 0) or 0)
+    assert q > base_q * 1.05, f"纺织链产出未随 PM 提升：{base_q} → {q}"
+
+
+def test_pm_switch_increases_leather_chain_output():
+    """皮革链（硝皮熟皮坊）也必须消费 PM 相对倍率。"""
+    _, base = _settle()
+    base_q = float(base.get("tanned_leather_jin", {}).get("qty", 0) or 0)
+    assert base_q > 0
+
+    random.seed(20261013)
+    s = new_game("史实")
+    assert _switch_all(s, "硝皮熟皮坊", "pm_org_manufactory") > 0
+    rep = settle_industry_chains(s, [])
+    q = float(rep["stock_settlement"]["outputs_booked"].get("tanned_leather_jin", {}).get("qty", 0) or 0)
+    assert q > base_q * 1.05, f"皮革链产出未随 PM 提升：{base_q} → {q}"
+
+
+def test_all_workshop_types_have_neutral_pm_defaults():
+    """19 类作坊都必须有 PM 默认四槽（否则相对倍率恒 1.0，切换 PM 无感）。"""
+    from content.data_constants import WORKSHOP_RECIPES
+    from core.domains.economy.production_methods import BUILDING_DEFAULT_PMS
+    missing = [w for w in WORKSHOP_RECIPES if w not in BUILDING_DEFAULT_PMS]
+    assert missing == [], f"缺少 PM 默认：{missing}"

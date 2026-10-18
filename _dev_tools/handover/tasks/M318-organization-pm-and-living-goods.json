@@ -2,7 +2,7 @@
   "id": "M318-organization-pm-and-living-goods",
   "title": "组织形态生产方式（作坊vs工厂）与民生文教消费闭环",
   "status": "in_progress",
-  "audit_status": "2026-10-18 全审：多级产业链已按 PM 相对倍率驱动（默认中性）——industry_chains 的成品入仓按代表建筑（冶铁/造船/火药/火器/窑/机械/印书）current/default 四槽倍率缩放；未列出的成品键回退 1.0。切换 PM 实测造船链 2701→按倍率提升；默认逐位不变。",
+  "audit_status": "2026-10-18 全审：PM 已覆盖全部 19 类作坊（新增 pm_craft_generic 中性基线 + 13 类作坊默认四槽）与全部产业链成品键（纺织/皮革/食品/造纸/印书等）；相对倍率默认 1.0，切换 PM 后作坊与产业链产出同步提升。",
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-17",
   "authority": "JEV-20261017-M318-organization-pm-and-living-goods（方案A概率0.9935）与用户指示",
