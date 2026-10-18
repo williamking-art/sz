@@ -6,14 +6,15 @@
   "completed_at": "2026-10-17T13:22:00Z",
   "description": "按全审报告（analysis/full-audit-2026-10-17.md）整改并全量回归：前端 ReadoutHubPanel/ActionName、后端9个 action 符号、130个资产恢复；常平覆盖、作坊双记、八链 stock-to-stock、配货空转、转账镜像、在途落档、采矿双提、49/49 critical、兵额 POP；issue_decree 字段/Agent、settle_reform 与军令事权、decree_confirm fail-closed、UI 敕命模板；resolve_event 伪造、结算窗口409、前端假读数/算法复制；GOODS_DIMS 去重与货主补齐。Jev 留痕 decisions/JEV-全审整改-2026-10-17.json（0.980/0.855/0.707）。",
   "verification": {
-    "pytest": "3542 tests / 0 failed / 0 errors / 3 skipped（junit _scratch/audit-20261017/junit-pm2.xml，780.2s）；干净 clone 3535 / 0 failed / 12 skipped（junit-cleanC.xml）",
+    "pytest": "3548 tests / 0 failed / 0 errors / 3 skipped（junit _scratch/audit-20261017/junit-dim.xml，556.2s）；干净 clone 3535 / 0 failed / 12 skipped（junit-cleanC.xml）",
     "tsc": "web 0 / node 0",
     "vitest": "17 files / 98 passed",
     "clean_clone_import": "procurement/logistics_coupler/commands/decree_confirm/settlement_pipeline/game_init 全 OK",
     "handover_check": "tasks=207 decisions=182 worklog=559 问题=0",
     "release": "electron/dist 已恢复；electron-vite build + electron-builder NSIS 成功；SongZuo Setup 0.1.0.exe 302.4MB @2026-10-18，win-unpacked/SongZuo.exe 180.1MB，resources/backend 234 文件；包内无 ai_config/key/pem。",
     "release_smoke": "打包后端直启：/health 200；POST /api/new_game 200（turn=0/year=1101/prefectures=20）；GET /api/readouts 200（102,610 bytes）。Electron GUI 待真机桌面会话。",
-    "pm_balance": "PM 投入配方已接线（默认中性）；长局切 PM 哨兵：12/60/240 月均 5/5 通过（货币恒等式、POP 挂载律、资源非负有限、读数契约）。"
+    "pm_balance": "PM 投入配方已接线（默认中性）；长局切 PM 哨兵：12/60/240 月均 5/5 通过（货币恒等式、POP 挂载律、资源非负有限、读数契约）。",
+    "chain_dim_unification": "链原料归一：settle_industry_chains mode=warehouse_stock_to_stock/coverage=0.903；仓库含 煤炭/铁/黏土/硝石/硫磺/木，无 coal/iron_ore/clay；链级需求已消费 PM（切木炭 ⇒ 煤炭 0、木炭 > 0，默认中性）。"
   },
   "created_at": "2026-10-17T13:22:00Z",
   "dependencies": [

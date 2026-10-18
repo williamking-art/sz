@@ -669,4 +669,44 @@ Jev：官方垦荒「默认 0 的机构参数 + 年度国库比例拨款」**p=0
 
 ### 22.6 结论
 - PM 从「只影响产出倍率」升级为「**产出倍率 + 投入配方**」双驱动，且默认中性。
-- 长局切 PM 不破坏账本/POP/读数契约；产业链级替换待维表并轨后再做。
+- 长局切 PM 不破坏账本/POP/读数契约；产业链级替换待维表并轨后再做。---
+
+## 23. 第十四批整改（产业链维表并轨 + 链级 PM 投入）
+
+### 23.1 并轨内容
+| 链原料键 | 规范商品维 | 说明 |
+|---|---|---|
+| `silk_raw` / `hemp_raw` | 丝 / 麻 | 纤维 |
+| `tea_raw` / `sugar_cane` | 茶 / 蔗 | 经济作物 |
+| `iron_ore` / `copper_ore` | 铁 / 铜 | 金属 |
+| `coal` | 煤炭 | 燃料 |
+| `timber` / `stone` / `clay` | 木 / 石 / 黏土 | 建材 |
+| `hides_raw` | 皮革 | 皮张 |
+| `meat_raw` | meat | 肉 |
+| `sulfur_niter` | 硝石 60% + 硫磺 40% | 火药两味拆维 |
+
+- 新增 `CHAIN_DIM_ALIAS` / `canonical_raw_dims()`；`settle_industry_chains` 在
+  `ingest_upstream_production` 前先归一 ⇒ **仓库里不再出现 `coal/iron_ore/clay`**。
+- `_estimate_chain_input_demand` 直接产出中文商品维，与仓储/PM 规则同一套维名。
+
+### 23.2 链级 PM 投入
+- `_estimate_chain_input_demand(outputs, state)` 新增可选 `state`：
+  对每个成品键按代表建筑（冶铁工场/官窑瓷坊/…）做**各路 PM 配方等权平均**；
+  默认 PM ⇒ 平均值逐位等于原篮子（默认中性）。
+- 实测：切木炭后，铁/瓷链需求 `煤炭 → 0`、`木炭 > 0`；未切时与无 `state` 逐位一致。
+
+### 23.3 实测
+- `settle_industry_chains(new_game)`：`mode=warehouse_stock_to_stock`、`input_coverage=0.903`；
+  仓库含 `煤炭/铁/黏土/硝石/硫磺/木`，无 `coal/iron_ore/clay`。
+- 新增 6 条用例（别名映射、硫硝拆分、需求维合法性、仓储归一、默认中性、切 PM）。
+- 定向 20 条链/PM/仓储用例全绿。
+
+### 23.4 迁移说明
+- 旧存档仓库里可能残留英文键（`coal/iron_ore/...`）；并轨后首月覆盖率会偏低，
+  次月起由 `ingest_upstream_production` 写入中文维后恢复。未做自动搬运，避免误并桶。
+- 链级 PM 目前只影响**投入需求**；产出倍率仍由 `_warehouse_add_distributed` 的 PM 倍率控制。
+
+### 23.5 仍未闭环
+1. 旧存档英文键的一次性搬运（可加迁移脚本，但需先确认无同义双桶）。
+2. 240 月长局在「链级切 PM」场景下未单独跑（作坊级已跑 5/5）。
+3. 真机 GUI 冒烟/签名/截图矩阵（同 §21）。

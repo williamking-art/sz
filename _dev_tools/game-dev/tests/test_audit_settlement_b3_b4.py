@@ -181,12 +181,13 @@ def test_industry_chains_book_outputs_into_physical_warehouses():
         assert booked > 0, f"{key} 报表 {qty} 但无入仓记账：{ss['outputs_booked'].get(key)}"
         assert _warehouse_stock(s, dim) > 0, f"{key} 报表>0 但仓中 {dim} 为 0"
 
-    # 铜闭环：先扣 copper_ore，再把 铜锭 入仓；不再额外写非法 resources["铜"]
-    ore_in = ss["inputs"]["copper_ore"]
-    assert ore_in["taken"] > 0, "copper_ore 未被扣减"
-    assert ore_in["available_before"] > 0, "本月未把 copper_ore 物理入仓"
-    assert _warehouse_stock(s, "copper_ore") < ore_in["available_before"], \
-        "copper_ore 扣减后剩余应小于入仓前可用量"
+    # 铜闭环（2026-10-18 维表并轨：copper_ore → 铜）：先扣 铜，再把 铜锭 入仓；
+    # 不再额外写非法 resources["铜"]。
+    ore_in = ss["inputs"]["铜"]
+    assert ore_in["taken"] > 0, "铜 未被扣减"
+    assert ore_in["available_before"] > 0, "本月未把 铜 物理入仓"
+    assert _warehouse_stock(s, "铜") < ore_in["available_before"], \
+        "铜 扣减后剩余应小于入仓前可用量"
     assert _warehouse_stock(s, "铜锭") > before_cu, "铜锭未入仓"
     assert _resource_stock(s, "铜") == before_bad_cu, "旧实现仍在额外造 resources['铜']"
 

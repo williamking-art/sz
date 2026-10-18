@@ -45,6 +45,7 @@ from core.domains.economy.macro_climate import ALL_CIRCUITS_21
 
 __all__ = [
     "derive_raw_production",
+    "CHAIN_DIM_ALIAS", "canonical_raw_dims",
     "settle_industry_chains",
     "CHAIN_TEXTILE",
     "CHAIN_METALLURGY",
@@ -176,6 +177,50 @@ def derive_raw_production(state, circuit: str) -> Dict[str, float]:
         "meat_raw": float(round(monthly_meat, 1)),
         "mine_tax_coin": float(round(mine_tax_coin, 1)),
     }
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-18 维表并轨：链原料英文键 → `RESOURCE_DIMS` 中文商品维
+# ---------------------------------------------------------------------------
+#: 链原料维 → 规范商品维。并轨后仓储/需求/PM 规则使用同一套维名。
+CHAIN_DIM_ALIAS: Dict[str, str] = {
+    "silk_raw": "丝",
+    "hemp_raw": "麻",
+    "tea_raw": "茶",
+    "sugar_cane": "蔗",
+    "iron_ore": "铁",
+    "copper_ore": "铜",
+    "coal": "煤炭",
+    "salt_raw": "盐",
+    "timber": "木",
+    "stone": "石",
+    "clay": "黏土",
+    "hides_raw": "皮革",
+    "meat_raw": "meat",
+}
+#: 硫硝伴生按主用途拆成两维（硝石 60% / 硫磺 40%）——火药配方两味都要。
+SULFUR_NITER_SPLIT = (("硝石", 0.6), ("硫磺", 0.4))
+
+
+def canonical_raw_dims(raw: Dict[str, Any]) -> Dict[str, float]:
+    """把链原料英文键归一为 `RESOURCE_DIMS` 中文维（缺失/非数/≤0 跳过）。
+
+    默认中性：已是中文维的键原样保留；`grain` / `mine_tax_coin` 等特殊键不动。
+    """
+    out: Dict[str, float] = {}
+    for key, val in (raw or {}).items():
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            continue
+        q = float(val)
+        if q <= 0:
+            continue
+        if key == "sulfur_niter":
+            for dim, share in SULFUR_NITER_SPLIT:
+                out[dim] = out.get(dim, 0.0) + q * share
+            continue
+        dim = CHAIN_DIM_ALIAS.get(key, key)
+        out[dim] = out.get(dim, 0.0) + q
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -442,34 +487,75 @@ def _warehouse_weights(state, dims) -> Dict[str, float]:
     return weights
 
 
-def _estimate_chain_input_demand(outputs: Dict[str, Any]) -> Dict[str, float]:
+def _average_pm_basket(state, building: str, basket: Dict[str, float]) -> Dict[str, float]:
+    """按各路 capitalize 治所对同一投入篮子做 PM 调整后取**等权平均**。
+
+    默认 PM ⇒ 每路都返回原篮子 ⇒ 平均值逐位等于原篮子（默认中性）。
+    """
+    from core.domains.economy.production_methods import adjusted_recipe
+    adjusted: List[Dict[str, float]] = []
+    for route in ALL_CIRCUITS_21:
+        sid = _route_capital_seat(state, route)
+        if not sid:
+            continue
+        try:
+            adjusted.append(dict(adjusted_recipe(state, route, sid, building, basket)))
+        except Exception:  # noqa: BLE001 — 单路失败按原篮子计
+            adjusted.append(dict(basket))
+    if not adjusted:
+        return dict(basket)
+    dims = set().union(*(set(a) for a in adjusted))
+    return {d: sum(float(a.get(d, 0.0) or 0.0) for a in adjusted) / len(adjusted)
+            for d in dims}
+
+
+def _estimate_chain_input_demand(
+    outputs: Dict[str, Any], state: Any = None,
+) -> Dict[str, float]:
     """由成品产出反推本月八大链的原料加工需求（用于覆盖度与「无料不产」）。
 
     口径：每个原料维按**主用途**估算（`max` 而非累加，避免把同一批麻在三链重复计入）。
+    2026-10-18 维表并轨后：篮子直接用中文商品维；给 `state` 时按代表建筑的 PM
+    相对配方做各路平均（默认 PM 恒中性）。
     """
     def _q(key: str) -> float:
         v = outputs.get(key, 0.0)
         return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
-    return {
-        "silk_raw": _q("silk_cloth_pi") * 3.0,
-        "hemp_raw": max(_q("cloth_pi") * 2.0,
-                        _q("paper") * 5.0,
-                        _q("cooking_oil_jin") * 20.0),
-        "iron_ore": _q("iron_ingots") * 2.0,
-        "copper_ore": _q("copper_ingots") / 0.7,
-        "coal": _q("iron_ingots") + _q("fine_china_pieces") * 20.0,
-        "timber": max(_q("timber_beams") / 0.8,
-                      _q("gunpowder_jin") * 10.0,
-                      _q("ink_jin") * 10.0,
-                      _q("firewood_dan") / 0.3),
-        "clay": _q("fine_china_pieces") * 10.0,
-        "sulfur_niter": _q("gunpowder_jin") * 2.0,
-        "hides_raw": _q("tanned_leather_jin") / 0.8,
-        "sugar_cane": _q("sugar_jin") * 3.0,
-        "stone": _q("four_treasures_pieces") * 40.0,
-        "grain": _q("paste_vinegar_jin") * 75.0,
+    baskets: Dict[str, Dict[str, float]] = {
+        "silk_cloth_pi": {"丝": _q("silk_cloth_pi") * 3.0},
+        "cloth_pi": {"麻": _q("cloth_pi") * 2.0},
+        "paper": {"麻": _q("paper") * 5.0},
+        "cooking_oil_jin": {"麻": _q("cooking_oil_jin") * 20.0},
+        "iron_ingots": {"铁": _q("iron_ingots") * 2.0,
+                        "煤炭": _q("iron_ingots")},
+        "copper_ingots": {"铜": _q("copper_ingots") / 0.7},
+        "fine_china_pieces": {"黏土": _q("fine_china_pieces") * 10.0,
+                              "煤炭": _q("fine_china_pieces") * 20.0},
+        "timber_beams": {"木": _q("timber_beams") / 0.8},
+        "gunpowder_jin": {"木": _q("gunpowder_jin") * 10.0,
+                          "硝石": _q("gunpowder_jin") * 1.2,
+                          "硫磺": _q("gunpowder_jin") * 0.8},
+        "ink_jin": {"木": _q("ink_jin") * 10.0},
+        "firewood_dan": {"木": _q("firewood_dan") / 0.3},
+        "tanned_leather_jin": {"皮革": _q("tanned_leather_jin") / 0.8},
+        "sugar_jin": {"蔗": _q("sugar_jin") * 3.0},
+        "four_treasures_pieces": {"石": _q("four_treasures_pieces") * 40.0},
+        "paste_vinegar_jin": {"grain": _q("paste_vinegar_jin") * 75.0},
     }
+    demand: Dict[str, float] = {}
+    for key, basket in baskets.items():
+        b = {d: float(v) for d, v in canonical_raw_dims(basket).items() if v > 0}
+        if not b:
+            continue
+        if state is not None:
+            building = _OUTPUT_PM_BUILDING.get(key)
+            if building:
+                b = _average_pm_basket(state, building, b)
+        for dim, qty in b.items():
+            if qty > 0:
+                demand[dim] = max(demand.get(dim, 0.0), float(qty))
+    return demand
 
 
 def _apply_chain_stock_settlement(state, outputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -508,7 +594,7 @@ def _apply_chain_stock_settlement(state, outputs: Dict[str, Any]) -> Dict[str, A
         report["report_only_outputs"] = [k for k in positive if k not in _MONETARY_OUTPUT_KEYS]
         return report
 
-    demand = _estimate_chain_input_demand(outputs)
+    demand = _estimate_chain_input_demand(outputs, state)
     available = {dim: _warehouse_available(state, dim) for dim in demand}
     coverage = 1.0
     for dim, need in demand.items():
@@ -614,8 +700,8 @@ def settle_industry_chains(state, log: Optional[List[str]] = None) -> Dict[str, 
         prod = derive_raw_production(state, c)
         for k, v in prod.items():
             nat_raw[k] = nat_raw.get(k, 0.0) + v
-        # 物理确权入各路四仓
-        ingest_upstream_production(state, c, prod)
+        # 物理确权入各路四仓（2026-10-18 维表并轨：先归一为中文商品维）
+        ingest_upstream_production(state, c, canonical_raw_dims(prod))
 
     # 2. 八大实体产业链多级深加工转化
 
