@@ -1,0 +1,28 @@
+{
+ "id": "JEV-DEC-B2d-资源桶搬运守恒取证与门-2026-10-18",
+ "createdAt": "2026-10-18T09:50:00+08:00",
+ "agent": "DSH",
+ "question": "B-2d 以「取证 + 门（含 xfail 钉住待修口径）、不改配货口径」收口是否达标？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.6445,
+ "holds": true,
+ "threshold": 0.4,
+ "verdict": "达标：取证成立且门能钉住待修口径；配货口径改动属口径变更，留待用户裁定 A/B",
+ "premises_verified_by_me": [
+  "B-5 已把 holding_report 改为带符号 gap（读码确认，设计稿描述过时）",
+  "实测第 2 月起 gap 变负最大 -1.3M；读码确认 supply 的 put ≤ need ≤ stock，max(0,cur-put) 永不夹断 ⇒ 非凭空增物",
+  "配货前后 Σ(持有+库存) 不变（实测 丝/麻/铁 有搬运，差恒 0）",
+  "候选缺陷定位到 material_holding.py::supply_goods_to_seats（need 目标与来源同变量），实测 铁 gap=-1",
+  "门 5 条：棘轮/总量守恒/互换行为/xfail(strict) 待修断言/12 月无负库存"
+ ],
+ "judge_note": "p=0.644 属中等偏高：只判『以取证+门收口』成立，不判『配货口径已正确』",
+ "explicitly_not_done": [
+  "不改 supply_goods_to_seats 口径",
+  "不改 holding_report",
+  "不动库存写点"
+ ],
+ "applied_in": "commit（本轮）",
+ "reopen_if": "按 A（目标语义）或 B（真搬运）修口径时，xfail 与互换正例都会变红"
+}

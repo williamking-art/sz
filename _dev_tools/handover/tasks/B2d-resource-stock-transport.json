@@ -1,0 +1,27 @@
+{
+ "id": "B2d-resource-stock-transport",
+ "title": "B-2d 资源桶搬运守恒：取证 + 门（含 1 处候选口径缺陷）",
+ "status": "done",
+ "registeredBy": "DSH",
+ "registeredAt": "2026-10-18",
+ "finishedAt": "2026-10-18",
+ "authority": "用户 2026-10-12 授权 B-2 只读取证",
+ "goal": "确认 resources 库存与商人持有的守恒关系，并把判据固化成门。",
+ "findings": [
+  "设计稿『holding_report 只判 held>stock（单向）』已过时：B-5(2026-10-17) 已改为带符号 gap",
+  "但 holding_report 不能当任意时点判据：第 2 月起 gap 变负，最大 -1.3M；读码确认非凭空增物",
+  "真守恒式 = 配货前后 Σ(商人持有+国库库存) 不变（实测差恒 0）",
+  "候选缺陷：supply_goods_to_seats 把 stock 同时当『配货目标』与『来源』⇒ 配货后 held/stock 互换，holding_report 在 stock>0 时必然 gap≠0（实测 铁 -1）",
+  "库存写点 14 处 / 8 文件（棘轮登记）"
+ ],
+ "deliverable": [
+  "_dev_tools/game-dev/tests/test_quality_gate_resource_stock.py（5 条，含 xfail(strict) 钉住待修口径）",
+  "_dev_tools/game-docs/specs/cross-cutting/B2d_资源桶搬运守恒_取证_2026-10-18.md（含改法 A/B 与验收断言）"
+ ],
+ "explicitly_not": [
+  "不改 supply_goods_to_seats 口径（属口径变更，需裁定）",
+  "不改 holding_report 判定",
+  "不动库存写点"
+ ],
+ "reopen_if": "按 A 或 B 修配货口径时（xfail 会转红/转绿，强制同步）"
+}
