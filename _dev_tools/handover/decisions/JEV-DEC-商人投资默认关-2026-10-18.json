@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-商人投资默认关-2026-10-18",
+ "createdAt": "2026-10-19T00:55:00+08:00",
+ "agent": "DSH",
+ "question": "P8 商人自主投资默认开关：默认关 / 默认开 / 默认开但只买船",
+ "options": [
+  "A 默认关闭",
+  "B 默认开启",
+  "C 默认开启但只买船"
+ ],
+ "verdict": "A 默认关闭",
+ "probabilities": {
+  "A": 0.6763,
+  "B": 0.2628,
+  "C": 0.0609
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定（用户授权：决策用 Jev）",
+ "premises_verified_by_me": [
+  "优势幅度不算压倒（0.676 vs 0.263），但与 P5 同构：默认关=零行为变更，可影子对账后再开",
+  "投资会抬高私运力 ⇒ 间接影响运价/货量/税收，当前无长局对账数据",
+  "开关关闭已实测：run_monthly_settlement 日志无「商投」行",
+  "守恒已由门锁死：商人 wealth↓ = 工匠 wealth↑，资产落既有 carriage[private]，不新开账本"
+ ],
+ "applied_in": "content/data_constants.MERCHANT_INVEST_ENABLED=0 + core/domains/economy/pop_investment.py + core/settlement.py 钩子",
+ "reopen_if": "影子对账通过后切 1；或需要演示「商人自建船队」时临时开"
+}

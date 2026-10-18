@@ -154,6 +154,7 @@ dynamic_price.py
 | 误用 `workshops[...].get("type")` 分类 | **仅 `entity_projection.py:218` 命中，且写法正确** —— `row.get("name") or row.get("workshop_type") or row.get("type")` 是**防御式回退**（`name` 优先）⇒ **不是缺陷** |
 | `foreign_trade_readout.py` | **新建**（P2 2026-10-18）| `survey_foreign_trade` `survey_transport` `survey_all` | **只读**：外贸读数（贸易额/通道/税费/货种TopN/blocked）+ 运输读数（运力/剩余/在途剩余回合）；缺失字段一律 None+reason（缺失≠0）；不复制算法（税费直接汇总流水）|
 | `trade_legs.py` | **新建**（P5 2026-10-18）| `trade_legs_enabled` `plan_legs` `execute_leg` `apply_tariff` `settle_foreign_trade` | 外贸货腿三段式（计划/执行/计税）：出口不足**缩量**、进口受 cap、关税按**实际额**、运力不足**排队**；存取走 resource_stock_bridge 并回落旧池；总开关 FOREIGN_TRADE_LEGS **默认 0**（Jev 0.970）|
+| `pop_investment.py` | **新建**（P8 2026-10-18）| `merchant_posture` `posture_rules` `plan_investments` `apply_investment` `settle_merchant_investment` | 商人自主投资：天道只给档位（进取/稳健/保守，非法回落中性）；钱**守恒转移**（商人 wealth→同 seat 工匠工钱），资产落 carriage[private]；边际成本按规模档递增；总开关 MERCHANT_INVEST_ENABLED **默认 0**（Jev 0.676）|
 | 误用 `workshop.get("kind")` 当类型 | **0 处** ✅ |
 | 误用 `workshop.get("dim")` | **0 处** ✅ |
 

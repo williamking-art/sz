@@ -1711,3 +1711,26 @@ FOREIGN_TARIFF_RATE = {"sea": 0.10, "land": 0.05}
 #: P6 榷场（陆路互市）：态度阈值（低于即闭场）与榷税拆分（过税占比）
 LAND_MARKET_MIN_ATTITUDE = 30
 LAND_TAX_OVER_SHARE = 0.4    # 过税 40% → 沿途路府库；住税 60% → 交易地府库
+
+# ============================================================
+# P8 商人自主投资（2026-10-18；模型未定，先留档位 + 规则表）
+# ============================================================
+#: 天道档位 → 投资倾向（非法档位一律回落「稳健」）
+MERCHANT_POSTURES = {
+    "进取": {"invest_ratio": 0.35, "boat_share": 0.55, "cart_share": 0.25, "scope_share": 0.20},
+    "稳健": {"invest_ratio": 0.20, "boat_share": 0.40, "cart_share": 0.35, "scope_share": 0.25},
+    "保守": {"invest_ratio": 0.08, "boat_share": 0.20, "cart_share": 0.50, "scope_share": 0.30},
+}
+MERCHANT_POSTURE_FALLBACK = "稳健"
+#: 触发门槛（贯）：商人可用资本低于此不投资（设定值）
+POP_INVEST_MIN_CAPITAL = 20000
+#: 载具单位成本（贯）与船队规模边际成本递增系数
+PRIVATE_BOAT_COST = 3000
+PRIVATE_CART_COST = 300
+INVEST_FLEET_COST_GROWTH = 1.05
+#: 每轮最多提案数（防一回合铺满）
+POP_INVEST_MAX_PROPOSALS = 40
+
+
+#: P8 商人自主投资总开关（Jev：默认关 0.676 / 默认开 0.263 / 只买船 0.061）
+MERCHANT_INVEST_ENABLED = 0

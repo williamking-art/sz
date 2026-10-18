@@ -497,6 +497,21 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
             log.append(f"[钱运] 在途钱款到账 {len(_arrived)} 批 / {_sum} 贯")
     except Exception as _me:  # noqa: BLE001 —— 测量仪器不得中断结算
         log.append(f"[钱运][WARN] 到账处理失败：{_me!r}")
+
+    # ---- P8 商人自主投资（2026-10-18；Jev：默认关 0.676）----
+    # 开关 MERCHANT_INVEST_ENABLED=0 时**零行为变更**；开=1 才让商人按天道档位买船/车/扩品类。
+    try:
+        from content.data_constants import MERCHANT_INVEST_ENABLED as _MINV
+        if int(_MINV or 0):
+            from core.domains.economy.pop_investment import settle_merchant_investment as _smi
+            _inv = _smi(state)
+            if _inv.get("done"):
+                log.append("[商投] %s：提案 %d、成交 %d（失败 %d）" % (
+                    _inv.get("posture"), int(_inv.get("planned") or 0),
+                    int(_inv.get("done") or 0), int(_inv.get("failed") or 0)))
+    except Exception as _inv_exc:  # noqa: BLE001 —— 投资失败必须留痕，不得静默
+        import logging as _lg
+        _lg.getLogger(__name__).warning("商人投资结算失败：%r", _inv_exc, exc_info=True)
     from core.asset_context import era_switch
     era_switch(state)
 
