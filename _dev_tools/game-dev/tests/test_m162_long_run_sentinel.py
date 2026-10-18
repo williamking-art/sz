@@ -83,3 +83,63 @@ def test_long_run_readout_contract_holds():
         if v["value"] is None:
             assert v["display"] == "undefined" and v["reason"], k
     assert rep["undefined_count"] <= 3, rh.undefined_summary(s)   # 长局不应出现"大面积缺失"
+
+
+def test_long_run_with_pm_switch_preserves_invariants():
+    """半程切换生产方式（燃料替换）后，长局仍守恒、不崩、读数合规。
+
+    2026-10-18 平衡批次：PM 现在会改**投入配方**（煤炭↔木炭、蒸汽/工场额外消耗）。
+    本用例锁「切 PM 的长期副作用」：货币恒等式、POP 挂载律、资源非负有限、读数契约。
+    """
+    import math
+
+    from core.domains.economy.production_methods import switch_pm
+    from core.foundation.ledger.building_bridge import capital_seat_id
+
+    s = _fresh()
+    months = _months()
+    half = max(1, months // 2)
+    _run(s, half)
+
+    switched = 0
+    for route, p in s.prefectures.items():
+        seat = capital_seat_id(p, route)
+        if not seat:
+            continue
+        for building, pm_id in (
+            ("冶铁作坊", "pm_smelting_charcoal"),
+            ("冶铁工场", "pm_smelting_charcoal"),
+            ("官窑瓷坊", "pm_ceramics_charcoal"),
+        ):
+            if switch_pm(s, route, str(seat), building, pm_id):
+                switched += 1
+    assert switched > 0, "半程应至少切换一路的生产方式"
+
+    _run(s, months - half)
+
+    mi = si.money_identity(s)
+    assert mi.get("available") is True, mi
+    assert abs(float(mi["m_all"]) - float(mi["accounts_sum"])) < 1e-6, mi
+
+    bad = []
+    for route, p in s.prefectures.items():
+        seats = p.get("seats") or {}
+        for fld in ("size", "wealth"):
+            seat_sum = sum(float((sr.get("pops") or {}).get("农", {}).get(fld, 0) or 0)
+                           for sr in seats.values())
+            route_val = float(((p.get("pops") or {}).get("农") or {}).get(fld, 0) or 0)
+            if abs(seat_sum - route_val) > 1e-6:
+                bad.append((route, fld, seat_sum, route_val))
+    assert bad == [], bad
+
+    for dim, cell in (s.resources or {}).items():
+        stock = float((cell or {}).get("stock", 0) or 0)
+        assert math.isfinite(stock), (dim, stock)
+        assert stock >= 0, (dim, stock)
+    assert math.isfinite(float(s.treasury))
+
+    rep = rh.collect(s)
+    assert len(rep["readouts"]) == len(rh.READOUTS)
+    for k, v in rep["readouts"].items():
+        assert isinstance(v["display"], str), k
+        assert isinstance(v.get("drill_down"), (dict, type(None))), (k, type(v.get("drill_down")))
