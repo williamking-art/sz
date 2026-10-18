@@ -29,23 +29,6 @@ AGENT_DEFS: Dict[str, dict] = {
         "domain_fields": ["external_jin", "external_liao", "external_xixia",
                           "sui_gong", "alliance_jin_liao"],
     },
-    "finance": {
-        "order": 2,
-        "method": "finance_decide",
-        "settle_attr": "_finance_ai",
-        "wake_keywords": ["税", "银", "钱", "开支", "岁入", "商", "盐", "市舶",
-                          "折色", "役钱", "粮价", "交子", "钱荒"],
-        "wake_state": [("treasury", lambda v: isinstance(v, (int, float)) and v < 0)],
-        "wake_diff_paths": ["treasury", "tax_breakdown.", "prefectures.*.tax"],
-        "domain_fields": ["treasury", "imperial_treasury", "tax_breakdown",
-                          "commerce_tax_rate"],
-        # 2026-09-27 **已停用**（审查 §8.2-#3）：结算侧无消费者（`_settle_finance` 不读
-        # `_finance_ai`），此前每回合仍会按关键词 / `treasury < 0` **真实唤醒并调用 LLM**
-        # → 结果被丢弃＝白烧 token。`route_agents` 的 `wired is False` 守卫（见下 :232 附近）
-        # 会跳过本项；契约方法与 PENDING 登记一并保留。
-        # **接线前须先设计消费语义**：谁读 `_finance_ai`、读哪几个字段、如何落账。
-        "wired": False,
-    },
     "military": {
         "order": 3,
         "method": "military_decide",
@@ -161,6 +144,11 @@ AGENT_DEFS: Dict[str, dict] = {
 #: 接线步骤 = 补 AIClient 契约方法 → 从本表移除 → 加进 AGENT_DEFS（wired 默认 True）。
 #: 接线前对应 getattr 分支恒走本地兜底（等价扩展挂点，非缺陷）。
 PENDING_CONTRACTS = (
+    # 2026-10-18（用户批准）：_finance_ai 由 wired=False 停用改为彻底断开——
+    # 契约方法 finance_decide 保留，但不再登记为可唤醒 Agent、也不再计入 token_meter 推演配额。
+    # 理由：它是「有生产者、无消费者」的半边接线，留着等于一颗「改回 True 就白烧」的雷。
+    # 将来要做「财政天道」，须先设计消费落点（税率/支出/铸币）再一起接。
+    ("_finance_ai", "finance_decide", "已断开（无消费者）；重接前须先设计档位落点"),
     ("_reform_ai", "reform_decide", "core/settlement.py::settle_reform"),
     # 反向不一致（有生产者无消费者）：唤醒会消耗 token 但结果被丢弃；接线需先设计消费语义
     ("_finance_ai", "finance_decide",

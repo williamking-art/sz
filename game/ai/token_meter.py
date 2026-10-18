@@ -95,7 +95,9 @@ TOKEN_GROUPS = {
     "拟旨": {"polish_decree", "draft_decree", "parse_decree"},
     "会签": {"council_review"},
     "推演": {"economy_decide", "diplomacy_decide", "military_decide", "relief_decide",
-             "finance_decide", "treasury_decide", "granary_decide", "faction_decide",
+             # finance_decide 2026-10-18 移出：AGENT_DEFS 已断开（有产出无消费者），
+             # 不再计入推演配额；重接时按「先设计消费落点」流程加回。
+             "treasury_decide", "granary_decide", "faction_decide",
              "land_local_decide", "era_decide", "invest_decide", "free_effect_decide",
              "survey_settle", "decree_execute_decide", "emperor_personal_decide",
              "hidden_state_decide", "build_new_branch_decide", "research_decide",

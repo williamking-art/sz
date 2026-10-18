@@ -606,32 +606,6 @@ class SettleContractMixin:
         raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.4, max_tokens=300, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("granary"))
 
-    def finance_decide(self, posture, state=None):
-        """财政金融契约（户部度支/市舶/交子务/银行）：推演货币、市舶、交子、银行、本位制等财政金融政务。
-        输出：{"narrative": "财政金融叙事（≤150字）", "tone": "得利|平实|扰民", "risk_hint": "隐患提示"}"""
-        sys_p = _load_prompt("finance", **{
-            "treasury_desc": "国库充盈" if (state and getattr(state, "treasury", 0) > 5_000_000) else "国库告匮",
-            "jiaozi_desc": "交子流通良好" if (state and getattr(state, "jiaozi", {}).get("issued", 0) > 0) else "交子未行",
-            "maritime_desc": "市舶通商兴旺" if (state and getattr(state, "maritime_trade", 0) > 0) else "市舶未通",
-            "coin_desc": "钱荒稍缓" if (state and getattr(state, "grain_price", 1.0) < 1.2) else "钱荒加剧",
-            "bank_desc": "银行已设" if (state and getattr(state, "bank", {}).get("established", False)) else "银行未设",
-            "act": "常规度支"
-        })
-        # 使用现有 finance.md 提示词
-
-        def validate(o):
-            if not isinstance(o, dict):
-                return None
-            o["narrative"] = _clean_text(str(o.get("narrative", "")))[:150]
-            tone = str(o.get("tone", "平实")).strip()
-            if tone not in ("得利", "平实", "扰民"):
-                tone = "平实"
-            o["tone"] = tone
-            o["risk_hint"] = _clean_text(str(o.get("risk_hint", "")))[:80]
-            return o
-
-        raw = self._call(sys_p, f"【朝局】{posture}", temperature=0.5, max_tokens=300, json_mode=True)
-        return self._postprocess(raw, validate, lambda: _ai_unavailable("finance"))
 
     def treasury_decide(self, posture, state=None):
         """国库契约（三司/内帑）：推演国库收支、内帑拨付、度支平衡、储备金。
