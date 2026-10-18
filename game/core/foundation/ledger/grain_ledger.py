@@ -41,14 +41,12 @@ def grain_of(pop: Optional[dict]) -> Optional[int]:
     goods = pop.get("goods")
     if not isinstance(goods, dict):
         return None
-    has = False
-    tot = 0
-    for d in ("米", "麦"):
-        v = goods.get(d)
-        if isinstance(v, (int, float)):
-            has = True
-            tot += int(v)
-    return tot if has else None
+    # 2026-10-18：粮是**类目词条**（GOODS_CLASSES），不在此硬编码「米+麦」成员集合。
+    # 口径单点 = core/foundation/ledger/goods_class.py；成员增减只改数据定义。
+    from content.data_constants import GRAIN_CLASS
+    from core.foundation.ledger.goods_class import class_total
+
+    return class_total(goods, GRAIN_CLASS)
 
 
 def has_grain_bucket(pop: Optional[dict]) -> bool:

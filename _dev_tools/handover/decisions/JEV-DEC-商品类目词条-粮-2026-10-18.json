@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-商品类目词条-粮-2026-10-18",
+ "createdAt": "2026-10-18T10:15:00+08:00",
+ "agent": "DSH",
+ "question": "以当前成员表（米/麦 active、面未立维、粟菽仅登记）作为「粮」词条落地口径是否达标？",
+ "mode": "noul",
+ "provider": "tokenrhythm",
+ "model": "NeoHorse-Jev-4B",
+ "probability": 0.9472,
+ "holds": true,
+ "threshold": 0.4,
+ "verdict": "达标：词条定义 + 单点访问层 + 门落地；面/粟/菽 立维与换算率留待用户确认（不阻塞本定义）",
+ "premises_verified_by_me": [
+  "旧口径只有 GRAIN_DIMS=[米,麦]，无「粮」概念（读码确认）",
+  "grain_ledger.grain_of 原硬编码 米+麦，已改 class_total(goods, 粮)，逐样本结果与旧实现一致",
+  "GOODS_DIMS / 价格 / 产出 / 交易 / 存档格式未动（零行为变更）",
+  "门 5 条通过（定义自洽/成员在目录内/合计缺失≠0 且跳过桶与布尔/grain_of==类目合计/注入跨类目即红）"
+ ],
+ "explicitly_not_done": [
+  "面立商品维",
+  "粟/菽立维",
+  "麦→面 换算率",
+  "G-3 迁移本身"
+ ],
+ "applied_in": "commit（本轮）",
+ "reopen_if": "确认面/粟/菽 立维或给出换算率时"
+}
