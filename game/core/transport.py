@@ -177,6 +177,22 @@ def transport_graph():
             if km <= float(ADJACENT_KM):
                 adj[a][b] = km
                 adj[b][a] = km
+    # 显式例外边（史实依据的补边；不降低全局阈值，见 content/data_constants.TRANSPORT_EXTRA_LINKS）
+    try:
+        from content.data_constants import TRANSPORT_EXTRA_LINKS
+
+        for link in TRANSPORT_EXTRA_LINKS:
+            a, b = str(link.get("a") or ""), str(link.get("b") or "")
+            if a not in coords or b not in coords or a == b:
+                continue
+            alon, alat = coords[a]
+            blon, blat = coords[b]
+            km = haversine_km(alon, alat, blon, blat)
+            if a in adj and b in adj and b not in adj[a]:
+                adj[a][b] = km
+                adj[b][a] = km
+    except Exception:  # noqa: BLE001 — 补边失败不得影响主图
+        pass
     _ROUTE_CACHE["__graph__"] = {"key": key, "nodes": nodes, "adj": adj}
     return nodes, adj
 
