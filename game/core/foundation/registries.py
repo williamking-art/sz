@@ -79,6 +79,11 @@ TECH_EFFECT_WHITELIST = (
     "yield_bonus", "trade_income", "mining_income", "army_power", "build_cost",
     "canal_efficiency", "production", "exam_talent", "decree_speed",
     "epidemic_risk", "calendar_bonus",
+    # 2026-10-18 运输类效果词条（开放）：玩家/AI 自创科技只要声明这些键，运输层自动生效
+    "transport_water_speed", "transport_water_load",
+    "transport_sea_speed", "transport_sea_load",
+    "transport_land_speed", "transport_land_load",
+    "transport_labor_save",
 )
 
 

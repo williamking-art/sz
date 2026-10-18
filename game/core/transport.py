@@ -292,6 +292,146 @@ def transit_km(frm: str, to: str, mode: str) -> Optional[float]:
     return haversine_km(float(a["lon"]), float(a["lat"]), float(b["lon"]), float(b["lat"]))
 
 
+
+
+def carriers_for(mode: str) -> list:
+    """该路网可用载具（载重/速度/人石比/口粮率）；未登记 ⇒ 空表（不臆造）。"""
+    from content.data_constants import TRANSPORT_CARRIERS
+
+    return list(TRANSPORT_CARRIERS.get(str(mode or "")) or ())
+
+
+def baseline_carrier(mode: str) -> Optional[dict]:
+    """基准载具（既有矩阵系数的来源）；无 ⇒ None。"""
+    for c in carriers_for(mode):
+        if c.get("baseline"):
+            return dict(c)
+    return None
+
+
+def carrier_labor(qty_stone: float, carrier: dict) -> int:
+    """该载具运 qty 石所需**夫役人数**：ceil(qty × 人石比)，至少 1。"""
+    import math as _m
+
+    rate = float(carrier.get("labor_per_stone") or 0)
+    n = int(_m.ceil(max(0.0, float(qty_stone)) * rate))
+    return max(1, n) if qty_stone > 0 else 0
+
+
+def carrier_ration(qty_stone: float, carrier: dict, days: int) -> float:
+    """在途口粮（石）= 夫役数 × 日耗 × 天数（沈括模型，与既有实现同构）。"""
+    n = carrier_labor(qty_stone, carrier)
+    rate = float(carrier.get("ration_per_labor_day") or 0)
+    return float(n) * rate * max(0, int(days))
+
+
+
+
+def _tech_value(tech: dict, src: str) -> Optional[float]:
+    """读科技值（level/hydraulics/铁 …）；缺失 ⇒ None（不按 0 处理）。"""
+    if not isinstance(tech, dict):
+        return None
+    v = tech.get(src)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v)
+
+
+
+
+def transport_effects(state) -> dict:
+    """聚合**运输类科技效果**（开放词条驱动，不绑节点 id）。
+
+    来源（两者相加）：
+    · 官方 `TECH_NODES` 中**已解锁**节点的 `effects`；
+    · `state.tech_registry` 中 **active=True** 的玩家自创节点 `effect`。
+    只取 `TRANSPORT_EFFECT_CAPS` 登记过的键；未登记键**忽略**（不报错，缺失≠0）。
+    """
+    from content.data_constants import TRANSPORT_EFFECT_CAPS
+
+    caps = TRANSPORT_EFFECT_CAPS or {}
+    acc: Dict[str, float] = {}
+    tech = getattr(state, "tech", None) or {}
+    unlocked = set(tech.get("unlocked") or [])
+
+    def _add(eff):
+        if not isinstance(eff, dict):
+            return
+        for k, v in eff.items():
+            if k not in caps:
+                continue
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                continue
+            acc[k] = acc.get(k, 0.0) + float(v)
+
+    try:
+        from content.data import TECH_NODES
+
+        for nd in TECH_NODES or ():
+            try:
+                nid, eff = nd[0], nd[9]
+            except (IndexError, TypeError):
+                continue
+            if nid in unlocked:
+                _add(eff)
+    except Exception:  # noqa: BLE001
+        pass
+    for nid, node in (getattr(state, "tech_registry", None) or {}).items():
+        if isinstance(node, dict) and node.get("active"):
+            _add(node.get("effect"))
+    for k in list(acc):
+        acc[k] = max(-float(caps[k]), min(float(caps[k]), acc[k]))
+    return acc
+
+def carrier_params(state, mode: str, carrier: dict) -> dict:
+    """载具参数 + **科技修正**（效果词条驱动，不绑节点）。
+
+    · 来源：`transport_effects(state)`（官方节点 + 玩家自创节点，见该函数）；
+    · 映射：水/海/陆各有 speed/load 词条；`transport_labor_save` 降人石比；
+    · 只受 `TRANSPORT_EFFECT_CAPS` 封顶；无任何词条 ⇒ 参数原样返回（缺失≠0）。
+    """
+    from content.data_constants import TRANSPORT_EFFECT_CAPS
+
+    caps = TRANSPORT_EFFECT_CAPS or {}
+    eff = transport_effects(state)
+    speed_key = {"waterway": "transport_water_speed", "maritime": "transport_sea_speed",
+                 "overland": "transport_land_speed", "post": "transport_land_speed"}.get(mode)
+    load_key = {"waterway": "transport_water_load", "maritime": "transport_sea_load",
+                "overland": "transport_land_load"}.get(mode)
+    out = {k: carrier.get(k) for k in ("load", "km_per_day", "labor_per_stone")}
+    bonus = {}
+    if load_key and load_key in eff and isinstance(out.get("load"), (int, float)):
+        b = float(eff[load_key])
+        out["load"] = float(out["load"]) * (1.0 + b)
+        bonus["load"] = b
+    if speed_key and speed_key in eff and isinstance(out.get("km_per_day"), (int, float)):
+        b = float(eff[speed_key])
+        out["km_per_day"] = float(out["km_per_day"]) * (1.0 + b)
+        bonus["km_per_day"] = b
+    save = float(eff.get("transport_labor_save") or 0)
+    if save and isinstance(out.get("labor_per_stone"), (int, float)):
+        save = max(0.0, min(float(caps.get("transport_labor_save", 0.2)), save))
+        out["labor_per_stone"] = float(out["labor_per_stone"]) * (1.0 - save)
+        bonus["labor_per_stone"] = -save
+    out["tech_bonus"] = bonus
+    return out
+
+
+
+def carrier_days(mode: str, frm: str, to: str, carrier: Optional[dict] = None) -> Optional[int]:
+    """载具级时效：max(近程基准, ceil(km / 载具 km/日))；无里程 ⇒ None。"""
+    import math as _m
+
+    from content.data_constants import TRANSIT_NEAR_DAYS
+
+    km = transit_km(frm, to, mode)
+    if km is None:
+        return None
+    c = carrier or baseline_carrier(mode) or {}
+    speed = float(c.get("km_per_day") or 25)
+    near = int(TRANSIT_NEAR_DAYS.get(mode, 30))
+    return max(near, int(_m.ceil(km / speed)))
+
 def transit_days(mode: str, frm: str, to: str) -> Optional[int]:
     """**分档时效**（2026-10-18 Jev A 0.881）：近程用近程基准，超阈值按距离放大。
 

@@ -1501,3 +1501,66 @@ TRANSIT_NEAR_KM = 1000
 TRANSIT_NEAR_DAYS = {"waterway": 10, "maritime": 15, "overland": 15, "post": 2}
 #: 距离放大速度（km/日）：仅用于超过近程阈值后的放大
 TRANSIT_SPEED_KM_PER_DAY = {"waterway": 40, "overland": 25, "maritime": 60, "post": 250}
+
+# ============================================================
+# 载具级效能矩阵（2026-10-18：既有三维矩阵缺载具维，此处补齐）
+# ============================================================
+#: 既有矩阵的人/石与口粮系数 = **基准载具**的系数（本次显式化，值不变）：
+#:   内河 0.05 人/石 ≈ 漕船 500 石 / 25 人
+#:   陆路 0.50 人/石 ≈ 马车 10 石 / 5 人
+#:   海运 0.02 人/石 ≈ 海船 2,000 石 / 40 人
+TRANSIT_LABOR_PER_STONE = {"waterway": 0.05, "overland": 0.50, "maritime": 0.02, "post": 1.0}
+TRANSIT_RATION_PER_LABOR_DAY = {"waterway": 0.005, "overland": 0.020,
+                                "maritime": 0.008, "post": 0.020}
+
+#: 载具表：key = 路网；baseline=True 必须是既有系数的来源（门会校验）
+TRANSPORT_CARRIERS = {
+    "waterway": (
+        {"name": "漕船(500石)", "load": 500, "km_per_day": 40,
+         "labor_per_stone": 0.05, "ration_per_labor_day": 0.005, "baseline": True,
+         "note": "汴河漕船典型：25 人/船；既有矩阵 0.05 人/石即此"},
+        {"name": "内河小船(50石)", "load": 50, "km_per_day": 45,
+         "labor_per_stone": 0.50, "ration_per_labor_day": 0.005, "baseline": False,
+         "note": "民间短途小船：人手占比高，单位成本贵"},
+    ),
+    "maritime": (
+        {"name": "海船(2000石)", "load": 2000, "km_per_day": 60,
+         "labor_per_stone": 0.02, "ration_per_labor_day": 0.008, "baseline": True,
+         "note": "宋海船大者：40 人/船；既有矩阵 0.02 人/石即此"},
+        {"name": "海舶(200石)", "load": 200, "km_per_day": 70,
+         "labor_per_stone": 0.20, "ration_per_labor_day": 0.008, "baseline": False,
+         "note": "沿海小船/民舶：快但单位人力高"},
+    ),
+    "overland": (
+        {"name": "牛车(15石)", "load": 15, "km_per_day": 20,
+         "labor_per_stone": 0.33, "ration_per_labor_day": 0.020, "baseline": False,
+         "note": "慢、载多、人力省"},
+        {"name": "马车(10石)", "load": 10, "km_per_day": 25,
+         "labor_per_stone": 0.50, "ration_per_labor_day": 0.020, "baseline": True,
+         "note": "5 人/车；既有矩阵 0.5 人/石即此"},
+        {"name": "骡驮(2.5石)", "load": 2.5, "km_per_day": 35,
+         "labor_per_stone": 1.00, "ration_per_labor_day": 0.020, "baseline": False,
+         "note": "山路/短途，人力最重"},
+        {"name": "挑夫(1石)", "load": 1, "km_per_day": 30,
+         "labor_per_stone": 1.00, "ration_per_labor_day": 0.020, "baseline": False,
+         "note": "最末一程"},
+    ),
+    "post": (
+        {"name": "驿马(0.5石)", "load": 0.5, "km_per_day": 250,
+         "labor_per_stone": 1.0, "ration_per_labor_day": 0.020, "baseline": True,
+         "note": "文书/急递：只运轻货"},
+    ),
+}
+
+#: 运输类科技效果**上限表**（2026-10-18 用户：不限定接口，玩家会自创科技）
+#: 机制：任何科技（官方节点或 state.tech_registry 玩家节点）声明下列效果键即可生效，
+#:       程序只按本表封顶，**不绑具体节点 id**。
+TRANSPORT_EFFECT_CAPS = {
+    "transport_water_speed": 0.25,
+    "transport_water_load": 0.20,
+    "transport_sea_speed": 0.25,
+    "transport_sea_load": 0.25,
+    "transport_land_speed": 0.20,
+    "transport_land_load": 0.20,
+    "transport_labor_save": 0.20,
+}
