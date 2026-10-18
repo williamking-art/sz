@@ -80,6 +80,95 @@ def _fail(state, decree, log, *, did, reason, digest, outcome=OUTCOME_FAILED,
     return "done"
 
 
+def _settle_per_matter(state, decree, log, *, did, digest, matters, actor):
+    """M2b：逐 matter 执行/幂等，再聚合四态。"""
+    me = decree.get("matter_effects") or {}
+    statuses = decree.setdefault("matter_exec", {})
+    period = int(decree.get("resist_period", 0) or 0)
+    due = decree.get("due_turn")
+    if due is not None and int(due) > int(state.turn):
+        return "pending"
+    try:
+        rate = float(state.calc_decree_execution_rate(
+            decree.get("faction_stances", {}),
+            is_secret=decree.get("is_secret", False),
+            is_direct=decree.get("is_direct", False),
+            secret_loyalty=decree.get("secret_loyalty", 0.5),
+            is_zhongzhi=decree.get("is_zhongzhi", False),
+            org_hint=decree.get("org_hint", "政府"),
+        ))
+    except Exception:
+        rate = 0.5
+        decree["rate_undefined"] = True
+    rate = max(0.05, min(0.95, rate))
+    from core.settlement import _apply_decree_effect
+
+    for matter in matters:
+        cur = statuses.get(matter) or {}
+        if cur.get("status") == "executed":
+            continue
+        seed = int(hashlib.sha1(
+            f"{did}|{matter}|{state.turn}|{period}|{actor}".encode("utf-8")
+        ).hexdigest()[:16], 16)
+        roll = 0.5 + TianDaoEngine.dice(seed, entropy=0.5)
+        if roll < rate:
+            _apply_decree_effect(
+                state,
+                {"title": decree.get("title", ""), "effects": me.get(matter, {})},
+                log,
+            )
+            statuses[matter] = {
+                "status": "executed", "executor": actor, "attempts": period + 1,
+                "last_turn": int(state.turn), "due_turn": None, "error": "",
+            }
+        else:
+            statuses[matter] = {
+                "status": "resisted", "executor": actor, "attempts": period + 1,
+                "last_turn": int(state.turn), "due_turn": int(state.turn) + 1,
+                "error": "",
+            }
+
+    cur_status = [str((statuses.get(m) or {}).get("status") or "") for m in matters]
+    if any(s == "blocked" for s in cur_status):
+        decree["exec_state"] = "blocked"
+        decree["exec_reason"] = "resisted_expired"
+        decree["completed_turn"] = int(state.turn)
+        record_execution(state, did, by=actor, digest=digest,
+                         title=decree.get("title"),
+                         confirm_status=STATUS_CONFIRMED,
+                         outcome=OUTCOME_FAILED, detail="resisted_expired")
+        return "done"
+    if all(s == "executed" for s in cur_status):
+        decree["exec_state"] = "ready"
+        decree["completed_turn"] = int(state.turn)
+        record_execution(state, did, by=actor, digest=digest,
+                         title=decree.get("title"),
+                         confirm_status=STATUS_CONFIRMED,
+                         outcome=OUTCOME_EXECUTED)
+        return "done"
+    if any(s == "executed" for s in cur_status):
+        decree["exec_state"] = "partially_executed"
+        decree["due_turn"] = int(state.turn) + 1
+        log.append(f"[诏令] 「{decree.get('title', '')}」部分执行，待其余事权。")
+        return "pending"
+    if period < 2:
+        decree["exec_state"] = "resisted"
+        decree["resist_period"] = period + 1
+        decree["due_turn"] = int(state.turn) + 1
+        return "pending"
+    decree["exec_state"] = "blocked"
+    decree["exec_reason"] = "resisted_expired"
+    decree["completed_turn"] = int(state.turn)
+    _event_once(state, f"{did}:resisted_expired", {
+        "kind": "resisted_expired", "decree_id": did, "turn": int(state.turn),
+    })
+    record_execution(state, did, by=actor, digest=digest,
+                     title=decree.get("title"),
+                     confirm_status=STATUS_CONFIRMED,
+                     outcome=OUTCOME_FAILED, detail="resisted_expired")
+    return "done"
+
+
 def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
     """返回 `done`（终态/已处理）或 `pending`（留在队列）。"""
     did = ensure_decree_id(state, decree)
@@ -169,6 +258,14 @@ def settle_m2a_decree(state, decree: Dict[str, Any], log) -> str:
                          reason="拒收事实（未定罪）", digest=digest)
         if st != STATUS_CONFIRMED:
             return "pending"
+
+    # M2b：有 matter_effects 分区 ⇒ 逐 matter 执行/幂等，再聚合四态
+    _me = decree.get("matter_effects")
+    if isinstance(_me, dict) and _me:
+        return _settle_per_matter(
+            state, decree, log, did=did, digest=digest,
+            matters=matters, actor=actor,
+        )
 
     # 确定性执行掷点
     period = int(decree.get("resist_period", 0) or 0)

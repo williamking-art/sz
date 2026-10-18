@@ -461,6 +461,12 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
                          or bool(decree.get("procedure_required")))
                      else "not_required")
             _matters = list(_auth.get("matters") or [])
+            _matter_effects = decree.get("matter_effects")
+            if _matter_effects is not None:
+                if (not isinstance(_matter_effects, dict)
+                        or set(map(str, _matter_effects)) != set(_matters)):
+                    return ("⚠ matter_effects 键集合必须等于 primary_matter+co_matters，"
+                            "诏令未颁。")
             _actor = str(_auth.get("actor") or "")
             _addrs = [str(x).strip() for x in (decree.get("addressees") or [])
                       if str(x).strip()]
@@ -493,6 +499,7 @@ def issue_decree(state: GameState, decree: dict, direct: bool = False) -> str:
                 "due_turn": None,
                 "completed_turn": None,
                 "refusal_fact": None,
+                "matter_effects": dict(_matter_effects or {}),
             }
     except Exception as e:  # noqa: BLE001 — 显式路径必须 fail-closed
         if _auth.get("explicit"):
