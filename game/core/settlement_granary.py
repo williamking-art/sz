@@ -132,8 +132,17 @@ def _settle_granary(state, log):
 
     granary_before_out = state.granary
 
-    # AI 契约：雀鼠耗（outflow 档位调制）
-    sparrow = int(state.granary * SPARROW_RAT * outflow_mult)
+    # 仓储损耗（2026-10-18 用户裁定：「粮的损耗不是有天道系统来裁决多寡吗」）：
+    # 天道只给 storage_loss 档位（无/轻/中/重），程序按表换算率。
+    # ⚠️ 旧实现把损耗挂在 outflow（发仓档位）上，语义错位（出仓多 ≠ 鼠患重）；
+    #    此处改为 storage_loss 主导。缺档/无 AI ⇒ 「中」= 既有 1.2%，默认零变更。
+    # TODO(P2c)：outflow 档位当前除损耗外无落点，需接到真正的发仓/平粜动作上。
+    from core.foundation.ledger.grain_ledger import storage_loss_rate as _loss_rate
+    _loss_tier = ai_granary.get("storage_loss", "中")
+    _loss_mult = _loss_rate(_loss_tier)
+    sparrow = int(state.granary * _loss_mult)
+    if _loss_tier != "中" and sparrow > 0:
+        log.append(f"[仓储损耗] 天道裁定档位「{_loss_tier}」⇒ 本月损耗率 {_loss_mult:.4f}")
     if sparrow > 0:
         state.granary = max(0, state.granary - sparrow)
         state.granary_stats["sparrow"] += sparrow

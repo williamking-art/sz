@@ -559,13 +559,18 @@ class SettleContractMixin:
 
     def granary_decide(self, posture, state=None):
         """仓廪漕运契约（户部/漕运司）：推演太仓存粟、漕运到仓、常平仓平粜、军粮调拨。
-        输出：{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大"}, "narrative": "仓漕叙事"}"""
+        输出：{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大", "storage_loss": "无|轻|中|重"}, "narrative": "仓漕叙事"}
+
+        2026-10-18（用户裁定「粮的损耗不是有天道系统来裁决多寡吗」）：
+        `storage_loss` 是**天道对本月仓储条件的裁决档位**（鼠患/霉变/兵燹），
+        程序按 `STORAGE_LOSS_TIER_MULT` 换算损耗率 —— AI 只给档位，不给数值。"""
         sys_p = (
             "你是北宋漕运使，掌太仓出纳、漕船调度、常平平粜。根据当前太仓存粟、漕运能力、军粮需求、粮价，推演本月仓漕运作。\n"
             "输出契约（严格 JSON）：\n"
-            '{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大"}, '
+            '{"granary": {"inflow": "微|小|中|大", "outflow": "微|小|中|大", "price_stabilize": "微|小|中|大", "army_supply": "微|小|中|大", "storage_loss": "无|轻|中|重"}, '
             '"narrative": "仓漕叙事（≤120字，体现漕运风险、仓储损耗、平粜成效、军粮保障）"}\n'
             "- inflow=漕运入仓、outflow=发仓/平粜/军粮、price_stabilize=平抑物价、army_supply=军粮保障，档位：微/小/中/大。\n"
+            "- storage_loss=本月仓储损耗（鼠患/霉变/兵燹）档位：无/轻/中/重；正常年月给「中」，灾年/兵燹/仓吏失职给「重」。\n"
             "- 只给档位不给数字；不写数值。"
         )
         inj = ""
@@ -591,6 +596,9 @@ class SettleContractMixin:
                 if v not in ("微", "小", "中", "大"):
                     return None
                 valid_g[k] = v
+            # storage_loss（2026-10-18）：缺省/非法 ⇒ 回落「中」（= 既有 1.2% 基准，不伪造灾损）
+            sl = str(g.get("storage_loss", "")).strip()
+            valid_g["storage_loss"] = sl if sl in ("无", "轻", "中", "重") else "中"
             o["granary"] = valid_g
             o["narrative"] = _clean_text(str(o.get("narrative", "")))[:120]
             return o
