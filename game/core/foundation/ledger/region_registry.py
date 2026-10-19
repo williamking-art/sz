@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
+__all__ = ["init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
            "aggregate_by_owner", "REGION_DEPTH_MAX"]
 
 #: 层级深度上限：政权 → 省（T2）→ 州府（T1）
@@ -180,6 +180,94 @@ def verify_region_invariants(state) -> List[str]:
         bad.append("宋 T1 登记数 %d != 治所数 %d" % (got_song, expect))
     return bad
 
+
+#: 国级 `population` 单位 = **万人**；省级 `population` 单位 = **人**
+REGIME_POP_UNIT = 10000
+
+
+def _seat_pop_total(prefs) -> dict:
+    """宋：Σ 治所 6 类 POP（真账在 seats）。缺失 ⇒ 空 dict（不臆造）。"""
+    total: Dict[str, int] = {}
+    for pdata in (prefs or {}).values():
+        for srow in ((pdata or {}).get("seats") or {}).values():
+            for cls, pop in (((srow or {}).get("pops") or {})).items():
+                if isinstance(pop, dict) and isinstance(pop.get("size"), (int, float)):
+                    total[str(cls)] = total.get(str(cls), 0) + int(pop["size"])
+    return total
+
+
+def aggregate_regime(state, owner: str) -> Dict[str, Any]:
+    """政权级聚合 + **与现有国级字段对账**（P2）。
+
+    口径：
+    - 国级 `external_regimes[国].population` 单位 = **万人**；
+    - 运行态 `provinces[*].population` 单位 = **人**；
+    - 对账：Σ省人口(人) == 国人口 × REGIME_POP_UNIT（逐国）；
+    - T1 人口尚未分解 ⇒ `pop_total=None` + reason（**缺失≠0**）。
+    """
+    rows = regions_by_owner(state, owner)
+    t1 = [r for r in rows if r.get("level") == "T1"]
+    t2 = [r for r in rows if r.get("level") == "T2"]
+    info = (getattr(state, "external_regimes", None) or {}).get(owner) or {}
+    provs = info.get("provinces") or []
+    prov_pop = sum(int((p or {}).get("population") or 0) for p in provs)
+    country = info.get("population")
+    country_people = int(country) * REGIME_POP_UNIT if isinstance(country, (int, float)) else None
+    pops = [r.get("pop") for r in t1 if isinstance(r.get("pop"), dict)]
+    pop_total = None
+    if pops:
+        pop_total = {}
+        for p in pops:
+            for cls, v in (p or {}).items():
+                if isinstance(v, dict) and isinstance(v.get("size"), (int, float)):
+                    pop_total[cls] = pop_total.get(cls, 0) + int(v["size"])
+    ok = country_people is None or prov_pop == country_people
+    return {"owner": owner, "t1_count": len(t1), "t2_count": len(t2),
+            "province_pop_sum": prov_pop, "country_population": country,
+            "country_population_people": country_people,
+            "pop_total": pop_total,
+            "pop_reason": None if pop_total is not None else "T1 人口尚未分解（缺失≠0）",
+            "reconcile_ok": ok,
+            "reconcile_reason": None if ok else
+            ("国级人口缺失" if country_people is None else
+             "Σ省人口 %d != 国人口×%d = %d" % (prov_pop, REGIME_POP_UNIT, country_people))}
+
+
+def aggregate_song(state) -> Dict[str, Any]:
+    """宋：从 `prefectures` 真账聚合（T1 只存指针，人口不在 regions 里）。"""
+    prefs = getattr(state, "prefectures", None) or {}
+    rows = regions_by_owner(state, "宋")
+    return {"owner": "宋",
+            "t1_count": sum(1 for r in rows if r.get("level") == "T1"),
+            "t2_count": sum(1 for r in rows if r.get("level") == "T2"),
+            "pop_total": _seat_pop_total(prefs) or None,
+            "source": "prefectures[路][seats][治所][pops]（真账）"}
+
+
+def verify_aggregation(state) -> List[str]:
+    """P2 对账：逐国 Σ省人口 == 国人口×10000；缺失只报 None 不造假。"""
+    bad: List[str] = []
+    for owner in (getattr(state, "external_regimes", None) or {}):
+        if not regions_by_owner(state, owner):
+            continue
+        agg = aggregate_regime(state, owner)
+        if not agg["reconcile_ok"]:
+            bad.append("%s: %s" % (owner, agg["reconcile_reason"]))
+    song = aggregate_song(state)
+    prefs = getattr(state, "prefectures", None) or {}
+    expect = sum(len(((p or {}).get("seats") or {})) for p in prefs.values())
+    if song["t1_count"] != expect:
+        bad.append("宋: T1 %d != 治所数 %d" % (song["t1_count"], expect))
+    return bad
+
+
+def migrate_regions(state) -> Dict[str, Any]:
+    """P3 迁移入口（幂等）：旧档无 regions ⇒ 建；已有 ⇒ created=0。"""
+    existing = getattr(state, "regions", None)
+    if isinstance(existing, dict) and existing:
+        return {"migrated": False, "created": 0, "total": len(existing)}
+    out = init_regions(state)
+    return {"migrated": True, **out}
 
 def aggregate_by_owner(state, owner: str) -> Dict[str, Any]:
     """按政权汇总（P1 只做计数与人口占位；人口缺失 ⇒ None，不回落 0）。"""

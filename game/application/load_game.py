@@ -145,6 +145,12 @@ def load_game(slot: int = 1):
         sink_canal_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 漕运淤塞州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
+    # 行政区划 P3（2026-10-19）：旧档无 `regions` ⇒ 幂等重建（不拒档）。
+    try:
+        from core.foundation.ledger.region_registry import migrate_regions
+        migrate_regions(state)
+    except Exception:  # noqa: BLE001 — 迁移失败不拒档（overlay 将为空）
+        _dlog.warning("[读档] 行政区划骨架迁移失败（不拒档）", exc_info=True)
     # 批次 4 仓储片：**常平仓**（changping_stock）州府级下沉（旧档补齐；新档已幂等跳过）。
     try:
         from core.foundation.persistence.migrations import sink_changping_to_seats
