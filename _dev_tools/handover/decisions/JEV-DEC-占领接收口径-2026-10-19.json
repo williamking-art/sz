@@ -1,0 +1,28 @@
+{
+ "id": "JEV-DEC-占领接收口径-2026-10-19",
+ "createdAt": "2026-10-19T17:15:00+08:00",
+ "agent": "DSH",
+ "question": "攻占州府后，接收方如何入账（只计人口土地 / 立即全额 / 过渡期打折）",
+ "options": [
+  "A 只计人口/土地，税/产冻结",
+  "B 立即全额接收（税产兵源当月归占领方）",
+  "C 过渡期打折接收（×0.6 逐月恢复）"
+ ],
+ "verdict": "A 只计人口/土地，税/产冻结",
+ "probabilities": {
+  "A": 0.6141,
+  "B": 0.2622,
+  "C": 0.1237
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定（用户提问「攻占的州府的数据能正常被接收吗？」触发）",
+ "premises_verified_by_me": [
+  "P5 transfer 只改 owner；P6 让宋侧停止征田赋（冻结）——接收方此前**没有任何进账通道**",
+  "外邦 T1 人口在 region.pop（已由 P4 分解）；宋 T1 人口在 prefectures[路][seats][治所].pops（真账）",
+  "宋座**无土地字段**（land 无座级账），故接收方 land 只能 None + missing 清单（缺失≠0）",
+  "B 会与『宋侧冻结』形成不对称：同一块地宋不再收、占领方立即全收，相当于凭空多一份收入口径",
+  "A 与既有政权字段纪律一致（treasury/armies/tech 不随地域走）"
+ ],
+ "applied_in": "core/domains/diplomacy/regime_intake.py（P5.5）；门 test_quality_gate_region_intake.py 5 条",
+ "reopen_if": "需要占领方立即获得税产（如战争经济压力）时改 B；或宋座补土地字段后可放开 land 统计"
+}
