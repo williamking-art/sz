@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-T1与地图切分对齐-2026-10-19",
+ "createdAt": "2026-10-19T10:25:00+08:00",
+ "agent": "DSH",
+ "question": "T1 州府名单与舆图既有切分（REGIME_PREFECTURES）如何统一",
+ "options": [
+  "A T1 扩到七国（加吐蕃），以地图切分为准重建静态表",
+  "B 保持六国，地图保留吐蕃但不入账",
+  "C 六国为准，删除地图中多余州府面（含吐蕃）"
+ ],
+ "verdict": "A 七国、以地图切分为准",
+ "probabilities": {
+  "A": 0.9139,
+  "B": 0.0301,
+  "C": 0.0559
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定",
+ "premises_verified_by_me": [
+  "实测 REGIME_PREFECTURES 已覆盖 辽18/西夏9/吐蕃4/大理12 = 43 块（docstring 写『仅辽/西夏』已过时）",
+  "P1 静态表按史实只铺 辽10/西夏5/大理4，与地图数量不一致（两套州府必然对不上）",
+  "REGIME_GEO 含 40+ 政权（含金），底图与运行态开局无金存在既有不一致",
+  "地图为构建期静态产物（不入库），运行期只能做 overlay ⇒ 名单必须先在构建期对齐"
+ ],
+ "applied_in": "specs/diplomacy/行政区划与归属_设计稿_2026-10-19.md §15（舆图修改，M1–M5）",
+ "reopen_if": "高丽/日本/安南缺面数据无法切块；或 overlay 性能超预算"
+}
