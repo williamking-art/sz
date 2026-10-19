@@ -67,7 +67,8 @@ def test_region_data_unchanged():
     s = _state()
     t1 = [r for r in regions_by_owner(s, "辽") if r["level"] == "T1"]
     before = {r["region_id"]: json.dumps(r.get("pop"), sort_keys=True) for r in t1}
-    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="数据不变")
+    # 纯归属变更不碰数据（打残/掠夺是占领的另一副作用，单测）
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, devastate=False, reason="数据不变")
     after = {rid: json.dumps(s.regions[rid].get("pop"), sort_keys=True) for rid in before}
     assert before == after, "人口不得因改属而变化"
 
@@ -75,9 +76,11 @@ def test_region_data_unchanged():
 def test_regime_fields_do_not_follow():
     s = _state()
     before = s.external_regimes["辽"].get("treasury")
-    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="政权字段")
-    assert s.external_regimes["辽"].get("treasury") == before
-    assert s.external_regimes["金"].get("treasury") == 0  # 新建政权从零起
+    out = transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="政权字段")
+    assert s.external_regimes["辽"].get("treasury") == before   # 源政权不因失地而变化
+    loot = int(((out.get("damage") or {}).get("loot") or 0))
+    # 新建政权**不继承**辽的 treasury：只有本次掠夺所得
+    assert int(s.external_regimes["金"].get("treasury") or 0) == loot
 
 
 def test_territory_updated():
@@ -144,4 +147,4 @@ def test_created_placeholder_marked():
     assert out["ok"], out
     jin = s.external_regimes["金"]
     assert jin.get("placeholder") is True, jin
-    assert jin.get("treasury") == 0
+    assert int(jin.get("treasury") or 0) >= 0 and "population" in jin

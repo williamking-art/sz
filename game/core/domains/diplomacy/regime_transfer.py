@@ -93,7 +93,8 @@ def _pick_t2_for(state, owner: str, t1: Dict[str, Any]) -> str:
 
 def transfer_regions(state, from_regime: str, to_regime: str,
                      region_ids: Iterable[str], *, cascade: bool = True,
-                     create_to: bool = False, reason: str = "") -> Dict[str, Any]:
+                     create_to: bool = False, devastate: bool = True,
+                     reason: str = "") -> Dict[str, Any]:
     """把地域从 `from_regime` 转给 `to_regime`（**只改 owner**）。
 
     返回 `{ok, moved, cascaded, created_t2, change_id, reason}`。
@@ -140,6 +141,13 @@ def transfer_regions(state, from_regime: str, to_regime: str,
     to_ter = list(to_info.get("territory", []))
     to_info["territory"] = sorted(set(to_ter) | set(moved))
 
+    _dmg = None
+    if devastate:
+        try:
+            from core.domains.diplomacy.regime_intake import apply_occupation_damage
+            _dmg = apply_occupation_damage(state, moved, to_regime=to_regime)
+        except Exception:  # noqa: BLE001 — 失败不阻断归属变更
+            _dmg = {"ok": False}
     month = _now_month(state)
     change = {"change_id": "rc_%d_%s" % (int(time.time() * 1000), to_regime),
               "op": "transfer", "from": from_regime, "to": to_regime,
@@ -150,7 +158,8 @@ def transfer_regions(state, from_regime: str, to_regime: str,
     state.region_changes.append(change)
     return {"ok": True, "moved": moved, "cascaded": len(moved) - len(ids),
             "created_t2": created_t2,
-            "change_id": change["change_id"], "reason": reason}
+            "change_id": change["change_id"], "reason": reason,
+            "damage": _dmg}
 
 
 def revert_change(state, change_id: str) -> Dict[str, Any]:
@@ -162,7 +171,7 @@ def revert_change(state, change_id: str) -> Dict[str, Any]:
     if hit.get("op") != "transfer":
         return {"ok": False, "reason": "只支持撤销 transfer"}
     out = transfer_regions(state, hit.get("to"), hit.get("from"), hit.get("region_ids") or [],
-                           reason="revert:%s" % change_id)
+                           devastate=False, reason="revert:%s" % change_id)
     if out.get("ok"):
         hit["reverted"] = True
     return out

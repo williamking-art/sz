@@ -1,0 +1,33 @@
+{
+ "id": "JEV-DEC-占领经济后果-2026-10-19",
+ "createdAt": "2026-10-19T17:35:00+08:00",
+ "agent": "DSH",
+ "question": "攻占州府的税产如何处理（冻结 / 按残破度征税）",
+ "jev_prior": {
+  "id": "JEV-DEC-占领接收口径-2026-10-19",
+  "verdict": "A 只计人口/土地，税产冻结",
+  "probabilities": {
+   "A": 0.6141,
+   "B": 0.2622,
+   "C": 0.1237
+  },
+  "problem": "该裁定建立在「冻结可避免双记账」的**错误前提**上（用户当场指出）"
+ },
+ "user_ruling": "怎么会冻结税产呢？占领后会产生财产流失，这个我理解；为什么会冻结呢",
+ "adopted_model": {
+  "一次性财产流失": "占领当刻：人口 −3%、财富 −15%、存粮 −15%（外邦 T1 直接落 region.pop）",
+  "掠夺所得": "损失财富 ×50% 入占领方 treasury",
+  "税基残破": "devastation 从 0.6 起，占领方按残破度征税（**不冻结**）",
+  "恢复": "每月 +0.10，封顶 1.0",
+  "归还": "残破保留（战争破坏不返还），掠夺不退"
+ },
+ "authority": "**用户裁定优先于 Jev**（AGENTS §Jev 纪律 2：Jev 与实测/硬约束/用户裁定冲突时以用户为准）",
+ "premises_verified_by_me": [
+  "冻结会让占领方白拿不到税收，与『占领后能征税』的常识相悖（用户指出）",
+  "原 Jev 选项 A 的理由是防双记账；实际上宋侧 P6 已停止征收，占领方征税不会双记账",
+  "财产流失需要落到 POP 上（region.pop 外邦可直接落；宋座需桥，登记 gap）",
+  "掠夺入账必须与 POP 扣减同源（否则凭空生钱），已在 collect_occupation_tax 保证"
+ ],
+ "applied_in": "core/domains/diplomacy/regime_intake.py（P5.6）；transfer_regions(devastate=True)；settlement_steps._simulate_external 接线",
+ "reopen_if": "宋座财产损失接入桥（pop_bridge）后需重算口径；或占领方税率需与外邦经济统一"
+}

@@ -148,6 +148,18 @@ from core.settlement_imperial import (  # noqa: F401 — re-export 兼容
 # Step 3.7b: 外部政权简单模拟（按发育曲线 × 难度缓变）
 # ------------------------------------------------------------
 def _simulate_external(state, log):
+    # 占领经济（P5.6，2026-10-19）：残破恢复 + 被占领地按残破度征税
+    # 用户裁定：**不冻结税产**（占领方按残破税基征税；一次性财产流失在占领当刻已结算）。
+    try:
+        from core.domains.diplomacy.regime_intake import (
+            collect_occupation_tax, recover_devastation)
+        recover_devastation(state)
+        _occ = collect_occupation_tax(state)
+        if _occ.get("collected"):
+            log.append("[占领] 被占地征税 %d 贯：%s" % (
+                _occ["collected"], _occ.get("by_regime")))
+    except Exception as _e:  # noqa: BLE001 — 占领经济失败不阻断结算，但必须留痕
+        log.append("[占领] 占领经济结算失败：%r" % (_e,))
     presets = state.difficulty_presets.get(state.difficulty, {})
     mult = presets.get("external_growth", 1.0)
     regime = getattr(state, "external_regimes", {})
