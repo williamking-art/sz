@@ -40,7 +40,8 @@ def map_overlay(state, *, player_regime: str = "宋") -> List[Dict[str, Any]]:
         if not isinstance(r, dict):
             continue
         owner = r.get("owner")
-        static_owner = ((REGIME_GEO.get(owner) or {}).get("owner")) if owner else None
+        # 静态归属：优先用 region 上的 `owner_at_init`（建表时快照）；旧数据退回 REGIME_GEO
+        static_owner = r.get("owner_at_init") or ((REGIME_GEO.get(owner) or {}).get("owner"))
         until = r.get("transition_until")
         in_transition = bool(now is not None and isinstance(until, int) and until > now)
         rows.append({

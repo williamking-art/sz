@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
+__all__ = ["unallocated_provinces", "_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
            "aggregate_by_owner", "REGION_DEPTH_MAX"]
 
 #: 层级深度上限：政权 → 省（T2）→ 州府（T1）
@@ -52,13 +52,13 @@ def init_regions(state) -> Dict[str, Any]:
     for route, pdata in prefs.items():
         rid = _song_region_id(route)
         book[rid] = {"level": "T2", "name": str(route), "kind": "路", "owner": "宋",
-                     "parent": "宋", "prefecture_ref": {"route": route}}
+                     "parent": "宋", "prefecture_ref": {"route": route}, "owner_at_init": "宋"}
         song_routes += 1
         for seat in ((pdata or {}).get("seats") or {}):
             sid = _song_region_id(route, seat)
             book[sid] = {"level": "T1", "name": str(seat).split("|")[-1], "kind": "州府",
                          "owner": "宋", "parent": rid,
-                         "prefecture_ref": {"route": route, "seat": seat},
+                         "prefecture_ref": {"route": route, "seat": seat}, "owner_at_init": "宋",
                          "transition_until": None}
             song_seats += 1
 
@@ -84,7 +84,7 @@ def init_regions(state) -> Dict[str, Any]:
             pid = "%s_p%d" % (name, idx)
             t2_id[pname] = pid
             book[pid] = {"level": "T2", "name": pname, "kind": "省", "owner": name,
-                         "parent": name, "pop": None, "land": None,
+                         "parent": name, "pop": None, "land": None, "owner_at_init": name,
                          "map_provinces": [],
                          "note": None if pname not in (PROVINCE_WITHOUT_MAP.get(name) or {})
                                  else (PROVINCE_WITHOUT_MAP[name][pname])}
@@ -107,7 +107,7 @@ def init_regions(state) -> Dict[str, Any]:
                 sid = "%s_%s" % (pid, seat.get("name"))
                 book[sid] = {"level": "T1", "name": seat.get("name"),
                              "kind": seat.get("kind") or "州", "owner": name,
-                             "parent": pid, "pop": None, "land": None,
+                             "parent": pid, "pop": None, "land": None, "owner_at_init": name,
                              "weight": seat.get("weight"),
                              "center_lonlat": seat.get("lonlat"),
                              "map_province": map_prov,
@@ -385,6 +385,26 @@ def verify_pop_conservation(state) -> List[str]:
                         bad.append("%s/%s/%s: Σ州府 %d != 省 %d" % (
                             owner, pname, cls + "." + f, got[f], want))
     return bad
+
+def unallocated_provinces(state) -> List[Dict[str, Any]]:
+    """省有账、但**其州府已不在该政权名下**（占领/改属后）——显式登记，不静默丢弃。"""
+    regimes = getattr(state, "external_regimes", None) or {}
+    book = getattr(state, "regions", None) or {}
+    out: List[Dict[str, Any]] = []
+    for owner, info in regimes.items():
+        for prov in (info.get("provinces") or []):
+            pname = str((prov or {}).get("name") or "")
+            pops = (prov or {}).get("pops")
+            if not pname:
+                continue
+            if not _t1_of_province(book, owner, pname):
+                out.append({"owner": owner, "province": pname,
+                            "population": (prov or {}).get("population"),
+                            "has_pops": isinstance(pops, dict),
+                            "reason": ("地图无对应省" if not any(
+                                isinstance(r, dict) and r.get("map_province") == pname
+                                for r in book.values()) else "州府已改属他国")})
+    return out
 
 def aggregate_by_owner(state, owner: str) -> Dict[str, Any]:
     """按政权汇总（P1 只做计数与人口占位；人口缺失 ⇒ None，不回落 0）。"""

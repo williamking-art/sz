@@ -11,6 +11,7 @@
 | 文件 | 来源旧路径 | 符号（= 旧路径公开面，含私有） | 叶子资格判据 |
 |---|---|---|---|
 | `treaty.py` | `core/diplomacy_treaty.py` | `TREATY_TYPES` `_att_delta` `apply_treaty` + 6 个 content 常量 | AST 实测顶层 import 只有 `content.data`，**零反向边** |
+| `regime_transfer.py` | **新建**（2026-10-19 P5）| `transfer_regions` `revert_change` `regime_territory` | 政权归属变更：**只改 owner 与 territory**，人口/土地/建筑不动；政权字段（treasury/armies/tech/attitude）不随地域走；T2 级联 T1、T1 自动挂到目标政权 T2；历史入 state.region_changes（可 revert） |
 | `external_view.py` | `core/external_view.py` | `external_pop_view` `external_provinces` + 3 个 content 表名 | 同上，**零反向边** |
 | `map_overlay.py` | **新建**（2026-10-19 舆图 M3）| `map_overlay` `overlay_summary` | **只读**：按 `state.regions` 派生舆图 overlay（owner/occupied/transition/owner_changed）；不写 state、不重建 geojson；开局 owner_changed=0（视觉零变更） |
 
