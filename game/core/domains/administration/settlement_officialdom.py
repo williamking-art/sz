@@ -182,6 +182,11 @@ def _settle_officialdom(state, log):
         settle_impeachment_cases(state)
     except Exception as e:  # noqa: BLE001 — 弹劾案件失败不得炸整月
         log.append(f"[弹劾] 案件结算失败：{type(e).__name__}: {e}")
+    try:
+        from core.incident import settle_incidents
+        settle_incidents(state)
+    except Exception as e:  # noqa: BLE001 — 事故单失败不得炸整月
+        log.append(f"[事故] 逐级处理失败：{type(e).__name__}: {e}")
     result = _officialdom.settle_officialdom(state, log)
     _run_personnel_cycle(state, log)
     _run_annual_reclamation(state, log)
