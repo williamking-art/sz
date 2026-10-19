@@ -381,7 +381,8 @@ def dismiss_prefect_official(state, seat_id: str, role: str,
 
 
 def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
-                     slot: Optional[int] = None) -> Dict[str, Any]:
+                     slot: Optional[int] = None, route: Optional[str] = None,
+                     parent_seat_id: Optional[str] = None) -> Dict[str, Any]:
     """科举进士下沉知县蓄水池，并在 MemoryGraph 中建立履历与举主保任边。"""
     assigned = []
     slot_id = slot if slot is not None else getattr(state, "slot", 0)
@@ -445,7 +446,14 @@ def jinshi_to_county(state, jinshi_list: List[Dict[str, Any]],
                         "stats_summary": format_official_stats(profile),
                     },
                 )
-                mem.add_relation(name, county, "governs", weight=1.0,
+                from core.county_registry import ensure_county_establishment
+                _cid = ensure_county_establishment(
+                    mem, county,
+                    route=j.get("route") or route,
+                    parent_seat_id=j.get("parent_seat_id") or parent_seat_id,
+                    turn=getattr(state, "turn", 0),
+                )
+                mem.add_relation(name, _cid or county, "governs", weight=1.0,
                                  note="初仕知县", turn=getattr(state, "turn", 0))
                 mem.add_relation(guarantor, name, "supports", weight=1.0,
                                  note="保任举主", turn=getattr(state, "turn", 0))

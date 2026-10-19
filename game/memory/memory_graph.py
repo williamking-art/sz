@@ -51,11 +51,12 @@ from content.data import SAVE_DIR, MEMORY_RELATION_DECAY, MEMORY_ARCHIVE_WEIGHT
 log = logging.getLogger("memory_graph")
 
 # 实体类型（业务 7 类 + 压缩产物 2 类）
-ENTITY_TYPES = ("minister", "event", "decision", "task", "org", "institution", "external_power")
+ENTITY_TYPES = ("minister", "event", "decision", "task", "org", "institution",
+                "external_power", "county")
 SUMMARY_TYPES = ("summary", "period_summary")
 # 关系类型（8 类）
 RELATION_TYPES = ("supports", "opposes", "involves", "produces", "progresses",
-                  "promises", "stance", "governs")
+                  "promises", "stance", "governs", "belongs_to")
 
 _SCHEMA_VERSION = 2          # T7：SQLite 后端（v1 为 Phase 3a JSON 格式）
 _JSON_SCHEMA_VERSION = 1     # 旧 JSON 格式版本（迁移判定用）
