@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-宋地纳入统一归属-2026-10-19",
+ "createdAt": "2026-10-19T09:50:00+08:00",
+ "agent": "DSH",
+ "question": "宋地如何纳入地域/政权统一归属（A 统一归属层 / B 全量迁移 / C 宋不改加 occupied_by）",
+ "options": [
+  "A 统一归属层：regions 管 owner，宋详账留 prefectures（只存指针）",
+  "B 宋 prefectures 全量迁入 regions",
+  "C 宋不改，prefectures 加 occupied_by"
+ ],
+ "verdict": "A 统一归属层",
+ "probabilities": {
+  "A": 0.9793,
+  "B": 0.0036,
+  "C": 0.0171
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定；前提由用户「地域与政权分离，宋也是」确立",
+ "premises_verified_by_me": [
+  "宋详账在 prefectures[路][seats]（117 治所），POP/建筑/仓廪/府库全在此，被大量结算读取",
+  "外邦已定 regions + owner 模型（Jev A 0.951），宋若另开一套即形成两套 owner 语义",
+  "A 让 owner 单点、详账不搬，未占领时判定恒真 ⇒ 零行为变更",
+  "C 的 occupied_by 是宋账内的镜像，属项目禁的『平行账本』"
+ ],
+ "applied_in": "specs/diplomacy/行政区划与归属_设计稿（§13.5–§13.7，设计稿未实施）",
+ "reopen_if": "占领后收益归属规则定稿时需细化（§13.7）；或需要宋地被占后重建地方账"
+}
