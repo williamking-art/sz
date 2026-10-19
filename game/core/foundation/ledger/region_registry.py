@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
+__all__ = ["_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
            "aggregate_by_owner", "REGION_DEPTH_MAX"]
 
 #: 层级深度上限：政权 → 省（T2）→ 州府（T1）
@@ -116,6 +116,11 @@ def init_regions(state) -> Dict[str, Any]:
                 foreign_seats += 1
 
     state.regions = book
+    try:
+        distribute_regime_pops(state)   # P4：省→州府人口分解（守恒）
+    except Exception as exc:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger(__name__).warning("人口分解失败：%r", exc, exc_info=True)
     try:
         state.region_admin_version = 1
     except Exception:  # noqa: BLE001
@@ -268,6 +273,118 @@ def migrate_regions(state) -> Dict[str, Any]:
         return {"migrated": False, "created": 0, "total": len(existing)}
     out = init_regions(state)
     return {"migrated": True, **out}
+
+def _apportion(total: int, weights: list) -> list:
+    """整数分摊（**最大余数法**，总和精确等于 total）。"""
+    nums = [max(0.0, float(w)) for w in weights]
+    s = sum(nums)
+    if s <= 0 or total <= 0:
+        return [0 for _ in nums]
+    raw = [total * w / s for w in nums]
+    base = [int(x) for x in raw]
+    left = int(total) - sum(base)
+    order = sorted(range(len(raw)), key=lambda i: raw[i] - base[i], reverse=True)
+    for i in order[:max(0, left)]:
+        base[i] += 1
+    return base
+
+
+def _map_prov_of(owner: str) -> Dict[str, str]:
+    """地图省 → 运行态省（读 `REGIME_PROVINCE_MAP`；未登记 ⇒ 同名）。"""
+    try:
+        from content.data_external_admin import REGIME_PROVINCE_MAP
+    except Exception:  # noqa: BLE001
+        return {}
+    return dict((REGIME_PROVINCE_MAP or {}).get(owner) or {})
+
+
+def _t1_of_province(book, owner: str, pname: str) -> list:
+    """该运行态省下的 T1（经地图省映射匹配）。"""
+    rev = _map_prov_of(owner)
+    out = []
+    for r in (book or {}).values():
+        if not isinstance(r, dict) or r.get("owner") != owner or r.get("level") != "T1":
+            continue
+        mp = str(r.get("map_province") or "")
+        if rev.get(mp, mp) == pname:
+            out.append(r)
+    return out
+
+
+def distribute_regime_pops(state, *, force: bool = False) -> Dict[str, Any]:
+    """P4：省 → 州府人口分解（**逐类守恒**，尾差归首府）。
+
+    · 数据源：运行态 `provinces[*].pops`（6 类 size/wealth/grain）；缺失 ⇒ 整省跳过（`None`）；
+    · 权重：州府 `weight`（首都 1.5 / 要冲 1.2 / 普通 1.0）× 省内归一；
+    · 守恒：Σ州府 == 省（逐类 × size/wealth/grain，整数精确）；
+    · 幂等：已分解（T1 有 `pop`）⇒ 跳过，除非 `force=True`。
+    """
+    regimes = getattr(state, "external_regimes", None) or {}
+    book = getattr(state, "regions", None) or {}
+    out = {"distributed": [], "skipped": [], "missing": []}
+    for owner, info in regimes.items():
+        if not any(isinstance(r, dict) and r.get("owner") == owner for r in book.values()):
+            continue
+        for prov in (info.get("provinces") or []):
+            pname = str((prov or {}).get("name") or "")
+            pops = (prov or {}).get("pops")
+            if not isinstance(pops, dict) or not pname:
+                if pname:
+                    out["missing"].append("%s/%s" % (owner, pname))
+                continue
+            t1 = _t1_of_province(book, owner, pname)
+            if not t1:
+                continue
+            if not force and all(isinstance(r.get("pop"), dict) for r in t1):
+                out["skipped"].append("%s/%s" % (owner, pname))
+                continue
+            weights = [float(r.get("weight") or 1.0) for r in t1]
+            classes = [c for c, v in pops.items() if isinstance(v, dict)]
+            for cls in classes:
+                base = pops.get(cls) or {}
+                sizes = _apportion(int(base.get("size") or 0), weights)
+                wealth = _apportion(int(base.get("wealth") or 0), weights)
+                grain = _apportion(int(base.get("grain") or 0), weights)
+                for i, r in enumerate(t1):
+                    if not isinstance(r.get("pop"), dict):
+                        r["pop"] = {}
+                    cell = r["pop"]
+                    cell.setdefault(cls, {})
+                    cell[cls]["size"] = int(cell[cls].get("size") or 0) + sizes[i]
+                    cell[cls]["wealth"] = int(cell[cls].get("wealth") or 0) + wealth[i]
+                    cell[cls]["grain"] = int(cell[cls].get("grain") or 0) + grain[i]
+            out["distributed"].append("%s/%s(%d块)" % (owner, pname, len(t1)))
+    return out
+
+
+def verify_pop_conservation(state) -> List[str]:
+    """P4 门：逐省逐类 Σ州府 == 省（size/wealth/grain），整数精确。"""
+    regimes = getattr(state, "external_regimes", None) or {}
+    book = getattr(state, "regions", None) or {}
+    bad: List[str] = []
+    for owner, info in regimes.items():
+        for prov in (info.get("provinces") or []):
+            pname = str((prov or {}).get("name") or "")
+            pops = (prov or {}).get("pops")
+            if not isinstance(pops, dict) or not pname:
+                continue
+            t1 = _t1_of_province(book, owner, pname)
+            if not t1:
+                continue
+            for cls, base in pops.items():
+                if not isinstance(base, dict):
+                    continue
+                got = {"size": 0, "wealth": 0, "grain": 0}
+                for r in t1:
+                    cell = (r.get("pop") or {}).get(cls) or {}
+                    for f in got:
+                        got[f] += int(cell.get(f) or 0)
+                for f in got:
+                    want = int(base.get(f) or 0)
+                    if got[f] != want:
+                        bad.append("%s/%s/%s: Σ州府 %d != 省 %d" % (
+                            owner, pname, cls + "." + f, got[f], want))
+    return bad
 
 def aggregate_by_owner(state, owner: str) -> Dict[str, Any]:
     """按政权汇总（P1 只做计数与人口占位；人口缺失 ⇒ None，不回落 0）。"""

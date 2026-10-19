@@ -67,8 +67,10 @@ def test_idempotent():
 
 
 def test_missing_pop_is_none_with_reason():
+    """P4 后：有省级 pops 的国（辽）已分解；缺数据的国（吐蕃）仍为 None + reason。"""
     s = _state()
-    agg = aggregate_by_owner(s, "辽")
+    assert isinstance(aggregate_by_owner(s, "辽")["pop_total"], dict)
+    agg = aggregate_by_owner(s, "吐蕃")
     assert agg["pop_total"] is None
     assert agg["pop_reason"], "缺失必须给 reason"
 
