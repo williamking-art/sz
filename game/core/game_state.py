@@ -486,6 +486,10 @@ class GameState(GameStateEconMixin):
         self.carriage: dict = {}          # {"official": {...}, "private": {...}}
         self.transport_labor: dict = {}   # 夫役数（人上限的分子）
         self.transport_used: dict = {}    # 本月已用（按 mode，瞬态）
+        # ---- 行政区划与归属（P1 骨架，2026-10-19）：owner/parent 索引，只读 ----
+        self.regions: dict = {}          # region_id → {level, name, owner, parent, ...}
+        self.region_admin_version: int = 0
+        self.region_changes: list = []   # 区划变更历史（P7 起写）
 
         # ---- 扩展维度：科举/学校 ----
         self.exam = dict(EXAM_INFO)

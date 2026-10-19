@@ -260,6 +260,10 @@ def save_game(state, slot: int = 1) -> bool:
         "yamen": state.yamen,
         "prefectures": state.prefectures,
         "external_regimes": getattr(state, "external_regimes", {}),
+        # 行政区划与归属（P1 骨架 2026-10-19；旧档缺键由迁移重建）
+        "regions": getattr(state, "regions", {}),
+        "region_admin_version": getattr(state, "region_admin_version", 0),
+        "region_changes": getattr(state, "region_changes", []),
         "longterm_public": getattr(state, "longterm_public", []),
         "longterm_secret": getattr(state, "longterm_secret", []),
         # 四大机制改良（参考《明末：捞金模拟器》）：开局邸报 / 帝国修正 / 国策树
@@ -737,6 +741,10 @@ def _load_with_data(slot: int = 1):
         _lg7.getLogger("save_load").warning(
             "旧存档含已废弃的集团名键，已清理（不迁移）：%s", _stripped)
     _merge_regions(state.external_regimes, data.get("external_regimes"))
+    # 行政区划（P1）：旧档无该键 ⇒ 保持空表，由 init_regions 幂等重建
+    state.regions = data.get("regions") or {}
+    state.region_admin_version = int(data.get("region_admin_version", 0) or 0)
+    state.region_changes = data.get("region_changes") or []
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
       # 🔴 长期事务（2026-10-07 M25 裁定）：**移除读档侧 normalize_tasks 迁移块**。

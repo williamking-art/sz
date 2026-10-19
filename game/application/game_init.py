@@ -265,4 +265,10 @@ def new_game(mode: str = "史实"):
     init_official_books(state)          # P1-5：显式初始化 136 州府/21 路具名官册（读函数不再懒写）
     init_minister_agents(state)         # C-1：中枢在任官员 Agent 运行态（复述/事权门禁前置）
     init_transport_carriage(state)       # P3：载具与夫役（运力派生基数）
+    try:
+        from core.foundation.ledger.region_registry import init_regions
+        init_regions(state)             # P1（2026-10-19）：行政区划只读骨架（幂等）
+    except Exception as exc:  # noqa: BLE001 —— 骨架失败必须留痕，不得静默
+        import logging as _lg
+        _lg.getLogger(__name__).warning("行政区划骨架初始化失败：%r", exc, exc_info=True)
     return state
