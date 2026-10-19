@@ -1,0 +1,26 @@
+{
+ "id": "JEV-DEC-区划调整成本-2026-10-19",
+ "createdAt": "2026-10-19T10:06:00+08:00",
+ "agent": "DSH",
+ "question": "区划调整的成本口径",
+ "options": [
+  "A 行政成本 + 吏治阻力 + 民心 + 过渡期",
+  "B 只一次性行政成本",
+  "C 不加数值成本（纯叙事）"
+ ],
+ "verdict": "A 四件套",
+ "probabilities": {
+  "A": 0.8413,
+  "B": 0.1397,
+  "C": 0.019
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定",
+ "premises_verified_by_me": [
+  "区划调整必须守恒（人口/土地/税基不凭空），但不加成本会被滥用",
+  "四件套全部走既有通道：府库银、clerk_grip、population_satisfaction、月度结算折扣",
+  "过渡期折扣只作用一次，防叠加（已列门）"
+ ],
+ "applied_in": "specs/diplomacy/行政区划与归属_设计稿_2026-10-19.md §6.3（设计稿，未实施）",
+ "reopen_if": "实测成本过重导致玩家不用；或过渡期折扣破坏税收守恒"
+}
