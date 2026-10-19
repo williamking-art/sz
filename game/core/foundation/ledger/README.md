@@ -12,7 +12,7 @@
 **所有 POP / 钱 / 粮的写入必须经过本层。** 绕过桥接的直写会被
 `test_route_pops_readonly_guard.py` 当场炸掉（路级 `pops` 已由只读守卫强制）。
 
-## 模块（12 个：8 个由 `git mv` 迁入 + 3 个 2026-10-13 新建（`local_treasury_bridge` / `building_bridge` / `storage_bridge`）+ 1 个 2026-10-18 新增（`money_transport`））
+## 模块（13 个：8 个由 `git mv` 迁入 + 3 个 2026-10-13 新建（`local_treasury_bridge` / `building_bridge` / `storage_bridge`）+ 1 个 2026-10-18 新增（`money_transport`）+ 1 个 2026-10-19 新增（`region_registry`））
 
 > 行数为 2026-10-11 实测快照（会随提交变化，仅作量级参考，不作为判据）。
 
@@ -21,6 +21,7 @@
 | `pop_bridge.py` | 805 | 🔴 **州府级 POP 基座 + 读写桥**（2026-10-04 用户裁定**方案乙**：POP 实体下沉州府级）。真账在 `prefectures[路]["seats"][治所]["pops"][类]`；含只读守卫 `install_all_guards`/`uninstall_all_guards`/`pops_guard_violations` |
 | `material_holding.py` | 907 | **账本接口层**。物料/商品单点访问层——遍历 `goods` 键会把州府桶当商品维参与算术，**唯一安全判据是 `commodity_dims`** |
 | `money.py` | 762 | 货币口径 M0/M1/M2/M3 与月度对账（**只读视图**） |
+| `region_registry.py` | ~175 | **行政区划注册表（P1 只读骨架，2026-10-19）**：宋路/治所 + 外邦省/州府统一归属与层级索引；`state.regions` 只存 `prefecture_ref` 指针，详账仍在 `prefectures`；`init_regions` 幂等、不写人口/不改结算。 |
 | `money_transport.py` | ~200 | 🔴 **钱（银）作为 cargo 走交通层**（G-3 P4a，2026-10-18 新建）：`dispatch_money` **立刻扣源**并建 `cargo_kind="money"` 在途批次、`arrive_money_due` 到期入账（未到不入账）、`money_in_transit`/`money_transit_total` 读数；余额不足/未知路线 ⇒ **拒绝且不建批次**；持有方 `treasury`/`imperial_treasury`/`local_treasury`。⚠️ 本轮**无任何现有调拨改走它**（接入见 P4b） |
 | `pop_structure.py` | 359 | POP 职位子池与丁口维度（B1a，2026-09-27 用户口径） |
 | `prefecture_entity.py` | 239 | 州府实体层（P0/A2 · 2026-10-02） |
