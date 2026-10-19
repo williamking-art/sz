@@ -7,6 +7,7 @@
 
 | `material_tech.py` | `core/material_tech.py`（第三十一包 2026-10-07，`git mv`）| 桩 **47** 名 | ✓ 只 import `__future__`/`content.data`/`typing` ⇒ 零 `core` 依赖；3 个生产调用方（`construction.py` / `market_price.py` / `settlement_tech.py`）已同批改指新路径 |
 | | | | 📌 **本批顺手修正的文档-代码不符**：原 docstring 写「本模块**尚未接线**到 `settlement.py`」，实测**已被 3 个生产模块调用** ⇒ 已按实测改写，不再声称未接线（`AGENTS.md §6.1` 要求发现不符顺手改） |
+| `building_upgrade.py` | **新建**（2026-10-19 V3 建筑升级）| `level_multiplier` `upgrade_requirement` `start_upgrade` `advance_building_construction` `construction_readout` | 建筑分级升级：等级倍率 1+(lv-1)×0.15、建材+地方府库银+工期、每路限 1 项在建；等级写点走 building_bridge（未下沉回落保形态）|
 
 ## 拥有的规则
 

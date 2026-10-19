@@ -498,6 +498,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     except Exception as _me:  # noqa: BLE001 —— 测量仪器不得中断结算
         log.append(f"[钱运][WARN] 到账处理失败：{_me!r}")
 
+    # ---- V3 建筑分级升级：每月推进在建（队列空 ⇒ 零行为变更）----
+    try:
+        from core.domains.construction.building_upgrade import advance_building_construction as _abc
+        _done = _abc(state)
+        for _item in _done or ():
+            log.append("[营造] %s / %s 升至 %s 级" % (_item.get("route"), _item.get("name"),
+                                                    _item.get("level")))
+    except Exception as _bld_exc:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger(__name__).warning("建筑升级推进失败：%r", _bld_exc, exc_info=True)
+
     # ---- P8 商人自主投资（2026-10-18；Jev：默认关 0.676）----
     # 开关 MERCHANT_INVEST_ENABLED=0 时**零行为变更**；开=1 才让商人按天道档位买船/车/扩品类。
     try:

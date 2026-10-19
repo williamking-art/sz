@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-建筑分级档位-2026-10-19",
+ "createdAt": "2026-10-19T08:50:00+08:00",
+ "agent": "DSH",
+ "question": "建筑分级档位：现值（5级/每级+15%/工期3-12月）vs 保守（3级/+20%）vs 激进（8级/+10%）",
+ "options": [
+  "A 现值 5 级 / +15%/级 / 工期 3-12 月 / 银 5k-50k",
+  "B 保守 3 级 / +20%/级 / 工期 6-18 月 / 费用×2",
+  "C 激进 8 级 / +10%/级 / 工期 2-14 月 / 费用×0.6"
+ ],
+ "verdict": "A 现值",
+ "probabilities": {
+  "A": 0.6636,
+  "B": 0.2554,
+  "C": 0.081
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定（用户要求每轮决策走 Jev 并留痕）",
+ "premises_verified_by_me": [
+  "等级形态已存在（building_bridge 兼容标量与 {lv:n}），本轮只补升级机制与倍率",
+  "建筑真账部分已下沉治所、部分仍在路级 ⇒ 写点走桥并在未下沉时保形态回落（已由门锁定）",
+  "升级材料从官仓扣、银从地方府库扣，均登记库存流水（防恒等式残差）",
+  "A 与 P5 同类档位一致（低上限、正加成、工期数月），B 太慢、C 数值冲击大"
+ ],
+ "applied_in": "content/data_constants.BUILDING_LEVEL_* / BUILDING_UPGRADE_REQ / core/domains/construction/building_upgrade.py",
+ "reopen_if": "长局实测建筑升级过慢（玩家无感）或产出倍率破坏物价平衡"
+}
