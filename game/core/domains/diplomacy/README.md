@@ -12,6 +12,7 @@
 |---|---|---|---|
 | `treaty.py` | `core/diplomacy_treaty.py` | `TREATY_TYPES` `_att_delta` `apply_treaty` + 6 个 content 常量 | AST 实测顶层 import 只有 `content.data`，**零反向边** |
 | `external_view.py` | `core/external_view.py` | `external_pop_view` `external_provinces` + 3 个 content 表名 | 同上，**零反向边** |
+| `map_overlay.py` | **新建**（2026-10-19 舆图 M3）| `map_overlay` `overlay_summary` | **只读**：按 `state.regions` 派生舆图 overlay（owner/occupied/transition/owner_changed）；不写 state、不重建 geojson；开局 owner_changed=0（视觉零变更） |
 
 ⚠️ 两条旧路径都保留 `dir()` 显式转发桩（**含私有名**），迁移前后名字集合逐字相等。
 ⚠️ `external_view` 生产侧被引 **0** 次：本批只搬代码，**不得据此声称外邦视图已接入**，也不得按死代码删。

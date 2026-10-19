@@ -50,7 +50,7 @@ _DEFAULT_REGIME_COLOR = "#d8cbaa"
 
 OUT_DIR = os.path.join(MAP_DIR, "web")
 
-__all__ = ["OUT_DIR", "build_regimes", "build_cities",
+__all__ = ["OUT_DIR", "build_regimes", "build_cities", "build_regime_cities",
            "build_view", "generate_all"]
 
 
@@ -658,6 +658,54 @@ def _write_if_changed(path: str, payload: bytes) -> str:
 # ============================================================
 # 主流程：校验 → 组装 → 写盘 → 摘要
 # ============================================================
+def build_regime_cities() -> dict[str, object]:
+    """外邦州府点层（kind="regime_city"）。
+
+    数据源：`content.data_external_admin.REGIME_SEATS`（= 舆图切分对齐后的 67 块），
+    与 `regions` 的 T1 一一对应；宋城市点仍在 `cities.geojson`（两层不混）。
+    """
+    from content.data_external_admin import REGIME_SEATS, REGIME_TIER1
+
+    # 无 `seat_at` 的州府用**几何代表点**兜底（块内取点，不飘出块外）
+    raw_dir = os.path.join(MAP_DIR, "raw")
+    with open(os.path.join(raw_dir, "datav_100000_full.json"),
+              encoding="utf-8") as f:
+        by_name = {p["properties"]["name"]: p for p in json.load(f)["features"]}
+    cent: dict[tuple[str, str], list[float]] = {}
+    for regime in REGIME_TIER1:
+        try:
+            for pname, _rname, u in _regime_prefecture_blocks(regime, by_name, raw_dir):
+                rp = u.representative_point()
+                cent[(regime, pname)] = [round(rp.x, 4), round(rp.y, 4)]
+        except Exception:  # noqa: BLE001
+            continue
+
+    features: list[dict[str, object]] = []
+    for regime in REGIME_TIER1:
+        for map_prov, seats in (REGIME_SEATS.get(regime) or {}).items():
+            for seat in seats:
+                lonlat = seat.get("lonlat")
+                if not isinstance(lonlat, (list, tuple)) or len(lonlat) != 2:
+                    lonlat = cent.get((regime, seat.get("name")))
+                if not isinstance(lonlat, (list, tuple)) or len(lonlat) != 2:
+                    continue
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point",
+                                 "coordinates": [float(lonlat[0]), float(lonlat[1])]},
+                    "properties": {
+                        "kind": "regime_city",
+                        "name": seat.get("name"),
+                        "regime": regime,
+                        "map_province": map_prov,
+                        "seat_kind": seat.get("kind") or "州",
+                        "weight": seat.get("weight"),
+                        "has_polygon": map_prov in (REGIME_SEATS.get(regime) or {}),
+                        "note": seat.get("note"),
+                    },
+                })
+    return {"type": "FeatureCollection", "features": features}
+
 def generate_all(out_dir: str = OUT_DIR) -> int:
     problems = validate_geo()
     if problems:
@@ -673,6 +721,7 @@ def generate_all(out_dir: str = OUT_DIR) -> int:
             "regime_borders.geojson": build_regime_borders(),
             "regime_prefectures.geojson": build_regime_prefectures(),
             "cities.geojson": build_cities(),
+            "regime_cities.geojson": build_regime_cities(),
             "view.json": build_view(),
         }
     except ValueError as exc:
