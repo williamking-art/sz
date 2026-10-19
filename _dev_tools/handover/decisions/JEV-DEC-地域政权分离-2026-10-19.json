@@ -1,0 +1,27 @@
+{
+ "id": "JEV-DEC-地域政权分离-2026-10-19",
+ "createdAt": "2026-10-19T09:40:00+08:00",
+ "agent": "DSH",
+ "question": "地域（省/州府/人口/土地）与政权（国号/君主/treasury/army/tech/attitude）如何分离",
+ "options": [
+  "A 地域注册表 regions + 政权表引用 territory（不内嵌）",
+  "B 现状：政权表内嵌 provinces/seats，更替整块搬",
+  "C 双写（两套账）"
+ ],
+ "verdict": "A 地域注册表 + 政权引用",
+ "probabilities": {
+  "A": 0.9505,
+  "B": 0.0368,
+  "C": 0.0126
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定；前提由**用户纠正**确立（金起于辽地、开局无金是刻意设定，不是数据缺口）",
+ "premises_verified_by_me": [
+  "用户指出：金在辽地起兵，辽的州府/人口/土地数据即金的底盘；开局无金属刻意设定",
+  "现状 external_regimes 把地域与政权混在 21 字段里，政权更替只能整块搬迁（易丢历史/重复建账）",
+  "约束：外交/外贸/岁币大量读国级字段 ⇒ 必须保持聚合读法不变（国=Σ省=Σ州府）",
+  "A 使「地域只写一次」与「政权字段不随地域走」同时成立，且迁移可幂等"
+ ],
+ "applied_in": "specs/diplomacy/外国州府级数据_设计稿_2026-10-19.md §13（设计稿，未实施）",
+ "reopen_if": "宋地占领需与 prefectures 主账统一时（§13.5，待裁）；或存档体积/迁移复杂度不可接受"
+}

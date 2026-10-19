@@ -1,0 +1,139 @@
+{
+ "id": "JEV-DEC-党禁机制设计-2026-10-19",
+ "createdAt": "2026-10-19T09:26:15+08:00",
+ "agent": "DSH",
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定",
+ "state_digest": "83135a57b18acb84",
+ "decisions": [
+  {
+   "id": "Q0",
+   "question": "是否重启党禁设计？",
+   "options": {
+    "A": "只做设计稿，暂不写生产代码",
+    "B": "立即实现党禁",
+    "C": "不做党禁"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.6044740676879883,
+    "B": 0.32119062542915344,
+    "C": 0.07433535903692245
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q1",
+   "question": "党禁核心机制应如何？",
+   "options": {
+    "A": "降低正式职位capture，同时提高grievance/cohesion（压得越狠越抱团）",
+    "B": "直接删除该派系",
+    "C": "只扣satisfaction"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.9851822257041931,
+    "B": 0.00270166271366179,
+    "C": 0.01211615651845932
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q2",
+   "question": "级别用几级？",
+   "options": {
+    "A": "轻/中/重三级，边际递减",
+    "B": "只做轻/中两级",
+    "C": "单一党禁"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.7696018218994141,
+    "B": 0.1593373715877533,
+    "C": 0.07106076180934906
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q3",
+   "question": "状态放哪里？",
+   "options": {
+    "A": "写入 state.factions[faction] 的 ban/grievance 子字段，不新增顶层 state",
+    "B": "新增顶层 state.faction_ban",
+    "C": "不新增任何状态"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.7177303433418274,
+    "B": 0.15649433434009552,
+    "C": 0.12577536702156067
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q4",
+   "question": "执行强度怎么定？",
+   "options": {
+    "A": "按皇威/台谏支持/吏治/派系渗透的公式",
+    "B": "按级别固定效果",
+    "C": "随机掷点"
+   },
+   "choice": "B",
+   "probabilities": {
+    "A": 0.4274413287639618,
+    "B": 0.5313237905502319,
+    "C": 0.04123486578464508
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q5",
+   "question": "被禁派系在朝官员怎么处理？",
+   "options": {
+    "A": "逐人走 issue_personnel_order/dismiss_*，不直接删holder",
+    "B": "直接清 central_orgs.holders",
+    "C": "不罢黜任何人"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.8644356727600098,
+    "B": 0.09829308092594147,
+    "C": 0.037271298468112946
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q6",
+   "question": "是否允许派系内部分裂/转向？",
+   "options": {
+    "A": "允许现有派系内部温和/激进转向，但不新建动态派系注册表",
+    "B": "允许新建动态派系",
+    "C": "完全不碰派系结构"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.7343157529830933,
+    "B": 0.012189214117825031,
+    "C": 0.25349506735801697
+   },
+   "confidence": null
+  },
+  {
+   "id": "Q7",
+   "question": "反噬怎么触发？",
+   "options": {
+    "A": "按grievance/cohesion/台谏反对/皇威的显式阈值触发事件",
+    "B": "只扣satisfaction",
+    "C": "不做反噬"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.924504280090332,
+    "B": 0.03449028730392456,
+    "C": 0.04100548103451729
+   },
+   "confidence": null
+  }
+ ],
+ "applied_in": "党禁机制设计_2026-10-19.md（设计稿，未实现）"
+}
