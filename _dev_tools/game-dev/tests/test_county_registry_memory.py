@@ -74,5 +74,5 @@ def test_jinshi_to_county_writes_county_entity():
     g = get_memory_graph(99)
     cid = county_eid("鄞县")
     assert cid in g.entities and g.entities[cid]["type"] == "county"
-    assert any(h["eid"] == "minister_范仲淹" for h in county_officials(g, "鄞县"))
+    assert any(h.get("name") == "范仲淹" for h in county_officials(g, "鄞县"))
 
