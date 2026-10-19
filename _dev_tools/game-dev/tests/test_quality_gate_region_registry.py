@@ -38,14 +38,19 @@ def test_skeleton_counts():
     assert len(t1) == 117, len(t1)
 
 
-def test_foreign_six_registered_with_static_table():
+def test_foreign_seven_registered_with_static_table():
+    """七国 T1 与静态表（= 舆图切分）逐国相等；T2 等于运行态 provinces 数。"""
     s = _state()
+    assert len(REGIME_TIER1) == 7, REGIME_TIER1
     for name in REGIME_TIER1:
         rows = regions_by_owner(s, name)
         assert rows, f"{name} 未登记"
         t1 = [r for r in rows if r["level"] == "T1"]
+        t2 = [r for r in rows if r["level"] == "T2"]
         expect = sum(len(v) for v in (REGIME_SEATS.get(name) or {}).values())
         assert len(t1) == expect, (name, len(t1), expect)
+        provs = (s.external_regimes.get(name) or {}).get("provinces") or []
+        assert len(t2) >= len(provs), (name, len(t2), len(provs))
 
 
 def test_invariants_clean():
@@ -95,3 +100,24 @@ def test_zero_behavior_change():
            int(sum(int(p.get("local_treasury", 0) or 0) for p in s2.prefectures.values())),
            len(log2))
     assert got == base, (got, base)
+
+
+def test_every_foreign_t1_has_map_province():
+    """每个外邦 T1 必须带 `map_province`，且属于该国静态表的省键（面 ↔ 账可追溯）。"""
+    s = _state()
+    for name in REGIME_TIER1:
+        allowed = set((REGIME_SEATS.get(name) or {}).keys())
+        for r in regions_by_owner(s, name):
+            if r["level"] != "T1":
+                continue
+            mp = r.get("map_province")
+            assert mp in allowed, (name, r.get("name"), mp)
+
+
+def test_t2_counts_match_runtime_provinces():
+    """T2 至少覆盖运行态 provinces 数（缺图省另挂 map_ 节点，记 note）。"""
+    s = _state()
+    for name in REGIME_TIER1:
+        provs = (s.external_regimes.get(name) or {}).get("provinces") or []
+        t2 = [r for r in regions_by_owner(s, name) if r["level"] == "T2"]
+        assert len(t2) >= len(provs), (name, len(t2), len(provs))

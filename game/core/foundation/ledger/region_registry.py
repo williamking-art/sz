@@ -65,29 +65,52 @@ def init_regions(state) -> Dict[str, Any]:
     foreign_seats = foreign_provinces = 0
     regimes = getattr(state, "external_regimes", None) or {}
     try:
-        from content.data_external_admin import REGIME_SEATS, REGIME_TIER1
+        from content.data_external_admin import (PROVINCE_WITHOUT_MAP, REGIME_PROVINCE_MAP,
+                                                REGIME_SEATS, REGIME_TIER1)
     except Exception:  # noqa: BLE001
         REGIME_SEATS, REGIME_TIER1 = {}, ()
+        REGIME_PROVINCE_MAP, PROVINCE_WITHOUT_MAP = {}, {}
     for name in REGIME_TIER1:
         info = regimes.get(name)
         if not isinstance(info, dict):
             continue
         provinces = info.get("provinces") or []
         seats_map = REGIME_SEATS.get(name) or {}
+        prov_map = REGIME_PROVINCE_MAP.get(name) or {}
+        # ① T2：以**运行态 provinces**（账）为准
+        t2_id = {}
         for idx, prov in enumerate(provinces):
             pname = str((prov or {}).get("name") or ("省%d" % (idx + 1)))
             pid = "%s_p%d" % (name, idx)
+            t2_id[pname] = pid
             book[pid] = {"level": "T2", "name": pname, "kind": "省", "owner": name,
                          "parent": name, "pop": None, "land": None,
-                         "note": "外邦省（静态/既有 provinces 镜像）"}
+                         "map_provinces": [],
+                         "note": None if pname not in (PROVINCE_WITHOUT_MAP.get(name) or {})
+                                 else (PROVINCE_WITHOUT_MAP[name][pname])}
             foreign_provinces += 1
-            for seat in (seats_map.get(pname) or ()):
+        # ② T1：以**地图切分**（面）为准，父节点 = 运行态省（经映射）
+        for map_prov, seats in seats_map.items():
+            parent_name = prov_map.get(map_prov, map_prov)
+            pid = t2_id.get(parent_name)
+            if pid is None:
+                # 运行态无该省 ⇒ 挂到同名新 T2（不丢块，标记待补）
+                pid = "%s_map_%s" % (name, map_prov)
+                book[pid] = {"level": "T2", "name": map_prov, "kind": "省", "owner": name,
+                             "parent": name, "pop": None, "land": None,
+                             "map_provinces": [map_prov], "note": "运行态缺该省（按地图补登）"}
+                t2_id[parent_name] = pid
+                foreign_provinces += 1
+            else:
+                book[pid]["map_provinces"].append(map_prov)
+            for seat in seats:
                 sid = "%s_%s" % (pid, seat.get("name"))
                 book[sid] = {"level": "T1", "name": seat.get("name"),
                              "kind": seat.get("kind") or "州", "owner": name,
                              "parent": pid, "pop": None, "land": None,
                              "weight": seat.get("weight"),
                              "center_lonlat": seat.get("lonlat"),
+                             "map_province": map_prov,
                              "note": seat.get("note"),
                              "transition_until": None}
                 foreign_seats += 1
