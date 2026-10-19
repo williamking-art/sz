@@ -1,0 +1,132 @@
+{
+ "id": "JEV-DEC-党争机制-2026-10-18",
+ "createdAt": "2026-10-19T07:58:30+08:00",
+ "agent": "DSH",
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定",
+ "state_digest": "37a85d8fd16dd425",
+ "decisions": [
+  {
+   "id": "P0",
+   "question": "旧 institution.check_authority/require_matter 如何处理？",
+   "options": {
+    "A": "保留为参数型旧门面，新增 authority_gate 做 actor 判权，逐个迁移业务调用点",
+    "B": "把 apply_reform/check_authority 整体迁出 institution.py 并重写",
+    "C": "放宽叶子规则，允许 institution.py 直接 import permission_model"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.5820209980010986,
+    "B": 0.3882960379123688,
+    "C": 0.029683003202080727
+   },
+   "confidence": null
+  },
+  {
+   "id": "P1a",
+   "question": "财政入口第一批做哪些？",
+   "options": {
+    "A": "只做 free_effect.didang 的 actor preflight 与 repay_local_arrears 的度支调度门",
+    "B": "第一批直接把 F3–F7 五个入口全做",
+    "C": "所有财政入口一次性全改"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.6235587000846863,
+    "B": 0.29393619298934937,
+    "C": 0.08250518143177032
+   },
+   "confidence": null
+  },
+  {
+   "id": "P1b",
+   "question": "财政 effect 到事权的映射怎么做？",
+   "options": {
+    "A": "单一注册表 + 每个玩家/AI 入口在落地前 gate；无 executor 旧调用计 legacy_unchecked_fiscal",
+    "B": "各入口各自写一套 if/else 判权",
+    "C": "只在 issue_decree 一个入口判权"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.489803284406662,
+    "B": 0.3655274212360382,
+    "C": 0.14466935396194458
+   },
+   "confidence": null
+  },
+  {
+   "id": "P2a",
+   "question": "M2a 第一批诏令范围？",
+   "options": {
+    "A": "只接 官吏铨选/度支调度 的显式路径，先做 resisted 三期与整诏幂等，不做 partially_executed",
+    "B": "一次接全部事权并同时做 partially_executed",
+    "C": "只写 legal 字段，不接执行状态机"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.7155209183692932,
+    "B": 0.2552655041217804,
+    "C": 0.02921350486576557
+   },
+   "confidence": null
+  },
+  {
+   "id": "P2b",
+   "question": "多事权执行如何做？",
+   "options": {
+    "A": "新增 matter_effects 分区，逐 matter 执行/幂等，再聚合 partially_executed 四态",
+    "B": "不分区，整诏只保留一个执行结果",
+    "C": "暂不做多事权执行"
+   },
+   "choice": "A",
+   "probabilities": {
+    "A": 0.9336415529251099,
+    "B": 0.029043516144156456,
+    "C": 0.037314947694540024
+   },
+   "confidence": null
+  },
+  {
+   "id": "P3a",
+   "question": "弹劾 M3a 首批范围？",
+   "options": {
+    "A": "只做路/州主官一条链：准奏只开案、证据定事实、force_dismiss 不改 fact_finding",
+    "B": "首批直接覆盖中枢大臣与联名弹章",
+    "C": "暂不做案件闭环，只记录弹章"
+   },
+   "choice": "B",
+   "probabilities": {
+    "A": 0.13098259270191193,
+    "B": 0.5231343507766724,
+    "C": 0.3458830416202545
+   },
+   "confidence": null
+  },
+  {
+   "id": "P4a",
+   "question": "党禁首批范围？",
+   "options": {
+    "A": "只做轻/中两级党禁 + 到期/解除 + 任命限制；不做动态集团/重度清算",
+    "B": "首批直接做动态集团与重度清算",
+    "C": "暂不做党禁"
+   },
+   "choice": "C",
+   "probabilities": {
+    "A": 0.28586992621421814,
+    "B": 0.059522755444049835,
+    "C": 0.654607355594635
+   },
+   "confidence": null
+  }
+ ],
+ "applied_in": "党争机制_实现契约速查表 v1.3 / 设计稿 v4.11 / P0a–P2b 实现",
+ "verdict_summary": {
+  "P0": "A 保留旧门面+authority_gate",
+  "P1a": "A 只做 didang+中央补发",
+  "P1b": "A 单一注册表+入口gate",
+  "P2a": "A 两事权+resisted三期+整诏幂等",
+  "P2b": "A matter_effects+partially_executed",
+  "P3a": "B 首批覆盖中枢大臣+联名弹章",
+  "P4a": "C 暂不做党禁"
+ }
+}
