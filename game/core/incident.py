@@ -13,6 +13,7 @@ import hashlib
 from typing import Any, Dict, Optional
 
 from core.county_registry import county_officials
+from core.faction_ban import actor_faction, is_official_banned
 from memory.memory_graph import get_memory_graph
 
 __all__ = ["create_incident", "settle_incidents", "incident_of", "incidents_of"]
@@ -123,10 +124,13 @@ def _county_actor(state, locality: str) -> Optional[Dict[str, Any]]:
         holders = []
     if not holders:
         return None
-    name = str(holders[0].get("name") or holders[0].get("eid") or "")
-    if not name:
-        return None
-    return {"name": name, "ability": 0.65, "integrity": 0.65, "acting": False}
+    for holder in holders:
+        name = str(holder.get("name") or holder.get("eid") or "")
+        if not name or is_official_banned(state, name):
+            continue
+        return {"name": name, "ability": 0.65, "integrity": 0.65,
+                "faction": actor_faction(state, holder), "acting": False}
+    return None
 
 
 def _prefecture_actor(state, seat: str) -> Optional[Dict[str, Any]]:
@@ -135,8 +139,11 @@ def _prefecture_actor(state, seat: str) -> Optional[Dict[str, Any]]:
         return None
     for key in ("subprefect", "prefect"):
         row = po.get(key)
-        if isinstance(row, dict) and str(row.get("name") or "").strip():
-            return dict(row, acting=(key == "subprefect"))
+        if not isinstance(row, dict) or not str(row.get("name") or "").strip():
+            continue
+        if is_official_banned(state, row):
+            continue
+        return dict(row, acting=(key == "subprefect"))
     return None
 
 
@@ -147,7 +154,8 @@ def _circuit_actor(state, route: str, kind: str) -> Optional[Dict[str, Any]]:
     offs = c.get("officials") or {}
     role = _KIND_ROLE.get(kind, "prefect")
     row = offs.get(role) or offs.get("prefect")
-    if isinstance(row, dict) and str(row.get("name") or "").strip():
+    if (isinstance(row, dict) and str(row.get("name") or "").strip()
+            and not is_official_banned(state, row)):
         return row
     return None
 

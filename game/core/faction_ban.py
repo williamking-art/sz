@@ -53,6 +53,25 @@ def actor_faction(state, actor) -> Optional[str]:
         fac = str(fig.get("faction") or "").strip()
         if fac:
             return fac
+    # 地方/路级官员不在 MINISTERS 名册：从真账 holder 读 faction。
+    for po in (getattr(state, "prefect_officials", None) or {}).values():
+        if not isinstance(po, dict):
+            continue
+        for key in ("prefect", "subprefect"):
+            row = po.get(key)
+            if isinstance(row, dict) and str(row.get("name") or "") == name:
+                fac = str(row.get("faction") or "").strip()
+                if fac:
+                    return fac
+    for c in (getattr(state, "circuit_officials", None) or {}).values():
+        offs = c.get("officials") if isinstance(c, dict) else None
+        if not isinstance(offs, dict):
+            continue
+        for row in offs.values():
+            if isinstance(row, dict) and str(row.get("name") or "") == name:
+                fac = str(row.get("faction") or "").strip()
+                if fac:
+                    return fac
     prof = (getattr(state, "official_stats", None) or {}).get(name)
     if isinstance(prof, dict):
         fac = str(prof.get("faction") or (prof.get("attrs") or {}).get("faction") or "").strip()
