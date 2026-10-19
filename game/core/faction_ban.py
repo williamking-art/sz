@@ -129,6 +129,8 @@ def start_faction_ban(state, faction: str, level: str = "轻",
     shock = _clamp(float(spec["satisfaction"]), -12.0, 12.0)
     f["_event_delta"] = _clamp(float(f.get("_event_delta", 0.0) or 0.0) + shock,
                               -12.0, 12.0)
+    # 剩余的 satisfaction 用持续 target 偏移表达；重级 -25 = -12 事件 + -13 target。
+    f["ban"]["satisfaction_target"] = float(spec["satisfaction"]) - shock
     eid = f"faction_ban:{key}:{now}"
     if _event_once(state, eid, {"kind": "faction_ban_start", "faction": key,
                                 "level": lv, "turn": now}):

@@ -160,6 +160,34 @@ def _circuit_actor(state, route: str, kind: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _incident_memorial(state, inc: Dict[str, Any]) -> None:
+    """central 事故 → 御前摘要折；同一 incident_id 幂等。"""
+    memos = getattr(state, "memorials", None)
+    if not isinstance(memos, list):
+        memos = []
+        state.memorials = memos
+    mid = "mem_inc_" + str(inc.get("incident_id") or "")
+    if any(isinstance(m, dict) and m.get("memorial_id") == mid for m in memos):
+        return
+    kind = "military" if inc.get("kind") in (
+        "military", "border", "bandit", "revolt") else "governance"
+    req = _recommend(inc.get("kind"))
+    memos.append({
+        "memorial_id": mid,
+        "kind": kind,
+        "title": f"《{inc.get('locality', '')}{inc.get('kind', '')}急奏》",
+        "body": (f"{inc.get('summary', '')}。"
+                 f"有司核议：{req}。"
+                 f"（原件 {len(inc.get('raw_report_ids') or [])} 件留档）"),
+        "source_tag": "通进银台司进呈",
+        "incident_id": inc.get("incident_id"),
+        "raw_report_ids": list(inc.get("raw_report_ids") or []),
+        "recommendation": req,
+        "priority": "urgent" if float(inc.get("severity", 0.5)) >= 0.7 else "normal",
+    })
+    inc["memorial_id"] = mid
+
+
 def _recommend(kind: str) -> str:
     return {
         "flood": "请拨帑、免赋、开常平", "famine": "请拨粮、赈济、平粜",
@@ -209,6 +237,7 @@ def settle_incidents(state, turn: Optional[int] = None) -> Dict[str, Any]:
                 inc["status"] = "awaiting_decision"
                 inc["recommendation"] = _recommend(inc.get("kind"))
                 inc["due_turn"] = None
+                _incident_memorial(state, inc)
                 escalated += 1
                 continue
 

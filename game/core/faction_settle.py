@@ -34,6 +34,17 @@ __all__ = ["settle_factions_from_pop", "satisfaction_target", "cohesion_target",
 SAT_NEUTRAL = 50.0
 SAT_CONVERGE = 0.25      # 满意度每月向派生目标走 25%
 COH_CONVERGE = 0.20      # 凝聚力每月向派生目标走 20%
+GRIEVANCE_CONVERGE = 0.20  # 党禁怨望向目标缓动（faction 子字段，不另建账本）
+
+
+def _active_ban(f: Dict[str, Any], turn: int) -> Optional[Dict[str, Any]]:
+    ban = f.get("ban") if isinstance(f, dict) else None
+    if not isinstance(ban, dict) or ban.get("status") != "active":
+        return None
+    end = ban.get("end_turn")
+    if end is not None and turn >= int(end):
+        return None
+    return ban
 
 # 三期「转投」：满意度低的派系成员按小比例转向满意度高的派系（零和，Σ=1 不变）。
 # 只改 `state.faction_split`（仍经 `core/faction_split.set_split` 唯一写入点），
@@ -117,7 +128,9 @@ def satisfaction_target(state, name: str, spec: Any, f: Dict[str, Any],
          + W_SECURITY * _security_delta(state, spec)
          + W_REPRESENT * (2.0 * _representation(state, name, spec, power) - 1.0)
          + W_EVENT * ev)
-    return _clamp(SAT_NEUTRAL + d * 50.0, 0.0, 100.0)
+    ban = _active_ban(f, int(getattr(state, "turn", 0) or 0))
+    ban_pen = float((ban or {}).get("satisfaction_target", 0.0) or 0.0)
+    return _clamp(SAT_NEUTRAL + d * 50.0 + ban_pen, 0.0, 100.0)
 
 
 def cohesion_target(state, name: str, spec: Any, f: Dict[str, Any]) -> float:
@@ -125,7 +138,9 @@ def cohesion_target(state, name: str, spec: Any, f: Dict[str, Any]) -> float:
     n = len(basis_routes(spec))
     spread = 1.0 if n <= 3 else (0.5 if n <= 8 else 0.2)
     leader = 1.0 if f.get("leader") else 0.0
-    return _clamp(40.0 + 30.0 * spread + 20.0 * leader, 0.0, 100.0)
+    ban = _active_ban(f, int(getattr(state, "turn", 0) or 0))
+    ban_bonus = float((ban or {}).get("cohesion_bonus", 0.0) or 0.0)
+    return _clamp(40.0 + 30.0 * spread + 20.0 * leader + ban_bonus, 0.0, 100.0)
 
 
 def settle_factions_from_pop(state, log_: Optional[list] = None) -> Dict[str, Any]:
@@ -167,8 +182,15 @@ def settle_factions_from_pop(state, log_: Optional[list] = None) -> Dict[str, An
         f["cohesion"] = round(_clamp(
             cur_coh + (tgt_coh - cur_coh) * COH_CONVERGE, 0.0, 100.0), 2)
 
+        ban = _active_ban(f, int(getattr(state, "turn", 0) or 0))
+        g_target = float((ban or {}).get("grievance_target", 0.0) or 0.0)
+        g_cur = _num(f.get("grievance"), 0.0)
+        f["grievance"] = round(_clamp(
+            g_cur + (g_target - g_cur) * GRIEVANCE_CONVERGE, 0.0, 100.0), 2)
+
         out[name] = {"influence": f["influence"], "satisfaction": f["satisfaction"],
-                     "cohesion": f["cohesion"], "influence_was": old_inf,
+                     "cohesion": f["cohesion"], "grievance": f["grievance"],
+                     "influence_was": old_inf,
                      "satisfaction_target": round(tgt_sat, 2), "cohesion_target": tgt_coh}
     if logs and out:
         logs.append(

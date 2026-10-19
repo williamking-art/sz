@@ -597,7 +597,9 @@ def advance_and_settle(state, ai_client=None) -> tuple:
                 _fb = fallback_memorials(state=state, turn=getattr(state, "turn", 0))
                 _memos = (_fb or {}).get("memorials") if isinstance(_fb, dict) else None
             if _memos:
-                state.memorials = _memos
+                _keep = [m for m in (getattr(state, "memorials", None) or [])
+                         if isinstance(m, dict) and m.get("incident_id")]
+                state.memorials = _keep + list(_memos)
         except Exception as _e:  # noqa: BLE001
             log.warning("[memorials] 上折未成: %s", _e)
         return events, log, report
@@ -638,7 +640,9 @@ def _rich_narrative(state, ai_client) -> None:
                     _memorial_posture(state), state=state, count=3)
                 _memos = (_res or {}).get("memorials") if isinstance(_res, dict) else None
                 if _memos:
-                    state.memorials = _memos
+                    _keep = [m for m in (getattr(state, "memorials", None) or [])
+                             if isinstance(m, dict) and m.get("incident_id")]
+                    state.memorials = _keep + list(_memos)
             except Exception as _e:  # noqa: BLE001
                 log.warning("[memorials] round2 上折未成: %s", _e)
             # ③ AI 官方月报（结算后的官方总结；失败走本地模板 → 不写 rich_report）

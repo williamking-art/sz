@@ -97,3 +97,49 @@ def test_ban_does_not_touch_influence():
     start_faction_ban(s, "旧党", "轻", turn=0)
     assert s.factions["旧党"]["influence"] == before
 
+
+def test_heavy_ban_splits_shock_and_target():
+    s = _state()
+    start_faction_ban(s, "旧党", "重", turn=0)
+    f = s.factions["旧党"]
+    assert float(f["_event_delta"]) == -12.0
+    assert float(f["ban"]["satisfaction_target"]) == -13.0
+
+
+def test_ban_changes_targets_and_grievance():
+    from content.data import FACTION_POP_BASIS
+    from core.faction_settle import (
+        cohesion_target, satisfaction_target, settle_factions_from_pop,
+    )
+
+    s = _state()
+    f = s.factions["旧党"]
+    spec = FACTION_POP_BASIS["旧党"]
+    sat0 = satisfaction_target(s, "旧党", spec, f)
+    coh0 = cohesion_target(s, "旧党", spec, f)
+    start_faction_ban(s, "旧党", "中", turn=0)
+    sat1 = satisfaction_target(s, "旧党", spec, f)
+    coh1 = cohesion_target(s, "旧党", spec, f)
+    assert sat1 <= sat0 - 3
+    assert coh1 >= coh0 + 8
+    settle_factions_from_pop(s, [])
+    assert float(f.get("grievance", 0.0)) > 0
+
+
+def test_ban_targets_release_after_expiry():
+    from content.data import FACTION_POP_BASIS
+    from core.faction_settle import satisfaction_target
+
+    s = _state()
+    f = s.factions["旧党"]
+    spec = FACTION_POP_BASIS["旧党"]
+    start_faction_ban(s, "旧党", "轻", turn=0)
+    s.turn = 6
+    ban = f["ban"]
+    assert ban["status"] == "active"
+    # end_turn 之前 active；到 end_turn 时 target 修正应消失（settle 先解除）
+    from core.faction_ban import settle_faction_bans
+    settle_faction_bans(s)
+    assert f["ban"]["status"] == "expired"
+    assert satisfaction_target(s, "旧党", spec, f) >= 50 - 50  # 不因 ban 再惩罚
+

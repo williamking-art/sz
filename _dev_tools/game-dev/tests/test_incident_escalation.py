@@ -80,4 +80,20 @@ def test_central_ends_awaiting_decision_with_recommendation():
     assert inc["status"] == "awaiting_decision"
     assert inc["recommendation"]
     assert inc["due_turn"] is None
+    memos = [m for m in s.memorials if m.get("incident_id") == inc["incident_id"]]
+    assert len(memos) == 1
+    assert memos[0]["memorial_id"].startswith("mem_inc_")
+    assert memos[0]["recommendation"] == inc["recommendation"]
+    assert memos[0]["priority"] == "urgent"
+
+
+def test_incident_memorial_is_not_duplicated():
+    s = _state()
+    inc = _incident(s, severity=1.0)
+    for turn in (1, 2, 3, 4, 5):
+        settle_incidents(s, turn=turn)
+    n = len([m for m in s.memorials if m.get("incident_id") == inc["incident_id"]])
+    settle_incidents(s, turn=5)
+    assert len([m for m in s.memorials
+                if m.get("incident_id") == inc["incident_id"]]) == n == 1
 
