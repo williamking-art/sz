@@ -1,0 +1,28 @@
+{
+ "id": "JEV-DEC-天道档位化边界-2026-10-19",
+ "createdAt": "2026-10-19T17:55:00+08:00",
+ "agent": "DSH",
+ "question": "全项目写死数值中，哪些改由天道出档位",
+ "options": [
+  "A 只改情境强度类（灾情/战事烈度/事件压力/民心扰动），保留统计噪声与税率损耗率",
+  "B 全部随机数改天道档位",
+  "C 不改"
+ ],
+ "verdict": "A 只改情境强度类",
+ "probabilities": {
+  "A": 0.6436,
+  "B": 0.3138,
+  "C": 0.0426
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "authority": "Jev 裁定；用户提出「能用天道裁决的就用天道裁决」",
+ "premises_verified_by_me": [
+  "实测 game/ 319 py、random 调用 73 处/17 文件、关键词+数值候选 182 行",
+  "已有 17 个 _*_ai 槽位（economy/relief/faction/granary/...），说明项目已大量天道化",
+  "灾情严重度 randint(1,5) 直接决定救灾/减产，是典型情境强度类；",
+  "税率/损耗率进入对账恒等式（货币口径规范），必须保留确定性否则对账无法复核",
+  "统计噪声属可复现性要求（60 月回放），不宜交天道"
+ ],
+ "applied_in": "specs/diplomacy/天道档位化_全项目筛查清单_2026-10-19.md；batch1 core/domains/events/disaster_tier.py",
+ "reopen_if": "batch2/3 实测发现某类数值交天道后破坏对账；或用户要求更强混沌（走 B）"
+}

@@ -763,9 +763,16 @@ def _settle_disaster(state, log):
             log.append(f"[饥馑] 太仓乏粟（仅发 {relief}石），饿殍渐现，逃荒者众！")
         log.append(f"[灾荒] {state.disaster_region} 持续，严重度 {state.disaster_severity}")
 
-    if random.random() < 0.03:
-        severity = random.randint(1, 5)
-        region = random.choice(["河北", "京东", "两浙", "陕西", "河东", "荆湖"])
+    # 灾情档位化（2026-10-19）：是否成灾仍按频次模型；严重度由天道出档位
+    # （轻/中/重/极重），程序换算 1–5；天道缺档 ⇒ 程序均匀兜底并标来源。
+    from core.domains.events.disaster_tier import resolve_disaster
+    _ds = resolve_disaster(state)
+    if _ds["occur"]:
+        severity = _ds["severity"]
+        region = _ds["region"]
+        if _ds.get("note"):
+            log.append("[天意] " + str(region) + "：" + str(_ds.get("note"))
+                       + "（" + str(_ds.get("source")) + "）")
         state.disaster_severity = severity
         state.disaster_region = region
         state.population_satisfaction = max(0, state.population_satisfaction - severity * 2)
