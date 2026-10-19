@@ -50,9 +50,9 @@ def test_capture_liao_gets_people_and_tax_not_frozen():
     got = regime_intake(s, "金")
     assert got["t1_count"] == 1
     assert got["tax_output_frozen"] is False
-    assert got["devastation_avg"] == 0.6
+    assert got["devastation_avg"] == 0.7   # 缺天道档 ⇒ 中性中档
     assert got["collectable_tax"] > 0
-    assert s.regions["liao_p0_a"]["pop"]["农"]["wealth"] == 850000
+    assert s.regions["liao_p0_a"]["pop"]["农"]["wealth"] == 910000   # 中档 −9%
 
 
 def test_capture_song_seat_uses_real_ledger_and_flags_land():
@@ -77,7 +77,7 @@ def test_return_keeps_devastation_and_clears_intake():
     assert revert_change(s, out["change_id"])["ok"]
     got = regime_intake(s, "金")
     assert got["t1_count"] == 0 and got["population_people"] is None
-    assert s.regions["liao_p0_a"]["devastation"] == 0.6, "归还后残破保留"
+    assert s.regions["liao_p0_a"]["devastation"] == 0.7, "归还后残破保留"
 
 
 def test_unknown_regime_population_is_none():

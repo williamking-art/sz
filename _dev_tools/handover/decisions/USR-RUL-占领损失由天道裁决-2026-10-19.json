@@ -1,0 +1,60 @@
+{
+ "id": "USR-RUL-占领损失由天道裁决-2026-10-19",
+ "createdAt": "2026-10-19T17:45:00+08:00",
+ "agent": "DSH",
+ "kind": "用户裁定（覆盖程序中写死的固定比例）",
+ "user_ruling": "关于财产流失，不要设置固定比例，用天道裁决",
+ "adopted_model": {
+  "档位枚举": [
+   "无",
+   "轻",
+   "中",
+   "重",
+   "极重"
+  ],
+  "天道输出": "只出档位 + 叙事（state._occupation_ai.loot_severity 或 provider）",
+  "程序换算": "档位 → (人口损失, 财富损失, 存粮损失, 起始残破度) 的换算表（唯一数字来源）",
+  "缺档兜底": "按攻城方式推导（受降→轻 / 围城→中 / 力攻→重 / 屠城→极重），记录 source",
+  "双缺兜底": "中性「中」并标 source=程序兜底（明确「不是精确值」）"
+ },
+ "conversion_table": {
+  "无": {
+   "size": 0,
+   "wealth": 0,
+   "grain": 0,
+   "devastation": 0.95
+  },
+  "轻": {
+   "size": 0.005,
+   "wealth": 0.04,
+   "grain": 0.04,
+   "devastation": 0.8
+  },
+  "中": {
+   "size": 0.015,
+   "wealth": 0.09,
+   "grain": 0.09,
+   "devastation": 0.7
+  },
+  "重": {
+   "size": 0.03,
+   "wealth": 0.15,
+   "grain": 0.15,
+   "devastation": 0.6
+  },
+  "极重": {
+   "size": 0.06,
+   "wealth": 0.3,
+   "grain": 0.3,
+   "devastation": 0.45
+  }
+ },
+ "discipline": "架构纪律：天道只出档位/枚举/叙事，数值一律程序算；换算表集中一处，禁止散落写死比例",
+ "premises_verified_by_me": [
+  "项目既有多于 11 个 _*_ai 槽位模式：AI 注入 state._x_ai，结算期读取（无同步 HTTP）",
+  "占领损失受战况/抵抗/攻城方式影响，固定 15% 无法表达差异",
+  "缺档必须留痕（缺失≠0）：不能默认某比例而无来源"
+ ],
+ "applied_in": "core/domains/diplomacy/regime_intake.py（P5.6 修订）；门 test_quality_gate_region_occupation_econ.py 8 条",
+ "reopen_if": "天道契约正式接线（occupation_decide 独立契约）后需替换注入方式；或换算表需与外邦经济统一"
+}

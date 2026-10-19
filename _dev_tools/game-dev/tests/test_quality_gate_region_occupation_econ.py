@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-"""质量放行门 · P5.6 占领经济后果（2026-10-19；用户裁定：不冻结）。
+"""P5.6 占领经济后果（2026-10-19；用户裁定：损失比例由天道裁决）。
 
-用户原话：「怎么会冻结税产呢？占领后会产生财产流失，这个我理解；为什么会冻结呢」
-⇒ 模型改为：**一次性财产流失（掠夺/逃户）+ 残破度税基（0.6 起，逐月 +0.10 恢复）+ 按残破征税**。
+链条：天道出掠夺烈度档位（无/轻/中/重/极重）→ 程序换算损失/残破（架构纪律）。
+缺档兜底：按攻城方式（受降/围城/力攻/屠城）程序推导；再缺 ⇒ 中性中 且标明来源。
 
-本门用**独立 fixture**（不依赖 `new_game`），钉住：
-1. 占领当刻：人口 −3% / 财富 −15% / 存粮 −15%，掠夺额 = 损失财富 ×50% 入占领方 treasury；
-2. `devastation` 初始 0.6，重复调用**幂等**（不二次打残）；
-3. `regime_intake` **不冻结**：`tax_output_frozen=False`，`collectable_tax > 0` 且 ≈ 财富×0.6×1%；
-4. 月度征税从 POP 财富扣、入政权 treasury（钱不凭空生）；
-5. `recover_devastation` 每月 +0.10、封顶 1.0；
-6. 归还（owner 改回）后残破**保留**（战争破坏不返还）。
+本门用独立 fixture（不依赖 new_game）：
+1. 天道档位生效（极重 ⇒ 财富 −30%、残破 0.45、source=天道）；
+2. 无天道档 + 受降 ⇒ 轻（−4%），source=程序推导；
+3. 无天道档、无攻城方式 ⇒ 中（−9%）且 source 明确（不是精确值）；
+4. provider 注入优先于程序推导；
+5. 无档时不再出现旧的固定 −15%（防写死回潮）；
+6. 掠夺=损失财富50%，同源；残破遗留+逐月恢复+封顶。
 """
 from __future__ import annotations
 
@@ -19,90 +19,91 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 
-from core.domains.diplomacy.regime_intake import (  # noqa: E402
-    DEVASTATION_RECOVERY, DEVASTATION_START, TAX_RATE_ON_WEALTH,
-    apply_occupation_damage, collect_occupation_tax, recover_devastation,
-    regime_intake)
+from core.domains.diplomacy import regime_intake as ri  # noqa: E402
 
 
 class _S:
-    """最小 state fixture（只含本模块用到的三段）。"""
-
-    def __init__(self):
+    def __init__(self, severity=None):
+        self._occupation_ai = {"loot_severity": severity, "note": "测试"} if severity else {}
         self.regions = {
-            "p0": {"level": "T2", "name": "省甲", "owner": "辽", "parent": "辽"},
-            "p0_a": {"level": "T1", "name": "甲州", "owner": "辽", "owner_at_init": "辽", "parent": "p0",
-                     "pop": {"农": {"size": 100000, "wealth": 1000000, "grain": 500000}},
-                     "land": 1000},
-            "p0_b": {"level": "T1", "name": "乙州", "owner": "辽", "owner_at_init": "辽", "parent": "p0",
-                     "pop": {"农": {"size": 50000, "wealth": 500000, "grain": 200000}},
-                     "land": 500},
+            "p0_a": {"level": "T1", "name": "甲州", "owner": "辽", "owner_at_init": "辽",
+                     "parent": "p0", "land": 1000,
+                     "pop": {"农": {"size": 100000, "wealth": 1000000, "grain": 500000}}},
         }
-        self.external_regimes = {"辽": {"treasury": 0}, "金": {"treasury": 0, "placeholder": True}}
+        self.external_regimes = {"辽": {"treasury": 0}, "金": {"treasury": 0}}
         self.prefectures = {}
 
 
-def test_damage_and_loot():
-    s = _S()
-    out = apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    assert out["ok"] and out["touched"] == ["p0_a"]
+def _run(s, capture_type=""):
+    return ri.apply_occupation_damage(s, ["p0_a"], to_regime="金", capture_type=capture_type)
+
+
+def test_heaven_severity_drives_loss():
+    s = _S(severity="极重")
+    out = _run(s)
+    assert out["severity"] == "极重" and out["severity_source"] == "天道"
     pop = s.regions["p0_a"]["pop"]["农"]
-    assert pop["size"] == 97000, pop          # −3%
-    assert pop["wealth"] == 850000, pop       # −15%
-    assert pop["grain"] == 425000, pop        # −15%
-    assert s.regions["p0_a"]["devastation"] == DEVASTATION_START
-    assert s.external_regimes["金"]["treasury"] == 75000, s.external_regimes["金"]
+    assert pop["size"] == 94000
+    assert pop["wealth"] == 700000
+    assert pop["grain"] == 350000
+    assert s.regions["p0_a"]["devastation"] == 0.45
+    assert s.external_regimes["金"]["treasury"] == 150000
 
 
-def test_damage_idempotent():
+def test_light_severity():
+    s = _S(severity="轻")
+    out = _run(s)
+    assert out["severity"] == "轻"
+    assert s.regions["p0_a"]["pop"]["农"]["wealth"] == 960000
+    assert s.regions["p0_a"]["devastation"] == 0.80
+
+
+def test_capture_type_fallback_when_no_heaven():
     s = _S()
-    apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    treasury = s.external_regimes["金"]["treasury"]
-    again = apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    assert again["touched"] == [] and again["skipped"] == ["p0_a"]
-    assert s.external_regimes["金"]["treasury"] == treasury
-    assert s.regions["p0_a"]["pop"]["农"]["wealth"] == 850000
+    out = _run(s, capture_type="受降")
+    assert out["severity"] == "轻"
+    assert "程序推导" in out["severity_source"]
+    assert s.regions["p0_a"]["pop"]["农"]["wealth"] == 960000
 
 
-def test_intake_not_frozen_and_tax_backed_by_damage():
+def test_neutral_fallback_marks_source():
     s = _S()
-    apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    s.regions["p0_a"]["owner"] = "金"
-    got = regime_intake(s, "金")
-    assert got["tax_output_frozen"] is False
-    assert got["devastation_avg"] == DEVASTATION_START
-    expect = int(850000 * DEVASTATION_START * TAX_RATE_ON_WEALTH)
-    assert got["collectable_tax"] == expect, (got["collectable_tax"], expect)
+    out = _run(s)
+    assert out["severity"] == "中"
+    assert "兜底" in out["severity_source"]
 
 
-def test_collect_taxes_backed_by_pop_wealth():
+def test_no_hardcoded_fifteen_percent():
     s = _S()
-    apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    s.regions["p0_a"]["owner"] = "金"
-    before_wealth = s.regions["p0_a"]["pop"]["农"]["wealth"]
-    before_treasury = s.external_regimes["金"]["treasury"]
-    out = collect_occupation_tax(s)
-    assert out["collected"] > 0
-    after_wealth = s.regions["p0_a"]["pop"]["农"]["wealth"]
-    after_treasury = s.external_regimes["金"]["treasury"]
-    assert after_wealth == before_wealth - out["collected"]
-    assert after_treasury == before_treasury + out["collected"]
+    out = _run(s)
+    assert s.regions["p0_a"]["pop"]["农"]["wealth"] != 850000
+    assert out["severity"] != "重"
 
 
-def test_recovery_caps_and_restores():
+def test_provider_injection_beats_fallback():
     s = _S()
-    apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    for _ in range(3):
-        recover_devastation(s)
-    assert s.regions["p0_a"]["devastation"] == 0.9
-    for _ in range(10):
-        recover_devastation(s)
+    ri.register_occupation_severity_provider(lambda st, ids: {"loot_severity": "重", "note": "provider"})
+    try:
+        out = _run(s)
+        assert out["severity"] == "重"
+        assert "provider" in out["severity_source"]
+        assert s.regions["p0_a"]["pop"]["农"]["wealth"] == 850000
+    finally:
+        ri._PROVIDERS.clear()
+
+
+def test_loot_equals_half_lost_wealth():
+    s = _S(severity="重")
+    out = _run(s)
+    assert out["lost"]["wealth"] == 150000
+    assert out["loot"] == 75000
+    assert s.external_regimes["金"]["treasury"] == out["loot"]
+
+
+def test_devastation_kept_and_recovery_caps():
+    s = _S(severity="重")
+    _run(s)
+    assert s.regions["p0_a"]["devastation"] == 0.60
+    for _ in range(4):
+        ri.recover_devastation(s)
     assert s.regions["p0_a"]["devastation"] == 1.0
-
-
-def test_devastation_kept_after_return():
-    s = _S()
-    apply_occupation_damage(s, ["p0_a"], to_regime="金")
-    s.regions["p0_a"]["owner"] = "金"
-    s.regions["p0_a"]["owner"] = "辽"     # 和议归还
-    assert s.regions["p0_a"]["devastation"] == DEVASTATION_START, "战争破坏不返还"
