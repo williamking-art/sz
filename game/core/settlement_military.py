@@ -12,6 +12,9 @@ from content.data import (
     ECONOMY_PRESSURE_THRESHOLD_PRICE,
 )
 
+from core.domains.politics.trend_tier import (
+    resolve_attitude_shock, resolve_power_trend, resolve_pressure_level)
+from content.ministers.data import MINISTERS
 from core.foundation.common.numeric import parse_number
 from core.settlement_common import (
     _return_men,
@@ -93,6 +96,9 @@ def _settle_military_diplomacy(state, log):
     tl = state.timeline
     _dip = getattr(state, "_diplomacy_ai", None)
     _mil = getattr(state, "_military_ai", None)
+    from core.domains.politics.trend_tier import (
+        resolve_attitude_shock, resolve_power_trend, resolve_pressure_level)
+    from content.ministers.data import MINISTERS
 
     # 外交契约（attitude 档位 → ±3~±8；岁币/盟约布尔）
     if isinstance(_dip, dict) and not _dip.get("_error"):
@@ -115,24 +121,29 @@ def _settle_military_diplomacy(state, log):
         jin["power"] = min(jin["power"], 20)
         jin["invasion_will"] = 0
     elif state.year >= 1115 and "liao_ally" not in tl:
-        jin["power"] = min(100, jin["power"] + random.uniform(0.5, 1.5))
+        _jd = resolve_power_trend(state, "金")
+        jin["power"] = min(100, jin["power"] + (_jd if _jd is not None else random.uniform(0.5, 1.5)))
         jin["invasion_will"] = min(100, jin["invasion_will"] + random.uniform(0.2, 0.8))
     elif state.year >= 1115 and "liao_ally" in tl:
-        jin["power"] = min(100, jin["power"] + random.uniform(0.1, 0.5))
+        _jd2 = resolve_power_trend(state, "金")
+        jin["power"] = min(100, jin["power"] + (_jd2 if _jd2 is not None else random.uniform(0.1, 0.5)))
 
     liao = state.external["辽"]
     if "liao_ally" in tl:
-        liao["power"] = min(100, liao["power"] + random.uniform(0.1, 0.4))
+        _ld = resolve_power_trend(state, "辽")
+        liao["power"] = min(100, liao["power"] + (_ld if _ld is not None else random.uniform(0.1, 0.4)))
     elif state.year >= 1110:
-        liao["power"] = max(10, liao["power"] - random.uniform(0.3, 0.8))
+        _ld2 = resolve_power_trend(state, "辽")
+        liao["power"] = max(10, liao["power"] + (_ld2 if _ld2 is not None else -random.uniform(0.3, 0.8)))
 
     xixia = state.external["西夏"]
+    _ash = resolve_attitude_shock(state, "西夏")
     if random.random() < 0.1:
-        xixia["attitude"] = max(10, min(90, xixia["attitude"] + random.randint(-10, 10)))
+        xixia["attitude"] = max(10, min(90, xixia["attitude"] +
+            (_ash if _ash is not None else random.randint(-10, 10))))
 
     # 军事契约（power%/兵额/训练士气/征发——训练士气与兵额调整程序换算，cost 由守恒步扣）
     # 审查 P1：无论有无 AI，一律叠加月度衰减基线（防只增不减导致士气/训练长期膨胀）
-    from content.ministers.data import MINISTERS
     for u in state.army_units:
         if random.random() < 0.15:
             u.training = max(10, u.training - random.randint(1, 2))
@@ -206,7 +217,8 @@ def _settle_events(state, log):
     for cat in EVENT_CATEGORIES:
         if cat not in state.event_pressure:
             state.event_pressure[cat] = 0
-        growth = random.uniform(0, 2) * state.diff_params.get("event_pressure_mult", 1.0)
+        _pm = resolve_pressure_level(state, cat)
+        growth = (random.uniform(0, 2) * _pm if _pm is not None else random.uniform(0, 2)) * state.diff_params.get("event_pressure_mult", 1.0)
         state.event_pressure[cat] += growth
 
     util = state.granary_capacity_used()
@@ -220,21 +232,25 @@ def _settle_events(state, log):
                 boost = (local_unrest - 30) * 0.05 + local_ref / 2000.0
                 for cat in ("方腊起义", "宋江起义"):
                     if cat in state.event_pressure:
-                        state.event_pressure[cat] += boost * random.uniform(0.8, 1.2)
+                        _b = resolve_pressure_level(state, cat)
+                        state.event_pressure[cat] += boost * (random.uniform(0.8, 1.2) * _b if _b is not None else random.uniform(0.8, 1.2))
         if util < ECONOMY_PRESSURE_THRESHOLD_GRANARY:
             for cat in ("方腊起义", "宋江起义"):
                 if cat in state.event_pressure:
-                    state.event_pressure[cat] += random.uniform(1.0, 2.5)
+                    _g = resolve_pressure_level(state, cat)
+                    state.event_pressure[cat] += (random.uniform(1.0, 2.5) * _g if _g is not None else random.uniform(1.0, 2.5))
             log.append("[经济] 太仓告匮，流民聚啸，起义之谋渐生")
         if state.grain_price >= ECONOMY_PRESSURE_THRESHOLD_PRICE:
             for cat in ("方腊起义", "宋江起义"):
                 if cat in state.event_pressure:
-                    state.event_pressure[cat] += random.uniform(0.5, 1.5)
+                    _g2 = resolve_pressure_level(state, cat)
+                    state.event_pressure[cat] += (random.uniform(0.5, 1.5) * _g2 if _g2 is not None else random.uniform(0.5, 1.5))
             log.append("[经济] 米价腾涌，民不堪命，变乱之兆萌焉")
         if state.population_satisfaction < 30:
             for cat in ("方腊起义", "宋江起义"):
                 if cat in state.event_pressure:
-                    state.event_pressure[cat] += random.uniform(0.5, 1.5)
+                    _g3 = resolve_pressure_level(state, cat)
+                    state.event_pressure[cat] += (random.uniform(0.5, 1.5) * _g3 if _g3 is not None else random.uniform(0.5, 1.5))
 
     if state.year >= 1102 and "花石纲" not in state.event_pressure:
         state.event_pressure["花石纲"] = 10

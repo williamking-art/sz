@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 from core.county_registry import county_officials
 from core.faction_ban import actor_faction, is_official_banned
+from core.report_ledger import handle_report, record_raw_report
 from memory.memory_graph import get_memory_graph
 
 __all__ = ["create_incident", "settle_incidents", "incident_of", "incidents_of"]
@@ -67,8 +68,11 @@ def incident_of(state, parent_seat_id: str, incident_id: str) -> Optional[Dict[s
 
 def create_incident(state, *, kind: str, locality: str, parent_seat_id: str,
                     route: str = "", severity: float = 0.5,
-                    level: str = "locality",
-                    summary: str = "") -> Dict[str, Any]:
+                    level: str = "locality", summary: str = "",
+                    submitted_by: str = "", from_post: str = "",
+                    channel: str = "通进银台司",
+                    channel_matter: str = "奏章进纳",
+                    body: str = "") -> Dict[str, Any]:
     """开事故单；父州府必须真实存在。"""
     seat = str(parent_seat_id or "").strip()
     loc = str(locality or "").strip()
@@ -104,6 +108,14 @@ def create_incident(state, *, kind: str, locality: str, parent_seat_id: str,
         "due_turn": turn + 1,
     }
     row["incidents"][iid] = inc
+    rid = record_raw_report(
+        state, incident_id=iid, parent_seat_id=seat,
+        submitted_by=submitted_by or f"{loc}{kind}有司",
+        from_post=from_post, channel=channel,
+        channel_matter=channel_matter,
+        title=f"{loc}{kind}事", body=body or inc["summary"], turn=turn)
+    if rid:
+        inc["raw_report_ids"] = [rid]
     return {"ok": True, "incident": inc}
 
 
@@ -198,6 +210,16 @@ def _recommend(kind: str) -> str:
 
 
 def _escalate(state, inc: Dict[str, Any], *, reason: str, turn: int) -> None:
+    rid = record_raw_report(
+        state, incident_id=inc.get("incident_id", ""),
+        parent_seat_id=inc.get("parent_seat_id", ""),
+        submitted_by=inc.get("handled_by") or "有司",
+        from_post=inc.get("level", ""),
+        channel="通进银台司", channel_matter="奏章进纳",
+        title=f"{inc.get('locality', '')}升级报",
+        body=f"{inc.get('summary', '')}：{reason}", turn=turn)
+    if rid and rid not in (inc.get("raw_report_ids") or []):
+        inc.setdefault("raw_report_ids", []).append(rid)
     nxt = _NEXT_LEVEL.get(inc.get("level"), None)
     inc["escalation_path"].append({
         "level": inc.get("level"), "actor": inc.get("handled_by") or "有司",
@@ -237,6 +259,11 @@ def settle_incidents(state, turn: Optional[int] = None) -> Dict[str, Any]:
                 inc["status"] = "awaiting_decision"
                 inc["recommendation"] = _recommend(inc.get("kind"))
                 inc["due_turn"] = None
+                for rid in inc.get("raw_report_ids") or []:
+                    handle_report(
+                        state, rid, handled_by="中书/门下",
+                        summary=inc.get("summary", ""),
+                        recommendation=inc.get("recommendation", ""), turn=now)
                 _incident_memorial(state, inc)
                 escalated += 1
                 continue
