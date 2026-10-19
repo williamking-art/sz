@@ -7,6 +7,7 @@
 ## 已迁入实现（阶段 3 第二包，2026-10-07）
 
 | `settlement_imperial.py` | 由 `core/settlement_imperial.py` 按域拆出（2026-10-07 用户裁定「拆开」，阶段 3 第二包）| 帝王行动 5 函数（`_settle_emperor_personal` / `_imp_split_tier` / `_imp_tier_delta` / `_apply_imperial_action` / `_apply_imperial_effects`）+ `_settle_emperor_health_decay` |
+| `trend_tier.py` | **新建**（2026-10-20 天道档位化 batch2）| `resolve_power_trend` `resolve_attitude_shock` `resolve_pressure_level` | 国势/外交/事件压力档位→程序换算；**缺档返回 None ⇒ 调用方沿用原随机（零行为变更）** |
 | | | 🔴 **帝王行动目前处于「暂时停用」状态**：`settlement.IMPERIAL_ACTION_ENABLED = False`（用户 2026-10-07 裁定选甲·可回退不删除）。恢复 = 改该常量 + 去掉 `tests/test_imperial_action.py` 的 module 级 skip，仅此两处。归 `politics` 是**暂定**，重做帝王行动时可能再调整 |
 
 ## 拥有的规则
