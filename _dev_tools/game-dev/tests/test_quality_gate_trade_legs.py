@@ -29,8 +29,9 @@ def _state():
     return new_game()
 
 
-def test_default_switch_is_off_and_noop():
+def test_switch_off_is_noop(monkeypatch):
     s = _state()
+    monkeypatch.setattr(dc, "FOREIGN_TRADE_LEGS", 0)
     assert TL.trade_legs_enabled() is False
     before = dict((d, (s.resources.get(d) or {}).get("stock")) for d in ("香药", "茶"))
     r = TL.settle_foreign_trade(s, month=1)
@@ -54,12 +55,15 @@ def test_export_shrinks_and_never_negative():
     s = _state()
     dim = "茶"
     route = "广南东路"
-    s.resources[dim] = {"stock": 50, "cap": 10 ** 9}
+    # 外销只走**商人货**（官仓不被外贸抽空）；测试按新口径铺商人库存
+    from core.foundation.ledger.material_holding import goods_add, merchant_goods
+    goods_add(merchant_goods(s, route), dim, 50)
     leg = {"channel": "land", "dim": dim, "direction": "export", "planned_qty": 400,
            "unit_price": dc.MATERIAL_PRICE_BASE[dim], "seat": None, "route": route}
     out = TL.execute_leg(s, leg)
     assert out["ok"] and out["shipped_qty"] == 50 and out["short_qty"] == 350, out
-    assert float(s.resources[dim]["stock"]) == 0
+    from core.foundation.ledger.material_holding import goods_amount
+    assert int(goods_amount(merchant_goods(s, route), dim) or 0) == 0
     assert out["value"] == 50 * dc.MATERIAL_PRICE_BASE[dim]
 
 

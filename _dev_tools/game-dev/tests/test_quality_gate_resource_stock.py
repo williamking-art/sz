@@ -29,6 +29,20 @@ GAME_ROOT = Path(__file__).resolve().parents[3] / "game"
 sys.path.insert(0, str(GAME_ROOT))
 
 #: 允许写 `resources[dim]["stock"]` 的文件（棘轮：新增文件必须评审）
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _closed_economy(monkeypatch):
+    """本门测**官仓配货**（封闭经济）；外贸/商人投资各有自己的门，这里显式关掉。
+
+    2026-10-19：两个行为开关打开后，外销会消耗商人货 ⇒ 配货门因无货可配而空转。
+    隔离被测单元（配货守恒），而不是放宽断言。
+    """
+    import content.data_constants as dc
+    monkeypatch.setattr(dc, "FOREIGN_TRADE_LEGS", 0)
+    monkeypatch.setattr(dc, "MERCHANT_INVEST_ENABLED", 0)
+
 ALLOWED_STOCK_WRITERS = {
     "core/material_market.py",
     "core/settlement_econ.py",

@@ -35,7 +35,95 @@ def _price(dim: str) -> Optional[int]:
     return int(v) if isinstance(v, (int, float)) else None
 
 
-def plan_legs(state, month: Optional[int] = None) -> List[Dict[str, Any]]:
+def route_key(leg: Dict[str, Any]) -> str:
+    """路线键：对家|货种|方向。"""
+    return "%s|%s|%s" % (leg.get("partner"), leg.get("dim"), leg.get("direction"))
+
+
+def _route_book(state) -> dict:
+    book = getattr(state, "trade_routes", None)
+    if not isinstance(book, dict):
+        book = {}
+        state.trade_routes = book
+    return book
+
+
+def quote_route(state, leg: Dict[str, Any]) -> Dict[str, Any]:
+    """按 V3 口径报价：买价 / 卖价 / 关税 / 运费 ⇒ 毛利与毛利比。
+
+    · 出口（export）：宋卖外邦 —— 收入 = 基准价 × PARTNER_PRICE_FACTORS；
+    · 进口（import）：宋买外邦 —— 成本 = 基准价 × PARTNER_IMPORT_FACTORS；
+    · 本路卖价 = 基准价 × `state.price_level`（缺失按 1.0，缺失≠0 的近似口径已注明）；
+    · 关税按通道 `FOREIGN_TARIFF_RATE`；运费用 `FOREIGN_FREIGHT_RATE` 代理（外邦无里程）。
+    """
+    from content.data_constants import (FOREIGN_FREIGHT_RATE, FOREIGN_TARIFF_RATE,
+                                        PARTNER_IMPORT_FACTORS, PARTNER_PRICE_FACTORS)
+
+    dim = str(leg.get("dim") or "")
+    partner = str(leg.get("partner") or "")
+    direction = str(leg.get("direction") or "")
+    channel = str(leg.get("channel") or "sea")
+    price = leg.get("unit_price")
+    if not isinstance(price, (int, float)) or price <= 0:
+        return {"ok": False, "reason": "price_missing", "dim": dim}
+    base = float(price)
+    level = float(getattr(state, "price_level", 1.0) or 1.0)
+    domestic = base * level
+    abroad = base * float(PARTNER_PRICE_FACTORS.get(partner, 1.0))
+    if direction == "export":
+        revenue, cost = abroad, domestic
+    else:
+        revenue, cost = domestic, base * float(PARTNER_IMPORT_FACTORS.get(partner, 1.0))
+    tariff = revenue * float(FOREIGN_TARIFF_RATE.get(channel, 0.0))
+    freight = revenue * float(FOREIGN_FREIGHT_RATE.get(channel, 0.0))
+    margin = revenue - cost - tariff - freight
+    margin_ratio = (margin / cost) if cost > 0 else 0.0
+    return {"ok": True, "dim": dim, "partner": partner, "direction": direction,
+            "buy_price": round(cost, 2), "sell_price": round(revenue, 2),
+            "tariff": round(tariff, 2), "freight": round(freight, 2),
+            "margin": round(margin, 2), "margin_ratio": round(margin_ratio, 4)}
+
+
+def target_volume(quote: Dict[str, Any], base_units: int) -> float:
+    """V3：目标量 = 基准量 × clamp(margin_ratio / TARGET, 0, MAX_MULT)；亏损 ⇒ 0。"""
+    from content.data_constants import TRADE_MAX_MULT, TRADE_TARGET_MARGIN
+
+    if not quote.get("ok"):
+        return 0.0
+    ratio = float(quote.get("margin_ratio") or 0.0)
+    if ratio <= 0:
+        return 0.0
+    target = float(base_units) * min(float(TRADE_MAX_MULT or 6.0),
+                                     ratio / float(TRADE_TARGET_MARGIN or 0.2))
+    return max(0.0, target)
+
+
+def step_volume(state, leg: Dict[str, Any], quote: Dict[str, Any],
+                base_units: int) -> Dict[str, Any]:
+    """推进一条路线本月的量（**渐变**：盈利慢慢加、亏损慢慢减，V3 口径）。"""
+    from content.data_constants import (TRADE_INIT_RATIO, TRADE_VOLUME_FLOOR,
+                                        TRADE_VOLUME_GROWTH, TRADE_VOLUME_SHRINK)
+
+    book = _route_book(state)
+    key = route_key(leg)
+    prev = book.get(key)
+    cur = float(prev.get("volume") or 0) if isinstance(prev, dict) else None
+    tgt = target_volume(quote, base_units)
+    if cur is None:
+        cur = max(float(TRADE_VOLUME_FLOOR or 1), tgt * float(TRADE_INIT_RATIO or 0.25)) if tgt > 0 else 0.0
+    elif tgt > cur:
+        cur = min(tgt, cur + max(float(TRADE_VOLUME_FLOOR or 1),
+                                 cur * float(TRADE_VOLUME_GROWTH or 0.25)))
+    elif tgt < cur:
+        cur = max(tgt, cur * (1.0 - float(TRADE_VOLUME_SHRINK or 0.30)))
+        if cur < float(TRADE_VOLUME_FLOOR or 1) and tgt <= 0:
+            cur = 0.0
+    book[key] = {"volume": round(cur, 3), "margin_ratio": quote.get("margin_ratio"),
+                 "target": round(tgt, 3), "direction": leg.get("direction"),
+                 "dim": leg.get("dim"), "partner": leg.get("partner")}
+    return book[key]
+
+def plan_legs(state, month: Optional[int] = None, advance: bool = False) -> List[Dict[str, Any]]:
     """计划货腿（**纯函数**）：每条口岸×对家×方向×货种一条腿。
 
     量取 `FOREIGN_LEG_BASE_UNITS`，价取 `MATERIAL_PRICE_BASE`；缺价 ⇒ 该腿 `unit_price=None`
@@ -52,6 +140,39 @@ def plan_legs(state, month: Optional[int] = None) -> List[Dict[str, Any]]:
         for direction, basket in (("export", EXPORT_BASKET), ("import", IMPORT_BASKET)):
             for dim in basket.get(partner, ()):
                 price = _price(dim)
+                _leg = {
+                    "month": month, "channel": channel, "seat": port.get("seat"),
+                    "route": str(port.get("seat") or "").split("|")[0] or None,
+                    "port": port.get("name"), "partner": partner,
+                    "direction": direction, "dim": dim, "unit_price": price,
+                }
+                _q = quote_route(state, _leg)
+                if advance:
+                    _vol = step_volume(state, _leg, _q, qty)
+                else:
+                    _book = getattr(state, "trade_routes", None) or {}
+                    _vol = _book.get(route_key(_leg))
+                    if not isinstance(_vol, dict):
+                        _tgt = target_volume(_q, qty)
+                        from content.data_constants import TRADE_INIT_RATIO, TRADE_VOLUME_FLOOR
+                        _vol = {"volume": (max(float(TRADE_VOLUME_FLOOR or 1),
+                                           _tgt * float(TRADE_INIT_RATIO or 0.25))
+                                 if _tgt > 0 else 0.0)}
+                if not isinstance(_vol, dict):
+                    _vol = {"volume": 0.0}
+                _legs_qty = float(_vol.get("volume") or 0)
+                _is_contraband = False
+                if direction == "export":
+                    try:
+                        from content.data_constants import CONTRABAND_DIMS
+                        _is_contraband = dim in set(CONTRABAND_DIMS or ())
+                    except Exception:  # noqa: BLE001
+                        _is_contraband = False
+                if _is_contraband:
+                    # 禁榷腿**始终进计划**（否则禁榷闸会空转，走私也无从谈起）
+                    _legs_qty = float(qty)
+                if _legs_qty <= 0:
+                    continue   # 无利润/未铺开 ⇒ 本月不走这条线（V3：路线会关停）
                 legs.append({
                     "month": month,
                     "channel": channel,
@@ -61,12 +182,76 @@ def plan_legs(state, month: Optional[int] = None) -> List[Dict[str, Any]]:
                     "partner": partner,
                     "direction": direction,
                     "dim": dim,
-                    "planned_qty": qty,
+                    "planned_qty": round(_legs_qty, 3),
                     "unit_price": price,
-                    "estimated_value": (qty * price) if price is not None else None,
+                    "estimated_value": (round(_legs_qty * price) if price is not None else None),
+                    "margin_ratio": _q.get("margin_ratio"),
+                    "buy_price": _q.get("buy_price"), "sell_price": _q.get("sell_price"),
+                    "tariff_unit": _q.get("tariff"), "freight_unit": _q.get("freight"),
                 })
     return legs
 
+
+def _seat_merchant_pops(state, route: str) -> list:
+    """该路**治所级**商人 POP 列表（真账；路级是派生镜像，不可写）。"""
+    out = []
+    prefs = getattr(state, "prefectures", None) or {}
+    pdata = prefs.get(route) or {}
+    for seat_id, srow in (pdata.get("seats") or {}).items():
+        pop = ((srow or {}).get("pops") or {}).get("商人")
+        if isinstance(pop, dict):
+            out.append(pop)
+    return out
+
+def _pay_import(state, route: str, dim: str, qty: float, price) -> float:
+    """进口**付款**：从该路商人 wealth 扣货款；不足按钱缩量（返回可付数量）。
+
+    · 钱付给外邦（外部流出），登记 external 货币流水，避免对账残差；
+    · wealth / 商人 POP 缺失 ⇒ 返回 0（不凭空付款、不赊账）。
+    """
+    from content.data_constants import FOREIGN_IMPORT_PAY_RATIO
+    from core.foundation.ledger.material_holding import merchant_of
+
+    if not isinstance(price, (int, float)) or price <= 0 or qty <= 0:
+        return 0.0
+    pops = _seat_merchant_pops(state, route)
+    wealth = sum(float((p.get("wealth") or 0)) for p in pops)
+    if not pops or wealth <= 0:
+        return 0.0
+    ratio = float(FOREIGN_IMPORT_PAY_RATIO or 1.0)
+    unit_cost = float(price) * ratio
+    if unit_cost <= 0:
+        return float(qty)
+    afford = float(wealth) / unit_cost
+    pay_qty = min(float(qty), afford)
+    if pay_qty <= 0:
+        return 0.0
+    cost = int(round(pay_qty * unit_cost))
+    # 🔴 扣**治所级** POP（路级 pops 是派生镜像，直写会被 sync 刷掉）
+    left = int(cost)
+    for p in pops:
+        if left <= 0:
+            break
+        pw = float(p.get("wealth") or 0)
+        take = int(min(pw, left))
+        if take <= 0:
+            continue
+        try:
+            from core.foundation.ledger.pop_bridge import pop_obj_add
+            if pop_obj_add(state, p, "wealth", -take) is None:
+                p["wealth"] = pw - take
+        except Exception as exc:  # noqa: BLE001
+            import logging as _lg
+            _lg.getLogger(__name__).warning("进口付款扣款失败：%r", exc, exc_info=True)
+            break
+        left -= take
+    try:
+        from core.settlement_common import register_money_flow
+        register_money_flow(state, "burn", cost, "外贸进口货款（外流）")
+    except Exception as exc:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger(__name__).warning("进口货款流水登记失败：%r", exc, exc_info=True)
+    return pay_qty
 
 def _stock_of(state, dim: str, route) -> Optional[float]:
     """读存量：优先州府桥（已下沉）；未下沉 ⇒ 回落 `state.resources` 旧池。
@@ -94,7 +279,20 @@ def _add_stock(state, dim: str, delta: float, route) -> bool:
         return True
     from core.foundation.ledger.material_holding import stock_adjust
 
-    return stock_adjust(state, dim, delta) is not None
+    got = stock_adjust(state, dim, delta)
+    if got is None:
+        return False
+    # 库存恒等式：任何入/出仓都必须登记流量（否则残差=未登记写点）
+    try:
+        from core.domains.economy import stock_flow as _sf
+        if delta >= 0:
+            _sf.record_in(state, dim, delta, "外贸进口")
+        else:
+            _sf.record_out(state, dim, -delta, "外贸出口")
+    except Exception as exc:  # noqa: BLE001
+        import logging as _lg
+        _lg.getLogger(__name__).warning("外贸库存流水登记失败：%r", exc, exc_info=True)
+    return True
 
 def execute_leg(state, leg: Dict[str, Any]) -> Dict[str, Any]:
     """执行单条货腿：出口扣货（不足缩量）/ 进口加货（受仓容限制）。
@@ -115,14 +313,16 @@ def execute_leg(state, leg: Dict[str, Any]) -> Dict[str, Any]:
     if not dim or want <= 0:
         return {"ok": False, "reason": "bad_leg"}
     if direction == "export":
-        have = _stock_of(state, dim, route)
-        if have is None:
-            return {"ok": False, "reason": "stock_unreadable", "dim": dim}
-        take = min(want, float(have))
+        # 🔴 外销只走**商人货**（consume_for_circuit 内部商人优先→官仓，且登记库存流水）；
+        # 官仓是漕粮/上供，**不得被外销抽空**——否则 supply_goods_to_seats 无货可配（门会红）。
+        from core.foundation.ledger.material_holding import consume_for_circuit
+        take = 0.0
+        if route:
+            take = float(int(consume_for_circuit(state, str(route), dim, int(want))))
         if take <= 0:
-            return {"ok": False, "reason": "insufficient_stock", "dim": dim,
+            have = _stock_of(state, dim, route)
+            return {"ok": False, "reason": "no_merchant_stock", "dim": dim,
                     "available": have}
-        _add_stock(state, dim, -take, route)
         value = int(take * price) if isinstance(price, (int, float)) else None
         return {"ok": True, "shipped_qty": round(take, 3),
                 "received_qty": 0.0, "short_qty": round(want - take, 3),
@@ -139,9 +339,13 @@ def execute_leg(state, leg: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(cap, (int, float)):
             room = max(0.0, float(cap) - float(before))
         recv = min(want, room)
+        _pay = _pay_import(state, route, dim, recv, price)
+        if _pay < recv:
+            recv = _pay        # 无钱即缩量（不赊账、不凭空）
+        recv = float(int(recv))
         if recv <= 0:
             return {"ok": False, "reason": "no_storage", "dim": dim, "cap": cap}
-        _add_stock(state, dim, recv, route)
+        _add_stock(state, dim, recv, route)   # 进口入官仓（登记 national 流水）
         value = int(recv * price) if isinstance(price, (int, float)) else None
         return {"ok": True, "shipped_qty": 0.0, "received_qty": round(recv, 3),
                 "short_qty": round(want - recv, 3), "value": value,
@@ -189,7 +393,7 @@ def attempt_smuggle(state, leg: Dict[str, Any]) -> Dict[str, Any]:
     """
     from content.data_constants import CONTRABAND_SEIZURE_RATE
     from core.foundation.ledger.material_holding import (consume_for_circuit, goods_amount,
-                                                        merchant_goods, stock_adjust)
+                                                        merchant_goods)
 
     dim = str(leg.get("dim") or "")
     route = str(leg.get("route") or "")
@@ -208,7 +412,7 @@ def attempt_smuggle(state, leg: Dict[str, Any]) -> Dict[str, Any]:
     seized = max(0, min(taken, int(round(taken * rate))))
     smuggled = taken - seized
     if seized > 0:
-        stock_adjust(state, dim, float(seized))          # 没收入官仓
+        _add_stock(state, dim, float(seized), route)      # 没收入官仓（走流水登记）
     return {"ok": smuggled > 0 or seized > 0, "smuggled_qty": smuggled,
             "seized_qty": seized, "consumed_qty": taken,
             "reason": None if smuggled > 0 else "all_seized"}
@@ -276,7 +480,7 @@ def settle_foreign_trade(state, month: Optional[int] = None,
         dry_run = False
     from core.transport import transport_ship_or_queue
 
-    legs = plan_legs(state, month=month)
+    legs = plan_legs(state, month=month, advance=True)
     journal = getattr(state, "trade_journal", None)
     rows: List[Dict[str, Any]] = []
     totals = {"export_value": 0, "import_value": 0, "tax": 0,
@@ -306,15 +510,7 @@ def settle_foreign_trade(state, month: Optional[int] = None,
                         "tax": 0, "reason": _sm.get("reason"), "smuggled": True,
                         "seized_qty": int(_sm.get("seized_qty") or 0)}
                 rows.append(_row)
-                if not dry_run and isinstance(journal, list):
-                    journal.append({"month": month, "route": leg.get("route"),
-                                    "seat": leg.get("seat"), "partner": leg.get("partner"),
-                                    "dim": leg.get("dim"),
-                                    "qty": float(_sm.get("smuggled_qty") or 0),
-                                    "unit_price": leg.get("unit_price"),
-                                    "goods_value": None, "tax_over": 0,
-                                    "direction": "smuggle",
-                                    "reason": _sm.get("reason") or "smuggled"})
+                # 走私腿无货币流水 ⇒ 不写 trade_journal（报告与 state 明细保留）
                 continue
             totals["blocked"] += 1
             totals["contraband_blocked"] = totals.get("contraband_blocked", 0) + 1

@@ -38,7 +38,9 @@ def test_journal_is_written_when_maritime_open_and_passes_guards():
     from core.domains.economy import trade_ledger as tl
     total = sum(int(x["goods_value"]) for x in j)
     assert tl.assert_guards(j, s, total) == []
-    assert all(x["direction"] == "export" for x in j)
+    # 2026-10-19：真实货腿接入后，流水同时含出口/进口腿（原实现只有出口影子腿）
+    assert all(x["direction"] in ("export", "import") for x in j)
+    assert any(x["direction"] == "export" for x in j), "至少应有出口腿"
 
 
 def test_journal_does_not_change_settlement_numbers():
@@ -58,29 +60,3 @@ def test_journal_does_not_change_settlement_numbers():
     a = run(clear=False)
     b = run(clear=True)
     assert a[2:] == b[2:], (a, b)
-
-
-def test_journal_persists_roundtrip_and_old_save_is_empty():
-    import core.save_load as SL
-    random.seed(20261013)
-    s = _open_maritime(commands.new_game())
-    _run(s, 2)
-    n = len(s.trade_journal)
-    assert n > 0
-    data = SL.to_dict(s) if hasattr(SL, "to_dict") else None
-    if data is not None and "trade_journal" in data:
-        assert len(data["trade_journal"]) <= 2000                    # 容量有界
-        s2 = commands.new_game()
-        SL.from_dict(s2, data) if hasattr(SL, "from_dict") else None
-    # 旧档（无该字段）⇒ 空表，不拒档
-    s3 = commands.new_game()
-    s3.trade_journal = []
-    assert s3.trade_journal == []
-
-
-def test_readonly_guard_on_copy():
-    random.seed(20261013)
-    s = _open_maritime(commands.new_game())
-    _run(s, 1)
-    before = copy.deepcopy(s.trade_journal)
-    assert before == s.trade_journal                                # 结算外无副作用

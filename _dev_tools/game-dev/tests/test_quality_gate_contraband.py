@@ -64,15 +64,18 @@ def test_settle_blocks_contraband_leg_and_keeps_stock(monkeypatch):
 def test_normal_legs_still_execute(monkeypatch):
     s = _state()
     monkeypatch.setattr(dc, "FOREIGN_TRADE_LEGS", 1)
-    s.resources["茶"] = {"stock": 5000, "cap": 10 ** 9}
+    # 用**有利润**的出口品（茶对西夏/吐蕃是负毛利，V3 会把路线关停）
+    from core.foundation.ledger.material_holding import goods_add, merchant_goods
+    goods_add(merchant_goods(s, "两浙路"), "精品瓷器", 5000)
     r = TL.settle_foreign_trade(s, month=1, dry_run=False)
     ok_rows = [x for x in r["rows"] if x.get("j") is None]
     assert ok_rows, "普通货腿必须照常执行"
-    assert float(s.resources["茶"]["stock"]) < 5000
+    from core.foundation.ledger.material_holding import goods_amount
+    assert int(goods_amount(merchant_goods(s, "两浙路"), "精品瓷器") or 0) < 5000
 
 
-def test_switch_off_still_noop():
+def test_switch_off_still_noop(monkeypatch):
     s = _state()
-    assert dc.FOREIGN_TRADE_LEGS == 0
+    monkeypatch.setattr(dc, "FOREIGN_TRADE_LEGS", 0)
     r = TL.settle_foreign_trade(s, month=1)
     assert r["enabled"] is False
