@@ -220,6 +220,7 @@ def save_game(state, slot: int = 1) -> bool:
         "edict_drafts": getattr(state, "edict_drafts", []),
         "council_reviews": getattr(state, "council_reviews", {}),
         "memorials": getattr(state, "memorials", []),
+    "impeachments": getattr(state, "impeachments", {}),
         "ai_pending_actions": getattr(state, "ai_pending_actions", []),
         "dialogue_history": getattr(state, "dialogue_history", []),
         "last_audience": getattr(state, "last_audience", ""),
@@ -626,6 +627,7 @@ def _load_with_data(slot: int = 1):
     state.edict_drafts = data.get("edict_drafts", getattr(state, "edict_drafts", []))
     state.council_reviews = data.get("council_reviews", getattr(state, "council_reviews", {}))
     state.memorials = data.get("memorials", getattr(state, "memorials", []))
+    state.impeachments = data.get("impeachments", getattr(state, "impeachments", {}))
     state.ai_pending_actions = data.get("ai_pending_actions", getattr(state, "ai_pending_actions", []))
     state.dialogue_history = data.get("dialogue_history", getattr(state, "dialogue_history", []))
     state.last_audience = data.get("last_audience", getattr(state, "last_audience", ""))

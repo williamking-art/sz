@@ -1195,6 +1195,14 @@ def accept_memorial(state: GameState, index: int) -> dict:
 
     m = memos.pop(index)
     title = str(m.get("title", "臣工奏疏"))
+    if m.get("kind") == "impeachment":
+        from core.impeachment import open_case
+        _case = open_case(state, m)
+        if not _case.get("ok"):
+            memos.insert(index, m)
+            return {"ok": False, "msg": _case.get("msg", "弹章开案失败")}
+        return {"ok": True, "case_id": _case.get("case_id"),
+                "msg": _case.get("msg", "已准奏开案")}
 
     # 同步记录决策进记忆库
     try:

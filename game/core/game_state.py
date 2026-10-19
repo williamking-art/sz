@@ -913,6 +913,7 @@ class GameState(GameStateEconMixin):
         self.edict_drafts: list = []    # 待会签诏草（诏令会签页）
         self.council_reviews: dict = {}  # draft_id -> 会签意见
         self.memorials: list = []  # 待审奏折（每回合开始按局势自动上折，君主批红）
+        self.impeachments: dict = {}  # M3a 弹劾案件（JEV 裁 B：中枢+联名）
         # AI 工具严格待批队列（审查 P0：AI 只有提议权，批红前不落地）
         self.ai_pending_actions: list = []
 
