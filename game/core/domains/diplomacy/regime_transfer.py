@@ -18,8 +18,17 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
-__all__ = ["transfer_regions", "regime_territory", "revert_change", "transfer_summary"]
+__all__ = ["transfer_regions", "regime_territory", "revert_change", "transfer_summary",
+           "is_placeholder_regime", "PLACEHOLDER_REGIMES"]
 
+
+#: 开局**不存在**、仅作为占位/史实趋势的政权（不得预置进 external_regimes）
+PLACEHOLDER_REGIMES = ("金",)
+
+
+def is_placeholder_regime(name: str) -> bool:
+    """是否为「未登场占位」政权（金：起于辽地，开局不存在）。"""
+    return name in PLACEHOLDER_REGIMES
 
 def _now_month(state) -> Optional[int]:
     try:
@@ -49,10 +58,14 @@ def _ensure_regime(state, regime: str) -> Dict[str, Any]:
         state.external_regimes = regimes
     info = regimes.get(regime)
     if not isinstance(info, dict):
-        info = {"name": regime, "type": "政权", "power": "中", "attitude": 50,
+        # 占位政权字段一律**数值型**（结算步骤会做算术；power 不得用档位字符串）
+        info = {"name": regime, "type": "政权", "power": 10, "attitude": 50,
+                "internal_pressure": 0, "monthly_tax": 0, "unrest": 0,
+                "growth_curve": {"power_growth": 0.0},
                 "population": 0, "pop": {}, "provinces": [], "armies": [],
                 "treasury": 0, "tech": {}, "land": 0, "grain": 0, "storage": 0,
-                "territory": [], "note": "P5 由 transfer_regions 新建（政权字段从零起）"}
+                "territory": [], "placeholder": True,
+                "note": "P5 由 transfer_regions 新建（未登场政权占位；政权字段从零起）"}
         regimes[regime] = info
     if not isinstance(info.get("territory"), list):
         info["territory"] = [rid for rid, r in (getattr(state, "regions", None) or {}).items()
@@ -80,7 +93,7 @@ def _pick_t2_for(state, owner: str, t1: Dict[str, Any]) -> str:
 
 def transfer_regions(state, from_regime: str, to_regime: str,
                      region_ids: Iterable[str], *, cascade: bool = True,
-                     create_to: bool = True, reason: str = "") -> Dict[str, Any]:
+                     create_to: bool = False, reason: str = "") -> Dict[str, Any]:
     """把地域从 `from_regime` 转给 `to_regime`（**只改 owner**）。
 
     返回 `{ok, moved, cascaded, created_t2, change_id, reason}`。
@@ -98,7 +111,8 @@ def transfer_regions(state, from_regime: str, to_regime: str,
     if create_to:
         _ensure_regime(state, to_regime)
     elif to_regime not in (getattr(state, "external_regimes", None) or {}):
-        return {"ok": False, "reason": "目标政权不存在：%s" % to_regime}
+        return {"ok": False, 
+                "reason": "目标政权不存在（未登场政权需 create_to=True 显式占位）：%s" % to_regime}
 
     moved: List[str] = []
     created_t2: List[str] = []

@@ -593,14 +593,20 @@ def _settle_land_tax_color(state, log) -> dict:
     守恒：`Δ(POP wealth) ＋ 留州 ＋ 侵渔 ＋ 中央(返回) ≡ 0`（纯转移；粜粮完税为钱粮互换）。
     """
     from content.data import MIN_WEALTH_FLOOR_RATIO, PER_CAPITA_MONTH_GRAIN
+    # P6（2026-10-19）：被非宋政权**全占**的路不计田赋；默认全宋 ⇒ 判定恒真（零变更）
+    try:
+        from core.foundation.ledger.region_registry import song_route_active
+        _active = {_rk for _rk in state.prefectures if song_route_active(state, _rk)}
+    except Exception:  # noqa: BLE001
+        _active = set(state.prefectures)
     chan = state.calc_land_tax_channels()
     assessed = int(chan["assessed_total"])
     paid_by_route = {_rk: 0 for _rk in state.prefectures}
     if assessed > 0 and state.prefectures:
-        _tot_land = sum(p.get("land", 1) for p in state.prefectures.values()) or 1
-        _self_share = (sum(p.get("self_farm_land", 0) for p in state.prefectures.values())
+        _tot_land = sum(p.get("land", 1) for _rk, p in state.prefectures.items() if _rk in _active) or 1
+        _self_share = (sum(p.get("self_farm_land", 0) for _rk, p in state.prefectures.items() if _rk in _active)
                        / _tot_land)
-        _gentry_share = (sum(p.get("gentry_land", 0) for p in state.prefectures.values())
+        _gentry_share = (sum(p.get("gentry_land", 0) for _rk, p in state.prefectures.items() if _rk in _active)
                          / _tot_land)
         # 税从 POP 征（钱守恒）：二税折色按田亩归属拆分——农担自耕田、士绅担地主田
         _agent_charge = {"农": int(assessed * _self_share),
@@ -609,10 +615,12 @@ def _settle_land_tax_color(state, log) -> dict:
             if _tc_total <= 0:
                 continue
             _total_wealth = sum(p["pops"][_agent]["wealth"]
-                                for p in state.prefectures.values())
+                                for _rk, p in state.prefectures.items() if _rk in _active)
             if _total_wealth <= 0:
                 continue
             for _rk, _p in state.prefectures.items():
+                if _rk not in _active:
+                    continue
                 _pop = _p["pops"][_agent]
                 _deduct = int(_tc_total * (_pop["wealth"] / _total_wealth))
                 _min_wealth = int(_pop["size"] * PER_CAPITA_MONTH_GRAIN * state.grain_price)

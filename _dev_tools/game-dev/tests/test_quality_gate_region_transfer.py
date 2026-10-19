@@ -41,7 +41,7 @@ def _owners(s):
 
 def test_t2_transfer_cascades():
     s = _state()
-    out = transfer_regions(s, "辽", "金", ["辽_p0"], reason="测试占领")
+    out = transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="测试占领")
     assert out["ok"], out
     owners = [rid for rid in out["moved"]]
     assert len(owners) == 4, owners  # 1 T2 + 3 T1
@@ -54,7 +54,7 @@ def test_single_t1_transfer_reparents():
     s = _state()
     rid = next(r for r in regions_by_owner(s, "辽")
                if r["level"] == "T1" and r["name"] == "平州")
-    out = transfer_regions(s, "辽", "金", [rid["region_id"]], reason="单块")
+    out = transfer_regions(s, "辽", "金", [rid["region_id"]], create_to=True, reason="单块")
     assert out["ok"], out
     r = s.regions[rid["region_id"]]
     assert r["owner"] == "金"
@@ -67,7 +67,7 @@ def test_region_data_unchanged():
     s = _state()
     t1 = [r for r in regions_by_owner(s, "辽") if r["level"] == "T1"]
     before = {r["region_id"]: json.dumps(r.get("pop"), sort_keys=True) for r in t1}
-    transfer_regions(s, "辽", "金", ["辽_p0"], reason="数据不变")
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="数据不变")
     after = {rid: json.dumps(s.regions[rid].get("pop"), sort_keys=True) for rid in before}
     assert before == after, "人口不得因改属而变化"
 
@@ -75,7 +75,7 @@ def test_region_data_unchanged():
 def test_regime_fields_do_not_follow():
     s = _state()
     before = s.external_regimes["辽"].get("treasury")
-    transfer_regions(s, "辽", "金", ["辽_p0"], reason="政权字段")
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="政权字段")
     assert s.external_regimes["辽"].get("treasury") == before
     assert s.external_regimes["金"].get("treasury") == 0  # 新建政权从零起
 
@@ -83,7 +83,7 @@ def test_regime_fields_do_not_follow():
 def test_territory_updated():
     s = _state()
     before = set(regime_territory(s, "辽"))
-    transfer_regions(s, "辽", "金", ["辽_p0"], reason="territory")
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="territory")
     after = set(regime_territory(s, "辽"))
     jin = set(regime_territory(s, "金"))
     assert "辽_p0" not in after, after
@@ -94,7 +94,7 @@ def test_territory_updated():
 def test_revert_restores_owners():
     s = _state()
     before = _owners(s)
-    out = transfer_regions(s, "辽", "金", ["辽_p0"], reason="和议")
+    out = transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="和议")
     assert out["ok"]
     assert _owners(s) != before
     rev = revert_change(s, out["change_id"])
@@ -104,7 +104,7 @@ def test_revert_restores_owners():
 
 def test_invariants_and_unallocated_after_transfer():
     s = _state()
-    transfer_regions(s, "辽", "金", ["辽_p0"], reason="不变量")
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="不变量")
     assert verify_region_invariants(s) == []
     un = unallocated_provinces(s)
     assert any(u["owner"] == "辽" and u["province"] == "南京道" for u in un), un
@@ -113,7 +113,35 @@ def test_invariants_and_unallocated_after_transfer():
 def test_overlay_detects_owner_change():
     s = _state()
     assert sum(1 for r in map_overlay(s) if r["owner_changed"]) == 0
-    transfer_regions(s, "辽", "金", ["辽_p0"], reason="overlay")
+    transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="overlay")
     changed = [r for r in map_overlay(s) if r["owner_changed"]]
     assert changed, "占领后 overlay 必须报 owner_changed"
     assert any(r["owner"] == "金" for r in changed)
+
+def test_placeholders_absent_at_start():
+    """金开局**不存在**（只是史实占位）；不得预置进 external_regimes。"""
+    from core.domains.diplomacy.regime_transfer import PLACEHOLDER_REGIMES, is_placeholder_regime
+
+    s = _state()
+    assert "金" in PLACEHOLDER_REGIMES
+    assert is_placeholder_regime("金")
+    assert "金" not in (s.external_regimes or {}), "金不得在开局政权表里"
+
+
+def test_transfer_to_unknown_regime_is_rejected():
+    """目标政权不存在 ⇒ 默认拒绝（未登场政权必须显式 create_to=True 占位）。"""
+    s = _state()
+    out = transfer_regions(s, "辽", "西夏2", ["辽_p0"], reason="不存在")
+    assert out["ok"] is False
+    assert "create_to" in out["reason"], out
+    assert s.regions["辽_p0"]["owner"] == "辽", "拒绝时不得改动"
+
+
+def test_created_placeholder_marked():
+    """显式占位建政权 ⇒ 标记 placeholder=True（政权字段从零起）。"""
+    s = _state()
+    out = transfer_regions(s, "辽", "金", ["辽_p0"], create_to=True, reason="占位")
+    assert out["ok"], out
+    jin = s.external_regimes["金"]
+    assert jin.get("placeholder") is True, jin
+    assert jin.get("treasury") == 0

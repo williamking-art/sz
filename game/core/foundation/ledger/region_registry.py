@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["unallocated_provinces", "_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
+__all__ = ["occupied_seats", "song_route_active", "song_settlement_filter", "unallocated_provinces", "_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
            "aggregate_by_owner", "REGION_DEPTH_MAX"]
 
 #: 层级深度上限：政权 → 省（T2）→ 州府（T1）
@@ -385,6 +385,40 @@ def verify_pop_conservation(state) -> List[str]:
                         bad.append("%s/%s/%s: Σ州府 %d != 省 %d" % (
                             owner, pname, cls + "." + f, got[f], want))
     return bad
+
+def occupied_seats(state) -> set:
+    """被非宋政权占有的宋州府：返回 `{(路, 治所), ...}`（默认空 ⇒ 全宋）。"""
+    out = set()
+    for r in (getattr(state, "regions", None) or {}).values():
+        if not isinstance(r, dict) or r.get("level") != "T1":
+            continue
+        if r.get("owner") == "宋":
+            continue
+        ref = r.get("prefecture_ref") or {}
+        route, seat = ref.get("route"), ref.get("seat")
+        if route and seat:
+            out.add((str(route), str(seat)))
+    return out
+
+
+def song_route_active(state, route: str) -> bool:
+    """该路是否仍有**宋**属州府（全被占 ⇒ False）。"""
+    refs = [r for r in (getattr(state, "regions", None) or {}).values()
+            if isinstance(r, dict) and r.get("level") == "T1"
+            and (r.get("prefecture_ref") or {}).get("route") == route]
+    if not refs:
+        return True   # 未登记 ⇒ 视为宋（缺失≠占领）
+    return any(r.get("owner") == "宋" for r in refs)
+
+
+def song_settlement_filter(state) -> Dict[str, Any]:
+    """P6 读数：被占州府 / 全占路 / 部分占路（默认全空 ⇒ 零变更）。"""
+    occ = occupied_seats(state)
+    partial = sorted({rt for rt, _s in occ if song_route_active(state, rt)})
+    full = sorted({rt for rt, _s in occ if not song_route_active(state, rt)})
+    return {"occupied_seats": sorted(occ), "fully_occupied_routes": full,
+            "partially_occupied_routes": partial,
+            "active": not occ}
 
 def unallocated_provinces(state) -> List[Dict[str, Any]]:
     """省有账、但**其州府已不在该政权名下**（占领/改属后）——显式登记，不静默丢弃。"""
