@@ -14,6 +14,8 @@
 | `regime_transfer.py` | **新建**（2026-10-19 P5）| `transfer_regions` `revert_change` `regime_territory` | 政权归属变更：**只改 owner 与 territory**，人口/土地/建筑不动；政权字段（treasury/armies/tech/attitude）不随地域走；T2 级联 T1、T1 自动挂到目标政权 T2；历史入 state.region_changes（可 revert） |
 | `external_view.py` | `core/external_view.py` | `external_pop_view` `external_provinces` + 3 个 content 表名 | 同上，**零反向边** |
 | `map_overlay.py` | **新建**（2026-10-19 舆图 M3）| `map_overlay` `overlay_summary` | **只读**：按 `state.regions` 派生舆图 overlay（owner/occupied/transition/owner_changed）；不写 state、不重建 geojson；开局 owner_changed=0（视觉零变更） |
+| `regime_intake.py` | **新建**（2026-10-19 P5.6）| `apply_occupation_damage` `regime_intake` `collect_occupation_tax` `recover_devastation` `resolve_severity` | 占领经济后果：天道出掠夺档位、程序换算损失；损失落 POP（人口/财富/存粮），残破度恢复；**不改 owner/归属** |
+| `region_admin.py` | **新建**（2026-10-19 P7）| `can_redivide` `redivide_regions` `undo_redivision` `redivision_history` | 行政区划调整（改隶/分省/合省/改治改级改名）：只动 parent/level/name，**不动 owner**；成本+阻力+过渡期 |
 
 ⚠️ 两条旧路径都保留 `dir()` 显式转发桩（**含私有名**），迁移前后名字集合逐字相等。
 ⚠️ `external_view` 生产侧被引 **0** 次：本批只搬代码，**不得据此声称外邦视图已接入**，也不得按死代码删。
