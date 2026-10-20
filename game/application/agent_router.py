@@ -158,6 +158,10 @@ PENDING_CONTRACTS = (
     # 半接线（2026-10-18 外部 pop_investment 引入）：消费侧已读，生产侧未登记
     ("_merchant_ai", "merchant_decide",
      "core/domains/economy/pop_investment.py 消费；待接生产者"),
+    ("_canal_ai", "canal_decide",
+     "core/domains/events/disaster_tier.py 消费；待接生产者"),
+    ("_famine_ai", "famine_decide",
+     "core/domains/events/disaster_tier.py 消费；待接生产者"),
 )
 
 def _wake_by_keywords(agent_def: dict, player_input: str) -> bool:

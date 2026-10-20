@@ -27,6 +27,7 @@ DIRECT_INJECTED = {
     "_emperor_ai": "commands.py 直接注入 emperor_personal_decide → settlement_imperial 消费",
     "_occupation_ai": "diplomacy/regime_intake.py 本地可注入示例/provider 槽，非独立 LLM Agent",
     "_disaster_ai": "events/disaster_tier.py 本地可注入示例/provider 槽，非独立 LLM Agent",
+    "_trend_ai": "politics/trend_tier.py 本地可注入示例/provider 槽，非独立 LLM Agent",
 }
 
 
