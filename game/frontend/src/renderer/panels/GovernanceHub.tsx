@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGameStore, pick, getTreasuryDetail } from "../store/gameStore";
 import { getApiClient } from "../api/client";
-import { asNum, asStr } from "../utils/format";
+import { asNum, asStr, clampPct } from "../utils/format";
 
 // 治务枢纽 —— 聚合 Tk 尚未迁至 Electron 的治理数据（只读展示）：
 //   资金流/税制 · 灾荒·时代·危机 · 帝国机制 · 纪事/奏折 · 条约/外交纪事 · AI计量
@@ -134,7 +134,7 @@ function CrisisTab() {
           <div key={k} className="mb-1 flex items-center gap-2">
             <span className="w-28 font-kai text-[13px] text-ink-light">{ERA_LABELS[k] ?? "其他"}</span>
             <div className="flex-1 h-2.5 overflow-hidden rounded-full border border-gold/50 bg-[#e0d3b3]">
-              <div className="h-full rounded-full bg-red" style={{ width: `${Math.round(Math.max(0, Math.min(100, asNum(era[k]))))}%` }} />
+              <div className="h-full rounded-full bg-red" style={{ width: `${Math.round(clampPct(asNum(era[k])))}%` }} />
             </div>
             <span className="w-8 text-xs text-dim">{Math.round(asNum(era[k]))}</span>
           </div>

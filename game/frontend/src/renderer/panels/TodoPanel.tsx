@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGameStore, pick, type PanelKind } from "../store/gameStore";
 import { getApiClient } from "../api/client";
-import { asStr } from "../utils/format";
+import { asStr, clampPct } from "../utils/format";
 
 // 在办事务（P1-1「长期事务 × 圣旨支持模型」的前端呈现）
 //
@@ -26,9 +26,6 @@ function dict(v: unknown): Dict {
 }
 function list(v: unknown): Dict[] {
   return Array.isArray(v) ? (v as Dict[]).filter((x) => x && typeof x === "object") : [];
-}
-function pct(v: number | null): string {
-  return v === null ? "未定义" : `${(v * 100).toFixed(1)}%`;
 }
 function mult(v: number | null): string {
   return v === null ? "未定义" : `×${v.toFixed(2)}`;
@@ -199,7 +196,7 @@ export default function TodoPanel({ props }: { props?: Dict }) {
                   {hasProgress && (
                     <div
                       className="h-full rounded-full bg-red transition-all"
-                      style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+                      style={{ width: `${clampPct(progress)}%` }}
                     />
                   )}
                 </div>

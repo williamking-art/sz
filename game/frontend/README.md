@@ -46,4 +46,4 @@ MapLibre 前端读取 `public/map/` 中的运行数据。该目录的地图文�
 - **大臣五维（R-UI-6）**：数值只渲染 `readouts.ministers[].attrs/potential` 的真实下发值；缺失显示「未定义」，**禁止**按姓名 seed 伪随机。
 - **轮询/定时器生命周期（R-UI-5）**：`subscribeRichPoll`/180s `setTimeout` 必须在 effect cleanup 中退订/清理；禁止在异步回调里调 Hook。
 - **拒绝式动作（R-UI-7）**：`authorize_case` 等返回 HTTP 200 + `ok:false`，前端按 `ok` 渲染失败态，不得只看 message 猜成败。
-- **展示 helper 单点（2026-10-20 复用批）**：`asNum/asStr/wan` 只在 `utils/format.ts` 定义并导出，面板**不得**再复制本地同名实现；`pct/clamp` 因语义不一（百分比 vs 0–100 钳位）暂留各面板，合流前须先统一语义。
+- **展示 helper 单点（2026-10-20 复用批）**：`asNum/asStr/wan/clampPct/formatPct` 只在 `utils/format.ts` 定义并导出，面板**不得**再复制本地同名实现。`clampPct` = 0–100 钳位；`formatPct(v,digits)` = 比率→百分数（null → 「未定义」）；`EngineeringPanel` 的"效果值 delta"是特例（`|v|<2` 时按百分比、否则按原值），语义独立、保留本地实现。

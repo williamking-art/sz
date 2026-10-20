@@ -9,6 +9,7 @@ import {
   type SituationReadoutResult
 } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { clampPct } from "../utils/format";
 
 // 局势 —— 只读投影（core/situations.py 为单一权威源）。
 // 三个页签：局势 / 六类 POP 心气 / 集团 ⊆ POP。
@@ -57,7 +58,7 @@ function Bar({
   if (value === null || !Number.isFinite(value)) {
     return <span className="text-xs italic text-dim">未定义</span>;
   }
-  const pct = Math.max(0, Math.min(100, value));
+  const pct = clampPct(value);
   const color = { good: "bg-emerald-600", warn: "bg-amber-500", bad: "bg-red", ink: "bg-ink/60" }[tone];
   return (
     <span className={`inline-block h-1.5 ${width} overflow-hidden rounded-full bg-ink/10 align-middle`}>

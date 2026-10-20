@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getApiClient, type RegionBriefResult, type RegionPrefecture, type RegionRoute } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
-import { wan } from "../utils/format";
+import { clampPct, wan } from "../utils/format";
 
 // 地方档案（州府级 / 省级）—— 点击舆图的府·州·路时弹出。
 // 数据来源（**算法单点，前端不复制**）：
@@ -25,7 +25,7 @@ function pnum(p: Dict, key: string, def = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : def;
 }
 function Bar({ value, tone = "ink", max = 100 }: { value: number; tone?: "good" | "warn" | "bad" | "ink"; max?: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  const pct = clampPct((value / max) * 100);
   const color = { good: "bg-emerald-600", warn: "bg-amber-500", bad: "bg-red", ink: "bg-ink/60" }[tone];
   return (
     <span className="inline-block h-1.5 w-24 overflow-hidden rounded-full bg-ink/10 align-middle">

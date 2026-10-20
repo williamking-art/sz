@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Flame, Loader2 } from "lucide-react";
 import { getApiClient, type RegionBriefResult, type RegionRoute, type SituationItem } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
-import { wan } from "../utils/format";
+import { clampPct, wan } from "../utils/format";
 import constants from "../data/constants.json";
 
 // 州县治理 —— 三视图（列表 / 单路详情 / 田亩户籍总览）。
@@ -29,7 +29,7 @@ function pnumOrNull(p: Dict, key: string): number | null {
 
 /** 真实进度条（替代旧 ASCII 条 █▓▒░）：tone 表语义，红色=需要处置。 */
 function Bar({ value, tone = "ink", max = 100 }: { value: number; tone?: "good" | "warn" | "bad" | "ink"; max?: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  const pct = clampPct((value / max) * 100);
   const color = { good: "bg-emerald-600", warn: "bg-amber-500", bad: "bg-red", ink: "bg-ink/60" }[tone];
   return (
     <span className="inline-block h-1.5 w-20 overflow-hidden rounded-full bg-ink/10 align-middle">

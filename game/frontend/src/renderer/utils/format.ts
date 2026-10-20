@@ -54,3 +54,14 @@ export function asNum(v: unknown, def = 0): number {
 export function asStr(v: unknown, def = ""): string {
   return typeof v === "string" ? v : def;
 }
+
+/** 百分比钳位：0–100（不做舍入；调用方负责 null）。 */
+export function clampPct(v: number): number {
+  return Math.max(0, Math.min(100, v));
+}
+
+/** 比率→百分数字符串：null/undefined → 「未定义」；digits 默认 0。 */
+export function formatPct(v: number | null | undefined, digits = 0): string {
+  if (v === null || v === undefined) return "未定义";
+  return `${(Number(v) * 100).toFixed(digits)}%`;
+}
