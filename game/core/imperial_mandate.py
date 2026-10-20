@@ -47,7 +47,7 @@ ACTION_SPECS: Dict[str, DirectActionSpec] = {
         "justice", "刑狱", 80, 2, False, "待接刑狱入口"
     ),
     "party_ban": DirectActionSpec(
-        "party_ban", "党禁", 90, 8, False, "M4 党禁"
+        "party_ban", "党禁", 90, 8, True, "党禁（已接 party_ban_order）"
     ),
 }
 

@@ -183,6 +183,11 @@ def _settle_officialdom(state, log):
     except Exception as e:  # noqa: BLE001 — 弹劾案件失败不得炸整月
         log.append(f"[弹劾] 案件结算失败：{type(e).__name__}: {e}")
     try:
+        from core.party_ban_order import settle_party_ban_orders
+        settle_party_ban_orders(state)
+    except Exception as e:  # noqa: BLE001 — 党禁令失败不得炸整月
+        log.append(f"[党禁] 令结算失败：{type(e).__name__}: {e}")
+    try:
         from core.faction_ban import settle_faction_bans
         settle_faction_bans(state)
     except Exception as e:  # noqa: BLE001 — 党禁状态失败不得炸整月
