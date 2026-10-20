@@ -299,6 +299,10 @@ class LocalBackend(BackendClient):
             # R-UI-7：保留 `ok`（拒绝式：府库不足/重复授权 ⇒ ok=False 仍 HTTP 200）
             "authorize_case":
                 lambda s, p, ai: self._authorize_case_action(s, p),
+            # 长期旨案卷·重选承办人（2026-10-20）
+            "reassign_case":
+                lambda s, p, ai: (cmd.reassign_case_handler(
+                    s, str(p.get("task_id", "")), str(p.get("minister", ""))).get("msg", ""), s),
             "dispatch_logistics":
                 lambda s, p, ai: (cmd.dispatch_logistics(
                     s, str(p.get("origin", "")), str(p.get("target", "")),

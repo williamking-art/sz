@@ -171,6 +171,54 @@ def authorize_longterm_case(state, task_id: str, *, budget: int = 0,
             "task": task}
 
 
+
+def reassign_case_handler(state, task_id: str, minister_name: str) -> dict:
+    """重选长期旨案卷承办人（2026-10-20）。
+
+    纪律：
+    - 只对**已案卷化**事务生效（普通长期事务走既有渠道，不在此改）；
+    - 新承办人必须在册（MINISTERS），否则拒绝（不编造人物）；
+    - 记 handler_history（回合/前任/新任）与推进日志；立场/支持者随之自动重算（stance_of 单点），
+      **不额外发明惩罚数值**。
+    """
+    from core.domains.politics.longterm_case import case_is_cased
+    from core.longterm_task import find_task
+
+    task = find_task(state, str(task_id or ""))
+    if not isinstance(task, dict):
+        return {"ok": False, "msg": "未找到该事务（id 不存在）"}
+    if not case_is_cased(task):
+        return {"ok": False, "msg": "该事务未案卷化，不走此入口"}
+    name = str(minister_name or "").strip()
+    if not name:
+        return {"ok": False, "msg": "须指定承办人"}
+    try:
+        from content.ministers.data import MINISTERS
+        if name not in MINISTERS:
+            return {"ok": False, "msg": "查无此人（不在大臣名册）"}
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "msg": "大臣名册不可读，暂不能改派"}
+    old = str(task.get("minister") or "")
+    if old == name:
+        return {"ok": False, "msg": "现任即此人，无需改派"}
+    turn = int(getattr(state, "turn", 0) or 0)
+    hist = task.setdefault("handler_history", [])
+    if isinstance(hist, list):
+        hist.append({"turn": turn, "from": old, "to": name})
+        if len(hist) > 12:
+            del hist[:len(hist) - 12]
+    task["minister"] = name
+    task["last_advance_turn"] = turn
+    plog = task.setdefault("progress_log", [])
+    if isinstance(plog, list):
+        plog.append({"turn": turn, "narrative": "改派承办人：%s → %s" % (old or "（未定）", name),
+                     "applied": [], "blocked": None})
+        if len(plog) > 12:
+            del plog[:len(plog) - 12]
+    return {"ok": True, "msg": "已改派承办人：%s → %s（立场将随人而变）" % (old or "（未定）", name),
+            "task": task}
+
+
 def _apply_rename(state, old_name, new_name):
     """按显示名查找并更名（宋本土路或外部政权）。"""
     for key, p in state.prefectures.items():

@@ -86,6 +86,7 @@ from core.commands_decree import (
     bestow_imperial_favor,
     # 2026-10-20：长期旨案卷授权（/api/action authorize_case）
     authorize_longterm_case,
+    reassign_case_handler,
 )
 
 

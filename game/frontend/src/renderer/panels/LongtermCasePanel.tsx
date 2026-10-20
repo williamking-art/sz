@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
+import { useGameStore } from "../store/gameStore";
 import { clampPct, formatPct as pct, wan } from "../utils/format";
 
 /** 长期旨案卷（数据来自后端 /api/readouts → longterm_cases；口径单点在 core）。 */
@@ -144,6 +145,9 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const pushOverlay = useGameStore((s) => s.pushOverlay);
+  const [ministerNames, setMinisterNames] = useState<string[]>([]);
+  const [pickedMinister, setPickedMinister] = useState("");
   const [budgetInput, setBudgetInput] = useState("0");
   const [pool, setPool] = useState("treasury");
   const [discretion, setDiscretion] = useState(false);
@@ -158,7 +162,9 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
     try {
       const res = (await getApiClient().readouts()) as unknown as {
         longterm_cases?: Record<string, CaseReadout>;
+        ministers?: Record<string, unknown>;
       };
+      setMinisterNames(Object.keys(res.ministers ?? {}).sort());
       if (!alive) return;
       const id = String(props?.id ?? "");
       const c = res.longterm_cases?.[id];
@@ -176,6 +182,25 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
     void load(alive);
     return () => { alive = false; };
   }, [load]);
+
+  async function submitReassign() {
+    const id = String(props?.id ?? "");
+    if (!id || !pickedMinister) return;
+    setSubmitting(true);
+    setMsg(null);
+    try {
+      const res = await getApiClient().action("reassign_case", {
+        task_id: id,
+        minister: pickedMinister,
+      });
+      setMsg(res.message || "已改派");
+      await load(true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submitAuthorize() {
     const id = String(props?.id ?? "");
@@ -251,8 +276,45 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
       <section>
         <p className="mb-1 font-kai text-lg text-ink">承办人</p>
         <div className="rounded border border-gold/40 p-3">
-          <p className="font-bold text-ink">{def(data.handler?.name)}</p>
-          <p className="text-xs text-dim">{def(data.handler?.org, "衙署未定义")}</p>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="font-bold text-ink">{def(data.handler?.name)}</span>
+            <span className="text-xs text-dim">{def(data.handler?.org, "衙署未定义")}</span>
+            <button
+              type="button"
+              className="ml-auto rounded border border-gold/60 px-2 py-0.5 text-xs hover:bg-gold-light"
+              onClick={() => pushOverlay({
+                kind: "audience",
+                title: "御前召对 · " + String(data.handler?.name ?? ""),
+                props: { minister: String(data.handler?.name ?? ""),
+                         role: String(data.handler?.org ?? "") },
+              })}
+            >
+              召对
+            </button>
+          </div>
+          {/* 重选承办人（2026-10-20）：须在册；改派后立场随人而变 */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-dim">重选承办人</span>
+            <select
+              aria-label="重选承办人"
+              className="rounded border border-gold/50 bg-transparent px-1 py-0.5"
+              value={pickedMinister}
+              onChange={(e) => setPickedMinister(e.target.value)}
+            >
+              <option value="">（选择大臣）</option>
+              {ministerNames.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rounded border border-red/60 px-2 py-0.5 text-red disabled:opacity-50"
+              disabled={!pickedMinister || submitting}
+              onClick={() => void submitReassign()}
+            >
+              确认改派
+            </button>
+          </div>
           <div className="mt-2 grid grid-cols-5 gap-2">
             {Object.entries(ATTR_LABEL).map(([k, label]) => (
               <AttrBar

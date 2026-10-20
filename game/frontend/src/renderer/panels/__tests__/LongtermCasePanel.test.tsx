@@ -6,10 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // 2026-10-20 全审补：R-UI-2（已授权禁用按钮）/ R-UI-3（单位=贯，万贯走 wan）/
 // R-UI-4（未授权 authorization=null ⇒ 「未授权/未定义」，绝不显示「0 贯」）/
 // R-UI-7（按后端 ok 渲染失败态）。
-const h = vi.hoisted(() => ({ readouts: vi.fn(), action: vi.fn() }));
+const h = vi.hoisted(() => ({ readouts: vi.fn(), action: vi.fn(), pushOverlay: vi.fn() }));
 
 vi.mock("../../api/client", () => ({
   getApiClient: () => ({ readouts: h.readouts, action: h.action }),
+}));
+
+vi.mock("../../store/gameStore", () => ({
+  useGameStore: (sel: (s: unknown) => unknown) =>
+    sel({ state: {}, pushOverlay: h.pushOverlay }),
 }));
 
 import { fireEvent } from "@testing-library/react";
