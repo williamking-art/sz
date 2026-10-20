@@ -567,15 +567,19 @@ def settle_foreign_trade(state, month: Optional[int] = None,
         else:
             totals["import_value"] += int(value or 0)
         totals["tax"] += _tax_credited
+        # O3（修复复审）：流水/行数据用**实扣额**，与 totals 同口径；应征额另存
+        # tax_requested，供对账（陆路付款方不足时两者会不等）。
         row = {**leg, "shipped_qty": out.get("shipped_qty"),
                "received_qty": out.get("received_qty"), "short_qty": out.get("short_qty"),
-               "goods_value": value, "tax": tax.get("tax"), "reason": out.get("reason")}
+               "goods_value": value, "tax": _tax_credited,
+               "tax_requested": tax.get("tax"), "reason": out.get("reason")}
         rows.append(row)
         if not dry_run and isinstance(journal, list):
             journal.append({"month": month, "route": leg.get("route"), "seat": leg.get("seat"),
                             "partner": leg.get("partner"), "dim": leg.get("dim"),
                             "qty": qty, "unit_price": leg.get("unit_price"),
                             "goods_value": value,
+                            "tax": _tax_credited, "tax_requested": tax.get("tax"),
                             "tax_over": (_split or {}).get("over_tax", tax.get("tax")),
                             "tax_stay": (_split or {}).get("stay_tax"),
                             "direction": leg.get("direction"), "freight": None,

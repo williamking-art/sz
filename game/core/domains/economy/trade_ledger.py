@@ -25,9 +25,11 @@ log = logging.getLogger(__name__)
 #: 🔴 **禁止出现在任何流水元素里的键**（出现即视为"在造平行账本"，违反 §3-1）
 BANNED_KEYS = frozenset({"balance", "stock", "inventory", "on_hand", "holdings"})
 
-#: 流水元素字段（M175/设计档 §8.1）
+#: 流水元素字段（M175/设计档 §8.1；2026-10-20 增 tax/tax_requested：
+#: `tax` = 实扣额（与 totals 同口径），`tax_requested` = 应征额，便于对账）
 LEG_FIELDS = ("month", "route", "seat", "partner", "dim", "qty", "unit_price", "goods_value",
-              "freight", "tax_over", "tax_stay", "tax_to", "freight_to", "direction", "reason")
+              "freight", "tax", "tax_requested", "tax_over", "tax_stay", "tax_to",
+              "freight_to", "direction", "reason")
 
 __all__ = ["BANNED_KEYS", "LEG_FIELDS", "route_weights", "allocate_legs", "assert_guards"]
 
