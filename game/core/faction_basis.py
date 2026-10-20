@@ -401,6 +401,10 @@ def emerging_from_reforms(state) -> List[Dict[str, Any]]:
             "gain": list(spec.get("gain") or []),
             "lose": list(spec.get("lose") or []),
             "emergent": emergent,
+            # R-N-5（2026-10-20 全审）：`emergent` 目前**只声明、无写入点**——
+            # 本模块只读，不新建 `state.factions` 条目；面板/AI 只能把它当「预告」看，
+            # 不得据此认为集团已存在。接写入点后把本标记改为 False/删除。
+            "emergent_preview": True,
         })
     return out
 

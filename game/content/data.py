@@ -848,6 +848,9 @@ _REFORM_MILITARY = {
         "desc": "整编厢军入禁军后以新军功进身的将校",
     }],
 }
+# 🔴 R-N-5（2026-10-20 全审）：`emergent` 目前**仅预告**——只有声明与只读投影
+# （`faction_basis.emerging_from_reforms` 输出 `emergent_preview: True`），
+# 没有任何代码据此新建 `state.factions`；接写入点前不得当"已生成集团"消费。
 REFORM_POP_BASIS = {
     "land_survey": _REFORM_LAND_SURVEY,
     "t1_land_survey": _REFORM_LAND_SURVEY,     # 国策「方田均税」

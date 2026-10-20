@@ -581,7 +581,19 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
             if isinstance(_t, dict) and case_is_cased(_t):
                 monthly_case_settle(state, _t, log)
     except Exception as _lc_err:  # noqa: BLE001 — 案卷结算失败不阻断月度结算
-        log.append('[案卷] 长期旨案卷结算失败：%r' % (_lc_err,))
+        # R-N-6（2026-10-20 全审）：原实现只 append 一行日志（不持久、可被日志滚动吞掉）。
+        # 现累计到 `statistics.longterm_settle_errors`（持久计数，面板/对账可读），
+        # 并走统一留痕（玩家可见 WARN + 开发者 traceback，按回合去重）。
+        _lc_n = int(state.statistics.get("longterm_settle_errors", 0) or 0) + 1
+        state.statistics["longterm_settle_errors"] = _lc_n
+        log.append('[案卷] 长期旨案卷结算失败：%r（累计 %d 次）' % (_lc_err, _lc_n))
+        try:
+            from core.settlement_common import note_settlement_error
+            note_settlement_error(state, "longterm_case_settle", "案卷",
+                                  "长期旨案卷结算失败：%r" % (_lc_err,), log=log,
+                                  exc=_lc_err, level="exception")
+        except Exception:  # noqa: BLE001 — 留痕设施自身失败不得反噬结算
+            pass
 
     # ---- 外邦州府人口月末重摊（2026-10-20）：任何步骤改了省人口后，
     # 在此统一按省精确重摊到州府，保证「Σ州府 == 省」（60 月回放曾 7 条失配）。
