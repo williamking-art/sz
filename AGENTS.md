@@ -13,6 +13,7 @@
 | `game/core/` | 规则与结算（算法**单点**在此；`settlement*.py` 十二步流水线） |
 | `game/content/` | 数据表（`data.py`、`geo_admin.py`、`ministers/`、`demography.py`） |
 | `game/ai/` | AI 契约（**只出档位/叙事**，数值一律程序算） |
+| 🔴 **天道裁决 = 游戏内嵌 `game/ai/jev_gate.py`** | 与 `tools/jev` 同一套 SystemOne API；所有 `_*_ai` 槽位的档位由它裁决/注入。**结算期禁止同步 HTTP**（Jev 结论须在结算前置步骤或离线批注入，结算只读 `state._*_ai`）。档位→数值的换算表集中在 `core/` 各域模块。 |
 | `game/backend/` | FastAPI 薄壳（`/api/action` 等；`client.py` 是动作分派表） |
 | `game/frontend/` | Electron + React（`src/renderer/` 地图/HUD/面板） |
 | `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-19 实测 **4014 tests / 0 failed / 0 errors / 3 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
@@ -294,7 +295,7 @@ cd frontend
 
 本项目接入了一套**跨 agent 共享记忆**。**本文件仍是《宋祚》的唯一权威项目记忆**，共享记忆只提供索引。
 
-**记忆版本：v5**（权威值：`$env:USERPROFILE\AI-Memory\MEMORY-VERSION`）
+**记忆版本：v6**（权威值：`$env:USERPROFILE\AI-Memory\MEMORY-VERSION`）
 
 | 读什么 | 路径 | 作用 |
 |---|---|---|
