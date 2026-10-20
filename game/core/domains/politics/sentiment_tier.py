@@ -18,7 +18,8 @@ from typing import Any, Dict, Optional
 
 __all__ = ["SENTIMENT_TIERS", "SENTIMENT_DELTA", "SENTIMENT_PRIOR",
            "resolve_sentiment", "apply_sentiment_trend", "register_sentiment_provider",
-           "UNREST_TIERS", "UNREST_DELTA", "resolve_unrest", "register_unrest_provider"]
+           "UNREST_TIERS", "UNREST_DELTA", "resolve_unrest", "register_unrest_provider",
+           "SHOCK_TIERS", "SHOCK_DELTA", "shock_delta", "apply_shock"]
 
 #: 民情档位（从坏到好）
 SENTIMENT_TIERS = ("大坏", "转坏", "持平", "转好", "大好")
@@ -38,6 +39,37 @@ _PROVIDERS: list = []
 #: 现由天道判「本月有没有乱」，程序换算骚乱对民心的冲击。
 UNREST_TIERS = ("无", "小乱", "骚乱", "大乱")
 UNREST_DELTA: Dict[str, int] = {"无": 0, "小乱": -1, "骚乱": -2, "大乱": -4}
+
+#: **事件对民心的冲击档**（2026-10-20）：仓廪乏粮/饥荒/大策失利 等"具体事件后果"
+#: 原来一律写死 -1。现允许事件携带档位（轻/中/重）→ 程序换算；缺档回退旧值 -1。
+SHOCK_TIERS = ("轻", "中", "重")
+SHOCK_DELTA: Dict[str, int] = {"轻": -1, "中": -2, "重": -3}
+
+
+def shock_delta(tier: Optional[str], default: int = -1) -> int:
+    """事件冲击档 → 民心增量；缺档/非法 ⇒ 回退旧值（默认 -1，保持零变更）。"""
+    try:
+        return SHOCK_DELTA[str(tier)]
+    except (KeyError, TypeError):
+        return int(default)
+
+
+def apply_shock(state, tier: Optional[str] = None, *, log: Optional[list] = None,
+                tag: str = "", default: int = -1) -> Dict[str, Any]:
+    """按档应用一次事件民心冲击（有界 [0,100]）；缺档用 default（旧 -1）。"""
+    log = log if isinstance(log, list) else []
+    cur = getattr(state, "population_satisfaction", None)
+    d = shock_delta(tier, default)
+    if cur is None or not d:
+        return {"tier": tier, "applied": 0,
+                "satisfaction": None if cur is None else int(cur)}
+    state.population_satisfaction = max(0, min(100, int(cur) + d))
+    if tier in SHOCK_TIERS:
+        log.append("[天道] %s冲击裁「%s」：民心 %+d（%d → %d）"
+                   % (tag or "事件", tier, d, int(cur),
+                      int(state.population_satisfaction)))
+    return {"tier": tier, "applied": d,
+            "satisfaction": int(getattr(state, "population_satisfaction", 0) or 0)}
 
 _UNREST_PROVIDERS: list = []
 

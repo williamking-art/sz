@@ -173,3 +173,50 @@ def test_unrest_registered_and_grouped():
     assert "unrest" in ar.AGENT_DEFS
     assert ar.AGENT_DEFS["unrest"]["method"] == "unrest_decide"
     assert token_group_of("unrest_decide") == "推演"
+
+# ---------------- 事件民心冲击档（仓廪/饥荒/大策失利） ----------------
+
+def test_shock_tier_mapping():
+    from core.domains.politics.sentiment_tier import SHOCK_DELTA, shock_delta
+
+    assert SHOCK_DELTA == {"轻": -1, "中": -2, "重": -3}
+    assert shock_delta("重") == -3
+    assert shock_delta(None) == -1, "缺档回退旧值 -1（零变更）"
+    assert shock_delta("胡说") == -1
+
+
+def test_apply_shock_bounds_and_fallback():
+    from core.domains.politics.sentiment_tier import apply_shock
+
+    s = _S(sat=50)
+    log = []
+    got = apply_shock(s, "重", log=log, tag="饥荒")
+    assert got["applied"] == -3 and s.population_satisfaction == 47
+    assert any("天道" in x and "饥荒" in x for x in log), log
+
+    s2 = _S(sat=50)
+    apply_shock(s2, None)
+    assert s2.population_satisfaction == 49, "缺档必须回退旧 -1"
+
+    s3 = _S(sat=1)
+    apply_shock(s3, "重")
+    assert s3.population_satisfaction == 0, "不得为负"
+
+
+def test_focus_internal_reads_tier():
+    """大策「内卫」：携带档位时按档扣（重 -3）；缺档仍 -1。"""
+    from core.focus_mechanic import _apply_branch_effect
+
+    class _S2(_S):
+        def __init__(self):
+            super().__init__(sat=50)
+            self.tech = {"level": 0}
+            self.land = {"hidden_rate": 0.35}
+
+    s = _S2()
+    s._focus_shock_tier = "重"
+    _apply_branch_effect(s, [], "internal", None, None)
+    assert s.population_satisfaction == 47, s.population_satisfaction
+    s2 = _S2()
+    _apply_branch_effect(s2, [], "internal", None, None)
+    assert s2.population_satisfaction == 49, "缺档回退旧 -1"

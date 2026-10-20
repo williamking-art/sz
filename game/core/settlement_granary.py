@@ -225,7 +225,10 @@ def _settle_granary(state, log):
             u.training = max(10, u.training - 2)
             u.morale = max(10, u.morale - 2)
         log.append(f"[军粮] 太仓乏粮，本色俸饷短 {short}石，士卒困顿")
-        state.population_satisfaction = max(0, state.population_satisfaction - 1)
+        # 2026-10-20 天道化：军粮短缺的民心冲击可由事件携带档位（轻/中/重），缺档回退旧 -1
+        from core.domains.politics.sentiment_tier import apply_shock
+        apply_shock(state, getattr(state, "_granary_shock_tier", None),
+                    log=log, tag="乏粮（俸饷）")
     elif given > 0:
         log.append(f"[俸禄·本色] 支禄米军粮 {given}石（军粮{mil_grain}+官禄{off_grain}+吏禄{clerk_grain}）")
 
@@ -692,7 +695,10 @@ def _settle_granary(state, log):
                 log.append(f"[隐户] 本路隐户应喂 {_hidden_feed}石，仅实喂 {_fed}石"
                            f"（士绅兜底不足，缺 {_hidden_feed - _fed}石）")
     if _famine:
-        state.population_satisfaction = max(0, state.population_satisfaction - 1)
+        # 2026-10-20 天道化：饥荒冲击按档（轻/中/重），缺档回退旧 -1
+        from core.domains.politics.sentiment_tier import apply_shock
+        apply_shock(state, getattr(state, "_famine_shock_tier", None),
+                    log=log, tag="饥荒")
 
     state.economy_history.append({
         "granary": state.granary,

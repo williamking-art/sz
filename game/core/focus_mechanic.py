@@ -500,7 +500,10 @@ def _apply_branch_effect(state, log, branch, eff, node) -> None:
             state.tech["level"] = min(100, state.tech.get("level", 0) + 1)
         elif branch == "internal":
             # 内卫：民心微损（密探高压），但防患
-            state.population_satisfaction = max(0, state.population_satisfaction - 1)
+            # 2026-10-20 天道化：高压的民心冲击按档（轻/中/重），缺档回退旧 -1
+            from core.domains.politics.sentiment_tier import apply_shock
+            apply_shock(state, getattr(state, "_focus_shock_tier", None),
+                        log=log, tag="内卫高压")
         elif branch == "tax":
             # 税务：清隐田，隐漏率下降
             state.land["hidden_rate"] = max(0.05, state.land.get("hidden_rate", 0.35) - 0.01)
