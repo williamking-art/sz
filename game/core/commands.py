@@ -1560,7 +1560,7 @@ _MILITARY_BUTTON_ACTS = {
 def issue_military_order(state: GameState, unit_id: str, button: str,
                          scale: int = 3, target: str = "", new_name: str = "",
                          merge_unit_id: str = "", commander: str = "",
-                         executor: str = "") -> str:
+                         executor: str = "", defer: bool = False) -> str:
     """**玩家亲裁军令**：对象是**编制单位**（非兵种、非军籍整批），入队后即时批红。
 
     为什么这样接（三条，缺一不可）：
@@ -1602,7 +1602,9 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3))),
-               "executor": executor, "imperial_direct": bool(_direct)}
+               "executor": executor, "imperial_direct": bool(_direct),
+               "defer": bool(defer and not _direct),
+               "due_turn": int(getattr(state, "turn", 0) or 0) + 1}
     if act == "改名" or act == "拆分":
         payload["new_name"] = str(new_name or "").strip()
     if act == "换帅":
@@ -1622,6 +1624,8 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     aid = state.enqueue_ai_action(
         "military_dispatch", title,
         f"玩家亲裁军令（编制单位 {uid}）", payload, proposer="玩家")
+    if payload.get("defer"):
+        return f"已入枢密院议：军令「{title}」待次月批红（{aid}）。"
     result = approve_ai_action(state, aid)
     if _direct and "驳回" not in result and "未成" not in result:
         imperial_mandate.charge_direct_cost(state, "military_dispatch")
