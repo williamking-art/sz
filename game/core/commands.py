@@ -1552,10 +1552,9 @@ def _mil_int(v, d: int = 0) -> int:
 
 _MILITARY_BUTTON_ACTS = {
     "整编": "整编", "扩编": "增募", "地图调度": "调赴",
-    "调度军令": "调赴",
     "拆分": "拆分", "合并": "合并", "换帅": "换帅",
     "裁撤": "裁撤", "改名": "改名",
-}   # 参考图 8 类；“地图调度/调度军令”是同一动作的两种 UI 文案
+}   # 严格等于参考图 8 键（“调度军令”在入口归一为“地图调度”）
 
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
@@ -1571,7 +1570,10 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
          `ai_pending_actions`（与 AI 提议同构），批红后 `status="approved"`，可回溯谁在何月下的令；
       ③ **未实现的按钮明确拒绝**，不静默、不假装成功。
     """
-    act = _MILITARY_BUTTON_ACTS.get(str(button or "").strip())
+    _button = str(button or "").strip()
+    if _button == "调度军令":
+        _button = "地图调度"   # UI 文案别名；不扩展参考图 8 键集合
+    act = _MILITARY_BUTTON_ACTS.get(_button)
     if not act:
         return (f"未成：军令「{button}」尚无契约（现可施行："
                 f"{'、'.join(_MILITARY_BUTTON_ACTS)}）。")

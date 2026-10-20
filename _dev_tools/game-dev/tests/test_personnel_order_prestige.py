@@ -146,15 +146,15 @@ def test_direct_action_charges_prestige():
     assert s.prestige == 88
 
 
-def test_registry_declares_military_dispatch_as_pending():
+def test_registry_declares_military_dispatch_implemented():
     from core import imperial_mandate
     s = _state()
     s.prestige = 99
     military = imperial_mandate.spec("military_dispatch")
     assert military is not None
     assert military.threshold == 85
-    assert military.implemented is False
-    assert imperial_mandate.can_direct(s, "military_dispatch") is False
+    assert military.implemented is True
+    assert imperial_mandate.can_direct(s, "military_dispatch") is True
 
 
 def test_unknown_action_not_direct():
