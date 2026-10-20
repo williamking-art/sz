@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGameStore, pick, type PanelKind } from "../store/gameStore";
 import { getApiClient } from "../api/client";
-import { wan, humanizeCoin } from "../utils/format";
+import { asNum, asStr, humanizeCoin, wan } from "../utils/format";
 import constants from "../data/constants.json";
 
 /** 朝局简报跳转语义（core.briefing 的 goto）→ 浮层目标（迁移补齐：Tk `_render_briefing`） */
@@ -21,12 +21,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 /** 仪表条：对齐 theme.progress_bar 取色（ratio 分段）。 */

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Users2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
-import { humanizeCoin } from "../utils/format";
+import { asNum, humanizeCoin } from "../utils/format";
 import { SectionHead, StatCard, GoldDivider } from "../components/PanelKit";
 
 // 会计录 —— 后端权威读数走 `/api/readouts::finance`
@@ -16,9 +16,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
 }
 // P2-2：比率字段的**缺失语义**——后端分母为 0 时给 null，此处必须保持 null
 //（显示「未定义」），不得回落 0 或 1.0（1.0 会让"到账完美"成为默认）。

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGameStore, pick } from "../store/gameStore";
 import { getApiClient } from "../api/client";
-import { humanizeCoin } from "../utils/format";
+import { asNum, asStr, humanizeCoin } from "../utils/format";
 import { EFFECT_NAME } from "../utils/effects";
 import constants from "../data/constants.json";
 
@@ -11,12 +11,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 const EFFECT_LABELS: Record<string, string> = {

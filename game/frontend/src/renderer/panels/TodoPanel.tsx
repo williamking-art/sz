@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGameStore, pick, type PanelKind } from "../store/gameStore";
 import { getApiClient } from "../api/client";
+import { asStr } from "../utils/format";
 
 // 在办事务（P1-1「长期事务 × 圣旨支持模型」的前端呈现）
 //
@@ -16,9 +17,6 @@ import { getApiClient } from "../api/client";
 //   ⑤ 下月可能如何推进 → forecast
 type Dict = Record<string, unknown>;
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
 /** 非有限数一律 null（缺失 → 显示"未定义"，**不回退 0/1**）。 */
 function asNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;

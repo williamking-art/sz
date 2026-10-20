@@ -45,14 +45,6 @@ _BASELINE = {
     ("e6c7ebc5be219911", ("core/civil_building.py", "core/domains/production/settlement_agri.py")),
     ("5d654c1c059f6e86", ("core/faction_distribution.py", "core/permission_model.py")),
     ("ad65adede7c5d51a", ("core/party_ban_order.py", "core/personnel_order.py")),
-    ("df219f7ede9572cd", ("core/domains/economy/canal_bridge.py",
-                          "core/foundation/ledger/building_bridge.py",
-                          "core/foundation/ledger/local_treasury_bridge.py",
-                          "core/foundation/ledger/storage_bridge.py")),
-    ("d3e6bde83e1c53dc", ("core/domains/economy/canal_bridge.py",
-                          "core/foundation/ledger/building_bridge.py",
-                          "core/foundation/ledger/resource_stock_bridge.py",
-                          "core/foundation/ledger/storage_bridge.py")),
 }
 
 

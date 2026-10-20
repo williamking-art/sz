@@ -1,17 +1,12 @@
 import { useState } from "react";
 import { useGameStore, pick, getTreasuryDetail } from "../store/gameStore";
 import { getApiClient } from "../api/client";
+import { asNum, asStr } from "../utils/format";
 
 // 治务枢纽 —— 聚合 Tk 尚未迁至 Electron 的治理数据（只读展示）：
 //   资金流/税制 · 灾荒·时代·危机 · 帝国机制 · 纪事/奏折 · 条约/外交纪事 · AI计量
 type Dict = Record<string, unknown>;
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" ? (v as Dict) : {};
 }

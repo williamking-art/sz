@@ -5,6 +5,7 @@ import { useGameStore, pick } from "../store/gameStore";
 import { portraitSrc } from "../utils/portrait";
 import constants from "../data/constants.json";
 import codexData from "../data/codex.json";
+import { asStr } from "../utils/format";
 
 // 群臣名录 —— 对齐 game/ui/panels_govern.py::_panel_yamen（L1498）
 // 三段卡片网格：宰执（跟人：占尚书左/右仆射者所属派系）/ 派系领袖 / 六部尚书。
@@ -15,9 +16,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 // 武臣派系（对齐 _minister_kind：FACTION_PROFILES.kind == military）

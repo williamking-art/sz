@@ -29,6 +29,8 @@ from typing import Dict, Optional
 
 log = logging.getLogger(__name__)
 
+from core.foundation.ledger.seat_locator import (locate_route as _routed, seats_map as _seats_map)
+
 #: 治所真账里承载淤塞度的键名；路级同名键是**派生镜像**
 SEAT_KEY = "canal_block"
 
@@ -41,13 +43,6 @@ __all__ = [
     "survey_canal", "sink_route_canal", "sink_canal_to_seats",
     "canal_set", "canal_add", "canal_set_national",
 ]
-
-
-def _seats_map(pdata) -> Dict[str, dict]:
-    if not isinstance(pdata, dict):
-        return {}
-    seats = pdata.get("seats")
-    return seats if isinstance(seats, dict) else {}
 
 
 def _num(v) -> Optional[float]:
@@ -198,14 +193,6 @@ def sink_canal_to_seats(state, routes=None) -> int:
         except Exception:                               # noqa: BLE001
             log.warning("canal_bridge: 下沉失败 route=%s（跳过）", route, exc_info=True)
     return n
-
-
-def _routed(state, route: str):
-    prefs = getattr(state, "prefectures", None)
-    if not isinstance(prefs, dict):
-        return None
-    pdata = prefs.get(route)
-    return pdata if isinstance(pdata, dict) else None
 
 
 def canal_set(state, route: str, value, seat_id: Optional[str] = None) -> Optional[float]:

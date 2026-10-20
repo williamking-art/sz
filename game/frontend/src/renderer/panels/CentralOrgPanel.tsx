@@ -1,15 +1,10 @@
 import { useGameStore, pick } from "../store/gameStore";
+import { asNum, asStr } from "../utils/format";
 
 // 中枢机构 / 监察 —— 对齐 Tk 版 _panel_central_org（只读展示）
 // 中央机构（central_orgs：leader/在任职守/事权/预算结余/效率/积压）+ 监察力度(oversight) + 密探(spy_network)。
 type Dict = Record<string, unknown>;
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" ? (v as Dict) : {};
 }

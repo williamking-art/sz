@@ -25,6 +25,8 @@ from typing import Dict, Optional
 
 log = logging.getLogger(__name__)
 
+from core.foundation.ledger.seat_locator import (locate_route as _routed, seats_map as _seats_map)
+
 #: 常平仓（石）—— 与州仓 `storage` 分离、不参与漕运上供
 CHANGPING_KEY = "changping_stock"
 #: 州仓/上供仓（石）—— M40b 用
@@ -37,14 +39,6 @@ __all__ = [
     "sink_state_storage_to_seats", "changping_add", "changping_set", "changping_get",
     "storage_add", "storage_set", "storage_get",
 ]
-
-
-
-def _seats_map(pdata) -> Dict[str, dict]:
-    if not isinstance(pdata, dict):
-        return {}
-    seats = pdata.get("seats")
-    return seats if isinstance(seats, dict) else {}
 
 
 def _int_or_none(v) -> Optional[int]:
@@ -167,14 +161,6 @@ def sink_storage_to_seats(state, routes=None, key: str = CHANGPING_KEY) -> int:
             log.warning("storage_bridge: 下沉失败 route=%s key=%s（跳过）", route, key,
                         exc_info=True)
     return n
-
-
-def _routed(state, route: str):
-    prefs = getattr(state, "prefectures", None)
-    if not isinstance(prefs, dict):
-        return None
-    pdata = prefs.get(route)
-    return pdata if isinstance(pdata, dict) else None
 
 
 def changping_get(state, route: str) -> Optional[int]:

@@ -11,6 +11,7 @@ import { portraitSrc } from "../utils/portrait";
 import ministersDict from "../data/ministers_dict.json";
 import MemoryDrawer, { type MemoryTab } from "./MemoryDrawer";
 import { SessionGuard, isAbortError, classifySessionView, type SessionPhase } from "./sessionGuard";
+import { asStr } from "../utils/format";
 
 // 御前召对 —— 社交式会话面板（对齐用户定稿口径）：
 //   · 左栏＝召对名录（会话列表：在朝大臣 + 派系领袖 + 有留档者），末条预览 + 条数；
@@ -49,9 +50,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 export default function AudienceView({ props }: { props?: Record<string, unknown> }) {

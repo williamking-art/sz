@@ -1,13 +1,11 @@
 import { useGameStore, pick } from "../store/gameStore";
+import { asNum } from "../utils/format";
 
 // 田亩户籍总览 —— 对齐 game/ui/panels_economy.py::_panel_land（只读展示）
 // 全国垦田/隐漏/荒田 + 诸路田亩粮产民情 + 诸路六阶 POP 万口。
 type Dict = Record<string, unknown>;
 type StateDict = Dict | null;
 
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" ? (v as Dict) : {};
 }

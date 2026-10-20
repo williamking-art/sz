@@ -1,16 +1,11 @@
 import { useGameStore, pick } from "../store/gameStore";
 import constants from "../data/constants.json";
+import { asNum, asStr } from "../utils/format";
 
 // 密旨与御笔 —— 对齐 game/ui/panels_govern.py::_panel_secret_decree（只读展示）
 // 展示：待下密谕清单 / 御笔直发剩余额度 / 生效中密令。狼来了机制已取消，不再显示公信惩罚。
 type Dict = Record<string, unknown>;
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
 
 function entryText(e: Dict): { title: string; target: string; log: string } {
   const title = asStr(e.title, "密谕");

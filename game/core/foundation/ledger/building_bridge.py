@@ -35,6 +35,8 @@ from typing import Dict, Optional
 
 log = logging.getLogger(__name__)
 
+from core.foundation.ledger.seat_locator import (locate_route as _routed, seat_of as _seat_of, seats_map as _seats_map)
+
 #: 治所真账里承载建筑的键名（与 `"pops"`/`"local_treasury"` 平级）
 SEAT_KEY = "buildings"
 
@@ -44,13 +46,6 @@ __all__ = [
     "sink_buildings_to_seats", "building_add", "building_set", "building_remove",
     "building_level", "norm_level",
 ]
-
-
-def _seats_map(pdata) -> Dict[str, dict]:
-    if not isinstance(pdata, dict):
-        return {}
-    seats = pdata.get("seats")
-    return seats if isinstance(seats, dict) else {}
 
 
 def norm_level(entry) -> Optional[int]:
@@ -94,11 +89,6 @@ def is_sunk(pdata) -> bool:
     if not seats:
         return False
     return all(isinstance(s, dict) and isinstance(s.get(SEAT_KEY), dict) for s in seats.values())
-
-
-def _seat_of(pdata, seat_id: str):
-    seat = _seats_map(pdata).get(str(seat_id))
-    return seat if isinstance(seat, dict) else None
 
 
 def seat_buildings_total(pdata) -> Optional[dict]:
@@ -253,14 +243,6 @@ def sink_buildings_to_seats(state, routes=None) -> int:
         except Exception:                               # noqa: BLE001
             log.warning("building_bridge: 下沉失败 route=%s（跳过）", route, exc_info=True)
     return n
-
-
-def _routed(state, route: str):
-    prefs = getattr(state, "prefectures", None)
-    if not isinstance(prefs, dict):
-        return None
-    pdata = prefs.get(route)
-    return pdata if isinstance(pdata, dict) else None
 
 
 def _refresh(pdata) -> None:

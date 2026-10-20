@@ -2,17 +2,12 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { asNum, asStr } from "../utils/format";
 
 // 存档 · 读档 —— 对齐 game/ui/panels_meta.py::_panel_save_load（L22）
 // 槽位列表 + 保存/读档（client.saveSlots / save / load）。
 type Dict = Record<string, unknown>;
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
 
 function slotLabel(s: Dict): string {
   if (s.empty === true) {

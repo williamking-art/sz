@@ -44,3 +44,13 @@ export function statusColor(v: number): string {
   if (v >= 45) return "#caa24a";
   return "#8a2b22";
 }
+
+/** 宽松取数：有限 number 才采用，否则 def（缺失≠0 的语义由调用方给 def）。 */
+export function asNum(v: unknown, def = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : def;
+}
+
+/** 宽松取串：string 才采用，否则 def。 */
+export function asStr(v: unknown, def = ""): string {
+  return typeof v === "string" ? v : def;
+}

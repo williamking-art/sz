@@ -30,6 +30,8 @@ from typing import Any, Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
+from core.foundation.ledger.seat_locator import seats_map as _seats_map
+
 #: 治所真账里承载资源存量的键名（与 `"pops"` 平级）
 SEAT_KEY = "resources"
 
@@ -57,13 +59,6 @@ def _int_or_none(v) -> Optional[int]:
 def _prefs(state) -> Optional[Dict[str, Any]]:
     prefs = getattr(state, "prefectures", None)
     return prefs if isinstance(prefs, dict) else None
-
-
-def _seats_map(pdata) -> Dict[str, dict]:
-    if not isinstance(pdata, dict):
-        return {}
-    seats = pdata.get("seats")
-    return seats if isinstance(seats, dict) else {}
 
 
 def _routed(state, route) -> Optional[dict]:

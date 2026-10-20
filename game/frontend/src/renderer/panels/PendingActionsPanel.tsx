@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, ScrollText, Swords, Landmark } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
+import { asStr } from "../utils/format";
 
 // AI 待批行动队列 —— 对齐 core/commands.approve_ai_action / reject_ai_action
 // 严格模式：AI 只有提议权，批红前不落地（密令/施政/军令）
@@ -13,9 +14,6 @@ function asDict(v: unknown): Dict {
 }
 function asArr(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 const KIND_META: Record<string, { label: string; icon: React.ReactNode; tone: string }> = {

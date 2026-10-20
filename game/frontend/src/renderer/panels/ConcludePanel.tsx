@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
+import { asNum, asStr } from "../utils/format";
 
 // 终局评估 —— 对齐 game/ui/panels_menu.py::_panel_game_over（L223）
 // client.conclude() 取规则评估 eval + AI 史评 ai_eval。
@@ -9,12 +10,6 @@ type Dict = Record<string, unknown>;
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
 }
 
 export default function ConcludePanel() {

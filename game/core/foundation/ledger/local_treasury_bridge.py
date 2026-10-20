@@ -33,6 +33,8 @@ from typing import Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
+from core.foundation.ledger.seat_locator import (locate_route as _locate, seat_of as _seat_of, seats_map as _seats_map)
+
 #: 治所真账里承载**地方府库**的键名（与 `"pops"` 平级；**不是**中央 `treasury`）
 SEAT_KEY = "local_treasury"
 
@@ -48,14 +50,6 @@ __all__ = [
 # --------------------------------------------------------------------------
 # 读侧
 # --------------------------------------------------------------------------
-def _seats_map(pdata) -> Dict[str, dict]:
-    """路级 `seats` 映射（非 dict 一律当空）。"""
-    if not isinstance(pdata, dict):
-        return {}
-    seats = pdata.get("seats")
-    return seats if isinstance(seats, dict) else {}
-
-
 def is_sunk(pdata) -> bool:
     """该路是否已下沉：**每个治所都有 `local_treasury` 键**才算。
 
@@ -209,14 +203,6 @@ def sink_local_treasury_to_seats(state, routes=None) -> int:
     return n
 
 
-def _locate(state, route: str):
-    prefs = getattr(state, "prefectures", None)
-    if not isinstance(prefs, dict):
-        return None
-    pdata = prefs.get(route)
-    return pdata if isinstance(pdata, dict) else None
-
-
 def local_treasury_set(state, route: str, value) -> Optional[float]:
     """**写**真账为 `value`（按权重重分摊）。**未下沉 ⇒ `None`**（调用方回落原写法）。"""
     pdata = _locate(state, route)
@@ -251,12 +237,6 @@ def local_treasury_add(state, route: str, delta) -> Optional[float]:
                     route, cur, delta)
         new = 0.0
     return local_treasury_set(state, route, new)
-
-
-def _seat_of(pdata, seat_id: str):
-    """取某治所 dict；不存在 ⇒ None。"""
-    seat = _seats_map(pdata).get(str(seat_id))
-    return seat if isinstance(seat, dict) else None
 
 
 def seat_local_treasury_get(state, route: str, seat_id: str) -> Optional[float]:

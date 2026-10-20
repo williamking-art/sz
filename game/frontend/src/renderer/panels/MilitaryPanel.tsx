@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { getApiClient, type ReadoutsResult, type ArmyUnitReadout } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
 import ArmyDossier from "../components/ArmyDossier";
-import { wan } from "../utils/format";
+import { asNum, asStr, wan } from "../utils/format";
 import constants from "../data/constants.json";
 
 // 军政机务 —— 诸军实体/边防要线/战事动态/中央武库，全部只读（Tk 版亦无施政按钮）。
@@ -23,12 +23,6 @@ const EQUIP_KEYS: [string, string][] = EQUIP_KEY_NAMES.map(
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asNum(v: unknown, def = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : def;
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 
 function SectionTitle({ text }: { text: string }) {

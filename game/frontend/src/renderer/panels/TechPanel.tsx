@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { getApiClient } from "../api/client";
 import { useGameStore, pick } from "../store/gameStore";
-import { humanizeCoin } from "../utils/format";
+import { asStr, humanizeCoin } from "../utils/format";
 import { formatEffects } from "../utils/effects";
 import constants from "../data/constants.json";
 
@@ -31,9 +31,6 @@ const LINES = constants.tech_lines as string[];
 
 function asDict(v: unknown): Dict {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Dict) : {};
-}
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
 }
 function SectionTitle({ text }: { text: string }) {
   return (

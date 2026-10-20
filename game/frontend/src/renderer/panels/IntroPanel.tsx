@@ -1,4 +1,5 @@
 import { useGameStore, pick } from "../store/gameStore";
+import { asStr } from "../utils/format";
 
 // 开局引子 + 邸报 + 「登基治国」入局仪式
 // 迁移补齐：对齐 Tk game/ui/panels_menu.py::_show_intro（L173-217）——
@@ -14,9 +15,6 @@ const INTRO_TEXT =
   "而你，就是这位年仅十九岁的新天子——赵佶。\n\n" +
   "你的每一个决定，都将影响大宋国祚的命运。\n是重蹈史实，还是中兴大宋？";
 
-function asStr(v: unknown, def = ""): string {
-  return typeof v === "string" ? v : def;
-}
 
 export default function IntroPanel() {
   const state = useGameStore((s) => s.state);
