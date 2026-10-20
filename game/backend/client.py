@@ -46,6 +46,13 @@ _COLD_START_MSG = (
 )
 from core.game_state import GameState
 
+#: 下旨类动作（触发一次天道档位预取；结算链不在此列）
+_DECREE_ISSUE_ACTIONS = frozenset({
+    "issue_decree", "issue_secret_decree", "issue_edict_from_review", "issue_kouyu",
+})
+
+
+
 
 class BackendClient:
     """后端客户端接口（模板方法）。子类实现 new_game / advance / action / resolve_event。"""
@@ -177,6 +184,7 @@ class LocalBackend(BackendClient):
         cmd.finish_turn(state)
         return log, state
 
+
     def action(self, state, action, params, ai_client=None):
         # 统一返回 (message, state)；本地模式下 state 即原对象（可能被动作修改）
         # 分派表：action 名 → handler(state, params, ai_client) -> (message, state)
@@ -266,7 +274,16 @@ class LocalBackend(BackendClient):
         handler = handlers.get(action)
         if handler is None:
             raise ValueError(f"未知动作: {action}")
-        return handler(state, params, ai_client)
+        result = handler(state, params, ai_client)
+        # 下旨类动作：确定性触发一次天道档位预取（2026-10-20）
+        # 纪律：只在玩家动作路径调用；失败不阻断下旨（Jev 不可用 ⇒ 槽位留空）
+        if action in _DECREE_ISSUE_ACTIONS:
+            try:
+                from application.decree_prefetch import prefetch_decree_slots
+                prefetch_decree_slots(state)
+            except Exception:  # noqa: BLE001
+                log.warning("下旨后天道预取失败（不阻断）", exc_info=True)
+        return result
 
     @staticmethod
     def _start_focus_action(state, params):

@@ -104,7 +104,8 @@ TOKEN_GROUPS = {
              # 局势推进档位（规范 §7）：与其它结算契约同属推演域
              "situations_grade_decide",
              # 规格 decree-action-chain 任务 2/5：行动计划拆解 + 工程叙事（只出档位/叙事）
-             "decree_action_plan", "decree_narrative_decide"},
+             "decree_action_plan", "decree_narrative_decide",
+             "decree_duration_decide"},   # 2026-10-20 诏令天道档位生产者
     "月报叙事": {"monthly_report", "event_narrative", "advice", "final_eval"},
 }
 TOKEN_GROUP_ORDER = ("奏折", "拟旨", "会签", "推演", "月报叙事")
