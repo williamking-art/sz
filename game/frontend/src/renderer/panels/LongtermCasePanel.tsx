@@ -32,13 +32,14 @@ interface CaseReadout {
   fail_effects: CaseEffect[];
 }
 
+// 本项目大臣只有 loyalty/corruption 两项数值（0–1）；没有「六维」，不得臆造。
 const STAT_LABEL: Record<string, string> = {
   loyalty: "忠诚",
-  integrity: "清廉",
-  courage: "胆识",
-  martial: "武略",
-  management: "管理",
-  learning: "学识",
+  corruption: "贪腐",
+  role: "差遣",
+  rank: "官阶",
+  faction: "派系",
+  traits: "特质",
 };
 const POOL_LABEL: Record<string, string> = { treasury: "国库", imperial_treasury: "内帑" };
 const EFFECT_LABEL: Record<string, string> = {
@@ -137,11 +138,20 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
           <p className="font-bold text-ink">{def(data.handler?.name)}</p>
           <p className="text-xs text-dim">{def(data.handler?.org, "衙署未定义")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {Object.entries(STAT_LABEL).map(([k, label]) => (
-              <span key={k} className="rounded border border-gold/40 px-2 py-0.5 text-xs">
-                {label} <b className="text-ink">{def(data.handler?.stats?.[k])}</b>
-              </span>
-            ))}
+            {Object.entries(STAT_LABEL).map(([k, label]) => {
+              const v = data.handler?.stats?.[k];
+              const text =
+                v === null || v === undefined
+                  ? "未定义"
+                  : (k === "loyalty" || k === "corruption")
+                    ? `${Math.round(Number(v) * 100)}%`
+                    : def(v);
+              return (
+                <span key={k} className="rounded border border-gold/40 px-2 py-0.5 text-xs">
+                  {label} <b className="text-ink">{text}</b>
+                </span>
+              );
+            })}
           </div>
         </div>
       </section>

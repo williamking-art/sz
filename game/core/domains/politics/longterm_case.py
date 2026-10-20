@@ -201,8 +201,10 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
         try:
             from content.ministers.data import MINISTERS
             info = MINISTERS.get(handler_name) or {}
-            stats = {k: info.get(k) for k in ("loyalty", "integrity", "courage",
-                                              "martial", "management", "learning")
+            # 本项目大臣只有 loyalty/corruption 两项数值（0–1）+ 派系/官阶/差遣/特质；
+            # **没有**参考图那种「六维」——不得臆造字段（缺失即 None）。
+            stats = {k: info.get(k) for k in ("loyalty", "corruption", "role", "rank",
+                                              "faction", "traits")
                      if k in info} or None
         except Exception:  # noqa: BLE001
             stats = None

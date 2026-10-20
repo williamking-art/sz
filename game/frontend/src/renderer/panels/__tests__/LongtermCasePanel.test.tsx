@@ -23,7 +23,7 @@ const CASE = {
   linked_region: "nanzhili",
   linked_factions: ["农民", "户部"],
   cancellable: false,
-  handler: { name: "郑芝龙", org: "闽浙总兵", stats: { loyalty: 101, martial: 87 } },
+  handler: { name: "郑芝龙", org: "闽浙总兵", stats: { loyalty: 0.42, corruption: 0.31, role: "闽浙总兵", rank: "正二品", faction: "主战", traits: "果敢" } },
   authorization: { budget_total: 50, budget_remaining: 30, pool: "treasury", monthly_cost: 2, discretion: true },
   progress: { percent: 82, phase: "终前", target: 100 },
   monthly_effects: [{ key: "prestige", amount: -1 }],
@@ -43,6 +43,9 @@ describe("LongtermCasePanel 案卷渲染", () => {
 
     expect(await screen.findByText("南直隶倭寇犯江浙")).toBeTruthy();
     expect(screen.getByText(/郑芝龙/)).toBeTruthy();
+    // 本项目大臣只有 loyalty/corruption 两项数值（0–1），按百分比显示；没有六维
+    expect(screen.getByText("42%")).toBeTruthy();
+    expect(screen.getByText("31%")).toBeTruthy();
     expect(screen.getByText(/现有专款/)).toBeTruthy();
     expect(screen.getByText(/终前/)).toBeTruthy();
     expect(screen.getByText(/皇威 -1/)).toBeTruthy();
