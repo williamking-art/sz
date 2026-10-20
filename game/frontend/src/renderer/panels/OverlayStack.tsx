@@ -38,6 +38,7 @@ import PendingActionsPanel from "./PendingActionsPanel";
 import MeterPanel from "./MeterPanel";
 import MemoryPanel from "./MemoryPanel";
 import SituationPanel from "./SituationPanel";
+import LongtermCasePanel from "./LongtermCasePanel";
 import IntroPanel from "./IntroPanel";
 import PlaceholderPanel from "./PlaceholderPanel";
 
@@ -207,6 +208,8 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
       return <MeterPanel />;
     case "memory":
       return <MemoryPanel />;
+    case "longtermcase":
+      return <LongtermCasePanel props={props as any} />;
     case "situation":
       return <SituationPanel props={props as any} />;
     case "intro":
@@ -219,7 +222,7 @@ function PanelBody({ kind, props }: { kind: PanelKind; props?: Record<string, un
 function sectionFor(kind: PanelKind): string {
   if (["court", "ministers", "audience", "centralorg", "governance", "pending"].includes(kind)) return "朝廷中枢";
   if (["decree", "secretdecree", "focus", "engineering", "tech", "personal", "todo"].includes(kind)) return "政令施为";
-  if (["prefecture", "pop", "land", "granary", "accounting", "readouthub", "military", "provincemilitary", "diplomacy", "situation"].includes(kind)) return "天下诸务";
+  if (["prefecture", "pop", "land", "granary", "accounting", "readouthub", "military", "provincemilitary", "diplomacy", "situation", "longtermcase"].includes(kind)) return "天下诸务";
   if (["gazette", "dailylog", "memory", "codex", "localarchive", "meter"].includes(kind)) return "邸报典籍";
   if (["settings", "save", "conclude", "newgame", "intro"].includes(kind)) return "御前事务";
   if (["advance", "event", "detail"].includes(kind)) return "本月纪事";

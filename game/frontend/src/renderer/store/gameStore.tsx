@@ -40,6 +40,7 @@ export type PanelKind =
   | "memory"
   | "intro"
   | "situation"
+  | "longtermcase"
   | "pending";
 
 export interface OverlayEntry {

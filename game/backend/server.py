@@ -928,6 +928,22 @@ def api_readouts(request: Request):
             hub = {}
             readout_errors.append("hub")
             log.warning("readouts：统一读数索引（readout_hub.collect）派生失败", exc_info=True)
+        # 长期旨案卷（只读投影；core/domains/politics/longterm_case 单一权威源）。
+        # 供左侧局势标题点击后打开案卷页；缺失维度由 core 侧给 None（前端示未定义）。
+        try:
+            from core.domains.politics.longterm_case import case_readout
+            longterm_cases = {}
+            for _q in (getattr(s, 'longterm_public', None) or [],
+                       getattr(s, 'longterm_secret', None) or []):
+                for _t in _q:
+                    if isinstance(_t, dict):
+                        _cid = str(_t.get('id') or '')
+                        if _cid:
+                            longterm_cases[_cid] = _json_safe(case_readout(s, _t))
+        except Exception:
+            longterm_cases = {}
+            readout_errors.append('longterm_cases')
+            log.warning('readouts：长期旨案卷派生失败', exc_info=True)
         return {
             "army": army,
             "arsenal": arsenal,
@@ -943,6 +959,7 @@ def api_readouts(request: Request):
             "regions": regions,
             "hub": hub,
             "situations": situations,
+            "longterm_cases": longterm_cases,
             "defense_lines": _json_safe(s.defense_lines),
             # 审查 P2-3（应修）：失败读数清单（正常时为空表 → 前端可据此区分
             # "读不到"与"真的是 0/空"）。前端尚未接线（他人负责），仅后端提供。

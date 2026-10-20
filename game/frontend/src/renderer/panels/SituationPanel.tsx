@@ -95,7 +95,14 @@ function ItemCard({ r }: { r: SituationItem }) {
         }`}>
           危急 {r.severity}
         </span>
-        <span className="min-w-0 flex-1 truncate font-kai font-bold text-ink">{r.title}</span>
+        <button
+          type="button"
+          className="min-w-0 flex-1 truncate text-left font-kai font-bold text-ink hover:text-red hover:underline"
+          onClick={() => pushOverlay({ kind: "longtermcase", title: r.title, props: { id: r.id } })}
+          title="打开案卷"
+        >
+          {r.title}
+        </button>
         <span className="shrink-0 text-[11px] text-dim">
           {STATUS_LABEL[r.status]}
           {r.phase ? `　${r.phase}` : ""}
