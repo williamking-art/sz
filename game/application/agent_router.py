@@ -162,6 +162,8 @@ PENDING_CONTRACTS = (
      "core/domains/events/disaster_tier.py 消费；待接生产者"),
     ("_famine_ai", "famine_decide",
      "core/domains/events/disaster_tier.py 消费；待接生产者"),
+    ("_decree_ai", "decree_duration",
+     "core/domains/politics/decree_duration.py 消费；待接生产者"),
 )
 
 def _wake_by_keywords(agent_def: dict, player_input: str) -> bool:
