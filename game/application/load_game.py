@@ -169,5 +169,14 @@ def load_game(slot: int = 1):
         sink_spatial_warehouses_to_seats(state)
     except Exception:  # noqa: BLE001 — 同上
         _dlog.warning("[读档] 物理仓位州府级下沉失败（不拒档，桥接将回落旧写法）", exc_info=True)
+    # C-14（2026-10-20 可选层）：旧档长期事务缺 id ⇒ 首轮结算前授权/案卷页命中不到。
+    # 读档时确定性补齐（幂等；同内容同 id），后续结算/读数同键。
+    try:
+        from core.domains.politics.longterm_case import ensure_task_ids_in_state
+        _n_fixed = ensure_task_ids_in_state(state)
+        if _n_fixed:
+            _dlog.info("[读档] 为 %d 条旧长期事务补齐 id", _n_fixed)
+    except Exception:  # noqa: BLE001 — 旧档迁移失败不拒档
+        _dlog.warning("[读档] 旧长期事务补 id 失败（不拒档；结算前会再补）", exc_info=True)
     return state
 

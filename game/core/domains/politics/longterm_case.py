@@ -18,10 +18,11 @@
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Dict, List, Optional
 
 __all__ = ["CASE_PHASES", "CLOSED_OUTCOMES", "MONTHLY_EFFECT_KEYS", "ensure_case_fields",
-           "iter_case_tasks",
+           "ensure_task_id", "ensure_task_ids_in_state", "iter_case_tasks",
            "authorize_case", "monthly_case_settle", "case_readout", "case_is_cased",
            "CASE_LOG_KEEP"]
 
@@ -62,6 +63,7 @@ def ensure_case_fields(state, task: Dict[str, Any]) -> Dict[str, Any]:
     """幂等补齐案卷字段（旧档安全默认；缺失保持 None/空，不编造数值）。"""
     if not isinstance(task, dict):
         return {}
+    ensure_task_id(task)                 # C-14：缺 id 时确定性补齐（与读档同一算法）
     def _set(k, v):
         if k not in task:
             task[k] = v
@@ -124,6 +126,47 @@ def iter_case_tasks(state) -> List[Dict[str, Any]]:
                 seen.add(tid)
             out.append(t)
     return out
+
+
+def ensure_task_id(task: Dict[str, Any]) -> str:
+    """旧档事务缺 `id` 时补**确定性** id（同内容同 id，幂等）。
+
+    C-14（2026-10-20 可选层）：旧档 task 无 id ⇒ 首轮结算前 `authorize_case`/案卷页
+    按 id 命中不到（situations 投影也会跳过）。id 由 case_no/标题/立项回合派生，
+    不使用随机数（读档多次结果一致）。
+    """
+    if not isinstance(task, dict):
+        return ""
+    tid = str(task.get("id") or "").strip()
+    if tid:
+        return tid
+    seed = "|".join(str(task.get(k) or "") for k in
+                    ("case_no", "title", "opened_turn", "linked_region"))
+    task["id"] = "ltc_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12]
+    return str(task["id"])
+
+
+def ensure_task_ids_in_state(state) -> int:
+    """为三处长期事务队列补齐 id（读档/结算前幂等调用）；返回被补条数。"""
+    seen = set()
+    fixed = 0
+    for attr in ("longterm_public", "longterm_secret", "longterm_cases_archive"):
+        for t in (getattr(state, attr, None) or []):
+            if not isinstance(t, dict):
+                continue
+            raw = str(t.get("id") or "").strip()
+            tid = ensure_task_id(t)
+            if not raw:
+                fixed += 1
+            n = 1
+            base = tid
+            while tid in seen:
+                n += 1
+                tid = f"{base}-{n}"
+            if tid != t.get("id"):
+                t["id"] = tid
+            seen.add(tid)
+    return fixed
 
 
 def case_is_cased(task: Dict[str, Any]) -> bool:

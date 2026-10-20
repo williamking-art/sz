@@ -742,7 +742,7 @@ STATE_TOOL_SCHEMAS = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "path": {"type": "string", "description": "JSON 路径，如 treasury / factions.新党.satisfaction"},
+                                "path": {"type": "string", "description": "JSON 路径，如 treasury / factions.新党.satisfaction；必须匹配 engine/state_applier.VALID_PATHS（越界会被过滤并标记）"},
                                 "op": {"type": "string", "enum": ["set", "add", "mul", "remove", "push"],
                                        "description": "set=覆盖/add=加/mul=乘/remove=删/push=数组追加"},
                                 "value": {"description": "变更值（op=remove 时省略）"},
@@ -798,6 +798,29 @@ STATE_TOOL_SCHEMAS = [
 ]
 
 
+def filter_update_state_changes(changes):
+    """按 `engine.state_applier.VALID_PATHS` 过滤 update_state 的 changes。
+
+    R-AI-7（2026-10-20 全审，Jev A 0.933）：schema 里的 path 原是自由字符串，
+    越界路径要等写库才被拒（且可能带整批回滚）。这里在**解析工具调用时**就用
+    白名单 matcher 过滤，返回 `(kept, rejected)`；只读白名单，不复制清单、不改写入通道。
+    """
+    if not isinstance(changes, (list, tuple)):
+        return [], []
+    try:
+        from engine.state_applier import _path_ok
+    except Exception:  # noqa: BLE001 — engine 不可用时保持原样（不误杀）
+        return list(changes), []
+    kept, rejected = [], []
+    for ch in changes:
+        if not isinstance(ch, dict):
+            rejected.append(ch)
+            continue
+        path = str(ch.get("path") or "")
+        (kept if _path_ok(path) else rejected).append(ch)
+    return kept, rejected
+
+
 def parse_tool_calls(response):
     """从 LLM 响应提取 tool_calls → 结构化列表（模型适配层扩展）。
 
@@ -806,6 +829,8 @@ def parse_tool_calls(response):
       ——arguments 空时从 content 提取 JSON（参数嵌 content 的端点）。
     - 弱参数：arguments 空/坏 JSON → 从 content 提取；仍缺 → {}（必填缺失由
       _tool_dispatch 拒绝式处理）。
+    - update_state：changes 先按 `VALID_PATHS` 过滤，越界项进 `_rejected_changes`
+      并 warning（R-AI-7）。
     输出统一 {call_id, name, arguments(dict)}；无 tool_calls → []。
     """
     if not isinstance(response, dict):
@@ -832,7 +857,16 @@ def parse_tool_calls(response):
             args = {}
         if not isinstance(args, dict):
             args = {}
-        out.append({"call_id": tc.get("id", ""), "name": fn.get("name", ""),
+        _name = fn.get("name", "")
+        if _name == "update_state" and isinstance(args.get("changes"), (list, tuple)):
+            _kept, _rejected = filter_update_state_changes(args.get("changes"))
+            if _rejected:
+                args["changes"] = _kept
+                args["_rejected_changes"] = _rejected
+                log.warning("[update_state] 过滤越界 path %d 条：%s", len(_rejected),
+                            [str((c or {}).get("path") if isinstance(c, dict) else c)
+                             for c in _rejected[:5]])
+        out.append({"call_id": tc.get("id", ""), "name": _name,
                     "arguments": args})
     return out
 

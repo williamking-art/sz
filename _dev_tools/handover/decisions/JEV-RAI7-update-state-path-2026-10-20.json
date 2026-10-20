@@ -1,0 +1,31 @@
+{
+  "id": "JEV-RAI7-update-state-path-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "R-AI-7：update_state.path 自由字符串（潜伏面）怎么处理",
+  "items": [
+    {
+      "question": "R-AI-7 处理方式？A=现在接 VALID_PATHS（schema pattern + parse_tool_calls 过滤）；B=保持潜伏只写 description；C=删除 update_state schema",
+      "options": [
+        "A=现在接 VALID_PATHS",
+        "B=保持潜伏+文档",
+        "C=删除 update_state schema"
+      ],
+      "verdict": "A（0.9334）",
+      "probabilities": {
+        "A": 0.9334133267402649,
+        "B": 0.06180528178811073,
+        "C": 0.0047813826240599155
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "白名单唯一源在 engine.field_registry（VALID_PATHS 由 RULES 派生），不得在 ai 复制清单",
+        "ai→engine 属向下依赖（engine 是写入应用层），且用函数内 import 避免模块级环",
+        "parse_tool_calls 当前无生产调用方，改动不影响现有结算/写库路径；越界过滤只收紧预留面",
+        "越界项不静默丢：保留 `_rejected_changes` 并 warning，后续接线时 _tool_dispatch 可拒绝式处理"
+      ],
+      "applied_in": "ai/client_utils.filter_update_state_changes + parse_tool_calls 过滤；schema description；tests/test_audit_20261020_optional_fixes.py 2 条",
+      "reopen_if": "若未来 update_state 接线，应由 _tool_dispatch 统一按 VALID_PATHS 拒绝并回喂修复，不得只依赖解析层过滤"
+    }
+  ]
+}

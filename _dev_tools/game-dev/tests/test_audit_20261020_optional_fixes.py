@@ -41,3 +41,58 @@ def test_transport_queue_bad_qty_is_not_counted_or_crash_flush():
     # 坏条目不得让续发崩溃（修前 float("坏值") 直接抛）
     out = transport_flush_queue(s)
     assert isinstance(out, dict) and "pending" in out
+
+
+def test_update_state_paths_filtered_by_valid_paths():
+    """R-AI-7：越界 path 在解析工具调用时即被过滤并标记（不复制白名单）。"""
+    import json
+
+    from ai.client_utils import filter_update_state_changes, parse_tool_calls
+
+    kept, rejected = filter_update_state_changes([
+        {"path": "treasury", "op": "set", "reason": "合法"},
+        {"path": "factions.新党.power", "op": "add", "value": 1, "reason": "越界"},
+    ])
+    assert [c["path"] for c in kept] == ["treasury"]
+    assert [c["path"] for c in rejected] == ["factions.新党.power"]
+
+    resp = {"tool_calls": [{"id": "c1", "function": {
+        "name": "update_state",
+        "arguments": json.dumps({"changes": [
+            {"path": "evil.path", "op": "set", "reason": "越界"}]})}}]}
+    out = parse_tool_calls(resp)
+    args = out[0]["arguments"]
+    assert args["changes"] == [] and args["_rejected_changes"], args
+
+
+def test_old_task_without_id_gets_stable_id():
+    """C-14：旧档事务缺 id → 读档/结算前确定性补齐（同内容同 id、幂等）。"""
+    from core.domains.politics.longterm_case import ensure_task_ids_in_state
+
+    class _S:
+        pass
+
+    s = _S()
+    t = {"title": "旧案", "opened_turn": 2, "progress": 0}
+    s.longterm_public = [t]
+    s.longterm_secret = []
+    s.longterm_cases_archive = []
+    assert ensure_task_ids_in_state(s) == 1
+    first = str(t.get("id") or "")
+    assert first.startswith("ltc_"), first
+    assert ensure_task_ids_in_state(s) == 0
+    assert t["id"] == first
+
+
+def test_decree_prefetch_last_result_is_state_scoped():
+    """A 补记：诊断副本按 state 隔离，跨局不串档。"""
+    from application.decree_prefetch import last_result
+
+    class _S:
+        pass
+
+    a, b = _S(), _S()
+    a._decree_prefetch_last = {"ok": True, "slots": {"pace": "速"}}
+    b._decree_prefetch_last = {"ok": False, "slots": None}
+    assert last_result(a) == {"ok": True, "slots": {"pace": "速"}}
+    assert last_result(b) == {"ok": False, "slots": None}

@@ -1,0 +1,31 @@
+{
+  "id": "JEV-全审余项收口-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "全审余项（C-13/C-14/decree_prefetch 全局/5 组重复实现）的最终收口方式",
+  "items": [
+    {
+      "question": "剩余项怎么收口？A=修 C-14 + decree_prefetch，C-13 与重复实现标 accepted；B=全部标 accepted；C=全部本批修",
+      "options": [
+        "A=修 C-14/decree_prefetch，其余 accepted",
+        "B=全部 accepted",
+        "C=全部本批修"
+      ],
+      "verdict": "A（0.7290）",
+      "probabilities": {
+        "A": 0.7289857268333435,
+        "B": 0.1368914395570755,
+        "C": 0.13412275910377502
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "C-14 是旧档可复现失效（缺 id → 授权/案卷页命中不到），但可确定性补 id、幂等、无随机，风险低",
+        "decree_prefetch 全局只被旧测试读取，无生产读者；加 state 级副本即可隔离，全局保留兼容",
+        "C-13 收紧要改运行期 CSP 注入设计（file:// 无法走主进程 header），收益小于断远端后端风险",
+        "5 组重复均为 5–9 行小工具/跨域小粘连，硬合会把域语义带进 base；按复用约定 E 类保留并写理由"
+      ],
+      "applied_in": "longterm_case.ensure_task_id/ensure_task_ids_in_state + load_game 调用；decree_prefetch.last_result(state)；复用约定 §3 剩余 5 组 E 类理由表；审计报告可选层收口段",
+      "reopen_if": "需要支持 file:// + 动态后端 CSP 时重开 C-13；5 组中出现语义漂移或第三份复制时按 A 类归一"
+    }
+  ]
+}

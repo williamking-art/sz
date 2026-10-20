@@ -26,11 +26,16 @@ log = logging.getLogger("decree_prefetch")
 
 __all__ = ["prefetch_decree_slots", "last_result", "clear_ai_slot"]
 
-#: 最近一次预取结果（诊断用；不落存档）
+#: 最近一次预取结果（诊断用；不落存档）。A 补记：模块级全局跨局共享，
+#: 新调用方请用 `last_result(state)` 读 state 作用域副本；全局仅为旧测试保留。
 _LAST: Optional[dict] = None
 
 
-def last_result() -> Optional[dict]:
+def last_result(state=None) -> Optional[dict]:
+    """最近一次预取结果；给 `state` 时读该局副本（跨局不串档）。"""
+    if state is not None:
+        got = getattr(state, "_decree_prefetch_last", None)
+        return dict(got) if isinstance(got, dict) else None
     return dict(_LAST) if isinstance(_LAST, dict) else None
 
 
@@ -66,4 +71,8 @@ def prefetch_decree_slots(state) -> Optional[dict]:
         log.warning("prefetch_decree_slots 失败（不阻断下旨）", exc_info=True)
         got = None
     _LAST = {"ok": bool(got), "slots": dict(got) if isinstance(got, dict) else None}
+    try:
+        state._decree_prefetch_last = dict(_LAST)   # A 补记：按局隔离（诊断/测试）
+    except Exception:  # noqa: BLE001 — 诊断副本写失败不影响下旨
+        log.warning("写 state 级预取诊断副本失败（不影响槽位）", exc_info=True)
     return got

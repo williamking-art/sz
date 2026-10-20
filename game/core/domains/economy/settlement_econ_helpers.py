@@ -53,6 +53,13 @@ def _settle_mint(state, log, amount: int = 0):
         return False, f"物价 {state.price_level:.2f} 高于 {MINT_PRICE_BAN}，禁铸钱（防助涨通胀）"
     if amount <= 0:
         return False, "铸钱量须为正"
+    # A 补记（2026-10-20 全审）：无收款 POP 时**不得先耗铜料再漏记账**。
+    # 修前 `sum(...) or 1` 让两池恒 >0 ⇒ `_both` 恒真，净增没入任何 POP 却仍
+    # `register_flow(external)`，对账出现"凭空造币"残差。现在先校验收款方。
+    _art_total = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values())
+    _mer_total = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values())
+    if _art_total <= 0 and _mer_total <= 0:
+        return False, "无工匠/商人 POP 可入账（未铸钱，铜料未消耗）"
     # 金属料：优先熔铜池（熔化回收的铜料，闭环），不足回退 resources 存量
     _pool = int(state.coin.get("melted_pool", 0) or 0)
     _res = state.resources.get(COPPER_RESOURCE_DIM, {})
@@ -74,8 +81,6 @@ def _settle_mint(state, log, amount: int = 0):
             from core.domains.economy import stock_flow as _sf
             _sf.record_out(state, COPPER_RESOURCE_DIM, _took, reason="mint_copper")
     _net = int(amount * MINT_NET_RATIO)          # 净增 80%（20% 熔耗蒸发，退出流通）
-    _art_total = sum(p["pops"]["工匠"]["size"] for p in state.prefectures.values()) or 1
-    _mer_total = sum(p["pops"]["商人"]["size"] for p in state.prefectures.values()) or 1
     # 尾差归最大府（同 _distribute_pop_wealth）：逐府 int() 截断会使 Σcredit < _net，
     # 差额成为无对手方销毁（audit 残差恒正的来源之一）。
     # 工匠/商人各半；仅一侧有人时整笔给该侧（避免半数凭空消失）。
