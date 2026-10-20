@@ -10,10 +10,13 @@ if _GAME_ROOT not in sys.path:
 
 from core.commands import issue_military_order            # noqa: E402
 from core.game_state import GameState                     # noqa: E402
+from core.military_order import settle_military_orders    # noqa: E402
 
 
 def _state():
-    return GameState("史实")
+    s = GameState("史实")
+    s.prestige = 999   # 本文件验证军令落地细节，走皇威直行路径
+    return s
 
 
 def _two_same_tier(s):
@@ -94,6 +97,8 @@ def test_player_order_move_targets_single_unit():
     dest = next(n for n in s.prefectures if n != a.station)
     b_station = b.station
     issue_military_order(s, a.unit_id, "地图调度", target=dest)
+    s.turn = 2
+    settle_military_orders(s)
     assert a.station == dest and b.station == b_station
 
 

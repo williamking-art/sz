@@ -99,7 +99,11 @@ def test_issue_military_order_rejects_non_military_executor():
     assert unit.station == station0 and len(s.ai_pending_actions) == n0
 
     msg2 = cmd.issue_military_order(s, unit.unit_id, "地图调度", target=dest, executor="枢密院")
-    assert "批红" in msg2, msg2
+    assert "待" in msg2, msg2
+    assert unit.station == station0
+    from core.military_order import settle_military_orders
+    s.turn = 2
+    settle_military_orders(s)
     assert unit.station == dest
 
 

@@ -17,7 +17,7 @@ def test_low_prestige_defers_until_next_turn():
     before = unit.training
     msg = issue_military_order(
         s, unit.unit_id, "整编", scale=3, executor="枢密院", defer=True)
-    assert "待 1 回合批红" in msg
+    assert "待 1 回合" in msg
     assert unit.training == before
     pending = [a for a in s.ai_pending_actions
                if a.get("kind") == "military_dispatch"
@@ -37,7 +37,7 @@ def test_high_prestige_ignores_defer_and_is_immediate():
     before = unit.training
     msg = issue_military_order(
         s, unit.unit_id, "整编", scale=3, executor="户部", defer=True)
-    assert "待 1 回合批红" not in msg
+    assert "已入枢密院议" not in msg
     assert unit.training > before
     assert int(s.prestige) == 85
     assert not [a for a in s.ai_pending_actions

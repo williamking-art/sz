@@ -15,7 +15,9 @@ REFERENCE_EIGHT = {"地图调度", "扩编", "拆分", "合并", "整编", "换�
 
 
 def _state():
-    return GameState("史实")
+    s = GameState("史实")
+    s.prestige = 999   # 本文件验证编制操作细节，走皇威直行路径
+    return s
 
 
 def _two_same_station(s):

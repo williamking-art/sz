@@ -1590,6 +1590,7 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     # 皇威不足 ⇒ 必须走枢密院/掌「调兵」主体的正常流程。
     from core import imperial_mandate
     _direct = imperial_mandate.can_direct(state, "military_dispatch")
+    _movement = (act == "调赴")
     if act in ("增募", "调赴", "换帅", "裁撤", "合并", "拆分") and not _direct:
         _executor = str(executor or "枢密院").strip()
         try:
@@ -1600,8 +1601,11 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
         if not _ok:
             return f"未成：军令须由掌「调兵」事权主体执行；{_label}。"
 
-    _travel = {"delay_turns": 1, "distance_km": None, "basis": "fallback"}
-    if defer and not _direct:
+    # 高皇威：除“调赴/调度军令”这种天然耗时动作外，其余即时。
+    # 低皇威：所有军令都进月结算队列。
+    _needs_process = _movement or (not _direct)
+    _travel = {"delay_turns": 1, "distance_km": None, "basis": "monthly"}
+    if _movement:
         try:
             from core.military_order import military_order_delay_info
             _travel = military_order_delay_info(state, unit)
@@ -1610,7 +1614,7 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3))),
                "executor": executor, "imperial_direct": bool(_direct),
-               "defer": bool(defer and not _direct),
+               "defer": bool(_needs_process),
                "due_turn": int(getattr(state, "turn", 0) or 0)
                            + max(1, int(_travel.get("delay_turns") or 1)),
                "travel_km": _travel.get("distance_km"),
@@ -1635,8 +1639,10 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
         "military_dispatch", title,
         f"玩家亲裁军令（编制单位 {uid}）", payload, proposer="玩家")
     if payload.get("defer"):
+        if _direct:
+            imperial_mandate.charge_direct_cost(state, "military_dispatch")
         turns = max(1, int(payload.get("due_turn", 1)) - int(getattr(state, "turn", 0) or 0))
-        return f"已入枢密院议：军令「{title}」待 {turns} 回合批红（{aid}）。"
+        return f"已入枢密院议：军令「{title}」待 {turns} 回合结算（{aid}）。"
     result = approve_ai_action(state, aid)
     if _direct and "驳回" not in result and "未成" not in result:
         imperial_mandate.charge_direct_cost(state, "military_dispatch")
