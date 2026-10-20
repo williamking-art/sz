@@ -777,9 +777,19 @@ def _apply_decree_effect(state, decree, log):
     if "curtail_waste" in effects or "reduce_office" in effects:
         kind = "reduce_office" if "reduce_office" in effects else "curtail_waste"
         target = max(50_000, min(150_000, int(float(effects.get("curtail_waste") or effects.get("reduce_office") or 0)) or 100_000))
+        # batch4（2026-10-20 用户裁定）：生效月数 = 天道节奏档位 × 主持官能力 × 皇威 × 后续跟进
+        # （不再用 randint(12,18)；系数表集中 core/domains/politics/decree_duration.py）
+        from core.domains.politics.decree_duration import resolve_decree_duration
+        _dur = resolve_decree_duration(
+            state,
+            ability=(state.waste_reform or {}).get("executor_ability")
+            if isinstance(getattr(state, "waste_reform", None), dict) else None,
+            followup=int(getattr(state, "decree_followup", 0) or 0),
+        )
         state.waste_reform = {
             "active": True, "kind": kind, "savings": 0,
-            "target": target, "months_left": random.randint(12, 18), "progress": 0,
+            "target": target, "months_left": _dur["months"], "progress": 0,
+            "duration_basis": _dur,
         }
         state.change_prestige(-2, "省浮费/裁冗员阻力")
         # 政策 → POP：裁汰冗员裁减官僚 POP 人数（裁 5%，钱粮随之减少，体现三冗之减）
