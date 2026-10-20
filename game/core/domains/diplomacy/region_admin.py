@@ -119,11 +119,15 @@ def _deduct_cost(state, owner: str, amount: int) -> Optional[int]:
         if pool < amount:
             return None
         left = amount
-        for p in prefs.values():
+        for _rname, p in prefs.items():
             have = int((p or {}).get("local_treasury", 0) or 0)
             take = min(have, left)
             if take:
-                p["local_treasury"] = have - take
+                # 2026-10-20 全审：地方府库写点走桥（直写镜像会让治所滞后，后续
+                # 走桥写入校正镜像时表现为凭空销毁）。未下沉 ⇒ 回落原写法。
+                from core.foundation.ledger import local_treasury_bridge as _ltb
+                if _ltb.local_treasury_add(state, _rname, -take) is None:
+                    p["local_treasury"] = have - take
                 left -= take
             if left <= 0:
                 break

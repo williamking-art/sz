@@ -57,6 +57,10 @@ def test_long_run_money_identity_residual_is_zero():
     mi = si.money_identity(s)
     assert mi.get("available") is True, mi
     assert abs(float(mi["m_all"]) - float(mi["accounts_sum"])) < 1e-6, mi
+    # 2026-10-20 全审 P0-1：上面的恒等式只是「M_ALL == Σ账户」的**静态**恒等式；
+    # 造币/销毁的唯一判据是**月际对账残差**（旧版缺这条 ⇒ 12 月 +13,470,432 漏网）。
+    cum = float((s.money_audit or {}).get("cum_residual") or 0.0)
+    assert abs(cum) < 1.0, f"月度对账累计残差 {cum:+,.0f} 贯（存在无对手方的造币/销毁）"
 
 
 def test_long_run_pop_conservation_seat_sum_equals_route():

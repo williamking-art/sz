@@ -230,8 +230,19 @@ def _settle_granary(state, log):
         log.append(f"[俸禄·本色] 支禄米军粮 {given}石（军粮{mil_grain}+官禄{off_grain}+吏禄{clerk_grain}）")
 
     out_total = sparrow + given + corr_actual
-    assert abs((granary_before_out - state.granary) - out_total) < 1, \
-        f"太仓恒等断裂：Δ={granary_before_out - state.granary} out={out_total}"
+    # 2026-10-20 全审 P1-21：恒等式不得用 assert（`python -O` 下会被整条移除，
+    # 账断了却零信号）。改显式留痕 + raise，让结算原子回滚。
+    _delta_out = granary_before_out - state.granary
+    if abs(_delta_out - out_total) >= 1:
+        _msg = f"太仓恒等断裂：Δ={_delta_out} out={out_total}"
+        try:
+            from core.settlement_common import note_settlement_error
+            note_settlement_error(state, "granary_identity", "太仓", _msg, log=log,
+                                  level="error")
+        except Exception:  # noqa: BLE001 — 留痕失败不得掩盖原异常
+            import logging
+            logging.getLogger("settlement").error(_msg, exc_info=True)
+        raise RuntimeError(_msg)
 
     changping_acted = False
     # T9 常平扩容为货币稳定器：平粜吸买家钱入地方府库（货币回收，不碰内帑；

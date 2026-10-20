@@ -26,14 +26,20 @@ NAME = "水利"
 
 
 def _state_full():
-    """新局 + 备足建材/银（构造前置；不改任何被测逻辑）。"""
+    """新局 + 备足建材/银（构造前置；不改任何被测逻辑）。
+
+    2026-10-20 全审：地方府库真账在治所，路级 `local_treasury` 是派生镜像；
+    构造前置必须经 `local_treasury_bridge` 写（直写镜像会被下一次走桥写入校正，
+    测试会读到“没有扣款”的假象）。
+    """
     from core.commands import new_game
+    from core.foundation.ledger import local_treasury_bridge as LTB
 
     s = new_game()
     for dim in ("木", "石", "铁"):
         s.resources.setdefault(dim, {"stock": 0})
         s.resources[dim]["stock"] = 1000
-    s.prefectures[ROUTE]["local_treasury"] = 200000
+    assert LTB.local_treasury_set(s, ROUTE, 200000) is not None, "舆图/治所未下沉？"
     return s
 
 
@@ -77,7 +83,8 @@ def test_insufficient_materials_refused_without_charging():
 
 def test_insufficient_silver_refused():
     s = _state_full()
-    s.prefectures[ROUTE]["local_treasury"] = 0
+    from core.foundation.ledger import local_treasury_bridge as LTB
+    LTB.local_treasury_set(s, ROUTE, 0)
     r = BU.upgrade_requirement(s, ROUTE, NAME)
     assert r["ok"] is False and r["reason"] == "insufficient_silver"
 

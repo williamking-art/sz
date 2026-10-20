@@ -1192,13 +1192,21 @@ class GameState(GameStateEconMixin):
     # ================================================================
     # 国库工具
     # ================================================================
-    def change_treasury(self, delta: int):
-        """修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）"""
-        self.treasury = max(0, self.treasury + int(delta))
+    def change_treasury(self, delta: int) -> int:
+        """修改国库（禁止穿底；负向请优先用 transfer_money 成对划转）。
 
-    def change_imperial_treasury(self, delta: int):
-        """修改内帑（皇帝私库，与国库分理；禁止穿底）"""
-        self.imperial_treasury = max(0, self.imperial_treasury + int(delta))
+        返回**实际生效**的 Δ（穿底/截断时小于请求值）——2026-10-20 全审 P1-20：
+        原返回 None，成对记账调用方按请求额给对方入账会净造币/净销毁。
+        """
+        _before = int(self.treasury)
+        self.treasury = max(0, _before + int(delta))
+        return int(self.treasury) - _before
+
+    def change_imperial_treasury(self, delta: int) -> int:
+        """修改内帑（皇帝私库，与国库分理；禁止穿底）。返回实际生效的 Δ。"""
+        _before = int(self.imperial_treasury)
+        self.imperial_treasury = max(0, _before + int(delta))
+        return int(self.imperial_treasury) - _before
 
     def deficit_depth(self) -> int:
         """累计亏空深度（贯，B3）：破产/库藏空虚两档线的**唯一判据**。
@@ -1352,9 +1360,11 @@ class GameState(GameStateEconMixin):
             taken += take
         return taken
 
-    def change_granary(self, delta: int):
-        """修改中央粮仓存粮（石），自动封顶于容量。"""
-        self.granary = max(0, min(self.granary_cap, self.granary + delta))
+    def change_granary(self, delta: int) -> int:
+        """修改中央粮仓存粮（石），自动封顶于容量。返回实际生效的 Δ（截断时小于请求值）。"""
+        _before = int(self.granary)
+        self.granary = max(0, min(int(self.granary_cap), _before + int(delta)))
+        return int(self.granary) - _before
 
     def granary_capacity_used(self) -> float:
         return self.granary / max(self.granary_cap, 1)

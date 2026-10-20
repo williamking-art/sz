@@ -420,16 +420,65 @@ def transport_queue(state) -> list:
 
 def transport_ship_or_queue(state, mode: str, qty: float, kind: str = "goods",
                             payload: Optional[dict] = None) -> dict:
-    """**发运或排队**：能运多少运多少，余量入队（回合制下的正确语义：不拒办）。"""
+    """**发运或排队**：能运多少运多少，余量入队（回合制下的正确语义：不拒办）。
+
+    2026-10-20 全审 R-N-3 收口：
+    · 队列上限常量缺失/非正 ⇒ 按「不限制」处理并 WARNING，**不再静默全丢**；
+    · 丢弃量累计进 `state.statistics["transport_queue_dropped"]`（随档序列化）并留痕；
+    · 返回增加 `status`（shipped/partial/queued/dropped/none），`ok` 语义保持兼容。
+    """
     want = max(0.0, float(qty or 0))
     took = transport_consume(state, mode, want, kind=kind)
     shipped = float(took["taken"])
     queued = float(took["short"])
+    dropped = 0.0
     if queued > 0:
-        transport_queue(state).append({"mode": mode, "qty": queued, "kind": kind,
-                                      "payload": dict(payload or {})})
-    return {"ok": shipped > 0, "shipped": round(shipped, 1), "queued": round(queued, 1),
-            "remaining": took["remaining"]}
+        from content.data_constants import TRANSPORT_QUEUE_MAX_STONE
+        _q = transport_queue(state)
+        _cur = 0.0
+        for _it in _q:
+            try:
+                _cur += max(0.0, float((_it or {}).get("qty") or 0))
+            except (TypeError, ValueError):
+                continue
+        _qmax = float(TRANSPORT_QUEUE_MAX_STONE or 0)
+        if _qmax <= 0:
+            import logging
+            logging.getLogger(__name__).warning(
+                "TRANSPORT_QUEUE_MAX_STONE=%r 非正，队列上限按不限制处理", TRANSPORT_QUEUE_MAX_STONE)
+            _room = float("inf")
+        else:
+            _room = max(0.0, _qmax - _cur)
+        _keep = min(queued, _room)
+        dropped = queued - _keep
+        if _keep > 0:
+            _q.append({"mode": mode, "qty": round(_keep, 3), "kind": kind,
+                       "payload": dict(payload or {})})
+        if dropped > 0:
+            _stats = getattr(state, "statistics", None)
+            if isinstance(_stats, dict):
+                _tot = float(_stats.get("transport_queue_dropped", 0) or 0) + dropped
+                _stats["transport_queue_dropped"] = _tot
+            else:
+                _tot = float(getattr(state, "transport_queue_dropped", 0) or 0) + dropped
+            state.transport_queue_dropped = _tot
+            import logging
+            logging.getLogger(__name__).warning(
+                "运输队列超限：丢弃未入队记录 %.3f 石（累计 %.3f；货已按货腿处理，此处只丢运输记录）",
+                dropped, _tot)
+    if dropped > 0:
+        status = "dropped"
+    elif shipped > 0 and (queued - dropped) > 0:
+        status = "partial"
+    elif shipped > 0:
+        status = "shipped"
+    elif (queued - dropped) > 0:
+        status = "queued"
+    else:
+        status = "none"
+    return {"ok": shipped > 0, "shipped": round(shipped, 1),
+            "queued": round(queued - dropped, 1), "dropped": round(dropped, 1),
+            "remaining": took["remaining"], "status": status}
 
 
 def transport_flush_queue(state, dispatcher=None) -> dict:

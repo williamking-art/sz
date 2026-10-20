@@ -101,7 +101,14 @@ def start_upgrade(state, route: str, name: str) -> Dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             import logging as _lg
             _lg.getLogger(__name__).warning("建筑升级库存流水登记失败：%r", exc, exc_info=True)
-    pdata["local_treasury"] = int(pdata.get("local_treasury", 0) or 0) - int(req.get("silver") or 0)
+    # 2026-10-20 全审：地方府库写点必须走桥（直写路级镜像会让治所真账滞后，
+    # 下一个走桥的写入会把镜像校正回治所，表现为「凭空销毁」；实测 granary 步
+    # -1.9 万/月）。未下沉 ⇒ 回落原写法。
+    _silver = int(req.get("silver") or 0)
+    if _silver:
+        from core.foundation.ledger import local_treasury_bridge as _ltb
+        if _ltb.local_treasury_add(state, route, -_silver) is None:
+            pdata["local_treasury"] = int(pdata.get("local_treasury", 0) or 0) - _silver
     item = {"route": route, "name": name, "seat": None,
             "months_left": int(req.get("months") or 3),
             "target_level": int(req.get("target_level") or 0)}

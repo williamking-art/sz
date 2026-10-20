@@ -227,7 +227,12 @@ def _pay_import(state, route: str, dim: str, qty: float, price) -> float:
     if pay_qty <= 0:
         return 0.0
     cost = int(round(pay_qty * unit_cost))
-    # 🔴 扣**治所级** POP（路级 pops 是派生镜像，直写会被 sync 刷掉）
+    # 🔴 2026-10-20 全审 P0-1（A-2）：治所级 pop 不是路级行，`pop_obj_add` 恒定位
+    # 失败（`locate_pops` 只比对 `pdata["pops"]`）⇒ 原实现回落直写治所、路级镜像
+    # 不刷新；同一回合稍后的熔铜步「读镜像→重铺治所」会把已付货款整额复活。
+    # 改走 `pop_seat_add`（写单治所 + 即时刷镜像）；未下沉/定位失败才回落直写。
+    from core.foundation.ledger.pop_bridge import pop_seat_add
+    pdata = (getattr(state, "prefectures", None) or {}).get(route) or {}
     left = int(cost)
     for p in pops:
         if left <= 0:
@@ -236,14 +241,8 @@ def _pay_import(state, route: str, dim: str, qty: float, price) -> float:
         take = int(min(pw, left))
         if take <= 0:
             continue
-        try:
-            from core.foundation.ledger.pop_bridge import pop_obj_add
-            if pop_obj_add(state, p, "wealth", -take) is None:
-                p["wealth"] = pw - take
-        except Exception as exc:  # noqa: BLE001
-            import logging as _lg
-            _lg.getLogger(__name__).warning("进口付款扣款失败：%r", exc, exc_info=True)
-            break
+        if pop_seat_add(pdata, "商人", p, "wealth", -take) is None:
+            p["wealth"] = pw - take
         left -= take
     try:
         from core.settlement_common import register_money_flow
@@ -444,14 +443,17 @@ def land_market_open(state, partner: str) -> Dict[str, Any]:
 def settle_land_tariff(state, leg: Dict[str, Any], tax: Optional[int]) -> Dict[str, Any]:
     """陆路榷税入账：**过税 40% → 沿途路府库；住税 60% → 交易地府库**（设定值）。
 
-    缺 `local_treasury` 字段 ⇒ 不入账并返回 reason（不臆造入账通道）。
+    🔴 2026-10-20 全审 P0-2（A-3）：原实现只 `local_treasury += tax`、**无付款方**，
+    等于凭空造币（实测 3.9–11.7 万贯/月）。现由该路**商人 POP wealth** 经桥扣缴，
+    不足者按实扣（`credited` < `tax`，reason=`payer_short`），杜绝单边入账。
+    缺 `local_treasury`/商人 POP ⇒ 不入账并返回 reason（不臆造通道）。
     """
     from content.data_constants import LAND_TAX_OVER_SHARE
 
     if tax is None:
         return {"ok": False, "reason": "tax_missing"}
     if tax <= 0:
-        return {"ok": True, "over_tax": 0, "stay_tax": 0, "credited": 0}
+        return {"ok": True, "over_tax": 0, "stay_tax": 0, "credited": 0, "short": 0}
     over_share = float(LAND_TAX_OVER_SHARE or 0.4)
     over_tax = int(round(int(tax) * over_share))
     stay_tax = int(tax) - over_tax
@@ -461,9 +463,27 @@ def settle_land_tariff(state, leg: Dict[str, Any], tax: Optional[int]) -> Dict[s
     if not isinstance(pdata, dict) or "local_treasury" not in pdata:
         return {"ok": False, "reason": "no_local_treasury", "route": route,
                 "over_tax": over_tax, "stay_tax": stay_tax}
-    pdata["local_treasury"] = int(pdata.get("local_treasury", 0) or 0) + int(tax)
-    return {"ok": True, "over_tax": over_tax, "stay_tax": stay_tax, "credited": int(tax),
-            "route": route}
+    _pops = pdata.get("pops") if isinstance(pdata.get("pops"), dict) else {}
+    seller = _pops.get("商人") if isinstance(_pops, dict) else None
+    if not isinstance(seller, dict):
+        return {"ok": False, "reason": "no_merchant_payer", "route": route,
+                "over_tax": over_tax, "stay_tax": stay_tax, "credited": 0}
+    wealth = int(float(seller.get("wealth", 0) or 0))
+    actual = int(min(int(tax), max(0, wealth)))
+    if actual <= 0:
+        return {"ok": False, "reason": "payer_insufficient", "route": route,
+                "over_tax": over_tax, "stay_tax": stay_tax, "credited": 0,
+                "short": int(tax)}
+    from core.foundation.ledger.pop_bridge import pop_obj_add
+    if pop_obj_add(state, seller, "wealth", -actual) is None:
+        seller["wealth"] = wealth - actual
+    # 2026-10-20 全审：地方府库写点走桥（治所真账 + 路级镜像同步）。
+    from core.foundation.ledger import local_treasury_bridge as _ltb
+    if _ltb.local_treasury_add(state, route, actual) is None:
+        pdata["local_treasury"] = int(pdata.get("local_treasury", 0) or 0) + actual
+    return {"ok": True, "over_tax": over_tax, "stay_tax": stay_tax, "credited": actual,
+            "short": int(tax) - actual,
+            "reason": None if actual >= int(tax) else "payer_short", "route": route}
 
 def settle_foreign_trade(state, month: Optional[int] = None,
                          dry_run: Optional[bool] = None) -> Dict[str, Any]:
@@ -528,8 +548,11 @@ def settle_foreign_trade(state, month: Optional[int] = None,
         value = out.get("value")
         tax = apply_tariff(leg, value)
         _split = None
+        _tax_credited = int(tax.get("tax") or 0)
         if leg.get("channel") == "land" and not dry_run:
             _split = settle_land_tariff(state, leg, tax.get("tax"))
+            # P0-2：陆路税以**实扣成功额**入账/统计（付款方不足时不得按请求额虚报）
+            _tax_credited = int((_split or {}).get("credited") or 0)
         qty = float(out.get("shipped_qty") or 0) + float(out.get("received_qty") or 0)
         stone = qty * float(FOREIGN_LEG_STONE_PER_UNIT or 1.0)
         if not dry_run and stone > 0:
@@ -543,7 +566,7 @@ def settle_foreign_trade(state, month: Optional[int] = None,
             totals["export_value"] += int(value or 0)
         else:
             totals["import_value"] += int(value or 0)
-        totals["tax"] += int(tax.get("tax") or 0)
+        totals["tax"] += _tax_credited
         row = {**leg, "shipped_qty": out.get("shipped_qty"),
                "received_qty": out.get("received_qty"), "short_qty": out.get("short_qty"),
                "goods_value": value, "tax": tax.get("tax"), "reason": out.get("reason")}

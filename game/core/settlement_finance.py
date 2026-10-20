@@ -278,17 +278,39 @@ def _settle_coin_melt(state, log):
     from content.data import MELT_RATE, COPPER_RESOURCE_DIM
     if MELT_RATE <= 0:
         return
+    # 🔴 2026-10-20 全审 P0-1（A-1）：**必须逐治所真账扣减**，不得读路级镜像再
+    # `pop_obj_set` 回写——路级 `pops` 是派生镜像；若本回合有治所级直写（外贸进口
+    # 付款等）尚未刷镜像，用镜像值重铺治所会把已扣的钱整额「复活」（实测 12 月
+    # 凭空造币 +13,470,432）。未下沉（裸 GameState/旧档）才回退旧写法。
+    from core.foundation.ledger.pop_bridge import refresh_route_class
     _melted = 0
     for p in state.prefectures.values():
-        for pop in p.get("pops", {}).values():
-            w = float(pop.get("wealth", 0))
-            if w > 0:
+        seats = (p or {}).get("seats") or {}
+        if not seats:
+            for pop in (p.get("pops") or {}).values():
+                w = float(pop.get("wealth", 0))
+                if w > 0:
+                    _take = int(w * MELT_RATE)
+                    if _take > 0:
+                        _nw = max(0, w - _take)
+                        if _pop_obj_set(state, pop, "wealth", _nw) is None:
+                            pop["wealth"] = _nw
+                        _melted += _take
+            continue
+        touched = set()
+        for srow in seats.values():
+            for cls, pop in ((srow or {}).get("pops") or {}).items():
+                w = float(pop.get("wealth", 0) or 0)
+                if w <= 0:
+                    continue
                 _take = int(w * MELT_RATE)
-                if _take > 0:
-                    _nw = max(0, w - _take)
-                    if _pop_obj_set(state, pop, "wealth", _nw) is None:
-                        pop["wealth"] = _nw
-                    _melted += _take
+                if _take <= 0:
+                    continue
+                pop["wealth"] = w - _take          # 治所真账（唯一权威）
+                _melted += _take
+                touched.add(cls)
+        for cls in touched:
+            refresh_route_class(p, cls)            # O(1) 刷镜像，不重铺其他治所
     if _melted > 0:
         # 熔铜池：钱变铜料（守恒），不在 money 公式（退出流通）
         # 注：此为 M_ALL 内部转移（POP wealth 减少 = melted_pool 增加，ΔM_ALL == 0），

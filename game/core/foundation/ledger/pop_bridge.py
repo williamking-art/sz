@@ -1080,3 +1080,41 @@ def pop_obj_add(state, pop_obj, field: str, delta) -> Optional[int]:
     if pdata is None:
         return None
     return pop_add(pdata, cls, field, delta)
+
+
+# ── 治所级写通道（2026-10-20 全审 P0-1）────────────────────────────────
+# 背景：`pop_obj_set/add` 只认**路级** pop 行（`locate_pops` 用 `row is pop_obj` 比对
+# `pdata["pops"]`）。外贸进口付款等写入点手上是**治所级** pop 对象 ⇒ 恒返回 None
+# ⇒ 调用方回落直写治所，路级镜像不刷新；随后任何「读镜像→重铺治所」的步骤会把
+# 直写整额抹掉（实测 12 月凭空造币 +13.47M 的主因之一）。
+# 下面两个入口给治所级写入一个**走桥且即时刷镜像**的通道：只改目标治所真账，
+# 再 O(1) 刷新该阶层镜像（不重铺其他治所，避免把别处的直写一起覆盖）。
+def pop_seat_set(pdata: dict, cls: str, pop_obj, field: str, value) -> Optional[int]:
+    """**写单个治所真账**（按 pop 对象身份定位治所）：返回写入后的值；定位失败 ⇒ `None`。"""
+    if not isinstance(pdata, dict) or not isinstance(pop_obj, dict):
+        return None
+    seats = pdata.get("seats") or {}
+    if not seats:
+        return None
+    for srow in seats.values():
+        rows = (srow or {}).get("pops") if isinstance(srow, dict) else None
+        if isinstance(rows, dict) and rows.get(cls) is pop_obj:
+            pop_obj[field] = value
+            refresh_route_class(pdata, cls)
+            return value if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                else None
+    return None
+
+
+def pop_seat_add(pdata: dict, cls: str, pop_obj, field: str, delta) -> Optional[int]:
+    """**单治所增量写**：读该治所当前值 + delta（下限 0），刷镜像；定位失败 ⇒ `None`。"""
+    if not isinstance(pdata, dict) or not isinstance(pop_obj, dict):
+        return None
+    cur = pop_obj.get(field)
+    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
+        return None
+    try:
+        new = max(0, int(cur) + int(delta or 0))
+    except (TypeError, ValueError):
+        return None
+    return pop_seat_set(pdata, cls, pop_obj, field, new)
