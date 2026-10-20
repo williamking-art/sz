@@ -265,6 +265,13 @@ class LocalBackend(BackendClient):
                     s, str(p.get("minister_name", "")), str(p.get("favor_kind", ""))
                 ).get("msg", ""), s),
             # 2026-10-18 全审 M314：产业物流调拨生产入口
+            # 长期旨案卷授权（2026-10-20）：批专款 + 赐专断之权（专款真实扣减）
+            "authorize_case":
+                lambda s, p, ai: (cmd.authorize_longterm_case(
+                    s, str(p.get("task_id", "")), budget=int(p.get("budget", 0) or 0),
+                    pool=str(p.get("pool", "treasury")),
+                    discretion=bool(p.get("discretion", False)),
+                    monthly_cost=int(p.get("monthly_cost", 0) or 0)).get("msg", ""), s),
             "dispatch_logistics":
                 lambda s, p, ai: (cmd.dispatch_logistics(
                     s, str(p.get("origin", "")), str(p.get("target", "")),

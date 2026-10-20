@@ -124,6 +124,31 @@ def reject_edict_draft(state: GameState, draft_id: str) -> str:
     return f"已打回诏草：「{draft.get('title','')}」，着另行拟奏。"
 
 
+def authorize_longterm_case(state, task_id: str, *, budget: int = 0,
+                            pool: str = "treasury", discretion: bool = False,
+                            monthly_cost: int = 0) -> dict:
+    """批专款 + 赐专断之权（长期旨案卷授权；专款真实扣减，幂等不重扣）。
+
+    返回 {ok, msg, ...}；找不到事务 / 府库不足 都返回 ok=False 且不动账。
+    """
+    from core.domains.politics.longterm_case import authorize_case as _auth
+    from core.longterm_task import find_task
+
+    task = find_task(state, str(task_id or ""))
+    if not isinstance(task, dict):
+        return {"ok": False, "msg": "未找到该事务（id 不存在）"}
+    got = _auth(state, task, budget=int(budget or 0), pool=str(pool or "treasury"),
+                discretion=bool(discretion), monthly_cost=int(monthly_cost or 0))
+    if not got.get("ok"):
+        return {"ok": False, "msg": str(got.get("reason") or "授权未成"), **got}
+    bud = got.get("budget") or {}
+    return {"ok": True,
+            "msg": "已授权：专款 %s 万两（%s），逐月自理 %s，专断之权 %s" % (
+                bud.get("total"), bud.get("pool"), task.get("monthly_cost"),
+                "已授" if got.get("discretion") else "未授"),
+            "task": task}
+
+
 def _apply_rename(state, old_name, new_name):
     """按显示名查找并更名（宋本土路或外部政权）。"""
     for key, p in state.prefectures.items():

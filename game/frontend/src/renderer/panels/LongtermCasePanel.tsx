@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
 
@@ -128,27 +128,58 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [budgetInput, setBudgetInput] = useState("0");
+  const [pool, setPool] = useState("treasury");
+  const [discretion, setDiscretion] = useState(false);
+  const [monthlyCost, setMonthlyCost] = useState("0");
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async (alive = true) => {
+    setLoading(true);
+    try {
+      const res = (await getApiClient().readouts()) as unknown as {
+        longterm_cases?: Record<string, CaseReadout>;
+      };
+      if (!alive) return;
+      const id = String(props?.id ?? "");
+      const c = res.longterm_cases?.[id];
+      if (c) { setData(c); setErr(null); }
+      else setErr("案卷读数为空（后端未返回该案卷，或该事务未案卷化）");
+    } catch (e) {
+      if (alive) setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (alive) setLoading(false);
+    }
+  }, [props?.id]);
+
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    (async () => {
-      try {
-        const res = (await getApiClient().readouts()) as unknown as {
-          longterm_cases?: Record<string, CaseReadout>;
-        };
-        if (!alive) return;
-        const id = String(props?.id ?? "");
-        const c = res.longterm_cases?.[id];
-        if (c) setData(c);
-        else setErr("案卷读数为空（后端未返回该案卷，或该事务未案卷化）");
-      } catch (e) {
-        if (alive) setErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
+    void load(alive);
     return () => { alive = false; };
-  }, [props?.id]);
+  }, [load]);
+
+  async function submitAuthorize() {
+    const id = String(props?.id ?? "");
+    if (!id) return;
+    setSubmitting(true);
+    setMsg(null);
+    try {
+      const res = await getApiClient().action("authorize_case", {
+        task_id: id,
+        budget: Number(budgetInput || 0),
+        pool,
+        discretion,
+        monthly_cost: Number(monthlyCost || 0),
+      });
+      setMsg(res.message || "已授权");
+      await load(true);   // 刷新专款余额与授权状态
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const adv = data?.advance ?? null;
   const barPct = useMemo(() => {
@@ -238,6 +269,63 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
           <span className="text-right">{def(data.authorization?.monthly_cost)} / 月</span>
           <span className="text-dim">赐专断之权</span>
           <span className="text-right">{data.authorization?.discretion ? "已授" : "未授"}</span>
+        </div>
+        {/* 授权入口（2026-10-20）：批专款 + 出库 + 逐月自理 + 赐专断之权；专款真实扣减（后端守恒） */}
+        <div className="mt-2 rounded border border-gold/30 p-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-1">
+              专款
+              <input
+                aria-label="专款"
+                className="w-20 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
+                value={budgetInput}
+                onChange={(e) => setBudgetInput(e.target.value)}
+              />
+              万两
+            </label>
+            <label className="flex items-center gap-1">
+              出库
+              <select
+                aria-label="出库"
+                className="rounded border border-gold/50 bg-transparent px-1 py-0.5"
+                value={pool}
+                onChange={(e) => setPool(e.target.value)}
+              >
+                <option value="treasury">国库</option>
+                <option value="imperial_treasury">内帑</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1">
+              逐月自理
+              <input
+                aria-label="逐月自理"
+                className="w-16 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
+                value={monthlyCost}
+                onChange={(e) => setMonthlyCost(e.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                aria-label="赐专断之权"
+                type="checkbox"
+                checked={discretion}
+                onChange={(e) => setDiscretion(e.target.checked)}
+              />
+              赐专断之权
+            </label>
+            <button
+              type="button"
+              className="ml-auto rounded border border-red bg-red px-3 py-1 text-paper disabled:opacity-50"
+              disabled={submitting}
+              onClick={() => void submitAuthorize()}
+            >
+              {submitting ? "授权中…" : "颁授权"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-dim">
+            批专款后承办人逐月自理，不必再下旨；专款从所选库房真实扣减，府库不足则拒批。
+          </p>
+          {msg && <p className="mt-1 text-xs text-ink">{msg}</p>}
         </div>
       </section>
 

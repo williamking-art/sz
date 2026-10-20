@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 长期旨案卷：读数缺失一律显示「未定义」，不得回落 0；
 // 案卷不可读时明确报错（不假装空案卷）。
-const h = vi.hoisted(() => ({ readouts: vi.fn() }));
+const h = vi.hoisted(() => ({ readouts: vi.fn(), action: vi.fn() }));
 
 vi.mock("../../api/client", () => ({
-  getApiClient: () => ({ readouts: h.readouts }),
+  getApiClient: () => ({ readouts: h.readouts, action: h.action }),
 }));
 
+import { fireEvent } from "@testing-library/react";
 import LongtermCasePanel from "../LongtermCasePanel";
 
 const CASE = {
@@ -91,5 +92,22 @@ describe("LongtermCasePanel 案卷渲染", () => {
     h.readouts.mockResolvedValue({ longterm_cases: {} });
     render(<LongtermCasePanel props={{ id: "missing" }} />);
     expect(await screen.findByText(/案卷读数为空/)).toBeTruthy();
+  });
+
+  it("颁授权：把专款/出库/逐月自理/专断交给后端并刷新", async () => {
+    h.readouts.mockResolvedValue({ longterm_cases: { ltp1: CASE } });
+    h.action.mockResolvedValue({ message: "已授权：专款 50 万两（treasury）", state: {} });
+    render(<LongtermCasePanel props={{ id: "ltp1" }} />);
+
+    await screen.findByText("南直隶倭寇犯江浙");
+    fireEvent.change(screen.getByLabelText("专款"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("逐月自理"), { target: { value: "2" } });
+    fireEvent.click(screen.getByLabelText("赐专断之权"));
+    fireEvent.click(screen.getByRole("button", { name: "颁授权" }));
+
+    expect(await screen.findByText(/已授权/)).toBeTruthy();
+    expect(h.action).toHaveBeenCalledWith("authorize_case", {
+      task_id: "ltp1", budget: 50, pool: "treasury", discretion: true, monthly_cost: 2,
+    });
   });
 });

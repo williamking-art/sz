@@ -623,6 +623,7 @@ export type ActionName =
   | "approve_ai_action"
   | "reject_ai_action"
   | "issue_task_decree"
+  | "authorize_case"
   | "issue_kouyu"
   | "propose_inner_transfer"
   | "confirm_inner_transfer"

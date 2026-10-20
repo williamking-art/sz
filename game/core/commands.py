@@ -84,6 +84,8 @@ from core.commands_decree import (
     issue_edict_from_review, reject_edict_draft,
     propose_inner_transfer, confirm_inner_transfer, cancel_inner_transfer,
     bestow_imperial_favor,
+    # 2026-10-20：长期旨案卷授权（/api/action authorize_case）
+    authorize_longterm_case,
 )
 
 
