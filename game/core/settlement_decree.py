@@ -764,6 +764,17 @@ def _apply_decree_effect(state, decree, log):
                 state.pay_system["grain_ratio"], state.pay_system["cash_ratio"] = 1.0, 0.0
             else:
                 state.pay_system["grain_ratio"], state.pay_system["cash_ratio"] = 0.5, 0.5
+            # 加薪/改俸（利官）：天道判断「谁敢拖」——态度档位写进 pay_system 供复盘
+            try:
+                from core.domains.politics.decree_duration import resolve_execution_attitude
+                _att = resolve_execution_attitude(state, decree_kind="pay_reform",
+                                               beneficiary="利官利益")
+                state.pay_system["execution_attitude"] = _att
+                if _att.get("level"):
+                    log.append("[改制] 官员执行态度：" + str(_att.get("level")) +
+                               "（" + str(_att.get("source")) + "）")
+            except Exception:  # noqa: BLE001 — 天道缺档不影响改制本身
+                pass
             log.append(f"[改制] 俸禄制度改为「{mode}」")
     if "commerce_tax" in effects:
         target = round(max(COMMERCE_TAX_RATE_MIN, min(COMMERCE_TAX_RATE_MAX, float(effects["commerce_tax"]))), 2)
@@ -780,11 +791,13 @@ def _apply_decree_effect(state, decree, log):
         # batch4（2026-10-20 用户裁定）：生效月数 = 天道节奏档位 × 主持官能力 × 皇威 × 后续跟进
         # （不再用 randint(12,18)；系数表集中 core/domains/politics/decree_duration.py）
         from core.domains.politics.decree_duration import resolve_decree_duration
+        _prev_wr = getattr(state, "waste_reform", None)
         _dur = resolve_decree_duration(
             state,
-            ability=(state.waste_reform or {}).get("executor_ability")
-            if isinstance(getattr(state, "waste_reform", None), dict) else None,
+            ability=(_prev_wr or {}).get("executor_ability") if isinstance(_prev_wr, dict) else None,
             followup=int(getattr(state, "decree_followup", 0) or 0),
+            decree_kind="reduce_office" if kind == "reduce_office" else "curtail_waste",
+            beneficiary="损官利益",
         )
         state.waste_reform = {
             "active": True, "kind": kind, "savings": 0,

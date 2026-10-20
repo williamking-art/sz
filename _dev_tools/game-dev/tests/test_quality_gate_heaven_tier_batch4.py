@@ -87,3 +87,61 @@ def test_unset_ability_is_documented():
     got = resolve_decree_duration(_S(), ability=None)
     assert got["breakdown"]["ability"]["mult"] == 1.00
     assert "未指定" in got["breakdown"]["ability"]["note"]
+
+def test_attitude_levels_and_effect():
+    """天道判断「谁敢拖」：态度档位直接影响月数。"""
+    from core.domains.politics.decree_duration import ATTITUDE_MULT, ATTITUDE_LEVELS
+
+    assert ATTITUDE_LEVELS == ("奉行", "依违", "阳奉阴违", "拖延")
+    assert ATTITUDE_MULT == {"奉行": 1.00, "依违": 1.15, "阳奉阴违": 1.35, "拖延": 1.60}
+
+
+def test_attitude_slot_changes_months():
+    """同局势下「奉行」与「拖延」月数不同（AI 判断空间生效）。"""
+
+    class _Fast(_S):
+        pass
+
+    s1 = _Fast(prestige=70, pace="常")
+    s1._decree_ai = {"pace": "常", "execution_attitude": "奉行"}
+    s2 = _Fast(prestige=70, pace="常")
+    s2._decree_ai = {"pace": "常", "execution_attitude": "拖延",
+                     "attitude_note": "百官阴奉阳违，敢拖者众"}
+    d1 = resolve_decree_duration(s1, ability=60, followup=0)
+    d2 = resolve_decree_duration(s2, ability=60, followup=0)
+    assert d1["months"] < d2["months"], (d1["months"], d2["months"])
+    assert d2["attitude"]["level"] == "拖延"
+    assert "敢拖者众" in d2["attitude"]["note"]
+
+
+def test_attitude_from_execute_contract_and_provider():
+    from core.domains.politics import decree_duration as dd
+
+    s = _S(prestige=70, pace="常")
+    s._decree_execute_ai = {"execution_attitude": "阳奉阴违", "attitude_note": "六部推诿"}
+    got = resolve_decree_duration(s, ability=60, followup=0)
+    assert got["attitude"]["level"] == "阳奉阴违"
+    assert "执行契约" in got["attitude"]["source"]
+
+    s2 = _S(prestige=70, pace="常")
+    dd.register_attitude_provider(lambda st, kind, bene: {"execution_attitude": "依违", "note": "provider"})
+    try:
+        got2 = resolve_decree_duration(s2, ability=60, followup=0)
+        assert got2["attitude"]["level"] == "依违"
+        assert "provider" in got2["attitude"]["source"]
+    finally:
+        dd._ATTITUDE_PROVIDERS.clear()
+
+
+def test_attitude_missing_is_neutral_and_marked():
+    got = resolve_decree_duration(_S(), ability=60, followup=0)
+    assert got["attitude"]["mult"] == 1.00
+    assert got["attitude"]["source"] == "缺档"
+    assert "未判" in got["attitude"]["note"]
+
+
+def test_attitude_invalid_falls_back():
+    s = _S()
+    s._decree_ai = {"execution_attitude": "抗旨不遵"}
+    got = resolve_decree_duration(s, ability=60, followup=0)
+    assert got["attitude"]["mult"] == 1.00

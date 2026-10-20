@@ -1,30 +1,36 @@
 # -*- coding: utf-8 -*-
-"""诏令生效月数（2026-10-20，天道档位化 batch4；用户裁定：多因素）。
+"""诏令生效月数（2026-10-20，天道档位化 batch4；用户裁定：多因素 + AI 判断空间）。
 
-用户原话：「多方面因素影响，天道，主持官员能力，皇威，后续跟进等等」。
+用户原话：「多方面因素影响，天道，主持官员能力，皇威，后续跟进等等」
+追加：「还要给ai判断的空间，例如给官员加薪这种，还有敢拖的吗」。
 
-口径（不是单一随机）：
-    months = clamp( round( base(天道档位) × 能力修正 × 皇威修正 × 跟进修正 ), 3, 36 )
+口径：
+    months = clamp( round( base(天道节奏档) × 执行态度 × 能力 × 皇威 × 跟进 ), 3, 36 )
 
-- **天道档位**：执行节奏 速/常/缓 → 基础月数 6/12/18
-  （来源：decree_execute 契约任务的 priority 高/中/低 → 速/常/缓；缺档 ⇒ 常 并标明来源）；
-- **主持官员能力**：<40 ×1.25；40–69 ×1.00；≥70 ×0.80（能力越高推行越快）；
-- **皇威**：<40 ×1.20；40–69 ×1.00；≥80 ×0.85（皇威越隆，梗阻越少）；
-- **后续跟进**：0 次 ×1.10；1 次 ×0.95；≥2 次 ×0.85（催办/召对越多越快）。
+- **天道执行态度**（新增，AI 判断"谁敢拖"）：奉行 / 依违 / 阳奉阴违 / 拖延
+  → ×1.00 / 1.15 / 1.35 / 1.60；AI 还可给一句叙事（谁在拖、为何拖）；
+- **天道节奏**：速/常/缓 → 6/12/18；
+- **主持官员能力**：<40 ×1.25 / 40–69 ×1.00 / ≥70 ×0.80；
+- **皇威**：<40 ×1.20 / 40–79 ×1.00 / ≥80 ×0.85；
+- **后续跟进**：0 ×1.10 / 1 ×0.95 / ≥2 ×0.85。
 
-设计纪律：
-- 天道只出档位；系数表集中本模块（唯一数字来源）；
-- 缺省不假装精确：未指定官员/无跟进记录时，修正取 1.00 并在 breakdown 写原因。
+AI 判断空间的用法（例）：
+- 加薪诏（利官）⇒ 官员多「奉行」，但皇威不振/吏治败坏时可能「依违」乃至「拖延」；
+- 裁冗诏（损官）⇒ 常「阳奉阴违」；皇威鼎盛 + 强力主持才「奉行」。
+
+纪律：天道只出档位 + 叙事；系数表集中本模块；缺档 ⇒ ×1.00 并标明"天道未判"。
 """
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-__all__ = ["BASE_MONTHS", "PRIORITY_TO_PACE", "resolve_decree_duration",
-           "duration_breakdown"]
+__all__ = ["BASE_MONTHS", "PRIORITY_TO_PACE", "ATTITUDE_LEVELS", "ATTITUDE_MULT",
+           "resolve_decree_duration", "resolve_execution_attitude", "duration_breakdown"]
 
 BASE_MONTHS: Dict[str, int] = {"速": 6, "常": 12, "缓": 18}
 PRIORITY_TO_PACE: Dict[str, str] = {"高": "速", "中": "常", "低": "缓"}
+ATTITUDE_LEVELS = ("奉行", "依违", "阳奉阴违", "拖延")
+ATTITUDE_MULT: Dict[str, float] = {"奉行": 1.00, "依违": 1.15, "阳奉阴违": 1.35, "拖延": 1.60}
 MONTHS_MIN, MONTHS_MAX = 3, 36
 
 
@@ -67,7 +73,6 @@ def _followup_mult(followup: Optional[int]) -> tuple:
 
 
 def _pace_from_ai(state) -> tuple:
-    """天道档位：优先 state._decree_ai.pace；其次任务 priority 最高者；缺档 ⇒ 常。"""
     slot = getattr(state, "_decree_ai", None)
     if isinstance(slot, dict) and slot.get("pace") in BASE_MONTHS:
         return slot["pace"], "天道"
@@ -87,24 +92,67 @@ def _pace_from_ai(state) -> tuple:
     return "常", "缺档默认常(天道未给节奏)"
 
 
+def resolve_execution_attitude(state, *, decree_kind: str = "",
+                               beneficiary: str = "") -> Dict[str, Any]:
+    """天道判断执行态度（"谁敢拖"）。返回 {level, mult, note, source}。"""
+    slot = getattr(state, "_decree_ai", None)
+    got = slot if isinstance(slot, dict) else {}
+    att = got.get("execution_attitude")
+    src = "天道"
+    note = got.get("attitude_note") or ""
+    if att not in ATTITUDE_LEVELS:
+        ex = getattr(state, "_decree_execute_ai", None)
+        if isinstance(ex, dict):
+            att2 = ex.get("execution_attitude")
+            if att2 in ATTITUDE_LEVELS:
+                att, src = att2, "天道(执行契约)"
+                note = ex.get("attitude_note") or ""
+    if att not in ATTITUDE_LEVELS:
+        for fn in reversed(_ATTITUDE_PROVIDERS):
+            try:
+                cand = fn(state, decree_kind, beneficiary)
+                if isinstance(cand, dict) and cand.get("execution_attitude") in ATTITUDE_LEVELS:
+                    att = cand["execution_attitude"]
+                    src = "天道(provider)"
+                    note = cand.get("note") or ""
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+    if att in ATTITUDE_LEVELS:
+        return {"level": att, "mult": ATTITUDE_MULT[att], "note": note, "source": src}
+    return {"level": None, "mult": 1.00,
+            "note": "天道未判执行态度" + (f"（{beneficiary}）" if beneficiary else ""),
+            "source": "缺档"}
+
+
+_ATTITUDE_PROVIDERS: list = []
+
+
+def register_attitude_provider(fn) -> None:
+    _ATTITUDE_PROVIDERS.append(fn)
+
+
 def resolve_decree_duration(state, *, ability: Optional[float] = None,
                             followup: Optional[int] = None,
-                            prestige: Optional[float] = None) -> Dict[str, Any]:
-    """返回 {months, base, pace, breakdown, source}；**纯函数**（无随机）。"""
+                            prestige: Optional[float] = None,
+                            decree_kind: str = "", beneficiary: str = "") -> Dict[str, Any]:
+    """返回 {months, base, pace, attitude, breakdown, source}；**纯函数**（无随机）。"""
     pace, source = _pace_from_ai(state)
     base = BASE_MONTHS[pace]
+    att = resolve_execution_attitude(state, decree_kind=decree_kind, beneficiary=beneficiary)
     am, an = _ability_mult(ability)
-    pm, pn = _prestige_mult(state.prestige if prestige is None
-                            else prestige)
+    pm, pn = _prestige_mult(state.prestige if prestige is None else prestige)
     fm, fn = _followup_mult(followup)
-    raw = base * am * pm * fm
+    raw = base * att["mult"] * am * pm * fm
     months = max(MONTHS_MIN, min(MONTHS_MAX, int(round(raw))))
     return {
         "months": months,
         "base": base,
         "pace": pace,
         "source": source,
+        "attitude": att,
         "breakdown": {
+            "attitude": {"mult": att["mult"], "note": att["note"], "source": att["source"]},
             "ability": {"mult": am, "note": an, "value": ability},
             "prestige": {"mult": pm, "note": pn,
                          "value": getattr(state, "prestige", prestige)},
