@@ -65,11 +65,11 @@ def test_military_report_distance_basis_and_road_block():
         route=ROUTE, severity=0.7, border=True, urgent=True,
         body="道路阻断", road_blocked=True)
     inc = out["incident"]
-    assert inc["delay_basis"] == "distance"
+    assert inc["delay_basis"] == "transport"
     assert inc["distance_km"] is not None
     assert inc["road_blocked"] is True
     assert inc["delay_turns"] == 2
     rep = report_of(s, inc["raw_report_ids"][0])
-    assert rep["delay_basis"] == "distance"
+    assert rep["delay_basis"] == "transport"
     assert rep["road_blocked"] is True
 

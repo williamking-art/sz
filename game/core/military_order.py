@@ -10,7 +10,28 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-__all__ = ["settle_military_orders"]
+__all__ = ["settle_military_orders", "military_order_delay_info"]
+
+
+def military_order_delay_info(state, unit) -> Dict[str, Any]:
+    """军令从京畿到编制单位驻地的交通耗时（复用军报同一入口）。"""
+    seat = ""
+    try:
+        from core.foundation.ledger.building_bridge import capital_seat_id
+        route = str(getattr(unit, "station", "") or "")
+        pdata = (getattr(state, "prefectures", None) or {}).get(route)
+        seat = str(capital_seat_id(pdata, route) or "") if isinstance(pdata, dict) else ""
+    except Exception:  # noqa: BLE001 — 驻地不可读则回落
+        seat = ""
+    from core.military_report import military_report_delay_info
+    info = military_report_delay_info(
+        state, seat_id=seat, urgent=True, border=False)
+    return {
+        "delay_turns": max(1, int(info.get("delay_turns") or 1)),
+        "distance_km": info.get("distance_km"),
+        "basis": info.get("basis"),
+        "route_hops": info.get("route_hops"),
+    }
 
 
 def settle_military_orders(state) -> Dict[str, Any]:

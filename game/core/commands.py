@@ -1600,11 +1600,21 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
         if not _ok:
             return f"未成：军令须由掌「调兵」事权主体执行；{_label}。"
 
+    _travel = {"delay_turns": 1, "distance_km": None, "basis": "fallback"}
+    if defer and not _direct:
+        try:
+            from core.military_order import military_order_delay_info
+            _travel = military_order_delay_info(state, unit)
+        except Exception:  # noqa: BLE001 — 交通不可读则回落 1 回合
+            pass
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
                "unit_id": uid, "scale": max(1, min(5, int(scale or 3))),
                "executor": executor, "imperial_direct": bool(_direct),
                "defer": bool(defer and not _direct),
-               "due_turn": int(getattr(state, "turn", 0) or 0) + 1}
+               "due_turn": int(getattr(state, "turn", 0) or 0)
+                           + max(1, int(_travel.get("delay_turns") or 1)),
+               "travel_km": _travel.get("distance_km"),
+               "travel_basis": _travel.get("basis")}
     if act == "改名" or act == "拆分":
         payload["new_name"] = str(new_name or "").strip()
     if act == "换帅":
@@ -1625,7 +1635,8 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
         "military_dispatch", title,
         f"玩家亲裁军令（编制单位 {uid}）", payload, proposer="玩家")
     if payload.get("defer"):
-        return f"已入枢密院议：军令「{title}」待次月批红（{aid}）。"
+        turns = max(1, int(payload.get("due_turn", 1)) - int(getattr(state, "turn", 0) or 0))
+        return f"已入枢密院议：军令「{title}」待 {turns} 回合批红（{aid}）。"
     result = approve_ai_action(state, aid)
     if _direct and "驳回" not in result and "未成" not in result:
         imperial_mandate.charge_direct_cost(state, "military_dispatch")

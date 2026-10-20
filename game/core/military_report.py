@@ -7,35 +7,25 @@
 """
 from __future__ import annotations
 
-import math
 from typing import Any, Dict, Optional
 
-from core.foundation.ledger.prefecture_entity import all_seats
 from core.incident import create_incident
 from core.report_ledger import report_of
-from core.transport import haversine_km
+from core.transport import route_path
 
 __all__ = [
-    "MILITARY_KM_PER_TURN", "military_report_delay_turns",
-    "military_report_delay_info", "create_military_report",
+    "military_report_delay_turns", "military_report_delay_info",
+    "create_military_report",
 ]
 
-#: 军报急递折算（设定值，非史料）：每回合约 1200km；缺距离才回落档位。
-MILITARY_KM_PER_TURN = 1200.0
 CAPITAL_SEAT_ID = "京畿路|开封府"
 
 
-def _seat_distance_to_capital(seat_id: str) -> Optional[float]:
+def _seat_route_to_capital(seat_id: str) -> Dict[str, Any]:
     try:
-        idx = {s["seat_id"]: s for s in all_seats()}
-        a = idx.get(str(seat_id or ""))
-        b = idx.get(CAPITAL_SEAT_ID)
-        if not a or not b:
-            return None
-        return float(haversine_km(float(a["lon"]), float(a["lat"]),
-                                  float(b["lon"]), float(b["lat"])))
-    except Exception:  # noqa: BLE001 — 距离不可读不阻断军报
-        return None
+        return route_path(CAPITAL_SEAT_ID, str(seat_id or "")) or {}
+    except Exception:  # noqa: BLE001 — 路线不可读不阻断军报
+        return {}
 
 
 def military_report_delay_info(state, route: str = "", *,
@@ -43,11 +33,12 @@ def military_report_delay_info(state, route: str = "", *,
                                border: bool = False,
                                urgent: bool = True,
                                road_blocked: bool = False) -> Dict[str, Any]:
-    """军报延迟：有真实治所距离则按月折算；否则回落档位；阻断 +1。"""
-    km = _seat_distance_to_capital(seat_id)
+    """军报延迟：优先消费交通层最短路（km/days）；否则回落档位；阻断 +1。"""
+    path = _seat_route_to_capital(seat_id)
+    km = path.get("km") if path.get("reachable") else None
     if km is not None:
-        base = max(1, int(math.ceil(km / MILITARY_KM_PER_TURN)))
-        basis = "distance"
+        base = max(1, int(path.get("days") or 1))
+        basis = "transport"
     else:
         base = 1 if border else 2
         basis = "fallback"
@@ -56,7 +47,8 @@ def military_report_delay_info(state, route: str = "", *,
     if road_blocked:
         base += 1
     return {"delay_turns": base, "distance_km": km, "basis": basis,
-            "road_blocked": bool(road_blocked)}
+            "road_blocked": bool(road_blocked),
+            "route_hops": path.get("hops") if path.get("reachable") else None}
 
 
 def military_report_delay_turns(state, route: str = "", *,
@@ -106,6 +98,7 @@ def create_military_report(
         inc["distance_km"] = info["distance_km"]
         inc["delay_basis"] = info["basis"]
         inc["road_blocked"] = bool(road_blocked)
+        inc["route_hops"] = info.get("route_hops")
         for rid in inc.get("raw_report_ids") or []:
             rep = report_of(state, rid)
             if isinstance(rep, dict):
