@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-"""质量放行门 · 圣旨核销闭环（2026-10-20）。
+"""质量放行门 · 圣旨核销闭环（2026-10-20，用户裁定第二轮）。
 
-用户裁定：「每一份圣旨都要能被核销，哪怕是中旨这种，只是落地效果的区别而已」。
+用户三条裁定：
+1. 皇帝发出的旨意**不存在「未决」**——发出即生效，只会被拖延/搁置；
+2. 中旨落地率**不是固定 0.75**，而是 执行系统 × 皇威 曲线（皇威高则文官也不敢拖）；
+3. 宦官、武将不适用文官那套：不敢不遵中旨，基础落地率高且对皇威不敏感。
 
 钉住：
-1. 队列中每道旨（含中旨/密旨/口谕）超期后必有台账条目（可核销）；
-2. **中旨也核销**，但 `landed` = 0.75 < 普通诏令 1.0（落地效果区别）；
-3. 未超期的保留（`kept`），不提前误核销；
-4. 幂等：已核销的旨意**绝不改写**（重复 sweep 不改条目）；
-5. 已执行（executed）的旨意不会被兜底覆盖为 failed；
-6. `closure_status.dangling` 核销后归零；
-7. 缺 id 的旨意会被补 `decree_id`（不产生无名悬挂）。
+1. 执行系统识别（文官/宦官/武将/宗室/地方）；
+2. 文官落地随皇威显著上升；宦官几乎不受皇威影响且基础更高；
+3. 天道档位可覆盖（低/中/高/极 → 0.70/0.85/1.00/1.10）；
+4. 无颁布回合也核销（发出即生效，不再有「未决」）；超期中旨=dragged、普通=failed；
+5. 幂等不改写；悬挂核销后归零；落地系数夹在 [0.05, 1.0]。
 """
 from __future__ import annotations
 
@@ -21,80 +22,98 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 
 from core.decree_confirm import OUTCOME_EXECUTED, exec_ledger_of, record_execution  # noqa: E402
 from core.domains.politics.edict_closure import (  # noqa: E402
-    ZHONGZHI_LANDING, closure_status, is_zhongzhi, landing_effect, sweep_edict_closure)
+    AI_LANDING, SYSTEM_BASE, closure_status, executor_system_of, is_zhongzhi,
+    landing_effect, sweep_edict_closure)
 
 
 class _S:
-    def __init__(self, decrees, turn=10):
+    def __init__(self, decrees, turn=10, prestige=55):
         self.turn = turn
+        self.prestige = prestige
         self.pending_decrees = list(decrees)
         self.pending_secret_decrees = []
         self.active_decrees = []
         self.statistics = {}
 
 
+def test_executor_system_detection():
+    assert executor_system_of({"addressees": ["内侍省"]}) == "宦官"
+    assert executor_system_of({"title": "禁军整饬", "target_org": "殿前司"}) == "武将"
+    assert executor_system_of({"target_org": "户部"}) == "文官"
+    assert executor_system_of({"target_org": "转运使司"}) == "地方"
+
+
 def test_zhongzhi_detection():
     assert is_zhongzhi({"category": "中旨"})
     assert is_zhongzhi({"delivery": "御笔直发"})
     assert not is_zhongzhi({"category": "诏令"})
-    assert landing_effect({"category": "中旨"}) == ZHONGZHI_LANDING
-    assert landing_effect({"category": "诏令"}) == 1.0
 
 
-def test_stale_edicts_are_closed_with_landed():
-    s = _S([{"title": "加薪诏", "turn_issued": 1},
-            {"title": "御笔加赏", "category": "中旨", "turn_issued": 1}])
+def test_landing_not_fixed_and_prestige_sensitive_for_civil():
+    civil = {"target_org": "户部", "category": "中旨"}
+    low = landing_effect(civil, prestige=20)
+    high = landing_effect(civil, prestige=95)
+    assert high["landed"] > low["landed"], (low, high)
+    assert low["system"] == "文官"
+
+
+def test_eunuch_and_general_barely_follow_prestige():
+    eun = {"addressees": ["内侍省"], "category": "中旨"}
+    mil = {"target_org": "殿前司", "category": "中旨"}
+    e_low, e_high = landing_effect(eun, prestige=10)["landed"], landing_effect(eun, prestige=95)["landed"]
+    m_low, m_high = landing_effect(mil, prestige=10)["landed"], landing_effect(mil, prestige=95)["landed"]
+    assert e_high - e_low < 0.15, (e_low, e_high)   # 宦官对皇威不敏感
+    assert SYSTEM_BASE["宦官"] > SYSTEM_BASE["文官"]
+    assert SYSTEM_BASE["武将"] > SYSTEM_BASE["文官"]
+
+
+def test_ai_tier_overrides():
+    s = _S([])
+    s._decree_ai = {"landing": {"文官": "低"}}
+    got = landing_effect({"target_org": "户部", "category": "中旨"}, s, prestige=55)
+    assert got["ai_mult"] == AI_LANDING["低"]
+    assert "天道" in got["source"]
+
+
+def test_undated_decree_is_closed_not_pending():
+    s = _S([{"title": "无日期旨"}], turn=10)
     out = sweep_edict_closure(s, stale_turns=3, turn=10)
-    assert out["closed_count"] == 2, out
-    led = exec_ledger_of(s)
-    zz = next(e for e in led.values() if e["title"] == "御笔加赏")
-    pt = next(e for e in led.values() if e["title"] == "加薪诏")
-    assert zz["landed"] == ZHONGZHI_LANDING and zz["zhongzhi"] is True
-    assert pt["landed"] == 1.0 and pt["zhongzhi"] is False
-
-
-def test_fresh_edicts_are_kept():
-    s = _S([{"title": "新旨", "turn_issued": 9}])
-    out = sweep_edict_closure(s, stale_turns=3, turn=10)
-    assert out["closed_count"] == 0 and out["kept_count"] == 1
-    assert closure_status(s)["dangling_count"] == 1
-
-
-def test_sweep_is_idempotent_and_never_overwrites():
-    s = _S([{"title": "旧旨", "turn_issued": 1}])
-    sweep_edict_closure(s, stale_turns=3, turn=10)
-    first = dict(exec_ledger_of(s)["d1"]) if "d1" in exec_ledger_of(s) else list(exec_ledger_of(s).values())[0]
-    out2 = sweep_edict_closure(s, stale_turns=3, turn=11)
-    assert out2["closed_count"] == 0
-    again = list(exec_ledger_of(s).values())[0]
-    assert again["turn"] == first["turn"] and again.get("outcome") == first.get("outcome")
-
-
-def test_executed_edict_not_overwritten():
-    s = _S([{"title": "已办", "decree_id": "d9-1", "turn_issued": 1}])
-    record_execution(s, "d9-1", outcome=OUTCOME_EXECUTED, turn=2, landed=1.0)
-    out = sweep_edict_closure(s, stale_turns=3, turn=10)
-    assert out["closed_count"] == 0
-    assert exec_ledger_of(s)["d9-1"]["outcome"] == OUTCOME_EXECUTED
-
-
-def test_dangling_zero_after_sweep():
-    s = _S([{"title": "甲", "turn_issued": 1}, {"title": "乙", "category": "中旨", "turn_issued": 1}])
-    assert closure_status(s)["dangling_count"] == 2
-    sweep_edict_closure(s, stale_turns=3, turn=10)
+    assert out["closed_count"] == 0 and out["kept_count"] == 1   # 当月不算超期
+    assert s.pending_decrees[0].get("turn_issued") == 10         # 发出即生效：补颁布回合
+    sweep_edict_closure(s, stale_turns=3, turn=14)
     assert closure_status(s)["dangling_count"] == 0
 
 
-def test_missing_id_gets_assignee():
-    s = _S([{"title": "无名旨", "turn_issued": 1}])
+def test_zhongzhi_overdue_is_dragged_with_system_landing():
+    s = _S([{"title": "御笔加赏", "category": "中旨", "target_org": "户部", "turn_issued": 1}])
     out = sweep_edict_closure(s, stale_turns=3, turn=10)
     assert out["closed_count"] == 1
-    assert s.pending_decrees[0].get("decree_id"), "缺失 id 必须补齐（不产生无名悬挂）"
+    rec = list(exec_ledger_of(s).values())[0]
+    assert rec["outcome"] == "dragged"
+    assert rec["zhongzhi"] is True and rec["system"] == "文官"
+    assert 0.05 <= rec["landed"] <= 1.0
 
-def test_undated_decree_is_kept_not_closed():
-    """颁布回合未知（未决/挂起，如受命人权限未定）⇒ 不兜底核销。"""
-    s = _S([{"title": "待定事务", "decree_id": "d_undef_x", "effects": {}}])
-    out = sweep_edict_closure(s, stale_turns=3, turn=10)
-    assert out["closed_count"] == 0
-    assert out["kept_count"] == 1
-    assert any("挂起" in (k.get("reason") or "") for k in out["kept"])
+
+def test_normal_decree_overdue_is_failed():
+    s = _S([{"title": "普通诏令", "category": "诏令", "turn_issued": 1}])
+    sweep_edict_closure(s, stale_turns=3, turn=10)
+    rec = list(exec_ledger_of(s).values())[0]
+    assert rec["outcome"] != "dragged" and rec["zhongzhi"] is False
+
+
+def test_idempotent_and_executed_not_overwritten():
+    s = _S([{"title": "旧旨", "decree_id": "d1", "turn_issued": 1},
+            {"title": "已办", "decree_id": "d2", "turn_issued": 1}])
+    record_execution(s, "d2", outcome=OUTCOME_EXECUTED, turn=2, landed=1.0)
+    sweep_edict_closure(s, stale_turns=3, turn=10)
+    first = dict(exec_ledger_of(s)["d1"])
+    sweep_edict_closure(s, stale_turns=3, turn=11)
+    assert exec_ledger_of(s)["d1"]["turn"] == first["turn"]
+    assert exec_ledger_of(s)["d2"]["outcome"] == OUTCOME_EXECUTED
+
+
+def test_bounds():
+    got = landing_effect({"target_org": "户部", "category": "中旨"}, prestige=0)
+    assert 0.05 <= got["landed"] <= 1.0
+    got2 = landing_effect({"target_org": "户部", "category": "中旨"}, prestige=100)
+    assert 0.05 <= got2["landed"] <= 1.0

@@ -215,6 +215,15 @@ def _settle_decrees(state, log):
                 _gate_digest = _gate.get("digest")
                 _recitation_turn = _gate.get("recitation_turn")
                 _gate_status = _gate.get("status")
+                # 用户裁定（2026-10-20）：「经三省审核的圣旨，受命人就是奉旨钦差」——
+                # 权限读数缺失不得成为「圣旨未决」的理由：旨意本身即授权（钦差/差遣）。
+                # 真正的落地差异由执行系统 × 皇威的落地系数体现（见 edict_closure）。
+                _authority_undefined = (_gate.get("reason") == "authority_undefined")
+                if _authority_undefined:
+                    _gate["status"] = STATUS_CONFIRMED
+                    _gate["conferred_by_decree"] = "钦差"
+                    log.append("[诏令] " + str(decree.get("title") or "（无题）") +
+                               "：受命人权柄由旨意授予（奉旨钦差），不因权限读数缺失而挂起。")
                 if _gate.get("status") == STATUS_UNDEFINED:
                     remaining.append(decree)
                     _undefined_suspended += 1

@@ -204,8 +204,12 @@ def test_designated_minister_unauthorized_is_rejected(monkeypatch):
     assert rec["confirm_status"] == STATUS_UNAUTHORIZED
 
 
-def test_designated_minister_authority_undefined_is_suspended():
-    """6. 指定在册大臣权限未定义（authority=None）：按硬约束挂起，留在待办。"""
+def test_designated_minister_authority_undefined_is_imperial_commission():
+    """6. 指定在册大臣权限未定义（authority=None）：**经三省审核的圣旨 ⇒ 奉旨钦差**，不挂起。
+
+    2026-10-20 用户裁定：「受命人权限未定的问题，如果是经三省审核的圣旨，那不就是钦差了吗」
+    —— 旨意本身即授权（差遣/钦差），权限读数缺失不得让圣旨变成「未决」。
+    """
     s = _state()
     ma.ensure_actor(s, AID_B, posts=["中书舍人"], authority=None)  # authority 未定义
     s.minister_agents[AID_B]["authority"] = None  # 覆盖新局预建档的默认值
@@ -225,10 +229,9 @@ def test_designated_minister_authority_undefined_is_suspended():
     log = []
     _settle_decrees(s, log)
 
-    # 未决诏令应被挂起，仍在 pending_decrees 中
-    assert any("挂起" in msg and "复述确认未决" in msg for msg in log), f"应挂起：{log}"
-    assert any(d.get("decree_id") == did for d in s.pending_decrees), "未决诏令应留在 pending_decrees"
-    assert execution_of(s, did) is None, "未决诏令不应记已完成台账"
+    # 钦差授权：不挂起、进执行台账（落地效果由执行系统×皇威决定）
+    assert any("钦差" in msg for msg in log), f"应判为奉旨钦差：{log}"
+    assert not any("复述确认未决" in msg for msg in log), f"不得再挂起：{log}"
 
 
 def test_secret_decree_wiring_and_idempotency(monkeypatch):

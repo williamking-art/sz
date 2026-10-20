@@ -1,0 +1,47 @@
+{
+ "id": "USR-RUL-圣旨核销与中旨落地-2026-10-20",
+ "createdAt": "2026-10-20T09:35:00+08:00",
+ "agent": "DSH",
+ "kind": "用户裁定（第二轮，覆盖首轮固定 0.75 与未决挂起）",
+ "user_rulings": [
+  "皇帝发了旨意出来，怎么可能会未决，只是会被拖延",
+  "中旨的0.75就是拍脑袋定的，主要目的是想还原中旨对文官效果不佳，但皇威起来后呢？还有太监，武将敢不遵中旨吗",
+  "受命人权限未定的问题，如果是经三省审核的圣旨，那不就是钦差了吗"
+ ],
+ "adopted_model": {
+  "无未决": "每道旨终态必落台账（executed/dragged/failed），缺颁布回合按当月计",
+  "落地公式": "landed = clamp(base(system) x (sens(system)+(1-sens)xprestige/100) x ai_mult, 0.05, 1.0)",
+  "system_base": {
+   "文官": 0.55,
+   "宦官": 0.92,
+   "武将": 0.88,
+   "宗室": 0.7,
+   "地方": 0.6
+  },
+  "system_sens": {
+   "文官": 0.55,
+   "宦官": 0.9,
+   "武将": 0.75,
+   "宗室": 0.7,
+   "地方": 0.6
+  },
+  "ai_mult": {
+   "低": 0.7,
+   "中": 0.85,
+   "高": 1.0,
+   "极": 1.1
+  },
+  "钦差": "authority_undefined 且正式诏令 ⇒ 视为奉旨钦差，不挂起、继续执行"
+ },
+ "rejected_prior": {
+  "固定中旨系数 0.75": "拍脑袋，未体现皇威与执行系统差异",
+  "权限未定即挂起": "与「发出即生效」矛盾"
+ },
+ "premises_verified_by_me": [
+  "settlement_decree:218 的 STATUS_UNDEFINED 分支会把权限读数缺失的诏令留在队列",
+  "settlement_decree._apply_decree_effect 已按执行率落地，适合用 landed 统一折扣",
+  "本作没有「武将有独立拒绝圣旨」机制，用落地率区分比新造拒绝机制更稳妥"
+ ],
+ "applied_in": "core/domains/politics/edict_closure.py（重写）；settlement_decree 钦差分支；门 10 条 + m257 测试更新",
+ "reopen_if": "落地公式需引入更多因素（如派系满意度）时改加权合成；或钦差授权应附带成本"
+}
