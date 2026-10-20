@@ -1,7 +1,7 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-20T13:54:29Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-20T17:02:39Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
@@ -43,16 +43,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261020T133249Z-DSH` → [`worklog/20261020T133249Z-DSH.md`](worklog/20261020T133249Z-DSH.md)
-- `20261020T134113Z-DSH` → [`worklog/20261020T134113Z-DSH.md`](worklog/20261020T134113Z-DSH.md)
-- `20261020T134351Z-DSH` → [`worklog/20261020T134351Z-DSH.md`](worklog/20261020T134351Z-DSH.md)
-- `20261020T134652Z-DSH` → [`worklog/20261020T134652Z-DSH.md`](worklog/20261020T134652Z-DSH.md)
-- `20261020T134808Z-DSH` → [`worklog/20261020T134808Z-DSH.md`](worklog/20261020T134808Z-DSH.md)
-- `20261020T134912Z-DSH` → [`worklog/20261020T134912Z-DSH.md`](worklog/20261020T134912Z-DSH.md)
-- `20261020T135313Z-DSH` → [`worklog/20261020T135313Z-DSH.md`](worklog/20261020T135313Z-DSH.md)
-- `20261020T135429Z-DSH` → [`worklog/20261020T135429Z-DSH.md`](worklog/20261020T135429Z-DSH.md)
+- `20261020T135740Z-DSH` → [`worklog/20261020T135740Z-DSH.md`](worklog/20261020T135740Z-DSH.md)
+- `20261020T140027Z-DSH` → [`worklog/20261020T140027Z-DSH.md`](worklog/20261020T140027Z-DSH.md)
+- `20261020T142156Z-DSH` → [`worklog/20261020T142156Z-DSH.md`](worklog/20261020T142156Z-DSH.md)
+- `20261020T154957Z-DSH` → [`worklog/20261020T154957Z-DSH.md`](worklog/20261020T154957Z-DSH.md)
+- `20261020T161141Z-DSH` → [`worklog/20261020T161141Z-DSH.md`](worklog/20261020T161141Z-DSH.md)
+- `20261020T164559Z-DSH` → [`worklog/20261020T164559Z-DSH.md`](worklog/20261020T164559Z-DSH.md)
+- `20261020T164811Z-DSH` → [`worklog/20261020T164811Z-DSH.md`](worklog/20261020T164811Z-DSH.md)
+- `20261020T165016Z-DSH` → [`worklog/20261020T165016Z-DSH.md`](worklog/20261020T165016Z-DSH.md)
 
 ## 计数
 
-- tasks 213（未完成 18）· decisions 224（未闭环 6）· worklog 759 · phase 文件 5
+- tasks 213（未完成 18）· decisions 229（未闭环 6）· worklog 768 · phase 文件 5
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
