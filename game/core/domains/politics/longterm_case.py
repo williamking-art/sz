@@ -253,7 +253,10 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
         except (TypeError, ValueError):
             pass
     task["phase"] = phase_of(task.get("progress"))
-    task["last_advance_turn"] = turn
+    # C-10（2026-10-20 可选层）：blocked 月未真正推进 ⇒ 不得更新 last_advance_turn
+    # （否则面板显示"本月已推进"，而专款/效果都没落地）。
+    if not blocked:
+        task["last_advance_turn"] = turn
 
     # 天道叙事（2026-10-20）：结算只读 state._longterm_ai 槽位（AI 前置注入，结算期零 HTTP）。
     if not narrative:

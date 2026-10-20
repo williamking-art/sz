@@ -803,7 +803,7 @@ class GameState(GameStateEconMixin):
         # money_audit：月度对账记录（只读视图产物）：{start, last, recent[], cum_residual}。
         #   不承载任何货币账户，权威源仍是 POP wealth 与国库/内帑。
         self.silver_stock: int = 0
-        self.money_audit: dict = {}
+        self.money_audit: dict = {"error_count": 0}
         # ---- 官制（阶段 C，见 core/domains/administration/officialdom.py 与宋代官制设计 §六②/§七）----
         # posts_quota：差遣定员（**岗位**数，不是人）——这是唯一合法的非 POP 官制存量。
         #   0 = 尚未初始化，由 officialdom.ensure_quota() 按「中央机构岗位 ＋ 路级定员」重算。

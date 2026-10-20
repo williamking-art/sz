@@ -436,11 +436,19 @@ def transport_ship_or_queue(state, mode: str, qty: float, kind: str = "goods",
         from content.data_constants import TRANSPORT_QUEUE_MAX_STONE
         _q = transport_queue(state)
         _cur = 0.0
+        _clean = []
         for _it in _q:
             try:
-                _cur += max(0.0, float((_it or {}).get("qty") or 0))
+                _qty = max(0.0, float((_it or {}).get("qty") or 0))
             except (TypeError, ValueError):
+                # 坏队列条目（qty 非数值）不得按 0 低估占用、也不得留到续发时崩溃
+                import logging
+                logging.getLogger(__name__).warning(
+                    "运输队列条目 qty 非数值，已丢弃：%r", _it)
                 continue
+            _clean.append(_it)
+            _cur += _qty
+        _q[:] = _clean
         _qmax = float(TRANSPORT_QUEUE_MAX_STONE or 0)
         if _qmax <= 0:
             import logging
@@ -489,20 +497,31 @@ def transport_flush_queue(state, dispatcher=None) -> dict:
     """
     q = transport_queue(state)
     shipped, kept = 0.0, []
+    import logging as _lg
     for item in q:
+        if not isinstance(item, dict):
+            _lg.getLogger(__name__).warning("运输队列条目非 dict，已丢弃：%r", item)
+            continue
         mode = str(item.get("mode") or "")
-        remain_qty = float(item.get("qty") or 0)
+        try:
+            remain_qty = float(item.get("qty") or 0)
+        except (TypeError, ValueError):
+            _lg.getLogger(__name__).warning("运输队列条目 qty 非数值，已丢弃：%r", item)
+            continue
         if remain_qty <= 0 or not mode:
             continue
         took = transport_consume(state, mode, remain_qty, kind=str(item.get("kind") or "goods"))
         take = float(took["taken"])
         if take > 0 and callable(dispatcher):
-            item["payload"] = dict(item.get("payload") or {})
+            try:
+                item["payload"] = dict(item.get("payload") or {})
+            except (TypeError, ValueError):
+                item["payload"] = {}
             item["payload"]["qty"] = take
             try:
                 ok = bool(dispatcher(item["payload"]))
             except Exception as exc:  # noqa: BLE001
-                log.warning("队列续发回调失败：%r", exc, exc_info=True)
+                _lg.getLogger(__name__).warning("队列续发回调失败：%r", exc, exc_info=True)
                 ok = False
             if not ok:
                 # 回调失败 ⇒ 退回额度，条目留在队列

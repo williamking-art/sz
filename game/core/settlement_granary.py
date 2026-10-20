@@ -250,7 +250,8 @@ def _settle_granary(state, log):
 
     changping_acted = False
     # T9 常平扩容为货币稳定器：平粜吸买家钱入地方府库（货币回收，不碰内帑；
-    # local_treasury 不在 money 公式）。净回收联动：价>2.0 时平粜量上限 60%，
+    # `local_treasury` **在 M0–M3 的 ACCOUNTS 里**（money.py），只是不进
+    # `calc_price_level` 的价格公式）。净回收联动：价>2.0 时平粜量上限 60%，
     # 并评估稳定器净回收目标（月销币目标 = money×(price−1.2)/price×0.5）。
     from content.data import (CHANGPING_BUY_BUDGET_RATIO, CHANGPING_CAP_RATIO,
                               CHANGPING_SELL_RATIO)

@@ -36,6 +36,7 @@ REQUIRED_PANELS = {
     "prefecture",  # 州县（含识字率/本路局势联动）
     "memory", "court", "ministers", "decree", "diplomacy", "military",
     "accounting", "pop", "land", "gazette", "pending",
+    "longtermcase",  # 长期旨案卷（OverlayStack 实现；入口由局势面板下钻）
 }
 
 
