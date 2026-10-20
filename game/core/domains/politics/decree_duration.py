@@ -141,27 +141,37 @@ def slot_is_current(state, slot) -> bool:
     return False
 
 
-#: provider 必须**只读** state；这里拷一份标量指纹用于检出「provider 偷偷写 state」。
+#: provider 必须**只读** state；这里拷一份指纹用于检出「provider 偷偷写 state」。
+#: 标量字段直接取值；容器字段深拷贝（2026-10-20 O2：provider 改嵌套结构也能检出，
+#: 回滚时把整个容器恢复为快照）。
 _STATE_PROBE_FIELDS = ("treasury", "imperial_treasury", "granary", "prestige", "population")
+_STATE_PROBE_DEEP_FIELDS = ("coin", "jiaozi", "factions")
 
 
 def _state_probe(state) -> dict:
+    import copy
+
     snap = {}
     for k in _STATE_PROBE_FIELDS:
         try:
             snap[k] = getattr(state, k, None)
         except Exception:  # noqa: BLE001
             snap[k] = None
+    for k in _STATE_PROBE_DEEP_FIELDS:
+        try:
+            snap[k] = copy.deepcopy(getattr(state, k, None))
+        except Exception:  # noqa: BLE001
+            snap[k] = None
     return snap
 
 
 def _guard_state_readonly(state, before: dict, what: str) -> bool:
-    """provider 调用后核对 state 未被改写；被改写则回滚标量并返回 False（丢弃结果）。"""
+    """provider 调用后核对 state 未被改写；被改写则回滚并返回 False（丢弃结果）。"""
     after = _state_probe(state)
     if after == before:
         return True
     changed = [k for k in before if before[k] != after.get(k)]
-    log.warning("%s 改写了只读 state（%s）——结果已丢弃，标量已回滚（provider 必须是纯函数）",
+    log.warning("%s 改写了只读 state（%s）——结果已丢弃，字段已回滚（provider 必须是纯函数）",
                 what, changed)
     for k in changed:
         with contextlib.suppress(Exception):   # 回滚失败不回抛：本函数只负责"丢弃结果"

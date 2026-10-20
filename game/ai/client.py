@@ -1323,6 +1323,16 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 # 三方案：叙事-数值一致（数字须落在注入区间，区间外改写定性词）
                 if ranges:
                     _txt, _flagged = _validate_narrative_numbers(_txt, ranges)
+                    if _flagged:
+                        # O1（修复复审）：flagged 原先**无消费者**＝修复只多打日志。
+                        # 现把「哪个字段含无法核对的数值表述」透传到契约输出，调用方/
+                        # 面板可据此降权或提示；字段名带下划线，不参与业务字段校验。
+                        _nf = obj.get("_narrative_flagged")
+                        if not isinstance(_nf, list):
+                            _nf = []
+                            obj["_narrative_flagged"] = _nf
+                        if _field not in _nf:
+                            _nf.append(_field)
                 # 规格 decree-action-chain 任务 5：**完成宣称核对** ——
                 # 叙事说"告成/已生效"但真实工程未到 operating 时改写为如实表述，
                 # 防"AI 叙事替程序补状态"（design.md:46）。读数与面板同源。

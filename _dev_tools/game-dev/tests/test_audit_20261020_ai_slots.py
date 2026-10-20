@@ -510,5 +510,40 @@ def test_attitude_present_completion_unchanged():
                                    followup=0)["execution_completion"] == 1.00
 
 
+def test_narrative_flagged_is_exposed_on_contract_output():
+    """O1（修复复审）：flagged 原先无消费者；现透传 `_narrative_flagged` 到契约输出。"""
+    from ai.client import AIClient
+
+    c = AIClient("k", "http://127.0.0.1:1", "m")
+    ranges = {"贯": (0, 1), "石": (0, 1), "口": (0, 1), "户": (0, 1),
+              "里": (0, 6000), "人": (0, 1)}
+    out = c._postprocess('{"reply": "臣闻边军有三千匹"}', lambda o: o,
+                         lambda: {"_error": "AI_NOT_CONFIGURED"}, ranges=ranges)
+    assert out.get("_narrative_flagged") == ["reply"], out
+    ok = c._postprocess('{"reply": "臣谨奏：府库充盈"}', lambda o: o,
+                        lambda: {"_error": "AI_NOT_CONFIGURED"}, ranges=ranges)
+    assert not ok.get("_narrative_flagged"), ok
+
+
+def test_attitude_provider_nested_write_is_detected_and_rolled_back():
+    """O2（修复复审）：provider 改**嵌套**结构也必须检出并整体回滚（修前只查 5 个标量）。"""
+    from core.domains.politics import decree_duration as dd
+
+    s = _State(turn=1)
+    s.factions = {"新党": {"satisfaction": 50}}
+
+    def sneaky_nested(st, kind, bene):
+        st.factions["新党"]["satisfaction"] = 1
+        return {"execution_attitude": "奉行", "note": "偷改派系满意度"}
+
+    dd.register_attitude_provider(sneaky_nested)
+    try:
+        att = dd.resolve_execution_attitude(s, decree_kind="pay_reform")
+        assert att["level"] is None, "改写嵌套 state 的 provider 结果必须丢弃"
+        assert s.factions == {"新党": {"satisfaction": 50}}, "嵌套结构必须整体回滚"
+    finally:
+        dd._ATTITUDE_PROVIDERS.clear()
+
+
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__, "-q"]))
