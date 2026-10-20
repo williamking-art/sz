@@ -222,6 +222,38 @@ def _chapter_situations(state) -> List[str]:
             last = tl[-1]
             if isinstance(last, dict) and last.get("text"):
                 lines.append(f"　└ {str(last['text'])[:80]}")
+    # 在办**案卷**（长期旨案卷化，2026-10-20）：案号/标题/阶段/进度/承办/专款余额/预计还需
+    try:
+        from core.domains.politics.longterm_case import case_is_cased
+        for q in (getattr(state, "longterm_public", None) or [],
+                  getattr(state, "longterm_secret", None) or []):
+            for t in q:
+                if not (isinstance(t, dict) and case_is_cased(t)):
+                    continue
+                prog = t.get("progress")
+                phase = t.get("phase") or ""
+                handler = t.get("minister") or "未定"
+                bud = t.get("budget") if isinstance(t.get("budget"), dict) else {}
+                rem, tot = bud.get("remaining"), bud.get("total")
+                money = ""
+                if tot not in (None, 0):
+                    money = f"，专款余 {rem if rem is not None else '未定义'}/{tot}"
+                eta_s = ""
+                try:
+                    from core.domains.politics.longterm_case import case_readout
+                    eta = case_readout(state, t).get("eta_months")
+                    if isinstance(eta, int):
+                        eta_s = f"，预计还需 {eta} 月"
+                except Exception:  # noqa: BLE001
+                    eta_s = ""
+                label = t.get("case_no") or t.get("id") or "案"
+                title = t.get("task_name") or t.get("title") or "政务"
+                lines.append(
+                    f"案卷{label}「{title}」{phase}"
+                    f"{'，进度 ' + str(round(float(prog), 1)) + '/100' if prog is not None else ''}"
+                    f"，承办 {handler}{money}{eta_s}")
+    except Exception:  # noqa: BLE001 — 邸报不得因案卷派生失败而中断
+        pass
     return lines or ["本月无长期局势变动。"]
 
 
