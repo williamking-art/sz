@@ -1,0 +1,31 @@
+{
+  "id": "JEV-复审残留批收口-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "复审残留 O1–O6 的收口方式：只修低风险项、O4 留待办等并行会话释放文件，还是停工/抢改",
+  "items": [
+    {
+      "question": "本批如何收口？A=修完 O1/O2/O3/O5/O6、O4 留待办等并行会话；B=停工等并行会话全部收口再继续；C=立即抢改 settlement_finance.py 做 O4",
+      "options": [
+        "A=修完低风险项、O4 留待办",
+        "B=停工等并行会话收口",
+        "C=抢改 settlement_finance.py 做 O4"
+      ],
+      "verdict": "A（0.9961）",
+      "probabilities": {
+        "A": 0.9961440563201904,
+        "B": 0.0033726238179951906,
+        "C": 0.000483275594888255
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "O1/O2/O3/O5/O6 的改动面与并行会话的文件（settlement_finance.py、procurement.py）不重叠，已逐项定向回归全绿",
+        "O4 目标文件 game/core/settlement_finance.py 在 git status 中仍为未提交修改（他人），按纪律不得覆盖",
+        "全量回归当前红是并行会话新提交引入的新循环 SCC 等，与本批改动面无交集；抢改只会放大冲突面",
+        "剩余项已写进复审报告与普查文档待办，不会丢"
+      ],
+      "applied_in": "提交 88482f1e5c / 2b9b2b712d / d86dff48f3 / abadf3cf9d / 82e87a94ff / 44387bcf81 / 4080485d6a；O4 留待 settlement_finance.py 释放后做",
+      "reopen_if": "并行会话提交并释放 settlement_finance.py 后，立即做 O4 并补定向用例；或全量回绿后统一清理剩余 5 组重复实现"
+    }
+  ]
+}
