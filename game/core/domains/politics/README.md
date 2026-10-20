@@ -8,7 +8,7 @@
 
 | `settlement_imperial.py` | 由 `core/settlement_imperial.py` 按域拆出（2026-10-07 用户裁定「拆开」，阶段 3 第二包）| **2026-10-20 复用批去重**：帝王行动 5 函数（`_settle_emperor_personal` / `_imp_split_tier` / `_imp_tier_delta` / `_apply_imperial_action` / `_apply_imperial_effects`）与 flat 版逐字节重复且**生产无调用方**，已删死副本；本文件只保留真身 `_settle_emperor_health_decay`（由 `core/settlement_imperial.py` 取用） |
 | `edict_closure.py` | **新建**（2026-10-20）| `sweep_edict_closure` `closure_status` `is_zhongzhi` | 圣旨核销闭环：每道旨（含中旨）超期必入执行台账；中旨落地系数 0.75；颁布回合未知者视为未决挂起、不误核销；幂等不改已有条目 |
-| `decree_duration.py` | **新建**（2026-10-20 batch4）| `resolve_decree_duration` | 诏令生效月数：天道节奏档(速6/常12/缓18) × 主持官能力 × 皇威 × 后续跟进，clamp 3–36；纯函数无随机；breakdown 记来源 |
+| `decree_duration.py` | **新建**（2026-10-20 batch4）| `resolve_decree_duration` `slot_is_current` | 诏令生效月数：天道节奏档(速6/常12/缓18) × 主持官能力 × 皇威 × 后续跟进，clamp 3–36；纯函数无随机；breakdown 记来源。**`slot_is_current`（复审 O6）**：跨回合槽位优先按 `decree_id` 匹配（同一道诏改名仍保留、同名不同 id 丢弃），无 id 旧档回落题名 |
 | `trend_tier.py` | **新建**（2026-10-20 天道档位化 batch2）| `resolve_power_trend` `resolve_attitude_shock` `resolve_pressure_level` | 国势/外交/事件压力档位→程序换算；**缺档返回 None ⇒ 调用方沿用原随机（零行为变更）** |
 | `sentiment_tier.py` | **新建**（2026-10-20 民心线天道化）| `resolve_sentiment` / `apply_sentiment_trend` / `resolve_unrest` / `apply_unrest` / `shock_delta` / `apply_shock` | 民心三条线全部档位化：**月度趋势**（大坏→大好，−3~+3）、**民变规模**（无→大乱，0/−1/−2/−4）、**事件冲击**（轻/中/重，−1/−2/−3）；缺档 ⇒ 程序先验严格回退旧行为；有界 [0,100] |
 | `longterm_case.py` | **新建**（2026-10-20 参考外部 UI）| 长期旨案卷化：案号/承办人/授权/专款/底册/阶段/进度/持续效果/推进日志/达成与失控 | 只做案卷层，进度仍归 `longterm_task`；缺失=None、专款真实扣减、白名单持续效果、幂等 |

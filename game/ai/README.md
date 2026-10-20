@@ -24,7 +24,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 | ~~`contract_adapter.py`~~ | **2026-09-27 已移出** → `_dev_tools/unwired/`（待接线、不随分发） |
 | `schemas.py` | 输出契约 JSON Schema 注册表（**结构层校验**） |
 | `validators.py` | 契约校验共享辅助（**语义层校验**） |
-| `narrative_guard.py` | **叙事护栏**：① 数值一致（区间外改写定性词）② **取材闭集**（`_build_source_closure` 喂真实 state）③ **人物查表**（已故/已黜不得出场）④ **完成宣称核对**（见下）。**2026-10-20（全审 R-AI-4）**：单位表补 `两/斤/匹/顷/亩`，且两类**无法与账本核对**的数值一律标 `flagged`（不改写、留 warning）：无区间锚单位的大额（≥1000）、无单位裸量级（万/千/百 且含数字，如「增兵三百万」） |
+| `narrative_guard.py` | **叙事护栏**：① 数值一致（区间外改写定性词）② **取材闭集**（`_build_source_closure` 喂真实 state）③ **人物查表**（已故/已黜不得出场）④ **完成宣称核对**（见下）。**2026-10-20（全审 R-AI-4）**：单位表补 `两/斤/匹/顷/亩`，且两类**无法与账本核对**的数值一律标 `flagged`（不改写、留 warning）：无区间锚单位的大额（≥1000）、无单位裸量级（万/千/百 且含数字，如「增兵三百万」）。**2026-10-20（复审 O1）**：`flagged` 不再只打日志——`client._postprocess` 把命中字段收集为契约输出 `_narrative_flagged: [字段…]`（下划线键，不参与业务字段校验） |
 | `narrative_fallback.py` | 叙事模板库（AI 失败时的**分级降级**本地兜底） |
 | `desensitize.py` | 事实脱敏（真值→档位词再送 AI/前端） |
 | `token_meter.py` | token 计量（tiktoken 可选层）。**`TOKEN_GROUPS` 必须覆盖每个 `*_decide` 方法**，漏组会被 `test_token_meter.py` 抓出 |
