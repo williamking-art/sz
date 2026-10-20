@@ -1,0 +1,26 @@
+{
+ "id": "JEV-DEC-专断代价强度-2026-10-20",
+ "createdAt": "2026-10-20T21:30:00+08:00",
+ "agent": "DSH",
+ "question": "赐专断之权的月度代价（贪腐/民心）应如何设上限？",
+ "options": {
+  "A": "维持现状：每月民心-1、贪腐+0.008 无上限累计",
+  "B": "按案封顶：单案累计民心最多-10、贪腐最多+0.08 后不再累加",
+  "C": "一次性为主：授权时民心-5/贪腐+0.05，之后每月仅极小（约5月-1）"
+ },
+ "verdict": "B",
+ "probabilities": {
+  "A": 0.02,
+  "B": 0.793,
+  "C": 0.187
+ },
+ "provider": "tokenrhythm/NeoHorse-Jev-4B",
+ "premises_verified_by_me": [
+  "60 月回放实测：无上限版本 14 个月内民心 50→0、皇威 50→30，代价过重",
+  "民心/皇威是 0-100 全局核心值，被单一长期事务拖到 0 会让其他系统读数为 0（非缺失但失真）",
+  "封顶实现简单（单案累计字段 _discretion_used），可回归测试"
+ ],
+ "applied_in": "core/domains/politics/longterm_case.py: DISCRETION_CORRUPTION_CAP=0.08 / DISCRETION_SATISFACTION_CAP=10 + _discretion_used 累计封顶",
+ "reopen_if": "日后引入「专断导致民变」等事件时，可改为事件驱动而非线性扣减",
+ "note": "基线对照：不含案卷的 60 月回放民心同样为 0（既有平衡问题，非本次引入），已单独记录待裁。"
+}

@@ -20,7 +20,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["CASE_PHASES", "MONTHLY_EFFECT_KEYS", "ensure_case_fields",
+__all__ = ["CASE_PHASES", "CLOSED_OUTCOMES", "MONTHLY_EFFECT_KEYS", "ensure_case_fields",
+           "iter_case_tasks",
            "authorize_case", "monthly_case_settle", "case_readout", "case_is_cased",
            "CASE_LOG_KEEP"]
 
@@ -33,10 +34,14 @@ MONTHLY_EFFECT_KEYS = ("prestige", "treasury", "population_satisfaction")
 #: 推进日志保留条数
 CASE_LOG_KEEP = 12
 
-#: 赐专断之权的代价（2026-10-20）：提速 +15%，但每月承办人贪腐上升、民心下滑
+#: 赐专断之权的代价（2026-10-20）：提速 +15%，但每月承办人贪腐上升、民心下滑。
+#: **按案封顶**（Jev 裁定 B，0.793）：单案累计民心最多 −10、贪腐最多 +0.08 后不再累加——
+#: 60 月回放实测无上限版本 14 个月就把民心打到 0，代价过重失真。
 DISCRETION_SPEED_MULT = 1.15
 DISCRETION_CORRUPTION_MONTH = 0.008
 DISCRETION_SATISFACTION_MONTH = -1
+DISCRETION_CORRUPTION_CAP = 0.08      # 单案累计上限（正数）
+DISCRETION_SATISFACTION_CAP = 10       # 单案累计上限（正数，实际按 −N 应用）
 
 #: 进度 → 阶段（与 longterm_task._stage 的语义对齐，但用参考 UI 的档位名）
 def phase_of(progress: Optional[float]) -> str:
@@ -94,6 +99,31 @@ def _pool_change(state, pool: str, delta: int) -> bool:
         return False
     state.change_treasury(delta)
     return True
+
+
+#: 已结案（告成/待支持/罢废/失控）后不再扣专款、不再落月度效果
+CLOSED_OUTCOMES = ("告成", "待支持", "受阻罢废", "失控", "失败")
+
+
+def iter_case_tasks(state) -> List[Dict[str, Any]]:
+    """遍历**三处**事务队列（在办公开/在办密令/**结案归档**），按 id 去重。
+
+    为什么需要归档：事务议毕后会被移出在办队列，但案卷（专款/持续效果/结案落账）
+    仍需读得到——否则长局里案卷会"失忆"。
+    """
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for attr in ("longterm_public", "longterm_secret", "longterm_cases_archive"):
+        for t in (getattr(state, attr, None) or []):
+            if not isinstance(t, dict):
+                continue
+            tid = str(t.get("id") or "")
+            if tid and tid in seen:
+                continue
+            if tid:
+                seen.add(tid)
+            out.append(t)
+    return out
 
 
 def case_is_cased(task: Dict[str, Any]) -> bool:
@@ -178,9 +208,16 @@ def _apply_effect(state, key: str, amount: float) -> bool:
 
 def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None, *,
                         narrative: str = "", progress: Optional[float] = None) -> Dict[str, Any]:
-    """月度案卷结算：扣专款 → 落持续效果 → 写推进日志 → 判达成/失控。"""
+    """月度案卷结算：扣专款 → 落持续效果 → 写推进日志 → 判达成/失控。
+
+    已结案（CLOSED_OUTCOMES）⇒ 直接返回 closed（不再扣专款、不再落效果），
+    避免"议毕仍在烧钱/刷日志"。
+    """
     ensure_case_fields(state, task)
     log = log if isinstance(log, list) else []
+    if task.get("_closed"):
+        return {"ok": True, "closed": True, "blocked": None, "applied": [],
+                "phase": task.get("phase"), "outcome": task.get("outcome"), "entry": None}
     turn = int(getattr(state, "turn", 0) or 0)
     applied: List[Dict[str, Any]] = []
     blocked = None
@@ -229,24 +266,34 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
     # 赐专断之权的代价（2026-10-20）：每月承办人贪腐上升、民心下滑（受挫月同样计）
     dis_cost = None
     if task.get("discretion"):
-        dis_cost = {"corruption": DISCRETION_CORRUPTION_MONTH,
-                    "satisfaction": DISCRETION_SATISFACTION_MONTH}
+        used = task.get("_discretion_used")
+        if not isinstance(used, dict):
+            used = {"corruption": 0.0, "satisfaction": 0}
+        room_corr = max(0.0, DISCRETION_CORRUPTION_CAP - float(used.get("corruption") or 0.0))
+        room_sat = max(0, DISCRETION_SATISFACTION_CAP - int(used.get("satisfaction") or 0))
+        d_corr = min(DISCRETION_CORRUPTION_MONTH, room_corr)
+        d_sat = min(abs(DISCRETION_SATISFACTION_MONTH), room_sat)
+        dis_cost = {"corruption": round(d_corr, 4), "satisfaction": -d_sat,
+                    "capped": (room_corr <= 0 and room_sat <= 0)}
+        used["corruption"] = round(float(used.get("corruption") or 0.0) + d_corr, 4)
+        used["satisfaction"] = int(used.get("satisfaction") or 0) + d_sat
+        task["_discretion_used"] = used
         name = str(task.get("minister") or "")
-        if name:
+        if name and d_corr > 0:
             try:
                 from content.ministers.stats import get_or_create_official_stats
                 prof = get_or_create_official_stats(state, name)
                 prof["corruption"] = round(min(1.0, float(prof.get("corruption") or 0.0)
-                                               + DISCRETION_CORRUPTION_MONTH), 4)
+                                               + d_corr), 4)
                 dis_cost["handler"] = name
                 dis_cost["corruption_now"] = prof["corruption"]
             except Exception:  # noqa: BLE001
                 dis_cost["handler"] = None
         # 注意：民心可能是 0（合法值），不能用 or 默认（0 是 falsy ⇒ 会被误判成缺失）
         _cur_sat = getattr(state, "population_satisfaction", None)
-        if _cur_sat is not None:
+        if _cur_sat is not None and d_sat > 0:
             try:
-                state.population_satisfaction = max(0, int(_cur_sat) + DISCRETION_SATISFACTION_MONTH)
+                state.population_satisfaction = max(0, int(_cur_sat) - d_sat)
             except (TypeError, ValueError):
                 pass
     entry = {"turn": turn, "narrative": str(narrative or "")[:200],
@@ -266,12 +313,18 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
         task["phase"] = "失控"
         outcome = "失控"
         log.append("[案卷] " + str(task.get("case_no") or task.get("id") or "") + " 失控，代价已落账")
-    if task["phase"] == "达成":
+    # 达成奖励只发给**真正告成**（outcome=告成）的案卷：
+    # 「待支持」（进度满但无程序落点）不算成，不得发赏——避免"议毕就领赏"。
+    if str(task.get("outcome") or "") == "告成" and not task.get("_outcome_applied"):
         for eff in (task.get("outcome_effects") or []):
             if isinstance(eff, dict):
                 _apply_effect(state, str(eff.get("key") or ""), eff.get("amount", 0))
+        task["_outcome_applied"] = True
         outcome = "达成"
         log.append("[案卷] " + str(task.get("case_no") or task.get("id") or "") + " 达成")
+    # 结案：议毕/告成/罢废/失控 之后不再扣专款、不再落月度效果（归档保留案卷读数）
+    if str(task.get("outcome") or "") in CLOSED_OUTCOMES:
+        task["_closed"] = True
     return {"ok": blocked is None, "blocked": blocked, "applied": applied,
             "phase": task["phase"], "outcome": outcome, "entry": entry}
 
@@ -353,11 +406,18 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
                  "budget_remaining": budget.get("remaining"),
                  "pool": budget.get("pool"), "monthly_cost": task.get("monthly_cost"),
                  "discretion": bool(task.get("discretion"))}
+    # 阶段语义：待支持（议毕无落点）与失控不得显示成「达成」；其余按进度映射。
+    _outcome = str(task.get("outcome") or "")
+    _phase = task.get("phase") or phase_of(task.get("progress"))
+    if _outcome == "待支持":
+        _phase = "待支持"
+    elif _outcome in ("受阻罢废", "失控", "失败"):
+        _phase = "失控"
     return {
         "case_no": task.get("case_no"),
         "title": task.get("task_name") or task.get("title"),
         "kind": task.get("category") or task.get("topic_label"),
-        "status": "进行中" if task["phase"] not in ("达成", "失控") else task["phase"],
+        "status": "进行中" if _phase not in ("达成", "失控", "待支持") else _phase,
         "severity": task.get("severity"),
         "source_ref": task.get("source_ref"),
         "opened_turn": task.get("opened_turn"),
@@ -369,7 +429,7 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
         # 缺失≠0（2026-10-20 全审 C-4）：未授权时整块返回 None，面板显示「未授权/未定义」；
         # 不再回落 0/0/treasury 让玩家误读成「专款 0 万两」。
         "authorization": _auth,
-        "progress": {"percent": task.get("progress"), "phase": task["phase"],
+        "progress": {"percent": task.get("progress"), "phase": _phase,
                      "target": 100},
 
         # 本作特色：推进可解释（算式/阻碍/圣旨支持/立场），来自 longterm_task 单点，

@@ -224,10 +224,9 @@ def _chapter_situations(state) -> List[str]:
                 lines.append(f"　└ {str(last['text'])[:80]}")
     # 在办**案卷**（长期旨案卷化，2026-10-20）：案号/标题/阶段/进度/承办/专款余额/预计还需
     try:
-        from core.domains.politics.longterm_case import case_is_cased
-        for q in (getattr(state, "longterm_public", None) or [],
-                  getattr(state, "longterm_secret", None) or []):
-            for t in q:
+        from core.domains.politics.longterm_case import case_is_cased, iter_case_tasks
+        for t in iter_case_tasks(state):
+            if True:
                 if not (isinstance(t, dict) and case_is_cased(t)):
                     continue
                 prog = t.get("progress")

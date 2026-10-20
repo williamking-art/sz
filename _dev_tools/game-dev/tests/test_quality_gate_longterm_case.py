@@ -124,8 +124,24 @@ def test_phase_mapping_and_outcome_effect():
     assert phase_of(80) == "终前" and phase_of(100) == "达成"
     s = _S(prestige=60)
     t = _task()
+    t["outcome"] = "告成"          # 达成奖励只发给真正告成（2026-10-20 收紧）
     out = monthly_case_settle(s, t, [], progress=100)
     assert out["outcome"] == "达成" and s.prestige == 60 - 1 + 9
+
+
+def test_pending_support_gets_no_reward():
+    """进度满但「待支持」（无程序落点）⇒ 不发达成奖励，且案卷结案。"""
+    s = _S(prestige=60)
+    t = _task()
+    t["outcome"] = "待支持"
+    out = monthly_case_settle(s, t, [], progress=100)
+    assert out["outcome"] is None and s.prestige == 60 - 1, s.prestige
+    assert t.get("_closed") is True
+    # 结案后不再扣专款、不再落月度效果
+    t["budget"] = {"total": 100, "remaining": 100, "pool": "treasury"}
+    t["monthly_cost"] = 10
+    monthly_case_settle(s, t, [])
+    assert t["budget"]["remaining"] == 100 and s.prestige == 60 - 1
 
 
 def test_log_capped_and_readout_shape():

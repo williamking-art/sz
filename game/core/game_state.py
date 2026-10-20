@@ -913,6 +913,8 @@ class GameState(GameStateEconMixin):
         self.pending_public_decrees: list = []  # 旧兼容字段（保留）
         self.longterm_public: list = []   # 在办公开事务（长期，月度推进）
         self.longterm_secret: list = []   # 在办密令（长期，月度推进）
+        # 已结案的长期旨案卷（2026-10-20）：议毕后移出在办队列，但案卷读数/专款余量仍需可查
+        self.longterm_cases_archive: list = []
         self.active_decrees: list = []  # 持续效力的政令
         self.edict_drafts: list = []    # 待会签诏草（诏令会签页）
         self.council_reviews: dict = {}  # draft_id -> 会签意见

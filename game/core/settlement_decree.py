@@ -1099,6 +1099,7 @@ def _settle_longterm_decrees(state, log):
                                                     f"（{task.get('last_change', '')}）"))
                 except Exception as e:  # noqa: BLE001
                     _log.debug("[事务] 记忆图谱写入失败（%s）：%s", name, e)
+                _archive_case_if_cased(state, task)
                 continue          # 移出在办队列（政治轨道已议毕），但不写"completed"
             done = res["status"] == "done"
             log.append(f"[{label}] {name}{'告成，钦此。' if done else '受阻罢废，销案。'}")
@@ -1111,10 +1112,32 @@ def _settle_longterm_decrees(state, log):
                                                 f"（{task.get('last_change', '')}）"))
             except Exception as e:  # noqa: BLE001 — 记忆图谱为可选旁路，失败不阻断结算
                 _log.debug("[事务] 记忆图谱写入失败（%s）：%s", name, e)
+            _archive_case_if_cased(state, task)
         queue[:] = keep
     # free_effect 长期制度（言枢密 v3 契约）：「长期诏」步位旁月度结算
     from core.free_effect import _settle_free_effects  # 延迟导入，避免顶层环
     _settle_free_effects(state, log)
+
+
+def _archive_case_if_cased(state, task) -> None:
+    """议毕/告成/罢废的**已案卷化**事务移入归档（案卷读数与专款余量仍可查、结算仍在册）。
+
+    非案卷化事务行为不变（直接移出队列，不归档）。
+    """
+    try:
+        from core.domains.politics.longterm_case import case_is_cased
+        if not case_is_cased(task):
+            return
+        archive = getattr(state, "longterm_cases_archive", None)
+        if not isinstance(archive, list):
+            archive = []
+            state.longterm_cases_archive = archive
+        tid = str(task.get("id") or "")
+        if tid and any(isinstance(x, dict) and str(x.get("id")) == tid for x in archive):
+            return
+        archive.append(task)
+    except Exception:  # noqa: BLE001 — 归档失败不得阻断结算
+        _log.warning("[事务] 案卷归档失败", exc_info=True)
 
 
 def _record_task_memory(state, task, label):

@@ -1,0 +1,24 @@
+{
+  "id": "JEV-procurement-material-constraint-2026-10-20",
+  "kind": "JEV-台账",
+  "topic": "政府采购是否必须受本路商人实有物料约束",
+  "created_at": "2026-10-20T13:10:00Z",
+  "agent": "DSH",
+  "entries": [
+    {
+      "id": "JEV-PROC-1",
+      "question": "政府采购是否必须受本路商人实有物料约束（无料不成交、不得凭空入库）？",
+      "options": ["受实有物料约束（无料不成交）", "维持按订单量凭空入库"],
+      "verdict": "受实有物料约束",
+      "probabilities": {"provider": "tokenrhythm/NeoHorse-Jev-4B", "p": 0.9793, "threshold": 0.4, "holds": true},
+      "premises_verified_by_me": [
+        "procurement 旧实现 goods_dims 用已废英文轨 timber/stone/iron，to_material_dim() 返回 None，实测 stock_deducted=0 而 public_depot 凭空 +3000",
+        "入库维度 iron 不在 MATERIAL_DIMS / GOODS_DIMS 中，工程按中文维取料永远取不到（钱花了料不能用）",
+        "根 AGENTS.md §3 与 core README 既有口径：消费侧只从本路商人货栈取料，直读资源等于料可凭空调用"
+      ],
+      "applied_in": ["game/core/domains/economy/procurement.py", "game/core/settlement_finance.py"],
+      "reopen_if": "若要改『公共工程可不经市面直接调用国库物资』这条总口径"
+    }
+  ],
+  "note": "概率只入档；玩家可见文案不出现原始概率。裁定与实测冲突时以实测为准。"
+}

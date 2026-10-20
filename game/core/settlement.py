@@ -565,12 +565,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 只处理**已案卷化**的事务（有 case_no / 月费 / 专款 / 持续效果）；旧事务不动，保持零变更。
     try:
         from core.domains.politics.longterm_case import (case_is_cased,
+                                                     iter_case_tasks,
                                                      monthly_case_settle)
-        for _q in (getattr(state, 'longterm_public', None) or [],
-                   getattr(state, 'longterm_secret', None) or []):
-            for _t in _q:
-                if isinstance(_t, dict) and case_is_cased(_t):
-                    monthly_case_settle(state, _t, log)
+        # 含**已结案归档**：结案后仍需可查（结案后 settle 直接返回 closed，不再扣款）
+        for _t in iter_case_tasks(state):
+            if isinstance(_t, dict) and case_is_cased(_t):
+                monthly_case_settle(state, _t, log)
     except Exception as _lc_err:  # noqa: BLE001 — 案卷结算失败不阻断月度结算
         log.append('[案卷] 长期旨案卷结算失败：%r' % (_lc_err,))
 

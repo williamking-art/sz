@@ -969,11 +969,10 @@ def api_readouts(request: Request):
         # severity/region_hint/faction_hint/phase/bar_value/timeline/成败条件合进案卷读数，
         # 保证「案卷不重复存这些字段、且只有一个来源」。
         try:
-            from core.domains.politics.longterm_case import case_readout
+            from core.domains.politics.longterm_case import case_readout, iter_case_tasks
             longterm_cases = {}
-            for _q in (getattr(s, 'longterm_public', None) or [],
-                       getattr(s, 'longterm_secret', None) or []):
-                for _t in _q:
+            for _t in iter_case_tasks(s):
+                if True:   # 展平：保持原缩进层级
                     if not isinstance(_t, dict):
                         continue
                     _cid = str(_t.get('id') or '')

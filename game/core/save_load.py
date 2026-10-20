@@ -265,6 +265,7 @@ def save_game(state, slot: int = 1) -> bool:
         "region_admin_version": getattr(state, "region_admin_version", 0),
         "region_changes": getattr(state, "region_changes", []),
         "longterm_public": getattr(state, "longterm_public", []),
+        "longterm_cases_archive": getattr(state, "longterm_cases_archive", []),
         "longterm_secret": getattr(state, "longterm_secret", []),
         # 四大机制改良（参考《明末：捞金模拟器》）：开局邸报 / 帝国修正 / 国策树
         "opening_gazette": getattr(state, "opening_gazette", {}),
@@ -747,6 +748,8 @@ def _load_with_data(slot: int = 1):
     state.region_changes = data.get("region_changes") or []
     state.longterm_public = data.get("longterm_public", [])
     state.longterm_secret = data.get("longterm_secret", [])
+    # 已结案案卷归档（旧档无该键 ⇒ 空表，不影响读档）
+    state.longterm_cases_archive = data.get("longterm_cases_archive", []) or []
       # 🔴 长期事务（2026-10-07 M25 裁定）：**移除读档侧 normalize_tasks 迁移块**。
       #   理由：创建侧已完整（GameState.__init__ 建 longterm_public/longterm_secret），
       #   保存端已序列化（save_load.py:217-218），读档侧已直接赋值（:654-655）
