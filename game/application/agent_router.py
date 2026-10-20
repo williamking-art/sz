@@ -141,6 +141,15 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["granary", "granary_stats."],
         "domain_fields": ["granary", "canal"],
     },
+    "unrest": {
+        "order": 15,
+        "method": "unrest_decide",
+        "settle_attr": "_unrest_ai",
+        "wake_keywords": ["民变", "骚乱", "叛乱", "流民", "盗", "乱"],
+        "wake_state": [("population_satisfaction", lambda v: isinstance(v, (int, float)) and v < 40)],
+        "wake_diff_paths": ["population_satisfaction"],
+        "domain_fields": ["unrest_tier"],
+    },
     "sentiment": {
         "order": 14,
         "method": "sentiment_decide",

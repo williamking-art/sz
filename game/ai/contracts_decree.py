@@ -562,6 +562,29 @@ class DecreeContractMixin:
         return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_narrative"))
 
 
+
+    def unrest_decide(self, state):
+        """民变档位生产者（2026-10-20）：内嵌 Jev 出「无/小乱/骚乱/大乱」。
+
+        纪律：只在结算前置/唤起时调用；结果写 state._unrest_ai；失败不写槽位。
+        """
+        try:
+            from ai import jev_gate
+        except Exception:  # noqa: BLE001
+            return None
+        ctx = ("民心=%s 皇威=%s 国库=%s" % (
+            getattr(state, "population_satisfaction", None),
+            getattr(state, "prestige", None),
+            getattr(state, "treasury", None)))
+        got = jev_gate.decide_choice(
+            ctx, "本月是否生民变、规模如何？",
+            {"无": "民情尚安，无乱", "小乱": "偶有聚众、可弹压",
+             "骚乱": "数州骚动，须赈济弹压", "大乱": "变乱将起、恐成大祸"})
+        if not isinstance(got, dict) or got.get("choice") not in ("无", "小乱", "骚乱", "大乱"):
+            return None
+        state._unrest_ai = {"tier": got["choice"], "note": "天道裁民变"}
+        return state._unrest_ai
+
     def sentiment_decide(self, state):
         """民情档位生产者（2026-10-20）：内嵌 Jev 出「大坏/转坏/持平/转好/大好」。
 

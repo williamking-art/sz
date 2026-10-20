@@ -290,12 +290,20 @@ def _settle_hidden(state, log):
         log.append("[归籍] 隐户归籍结算失败，本月未归籍（POP 未变）"
                    f"（{type(e).__name__}）")
 
-    # b) 民怨骚乱
-    if state.population_satisfaction < 30:
-        if random.random() < 0.15:
-            # 审查 P2-21：补下限钳制（其余结算处均已 max(0,…)，此处漏）
-            state.population_satisfaction = max(0, state.population_satisfaction - 1)
-            log.append("[激变] 民怨沸腾，偶有骚乱")
+    # b) 民怨骚乱（2026-10-20 天道化）
+    # 天道判「无/小乱/骚乱/大乱」⇒ 程序换算冲击；缺档 ⇒ 保留旧随机先验
+    # （民心<30 时 15% 概率 -1），保证未接线时行为与旧版一致。
+    try:
+        from core.domains.politics.sentiment_tier import apply_unrest
+        _ur = apply_unrest(state, log)
+        state.statistics["unrest_tier"] = _ur
+        if _ur.get("applied") is None and state.population_satisfaction < 30:
+            if random.random() < 0.15:
+                # 审查 P2-21：补下限钳制（其余结算处均已 max(0,…)，此处漏）
+                state.population_satisfaction = max(0, state.population_satisfaction - 1)
+                log.append("[激变] 民怨沸腾，偶有骚乱")
+    except Exception as _ur_err:  # noqa: BLE001 — 民变结算失败不阻断
+        log.append("[激变] 天道民变档应用失败：%r" % (_ur_err,))
 
     # c) 金军南侵
     _settle_front_battle(state, log)

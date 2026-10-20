@@ -107,7 +107,8 @@ TOKEN_GROUPS = {
              "decree_action_plan", "decree_narrative_decide",
              "decree_duration_decide",   # 2026-10-20 诏令天道档位生产者
              "longterm_narrative_decide",
-             "sentiment_decide"},
+             "sentiment_decide",
+             "unrest_decide"},
     "月报叙事": {"monthly_report", "event_narrative", "advice", "final_eval"},
 }
 TOKEN_GROUP_ORDER = ("奏折", "拟旨", "会签", "推演", "月报叙事")

@@ -115,3 +115,61 @@ def test_registered_and_grouped():
     assert "sentiment" in ar.AGENT_DEFS
     assert ar.AGENT_DEFS["sentiment"]["method"] == "sentiment_decide"
     assert token_group_of("sentiment_decide") == "推演"
+
+# ---------------- 民变（激变）天道化 ----------------
+
+def test_unrest_tier_mapping():
+    from core.domains.politics.sentiment_tier import UNREST_DELTA
+
+    assert UNREST_DELTA == {"无": 0, "小乱": -1, "骚乱": -2, "大乱": -4}
+
+
+def test_unrest_ai_tier_applied():
+    from core.domains.politics.sentiment_tier import apply_unrest
+
+    s = _S(sat=50)
+    s._unrest_ai = {"tier": "骚乱"}
+    got = apply_unrest(s, [])
+    assert got["applied"] == -2 and s.population_satisfaction == 48
+
+
+def test_unrest_missing_keeps_prior_none():
+    from core.domains.politics.sentiment_tier import apply_unrest
+
+    s = _S(sat=50)
+    got = apply_unrest(s, [])
+    assert got["applied"] is None and s.population_satisfaction == 50
+
+
+def test_unrest_bounds_and_zero():
+    from core.domains.politics.sentiment_tier import apply_unrest
+
+    s = _S(sat=1)
+    s._unrest_ai = {"tier": "大乱"}
+    apply_unrest(s, [])
+    assert s.population_satisfaction == 0
+    s2 = _S(sat=50)
+    s2._unrest_ai = {"tier": "无"}
+    apply_unrest(s2, [])
+    assert s2.population_satisfaction == 50
+
+
+def test_unrest_producer(monkeypatch):
+    from ai import jev_gate
+    from ai.client import AIClient
+
+    monkeypatch.setattr(jev_gate, "decide_choice",
+                        lambda *a, **k: {"choice": "小乱", "probabilities": {}, "confidence": None})
+    s = _S(sat=25)
+    got = AIClient().unrest_decide(s)
+    assert got == {"tier": "小乱", "note": "天道裁民变"}
+    assert s._unrest_ai["tier"] == "小乱"
+
+
+def test_unrest_registered_and_grouped():
+    from ai.token_meter import token_group_of
+    from application import agent_router as ar
+
+    assert "unrest" in ar.AGENT_DEFS
+    assert ar.AGENT_DEFS["unrest"]["method"] == "unrest_decide"
+    assert token_group_of("unrest_decide") == "推演"

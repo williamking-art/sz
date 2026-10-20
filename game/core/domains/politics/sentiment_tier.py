@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-__all__ = ["SENTIMENT_TIERS", "SENTIMENT_DELTA", "SENTIMENT_PRIOR", "resolve_sentiment",
-           "apply_sentiment_trend", "register_sentiment_provider"]
+__all__ = ["SENTIMENT_TIERS", "SENTIMENT_DELTA", "SENTIMENT_PRIOR",
+           "resolve_sentiment", "apply_sentiment_trend", "register_sentiment_provider",
+           "UNREST_TIERS", "UNREST_DELTA", "resolve_unrest", "register_unrest_provider"]
 
 #: 民情档位（从坏到好）
 SENTIMENT_TIERS = ("大坏", "转坏", "持平", "转好", "大好")
@@ -32,6 +33,18 @@ SENTIMENT_PRIOR_KEYS = ("huashigang", "new_party_dominance")
 SENTIMENT_PRIOR_MAX = 3
 
 _PROVIDERS: list = []
+
+#: 民变档位（2026-10-20 天道化「激变」）：原来写死「民心<30 时 15% 概率 -1」，
+#: 现由天道判「本月有没有乱」，程序换算骚乱对民心的冲击。
+UNREST_TIERS = ("无", "小乱", "骚乱", "大乱")
+UNREST_DELTA: Dict[str, int] = {"无": 0, "小乱": -1, "骚乱": -2, "大乱": -4}
+
+_UNREST_PROVIDERS: list = []
+
+
+def register_unrest_provider(fn) -> None:
+    """注册民变档位提供者：fn(state) -> {"tier": 无|小乱|骚乱|大乱}（前置/离线注入）。"""
+    _UNREST_PROVIDERS.append(fn)
 
 
 def register_sentiment_provider(fn) -> None:
@@ -77,6 +90,44 @@ def resolve_sentiment(state) -> Dict[str, Any]:
     delta = -_legacy_pressure(state)
     return {"tier": None, "delta": delta, "note": "天道未裁民情档，走程序先验（按在册修正回退）",
             "source": "程序先验"}
+
+
+def resolve_unrest(state) -> Dict[str, Any]:
+    """民变档位：天道优先 → provider → 缺档（None，调用方保留旧随机先验）。"""
+    slot = getattr(state, "_unrest_ai", None)
+    if isinstance(slot, dict):
+        tier = slot.get("tier")
+        if tier in UNREST_TIERS:
+            return {"tier": tier, "delta": UNREST_DELTA[tier],
+                    "note": str(slot.get("note") or ""), "source": "天道"}
+    for fn in reversed(_UNREST_PROVIDERS):
+        try:
+            cand = fn(state)
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(cand, dict) and cand.get("tier") in UNREST_TIERS:
+            tier = cand["tier"]
+            return {"tier": tier, "delta": UNREST_DELTA[tier],
+                    "note": str(cand.get("note") or ""), "source": "天道(provider)"}
+    return {"tier": None, "delta": None, "note": "天道未裁民变档，走旧随机先验",
+            "source": "缺档"}
+
+
+def apply_unrest(state, log: Optional[list] = None) -> Dict[str, Any]:
+    """应用民变冲击（有界 [0,100]）；缺档返回 applied=None，调用方保留旧随机先验。"""
+    log = log if isinstance(log, list) else []
+    got = resolve_unrest(state)
+    cur = getattr(state, "population_satisfaction", None)
+    if got["delta"] is None or cur is None:
+        return {**got, "applied": None,
+                "satisfaction": None if cur is None else int(cur)}
+    d = max(-4, min(0, int(got["delta"])))
+    if d:
+        state.population_satisfaction = max(0, min(100, int(cur) + d))
+        log.append("[激变] 天道裁「%s」：民心 %+d（%d → %d）"
+                   % (got["tier"], d, int(cur), int(state.population_satisfaction)))
+    return {**got, "applied": d,
+            "satisfaction": int(getattr(state, "population_satisfaction", 0) or 0)}
 
 
 def apply_sentiment_trend(state, log: Optional[list] = None) -> Dict[str, Any]:
