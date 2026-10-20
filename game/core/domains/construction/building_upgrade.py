@@ -47,6 +47,20 @@ def _req_for(target_level: int) -> Dict[str, Any]:
     return dict(req.get(lv) or {})
 
 
+def _local_treasury_available(pdata) -> int:
+    """路级 `local_treasury` 是 Σ 治所派生镜像；**已下沉时以治所真账为准**（2026-10-20 O5）。
+
+    修前直接用镜像判「府库够不够」：镜像滞后（旧档/直写）时会错拒或错放升级。
+    未下沉仍回落镜像（行为不变）。
+    """
+    from core.foundation.ledger import local_treasury_bridge as _ltb
+    if _ltb.is_sunk(pdata):
+        total = _ltb.seat_local_treasury_total(pdata)
+        if total is not None:
+            return int(total)
+    return int((pdata or {}).get("local_treasury", 0) or 0)
+
+
 def upgrade_requirement(state, route: str, name: str) -> Dict[str, Any]:
     """查升级条件：当前等级 / 目标等级 / 费用 / 能否升级 + reason。"""
     from content.data_constants import BUILDING_CONSTRUCTION_MAX_PER_ROUTE, BUILDING_LEVEL_MAX
@@ -69,7 +83,7 @@ def upgrade_requirement(state, route: str, name: str) -> Dict[str, Any]:
     if any(x.get("route") == route and x.get("name") == name for x in _queue(state)):
         return {"ok": False, "reason": "already_queued", "level": cur}
     req = _req_for(target)
-    treasury = int(pdata.get("local_treasury", 0) or 0)
+    treasury = _local_treasury_available(pdata)
     silver = int(req.get("银") or 0)
     if treasury < silver:
         return {"ok": False, "reason": "insufficient_silver", "needed": silver,

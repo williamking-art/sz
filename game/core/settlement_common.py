@@ -214,6 +214,20 @@ def _state_grain_trade(state, grain_amt: int, direction: str, price: float, log,
     return total, money_in
 
 
+def _local_treasury_pool(pref) -> int:
+    """地方府库可用额：已下沉读 **Σ 治所真账**，未下沉回落路级镜像（2026-10-20 O5）。
+
+    修前平籴 `_pay_cap` 直接读镜像；镜像滞后会**多花/少花**，`_new_lt` 再用镜像
+    推新总额（`local_treasury_set`）时甚至会把差额写进治所（凭空增生/销毁）。
+    """
+    from core.foundation.ledger import local_treasury_bridge as _ltb
+    if _ltb.is_sunk(pref):
+        total = _ltb.seat_local_treasury_total(pref)
+        if total is not None:
+            return int(total)
+    return int(pref.get("local_treasury", 0) or 0)
+
+
 def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=None):
     """州县常平仓粜籴的守恒配对（与 _state_grain_trade 同构；钱腿为本路府库）。
 
@@ -242,7 +256,7 @@ def _changping_trade(pref, name, grain_amt, direction, price, log, tag, state=No
     _price = max(float(price), 0.1)
 
     if direction == "buy":
-        _pay_cap = int(pref.get("local_treasury", 0) or 0)
+        _pay_cap = _local_treasury_pool(pref)
         total = 0
         money = 0
         remain = int(grain_amt)
