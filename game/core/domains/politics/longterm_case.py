@@ -221,6 +221,15 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
         del plog[:len(plog) - CASE_LOG_KEEP]
 
     outcome = None
+    # 失控代价（2026-10-20）：罢废时把 fail_effects 落账一次（幂等，防重复扣）
+    if str(task.get("outcome") or "") in ("受阻罢废", "失控", "失败") and not task.get("_fail_applied"):
+        for eff in (task.get("fail_effects") or []):
+            if isinstance(eff, dict):
+                _apply_effect(state, str(eff.get("key") or ""), eff.get("amount", 0))
+        task["_fail_applied"] = True
+        task["phase"] = "失控"
+        outcome = "失控"
+        log.append("[案卷] " + str(task.get("case_no") or task.get("id") or "") + " 失控，代价已落账")
     if task["phase"] == "达成":
         for eff in (task.get("outcome_effects") or []):
             if isinstance(eff, dict):
@@ -259,9 +268,29 @@ def _task_advance_readout(state, task: Dict[str, Any]) -> Optional[Dict[str, Any
     }
 
 
+def _eta_months(adv: Optional[Dict[str, Any]]) -> Optional[int]:
+    """预计还需月数：剩余进度 ÷ 本月推进速度（向上取整）；读数缺失 ⇒ None（不猜）。"""
+    if not isinstance(adv, dict):
+        return None
+    try:
+        pct = float(adv.get("progress"))
+    except (TypeError, ValueError):
+        return None
+    fc = adv.get("forecast") if isinstance(adv.get("forecast"), dict) else {}
+    try:
+        rate = float(fc.get("advance_pct"))
+    except (TypeError, ValueError):
+        return None
+    if rate <= 0 or pct >= 100:
+        return None
+    import math
+    return int(math.ceil((100.0 - pct) / rate))
+
+
 def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
     """面板只读载荷（字段对齐参考 UI；缺失一律 None）。"""
     ensure_case_fields(state, task)
+    _adv = _task_advance_readout(state, task)
     budget = task.get("budget") if isinstance(task.get("budget"), dict) else {}
     handler_name = task.get("minister")
     stats = None
@@ -309,7 +338,8 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
 
         # 本作特色：推进可解释（算式/阻碍/圣旨支持/立场），来自 longterm_task 单点，
         # 不在此复制算法。
-        "advance": _task_advance_readout(state, task),
+        "advance": _adv,
+        "eta_months": _eta_months(_adv),
         "monthly_effects": list(task.get("monthly_effects") or []),
         "progress_log": list(task.get("progress_log") or []),
         "outcome_effects": list(task.get("outcome_effects") or []),

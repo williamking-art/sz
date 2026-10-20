@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
-import { wan } from "../utils/format";
+import { clampPct, formatPct as pct, wan } from "../utils/format";
 
 /** 长期旨案卷（数据来自后端 /api/readouts → longterm_cases；口径单点在 core）。 */
 interface CaseEffect { key: string; amount: number | null }
@@ -61,6 +61,8 @@ interface CaseReadout {
   fail_effects: CaseEffect[];
   /** 推进可解释读数（本作特色：基数×难度×吏治×立场×军队 + 阻碍 + 圣意支持） */
   advance: AdvanceReadout | null;
+  /** 预计还需月数（剩余进度 ÷ 本月推进速度；读数缺失 ⇒ null） */
+  eta_months: number | null;
   /** 成败条件（后端由局势投影按同键合并；缺失为 null，不编造） */
   resolve_condition_text?: string | null;
   fail_condition_text?: string | null;
@@ -98,10 +100,6 @@ function money(v: number | null | undefined): string {
   if (!Number.isFinite(n)) return "未定义";
   return wan(n, "贯");
 }
-function pct(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "未定义";
-  return `${Math.round(Number(v) * 100)}%`;
-}
 function signed(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined) return "未定义";
   return `${v > 0 ? "+" : ""}${v.toFixed(digits)}`;
@@ -109,8 +107,8 @@ function signed(v: number | null | undefined, digits = 2): string {
 
 /** 五维条：实心=当前，虚线=潜质上限（成长空间可见）。 */
 function AttrBar({ label, value, potential }: { label: string; value: number | null; potential: number | null }) {
-  const w = value === null ? 0 : Math.max(0, Math.min(100, value));
-  const p = potential === null ? null : Math.max(0, Math.min(100, potential));
+  const w = value === null ? 0 : clampPct(value);
+  const p = potential === null ? null : clampPct(potential);
   return (
     <div className="min-w-0">
       <div className="flex items-baseline justify-between text-xs">
@@ -212,7 +210,7 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
   const barPct = useMemo(() => {
     const p = data?.progress?.percent;
     if (p === null || p === undefined) return null;
-    return Math.max(0, Math.min(100, p));
+    return clampPct(p);
   }, [data]);
 
   if (loading) {

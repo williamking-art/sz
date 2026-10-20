@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 
 from core.domains.politics.longterm_case import (  # noqa: E402
+    _eta_months,
     CASE_LOG_KEEP, authorize_case, case_readout, ensure_case_fields,
     monthly_case_settle, phase_of)
 
@@ -145,3 +146,25 @@ def test_log_capped_and_readout_shape():
     assert r2["authorization"]["budget_total"] == 100000
     assert r2["authorization"]["discretion"] in (True, False)
     assert r2["case_no"] == t["case_no"]
+
+def test_eta_months_rounds_up_and_handles_missing():
+    assert _eta_months({"progress": 82, "forecast": {"advance_pct": 7.31}}) == 3
+    assert _eta_months({"progress": 0, "forecast": {"advance_pct": 5}}) == 20
+    assert _eta_months({"progress": 100, "forecast": {"advance_pct": 5}}) is None
+    assert _eta_months({"progress": 50, "forecast": {"advance_pct": 0}}) is None
+    assert _eta_months({"progress": 50, "forecast": {}}) is None
+    assert _eta_months(None) is None
+
+
+def test_fail_effects_applied_once():
+    """罢废（受阻罢废）⇒ fail_effects 落账一次，且 phase 转失控（幂等）。"""
+    s = _S(prestige=60)
+    t = _task()
+    t["outcome"] = "受阻罢废"
+    t["monthly_effects"] = []      # 只看失控代价，排除每月持续效果干扰
+    t["fail_effects"] = [{"key": "prestige", "amount": -5}]
+    out = monthly_case_settle(s, t, [])
+    assert out["outcome"] == "失控" and t["phase"] == "失控"
+    assert s.prestige == 55, s.prestige
+    monthly_case_settle(s, t, [])          # 第二次不得再扣
+    assert s.prestige == 55 and t["_fail_applied"] is True
