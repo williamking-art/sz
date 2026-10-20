@@ -561,6 +561,19 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     pipeline = get_default_pipeline()
     pipeline.execute(state, log, _situation_journal_base=_situation_journal_base)
 
+    # ---- 长期旨案卷月度结算（2026-10-20，参考外部 UI）：扣专款/落持续效果/写推进日志。
+    # 只处理**已案卷化**的事务（有 case_no / 月费 / 专款 / 持续效果）；旧事务不动，保持零变更。
+    try:
+        from core.domains.politics.longterm_case import (case_is_cased,
+                                                     monthly_case_settle)
+        for _q in (getattr(state, 'longterm_public', None) or [],
+                   getattr(state, 'longterm_secret', None) or []):
+            for _t in _q:
+                if isinstance(_t, dict) and case_is_cased(_t):
+                    monthly_case_settle(state, _t, log)
+    except Exception as _lc_err:  # noqa: BLE001 — 案卷结算失败不阻断月度结算
+        log.append('[案卷] 长期旨案卷结算失败：%r' % (_lc_err,))
+
     # ---- 外邦州府人口月末重摊（2026-10-20）：任何步骤改了省人口后，
     # 在此统一按省精确重摊到州府，保证「Σ州府 == 省」（60 月回放曾 7 条失配）。
     # 只动外邦 T1 的 pop（宋详账在 prefectures，不受影响）；失败留痕不阻断。
