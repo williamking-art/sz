@@ -30,7 +30,7 @@ OUTCOME_DRAGGED = "dragged"
 __all__ = ["EXECUTOR_SYSTEMS", "SYSTEM_BASE", "SYSTEM_SENS", "AI_LANDING",
            "OUTCOME_DRAGGED", "STALE_TURNS", "is_zhongzhi", "executor_system_of",
            "landing_effect", "closure_status", "sweep_edict_closure",
-           "LANDING_LEVELS", "LANDING_LEVEL_VALUE",
+           "LANDING_LEVELS", "LANDING_LEVEL_VALUE", "landing_scale",
            "resolve_landing_level", "register_landing_level_provider"]
 
 EXECUTOR_SYSTEMS = ("文官", "宦官", "武将", "宗室", "地方")
@@ -180,6 +180,21 @@ def landing_effect(decree: Any, state=None, *, prestige: Optional[float] = None)
             "prestige": p, "curve": round(curve, 4), "ai_mult": ai,
             "level": lvl["level"], "level_note": lvl["note"],
             "prior": prior, "source": source}
+
+
+def landing_scale(state, decree: Any) -> float:
+    """给**数值效果**用的落地系数：只有天道判了档才打折，未判返回 1.0（零变更）。"""
+    try:
+        got = landing_effect(decree, state)
+    except Exception:  # noqa: BLE001
+        return 1.0
+    lvl = got.get("level")
+    if not lvl:
+        return 1.0
+    try:
+        return max(0.0, min(1.0, float(got.get("landed"))))
+    except (TypeError, ValueError):
+        return 1.0
 
 
 def _issued_turn(decree: Dict[str, Any]) -> Optional[int]:

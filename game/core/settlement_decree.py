@@ -711,6 +711,27 @@ def _apply_decree_effect(state, decree, log):
                 log.append(f"[诏令·守恒] 效果 {_k} 非数值，已丢弃：{_v!r}")
                 continue
             effects[_k] = _v
+    # 天道落地档（2026-10-20 用户裁定）：只有天道判了落地档才按比例缩放数值效果；
+    # 未判/无槽位 ⇒ 系数 1.0，行为与改动前完全一致（零变更）。
+    try:
+        from core.domains.politics.edict_closure import landing_scale
+        _scale = landing_scale(state, decree)
+    except Exception:  # noqa: BLE001
+        _scale = 1.0
+    if _scale != 1.0:
+        _scaled_keys = ("prestige", "treasury", "imperial_treasury",
+                        "population_satisfaction", "defense_bonus")
+        for _k in _scaled_keys:
+            if _k in effects:
+                effects[_k] = int(round(float(effects[_k]) * _scale))
+        _fc = effects.get("faction_change")
+        if isinstance(_fc, dict):
+            effects["faction_change"] = {
+                _fk: int(round(float(_fv) * _scale))
+                for _fk, _fv in _fc.items() if isinstance(_fv, (int, float))}
+        log.append("[诏令] 「" + str(decree.get("title") or "（无题）") +
+                   "」按天道落地档执行（×" + str(_scale) + "）")
+
     if "prestige" in effects:
         state.change_prestige(effects["prestige"], decree.get("title", ""))
     if "treasury" in effects:
