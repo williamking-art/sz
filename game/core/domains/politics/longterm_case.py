@@ -33,6 +33,11 @@ MONTHLY_EFFECT_KEYS = ("prestige", "treasury", "population_satisfaction")
 #: 推进日志保留条数
 CASE_LOG_KEEP = 12
 
+#: 赐专断之权的代价（2026-10-20）：提速 +15%，但每月承办人贪腐上升、民心下滑
+DISCRETION_SPEED_MULT = 1.15
+DISCRETION_CORRUPTION_MONTH = 0.008
+DISCRETION_SATISFACTION_MONTH = -1
+
 #: 进度 → 阶段（与 longterm_task._stage 的语义对齐，但用参考 UI 的档位名）
 def phase_of(progress: Optional[float]) -> str:
     try:
@@ -221,8 +226,31 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
                 if isinstance(it, dict) and str(it.get("id") or "") == str(task.get("id") or ""):
                     narrative = str(it.get("narrative") or "")
                     break
+    # 赐专断之权的代价（2026-10-20）：每月承办人贪腐上升、民心下滑（受挫月同样计）
+    dis_cost = None
+    if task.get("discretion"):
+        dis_cost = {"corruption": DISCRETION_CORRUPTION_MONTH,
+                    "satisfaction": DISCRETION_SATISFACTION_MONTH}
+        name = str(task.get("minister") or "")
+        if name:
+            try:
+                from content.ministers.stats import get_or_create_official_stats
+                prof = get_or_create_official_stats(state, name)
+                prof["corruption"] = round(min(1.0, float(prof.get("corruption") or 0.0)
+                                               + DISCRETION_CORRUPTION_MONTH), 4)
+                dis_cost["handler"] = name
+                dis_cost["corruption_now"] = prof["corruption"]
+            except Exception:  # noqa: BLE001
+                dis_cost["handler"] = None
+        # 注意：民心可能是 0（合法值），不能用 or 默认（0 是 falsy ⇒ 会被误判成缺失）
+        _cur_sat = getattr(state, "population_satisfaction", None)
+        if _cur_sat is not None:
+            try:
+                state.population_satisfaction = max(0, int(_cur_sat) + DISCRETION_SATISFACTION_MONTH)
+            except (TypeError, ValueError):
+                pass
     entry = {"turn": turn, "narrative": str(narrative or "")[:200],
-             "applied": applied, "blocked": blocked}
+             "applied": applied, "blocked": blocked, "discretion": dis_cost}
     plog = task.setdefault("progress_log", [])
     plog.append(entry)
     if len(plog) > CASE_LOG_KEEP:

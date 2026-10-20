@@ -462,8 +462,17 @@ def _advance_amount(state, task: dict, channels: Dict[str, Any], stance: Dict[st
     if eff is None:
         data["defined"] = False
         return None, data
+    # 赐专断之权（2026-10-20）：承办人可不请旨处置 ⇒ 推进提速；代价在每月结算里扣（贪腐/民心）
+    dis_mult = 1.0
+    try:
+        from core.domains.politics.longterm_case import DISCRETION_SPEED_MULT
+        if task.get("discretion"):
+            dis_mult = float(DISCRETION_SPEED_MULT)
+    except Exception:  # noqa: BLE001
+        dis_mult = 1.0
+    data["discretion_mult"] = round(dis_mult, 4)
     data["defined"] = True
-    return round(base * growth_mult * _num(eff, 0.0) * stance_mult, 4), data
+    return round(base * growth_mult * _num(eff, 0.0) * stance_mult * dis_mult, 4), data
 
 
 def _stage(progress: float) -> str:

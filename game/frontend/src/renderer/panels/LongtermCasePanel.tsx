@@ -370,6 +370,9 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
             批专款后承办人逐月自理，不必再下旨；额度以<b>贯</b>计（与国库扣减同单位），
             月结从所选库房实扣，府库不足则拒批。
           </p>
+          <p className="mt-1 text-xs text-red/80">
+            赐专断：推进提速 ×1.15，但每月承办人贪腐 +0.8%、民心 −1（专断之名，代价难免）。
+          </p>
           {msg && (
             <p className={`mt-1 text-xs ${msgOk === false ? "text-red" : "text-ink"}`}>
               {msgOk === false ? "授权未成：" : msgOk === true ? "已准：" : ""}
