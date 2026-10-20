@@ -1,11 +1,12 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-20T06:18:53Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-20T12:43:52Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
+- **DSH-Audit**（updatedAt=2026-10-20T15:45:00Z）：2026-10-20 全审完成（只审不改）：sz 游戏本体四维并行审查 + Lead 实测复跑。必修 4：外贸货腿造币链（12月 cum_residual +13,470,432）、陆路榷税无付款方、长期案卷专款双扣+账外余额、天道档位槽失败不清空；应修含 AI 生产者签名错配/_ai_failures 不清、案卷页数
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
 - **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序『可自决部分』全部收口并终局认证（M37–M293，会话 256 轮）。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
@@ -41,16 +42,16 @@
 
 ## 最近 8 条工作日志
 
-- `20261020T040237Z-DSH` → [`worklog/20261020T040237Z-DSH.md`](worklog/20261020T040237Z-DSH.md)
-- `20261020T042629Z-DSH` → [`worklog/20261020T042629Z-DSH.md`](worklog/20261020T042629Z-DSH.md)
-- `20261020T053746Z-DSH` → [`worklog/20261020T053746Z-DSH.md`](worklog/20261020T053746Z-DSH.md)
-- `20261020T053840Z-DSH` → [`worklog/20261020T053840Z-DSH.md`](worklog/20261020T053840Z-DSH.md)
-- `20261020T060639Z-DSH` → [`worklog/20261020T060639Z-DSH.md`](worklog/20261020T060639Z-DSH.md)
-- `20261020T060929Z-DSH` → [`worklog/20261020T060929Z-DSH.md`](worklog/20261020T060929Z-DSH.md)
-- `20261020T061737Z-DSH` → [`worklog/20261020T061737Z-DSH.md`](worklog/20261020T061737Z-DSH.md)
-- `20261020T061853Z-DSH` → [`worklog/20261020T061853Z-DSH.md`](worklog/20261020T061853Z-DSH.md)
+- `20261020T093959Z-DSH` → [`worklog/20261020T093959Z-DSH.md`](worklog/20261020T093959Z-DSH.md)
+- `20261020T095707Z-DSH` → [`worklog/20261020T095707Z-DSH.md`](worklog/20261020T095707Z-DSH.md)
+- `20261020T101945Z-DSH` → [`worklog/20261020T101945Z-DSH.md`](worklog/20261020T101945Z-DSH.md)
+- `20261020T104704Z-DSH` → [`worklog/20261020T104704Z-DSH.md`](worklog/20261020T104704Z-DSH.md)
+- `20261020T112554Z-DSH` → [`worklog/20261020T112554Z-DSH.md`](worklog/20261020T112554Z-DSH.md)
+- `20261020T122328Z-DSH` → [`worklog/20261020T122328Z-DSH.md`](worklog/20261020T122328Z-DSH.md)
+- `20261020T124239Z-DSH` → [`worklog/20261020T124239Z-DSH.md`](worklog/20261020T124239Z-DSH.md)
+- `20261020T124351Z-DSH` → [`worklog/20261020T124351Z-DSH.md`](worklog/20261020T124351Z-DSH.md)
 
 ## 计数
 
-- tasks 212（未完成 17）· decisions 219（未闭环 6）· worklog 730 · phase 文件 4
+- tasks 212（未完成 17）· decisions 222（未闭环 6）· worklog 740 · phase 文件 5
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）
