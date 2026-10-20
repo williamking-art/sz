@@ -1,0 +1,12 @@
+{
+ "phase": "2026-10-20 全审完成（只审不改）：sz 游戏本体四维并行审查 + Lead 实测复跑。必修 4：外贸货腿造币链（12月 cum_residual +13,470,432）、陆路榷税无付款方、长期案卷专款双扣+账外余额、天道档位槽失败不清空；应修含 AI 生产者签名错配/_ai_failures 不清、案卷页数据链断、simple 第二轮回弹等。报告已落 game-docs/reviews/宋祚全审报告_2026-10-20.md。",
+ "updatedAt": "2026-10-20T15:45:00Z",
+ "agent": "DSH-Audit",
+ "verification": {
+  "pytest": "4056 tests / 0 failed / 0 errors / 3 skipped（618.656s，junit=_scratch/audit-20261020/junit-20261020.xml）",
+  "tsc": "web 0 错 / node 0 错",
+  "vitest": "18 files / 101 passed",
+  "build": "未跑（只审不改；工作区有他人未提交改动）"
+ },
+ "next": "按报告『建议修复顺序』批次 0 止血：melt 改逐治所 + 治所级桥接 pop_seat_* + _pay_import 走桥并补 12 月残差门；随后陆路榷税付款方、长期案卷单次记账（同改放行门 :80）、天道槽清空。"
+}

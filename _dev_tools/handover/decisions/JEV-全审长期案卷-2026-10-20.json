@@ -1,0 +1,24 @@
+{
+  "id": "JEV-全审长期案卷-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "全审中发现长期旨案卷「批专款」疑似双扣 + 账外余额，按纪律过 Jev 闸门并留痕",
+  "items": [
+    {
+      "question": "authorize_case 已把专款全额从国库扣出，monthly_case_settle 又每月从国库扣月费、budget.remaining 只做备忘 —— 是否判为必修缺陷（双扣 + 账外余额）？",
+      "options": ["是=必修缺陷，修代码并同改放行门断言", "否=可接受的设计（授权是全款预付、月费是额外支出）"],
+      "verdict": "是（p=0.733，高于 tokenrhythm 阈值 0.40）",
+      "probabilities": {"是": 0.7329843044281006},
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实测 new_game 国库 5,000,000 → authorize(300k, monthly=20k) 后 4,700,000 → 再 3 个月 monthly_case_settle 后 4,640,000",
+        "总出库 360,000，专款余额仍记 240,000 ⇒ 300,000 离开国库且不在任何账户",
+        "放行门 test_quality_gate_longterm_case.py:80 把双扣写成期望值",
+        "设计稿只要求「专款真实扣减」「专款耗尽 blocked」，未要求月结再次扣国库",
+        "AGENTS.md §3 硬约束：钱粮只落 POP 或国库/内帑，禁平行存量账本；budget.remaining 是钱额备忘却不对应任何账户"
+      ],
+      "applied_in": "只审不改：写入全审报告必修项；修复时须同时改 test_quality_gate_longterm_case.py:80 的期望断言",
+      "reopen_if": "用户明确裁定「授权款是预付、月费另行从国库支出」并接受 budget 为纯上限（则剩余备忘仍需改为上限语义、不得称余额）"
+    }
+  ]
+}

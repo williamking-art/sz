@@ -1,0 +1,65 @@
+{
+  "id": "JEV-2026-10-20-修复批",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "全审报告后续修复批的四项决策留痕（范围/口径/交付深度/前序未提交改动处置）",
+  "items": [
+    {
+      "question": "本轮修复范围取哪个：A=仅必修4条；B=必修+后端应修；C=必修+全部应修（不含可选）；D=全量含可选？",
+      "options": ["A=仅必修4条", "B=必修4 + 后端应修（AI/数值/交通，不含前端结构改动）", "C=必修4 + 全部应修（含前端案卷数据链/单位/缺失语义，不含可选）", "D=必修+应修+可选"],
+      "verdict": "C（Lead 裁定）",
+      "probabilities": {"A": 0.3598597049713135, "B": 0.3429509997367859, "C": 0.26082971692085266, "D": 0.03635963797569275},
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "Jev 首选 A 0.3599、次选 B 0.3429，差距仅 0.017，属近平手 ⇒ 按纪律自行再论证",
+        "用户原话是「修复」，不是「只修必修」；应修项里含已实证的功能断裂（案卷页打不开、AI 生产者每月假失败），不修等于把已知缺陷留在树里",
+        "应修项都有 file:line 与验收断言，4056 条全量回归可兜底；可选层（打磨/风格）本轮不做",
+        "修复按写入范围拆给 4 个执行者，文件不重叠，能并行且不互相覆盖"
+      ],
+      "applied_in": "本轮修复批按 C 执行；可选层只在报告「可选」节保留",
+      "reopen_if": "全量回归出现大面积失败或时间不够时，降级到 A/B 并记录未修项"
+    },
+    {
+      "question": "长期旨案卷专款口径修法：A=授权只登额度、月结实扣；B=授权款转入真实托管账户、按月划出？",
+      "options": ["A=只登额度+月结实扣", "B=真实托管账户+按月划出"],
+      "verdict": "A 成立",
+      "probability": 0.5750439167022705,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "两案都能消除双扣与账外余额；A 不动 ACCOUNTS/存档/读数，B 要新增账户并改 M0–M3 与存档",
+        "设计稿只要求「专款真实扣减」「不足拒批」「耗尽 blocked」，未要求预拨款；A 的「额度上限 + 月结实扣」满足全部三条",
+        "budget.remaining 在 A 下是支出上限（非货币账本），不违反 POP 挂载律条 4"
+      ],
+      "applied_in": "game/core/domains/politics/longterm_case.py::authorize_case / monthly_case_settle / case_readout；同改 test_quality_gate_longterm_case.py 与 test_quality_gate_case_authorize.py",
+      "reopen_if": "产品要「预拨款锁定」语义（钱先出库、不可挪用）时改 B"
+    },
+    {
+      "question": "耦合/复用/组件插件这一块本轮交付深度：A=只出文档；B=文档+低风险落地（依赖守卫、抽公共接口/复用清单、登记插件点）；C=文档+重构？",
+      "options": ["A=只出盘点+方案文档", "B=文档+低风险落地（依赖守卫+复用清单+插件点登记）", "C=文档+重构（拆循环/迁移调用方）"],
+      "verdict": "B 成立",
+      "probability": 0.7567622661590576,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "本轮同时在做必修/应修修复，大重构会与修复批次抢文件并放大回归面",
+        "项目已有事实插件点（SettlementPipeline 49 步、AGENT_DEFS、SITUATION_EFFECT_PATHS、readout_hub、前端 PanelKind/OverlayStack），先登记成册 + 守卫方向即可获得大部分收益",
+        "0.757 显著高于次选 0.170，判据不模糊"
+      ],
+      "applied_in": "_dev_tools/game-docs/analysis/模块耦合与复用盘点_2026-10-20.md、_dev_tools/game-docs/docs/扩展点与插件清单_2026-10-20.md、_dev_tools/game-dev/tests/test_architecture_import_guard.py",
+      "reopen_if": "耦合盘点显示某条循环依赖正卡住修复（如 core↔application）时，再单独开重构批"
+    },
+    {
+      "question": "能否把 decree_duration.py / transport.py 的前序未提交改动随本轮修复一起提交（注明来源），其余前序改动保持未提交？",
+      "options": ["可以", "不可以"],
+      "verdict": "可以（typesafe 闸门 p=0.710，阈值 0.45）",
+      "probabilities": {"可以": 0.71},
+      "provider": "typesafe/jev-latest",
+      "premises_verified_by_me": [
+        "这两个文件是全审复核过的稳定改动（4056/0/0/3 通过），本轮修复必须在其上继续改，无法只提交新增部分",
+        "质量门测试 2 个文件与 B2-guard-quality-gate.json 属另一会话的在办工作，保持未提交不碰",
+        "AGENTS 纪律：保留他人未提交改动、禁 git checkout/clean；commit message 会注明前序来源"
+      ],
+      "applied_in": "提交批次把 decree_duration.py / transport.py 的既有 diff 一并纳入并注明来源",
+      "reopen_if": "前序会话恢复并声明这些文件仍在其手时，改为让其先提交"
+    }
+  ]
+}

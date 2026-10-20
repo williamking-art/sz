@@ -1,0 +1,22 @@
+{
+  "id": "JEV-全审范围-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "用户指令「全审一遍项目」的范围取舍裁定（一条一文件，JSON 正文引号一律用「」）",
+  "items": [
+    {
+      "question": "本次全审的审查范围应取哪一个：仅 sz 游戏本体 / sz+songzuo-site / sz+工作区工具链？",
+      "options": ["A=仅 sz 游戏本体（延续历史全审口径，深度优先）", "B=sz + songzuo-site 官网（广度优先，深度下降）", "C=sz + 工作区工具链与交接层（不含官网）"],
+      "verdict": "A 成立",
+      "probability": 0.9461889266967773,
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "D:\\codebuddy\\AGENTS.md 规定主项目是《宋祚》（在 sz/），songzuo-site 是相互独立的官网仓库",
+        "历史全审（reviews/宋祚代码质量全检.md、reviews/game全审报告.md、_scratch/audit-20261017）均只覆盖 sz/game",
+        "本次会话是只读审查，不改代码；广度扩到官网会显著降低游戏本体的审查深度"
+      ],
+      "applied_in": "本次全审（2026-10-20）只审 sz 游戏本体；官网与工具链不在本轮范围",
+      "reopen_if": "用户明确要求连官网/工作区一起审时重开"
+    }
+  ]
+}
