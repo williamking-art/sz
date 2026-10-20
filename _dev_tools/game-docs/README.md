@@ -1,4 +1,4 @@
-﻿# `game-docs/` · 文档总览
+# `game-docs/` · 文档总览
 
 > **2026-10-20 整理**：本文件只做**阅读路径与分层入口**，不再复制各文档的详细说明。
 > 当前机制先读 [`docs/游戏机制说明.md`](docs/游戏机制说明.md)；专题状态看 `specs/*/tasks.md`。
@@ -38,7 +38,7 @@
 
 ## 验证基线（唯一取数口径）
 
-- 全量：**4051 tests / 0 failed / 0 errors / 3 skipped**（2026-10-20，`junit-m9b.xml`，653.7s）；
+- 全量：**4179 tests / 0 failed / 0 errors / 3 skipped**（2026-10-20 续批，`junit-o4b-20261020.xml`，592.7s；含并行会话接线与复审 O1–O6 回归）；
 - 干净 clone：**3535 / 0 failed / 12 skipped**（`junit-cleanC.xml`，479.4s；9 skip 为舆图产物未重建）；
 - 取数必须用 `--junitxml` 的 `testsuite` 属性，不数进度点；历史数字只是当时快照。
 

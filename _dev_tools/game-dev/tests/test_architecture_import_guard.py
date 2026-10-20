@@ -121,6 +121,10 @@ _FROZEN_UPLINK = {
     ("core.events", "ai.client_utils"): 1,
     ("core.free_effect", "ai.client_utils"): 1,
     ("core.settlement_imperial", "ai.client_utils"): 2,
+    # 2026-10-20 事件民心冲击档预取：结算期禁止同步 HTTP，玩家动作路径须在结算前
+    # 预取档位（application.shock_prefetch 只转发生产者/写槽位）。方向同 R2 既有例外，
+    # 真解是把它挪进 application.turn_lifecycle（另立批次，避免动玩法顺序）。
+    ("core.commands", "application.shock_prefetch"): 1,
 
     # ── R3 业务 → 结算/命令编排（5 对 / 7 条语句）────────────────────────
     # why: 业务机制反调编排（"结算步应只发领域事件，不反调编排器"）。
@@ -136,15 +140,20 @@ _FROZEN_UPLINK = {
 # 判据：计算出的任一 SCC 必须是**某个冻结 SCC 的子集**。
 # ⇒ 新模块被卷进环 = 红；拆环/环变小 = 绿（棘轮容许改善）。
 _FROZEN_CYCLES = (
-    # 37 模块大环（解算链 + AI 契约 + 读档入口）。最小环：
+    # 39 模块大环（解算链 + AI 契约 + 读档入口）。最小环：
     #   application.load_game → core.save_load → application.load_game
+    # 2026-10-20 新增成员：`application.shock_prefetch`（冲击档预取）、
+    #   `core.domains.administration.monthly_gazette`（邸报）——由并行会话功能接线带入，
+    #   二者都通过既有 AI/读档边进入本环；拆环需先定接口归属，另立批次。
     frozenset({
         "ai.client", "ai.client_narrative", "ai.client_utils", "ai.contracts_court",
         "ai.contracts_decree", "ai.contracts_misc", "ai.contracts_settle", "ai.jev_gate",
         "ai.narrative_fallback", "ai.validators", "application.agent_router",
         "application.decree_prefetch", "application.load_game",
+        "application.shock_prefetch",
         "application.turn_lifecycle", "core.asset_context", "core.commands",
         "core.commands_decree", "core.decree_gates",
+        "core.domains.administration.monthly_gazette",
         "core.domains.administration.settlement_officialdom",
         "core.domains.construction.settlement_tech",
         "core.domains.economy.readout_hub",

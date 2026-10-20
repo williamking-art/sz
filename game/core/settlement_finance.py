@@ -284,6 +284,7 @@ def _settle_coin_melt(state, log):
     # 凭空造币 +13,470,432）。未下沉（裸 GameState/旧档）才回退旧写法。
     from core.foundation.ledger.pop_bridge import refresh_route_class
     _melted = 0
+    _unbacked = 0
     for p in state.prefectures.values():
         seats = (p or {}).get("seats") or {}
         if not seats:
@@ -298,8 +299,10 @@ def _settle_coin_melt(state, log):
                         _melted += _take
             continue
         touched = set()
+        seat_classes = set()
         for srow in seats.values():
             for cls, pop in ((srow or {}).get("pops") or {}).items():
+                seat_classes.add(cls)
                 w = float(pop.get("wealth", 0) or 0)
                 if w <= 0:
                     continue
@@ -309,8 +312,24 @@ def _settle_coin_melt(state, log):
                 pop["wealth"] = w - _take          # 治所真账（唯一权威）
                 _melted += _take
                 touched.add(cls)
+        # O4（修复复审）：部分下沉/历史残留时，某阶层可能只在**路级镜像**里、
+        # 治所无真账。**不得按镜像补熔**——镜像可能滞后偏高，熔镜像再回铺
+        # 等于凭空造币；这里跳过并留痕（应熔额计入统计，便于对账发现缺口）。
+        for cls, mp in (p.get("pops") or {}).items():
+            if cls in seat_classes:
+                continue
+            w = float((mp or {}).get("wealth", 0) or 0)
+            if w > 0:
+                _unbacked += int(w * MELT_RATE)
         for cls in touched:
             refresh_route_class(p, cls)            # O(1) 刷镜像，不重铺其他治所
+    if _unbacked > 0:
+        state.statistics["coin_melt_unbacked_skipped"] = (
+            int(state.statistics.get("coin_melt_unbacked_skipped", 0) or 0) + _unbacked)
+        import logging as _lg
+        _lg.getLogger("settlement").warning(
+            "[熔铜] %d 贯只在路级镜像、治所无真账 ⇒ 本月跳过不熔（不按镜像补熔，避免造币）",
+            _unbacked)
     if _melted > 0:
         # 熔铜池：钱变铜料（守恒），不在 money 公式（退出流通）
         # 注：此为 M_ALL 内部转移（POP wealth 减少 = melted_pool 增加，ΔM_ALL == 0），

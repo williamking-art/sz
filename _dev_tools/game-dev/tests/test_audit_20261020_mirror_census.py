@@ -36,3 +36,25 @@ def test_changping_buy_reads_seat_truth_not_stale_mirror():
 
     assert _local_treasury_pool(_sunk_route()) == 150
     assert _local_treasury_pool({"local_treasury": 7}) == 7
+
+
+def test_coin_melt_skips_unbacked_stale_mirror_classes():
+    """O4：部分下沉/镜像残留的阶层只在镜像、治所无真账 ⇒ 跳过不熔、留痕，且不造币。"""
+    from content.data import MELT_RATE
+    from core.commands import new_game
+    from core.settlement_finance import _settle_coin_melt
+
+    s = new_game()
+    route = "京畿路"
+    p = s.prefectures[route]
+    seats = p.get("seats") or {}
+    for sr in seats.values():
+        (sr.get("pops") or {}).pop("工匠", None)   # 模拟「治所没有这个阶层」
+    stale_wealth = 1_000_000
+    p.setdefault("pops", {})["工匠"] = {"size": 0, "wealth": stale_wealth}
+    before = int(s.statistics.get("coin_melt_unbacked_skipped", 0) or 0)
+    _settle_coin_melt(s, [])
+    skipped = int(s.statistics.get("coin_melt_unbacked_skipped", 0) or 0) - before
+    assert skipped == int(stale_wealth * MELT_RATE), (skipped, MELT_RATE)
+    assert all("工匠" not in ((sr.get("pops") or {})) for sr in seats.values()), \
+        "不得把镜像里的残留阶层补写回治所（会造币）"
