@@ -1,0 +1,47 @@
+{
+ "id": "JEV-DEC-多因素合成方式-2026-10-20",
+ "createdAt": "2026-10-20T08:35:00+08:00",
+ "agent": "DSH",
+ "question": "诏令月数的多因素如何合成（连乘/加权求和/对数域加权）",
+ "options": [
+  "A 加权求和（偏差×权重）",
+  "B 保留乘法 + 逐项与总量夹取",
+  "C 对数域加权平均"
+ ],
+ "verdict": "Jev 选 B（0.653）；**实际采纳 B∩C：加权几何平均 + 双夹取**",
+ "probabilities": {
+  "B": 0.6532,
+  "C": 0.189,
+  "A": 0.1578
+ },
+ "authority": "Jev 裁定 + 用户质疑（乘法爆炸/权重缺失）共同决定",
+ "conflict_resolution": "用户明确要求『权重』，纯 B 无法表达主次；加权几何平均即乘法的加权形式（B∩C），既保留各因素倍率语义又有显式权重与天然有界",
+ "weights": {
+  "attitude": 0.4,
+  "ability": 0.25,
+  "prestige": 0.2,
+  "followup": 0.15
+ },
+ "bounds": {
+  "mult": [
+   0.55,
+   1.9
+  ],
+  "months": [
+   3,
+   36
+  ]
+ },
+ "measured": {
+  "pure_multiplication_worst_months": 47.5,
+  "weighted_worst_months": 24,
+  "weighted_best_months": 5
+ },
+ "premises_verified_by_me": [
+  "纯连乘最坏 18×1.6×1.25×1.2×1.1=47.5 月，只能靠 clamp 压回 36，属掩盖而非解决",
+  "加权几何平均对权重归一（和=1）时必落在 min(f_i)..max(f_i) 之间，天然有界",
+  "权重显式后，态度(0.40)对月数影响大于跟进(0.15)，与『敢不敢拖』的叙事重点一致"
+ ],
+ "applied_in": "core/domains/politics/decree_duration.py；门 batch4 扩到 18 条",
+ "reopen_if": "实测发现权重需按诏令类型区分（如军事诏更看能力）；或因素数量增加导致几何平均解释困难"
+}

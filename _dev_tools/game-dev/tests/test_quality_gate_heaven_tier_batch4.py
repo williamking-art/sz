@@ -145,3 +145,48 @@ def test_attitude_invalid_falls_back():
     s._decree_ai = {"execution_attitude": "抗旨不遵"}
     got = resolve_decree_duration(s, ability=60, followup=0)
     assert got["attitude"]["mult"] == 1.00
+
+def test_weights_declared_and_sum_to_one():
+    """权重必须显式且归一（否则无法解释主次）。"""
+    from core.domains.politics.decree_duration import FACTOR_WEIGHTS
+
+    assert set(FACTOR_WEIGHTS) == {"attitude", "ability", "prestige", "followup"}
+    assert abs(sum(FACTOR_WEIGHTS.values()) - 1.0) < 1e-9
+
+
+def test_weighted_geometric_mean_is_bounded():
+    """最坏因素同时出现也不爆炸：加权几何平均 + 总乘数夹取双保险。"""
+    from core.domains.politics.decree_duration import MULT_MAX, MULT_MIN
+
+    s = _S(prestige=10, pace="缓")
+    s._decree_ai = {"pace": "缓", "execution_attitude": "拖延"}
+    worst = resolve_decree_duration(s, ability=10, followup=0)
+    assert MULT_MIN <= worst["breakdown"]["weighted_mult"] <= MULT_MAX
+    assert worst["months"] <= 36
+
+    s2 = _S(prestige=99, pace="速")
+    s2._decree_ai = {"pace": "速", "execution_attitude": "奉行"}
+    best = resolve_decree_duration(s2, ability=99, followup=3)
+    assert MULT_MIN <= best["breakdown"]["weighted_mult"] <= MULT_MAX
+    assert best["months"] >= 3
+
+
+def test_high_weight_factor_moves_more():
+    """态度权重 0.40 > 跟进 0.15 ⇒ 同幅度变化，态度对月数影响更大。"""
+    base = _S(prestige=70, pace="常")
+    base._decree_ai = {"pace": "常", "execution_attitude": "奉行"}
+    m0 = resolve_decree_duration(base, ability=60, followup=0)["months"]
+
+    s_att = _S(prestige=70, pace="常")
+    s_att._decree_ai = {"pace": "常", "execution_attitude": "拖延"}
+    m_att = resolve_decree_duration(s_att, ability=60, followup=0)["months"]
+
+    m_fol = resolve_decree_duration(base, ability=60, followup=3)["months"]
+    assert abs(m_att - m0) > abs(m_fol - m0), (m0, m_att, m_fol)
+
+
+def test_breakdown_reports_weights_and_mult():
+    got = resolve_decree_duration(_S(), ability=60, followup=1)
+    bd = got["breakdown"]
+    assert "weighted_mult" in bd and isinstance(bd["weights"], dict)
+    assert abs(sum(bd["weights"].values()) - 1.0) < 1e-9

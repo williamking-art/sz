@@ -25,13 +25,20 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 __all__ = ["BASE_MONTHS", "PRIORITY_TO_PACE", "ATTITUDE_LEVELS", "ATTITUDE_MULT",
-           "resolve_decree_duration", "resolve_execution_attitude", "duration_breakdown"]
+           "resolve_decree_duration", "resolve_execution_attitude", "duration_breakdown",
+           "FACTOR_WEIGHTS", "MULT_MIN", "MULT_MAX"]
 
 BASE_MONTHS: Dict[str, int] = {"速": 6, "常": 12, "缓": 18}
 PRIORITY_TO_PACE: Dict[str, str] = {"高": "速", "中": "常", "低": "缓"}
 ATTITUDE_LEVELS = ("奉行", "依违", "阳奉阴违", "拖延")
 ATTITUDE_MULT: Dict[str, float] = {"奉行": 1.00, "依违": 1.15, "阳奉阴违": 1.35, "拖延": 1.60}
 MONTHS_MIN, MONTHS_MAX = 3, 36
+
+#: 因素权重（显式，和=1）：加权几何平均的指数，决定各因素话语权
+FACTOR_WEIGHTS = {"attitude": 0.40, "ability": 0.25, "prestige": 0.20, "followup": 0.15}
+
+#: 总乘数夹取（防数值爆炸；与加权几何平均共同构成双保险）
+MULT_MIN, MULT_MAX = 0.55, 1.90
 
 
 def _ability_mult(ability: Optional[float]) -> tuple:
@@ -143,7 +150,13 @@ def resolve_decree_duration(state, *, ability: Optional[float] = None,
     am, an = _ability_mult(ability)
     pm, pn = _prestige_mult(state.prestige if prestige is None else prestige)
     fm, fn = _followup_mult(followup)
-    raw = base * att["mult"] * am * pm * fm
+    w = FACTOR_WEIGHTS
+    # 加权几何平均：mult = Π f_i ** w_i
+    # （权重显式、和=1 ⇒ 结果落在各因素区间内；再对总乘数夹取，双重防爆）
+    mult = ((att["mult"] ** w["attitude"]) * (am ** w["ability"])
+            * (pm ** w["prestige"]) * (fm ** w["followup"]))
+    mult = max(MULT_MIN, min(MULT_MAX, mult))
+    raw = base * mult
     months = max(MONTHS_MIN, min(MONTHS_MAX, int(round(raw))))
     return {
         "months": months,
@@ -157,6 +170,8 @@ def resolve_decree_duration(state, *, ability: Optional[float] = None,
             "prestige": {"mult": pm, "note": pn,
                          "value": getattr(state, "prestige", prestige)},
             "followup": {"mult": fm, "note": fn, "value": followup},
+            "weighted_mult": round(mult, 4),
+            "weights": dict(w),
             "raw": round(raw, 2),
         },
     }
