@@ -814,6 +814,15 @@ def settle_local(state) -> list:
             _lg.getLogger("settle_local").warning(
                 "路级 pops 守卫装配失败，本回合按未启用处理（结算照常）：", exc_info=True)
             _guard_on = False
+    # 事件民心冲击档预取（2026-10-20）：结算前让天道判「饥荒/乏粮/内卫」冲击轻重，
+    # 结算只读槽位；失败不阻断。
+    try:
+        from application.shock_prefetch import prefetch_shock_tiers
+        _shock = prefetch_shock_tiers(state)
+        if _shock:
+            state.statistics["shock_prefetch"] = _shock
+    except Exception:  # noqa: BLE001
+        _lg.getLogger("settle_local").warning("冲击档预取失败（不阻断结算）", exc_info=True)
     try:
         return run_monthly_settlement(state)
     except Exception as e:  # noqa: BLE001

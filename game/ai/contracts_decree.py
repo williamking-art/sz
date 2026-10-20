@@ -563,6 +563,35 @@ class DecreeContractMixin:
 
 
 
+
+    SHOCK_SLOTS = {"granary": "_granary_shock_tier", "famine": "_famine_shock_tier",
+                   "focus": "_focus_shock_tier"}
+
+    def shock_decide(self, state, kind: str, context: str = ""):
+        """事件民心冲击档生产者（2026-10-20）：内嵌 Jev 判「轻/中/重」。
+
+        kind ∈ {granary, famine, focus}；结果写 state._<kind>_shock_tier。
+        纪律：只在结算前置/动作路径调用；失败/非法档不写槽位（缺失≠假装已判）。
+        """
+        slot_name = self.SHOCK_SLOTS.get(str(kind))
+        if not slot_name:
+            return None
+        try:
+            from ai import jev_gate
+        except Exception:  # noqa: BLE001
+            return None
+        ctx = ("民心=%s 皇威=%s 国库=%s；情形：%s" % (
+            getattr(state, "population_satisfaction", None),
+            getattr(state, "prestige", None),
+            getattr(state, "treasury", None), context or kind))
+        got = jev_gate.decide_choice(
+            ctx, "此事对民心的冲击轻重如何？",
+            {"轻": "小扰，民不甚觉", "中": "明显损及民生", "重": "伤筋动骨、民怨沸腾"})
+        if not isinstance(got, dict) or got.get("choice") not in ("轻", "中", "重"):
+            return None
+        setattr(state, slot_name, got["choice"])
+        return {"kind": kind, "tier": got["choice"]}
+
     def unrest_decide(self, state):
         """民变档位生产者（2026-10-20）：内嵌 Jev 出「无/小乱/骚乱/大乱」。
 
