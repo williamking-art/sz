@@ -174,11 +174,11 @@ B4 开工时先复核 `settlement_tech._settle_projects`：
 | 批次落地后 | 同步到 |
 |---|---|
 | B0 | `docs/开发服务器与回归测试说明.md`（**基线数字只写这里**）、`docs/货币口径规范`（若新增账户） |
-| B1 | `docs/游戏机制说明.md` §四（市场口径）、`game/core/README.md`、`settlement_granary.py` 纪律 |
+| B1 | `docs/游戏机制说明.md` §6（经济/市场口径）、`game/core/README.md`、`settlement_granary.py` 纪律 |
 | B2 | `docs/货币口径规范`（价格机制）、`content/README.md`（`MATERIAL_PRICE_BASE` 由静态转动态） |
 | B3 | `docs/民间经济与营造市场统一设计.md`＋`docs/民间需求与营造材料市场设计.md`（"尚未实施"→已实施＋实际口径）、`core/README.md` |
 | B4 | 同上（营造/工期口径）、`core/README.md`、`construction.py` 纪律 |
-| B5 | `docs/游戏机制说明.md` §三（诏令四维度）、`core/README.md`、`agent_router` 接线状态 |
+| B5 | `docs/游戏机制说明.md` §2（权力/权限/皇威）、`core/README.md`、`agent_router` 接线状态 |
 
 ---
 最后更新：2026-10-11（按用户修订同步：三处库存载体、多路径成交、批次改 B0–B5、营建支出改为开工复核项）

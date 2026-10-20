@@ -85,7 +85,7 @@ sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令�
 
 | 文件 | 讲什么 |
 |---|---|
-| `_dev_tools/game-docs/docs/游戏机制说明.md` | **当前真实机制** + §十一「设计稿：已成文机制的状态索引」（判断"已生效/待实现"；含自相矛盾文档清单与跨文档阻断链） |
+| `_dev_tools/game-docs/docs/游戏机制说明.md` | **当前机制总览（精简版）**：核心循环/权限/派系/科举/奏报/经济/天道与边界；设计稿与未落地状态见 `specs/` 与 `reviews/未落地设计裁定与实施路线.md`；旧全量版在 `archive/` |
 | `_dev_tools/game-docs/docs/局势系统实施规范.md` | 局势系统 v1/v2 唯一规范（注意：`<工作区根>\宋祚局势系统实施规范.md` 是**失效路径**） |
 | `_dev_tools/game-docs/docs/货币口径规范_M0M1M2.md` | M0–M3 口径与月度对账恒等式 |
 | `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` | 开发/测试环境 + CloudBase 接入现状（§8） |
