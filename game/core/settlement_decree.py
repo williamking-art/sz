@@ -767,9 +767,15 @@ def _apply_decree_effect(state, decree, log):
             # 加薪/改俸（利官）：天道判断「谁敢拖」——态度档位写进 pay_system 供复盘
             try:
                 from core.domains.politics.decree_duration import resolve_execution_attitude
+                from core.domains.politics.decree_duration import resolve_decree_duration
                 _att = resolve_execution_attitude(state, decree_kind="pay_reform",
                                                beneficiary="利官利益")
+                _dur = resolve_decree_duration(state, decree_kind="pay_reform",
+                                               followup=int(getattr(state, "decree_followup", 0) or 0))
                 state.pay_system["execution_attitude"] = _att
+                # 即时诏令：本回合生效；拖延体现为**完成度打折**（不是拖成长期）
+                state.pay_system["timing"] = _dur.get("timing")
+                state.pay_system["execution_completion"] = _dur.get("execution_completion")
                 if _att.get("level"):
                     log.append("[改制] 官员执行态度：" + str(_att.get("level")) +
                                "（" + str(_att.get("source")) + "）")

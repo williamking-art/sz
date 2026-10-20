@@ -1,0 +1,21 @@
+{
+ "id": "USR-RUL-诏令时效三分-2026-10-20",
+ "createdAt": "2026-10-20T08:55:00+08:00",
+ "agent": "DSH",
+ "kind": "用户裁定（补充时效维度）",
+ "user_ruling": "能区分要长期和一个回合就能办的圣旨吗，例如加薪这种，还能被拖成长期？",
+ "adopted_model": {
+  "immediate": "改标量诏令：本回合生效（months=1）；拖延体现为 execution_completion 打折（1.0/0.85/0.6/0.35）",
+  "short": "疏浚/赈济/安置/练兵：1–3 月",
+  "long": "裁冗/经界/反腐/仓法/军需：6–18 月（加权多因素）",
+  "unknown": "未知效果键按 long 处理并在 timing_reason 注明"
+ },
+ "premises_verified_by_me": [
+  "加薪在代码里只是改 state.pay_system 的标量，本就即时生效；套 12–22 月月数属概念错位",
+  "「拖延」对即时诏令的合理表现是打折/走样，而不是把 1 个月的政令拖成两年",
+  "裁冗/省浮费走 waste_reform 流程，本身是多年工程，仍应保留长月数",
+  "未知效果键保守按长期处理，避免新诏令被误判为即时"
+ ],
+ "applied_in": "core/domains/politics/decree_duration.py（TIMING_BY_EFFECT / ATTITUDE_COMPLETION）；settlement_decree pay_reform 接线；门 batch4 扩到 23 条",
+ "reopen_if": "新增诏令效果键未归入时效表；或即时诏令的完成度需要影响具体数值（不止记录）"
+}

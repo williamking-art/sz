@@ -190,3 +190,43 @@ def test_breakdown_reports_weights_and_mult():
     bd = got["breakdown"]
     assert "weighted_mult" in bd and isinstance(bd["weights"], dict)
     assert abs(sum(bd["weights"].values()) - 1.0) < 1e-9
+
+def test_immediate_decree_is_one_turn():
+    """加薪这类即时诏令：本回合生效（months=1），拖延**不**拖成长期。"""
+    s = _S(prestige=70)
+    s._decree_ai = {"pace": "缓", "execution_attitude": "拖延"}
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["timing"] == "immediate"
+    assert got["months"] == 1, got["months"]
+    assert got["execution_completion"] == 0.35
+
+
+def test_immediate_奉行_full_completion():
+    s = _S(prestige=70)
+    s._decree_ai = {"pace": "常", "execution_attitude": "奉行"}
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["months"] == 1 and got["execution_completion"] == 1.0
+
+
+def test_long_decree_keeps_months():
+    """裁冗/省费属长期工程：月数仍按多因素算（不会被当成即时）。"""
+    s = _S(prestige=70)
+    s._decree_ai = {"pace": "常", "execution_attitude": "阳奉阴违"}
+    got = resolve_decree_duration(s, decree_kind="reduce_office", ability=50, followup=0)
+    assert got["timing"] == "long"
+    assert got["months"] >= 6, got["months"]
+
+
+def test_short_decree_bounded_1_to_3():
+    s = _S(prestige=70)
+    s._decree_ai = {"pace": "常", "execution_attitude": "奉行"}
+    got = resolve_decree_duration(s, decree_kind="canal_dredge", ability=99, followup=3)
+    assert got["timing"] == "short"
+    assert 1 <= got["months"] <= 3
+
+
+def test_unknown_kind_treated_as_long_with_reason():
+    from core.domains.politics.decree_duration import classify_decree_timing
+
+    timing, reason = classify_decree_timing("反间计")
+    assert timing == "long" and "未知" in reason

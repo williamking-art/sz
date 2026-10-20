@@ -26,13 +26,33 @@ from typing import Any, Dict, Optional
 
 __all__ = ["BASE_MONTHS", "PRIORITY_TO_PACE", "ATTITUDE_LEVELS", "ATTITUDE_MULT",
            "resolve_decree_duration", "resolve_execution_attitude", "duration_breakdown",
-           "FACTOR_WEIGHTS", "MULT_MIN", "MULT_MAX"]
+           "FACTOR_WEIGHTS", "MULT_MIN", "MULT_MAX",
+           "DECREE_TIMING", "TIMING_BY_EFFECT", "ATTITUDE_COMPLETION",
+           "classify_decree_timing"]
 
 BASE_MONTHS: Dict[str, int] = {"速": 6, "常": 12, "缓": 18}
 PRIORITY_TO_PACE: Dict[str, str] = {"高": "速", "中": "常", "低": "缓"}
 ATTITUDE_LEVELS = ("奉行", "依违", "阳奉阴违", "拖延")
 ATTITUDE_MULT: Dict[str, float] = {"奉行": 1.00, "依违": 1.15, "阳奉阴违": 1.35, "拖延": 1.60}
 MONTHS_MIN, MONTHS_MAX = 3, 36
+
+#: 诏令时效：即时（本回合办妥）/ 短期（1–3 月）/ 长期（工程型）
+DECREE_TIMING = ("immediate", "short", "long")
+
+#: 效果键 → 时效（未列出默认 long，避免把工程当儿戏）
+TIMING_BY_EFFECT = {
+    "pay_reform": "immediate", "commerce_tax": "immediate", "single_whip": "immediate",
+    "prestige": "immediate", "treasury": "immediate", "imperial_treasury": "immediate",
+    "population_satisfaction": "immediate", "faction_change": "immediate",
+    "defense_bonus": "immediate", "he_mi": "immediate", "grain_stabilize": "immediate",
+    "canal_dredge": "short", "relief": "short", "settle_refugees": "short",
+    "army_strength": "short",
+    "reduce_office": "long", "curtail_waste": "long", "land_survey": "long",
+    "anti_corruption": "long", "granary_reform": "long", "military_supply": "long",
+}
+
+#: 即时诏令的「执行完成度」（拖延体现为打折，而非拖成长期）
+ATTITUDE_COMPLETION = {"奉行": 1.00, "依违": 0.85, "阳奉阴违": 0.60, "拖延": 0.35}
 
 #: 因素权重（显式，和=1）：加权几何平均的指数，决定各因素话语权
 FACTOR_WEIGHTS = {"attitude": 0.40, "ability": 0.25, "prestige": 0.20, "followup": 0.15}
@@ -139,6 +159,13 @@ def register_attitude_provider(fn) -> None:
     _ATTITUDE_PROVIDERS.append(fn)
 
 
+def classify_decree_timing(decree_kind: str) -> tuple:
+    """效果键 → (时效, 依据)。未知键按 long（工程型）处理并注明。"""
+    k = str(decree_kind or "").strip()
+    if k in TIMING_BY_EFFECT:
+        return TIMING_BY_EFFECT[k], "按效果键"
+    return "long", "未知效果键，按长期工程处理"
+
 def resolve_decree_duration(state, *, ability: Optional[float] = None,
                             followup: Optional[int] = None,
                             prestige: Optional[float] = None,
@@ -150,19 +177,29 @@ def resolve_decree_duration(state, *, ability: Optional[float] = None,
     am, an = _ability_mult(ability)
     pm, pn = _prestige_mult(state.prestige if prestige is None else prestige)
     fm, fn = _followup_mult(followup)
+    timing, timing_reason = classify_decree_timing(decree_kind)
     w = FACTOR_WEIGHTS
-    # 加权几何平均：mult = Π f_i ** w_i
     # （权重显式、和=1 ⇒ 结果落在各因素区间内；再对总乘数夹取，双重防爆）
     mult = ((att["mult"] ** w["attitude"]) * (am ** w["ability"])
             * (pm ** w["prestige"]) * (fm ** w["followup"]))
     mult = max(MULT_MIN, min(MULT_MAX, mult))
     raw = base * mult
-    months = max(MONTHS_MIN, min(MONTHS_MAX, int(round(raw))))
+    if timing == "immediate":
+        # 即时诏令：本回合办妥（monhts=1）；拖延不打月数，而是**execution_completion 打折**
+        months = 1
+    elif timing == "short":
+        months = max(1, min(3, int(round(3 * mult))))
+    else:
+        months = max(MONTHS_MIN, min(MONTHS_MAX, int(round(raw))))
+    completion = ATTITUDE_COMPLETION.get(att.get("level") or "", 1.00)
     return {
         "months": months,
         "base": base,
         "pace": pace,
         "source": source,
+        "timing": timing,
+        "timing_reason": timing_reason,
+        "execution_completion": completion,
         "attitude": att,
         "breakdown": {
             "attitude": {"mult": att["mult"], "note": att["note"], "source": att["source"]},
