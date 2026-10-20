@@ -5,6 +5,31 @@ import { getApiClient } from "../api/client";
 /** 长期旨案卷（数据来自后端 /api/readouts → longterm_cases；口径单点在 core）。 */
 interface CaseEffect { key: string; amount: number | null }
 interface CaseLog { turn: number | null; narrative: string; applied?: CaseEffect[]; blocked?: string | null }
+interface StanceRow { name: string; influence: number | null; reason: string }
+interface HandlerStats {
+  attrs: Record<string, number | null> | null;
+  potential: Record<string, number | null> | null;
+  attr_names: Record<string, string> | null;
+  loyalty: number | null;
+  corruption: number | null;
+  traits: string[];
+  faction: string | null;
+}
+interface AdvanceReadout {
+  stage: string | null;
+  progress: number | null;
+  forecast: { advance_pct: number | null; text: string } | null;
+  blockers: string[];
+  supporters: StanceRow[];
+  opposers: StanceRow[];
+  support_net: number | null;
+  support_bonus: number | null;
+  stance_mult: number | null;
+  decree_count: number | null;
+  stall_months: number | null;
+  months: number | null;
+  outcome: string | null;
+}
 interface CaseReadout {
   case_no: string | null;
   title: string | null;
@@ -17,7 +42,7 @@ interface CaseReadout {
   linked_region: string | null;
   linked_factions: string[];
   cancellable: boolean;
-  handler: { name: string | null; org: string | null; stats: Record<string, number | null> | null };
+  handler: { name: string | null; org: string | null; stats: HandlerStats | null };
   authorization: {
     budget_total: number | null;
     budget_remaining: number | null;
@@ -30,16 +55,19 @@ interface CaseReadout {
   progress_log: CaseLog[];
   outcome_effects: CaseEffect[];
   fail_effects: CaseEffect[];
+  /** 推进可解释读数（本作特色：基数×难度×吏治×立场×军队 + 阻碍 + 圣意支持） */
+  advance: AdvanceReadout | null;
+  timeline?: { turn: number; kind: string; text: string }[];
 }
 
-// 本项目大臣只有 loyalty/corruption 两项数值（0–1）；没有「六维」，不得臆造。
-const STAT_LABEL: Record<string, string> = {
-  loyalty: "忠诚",
-  corruption: "贪腐",
-  role: "差遣",
-  rank: "官阶",
-  faction: "派系",
-  traits: "特质",
+// 本作口径：承办人是「五维」（政略/财计/军略/谋断/风望）+ 潜质上限 + 忠诚/贪腐（0–1）+ 特质；
+// **没有**参考图那套「六维」，不得臆造字段（缺失一律「未定义」）。
+const ATTR_LABEL: Record<string, string> = {
+  governance: "政略",
+  finance: "财计",
+  military: "军略",
+  strategy: "谋断",
+  reputation: "风望",
 };
 const POOL_LABEL: Record<string, string> = { treasury: "国库", imperial_treasury: "内帑" };
 const EFFECT_LABEL: Record<string, string> = {
@@ -51,6 +79,37 @@ const EFFECT_LABEL: Record<string, string> = {
 function def(v: unknown, fallback = "未定义"): string {
   if (v === null || v === undefined || v === "") return fallback;
   return String(v);
+}
+function pct(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "未定义";
+  return `${Math.round(Number(v) * 100)}%`;
+}
+function signed(v: number | null | undefined, digits = 2): string {
+  if (v === null || v === undefined) return "未定义";
+  return `${v > 0 ? "+" : ""}${v.toFixed(digits)}`;
+}
+
+/** 五维条：实心=当前，虚线=潜质上限（成长空间可见）。 */
+function AttrBar({ label, value, potential }: { label: string; value: number | null; potential: number | null }) {
+  const w = value === null ? 0 : Math.max(0, Math.min(100, value));
+  const p = potential === null ? null : Math.max(0, Math.min(100, potential));
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-dim">{label}</span>
+        <span className="text-ink">
+          {value === null ? "未定义" : Math.round(w)}
+          {p !== null && <span className="text-dim"> / {Math.round(p)}</span>}
+        </span>
+      </div>
+      <div className="relative mt-0.5 h-1.5 w-full rounded bg-gold-light">
+        <div className="absolute inset-y-0 left-0 rounded bg-red" style={{ width: `${w}%` }} />
+        {p !== null && (
+          <div className="absolute inset-y-0 border-r border-dashed border-ink/50" style={{ left: `${p}%` }} />
+        )}
+      </div>
+    </div>
+  );
 }
 
 function EffectLine({ eff }: { eff: CaseEffect }) {
@@ -91,7 +150,8 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
     return () => { alive = false; };
   }, [props?.id]);
 
-  const pct = useMemo(() => {
+  const adv = data?.advance ?? null;
+  const barPct = useMemo(() => {
     const p = data?.progress?.percent;
     if (p === null || p === undefined) return null;
     return Math.max(0, Math.min(100, p));
@@ -137,21 +197,32 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
         <div className="rounded border border-gold/40 p-3">
           <p className="font-bold text-ink">{def(data.handler?.name)}</p>
           <p className="text-xs text-dim">{def(data.handler?.org, "衙署未定义")}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {Object.entries(STAT_LABEL).map(([k, label]) => {
-              const v = data.handler?.stats?.[k];
-              const text =
-                v === null || v === undefined
-                  ? "未定义"
-                  : (k === "loyalty" || k === "corruption")
-                    ? `${Math.round(Number(v) * 100)}%`
-                    : def(v);
-              return (
-                <span key={k} className="rounded border border-gold/40 px-2 py-0.5 text-xs">
-                  {label} <b className="text-ink">{text}</b>
-                </span>
-              );
-            })}
+          <div className="mt-2 grid grid-cols-5 gap-2">
+            {Object.entries(ATTR_LABEL).map(([k, label]) => (
+              <AttrBar
+                key={k}
+                label={label}
+                value={data.handler?.stats?.attrs?.[k] ?? null}
+                potential={data.handler?.stats?.potential?.[k] ?? null}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded border border-gold/40 px-2 py-0.5">
+              忠诚 <b className="text-ink">{pct(data.handler?.stats?.loyalty)}</b>
+            </span>
+            <span className="rounded border border-gold/40 px-2 py-0.5">
+              贪腐 <b className="text-ink">{pct(data.handler?.stats?.corruption)}</b>
+            </span>
+            {(data.handler?.stats?.traits?.length ?? 0) > 0 && (
+              <span className="flex flex-wrap gap-1">
+                {data.handler!.stats!.traits.map((t) => (
+                  <span key={t} className="rounded border border-gold/40 bg-gold-light px-2 py-0.5">
+                    {t}
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -175,16 +246,66 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
         <div className="flex items-center gap-2">
           <span className="font-bold text-ink">{data.progress?.phase}</span>
           <span className="ml-auto text-sm">
-            {pct === null ? "未定义" : Math.round(pct)} / {data.progress?.target ?? 100}
+            {barPct === null ? "未定义" : Math.round(barPct)} / {data.progress?.target ?? 100}
           </span>
         </div>
         <div className="mt-1 h-2 w-full rounded bg-gold-light">
           <div
             className="h-2 rounded bg-red"
-            style={{ width: pct === null ? "0%" : `${pct}%` }}
-            title={pct === null ? "未定义" : `${Math.round(pct)}%`}
+            style={{ width: barPct === null ? "0%" : `${barPct}%` }}
+            title={barPct === null ? "未定义" : `${Math.round(barPct)}%`}
           />
         </div>
+        {/* 本作特色：推进不靠"感觉"，给出算式与工期/停滞预警 */}
+        {adv && (
+          <div className="mt-2 rounded border border-gold/30 px-2 py-1 text-xs text-dim">
+            {adv.forecast?.text ?? "本月推进读数缺失（未定义）"}
+            {adv.months !== null && <span className="ml-2">预计工期 {def(adv.months)} 月</span>}
+            {adv.stall_months !== null && adv.stall_months > 0 && (
+              <span className="ml-2 text-red">已连续 {adv.stall_months} 月无实质推进</span>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* 阻碍诊断（参考图只写"需推动"，我们给原因） */}
+      <section>
+        <p className="mb-1 font-kai text-lg text-ink">推进受阻于</p>
+        {(adv?.blockers?.length ?? 0) === 0 ? (
+          <p className="text-xs text-dim">无记录（未定义）</p>
+        ) : (
+          <ul className="list-inside list-disc text-sm">
+            {adv!.blockers.map((b, i) => (
+              <li key={i}>{b}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* 圣意与立场（本作特色：旨意要连着下才有效，逐月衰减） */}
+      <section>
+        <p className="mb-1 font-kai text-lg text-ink">圣意与立场</p>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="rounded border border-gold/40 px-2 py-0.5">
+            圣旨支持 <b className="text-ink">{signed(adv?.support_bonus)}</b>
+          </span>
+          <span className="rounded border border-gold/40 px-2 py-0.5">
+            已施行旨意 {def(adv?.decree_count)}
+          </span>
+          <span className="rounded border border-gold/40 px-2 py-0.5">
+            立场系数 <b className="text-ink">{signed(adv?.stance_mult)}</b>
+          </span>
+        </div>
+        {(adv?.supporters?.length ?? 0) > 0 && (
+          <p className="mt-1 text-xs text-dim">
+            支持：{adv!.supporters.map((s) => `${s.name}（${def(s.influence)}）`).join("、")}
+          </p>
+        )}
+        {(adv?.opposers?.length ?? 0) > 0 && (
+          <p className="mt-1 text-xs text-red">
+            反对：{adv!.opposers.map((s) => `${s.name}（${def(s.influence)}）`).join("、")}
+          </p>
+        )}
       </section>
 
       <section className="flex flex-wrap items-center gap-2">

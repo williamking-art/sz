@@ -939,7 +939,18 @@ def api_readouts(request: Request):
                     if isinstance(_t, dict):
                         _cid = str(_t.get('id') or '')
                         if _cid:
-                            longterm_cases[_cid] = _json_safe(case_readout(s, _t))
+                            _rd = _json_safe(case_readout(s, _t))
+                            # 严重度/关联地区/派系/阶段/时间线：取自局势投影（单一来源），
+                            # 案卷不重复存这些字段；缺失保持 None。
+                            _sit = next((it for it in (situations.get("items") or [])
+                                         if str(it.get("id")) == _cid), None)
+                            if isinstance(_sit, dict):
+                                for _k in ("severity", "region_hint", "faction_hint",
+                                           "phase", "bar_value", "timeline",
+                                           "resolve_condition_text", "fail_condition_text"):
+                                    if _rd.get(_k) in (None, [], "") and _sit.get(_k) is not None:
+                                        _rd[_k] = _sit.get(_k)
+                            longterm_cases[_cid] = _rd
         except Exception:
             longterm_cases = {}
             readout_errors.append('longterm_cases')

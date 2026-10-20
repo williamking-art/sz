@@ -191,6 +191,34 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
             "phase": task["phase"], "outcome": outcome, "entry": entry}
 
 
+def _task_advance_readout(state, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """推进可解释读数（基数×难度×吏治×立场×军队；含阻碍与圣旨支持）。
+
+    口径单点：longterm_task.build_readout；失败返回 None（缺失不假装）。
+    """
+    try:
+        from core.longterm_task import build_readout
+        r = build_readout(state, task)
+    except Exception:  # noqa: BLE001
+        return None
+    ob = r.get("obstruction") or {}
+    return {
+        "stage": r.get("stage"),
+        "progress": r.get("progress"),
+        "forecast": r.get("forecast") or {},
+        "blockers": list(ob.get("blockers") or []),
+        "supporters": list(r.get("supporters") or []),
+        "opposers": list(r.get("opposers") or []),
+        "support_net": r.get("support_net"),
+        "support_bonus": r.get("support_bonus"),
+        "stance_mult": r.get("stance_mult"),
+        "decree_count": r.get("decree_count"),
+        "stall_months": r.get("stall_months"),
+        "months": r.get("months"),
+        "outcome": r.get("outcome"),
+    }
+
+
 def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
     """面板只读载荷（字段对齐参考 UI；缺失一律 None）。"""
     ensure_case_fields(state, task)
@@ -199,13 +227,19 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
     stats = None
     if handler_name:
         try:
-            from content.ministers.data import MINISTERS
-            info = MINISTERS.get(handler_name) or {}
-            # 本项目大臣只有 loyalty/corruption 两项数值（0–1）+ 派系/官阶/差遣/特质；
-            # **没有**参考图那种「六维」——不得臆造字段（缺失即 None）。
-            stats = {k: info.get(k) for k in ("loyalty", "corruption", "role", "rank",
-                                              "faction", "traits")
-                     if k in info} or None
+            from content.ministers.stats import (ATTRIBUTE_NAMES,
+                                                 get_or_create_official_stats)
+            prof = get_or_create_official_stats(state, handler_name)
+            attrs = dict(prof.get("attrs") or {})
+            potential = dict(prof.get("potential") or {})
+            stats = {
+                "attrs": {k: attrs.get(k) for k in ATTRIBUTE_NAMES} or None,
+                "potential": {k: potential.get(k) for k in ATTRIBUTE_NAMES} or None,
+                "attr_names": dict(ATTRIBUTE_NAMES),
+                "loyalty": prof.get("loyalty"), "corruption": prof.get("corruption"),
+                "traits": list(prof.get("traits") or []),
+                "faction": prof.get("faction"),
+            }
         except Exception:  # noqa: BLE001
             stats = None
     return {
@@ -226,6 +260,10 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
                           "discretion": bool(task.get("discretion"))},
         "progress": {"percent": task.get("progress"), "phase": task["phase"],
                      "target": 100},
+
+        # 本作特色：推进可解释（算式/阻碍/圣旨支持/立场），来自 longterm_task 单点，
+        # 不在此复制算法。
+        "advance": _task_advance_readout(state, task),
         "monthly_effects": list(task.get("monthly_effects") or []),
         "progress_log": list(task.get("progress_log") or []),
         "outcome_effects": list(task.get("outcome_effects") or []),
