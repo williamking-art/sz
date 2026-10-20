@@ -48,6 +48,9 @@ def record_raw_report(
     channel_matter: str = "奏章进纳",
     title: str = "",
     body: str = "",
+    priority: str = "normal",
+    delay_turns: int = 0,
+    arrive_turn: Optional[int] = None,
     turn: Optional[int] = None,
 ) -> Optional[str]:
     """登记原件；同内容幂等；返回 report_id。"""
@@ -70,6 +73,9 @@ def record_raw_report(
         "title": str(title or ""),
         "body": str(body or ""),
         "created_turn": now,
+        "priority": str(priority or "normal"),
+        "delay_turns": int(delay_turns or 0),
+        "arrive_turn": int(arrive_turn) if arrive_turn is not None else now,
         "status": "raw",
         "handled_by": "",
         "handled_turn": None,

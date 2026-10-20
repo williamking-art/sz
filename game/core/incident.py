@@ -72,7 +72,8 @@ def create_incident(state, *, kind: str, locality: str, parent_seat_id: str,
                     submitted_by: str = "", from_post: str = "",
                     channel: str = "通进银台司",
                     channel_matter: str = "奏章进纳",
-                    body: str = "") -> Dict[str, Any]:
+                    body: str = "", delay_turns: int = 0,
+                    priority: str = "normal") -> Dict[str, Any]:
     """开事故单；父州府必须真实存在。"""
     seat = str(parent_seat_id or "").strip()
     loc = str(locality or "").strip()
@@ -105,7 +106,10 @@ def create_incident(state, *, kind: str, locality: str, parent_seat_id: str,
         "recommendation": "",
         "unresolved": [],
         "created_turn": turn,
-        "due_turn": turn + 1,
+        "due_turn": turn + 1 + max(0, int(delay_turns or 0)),
+        "priority": str(priority or "normal"),
+        "delay_turns": max(0, int(delay_turns or 0)),
+        "arrive_turn": turn + max(0, int(delay_turns or 0)),
     }
     row["incidents"][iid] = inc
     rid = record_raw_report(
@@ -113,7 +117,9 @@ def create_incident(state, *, kind: str, locality: str, parent_seat_id: str,
         submitted_by=submitted_by or f"{loc}{kind}有司",
         from_post=from_post, channel=channel,
         channel_matter=channel_matter,
-        title=f"{loc}{kind}事", body=body or inc["summary"], turn=turn)
+        title=f"{loc}{kind}事", body=body or inc["summary"],
+        priority=priority, delay_turns=delay_turns,
+        arrive_turn=inc["arrive_turn"], turn=turn)
     if rid:
         inc["raw_report_ids"] = [rid]
     return {"ok": True, "incident": inc}
@@ -184,7 +190,7 @@ def _incident_memorial(state, inc: Dict[str, Any]) -> None:
     kind = "military" if inc.get("kind") in (
         "military", "border", "bandit", "revolt") else "governance"
     req = _recommend(inc.get("kind"))
-    memos.append({
+    memo = {
         "memorial_id": mid,
         "kind": kind,
         "title": f"《{inc.get('locality', '')}{inc.get('kind', '')}急奏》",
@@ -195,8 +201,13 @@ def _incident_memorial(state, inc: Dict[str, Any]) -> None:
         "incident_id": inc.get("incident_id"),
         "raw_report_ids": list(inc.get("raw_report_ids") or []),
         "recommendation": req,
-        "priority": "urgent" if float(inc.get("severity", 0.5)) >= 0.7 else "normal",
-    })
+        "priority": ("urgent" if str(inc.get("priority") or "") == "urgent"
+                     or float(inc.get("severity", 0.5)) >= 0.7 else "normal"),
+    }
+    if memo["priority"] == "urgent":
+        memos.insert(0, memo)
+    else:
+        memos.append(memo)
     inc["memorial_id"] = mid
 
 
