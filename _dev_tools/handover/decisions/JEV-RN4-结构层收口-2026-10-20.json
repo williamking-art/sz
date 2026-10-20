@@ -1,0 +1,31 @@
+{
+  "id": "JEV-RN4-结构层收口-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "R-N-4：AI 契约 JSON Schema 结构层「5/33 注册 + 本机无 jsonschema ⇒ 恒放行」的收口方式",
+  "items": [
+    {
+      "question": "R-N-4 收口方案选哪个？A=装 jsonschema 到审计 venv + 真实结构校验用例 + schema_status；B=不装依赖，只写『结构校验未启用』；C=补齐 33 契约 schema",
+      "options": [
+        "A=装依赖+真实用例+状态",
+        "B=只显式文档化未启用",
+        "C=补齐 33 契约"
+      ],
+      "verdict": "A（0.4414，近平手；按 A 执行并自证）",
+      "probabilities": {
+        "A": 0.4413687288761139,
+        "B": 0.30304771661758423,
+        "C": 0.2555835247039795
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "jsonschema 已在 game/requirements-extras.txt 列为可选依赖（A1），装进审计 venv 不改游戏本体依赖",
+        "A 与 B 差 0.138、A 与 C 差 0.186，属近平手 ⇒ 按纪律自证：B 仍留零覆盖，C 需一次改 28 个契约、超出本批且易与 validator 口径漂移",
+        "A 的增量最小：装依赖 + 2 条真实校验用例 + schema_status（enabled/registered/coverage_note），不动业务 validator 最终防线",
+        "结构层定位『只拒绝 validator 也会拒绝的输出』不变；未注册契约继续由业务 validator 兜底"
+      ],
+      "applied_in": "game/ai/schemas.py（HAS_JSONSCHEMA / schema_status / 复用模块级 jsonschema）；tests/test_audit_20261020_schemas.py（3 条）；审计报告 R-N-4 标记已修",
+      "reopen_if": "若要求结构层覆盖全部契约，需先逐契约对照 validator 口径（另立字段评审批次），不得批量套模板"
+    }
+  ]
+}

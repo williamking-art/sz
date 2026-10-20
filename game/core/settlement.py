@@ -498,6 +498,25 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     except Exception as _me:  # noqa: BLE001 —— 测量仪器不得中断结算
         log.append(f"[钱运][WARN] 到账处理失败：{_me!r}")
 
+    # ---- R-N-3（2026-10-20 全审，Jev A 0.866）：回合初重置本月运力占用 + 续发上月队列。
+    # 修前 `transport_reset_month` 零调用方 ⇒ `transport_used` 只增不减，历史占用会永久
+    # 吃光运力；`transport_flush_queue` 零调用方 ⇒ 超限记录永不续发。
+    # `flush` 无 dispatcher 时只做运力账（队列本身瞬态；货腿在入队时已按成交处理），
+    # 不足的条目原样留队。失败留痕不阻断。
+    try:
+        from core.transport import transport_flush_queue, transport_reset_month
+        transport_reset_month(state)
+        _tf = transport_flush_queue(state)
+        _tf_shipped = float(_tf.get("shipped") or 0)
+        if _tf_shipped > 0:
+            _stats = state.statistics
+            _stats["transport_queue_flushed"] = (
+                float(_stats.get("transport_queue_flushed", 0) or 0) + _tf_shipped)
+            log.append("[运输] 续发上月排队 %.1f 石（余 %s 条 / %.1f 石）" % (
+                _tf_shipped, _tf.get("pending", 0), float(_tf.get("pending_qty") or 0)))
+    except Exception as _tr:  # noqa: BLE001 —— 运输账失败不得中断结算
+        log.append(f"[运输][WARN] 运力重置/续发失败：{_tr!r}")
+
     # ---- V3 建筑分级升级：每月推进在建（队列空 ⇒ 零行为变更）----
     try:
         from core.domains.construction.building_upgrade import advance_building_construction as _abc

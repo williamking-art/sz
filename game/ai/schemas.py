@@ -14,7 +14,15 @@ schema 比 validator 宽是安全的（只多放行），比 validator 严则必
 """
 from __future__ import annotations
 
-__all__ = ["SCHEMAS", "schema_for", "schema_check"]
+try:  # 可选依赖（game/requirements-extras.txt）；缺失时结构层放行、业务 validator 兜底
+    import jsonschema as _jsonschema
+except Exception:  # noqa: BLE001 — 可选依赖缺失不是错误
+    _jsonschema = None
+
+#: 结构校验是否真的启用（R-N-4：显式状态，不再"静默两分支"）。
+HAS_JSONSCHEMA = _jsonschema is not None
+
+__all__ = ["SCHEMAS", "schema_for", "schema_check", "schema_status", "HAS_JSONSCHEMA"]
 
 # 结构层注册表：契约方法名 → JSON Schema（Draft 2020-12 子集，jsonschema 库兼容）
 SCHEMAS: dict = {
@@ -87,6 +95,21 @@ def schema_for(contract: str):
     return SCHEMAS.get(contract)
 
 
+def schema_status() -> dict:
+    """结构层状态（R-N-4）：是否启用、已注册契约数、覆盖说明。
+
+    面板/自检用它显式区分「结构校验已启用」与「可选依赖缺失 ⇒ 恒放行」，
+    不再靠调用方猜。注册表覆盖是**有意子集**（当前 5 个：dialogue/advice/
+    parse_decree/monthly_report/event_narrative）；未注册契约由业务 validator 兜底。
+    """
+    return {
+        "enabled": HAS_JSONSCHEMA,
+        "registered": len(SCHEMAS),
+        "contracts": sorted(SCHEMAS),
+        "coverage_note": "有意子集：仅注册字段明确/最常出错的 5 个契约；未注册由业务 validator 兜底",
+    }
+
+
 def schema_check(contract: str, obj) -> tuple:
     """结构校验。返回 (ok, err)。
 
@@ -97,14 +120,12 @@ def schema_check(contract: str, obj) -> tuple:
     schema = SCHEMAS.get(contract)
     if schema is None or not isinstance(obj, dict):
         return True, ""
-    try:
-        import jsonschema  # 可选依赖：缺失即跳过结构层
-    except Exception:
+    if _jsonschema is None:
         return True, ""
     try:
-        jsonschema.validate(obj, schema)
+        _jsonschema.validate(obj, schema)
         return True, ""
-    except jsonschema.ValidationError as e:  # type: ignore[attr-defined]
+    except _jsonschema.ValidationError as e:  # type: ignore[attr-defined]
         path = "/".join(str(p) for p in e.absolute_path) or "(root)"
         return False, f"{path}: {e.message}"
     except Exception:
