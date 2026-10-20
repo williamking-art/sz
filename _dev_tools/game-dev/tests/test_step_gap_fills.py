@@ -71,7 +71,9 @@ def test_legacy_effect_handlers_are_noop_on_numbers_but_log():
 
     mood0 = s.population_satisfaction
     lm._eff_new_fund(s, [])
-    assert s.population_satisfaction == max(0, mood0 - 1), "新党专权应真实损民心"
+    # 2026-10-20 天道化：新党专权/花石纲改为「只留痕、不改数值」，
+    # 民心月度趋势统一由 core/domains/politics/sentiment_tier 裁断（缺档时程序先验按在册修正回退）。
+    assert s.population_satisfaction == mood0, "民心月度趋势已交由天道档位（legacy 不再直接扣）"
 
 
 def test_legacy_clear_conditions_and_progress():

@@ -561,6 +561,32 @@ class DecreeContractMixin:
         raw = self._call(sys_p, user_p, temperature=0.4, max_tokens=300, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_narrative"))
 
+
+    def sentiment_decide(self, state):
+        """民情档位生产者（2026-10-20）：内嵌 Jev 出「大坏/转坏/持平/转好/大好」。
+
+        纪律：只在结算前置/唤起时调用（同步 HTTP 不进结算链）；结果写 state._sentiment_ai；
+        失败 ⇒ 不写槽位（缺失≠假装已判）。
+        """
+        try:
+            from ai import jev_gate
+        except Exception:  # noqa: BLE001
+            return None
+        ctx = ("皇威=%s 民心=%s 国库=%s" % (
+            getattr(state, "prestige", None),
+            getattr(state, "population_satisfaction", None),
+            getattr(state, "treasury", None)))
+        got = jev_gate.decide_choice(
+            ctx, "本月民情走向如何？",
+            {"大坏": "民怨沸腾、变乱将起", "转坏": "民力受损、怨声渐多",
+             "持平": "安堵如常", "转好": "民力稍苏、颂声渐起",
+             "大好": "政通人和、民颂其德"})
+        if not isinstance(got, dict) or got.get("choice") not in (
+                "大坏", "转坏", "持平", "转好", "大好"):
+            return None
+        state._sentiment_ai = {"tier": got["choice"], "note": "天道裁民情"}
+        return state._sentiment_ai
+
     def longterm_narrative_decide(self, state):
         """长期旨案卷**月度叙事契约**（2026-10-20）：AI 只给档位词 + 叙事。
 

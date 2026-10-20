@@ -561,6 +561,15 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     pipeline = get_default_pipeline()
     pipeline.execute(state, log, _situation_journal_base=_situation_journal_base)
 
+    # ---- 民心月度趋势（2026-10-20，天道档位化）：花石纲等"固定扣民心"改由天道裁断。
+    # 缺档 ⇒ 程序先验（花石纲在册 -1/月），未接线时行为与旧版一致；有界 [-3,+3]。
+    try:
+        from core.domains.politics.sentiment_tier import apply_sentiment_trend
+        _st = apply_sentiment_trend(state, log)
+        state.statistics["sentiment_trend"] = _st
+    except Exception as _st_err:  # noqa: BLE001 — 民情趋势失败不阻断结算
+        log.append('[民情] 天道民情档应用失败：%r' % (_st_err,))
+
     # ---- 长期旨案卷月度结算（2026-10-20，参考外部 UI）：扣专款/落持续效果/写推进日志。
     # 只处理**已案卷化**的事务（有 case_no / 月费 / 专款 / 持续效果）；旧事务不动，保持零变更。
     try:

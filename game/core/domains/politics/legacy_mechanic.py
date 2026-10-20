@@ -108,9 +108,13 @@ def _clear_huashigang(state) -> bool:
 
 
 def _eff_new_fund(state, log):
-    """新党专权：士绅不满 +，朝局党争 +。"""
-    state.population_satisfaction = max(0, state.population_satisfaction - 1)
-    log.append("[修正] 新党专权：党争纷纭，士绅离心，民心微损")
+    """新党专权：士绅不满、党争纷纭。
+
+    2026-10-20 天道化：原实现写死「每月民心 -1」（与花石纲各扣一次 ⇒ 每月 -2），
+    60 月回放把民心打到 0。现**只留痕、不改数值**——民心月度趋势由天道档位统一裁断
+    （sentiment_tier），缺档时程序先验按在册修正数回退（保持旧行为）。
+    """
+    log.append("[修正] 新党专权：党争纷纭，士绅离心（民心之向由天道裁断）")
 
 
 def _eff_redundant_officials(state, log):
@@ -140,9 +144,13 @@ def _eff_liao_xia_border(state, log):
 
 
 def _eff_huashigang(state, log):
-    """花石纲民怨：东南民怨，民心受损。"""
-    state.population_satisfaction = max(0, state.population_satisfaction - 1)
-    log.append("[修正] 花石纲扰民，东南骚动，民怨渐起")
+    """花石纲民怨：东南民怨。
+
+    2026-10-20 天道化：原实现写死「每月民心 -1」，60 月回放把民心从 55 打到 0。
+    现**只留痕、不改数值**——民心月度趋势由天道档位裁断（core/domains/politics/sentiment_tier），
+    缺档时由程序先验按"花石纲在册 ⇒ -1/月"回退（未接线时行为与旧版一致）。
+    """
+    log.append("[修正] 花石纲扰民，东南骚动（民心之向由天道裁断）")
 
 
 LEGACY_DEFS = {

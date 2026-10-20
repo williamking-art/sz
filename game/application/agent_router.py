@@ -141,6 +141,15 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["granary", "granary_stats."],
         "domain_fields": ["granary", "canal"],
     },
+    "sentiment": {
+        "order": 14,
+        "method": "sentiment_decide",
+        "settle_attr": "_sentiment_ai",
+        "wake_keywords": ["民", "民心", "民怨", "赈", "赋", "花石纲"],
+        "wake_state": [("population_satisfaction", lambda v: isinstance(v, (int, float)) and v < 45)],
+        "wake_diff_paths": ["population_satisfaction"],
+        "domain_fields": ["sentiment_trend"],
+    },
     "longterm_narrative": {
         "order": 13,
         "method": "longterm_narrative_decide",
