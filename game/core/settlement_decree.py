@@ -93,7 +93,16 @@ def _settle_decrees(state, log):
             state.wolf_count = max(0, state.wolf_count - 1)
 
     # 12 步 agent 化 P2+：读取诏令执行 AI 契约
+    # 2026-10-20 全审 P0-4：带 `_turn` 的槽位只认本回合（防上一道诏的裁决被本回合沿用）；
+    # 无 `_turn` 的旧槽/测试替身保持兼容。
     _decree_ai = getattr(state, "_decree_execute_ai", None)
+    if isinstance(_decree_ai, dict):
+        try:
+            from core.domains.politics.decree_duration import slot_is_current
+            if not slot_is_current(state, _decree_ai):
+                _decree_ai = None
+        except Exception:  # noqa: BLE001 — 门控不可用则保持旧行为
+            pass
     ai_tasks = []
     if isinstance(_decree_ai, dict) and not _decree_ai.get("_error"):
         ai_tasks = _decree_ai.get("tasks", [])

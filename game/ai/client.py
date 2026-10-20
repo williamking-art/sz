@@ -35,6 +35,16 @@ from ai.schemas import schema_check as _schema_check  # A1：JSON Schema 结构�
 import logging as _logging
 log = _logging.getLogger("ai.client")   # provider 回退/空响应自愈等需要留痕的路径
 
+# ---- 预算口径（2026-10-20 全审 R-AI-6）------------------------------------
+# 🔴 思考型模型/端点：reasoning 先吃预算，小预算会拿到**半截 JSON** 或空正文
+#    （实测 `agnes-2.5-flash`：max_tokens=300 → content=""）⇒ 预算下限 8192。
+# 🔴 任一 provider 的预算上限 32000：原实现只对 `"agnes" in chat_url` 分支封顶，
+#    非 Agnes 端点（用户把 a6api 等设为主 provider 时）自愈分支可涨到 32760+。
+# 🔴 思考型判定**按模型名/端点能力白名单**，不只看 URL —— 代理端点也可能挂思考型模型。
+_THINKING_MIN_TOKENS = 8192
+_MAX_TOKENS_CAP = 32000
+_THINKING_MARKS = ("agnes", "thinking", "reason", "qwq", "deepseek-r", "o1", "o3", "o4")
+
 
 # ---- 共享辅助（validators）/ 契约 Mixin（contracts_*）----
 # 公共 API 再导出：历史调用方 `from ai.client import _summary_text` 等不破。
@@ -421,6 +431,29 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             return SIMPLE_TOOL_SCHEMAS
         return _TOOL_SCHEMAS
 
+    def _is_thinking_model(self) -> bool:
+        """是否思考型模型（推理预算会被 reasoning 吃掉 ⇒ 需 8192 下限）。
+
+        判据是**模型名 + 端点**双拼文本的能力白名单（不只看 URL）：
+        换供应商/代理（模型名仍带 agnes/thinking/reason…）时下限依然生效。
+        """
+        text = f"{self.model or ''} {self.chat_url or ''}".lower()
+        return any(k in text for k in _THINKING_MARKS)
+
+    def _budget(self, max_tokens) -> int:
+        """统一预算口径：思考型抬到下限 8192，**所有** provider 一律封顶 32000。
+
+        2026-10-20（R-AI-6）：原「下限/上限」只包在 `"agnes" in chat_url` 分支里，
+        非 Agnes 端点无下限、且空响应自愈分支完全无封顶（实测可到 32760）。
+        """
+        try:
+            mt = int(max_tokens or 0)
+        except (TypeError, ValueError):
+            mt = 0
+        if self._is_thinking_model():
+            mt = max(_THINKING_MIN_TOKENS, mt)
+        return min(mt, _MAX_TOKENS_CAP) if mt > 0 else mt
+
     def _tool_roundtrip(self, sys_p, user_p, state, agent, temperature,
                         max_tokens, history=None):
         """真 function calling 单次往返：首轮带工具 → 注入 tool 结果 → 二次生成。
@@ -452,7 +485,10 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                                  "content": res})
             raw2 = self._call(sys_p, messages=messages, history=history,
                               temperature=temperature, max_tokens=max_tokens,
-                              tools=_TOOL_SCHEMAS)
+                              # R-AI-3（2026-10-20 全审）：第二轮曾硬编码 `_TOOL_SCHEMAS`，
+                              # `simple` 档首轮 5 工具、次轮回弹全量 10 工具（权限面失真）。
+                              # 工具面必须与首轮同一口径。
+                              tools=self._tool_schemas())
             if isinstance(raw2, dict):
                 raw2 = raw2.get("content") or ""
             raw = raw2
@@ -1035,13 +1071,11 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
                 # 补一条中性占位 user（不改任务语义：任务本身在 system 规程里），
                 # 使 AI 可选/可换供应商，不因网关差异整体失败。
                 messages.append({"role": "user", "content": "（请依上开规程作答。）"})
-        # Agnes 网关防护（实测 2026-09-19）：
-        #   ① 上限：其网关对 max_tokens 有硬上限（65536，超出直接 400 invalid_request）；
-        #   ② **下限**：`agnes-2.5-flash` 是**思考型**模型，reasoning 先吃掉预算——实测把
-        #      max_tokens 设成契约所需的 300 会返回**半截 JSON**（甚至 content=""），
-        #      使整个回合以 AI_CONTRACT_FAILED 失败。故结算走 Agnes 时预算至少 8192。
-        if "agnes" in (self.chat_url or "").lower():
-            max_tokens = max(8192, min(int(max_tokens or 0), 32000))
+        # 预算口径（2026-10-20 R-AI-6）单点收进 `_budget`：
+        #   ① 思考型模型（模型名/端点能力白名单）下限 8192 —— reasoning 先吃预算，
+        #      实测 `agnes-2.5-flash` 在 max_tokens=300 时返回半截 JSON / content=""；
+        #   ② **任一** provider 上限 32000（原只对 agnes URL 生效）。
+        max_tokens = self._budget(max_tokens)
         payload = {
             "model": self.model,
             "messages": messages,
@@ -1168,7 +1202,7 @@ class AIClient(ClientNarrativeMixin, CourtContractMixin, DecreeContractMixin,
             # max_tokens=300 → content=""，而 usage 有 completion token）。
             # 结算契约拿到空串即整体失败（AI_CONTRACT_FAILED），故此处加倍预算**重发一次**；
             # 仍为空才按失败返回（不伪造内容）。
-            payload["max_tokens"] = max(8192, max_tokens * 8)
+            payload["max_tokens"] = self._budget(max(_THINKING_MIN_TOKENS, max_tokens * 8))
             log.warning("AI 返回空正文（max_tokens=%s）→ 以 %s 重发一次",
                         max_tokens, payload["max_tokens"])
             try:

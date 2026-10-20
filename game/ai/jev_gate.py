@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import urllib.error
 import urllib.request
@@ -57,6 +58,8 @@ _DEFAULT_TIMEOUT = 20.0
 
 #: 玩家可见的低支撑档位词（**不含数字**，脱敏优先）
 _REASON_LOW = "独立复核：圣旨原文对该动作的支持不足，疑为推演，请核"
+#: 读数非有限值（NaN/Inf）或无法解析时的理由：**无法核验 ≠ 有据**
+_REASON_UNVERIFIED = "独立复核：无法判断原文对该动作的支持程度（读数异常），请核"
 
 _ENV_ENABLED = "SONGZUO_JEV_ENABLED"
 
@@ -294,6 +297,14 @@ def review_actions(edict_text, actions, *, threshold: float | None = None) -> li
             p = float(p)
         except Exception:
             continue
+        # 非有限值（NaN/±Inf）：NaN 与任何阈值比较恒 False —— 原实现因此**漏检**
+        # （`NaN < thr` 永假 ⇒ 该动作被静默当成「原文有据」）。现在按缺失处理：
+        # **无法核验 ⇒ 视同依据不足**（保守方向，宁可让玩家多看一眼），并留痕。
+        if not math.isfinite(p):
+            extra.append({"source_fragment": frag, "reason": _REASON_UNVERIFIED})
+            log.warning("jev_gate: noul 非有限值（%r），按依据不足处理 frag=%s",
+                        ans.get("noul"), frag[:40])
+            continue
         if p < thr:
             # 只写档位词，不把概率带进玩家可见文案（脱敏优先）
             extra.append({"source_fragment": frag, "reason": _REASON_LOW})
@@ -362,6 +373,11 @@ def assess_irreversibility(edict_text, plan) -> dict | None:
     try:
         p = float(ans.get("noul"))
     except Exception:
+        return None
+    # 非有限值不得折算成档位：`NaN >= thr` 与 `NaN < thr` 恒 False，fall-through 会判
+    # `tier="低"`（"不危险"）——这是**危险方向**的伪造，必须按缺失返回 None。
+    if not math.isfinite(p):
+        log.warning("jev_gate: 不可逆性读数非有限（%r），按缺失处理（不判档位）", ans.get("noul"))
         return None
     try:
         thr = float(cfg.get("threshold", _DEFAULT_THRESHOLD))

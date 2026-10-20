@@ -10,8 +10,11 @@ route_agents 返回需要唤醒的 Agent 列表；game loop 只调用被唤醒�
 """
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Dict, List, Optional
+
+from application.decree_prefetch import clear_ai_slot
 
 log = logging.getLogger("agent_router")
 
@@ -262,6 +265,52 @@ def route_agents(player_input: str = "", state=None,
 # ---------------------------------------------------------------------------
 # 与 game loop 融合：按需注入 Agent 契约（供 settle_turn 调用）
 # ---------------------------------------------------------------------------
+#: 天道档位槽位：注入前必须清槽（P0-4 —— Jev 失败后旧槽不得冒充本次裁决）
+_DECREE_SLOTS = ("_decree_ai", "_decree_execute_ai")
+
+
+def _stamp_turn(state, payload: dict) -> dict:
+    """给槽位盖**本回合**戳（消费端 `slot_is_current` 只认本回合）。
+
+    拿不到 `turn` 的测试替身不盖章（保持旧测试槽兼容）。
+    """
+    try:
+        turn = getattr(state, "turn", None)
+        if turn is not None:
+            payload["_turn"] = int(turn)
+    except (TypeError, ValueError):  # noqa: BLE001 — 戳失败不影响档位本体
+        pass
+    return payload
+
+
+def _invoke_agent_method(fn, state):
+    """按**实际签名**适配调用契约方法（R-AI-1，2026-10-20 全审）。
+
+    旧实现统一按 `(state.posture, state=state)` 调、`TypeError` 再回退 `(state.posture)`：
+    而 `decree_duration_decide(self, state)` **只吃 state** ⇒ 每月固定 TypeError，
+    被记成 `contract_failed`（结算侧天道生产者恒死、面板永久假警报）。
+    现按签名分派（state 优先）：
+
+    - 无 `state` 形参 → `fn(state.posture)`（如 `survey_settle(posture)`）；
+    - 首个位置形参名就是 `state` → `fn(state=state)`（如 `decree_duration_decide(state)`）；
+    - 其它（`posture` + 可选 `state`）→ `fn(state.posture, state=state)`。
+
+    签名反射拿不到（C 扩展/装饰器遮蔽）⇒ 保留旧两段兜底，行为不回归。
+    """
+    try:
+        params = list(inspect.signature(fn).parameters.values())
+    except (TypeError, ValueError):
+        try:
+            return fn(state.posture, state=state)
+        except TypeError:
+            return fn(state.posture)
+    if not any(p.name == "state" for p in params):
+        return fn(state.posture)
+    if params and params[0].name == "state":
+        return fn(state=state)
+    return fn(state.posture, state=state)
+
+
 def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
     """单个 agent 的注入（强并发的单元，2026-09-21「民间情况先行」首段并发化）。
 
@@ -271,6 +320,9 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
       · 各 agent 只写**自己**的 `settle_attr` 槽位（对 state 不同字段赋值）；
       · `failures.append`（list）单次 append 在 CPython 下原子；
     失败语义不变：单 agent 失败照旧记入 failures，不影响他 agent 与结算。
+
+    P0-4：`_decree_ai`/`_decree_execute_ai` **注入前清槽** —— 本次推演失败/未判时，
+    槽位必须是"未定义"而不是上一回合（或上一道诏）的结论；成功时盖 `_turn` 戳。
     """
     adef = AGENT_DEFS.get(aid)
     if not adef or adef.get("wired") is False:
@@ -282,18 +334,30 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
     # economy 由调用方强制前置推演并写入 _economy_ai（P1-11），此处跳过防双倍 token。
     if attr == "_economy_ai" and getattr(state, "_economy_ai", None):
         return None
+    if attr in _DECREE_SLOTS:
+        # P0-4 收口（Lead 细化）：只清**过期**槽（上一回合的裁决）。同回合下旨
+        # prefetch 的成功裁决必须保留——否则结算期注入失败会把仍有效的天道档位丢掉；
+        # 「残留背书」要防的是**跨回合继承**。
+        _cur = getattr(state, attr, None)
+        _stale = False
+        if isinstance(_cur, dict):
+            try:
+                from core.domains.politics.decree_duration import slot_is_current
+                _stale = not slot_is_current(state, _cur)
+            except Exception:  # noqa: BLE001 — 门控不可用时保守清槽
+                _stale = True
+        if _stale:
+            clear_ai_slot(state, attr)
     try:
-        try:
-            r = getattr(ai_client, method)(state.posture, state=state)
-        except TypeError:
-            # 兼容旧签名契约（如 survey_settle(posture) 无 state 形参）
-            r = getattr(ai_client, method)(state.posture)
+        r = _invoke_agent_method(getattr(ai_client, method), state)
     except Exception as e:  # noqa: BLE001
         failures.append({"agent": aid, "method": method,
                          "error": f"{type(e).__name__}: {e}"})
         log.warning("Agent %s 唤醒失败: %s", aid, e)
         return None
     if isinstance(r, dict) and not r.get("_error"):
+        if attr in _DECREE_SLOTS:
+            _stamp_turn(state, r)
         setattr(state, attr, r)
         return aid
     failures.append({"agent": aid, "method": method, "error": "contract_failed"})
@@ -313,10 +377,12 @@ def inject_woken_agents(state, ai_client, woken: List[str]) -> List[str]:
     （每个 agent 独立网络往返 ~7s，串行为首段耗时主因；并发后首段 ≈ max(单路)）。
     单个唤醒 → 串行照旧（零额外开销）；economy 仍由调用方前置（并发只发被唤醒的其余 agent）。
     """
-    failures = getattr(state, "_ai_failures", None)
-    if failures is None:
-        failures = []
-        state._ai_failures = failures
+    # R-AI-2（2026-10-20 全审）：`_ai_failures` **每回合重建**——
+    # 原实现「只在 None 时新建」⇒ 失败清单跨回合累积，面板「本月有 N 项推演未成」
+    # 首次出现后**永久假警报**（首个失败之后再无失败也照旧显示）。
+    # 本函数每回合被 `_ai_prelude` 调用一次，故在此重建即"每月一份本回合失败表"。
+    failures: list = []
+    state._ai_failures = failures
 
     # economy 双引擎防覆盖（原逻辑原样保留）：调用方已注入 → 此处跳过
     usable = []

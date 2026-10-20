@@ -23,7 +23,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 | ~~`contract_adapter.py`~~ | **2026-09-27 已移出** → `_dev_tools/unwired/`（待接线、不随分发） |
 | `schemas.py` | 输出契约 JSON Schema 注册表（**结构层校验**） |
 | `validators.py` | 契约校验共享辅助（**语义层校验**） |
-| `narrative_guard.py` | **叙事护栏**：① 数值一致（区间外改写定性词）② **取材闭集**（`_build_source_closure` 喂真实 state）③ **人物查表**（已故/已黜不得出场）④ **完成宣称核对**（见下） |
+| `narrative_guard.py` | **叙事护栏**：① 数值一致（区间外改写定性词）② **取材闭集**（`_build_source_closure` 喂真实 state）③ **人物查表**（已故/已黜不得出场）④ **完成宣称核对**（见下）。**2026-10-20（全审 R-AI-4）**：单位表补 `两/斤/匹/顷/亩`，且两类**无法与账本核对**的数值一律标 `flagged`（不改写、留 warning）：无区间锚单位的大额（≥1000）、无单位裸量级（万/千/百 且含数字，如「增兵三百万」） |
 | `narrative_fallback.py` | 叙事模板库（AI 失败时的**分级降级**本地兜底） |
 | `desensitize.py` | 事实脱敏（真值→档位词再送 AI/前端） |
 | `token_meter.py` | token 计量（tiktoken 可选层）。**`TOKEN_GROUPS` 必须覆盖每个 `*_decide` 方法**，漏组会被 `test_token_meter.py` 抓出 |
@@ -31,7 +31,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 | `vector_store.py` | 向量近邻检索（sqlite-vec，纯 Python 兜底） |
 | `kb_query.py` | 游戏内知识库查询（本地 SQLite FTS5，**随游戏分发、只读**） |
 | `model_setup.py` | 语义模型下载器（一次性工具） |
-| `jev_gate.py` | **Jev 决策闸门（可选层）**：用 TypeSafe System One（决策模型）给 AI 提议做**独立**复核。当前接线点：`contracts_decree.decree_action_plan` —— 对每个动作问 noul「圣旨原文是否明确支持该动作」，不足者追加进 `unresolved`（下游 `core/plan_commit` 与 UI 消费）。**缺配置即整层禁用**，无配置/超时/报错一律返回 `None`，主流程行为不变 |
+| `jev_gate.py` | **Jev 决策闸门（可选层）**：用 TypeSafe System One（决策模型）给 AI 提议做**独立**复核。当前接线点：`contracts_decree.decree_action_plan` —— 对每个动作问 noul「圣旨原文是否明确支持该动作」，不足者追加进 `unresolved`（下游 `core/plan_commit` 与 UI 消费）。**缺配置即整层禁用**，无配置/超时/报错一律返回 `None`，主流程行为不变。**2026-10-20（全审 R-AI-5）**：读数非有限（NaN/±Inf）按**缺失**处理 —— 动作依据复核视同「依据不足」（进 `unresolved`，原 `NaN < thr` 恒假 ⇒ 漏检），不可逆性评估返回 `None`（原 fall-through 判 `tier="低"`，危险方向伪造） |
 | `safety_lexicon.json` / `SensitiveWords.SOURCE.md` | 敏感词与来源说明 |
 | `prompts/` | 提示词模板（按用途分文件） |
 
@@ -63,3 +63,15 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
    另两条：① Jev 只出**判断**，阈值折算由本模块做，**玩家可见文案只用档位词、不带概率数字**（脱敏优先）；
    ② 多个待判断项**打包成一次调用**（Jev 的 state 只摄入一次），退化成 N 次调用即回归失败。
    配置住在 `ai_config.json` 的 `jev` 段（缺失即关闭），环境变量 `SONGZUO_JEV_ENABLED` / `TYPESAFE_API_KEY` 可覆盖。
+10. **预算口径单点 = `client._budget()`**（2026-10-20 全审 R-AI-6）：思考型模型/端点抬到下限
+    **8192**（判据是**模型名＋端点能力的白名单**，不只看 URL —— 代理端点挂思考型模型同样要抬），
+    **任一** provider 一律封顶 **32000**；`_call_impl` 正常路径与**空响应自愈**分支都必须走它
+    （修前自愈分支独立乘 8、且只对 `agnes` URL 封顶，非 Agnes 实测可到 32760）。
+11. **工具面两轮一致**（R-AI-3）：`_tool_roundtrip` 第二轮回合必须用 `self._tool_schemas()`；
+    `enable_tools="simple"` 时首轮/次轮都是精简 5 工具（修前次轮硬编码全量 10 工具＝权限面回弹）。
+12. **天道档位槽 `_turn` 纪律**（P0-4）：`state._decree_ai` / `state._decree_execute_ai` 是**运行时槽位**——
+   生产者（`contracts_decree.decree_duration_decide` / `application.agent_router._inject_one`）
+   产出后盖 `_turn`；`decree_prefetch` 与 `_inject_one` **开跑前清槽**；消费端（`core/.../decree_duration.py`、
+   `edict_closure.py` 的 `slot_is_current`）对**带 `_turn` 的槽只认本回合**。
+   口径：**缺失 ≠ 沿用上次结论**（修前 Jev 失败后新诏沿用上一道诏的时效/态度/落地档）；
+   无 `_turn` 的历史测试槽保持兼容。

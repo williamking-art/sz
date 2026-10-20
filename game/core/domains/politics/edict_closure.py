@@ -19,11 +19,16 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from core.decree_confirm import (DECREE_QUEUES, OUTCOME_EXECUTED, OUTCOME_FAILED,
                                  decree_id_of, ensure_decree_id, exec_ledger_of,
                                  record_execution)
+# 槽位回合戳（P0-4）：带 `_turn` 的槽位只认本回合 —— 旧槽不得冒充本回合的天道裁决
+from core.domains.politics.decree_duration import slot_is_current
+
+log = logging.getLogger("core.edict_closure")
 
 OUTCOME_DRAGGED = "dragged"
 
@@ -98,17 +103,27 @@ def executor_system_of(decree: Any) -> str:
     return "文官"
 
 
+def _level(v):
+    """档位读取：非 str 一律视为缺失（原实现拿它做 dict 成员判断，list 会抛 TypeError）。"""
+    return v if isinstance(v, str) else None
+
+
 def _ai_landing_mult(state, system: str) -> Optional[float]:
     slot = getattr(state, "_decree_ai", None)
-    if isinstance(slot, dict):
+    if slot_is_current(state, slot):
         per = slot.get("landing")
-        if isinstance(per, dict) and per.get(system) in AI_LANDING:
-            return AI_LANDING[per[system]]
-        if slot.get("landing") in AI_LANDING:
-            return AI_LANDING[slot["landing"]]
+        if isinstance(per, dict):
+            v = _level(per.get(system))
+            if v in AI_LANDING:
+                return AI_LANDING[v]
+        v = _level(slot.get("landing"))
+        if v in AI_LANDING:
+            return AI_LANDING[v]
     ex = getattr(state, "_decree_execute_ai", None)
-    if isinstance(ex, dict) and ex.get("landing") in AI_LANDING:
-        return AI_LANDING[ex["landing"]]
+    if slot_is_current(state, ex):
+        v = _level(ex.get("landing"))
+        if v in AI_LANDING:
+            return AI_LANDING[v]
     return None
 
 
@@ -116,8 +131,15 @@ def register_landing_level_provider(fn) -> None:
     """注册落地档位提供者：fn(state, decree) -> {"landing_level": 档位, "note": ...}。
 
     纪律：结算期不做同步网络调用 ⇒ Jev/天道裁决必须由**前置步骤**注入（或离线批），
-    本模块只读结论。
+    本模块只读结论。provider 必须是**纯函数**（只读 state）、异常必须留痕、重复注册去重
+    （模块级列表跨局/跨测试共享，叠加会串档）。**现有生产代码零注册方**（全审 R-AI-8）。
     """
+    if not callable(fn):
+        log.warning("register_landing_level_provider 收到非可调用对象，已忽略：%r", fn)
+        return
+    if any(f is fn for f in _LANDING_LEVEL_PROVIDERS):
+        log.warning("register_landing_level_provider 重复注册（同一函数），已忽略")
+        return
     _LANDING_LEVEL_PROVIDERS.append(fn)
 
 
@@ -125,29 +147,34 @@ def resolve_landing_level(state, decree: Any) -> Dict[str, Any]:
     """落地档位：天道/Jev 优先（全办/大部/半数/少半/未办）；缺档 ⇒ 无（走程序先验）。"""
     did = decree_id_of(decree) if isinstance(decree, dict) else ""
     slot = getattr(state, "_decree_ai", None) if state is not None else None
+    slot = slot if slot_is_current(state, slot) else None
     note = ""
     src = "天道"
     lvl = None
     if isinstance(slot, dict):
         per = slot.get("landing_levels")
         if isinstance(per, dict):
-            lvl = per.get(did) or per.get(executor_system_of(decree))
+            lvl = _level(per.get(did)) or _level(per.get(executor_system_of(decree)))
         if lvl is None:
-            lvl = slot.get("landing_level")
+            lvl = _level(slot.get("landing_level"))
         note = slot.get("landing_note") or ""
     if lvl not in LANDING_LEVELS:
         ex = getattr(state, "_decree_execute_ai", None) if state is not None else None
-        if isinstance(ex, dict) and ex.get("landing_level") in LANDING_LEVELS:
-            lvl, note, src = ex["landing_level"], ex.get("landing_note") or "", "天道(执行契约)"
+        ex = ex if slot_is_current(state, ex) else None
+        ex_lvl = _level(ex.get("landing_level")) if isinstance(ex, dict) else None
+        if ex_lvl in LANDING_LEVELS:
+            lvl, note, src = ex_lvl, ex.get("landing_note") or "", "天道(执行契约)"
     if lvl not in LANDING_LEVELS:
         for fn in reversed(_LANDING_LEVEL_PROVIDERS):
             try:
                 cand = fn(state, decree)
-                if isinstance(cand, dict) and cand.get("landing_level") in LANDING_LEVELS:
-                    lvl, note, src = cand["landing_level"], cand.get("note") or "", "天道(provider)"
-                    break
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 — 可选层：provider 出错不得阻断结算
+                log.warning("落地档位 provider 抛错（已忽略，回落程序先验）", exc_info=True)
                 continue
+            cand_lvl = _level(cand.get("landing_level")) if isinstance(cand, dict) else None
+            if cand_lvl in LANDING_LEVELS:
+                lvl, note, src = cand_lvl, cand.get("note") or "", "天道(provider)"
+                break
     if lvl in LANDING_LEVELS:
         return {"level": lvl, "value": LANDING_LEVEL_VALUE[lvl], "note": note, "source": src}
     return {"level": None, "value": None, "note": "天道未裁落地档，走程序先验", "source": "缺档"}

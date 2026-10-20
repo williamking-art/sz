@@ -434,6 +434,16 @@ class DecreeContractMixin:
             log.warning("decree_duration_decide 失败", exc_info=True)
         if not out:
             return None
+        # P0-4（2026-10-20 全审）：**给产出盖回合戳**。消费端（`decree_duration` /
+        # `edict_closure`）对带 `_turn` 的槽位只认本回合 —— 否则 Jev 失败/超时后旧槽
+        # 永不失效，新诏会沿用**上一道诏**的时效/态度/落地档（实测 A 旨「长期」后，
+        # B 旨 pay_reform 仍得 timing=long）。无 `turn` 的测试替身不盖章（保持旧测试兼容）。
+        try:
+            _turn = getattr(state, "turn", None)
+            if _turn is not None:
+                out["_turn"] = int(_turn)
+        except (TypeError, ValueError):  # noqa: BLE001 — 戳失败不影响档位本体
+            pass
         state._decree_ai = out
         return out
 

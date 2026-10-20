@@ -408,6 +408,9 @@ def _ai_prelude(state, ai_client):
     economy 缺失/失败 → **拒绝式**（抛 AIRuntimeError，不静默兜底、不伪造档位）；
     其余唤醒契约失败仅跳过（settle 读不到槽位走本地兜底，不阻断结算）。
     """
+    # 2026-10-20 全审 R-AI-2：失败表**每回合重建**（含 economy 早失败路径——此路径
+    # 不经过 inject_woken_agents，若只在 inject 里重置会把上一回合失败当「本月」）。
+    state._ai_failures = []
     from content.data import AI_ERROR_CODES
     try:
         eco = ai_client.economy_decide(state.posture)
