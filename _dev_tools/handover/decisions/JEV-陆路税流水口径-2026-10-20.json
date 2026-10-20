@@ -1,0 +1,31 @@
+{
+  "id": "JEV-陆路税流水口径-2026-10-20",
+  "date": "2026-10-20",
+  "agent": "DSH",
+  "purpose": "A 补记：陆路榷税 40/60 口径与实扣额全入交易地的偏差，流水/读数怎么修",
+  "items": [
+    {
+      "question": "陆路税流水口径选哪个？A=流水按实记（tax_over=0/tax_stay=实扣额，tax_to 标交易地）；B=本批实现 40/60 分账；C=只改注释不动流水",
+      "options": [
+        "A=流水按实记",
+        "B=实现 40/60 分账",
+        "C=只改注释"
+      ],
+      "verdict": "A（0.9535）",
+      "probabilities": {
+        "A": 0.9534746408462524,
+        "B": 0.011952865868806839,
+        "C": 0.034572433680295944
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实现只有交易地一路 `local_treasury_add`，没有沿途路分配；leg 也无路径/经停路数据",
+        "流水 tax_over/tax_stay 写 40/60 计划值、外贸读数按二者汇总 ⇒ 归因与钱流不一致（钱只进一路）",
+        "凭空按 40% 找沿途路＝臆造归属，违反「不臆造」；B 需先补路径数据与分配规则，另立批次",
+        "A 只改流水两字段与 tax_to，不动扣款/国库/守恒；`LEG_FIELDS` 已含 tax_to"
+      ],
+      "applied_in": "trade_legs.settle_foreign_trade 流水（tax_over=0/tax_stay=实扣/tax_to=local_treasury:交易地）、settle_land_tariff docstring、content/data_constants.LAND_TAX_OVER_SHARE 注释",
+      "reopen_if": "补上沿途路径数据并裁定分配规则后，改回 40/60 分账并同步读数与流水"
+    }
+  ]
+}

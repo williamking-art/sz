@@ -441,7 +441,12 @@ def land_market_open(state, partner: str) -> Dict[str, Any]:
 
 
 def settle_land_tariff(state, leg: Dict[str, Any], tax: Optional[int]) -> Dict[str, Any]:
-    """陆路榷税入账：**过税 40% → 沿途路府库；住税 60% → 交易地府库**（设定值）。
+    """陆路榷税入账：**实扣额全入交易地府库**（当前实现；40/60 沿途分成未实现）。
+
+    文档原写「过税 40% → 沿途路府库；住税 60% → 交易地府库」，但 leg 无沿途路径数据，
+    凭空分配沿途路＝臆造归属；故当前全部实扣额入交易地，返回值里的 over_tax/stay_tax
+    仅为**计划口径**供设计对账，**不代表实际归属**（流水按实记 tax_over=0/stay=实扣）。
+    实现沿途分成前不得按 40/60 做读数归因（Jev A 0.953）。
 
     🔴 2026-10-20 全审 P0-2（A-3）：原实现只 `local_treasury += tax`、**无付款方**，
     等于凭空造币（实测 3.9–11.7 万贯/月）。现由该路**商人 POP wealth** 经桥扣缴，
@@ -575,13 +580,19 @@ def settle_foreign_trade(state, month: Optional[int] = None,
                "tax_requested": tax.get("tax"), "reason": out.get("reason")}
         rows.append(row)
         if not dry_run and isinstance(journal, list):
+            # A 补记（2026-10-20，Jev A 0.953）：流水必须与**钱流**一致——陆路实扣额
+            # 全入交易地府库，故 tax_over 记 0、tax_stay 记实扣额；40/60 沿途分成
+            # 尚未实现（leg 无沿途路径数据，凭空分配＝臆造归属），tax_to 明示交易地。
+            _land = isinstance(_split, dict)
             journal.append({"month": month, "route": leg.get("route"), "seat": leg.get("seat"),
                             "partner": leg.get("partner"), "dim": leg.get("dim"),
                             "qty": qty, "unit_price": leg.get("unit_price"),
                             "goods_value": value,
                             "tax": _tax_credited, "tax_requested": tax.get("tax"),
-                            "tax_over": (_split or {}).get("over_tax", tax.get("tax")),
-                            "tax_stay": (_split or {}).get("stay_tax"),
+                            "tax_over": 0 if _land else tax.get("tax"),
+                            "tax_stay": _tax_credited if _land else None,
+                            "tax_to": (f"local_treasury:{leg.get('route')}"
+                                       if _land else None),
                             "direction": leg.get("direction"), "freight": None,
                             "reason": out.get("reason")})
     return {"enabled": True, "dry_run": bool(dry_run), "legs": len(legs),
