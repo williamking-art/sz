@@ -1231,8 +1231,12 @@ def _settle_external_economy(state, log):
                 _dz_hit = random.random() < float(_dz.get("prob", 0.04))
                 _dz_gy = gy
                 if _dz_hit:
-                    _dz_gy = gy * random.uniform(float(_dz.get("min_yield", 0.5)),
-                                                 float(_dz.get("max_yield", 0.8)))
+                    # batch3：减产**幅度**由天道档位（轻/中/重/极重）换算；缺档沿用原 uniform
+                    from core.domains.events.disaster_tier import resolve_famine_yield
+                    _fy = resolve_famine_yield(state)
+                    _dz_gy = gy * (_fy if _fy is not None else
+                                    random.uniform(float(_dz.get("min_yield", 0.5)),
+                                                   float(_dz.get("max_yield", 0.8))))
                 # 省域审计窗口起点（省 POP wealth/grain；中央 treasury 不在窗口）
                 _pm0 = sum(int(v.get("wealth", 0) or 0) for v in ppop.values() if isinstance(v, dict))
                 _pg0 = sum(int(v.get("grain", 0) or 0) for v in ppop.values() if isinstance(v, dict))

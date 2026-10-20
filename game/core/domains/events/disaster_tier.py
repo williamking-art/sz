@@ -21,7 +21,10 @@ import random
 from typing import Any, Callable, Dict, List, Optional
 
 __all__ = ["DISASTER_SEVERITY_LEVELS", "SEVERITY_TO_LEVEL", "resolve_disaster",
-           "register_disaster_provider", "DISASTER_REGIONS", "DISASTER_CHANCE"]
+           "register_disaster_provider", "DISASTER_REGIONS", "DISASTER_CHANCE",
+           "SILT_LEVELS", "SILT_DELTA", "FAMINE_LEVELS", "FAMINE_YIELD",
+           "resolve_canal_silt", "resolve_famine_yield",
+           "register_canal_silt_provider", "register_famine_provider"]
 
 DISASTER_SEVERITY_LEVELS = ("轻", "中", "重", "极重")
 
@@ -81,3 +84,84 @@ def resolve_disaster(state, *, roll: Optional[float] = None) -> Dict[str, Any]:
     region = region_hint or random.choice(DISASTER_REGIONS)
     return {"occur": True, "severity": level, "region": region,
             "source": source, "note": note, "tier": tier}
+
+
+# ============================================================
+# batch3（2026-10-20）：漕运淤塞程度 / 灾荒减产幅度
+# 口径同 batch1/2：天道出档位，程序换算；**缺档返回 None ⇒ 调用方沿用原随机（零变更）**。
+# ============================================================
+
+#: 漕运淤塞档位 → 单次淤积增量（点）
+SILT_LEVELS = ("无", "轻", "中", "重", "极")
+SILT_DELTA: Dict[str, int] = {"无": 0, "轻": 3, "中": 5, "重": 8, "极": 12}
+
+#: 灾荒减产档位 → 产量系数
+FAMINE_LEVELS = ("轻", "中", "重", "极重")
+FAMINE_YIELD: Dict[str, float] = {"轻": 0.80, "中": 0.70, "重": 0.55, "极重": 0.40}
+
+_CANAL_PROVIDERS: List[Callable] = []
+_FAMINE_PROVIDERS: List[Callable] = []
+
+
+def register_canal_silt_provider(fn: Callable) -> None:
+    _CANAL_PROVIDERS.append(fn)
+
+
+def register_famine_provider(fn: Callable) -> None:
+    _FAMINE_PROVIDERS.append(fn)
+
+
+def _canal_slot(state) -> Dict[str, Any]:
+    got = getattr(state, "_canal_ai", None)
+    if isinstance(got, dict):
+        sil = got.get("silt")
+        if isinstance(sil, dict):
+            return sil
+    return {}
+
+
+def _canal_ask(state) -> Dict[str, Any]:
+    for fn in reversed(_CANAL_PROVIDERS):
+        try:
+            got = fn(state)
+            if isinstance(got, dict):
+                return got
+        except Exception:  # noqa: BLE001
+            continue
+    return {}
+
+
+def resolve_canal_silt(state, cause: str) -> Optional[int]:
+    """漕运淤塞：cause ∈ {base, disaster, war} → 增量；缺档/非法 ⇒ None。"""
+    level = _canal_slot(state).get(cause)
+    if level not in SILT_LEVELS:
+        level = _canal_ask(state).get(cause)
+    if level in SILT_LEVELS:
+        return SILT_DELTA[level]
+    return None
+
+
+def _famine_slot(state) -> Dict[str, Any]:
+    got = getattr(state, "_famine_ai", None)
+    return got if isinstance(got, dict) else {}
+
+
+def _famine_ask(state) -> Dict[str, Any]:
+    for fn in reversed(_FAMINE_PROVIDERS):
+        try:
+            got = fn(state)
+            if isinstance(got, dict):
+                return got
+        except Exception:  # noqa: BLE001
+            continue
+    return {}
+
+
+def resolve_famine_yield(state) -> Optional[float]:
+    """灾荒减产幅度档位 → 产量系数；缺档/非法 ⇒ None（调用方沿用原 uniform）。"""
+    level = _famine_slot(state).get("yield")
+    if level not in FAMINE_LEVELS:
+        level = _famine_ask(state).get("yield")
+    if level in FAMINE_LEVELS:
+        return FAMINE_YIELD[level]
+    return None

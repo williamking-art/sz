@@ -65,13 +65,22 @@ def _settle_granary(state, log):
             log.append(f"[仓漕] {_granary_ai['narrative']}")
 
     block = state.canal_block
+    # batch3（2026-10-20）：淤积**程度**由天道出档位（无/轻/中/重/极），程序换算增量；
+    # 频次（0.08 / 0.3）与自然疏浚仍为结构性随机；天道缺档 ⇒ 沿用原随机（零变更）。
+    from core.domains.events.disaster_tier import resolve_canal_silt
+    _silt = {"base": resolve_canal_silt(state, "base"),
+             "disaster": resolve_canal_silt(state, "disaster"),
+             "war": resolve_canal_silt(state, "war")}
     if random.random() < 0.08:
-        block = min(100, block + random.randint(3, 8))
+        _d = _silt["base"]
+        block = min(100, block + (_d if _d is not None else random.randint(3, 8)))
     if state.disaster_severity > 0 and random.random() < 0.3:
-        block = min(100, block + random.randint(5, 15))
+        _d = _silt["disaster"]
+        block = min(100, block + (_d if _d is not None else random.randint(5, 15)))
     jin_will = state.external.get("金", {}).get("invasion_will", 0)
     if jin_will >= 80 and random.random() < 0.3:
-        block = min(100, block + random.randint(3, 10))
+        _d = _silt["war"]
+        block = min(100, block + (_d if _d is not None else random.randint(3, 10)))
     block = max(0, block - random.randint(0, 2))
     # 🟢 M39c-1：全国级写点走桥（未下沉 ⇒ None ⇒ 回落原写法，行为不变）
     from core.domains.economy import canal_bridge as _cb
