@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import math
 from typing import Any, Dict, Optional
+from core.foundation.common.numeric import finite_number as _num
 
 __all__ = [
     "ACCEL_ALPHA", "base_material_cost", "accel_speed_mult",
@@ -30,18 +31,6 @@ __all__ = [
 
 #: 加速指数（凹函数）；0.5 ⇒ 投入 ×2 → 工期 ÷1.41
 ACCEL_ALPHA = 0.5
-
-
-def _num(v: Any, default: Optional[float] = None) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return default
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return default
-    if f != f or f in (float("inf"), float("-inf")):
-        return default
-    return f
 
 
 def _unit_price(dim: str, state=None) -> Optional[float]:

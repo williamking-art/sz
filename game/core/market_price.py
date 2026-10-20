@@ -29,6 +29,7 @@ B0 台账与 B1 落地过程暴露两处价格口径问题：
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
+from core.foundation.common.numeric import finite_number as _num
 
 __all__ = [
     "PRICE_SCHEMA_VERSION", "PRICE_BOUNDS", "price_pressure",
@@ -50,18 +51,6 @@ PRESSURE_GAIN = 1.0
 
 #: 单月相对涨跌封顶（复用既有 `PRICE_LEVEL_MONTHLY_CAP` 量级，可按需调）
 DEFAULT_MONTHLY_CAP = 0.15
-
-
-def _num(v: Any, default: Optional[float] = None) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return default
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return default
-    if f != f or f in (float("inf"), float("-inf")):
-        return default
-    return f
 
 
 def _base_price(dim: str, state=None) -> Optional[float]:

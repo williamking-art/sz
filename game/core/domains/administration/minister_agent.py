@@ -29,6 +29,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from core.foundation.common.numeric import finite_number as _num
 
 __all__ = [
     "ACTOR_SCHEMA_VERSION", "MINISTER_STATUS_IN_OFFICE", "MINISTER_STATUS_OUT",
@@ -48,18 +49,6 @@ ACTOR_MIN_FIELDS = (
     "actor_id", "status", "posts", "authority",
     "memory", "intents", "known_info",
 )
-
-
-def _num(v: Any, default: Optional[float] = None) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return default
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return default
-    if f != f or f in (float("inf"), float("-inf")):
-        return default
-    return f
 
 
 def _actor_store(state) -> Dict[str, Any]:

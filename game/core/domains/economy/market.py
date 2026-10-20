@@ -36,6 +36,7 @@ B0 台账（`specs/market-civilian-economy/b0-inventory-ledger.md`）实测确�
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
+from core.foundation.common.numeric import finite_number as _num
 
 __all__ = [
     "TRADE_SCHEMA_VERSION", "TRADE_PURPOSES",
@@ -50,18 +51,6 @@ TRADE_PURPOSES = ("consume", "resale", "storage")
 
 #: 同一回合已成交记录：`{(turn, trade_id): outcome}`（防重复成交）
 _TRADE_LEDGER: Dict[Tuple[Any, str], Dict[str, Any]] = {}
-
-
-def _num(v: Any, default: Optional[float] = None) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return default
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return default
-    if f != f or f in (float("inf"), float("-inf")):
-        return default
-    return f
 
 
 def _int(v: Any, default: int = 0) -> int:

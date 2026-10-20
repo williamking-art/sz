@@ -31,7 +31,26 @@ from typing import Any, Optional
 
 from content.data import clamp as clamp   # 与既有单点同源（re-export，避免又一份实现）
 
-__all__ = ["parse_number", "finite_or_undefined", "clamp", "clamp_effect_multiplier"]
+def finite_number(v: Any, default: Optional[float] = None) -> Optional[float]:
+    """有限数值取数：`None`/`bool`/不可转/NaN/±inf ⇒ `default`（默认 `None`）。
+
+    与 `parse_number` 的区别：默认**不回落 0**（缺失≠0），且 `bool` 不当数值；
+    与 `_safe_float` 的区别：不做字符串 strip/容器白名单，只按 `float()` 可转性判定。
+    2026-10-20 复用批：6 个模块曾各复制一份逐字节相同的 10 行 `_num`，现统一到此。
+    """
+    if v is None or isinstance(v, bool):
+        return default
+    try:
+        f = float(v)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if f != f or f in (float("inf"), float("-inf")):
+        return default
+    return f
+
+
+__all__ = ["parse_number", "finite_number", "finite_or_undefined", "clamp",
+           "clamp_effect_multiplier"]
 
 
 def parse_number(v: Any, default: float = 0.0) -> float:

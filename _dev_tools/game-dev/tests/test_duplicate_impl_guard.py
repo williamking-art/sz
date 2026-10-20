@@ -29,9 +29,6 @@ _SKIP_DIRS = {"__pycache__", "node_modules", "assets", ".git", "out", "dist", "r
 #: 冻结基线（2026-10-20 实测）：hash → 出现该实现的文件集。
 #: 归一时从下表删除；**不要**为「新增重复」往这里加。
 _BASELINE = {
-    ("9f9649fde2855c93", ("core/construction_cost.py", "core/domains/administration/minister_agent.py",
-                          "core/domains/economy/demand.py", "core/domains/economy/market.py",
-                          "core/market_price.py", "core/population_readout.py")),
     ("7ac01c887eb34b5e", ("core/faction_ban.py", "core/impeachment.py")),
     ("6bd3bc8b526539d1", ("core/domains/administration/imperial_exam.py",
                           "core/domains/administration/official_appraisal.py")),

@@ -22,23 +22,12 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
+from core.foundation.common.numeric import finite_number as _num
 
 __all__ = [
     "demand_release", "basic_need", "durable_gap",
     "price_sensitivity", "resolve_purchase_plan",
 ]
-
-
-def _num(v: Any, default: Optional[float] = None) -> Optional[float]:
-    if v is None or isinstance(v, bool):
-        return default
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return default
-    if f != f or f in (float("inf"), float("-inf")):
-        return default
-    return f
 
 
 def _cfg(name: str, default: Any = None) -> Any:
