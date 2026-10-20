@@ -109,6 +109,22 @@ def _totals(state, dims):
             for d in dims if d in rep["dims"]}
 
 
+def _seed_supply_gap(state, dims, qty=100_000):
+    """给待配货维度制造确定的「库存 > 商人持有」缺口。
+
+    🔴 2026-10-20：配货门要测的是**搬运/守恒**，不该依赖上游产量与随机数恰好
+    让某维出现缺口（此前三条用例未播种，靠流水巧合通过；公用采购改为真实扣料后
+    物料维常处于「持有 ≥ 库存」，门就空转报红）。这里显式造缺口，令门可复现。
+    """
+    for dim in dims:
+        cell = state.resources.setdefault(dim, {})
+        if not isinstance(cell, dict):
+            cell = {}
+            state.resources[dim] = cell
+        cell["stock"] = int(cell.get("stock", 0) or 0) + int(qty)
+    return dims
+
+
 def test_allocation_preserves_total_amount():
     """真正的搬运守恒：配货前后 Σ(商人持有 + 国库库存) 必须不变。"""
     from core.commands import new_game
@@ -121,6 +137,7 @@ def test_allocation_preserves_total_amount():
     for _ in range(2):                       # 新局库存为 0，需先跑出产能才有可搬运的货
         settle_local(state)
     dims = [d for d in GOODS_DIMS if d in holding_report(state)["dims"]] or list(GOODS_DIMS)[:8]
+    _seed_supply_gap(state, dims)
     before = _totals(state, dims)
     moved = supply_goods_to_seats(state, dims=dims)
     after = _totals(state, dims)
@@ -147,6 +164,7 @@ def test_holding_report_closed_right_after_allocation():
     for _ in range(2):                       # 同上：先跑出库存
         settle_local(state)
     dims = list(GOODS_DIMS)[:24]
+    _seed_supply_gap(state, dims)
     moved = supply_goods_to_seats(state, dims=dims)
     assert moved and any(v > 0 for v in moved.values()), f"空转：{moved}"
 
@@ -172,6 +190,8 @@ def test_allocation_swaps_held_and_stock_current_behaviour():
         settle_local(state)
     rep0 = holding_report(state)
     dims = [d for d in GOODS_DIMS if d in rep0["dims"]]
+    _seed_supply_gap(state, dims)
+    rep0 = holding_report(state)
     moved = supply_goods_to_seats(state, dims=dims)
     rep1 = holding_report(state)
     hit = [d for d in moved if moved[d] and d in rep1["dims"]]

@@ -14,11 +14,20 @@ from core.domains.economy.procurement import (
     execute_public_supply_procurement,
     ProcurementOrder
 )
+from core.foundation.ledger.material_holding import MATERIAL_DIMS
+from core.foundation.ledger.pop_bridge import pop_goods_add
 from core.foundation.ledger.spatial_warehouse_bridge import warehouse_stock_get
 
 
+def _seed_merchant_goods(state, route, dim, seat_id, qty):
+    """给该路商人注入初始货量（走治所真账桥；未下沉时回落路级扁平）。"""
+    pdata = state.prefectures[route]
+    if pop_goods_add(pdata, "商人", dim, qty, seat_id) is None:
+        pdata["pops"]["商人"].setdefault("goods", {})[dim] = qty
+
+
 def test_procurement_order_lifecycle():
-    """测试采购订单生成、交割及料场入库。"""
+    """测试采购订单生成、交割及料场入库（物料维走权威中文轨）。"""
     state = new_game("史实")
     route = "京畿路"
     budget = 1000
@@ -27,24 +36,75 @@ def test_procurement_order_lifecycle():
     assert order.route == route
     assert order.material_cost + order.service_cost == budget
     assert order.goods_qty > 0
-    assert order.goods_dim in ("timber", "stone", "iron")
+    # 🔴 2026-10-20：物料维必须是权威表（旧英文轨 timber/stone/iron 已废，扣不到货）
+    assert order.goods_dim in MATERIAL_DIMS
 
-    # 初始料场存量
+    # 商人须**实有**该料，本单才能成交（无料不成交是口径，不是缺陷）
+    _seed_merchant_goods(state, route, order.goods_dim, order.seat_id, int(order.goods_qty) + 100)
     init_stock = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim) or 0.0
 
-    # 执行交割
     res = settle_procurement_order(state, order)
     assert res["ok"] is True
+    assert res["delivered_qty"] == pytest.approx(order.goods_qty)
+    assert res["shortfall_qty"] == 0
     assert res["paid_total"] > 0
 
-    # 验证料场确实入库了采购物资
     new_stock = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim)
-    assert new_stock == init_stock + order.goods_qty
+    assert new_stock == pytest.approx(init_stock + order.goods_qty)
 
-    # 验证订单归档记录
     log = getattr(state, "procurement_orders_log", [])
     assert len(log) >= 1
     assert log[-1]["order_id"] == order.order_id
+
+
+def test_procurement_without_merchant_material_does_not_fabricate():
+    """无料 ⇒ 本单不成交：不付款、不入库（旧实现按订单量凭空入库且付全款）。"""
+    state = new_game("史实")
+    route = "京畿路"
+    order = create_procurement_order(state, route, 10000)
+    pdata = state.prefectures[route]
+    pdata["local_treasury"] = 50000
+
+    loc0 = pdata["local_treasury"]
+    m_wealth0 = pdata["pops"]["商人"].get("wealth", 0)
+    a_wealth0 = pdata["pops"]["工匠"].get("wealth", 0)
+    wh0 = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim) or 0.0
+
+    res = settle_procurement_order(state, order)
+
+    assert res["delivered_qty"] == 0
+    assert res["material_short"] is True
+    assert res["paid_total"] == 0
+    assert pdata["local_treasury"] == loc0, "无料却扣了府库钱"
+    assert pdata["pops"]["商人"].get("wealth", 0) == m_wealth0
+    assert pdata["pops"]["工匠"].get("wealth", 0) == a_wealth0
+    wh1 = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim) or 0.0
+    assert wh1 == wh0, "无料却凭空入库"
+
+
+def test_procurement_partial_stock_pays_proportionally():
+    """部分成交：只入实扣量、只付成交比例的款。"""
+    state = new_game("史实")
+    route = "京畿路"
+    order = create_procurement_order(state, route, 10000)
+    order.goods_qty = 3000.0
+    order.material_cost = 6000
+    order.service_cost = 4000
+    pdata = state.prefectures[route]
+    pdata["local_treasury"] = 50000
+    _seed_merchant_goods(state, route, order.goods_dim, order.seat_id, 1000)
+
+    wh0 = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim) or 0.0
+    res = settle_procurement_order(state, order)
+
+    assert res["delivered_qty"] == pytest.approx(1000.0)
+    assert res["shortfall_qty"] == pytest.approx(2000.0)
+    # 成交比例 1/3 ⇒ 物料款 2000、工钱 1333（四舍五入）
+    assert res["paid_merchant"] == 2000
+    assert res["paid_artisan"] == 1333
+    assert res["paid_total"] == 3333
+    wh1 = warehouse_stock_get(state, order.seat_id, "public_depot", order.goods_dim) or 0.0
+    assert wh1 - wh0 == pytest.approx(1000.0)
 
 
 def test_public_supply_in_settlement_finance():

@@ -1,0 +1,9 @@
+{
+  "id": "WIRING-GAPS-antigravity-2026-10-20",
+  "title": "未接线模块收口清单（M298-M325 审计 §9 剩余项）",
+  "status": "open-registered",
+  "claimedBy": null,
+  "created_at": "2026-10-20T13:40:00Z",
+  "description": "审计报告 analysis/review_antigravity_M298-M325_2026-10-17.md §9 复核后仍仅「模块就绪、无生产调用」的项，需接线或降级任务状态：① check_countersign（知通连署判定，当前只在 decree_effect 读静态 countersigned 字段）；② apply_fangtian_survey / derive_national_tenure（方田清丈/田制派生）；③ reclaim_land_government / get_circuit_wasteland（垦荒）；④ advance_livestock_production（畜牧生产）；⑤ derive_macro_climate / vignette_of_circuit（宏观物候，derive_circuit_climate 已接）；⑥ MetrologyEngine 4 项未消费效果（logistics_loss_reduction / tax_leakage_resistance / clerk_grip_resistance / gentry_unrest_spike，制造倍率已接）。验收：每项给出生产调用点（从 run_monthly_settlement 或诏令链进入）或有据地降级为「仅声明」；不得只加单测。",
+  "note": "与 M300/M317/M324（antigravity，in_progress）重叠的部分由该批收口，本任务只兜底剩余无人认领项。"
+}

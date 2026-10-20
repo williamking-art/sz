@@ -230,3 +230,52 @@ def test_unknown_kind_treated_as_long_with_reason():
 
     timing, reason = classify_decree_timing("反间计")
     assert timing == "long" and "未知" in reason
+
+def test_ai_can_escalate_immediate_to_long():
+    """推演 AI 判断：加薪通常是即时，但朝局崩坏时可判为长期拉锯。"""
+    s = _S(prestige=70)
+    s._decree_ai = {"execution_timing": "长期", "timing_note": "朝议拉锯，拖而不办"}
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["timing"] == "long"
+    assert got["timing_source"] == "天道"
+    assert got["months"] >= 6, got["months"]
+    assert "拉锯" in got["timing_reason"]
+
+
+def test_ai_can_compress_long_to_immediate():
+    s = _S(prestige=70)
+    s._decree_ai = {"execution_timing": "即时", "timing_note": "圣威所至，一旬而办"}
+    got = resolve_decree_duration(s, decree_kind="reduce_office", ability=50, followup=0)
+    assert got["timing"] == "immediate" and got["months"] == 1
+
+
+def test_missing_timing_falls_back_to_effect_table():
+    s = _S(prestige=70)
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["timing"] == "immediate"
+    assert "效果键" in got["timing_source"]
+
+
+def test_timing_from_execute_contract_and_provider():
+    from core.domains.politics import decree_duration as dd
+
+    s = _S(prestige=70)
+    s._decree_execute_ai = {"execution_timing": "短期"}
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["timing"] == "short" and "执行契约" in got["timing_source"]
+
+    s2 = _S(prestige=70)
+    dd.register_timing_provider(lambda st, kind: {"execution_timing": "长期", "note": "p"})
+    try:
+        got2 = resolve_decree_duration(s2, decree_kind="pay_reform", ability=50, followup=0)
+        assert got2["timing"] == "long" and "provider" in got2["timing_source"]
+    finally:
+        dd._TIMING_PROVIDERS.clear()
+
+
+def test_invalid_timing_falls_back():
+    s = _S(prestige=70)
+    s._decree_ai = {"execution_timing": "千年大计"}
+    got = resolve_decree_duration(s, decree_kind="pay_reform", ability=50, followup=0)
+    assert got["timing"] == "immediate"
+    assert "效果键" in got["timing_source"]

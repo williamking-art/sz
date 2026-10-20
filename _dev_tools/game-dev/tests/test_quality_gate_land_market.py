@@ -92,9 +92,9 @@ def test_land_tariff_refuses_when_no_treasury_field():
     assert out["ok"] is False and out["reason"] == "no_local_treasury"
 
 
-def test_switch_off_keeps_p5_behavior():
+def test_switch_off_keeps_p5_behavior(monkeypatch):
     s = _state()
-    assert dc.FOREIGN_TRADE_LEGS == 0
+    monkeypatch.setattr(dc, "FOREIGN_TRADE_LEGS", 0)
     s._at_war = {"辽": True}
     r = TL.settle_foreign_trade(s, month=1)
     assert r["enabled"] is False

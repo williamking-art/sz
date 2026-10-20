@@ -1,7 +1,7 @@
 {
  "id": "B2-guard-quality-gate",
  "title": "B-2 守卫进质量放行门：先只读设计与取证，评审后再实施",
- "status": "in_progress",
+ "status": "done",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-12",
  "authority": "用户 2026-10-12 裁定：B-2 开始只读设计与取证；B-3、B-4 暂缓",
@@ -27,5 +27,6 @@
  ],
  "blocks": "B-2 实施、B-3、B-4 均待本轮设计评审；B-1 已完成不阻塞",
  "claimedBy": "DSH",
- "claimedAt": "2026-10-11T23:39:44Z"
+ "claimedAt": "2026-10-11T23:39:44Z",
+ "commit": "8c7dce4879"
 }

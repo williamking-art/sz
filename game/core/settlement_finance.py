@@ -932,6 +932,10 @@ def _settle_local_expenditure(state, log) -> dict:
                 _budget -= _give
         due_k_eff_used = due_k_eff
         route_paid = 0
+        # 🔴 2026-10-20：公用采购「**缺料未成交**」的部分不是欠支。
+        # 国家没买到料 ⇒ 不欠任何债权人；旧实现把这段未执行额当欠支（并因
+        # `_kind_short` 只按 alloc 算而把差额甩给最大科目 ⇒ 身份欠给虚增）。
+        _voided_public = 0
         for k in kinds:
             amt = alloc[k]
             if amt <= 0:
@@ -949,7 +953,11 @@ def _settle_local_expenditure(state, log) -> dict:
                 proc_res = execute_public_supply_procurement(state, name, amt)
                 given = int(proc_res.get("paid_total", 0))
                 if given <= 0:
+                    # 缺料/无钱 ⇒ 本单未成交：预算额记为「未执行」，不进欠支
+                    _voided_public += int(amt)
                     continue
+                if given < amt:
+                    _voided_public += int(amt) - given
                 paid_by_kind[k] += given
                 route_paid += given
                 continue
@@ -993,6 +1001,13 @@ def _settle_local_expenditure(state, log) -> dict:
                     _drop = given / float(LOCAL_EXP_SECURITY_UNREST_PER_POINT)
                     _p["unrest"] = max(0.0, round(float(_p.get("unrest", 0) or 0) - _drop, 2))
         # 欠支基准＝**应支** `due_eff`（府库不足或 cap 截断都算欠支，不得静默消失）
+        # 但「缺料未成交」的公用采购额要先从应支里扣除（见 `_voided_public`）。
+        if _voided_public > 0:
+            _cut = min(int(_voided_public), int(due_eff))
+            due_eff -= _cut
+            if "public_supply" in due_k_eff_used:
+                due_k_eff_used["public_supply"] = max(
+                    0, int(due_k_eff_used["public_supply"]) - _cut)
         short = due_eff - route_paid
         arrears += short
         _kind_short = {k: 0 for k in kinds}

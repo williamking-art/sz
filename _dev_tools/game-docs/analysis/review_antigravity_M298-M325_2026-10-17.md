@@ -118,3 +118,53 @@ git diff --name-only f6688d7c80..HEAD -- "game/**/*.py"   # 57 个生产文件
 4. **A-1/A-2/A-3 三大悬空模块**：要么接线，要么把任务状态从 done 降为 🟡 并在 `tasks.md` 写明"模块就绪、未接线"；
 5. A-5 管线 critical 划分重审（动账步必 critical）；
 6. B 组按模块认领。
+
+
+---
+
+## 9. 复核状态（2026-10-20，DSH）
+
+> 结论：上表 P0/A 组**绝大部分已由 M326/M327 及后续提交收口**；本次复核又发现并修掉采购链的两处残留。
+
+| 审计项 | 现状 | 依据 |
+|---|---|---|
+| A-1 度量衡 | 🟡 **部分接线**：settlement_econ 已消费 MetrologyEngine.active_effects()["manufacturing_mult"]；物流损耗/抗漏税/吏胥抗拒/士绅民怨 4 项仍 **0 消费** | grep MetrologyEngine = 自身 + settlement_econ.py |
+| A-2 / M317·M318 PM | ✅ 已接线：settlement_econ.relative_throughput_multiplier、industry_chains.adjusted_recipe | settlement_econ.py:1722,1747、industry_chains.py:429,495 |
+| A-3 科举 / 三年磨勘 | ✅ 已接线：officialdom.run_triennial_exam → imperial_exam.run_triennial_exam_full；
+un_triennial_appraisal 由 settlement_officialdom 调用 | 对应 import/调用点 |
+| A-4 交子上限无界 | ✅ 已封顶（实测 100/350/800 → 均 6,000,000 贯，储备 200 万） | _jiaozi_ceiling 实跑 |
+| A-5 管线回滚 | ✅ critical=True 49/49 | get_default_pipeline() 实跑 |
+| A-6 采购守恒 | ✅ 钱守恒已修（M326）；🔴 **本轮又发现并修**：① 物料维仍是已废英文轨（	o_material_dim('iron') → None ⇒ 扣不到货、入库写进**幽灵维**，工程按中文维永远取不到料）；② 成交未受商人实有量约束（按订单量凭空入库）；③ 缺料未成交的预算额被当欠支并甩进最大科目（clerks_pay_arrears 15391→35105 虚增） | procurement.py / settlement_finance.py 本轮改动 + Jev p=0.979 |
+| A-7 逃亡落点 | ✅ _return_men(..., from_army_pop=True) 回归本路农/流民 | settlement_military.py:172 |
+| A-8 皇威单点 | ✅ 主路径 state.change_prestige(5, ...)；直写仅作无方法时的回落 | imperial_exam.py:261-264 |
+| B-1 船队吞 0 | ✅ None 判缺失 | logistics_coupler.py:151,225 |
+| B-2 Step 0 双判据 | ✅ 已统一走天道动态安全垫线 | settlement.py:533 |
+| B-3 连署缺失当已签 | ✅ 缺失按「未签」保守计入并留诊断 | decree_effect.py:207-233 |
+| B-9 corruption 吞 0 | ✅ 分读 bility/corruption | settlement_military.py:157-158 |
+| B-4 知通连署**判定** | ⚠️ 仍仅自身引用：check_countersign 未接诏令执行（当前只读静态 countersigned 字段） | grep check_countersign |
+| B-6 方田清丈 / 垦荒 | ⚠️ 仍仅自身引用：pply_fangtian_survey / 
+eclaim_land_government 无生产入口 | grep |
+| B-7 畜牧 / 宏观物候 | ⚠️ 部分：dvance_livestock_production、derive_macro_climate、ignette_of_circuit 仍无生产调用（derive_circuit_climate 已接 pop_livelihood） | grep |
+| 新增（非本批引入） | 🔴 	est_architecture_import_guard::test_no_new_cyclic_modules 在 HEAD 即红：10-20 的复用收口提交新增了一个未冻结的大 SCC（ai.client…core.settlement_steps），需该批 owner 更新棘轮或拆环 | HEAD 与 working tree 均红 |
+
+### 9.1 本轮修复的细节（采购链）
+
+1. **物料维**：goods_dims = list(MATERIAL_DIMS)（木/石/铁）。旧轨道 	imber/stone/iron 已废，
+   	o_material_dim() 认不出 ⇒ stock_deducted=0 却仍往 public_depot 写 3000 单位 "iron"。
+2. **成交受实有物料约束**（Jev p=0.979）：只入 stock_deducted、只付成交比例；
+   无料/无钱 ⇒ 本单不成交（paid_total=0、不入库），并登记 POP custody 流量账。
+3. **缺料未成交 ≠ 欠支**：该预算额从 due_eff/due_k_eff[public_supply] 扣除，
+   避免余额被 _kind_short 的差额补丁甩给 clerk_pay（实测身份欠给 15391 → 35105 虚增）。
+4. **配货门三条用例**（	est_quality_gate_resource_stock.py）：原未播种、靠流水巧合出现缺口；
+   本轮改为**显式造缺口**（_seed_supply_gap），门测的是搬运/守恒而不是上游产量运气。
+
+### 9.2 复跑
+
+`powershell
+ = "D:\codebuddy\.audit-venv\Scripts\python.exe"
+=""; ="0"; cd D:\codebuddy\sz
+&  -m pytest _dev_tools/game-dev/tests/test_procurement_order_settlement.py -q
+&  -m pytest _dev_tools/game-dev/tests/test_stock_flow_identity.py -q
+&  -m pytest _dev_tools/game-dev/tests/test_identity_economics_m35.py _dev_tools/game-dev/tests/test_identity_pressure_m35_2.py -q
+&  -m pytest _dev_tools/game-dev/tests/test_quality_gate_resource_stock.py -q
+`
