@@ -304,6 +304,36 @@ def review_actions(edict_text, actions, *, threshold: float | None = None) -> li
 # --------------------------------------------------------------------------
 # 决策点 2：清单是否含不可逆后果（noul）—— 供后续「提交前确认」用
 # --------------------------------------------------------------------------
+def decide_choice(context: str, instructions: str, criteria: dict,
+                  *, question_key: str = "q") -> dict | None:
+    """通用「多选一」裁决（内嵌 Jev）：返回 {choice, probabilities, confidence}。
+
+    供 AI 契约在**结算前置步骤**取档位（灾情/落地/时效/态度…）；
+    未启用/失败 → None（调用方不得假装已判）。
+    """
+    cfg = load_config()
+    if not cfg:
+        return None
+    if not isinstance(context, str) or not context.strip():
+        return None
+    if not isinstance(criteria, dict) or not criteria:
+        return None
+    questions = {question_key: {"type": "choice", "instructions": instructions,
+                                 "criteria": criteria}}
+    out = _decide(cfg, context, questions)
+    if not isinstance(out, dict):
+        return None
+    answers = out.get("answers")
+    if not isinstance(answers, dict):
+        log.warning("jev_gate: 响应缺 answers")
+        return None
+    a = answers.get(question_key)
+    if not isinstance(a, dict) or "choice" not in a:
+        return None
+    return {"choice": a.get("choice"), "probabilities": a.get("probabilities"),
+            "confidence": a.get("confidence")}
+
+
 def assess_irreversibility(edict_text, plan) -> dict | None:
     """判定行动清单是否含**不可逆/破坏性**后果。
 

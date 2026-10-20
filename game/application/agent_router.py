@@ -138,6 +138,15 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["granary", "granary_stats."],
         "domain_fields": ["granary", "canal"],
     },
+    "decree_duration": {
+        "order": 12,
+        "method": "decree_duration_decide",
+        "settle_attr": "_decree_ai",
+        "wake_keywords": ["诏", "旨", "敕", "中旨", "御笔", "变法", "裁冗", "省浮费"],
+        "wake_state": [("pending_decrees", lambda v: isinstance(v, list) and bool(v))],
+        "wake_diff_paths": ["pending_decrees.", "active_decrees."],
+        "domain_fields": ["decree_timing", "decree_landing"],
+    },
 }
 
 #: 结算侧已预留、但**契约方法尚不存在**的 AI 槽位（审查 P2-35 登记）：
@@ -162,8 +171,6 @@ PENDING_CONTRACTS = (
      "core/domains/events/disaster_tier.py 消费；待接生产者"),
     ("_famine_ai", "famine_decide",
      "core/domains/events/disaster_tier.py 消费；待接生产者"),
-    ("_decree_ai", "decree_duration",
-     "core/domains/politics/decree_duration.py 消费；待接生产者"),
 )
 
 def _wake_by_keywords(agent_def: dict, player_input: str) -> bool:

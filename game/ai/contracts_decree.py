@@ -380,6 +380,63 @@ class DecreeContractMixin:
         plan = self._postprocess(raw, validate, lambda: _ai_unavailable("decree_action_plan"))
         return _append_jev_review(edict_text, plan)
 
+    def decree_duration_decide(self, state):
+        """天道裁决诏令时效/执行态度/落地档（生产者：填 state._decree_ai）。
+
+        纪律：
+        - 本方法只在**结算前置步骤/下旨时**调用（内嵌 Jev 是同步 HTTP，结算链内禁止）；
+        - 只出档位（速/常/缓、即时/短期/长期、奉行/依违/阳奉阴违/拖延、全办/大部/半数/少半/未办）；
+        - Jev 不可用/无 key/失败 ⇒ 返回 None 且**不写槽位**（缺失≠假装已判）。
+        """
+        try:
+            from ai import jev_gate
+        except Exception:  # noqa: BLE001
+            return None
+        decrees = [d for d in (getattr(state, "pending_decrees", None) or [])
+                   if isinstance(d, dict)]
+        if not decrees:
+            return None
+        ctx_bits = []
+        for d in decrees[:5]:
+            eff = d.get("effects") if isinstance(d.get("effects"), dict) else {}
+            ctx_bits.append("- 《" + str(d.get("title") or "（无题）") + "》 类别="
+                            + str(d.get("category") or "诏令") + " 效果键="
+                            + ",".join(sorted(eff))[:80])
+        ctx = ("皇威=" + str(getattr(state, "prestige", 50))
+               + "；民心=" + str(getattr(state, "population_satisfaction", 50))
+               + "；待行诏令：" + chr(10).join(ctx_bits))
+        out = {}
+        try:
+            pace = jev_gate.decide_choice(
+                ctx, "这批诏令整体推行节奏？",
+                {"速": "急务，当月即办", "常": "常规推行", "缓": "不急，可徐图"})
+            if pace and pace.get("choice") in ("速", "常", "缓"):
+                out["pace"] = pace["choice"]
+            timing = jev_gate.decide_choice(
+                ctx, "这批诏令属即时可办还是长期局势？",
+                {"即时": "改标量、当月可兑现", "短期": "数月可成", "长期": "需持续推进的工程"})
+            if timing and timing.get("choice") in ("即时", "短期", "长期"):
+                out["execution_timing"] = timing["choice"]
+            attitude = jev_gate.decide_choice(
+                ctx, "百官对这批诏令的执行态度？",
+                {"奉行": "奉行唯谨", "依违": "依违观望", "阳奉阴违": "面上奉旨、底下拖延",
+                 "拖延": "公然拖延"})
+            if attitude and attitude.get("choice") in ("奉行", "依违", "阳奉阴违", "拖延"):
+                out["execution_attitude"] = attitude["choice"]
+            landing = jev_gate.decide_choice(
+                ctx, "这批诏令最终落地程度？",
+                {"全办": "完全照办", "大部": "基本照办", "半数": "办了一半",
+                 "少半": "只办少数", "未办": "拖而不办"})
+            if landing and landing.get("choice") in ("全办", "大部", "半数", "少半", "未办"):
+                from core.domains.politics.decree_duration import ATTITUDE_COMPLETION  # noqa: F401
+                out["landing_level"] = landing["choice"]
+        except Exception:  # noqa: BLE001 — 天道失败不得阻断
+            log.warning("decree_duration_decide 失败", exc_info=True)
+        if not out:
+            return None
+        state._decree_ai = out
+        return out
+
     def decree_execute_decide(self, posture, state=None):
         """诏令执行契约（知制诰/六部）：把玩家下达的诏书按机构归属拆解为可执行任务。
         输出：{"tasks": [{"org": "户部|工部|兵部|...", "action": "执行摘要", "priority": "高|中|低", "cost_tier": "微|小|中|大"}], "narrative": "执行叙事"}"""
