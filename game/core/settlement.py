@@ -561,6 +561,15 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     pipeline = get_default_pipeline()
     pipeline.execute(state, log, _situation_journal_base=_situation_journal_base)
 
+    # ---- 外邦州府人口月末重摊（2026-10-20）：任何步骤改了省人口后，
+    # 在此统一按省精确重摊到州府，保证「Σ州府 == 省」（60 月回放曾 7 条失配）。
+    # 只动外邦 T1 的 pop（宋详账在 prefectures，不受影响）；失败留痕不阻断。
+    try:
+        from core.foundation.ledger.region_registry import distribute_regime_pops
+        distribute_regime_pops(state, force=True, reset=True)
+    except Exception as _rd_err:  # noqa: BLE001
+        log.append('[外邦] 州府人口月末重摊失败：%r' % (_rd_err,))
+
     # ---- Step 10.9: 货币口径对账（阶段 B-1；**只读视图**，不改任何货币账户）----
     # 把本月各账户余额与上月末对比：`ΔM_ALL  = 外部净注入（白银流入）− 销毁 ＋ 残差`，
     # 残差 ≠ 0 即表示存在**无对手方的造币/销毁**。这正是审查 A-2（穿底造币）、

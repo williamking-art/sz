@@ -225,6 +225,25 @@ def _simulate_external(state, log):
                         _pbs = _ppops.get("兵")
                         if isinstance(_pbs, dict):
                             _pbs["size"] = int(_p.get("troops", 0) or 0)
+            # 尾差归最大省（2026-10-20）：int() 截断会让 Σ省人口 差 1，令国级对账不闭合。
+            if isinstance(provinces, list) and provinces:
+                _sum_pop = sum(int(p.get("population", 0) or 0) for p in provinces)
+                _d_pop = int(_total) - _sum_pop
+                if _d_pop:
+                    _big = max(provinces, key=lambda p: float(p.get("weight", 0) or 0))
+                    _big["population"] = int(_big.get("population", 0) or 0) + _d_pop
+                _sum_tr = sum(int(p.get("troops", 0) or 0) for p in provinces)
+                _d_tr = int(_troops_total) - _sum_tr
+                if _d_tr:
+                    _big2 = max(provinces, key=lambda p: float(p.get("weight", 0) or 0))
+                    _big2["troops"] = int(_big2.get("troops", 0) or 0) + _d_tr
+            # P4 月度同步（2026-10-20）：外邦省人口演化后**重摊到州府**，
+            # 保持「Σ州府 == 省」（此前只在开局分解一次，长局会失配——60 月回放实测 7 条违规）。
+            try:
+                from core.foundation.ledger.region_registry import distribute_regime_pops
+                distribute_regime_pops(state, force=True, reset=True)
+            except Exception as _e:  # noqa: BLE001 — 重摊失败不阻断外邦演化
+                log.append("[外邦] 州府人口重摊失败：%r" % (_e,))
             # 兵 POP 对齐 Σ省兵力（int 截断差归零，三元一致）
             _eb = ex.setdefault("pop", {}).get("兵")
             if isinstance(_eb, dict):

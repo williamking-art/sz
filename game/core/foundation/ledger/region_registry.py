@@ -311,7 +311,7 @@ def _t1_of_province(book, owner: str, pname: str) -> list:
     return out
 
 
-def distribute_regime_pops(state, *, force: bool = False) -> Dict[str, Any]:
+def distribute_regime_pops(state, *, force: bool = False, reset: bool = False) -> Dict[str, Any]:
     """P4：省 → 州府人口分解（**逐类守恒**，尾差归首府）。
 
     · 数据源：运行态 `provinces[*].pops`（6 类 size/wealth/grain）；缺失 ⇒ 整省跳过（`None`）；
@@ -338,6 +338,9 @@ def distribute_regime_pops(state, *, force: bool = False) -> Dict[str, Any]:
             if not force and all(isinstance(r.get("pop"), dict) for r in t1):
                 out["skipped"].append("%s/%s" % (owner, pname))
                 continue
+            if reset:  # 月度重摊：先清空该省州府人口，再按省精确重算（防重复累加）
+                for r in t1:
+                    r["pop"] = {}
             weights = [float(r.get("weight") or 1.0) for r in t1]
             classes = [c for c, v in pops.items() if isinstance(v, dict)]
             for cls in classes:
