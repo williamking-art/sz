@@ -29,7 +29,9 @@ OUTCOME_DRAGGED = "dragged"
 
 __all__ = ["EXECUTOR_SYSTEMS", "SYSTEM_BASE", "SYSTEM_SENS", "AI_LANDING",
            "OUTCOME_DRAGGED", "STALE_TURNS", "is_zhongzhi", "executor_system_of",
-           "landing_effect", "closure_status", "sweep_edict_closure"]
+           "landing_effect", "closure_status", "sweep_edict_closure",
+           "LANDING_LEVELS", "LANDING_LEVEL_VALUE",
+           "resolve_landing_level", "register_landing_level_provider"]
 
 EXECUTOR_SYSTEMS = ("文官", "宦官", "武将", "宗室", "地方")
 
@@ -40,6 +42,14 @@ SYSTEM_SENS: Dict[str, float] = {
     "文官": 0.55, "宦官": 0.90, "武将": 0.75, "宗室": 0.70, "地方": 0.60,
 }
 AI_LANDING: Dict[str, float] = {"低": 0.70, "中": 0.85, "高": 1.00, "极": 1.10}
+
+#: **天道/Jev 裁决的落地档位**（只出档位，数值程序换算）
+LANDING_LEVELS = ("全办", "大部", "半数", "少半", "未办")
+LANDING_LEVEL_VALUE: Dict[str, float] = {"全办": 1.00, "大部": 0.80, "半数": 0.50,
+                                         "少半": 0.25, "未办": 0.00}
+
+#: 落地档位提供者（**由前置步骤/离线批注入 Jev 裁决**；结算期禁止同步 HTTP）
+_LANDING_LEVEL_PROVIDERS: list = []
 
 STALE_TURNS = 3
 
@@ -102,6 +112,46 @@ def _ai_landing_mult(state, system: str) -> Optional[float]:
     return None
 
 
+def register_landing_level_provider(fn) -> None:
+    """注册落地档位提供者：fn(state, decree) -> {"landing_level": 档位, "note": ...}。
+
+    纪律：结算期不做同步网络调用 ⇒ Jev/天道裁决必须由**前置步骤**注入（或离线批），
+    本模块只读结论。
+    """
+    _LANDING_LEVEL_PROVIDERS.append(fn)
+
+
+def resolve_landing_level(state, decree: Any) -> Dict[str, Any]:
+    """落地档位：天道/Jev 优先（全办/大部/半数/少半/未办）；缺档 ⇒ 无（走程序先验）。"""
+    did = decree_id_of(decree) if isinstance(decree, dict) else ""
+    slot = getattr(state, "_decree_ai", None) if state is not None else None
+    note = ""
+    src = "天道"
+    lvl = None
+    if isinstance(slot, dict):
+        per = slot.get("landing_levels")
+        if isinstance(per, dict):
+            lvl = per.get(did) or per.get(executor_system_of(decree))
+        if lvl is None:
+            lvl = slot.get("landing_level")
+        note = slot.get("landing_note") or ""
+    if lvl not in LANDING_LEVELS:
+        ex = getattr(state, "_decree_execute_ai", None) if state is not None else None
+        if isinstance(ex, dict) and ex.get("landing_level") in LANDING_LEVELS:
+            lvl, note, src = ex["landing_level"], ex.get("landing_note") or "", "天道(执行契约)"
+    if lvl not in LANDING_LEVELS:
+        for fn in reversed(_LANDING_LEVEL_PROVIDERS):
+            try:
+                cand = fn(state, decree)
+                if isinstance(cand, dict) and cand.get("landing_level") in LANDING_LEVELS:
+                    lvl, note, src = cand["landing_level"], cand.get("note") or "", "天道(provider)"
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+    if lvl in LANDING_LEVELS:
+        return {"level": lvl, "value": LANDING_LEVEL_VALUE[lvl], "note": note, "source": src}
+    return {"level": None, "value": None, "note": "天道未裁落地档，走程序先验", "source": "缺档"}
+
 def landing_effect(decree: Any, state=None, *, prestige: Optional[float] = None) -> Dict[str, Any]:
     """落地效果（不是固定 0.75）：执行系统 × 皇威曲线 × 天道档位。"""
     system = executor_system_of(decree)
@@ -116,10 +166,20 @@ def landing_effect(decree: Any, state=None, *, prestige: Optional[float] = None)
     curve = sens + (1.0 - sens) * (p / 100.0)
     ai = _ai_landing_mult(state, system) if state is not None else None
     raw = base * curve * (ai if ai is not None else 1.0)
-    landed = round(max(0.05, min(1.0, raw)), 4)
+    prior = round(max(0.0, min(1.0, raw)), 4)
+    # **天道/Jev 裁决优先**：有落地档 ⇒ 用档位值；无档 ⇒ 程序先验（可解释、不假装）
+    lvl = resolve_landing_level(state, decree) if state is not None else {
+        "level": None, "value": None, "source": "缺档", "note": ""}
+    if lvl["value"] is not None:
+        landed = round(max(0.0, min(1.0, float(lvl["value"]))), 4)
+        source = lvl["source"]
+    else:
+        landed = prior
+        source = "程序先验" if ai is None else "程序先验(含天道系统档)"
     return {"landed": landed, "system": system, "base": base, "sens": sens,
             "prestige": p, "curve": round(curve, 4), "ai_mult": ai,
-            "source": ("天道档位" if ai is not None else "程序曲线")}
+            "level": lvl["level"], "level_note": lvl["note"],
+            "prior": prior, "source": source}
 
 
 def _issued_turn(decree: Dict[str, Any]) -> Optional[int]:

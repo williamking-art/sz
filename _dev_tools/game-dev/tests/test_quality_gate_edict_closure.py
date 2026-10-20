@@ -117,3 +117,50 @@ def test_bounds():
     assert 0.05 <= got["landed"] <= 1.0
     got2 = landing_effect({"target_org": "户部", "category": "中旨"}, prestige=100)
     assert 0.05 <= got2["landed"] <= 1.0
+
+def test_ai_landing_level_overrides_prior():
+    """天道/Jev 裁决的落地档优先于程序先验（全办/大部/半数/少半/未办）。"""
+    s = _S([])
+    s._decree_ai = {"landing_levels": {"d1": "少半"}, "landing_note": "文官阳奉阴违"}
+    got = landing_effect({"decree_id": "d1", "category": "中旨", "target_org": "户部"},
+                         s, prestige=95)
+    assert got["landed"] == 0.25 and got["level"] == "少半"
+    assert got["source"] == "天道"
+    assert got["prior"] > got["landed"], "先验应高于实际落地，说明档位被采纳"
+
+
+def test_landing_level_by_system():
+    s = _S([])
+    s._decree_ai = {"landing_levels": {"文官": "半数"}}
+    got = landing_effect({"category": "中旨", "target_org": "户部"}, s, prestige=70)
+    assert got["landed"] == 0.50 and got["level"] == "半数"
+
+
+def test_landing_level_provider_injection():
+    from core.domains.politics import edict_closure as ec
+
+    s = _S([])
+    ec.register_landing_level_provider(lambda st, d: {"landing_level": "未办", "note": "provider"})
+    try:
+        got = landing_effect({"decree_id": "x", "category": "中旨"}, s, prestige=90)
+        assert got["landed"] == 0.0 and "provider" in got["source"]
+    finally:
+        ec._LANDING_LEVEL_PROVIDERS.clear()
+
+
+def test_invalid_landing_level_falls_back_to_prior():
+    s = _S([])
+    s._decree_ai = {"landing_level": "随便"}
+    got = landing_effect({"category": "中旨", "target_org": "户部"}, s, prestige=60)
+    assert got["level"] is None and got["source"].startswith("程序先验")
+
+
+def test_no_sync_http_in_settlement_module():
+    """纪律：落地档由**前置步骤/离线批**注入，结算期不做同步网络调用。"""
+    import inspect
+
+    from core.domains.politics import edict_closure as ec
+
+    src = inspect.getsource(ec)
+    for banned in ("requests.", "httpx.", "urllib.request", "jev_gate"):
+        assert banned not in src, banned

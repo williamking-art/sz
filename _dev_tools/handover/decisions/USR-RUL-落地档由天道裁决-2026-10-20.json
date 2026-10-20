@@ -1,0 +1,38 @@
+{
+ "id": "USR-RUL-落地档由天道裁决-2026-10-20",
+ "createdAt": "2026-10-20T09:50:00+08:00",
+ "agent": "DSH",
+ "kind": "用户裁定（落地效果的决定权归天道/Jev）",
+ "user_ruling": "更好的办法是让天道jev来裁决吧",
+ "adopted_model": {
+  "档位": [
+   "全办",
+   "大部",
+   "半数",
+   "少半",
+   "未办"
+  ],
+  "数值": {
+   "全办": 1.0,
+   "大部": 0.8,
+   "半数": 0.5,
+   "少半": 0.25,
+   "未办": 0.0
+  },
+  "来源优先级": [
+   "_decree_ai.landing_levels(按 decree_id/系统)",
+   "_decree_ai.landing_level",
+   "_decree_execute_ai.landing_level",
+   "register_landing_level_provider",
+   "程序先验(系统x皇威)"
+  ],
+  "注入时机": "结算前置步骤/离线批（结算期禁止同步 HTTP）"
+ },
+ "premises_verified_by_me": [
+  "game/ai/jev_gate.py 是运行时同步 HTTP，项目纪律禁止进入结算链",
+  "已有 _decree_ai / _decree_execute_ai 槽位与 provider 注册范式（transport/occupation/disaster 均在用）",
+  "程序先验（系统x皇威）仍保留为缺档兜底，避免 AI 未接线时无落地值"
+ ],
+ "applied_in": "core/domains/politics/edict_closure.py：LANDING_LEVELS/LANDING_LEVEL_VALUE/resolve_landing_level/register_landing_level_provider；门 15 条",
+ "reopen_if": "Jev 前置批调度落地（谁在什么时机调用）；或 landed 需按效果类型细分"
+}
