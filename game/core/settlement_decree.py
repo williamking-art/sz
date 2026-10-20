@@ -619,6 +619,16 @@ def _settle_decrees(state, log):
                    f"（未执行、未生效；待读数可用后另行结算）")
 
 
+    # 圣旨核销闭环（2026-10-20 用户裁定）：超期仍未记账的旨意兜底核销（含中旨，落地打折）。
+    # 幂等且不改已有条目；失败不阻断结算但留痕。
+    try:
+        from core.domains.politics.edict_closure import sweep_edict_closure
+        _cl = sweep_edict_closure(state, turn=int(getattr(state, "turn", 0) or 0))
+        if _cl.get("closed_count"):
+            log.append("[核销] 逾限圣旨 %d 件已核销（中旨落地打折）" % _cl["closed_count"])
+    except Exception as _e:  # noqa: BLE001
+        log.append("[核销] 圣旨核销失败：%r" % (_e,))
+
 def _apply_decree_effect(state, decree, log):
     """应用诏令效果
 

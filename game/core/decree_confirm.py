@@ -837,7 +837,8 @@ def record_execution(state, decree_id: str, *,
                      recitation_turn: Optional[int] = None,
                      turn: Optional[int] = None,
                      detail: Optional[str] = None,
-                     error: Optional[str] = None) -> Dict[str, Any]:
+                     error: Optional[str] = None,
+                     landed: Optional[float] = None) -> Dict[str, Any]:
     """向执行台账（state.statistics[LEDGER_STAT_KEY]）登记执行结果（口径单点）。
 
     供生产结算链（settlement_decree）在诏令执行完成或受阻时受控写入，
@@ -860,6 +861,8 @@ def record_execution(state, decree_id: str, *,
         entry["detail"] = str(detail)[:200]
     if error:
         entry["error"] = str(error)[:100]
+    if landed is not None:
+        entry["landed"] = round(float(landed), 4)
     led = _ledger_mut(state)
     led[did] = dict(entry)
     return entry
