@@ -446,16 +446,23 @@ class DecreeContractMixin:
             pass
         # 复审补丁（2026-10-20）：除回合戳外再记**判的是哪批诏令**。诏令可能被复述门
         # 挂起 / M2a 待定而跨回合才执行；只按 `_turn` 严格比对会把同一道诏仍有效的
-        # 天道档位丢掉（回退程序表）。题名匹配用于「同一批诏令跨回合」的合法情形。
+        # 天道档位丢掉（回退程序表）。优先记稳定 `decree_id`（O6：题名可重名，id 唯一），
+        # `_decree_titles` 仅给旧档/无 id 的诏令兜底。
         try:
             _titles = []
+            _ids = []
             for _d in (getattr(state, "pending_decrees", None) or [])[:8]:
                 if isinstance(_d, dict):
                     _t = str(_d.get("title") or "").strip()
                     if _t:
                         _titles.append(_t)
+                    _did = str(_d.get("decree_id") or "").strip()
+                    if _did:
+                        _ids.append(_did)
             if _titles:
                 out["_decree_titles"] = _titles
+            if _ids:
+                out["_decree_ids"] = _ids
         except Exception:  # noqa: BLE001 — 辅助戳失败不影响档位本体
             pass
         state._decree_ai = out

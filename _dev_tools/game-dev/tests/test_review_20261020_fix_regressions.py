@@ -53,6 +53,22 @@ def test_slot_without_titles_keeps_strict_turn_semantics():
     assert slot_is_current(s, {"execution_timing": "长期", "_turn": 5})
 
 
+def test_slot_title_collision_rejected_by_decree_id():
+    """O6：同名不同诏（题名相同、id 不同）不得互相采信。"""
+    s = _SlotState(turn=5, pending=[{"title": "甲令", "decree_id": "D2"}])
+    slot = {"execution_timing": "长期", "_turn": 4,
+            "_decree_ids": ["D1"], "_decree_titles": ["甲令"]}
+    assert not slot_is_current(s, slot), "id 不同即不同批，题名相同也不得采信"
+
+
+def test_slot_same_decree_id_across_turns_is_kept():
+    """O6 正向：id 相同、题名变了（改题）仍算同一道诏。"""
+    s = _SlotState(turn=5, pending=[{"title": "改题后的甲令", "decree_id": "D1"}])
+    slot = {"execution_timing": "长期", "_turn": 4,
+            "_decree_ids": ["D1"], "_decree_titles": ["旧题"]}
+    assert slot_is_current(s, slot)
+
+
 # ---------------------------------------------------------------- ② 地方府库扣款
 def _reset_treasury(s, route, seat_value):
     pdata = s.prefectures[route]

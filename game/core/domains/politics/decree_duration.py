@@ -106,9 +106,10 @@ def slot_is_current(state, slot) -> bool:
 
     - 非 dict → 不可用；
     - 未盖 `_turn`（历史测试替身/旧槽） → **兼容**，照旧采信；
-    - 盖了 `_turn` 且与 `state.turn` 不等 → 先看 `_decree_titles`：
-      若该批诏令仍在待行/执行（复述门挂起、M2a 待定会跨回合），**保留裁决**；
-      否则按**残留**不采信（缺失 ≠ 沿用上次结论）；
+    - 盖了 `_turn` 且与 `state.turn` 不等 → 先看 `_decree_ids`（稳定 id，O6 2026-10-20）：
+      该批诏令仍在待行/执行则**保留裁决**；有 id 但活集合无 id（旧档）再回落
+      `_decree_titles`（题名可重名，仅作无 id 时的兼容）；
+      都不匹配 ⇒ 按**残留**不采信（缺失 ≠ 沿用上次结论）；
     - 盖了 `_turn` 但拿不到当前回合 → 保守不采信（有戳却无法核对 ⇒ 按缺失）。
     """
     if not isinstance(slot, dict):
@@ -127,6 +128,18 @@ def slot_is_current(state, slot) -> bool:
     # 复审补丁（2026-10-20）：跨回合但**同一批诏令仍在待行/执行**时保留裁决。
     # 复述门挂起、M2a 待定会让诏令跨回合执行；若只认严格同回合，会把这批诏令
     # 仍有效的天道时效/态度/落地档丢掉（回退程序表，属误伤）。
+    # O6：优先按 **decree_id** 匹配（题名可重名；同名不同诏不得互相采信）。
+    ids = slot.get("_decree_ids")
+    if isinstance(ids, (list, tuple)) and ids:
+        live_ids = set()
+        for _attr in ("pending_decrees", "pending_secret_decrees", "active_decrees"):
+            for _d in (getattr(state, _attr, None) or []):
+                if isinstance(_d, dict):
+                    _did = str(_d.get("decree_id") or "").strip()
+                    if _did:
+                        live_ids.add(_did)
+        if live_ids:
+            return any(str(_i).strip() in live_ids for _i in ids)
     titles = slot.get("_decree_titles")
     if isinstance(titles, (list, tuple)) and titles:
         live = set()
