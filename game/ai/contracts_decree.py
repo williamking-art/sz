@@ -444,6 +444,20 @@ class DecreeContractMixin:
                 out["_turn"] = int(_turn)
         except (TypeError, ValueError):  # noqa: BLE001 — 戳失败不影响档位本体
             pass
+        # 复审补丁（2026-10-20）：除回合戳外再记**判的是哪批诏令**。诏令可能被复述门
+        # 挂起 / M2a 待定而跨回合才执行；只按 `_turn` 严格比对会把同一道诏仍有效的
+        # 天道档位丢掉（回退程序表）。题名匹配用于「同一批诏令跨回合」的合法情形。
+        try:
+            _titles = []
+            for _d in (getattr(state, "pending_decrees", None) or [])[:8]:
+                if isinstance(_d, dict):
+                    _t = str(_d.get("title") or "").strip()
+                    if _t:
+                        _titles.append(_t)
+            if _titles:
+                out["_decree_titles"] = _titles
+        except Exception:  # noqa: BLE001 — 辅助戳失败不影响档位本体
+            pass
         state._decree_ai = out
         return out
 

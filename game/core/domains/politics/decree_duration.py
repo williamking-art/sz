@@ -102,11 +102,13 @@ def _state_turn(state) -> Optional[int]:
 
 
 def slot_is_current(state, slot) -> bool:
-    """槽位是否属于**本回合**。
+    """槽位是否属于**本回合**（或同一批诏令跨回合执行时仍有效）。
 
     - 非 dict → 不可用；
     - 未盖 `_turn`（历史测试替身/旧槽） → **兼容**，照旧采信；
-    - 盖了 `_turn` 且与 `state.turn` 不等 → **残留**，不采信（缺失 ≠ 沿用上次结论）；
+    - 盖了 `_turn` 且与 `state.turn` 不等 → 先看 `_decree_titles`：
+      若该批诏令仍在待行/执行（复述门挂起、M2a 待定会跨回合），**保留裁决**；
+      否则按**残留**不采信（缺失 ≠ 沿用上次结论）；
     - 盖了 `_turn` 但拿不到当前回合 → 保守不采信（有戳却无法核对 ⇒ 按缺失）。
     """
     if not isinstance(slot, dict):
@@ -118,9 +120,25 @@ def slot_is_current(state, slot) -> bool:
     if cur is None:
         return False
     try:
-        return int(stamped) == cur
+        if int(stamped) == cur:
+            return True
     except (TypeError, ValueError):
         return False
+    # 复审补丁（2026-10-20）：跨回合但**同一批诏令仍在待行/执行**时保留裁决。
+    # 复述门挂起、M2a 待定会让诏令跨回合执行；若只认严格同回合，会把这批诏令
+    # 仍有效的天道时效/态度/落地档丢掉（回退程序表，属误伤）。
+    titles = slot.get("_decree_titles")
+    if isinstance(titles, (list, tuple)) and titles:
+        live = set()
+        for _attr in ("pending_decrees", "pending_secret_decrees", "active_decrees"):
+            for _d in (getattr(state, _attr, None) or []):
+                if isinstance(_d, dict):
+                    _t = str(_d.get("title") or "").strip()
+                    if _t:
+                        live.add(_t)
+        if any(str(_t).strip() in live for _t in titles):
+            return True
+    return False
 
 
 #: provider 必须**只读** state；这里拷一份标量指纹用于检出「provider 偷偷写 state」。

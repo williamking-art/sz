@@ -115,23 +115,33 @@ def _deduct_cost(state, owner: str, amount: int) -> Optional[int]:
         return 0
     prefs = getattr(state, "prefectures", None) or {}
     if owner == "宋" and prefs:
-        pool = sum(int((p or {}).get("local_treasury", 0) or 0) for p in prefs.values())
+        # 复审补丁（2026-10-20）：余额判断与扣款都必须以**治所真账**为准。
+        # 路级 `local_treasury` 是派生镜像，旧档/直写可能滞后；镜像高于真账时
+        # 原写法会返回"已付"但实际只扣到治所能扣的部分（差额＝凭空造币）。
+        from core.foundation.ledger import local_treasury_bridge as _ltb
+
+        def _seat_or_mirror(p, mirror):
+            _seat = _ltb.seat_local_treasury_total(p)
+            return int(_seat) if _seat is not None else int(mirror)
+
+        pool = sum(_seat_or_mirror(p or {}, (p or {}).get("local_treasury", 0))
+                   for p in prefs.values())
         if pool < amount:
             return None
         left = amount
         for _rname, p in prefs.items():
-            have = int((p or {}).get("local_treasury", 0) or 0)
+            mirror = int((p or {}).get("local_treasury", 0) or 0)
+            have = _seat_or_mirror(p or {}, mirror)   # 以治所真账为准；镜像只作未下沉回退
             take = min(have, left)
             if take:
-                # 2026-10-20 全审：地方府库写点走桥（直写镜像会让治所滞后，后续
-                # 走桥写入校正镜像时表现为凭空销毁）。未下沉 ⇒ 回落原写法。
-                from core.foundation.ledger import local_treasury_bridge as _ltb
+                # 地方府库写点走桥（直写镜像会让治所滞后，后续走桥写入校正镜像时
+                # 表现为凭空销毁）。未下沉 ⇒ 回落原写法。
                 if _ltb.local_treasury_add(state, _rname, -take) is None:
-                    p["local_treasury"] = have - take
+                    p["local_treasury"] = mirror - take
                 left -= take
             if left <= 0:
                 break
-        return amount
+        return amount if left <= 0 else (amount - left)
     info = (getattr(state, "external_regimes", None) or {}).get(owner) or {}
     have = int(info.get("treasury") or 0)
     if have < amount:

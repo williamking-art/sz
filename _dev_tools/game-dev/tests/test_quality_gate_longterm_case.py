@@ -97,6 +97,19 @@ def test_budget_exhausted_blocks_effects():
     assert s.treasury == 1000000 - 20000, "受阻月不得再扣库"
 
 
+def test_pool_short_blocks_without_charging_or_spending_quota():
+    """复审补丁（2026-10-20）：额度够但国库不足 ⇒ 本月 blocked，不扣库、不减额度、不落效果。"""
+    s = _S(treasury=30000, prestige=60)
+    t = _task()
+    authorize_case(s, t, budget=30000, monthly_cost=20000)
+    s.treasury = 10000                       # 授权后国库被别处花掉
+    out = monthly_case_settle(s, t, [], progress=5)
+    assert out["blocked"] and "府库不足" in out["blocked"]
+    assert s.treasury == 10000, "扣款失败不得动账"
+    assert t["budget"]["remaining"] == 30000, "扣款失败不得消耗额度"
+    assert s.prestige == 60, "受阻月不得落持续效果"
+
+
 def test_unknown_effect_key_ignored():
     s = _S(prestige=60)
     t = _task()

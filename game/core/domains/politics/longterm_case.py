@@ -189,10 +189,14 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
         if remaining < cost:
             blocked = "专款耗尽，本月推行受阻"
         else:
-            # P0-3：月费是**唯一**真实扣库点（授权只登额度），并递减支出额度上限。
-            _pool_change(state, str(budget.get("pool") or "treasury"), -cost)
-            budget["remaining"] = remaining - cost
-            task["budget"] = budget
+            # P0-3：月费是**唯一**真实扣库点，并递减支出额度上限。
+            # 复审补丁（2026-10-20）：扣款失败必须 blocked——否则「额度已减、效果照落、
+            # 国库却没扣」＝免费推行（开局国库常低于月费，实测可触发）。
+            if not _pool_change(state, str(budget.get("pool") or "treasury"), -cost):
+                blocked = "府库不足，本月未能拨付"
+            else:
+                budget["remaining"] = remaining - cost
+                task["budget"] = budget
 
     if not blocked:
         for eff in (task.get("monthly_effects") or []):
