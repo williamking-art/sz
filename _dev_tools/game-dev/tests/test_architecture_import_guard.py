@@ -121,7 +121,6 @@ _FROZEN_UPLINK = {
     ("core.events", "ai.client_utils"): 1,
     ("core.free_effect", "ai.client_utils"): 1,
     ("core.settlement_imperial", "ai.client_utils"): 2,
-    ("core.domains.politics.settlement_imperial", "ai.client_utils"): 2,
 
     # ── R3 业务 → 结算/命令编排（5 对 / 7 条语句）────────────────────────
     # why: 业务机制反调编排（"结算步应只发领域事件，不反调编排器"）。
@@ -150,8 +149,7 @@ _FROZEN_CYCLES = (
         "core.domains.construction.settlement_tech",
         "core.domains.economy.readout_hub",
         "core.domains.economy.spatial_warehouse_readout",
-        "core.domains.politics.longterm_case",
-        "core.domains.politics.settlement_imperial", "core.events", "core.free_effect",
+        "core.domains.politics.longterm_case", "core.events", "core.free_effect",
         "core.longterm_task", "core.military_order", "core.save_load", "core.settlement",
         "core.settlement_decree", "core.settlement_econ", "core.settlement_granary",
         "core.settlement_imperial", "core.settlement_military", "core.settlement_pipeline",

@@ -29,13 +29,6 @@ _SKIP_DIRS = {"__pycache__", "node_modules", "assets", ".git", "out", "dist", "r
 #: 冻结基线（2026-10-20 实测）：hash → 出现该实现的文件集。
 #: 归一时从下表删除；**不要**为「新增重复」往这里加。
 _BASELINE = {
-    ("a87c31b463aba6d7", ("core/domains/population/settlement_hidden.py", "core/settlement_imperial.py")),
-    ("eef8b368b4e5d328", ("core/domains/politics/settlement_imperial.py", "core/settlement_imperial.py")),
-    ("802ec6582dc7819e", ("core/domains/politics/settlement_imperial.py", "core/settlement_imperial.py")),
-    ("144e9c316f844f25", ("core/domains/population/settlement_hidden.py", "core/settlement_imperial.py")),
-    ("08d3620cb794591c", ("core/domains/politics/settlement_imperial.py", "core/settlement_imperial.py")),
-    ("358360bc30045c8e", ("core/domains/politics/settlement_imperial.py", "core/settlement_imperial.py")),
-    ("80982f10c4855f32", ("core/domains/politics/settlement_imperial.py", "core/settlement_imperial.py")),
     ("9f9649fde2855c93", ("core/construction_cost.py", "core/domains/administration/minister_agent.py",
                           "core/domains/economy/demand.py", "core/domains/economy/market.py",
                           "core/market_price.py", "core/population_readout.py")),
