@@ -1552,9 +1552,10 @@ def _mil_int(v, d: int = 0) -> int:
 
 _MILITARY_BUTTON_ACTS = {
     "整编": "整编", "扩编": "增募", "地图调度": "调赴",
+    "调度军令": "调赴",
     "拆分": "拆分", "合并": "合并", "换帅": "换帅",
     "裁撤": "裁撤", "改名": "改名",
-}   # ⚠️ 严格等于参考图的 8 键（勿自行增减）
+}   # 参考图 8 类；“地图调度/调度军令”是同一动作的两种 UI 文案
 
 
 def issue_military_order(state: GameState, unit_id: str, button: str,
@@ -1583,7 +1584,11 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     # C-2：军令的增募/调赴/换帅/裁撤/合并/拆分都改变兵额或驻地，须由掌「调兵」
     # 事权主体执行。默认按枢密院（玩家亲裁军令的法定承办机构），调用方可显式传
     # executor（部门/官职/人名）以便拒绝越权主体；纯展示的整编/改名不在此门禁。
-    if act in ("增募", "调赴", "换帅", "裁撤", "合并", "拆分"):
+    # 皇威 >85（military_dispatch 已接线）⇒ 皇帝言出即行，跳过执行侧事权；
+    # 皇威不足 ⇒ 必须走枢密院/掌「调兵」主体的正常流程。
+    from core import imperial_mandate
+    _direct = imperial_mandate.can_direct(state, "military_dispatch")
+    if act in ("增募", "调赴", "换帅", "裁撤", "合并", "拆分") and not _direct:
         _executor = str(executor or "枢密院").strip()
         try:
             from core.authority_gate import check_matter_authority
@@ -1594,7 +1599,8 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
             return f"未成：军令须由掌「调兵」事权主体执行；{_label}。"
 
     payload = {"army": str(getattr(unit, "tier", "禁军") or "禁军"), "action": act,
-               "unit_id": uid, "scale": max(1, min(5, int(scale or 3)))}
+               "unit_id": uid, "scale": max(1, min(5, int(scale or 3))),
+               "executor": executor, "imperial_direct": bool(_direct)}
     if act == "改名" or act == "拆分":
         payload["new_name"] = str(new_name or "").strip()
     if act == "换帅":
@@ -1614,7 +1620,10 @@ def issue_military_order(state: GameState, unit_id: str, button: str,
     aid = state.enqueue_ai_action(
         "military_dispatch", title,
         f"玩家亲裁军令（编制单位 {uid}）", payload, proposer="玩家")
-    return approve_ai_action(state, aid)
+    result = approve_ai_action(state, aid)
+    if _direct and "驳回" not in result and "未成" not in result:
+        imperial_mandate.charge_direct_cost(state, "military_dispatch")
+    return result
 
 
 __all__ = [

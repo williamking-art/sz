@@ -38,7 +38,7 @@ ACTION_SPECS: Dict[str, DirectActionSpec] = {
         "appoint", "任免", 80, 2, True, "任免官职（已接 personnel_order）"
     ),
     "military_dispatch": DirectActionSpec(
-        "military_dispatch", "调兵", 85, 5, False, "待接军队调拨入口"
+        "military_dispatch", "调兵", 85, 5, True, "军令（已接 issue_military_order）"
     ),
     "fiscal_directive": DirectActionSpec(
         "fiscal_directive", "财政直令", 85, 3, False, "待接财政入口"
