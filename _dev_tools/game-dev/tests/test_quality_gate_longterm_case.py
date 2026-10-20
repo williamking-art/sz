@@ -6,8 +6,8 @@
 
 钉住：
 1. 字段幂等补齐，缺失保持 None/空（不假装 0）；
-2. 授权：专款从国库**真实扣减**（守恒）；府库不足 ⇒ 拒批且不动账；重复授权不重复扣款；
-3. 逐月自理：每月扣 monthly_cost；专款耗尽 ⇒ blocked 且**不落持续效果**；
+2. 授权：**只登记专款额度、不即时扣库**；府库不足 ⇒ 拒批且不动账；重复授权不重复拨款；
+3. 逐月自理：每月扣 monthly_cost（**唯一真实扣库点**）；专款耗尽 ⇒ blocked 且**不落持续效果**；
 4. 持续效果只认白名单键（prestige/treasury/population_satisfaction），未知键忽略；
 5. 阶段映射：0=见底 / <75=推进中 / <100=终前 / 100=达成；达成时落 outcome_effects；
 6. 推进日志有上限；readout 字段与参考 UI 对齐。
@@ -58,14 +58,16 @@ def test_fields_idempotent_and_none():
     assert t["monthly_effects"] == [{"key": "prestige", "amount": -1}]
 
 
-def test_authorize_deducts_and_rejects_insufficient():
+def test_authorize_registers_quota_and_rejects_insufficient():
+    """P0-3（2026-10-20 全审）：授权**只登额度、不即时扣库**；月结才是唯一真实扣款点。"""
     s = _S(treasury=1000000)
     t = _task()
     out = authorize_case(s, t, budget=500000, pool="treasury", discretion=True)
-    assert out["ok"] and s.treasury == 500000
+    assert out["ok"] and s.treasury == 1000000, "授权不得即时扣库（否则月结双扣）"
     assert t["budget"]["remaining"] == 500000 and t["discretion"] is True
+    assert t["case_no"] and t["opened_turn"] == 30, "授权应补案号/立项回合"
     again = authorize_case(s, t, budget=500000)
-    assert again["ok"] is False and s.treasury == 500000, "重复授权不得重复扣款"
+    assert again["ok"] is False and s.treasury == 1000000, "重复授权不得重复扣款"
     t2 = _task()
     poor = authorize_case(_S(treasury=100), t2, budget=500000)
     assert poor["ok"] is False and "府库不足" in poor["reason"]
@@ -77,7 +79,7 @@ def test_monthly_settle_spends_and_applies_effects():
     authorize_case(s, t, budget=100000, monthly_cost=20000)
     out = monthly_case_settle(s, t, [], narrative="增烽堠八座", progress=10)
     assert out["ok"] and not out["blocked"]
-    assert s.treasury == 1000000 - 100000 - 20000
+    assert s.treasury == 1000000 - 20000, "月费只扣一次（授权不预扣）"
     assert t["budget"]["remaining"] == 80000
     assert s.prestige == 59, "皇威 −1 应落账"
     assert out["applied"] == [{"key": "prestige", "amount": -1}]
@@ -92,6 +94,7 @@ def test_budget_exhausted_blocks_effects():
     out = monthly_case_settle(s, t, [], progress=10)
     assert out["blocked"] and "专款耗尽" in out["blocked"]
     assert s.prestige == 59, "受阻月不得落持续效果"
+    assert s.treasury == 1000000 - 20000, "受阻月不得再扣库"
 
 
 def test_unknown_effect_key_ignored():
@@ -121,4 +124,11 @@ def test_log_capped_and_readout_shape():
     for k in ("case_no", "handler", "authorization", "progress", "monthly_effects",
               "progress_log", "outcome_effects", "fail_effects"):
         assert k in r, k
-    assert r["authorization"]["discretion"] in (True, False)
+    # C-4（2026-10-20 全审）：未授权 ⇒ authorization 缺失一律 None（面板显示未授权），
+    # 不得回落成 {"budget_total":0,...} 让玩家读到「专款 0 万两」。
+    assert r["authorization"] is None
+    authorize_case(s, t, budget=100000, monthly_cost=20000)
+    r2 = case_readout(s, t)
+    assert r2["authorization"]["budget_total"] == 100000
+    assert r2["authorization"]["discretion"] in (True, False)
+    assert r2["case_no"] == t["case_no"]

@@ -101,23 +101,56 @@ def case_is_cased(task: Dict[str, Any]) -> bool:
                 or (task.get("monthly_effects") or [])
                 or (task.get("outcome_effects") or []))
 
+def _pool_have(state, pool: str) -> int:
+    """该池当前可用余额（只读；pool 只认国库/内帑）。"""
+    if pool == "imperial_treasury":
+        return int(getattr(state, "imperial_treasury", 0) or 0)
+    return int(getattr(state, "treasury", 0) or 0)
+
+
+def _next_case_no(state) -> str:
+    """案号（幂等：任务已带 case_no 时调用方不覆盖）。后缀按已立案卷数递增。"""
+    n = 0
+    for _q in (getattr(state, "longterm_public", None) or [],
+               getattr(state, "longterm_secret", None) or []):
+        for _t in _q:
+            if isinstance(_t, dict) and _t.get("case_no"):
+                n += 1
+    return "LT-%03d-%02d" % (int(getattr(state, "turn", 0) or 0), n + 1)
+
+
 def authorize_case(state, task: Dict[str, Any], *, budget: int = 0,
                    pool: str = "treasury", discretion: bool = False,
                    monthly_cost: int = 0) -> Dict[str, Any]:
-    """批专款 + 赐专断之权（幂等：重复授权不重复扣款）。"""
+    """批专款 + 赐专断之权（幂等：重复授权不重复拨款）。
+
+    🔴 口径（2026-10-20 全审 P0-3 / Jev 甲 0.575）：**授权只登记额度、不即时扣库**；
+    每月 `monthly_case_settle` 按 `monthly_cost` 从国库/内帑**实扣**并递减 remaining。
+    原实现「授权全额扣库 + 月结再扣一次、remaining 只做备忘」＝双扣 + 账外余额
+    （钱离开国库却不在任何账户，违反钱粮落点/单账本硬约束）。
+    `budget.remaining` 是**支出额度上限**（不是货币账户），专款耗尽即 blocked。
+    """
     ensure_case_fields(state, task)
     if task.get("_authorized_once"):
         return {"ok": False, "reason": "已授权过（重复授权不重复拨款）", "task": task}
     amount = int(budget or 0)
+    cost = int(monthly_cost or 0)
     if amount < 0:
         return {"ok": False, "reason": "专款不得为负"}
-    if amount and not _pool_change(state, pool, -amount):
+    if cost < 0:
+        return {"ok": False, "reason": "月费不得为负"}
+    if amount and _pool_have(state, pool) < amount:
         return {"ok": False, "reason": "府库不足，未拨款", "short": amount}
     task["budget"] = {"total": amount, "remaining": amount, "pool": pool}
     task["discretion"] = bool(discretion)
-    task["monthly_cost"] = int(monthly_cost or 0)
+    task["monthly_cost"] = cost
+    if task.get("opened_turn") is None:
+        task["opened_turn"] = int(getattr(state, "turn", 0) or 0)
+    if not task.get("case_no"):
+        task["case_no"] = _next_case_no(state)
     task["_authorized_once"] = True
-    return {"ok": True, "budget": task["budget"], "discretion": task["discretion"]}
+    return {"ok": True, "budget": task["budget"], "discretion": task["discretion"],
+            "case_no": task["case_no"]}
 
 
 def _apply_effect(state, key: str, amount: float) -> bool:
@@ -150,10 +183,13 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
     cost = int(task.get("monthly_cost") or 0)
     budget = task.get("budget") if isinstance(task.get("budget"), dict) else {}
     remaining = int(budget.get("remaining") or 0)
-    if cost > 0:
+    if cost < 0:
+        blocked = "月费不得为负"
+    elif cost > 0:
         if remaining < cost:
             blocked = "专款耗尽，本月推行受阻"
         else:
+            # P0-3：月费是**唯一**真实扣库点（授权只登额度），并递减支出额度上限。
             _pool_change(state, str(budget.get("pool") or "treasury"), -cost)
             budget["remaining"] = remaining - cost
             task["budget"] = budget
@@ -242,6 +278,12 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
             }
         except Exception:  # noqa: BLE001
             stats = None
+    _auth = None
+    if task.get("_authorized_once"):
+        _auth = {"budget_total": budget.get("total"),
+                 "budget_remaining": budget.get("remaining"),
+                 "pool": budget.get("pool"), "monthly_cost": task.get("monthly_cost"),
+                 "discretion": bool(task.get("discretion"))}
     return {
         "case_no": task.get("case_no"),
         "title": task.get("task_name") or task.get("title"),
@@ -255,9 +297,9 @@ def case_readout(state, task: Dict[str, Any]) -> Dict[str, Any]:
         "linked_factions": list(task.get("linked_factions") or []),
         "cancellable": bool(task.get("cancellable", True)),
         "handler": {"name": handler_name, "org": task.get("org_hint"), "stats": stats},
-        "authorization": {"budget_total": budget.get("total"), "budget_remaining": budget.get("remaining"),
-                          "pool": budget.get("pool"), "monthly_cost": task.get("monthly_cost"),
-                          "discretion": bool(task.get("discretion"))},
+        # 缺失≠0（2026-10-20 全审 C-4）：未授权时整块返回 None，面板显示「未授权/未定义」；
+        # 不再回落 0/0/treasury 让玩家误读成「专款 0 万两」。
+        "authorization": _auth,
         "progress": {"percent": task.get("progress"), "phase": task["phase"],
                      "target": 100},
 
