@@ -51,6 +51,28 @@ CURRICULUM_POETRY = "诗赋词章"       # 重词采名望
 CURRICULUM_BALANCED = "经律兼治"     # 兼通
 
 
+def _party_ban_exam_context(state, examiner: Optional[str]) -> Dict[str, Any]:
+    """党禁→科举：考官是否被禁、取士额折扣、三舍是否受限。"""
+    from core.faction_ban import active_ban
+    banned = []
+    for fac in (getattr(state, "factions", None) or {}):
+        ban = active_ban(state, fac)
+        if ban:
+            banned.append((fac, str(ban.get("level") or "轻")))
+    if not banned:
+        return {}
+    levels = {lv for _, lv in banned}
+    mult = 0.65 if "重" in levels else (0.85 if "中" in levels else 1.0)
+    facs = [f for f, _ in banned]
+    return {
+        "banned_factions": facs,
+        "levels": {f: lv for f, lv in banned},
+        "examiner_blocked": bool(examiner and examiner in facs),
+        "quota_mult": mult,
+        "three_halls_blocked": "重" in levels,
+    }
+
+
 def _get_pref(state, circuit: str) -> Dict[str, Any]:
     prefs = getattr(state, "prefectures", None)
     if isinstance(prefs, dict):
@@ -156,6 +178,11 @@ def run_triennial_exam_full(
 
     curr = curriculum or ex.get("curriculum", CURRICULUM_BALANCED)
     examiner = _officialdom._examiner_faction(state) or "清流"
+    ban_ctx = _party_ban_exam_context(state, examiner)
+    if ban_ctx.get("examiner_blocked"):
+        examiner = None
+    if ban_ctx:
+        target = max(1, int(round(target * float(ban_ctx.get("quota_mult", 1.0)))))
 
     # 1. 解试：21 路选拔举人
     circuit_juren = _run_jie_shi_21_circuits(state, target)
@@ -239,11 +266,13 @@ def run_triennial_exam_full(
         if isinstance(log, list):
             log.append(f"📜【御试唱名·经律兼治】集英殿大比唱名，经术政理兼收。赐进士及第 {taken} 人，入官待阙。")
 
-    # 门生座主效应
+    # 门生座主效应（被党禁考官不结门生）
     if examiner:
         _officialdom._blend_faction_inflow(state, "官僚", off_base, taken, {examiner: 1.0})
         if isinstance(log, list):
             log.append(f"👥【座主门生】知贡举出自「{examiner}」，新科进士皆称门生，派系凝聚力大增。")
+    elif ban_ctx.get("examiner_blocked") and isinstance(log, list):
+        log.append("🚫【党禁】知贡举出自被禁派系，本榜不结座主门生。")
 
     # 记录考次详情
     detail = {
@@ -256,6 +285,7 @@ def run_triennial_exam_full(
         "hard_share": hard_total,
         "elite_share": taken - hard_total,
         "top_three": top_three,
+        "ban_context": ban_ctx,
     }
     ex["last_cohort"] = taken
     ex["last_cohort_detail"] = detail
@@ -271,6 +301,11 @@ def run_three_halls_assessment(state, log: Optional[List[str]] = None) -> Dict[s
     if not isinstance(ex, dict):
         ex = {}
         state.exam = ex
+
+    ban_ctx = _party_ban_exam_context(state, None)
+    if ban_ctx.get("three_halls_blocked"):
+        return {"graduates": 0, "status": "restricted_by_party_ban",
+                "ban_context": ban_ctx}
 
     quota = int(ex.get("three_halls_upper_quota", 15))
     if quota <= 0:

@@ -15,7 +15,7 @@ from content.ministers.data import MINISTERS
 __all__ = [
     "BAN_LEVELS", "start_faction_ban", "lift_faction_ban",
     "settle_faction_bans", "is_faction_banned", "is_official_banned",
-    "banned_factions", "actor_faction",
+    "banned_factions", "actor_faction", "active_ban",
 ]
 
 BAN_LEVELS = {
@@ -80,19 +80,24 @@ def actor_faction(state, actor) -> Optional[str]:
     return None
 
 
-def is_faction_banned(state, faction: str) -> bool:
+def active_ban(state, faction: str) -> Optional[Dict[str, Any]]:
+    """活跃党禁控制块；未禁/已到期返回 None。"""
     key = str(faction or "").strip()
     if not key:
-        return False
+        return None
     f = (getattr(state, "factions", None) or {}).get(key)
     if not isinstance(f, dict):
-        return False
+        return None
     ban = f.get("ban")
     if not isinstance(ban, dict) or ban.get("status") != "active":
-        return False
+        return None
     end = ban.get("end_turn")
     turn = int(getattr(state, "turn", 0) or 0)
-    return end is None or turn < int(end)
+    return ban if end is None or turn < int(end) else None
+
+
+def is_faction_banned(state, faction: str) -> bool:
+    return active_ban(state, faction) is not None
 
 
 def is_official_banned(state, actor) -> bool:
