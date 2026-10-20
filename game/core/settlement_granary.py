@@ -45,6 +45,7 @@ from core.settlement_common import (
     _avg_corruption,
     _recalc_region_price,
     _changping_trade,
+    _local_treasury_pool,
     _P1_RELIEF,
 )
 
@@ -258,7 +259,8 @@ def _settle_granary(state, log):
     for name, p in state.prefectures.items():
         price = p.get("grain_price", state.grain_price)
         cp_stock = p.get("changping_stock", 0)
-        coffer = p.get("local_treasury", 0)
+        # O5：已下沉路读 Σ 治所真账（镜像滞后会误判 coffer>0 → 漏买/预算偏大）
+        coffer = _local_treasury_pool(p)
         if price > CHANGPING_HIGH and cp_stock > 0:
             # 平粜（高价抑价）：放常平仓粮入市，钱入地方府库（货币回收，不碰内帑）。
             # 量随价格超幅线性放大：price 1.6→放 5% 常平储、2.5→放 60%（T9 扩容 45%→60%）
@@ -298,7 +300,8 @@ def _settle_granary(state, log):
         for name, p in state.prefectures.items():
             price = p.get("grain_price", state.grain_price)
             cp_stock = p.get("changping_stock", 0)
-            coffer = p.get("local_treasury", 0)
+            # O5：同主分支，已下沉读治所真账
+            coffer = _local_treasury_pool(p)
             if price > CHANGPING_HIGH and cp_stock > 0:
                 # AI 加强平粜（T9 扩容：上限 60%）
                 ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
