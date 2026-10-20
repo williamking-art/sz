@@ -97,7 +97,6 @@ def test_full_monthly_settlement_keeps_route_pops_derived():
     from core.domains.administration.officialdom import check_invariants
 
     state = new_game()
-    state.prestige = 999   # 高皇威非月结路径；低皇威军令现在走月结算
     assert install_all_guards(state) > 0
     reset_pops_guard()
     for _ in range(15):
