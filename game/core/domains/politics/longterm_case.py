@@ -213,6 +213,14 @@ def monthly_case_settle(state, task: Dict[str, Any], log: Optional[list] = None,
     task["phase"] = phase_of(task.get("progress"))
     task["last_advance_turn"] = turn
 
+    # 天道叙事（2026-10-20）：结算只读 state._longterm_ai 槽位（AI 前置注入，结算期零 HTTP）。
+    if not narrative:
+        slot = getattr(state, "_longterm_ai", None)
+        if isinstance(slot, dict):
+            for it in (slot.get("items") or []):
+                if isinstance(it, dict) and str(it.get("id") or "") == str(task.get("id") or ""):
+                    narrative = str(it.get("narrative") or "")
+                    break
     entry = {"turn": turn, "narrative": str(narrative or "")[:200],
              "applied": applied, "blocked": blocked}
     plog = task.setdefault("progress_log", [])

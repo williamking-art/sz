@@ -18,6 +18,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
 | `client_utils.py` | 客户端工具函数 |
 | `contracts_settle.py` | **结算推演契约**（各 `*_decide`、`survey_settle`） |
 | `contracts_decree.py` | 诏令契约（拟诏/解析/自由效果/执行拆解）＋ **`decree_action_plan`（行动计划，规格 decree-action-chain）**＋ **`decree_narrative_decide`（因果叙事，档位+叙事，拒绝式）** |
+| `contracts_decree.py` 的 `longterm_narrative_decide` | 长期旨**月度叙事**（档位+叙事，拒绝式）：写 `state._longterm_ai`，结算只读槽位 |
 | `contracts_court.py` | 朝堂契约（召对/润色/会签/外交对话） |
 | `contracts_misc.py` | 叙事/事件/建言/结局契约 |
 | ~~`contract_adapter.py`~~ | **2026-09-27 已移出** → `_dev_tools/unwired/`（待接线、不随分发） |

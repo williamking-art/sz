@@ -141,6 +141,15 @@ AGENT_DEFS: Dict[str, dict] = {
         "wake_diff_paths": ["granary", "granary_stats."],
         "domain_fields": ["granary", "canal"],
     },
+    "longterm_narrative": {
+        "order": 13,
+        "method": "longterm_narrative_decide",
+        "settle_attr": "_longterm_ai",
+        "wake_keywords": ["长期", "案卷", "在办", "督办", "整饬", "经理"],
+        "wake_state": [("longterm_public", lambda v: isinstance(v, list) and bool(v))],
+        "wake_diff_paths": ["longterm_public."],
+        "domain_fields": ["longterm_narrative"],
+    },
     "decree_duration": {
         "order": 12,
         "method": "decree_duration_decide",

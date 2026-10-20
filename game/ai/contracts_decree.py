@@ -560,3 +560,70 @@ class DecreeContractMixin:
                   "请按契约给出档位与按语（不给数字，未告成不得说成完工）。")
         raw = self._call(sys_p, user_p, temperature=0.4, max_tokens=300, json_mode=True)
         return self._postprocess(raw, validate, lambda: _ai_unavailable("decree_narrative"))
+
+    def longterm_narrative_decide(self, state):
+        """长期旨案卷**月度叙事契约**（2026-10-20）：AI 只给档位词 + 叙事。
+
+        输入是真实案卷读数（进度/阶段/阻碍/支持），输出固定为：
+        {"items":[{"id","tier":"顺利|迟滞|受阻","narrative":"≤80字"}],"narrative":"总按语"}
+        拒绝式：档位非法/叙事为空/id 不存在的条目**丢弃**；全无效 ⇒ AI 不可用。
+        结果写 state._longterm_ai（结算只读槽位，不做同步 HTTP）。
+        """
+        tasks = []
+        for q in (getattr(state, "longterm_public", None) or [],
+                  getattr(state, "longterm_secret", None) or []):
+            for t in q:
+                if isinstance(t, dict):
+                    tasks.append(t)
+        if not tasks:
+            return None
+        lines = []
+        for t in tasks[:6]:
+            prog = t.get("progress")
+            stage = t.get("phase") or ""
+            blockers = ""
+            try:
+                from core.longterm_task import build_readout
+                rd = build_readout(state, t)
+                blockers = "；".join((rd.get("obstruction") or {}).get("blockers") or [])
+                stage = rd.get("stage") or stage
+            except Exception:  # noqa: BLE001
+                blockers = ""
+            lines.append("- id=%s 《%s》 进度=%s 阶段=%s 阻碍=%s" % (
+                t.get("id") or "?", t.get("task_name") or t.get("title") or "政务",
+                prog, stage, blockers[:80]))
+        sys_p = (
+            "你是北宋徽宗的辅政推演。依据**真实**案卷读数，为每件长期事务写一句月报按语。"
+            "只输出 JSON："
+            '{"items":[{"id":"事务id","tier":"顺利|迟滞|受阻","narrative":"不超过80字"}],'
+            '"narrative":"不超过60字的总按语"}'
+            "\n规则：① tier 只填档位词，不得给数字；② 只准引用读数里出现的事务与阻碍；"
+            "③ 进度未满不得说成告成；④ 不确定写「尚在进行」。"
+        )
+        user_p = "【本方案卷】\n" + "\n".join(lines) + "\n请按契约给出档位与按语。"
+        allowed = {str(t.get("id")) for t in tasks if t.get("id")}
+
+        def validate(o):
+            if not isinstance(o, dict):
+                return None
+            items = []
+            for it in (o.get("items") or []):
+                if not isinstance(it, dict):
+                    continue
+                tid = str(it.get("id") or "")
+                tier = it.get("tier")
+                nar = _clean_text(str(it.get("narrative") or ""))[:80]
+                if tid in allowed and tier in ("顺利", "迟滞", "受阻") and nar:
+                    items.append({"id": tid, "tier": tier, "narrative": nar})
+            if not items:
+                return None
+            return {"items": items,
+                    "narrative": _clean_text(str(o.get("narrative") or ""))[:60]}
+
+        raw = self._call(sys_p, user_p, temperature=0.4, max_tokens=500, json_mode=True)
+        got = self._postprocess(raw, validate, lambda: _ai_unavailable("longterm_narrative"))
+        if isinstance(got, dict) and not got.get("_error"):
+            state._longterm_ai = got
+            return got
+        return None   # 契约不满足 ⇒ 不写槽位（缺失≠假装已判）
+
