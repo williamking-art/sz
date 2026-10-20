@@ -56,3 +56,20 @@ def test_military_report_no_direct_troop_change():
     after = [(u.name, u.troops) for u in s.army_units]
     assert before == after
 
+
+def test_military_report_distance_basis_and_road_block():
+    s = _state()
+    s.turn = 3
+    out = create_military_report(
+        s, parent_seat_id=SEAT, kind="border", locality="边寨",
+        route=ROUTE, severity=0.7, border=True, urgent=True,
+        body="道路阻断", road_blocked=True)
+    inc = out["incident"]
+    assert inc["delay_basis"] == "distance"
+    assert inc["distance_km"] is not None
+    assert inc["road_blocked"] is True
+    assert inc["delay_turns"] == 2
+    rep = report_of(s, inc["raw_report_ids"][0])
+    assert rep["delay_basis"] == "distance"
+    assert rep["road_blocked"] is True
+
