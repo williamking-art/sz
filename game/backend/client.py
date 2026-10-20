@@ -52,6 +52,35 @@ _DECREE_ISSUE_ACTIONS = frozenset({
 })
 
 
+class ActionOutcome:
+    """动作结果：`(message, state)` 可解包 + 可选 `ok` 标记（缺失为 None）。
+
+    2026-10-20 全审 **R-UI-7**：`action()` 原本只回 `(message, state)`；而
+    `authorize_case` 属**拒绝式动作**（府库不足 / 重复授权 → HTTP 200 + `ok=False`），
+    分派层只取 `msg` 把 `ok` 丢掉 ⇒ 前端只能靠文案猜成败。
+    为**不破坏既有 `msg, state = backend.action(...)` 解包契约**，这里用支持解包的小对象
+    承载第三个字段：`for`/解包/下标行为与二元组一致，需要成败时读 `.ok`。
+    """
+
+    __slots__ = ("message", "state", "ok")
+
+    def __init__(self, message, state, ok=None):
+        self.message = message
+        self.state = state
+        self.ok = ok
+
+    def __iter__(self):
+        yield self.message
+        yield self.state
+
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, index):
+        return (self.message, self.state)[index]
+
+    def __repr__(self) -> str:  # pragma: no cover - 诊断用
+        return f"ActionOutcome(ok={self.ok!r}, message={self.message!r})"
 
 
 class BackendClient:
@@ -186,8 +215,9 @@ class LocalBackend(BackendClient):
 
 
     def action(self, state, action, params, ai_client=None):
-        # 统一返回 (message, state)；本地模式下 state 即原对象（可能被动作修改）
-        # 分派表：action 名 → handler(state, params, ai_client) -> (message, state)
+        # 统一返回可解包的 `ActionOutcome`（`msg, state = ...` 照旧）；拒绝式动作额外带 `.ok`
+        # 本地模式下 state 即原对象（可能被动作修改）
+        # 分派表：action 名 → handler(state, params, ai_client) -> (message, state) | ActionOutcome
         # 仅在此处做分派表化（Local 多路直调），HttpBackend 走单一端点转发，语义不同不得复用。
         handlers = {
             "issue_decree":
@@ -266,12 +296,9 @@ class LocalBackend(BackendClient):
                 ).get("msg", ""), s),
             # 2026-10-18 全审 M314：产业物流调拨生产入口
             # 长期旨案卷授权（2026-10-20）：批专款 + 赐专断之权（专款真实扣减）
+            # R-UI-7：保留 `ok`（拒绝式：府库不足/重复授权 ⇒ ok=False 仍 HTTP 200）
             "authorize_case":
-                lambda s, p, ai: (cmd.authorize_longterm_case(
-                    s, str(p.get("task_id", "")), budget=int(p.get("budget", 0) or 0),
-                    pool=str(p.get("pool", "treasury")),
-                    discretion=bool(p.get("discretion", False)),
-                    monthly_cost=int(p.get("monthly_cost", 0) or 0)).get("msg", ""), s),
+                lambda s, p, ai: self._authorize_case_action(s, p),
             "dispatch_logistics":
                 lambda s, p, ai: (cmd.dispatch_logistics(
                     s, str(p.get("origin", "")), str(p.get("target", "")),
@@ -319,6 +346,22 @@ class LocalBackend(BackendClient):
         if not res.get("ok"):
             raise ValueError(res.get("message", "不可施行此国策"))
         return res.get("message", "已开办施行大策"), state
+
+    @staticmethod
+    def _authorize_case_action(state, params):
+        """长期旨案卷「颁授权」分派（R-UI-7：**保留 ok**，不只回文案）。
+
+        `authorize_case` 是拒绝式动作：府库不足 / 重复授权 / 事务不存在都返回
+        `ok=False`，但**不抛异常**（HTTP 200）。原分派只取 `msg` ⇒ 前端无法区分成败、
+        失败时仍显示「已授权」。现连同 `ok` 一起回给 `/api/action` 的响应体。
+        """
+        res = cmd.authorize_longterm_case(
+            state, str(params.get("task_id", "")),
+            budget=int(params.get("budget", 0) or 0),
+            pool=str(params.get("pool", "treasury")),
+            discretion=bool(params.get("discretion", False)),
+            monthly_cost=int(params.get("monthly_cost", 0) or 0))
+        return ActionOutcome(str(res.get("msg", "")), state, bool(res.get("ok")))
 
     @staticmethod
     def _research_action(state, params):
@@ -543,7 +586,10 @@ class HttpBackend(BackendClient):
 
     def action(self, state, action, params, ai_client=None):
         r = self._post("/api/action", {"action": action, "params": params})
-        return r.get("message", ""), self._to_state(r["state"])
+        # R-UI-7：拒绝式动作带 `ok`（缺失则 None，保持旧契约语义）
+        raw_ok = r.get("ok") if isinstance(r, dict) else None
+        return ActionOutcome(r.get("message", ""), self._to_state(r["state"]),
+                             None if raw_ok is None else bool(raw_ok))
 
     def resolve_event(self, state, event: dict, choice_idx, ai_client=None):
         # 审查 P1-12：服务端（与 Electron 前端同源）契约是 {title, choice}，

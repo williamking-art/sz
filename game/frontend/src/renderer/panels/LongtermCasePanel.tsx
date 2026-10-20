@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getApiClient } from "../api/client";
+import { wan } from "../utils/format";
 
 /** 长期旨案卷（数据来自后端 /api/readouts → longterm_cases；口径单点在 core）。 */
 interface CaseEffect { key: string; amount: number | null }
@@ -30,6 +31,14 @@ interface AdvanceReadout {
   months: number | null;
   outcome: string | null;
 }
+/** 承办人授权（**未授权时后端整块回 null**，2026-10-20 全审 C-4/R-UI-4）。 */
+interface CaseAuthorization {
+  budget_total: number | null;
+  budget_remaining: number | null;
+  pool: string | null;
+  monthly_cost: number | null;
+  discretion: boolean;
+}
 interface CaseReadout {
   case_no: string | null;
   title: string | null;
@@ -43,20 +52,18 @@ interface CaseReadout {
   linked_factions: string[];
   cancellable: boolean;
   handler: { name: string | null; org: string | null; stats: HandlerStats | null };
-  authorization: {
-    budget_total: number | null;
-    budget_remaining: number | null;
-    pool: string | null;
-    monthly_cost: number | null;
-    discretion: boolean;
-  };
-  progress: { percent: number | null; phase: string; target: number };
+  /** 未授权 ⇒ null（缺失≠0：面板显示「未授权/未定义」，绝不显示「0 贯」） */
+  authorization: CaseAuthorization | null;
+  progress: { percent: number | null; phase: string | null; target: number | null };
   monthly_effects: CaseEffect[];
   progress_log: CaseLog[];
   outcome_effects: CaseEffect[];
   fail_effects: CaseEffect[];
   /** 推进可解释读数（本作特色：基数×难度×吏治×立场×军队 + 阻碍 + 圣意支持） */
   advance: AdvanceReadout | null;
+  /** 成败条件（后端由局势投影按同键合并；缺失为 null，不编造） */
+  resolve_condition_text?: string | null;
+  fail_condition_text?: string | null;
   timeline?: { turn: number; kind: string; text: string }[];
 }
 
@@ -79,6 +86,17 @@ const EFFECT_LABEL: Record<string, string> = {
 function def(v: unknown, fallback = "未定义"): string {
   if (v === null || v === undefined || v === "") return fallback;
   return String(v);
+}
+/**
+ * 金额展示（2026-10-20 全审 R-UI-3）：统一「贯」，万以上收口到 `utils/format.wan`
+ * （与 `state.treasury` 扣减**同单位同源**；原实现把贯写成「万两」，量级差 10⁴）。
+ * 缺失 ⇒ 「未定义」，**不回落 0**。
+ */
+function money(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "未定义";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "未定义";
+  return wan(n, "贯");
 }
 function pct(v: number | null | undefined): string {
   if (v === null || v === undefined) return "未定义";
@@ -134,6 +152,8 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
   const [monthlyCost, setMonthlyCost] = useState("0");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  /** 授权结果三态：null=未提交/后端未带 ok，true=成功，false=失败（R-UI-7 失败态） */
+  const [msgOk, setMsgOk] = useState<boolean | null>(null);
 
   const load = useCallback(async (alive = true) => {
     setLoading(true);
@@ -164,6 +184,7 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
     if (!id) return;
     setSubmitting(true);
     setMsg(null);
+    setMsgOk(null);
     try {
       const res = await getApiClient().action("authorize_case", {
         task_id: id,
@@ -172,9 +193,12 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
         discretion,
         monthly_cost: Number(monthlyCost || 0),
       });
-      setMsg(res.message || "已授权");
+      // R-UI-7：拒绝式失败（府库不足/重复授权）是 HTTP 200 + ok=false，必须按 ok 渲染失败态
+      setMsgOk(res.ok === false ? false : res.ok === true ? true : null);
+      setMsg(res.message || (res.ok === false ? "授权未成" : "已授权"));
       await load(true);   // 刷新专款余额与授权状态
     } catch (e) {
+      setMsgOk(false);
       setMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
@@ -182,6 +206,9 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
   }
 
   const adv = data?.advance ?? null;
+  /** 授权块（可能为 null：未授权就是"未定义"，不是 0） */
+  const auth = data?.authorization ?? null;
+  const authorized = auth !== null;
   const barPct = useMemo(() => {
     const p = data?.progress?.percent;
     if (p === null || p === undefined) return null;
@@ -260,16 +287,29 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
 
       <section>
         <p className="mb-1 font-kai text-lg text-ink">承办人授权</p>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <span className="text-dim">现有专款</span>
-          <span className="text-right">{def(data.authorization?.budget_total)} 万两（{POOL_LABEL[String(data.authorization?.pool)] ?? def(data.authorization?.pool)}）</span>
-          <span className="text-dim">专款余额</span>
-          <span className="text-right">{def(data.authorization?.budget_remaining)}</span>
-          <span className="text-dim">逐月自理</span>
-          <span className="text-right">{def(data.authorization?.monthly_cost)} / 月</span>
-          <span className="text-dim">赐专断之权</span>
-          <span className="text-right">{data.authorization?.discretion ? "已授" : "未授"}</span>
-        </div>
+        {authorized ? (
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <span className="text-dim">专款额度</span>
+            <span className="text-right">
+              {money(auth!.budget_total)}
+              （{POOL_LABEL[String(auth!.pool)] ?? def(auth!.pool, "库房未定义")}）
+            </span>
+            <span className="text-dim">专款余额</span>
+            <span className="text-right">{money(auth!.budget_remaining)}</span>
+            <span className="text-dim">逐月自理</span>
+            <span className="text-right">
+              {auth!.monthly_cost === null ? "未定义" : `${money(auth!.monthly_cost)} / 月`}
+            </span>
+            <span className="text-dim">赐专断之权</span>
+            <span className="text-right">{auth!.discretion ? "已授" : "未授"}</span>
+          </div>
+        ) : (
+          // R-UI-4（缺失≠0）：未授权时后端整块回 null ⇒ 显示「未授权」，**不显示「0 万两」**
+          <p className="rounded border border-gold/30 px-2 py-1 text-sm text-dim">
+            本卷尚未授权：专款/余额/逐月自理均<b className="text-ink">未定义</b>（不是 0）。
+            批授权后此处显示真值；专款额度只登记上限，月结按「逐月自理」从所选库房实扣。
+          </p>
+        )}
         {/* 授权入口（2026-10-20）：批专款 + 出库 + 逐月自理 + 赐专断之权；专款真实扣减（后端守恒） */}
         <div className="mt-2 rounded border border-gold/30 p-2">
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -277,11 +317,12 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
               专款
               <input
                 aria-label="专款"
-                className="w-20 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
+                className="w-24 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
                 value={budgetInput}
+                disabled={authorized || submitting}
                 onChange={(e) => setBudgetInput(e.target.value)}
               />
-              万两
+              贯
             </label>
             <label className="flex items-center gap-1">
               出库
@@ -289,6 +330,7 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
                 aria-label="出库"
                 className="rounded border border-gold/50 bg-transparent px-1 py-0.5"
                 value={pool}
+                disabled={authorized || submitting}
                 onChange={(e) => setPool(e.target.value)}
               >
                 <option value="treasury">国库</option>
@@ -299,16 +341,19 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
               逐月自理
               <input
                 aria-label="逐月自理"
-                className="w-16 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
+                className="w-20 rounded border border-gold/50 bg-transparent px-1 py-0.5 text-right"
                 value={monthlyCost}
+                disabled={authorized || submitting}
                 onChange={(e) => setMonthlyCost(e.target.value)}
               />
+              贯
             </label>
             <label className="flex items-center gap-1">
               <input
                 aria-label="赐专断之权"
                 type="checkbox"
                 checked={discretion}
+                disabled={authorized || submitting}
                 onChange={(e) => setDiscretion(e.target.checked)}
               />
               赐专断之权
@@ -316,25 +361,32 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
             <button
               type="button"
               className="ml-auto rounded border border-red bg-red px-3 py-1 text-paper disabled:opacity-50"
-              disabled={submitting}
+              // R-UI-2：已授权后按钮禁用（原实现仍可点，点了必失败）
+              disabled={authorized || submitting}
               onClick={() => void submitAuthorize()}
             >
-              {submitting ? "授权中…" : "颁授权"}
+              {authorized ? "已授权" : submitting ? "授权中…" : "颁授权"}
             </button>
           </div>
           <p className="mt-1 text-xs text-dim">
-            批专款后承办人逐月自理，不必再下旨；专款从所选库房真实扣减，府库不足则拒批。
+            批专款后承办人逐月自理，不必再下旨；额度以<b>贯</b>计（与国库扣减同单位），
+            月结从所选库房实扣，府库不足则拒批。
           </p>
-          {msg && <p className="mt-1 text-xs text-ink">{msg}</p>}
+          {msg && (
+            <p className={`mt-1 text-xs ${msgOk === false ? "text-red" : "text-ink"}`}>
+              {msgOk === false ? "授权未成：" : msgOk === true ? "已准：" : ""}
+              {msg}
+            </p>
+          )}
         </div>
       </section>
 
       <section>
         <p className="mb-1 font-kai text-lg text-ink">当前阶段</p>
         <div className="flex items-center gap-2">
-          <span className="font-bold text-ink">{data.progress?.phase}</span>
+          <span className="font-bold text-ink">{def(data.progress?.phase)}</span>
           <span className="ml-auto text-sm">
-            {barPct === null ? "未定义" : Math.round(barPct)} / {data.progress?.target ?? 100}
+            {barPct === null ? "未定义" : Math.round(barPct)} / {def(data.progress?.target)}
           </span>
         </div>
         <div className="mt-1 h-2 w-full rounded bg-gold-light">
@@ -344,6 +396,10 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
             title={barPct === null ? "未定义" : `${Math.round(barPct)}%`}
           />
         </div>
+        {/* 怎么算赢：达成条件由事务自身声明（后端按案卷 task id 合并），缺失即「未定义」 */}
+        <p className="mt-1 text-xs text-dim">
+          达成条件：{def(data.resolve_condition_text, "未定义（不编造）")}
+        </p>
         {/* 本作特色：推进不靠"感觉"，给出算式与工期/停滞预警 */}
         {adv && (
           <div className="mt-2 rounded border border-gold/30 px-2 py-1 text-xs text-dim">
@@ -433,7 +489,7 @@ export default function LongtermCasePanel({ props }: { props?: { id?: string } }
                   {l.narrative || "（无叙事）"}
                   {(l.applied?.length ?? 0) > 0 && (
                     <span className="ml-1 text-xs text-dim">
-                      落账：{l.applied!.map((e) => `${EFFECT_LABEL[e.key] ?? e.key}${e.amount ?? ""}`).join("、")}
+                      落账：{l.applied!.map((e) => `${EFFECT_LABEL[e.key] ?? e.key} ${def(e.amount)}`).join("、")}
                     </span>
                   )}
                 </span>

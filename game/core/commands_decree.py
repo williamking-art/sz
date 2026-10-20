@@ -124,12 +124,28 @@ def reject_edict_draft(state: GameState, draft_id: str) -> str:
     return f"已打回诏草：「{draft.get('title','')}」，着另行拟奏。"
 
 
+def _fmt_guan(value) -> str:
+    """金额展示：**贯**（与 `state.treasury` 扣减同源、同单位）；缺失 → 未定义（不回落 0）。
+
+    2026-10-20 全审 R-UI-3：此处原写「万两」，而实扣单位是贯 ⇒ 量级差 10⁴。
+    """
+    if value is None:
+        return "未定义"
+    try:
+        return f"{int(value):,} 贯"
+    except (TypeError, ValueError):
+        return "未定义"
+
+
 def authorize_longterm_case(state, task_id: str, *, budget: int = 0,
                             pool: str = "treasury", discretion: bool = False,
                             monthly_cost: int = 0) -> dict:
-    """批专款 + 赐专断之权（长期旨案卷授权；专款真实扣减，幂等不重扣）。
+    """批专款 + 赐专断之权（长期旨案卷授权；幂等不重扣）。
 
-    返回 {ok, msg, ...}；找不到事务 / 府库不足 都返回 ok=False 且不动账。
+    口径（2026-10-20 P0-3）：授权**只登记支出额度**（不即时扣库），月结由
+    `longterm_case.monthly_case_settle` 按 `monthly_cost` 从国库/内帑实扣并递减额度——
+    单一实现仍在 `core/domains/politics/longterm_case`，此处只做「找事务 + 转文案」。
+    返回 {ok, msg, case_no, ...}；找不到事务 / 府库不足 / 重复授权 都返回 ok=False 且不动账。
     """
     from core.domains.politics.longterm_case import authorize_case as _auth
     from core.longterm_task import find_task
@@ -142,10 +158,16 @@ def authorize_longterm_case(state, task_id: str, *, budget: int = 0,
     if not got.get("ok"):
         return {"ok": False, "msg": str(got.get("reason") or "授权未成"), **got}
     bud = got.get("budget") or {}
+    # R-UI-3：单位统一为「贯」（面板同一口径），案号随授权并带上（便于对账/回看）
+    _pool_label = {"treasury": "国库", "imperial_treasury": "内帑"}.get(
+        str(bud.get("pool") or ""), str(bud.get("pool") or "库房"))
+    _case_no = str(got.get("case_no") or task.get("case_no") or "")
     return {"ok": True,
-            "msg": "已授权：专款 %s 万两（%s），逐月自理 %s，专断之权 %s" % (
-                bud.get("total"), bud.get("pool"), task.get("monthly_cost"),
+            "msg": "已授权（案号 %s）：专款 %s（%s），逐月自理 %s，专断之权 %s" % (
+                _case_no or "待定", _fmt_guan(bud.get("total")), _pool_label,
+                _fmt_guan(task.get("monthly_cost")),
                 "已授" if got.get("discretion") else "未授"),
+            "case_no": _case_no or None,
             "task": task}
 
 

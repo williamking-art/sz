@@ -145,16 +145,26 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
     return /军|枢密|将|节度/.test(r) ? "./portraits/general.png" : "./portraits/minister.png";
   }
 
-  // ---- 属性与特质（稳定伪随机；不含忠诚——该维度为隐藏值，绝不进入 UI 文本）----
-  let seed = 0;
-  for (let i = 0; i < current.length; i++) seed = (seed * 37 + current.charCodeAt(i)) % 10007;
-  const stats = {
-    reputation: 80 + ((seed * 3) % 18),
-    courage: 70 + ((seed * 7) % 25),
-    military: isMilitary ? 85 + ((seed * 11) % 12) : 50 + ((seed * 11) % 25),
-    govern: 82 + ((seed * 13) % 16),
-    scholar: isMilitary ? 65 + ((seed * 17) % 20) : 88 + ((seed * 17) % 11)
+  // ---- 五维属性（2026-10-20 全审 R-UI-6）----
+  // 真值单点：后端 `readouts.ministers[name].attrs/potential`（来源 content/ministers/stats.py）。
+  // **不再按人名 seed 伪随机生成 60–99**；缺失一律「未定义」，不返回任何编造数值。
+  // 标签优先用后端下发的 `attr_names`（本作口径五维：政略/财计/军略/谋断/风望）；
+  // 仅在后端未下发标签时用同口径常量兜底，**数值仍只来自后端**。
+  const roMinister = ro?.ministers?.[current] ?? null;
+  const ATTR_LABEL_FALLBACK: Record<string, string> = {
+    governance: "政略", finance: "财计", military: "军略", strategy: "谋断", reputation: "风望"
   };
+  const attrNames = roMinister?.attr_names ?? ATTR_LABEL_FALLBACK;
+  const attrRows = Object.entries(attrNames).map(([key, label]) => {
+    const v = roMinister?.attrs?.[key];
+    const p = roMinister?.potential?.[key];
+    return {
+      key,
+      label,
+      value: typeof v === "number" && Number.isFinite(v) ? v : null,
+      potential: typeof p === "number" && Number.isFinite(p) ? p : null
+    };
+  });
 
   const [turns, setTurns] = useState<DialogueTurn[]>([]);
   /** 会话加载三态：loading / ready / error（替代单一 loading 布尔，区分空档与读取失败） */
@@ -722,18 +732,23 @@ export default function AudienceView({ props }: { props?: Record<string, unknown
             </div>
           </div>
 
-          {/* 五维属性（不含忠诚——隐藏值不进 UI） */}
+          {/* 五维属性（真值来自 readouts.ministers；不含忠诚——隐藏值不进 UI） */}
           <div className="grid grid-cols-5 gap-1 border-b border-gold/40 px-2.5 py-1.5 text-center">
-            {[
-              ["清誉", stats.reputation],
-              ["胆识", stats.courage],
-              ["武略", stats.military],
-              ["理政", stats.govern],
-              ["学识", stats.scholar]
-            ].map(([k, v]) => (
-              <div key={String(k)} className="rounded border border-gold/25 bg-black/30 py-0.5">
-                <p className="text-[9.5px] text-gold/60">{k}</p>
-                <p className="font-kai text-[12.5px] font-bold text-[#f5ebd3]">{v}</p>
+            {attrRows.map((row) => (
+              <div key={row.key} className="rounded border border-gold/25 bg-black/30 py-0.5">
+                <p className="text-[9.5px] text-gold/60">{row.label}</p>
+                {row.value === null ? (
+                  <p className="font-kai text-[11px] text-[#c9bda0]">未定义</p>
+                ) : (
+                  <p className="font-kai text-[12.5px] font-bold text-[#f5ebd3]">
+                    {Math.round(row.value)}
+                    {row.potential !== null && (
+                      <span className="text-[9.5px] font-normal text-gold/60">
+                        /{Math.round(row.potential)}
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
             ))}
           </div>

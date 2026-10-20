@@ -46,11 +46,22 @@ export default function Dock() {
   // P0-6：禁止在 setInterval 回调里调用 Hook。用 ref 镜像当前 turn，轮询里只读 ref。
   const turnRef = React.useRef<number | undefined>(undefined);
   turnRef.current = (state as Record<string, unknown> | null)?.turn as number | undefined;
-  // P1-25：轮询 interval 挂到 ref，组件卸载时清理（否则关 Dock 后仍 pollRich/pushOverlay）
-  const pollTimerRef = React.useRef<number | null>(null);
-  React.useEffect(() => () => {
-    if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
+  // P1-25 / R-UI-5（2026-10-20 全审）：**轮询订阅与 3 分钟上限都必须绑组件生命周期**。
+  // 原实现 `pollTimerRef` 从未赋值（死代码）、180s `setTimeout` 也没人持有 ⇒ 结算中退回
+  // 主菜单后回调仍向全局 store `pushOverlay`，会把「回合报告/推演未成」弹到主菜单上。
+  // 现：effect 持有 unsubscribe + timeout，cleanup（卸载）一律调用。
+  const unsubscribeRef = React.useRef<null | (() => void)>(null);
+  const limitTimerRef = React.useRef<number | null>(null);
+  const stopRichPoll = React.useCallback(() => {
+    if (limitTimerRef.current !== null) {
+      window.clearTimeout(limitTimerRef.current);
+      limitTimerRef.current = null;
+    }
+    const unsubscribe = unsubscribeRef.current;
+    unsubscribeRef.current = null;
+    if (unsubscribe) unsubscribe();
   }, []);
+  React.useEffect(() => () => stopRichPoll(), [stopRichPoll]);
   async function handleAdvance() {
     if (advancing) return;
     audioEngine.playClick();
@@ -95,9 +106,11 @@ export default function Dock() {
       // P2-37：订阅共享轮询器，不再自起 setInterval 与 AdvancePanel 抢跑。
       {
         const stNow = res.state as Record<string, unknown> | undefined;
+        // 同一时刻只保留一个轮询订阅（上一回合若还在等，先停）
+        stopRichPoll();
         const unsubscribe = subscribeRichPoll((r) => {
           if (!r.ready) return;
-          unsubscribe();
+          stopRichPoll();     // 就位即退订（同时清掉 180s 上限计时器）
           if (r.settle_error) {
             if (turnRef.current === stNow?.turn) {
               pushOverlay({
@@ -128,8 +141,9 @@ export default function Dock() {
             });
           }
         });
-        // 3 分钟上限：后端一直不 ready 也停表
-        window.setTimeout(() => unsubscribe(), 180_000);
+        unsubscribeRef.current = unsubscribe;
+        // 3 分钟上限：后端一直不 ready 也停表（R-UI-5：计时器句柄进 ref，卸载可清）
+        limitTimerRef.current = window.setTimeout(() => stopRichPoll(), 180_000);
       }
     } catch (e) {
       console.error("[advance]", e);

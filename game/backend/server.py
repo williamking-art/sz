@@ -650,7 +650,8 @@ def api_action(req: ActionReq, request: Request):
     with _lock:
         _require_settle_idle()
         try:
-            message, _state = _backend.action(_state, req.action, req.params, _get_ai())
+            _res = _backend.action(_state, req.action, req.params, _get_ai())
+            message, _state = _res[0], _res[1]
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except AIRuntimeError as e:
@@ -662,7 +663,13 @@ def api_action(req: ActionReq, request: Request):
                     "message": str(e) or "AI 推演失败：请检查 AI 配置或网络后重试。",
                 },
             ) from e
-        return {"message": message, "state": _state_to_dict(_state)}
+        payload = {"message": message, "state": _state_to_dict(_state)}
+        # R-UI-7（2026-10-20 全审）：拒绝式动作（如 `authorize_case` 府库不足/重复授权）
+        # 是 HTTP 200 + ok=False，前端据此渲染失败态；**没有 ok 的动作不加字段**（旧契约不变）。
+        _ok = getattr(_res, "ok", None)
+        if _ok is not None:
+            payload["ok"] = bool(_ok)
+        return payload
 
 
 @app.post("/api/resolve_event")
@@ -855,6 +862,30 @@ def api_readouts(request: Request):
             readout_errors.append("ministers")
             log.warning("readouts：群臣档案（build_minister_profiles）派生失败，面板将显示空白",
                         exc_info=True)
+        # R-UI-6（2026-10-20 全审）：召对面板「五维」此前由**前端按人名 seed 伪随机**生成。
+        # 真值单点是 `content/ministers/stats.py`（考据档案 + 生成档案，随经验成长，受潜质上限约束）；
+        # 薄壳纪律：只调用既有访问器，不在后端复制算法。缺失维度保持 None（前端示「未定义」），
+        # **绝不**回落 60–99 之类伪值。`attr_names` 一并下发，使中文标签也由后端单一来源决定
+        # （本作口径是五维：政略/财计/军略/谋断/风望，不是外部参考图那套六维）。
+        if ministers:
+            try:
+                from content.ministers.stats import (ATTRIBUTE_NAMES,
+                                                     get_or_create_official_stats)
+                for _mname in list(ministers.keys()):
+                    try:
+                        _prof = get_or_create_official_stats(s, _mname)
+                    except Exception:  # noqa: BLE001  单人档案失败不得拖垮整张表
+                        log.warning("readouts：群臣五维派生失败（%s）", _mname, exc_info=True)
+                        continue
+                    _attrs = dict(_prof.get("attrs") or {})
+                    _pot = dict(_prof.get("potential") or {})
+                    ministers[_mname]["attrs"] = {k: _attrs.get(k) for k in ATTRIBUTE_NAMES}
+                    ministers[_mname]["potential"] = {k: _pot.get(k) for k in ATTRIBUTE_NAMES}
+                    ministers[_mname]["attr_names"] = dict(ATTRIBUTE_NAMES)
+            except Exception:
+                readout_errors.append("ministers.attrs")
+                log.warning("readouts：群臣五维（content.ministers.stats）派生失败——"
+                            "召对面板将显示「未定义」", exc_info=True)
         # 税基 / 免役口径（阶段 C-4，§13.6）：让"冗官 → 免役 → 税基萎缩"这条链可见。
         # 薄壳纪律：只调 GameState 的只读派生视图。
         try:
@@ -930,27 +961,44 @@ def api_readouts(request: Request):
             log.warning("readouts：统一读数索引（readout_hub.collect）派生失败", exc_info=True)
         # 长期旨案卷（只读投影；core/domains/politics/longterm_case 单一权威源）。
         # 供左侧局势标题点击后打开案卷页；缺失维度由 core 侧给 None（前端示未定义）。
+        #
+        # 🔴 R-UI-1（2026-10-20 全审）契约：本字典的键 = **事务 task id**（如 `ltp1`），
+        # 而局势面板点开案卷时传的是局势 item 的 `id`。两侧必须同键 ⇒ 由
+        # `core.situations._project_longterm_cases` 把 longterm 任务投影成 `id=task id` 的
+        # 局势条目（不再只有 `legacy:*` / `event_pool:*`）。本处再按同键把局势侧的
+        # severity/region_hint/faction_hint/phase/bar_value/timeline/成败条件合进案卷读数，
+        # 保证「案卷不重复存这些字段、且只有一个来源」。
         try:
             from core.domains.politics.longterm_case import case_readout
             longterm_cases = {}
             for _q in (getattr(s, 'longterm_public', None) or [],
                        getattr(s, 'longterm_secret', None) or []):
                 for _t in _q:
-                    if isinstance(_t, dict):
-                        _cid = str(_t.get('id') or '')
-                        if _cid:
-                            _rd = _json_safe(case_readout(s, _t))
-                            # 严重度/关联地区/派系/阶段/时间线：取自局势投影（单一来源），
-                            # 案卷不重复存这些字段；缺失保持 None。
-                            _sit = next((it for it in (situations.get("items") or [])
-                                         if str(it.get("id")) == _cid), None)
-                            if isinstance(_sit, dict):
-                                for _k in ("severity", "region_hint", "faction_hint",
-                                           "phase", "bar_value", "timeline",
-                                           "resolve_condition_text", "fail_condition_text"):
-                                    if _rd.get(_k) in (None, [], "") and _sit.get(_k) is not None:
-                                        _rd[_k] = _sit.get(_k)
-                            longterm_cases[_cid] = _rd
+                    if not isinstance(_t, dict):
+                        continue
+                    _cid = str(_t.get('id') or '')
+                    if not _cid:
+                        # 旧档/新立案事务在 normalize 前可能无 id（C-14）：无法同键，留痕跳过
+                        readout_errors.append('longterm_cases:无id事务')
+                        continue
+                    try:
+                        _rd = _json_safe(case_readout(s, _t))
+                    except Exception:  # noqa: BLE001  单卷失败不得拖垮整张案卷表
+                        readout_errors.append(f'longterm_cases:{_cid}')
+                        log.warning('readouts：案卷读数派生失败（%s），该卷跳过', _cid,
+                                    exc_info=True)
+                        continue
+                    # 严重度/关联地区/派系/阶段/时间线：取自局势投影（单一来源），
+                    # 案卷不重复存这些字段；缺失保持 None。
+                    _sit = next((it for it in (situations.get("items") or [])
+                                 if str(it.get("id")) == _cid), None)
+                    if isinstance(_sit, dict):
+                        for _k in ("severity", "region_hint", "faction_hint",
+                                   "phase", "bar_value", "timeline",
+                                   "resolve_condition_text", "fail_condition_text"):
+                            if _rd.get(_k) in (None, [], "") and _sit.get(_k) is not None:
+                                _rd[_k] = _sit.get(_k)
+                    longterm_cases[_cid] = _rd
         except Exception:
             longterm_cases = {}
             readout_errors.append('longterm_cases')

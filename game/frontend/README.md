@@ -41,3 +41,8 @@ MapLibre 前端读取 `public/map/` 中的运行数据。该目录的地图文�
 - 面板按功能复用共享装饰组件和主题变量；视觉调整同时关注不同分辨率、地图遮挡和信息层级。
 - 改变接口字段时对照后端序列化/API、TypeScript 类型和组件测试，避免仅在界面端造默认值。
 - 打包协议、前后端启动与本地环境的具体细节见 `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md`。
+- **缺失≠0（2026-10-20 全审收口）**：可空读数（如长期案卷 `authorization`）为 `null` 时显示「未授权/未定义」，**不得**回落 0 或 1.0；金额统一「贯」，用 `utils/format.wan`。
+- **案卷页数据链（R-UI-1）**：左侧局势标题传 `situations.items[].id`，该 id 必须与 `/api/readouts` 的 `longterm_cases` 键（longterm task id）同键；不得前端自造映射。
+- **大臣五维（R-UI-6）**：数值只渲染 `readouts.ministers[].attrs/potential` 的真实下发值；缺失显示「未定义」，**禁止**按姓名 seed 伪随机。
+- **轮询/定时器生命周期（R-UI-5）**：`subscribeRichPoll`/180s `setTimeout` 必须在 effect cleanup 中退订/清理；禁止在异步回调里调 Hook。
+- **拒绝式动作（R-UI-7）**：`authorize_case` 等返回 HTTP 200 + `ok:false`，前端按 `ok` 渲染失败态，不得只看 message 猜成败。

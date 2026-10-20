@@ -20,14 +20,17 @@ const SOURCE_LABEL: Record<SituationItem["source"], string> = {
   focus: "国策",
   free_effect: "长期诏",
   event: "事件",
-  record: "长期局势"
+  record: "长期局势",
+  // 2026-10-20 R-UI-1：长期旨「案卷」——id 就是事务 task id，点开即读 longterm_cases[id]
+  longterm_case: "长期旨案卷"
 };
 const SOURCE_BADGE: Record<SituationItem["source"], string> = {
   legacy: "bg-red/90 text-paper",
   focus: "bg-emerald-700/90 text-paper",
   free_effect: "bg-amber-600/90 text-paper",
   event: "bg-ink/80 text-paper",
-  record: "bg-red-dark/90 text-paper"
+  record: "bg-red-dark/90 text-paper",
+  longterm_case: "bg-[#4a3b26]/90 text-paper"
 };
 const STATUS_LABEL: Record<SituationItem["status"], string> = {
   active: "在办",
@@ -36,7 +39,8 @@ const STATUS_LABEL: Record<SituationItem["status"], string> = {
   cancelled: "已罢"
 };
 
-function sevTone(sev: number): "good" | "warn" | "bad" {
+function sevTone(sev: number | null): "good" | "warn" | "bad" {
+  if (sev === null || !Number.isFinite(sev)) return "good";
   return sev >= 80 ? "bad" : sev >= 60 ? "warn" : "good";
 }
 
@@ -93,7 +97,7 @@ function ItemCard({ r }: { r: SituationItem }) {
         <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
           sevTone(r.severity) === "bad" ? "bg-red text-paper" : sevTone(r.severity) === "warn" ? "bg-amber-500 text-paper" : "bg-emerald-600 text-paper"
         }`}>
-          危急 {r.severity}
+          {r.severity === null ? "危急 未定义" : `危急 ${r.severity}`}
         </span>
         <button
           type="button"
@@ -264,7 +268,9 @@ export default function SituationPanel({ props }: { props?: { tab?: "items" | "p
   }, []);
 
   const items = useMemo(
-    () => [...(data?.items ?? [])].sort((a, b) => b.severity - a.severity || a.id.localeCompare(b.id)),
+    () => [...(data?.items ?? [])].sort((a, b) =>
+      // 危急读数为 null（来源无进度）时排末尾——排序不吃"缺失当 0"
+      (b.severity ?? -1) - (a.severity ?? -1) || a.id.localeCompare(b.id)),
     [data]
   );
   const pop: PopChannels | undefined = data?.pop_channels;

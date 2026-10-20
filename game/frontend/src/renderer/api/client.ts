@@ -15,6 +15,12 @@ export interface AdvanceResult {
 export interface ActionResult {
   message: string;
   state: GameState;
+  /**
+   * 拒绝式动作的成败标记（2026-10-20 全审 R-UI-7）。
+   * 只有后端明确带 `ok` 的动作才有该字段：`authorize_case` 府库不足 / 重复授权等
+   * **HTTP 200 + ok=false** 的拒绝式失败靠它区分；其余动作保持 undefined（旧契约）。
+   */
+  ok?: boolean;
 }
 
 export interface ResolveResult {
@@ -186,11 +192,28 @@ export interface ReadoutsResult {
     portrait?: string;
     /** 服色档：zi/fei/lv/qing/shi/qinwang */
     tier?: string;
+    /**
+     * **真实五维**（2026-10-20 全审 R-UI-6；单一来源 `content/ministers/stats.py`）。
+     * 键由后端 `attr_names` 给出（本作口径：governance/finance/military/strategy/reputation
+     * ＝政略/财计/军略/谋断/风望，**不是**外部参考图那套六维）；单维缺失为 null。
+     */
+    attrs?: Record<string, number | null> | null;
+    /** 潜质上限（同一五维键）；缺失为 null。 */
+    potential?: Record<string, number | null> | null;
+    /** 五维中文标签（由后端下发，前端不自造文案） */
+    attr_names?: Record<string, string> | null;
   }>;
   /** 州路简报（core/region_brief.py，**只读派生**）：民生/粮储/到账月税/驻军月饷/风险分 */
   regions?: RegionBriefResult;
   /** 局势投影（core/situations.py，**只读派生**）：进度/达成条件/执行三通道/六类 POP 心气/集团⊆POP */
   situations?: SituationReadoutResult;
+  /**
+   * 长期旨案卷读数（`core/domains/politics/longterm_case.case_readout` 单点）。
+   * 🔴 键 = **事务 task id**（如 `ltp1`），与 `situations.items[].id` 中的
+   * `source="longterm_case"` 条目**同键**（R-UI-1）——案卷页据此按 id 取读数。
+   * 形状见 `panels/LongtermCasePanel.tsx` 的 `CaseReadout`（前后端字段一一对应）。
+   */
+  longterm_cases?: Record<string, unknown>;
   defense_lines: Record<string, { fortification: number; garrison: number }>;
 }
 
@@ -234,7 +257,11 @@ export interface ExecutionChannels {
 export interface SituationItem {
   id: string;
   title: string;
-  source: "legacy" | "focus" | "free_effect" | "event" | "record";
+  /**
+   * 来源。`longterm_case` = 长期旨案卷（id 就是事务 task id，与
+   * `readouts.longterm_cases` 同键，2026-10-20 全审 R-UI-1 新增）。
+   */
+  source: "legacy" | "focus" | "free_effect" | "event" | "record" | "longterm_case";
   status: "active" | "resolved" | "failed" | "cancelled";
   /** 0–100；无进度来源为 null（前端显示"未定义"，不得当 0） */
   bar_value: number | null;
@@ -247,7 +274,8 @@ export interface SituationItem {
   bar_good_meaning?: string | null;
   bar_bad_meaning?: string | null;
   progress_text: string | null;
-  severity: number;
+  /** 投影威胁度 0–100；无任何可用来源时为 null（面板示"未定义"，不当作 0/危急） */
+  severity: number | null;
   phase: "起" | "中" | "终前" | null;
   region_hint: string | null;
   faction_hint: string | null;

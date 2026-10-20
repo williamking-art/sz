@@ -530,6 +530,117 @@ def _project_longterm_effects(state, errors: List[str], snapshot: dict) -> List[
     return out
 
 
+#: 案卷 `phase` / `outcome` → 局势状态（只做映射，不改原字段）
+_CASE_RESOLVED = ("达成", "告成", "议毕待支持")
+_CASE_FAILED = ("失控", "受阻罢废")
+_CASE_CANCELLED = ("已罢", "已撤")
+
+
+def _case_status(task: dict) -> str:
+    """案卷 task → 局势 status（active / resolved / failed / cancelled）。
+
+    以案卷自身 `phase`（`longterm_case.CASE_PHASES`）或 `outcome`（`longterm_task`）为准；
+    两者都缺失时按**在办**（不猜已达成的「好结局」）。
+    """
+    for key in (str(task.get("phase") or ""), str(task.get("outcome") or "")):
+        if key in _CASE_RESOLVED:
+            return "resolved"
+        if key in _CASE_FAILED:
+            return "failed"
+        if key in _CASE_CANCELLED:
+            return "cancelled"
+    return "active"
+
+
+def _case_timeline(task: dict) -> List[dict]:
+    """案卷 `progress_log`（逐月落账/叙事）→ 局势 `timeline`（最多 3 条，只读）。"""
+    rows = task.get("progress_log")
+    if not isinstance(rows, list):
+        return []
+    out: List[dict] = []
+    for row in rows[-_TIMELINE_LIMIT:]:
+        if not isinstance(row, dict):
+            continue
+        text = str(row.get("blocked") or row.get("narrative") or "")[:120]
+        if not text:
+            continue
+        out.append({"turn": int(_finite(row.get("turn"), 0)), "kind": "推进",
+                    "text": text, "source": "program"})
+    return out
+
+
+def _project_longterm_cases(state, errors: List[str], snapshot: dict) -> List[dict]:
+    """长期旨**案卷**（`state.longterm_public` / `longterm_secret`）→ 局势条目。
+
+    R-UI-1（2026-10-20 全审）：局势面板左侧标题点击后打开案卷页（前端把局势 item 的
+    `id` 传给 `/api/readouts` 的 `longterm_cases` 字典）；而 `longterm_cases` 以
+    **事务 task id**（如 `ltp1`）为键。此前局势从不投影 longterm 任务 ⇒ 两集合交集为空，
+    点开必报「案卷读数为空」。本投影的 `id` **原样取 task id**（不加 `legacy:` 之类前缀），
+    使「局势 item id == 案卷字典键」；`backend/server.py` 再把局势侧的
+    severity/region_hint/faction_hint/phase/bar_value/timeline 合进案卷读数（单一来源）。
+
+    纪律：
+    - **严格只读**：不调 `longterm_case.case_readout`（它会幂等补字段/建承办人档案），
+      只读 task 上已有的键；不写任何 state；
+    - **缺失一律 None**（不假装 0）：进度缺失 → `bar_value=None`；各字段无来源即 None；
+    - 执行度不在本层重复计算（案卷页 `advance` 读数由 `longterm_task.build_readout` 单点给）。
+    """
+    out: List[dict] = []
+    for label, queue in (("longterm_public", getattr(state, "longterm_public", None)),
+                         ("longterm_secret", getattr(state, "longterm_secret", None))):
+        if queue is None:
+            continue
+        if not isinstance(queue, list):
+            errors.append(f"{label}: 结构非 list，已跳过")
+            continue
+        for task in queue:
+            if not isinstance(task, dict):
+                errors.append(f"{label}: 条目非 dict，已跳过")
+                continue
+            tid = str(task.get("id") or "")
+            if not tid:
+                # 旧档事务无 id（结算 normalize / 读档补齐后才稳定）⇒ 无法与案卷同键
+                errors.append(f"{label}: 有事务缺 id，已跳过（待 normalize 补齐）")
+                continue
+            raw_progress = task.get("progress")
+            bar = (int(round(_clamp(_finite(raw_progress), 0.0, 100.0)))
+                   if raw_progress is not None else None)
+            severity = None
+            raw_sev = task.get("severity")
+            if raw_sev is not None:
+                try:
+                    severity = int(round(float(raw_sev)))
+                except (TypeError, ValueError):
+                    severity = None
+            if severity is None and bar is not None:
+                # 缺失时按与 legacy/record **同一条确定性规则**由进度派生（非随机、非伪造数值）
+                severity = int(round(SEVERITY_RULES["legacy_min"]
+                                     + (1.0 - bar / 100.0) * SEVERITY_RULES["legacy_span"]))
+            route = str(task.get("linked_region") or "") or None
+            factions = task.get("linked_factions")
+            faction_hint = (str(factions[0])
+                            if isinstance(factions, list) and factions else None)
+            out.append({
+                "id": tid,                                  # 🔴 与 longterm_cases 同键（R-UI-1）
+                "title": str(task.get("task_name") or task.get("title") or "长期旨"),
+                "source": "longterm_case",
+                "status": _case_status(task),
+                "bar_value": bar,
+                # 达成条件取事务自身声明的 success_condition（缺失即 None，不编造）
+                "resolve_condition_text": str(task.get("success_condition") or "") or None,
+                "fail_condition_text": None,                 # 事务无独立失败条件字段
+                "ongoing_text": None,                        # 不把月费/效果混作"持续代价"
+                "progress_text": str(task.get("last_change") or "") or None,
+                "severity": severity,
+                "phase": _phase_from_ratio(bar / 100.0) if bar is not None else None,
+                "region_hint": route,
+                "faction_hint": faction_hint,
+                "pop_highlights": _pop_highlights(snapshot, route),
+                "timeline": _case_timeline(task),
+            })
+    return out
+
+
 def _project_records(state, errors: List[str], snapshot: dict) -> List[dict]:
     """v2 SituationRecord（`state.situations`）→ Readout 条目（批 2 · 成败条件全公开）。
 
@@ -1326,7 +1437,10 @@ def build_situation_readout(state) -> dict:
     "readout_status": "ok"|"partial", "readout_errors": [...]}`。
     每个 item 额外带 `execution_channels`（会签配合 / 吏治折扣 / 军队督行）与
     `channel_highlights`（非经济维度摘要）——**下了诏 ≠ 办了事**，由 AI 权衡这些变数。
-    排序：`severity` 降序，次级键 `id` 升序（稳定）。
+    排序：`severity` 降序（缺失排在末尾），次级键 `id` 升序（稳定）。
+
+    来源：`legacy` / `focus` / `free_effect` / **`longterm_case`**（长期旨案卷，id=事务 task id，
+    供局势面板点击打开案卷页，R-UI-1）/ `record` / `event`。
     """
     errors: List[str] = []
     snapshot: dict = {"metrics": {}}
@@ -1340,7 +1454,7 @@ def build_situation_readout(state) -> dict:
 
     items: List[dict] = []
     for fn in (_project_legacies, _project_focus, _project_longterm_effects,
-               _project_records, _project_events):
+               _project_longterm_cases, _project_records, _project_events):
         try:
             items.extend(fn(state, errors, snapshot))
         except Exception as e:  # noqa: BLE001  单来源失败不影响其他来源
@@ -1373,7 +1487,9 @@ def build_situation_readout(state) -> dict:
         errors.append(f"faction_channels: {type(e).__name__}")
         faction_channels = {}
 
-    items.sort(key=lambda r: (-int(r.get("severity") or 0), str(r.get("id") or "")))
+    items.sort(key=lambda r: (
+        -int(r["severity"]) if isinstance(r.get("severity"), (int, float)) else 1,
+        str(r.get("id") or "")))
 
     by_status: Dict[str, int] = {}
     for r in items:
