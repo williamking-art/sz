@@ -1,0 +1,33 @@
+{
+  "id": "JEV-reform-compliance映射-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "reform_compliance_gate=False 时，财政改革轴（finance_rates）幅度怎么缩放",
+  "items": [
+    {
+      "question": "False 时 finance_rates 缩放选哪个？A=×0.5;B=×0.7;C=×0;D=仅日志",
+      "options": [
+        "A=×0.5",
+        "B=×0.7",
+        "C=×0",
+        "D=仅日志"
+      ],
+      "verdict": "A（0.4643；B 0.4015 近平手，按 A 执行并自证）",
+      "probabilities": {
+        "A": 0.46428486704826355,
+        "B": 0.4014945328235626,
+        "C": 0.11085459589958191,
+        "D": 0.023365959525108337
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "只作用于 settlement_decree 的 finance_rates 改革轴，不扩大到全部诏令/全部改革",
+        "A 与 B 差 0.063 属近平手；A（×0.5）语义是'表面敷衍、只落一半'，比 B 更贴 gate 本意且效果可见",
+        "C（×0）会让改革完全空转，风险大；D 无效果不符合'接线'目标",
+        "无观察记录回落 1.0，直接调用旧测试零变更；apply_finance_reform 内部归一化/钳位不变"
+      ],
+      "applied_in": "settlement_decree._reform_compliance_factor + finance_rates 分支；tests/test_audit_20261021_reform_gate.py（4 条）",
+      "reopen_if": "60 月 A/B 显示改革过弱或过强时改 B（×0.7）或按改革类型分档；扩大到其他改革效果前须另裁"
+    }
+  ]
+}

@@ -31,6 +31,7 @@
 | `core/ai/tiandao_facade.py` · `summarize_monthly_omen` | ✅ 已接线 | `core/commands.py::monthly_report_args` → `monthly_report` 入参 |
 | `core/ai/tiandao_facade.py` · `observe_monthly`（10 方法只读观察） | 🟡 **只读已接线（2026-10-21）** | `core/settlement.py::run_monthly_settlement` 每月调用；结果挂 `state._tiandao_observe`（诊断、不入存档），**不改数值** |
 | `granary_corruption_check` | ✅ **数值已接线（2026-10-21，Jev B 0.492）** | `settlement_granary._granary_corruption_factor`：False ⇒ 雀鼠耗本色损耗 **×0.5**（不归零；无记录回落 1.0）；钱侧贪腐不动 |
+| `reform_compliance_gate` | ✅ **数值已接线（2026-10-21，Jev A 0.464）** | `settlement_decree._reform_compliance_factor`：False ⇒ `finance_rates` 财政改革幅度 **×0.5**（只此一处；无记录回落 1.0） |
 | `tax_collection_stance` / `should_waive_ancient_arrears` / `merchant_trade_or_hoard` / `changping_intervene_gate` / `canal_reroute_choice` / `granary_corruption_check` / `farmer_destitution_path` / `gentry_charity_vs_annex` / `reform_compliance_gate` / `recruit_refugees_to_soldiers_gate` | 🟡 **只读接线（2026-10-21，Jev A 0.799）** | `TianDaoFacade.observe_monthly` 每月记录裁决；**数值效果仍未接线**（需逐项定档位→数值映射、上限与 A/B；granary corruption 直接置零须单独裁定） |
 | `embedded_jev.py` / `decision_facade.py` | ✅ 兼容薄桩 | 别名 `EmbeddedJevEngine` / `EmbeddedDecisionFacade` → 天道；**首参同时接受 `state_context=`** |
 
