@@ -6,8 +6,10 @@ from core.foundation.ledger.grain_ledger import (
     Dict, List, Optional,
     GRAIN_MIGRATION_DIM, STORAGE_LOSS_TIERS, assert_loss_tiers_sane,
     grain_of, has_grain_bucket, storage_loss_rate, survey_grain, survey_grain_seats,
+    project_grain_migration,
 )
 
 __all__ = ['Dict', 'GRAIN_MIGRATION_DIM', 'List', 'Optional',
            'STORAGE_LOSS_TIERS', 'assert_loss_tiers_sane', 'grain_of',
-           'has_grain_bucket', 'storage_loss_rate', 'survey_grain', 'survey_grain_seats']
+           'has_grain_bucket', 'storage_loss_rate', 'survey_grain', 'survey_grain_seats',
+           'project_grain_migration']

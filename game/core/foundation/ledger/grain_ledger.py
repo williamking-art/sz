@@ -216,4 +216,60 @@ def survey_grain_seats(state) -> Dict[str, object]:
     }
 
 
-__all__ = ["GRAIN_MIGRATION_DIM", "grain_of", "has_grain_bucket", "survey_grain", "survey_grain_seats"]
+def project_grain_migration(state) -> Dict[str, object]:
+    """H P0（只读）：**迁移后的总量投影** —— legacy `grain` 全额入 goods[米]。
+
+    不写 state、不双写；逐治所 POP 计算：已有 goods 桶 ⇒ 保留；无桶 ⇒ 投影值 = legacy。
+    返回 `{pops, to_migrate, already, legacy_sum, projected_sum, projected_delta, by_route}`。
+    用于双写/切读前核对"迁移不改变总量"（缺失 `None` 不计入，不按 0）。
+    """
+    prefs = getattr(state, "prefectures", None) or {}
+    pops = to_migrate = already = 0
+    legacy_sum = projected_sum = 0
+    by_route: Dict[str, Dict[str, int]] = {}
+    for route, pdata in prefs.items():
+        seats = (pdata or {}).get("seats") or {}
+        if not isinstance(seats, dict):
+            continue
+        row = by_route.setdefault(str(route), {"pops": 0, "to_migrate": 0, "already": 0,
+                                               "legacy": 0, "projected": 0})
+        for _seat, sdata in seats.items():
+            pops_map = (sdata or {}).get("pops") or {}
+            if not isinstance(pops_map, dict):
+                continue
+            for _cls, pop in pops_map.items():
+                if not isinstance(pop, dict):
+                    continue
+                pops += 1
+                row["pops"] += 1
+                lg = pop.get("grain")
+                legacy = int(lg) if isinstance(lg, (int, float)) else None
+                if has_grain_bucket(pop):
+                    already += 1
+                    row["already"] += 1
+                    pv = grain_of(pop)
+                    projected = int(pv) if isinstance(pv, (int, float)) else None
+                else:
+                    to_migrate += 1
+                    row["to_migrate"] += 1
+                    projected = legacy
+                if legacy is not None:
+                    legacy_sum += legacy
+                    row["legacy"] += legacy
+                if projected is not None:
+                    projected_sum += projected
+                    row["projected"] += projected
+    return {
+        "schema_version": 1, "read_only": True,
+        "pops": pops, "to_migrate": to_migrate, "already": already,
+        "legacy_sum": legacy_sum, "projected_sum": projected_sum,
+        "projected_delta": projected_sum - legacy_sum,
+        "target_dim": GRAIN_MIGRATION_DIM,
+        "by_route": [dict(v, route=k) for k, v in sorted(by_route.items())],
+        "note": ("只读投影：无桶 POP 按 legacy 全额入米；两边不可读不计入（不按 0）。"
+                 "迁移前后 Σ 应相等；不等则说明存在既有双写/缺桶冲突。"),
+    }
+
+
+__all__ = ["GRAIN_MIGRATION_DIM", "grain_of", "has_grain_bucket", "survey_grain",
+           "survey_grain_seats", "project_grain_migration"]
