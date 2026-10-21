@@ -158,12 +158,28 @@ def procure_need(state) -> Dict[str, Any]:
 
 
 def wage_need(state) -> Dict[str, Any]:
-    """作坊**工资需求**：今日**无权威口径** ⇒ `None` + reason（不臆造）。"""
-    return {"value": None,
-            "reason": ("作坊维度无工资单点：`JOBS_PER_LEVEL` 只登记建筑（农田/庄园/工坊/商铺…），"
-                       "`WAGE_RATE` 只登记 牧场/工坊/矿场 ⇒ 作坊工资义务不可定义；"
-                       "**不拿建筑口径硬套**（缺失≠0）"),
-            "source": "core.building_jobs.song_job_cfg"}
+    """作坊**工资需求**：Σ `workshop_fund_shadow.wage_obligation`（2026-10-21 影子工价表）。
+
+    表未登记类型/工价不可读 ⇒ 合计 `None` + 未读清单（缺失≠0，不拿建筑口径硬套）。
+    """
+    try:
+        from core.domains.economy import workshop_fund_shadow as wfs
+    except Exception:                                       # noqa: BLE001
+        return {"value": None, "unreadable": [], "reason": "workshop_fund_shadow 不可用"}
+    ws = getattr(state, "workshops", None)
+    if not isinstance(ws, dict):
+        return {"value": None, "unreadable": [], "reason": "无 workshops"}
+    tot, unreadable = 0, []
+    for wid in ws:
+        rep = wfs.wage_obligation(state, wid)
+        if rep.get("obligation") is None:
+            unreadable.append(wid)
+        else:
+            tot += int(rep["obligation"])
+    return {"value": tot if not unreadable else None,
+            "unreadable": unreadable[:20], "unreadable_count": len(unreadable),
+            "reason": None if not unreadable else "部分作坊工资义务不可读 ⇒ 合计不可定义（缺失≠0）",
+            "source": "content.data_workshop_jobs"}
 
 
 def affordability(pool: Optional[float], need: Optional[float]) -> Optional[float]:

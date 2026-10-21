@@ -85,9 +85,16 @@ def test_procure_need_sums_recipe_cost_or_none(monkeypatch):
     assert oc.procure_need(st2)["value"] == 200
 
 
-def test_wage_need_is_undefined_with_reason():
-    w = oc.wage_need(_state())
-    assert w["value"] is None and "不拿建筑口径硬套" in w["reason"]
+def test_wage_need_sums_table_or_none_for_unknown():
+    # 空作坊 ⇒ 合计 0（真实空集，不是缺失）
+    assert oc.wage_need(_state())["value"] == 0
+    st = _state(workshops={"酒坊_路A_0": {"name": "酒坊"},
+                           "麻坊_路A_1": {"name": "麻坊"}})
+    w = oc.wage_need(st)
+    assert w["value"] == 120_000 + 90_000, w
+    st2 = _state(workshops={"谜之坊_路A_0": {"name": "谜之坊"}})
+    w2 = oc.wage_need(st2)
+    assert w2["value"] is None and w2["unreadable"] == ["谜之坊_路A_0"]
 
 
 def test_affordability_none_when_unreadable():
