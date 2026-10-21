@@ -1,0 +1,31 @@
+{
+  "id": "JEV-G主线C首批-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "G 主线 C（生产层切换）首批落地方式",
+  "items": [
+    {
+      "question": "G 首批选哪个？A=只读适宜性对照;B=影子产出A/B;C=正式切换",
+      "options": [
+        "A=只读适宜性对照",
+        "B=影子产出A/B",
+        "C=正式切换"
+      ],
+      "verdict": "B（0.8211）",
+      "probabilities": {
+        "A": 0.17512142658233643,
+        "B": 0.8210716247558594,
+        "C": 0.0038069712463766336
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "crop_shadow 已有 crop_output/allocate_farm_pop/climate 等纯函数；只差把'A/B 基线'固化成可复跑读数",
+        "A 只对照适宜性信息量不足；C 改正式产出风险最高（Jev 0.004）",
+        "B 不写 state、不改正式产出，可为 C1–C3 授权后切换提供同口径基线",
+        "在岗用现有建筑等级×JOBS_PER_LEVEL 按剩余需求比例分配；两边任一 None 不做差，单列 NULL"
+      ],
+      "applied_in": "crop_shadow.shadow_output_comparison + tests/test_audit_20261021_g_shadow_ab.py（2 条）；未改正式产出",
+      "reopen_if": "C1–C3 授权切换前，需先审基线差异与在岗分配口径；正式切换必须另走影子期与长局 A/B"
+    }
+  ]
+}

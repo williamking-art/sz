@@ -41,7 +41,7 @@ __all__ = [
     "HIDDEN_HOUSEHOLD_RATE", "HIDDEN_HOUSEHOLD_PROVENANCE",
     "DIM_BUILDING", "DIM_JOBS_PER_LEVEL", "DIM_BASE_RATE", "YIELD_ANOMALY_DIMS", "coverage_gap",
     "allocate_farm_pop", "climate_coef", "is_plantable", "crop_output",
-    "land_tax_base", "corvee_base", "run_checks",
+    "land_tax_base", "corvee_base", "shadow_output_comparison", "run_checks",
 ]
 
 #: \u6c14\u5019\u4e09\u6863\uff08\u7528\u6237\u88c1\u5b9a\uff1a**\u6682\u7ef4\u6301\u4e09\u6863**\uff0c\u4e0d\u52a0\u4e9a\u70ed\u5e26\uff09
@@ -226,6 +226,86 @@ def corvee_base(ding_total: int, hidden_household_rate: Optional[float]) -> Opti
         return None
     r = max(0.0, min(1.0, float(hidden_household_rate)))
     return int(ding_total * (1.0 - r))
+
+def shadow_output_comparison(state) -> Dict[str, object]:
+    """G 首批（Jev B 0.821）：影子产出 vs 正式 `yields` 的**只读 A/B 基线**。
+
+    逐路 × `CROPS`：
+    - 建筑等级取 `prefectures[路]["buildings"][DIM_BUILDING[crop]]`（已有则用，缺失按 0）；
+    - 在岗用 `allocate_farm_pop(农 size, [(crop, 等级×JOBS_PER_LEVEL, 0)])` 按剩余需求比例分配；
+    - 影子产出 `crop_output`，正式产出 `prefectures[路]["yields"][crop]`；
+    两边任一 `None` 不强行做差；`shadow_none_formal_positive` 单列（正式在不适宜/缺数据作物上有产出）。
+    **纯只读**，不写 state。
+    """
+    prefs = getattr(state, "prefectures", None) or {}
+    crops = tuple(CROPS)
+    rows: List[Dict[str, object]] = []
+    both = shadow_none_formal_positive = formal_none_shadow_positive = 0
+    sum_shadow = sum_formal = 0
+
+    def _level(p: dict, name: str) -> int:
+        b = (p.get("buildings") or {}).get(name)
+        if isinstance(b, dict):
+            b = b.get("lv", b.get("level"))
+        try:
+            return max(0, int(b)) if b is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+    for route, p in prefs.items():
+        if not isinstance(p, dict):
+            continue
+        try:
+            farm = int((p.get("pops") or {}).get("农", {}).get("size", 0))
+        except (TypeError, ValueError):
+            farm = 0
+        demand = []
+        levels = {}
+        for crop in crops:
+            lv = _level(p, DIM_BUILDING.get(crop, crop))
+            levels[crop] = lv
+            demand.append((crop, lv * int(JOBS_PER_LEVEL.get(crop, 0)), 0))
+        alloc, unmet, _cap = allocate_farm_pop(farm, demand)
+        for crop in crops:
+            lv = levels[crop]
+            staffed = int(alloc.get(crop, 0) or 0)
+            shadow = crop_output(route, crop, lv, staffed)
+            formal = (p.get("yields") or {}).get(crop)
+            try:
+                formal_i = int(formal) if formal is not None else None
+            except (TypeError, ValueError):
+                formal_i = None
+            if shadow is not None and formal_i is not None:
+                both += 1
+                sum_shadow += shadow
+                sum_formal += formal_i
+            elif shadow is None and formal_i is not None and formal_i > 0:
+                shadow_none_formal_positive += 1
+            elif shadow is not None and formal_i is None:
+                formal_none_shadow_positive += 1
+            rows.append({
+                "route": route, "crop": crop,
+                "building": DIM_BUILDING.get(crop, crop), "level": lv,
+                "staffed": staffed, "unmet_jobs": int(unmet.get(crop, 0) or 0),
+                "shadow_output": shadow, "formal_yield": formal_i,
+                "delta": (shadow - formal_i) if (shadow is not None and formal_i is not None) else None,
+            })
+    return {
+        "schema_version": 1,
+        "read_only": True,
+        "crops": list(crops),
+        "route_count": len({r["route"] for r in rows}),
+        "row_count": len(rows),
+        "both_defined": both,
+        "shadow_none_formal_positive": shadow_none_formal_positive,
+        "formal_none_shadow_positive": formal_none_shadow_positive,
+        "sum_shadow_output": sum_shadow,
+        "sum_formal_yield": sum_formal,
+        "sample": rows[:30],
+        "note": ("影子产出非正式产出；差异只作切换前 A/B 基线。"
+                 "both_defined 之外的 NULL 不按 0 处理，分别单列。"),
+    }
+
 
 def run_checks() -> List[Tuple[str, bool, str]]:
     """\u8dd1\u5f71\u5b50\u68c0\u67e5\u9879\uff08\u7528\u6237 2026-10-05 \u63a5\u5165\u65b9\u6848\u00a76.1 \u5341\u9879\uff09\u3002

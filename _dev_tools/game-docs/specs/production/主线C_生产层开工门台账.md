@@ -10,6 +10,7 @@
 > （见 `_dev_tools/handover/tasks/M50-job-track-config-fallback.json`）。
 
 > **状态**：C0 设计核验中（本轮已获 C0 授权；C1–C3 未获授权）。
+> **2026-10-21 追加（只读）**：`crop_shadow.shadow_output_comparison` 已落「影子产出 vs 正式 yields」A/B 基线读数（Jev B 0.821），不写 state、不改正式产出；供 C1 影子推演前审差异。
 > **本轮只改台账，不改代码、不改生产结算、不启用劳役、不运行 C1 影子推演。**
 > **裁定依据**：用户 2026-10-12 裁决「统一设计、分关实施、逐关验收」，并后续确认 ⑧ 丁＋甲、⑨ 冻结工匠 POP。
 > **上级**：[`reviews/未落地设计裁定与实施路线.md`](../../reviews/未落地设计裁定与实施路线.md) 主线 C。
