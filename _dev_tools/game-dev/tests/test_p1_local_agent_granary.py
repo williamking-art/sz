@@ -133,6 +133,25 @@ def test_local_unrest_and_sentiment_shapes():
     assert save["by_agent"] == {"economy": 2} and save["saved_llm_calls"] == 2
 
 
+def test_local_decree_duration_shape():
+    from application.local_agent_decisions import local_decree_duration_decide
+
+    class S:
+        turn = 5
+        prestige = 50
+        population_satisfaction = 50
+        corruption = {"甲": 0.4}
+        pending_decrees = [{"decree_id": "d1", "title": "裁冗",
+                            "effects": {"reduce_office": 1}}]
+
+    got = local_decree_duration_decide(S())
+    assert got["pace"] in ("速", "常", "缓")
+    assert got["execution_timing"] in ("即时", "短期", "长期")
+    assert got["execution_attitude"] in ("奉行", "依违", "阳奉阴违", "拖延")
+    assert got["landing_level"] in ("全办", "大部", "半数", "少半", "未办")
+    assert got["_decree_ids"] == ["d1"] and got["_turn"] == 5
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game

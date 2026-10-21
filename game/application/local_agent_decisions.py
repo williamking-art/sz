@@ -13,8 +13,8 @@ from typing import Any, Dict, Optional
 
 __all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
            "local_economy_decide", "local_diplomacy_decide", "local_military_decide",
-           "local_unrest_decide", "local_sentiment_decide", "local_agent_savings",
-           "local_decide"]
+           "local_unrest_decide", "local_sentiment_decide",
+           "local_decree_duration_decide", "local_agent_savings", "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
 LOSS_TIERS = ("无", "轻", "中", "重")
@@ -352,10 +352,72 @@ def local_sentiment_decide(state: Any) -> Optional[Dict[str, Any]]:
     return {"tier": tier, "note": "本地天道裁民情", "_source": "local_tiandao"}
 
 
+def local_decree_duration_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性诏令时效/态度/落地档（替代 `jev_gate` 外部调用的本地版）。"""
+    if state is None:
+        return None
+    decrees = [d for d in (getattr(state, "pending_decrees", None) or [])
+               if isinstance(d, dict)]
+    if not decrees:
+        return None
+    effects = set()
+    ids, titles = [], []
+    for d in decrees[:5]:
+        eff = d.get("effects") if isinstance(d.get("effects"), dict) else {}
+        effects.update(str(k) for k in eff)
+        did = str(d.get("decree_id") or "").strip()
+        if did:
+            ids.append(did)
+        title = str(d.get("title") or "").strip()
+        if title:
+            titles.append(title)
+    long_keys = {"reduce_office", "curtail_waste", "land_survey", "anti_corruption",
+                 "granary_reform", "military_supply"}
+    immediate_keys = {"pay_reform", "commerce_tax", "single_whip", "prestige",
+                      "treasury", "imperial_treasury", "population_satisfaction",
+                      "faction_change", "defense_bonus", "he_mi", "grain_stabilize"}
+    if effects & long_keys:
+        timing, pace = "长期", "缓"
+    elif effects & immediate_keys:
+        timing, pace = "即时", "速"
+    else:
+        timing, pace = "短期", "常"
+    prestige = _num(getattr(state, "prestige", None))
+    satisfaction = _num(getattr(state, "population_satisfaction", None))
+    corruption = getattr(state, "corruption", None)
+    avg_corr = 0.0
+    if isinstance(corruption, dict) and corruption:
+        vals = [float(v) for v in corruption.values() if isinstance(v, (int, float))]
+        avg_corr = sum(vals) / len(vals) if vals else 0.0
+    loss_to_officials = bool(effects & {"reduce_office", "curtail_waste", "anti_corruption"})
+    gain_to_officials = bool(effects & {"pay_reform"})
+    if prestige is not None and prestige >= 70 and avg_corr <= 0.3:
+        attitude = "奉行" if not loss_to_officials else "依违"
+    elif prestige is not None and prestige < 35 or avg_corr >= 0.6:
+        attitude = "拖延" if loss_to_officials else "阳奉阴违"
+    elif gain_to_officials:
+        attitude = "奉行"
+    else:
+        attitude = "依违"
+    landing = {"奉行": "全办", "依违": "大部", "阳奉阴违": "半数", "拖延": "少半"}[attitude]
+    out = {"pace": pace, "execution_timing": timing,
+           "execution_attitude": attitude, "landing_level": landing,
+           "_decree_ids": ids, "_decree_titles": titles,
+           "_source": "local_tiandao"}
+    try:
+        turn = getattr(state, "turn", None)
+        if turn is not None:
+            out["_turn"] = int(turn)
+    except (TypeError, ValueError):
+        pass
+    return out
+
+
 _LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide,
           "economy": local_economy_decide, "diplomacy": local_diplomacy_decide,
           "military": local_military_decide, "unrest": local_unrest_decide,
-          "sentiment": local_sentiment_decide}
+          "sentiment": local_sentiment_decide,
+          "decree_duration": local_decree_duration_decide}
 
 
 def local_agent_savings(state: Any) -> Dict[str, Any]:
