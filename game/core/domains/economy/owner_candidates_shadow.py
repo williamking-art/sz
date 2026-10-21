@@ -56,7 +56,8 @@ CANDIDATES: tuple = (
 )
 
 __all__ = ["SCHEMA_VERSION", "CANDIDATES", "pool_of", "procure_need", "wage_need",
-           "affordability", "survey_owner_candidates", "capital_gap_report"]
+           "affordability", "survey_owner_candidates", "capital_gap_report",
+           "plan_capital_allocation"]
 
 
 def _num(v) -> Optional[float]:
@@ -253,6 +254,73 @@ def affordability(pool: Optional[float], need: Optional[float]) -> Optional[floa
     if p is None or n is None or n <= 0:
         return None
     return min(1.0, p / n)
+
+
+def plan_capital_allocation(state, owner_key: str = "local_route") -> Dict[str, Any]:
+    """A P1 影子：按现有资金池做**贪心分配计划**（只读，不写账、不扣钱）。
+
+    - 逐路取池（`owner_key` 支持 `local_route` / `state_treasury`）；
+    - 作坊按 **wid 字典序** 处理（可复跑、无优先级臆造）；需求 = 采购+工资；
+    - 池够 ⇒ `funded`；只够一部分 ⇒ `partial`（分配剩余全部）；不够 ⇒ `unfunded`；
+    - 任一路池/需求不可读 ⇒ 该路 `undefined`，不按 0 分配；返回明细与汇总。
+    """
+    from core.domains.economy import workshop_fund_shadow as wfs
+    ws = getattr(state, "workshops", None)
+    if not isinstance(ws, dict):
+        return {"read_only": True, "reason": "无 workshops", "routes": [], "totals": {}}
+    by_route: Dict[str, Dict[str, Any]] = {}
+    for wid in sorted(ws):
+        w = ws.get(wid) or {}
+        route = wfs.workshop_route(state, wid)
+        buy = wfs.recipe_cost(state, wid)
+        wage = wfs.wage_obligation(state, wid)
+        need = (int(buy["cost"]) + int(wage["obligation"])
+                if buy.get("cost") is not None and wage.get("obligation") is not None else None)
+        key = route or "（判不出路）"
+        by_route.setdefault(key, {"route": route, "items": []})["items"].append(
+            {"wid": wid, "name": w.get("name"), "need": need})
+
+    routes = []
+    totals = {"funded": 0, "partial": 0, "unfunded": 0, "undefined": 0,
+              "allocated": 0, "required": 0}
+    if owner_key == "state_treasury":
+        global_pool = pool_of(state, "state_treasury")
+        pool_ctx = {k: global_pool for k in by_route}
+    else:
+        pool_ctx = {k: pool_of(state, "local_route", v["route"]) if v["route"] else
+                    {"value": None, "reason": "判不出路", "source": "（无）"}
+                    for k, v in by_route.items()}
+    for key in sorted(by_route, key=str):
+        row = by_route[key]
+        pool = pool_ctx[key]
+        remaining = pool["value"]
+        items = []
+        for it in row["items"]:
+            need = it["need"]
+            if need is None:
+                st, alloc = "undefined", None
+            elif remaining is None:
+                st, alloc = "undefined", None
+            elif remaining >= need:
+                st, alloc = "funded", need
+                remaining -= need
+            elif remaining > 0:
+                st, alloc = "partial", remaining
+                remaining = 0
+            else:
+                st, alloc = "unfunded", 0
+            totals[st] += 1
+            if alloc:
+                totals["allocated"] += int(alloc)
+            if need:
+                totals["required"] += int(need)
+            items.append(dict(it, status=st, allocated=alloc))
+        routes.append({"route": row["route"], "pool": pool["value"],
+                       "pool_source": pool["source"], "items": items})
+    return {"schema_version": SCHEMA_VERSION, "read_only": True, "owner_key": owner_key,
+            "routes": routes, "totals": totals,
+            "note": ("贪心影子分配：按 wid 顺序、不写账不扣钱；"
+                     "池/需求不可读 ⇒ undefined，不按 0 分配。")}
 
 
 def survey_owner_candidates(state) -> Dict[str, Any]:
