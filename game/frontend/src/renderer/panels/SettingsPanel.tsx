@@ -524,25 +524,53 @@ const SCALE_TABLE: Record<number, { label: string; html: number }> = {
 };
 
 /** 界面字体族（迁移补齐：原 Tk `_panel_misc` 的字体切换；
- *  Web 以系统字族 + 运行时覆盖 `.font-kai` 实现，localStorage 持久化）。 */
+ *  Web 以系统字族 + 运行时覆盖 `.font-kai` 实现，localStorage 持久化）。
+ *
+ *  🔴 2026-10-21：默认档改为「真楷」= **不注入任何覆盖**，直接用 theme.css 的 --kai
+ *  （自托管霞鹜真楷，与官网正文同款）。原因：本函数原先在面板挂载时无条件注入
+ *  `.font-kai{font-family:"KaiTi"… !important}`，而默认值就是「楷体」——
+ *  **用户只要打开一次本面板，全站自托管真楷就被系统楷体顶掉**，字族统一等于白做。
+ *  现在只有用户主动选了非默认档才写覆盖；选回「真楷」会移除覆盖。 */
 const FONT_KEY = "sz:fontFamily";
+const FONT_KEY_MIGRATED = "sz:fontFamilyMigrated";
+const DEFAULT_FONT = "真楷";
 const FONT_TABLE: Record<string, { label: string; css: string }> = {
-  "楷体": { label: "楷体（默认）", css: '"KaiTi","STKaiti","楷体","Source Han Serif SC",serif' },
+  // css 为空 = 不注入覆盖，沿用 theme.css 的 --kai（自托管真楷）
+  "真楷": { label: "霞鹜真楷（默认）", css: "" },
+  "楷体": { label: "系统楷体", css: '"KaiTi","STKaiti","楷体","Source Han Serif SC",serif' },
   "宋体": { label: "宋体", css: '"SimSun","Songti SC","STSong","宋体",serif' },
   "黑体": { label: "黑体", css: '"SimHei","Heiti SC","黑体",sans-serif' },
   "雅黑": { label: "雅黑", css: '"Microsoft YaHei","微软雅黑","PingFang SC",sans-serif' },
   "系统": { label: "系统默认", css: 'system-ui,-apple-system,"Segoe UI",sans-serif' }
 };
 
-function applyFontFamily(key: string) {
-  const t = FONT_TABLE[key] ?? FONT_TABLE["楷体"];
-  let el = document.getElementById("sz-font-override") as HTMLStyleElement | null;
-  if (!el) {
-    el = document.createElement("style");
-    el.id = "sz-font-override";
-    document.head.appendChild(el);
+/** 读取生效的字族档：旧默认值「楷体」一次性迁移到「真楷」
+ *  （老用户存的多半是旧默认而非主动选择；不迁移则永久停在系统楷体）。 */
+function readFontKey(): string {
+  const raw = localStorage.getItem(FONT_KEY);
+  if (raw && FONT_TABLE[raw]) {
+    if (raw === "楷体" && localStorage.getItem(FONT_KEY_MIGRATED) !== "1") {
+      localStorage.setItem(FONT_KEY_MIGRATED, "1");
+      localStorage.setItem(FONT_KEY, DEFAULT_FONT);
+      return DEFAULT_FONT;
+    }
+    return raw;
   }
-  el.textContent = `.font-kai{font-family:${t.css} !important;}`;
+  return DEFAULT_FONT;
+}
+
+function applyFontFamily(key: string) {
+  const t = FONT_TABLE[key] ?? FONT_TABLE[DEFAULT_FONT];
+  const el = document.getElementById("sz-font-override") as HTMLStyleElement | null;
+  if (!t.css) {
+    // 默认档：移除覆盖，恢复 theme.css 的 --kai（自托管真楷）
+    if (el) el.remove();
+  } else {
+    const node = el ?? document.createElement("style");
+    node.id = "sz-font-override";
+    node.textContent = `.font-kai{font-family:${t.css} !important;}`;
+    if (!el) document.head.appendChild(node);
+  }
   localStorage.setItem(FONT_KEY, key);
 }
 
@@ -560,14 +588,11 @@ function UiScaleSettingsView() {
   }
 
   // 字体族（迁移补齐）：读取本地偏好并在挂载时应用
-  const [fontFamily, setFontFamily] = useState(() => {
-    const k = localStorage.getItem(FONT_KEY) || "楷体";
-    return FONT_TABLE[k] ? k : "楷体";
-  });
+  const [fontFamily, setFontFamily] = useState(() => readFontKey());
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${SCALE_TABLE[scale].html}px`;
-    applyFontFamily(localStorage.getItem(FONT_KEY) || "楷体");
+    applyFontFamily(readFontKey());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -605,7 +630,7 @@ function UiScaleSettingsView() {
       <div className="border-t border-gold/30 pt-3">
         <p className="text-sm font-bold text-ink">界面字体</p>
         <p className="mt-0.5 text-xs text-dim">
-          正文字族：楷体 / 宋体 / 黑体 / 雅黑 / 系统默认（写入本地偏好，刷新后仍生效）
+          正文字族：霞鹜真楷（默认，随主题自托管）/ 系统楷体 / 宋体 / 黑体 / 雅黑 / 系统默认（写入本地偏好，刷新后仍生效）
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           {Object.entries(FONT_TABLE).map(([k, v]) => (
