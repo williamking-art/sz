@@ -375,6 +375,15 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
                 _stale = True
         if _stale:
             clear_ai_slot(state, attr)
+    # P1（2026-10-21）：本地 Agent 决策优先（降 token；默认关闭，失败回落 LLM）
+    try:
+        from application.local_agent_decisions import local_decide
+        _local = local_decide(aid, state)
+        if isinstance(_local, dict) and not _local.get("_error"):
+            setattr(state, attr, _local)
+            return aid
+    except Exception:  # noqa: BLE001 —— 本地失败必须回落 LLM，不阻断
+        log.warning("本地 Agent %s 决策失败，回落 LLM", aid, exc_info=True)
     try:
         r = _invoke_agent_method(getattr(ai_client, method), state)
     except Exception as e:  # noqa: BLE001
