@@ -9,6 +9,7 @@
 ## 子包
 
 - `state/` GameState、初始状态构建与状态字段注册 —— ⬜ **空（0 个实现文件）**
+- `kernel/` 内核基础包（P0 2026-10-21）：`pack.py`、`calendar.py`、`objectives.py`、`decision.py` —— ✅ **新建 4 个**（只读契约；`GameState.meta/calendar/decision_log` 已接线，未改结算）
 - `ledger/` POP/钱粮/物料权威账户与读写 API（含迁移期桥接）—— ✅ **已迁入/新建 12 个**（含 `material_holding` 账本侧拆分，及 `local_treasury_bridge` / `building_bridge` / `storage_bridge` / `spatial_warehouse_bridge`）
 - `persistence/` 存档读写与版本迁移 —— ✅ **已迁入 2 个**（第七包：`slots.py` + `migrations.py`，
   只取实测无业务依赖的部分；`save_game`/`load_game` **有意留下**，原因见 §五）

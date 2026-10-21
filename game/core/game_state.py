@@ -573,6 +573,20 @@ class GameState(GameStateEconMixin):
         self.difficulty: str = difficulty
         self.difficulty_presets: dict = dict(diff)
 
+        # ---- 内核元数据（P0：只登记，不改变行为）----
+        self.meta: dict = {"pack_id": "song_1101", "pack_version": "1"}
+        try:
+            from core.foundation.kernel.calendar import Calendar as _KernelCalendar
+            self.calendar = _KernelCalendar(
+                start_year=START_YEAR, year=self.year,
+                month=self.month, era_name=self.era_name)
+        except Exception:  # noqa: BLE001 —— 地基失败留痕，不阻断开局
+            import logging as _lg
+            _lg.getLogger(__name__).warning("内核 calendar 初始化失败", exc_info=True)
+            self.calendar = None
+        #: 决策日志（P0 只建容器；由 DecisionService 写入，不参与结算）
+        self.decision_log: list = []
+
         # ---- 皇帝 ----
         self.emperor_name: str = "赵佶"
         self.emperor_health: int = EMPEROR_HEALTH_START

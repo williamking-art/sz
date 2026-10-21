@@ -99,7 +99,8 @@ def derive_exam_status(state) -> Dict[str, Any]:
     ex = getattr(state, "exam", {}) or {}
     year = int(getattr(state, "year", 1101) or 1101)
     month = int(getattr(state, "month", 1) or 1)
-    is_exam_year = ((year - 1101) % 3 == 0) and (month == 1)
+    from core.foundation.kernel.calendar import Calendar as _Calendar
+    is_exam_year = _Calendar.from_state(state).exam_cycle(3) and (month == 1)
 
     curriculum = ex.get("curriculum", CURRICULUM_BALANCED)
     last_exam = ex.get("last_cohort_detail") or {}

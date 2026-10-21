@@ -675,6 +675,12 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     state.turn += 1
     state.year, state.month = _next_month(state.year, state.month)
     state.update_era_name()
+    try:
+        from core.foundation.kernel.calendar import sync_state as _sync_calendar
+        _sync_calendar(state)
+    except Exception:  # noqa: BLE001 —— 日历镜像失败留痕，不改结算
+        import logging as _lg
+        _lg.getLogger(__name__).warning("calendar 镜像同步失败", exc_info=True)
     # 金融推演价格系数：月度重置（不落档，运行时态；下月按新金融词重新调制）
     state._price_mult = 1.0
 

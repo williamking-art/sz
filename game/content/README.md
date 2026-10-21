@@ -10,6 +10,7 @@
 | `data_constants.py` | 规则常量、公式参数、档位和脱敏映射。`MATERIAL_PRICE_BASE` 是静态基准价；运行期价格发现由 `core/market_price.py` 负责。 |
 | `data_tech.py` | 科技、建筑蓝图与研发相关静态数据。动态蓝图的校验/注册逻辑位于 `core/blueprint_dynamic.py`。 |
 | `data_workshop_jobs.py` | **作坊岗位/月工价表（G-4 影子口径，2026-10-21）**：酒坊/畜栏/麻坊/丝坊按每级岗位数显式登记，月工价沿用 `WAGE_RATE` default 1.5 贯/岗；⚠️ **玩法设定、非史料**，仅用于 `workshop_fund_shadow` 影子预算，不接正式结算。 |
+| `packs/` | **内容包骨架（P0 2026-10-21）**：`song_1101/manifest.json` 登记宋的 start_year/年号/schema；**内容仍由本目录 `content/*.py` 提供**，后续逐批迁移；不做其他朝代。 |
 | `data_imperial.py`、`data_decree.py` | 年号、帝行与诏令内容/参数。 |
 | `data_military.py`、`data_external.py` | 军制、兵种、军械及外部势力/省域静态数据。 |
 | `data_geo_tables.py`、`geo_admin.py` | 路级地理经济数据与路/府等行政归属。地图几何资源另见 `game/assets/map/`。<br>⚠️ `geo_admin.CIRCUIT_INFO.members` 是**州府实体清单的权威来源**（136 席，主键 `路\|治所`）；`REGIME_DEMOG` 的道/区域总量为**游戏设定值**（辽已于 2026-10-02 按《辽史》对齐为 55 万户）。 |

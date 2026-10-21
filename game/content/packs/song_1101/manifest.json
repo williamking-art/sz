@@ -1,0 +1,24 @@
+{
+  "pack_id": "song_1101",
+  "name": "宋祚 · 建中靖国元年",
+  "dynasty": "宋",
+  "start_year": 1101,
+  "start_month": 1,
+  "era_name": "建中靖国",
+  "end_year": 1135,
+  "schema_version": 1,
+  "calendar": {
+    "era_names_history": {
+      "1101": "建中靖国",
+      "1102": "崇宁",
+      "1107": "大观",
+      "1111": "政和",
+      "1118": "重和",
+      "1119": "宣和"
+    }
+  },
+  "data": {
+    "status": "skeleton",
+    "note": "P0 仅登记元数据；内容仍由现有 content/*.py 提供，后续逐批迁移"
+  }
+}

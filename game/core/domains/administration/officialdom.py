@@ -987,14 +987,16 @@ def settle_officialdom(state, log: Optional[list] = None) -> Dict[str, int]:
 
     month = int(getattr(state, "month", 1) or 1)
     year = int(getattr(state, "year", 1101) or 1101)
+    from core.foundation.kernel.calendar import Calendar as _Calendar
+    _cal = _Calendar.from_state(state)
     if month == 1:
         _annual_retire(state, log)
         _annual_rank_up(state, log)
         _annual_clan(state, log)
-        if (year - 1101) % EXAM_INTERVAL_YEARS == 0:      # 科次年（每 3 年一次，§15）
+        if _cal.exam_cycle(EXAM_INTERVAL_YEARS, year):      # 科次年（每 3 年一次，§15）
             # 2026-10-18 M300：生产走 imperial_exam 全流程（旧 _triennial_exam 留作历史参考）
             _triennial_exam_wired(state, log)
-        if (year - 1101) % 3 == 0:                        # 郊祀之年（恩荫，§七）
+        if _cal.exam_cycle(3, year):                        # 郊祀之年（恩荫，§七）
             _triennial_yinben(state, log)
 
     sync_legacy_mirror(state)

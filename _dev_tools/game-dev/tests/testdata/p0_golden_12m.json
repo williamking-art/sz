@@ -1,0 +1,123 @@
+{
+ "army_troops": 748800,
+ "era_name": "崇宁",
+ "finance": {
+  "collection_rate": 0.625,
+  "diversion_rate": 0.02,
+  "local_expense_mult": 1.0,
+  "local_keep_rate": 0.04,
+  "tax_version": 1.0,
+  "transfer_rate": 0.94
+ },
+ "granary": 4073668.0,
+ "imperial_treasury": 5497479.0,
+ "month": 1,
+ "pops_grain": 0.0,
+ "pops_size": 0.0,
+ "pops_wealth": 0.0,
+ "routes": {
+  "两浙路": {
+   "pops_size": 0.0,
+   "seats": 9,
+   "treasury": null
+  },
+  "京东东路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "京东西路": {
+   "pops_size": 0.0,
+   "seats": 3,
+   "treasury": null
+  },
+  "京畿路": {
+   "pops_size": 0.0,
+   "seats": 4,
+   "treasury": null
+  },
+  "京西路": {
+   "pops_size": 0.0,
+   "seats": 5,
+   "treasury": null
+  },
+  "利州路": {
+   "pops_size": 0.0,
+   "seats": 3,
+   "treasury": null
+  },
+  "夔州路": {
+   "pops_size": 0.0,
+   "seats": 7,
+   "treasury": null
+  },
+  "广南东路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "广南西路": {
+   "pops_size": 0.0,
+   "seats": 7,
+   "treasury": null
+  },
+  "成都府路": {
+   "pops_size": 0.0,
+   "seats": 5,
+   "treasury": null
+  },
+  "江南东路": {
+   "pops_size": 0.0,
+   "seats": 7,
+   "treasury": null
+  },
+  "江南西路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "河东路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "河北路": {
+   "pops_size": 0.0,
+   "seats": 8,
+   "treasury": null
+  },
+  "淮南东路": {
+   "pops_size": 0.0,
+   "seats": 4,
+   "treasury": null
+  },
+  "淮南西路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "福建路": {
+   "pops_size": 0.0,
+   "seats": 7,
+   "treasury": null
+  },
+  "荆湖北路": {
+   "pops_size": 0.0,
+   "seats": 6,
+   "treasury": null
+  },
+  "荆湖南路": {
+   "pops_size": 0.0,
+   "seats": 5,
+   "treasury": null
+  },
+  "陕西路": {
+   "pops_size": 0.0,
+   "seats": 7,
+   "treasury": null
+  }
+ },
+ "treasury": 129061.0,
+ "turn": 12,
+ "year": 1102
+}

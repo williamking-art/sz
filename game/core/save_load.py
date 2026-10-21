@@ -113,6 +113,8 @@ def save_game(state, slot: int = 1) -> bool:
     data = {
         "version": "0.1.0",
         "schema_version": 4,  # v4：财政四率容器 state.finance（P1 双层税基，V1.3 终稿 §11）
+        "pack_id": (getattr(state, "meta", None) or {}).get("pack_id", "song_1101"),
+        "pack_version": (getattr(state, "meta", None) or {}).get("pack_version", "1"),
         "save_time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "slot": slot,
 
@@ -484,6 +486,16 @@ def _load_with_data(slot: int = 1):
     state.month = data.get("month", 1)
     state.turn = _saved_turn
     state.era_name = data.get("era_name", "建中靖国")
+    # P0：pack 元数据；旧档无字段 ⇒ 默认宋包
+    state.meta = {
+        "pack_id": data.get("pack_id") or "song_1101",
+        "pack_version": data.get("pack_version") or "1",
+    }
+    try:
+        from core.foundation.kernel.calendar import sync_state as _sync_calendar
+        _sync_calendar(state)
+    except Exception:  # noqa: BLE001 —— 读档日历失败留痕，不阻断
+        _slog.warning("读档 calendar 镜像同步失败", exc_info=True)
 
     # 恢复皇帝
     state.emperor_name = data.get("emperor_name", "赵佶")

@@ -41,10 +41,12 @@ def _settle_emperor_personal(state, log):
     state.decree_bandwidth = max(6, state.decree_bandwidth - 2)
 
     # 2) 自然衰老（原有；健康不触发 game over，仅影响衰减/行动）
+    from core.foundation.kernel.calendar import Calendar as _Calendar
+    _year_index = _Calendar.from_state(state).year_index()
     if state.year >= 1120:
         natural_decay = 1 + (state.year - 1120) // 2
     else:
-        natural_decay = (state.year - 1101) // 4
+        natural_decay = _year_index // 4
     if natural_decay > 0:
         state.emperor_health = max(0, state.emperor_health - natural_decay)
         log.append(f"[皇帝] 春秋渐高，龙体自然损耗 {natural_decay}")
