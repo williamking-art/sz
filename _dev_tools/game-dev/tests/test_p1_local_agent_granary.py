@@ -152,6 +152,54 @@ def test_local_decree_duration_shape():
     assert got["_decree_ids"] == ["d1"] and got["_turn"] == 5
 
 
+def test_token_meter_has_local_replacement_row():
+    from ai.token_meter import grouped_meter_rows
+
+    rows = grouped_meter_rows(None, None, None,
+                              {"saved_llm_calls": 3, "granary": 2})
+    row = next(r for r in rows if r["type"] == "本地替代")
+    assert row["calls"] == 3 and row["hit"] == 3
+
+
+def test_shadow_compares_but_keeps_local(monkeypatch):
+    from application.agent_router import _inject_one
+    from core.commands import new_game
+
+    monkeypatch.setenv("SONGZUO_LOCAL_AGENTS", "1")
+    monkeypatch.setenv("SONGZUO_LOCAL_AGENT_SHADOW", "1")
+    s = new_game("史实")
+    calls = []
+
+    class FakeAI:
+        available = True
+
+        def granary_decide(self, posture, state=None):
+            calls.append("llm")
+            return {"granary": {"inflow": "小", "outflow": "小",
+                                "price_stabilize": "小", "army_supply": "小",
+                                "storage_loss": "中"}, "narrative": "llm"}
+
+    failures = []
+    assert _inject_one(s, FakeAI(), failures, "granary") == "granary"
+    assert calls == ["llm"], "影子模式应额外调一次 LLM"
+    assert getattr(s, "_granary_ai", {}).get("_source") == "local_tiandao"
+    assert s.local_agent_shadow[-1]["agent"] == "granary"
+
+
+def test_local_treasury_shape():
+    from application.local_agent_decisions import local_treasury_decide
+
+    class S:
+        treasury = 1_000_000
+        imperial_treasury = 2_000_000
+        statistics = {"last_monthly_expense": 900_000}
+
+    got = local_treasury_decide(S())
+    assert got["_source"] == "local_tiandao"
+    assert got["treasury"]["income"] in ("微", "小", "中", "大")
+    assert got["treasury"]["expenditure"] in ("微", "小", "中", "大")
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game

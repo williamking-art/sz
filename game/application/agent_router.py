@@ -377,7 +377,7 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
             clear_ai_slot(state, attr)
     # P1（2026-10-21）：本地 Agent 决策优先（降 token；默认关闭，失败回落 LLM）
     try:
-        from application.local_agent_decisions import local_decide
+        from application.local_agent_decisions import local_decide, local_shadow_enabled
         _local = local_decide(aid, state)
         if isinstance(_local, dict) and not _local.get("_error"):
             setattr(state, attr, _local)
@@ -391,6 +391,21 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
                 stats["saved_llm_calls"] = int(stats.get("saved_llm_calls", 0)) + 1
             except Exception:  # noqa: BLE001 —— 计量失败不影响决策
                 pass
+            # 影子对比：显式开关才双算，只记录差异，仍采用本地结果
+            if local_shadow_enabled() and ai_client is not None \
+                    and getattr(ai_client, "available", False):
+                try:
+                    _llm = _invoke_agent_method(getattr(ai_client, method), state)
+                    _shadow = getattr(state, "local_agent_shadow", None)
+                    if not isinstance(_shadow, list):
+                        _shadow = []
+                        state.local_agent_shadow = _shadow
+                    _shadow.append({"turn": getattr(state, "turn", 0), "agent": aid,
+                                    "local": _local, "llm": _llm})
+                    if len(_shadow) > 100:
+                        del _shadow[:-100]
+                except Exception:  # noqa: BLE001 —— 影子失败不影响本地结果
+                    log.warning("影子对比 %s 失败", aid, exc_info=True)
             return aid
     except Exception:  # noqa: BLE001 —— 本地失败必须回落 LLM，不阻断
         log.warning("本地 Agent %s 决策失败，回落 LLM", aid, exc_info=True)

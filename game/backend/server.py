@@ -1173,7 +1173,8 @@ def api_meter(request: Request):
         from ai.token_meter import grouped_meter_rows
         ai = _get_ai()
         rows = grouped_meter_rows(ai, getattr(_state, "_dialogue_stats", None),
-                                  getattr(_state, "_kb_stats", None))
+                                  getattr(_state, "_kb_stats", None),
+                                  getattr(_state, "local_agent_stats", None))
         total = {}
         try:
             total = (ai.meter_summary() or {}).get("total", {}) if ai is not None else {}

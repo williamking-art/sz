@@ -11,10 +11,11 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-__all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
-           "local_economy_decide", "local_diplomacy_decide", "local_military_decide",
-           "local_unrest_decide", "local_sentiment_decide",
-           "local_decree_duration_decide", "local_agent_savings", "local_decide"]
+__all__ = ["local_agents_enabled", "local_shadow_enabled", "local_granary_decide",
+           "local_relief_decide", "local_economy_decide", "local_diplomacy_decide",
+           "local_military_decide", "local_unrest_decide", "local_sentiment_decide",
+           "local_decree_duration_decide", "local_treasury_decide",
+           "local_agent_savings", "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
 LOSS_TIERS = ("无", "轻", "中", "重")
@@ -22,6 +23,12 @@ LOSS_TIERS = ("无", "轻", "中", "重")
 
 def local_agents_enabled() -> bool:
     return str(os.environ.get("SONGZUO_LOCAL_AGENTS", "")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def local_shadow_enabled() -> bool:
+    """影子对比开关：默认关闭；打开后本地命中仍会调一次原 LLM 作对照（校准用）。"""
+    return str(os.environ.get("SONGZUO_LOCAL_AGENT_SHADOW", "")).strip().lower() in (
+        "1", "true", "yes", "on")
 
 
 def _num(v: Any) -> Optional[float]:
@@ -413,11 +420,45 @@ def local_decree_duration_decide(state: Any) -> Optional[Dict[str, Any]]:
     return out
 
 
+def local_treasury_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性国库档位（契约预留；当前无 AGENT_DEFS 消费方，供后续接线）。"""
+    if state is None:
+        return None
+    treasury = _num(getattr(state, "treasury", None))
+    imperial = _num(getattr(state, "imperial_treasury", None))
+    stats = getattr(state, "statistics", None) or {}
+    expense = _num(stats.get("last_monthly_expense")) if isinstance(stats, dict) else None
+    if treasury is None:
+        return None
+    if treasury >= 5_000_000:
+        income, reserve = "大", "大"
+    elif treasury >= 2_000_000:
+        income, reserve = "中", "中"
+    elif treasury >= 500_000:
+        income, reserve = "小", "小"
+    else:
+        income, reserve = "微", "微"
+    if expense is None or expense <= 0:
+        expenditure = "小"
+    elif expense >= 2_000_000:
+        expenditure = "大"
+    elif expense >= 800_000:
+        expenditure = "中"
+    else:
+        expenditure = "小"
+    transfer = "大" if (imperial or 0) >= 1_000_000 else ("小" if imperial else "微")
+    return {"treasury": {"income": income, "expenditure": expenditure,
+                         "reserve": reserve, "imperial_transfer": transfer},
+            "narrative": "本地国库推演：入%s/出%s/储%s。" % (income, expenditure, reserve),
+            "_source": "local_tiandao"}
+
+
 _LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide,
           "economy": local_economy_decide, "diplomacy": local_diplomacy_decide,
           "military": local_military_decide, "unrest": local_unrest_decide,
           "sentiment": local_sentiment_decide,
-          "decree_duration": local_decree_duration_decide}
+          "decree_duration": local_decree_duration_decide,
+          "treasury": local_treasury_decide}
 
 
 def local_agent_savings(state: Any) -> Dict[str, Any]:

@@ -124,12 +124,13 @@ def token_group_of(method: str) -> str:
     return "其它"
 
 
-def grouped_meter_rows(client, dialogue_stats=None, kb_stats=None) -> list:
-    """组装 Token 计量表行（含召对命中行、典章检索行与合计行）。
+def grouped_meter_rows(client, dialogue_stats=None, kb_stats=None,
+                       local_stats=None) -> list:
+    """组装 Token 计量表行（含召对命中行、典章检索行、本地替代行与合计行）。
 
     数据源：client.meter_summary()（按契约方法分桶）+ dialogue_stats
-    （召对预过滤/缓存命中与 AI 调用次数）+ kb_stats（典章库调用/命中，
-    第四轮全审补：此前知识库用量完全不可观测）。
+    （召对预过滤/缓存命中与 AI 调用次数）+ kb_stats（典章库调用/命中）+
+    local_stats（本地 Agent 替代次数；无则零行）。
     返回 [{type, calls, prompt, completion, hit}, ...]，末行为「合计」
     （hit 列填召对省调率文本）。
     """
@@ -140,11 +141,16 @@ def grouped_meter_rows(client, dialogue_stats=None, kb_stats=None) -> list:
     kb = kb_stats if isinstance(kb_stats, dict) else {}
     kb_calls = int(kb.get("calls", 0) or 0)
     kb_hits = int(kb.get("hits", 0) or 0)
+    ls = local_stats if isinstance(local_stats, dict) else {}
+    local_saved = int(ls.get("saved_llm_calls", 0) or 0)
     rows = [
         {"type": "召对·预过滤命中", "calls": pre, "prompt": 0, "completion": 0, "hit": pre},
         {"type": "召对·缓存命中", "calls": ch, "prompt": 0, "completion": 0, "hit": ch},
         # 典章·检索：hit 列填命中次数（calls 为调用次数），命中率 = hits/calls
         {"type": "典章·检索", "calls": kb_calls, "prompt": 0, "completion": 0, "hit": kb_hits},
+        # 本地 Agent 替代：calls=省下的 LLM 调用次数（不产生 token）
+        {"type": "本地替代", "calls": local_saved, "prompt": 0, "completion": 0,
+         "hit": local_saved},
     ]
     meter = {}
     try:
