@@ -647,6 +647,80 @@ def _settle_decrees(state, log):
     except Exception as _e:  # noqa: BLE001
         log.append("[核销] 圣旨核销失败：%r" % (_e,))
 
+def project_economic_action_path(state, decree) -> dict:
+    """F P3 首批（Jev A 0.909）：**只读**投影「旨意 → 承办人 → 经济动作 → 前置资源」。
+
+    只读、不执行、不改钱；供后续 P3 接线做路径差异/追因的观测底座。
+    返回：`{decree_id, action, executor, addressees, authorized, preconditions,
+    rejection_reasons, retry_key, defined}`。缺失一律 None/空清单，不臆造。
+    """
+    eff = decree.get("effects") if isinstance(decree, dict) else None
+    eff = eff if isinstance(eff, dict) else {}
+    if "finance_rates" in eff:
+        action = "finance_reform"
+    elif any(k in eff for k in ("market", "price", "market_price", "trade")):
+        action = "market"
+    elif any(k in eff for k in ("disaster", "relief", "grain", "granary")):
+        action = "relief_grain"
+    elif any(k in eff for k in ("treasury", "money", "tax", "finance")):
+        action = "fiscal"
+    else:
+        action = "other"
+
+    executor = decree.get("executor") or decree.get("executor_actor") if isinstance(decree, dict) else None
+    addressees: list = []
+    try:
+        from core.decree_confirm import addressees_of
+        addressees = list(addressees_of(decree) or [])
+    except Exception:  # noqa: BLE001 — 只读投影失败不阻断
+        addressees = []
+    if not executor and addressees:
+        executor = addressees[0]
+
+    pre: dict = {}
+    if action in ("finance_reform", "fiscal"):
+        pre["finance"] = getattr(state, "finance", None)
+        pre["treasury"] = getattr(state, "treasury", None)
+    elif action == "relief_grain":
+        pre["granary"] = getattr(state, "granary", None)
+        pre["treasury"] = getattr(state, "treasury", None)
+    elif action == "market":
+        pre["grain_price"] = getattr(state, "grain_price", None)
+
+    reasons: list = []
+    if not eff:
+        reasons.append("no_effect")
+    if not executor:
+        reasons.append("no_executor")
+    for k, v in pre.items():
+        if v is None:
+            reasons.append(f"{k}_undefined")
+    # 只读不判权：权限读数缺失按"未定义"报，不冒充拒绝
+    authorized = None
+    try:
+        from core.decree_confirm import check_matter_authority
+        if executor:
+            ok, _why = check_matter_authority(state, executor, "诏令承办")
+            authorized = bool(ok) if ok is not None else None
+            if authorized is False:
+                reasons.append("authority_denied")
+    except Exception:  # noqa: BLE001
+        authorized = None
+
+    did = str(decree.get("decree_id") or decree.get("id") or "") if isinstance(decree, dict) else ""
+    return {
+        "decree_id": did or None,
+        "action": action,
+        "executor": executor,
+        "addressees": addressees,
+        "authorized": authorized,
+        "preconditions": pre,
+        "rejection_reasons": reasons,
+        "retry_key": f"{did or '?'}:{executor or '?'}:{action}",
+        "defined": bool(eff),
+    }
+
+
 def _reform_compliance_factor(state) -> float:
     """D 数值接线（2026-10-21，Jev A 0.464）：新政遵从门的财政改革幅度系数。
 

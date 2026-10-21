@@ -1,0 +1,33 @@
+{
+  "id": "JEV-F-P3首批-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "F 统一市场 P3 首批落地方式",
+  "items": [
+    {
+      "question": "P3 首批选哪个？A=只读旨意→承办人→经济动作路径投影;B=最小动作端到端;C=权限可见性;D=幂等重试",
+      "options": [
+        "A=只读路径投影",
+        "B=最小动作端到端",
+        "C=权限/密旨可见性",
+        "D=幂等/重试"
+      ],
+      "verdict": "A（0.9095）",
+      "probabilities": {
+        "A": 0.9095059633255005,
+        "B": 0.032205209136009216,
+        "C": 0.053657855838537216,
+        "D": 0.004631067160516977
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "P3 验收门含路径差异/追因/密旨可见性/幂等，端到端接线会改钱；先做只读投影风险最低",
+        "settlement_decree 已有 effects/finance_rates/承办人字段与 check_matter_authority 可复用",
+        "只读投影不写 state、不改钱、失败不阻断；权限缺失按 None/未定义，不冒充拒绝",
+        "后续 B/C/D 可在同一投影上逐步接线，且保留回滚点"
+      ],
+      "applied_in": "settlement_decree.project_economic_action_path + tests/test_audit_20261021_f_p3_path.py（3 条）；未改钱流/未接正式动作",
+      "reopen_if": "接端到端动作（赈济/平粜）前，先定哪个动作、钱从哪出、权限判定口径；或投影被实测证明不能覆盖 P3 验收门"
+    }
+  ]
+}
