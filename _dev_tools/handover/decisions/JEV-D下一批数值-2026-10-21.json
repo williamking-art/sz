@@ -1,0 +1,35 @@
+{
+  "id": "JEV-D下一批数值-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "D 首批只读接线完成后，下一批先接哪个方法的数值效果（排序建议，待实施）",
+  "items": [
+    {
+      "question": "D 下一批数值效果先接哪个？A=granary corruption;B=changping gate;C=tax stance;D=reform compliance;E=waive arrears",
+      "options": [
+        "A=granary corruption",
+        "B=changping gate",
+        "C=tax stance",
+        "D=reform compliance",
+        "E=waive arrears"
+      ],
+      "verdict": "A（0.4665），次选 D 0.3158 / B 0.1836",
+      "probabilities": {
+        "A": 0.4665125608444214,
+        "B": 0.1835826188325882,
+        "C": 0.031534768640995026,
+        "D": 0.31583210825920105,
+        "E": 0.0025379862636327744
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "10 方法已只读接线，已有上下文档位可观测（state._tiandao_observe）",
+        "新局 corruption=0.28 ⇒ granary_corruption_check=False；若直接置零，每月少损约 17,186 石，需先裁定 False 的映射（完全无/减半/上限）",
+        "reform compliance 与既有 circuit_decree_compliance 可能重叠，需先定归属；changping/tax 直接改价/税，影响更大",
+        "Jev A 0.466 未过半，属相对首选；实施前仍须用户/口径裁定"
+      ],
+      "applied_in": "未实施；记录为下一批排序建议",
+      "reopen_if": "用户选择 reform compliance 或 changping，或 granary corruption 的 False 映射无法在不破坏经济的前提下定义"
+    }
+  ]
+}
