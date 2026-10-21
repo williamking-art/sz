@@ -38,7 +38,7 @@
 
 ## 验证基线（唯一取数口径）
 
-- 全量：**4246 tests / 0 failed / 0 errors / 3 skipped**（2026-10-21，`junit-p1-local-20261021.xml`，1029.4s；含本地 Agent 降 token 第一片回归）；
+- 全量：**4247 tests / 0 failed / 0 errors / 3 skipped**（2026-10-21，`junit-p1-local2-20261021.xml`，863.7s；含本地仓廪+赈济 Agent 回归）；
 - 干净 clone：**3535 / 0 failed / 12 skipped**（`junit-cleanC.xml`，479.4s；9 skip 为舆图产物未重建）；
 - 取数必须用 `--junitxml` 的 `testsuite` 属性，不数进度点；历史数字只是当时快照。
 

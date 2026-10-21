@@ -11,7 +11,8 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-__all__ = ["local_agents_enabled", "local_granary_decide", "local_decide"]
+__all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
+           "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
 LOSS_TIERS = ("无", "轻", "中", "重")
@@ -112,7 +113,51 @@ def local_granary_decide(state: Any) -> Optional[Dict[str, Any]]:
     }
 
 
-_LOCAL = {"granary": local_granary_decide}
+def local_relief_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性赈济档位；无灾/无流民 ⇒ None（交给 LLM/旧路径）。"""
+    if state is None:
+        return None
+    severity = int(_num(getattr(state, "disaster_severity", None)) or 0)
+    prefs = getattr(state, "prefectures", None) or {}
+    refugees = 0
+    for p in prefs.values() if isinstance(prefs, dict) else ():
+        if isinstance(p, dict):
+            try:
+                refugees += int(p.get("refugees", 0) or 0)
+            except (TypeError, ValueError):
+                pass
+    if severity <= 0 and refugees <= 0:
+        return None
+    level = max(1, min(5, severity or 1))
+    granary = _num(getattr(state, "granary", None))
+    # 赈济力度：灾级越重/流民越多/太仓越薄 ⇒ 越大
+    if level >= 4 or refugees >= 200_000 or (granary is not None and granary < 200_000):
+        relief = "大"
+    elif level >= 3 or refugees >= 100_000:
+        relief = "中"
+    elif level >= 2 or refugees >= 30_000:
+        relief = "小"
+    else:
+        relief = "微"
+    # 流民档位（契约允许 微/小/中/大）：按存量分档
+    if refugees >= 200_000:
+        refugee = "大"
+    elif refugees >= 100_000:
+        refugee = "中"
+    elif refugees >= 30_000:
+        refugee = "小"
+    else:
+        refugee = "微"
+    return {
+        "disaster_level": level,
+        "relief": relief,
+        "refugee": refugee,
+        "narrative": "本地赈济推演：灾级%d，赈济%s，流民%s档。" % (level, relief, refugee),
+        "_source": "local_tiandao",
+    }
+
+
+_LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide}
 
 
 def local_decide(agent_id: str, state: Any) -> Optional[Dict[str, Any]]:

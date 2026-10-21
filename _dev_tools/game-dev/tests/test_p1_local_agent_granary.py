@@ -45,6 +45,23 @@ def test_local_decide_respects_flag(monkeypatch):
     assert lad.local_decide("unknown", S()) is None
 
 
+def test_local_relief_contract_shape():
+    from application.local_agent_decisions import local_relief_decide
+
+    class S:
+        disaster_severity = 4
+        granary = 100_000
+        prefectures = {"路A": {"refugees": 120_000}, "路B": {"refugees": 20_000}}
+
+    got = local_relief_decide(S())
+    assert got["disaster_level"] == 4
+    assert got["relief"] == "大"
+    assert got["refugee"] in ("微", "小", "中", "大")
+    assert got["_source"] == "local_tiandao"
+    assert local_relief_decide(type("S", (), {"disaster_severity": 0,
+                                              "prefectures": {}})()) is None
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game
@@ -65,4 +82,6 @@ def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     assert injected == "granary"
     assert calls == [], "本地已判时不应再调 LLM"
     assert getattr(s, "_granary_ai", {}).get("_source") == "local_tiandao"
+    assert s.local_agent_stats["granary"] == 1
+    assert s.local_agent_stats["saved_llm_calls"] == 1
     assert failures == []

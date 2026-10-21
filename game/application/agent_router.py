@@ -381,6 +381,16 @@ def _inject_one(state, ai_client, failures: list, aid: str) -> Optional[str]:
         _local = local_decide(aid, state)
         if isinstance(_local, dict) and not _local.get("_error"):
             setattr(state, attr, _local)
+            # 本地替代计量（只读观测，不参与结算）
+            try:
+                stats = getattr(state, "local_agent_stats", None)
+                if not isinstance(stats, dict):
+                    stats = {}
+                    state.local_agent_stats = stats
+                stats[aid] = int(stats.get(aid, 0)) + 1
+                stats["saved_llm_calls"] = int(stats.get("saved_llm_calls", 0)) + 1
+            except Exception:  # noqa: BLE001 —— 计量失败不影响决策
+                pass
             return aid
     except Exception:  # noqa: BLE001 —— 本地失败必须回落 LLM，不阻断
         log.warning("本地 Agent %s 决策失败，回落 LLM", aid, exc_info=True)
