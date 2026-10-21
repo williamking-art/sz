@@ -12,7 +12,8 @@ import os
 from typing import Any, Dict, Optional
 
 __all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
-           "local_economy_decide", "local_decide"]
+           "local_economy_decide", "local_diplomacy_decide", "local_military_decide",
+           "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
 LOSS_TIERS = ("无", "轻", "中", "重")
@@ -227,8 +228,74 @@ def local_economy_decide(state: Any) -> Optional[Dict[str, Any]]:
     }
 
 
+def local_diplomacy_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性外交档位：态度/岁币/盟约；只读 external + 国库。"""
+    if state is None:
+        return None
+    ext = getattr(state, "external", None) or {}
+    threat = 0.0
+    for name in ("金", "辽", "西夏"):
+        row = ext.get(name) if isinstance(ext, dict) else None
+        if isinstance(row, dict):
+            v = _num(row.get("invasion_will"))
+            if v is not None:
+                threat = max(threat, v)
+    treasury = _num(getattr(state, "treasury", None))
+    if threat >= 70:
+        attitude, sui, alliance = "大", "订", "结"
+    elif threat >= 40:
+        attitude, sui, alliance = "中", "不变", "结"
+    elif threat >= 15:
+        attitude, sui, alliance = "小", "不变", "不变"
+    else:
+        attitude, sui, alliance = "微", ("毁" if (treasury or 0) > 2_000_000 else "不变"), "不变"
+    return {"attitude": attitude, "sui_gong": sui, "alliance": alliance,
+            "_source": "local_tiandao"}
+
+
+def local_military_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性军事档位：战力/兵额/训练/士气/征发；只读 army + 国库。"""
+    if state is None:
+        return None
+    units = getattr(state, "army_units", None) or []
+    troops = 0
+    morale_vals, training_vals = [], []
+    for u in units:
+        try:
+            troops += int(getattr(u, "troops", 0) or 0)
+            m = _num(getattr(u, "morale", None))
+            t = _num(getattr(u, "training", None))
+            if m is not None:
+                morale_vals.append(m)
+            if t is not None:
+                training_vals.append(t)
+        except (TypeError, ValueError):
+            continue
+    morale = sum(morale_vals) / len(morale_vals) if morale_vals else None
+    training = sum(training_vals) / len(training_vals) if training_vals else None
+    treasury = _num(getattr(state, "treasury", None))
+    ext = getattr(state, "external", None) or {}
+    threat = 0.0
+    for name in ("金", "辽", "西夏"):
+        row = ext.get(name) if isinstance(ext, dict) else None
+        if isinstance(row, dict):
+            v = _num(row.get("invasion_will"))
+            if v is not None:
+                threat = max(threat, v)
+    power = "大" if (troops >= 150_000 and (morale is None or morale >= 55)) else (
+        "中" if troops >= 60_000 else ("小" if troops > 0 else "微"))
+    army = "大" if (treasury or 0) >= 3_000_000 and threat >= 40 else (
+        "中" if (treasury or 0) >= 1_000_000 else "小")
+    train = "大" if (training or 0) >= 60 else ("中" if (training or 0) >= 40 else "小")
+    mor = "大" if (morale or 0) >= 60 else ("中" if (morale or 0) >= 40 else "小")
+    levy = "大" if threat >= 70 else ("中" if threat >= 40 else "小")
+    return {"power": power, "army": army, "training": train,
+            "morale": mor, "levy": levy, "_source": "local_tiandao"}
+
+
 _LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide,
-          "economy": local_economy_decide}
+          "economy": local_economy_decide, "diplomacy": local_diplomacy_decide,
+          "military": local_military_decide}
 
 
 def local_decide(agent_id: str, state: Any) -> Optional[Dict[str, Any]]:

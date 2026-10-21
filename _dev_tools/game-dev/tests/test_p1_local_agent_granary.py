@@ -95,6 +95,25 @@ def test_ai_prelude_local_economy_skips_llm(monkeypatch):
     assert s.local_agent_stats["economy"] == 1
 
 
+def test_local_diplomacy_and_military_shapes():
+    from application.local_agent_decisions import (
+        local_diplomacy_decide, local_military_decide)
+
+    class S:
+        treasury = 2_500_000
+        external = {"金": {"invasion_will": 75}, "辽": {"invasion_will": 10}}
+        army_units = []
+
+    d = local_diplomacy_decide(S())
+    assert d["attitude"] in ("微", "小", "中", "大")
+    assert d["sui_gong"] in ("订", "毁", "不变")
+    assert d["alliance"] in ("结", "断", "不变")
+
+    m = local_military_decide(S())
+    for k in ("power", "army", "training", "morale", "levy"):
+        assert m[k] in ("微", "小", "中", "大")
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game
