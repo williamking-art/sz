@@ -11,6 +11,7 @@
 |---|---|---|
 | `tiandao_engine.py` | 🔴 **天道裁决核心引擎**（`TianDaoEngine`） | 四大裁决：`gate`（天命是非）/ `choose`（造化殊途，Softmax 严格归一）/ `score`（气数品位）/ `dice`（天意机变，显式种子的确定性微扰）。**纯函数**：不写 state、不碰账本、零网络。首参同时接受 `context=` 与旧关键字 `state_context=`。 |
 | `tiandao_facade.py` | 🔴 **全域天道业务门面**（`TianDaoFacade`） | 六域裁决入口（财政/商贸/仓储物流/乡村社会/官僚治理/军事治安）＋三条 AI 管道的事实提炼（`scan_memorial_seeds` / `derive_dialogue_stance` / `summarize_monthly_omen`）＋动态财政安全垫线。所有裁决**显式传 `objective`**，不靠文案子串分派。 |
+| `tiandao_decision.py` | **天道 × DecisionService 适配**（P1 2026-10-21） | 把 10 个观察 objective 显式登记（mode/options/criteria），`TianDaoDecisionEngine` 映射为 `DecisionResult`；`decide_and_log` 只写 `state.decision_log`（有界 200），**不改判定/不写账本/不联网**；供 `observe_monthly` 记录与后续门面迁移。 |
 | `embedded_jev.py` | 兼容薄桩 | `EmbeddedJevEngine = TianDaoEngine`（**别名，不是新类**；旧关键字签名继续可用）。 |
 | `decision_facade.py` | 兼容薄桩 | `EmbeddedDecisionFacade = TianDaoFacade`。 |
 | `clerk_decision.py` / `merchant_decision.py` | 吏/商个体决断 | 全委派 `EmbeddedJevEngine`（→ 天道）；失败留 warning 并回落兜底。 |

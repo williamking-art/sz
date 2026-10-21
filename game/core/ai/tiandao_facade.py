@@ -546,9 +546,26 @@ class TianDaoFacade:
             "turn": getattr(state, "turn", None),
         }
 
+    #: 门面方法 → 显式 objective（P1 决策日志接线；只读，不改判定）
+    OBSERVE_OBJECTIVES = {
+        "tax_collection_stance": "tax_stance",
+        "should_waive_ancient_arrears": "waive_arrears",
+        "merchant_trade_or_hoard": "merchant_trade",
+        "changping_intervene_gate": "changping_open",
+        "canal_reroute_choice": "canal_reroute",
+        "granary_corruption_check": "granary_corruption",
+        "farmer_destitution_path": "farmer_path",
+        "gentry_charity_vs_annex": "gentry_path",
+        "reform_compliance_gate": "reform_compliance",
+        "recruit_refugees_to_soldiers_gate": "recruit_refugees",
+    }
+
     @classmethod
     def observe_monthly(cls, state: Any) -> Dict[str, Any]:
-        """**只读**观察本月 10 个门面裁决；结果挂 `state._tiandao_observe`（不入存档）。"""
+        """**只读**观察本月 10 个门面裁决；结果挂 `state._tiandao_observe`（不入存档）。
+
+        2026-10-21 P1：额外走 `DecisionService` 写 `state.decision_log`（只记录，不改判定）。
+        """
         ctx = cls.build_state_context(state)
         out: Dict[str, Any] = {}
         for name in cls.OBSERVE_METHODS:
@@ -558,6 +575,12 @@ class TianDaoFacade:
                 out[name] = {"error": type(exc).__name__}
                 logging.getLogger("tiandao").warning(
                     "只读观察 %s 失败：%r", name, exc, exc_info=True)
+        try:
+            from core.ai.tiandao_decision import decide_and_log
+            for name, objective in cls.OBSERVE_OBJECTIVES.items():
+                decide_and_log(state, objective, ctx)
+        except Exception:  # noqa: BLE001 — 决策日志失败不得影响结算
+            logging.getLogger("tiandao").warning("决策日志接线失败", exc_info=True)
         rec = {"turn": int(getattr(state, "turn", 0) or 0),
                "read_only": True, "decisions": out,
                "context_defined": any(v is not None for v in ctx.values())}
