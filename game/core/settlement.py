@@ -487,6 +487,17 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # 更新年号
     state.update_era_name()
 
+    # ---- 天道 10 门面方法**只读观察**（2026-10-21，Jev A 0.799）----
+    # 只记录裁决到 `state._tiandao_observe`（不入存档），**不改任何数值**；
+    # 数值效果下一批按档位接线。失败不得影响结算。
+    try:
+        from core.ai.tiandao_facade import TianDaoFacade as _TDF
+        _TDF.observe_monthly(state)
+    except Exception as _td_err:  # noqa: BLE001 — 观测失败不阻断结算
+        import logging as _tdlg
+        _tdlg.getLogger("tiandao").warning("天道只读观察失败（不阻断结算）：%r",
+                                           _td_err, exc_info=True)
+
     # 钱在途到期入账（G-3/P4a，2026-10-18）：无在途批次时是**空操作**，零行为变更。
     # 放在结算最前：本月打款上月到期的钱先入账，再跑本月支出/收入。
     try:

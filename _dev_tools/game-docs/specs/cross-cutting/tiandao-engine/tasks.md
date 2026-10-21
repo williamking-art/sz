@@ -29,7 +29,8 @@
 | `core/ai/tiandao_facade.py` · `scan_memorial_seeds` | ✅ 已接线 | `core/commands.py::_memorial_posture` → `generate_memorials` 入参 |
 | `core/ai/tiandao_facade.py` · `derive_dialogue_stance` | ✅ 已接线 | `core/commands.py::audience_dialogue` → `dialogue` 的 `state_summary` |
 | `core/ai/tiandao_facade.py` · `summarize_monthly_omen` | ✅ 已接线 | `core/commands.py::monthly_report_args` → `monthly_report` 入参 |
-| `tax_collection_stance` / `should_waive_ancient_arrears` / `merchant_trade_or_hoard` / `changping_intervene_gate` / `canal_reroute_choice` / `granary_corruption_check` / `farmer_destitution_path` / `gentry_charity_vs_annex` / `reform_compliance_gate` / `recruit_refugees_to_soldiers_gate` | ⚠️ **仅声明，未接线** | 无（`test_embedded_decision_facade.py` 覆盖行为，但不代表已生效） |
+| `core/ai/tiandao_facade.py` · `observe_monthly`（10 方法只读观察） | 🟡 **只读已接线（2026-10-21）** | `core/settlement.py::run_monthly_settlement` 每月调用；结果挂 `state._tiandao_observe`（诊断、不入存档），**不改数值** |
+| `tax_collection_stance` / `should_waive_ancient_arrears` / `merchant_trade_or_hoard` / `changping_intervene_gate` / `canal_reroute_choice` / `granary_corruption_check` / `farmer_destitution_path` / `gentry_charity_vs_annex` / `reform_compliance_gate` / `recruit_refugees_to_soldiers_gate` | 🟡 **只读接线（2026-10-21，Jev A 0.799）** | `TianDaoFacade.observe_monthly` 每月记录裁决；**数值效果仍未接线**（需逐项定档位→数值映射、上限与 A/B；granary corruption 直接置零须单独裁定） |
 | `embedded_jev.py` / `decision_facade.py` | ✅ 兼容薄桩 | 别名 `EmbeddedJevEngine` / `EmbeddedDecisionFacade` → 天道；**首参同时接受 `state_context=`** |
 
 > 纪律：**"有实现 + 有单测"不等于"已生效"**（`specs/README.md` 状态判定）。
@@ -81,7 +82,8 @@
 ## 5. 未闭合项（下一批）
 
 1. 待接线模块专项推进：M324 度量衡效果与 format_quantity 读数接线、M317/M318 PM 生产方式接作坊管线、M300 科举三级唱名与三年磨勘考课节律接线；
-2. 上表 10 个"仅声明"的门面方法需要逐项接线并补**真实链路**用例（不是只测函数）；
+2. 上表 10 个门面方法**已只读接线**（`observe_monthly`，2026-10-21）；下一步逐项接**数值效果**并补真实链路用例
+   （档位→数值映射、上限、A/B；granary corruption 直接置零需单独裁定）；
 3. 奏折 / 月报契约仍是 `posture` 字符串注入事实签，**没有结构化参数**；若要"数值 100% 可核对"，
    需给 `generate_memorials` / `monthly_report` 增 `facts` 参数并复用 `narrative_guard._build_numeric_ranges`；
 4. `crop_shadow` 式的"只读未消费"风险：`dice` 目前无生产调用方，先用或先删，别悬空；

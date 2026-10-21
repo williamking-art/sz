@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.ai.tiandao_engine import TianDaoEngine
@@ -461,6 +462,112 @@ class TianDaoFacade:
             "in_office": in_office,
             "provider": TianDaoEngine.PROVIDER_ID,
         }
+
+    # =========================================================================
+    # 8. 只读观察接线（2026-10-21，Jev A 0.799）
+    # -------------------------------------------------------------------------
+    # 纪律：本批只把 10 个"已声明、零生产调用"的门面方法接进月度结算，
+    # 记录裁决供观测/校准；**不改任何数值、不写经济账本**。数值效果下一批再接。
+    # =========================================================================
+    #: 只读观察的 10 个方法（与 tasks.md §2 末段一一对应）
+    OBSERVE_METHODS = (
+        "tax_collection_stance", "should_waive_ancient_arrears",
+        "merchant_trade_or_hoard", "changping_intervene_gate",
+        "canal_reroute_choice", "granary_corruption_check",
+        "farmer_destitution_path", "gentry_charity_vs_annex",
+        "reform_compliance_gate", "recruit_refugees_to_soldiers_gate",
+    )
+
+    @classmethod
+    def build_state_context(cls, state: Any) -> Dict[str, Any]:
+        """聚合真实读数，供 10 个门面方法只读观察（**不写 state**）。
+
+        口径：缺失一律 `None`（不回落 0/1.0）；`integrity = 1 − 平均贪腐`;
+        `has_inspector` 用既有 `oversight`（≥0.5 视为有巡按/监察）。
+        """
+        prefs = getattr(state, "prefectures", None) or {}
+        unrest_vals: List[float] = []
+        refugees: List[float] = []
+        prices: List[float] = []
+        if isinstance(prefs, dict):
+            for p in prefs.values():
+                if not isinstance(p, dict):
+                    continue
+                u = _pct(p.get("unrest"))
+                if u is not None:
+                    unrest_vals.append(u)
+                try:
+                    if p.get("refugees") is not None:
+                        refugees.append(max(0.0, float(p.get("refugees"))))
+                except (TypeError, ValueError):
+                    pass
+                try:
+                    if p.get("grain_price") is not None:
+                        prices.append(float(p.get("grain_price")))
+                except (TypeError, ValueError):
+                    pass
+
+        corr = getattr(state, "corruption", None) or {}
+        corr_vals = [float(v) for v in corr.values() if isinstance(v, (int, float))] \
+            if isinstance(corr, dict) else []
+        avg_corr = (sum(corr_vals) / len(corr_vals)) if corr_vals else 0.0
+        integrity = max(0.0, min(1.0, 1.0 - avg_corr))
+
+        grain_price = getattr(state, "grain_price", None)
+        try:
+            base_price = float(grain_price) if grain_price is not None else None
+        except (TypeError, ValueError):
+            base_price = None
+        avg_price = (sum(prices) / len(prices)) if prices else None
+        price_ratio = (avg_price / base_price) if (avg_price is not None
+                                                  and base_price and base_price > 0) else None
+
+        stats = getattr(state, "statistics", None) or {}
+        oversight = getattr(state, "oversight", None)
+        try:
+            oversight_f = float(oversight) if oversight is not None else None
+        except (TypeError, ValueError):
+            oversight_f = None
+
+        return {
+            "treasury": getattr(state, "treasury", None),
+            "imperial_treasury": getattr(state, "imperial_treasury", None),
+            "granary": getattr(state, "granary", None),
+            "granary_cap": getattr(state, "granary_cap", None),
+            "unrest": (sum(unrest_vals) / len(unrest_vals)) if unrest_vals else None,
+            "refugees": sum(refugees) if refugees else None,
+            "price_ratio": price_ratio,
+            "integrity": integrity,
+            "oversight": oversight_f,
+            "has_inspector": bool(oversight_f is not None and oversight_f >= 0.5),
+            "prestige": getattr(state, "prestige", None),
+            "disaster": stats.get("disaster_level", stats.get("disaster")),
+            "stock": getattr(state, "granary", None),
+            "turn": getattr(state, "turn", None),
+        }
+
+    @classmethod
+    def observe_monthly(cls, state: Any) -> Dict[str, Any]:
+        """**只读**观察本月 10 个门面裁决；结果挂 `state._tiandao_observe`（不入存档）。"""
+        ctx = cls.build_state_context(state)
+        out: Dict[str, Any] = {}
+        for name in cls.OBSERVE_METHODS:
+            try:
+                out[name] = getattr(cls, name)(ctx)
+            except Exception as exc:  # noqa: BLE001 — 观测失败不得影响结算
+                out[name] = {"error": type(exc).__name__}
+                logging.getLogger("tiandao").warning(
+                    "只读观察 %s 失败：%r", name, exc, exc_info=True)
+        rec = {"turn": int(getattr(state, "turn", 0) or 0),
+               "read_only": True, "decisions": out,
+               "context_defined": any(v is not None for v in ctx.values())}
+        try:
+            state._tiandao_observe = rec
+        except Exception:  # noqa: BLE001 — 诊断副本写失败不影响结算
+            pass
+        logging.getLogger("tiandao").info("[只读观察] turn=%s 已记录 %d 项裁决",
+                                          rec["turn"], len(out))
+        return rec
 
     @staticmethod
     def _is_in_office(state: Any, minister_name: str) -> bool:

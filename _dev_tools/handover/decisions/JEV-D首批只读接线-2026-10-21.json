@@ -1,0 +1,33 @@
+{
+  "id": "JEV-D首批只读接线-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "D tiandao 10 个仅声明方法的首批落地方式",
+  "items": [
+    {
+      "question": "D 首批怎么做？A=只读接线（记录裁决、不改数值）；B=两个二元闸门改数值；C=tax stance 改征收率；D=全部 10 个一次接",
+      "options": [
+        "A=只读接线",
+        "B=两个二元闸门改数值",
+        "C=tax stance 改征收率",
+        "D=全部 10 个"
+      ],
+      "verdict": "A（0.7989）",
+      "probabilities": {
+        "A": 0.7988695502281189,
+        "B": 0.16319331526756287,
+        "C": 0.009283921681344509,
+        "D": 0.028653239831328392
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "10 个方法已有实现+单测但生产零调用；直接改数值（尤其 granary corruption 置零）会明显改月度经济",
+        "新局 average corruption=0.28 ⇒ granary_corruption_check=False、当前每月本色损耗约 17,186 石，直接置零属大改",
+        "只读接线可先验证上下文/档位/日志是否合理，并为下一批数值效果提供观测数据",
+        "观测结果只挂 `state._tiandao_observe`（不入存档、不改账本），失败不阻断结算"
+      ],
+      "applied_in": "core/ai/tiandao_facade.build_state_context/observe_monthly；core/settlement.py::run_monthly_settlement 调用；tests/test_audit_20261021_tiandao_observe.py（2 条）",
+      "reopen_if": "下一批接数值效果时，须逐项定档位→数值映射、上限与 A/B 标定；granary corruption 直接置零需单独裁定"
+    }
+  ]
+}
