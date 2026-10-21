@@ -114,6 +114,25 @@ def test_local_diplomacy_and_military_shapes():
         assert m[k] in ("微", "小", "中", "大")
 
 
+def test_local_unrest_and_sentiment_shapes():
+    from application.local_agent_decisions import (
+        local_agent_savings, local_sentiment_decide, local_unrest_decide)
+
+    class S:
+        population_satisfaction = 35
+        prestige = 50
+        treasury = 1_000_000
+        prefectures = {"路A": {"unrest": 70, "refugees": 120_000}}
+        local_agent_stats = {"economy": 2, "saved_llm_calls": 2}
+
+    u = local_unrest_decide(S())
+    assert u["tier"] in ("无", "小乱", "骚乱", "大乱")
+    s = local_sentiment_decide(S())
+    assert s["tier"] in ("大坏", "转坏", "持平", "转好", "大好")
+    save = local_agent_savings(S())
+    assert save["by_agent"] == {"economy": 2} and save["saved_llm_calls"] == 2
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game

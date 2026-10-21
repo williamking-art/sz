@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 
 __all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
            "local_economy_decide", "local_diplomacy_decide", "local_military_decide",
+           "local_unrest_decide", "local_sentiment_decide", "local_agent_savings",
            "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
@@ -293,9 +294,79 @@ def local_military_decide(state: Any) -> Optional[Dict[str, Any]]:
             "morale": mor, "levy": levy, "_source": "local_tiandao"}
 
 
+def local_unrest_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性民变档位：无/小乱/骚乱/大乱（替代外部 Jev 生产者）。"""
+    if state is None:
+        return None
+    sat = _num(getattr(state, "population_satisfaction", None))
+    prefs = getattr(state, "prefectures", None) or {}
+    unrest = 0.0
+    refugees = 0
+    for p in prefs.values() if isinstance(prefs, dict) else ():
+        if not isinstance(p, dict):
+            continue
+        u = _num(p.get("unrest"))
+        if u is not None:
+            unrest = max(unrest, u)
+        try:
+            refugees += int(p.get("refugees", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+    if (sat is not None and sat < 15) or unrest >= 85 or refugees >= 500_000:
+        tier = "大乱"
+    elif (sat is not None and sat < 30) or unrest >= 65 or refugees >= 250_000:
+        tier = "骚乱"
+    elif (sat is not None and sat < 45) or unrest >= 45 or refugees >= 100_000:
+        tier = "小乱"
+    else:
+        tier = "无"
+    return {"tier": tier, "note": "本地天道裁民变", "_source": "local_tiandao"}
+
+
+def local_sentiment_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性民情档位：大坏/转坏/持平/转好/大好（替代外部 Jev 生产者）。"""
+    if state is None:
+        return None
+    sat = _num(getattr(state, "population_satisfaction", None))
+    prestige = _num(getattr(state, "prestige", None))
+    treasury = _num(getattr(state, "treasury", None))
+    if sat is None:
+        return None
+    if sat < 20:
+        tier = "大坏"
+    elif sat < 40:
+        tier = "转坏"
+    elif sat < 60:
+        tier = "持平"
+    elif sat < 80:
+        tier = "转好"
+    else:
+        tier = "大好"
+    # 皇威/国库极弱时压低一档；极强时抬高半档（只用既有档位）
+    if (prestige is not None and prestige < 20) or (treasury is not None and treasury < 500_000):
+        tier = {"大好": "转好", "转好": "持平", "持平": "转坏",
+                "转坏": "大坏", "大坏": "大坏"}[tier]
+    elif (prestige is not None and prestige >= 80) and (treasury or 0) >= 3_000_000:
+        tier = {"转好": "大好", "持平": "转好", "转坏": "持平",
+                "大坏": "转坏", "大好": "大好"}[tier]
+    return {"tier": tier, "note": "本地天道裁民情", "_source": "local_tiandao"}
+
+
 _LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide,
           "economy": local_economy_decide, "diplomacy": local_diplomacy_decide,
-          "military": local_military_decide}
+          "military": local_military_decide, "unrest": local_unrest_decide,
+          "sentiment": local_sentiment_decide}
+
+
+def local_agent_savings(state: Any) -> Dict[str, Any]:
+    """本地替代读数（供 token 面板）：按 Agent 计数 + 省下的 LLM 调用数。"""
+    stats = getattr(state, "local_agent_stats", None) if state is not None else None
+    if not isinstance(stats, dict):
+        return {"by_agent": {}, "saved_llm_calls": 0}
+    by_agent = {k: int(v) for k, v in stats.items()
+                if k != "saved_llm_calls" and isinstance(v, (int, float))}
+    return {"by_agent": by_agent,
+            "saved_llm_calls": int(stats.get("saved_llm_calls", 0) or 0)}
 
 
 def local_decide(agent_id: str, state: Any) -> Optional[Dict[str, Any]]:
