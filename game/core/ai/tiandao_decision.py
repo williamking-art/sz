@@ -12,7 +12,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from core.ai.tiandao_engine import TianDaoEngine
 from core.foundation.kernel.decision import (
-    DecisionRequest, DecisionResult, DecisionService,
+    DecisionCache, DecisionRequest, DecisionResult, DecisionService,
 )
 from core.foundation.kernel.objectives import ObjectiveDef, ObjectiveRegistry
 
@@ -87,16 +87,23 @@ def build_registry() -> ObjectiveRegistry:
     return reg
 
 
-def build_service(logger=None) -> DecisionService:
+def build_service(logger=None, cache: Optional[DecisionCache] = None) -> DecisionService:
     return DecisionService(engine=TianDaoDecisionEngine(), registry=build_registry(),
-                           logger=logger)
+                           logger=logger, cache=cache)
 
 
 def decide_and_log(state: Any, objective: str, state_context: Mapping[str, Any],
                    turn: Optional[int] = None) -> Optional[DecisionResult]:
     """只读调用并追加 `state.decision_log`；任何异常 fail-closed，不影响结算。"""
     try:
-        svc = build_service()
+        cache = getattr(state, "_decision_cache", None)
+        if not isinstance(cache, DecisionCache):
+            cache = DecisionCache()
+            try:
+                state._decision_cache = cache
+            except Exception:  # noqa: BLE001 —— 不支持属性时退化为无缓存
+                cache = None
+        svc = build_service(cache=cache)
         req = DecisionRequest(
             objective=objective, facts={"state_context": dict(state_context or {})},
             options=tuple(SPECS[objective][1]), seed=int(turn if turn is not None
@@ -112,7 +119,7 @@ def decide_and_log(state: Any, objective: str, state_context: Mapping[str, Any],
         log.append({
             "turn": req.turn, "objective": objective, "verdict": res.verdict,
             "probability": res.probability, "defined": res.defined,
-            "provider": res.provider, "seed": req.seed,
+            "provider": res.provider, "seed": req.seed, "cached": bool(res.cached),
         })
         if len(log) > MAX_LOG:
             del log[:-MAX_LOG]

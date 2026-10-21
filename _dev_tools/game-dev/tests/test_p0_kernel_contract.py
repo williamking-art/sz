@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 
 from core.foundation.kernel.calendar import Calendar, sync_state
 from core.foundation.kernel.decision import (
-    DecisionRequest, DecisionResult, DecisionService,
+    DecisionCache, DecisionRequest, DecisionResult, DecisionService,
 )
 from core.foundation.kernel.objectives import ObjectiveDef, ObjectiveError, ObjectiveRegistry
 from core.foundation.kernel.pack import PackError, load_pack
@@ -90,6 +90,28 @@ def test_new_game_has_meta_calendar_and_decision_log():
     assert (s.calendar.year, s.calendar.month) == (s.year, s.month)
     assert isinstance(s.decision_log, list)
 
+
+def test_decision_cache_reuses_defined_results():
+    class Engine:
+        def __init__(self):
+            self.calls = 0
+
+        def decide(self, request):
+            self.calls += 1
+            return DecisionResult(objective=request.objective, verdict="a",
+                                  probability=0.8, defined=True, provider="test")
+
+    reg = ObjectiveRegistry()
+    reg.register(ObjectiveDef("pick", "choose", options=("a", "b"), facts=("x",)))
+    engine = Engine()
+    cache = DecisionCache()
+    svc = DecisionService(engine=engine, registry=reg, cache=cache)
+    r1 = svc.decide(DecisionRequest("pick", {"x": 1}, ("a",)))
+    r2 = svc.decide(DecisionRequest("pick", {"x": 1}, ("a",)))
+    assert engine.calls == 1 and r1.cached is False and r2.cached is True
+    svc.decide(DecisionRequest("pick", {"x": 2}, ("a",)))
+    assert engine.calls == 2
+    assert cache.stats()["hits"] == 1
 
 def test_live_engine_contract_and_logging():
     class Engine:

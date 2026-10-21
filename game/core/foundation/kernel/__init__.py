@@ -4,12 +4,12 @@ from core.foundation.kernel.pack import PackError, PackManifest, load_pack
 from core.foundation.kernel.calendar import Calendar
 from core.foundation.kernel.objectives import ObjectiveDef, ObjectiveRegistry
 from core.foundation.kernel.decision import (
-    DecisionError, DecisionRequest, DecisionResult, DecisionService,
+    DecisionCache, DecisionError, DecisionRequest, DecisionResult, DecisionService,
 )
 
 __all__ = [
     "PackError", "PackManifest", "load_pack",
     "Calendar",
     "ObjectiveDef", "ObjectiveRegistry",
-    "DecisionError", "DecisionRequest", "DecisionResult", "DecisionService",
+    "DecisionCache", "DecisionError", "DecisionRequest", "DecisionResult", "DecisionService",
 ]
