@@ -38,7 +38,7 @@
 
 ## 验证基线（唯一取数口径）
 
-- 全量：**4201 tests / 0 failed / 0 errors / 3 skipped**（2026-10-21，`junit-d3-reform-20261021.xml`，629.5s；含 reform_compliance 财政改革轴接线回归）；
+- 全量：**4204 tests / 0 failed / 0 errors / 3 skipped**（2026-10-21，`junit-d4-changping-20261021.xml`，621.2s；含 changping gate 数值接线回归）；
 - 干净 clone：**3535 / 0 failed / 12 skipped**（`junit-cleanC.xml`，479.4s；9 skip 为舆图产物未重建）；
 - 取数必须用 `--junitxml` 的 `testsuite` 属性，不数进度点；历史数字只是当时快照。
 

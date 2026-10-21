@@ -1,0 +1,33 @@
+{
+  "id": "JEV-changping-gate映射-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "changping_intervene_gate=False 时，高价平粜怎么处理",
+  "items": [
+    {
+      "question": "False 时选哪个？A=平粜量×0.5;B=跳过本月平粜;C=×0.7;D=仅日志",
+      "options": [
+        "A=×0.5",
+        "B=跳过",
+        "C=×0.7",
+        "D=仅日志"
+      ],
+      "verdict": "B（0.3654；A 0.3648，差 0.0006 属平手，按 B 执行并自证）",
+      "probabilities": {
+        "A": 0.36479896306991577,
+        "B": 0.3653607964515686,
+        "C": 0.21660949289798737,
+        "D": 0.05323076993227005
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "A 与 B 概率几乎相等（差 0.0006），按纪律需自证：gate 语义是「是否立即开仓平粜」，False 即不开仓 ⇒ B（跳过）最贴语义",
+        "只影响高价平粜卖粮，不影响平籴/价格公式/买家对手方；无观察记录回落 True，旧测试零变更",
+        "风险：若长期 False 会让粮价偏高；已记 reopen_if，60 月 A/B 偏差过大时改 A（×0.5）",
+        "B 比 A 更可观测（是否开仓是二元状态），便于后续面板解释"
+      ],
+      "applied_in": "settlement_granary._changping_sell_allowed + 两处高价平粜条件；tests/test_audit_20261021_changping_gate.py（3 条）",
+      "reopen_if": "60 月 A/B 显示粮价/常平库存偏差过大时改 A（平粜量×0.5）；AI 加强分支也受同一门控"
+    }
+  ]
+}

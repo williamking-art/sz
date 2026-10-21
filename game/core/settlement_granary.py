@@ -54,6 +54,30 @@ from core.settlement_finance import (  # 跨域互调
 )
 
 
+def _changping_sell_allowed(state) -> bool:
+    """D 数值接线（2026-10-21，Jev B 0.365 vs A 0.365 近平手，按 B）：常平是否开仓平粜。
+
+    读 `TianDaoFacade.observe_monthly` 记录：
+    - 无记录 / 未定义 → True（回落现状，直接调用结算的旧测试零变更）；
+    - `changping_intervene_gate=False` → False（本月不平粜，**不卖**）；
+    - True → True。
+    只作用于"高价平粜"卖粮，不影响平籴/价格公式。
+    """
+    rec = getattr(state, "_tiandao_observe", None)
+    if not isinstance(rec, dict):
+        return True
+    dec = (rec.get("decisions") or {}).get("changping_intervene_gate")
+    verdict, defined = None, False
+    if isinstance(dec, bool):
+        verdict, defined = dec, True
+    elif isinstance(dec, dict):
+        verdict = dec.get("verdict")
+        defined = bool(dec.get("defined", True))
+    if defined and verdict is False:
+        return False
+    return True
+
+
 def _granary_corruption_factor(state) -> float:
     """D 数值接线（2026-10-21，Jev B 0.492）：仓场贪墨门的**本色损耗系数**。
 
@@ -291,7 +315,7 @@ def _settle_granary(state, log):
         cp_stock = p.get("changping_stock", 0)
         # O5：已下沉路读 Σ 治所真账（镜像滞后会误判 coffer>0 → 漏买/预算偏大）
         coffer = _local_treasury_pool(p)
-        if price > CHANGPING_HIGH and cp_stock > 0:
+        if price > CHANGPING_HIGH and cp_stock > 0 and _changping_sell_allowed(state):
             # 平粜（高价抑价）：放常平仓粮入市，钱入地方府库（货币回收，不碰内帑）。
             # 量随价格超幅线性放大：price 1.6→放 5% 常平储、2.5→放 60%（T9 扩容 45%→60%）
             # 审查修复：原实现对手方未建模（粮凭空消失、钱凭空产生），
@@ -332,7 +356,7 @@ def _settle_granary(state, log):
             cp_stock = p.get("changping_stock", 0)
             # O5：同主分支，已下沉读治所真账
             coffer = _local_treasury_pool(p)
-            if price > CHANGPING_HIGH and cp_stock > 0:
+            if price > CHANGPING_HIGH and cp_stock > 0 and _changping_sell_allowed(state):
                 # AI 加强平粜（T9 扩容：上限 60%）
                 ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
                 sell = max(1, int(cp_stock * ratio))
