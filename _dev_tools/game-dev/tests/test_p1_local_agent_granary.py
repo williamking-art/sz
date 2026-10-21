@@ -62,6 +62,39 @@ def test_local_relief_contract_shape():
                                               "prefectures": {}})()) is None
 
 
+def test_local_economy_contract_shape():
+    from application.local_agent_decisions import local_economy_decide
+    from core.commands import new_game
+
+    got = local_economy_decide(new_game("史实"))
+    assert got["_source"] == "local_tiandao"
+    assert got["士绅"] in ("囤", "抛", "观望")
+    for k in ("jiaozi_trust", "shortage", "maritime", "bank", "price_trend"):
+        assert isinstance(got[k], str) and got[k]
+    assert got["景气"] in ("无", "微", "小", "中", "大", "巨", "极")
+
+
+def test_ai_prelude_local_economy_skips_llm(monkeypatch):
+    from core.commands import _ai_prelude
+    from core.commands import new_game
+
+    monkeypatch.setenv("SONGZUO_LOCAL_AGENTS", "1")
+    s = new_game("史实")
+    calls = []
+
+    class FakeAI:
+        available = False
+
+        def economy_decide(self, posture):
+            calls.append("llm")
+            raise AssertionError("本地经济已判，不应调 LLM")
+
+    _ai_prelude(s, FakeAI())
+    assert calls == []
+    assert s._economy_ai.get("_source") == "local_tiandao"
+    assert s.local_agent_stats["economy"] == 1
+
+
 def test_inject_one_uses_local_and_skips_llm(monkeypatch):
     from application.agent_router import _inject_one
     from core.commands import new_game

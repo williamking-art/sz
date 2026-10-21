@@ -462,3 +462,13 @@ def inject_woken_agents(state, ai_client, woken: List[str]) -> List[str]:
             if r:
                 injected.append(r)
     return injected
+
+
+def local_economy_decide(state):
+    """本地经济推演入口（供 core.commands 经本模块调用，避免新增越层边）。"""
+    try:
+        from application.local_agent_decisions import (
+            local_agents_enabled, local_economy_decide as _local)
+        return _local(state) if local_agents_enabled() else None
+    except Exception:  # noqa: BLE001 —— 本地失败回落 LLM
+        return None

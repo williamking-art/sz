@@ -413,26 +413,53 @@ def _ai_prelude(state, ai_client):
     # 不经过 inject_woken_agents，若只在 inject 里重置会把上一回合失败当「本月」）。
     state._ai_failures = []
     from content.data import AI_ERROR_CODES
+    # P1（2026-10-21）：本地经济推演优先（零 token；默认关闭，失败回落 LLM）
+    # 经 application.agent_router 既有边调用，不新增 core→application 模块边。
     try:
-        eco = ai_client.economy_decide(state.posture)
-    except Exception as e:
-        # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
-        log.warning("[settle] 经济推演失败: %s", e)
-        # 2026-09-18 修复：保留底层错误码——AIClient 已把 401/403 映射为 AI_AUTH_FAILED、
-        # 超时映射为 AI_TIMEOUT（R2 修复）；此处原样丢弃，导致 HTTP 层无法给出精确诊断
-        # （`AIRuntimeError` 的 `code` 字段形同虚设）。现透传，无码时留空由上层兜底。
-        raise AIRuntimeError(
-            "经济推演失败：请检查 AI 配置或网络后重试。",
-            code=getattr(e, "code", "") or "",
-        ) from e
+        from application.agent_router import (
+            route_agents, inject_woken_agents, local_economy_decide)
+    except Exception:  # noqa: BLE001 —— 路由不可用时后续走旧回退
+        route_agents = inject_woken_agents = local_economy_decide = None
+    _local_eco = None
+    if local_economy_decide is not None:
+        try:
+            _local_eco = local_economy_decide(state)
+        except Exception:  # noqa: BLE001 —— 本地失败回落 LLM
+            _local_eco = None
+            log.warning("[settle] 本地经济推演失败，回落 LLM", exc_info=True)
+    if _local_eco is not None:
+        eco = _local_eco
+        try:
+            _stats = getattr(state, "local_agent_stats", None)
+            if not isinstance(_stats, dict):
+                _stats = {}
+                state.local_agent_stats = _stats
+            _stats["economy"] = int(_stats.get("economy", 0)) + 1
+            _stats["saved_llm_calls"] = int(_stats.get("saved_llm_calls", 0)) + 1
+        except Exception:  # noqa: BLE001
+            pass
+    else:
+        try:
+            eco = ai_client.economy_decide(state.posture)
+        except Exception as e:
+            # 审查修复：玩家可见文案不直出异常类名；原文只入服务端日志
+            log.warning("[settle] 经济推演失败: %s", e)
+            # 2026-09-18 修复：保留底层错误码——AIClient 已把 401/403 映射为 AI_AUTH_FAILED、
+            # 超时映射为 AI_TIMEOUT（R2 修复）；此处原样丢弃，导致 HTTP 层无法给出精确诊断
+            # （`AIRuntimeError` 的 `code` 字段形同虚设）。现透传，无码时留空由上层兜底。
+            raise AIRuntimeError(
+                "经济推演失败：请检查 AI 配置或网络后重试。",
+                code=getattr(e, "code", "") or "",
+            ) from e
     if not isinstance(eco, dict) or eco.get("_error"):
         raise AIRuntimeError(AI_ERROR_CODES.get("AI_CONTRACT_FAILED", "AI 输出不满足契约"),
                              code="AI_CONTRACT_FAILED")
     state._economy_ai = eco
+    if _local_eco is not None and not (ai_client and getattr(ai_client, "available", False)):
+        return
     # 12 步 agent 化：按需唤醒注入（route_agents 结合关键词/状态触发/上轮 diff；
     # 未唤醒的 Agent 不消耗任何 token；economy 始终唤醒为核心推演）
     try:
-        from application.agent_router import route_agents, inject_woken_agents
         # 玩家本回合政令摘要（作为关键词路由输入；无则空）
         _player_hint = ""
         try:

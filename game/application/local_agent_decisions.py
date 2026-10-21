@@ -12,7 +12,7 @@ import os
 from typing import Any, Dict, Optional
 
 __all__ = ["local_agents_enabled", "local_granary_decide", "local_relief_decide",
-           "local_decide"]
+           "local_economy_decide", "local_decide"]
 
 TIERS4 = ("微", "小", "中", "大")
 LOSS_TIERS = ("无", "轻", "中", "重")
@@ -157,7 +157,78 @@ def local_relief_decide(state: Any) -> Optional[Dict[str, Any]]:
     }
 
 
-_LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide}
+def local_economy_decide(state: Any) -> Optional[Dict[str, Any]]:
+    """确定性全国经济档位（替代强制 LLM economy_decide 的第一片）。
+
+    只给档位，不给数值；读数缺失按中性档位处理，不伪造精确值。
+    """
+    if state is None:
+        return None
+    prefs = getattr(state, "prefectures", None) or {}
+    unrest = 0.0
+    prices = []
+    for p in prefs.values() if isinstance(prefs, dict) else ():
+        if not isinstance(p, dict):
+            continue
+        u = _num(p.get("unrest"))
+        if u is not None:
+            unrest = max(unrest, u)
+        gp = _num(p.get("grain_price"))
+        if gp is not None:
+            prices.append(gp)
+    base = _num(getattr(state, "grain_price", None))
+    avg = (sum(prices) / len(prices)) if prices else None
+    ratio = (avg / base) if (avg and base and base > 0) else None
+    treasury = _num(getattr(state, "treasury", None))
+    granary = _num(getattr(state, "granary", None))
+    disaster = _num(getattr(state, "disaster_severity", None)) or 0.0
+    if ratio is None:
+        price_trend = "平"
+    elif ratio >= 1.2:
+        price_trend = "通胀"
+    elif ratio <= 0.8:
+        price_trend = "通缩"
+    else:
+        price_trend = "平"
+    # 景气：钱粮/灾情/民怨的综合档位
+    score = 0
+    if treasury is not None and treasury < 1_000_000:
+        score -= 1
+    if granary is not None and granary < 200_000:
+        score -= 1
+    if disaster >= 3 or unrest >= 60:
+        score -= 1
+    if price_trend == "通胀":
+        score -= 1
+    boom = "大" if score >= 1 else ("中" if score >= -1 else ("小" if score >= -3 else "微"))
+    # 士绅：粮价高/灾荒 ⇒ 囤；价低/太平 ⇒ 抛；其余观望
+    if disaster >= 2 or (ratio is not None and ratio >= 1.15):
+        gentry, gentry_power = "囤", ("大" if disaster >= 3 else "中")
+    elif price_trend == "通缩" or (unrest < 30 and disaster <= 0):
+        gentry, gentry_power = "抛", "小"
+    else:
+        gentry, gentry_power = "观望", "中"
+    production = "小" if disaster >= 2 else ("大" if disaster <= 0 and boom in ("大", "中") else "中")
+    hoard = "无" if boom in ("大", "中") else ("小" if boom == "小" else "中")
+    urban = "小" if boom in ("大", "中") else "无"
+    return_home = "中" if disaster >= 2 else "小"
+    exam = "小"
+    # 金融 5 字段（与 FINANCE_STATES 白名单一致）
+    jiaozi = "跌" if (unrest >= 60 or price_trend == "通胀") else "稳"
+    shortage = "加剧" if (treasury is not None and treasury < 1_000_000) else "平"
+    maritime = "平"
+    bank = "损" if boom in ("微",) else "稳"
+    return {
+        "景气": boom, "士绅": gentry, "士绅力度": gentry_power, "生产": production,
+        "窖银": hoard, "城市化": urban, "回乡": return_home, "科举": exam,
+        "jiaozi_trust": jiaozi, "shortage": shortage, "maritime": maritime,
+        "bank": bank, "price_trend": price_trend,
+        "_source": "local_tiandao",
+    }
+
+
+_LOCAL = {"granary": local_granary_decide, "relief": local_relief_decide,
+          "economy": local_economy_decide}
 
 
 def local_decide(agent_id: str, state: Any) -> Optional[Dict[str, Any]]:
