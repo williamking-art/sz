@@ -1,0 +1,31 @@
+{
+  "id": "JEV-I科技首批-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "I 科技维度/蓝图 AI 首批落地方式",
+  "items": [
+    {
+      "question": "I 首批选哪个？A=只读提案校验骨架;B=注册/研究接线;C=仅评审",
+      "options": [
+        "A=只读提案校验骨架",
+        "B=注册/研究接线",
+        "C=仅评审"
+      ],
+      "verdict": "A（0.9674）",
+      "probabilities": {
+        "A": 0.9674099683761597,
+        "B": 0.005933260079473257,
+        "C": 0.026656722649931908
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "I 只有 T0/C0 设计台账；C1+ 未授权，B（注册/研究）会改存档/科技表",
+        "已有动态蓝图新建路径可复用；本批只需把'提案是否可接受'的结构规则固化成纯函数",
+        "只读校验不写 state、不注册、不碰结算；未知字段只 warning、缺字段报错，符合'创意自由/执行可验证'",
+        "为后续 C1 审批/注册提供同一套校验入口，避免各调用点各写一份"
+      ],
+      "applied_in": "core/domains/economy/tech_extension_proposal.validate_tech_extension_proposal + tests/test_audit_20261021_i_tech_proposal.py（5 条）；未注册/未接线",
+      "reopen_if": "C1 授权后接注册/研究前，需先补 operator/effect schema 与版本化规则；或提案 schema 冻结后发现校验器字段不兼容"
+    }
+  ]
+}

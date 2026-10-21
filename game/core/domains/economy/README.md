@@ -5,7 +5,7 @@
 > 2026-10-07 第十五包迁入 `dynamic_price.py`、`demand.py`；第十八包再迁入 `market.py`、
 > `hoard_settle.py`、`regime_fiscal.py`；此后又迁入 `regime_tech.py`（第二十八包）、
 > `trade_shadow.py`（第三十包）、`settlement_econ_helpers.py`（阶段 3）
-> ⇒ **本包现共 9 个实现文件 ＋ `read_models/flow_summary.py`（2026-10-11 实测）**；
+> ⇒ **本包现共 10 个实现文件 ＋ `read_models/flow_summary.py`（2026-10-21 实测，新增 `tech_extension_proposal.py`）**；
 > 其余（`settlement_finance` / `settlement_granary` / `settlement_econ` / `market*` 等）
 > 仍为候选归属、**未移动**——它们的被调方在平铺大环（v3 口径 **[17]**；旧记录写 16 是 v2 漏计
 > `from core import X` 形态所致，见 `阶段1_依赖图与循环依赖.md` §一之补）内，
@@ -46,6 +46,7 @@
 | `hoard_settle.py` | `core/hoard_settle.py`（第十八包）| `settle_hoard` `hoard_readout`（+私有 `_drain_into_clerks` 与 6 个常量） | 叶子：stdlib `random`/typing + 函数内 `content.data` |
 | `regime_fiscal.py` | `core/regime_fiscal.py`（第十八包）| `apply_fiscal_response`（+私有 `_cut` 与 7 个阈值常量） | 叶子：typing + `core.foundation.ledger.pop_structure` 公开名（人口写入走桥接，符合 POP 挂载律）|
 | `regime_tech.py` | `core/regime_tech.py`（第二十八包 2026-10-07，`git mv`）| `advance_regime_tech` 等 | 主要国家/外邦政权的**科技推进**（批 B）：与宋**同一套 `TECH_NODES` 规则**；花费走**政权库银**（税收供血），**不扣宋国库、不扣任何 POP 账户**；研究**按月摊销**，库银不足 ⇒ **暂停研究**（`research_paused`），**不透支、不挂账、不回落 0 假装** |
+| `tech_extension_proposal.py` | **新建**（I 首批 2026-10-21；Jev A 0.967）| `validate_tech_extension_proposal` `ALLOWED_TOP` `KNOWN_NODE_KEYS` | 🔴 **AI 科技维度/蓝图扩展提案的只读校验骨架**（C0 契约冻结前）：校验顶层结构、维度/节点 id 唯一与撞 id、前置引用存在、依赖无环、研究字段非负、蓝图 new/upgrade 版本齐全、未知字段 warning；**不注册、不写 state、不碰科技表/存档/结算**；缺失即报错，不补默认 0。|
 | `trade_shadow.py` | `core/trade_shadow.py`（第三十包 2026-10-07，`git mv`）| 外贸货腿影子函数（4 键对账） | 🔴 **影子模块（只读）——不接入正式结算**：验证「出口扣货＋进口加货＋运费＋钱流」四者对账；纯函数、不写任何 state、**不被 `settlement*` 引用**；用途＝守恒自检与接入前裁定参考。含 `ROUTE_WATERWAY`（**路级史料源表**）；`waterway_tier()` 已改为**治所级派生**（见下）|
 | `waterway_seats.py` | **新建**（M39a 2026-10-13）| `SEAT_WATERWAY` `capital_seat_id` `waterway_tier_seat` `waterway_tier_route` `survey_waterway` `rebuild_seat_table` | 🔴 **航道治所级真账**（用户裁定「交通是州府级」）：`SEAT_WATERWAY`＝`{治所 id: 档位}`，由路级史料表**首府承载**生成（**不编造**其余治所档位——无地理依据）；路级 `waterway_tier_route` 是**派生聚合**（该路已登记治所最高档）⇒ 与原表**逐路相等**（零行为变化，`test_waterway_seats.py` 锁定）。缺失≠0：未登记治所 ⇒ `None` |
 | `canal_bridge.py` | **新建**（M39c-1 2026-10-13，2026-10-17 M39c-2 收口）| `sink_canal_to_seats` `aggregate_route_canal_block` `aggregate_national_canal_block` `canal_set` `canal_add` `canal_set_national` `survey_canal` `seat_canal_block` `is_sunk` | 🔴 **漕运淤塞（`canal_block`）治所级真账**：真账在 `seats[治所]["canal_block"]`（**首府承载**），路级/全国值 = **按水路档位加权平均**（强3/有2/弱1，未知按 1）的派生镜像。⚠️ 未登记治所**缺席**（`None`）而非 0。两个全国级写点已走桥。✅ **2026-10-17 M39c-2 收口**：`game_state_econ.py:336` 路线粮价改读本路 `p.get("canal_block")` 派生镜像，未下沉安全回退全国值，全域交通 59 项测试全过。 |
