@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 __all__ = ["occupied_seats", "song_route_active", "song_settlement_filter", "unallocated_provinces", "_t1_of_province", "distribute_regime_pops", "verify_pop_conservation", "init_regions", "migrate_regions", "aggregate_regime", "aggregate_song", "verify_aggregation", "REGIME_POP_UNIT", "init_regions", "verify_region_invariants", "region_of", "regions_by_owner",
-           "aggregate_by_owner", "REGION_DEPTH_MAX"]
+           "aggregate_by_owner", "coverage_report", "REGION_DEPTH_MAX"]
 
 #: 层级深度上限：政权 → 省（T2）→ 州府（T1）
 REGION_DEPTH_MAX = 3
@@ -442,6 +442,71 @@ def unallocated_provinces(state) -> List[Dict[str, Any]]:
                                 isinstance(r, dict) and r.get("map_province") == pname
                                 for r in book.values()) else "州府已改属他国")})
     return out
+
+def coverage_report(state) -> Dict[str, Any]:
+    """行政区划**只读覆盖盘点**（E 最小切片，Jev A 0.901）。
+
+    只清点、不改 state：
+    - 按层级/政权计数；宋「期望治所数 vs 已登记 T1」覆盖率；
+    - 结构违规（复用 `verify_region_invariants`）作为 `issues`；
+    - 数据缺口：外邦省 `pops` 缺失清单、`unallocated_provinces`（省有账但其州府不在名下）。
+    `ok` **只表示结构自洽**，不表示数据齐全（数据缺口单列在 `data_gaps`）。
+    """
+    book = getattr(state, "regions", None)
+    if not isinstance(book, dict) or not book:
+        return {"ok": False, "reason": "regions 未初始化", "counts": {},
+                "issues": ["regions 未初始化"], "data_gaps": {}, "report_only": True}
+
+    by_level: Dict[str, int] = {}
+    by_owner: Dict[str, int] = {}
+    for rid, r in book.items():
+        if not isinstance(r, dict):
+            continue
+        lv = str(r.get("level") or "?")
+        by_level[lv] = by_level.get(lv, 0) + 1
+        owner = str(r.get("owner") or "?")
+        by_owner[owner] = by_owner.get(owner, 0) + 1
+
+    prefs = getattr(state, "prefectures", None) or {}
+    expected_seats = sum(len(((p or {}).get("seats") or {})) for p in prefs.values())
+    song_t1 = sum(1 for r in book.values()
+                  if isinstance(r, dict) and r.get("owner") == "宋" and r.get("level") == "T1")
+
+    issues = verify_region_invariants(state)
+
+    missing_province_pops: List[Dict[str, Any]] = []
+    regimes = getattr(state, "external_regimes", None) or {}
+    for owner, info in regimes.items():
+        for prov in ((info or {}).get("provinces") or []):
+            if not isinstance(prov, dict):
+                continue
+            if not isinstance(prov.get("pops"), dict):
+                missing_province_pops.append({
+                    "owner": owner, "province": str(prov.get("name") or ""),
+                    "population": prov.get("population"),
+                })
+
+    unalloc = unallocated_provinces(state)
+    return {
+        "ok": not issues,
+        "report_only": True,
+        "counts": {
+            "total": len(book),
+            "by_level": dict(sorted(by_level.items())),
+            "by_owner": dict(sorted(by_owner.items())),
+            "song_expected_seats": expected_seats,
+            "song_registered_t1": song_t1,
+            "song_coverage": (round(song_t1 / expected_seats, 4) if expected_seats else None),
+        },
+        "issues": issues,
+        "data_gaps": {
+            "missing_province_pops": missing_province_pops,
+            "missing_province_pops_count": len(missing_province_pops),
+            "unallocated_provinces": unalloc,
+            "unallocated_count": len(unalloc),
+        },
+    }
+
 
 def aggregate_by_owner(state, owner: str) -> Dict[str, Any]:
     """按政权汇总（P1 只做计数与人口占位；人口缺失 ⇒ None，不回落 0）。"""

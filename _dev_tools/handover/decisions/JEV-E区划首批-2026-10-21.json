@@ -1,0 +1,33 @@
+{
+  "id": "JEV-E区划首批-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "E 行政区划 T2/T3 的首批落地方式",
+  "items": [
+    {
+      "question": "E 首批怎么做？A=只读覆盖盘点;B=补省pops;C=T2/T3变更机制;D=暂缓E转F/G",
+      "options": [
+        "A=只读覆盖盘点",
+        "B=补省pops",
+        "C=T2/T3变更机制",
+        "D=暂缓E"
+      ],
+      "verdict": "A（0.9006）",
+      "probabilities": {
+        "A": 0.9006368517875671,
+        "B": 0.061592213809490204,
+        "C": 0.024540062993764877,
+        "D": 0.013230874203145504
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "P1 regions 骨架已在 new_game/load 接入（宋 117 治所 + 外邦省/州府），已有 verify_region_invariants 做部分校验",
+        "T2/T3 变更机制/数据缺口都需要史料或设定值口径；先补 pops 会臆造（B 概率低）",
+        "只读覆盖盘点零经济风险，可把'结构自洽'与'数据缺口'分开报告，为后续补数据/变更提供基线",
+        "coverage_report 不写 state；测试对比 regions 序列化前后一致"
+      ],
+      "applied_in": "region_registry.coverage_report + tests/test_audit_20261021_region_coverage.py（2 条）；未改结算",
+      "reopen_if": "用户给定外邦省数据口径后做 B；或做 T2/T3 owner/parent 变更机制（C）前先审 coverage_report 基线"
+    }
+  ]
+}
