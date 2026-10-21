@@ -49,7 +49,7 @@ export default function TopBar() {
       {/* 左：纯正大宋皇室徽标 + 纪元（庄严只读展示，不做按钮） */}
       <div className="sz-era-plaque pointer-events-auto flex items-center gap-3 px-3 py-2">
         <div className="sz-era-seal flex h-10 w-10 shrink-0 items-center justify-center">
-          <span className="font-kai text-[20px] font-bold leading-none text-[#f3e6c4]">宋</span>
+          <span className="font-brush text-[20px] font-bold leading-none text-[#f3e6c4]">宋</span>
         </div>
         <div className="min-w-0">
           <span className="block font-kai text-[9px] tracking-[.34em] text-[#8f6e28]">大 宋 · 治 世 纪 年</span>

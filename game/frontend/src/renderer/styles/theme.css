@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 自托管字体（2026-10-21 与官网统一）───────────────────────────────
+   官网：标题 Ma Shan Zheng（马善政毛笔楷）／正文 LXGW ZhenKai Slab GB（霞鹜真楷），均 SIL OFL。
+   游戏侧同款，但裁剪策略不同：游戏文本是**数据驱动且动态**的（AI 诏草、名臣档案、玩家自由输入），
+   不能像官网那样按页面用字裁剪，故按 **GB2312 全集 ∪ 仓库全量文本语料** 裁剪：
+     zhengkai-subset.woff2      7613 码位 / 2.56 MB / **GB2312 汉字缺 0**
+     mashanzheng-subset.woff2   2956 码位 / 1.22 MB（该字体本身仅 7015 码位，缺字回退真楷）
+   Jev 裁定（2026-10-21）：毛笔**只用于主要标题**（0.859），9–10px 小标签换毛笔会糊；
+   字符集取**裁剪**方案（0.823）。语料 + GB2312 覆盖静态与绝大多数动态文本；
+   AI 自由生成的极生僻字回退系统楷体（同为楷体，字形相容）。
+   ⚠️ 改这里等于改全站字族（tailwind 的 kai/brush/sans 均指向这些变量）。 */
+@font-face {
+  font-family: "LXGW ZhenKai Slab GB";
+  src: url("./zhengkai-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ma Shan Zheng";
+  src: url("./mashanzheng-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* 宋祚 · 宋式水墨宣纸主题 token —— 色彩权威与 game/ui/theme.py 一致
    宣纸 #f6ecd6 / 朱红 #8a2b22 / 深褐 #2b1d12 / 描金 #caa24a / 卡片 #fffaf0 */
 :root {
@@ -15,8 +40,12 @@
   --gold-light: #e8d49c;
   --gold-dark: #8f6e28;
   --card: #fffaf0;
-  --kai: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", "STSong", "KaiTi", "STKaiti", serif;
-  --sans: "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  /* 正文 = 霞鹜真楷（自托管，与官网正文同款）；系统字族仅作缺字/加载失败回退 */
+  --kai: "LXGW ZhenKai Slab GB", "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", "STSong", "KaiTi", "STKaiti", "楷体", serif;
+  /* 主要标题 = 马善政毛笔楷（自托管，与官网标题同款）；缺字回退真楷 */
+  --brush: "Ma Shan Zheng", "LXGW ZhenKai Slab GB", "KaiTi", "STKaiti", "楷体", serif;
+  /* 默认正文/数值也走真楷：与官网一致（原先为微软雅黑） */
+  --sans: "LXGW ZhenKai Slab GB", "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
 }
 
 html,
@@ -81,7 +110,8 @@ body {
     url("/images/ornament_cloud_band.jpg") center 40% / cover no-repeat;
 }
 .sz-panel-title {
-  font-family: var(--kai);
+  /* 主要标题用毛笔楷（与官网标题同款）；9–13px 的小标签仍走 --kai 真楷，保证可读 */
+  font-family: var(--brush);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.28em;

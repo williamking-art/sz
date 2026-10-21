@@ -17,24 +17,15 @@ export default {
         dim: "#75552b",
         border: "#d8c08a"
       },
+      // 字族单点：全部指向 CSS 变量（定义在 src/renderer/styles/theme.css）。
+      // 2026-10-21：原先 kai/sans 在此硬编码系统字族链，与 theme.css 的 --kai/--sans 是两套口径——
+      // 只改 CSS 变量对 .font-kai 无效。现统一为变量，字体换装只改 theme.css 一处。
+      //   --kai   正文字体 = LXGW ZhenKai Slab GB（霞鹜真楷，与官网正文同款）
+      //   --brush 主要标题 = Ma Shan Zheng（马善政毛笔楷，与官网标题同款）
       fontFamily: {
-        kai: [
-          '"Source Han Serif SC"',
-          '"Noto Serif SC"',
-          '"Songti SC"',
-          '"SimSun"',
-          '"STSong"',
-          '"KaiTi"',
-          '"STKaiti"',
-          '"楷体"',
-          "serif"
-        ],
-        sans: [
-          '"Microsoft YaHei"',
-          '"微软雅黑"',
-          '"PingFang SC"',
-          "sans-serif"
-        ]
+        kai: ["var(--kai)"],
+        brush: ["var(--brush)"],
+        sans: ["var(--sans)"]
       },
       boxShadow: {
         paper: "0 2px 10px rgba(43,29,18,.22), inset 0 0 0 1px rgba(232,212,156,.6)",

@@ -11,7 +11,7 @@ export default function MapCartouche() {
       <span className="sz-cartouche-rule" />
       <Compass size={17} strokeWidth={1.4} className="text-[#8f6e28]" aria-hidden="true" />
       <div className="text-center">
-        <p className="font-kai text-[14px] font-bold tracking-[.42em] text-[#2b1d12]">大 宋 天 下</p>
+        <p className="font-brush text-[14px] font-bold tracking-[.42em] text-[#2b1d12]">大 宋 天 下</p>
         <p className="mt-0.5 font-kai text-[9px] tracking-[.2em] text-[#76664a]">{era || "建中靖国元年正月"} · 舆图</p>
       </div>
       <Compass size={17} strokeWidth={1.4} className="rotate-180 text-[#8f6e28]" aria-hidden="true" />

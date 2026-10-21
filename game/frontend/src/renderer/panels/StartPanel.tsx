@@ -81,7 +81,7 @@ export default function StartPanel() {
           className="h-16 w-auto max-w-[280px] object-contain drop-shadow-sm"
         />
         <div className="relative mt-1 mb-1 flex h-16 w-16 items-center justify-center rounded-full bg-red shadow-card ring-4 ring-gold">
-          <span className="font-kai text-3xl font-bold tracking-widest text-[#f8ecd0]">宋</span>
+          <span className="font-brush text-3xl font-bold tracking-widest text-[#f8ecd0]">宋</span>
           <img
             src="/images/seal_imperial.png"
             alt=""

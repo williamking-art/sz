@@ -36,6 +36,23 @@ MapLibre 前端读取 `public/map/` 中的运行数据。该目录的地图文�
 
 ## 界面改动约定
 
+### 字体（2026-10-21 与官网统一）
+
+- **单点**：字族只在 `src/renderer/styles/theme.css` 的 `--brush` / `--kai` / `--sans` 定义；
+  `tailwind.config.js` 的 `fontFamily.brush/kai/sans` 全部指向这些变量（**不再**硬编码字族链），
+  因此改字体只改 theme.css 一处。`font-src 'self' data:`（CSP）已放行自托管字体。
+- **两款自托管字体（均 SIL OFL，授权随 `public/` 与 `src/renderer/styles/` 分发）**：
+  - `--kai` / `--sans` = **LXGW ZhenKai Slab GB 霞鹜真楷**（正文，与官网正文同款）
+  - `--brush` = **Ma Shan Zheng 马善政毛笔楷**（**只用于主要标题**：`.sz-panel-title` 18px、
+    顶栏「宋」20px、开局「宋」30px、舆图题额「大宋天下」14px；9–13px 标签仍走真楷保证可读）
+- **裁剪策略与官网不同**：官网按页面用字裁剪（几百字），游戏文本是数据驱动且动态的
+  （AI 诏草、名臣档案、玩家自由输入），故取 **GB2312 全集 ∪ 仓库文本语料**：
+  `zhengkai-subset.woff2` 7613 码位 / 2.56MB（**GB2312 汉字缺 0**）、
+  `mashanzheng-subset.woff2` 2956 码位 / 1.22MB（缺字回退真楷）。
+- **纪律**：新增或替换字体时 ① 子集脚本用 GB2312∪语料，别按「常用 N 字」盲裁；
+  ② 必须同步放 OFL 授权到 `public/`；③ 改完跑双 tsconfig + vitest + `electron-vite build`，
+  并用截图台复核密排面板（会计/军情/账目表）无溢出与裁字。
+
 - 页面与共享组件索引见 [`src/renderer/panels/README.md`](src/renderer/panels/README.md) 和 [`src/renderer/components/README.md`](src/renderer/components/README.md)。
 - React 层展示后端提供的状态和读数，不复制结算算法；未知或未定义数据须明确呈现。
 - 面板按功能复用共享装饰组件和主题变量；视觉调整同时关注不同分辨率、地图遮挡和信息层级。

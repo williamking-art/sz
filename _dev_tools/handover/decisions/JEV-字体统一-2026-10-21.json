@@ -1,0 +1,55 @@
+{
+  "id": "JEV-字体统一-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "让游戏前端标题/正文字体与官网统一的决策留痕（毛笔应用范围 / 正文字符集策略）",
+  "items": [
+    {
+      "question": "毛笔字体 Ma Shan Zheng 在游戏里的应用范围取哪个：A=只给主要标题；B=所有 .font-kai 元素全面换；C=只换正文、标题维持系统字族？",
+      "options": [
+        "A=只给主要标题（面板题头/主菜单书名/顶栏宋字/舆图题额），其余 UI 全用真楷",
+        "B=所有 .font-kai 元素全面换毛笔（含 9-10px 小标签）",
+        "C=只把正文换成真楷，标题维持现有系统宋体/楷体回退"
+      ],
+      "verdict": "A",
+      "probabilities": {
+        "A": 0.8591420650482178,
+        "B": 0.13179124891757965,
+        "C": 0.009066779166460037
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实测 .font-kai 在数百处使用，含 9px/10px 小标签（如「朝 笏 象 牙」「中 书 · 枢 密 · 三 司」），letter-spacing 0.2~0.32em",
+        "毛笔楷在 9-10px 下笔画粘连、自带书法抖动，与等宽对齐的账目表/数字混排易错行，可读性风险明确",
+        "A 与 C 都保住可读性；A 额外满足用户「标题用网站那款」的原话",
+        "主菜单书名实为图片 title_calligraphy.png（书法题字），本就不需改字体，A 的落点是 4 处：sz-panel-title(18px) / StartPanel 宋(30px) / TopBar 宋(20px) / MapCartouche 大宋天下(14px)"
+      ],
+      "applied_in": "tailwind.config.js 增 fontFamily.brush；theme.css 增 --brush 并把 .sz-panel-title 改 var(--brush)；StartPanel.tsx:84 / TopBar.tsx:52 / MapCartouche.tsx:14 的 font-kai → font-brush",
+      "reopen_if": "用户要求小标签也用毛笔，或某标题在毛笔缺字时观感断裂（回退真楷不协调）"
+    },
+    {
+      "question": "正文楷体 LXGW ZhenKai Slab GB 的字符集策略：FULL=全字符集 9.06MB；SUBSET=裁剪后约 4MB？",
+      "options": [
+        "FULL=全字符集 9.06MB，杜绝动态文本缺字",
+        "SUBSET=裁常用字约 4MB，省 5MB 但 AI 生成文本/生僻人名可能缺字"
+      ],
+      "verdict": "SUBSET",
+      "probabilities": {
+        "FULL": 0.17711706459522247,
+        "SUBSET": 0.8228829503059387
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实测全量 23879 码位 = 9.06MB woff2；游戏正文动态（AI 诏草、名臣档案、玩家自由输入），缺字会静默回退",
+        "故 SUBSET 不按「常用 N 字」盲目裁，而是取 **GB2312 全集(7445) ∪ 仓库全量文本语料(3091)** = 7638 字，实测 zhengkai-subset 7613 码位 /**2.56MB**、GB2312 汉字缺 0",
+        "实际比 Jev 的 4MB 估计更小，说明该取法没有牺牲覆盖率换体积",
+        "剩余的缺字只有 29 个 emoji/制表符（任何 CJK 字体都没有，本就该回退系统符号字体）",
+        "毛笔侧按语料裁 2956 码位 / 1.22MB；它本身仅 7015 码位，缺字回退真楷（同为楷体，字形相容）",
+        "两款合计 3.78MB，比被删除的死资源 MaShanZheng.ttf(5.6MB) 还小 —— 空间是净减少的",
+        "AI 自由生成的极生僻字仍会回退系统楷体 KaiTi，视觉差异可接受；如需彻底消除可改 FULL"
+      ],
+      "applied_in": "src/renderer/styles/{zhengkai,mashanzheng}-subset.woff2；theme.css @font-face + --kai/--sans；删死资源 MaShanZheng.ttf；OFL 授权随 src 与 public 双份分发",
+      "reopen_if": "实测出现 AI 文本缺字（界面混排字形/豆腐块），或安装包体积需要进一步压缩时"
+    }
+  ]
+}
