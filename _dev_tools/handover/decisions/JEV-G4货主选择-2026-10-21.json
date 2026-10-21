@@ -1,0 +1,35 @@
+{
+  "id": "JEV-G4货主选择-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "G-4 工坊营运资金的首选货主/出资方",
+  "items": [
+    {
+      "question": "G-4 首选货主？A=路级官府(local_treasury);B=本路商人;C=本路士绅;D=混合;E=作坊自持",
+      "options": [
+        "A=路级官府",
+        "B=本路商人",
+        "C=本路士绅",
+        "D=混合",
+        "E=作坊自持"
+      ],
+      "verdict": "A（0.5540）",
+      "probabilities": {
+        "A": 0.553984522819519,
+        "B": 0.20481128990650177,
+        "C": 0.06780242919921875,
+        "D": 0.16840219497680664,
+        "E": 0.004999473690986633
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实测 128 作坊 owner 已可解析（undefined_no_owner=0），真正卡点是作坊工资义务无权威（不在 JOBS_PER_LEVEL）",
+        "路级官府 local_treasury 是现有资金池中量级最匹配的（owner_candidates_shadow 已给候选）",
+        "不新增账户；P0 先只读影子，工资表未落地前不改钱",
+        "已有 pop:商人 货主的作坊保留现状，不强行改判"
+      ],
+      "applied_in": "analysis/G-4工坊营运资金提案_2026-10-21.md；未改代码",
+      "reopen_if": "工资表落地后若发现 local_treasury 覆盖率不足，再考虑混合货主（D）"
+    }
+  ]
+}
