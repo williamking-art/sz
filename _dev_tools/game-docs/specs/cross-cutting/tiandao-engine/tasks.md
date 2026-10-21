@@ -34,6 +34,7 @@
 | `reform_compliance_gate` | ✅ **数值已接线（2026-10-21，Jev A 0.464）** | `settlement_decree._reform_compliance_factor`：False ⇒ `finance_rates` 财政改革幅度 **×0.5**（只此一处；无记录回落 1.0） |
 | `changping_intervene_gate` | ✅ **数值已接线（2026-10-21，Jev B 0.365 vs A 0.365 近平手，按 B）** | `settlement_granary._changping_sell_allowed`：False ⇒ 本月高价**平粜不卖**（只影响卖粮，不影响平籴/价格公式；无记录回落 True） |
 | `tax_collection_stance` | ✅ **数值已接线（2026-10-21，Jev C 0.455）** | `settlement_finance._tax_stance_factor`：strict ⇒ 田赋应征额 ×1.03；lenient ⇒ ×0.97；moderate/无记录 ⇒ 1.0（只此一处） |
+| `should_waive_ancient_arrears` | ✅ **数值已接线（2026-10-21，Jev C 0.339 近平手自证）** | `settlement_finance._arrears_waiver_active`：True ⇒ 本月暂停欠税追缴 + 核销 10% 欠税存量；False/无记录 ⇒ 现状；无年龄字段，当前视全部欠税为陈欠（已知局限） |
 | `tax_collection_stance` / `should_waive_ancient_arrears` / `merchant_trade_or_hoard` / `changping_intervene_gate` / `canal_reroute_choice` / `granary_corruption_check` / `farmer_destitution_path` / `gentry_charity_vs_annex` / `reform_compliance_gate` / `recruit_refugees_to_soldiers_gate` | 🟡 **只读接线（2026-10-21，Jev A 0.799）** | `TianDaoFacade.observe_monthly` 每月记录裁决；**数值效果仍未接线**（需逐项定档位→数值映射、上限与 A/B；granary corruption 直接置零须单独裁定） |
 | `embedded_jev.py` / `decision_facade.py` | ✅ 兼容薄桩 | 别名 `EmbeddedJevEngine` / `EmbeddedDecisionFacade` → 天道；**首参同时接受 `state_context=`** |
 

@@ -1368,6 +1368,22 @@ def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "
         result["authority_mode"] = _authority_mode
     return result
 
+def _arrears_waiver_active(state) -> bool:
+    """D 数值接线（2026-10-21，Jev C 0.339 近平手自证）：是否执行"蠲免陈欠"。
+
+    读 `TianDaoFacade.observe_monthly` 记录：`should_waive_ancient_arrears=True` 时，
+    本月**暂停欠税追缴**并**核销 10% 欠税存量**（欠税是 POP 子池，不是货币，不涉 M_ALL）；
+    False / 无记录 / 未定义 → 现状（正常追缴）。无年龄字段，当前把全部欠税视作"陈欠"（已知局限）。
+    """
+    rec = getattr(state, "_tiandao_observe", None)
+    if not isinstance(rec, dict):
+        return False
+    dec = (rec.get("decisions") or {}).get("should_waive_ancient_arrears")
+    if isinstance(dec, dict):
+        return bool(dec.get("defined", True) and dec.get("verdict") is True)
+    return dec is True
+
+
 def _settle_finance(state, log):
     """月度税收与支出结算。国库只收货币税（工商+丁口）+ 一条鞭折银 + 折变；
     田赋本色为实物入粮仓。支出含折色俸禄（随 pay_system）与岁币岁赐。"""
@@ -1421,6 +1437,8 @@ def _settle_finance(state, log):
     }
     # 田赋折色中央份额先入账；其余税种在下方逐户扣缴中累加（实收→国库管道不变）
     actual_tax = float(_land_tax["central"])
+    _waive_arrears = _arrears_waiver_active(state)
+    _waived_off = 0
     for _agent, _tax_total in _tax_agents.items():
         _total_wealth = sum(p["pops"][_agent]["wealth"] for p in state.prefectures.values())
         if _total_wealth <= 0:
@@ -1449,6 +1467,15 @@ def _settle_finance(state, log):
             if _pop_obj_add(state, _pop, "wealth", -_paid) is None:
                 _pop["wealth"] -= _paid
             actual_tax += _paid   # 累计实际到库税额（保底豁免部分不入库，钱不凭空生）
+            if _waive_arrears:
+                # D 数值接线（Jev C 0.339）：豁免陈欠 ⇒ 核销 10% 欠税存量 + 本月暂停追缴
+                _arrears_now = int(_pop.get("欠税", 0) or 0)
+                _writeoff = int(_arrears_now * 0.10)
+                if _writeoff > 0:
+                    if _pop_obj_add(state, _pop, "欠税", -_writeoff) is None:
+                        _pop["欠税"] = _arrears_now - _writeoff
+                    _waived_off += _writeoff
+                continue
             # A1 追缴段：紧随税征，按「可支付余力（wealth - 保底线）× ARREARS_COLLECT_RATE」回收欠税
             _recoverable = max(0, _pop["wealth"] - _min_wealth)
             _recover = min(_pop.get("欠税", 0), int(_recoverable * ARREARS_COLLECT_RATE))
@@ -1458,6 +1485,9 @@ def _settle_finance(state, log):
                 if _pop_obj_add(state, _pop, "欠税", -_recover) is None:
                     _pop["欠税"] = _pop.get("欠税", 0) - _recover
                 actual_tax += _recover
+
+    if _waive_arrears:
+        log.append(f"[蠲免] 天道准予蠲免陈欠：本月暂停追缴，核销欠税存量 {_waived_off} 贯")
 
     # ---- M34-① D6′：地方附加收入（独立池，直接入府库）——须在支用腿**之前**入账 ----
     _settle_local_extra_income(state, log)

@@ -1,0 +1,33 @@
+{
+  "id": "JEV-蠲免陈欠映射-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "should_waive_ancient_arrears=True 时，欠税追缴段怎么接",
+  "items": [
+    {
+      "question": "True 时选哪个？A=暂停本月追缴;B=核销10%存量;C=A+B;D=仅日志",
+      "options": [
+        "A=暂停本月追缴",
+        "B=核销10%存量",
+        "C=A+B",
+        "D=仅日志"
+      ],
+      "verdict": "C（0.3387；B 0.2956 / A 0.2883 近平手，按 C 执行并自证）",
+      "probabilities": {
+        "A": 0.2883051931858063,
+        "B": 0.2956273853778839,
+        "C": 0.3387109935283661,
+        "D": 0.07735643535852432
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "A/B/C 三者接近（C 领先 B 0.043、A 0.050），按纪律自证：C 同时体现'缓征'与'赦免'两层语义，且各有界",
+        "核销只动 POP 欠税子池（不是货币），不涉 M_ALL；暂停追缴只影响本月 actual_tax，不造币",
+        "无年龄字段 ⇒ 当前把全部欠税视作陈欠，属已知局限；写进文档与 reopen_if",
+        "无记录/undefined ⇒ 现状，直接调用旧结算测试零变更"
+      ],
+      "applied_in": "settlement_finance._arrears_waiver_active + 追缴段；tests/test_audit_20261021_arrears_waiver.py（3 条）",
+      "reopen_if": "补上欠税账龄字段后改为只核销/缓征'陈年'部分；或 60 月 A/B 显示财政缺口过大时降为 A（仅暂停）"
+    }
+  ]
+}
