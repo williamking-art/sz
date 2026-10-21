@@ -618,6 +618,29 @@ def _book_tax_loss(state, amount: int) -> None:
     rep["total"] = int(rep.get("total", 0) or 0) + amount
 
 
+def _tax_stance_factor(state) -> float:
+    """D 数值接线（2026-10-21，Jev C 0.455）：征管宽严对田赋折色**应征额**的系数。
+
+    读 `TianDaoFacade.observe_monthly` 记录：
+    - strict → 1.03（严催，多征 3%）；
+    - lenient → 0.97（体恤，少征 3%）；
+    - moderate / 无记录 / 未定义 → 1.0（回落现状）。
+    只作用于田赋折色 assessed，不改征收率公式；税仍从 POP 扣，守恒不变。
+    """
+    rec = getattr(state, "_tiandao_observe", None)
+    if not isinstance(rec, dict):
+        return 1.0
+    dec = (rec.get("decisions") or {}).get("tax_collection_stance")
+    if isinstance(dec, dict):
+        dec = dec.get("verdict")
+    stance = str(dec or "").strip().lower()
+    if stance == "strict":
+        return 1.03
+    if stance == "lenient":
+        return 0.97
+    return 1.0
+
+
 def _settle_land_tax_color(state, log) -> dict:
     """田赋折色（P1 双层税基·三率分流；Q3 甲：**仅此税种**换新模型）。
 
@@ -642,6 +665,10 @@ def _settle_land_tax_color(state, log) -> dict:
         _active = set(state.prefectures)
     chan = state.calc_land_tax_channels()
     assessed = int(chan["assessed_total"])
+    _tsf = _tax_stance_factor(state)
+    if _tsf != 1.0:
+        assessed = int(round(assessed * _tsf))
+        log.append(f"[田赋] 天道征管倾向 ⇒ 应征额 ×{_tsf:g}")
     paid_by_route = {_rk: 0 for _rk in state.prefectures}
     if assessed > 0 and state.prefectures:
         _tot_land = sum(p.get("land", 1) for _rk, p in state.prefectures.items() if _rk in _active) or 1

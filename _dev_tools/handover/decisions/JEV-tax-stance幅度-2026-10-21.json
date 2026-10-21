@@ -1,0 +1,33 @@
+{
+  "id": "JEV-tax-stance幅度-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "tax_collection_stance 接数值时，strict/lenient 对田赋应征额的幅度",
+  "items": [
+    {
+      "question": "幅度选哪个？A=±5%;B=±2%;C=±3%;D=不接",
+      "options": [
+        "A=±5%",
+        "B=±2%",
+        "C=±3%",
+        "D=不接"
+      ],
+      "verdict": "C（0.4551）",
+      "probabilities": {
+        "A": 0.21557007730007172,
+        "B": 0.27445483207702637,
+        "C": 0.4550689458847046,
+        "D": 0.05490613728761673
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "只作用于田赋折色 assessed，不改征收率公式/其他税种；税收仍是 POP→国库转移，守恒不变",
+        "±3% 小于 ±5% 的平衡冲击，又大于 ±2% 的可观测性；Jev C 明显高于次选 B",
+        "无记录/moderate/未知 ⇒ 1.0，旧测试零变更",
+        "后续可观察 12/60 月税负与民心，再调幅度"
+      ],
+      "applied_in": "settlement_finance._tax_stance_factor + _settle_land_tax_color；tests/test_audit_20261021_tax_stance.py（2 条）",
+      "reopen_if": "60 月 A/B 显示税负/欠税偏差过大，或需要扩展到其他税种时另行裁定"
+    }
+  ]
+}
