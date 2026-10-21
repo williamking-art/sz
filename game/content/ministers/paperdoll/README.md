@@ -1,9 +1,11 @@
-# content/ministers/paperdoll — 北宋官员 2D 布娃娃换装
+# content/ministers/paperdoll — 北宋官员 2D 布娃娃换装（已废弃）
 
-> **2026-10-21 新建**：本目录是**代码模块**（不只是资产），此前无 README、也未在上级索引中单列。
-> 设计基线见 `_dev_tools/game-docs/docs/百官换装系统_v4设计稿_2026-10-17.md`（**未落地**，v3 已作废）。
+> 🔴 **2026-10-21 用户裁定：本换装系统废弃**。不再推进纸娃娃/骨骼烘焙管线，
+> 设计稿见 [`archive/2026-10-21-historical/百官换装系统_v4设计稿`](../../../../_dev_tools/game-docs/archive/2026-10-21-historical/百官换装系统_v4设计稿_2026-10-17.md)
+> （仅历史留档）。**保留本目录代码与素材作可运行原型，但不得接入新功能、发行管线或 UI**；
+> 现行肖像走 `content.ministers.data.get_portrait_path`（静态 PNG / 既有装配器）。
 
-## 模块职责
+## 模块职责（原型参考）
 
 | 文件 | 职责 |
 |---|---|

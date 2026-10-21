@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """北宋官员 2D 布娃娃换装系统（Paper Doll System）公共入口。
 
-四大标杆融合设计：
+🔴 **2026-10-21 用户裁定：本系统废弃**。代码/素材保留为可运行原型，**不得接入新功能/发行管线/UI**；
+设计稿已归档（`_dev_tools/game-docs/archive/2026-10-21-historical/`）。现行肖像走
+`content.ministers.data.get_portrait_path`（静态 PNG / 既有装配器）。
+
+以下为原始设计说明（仅作原型参考）：
 - VNDialog：纯 JSON 配置驱动展示；
 - ChibiRigKit & QQ 秀：810×1080 刚性大半身像素体模特 + 8 大插槽自底向上无瑕叠装；
 - Live2DMascot：沉稳官仪微动态（缓步呼吸、自然眨眼、长髯展角微颤）；

@@ -4,8 +4,9 @@
 ⚠️ **废弃声明（2026-10-16，Jev 裁定 p=0.9958）**：
 本模块属于早期基于 PIL 位图图层切片的实验性拼装管线，存在图层素材缺失、名臣双轨切片
 与颈项断头白洞等历史缺陷（详见 `_dev_tools/game-docs/reviews/大臣立绘换装系统审查与改进意见_2026-10-16.md`）。
-现已全面升级并收口至正统 2D 骨骼布娃娃换装系统：
-👉 请统一改用 `game.content.ministers.paperdoll`（`MinisterAudienceController` / `PaperdollRenderEngine`）。
+现已全面升级并收口至正统 2D 骨骼布娃娃换装系统（⚠️ **该系统亦已于 2026-10-21 用户裁定废弃**）：
+本文件与 `game.content.ministers.paperdoll` 均仅保留作历史原型，**不得接入新功能/发行管线**。
+现行肖像走 `content.ministers.data.get_portrait_path`（静态 PNG / 既有资产）。
 本文件仅保留用于历史接口兼容，新开发严禁调用。
 """
 from __future__ import annotations
