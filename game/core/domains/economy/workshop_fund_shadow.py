@@ -81,19 +81,27 @@ def workshop_route(state, wid: str) -> Optional[str]:
 
 
 def wage_obligation(state, wid: str) -> Dict[str, Any]:
-    """作坊**工资义务**：作坊不在 `JOBS_PER_LEVEL` ⇒ 岗位数不可读 ⇒ **`None` + reason**。"""
+    """作坊**工资义务**：读 `content.data_workshop_jobs` 的显式岗位/工价表（玩法设定）。
+
+    表未登记该类型 ⇒ `None` + reason（不拿建筑岗位数硬套作坊）。
+    """
     ws = (getattr(state, "workshops", None) or {}).get(wid)
     if not isinstance(ws, dict):
         return {"jobs": None, "rate": None, "obligation": None, "reason": "作坊不存在"}
     name = str(ws.get("name") or "")
     try:
-        from core.domains.economy.wage_gate_readout import wage_rate_for
-        rate = wage_rate_for(name)
+        from content.data_workshop_jobs import PROVENANCE, jobs_of, wage_of
+        rate = float(wage_of(name, 1) / jobs_of(name, 1)) if jobs_of(name, 1) else None
+        jobs = jobs_of(name, 1)
+        obligation = wage_of(name, 1)
+        if jobs is not None and obligation is not None:
+            return {"jobs": jobs, "rate": rate, "obligation": int(obligation),
+                    "reason": None, "provenance": PROVENANCE}
     except Exception:                                       # noqa: BLE001
-        rate = None
-    return {"jobs": None, "rate": rate, "obligation": None,
-            "reason": ("作坊 `%s` 不在 `JOBS_PER_LEVEL`（岗位表只登记建筑：农田/庄园/工坊/商铺…）"
-                       "⇒ 岗位数与工资义务**不可定义**；不拿建筑岗位数硬套作坊"
+        jobs = obligation = rate = None
+    return {"jobs": jobs, "rate": rate, "obligation": None,
+            "reason": ("作坊 `%s` 不在 `content.data_workshop_jobs.WORKSHOP_JOBS_PER_LEVEL`"
+                       "（玩法设定表未登记该类型）⇒ 岗位数与工资义务不可定义"
                        % (name or wid))}
 
 

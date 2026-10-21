@@ -44,11 +44,17 @@ def test_route_from_key():
     assert wfs.workshop_route(st, "无名坊_9") is None       # 判不出 ⇒ None（不臆造地点）
 
 
-def test_wage_obligation_is_none_with_reason():
+def test_wage_obligation_from_workshop_table_or_none():
     st = _state({"酒坊_路A_2": {"name": "酒坊", "active": True}})
     w = wfs.wage_obligation(st, "酒坊_路A_2")
-    assert w["jobs"] is None and w["obligation"] is None
-    assert "不在 `JOBS_PER_LEVEL`" in w["reason"]
+    # 2026-10-21：显式作坊岗位/工价表（玩法设定）已登记 酒坊 ⇒ 工资义务可算
+    assert w["jobs"] == 80_000 and w["obligation"] == 120_000
+    assert w["rate"] == 1.5 and w["reason"] is None
+    # 未登记类型仍按缺失处理（不拿来历不明的岗数硬套）
+    st2 = _state({"谜之坊_路A_1": {"name": "谜之坊", "active": True}})
+    w2 = wfs.wage_obligation(st2, "谜之坊_路A_1")
+    assert w2["jobs"] is None and w2["obligation"] is None
+    assert "未登记该类型" in w2["reason"]
 
 
 def test_recipe_cost_reports_missing_price(monkeypatch):
@@ -65,9 +71,9 @@ def test_recipe_cost_reports_missing_price(monkeypatch):
 def test_workshop_shadow_lists_missing_and_status():
     st = _state({"麻坊_路A_1": {"name": "麻坊", "recipe": {"麻": 10}, "active": True}})
     rep = wfs.workshop_shadow(st, "麻坊_路A_1")
-    assert rep["status"] == "undefined"                      # 无 owner/wage ⇒ 未定义
-    # `麻` 有基准价 ⇒ 采购预算**可算**，故不在 missing（代码行为正确）
-    assert set(rep["missing"]) == {"owner", "wage"}
+    assert rep["status"] == "undefined"                      # 无 owner ⇒ 未定义（wage 已可读）
+    # `麻` 有基准价 ⇒ 采购预算**可算**；工资表已登记 麻坊 ⇒ 不再缺 wage
+    assert set(rep["missing"]) == {"owner"}
     assert rep["purchase"]["cost"] is not None
     assert rep["location"] == "路A"
     # 规格七项逐项存在（值或 None），第二轮项明确列出

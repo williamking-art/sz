@@ -109,8 +109,9 @@ def test_real_new_game_all_workshops_get_owner():
     # M196 派生：`local` 仍 40（酒坊 40 座归地方）· 新增丝坊货主为 `pop:<路>:商人` ⇒ 商人计数随补座增加
     assert cov["by_kind"]["local"] == 40 and cov["by_kind"]["pop:商人"] == 67 + (_wo2.DEFAULT_TARGET_TOTAL - 7)
 
-    # 🔴 影子读数：货主维度归零（**解除 M51 的 owner blocker**）
+    # 🔴 影子读数：货主维度归零（**解除 M51 的 owner blocker**）；
+    # 2026-10-21 起工资表已落（content/data_workshop_jobs.py）⇒ shadow_ready 不再为 0
     from core.domains.economy import workshop_fund_shadow as wfs
     rep2 = wfs.survey_workshop_fund_shadow(s)
     assert rep2["undefined_no_owner"] == 0, rep2
-    assert rep2["shadow_ready"] == 0, "工资口径未定前不应有 shadow_ready（如实）"
+    assert rep2["shadow_ready"] == _N, "工资表已登记 4 类作坊，应全部影子可算"

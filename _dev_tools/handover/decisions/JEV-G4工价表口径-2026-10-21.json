@@ -1,0 +1,33 @@
+{
+  "id": "JEV-G4工价表口径-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "G-4 影子工资表的岗位/工价口径",
+  "items": [
+    {
+      "question": "影子工价表选哪个？A=4类岗位表;B=统一1岗;C=建筑比例;D=不填",
+      "options": [
+        "A=4类岗位表",
+        "B=统一1岗",
+        "C=按建筑比例",
+        "D=不填"
+      ],
+      "verdict": "A（0.5355；B 0.262 / D 0.193，非平手但非高置信）",
+      "probabilities": {
+        "A": 0.5355258584022522,
+        "B": 0.2620472311973572,
+        "C": 0.009026115760207176,
+        "D": 0.19340074062347412
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "实测仅 4 类作坊（酒坊40/畜栏40/麻坊20/丝坊28），显式表可穷举；统一 1 岗会把 128 作坊工资压成同一数，失去类型差异",
+        "C（建筑比例）被既有文档明确禁止（不能拿建筑岗位硬套作坊）",
+        "月工价沿用既有 WAGE_RATE default 1.5 贯/岗/月，不另造价格体系；岗位数作为玩法设定显式标注、可校准",
+        "只接影子 budget，不接钱；工人来源/采购/销售仍在 not_in_this_batch"
+      ],
+      "applied_in": "content/data_workshop_jobs.py + workshop_fund_shadow.wage_obligation；tests/test_audit_20261021_workshop_wage_table.py（3 条）；survey 由 shadow_ready=0 → 128",
+      "reopen_if": "60 月标定后若工资负担过重/过轻，按类型调岗位或工价；正式接钱前需用户确认玩法设定"
+    }
+  ]
+}
