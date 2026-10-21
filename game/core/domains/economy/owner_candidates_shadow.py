@@ -56,7 +56,7 @@ CANDIDATES: tuple = (
 )
 
 __all__ = ["SCHEMA_VERSION", "CANDIDATES", "pool_of", "procure_need", "wage_need",
-           "affordability", "survey_owner_candidates"]
+           "affordability", "survey_owner_candidates", "capital_gap_report"]
 
 
 def _num(v) -> Optional[float]:
@@ -180,6 +180,71 @@ def wage_need(state) -> Dict[str, Any]:
             "unreadable": unreadable[:20], "unreadable_count": len(unreadable),
             "reason": None if not unreadable else "部分作坊工资义务不可读 ⇒ 合计不可定义（缺失≠0）",
             "source": "content.data_workshop_jobs"}
+
+
+def capital_gap_report(state) -> Dict[str, Any]:
+    """A G-4 P0：**逐路资金缺口**只读报告（Jev 首选货主 local_route 口径）。
+
+    - 需求 = Σ(采购预算 + 工资义务)（任一作坊不可读 ⇒ 该路需求 `None`）；
+    - 资金池 = `pool_of(state, "local_route", route)`（治所真账聚合）；
+    - coverage = min(1, pool/need)（不可读/need≤0 ⇒ None）；shortfall = max(0, need-pool)；
+    - 另给候选池总览（国库/士绅/商人）与全局需求；**只读、不预选、不接钱**。
+    """
+    from core.domains.economy import workshop_fund_shadow as wfs
+    ws = getattr(state, "workshops", None)
+    if not isinstance(ws, dict):
+        return {"read_only": True, "reason": "无 workshops", "routes": [],
+                "candidates": [], "total_need": None}
+    per_route: Dict[str, Dict[str, Any]] = {}
+    for wid in ws:
+        w = ws.get(wid) or {}
+        name = str(w.get("name") or "")
+        route = wfs.workshop_route(state, wid)
+        buy = wfs.recipe_cost(state, wid)
+        wage = wfs.wage_obligation(state, wid)
+        r = route or "（判不出路）"
+        row = per_route.setdefault(r, {"route": route, "workshops": 0,
+                                       "procure_need": 0, "wage_need": 0,
+                                       "unreadable": []})
+        row["workshops"] += 1
+        if buy.get("cost") is None or wage.get("obligation") is None:
+            row["unreadable"].append(wid)
+        else:
+            row["procure_need"] += int(buy["cost"])
+            row["wage_need"] += int(wage["obligation"])
+    routes = []
+    for r, row in sorted(per_route.items(), key=lambda kv: str(kv[0])):
+        need = (None if row["unreadable"]
+                else row["procure_need"] + row["wage_need"])
+        pool = pool_of(state, "local_route", row["route"]) if row["route"] else {
+            "value": None, "reason": "判不出路", "source": "（无）"}
+        routes.append({
+            "route": row["route"], "workshops": row["workshops"],
+            "procure_need": row["procure_need"], "wage_need": row["wage_need"],
+            "need": need, "unreadable": row["unreadable"][:10],
+            "unreadable_count": len(row["unreadable"]),
+            "local_pool": pool["value"], "pool_source": pool["source"],
+            "coverage": affordability(pool["value"], need),
+            "shortfall": (None if (pool["value"] is None or need is None)
+                          else max(0, int(need - pool["value"]))),
+        })
+    total_need_ok = all(r["need"] is not None for r in routes) and bool(routes)
+    total_need = sum(int(r["need"]) for r in routes) if total_need_ok else None
+    cands = []
+    for key in ("state_treasury", "imperial", "pop_gentry", "pop_merchant", "local_route"):
+        p = pool_of(state, key)
+        cands.append({"key": key, "pool": p["value"], "pool_source": p["source"],
+                      "coverage": affordability(p["value"], total_need)})
+    return {
+        "schema_version": SCHEMA_VERSION, "read_only": True,
+        "owner_choice": "local_route（Jev A 0.554）",
+        "workshops": len(ws), "routes": routes,
+        "route_count": len(routes),
+        "total_need": total_need,
+        "candidates": cands,
+        "note": ("只读资金缺口；工资表为玩法设定（content/data_workshop_jobs.py），"
+                 "接钱前需确认；不可读单路 = None，不按 0。"),
+    }
 
 
 def affordability(pool: Optional[float], need: Optional[float]) -> Optional[float]:
