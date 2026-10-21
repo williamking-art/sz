@@ -53,6 +53,31 @@ from core.settlement_finance import (  # 跨域互调
     _settle_stabilizer_recycle,
 )
 
+
+def _granary_corruption_factor(state) -> float:
+    """D 数值接线（2026-10-21，Jev B 0.492）：仓场贪墨门的**本色损耗系数**。
+
+    读的是 `TianDaoFacade.observe_monthly` 本回合写入的只读记录：
+    - 无记录 / 未定义 → 1.0（回落现状，保证直接调用 `_settle_granary` 的旧测试零变更）；
+    - 有记录且 `granary_corruption_check=False` → **×0.5**（减半，不归零）；
+    - True → 1.0（维持既有公式）。
+    只影响"雀鼠耗本色损耗"，不碰钱侧贪腐，也不改公式结构。
+    """
+    rec = getattr(state, "_tiandao_observe", None)
+    if not isinstance(rec, dict):
+        return 1.0
+    dec = (rec.get("decisions") or {}).get("granary_corruption_check")
+    verdict, defined = None, False
+    if isinstance(dec, bool):
+        verdict, defined = dec, True
+    elif isinstance(dec, dict):
+        verdict = dec.get("verdict")
+        defined = bool(dec.get("defined", True))
+    if defined and verdict is False:
+        return 0.5
+    return 1.0
+
+
 def _settle_granary(state, log):
     """仓廪系统月度结算：漕运汇聚 + 雀鼠耗 + 本色支取 + 常平仓 + 认知层。
     （12 步 agent 化 P2+：仓廪漕运契约接线）"""
@@ -176,6 +201,10 @@ def _settle_granary(state, log):
     if _outflow_gate != 1.0:
         log.append(f"[发仓闸门] 天道裁定 outflow 档位 ⇒ 本色支出 ×{_outflow_gate:g}")
     _, corruption_grain_loss = state.calc_corruption_deduction()
+    _gcorr = _granary_corruption_factor(state)
+    if _gcorr != 1.0:
+        corruption_grain_loss = int(corruption_grain_loss * _gcorr)
+        log.append(f"[仓场] 天道未判贪墨 ⇒ 雀鼠耗本色损耗 ×{_gcorr:g}")
     corr_grain = int(corruption_grain_loss * pay)
 
     need = mil_grain + off_grain + clerk_grain

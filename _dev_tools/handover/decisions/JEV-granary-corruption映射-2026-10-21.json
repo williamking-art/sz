@@ -1,0 +1,33 @@
+{
+  "id": "JEV-granary-corruption映射-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "granary_corruption_check=False 时，雀鼠耗本色损耗怎么映射",
+  "items": [
+    {
+      "question": "False 时映射选哪个？A=归零;B=×0.5;C=×0.7;D=反向加罚",
+      "options": [
+        "A=归零",
+        "B=×0.5",
+        "C=×0.7",
+        "D=反向加罚"
+      ],
+      "verdict": "B（0.4920；C 0.3959 近平手，按 B 执行并自证）",
+      "probabilities": {
+        "A": 0.10454986989498138,
+        "B": 0.49199378490448,
+        "C": 0.39589232206344604,
+        "D": 0.00756407855078578
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "新局 corruption=0.28 ⇒ 门=False；当前本色损耗约 17,186 石/月，直接归零（A）改动过大",
+        "B 与 C 差 0.096 属近平手；C 只降 30%，对'未判贪墨'的语义偏弱；B 减半既可见又不归零",
+        "只改本色损耗、不动钱侧贪腐；无观察记录时回落 1.0，保证直接调用结算的旧测试零变更",
+        "上限/折扣固定 0.5，不改公式结构；后续可按 A/B 长局再调"
+      ],
+      "applied_in": "settlement_granary._granary_corruption_factor（读 state._tiandao_observe）；tests/test_audit_20261021_granary_gate.py（4 条）",
+      "reopen_if": "60 月 A/B 显示粮食/价格偏差过大时，改回 C（×0.7）或加上限；granary gate 的 True 分支仍需单独校准"
+    }
+  ]
+}
