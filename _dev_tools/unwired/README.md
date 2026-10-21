@@ -7,6 +7,7 @@
 |---|---|---|
 | `contract_adapter.py` | `game/ai/contract_adapter.py` | 34 契约 → `{changes, narrative}` 统一视图；**待接线**（审计 C-10 AST 核实 0 调用） |
 | `async_ai.py` | `game/core/async_ai.py` | AI 异步化；**未接线**——其线程纪律以**已移除的 Tkinter `ui.after`** 为前提；现非阻塞由 FastAPI 线程池 + 前端 HTTP 异步承担 |
+| `disaster_tier.py` | —（本目录新增） | 灾害档位参考实现；**未进 games 生产路径**，由测试直接 import。⚠️ 先前 README 漏登记，2026-10-21 补 |
 
 **保留在 `game/ai/client_utils.py` 的 `STATE_TOOL_SCHEMAS`**（未一并移出）：实测
 `_tool_dispatch` / `_TOOL_SCHEMAS`（八工具）**是生产路径**（`ai/contracts_court.py:93`、`ai/client.py:440`），

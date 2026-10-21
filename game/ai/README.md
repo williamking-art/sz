@@ -72,7 +72,7 @@ token 计量、知识库检索和可选语义检索。AI 提供结构化请求�
     `enable_tools="simple"` 时首轮/次轮都是精简 5 工具（修前次轮硬编码全量 10 工具＝权限面回弹）。
 12. **天道档位槽 `_turn` 纪律**（P0-4）：`state._decree_ai` / `state._decree_execute_ai` 是**运行时槽位**——
    生产者（`contracts_decree.decree_duration_decide` / `application.agent_router._inject_one`）
-   产出后盖 `_turn`；`decree_prefetch` 与 `_inject_one` **开跑前清槽**；消费端（`core/.../decree_duration.py`、
+   产出后盖 `_turn`；`decree_prefetch` 与 `_inject_one` **开跑前清槽**；消费端（`core/domains/politics/decree_duration.py`、
    `edict_closure.py` 的 `slot_is_current`）对**带 `_turn` 的槽只认本回合**。
    口径：**缺失 ≠ 沿用上次结论**（修前 Jev 失败后新诏沿用上一道诏的时效/态度/落地档）；
    无 `_turn` 的历史测试槽保持兼容。

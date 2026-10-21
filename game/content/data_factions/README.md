@@ -15,4 +15,4 @@
 - `check_not_applicable_reason` 会**拒绝**「暂无数据 / 未实现 / todo」这类占位语，避免用一句空话把「为什么不适用」糊弄过去。
 - 势力配置**不得复制** `core/building_jobs` 的数值，只引用（单点来源）。
 
-上级索引见 [`../README.md`](../README.md) 与 `core/faction_registry.py`。
+上级索引见 [`../README.md`](../README.md)；集团归属/校验的单点在 `core/faction_basis.py`（**不存在** `core/faction_registry.py`）。
