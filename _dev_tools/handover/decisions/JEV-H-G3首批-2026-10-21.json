@@ -1,0 +1,31 @@
+{
+  "id": "JEV-H-G3首批-2026-10-21",
+  "date": "2026-10-21",
+  "agent": "DSH",
+  "purpose": "H G-3 粮迁移首批落地方式",
+  "items": [
+    {
+      "question": "H 首批选哪个？A=治所级只读对账/映射;B=双写影子;C=切读",
+      "options": [
+        "A=治所级只读对账/映射",
+        "B=双写影子",
+        "C=切读"
+      ],
+      "verdict": "A（0.9958）",
+      "probabilities": {
+        "A": 0.9957985281944275,
+        "B": 0.0027097510173916817,
+        "C": 0.0014916385989636183
+      },
+      "provider": "tokenrhythm/NeoHorse-Jev-4B",
+      "premises_verified_by_me": [
+        "真账在治所 POP，既有 survey_grain 只扫路级镜像 ⇒ 会漏真账；先补治所级对账是切读写前置",
+        "实测治所 POP 仍有 legacy grain、goods 为空（未迁移），B/C 在无对账基线时风险高",
+        "映射假设 grain→米（GRAIN_MIGRATION_DIM，单一总量不拆米麦），与 grain_ledger 既有口径一致",
+        "只读不写 state；四态严格计数（both/legacy_only/goods_only/neither）"
+      ],
+      "applied_in": "grain_ledger.survey_grain_seats + tests/test_audit_20261021_grain_seat_survey.py（2 条）；未切读写/未双写",
+      "reopen_if": "双写影子（B）前先审对账基线；若发现 legacy/goods 已双写冲突，先修桥再迁移"
+    }
+  ]
+}

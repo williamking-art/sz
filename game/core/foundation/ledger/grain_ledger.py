@@ -141,4 +141,79 @@ def survey_grain(state) -> Dict[str, object]:
     }
 
 
-__all__ = ["GRAIN_MIGRATION_DIM", "grain_of", "has_grain_bucket", "survey_grain"]
+def survey_grain_seats(state) -> Dict[str, object]:
+    """H 首批（Jev A 0.996）：**治所级** legacy `grain` vs `goods[米麦]` 只读对账/映射。
+
+    真账在 `prefectures[路]["seats"][治所]["pops"][类]`；本函数逐治所 POP 比对：
+    - `legacy_grain`：旧 `.grain` 数值（缺失 `None`，不按 0）；
+    - `goods_grain`：`grain_of` 读 goods 米麦类目合计（无桶 `None`）；
+    - 状态：`both`（两边都有）/`legacy_only`/`goods_only`/`neither`；
+      两边都有时 `delta = goods - legacy`，`mismatch = delta != 0`。
+    映射假设：单一 `grain` 全额入 `GRAIN_MIGRATION_DIM`（米），**不臆造米/麦拆分**（与 grain_ledger 口径一致）。
+    **纯只读**，不写 state。
+    """
+    prefs = getattr(state, "prefectures", None) or {}
+    seat_count = pop_count = migrated = 0
+    sum_legacy = sum_goods = 0
+    both = legacy_only = goods_only = neither = mismatch = 0
+    rows = []
+    for route, pdata in prefs.items():
+        seats = (pdata or {}).get("seats") or {}
+        if not isinstance(seats, dict):
+            continue
+        for seat, sdata in seats.items():
+            seat_count += 1
+            pops = (sdata or {}).get("pops") or {}
+            if not isinstance(pops, dict):
+                continue
+            for cls, pop in pops.items():
+                if not isinstance(pop, dict):
+                    continue
+                pop_count += 1
+                lg = pop.get("grain")
+                legacy = int(lg) if isinstance(lg, (int, float)) else None
+                has_bucket = has_grain_bucket(pop)
+                gg = grain_of(pop) if has_bucket else None
+                goods = int(gg) if isinstance(gg, (int, float)) else None
+                if has_bucket:
+                    migrated += 1
+                if legacy is not None and goods is not None:
+                    both += 1
+                    d = goods - legacy
+                    sum_legacy += legacy
+                    sum_goods += goods
+                    if d != 0:
+                        mismatch += 1
+                elif legacy is not None:
+                    legacy_only += 1
+                    sum_legacy += legacy
+                elif goods is not None:
+                    goods_only += 1
+                    sum_goods += goods
+                else:
+                    neither += 1
+                rows.append({"route": route, "seat": seat, "cls": cls,
+                             "legacy_grain": legacy, "goods_grain": goods,
+                             "migrated": bool(has_bucket),
+                             "delta": (goods - legacy) if (legacy is not None and goods is not None) else None})
+    return {
+        "schema_version": 1,
+        "read_only": True,
+        "seat_count": seat_count,
+        "pop_count": pop_count,
+        "migrated_pops": migrated,
+        "migration_state": ("未迁移" if migrated == 0 else
+                            ("已迁移" if migrated == pop_count and pop_count else "部分迁移")),
+        "sum_legacy_grain": sum_legacy,
+        "sum_goods_grain": sum_goods,
+        "both": both, "legacy_only": legacy_only, "goods_only": goods_only, "neither": neither,
+        "mismatch_count": mismatch,
+        "state_granary": int(getattr(state, "granary", 0) or 0),
+        "mapping": [{"from": "pops[].grain", "to_dim": GRAIN_MIGRATION_DIM,
+                     "scope": "治所级 POP 真账", "split": False,
+                     "note": "单一无单位总量，全额入米；不臆造米/麦拆分"}],
+        "sample": rows[:30],
+    }
+
+
+__all__ = ["GRAIN_MIGRATION_DIM", "grain_of", "has_grain_bucket", "survey_grain", "survey_grain_seats"]
