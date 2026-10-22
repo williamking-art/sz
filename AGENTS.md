@@ -245,7 +245,7 @@ cd frontend
 | 项 | 值 |
 |---|---|
 | 端点 | `http://120.25.223.23:18080/mcp`（Streamable HTTP，stateless）✅ 2026-10-23 复测：服务器侧容器 `mcp-songzuo` healthy、容器内 `/healthz` 200、`/mcp` 无 token 405；**外网 502 是本机 `HTTP_PROXY=127.0.0.1:7890` 代理假象**（`curl --noproxy '*'` 后 200），服务本身正常 |
-| 部署 | 阿里云 ECS `120.25.223.23`（cn-shenzhen）· `/opt/mcp-songzuo` · docker compose（mcp + nginx） |
+| 部署 | 阿里云 ECS `120.25.223.23`（cn-shenzhen）· `/opt/mcp-songzuo` · docker compose（mcp + nginx）。**2026-10-23 实测**：仓库 `app/{index,selftest,storage}.js`+`package.json` 与服务器部署 sha256 **完全一致**（无需重新部署）；`verify.sh` 端到端 **28/28 自测通过**、无 token 401、initialize OK、tools/list=**8**、state_set→state_get 回读一致且落盘 |
 | 源码 | `_dev_tools/mcp-songzuo/`（`app/index.js` 提供 8 个工具 + 多 token 鉴权；`storage.js` 支持 local/oss 两种存储） |
 | 运维台账 | `D:\codebuddy\_credentials\mcp_songzuo.md`（**含逐 agent token，不入库**） |
 | 域名入口（2026-10-23 复测正确） | `songzuo.online` **已备案上线**（鄂ICP备2026058515号）。复测（绕过本机代理）：官网 `https://songzuo.online/` → 200、`https://mcp.songzuo.online:8443/healthz` → 200 且证书校验通过（ssl_verify_result=0）⇒ **域名 TLS 入口可用**；客户端仍配直连 IP 属历史习惯。⚠️ 2026-10-22 曾因本机 HTTP_PROXY 误判为 502/TLS 失败，已更正 |
