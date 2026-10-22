@@ -66,7 +66,7 @@ DEV_DOCS = [
     ("POP 体系改良（合并版）", "_dev_tools/game-docs/analysis/POP改良_合并版_2026-09-27.md", "design"),
     ("改进方案（合并版）", "_dev_tools/game-docs/analysis/改进方案_合并版_2026-09-22.md", "design"),
     ("全审台账索引（2026-09-18）", "_dev_tools/game-docs/archive/全审台账索引_2026-09-18.md", "audit"),
-    ("会话交接（失败会话复盘）", "_dev_tools/game-docs/reviews/交接_失败会话_2026-09-26.md", "ops"),
+    ("会话交接（失败会话复盘）", "_dev_tools/game-docs/archive/2026-10-21-historical/交接_失败会话_2026-09-26.md", "ops"),
 ]
 
 SCHEMA = """
