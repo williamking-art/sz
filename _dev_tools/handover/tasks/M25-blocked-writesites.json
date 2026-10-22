@@ -8,5 +8,47 @@
  "dsh建议顺序": "①先做阶段3主体：迁 settlement_* 步骤到 domains/ ②B 类迁完自动变合法 ③剩 C 类 5 条才是①适用面 ④定①硬失败判据（建议乙=留痕+哨兵）后再上",
  "note": "11 个写站点的接口归属已由用户 2026-10-07 裁定，详见 decisions/M25-写站点拆环.json：仅 C 类底层反向写站点允许有限依赖注入，不建 11 站点通用注册体系。此任务保留为架构阶段3收尾项；与经济玩法的 AI 档位、路线粮价和 POP 真账任务分开，不要求本轮改军事业务。",
  "id": "M25-blocked-writesites",
- "_source": "cloud:tasks.board"
+ "_source": "cloud:tasks.board",
+ "audit_updated_at": "2026-10-23T01:15:00+08:00",
+ "audit_by": "DSH-lead",
+ "audit_status": "部分落地 / 剩余面已实测定位 / 本批按裁决不实施（Jev A 0.969）。已落地：application/game_init.py 与 application/load_game.py 建成并接生产入口（commands.new_game 委托）；save_load 三条写站点移除或迁出（normalize_tasks 移除、register_dynamic_blueprint 迁应用层、ensure_hidden_in_pops 移除）；§6-1 依赖方向已解（game_state/save_load 不再引 domains/）；失败分级（RestoreServiceError / 单条丢 / 子段拒）已定并留证于 decisions:M25-写站点拆环。",
+ "remaining_edges_measured": {
+  "measured_at": "2026-10-23T01:10:00+08:00",
+  "method": "AST 全扫 game/core/foundation/**/*.py，筛 Import/ImportFrom 目标以 core.domains / core.application / application. / ai. 开头",
+  "count": 11,
+  "files": {
+   "game/core/foundation/metrology.py": [309, 349],
+   "game/core/foundation/ledger/material_holding.py": [737, 916],
+   "game/core/foundation/persistence/migrations.py": [131, 141, 152, 167, 215, 271, 274]
+  },
+  "nature": "全部为函数内延迟导入（用于拆环）；当前无运行时缺陷，属架构债（违反 §6-1 分层）"
+ },
+ "verdict": {
+  "by": "Jev(tokenrhythm)",
+  "mode": "choose",
+  "question": "M25 剩余架构收尾本批如何处置？",
+  "probabilities": {"A": 0.9690, "B": 0.0295, "C": 0.0015},
+  "ruling": "A=本批不实施；把 11 条边清单 + 原因 + 阻塞条件写进任务与 PROGRAM，留作专项（等 M324 收口后）"
+ },
+ "why_deferred": [
+  "① foundation/metrology.py 与 Antigravity 的 M324（度量衡引擎/变法，in_progress，claimedBy=antigravity）范围重叠——直接改会与在办工作冲突（AGENTS §1：不接手他人 in_progress）",
+  "② 用户裁定「路径①依赖注入」要求先定「①硬失败判据」（漏注册＝静默不执行 ⇒ 必须能被发现）；该判据未定前实施等于把静默失败风险引进 foundation",
+  "③ 11 条边全是函数内延迟导入，当前无运行时缺陷，属架构债；不影响本轮发行包与玩法",
+  "④ 涉及 foundation 核心（material_holding 单点访问层、migrations 读档路径）⇒ 须口径 + 定向回归，不宜与其他批次混做"
+ ],
+ "blocked_by": [
+  "M324-metrology-engine-and-reforms（antigravity, in_progress）先收口（尤其 metrology 的变法效果与 apply_reform 调用链）",
+  "①硬失败判据裁定（建议乙＝留痕+哨兵：注册表缺项时 warn+结构化留痕，并由回归断言兜底）"
+ ],
+ "next": [
+  "① M324 收口后重扫 11 条边，确认最新行号与调用性质（读/写，按 §五之补 的 AST+人工核实法，不信启发式）",
+  "② 对每条边定注入形状：谁提供、谁消费、缺失语义（缺失≠0 ⇒ 必须显式失败或留痕）",
+  "③ 先落①硬失败判据（哨兵 + 回归），再逐条改注入；每改一条补定向回归",
+  "④ 全部改完后把「foundation→上层 import 数 = 0」做成棘轮测试（参照 test_compat_entry_ratchet.py / test_architecture_import_guard.py）"
+ ],
+ "acceptance": [
+  "AST 复扫 game/core/foundation/ → core.domains/core.application/application./ai. 反向边为 0（或全部改为显式注入且无 import 边）",
+  "①硬失败判据有回归：故意漏注册一条 ⇒ 测试变红（而不是静默跳过）",
+  "全量 pytest 绿 + golden 不变（纯架构改动不应改数值；若有变必须留 CHANGELOG 并说明）"
+ ]
 }
