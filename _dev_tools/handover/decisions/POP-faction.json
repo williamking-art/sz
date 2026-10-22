@@ -1,6 +1,6 @@
 {
  "title": "POP 增派系子池（与阶层分离）",
- "status": "design-done",
+ "status": "已裁定",
  "raisedBy": "DSH",
  "note": "设计已定稿，代码未实施；须走 ① 步",
  "blocks": [
@@ -9,5 +9,8 @@
   "三税"
  ],
  "id": "POP-faction",
- "_source": "cloud:decisions.items"
+ "_source": "cloud:decisions.items",
+ "verdict": "Jev A 0.699：本批不实施，保持 design-done，不进发行版",
+ "verdictBy": "Jev(tokenrhythm)",
+ "verdictAt": "2026-10-22T14:04:12Z"
 }

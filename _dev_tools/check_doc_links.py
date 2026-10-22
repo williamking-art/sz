@@ -20,9 +20,17 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", "dist", "build", ".venv",
              ".audit-venv", "target", ".pytest_cache", ".ruff_cache",
              # 生成/临时/归档副本：不是仓库文档，断链不计
              "_scratch", "scratch", "tmp", "_ming_probe", ".qoder",
+             # `.cloudbase` 是**历史残留目录**（CloudBase 已于 2026-10-22 停用，云侧迁阿里云；
+             # 见 mcp-songzuo/README.md 与 docs/开发服务器与回归测试说明.md §8.8），
+             # 保留跳过以便本机旧目录仍在时不被当作文档目录扫描。
              ".cloudbase", ".codebuddy", ".mnemon", ".agents", "songzuo",
              # 纸娃娃实验目录（用户裁定冻结，不在文档门禁范围）
-             "paperdoll_experiment"}
+             "paperdoll_experiment",
+             # 历史归档（AGENTS §1：archive 为**只读留档，勿改勿删**）
+             # —— 2026-10-21 归档时相对链接未重写，实测 15 处断链全部落在
+             #    `archive/2026-10-21-historical/`（指向已迁走的 specs/docs/analysis）。
+             #    按"历史档不追改"的既有规矩跳过；现行文档断链仍会被本脚本拦下。
+             "archive"}
 
 
 def iter_markdown(root: str):

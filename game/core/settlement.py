@@ -453,27 +453,70 @@ def _isolated_rng(fn):
     会 `unwrap()`（`functools.wraps` 设了 `__wrapped__`）→ 内省拿到的仍是真实流水线。
     """
     @functools.wraps(fn)
-    def _wrapper(state, seed_offset: int = 0):
+    def _wrapper(state, seed_offset: int = 0, **kwargs):
         _saved = random.getstate()
         random.seed(state.turn * 1000003 + seed_offset)
         try:
-            return fn(state, seed_offset)
+            # 🔴 必须转发 **kwargs：`functools.wraps` 让 `inspect.signature` 跟随
+            # `__wrapped__` 显示真实签名，但 wrapper 若只转固定参数，运行时会丢掉
+            # 新加的 kwargs（如 `expect_turn`），报 "unexpected keyword argument" 却
+            # 内省看起来一切正常（2026-10-22 实测踩坑）。
+            return fn(state, seed_offset, **kwargs)
         finally:
             random.setstate(_saved)
     return _wrapper
 
 
 @_isolated_rng
-def run_monthly_settlement(state, seed_offset: int = 0) -> list:
+def run_monthly_settlement(state, seed_offset: int = 0, expect_turn=None) -> list:
     """执行月度结算，返回本轮结算日志列表。
 
     seed_offset 用于确定性复现：以 (state.turn + seed_offset) 派生随机种子，
     使相同回合+offset 的结算结果可复现，为 dev/replay 回放与平衡 A/B 对比打基础。
 
+    🔴 `expect_turn`（2026-10-22 幂等守卫，Jev B 0.514）：调用方可声明"我要结算第几回合"。
+    - `None` ⇒ 行为与改前**完全一致**（向后兼容；老调用方零改动）；
+    - `== state.turn` ⇒ 正常结算；
+    - `< state.turn` 且有历史日志 ⇒ **幂等重放**：不结算、不改状态，返回该回合日志副本
+      ——覆盖「结算成功但响应丢失、客户端重发」这条真实情形（改前它会**再推一个月**）；
+    - `< state.turn` 无历史日志 ⇒ 不结算 + warning（宁可少给，不重复推月）；
+    - `> state.turn` ⇒ 不结算 + warning（客户端超前/两端漂移，跳过一月更危险）。
+    为什么用回合而不是令牌：`state.settlement_log` 本就按回合 append，重放无需新状态。
+    
+
     **地基（2026-09-27）**：结算结束必须**还原全局随机流**（由 `@_isolated_rng` 负责）。
     原实现直接 `random.seed(...)` 播种全局 RNG 且不还原 —— 实测污染调用方后续随机序列
     （结算前抽 `[0.41662, 0.010169, 0.825207]`，结算后变成 `[0.481827, 0.610136, 0.673403]`）。
     """
+    # ---- 幂等守卫（2026-10-22）：声明式重放，不动状态 ----
+    if expect_turn is not None:
+        try:
+            _want = int(expect_turn)
+        except (TypeError, ValueError):
+            _want = None
+        if _want is not None:
+            _cur = int(getattr(state, "turn", 0) or 0)
+            if _want == _cur:
+                pass                                   # 正常结算（下方全流程）
+            elif _want < _cur:
+                _hist = getattr(state, "settlement_log", None) or []
+                if 0 <= _want < len(_hist) and isinstance(_hist[_want], list):
+                    import logging as _idlg
+                    _idlg.getLogger("settlement").info(
+                        "结算幂等重放：expect_turn=%s 已结算过（当前 %s），返回历史日志",
+                        _want, _cur)
+                    return list(_hist[_want])          # 副本：不让调用方改到存档内日志
+                import logging as _idlg2
+                _idlg2.getLogger("settlement").warning(
+                    "结算请求过期且无历史日志：expect_turn=%s 当前=%s，本月不结算", _want, _cur)
+                return []
+            else:
+                import logging as _idlg3
+                _idlg3.getLogger("settlement").warning(
+                    "结算请求超前：expect_turn=%s 当前=%s，拒绝推进（跳过一月更危险）",
+                    _want, _cur)
+                return []
+
     log = []
 
     # 局势 intent 校验用：本回合 `state_applier` 事务记录的起始游标（§5.2）。
@@ -657,7 +700,9 @@ def run_monthly_settlement(state, seed_offset: int = 0) -> list:
     # ---- Step 11: 记录与回合推进 ----
     # 将月份/年份推进收敛到结算函数内部，确保与 Rust 后端（settle.rs）的推进位置一致，
     # 避免 commands 层再次推进导致双端月份各推一次的漂移。
-    state.settlement_log.append(log)
+    # 存**副本**：`log` 同时作为返回值给调用方，若存的是同一对象，
+    # 调用方就地修改会污染存档里的历史日志（2026-10-22 实测别名问题）。
+    state.settlement_log.append(list(log))
     # ---- Step 11.5: 月度奏章八章（批 3 · 明末经验）----
     # 固定八章 + 章末七言联 + ▲▼ 差值摘要；只读组装，失败不阻断回合推进。
     try:

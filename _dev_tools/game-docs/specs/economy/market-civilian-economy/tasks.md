@@ -306,10 +306,15 @@ pytest 1769 → **1771**，240 月残差 **0**（ΣPOP 62,915,075）。
 
 | 接线点 | 位置 | 内容 |
 |---|---|---|
-| R4 增产 | `settlement.py` Step 3.5.2（`_settle_land_local` 之后、`_settle_region_deepen` 之前） | `apply_agri_effects(state, log)`；紧随收获分配⇒**不二次计税**；早于粮市⇒同月形成可售粮 |
-| R4 霉耗钩子 | `settlement_granary.py:544` 农储霉耗段 | `effective_spoil_rate`；**返回 `None` 按基率**，不回落 0（回落 0＝凭空取消霉耗） |
-| R4 运力钩子 | `settlement_granary.py:87` `canal_eff` | `effective_canal_block`；同上 |
-| R6 外销 | `settlement_granary.py:396` §3.5 整段替换 | `export_decision` + `apply_export_decision`（26 行 → 15 行，删就地 `_cap`/`min` 重复口径） |
+| R4 增产 | `settlement_pipeline.py` · `STEPS["agri_effects"]`（`build_default_steps` 声明；位于 `land_local` 之后、`region_deepen` 之前） | `apply_agri_effects(state, log)`；紧随收获分配⇒**不二次计税**；早于粮市⇒同月形成可售粮（原写 `settlement.py` Step 3.5.2，序号已废） |
+| R4 霉耗钩子 | `settlement_granary.py::_settle_granary` 农储霉耗段（`effective_spoil_rate`，现 `:1156-1157`） | `effective_spoil_rate`；**返回 `None` 按基率**，不回落 0（回落 0＝凭空取消霉耗）（原写 `:544`，已漂移） |
+| R4 运力钩子 | `settlement_granary.py::_settle_granary` 运力段（`effective_canal_block` `:553-554` → `canal_eff` `:559/561`） | `effective_canal_block`；同上（原写 `:87`，已漂移） |
+| R6 外销 | `settlement_granary.py::_settle_granary` 外销段（`export_decision` `:964` ／ `apply_export_decision` `:973`） | `export_decision` + `apply_export_decision`（26 行 → 15 行，删就地 `_cap`/`min` 重复口径；原写 `:396`，已漂移） |
+
+> 🔴 **2026-10-22 复核（D-6）**：机制已从 `settlement.py` 的**内联步骤**迁入
+> `settlement_pipeline.py` 的**声明式管线**（`STEPS` 注册表），上表原 6 处接线锚点
+> （本表 4 处 ＋ 下文 B4-1 的 Step 4.45/4.46/4.47 ＋ B4-7 的 Step 3.85）行号/序号均已陈旧，
+> 现统一改为「**文件::符号**」锚点，行号只作**当前坐标参考**、不再当稳定标识。
 
 R4 的临时守卫 `test_NOT_YET_wired_into_settlement_pipeline` 已删除，
 改为 **3 条永久接线断言**（`test_agri_effects_is_wired_...` 等），防后续误删接线。
@@ -549,7 +554,7 @@ R4 的临时守卫 `test_NOT_YET_wired_into_settlement_pipeline` 已删除，
 > **落地模块**：`core/material_holding.py`（E-1 存量与单点读口）·
 > `core/transport.py`（州府间交通边与**在途批次**，距离→耗时）·
 > `core/material_trade.py`（跨州府成交**钱货两腿分离** + 商人**补货决策**）。
-> **结算接线**：Step 4.45 供给（仓→商人货栈，搬运守恒）／4.46 到货入账／4.47 补货下单。
+> **结算接线**：`settlement_pipeline.py::STEPS` 的 `supply_goods_to_seats`（仓→商人货栈，搬运守恒）／`arrive_due`（到货入账）／`procure_materials`（补货下单）——原写 Step 4.45/4.46/4.47，**序号已废**（2026-10-22 复核）。
 >
 > **先前"Lead 曾试 B 并回退"的三个理由，逐条已处理**：
 > ①「料款与工钱共用出资阶层互相抢钱」——建材货款走 `market.trade_goods`／`transfer_money` 的既有守恒通道，不新建出资池；
@@ -677,8 +682,7 @@ R2 的 `(路, 商品)` 粒度**未选错层**。
 - [x] **B4-6** 三种取材路径分别记账：市场购料 / 官仓领料 / 民间自建
       —— **基准估价、采购款、工钱、运费不得双计**
 - [x] **B4-7** 民间营造触发：民居/商铺/货栈随人口、拥挤、损坏、经营扩张而建
-      → `core/civil_building.py`（1092 lines，**65 例**）；**已接线**（`settlement.py` Step 3.85，
-      排在产出链之后、`_settle_upkeep` 之前 ⇒ 新造房屋当月即进维护费，无"造完当月免维护"漏洞）。
+      → `core/civil_building.py`（1092 lines，**65 例**）；**已接线**（`settlement_pipeline.py` · `STEPS["civil_construction"]`，位于 `workshops` 之后、`upkeep` 之前 ⇒ 新造房屋当月即进维护费，无"造完当月免维护"漏洞；原写 `settlement.py` Step 3.85，序号已废）。
       四动因折算成同量纲"需要的级数"；料真扣、钱经 `transfer_money` 划转本路工匠（**有付款对手方**）、
       工时只记 `statistics`、**不写任何 POP `size`**；`民居`/`货栈` 非岗位类不影响就业基线，
       `商铺`（40 商人岗/级）**默认不开闸**需显式 opt-in。实测 24 月：民居 Lv5、货栈 Lv1、全国 65 实体

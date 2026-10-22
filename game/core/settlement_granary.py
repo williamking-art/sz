@@ -39,6 +39,7 @@ from core.domains.economy.demand import basic_need, demand_release
 #   · size/wealth 等写 `pop_bridge`（先落州府真账、再刷路级派生镜像）。
 # 存量**读取**仍走路级 `pops`（它是桥接维护的镜像）。未下沉时桥接返回 None，调用方回落原写法。
 from core.foundation.ledger.grain_bridge import grain_add as _grain_add
+from core.foundation.ledger.grain_bridge import grain_get as _grain_get
 from core.foundation.ledger.pop_bridge import pop_obj_add as _pop_obj_add
 
 from core.settlement_common import (
@@ -53,15 +54,79 @@ from core.settlement_finance import (  # 跨域互调
     _settle_stabilizer_recycle,
 )
 
+# 2026-10-21（L3-b 天道数值接线批）：门面裁决的**共享读取点**。
+# 缺失 ⇒ None ⇒ 中性（乘子 1.00 / 不动作）；**不回落默认档位**。
+from core.ai.tiandao_effects import (FLEE_VERDICT_MULT, jitter, observe_mix,
+                                     objective_threshold,
+                                     observe_strength, observe_verdict)
+# 国库支出必须回流民间账户（否则 M_ALL 掉、月度对账报"凭空销毁"）；
+# `_distribute_pop_wealth` 是既有守恒分摊单点（尾差归最大府），与 settlement_finance 同源。
+from core.domains.economy.settlement_econ_helpers import _distribute_pop_wealth
+
+
+# ============================================================================
+# ① 天道 `canal_reroute_choice`（漕运改道决断）→ 漕运途耗乘子 ＋ 额外代价
+# ----------------------------------------------------------------------------
+# 口径：只作用于**漕运途耗**（`canal_loss` 那一条公式），不改公式结构；
+# 额外代价**每月一次**，且只在三运制发纲月（3/6/9）真有起运量时发生。
+# 单位：漕运量一律为**石**（`canal_shi` = 本月 Σ起运 take；已入仓量 = canal_in）。
+# 取值：`wait_dredge`（等疏浚）/ 缺失 ⇒ ×1.00 ＋ 无代价（**中性，零变更**）。
+# ============================================================================
+#: 裁决白名单（同时是文档：选项名一改就静默失效会被测试抓到）
+CANAL_ROUTE_ALLOWED = ("wait_dredge", "overland_cart", "borrow_grain")
+#: 裁决 → 途耗乘子（陆路绕开淤积河段 = 耗损降两成；和籴借兑补粮 = 降一成）
+#: 🔴 2026-10-22：这些是**每个选项的乘子**，实际生效值 = 按选项概率的**期望**
+#:    `Σ p_o × mult_o`（见 `_canal_route_loss_mult`），不再是"取 argmax 后查表"。
+CANAL_ROUTE_LOSS_MULT = {"wait_dredge": 1.00, "overland_cart": 0.80, "borrow_grain": 0.90}
+#: 漕运途耗的天意扰子幅度（月度、全国一份；同回合可复现）
+CANAL_JITTER = 0.05
+#: 陆运脚钱：起运量 × 0.01 贯/石（口径常量；落地用千分位定点，避免 float 截断偏差 1 贯）
+CANAL_OVERLAND_COST_PER_SHI = 0.01
+CANAL_OVERLAND_COST_PERMILLE = 10          # = 0.01 × 1000（定点实现：成本 = 石 × 10 // 1000）
+#: 和籴借兑补粮：起运量 × 3%（石；≈ 漕运途中损耗量级），自地方府库出钱、粮入太仓
+CANAL_BORROW_GRAIN_RATE = 0.03
+CANAL_BORROW_GRAIN_PERMILLE = 30           # = 0.03 × 1000（定点实现：补粮 = 石 × 30 // 1000）
+#: 新增**统计键**（口径单点，勿在别处重算）：
+#:   statistics["canal_overland_cost"]  累计陆运脚钱（贯，自国库）
+#:   statistics["canal_borrow_cost"]    累计和籴购粮支出（贯，自地方府库合计）
+#:   statistics["canal_borrow_grain"]   累计和籴入太仓粮（石）
+#: 两者同时计入既有累计键 `statistics["total_expenditure"]`（支出记账不重复：各自独立发生）。
+#: ⚠️ `statistics["last_monthly_expense"]`（`_settle_finance` 写的月度刚性支出口径）
+#:    **不含**本批代价——不改财政口径，是已知的读数边界（见模块注释）。
+
+# ============================================================================
+# ② 天道 `recruit_refugees_to_soldiers_gate`（募流民为厢军）→ 流民转入本路兵额
+# ----------------------------------------------------------------------------
+# 口径：每月每地按流民存量的 **2% × 门闸超阈强度** 募入、单地单月上限 2000 人。
+# 🔴 2026-10-22：强度 = `gate_intensity(p, 0.5)`（p=0.55 ⇒ ×0.10，p=0.95 ⇒ ×0.90），
+#   所以"刚过判定线"与"高度确定"在**幅度上不同**；缺失/未定义 ⇒ 0（中性）。
+# 人守恒：流民池 −n，兵额真账（`ArmyUnit.branches`）＋n；**兵 POP 的 size 不手改**
+# （`_settle_finance` 末尾按 Σtroops 重聚合，本步在其**之前**，故当月即对齐）。
+# ============================================================================
+RECRUIT_REFUGEE_RATE = 0.02                 # 2% / 月（满强度时的上限率）
+RECRUIT_REFUGEE_RATE_PERMILLE = 20          # = 0.02 × 1000（定点实现：募入 = 流民 × 率 // 1000）
+RECRUIT_REFUGEE_CAP_PER_ROUTE = 2000        # 人 / 地 / 月
+#: 募兵的天意扰子幅度（每地每月不同、同回合可复现）
+RECRUIT_JITTER = 0.12
+
+
+#: 两个门闸的**判定阈值**（与 `core.ai.tiandao_decision.THRESHOLDS` 同源：默认 0.50）。
+#: `gate_intensity(p, 阈值)` = 超阈归一强度 ∈ [0,1]：p=0.55 ⇒ 0.10，p=0.95 ⇒ 0.90。
+#: 🔴 2026-10-22（B1 审查）：平粜/贪墨两个消费点不再按裁决词二值化，改为按此强度连续缩放。
+GATE_THRESHOLD = 0.50
+#: 仓场贪墨门：强度 s=0（判无贪墨）时的雀鼠耗本色损耗系数下限（减半，不归零）
+GRANARY_CORRUPTION_MIN_FACTOR = 0.5
+
 
 def _changping_sell_allowed(state) -> bool:
-    """D 数值接线（2026-10-21，Jev B 0.365 vs A 0.365 近平手，按 B）：常平是否开仓平粜。
+    """**旧二值口径（兼容保留）**：常平是否开仓平粜。
 
-    读 `TianDaoFacade.observe_monthly` 记录：
-    - 无记录 / 未定义 → True（回落现状，直接调用结算的旧测试零变更）；
-    - `changping_intervene_gate=False` → False（本月不平粜，**不卖**）；
-    - True → True。
-    只作用于"高价平粜"卖粮，不影响平籴/价格公式。
+    2026-10-21 D 数值接线的原实现：无记录/未定义 → True；`changping_intervene_gate=False`
+    → False；True → True。只作用于"高价平粜"卖粮，不影响平籴/价格公式。
+
+    🔴 2026-10-22（B1 审查）：**生产调用点已改用 `_changping_sell_ratio`（按超阈强度连续）**；
+    本函数只作为「旧格式记录（只有 `decisions`、没有 `strengths`）」的兼容回退，
+    以及既有测试的稳定接口，**不再是平粜幅度的唯一依据**。
     """
     rec = getattr(state, "_tiandao_observe", None)
     if not isinstance(rec, dict):
@@ -78,15 +143,43 @@ def _changping_sell_allowed(state) -> bool:
     return True
 
 
-def _granary_corruption_factor(state) -> float:
-    """D 数值接线（2026-10-21，Jev B 0.492）：仓场贪墨门的**本色损耗系数**。
+def _changping_sell_ratio(state) -> float:
+    """常平「高价平粜」的当月**比例系数** ∈ [0, 1]（0 ⇒ 不平粜；1 ⇒ 既有公式满额）。
 
-    读的是 `TianDaoFacade.observe_monthly` 本回合写入的只读记录：
-    - 无记录 / 未定义 → 1.0（回落现状，保证直接调用 `_settle_granary` 的旧测试零变更）；
-    - 有记录且 `granary_corruption_check=False` → **×0.5**（减半，不归零）；
-    - True → 1.0（维持既有公式）。
-    只影响"雀鼠耗本色损耗"，不碰钱侧贪腐，也不改公式结构。
+    🔴 2026-10-22（B1 阻断项）：由「裁决词二值开关」改为按门闸**超阈强度**连续缩放：
+    `s = gate_intensity(p, 0.50)`，平粜量 = 既有公式 × s ⇒「刚过判定线」与「高度确定」
+    在**幅度**上真的不同（p=0.55 ⇒ ×0.10；p=0.95 ⇒ ×0.90），不再是要么全卖、要么不卖。
+
+    缺失语义（**与改前一致，不新造默认档**）：
+    - 无 `_tiandao_observe`（直接调用结算的旧测试/旧档）⇒ **1.0**（＝改前"允许满额平粜"）；
+    - 有记录但**没有 `strengths`**（旧格式/手写记录）⇒ 回退旧二值 `_changping_sell_allowed`；
+    - 有 `strengths` 但该门面未定义 ⇒ 同样回退旧二值（不臆造强度）。
     """
+    strength = observe_strength(state, "changping_open",
+                                     objective_threshold("changping_open"))
+    if strength is not None:
+        return max(0.0, min(1.0, float(strength)))
+    return 1.0 if _changping_sell_allowed(state) else 0.0
+
+
+def _granary_corruption_factor(state) -> float:
+    """仓场贪墨门的**本色损耗系数**（连续版）。
+
+    🔴 2026-10-22（B1 阻断项）：由「False ⇒ ×0.5 / True ⇒ ×1.0」二值改为**连续**：
+    `factor = 1 − (1−s) × 0.5`，`s = gate_intensity(p, 0.50)`：
+    - s=0（判无贪墨）⇒ **0.5**（与旧 False 档一致，减半但不归零）；
+    - s=1（判有贪墨且高度确定）⇒ **1.0**（维持既有公式）；
+    - 中间连续：p=0.55 ⇒ s=0.10 ⇒ ×0.55；p=0.95 ⇒ s=0.90 ⇒ ×0.95。
+
+    缺失语义（不变）：无 `_tiandao_observe` ⇒ 1.0；有记录但**没有 `strengths`**
+    ⇒ 回退旧二值（`decisions[...] is False` ⇒ 0.5）。只影响本色损耗，不碰钱侧贪腐。
+    """
+    strength = observe_strength(state, "granary_corruption",
+                                     objective_threshold("granary_corruption"))
+    if strength is not None:
+        s = max(0.0, min(1.0, float(strength)))
+        return 1.0 - (1.0 - s) * GRANARY_CORRUPTION_MIN_FACTOR
+    # ---- 兼容：旧格式记录（只有 decisions、无 strengths）→ 旧二值口径 ----
     rec = getattr(state, "_tiandao_observe", None)
     if not isinstance(rec, dict):
         return 1.0
@@ -98,8 +191,307 @@ def _granary_corruption_factor(state) -> float:
         verdict = dec.get("verdict")
         defined = bool(dec.get("defined", True))
     if defined and verdict is False:
-        return 0.5
+        return GRANARY_CORRUPTION_MIN_FACTOR
     return 1.0
+
+
+def _canal_route_verdict(state):
+    """本月漕运改道裁决（白名单外/缺失 ⇒ None）。日志/诊断用；**幅度请用概率版**。"""
+    return observe_verdict(state, "canal_reroute_choice", CANAL_ROUTE_ALLOWED)
+
+
+def _canal_route_loss_mult(state) -> float:
+    """漕运途耗乘子 = **按选择概率的期望**（2026-10-22 由固定挡位表改为概率加权）。
+
+    `Σ_o p_o × mult_o`：`wait_dredge`×1.00 / `overland_cart`×0.80 / `borrow_grain`×0.90。
+    分布缺失 ⇒ 1.00（中性，逐字节零变更）。
+
+    🔴 2026-10-22（审查 F2）：**期望恰好 1.00 时直接返回 1.0，不吃天意扰子**。
+    改前是 `expected/total*jit` 无条件相乘 ⇒ 全等疏浚月得到 1.0218，违背本模块
+    「中性，零变更」的明文承诺。扰子只在**真的有方向**（期望 < 1.0）时才施加。
+    """
+    mix = observe_mix(state, "canal_reroute", CANAL_ROUTE_ALLOWED)
+    if not mix:
+        return 1.0
+    total = sum(mix.values())
+    if total <= 0:
+        return 1.0
+    expected = sum(float(p) * CANAL_ROUTE_LOSS_MULT.get(opt, 1.0) for opt, p in mix.items())
+    expected /= total
+    if abs(expected - 1.0) < 1e-9:          # 中性点：零变更（不施加扰子）
+        return 1.0
+    jit = jitter(state, "canal_route", "national", CANAL_JITTER)
+    return max(0.70, min(1.05, expected * jit))
+
+
+def _canal_option_prob(state, option: str) -> float:
+    """某漕运选项的当月概率（缺失 ⇒ 0.0）。脚钱/补粮按它**缩放**，不是二值开关。"""
+    mix = observe_mix(state, "canal_reroute", CANAL_ROUTE_ALLOWED)
+    if not mix:
+        return 0.0
+    try:
+        return max(0.0, min(1.0, float(mix.get(option, 0.0))))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _canal_overland_cost(canal_shi: int) -> int:
+    """陆运脚钱（贯）= 起运量 × 0.01（千分位定点，整数运算）——**不含概率**，调用方按 p 缩放。"""
+    return (max(0, int(canal_shi)) * CANAL_OVERLAND_COST_PERMILLE) // 1000
+
+
+def _canal_borrow_target(canal_shi: int) -> int:
+    """和籴借兑补粮目标（石）= 起运量 × 3%（千分位定点）——**不含概率**，调用方按 p 缩放。"""
+    return (max(0, int(canal_shi)) * CANAL_BORROW_GRAIN_PERMILLE) // 1000
+
+
+def _pay_overland_freight(state, log, canal_shi: int) -> int:
+    """①a 陆运脚钱：国库出钱 → **商人 POP** 收款（运输服务对手方，钱不凭空消失）。
+
+    - 金额 = 起运量 × 0.01 贯/石 × **p(overland_cart)**（期望值口径：概率低则只支付
+      对应的期望份额，而不是"要么不付、要么全付"的开关）；
+    - **受国库可付额封顶**（不足则按实有支付并留痕）；
+    - 钱腿走 `_distribute_pop_wealth`（按 size 守恒分摊，尾差归最大府）；
+    - 🔴 2026-10-22（S2 审查）：国库扣减走**单点** `GameState.change_treasury`
+      （返回**实际生效** Δ；穿底钳制以实际额为准），不再直写 `state.treasury`；
+      商人侧按**实扣额**入账，分摊不足时把未到账部分退回国库（钱不得凭空消失/产生）。
+    - 记账：`statistics["total_expenditure"]` ＋ `statistics["canal_overland_cost"]`
+      （后者为本批**新增统计键**，口径见常量区注释）。
+    返回实际支付贯数。
+    """
+    cost = int(_canal_overland_cost(canal_shi) * _canal_option_prob(state, "overland_cart"))
+    if cost <= 0:
+        return 0
+    merchants = sum(int(p["pops"]["商人"]["size"]) for p in state.prefectures.values())
+    if merchants <= 0:
+        log.append(f"[天道] 漕运改道·陆运：脚钱应支 {cost}贯，无商人可收款，本月未发生")
+        return 0
+    want = min(cost, max(0, int(state.treasury)))
+    if want <= 0:
+        log.append(f"[天道] 漕运改道·陆运：脚钱应支 {cost}贯，国库空虚无从支付，本月未发生")
+        return 0
+    # 国库扣减：单点 `change_treasury`（负向穿底钳制 ⇒ 以**实际生效额**为准）
+    deducted = -int(state.change_treasury(-want))
+    if deducted <= 0:
+        log.append(f"[天道] 漕运改道·陆运：脚钱应支 {cost}贯，国库空虚无从支付，本月未发生")
+        return 0
+    # 按实扣额给商人入账；若分摊不足（如无商人可收款），未到账部分退回国库
+    paid = int(_distribute_pop_wealth(state, deducted, "商人", merchants) or 0)
+    if paid < deducted:
+        state.change_treasury(deducted - paid)
+    if paid <= 0:
+        log.append(f"[天道] 漕运改道·陆运：脚钱应支 {cost}贯，无商人可收款，本月未发生")
+        return 0
+    _stats = state.statistics
+    _stats["total_expenditure"] = int(_stats.get("total_expenditure", 0) or 0) + paid
+    _stats["canal_overland_cost"] = int(_stats.get("canal_overland_cost", 0) or 0) + paid
+    log.append(f"[天道] 漕运改道·陆运：起运 {int(canal_shi)}石，脚钱 {paid}贯自国库支给商人"
+               + (f"（国库不足，仅付 {paid}/{cost}贯）" if paid < cost else ""))
+    return paid
+
+
+def _buy_grain_via_local_treasury(state, log, canal_shi: int) -> int:
+    """①b 和籴借兑：**地方府库**出钱 → 民间 POP 售粮 → 粮入**太仓**（成对，两侧守恒）。
+
+    - 目标石数 = 起运量 × 3%，并受三重约束：府库可付额（Σ `local_treasury` ÷ 米价）、
+      太仓当前余容、本地民间实有存粮（**宁少买，不造粮**）；
+    - 钱按「地方等比」自各府库出（尾差归最大府库），只买本地民粮（和籴即就近征购）；
+    - 记账：`granary_stats["canal_in"]`（既有键：漕运汇聚入太仓）
+      ＋ `statistics["total_expenditure"]` ＋ 新增键 `canal_borrow_cost` / `canal_borrow_grain`。
+    返回实际入太仓石数。
+    """
+    # 期望值口径：补粮目标 = 起运量 × 3% × p(borrow_grain)，概率低则少补、不二值化
+    target = int(_canal_borrow_target(canal_shi) * _canal_option_prob(state, "borrow_grain"))
+    if target <= 0:
+        return 0
+    price = float(getattr(state, "grain_price", 0) or 0)
+    if price <= 0:                     # 米价缺失 ⇒ 无从折算，**不猜价**（缺失≠0）
+        log.append("[天道][WARN] 和籴借兑：米价未定义，本月未买粮")
+        return 0
+    pools = {_n: _local_treasury_pool(_p) for _n, _p in state.prefectures.items()}
+    pool_total = sum(_v for _v in pools.values() if _v > 0)
+    if pool_total <= 0:
+        log.append("[天道] 和籴借兑：地方府库无可动之钱，本月未买粮")
+        return 0
+    room = max(0, int(state.granary_cap) - int(state.granary))
+    want = min(target, int(pool_total / price), room)
+    if want <= 0:
+        log.append(f"[天道] 和籴借兑：太仓余容/府库可付额不足（目标 {target}石），本月未买粮")
+        return 0
+    # 按路等比分配采购额（尾差归最大府库，同 `_distribute_pop_wealth` 口径）
+    shares = {}
+    big, big_v = None, -1
+    for _n, _v in pools.items():
+        if _v <= 0:
+            continue
+        shares[_n] = (want * _v) // pool_total
+        if _v > big_v:
+            big, big_v = _n, _v
+    if big is None:
+        return 0
+    shares[big] += want - sum(shares.values())
+    bought, paid = 0, 0
+    room_left = room
+    for name, p in state.prefectures.items():
+        quota = min(shares.get(name, 0), room_left)
+        budget = pools.get(name, 0)
+        if quota <= 0 or budget <= 0:
+            continue
+        # 先在**不动账**的前提下定计划（本路民粮 → 石数/钱数），再按太仓实收结算，
+        # 保证「钱 ↔ 粮」严格成对：只对真正入仓的石数付钱。
+        # 🔴 2026-10-22（S3 审查）：计划阶段与写入阶段**同一读数口径** `grain_get`
+        #   （已迁移载体读 `goods[米麦]`、未迁移回落 `.grain`）——此前计划读 `pp["grain"]`、
+        #   写走桥接，两套载体在已迁移档里会给出不同存量。
+        plan, planned, planned_cost = [], 0, 0
+        for pp in sorted((_v for _v in p["pops"].values() if isinstance(_v, dict)),
+                         key=lambda x: -int(_grain_get(x) or 0)):
+            if planned >= quota or budget - planned_cost <= 0:
+                break
+            avail = int(_grain_get(pp) or 0)
+            if avail <= 0:
+                continue
+            take = min(quota - planned, avail)
+            _cost = int(take * price)
+            if _cost > budget - planned_cost:        # 本府府库不足 ⇒ 少买
+                take = int((budget - planned_cost) / price)
+                _cost = int(take * price)
+            if take <= 0:
+                continue
+            plan.append((pp, take, _cost))
+            planned += take
+            planned_cost += _cost
+        if planned <= 0:
+            continue
+        _added = state.change_granary(min(planned, room_left))   # 粮入太仓
+        if _added <= 0:
+            continue
+        remain = _added
+        got, spent = 0, 0
+        for pp, take, _cost in plan:                 # 按实际入仓量逐笔结算
+            if remain <= 0:
+                break
+            t = min(take, remain)
+            c = int(t * price)
+            # 民粮出：`grain_add` 返回**写后值**（`grain_bridge.grain_add -> int`，永不 None），
+            # 未下沉时自理载体 ⇒ **没有回落分支**（原 `is None` 分支是死代码，S3 审查）。
+            _grain_add(pp, -t, state)
+            if _pop_obj_add(state, pp, "wealth", c) is None:   # 民收钱（钱腿成对）
+                pp["wealth"] = int(pp.get("wealth", 0) or 0) + c
+            remain -= t
+            got += t
+            spent += c
+        if got <= 0:
+            continue
+        # 府库出钱（桥接；未下沉 ⇒ 回落路级镜像，同 `_changping_trade` 惯例）
+        from core.foundation.ledger import local_treasury_bridge as _ltb
+        if _ltb.local_treasury_add(state, name, -spent) is None:
+            p["local_treasury"] = max(0, int(pools.get(name, 0)) - spent)
+        room_left -= got
+        state.granary_stats["canal_in"] = int(state.granary_stats.get("canal_in", 0) or 0) + got
+        bought += got
+        paid += spent
+    if bought <= 0:
+        log.append(f"[天道] 和籴借兑：本地民间无粮可籴（目标 {target}石），本月未买粮")
+        return 0
+    _stats = state.statistics
+    _stats["total_expenditure"] = int(_stats.get("total_expenditure", 0) or 0) + paid
+    _stats["canal_borrow_cost"] = int(_stats.get("canal_borrow_cost", 0) or 0) + paid
+    _stats["canal_borrow_grain"] = int(_stats.get("canal_borrow_grain", 0) or 0) + bought
+    log.append(f"[天道] 和籴借兑：起运 {int(canal_shi)}石，自地方府库出钱 {paid}贯"
+               f"购粮 {bought}石入太仓"
+               + (f"（府库/粮源/仓容受限，目标 {target}石）" if bought < target else ""))
+    return bought
+
+
+#: 饥荒逃散的「天意机变」扰子幅度——**单点**在 `core.ai.tiandao_effects.FLEE_JITTER`
+#: （外邦侧同用，避免两侧幅度不同；本文件只做引用别名，不再自定义数值）
+from core.ai.tiandao_effects import FLEE_JITTER  # noqa: E402  单点引用
+
+
+def _flee_amp_with_jitter(amp: float, jit: float) -> float:
+    """把天意扰子**折进增量**（与外邦侧同构）：`1 + (amp − 1) × jitter`。
+
+    - `amp = 1.0`（p=0 / 缺失）⇒ **精确 1.0**：不吃扰子、不会把逃散压到 1:1 以下；
+    - 旧写法 `amp × jitter` 在 p→0 时会被扰子乘到 1.0 以下（逃散反而少于实际吃不上饭的人），
+      且与外邦侧 `1 + (MULT−1)×p×jitter` 不是同一口径（D3 审查）。
+    """
+    return 1.0 + (float(amp) - 1.0) * float(jit)
+
+
+def _flee_after_verdict(flee: int, size: int, p_flee: float) -> float:
+    """天道「破产小农举家逃亡」对**单地单月**逃散人数的放大倍数（纯函数，便于定点测试）。
+
+    🔴 2026-10-22：参数由 `amplify: bool` 改为 **`p_flee: 概率`**——
+    倍数随概率连续变化：`1 + (FLEE_VERDICT_MULT−1) × p`。
+    `p<=0` ⇒ **精确 1.0**（与改前一致；达到了 1.0 就不再乘任何扰子）。
+
+    🔴 2026-10-22（D3 审查）：天意扰子**折进增量**、与外邦侧同构——
+    调用方按 `1 + (倍数−1) × jitter(...)` 组合（**不把扰子乘在整个倍数上**）。
+    这样 p=0 时恒为 1.0（不吃扰子、也不会把逃散数压到 1:1 以下）。
+    **上限与 size 约束仍由调用方施加**（本函数只给倍数）。
+    """
+    try:
+        p = float(p_flee)
+    except (TypeError, ValueError):
+        return 1.0
+    if p != p:                        # NaN ⇒ 视为缺失
+        return 1.0
+    return 1.0 + (FLEE_VERDICT_MULT - 1.0) * max(0.0, min(1.0, p))
+
+
+def _recruit_refugees_as_xiangjun(state, log) -> int:
+    """② 天道「募流民为厢军」：每月每地流民 ×2%（上限 2000 人）募入本地实体军。
+
+    - 裁决 `recruit_refugees_to_soldiers_gate`：**必须 is True 才动作**；False/缺失 ⇒ 零动作；
+    - 人守恒：`refugees` **先扣源**（扣到 ≥0），同一 n 经既有 `ArmyUnit.add_troops(n)`
+      落**兵额真账**（Σbranches = troops）；**不手改兵 POP 的 `size`**——由
+      `_settle_finance` 末尾按 Σtroops 重聚合（该步在 granary 之后、当月即对齐，
+      见 `settlement_pipeline.build_default_steps` 的 granary→finance 顺序）；
+    - 该地**无实体军** ⇒ 不造单位、n **原样加回流民**（扣了人不落地＝人口凭空消失），
+      本月合并 `logging.warning` 一次；
+    - 优先本地厢军（募流民为厢军），无厢军则落本地既有实体军（仍不造单位）。
+    🔴 2026-10-22：**不再要求 `is True`**，改为按门闸**超阈强度**缩放募集率：
+      `rate = 2% × gate_intensity(p, 0.5)`（p=0.55 ⇒ 0.2%/月，p=0.95 ⇒ 1.8%/月）。
+      缺失/未定义 ⇒ 0（中性）；再乘天意扰子（同回合同地可复现）。
+    返回本月实际募入人数。
+    """
+    _strength = observe_strength(state, "recruit_refugees_to_soldiers_gate", 0.5)
+    if not _strength:
+        return 0
+    by_route = {}
+    for u in getattr(state, "army_units", None) or []:
+        by_route.setdefault(getattr(u, "station", None), []).append(u)
+    total, skipped = 0, []
+    for name, p in state.prefectures.items():
+        refugees = int(p.get("refugees", 0) or 0)
+        if refugees <= 0:
+            continue
+        _rate = RECRUIT_REFUGEE_RATE_PERMILLE * float(_strength) * jitter(
+            state, "recruit_refugees", name, RECRUIT_JITTER)
+        n = min(int(refugees * _rate) // 1000, RECRUIT_REFUGEE_CAP_PER_ROUTE)
+        if n <= 0:
+            continue
+        units = sorted(by_route.get(name) or [], key=lambda u: str(getattr(u, "unit_id", "")))
+        if not units:
+            skipped.append(name)               # 无实体军 ⇒ 不造单位，稍后留痕（人数不动）
+            continue
+        unit = next((u for u in units if getattr(u, "tier", "") == "厢军"), units[0])
+        p["refugees"] = max(0, refugees - n)   # 先扣源（人守恒）
+        try:
+            unit.add_troops(n)
+        except Exception as exc:               # noqa: BLE001 — 落地失败必须**还原人口**
+            p["refugees"] = refugees
+            logging.getLogger("settlement").warning(
+                "[天道] 募流民为厢军失败（人口已还原）route=%s n=%s：%r", name, n, exc)
+            continue
+        total += n
+    if skipped:
+        logging.getLogger("settlement").warning(
+            "[天道] 募流民为厢军：%d 个地方无实体军（不造单位，流民未扣）：%s",
+            len(skipped), "、".join(str(x) for x in skipped))
+    if total > 0:
+        log.append(f"[天道] 募流民为厢军：本月募入 {total} 人补本地军额")
+    return total
 
 
 def _settle_granary(state, log):
@@ -169,8 +561,14 @@ def _settle_granary(state, log):
         canal_eff = 0.0
 
     corrupt_avg = _avg_corruption(state)
+    # ① 天道「漕运改道」→ 途耗乘子 = **按选项概率的期望**（缺失 ⇒ 1.00，不改任何一位数）
+    _route_mult = _canal_route_loss_mult(state)
     loss_rate = CANAL_LOSS_BASE + corrupt_avg * CANAL_LOSS_CORRUPT_WEIGHT
+    if _route_mult != 1.0:
+        loss_rate = loss_rate * _route_mult
+        log.append(f"[天道] 漕运改道：本月途耗率按概率期望 ×{_route_mult:g}")
     canal = 0
+    canal_shi = 0        # 本月**起运量**（Σ take，石）：陆运脚钱／和籴补粮的计费基数
     for rname, p in state.prefectures.items():
         movable = int(p.get("storage", 0) * canal_eff)
         room = max(0, state.granary_cap - state.granary)
@@ -184,10 +582,16 @@ def _settle_granary(state, log):
             state.change_granary(take - loss)
             state.granary_stats["canal_loss"] += loss
             canal += (take - loss)
+            canal_shi += take
 
     if canal > 0:
         state.granary_stats["canal_in"] += canal
         log.append(f"[漕运] 诸路上供输粟 {canal}石（途中耗 {state.granary_stats['canal_loss']}石），太仓现 {state.granary}石")
+
+    # ①a 陆路改道 ⇒ 脚钱（每月一次；仅运期真有起运量时发生；国库→商人 POP）
+    #     2026-10-22：按**概率**而非二值触发（金额内部再乘 p，见 `_pay_overland_freight`）
+    if _canal_option_prob(state, "overland_cart") > 0.0 and canal_shi > 0:
+        _pay_overland_freight(state, log, canal_shi)
 
     granary_before_out = state.granary
 
@@ -228,7 +632,8 @@ def _settle_granary(state, log):
     _gcorr = _granary_corruption_factor(state)
     if _gcorr != 1.0:
         corruption_grain_loss = int(corruption_grain_loss * _gcorr)
-        log.append(f"[仓场] 天道未判贪墨 ⇒ 雀鼠耗本色损耗 ×{_gcorr:g}")
+        # 连续强度 ⇒ 措辞不再预设"未判贪墨"（可能是中间幅度；玩家可见只给倍率）
+        log.append(f"[仓场] 天道仓场贪墨裁断 ⇒ 雀鼠耗本色损耗 ×{_gcorr:g}")
     corr_grain = int(corruption_grain_loss * pay)
 
     need = mil_grain + off_grain + clerk_grain
@@ -301,6 +706,15 @@ def _settle_granary(state, log):
             logging.getLogger("settlement").error(_msg, exc_info=True)
         raise RuntimeError(_msg)
 
+    # ①b 和籴借兑 ⇒ 补粮入太仓（每月一次；仅运期真有起运量时发生）。
+    # ⚠️ 落点选在「太仓恒等式校验**之后**」：漕运汇聚会把太仓顶到仓容上限，若紧跟漕运之后
+    #    补粮，余容恒为 0（实测：运期月漕运即填满 20,000,000 石）⇒ 该支线永远空转。
+    #    放在本月本色支取之后，余容随支出释放（实测约 108 万石），补粮才真正落地；
+    #    本动作只增加太仓（入仓），不参与上方「支出恒等式」（该式只核 outflow）。
+    #     2026-10-22：按**概率**而非二值触发（目标石数内部再乘 p，见 `_buy_grain_via_local_treasury`）
+    if _canal_option_prob(state, "borrow_grain") > 0.0 and canal_shi > 0:
+        _buy_grain_via_local_treasury(state, log, canal_shi)
+
     changping_acted = False
     # T9 常平扩容为货币稳定器：平粜吸买家钱入地方府库（货币回收，不碰内帑；
     # `local_treasury` **在 M0–M3 的 ACCOUNTS 里**（money.py），只是不进
@@ -309,18 +723,22 @@ def _settle_granary(state, log):
     from content.data import (CHANGPING_BUY_BUDGET_RATIO, CHANGPING_CAP_RATIO,
                               CHANGPING_SELL_RATIO)
     _sell_ratio = CHANGPING_SELL_RATIO          # 0.60（价>2.0 档，原 0.45）
+    # 🔴 2026-10-22（B1 审查）：平粜量按天道门闸**超阈强度**连续缩放（0 ⇒ 不平粜，1 ⇒ 满额）。
+    # 只读一次（结算期不得重新裁决）；缺失记录 ⇒ 1.0（＝改前"允许满额平粜"，零变更）。
+    _cp_sell_strength = _changping_sell_ratio(state)
     _recycled_total = 0                          # 本月平粜回收累计（稳定器达成度）
     for name, p in state.prefectures.items():
         price = p.get("grain_price", state.grain_price)
         cp_stock = p.get("changping_stock", 0)
         # O5：已下沉路读 Σ 治所真账（镜像滞后会误判 coffer>0 → 漏买/预算偏大）
         coffer = _local_treasury_pool(p)
-        if price > CHANGPING_HIGH and cp_stock > 0 and _changping_sell_allowed(state):
+        if price > CHANGPING_HIGH and cp_stock > 0 and _cp_sell_strength > 0.0:
             # 平粜（高价抑价）：放常平仓粮入市，钱入地方府库（货币回收，不碰内帑）。
             # 量随价格超幅线性放大：price 1.6→放 5% 常平储、2.5→放 60%（T9 扩容 45%→60%）
             # 审查修复：原实现对手方未建模（粮凭空消失、钱凭空产生），
             # 现经 _changping_trade 与本路民间 POP 成对划转（买不起则少卖）。
-            ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5)
+            # B1：再乘天道门闸超阈强度（0 ⇒ 上面已跳过；1 ⇒ 与改前满额一致）。
+            ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5) * _cp_sell_strength
             sell = max(1, int(cp_stock * ratio))
             sell = min(sell, cp_stock)
             _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平", state)
@@ -356,9 +774,10 @@ def _settle_granary(state, log):
             cp_stock = p.get("changping_stock", 0)
             # O5：同主分支，已下沉读治所真账
             coffer = _local_treasury_pool(p)
-            if price > CHANGPING_HIGH and cp_stock > 0 and _changping_sell_allowed(state):
-                # AI 加强平粜（T9 扩容：上限 60%）
-                ratio = min(_sell_ratio, (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult)
+            if price > CHANGPING_HIGH and cp_stock > 0 and _cp_sell_strength > 0.0:
+                # AI 加强平粜（T9 扩容：上限 60%）；B1：同样乘天道门闸超阈强度
+                ratio = min(_sell_ratio,
+                            (price - CHANGPING_HIGH) * 0.5 * price_stabilize_mult) * _cp_sell_strength
                 sell = max(1, int(cp_stock * ratio))
                 sell = min(sell, cp_stock)
                 _g, _recycled = _changping_trade(p, name, sell, "sell", price, log, "常平·AI", state)
@@ -676,6 +1095,16 @@ def _settle_granary(state, log):
         from core.settlement_common import FLEE_CAP_PER_ROUTE, food_insecure_headcount
         _hungry_map = food_insecure_headcount(pops, price)
         _famine_total = 0
+        # 2026-10-21 接线 / 10-22 改概率：天道「破产小农举家逃亡」→ **宋侧**饥荒逃散放大。
+        # 循环前**只读一次**概率分布（结算期禁止重新裁决）；缺失 ⇒ 倍数 1.0（原样）。
+        # 倍数单点 = `_flee_after_verdict`（`1+(MULT−1)×p`，与外邦侧共用同一 MULT），
+        # 上限仍受 `FLEE_CAP_PER_ROUTE` 与农 POP `size` 双重约束（只转移人口，不造人）。
+        _p_flee = 0.0
+        if state is not None:
+            _fmix = observe_mix(state, "farmer_destitution_path",
+                                ("mortgage_land", "flee_refugee"))
+            _p_flee = float((_fmix or {}).get("flee_refugee", 0.0))
+        _flee_amp = _flee_after_verdict(0, 0, _p_flee)
         for pn, pop in pops.items():
             need = need_of[pn]
             # 实际消费：先扣自有粮（粮账必须真扣，否则 Σ粮 不守恒）
@@ -693,6 +1122,20 @@ def _settle_granary(state, log):
                     _famine_total += hungry
                 if pn == "农":       # 农缺粮 → 逃荒为流民（人数＝缺粮人数，1:1）
                     _flee = min(hungry, FLEE_CAP_PER_ROUTE, int(pop["size"]))
+                    # 天道「举家逃亡」：倍数随 p 连续变化（p=0 ⇒ 精确 1.0，与改前一致）
+                    if _flee > 0 and _flee_amp > 1.0:
+                        _raw_flee = _flee
+                        # 🔴 2026-10-22（D3）：天意扰子**折进增量**，与外邦侧
+                        #   （`settlement_econ._ext_econ_phases`）同构：
+                        #   宋侧 = `1 + (倍数−1) × jitter`；外邦侧 = `1 + (MULT−1) × p × jitter`。
+                        #   旧写法 `倍数 × jitter` 把扰子乘在整体上 ⇒ p→0 时会被扰子压到 1.0 以下
+                        #   （逃散数反而少于"实际吃不上饭的人数"），两侧口径亦不一致。
+                        _amp = _flee_amp_with_jitter(
+                            _flee_amp, jitter(state, "farmer_flee", name, FLEE_JITTER))
+                        _flee = min(int(_flee * _amp), FLEE_CAP_PER_ROUTE, int(pop["size"]))
+                        if _flee > _raw_flee:
+                            log.append(f"[天道] 破产小农举家逃亡：{name} 饥民逃散加剧"
+                                       f"（{_raw_flee:,} → {_flee:,} 人）")
                     if _flee > 0:
                         # U0001f534 2026-10-08：改走桥接。路级 `size` 在已下沉档中是**派生镜像**，
                         #   直写会被 `sync_route_pops` 撤销（流民增了但农不减 → 人口平白增长）。
@@ -756,6 +1199,10 @@ def _settle_granary(state, log):
         from core.domains.politics.sentiment_tier import apply_shock
         apply_shock(state, getattr(state, "_famine_shock_tier", None),
                     log=log, tag="饥荒")
+
+    # ② 天道「募流民为厢军」：独立小步骤，**不改既有逃亡逻辑**（流民先由上方 famine 段产生，
+    #    本步只消费存量）。人守恒：refugees → 兵额真账；兵 POP.size 由后续 finance 步派生。
+    _recruit_refugees_as_xiangjun(state, log)
 
     state.economy_history.append({
         "granary": state.granary,

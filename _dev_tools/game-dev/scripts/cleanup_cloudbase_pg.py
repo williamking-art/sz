@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""清理 CloudBase PostgreSQL 中的冗余副本表。
+"""【已停用 · 2026-10-22】CloudBase 已随「云侧全面转阿里云」停用，本脚本无可用目标，仅留档。
+
+> 停用说明：以下正文保留原样（历史）。CloudBase 的 PG 实例/端点/凭据均已停用或过期，
+> 现行云侧方案见 `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` §8.1（阿里云 ECS）。
+> 原用途：清理 CloudBase PostgreSQL 中的冗余副本表。
 
 背景：典章知识库已从 CloudBase PG 迁移到本地 SQLite（game/assets/kb/game_kb.sqlite），
 云端 PG 中可能残留旧知识库表或临时表。本脚本通过 CloudBase HTTP PG 直连端点列出 public

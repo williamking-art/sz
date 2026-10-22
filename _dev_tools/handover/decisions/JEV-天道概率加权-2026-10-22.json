@@ -1,0 +1,53 @@
+{
+  "id": "JEV-天道概率加权-2026-10-22",
+  "title": "天道数值效果改为概率加权（用户裁定：不能只是固定数）",
+  "status": "decided",
+  "askedAt": "2026-10-22T06:20:00+08:00",
+  "askedBy": "DSH-lead（承用户当场质问）",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "gate",
+  "context": "用户审查 L3 接线表后指出：『你这不都固定数？权重呢？天道裁决的不定数呢？』——此前 5 项效果只取 argmax 档位再查固定倍率表，引擎算出的概率与 choose 的整条分布被丢弃，等于天道只贡献枚举值。",
+  "question": "choose 类裁决的数值幅度，应采用概率加权的期望/混合，而不是先取 argmax 档位再查固定倍率表",
+  "verdict": "成立",
+  "probabilities": {"holds": 0.9950},
+  "threshold": 0.4,
+  "tie": false,
+  "user_directive": "用户原话：「你这不都固定数？权重呢？天道裁决的不定数呢？」——这是**用户直接裁定**，Jev 复核只作留痕，不作最终依据。",
+  "premises_verified_by_me": [
+    "改前实测：`observe_monthly` 只记 verdict，观测副本无任何概率字段 ⇒ 消费方物理上只能查表",
+    "改后实测（权重生效）：商贾囤/抛乘子随 p(hoard)−p(local_sell) 连续变化（1.25/1.1211/1.0884/0.8925 四档实测）；漕运乘子为概率期望（纯等疏浚 0.9913 / 对半 0.8921 / 0.9陆路+0.1和籴 0.8029）；门闸强度超阈归一（p=0.51→0.02、0.99→0.98）",
+    "确定性：`jitter(回合,目标,地点)` 同回合同地两次完全相等、异地不同、幅度界 [1−e,1+e]（splitmix64 派生，不是真随机）",
+    "缺失中性：无分布/无记录 ⇒ 乘子 1.0，且与改前**逐字节一致**（经济域三函数 sha256 与改前实测值相同）",
+    "影响面：12 月 golden 由固定表版 → 概率版，army_troops 748,800→751,780(+2,980)、granary +27,703、内帑 +53,365、国库 −167；finance 与 20 路逐路账**全同**"
+  ],
+  "implementation": {
+    "observe_monthly": "新增 strengths（gate 的 p）与 distributions（choose 的 {option: p}），按 tiandao_decision.SPECS（唯一 criteria 出处）重算取概率，~20µs/项，只进诊断副本、不入存档",
+    "gate": "超阈归一 (p−threshold)/(1−threshold)",
+    "choose": "概率加权：商贾 net=p(hoard)−p(local_sell)；田产集中取并集 1−(1−p1)(1−p2)（共用通道不叠加）；漕运 Σ p_o×mult_o 期望；脚钱/补粮按对应选项概率缩放",
+    "jitter": "幅度：商贾/田产/逃散 0.10、漕运 0.05、募兵 0.12；全部由 (回合,目标,地点) 经 zlib.crc32 + splitmix64 派生",
+    "missing": "强度/分布缺失 ⇒ 中性（乘子 1.0 / 不动作），与无记录逐字节等价"
+  },
+  "pitfall_recorded": {
+    "what": "观测副本里 decisions 按**门面方法名**存（farmer_destitution_path），strengths/distributions 按 **objective id** 存（farmer_path）",
+    "symptom": "消费方只按一种写法 dict.get ⇒ 静默读空、效果永不生效；实测 observe_strength('recruit_refugees_to_soldiers_gate') 返回 None ⇒ 全月零募兵，army_troops 恰好回到接线前 748,800（差点被误判为『概率版没生效』）",
+    "fix": "tiandao_effects._name_keys() 双向解析（方法名 ⇄ objective id）；新增消费方必须走读取函数，不得自己 dict.get"
+  },
+  "applied_in": [
+    "game/core/ai/tiandao_facade.py::observe_monthly（记录 strengths/distributions）",
+    "game/core/ai/tiandao_effects.py（observe_strength / observe_mix / gate_intensity / jitter / _name_keys）",
+    "game/core/settlement_econ.py（商贾乘子、田产并集、赈济、逃散倍数）",
+    "game/core/settlement_granary.py（漕运期望乘子、脚钱/补粮按概率缩放、募兵按强度、宋侧逃散倍数）",
+    "测试：test_tiandao_effects_econ.py（22 例，含概率单调/并集不叠加/确定性）、test_tiandao_effects_granary.py（18 例）、test_tiandao_effects_reader.py（11 例）",
+    "golden 重建 + CHANGELOG 第四条；tasks.md §5d"
+  ],
+  "known_limits": [
+    "扰子幅度（0.10/0.12/0.05）与 SPAN（0.30）是待校准参数，已标口径但未回测标定",
+    "choose 分布来自「按 SPECS 重算」（与门面方法内的 criteria 同源但重新调用一次）；若将来门面 criteria 与 SPECS 分叉，需要收敛为单一出处",
+    "probability 是本地引擎的 softmax/阈值输出，不是校准概率；当权重用不等于当概率解释用"
+  ],
+  "reopen_if": [
+    "若做回测校准（有 ground truth 标签），重估 SPAN 与扰子幅度。",
+    "若把 observe_monthly 的「方法调用 + 分布重算」合并为一次（省 20µs/项），需保持 distributions 与 decisions 的一致性断言。"
+  ],
+  "collision_check": "与 JEV-天道L3接线口径-2026-10-22 同批承接（该档的固定表方案被本档取代）；与 JEV-天道特化加强优先级-2026-10-21 不冲突。"
+}

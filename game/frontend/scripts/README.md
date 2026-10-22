@@ -9,7 +9,7 @@
 | `shot/` | **面板截图台**（无头浏览器渲染面板 → PNG，含 `shoot.mjs`、`panel.tsx`、mock、`bench-map.mjs` 舆图首帧基准）；命令 `npm run shot` / `npm run bench:map` |
 
 ## 关联
-- 截图台用于**替代真机目视验收**的一层（`_dev_tools/cloudbase-check.ps1 §8` 会在 panels 改动时自动跑）；
+- 截图台用于**替代真机目视验收**的一层（`_dev_tools/aliyun-check.ps1 §8` 会在 panels 改动时自动跑；原 `cloudbase-check.ps1` 已随 CloudBase 停用删除）；
 - 舆图首帧成本实测见 `_dev_tools/game-docs/analysis/game项目审查_按功能模块_2026-09-27.md §11`。
 ---
 最后更新：2026-09-27（P1-2：补府界独立拓扑与 hill 关闭口径；修正"瓦片已常驻"的相反说法）

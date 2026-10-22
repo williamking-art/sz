@@ -89,14 +89,14 @@ class BackendClient:
     def new_game(self, difficulty, ai_client):
         raise NotImplementedError
 
-    def advance(self, state, ai_client):
+    def advance(self, state, ai_client, expect_turn=None):
         raise NotImplementedError
 
     def advance_month(self, state):
         """T6 拆分：只触发当月事件（确定性、无网络），供本地异步结算路径用。"""
         raise NotImplementedError
 
-    def settle_local(self, state, ai_results=None):
+    def settle_local(self, state, ai_results=None, expect_turn=None):
         """T6 拆分：主线程本地 12 步结算 + 收尾（AI 推演结果已由调用方落地槽位）。"""
         raise NotImplementedError
 
@@ -186,14 +186,15 @@ class LocalBackend(BackendClient):
     def new_game(self, difficulty, ai_client):
         return cmd.new_game(difficulty, ai_client)
 
-    def advance(self, state, ai_client):
+    def advance(self, state, ai_client, expect_turn=None):
         # 审查修复：改走原子封装，使 advance_month 写入的 active_events 也纳入
         # 结算快照的回滚范围（原两步分开，结算失败回滚后事件仍留在场 → 幽灵事件）。
         # 两段式（2026-09-21「民间情况先行」）：首段同步返回**程序真值月报**（民间情况
         # 立即可读，数值结算已完成），AI 月报/奏章富化由 round2 daemon 线程后台补录——
         # 完成后 `state.rich_ready=True` / `state.rich_report=富文本`（前端轮询
         # `/api/state` 就地替换月报富文本段；本地/远程同源，`_state_to_dict` 直发）。
-        events, log, report = cmd.advance_two_phase(state, ai_client)
+        events, log, report = cmd.advance_two_phase(
+            state, ai_client, expect_turn=expect_turn)
         # 与 HttpBackend 保持统一四元组签名 (events, log, report, new_state)
         return events, log, report, state
 
@@ -201,16 +202,22 @@ class LocalBackend(BackendClient):
         """T6 拆分：只触发当月事件（纯本地、确定性），不推进回合。"""
         return cmd.advance_month(state)
 
-    def settle_local(self, state, ai_results=None):
+    def settle_local(self, state, ai_results=None, expect_turn=None):
         """T6 拆分：主线程落地 AI 推演结果 → 本地 12 步结算 → 终局/自动存档收尾。
 
         返回 (log, new_state)。ai_results 为 run_settlement_ai 的 {attr: result}。
+        🔴 `expect_turn`：透传给 `cmd.settle_local`（幂等守卫）；**幂等重放时回合未推进
+        ⇒ 跳过 `finish_turn`**——否则会在同一回合重复跑终局判定与自动存档
+        （往存档里写第二份同名文件）。
         """
         if ai_results:
             for attr, val in ai_results.items():
                 setattr(state, attr, val)
-        log = cmd.settle_local(state)
-        cmd.finish_turn(state)
+        _before = int(getattr(state, "turn", 0) or 0)
+        log = cmd.settle_local(state, expect_turn=expect_turn)
+        _after = int(getattr(state, "turn", 0) or 0)
+        if _after != _before:          # 正常推进才收尾；重放（turn 未变）跳过
+            cmd.finish_turn(state)
         return log, state
 
 
@@ -578,8 +585,10 @@ class HttpBackend(BackendClient):
         r = self._post("/api/new_game", {"difficulty": difficulty})
         return self._to_state(r["state"])
 
-    def advance(self, state, ai_client):
-        r = self._post("/api/advance")
+    def advance(self, state, ai_client, expect_turn=None):
+        # 幂等：把「UI 正在展示的回合」发给服务端；缺省不发，服务端按旧行为推进
+        body = {} if expect_turn is None else {"expect_turn": int(expect_turn)}
+        r = self._post("/api/advance", body)
         # 同步最新 AI 客户端（本地仍持有配置用于判断是否可用）
         events = [e for e in r.get("events", [])]
         log = r.get("log", [])

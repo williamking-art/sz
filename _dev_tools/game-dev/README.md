@@ -10,6 +10,7 @@
 | [`analytics/`](analytics/README.md) | 平衡指标分析脚本。 |
 | [`replay/`](replay/README.md) | 回放工具目录；是否已有可用实现以目录内容为准。 |
 | [`scripts/`](scripts/README.md) | 数据库维护和知识库观察等辅助脚本。 |
+| [`tools/`](tools/README.md) | **离线工具**（要驱动结算/读档，因此不能住在 `game/core`）：`tiandao_labels.py` 用反事实回放产出回测标签。 |
 | `skill/` | 本地开发辅助资料，内容/体积不作为游戏发行依赖。 |
 
 ## 同级工具

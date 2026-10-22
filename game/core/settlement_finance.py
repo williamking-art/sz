@@ -33,7 +33,36 @@ from core.foundation.ledger.pop_bridge import (pop_add as _pop_add, pop_set as _
 # 粮写入同样走 G-3 桥接（写只落一个载体，绝不双写）
 from core.foundation.ledger.grain_bridge import grain_add as _grain_add
 
+# 天道门面裁决的**共享读取点**（2026-10-22 B1-a）：财政域三处消费一律走**概率连续**接口
+# （choose → `observe_mix` / gate → `observe_strength` / 确定性扰动 → `jitter`）。
+# 缺失/未定义 ⇒ `None`，调用方按中性处理（乘子 1.0 / 比例 0）；**不查档位→固定倍率表**。
+from core.ai.tiandao_effects import jitter, observe_mix, observe_strength
+
 _fin_log = logging.getLogger("settlement")
+
+# ============================================================================
+# 天道门面 → 财政数值（B1-a，2026-10-22）：**概率连续**，不再「argmax 档位 → 固定倍率表」
+# ----------------------------------------------------------------------------
+# 契约（`core/ai/README.md` 第 14 条）：
+#   · choose → `observe_mix`：方向取**概率差**、强度取概率/期望（同一 argmax 也可幅度不同）；
+#   · gate   → `observe_strength`：超阈强度 (p−thr)/(1−thr)，p=0.51 与 0.99 幅度不同；
+#   · 缺失/未定义 ⇒ 中性（乘子 1.0 / 不动作），且与「无观测副本」逐字节一致；
+#   · 允许叠加 `jitter(回合,目标,地点)`——由种子派生、同种子同结果（确定性回放不可破）。
+# ============================================================================
+
+#: 征管宽严对田赋**应征额**的最大偏差：
+#:   `factor = 1 + TAX_STANCE_MAX_DELTA × (p_strict − p_lenient) × jitter`
+#: 口径：满幅（|p_strict − p_lenient| = 1）时约 ±3.4%（含扰子）；旧实现「strict=×1.03 /
+#: lenient=×0.97」只是本式在概率差取满幅时的**极值**，不是档位表。
+TAX_STANCE_MAX_DELTA = 0.03
+
+#: 征管宽严扰子的熵（`jitter` 的幅度上界）：±12%，只乘在**增量**上 ⇒ 概率差 0 时因子恰为 1.0。
+TAX_STANCE_JITTER_ENTROPY = 0.12
+
+#: 蠲免强度 = 1.0 时，本月核销欠税存量的**上限比例**（旧实现固定 10%；
+#: 现按强度取 0%~10%，强度同时决定「追缴腿」保留多少：追缴 × (1 − 强度)）。
+WAIVER_WRITEOFF_CAP = 0.10
+
 
 def _refresh_jiaozi_credit(state, log):
     """刷新交子数据契约读数（第二节§2）：流通额 / 兑付率 / 折价 / 挤兑压力。
@@ -619,26 +648,29 @@ def _book_tax_loss(state, amount: int) -> None:
 
 
 def _tax_stance_factor(state) -> float:
-    """D 数值接线（2026-10-21，Jev C 0.455）：征管宽严对田赋折色**应征额**的系数。
+    """征管宽严对田赋折色**应征额**的系数（B1-a：概率连续，2026-10-22）。
 
-    读 `TianDaoFacade.observe_monthly` 记录：
-    - strict → 1.03（严催，多征 3%）；
-    - lenient → 0.97（体恤，少征 3%）；
-    - moderate / 无记录 / 未定义 → 1.0（回落现状）。
+    `factor = 1 + TAX_STANCE_MAX_DELTA × (p_strict − p_lenient) × jitter`
+
+    - 概率读 `observe_mix(state, "tax_stance", ("strict","moderate","lenient"))`：
+      **方向取概率差**（不是取 argmax），故同为 strict 占优时，0.5/0.2 与 0.9/0.02 的幅度
+      也各不相同；moderate 占优时概率差自然趋 0，因子连续地贴回 1.0。
+    - `jitter` 由 (回合, "tax_stance", "全国") 种子派生（确定性回放），且**只乘在增量上**
+      ⇒ `p_strict == p_lenient` 时因子**恰为 1.0**（D2 修复：中性点不再吃扰子）。
+    - **缺失/未定义 ⇒ 1.0**：`observe_mix` 只返回**实际观测到**的选项，缺任一端即概率差不可比，
+      按中性处理（不补 0 当"确定不选"；也不把旧式布尔断重回填成倍率——那正是 B1 禁止的档位表）。
     只作用于田赋折色 assessed，不改征收率公式；税仍从 POP 扣，守恒不变。
     """
-    rec = getattr(state, "_tiandao_observe", None)
-    if not isinstance(rec, dict):
+    mix = observe_mix(state, "tax_stance", ("strict", "moderate", "lenient"))
+    if not mix:
         return 1.0
-    dec = (rec.get("decisions") or {}).get("tax_collection_stance")
-    if isinstance(dec, dict):
-        dec = dec.get("verdict")
-    stance = str(dec or "").strip().lower()
-    if stance == "strict":
-        return 1.03
-    if stance == "lenient":
-        return 0.97
-    return 1.0
+    if "strict" not in mix or "lenient" not in mix:
+        return 1.0
+    _net = float(mix["strict"]) - float(mix["lenient"])
+    if _net == 0.0:
+        return 1.0                       # 中性：精确恒等，连扰子都不乘（D2）
+    _j = jitter(state, "tax_stance", "全国", TAX_STANCE_JITTER_ENTROPY)
+    return 1.0 + TAX_STANCE_MAX_DELTA * _net * _j
 
 
 def _settle_land_tax_color(state, log) -> dict:
@@ -668,7 +700,8 @@ def _settle_land_tax_color(state, log) -> dict:
     _tsf = _tax_stance_factor(state)
     if _tsf != 1.0:
         assessed = int(round(assessed * _tsf))
-        log.append(f"[田赋] 天道征管倾向 ⇒ 应征额 ×{_tsf:g}")
+        # 只写系数、不写概率（玩家可见文案脱敏）
+        log.append(f"[田赋] 天道征管宽严 ⇒ 应征额 ×{_tsf:.4f}")
     paid_by_route = {_rk: 0 for _rk in state.prefectures}
     if assessed > 0 and state.prefectures:
         _tot_land = sum(p.get("land", 1) for _rk, p in state.prefectures.items() if _rk in _active) or 1
@@ -1368,20 +1401,33 @@ def repay_local_arrears(state, route: str = "", amount: int = 0, source: str = "
         result["authority_mode"] = _authority_mode
     return result
 
-def _arrears_waiver_active(state) -> bool:
-    """D 数值接线（2026-10-21，Jev C 0.339 近平手自证）：是否执行"蠲免陈欠"。
+def _arrears_waiver_ratio(state) -> float:
+    """蠲免陈欠的**比例强度** ∈ [0, 1]（B1-a：概率连续，2026-10-22）。
 
-    读 `TianDaoFacade.observe_monthly` 记录：`should_waive_ancient_arrears=True` 时，
-    本月**暂停欠税追缴**并**核销 10% 欠税存量**（欠税是 POP 子池，不是货币，不涉 M_ALL）；
-    False / 无记录 / 未定义 → 现状（正常追缴）。无年龄字段，当前把全部欠税视作"陈欠"（已知局限）。
+    来源 `observe_strength(state, "waive_arrears", 阈值)`（gate 超阈强度 (p−thr)/(1−thr)，
+    阈值从 `tiandao_decision.THRESHOLDS` 单一出处取，缺登记才回落 0.5）。
+    **缺失/未定义/低于阈值 ⇒ 0.0**（= 不蠲免；与改前「无观测副本」同支，且逐字节一致）。
+
+    调用点（`_settle_finance`）按比例双管齐下：
+      · 核销欠税存量 = `int(存量 × WAIVER_WRITEOFF_CAP × 强度)`（强度 1.0 时最多 10%）；
+      · 欠税追缴量 × `(1 − 强度)`（强度 1.0 ⇒ 本月不追缴，等同旧「暂停追缴」；0 ⇒ 原样追缴）。
+
+    ⚠️ **缺失语义说明（刻意变更，已报告）**：改前读 `decisions.should_waive_ancient_arrears`
+    的**布尔**；改后只认概率强度。生产入口 `observe_monthly` 与 `decisions` 同批写入
+    `strengths`，故实机等价；只有"旧式仅 verdict、无 strengths 的副本"会从「全免 10%」
+    变为「中性 0」——这是刻意取舍：把布尔断重回填成比例，等于恢复「档位 → 固定倍率」表
+    （B1 明令禁止），故显式按"未观测到强度"处理。
     """
-    rec = getattr(state, "_tiandao_observe", None)
-    if not isinstance(rec, dict):
-        return False
-    dec = (rec.get("decisions") or {}).get("should_waive_ancient_arrears")
-    if isinstance(dec, dict):
-        return bool(dec.get("defined", True) and dec.get("verdict") is True)
-    return dec is True
+    _thr = 0.5
+    try:                                  # 口径单点：阈值以 tiandao_decision.THRESHOLDS 为准
+        from core.ai.tiandao_decision import THRESHOLDS as _THR
+        _thr = float(_THR.get("waive_arrears", 0.5))
+    except Exception:  # noqa: BLE001 —— 取不到登记就用判定线默认值
+        _thr = 0.5
+    _ratio = observe_strength(state, "waive_arrears", _thr)
+    if _ratio is None:
+        return 0.0
+    return max(0.0, min(1.0, float(_ratio)))
 
 
 def _settle_finance(state, log):
@@ -1437,7 +1483,9 @@ def _settle_finance(state, log):
     }
     # 田赋折色中央份额先入账；其余税种在下方逐户扣缴中累加（实收→国库管道不变）
     actual_tax = float(_land_tax["central"])
-    _waive_arrears = _arrears_waiver_active(state)
+    # 蠲免强度（B1-a · 0~1 连续）：核销按强度、追缴按 (1−强度)。
+    # 强度 0（无观测副本/未过线）⇒ 下面两条腿的写法与改前**逐字节一致**（不多一次乘法）。
+    _waive_ratio = _arrears_waiver_ratio(state)
     _waived_off = 0
     for _agent, _tax_total in _tax_agents.items():
         _total_wealth = sum(p["pops"][_agent]["wealth"] for p in state.prefectures.values())
@@ -1467,18 +1515,20 @@ def _settle_finance(state, log):
             if _pop_obj_add(state, _pop, "wealth", -_paid) is None:
                 _pop["wealth"] -= _paid
             actual_tax += _paid   # 累计实际到库税额（保底豁免部分不入库，钱不凭空生）
-            if _waive_arrears:
-                # D 数值接线（Jev C 0.339）：豁免陈欠 ⇒ 核销 10% 欠税存量 + 本月暂停追缴
+            if _waive_ratio > 0.0:
+                # 蠲免强度 >0 ⇒ 核销欠税存量：`int(存量 × 上限 × 强度)`（强度 1.0 时才 10%）
                 _arrears_now = int(_pop.get("欠税", 0) or 0)
-                _writeoff = int(_arrears_now * 0.10)
+                _writeoff = int(_arrears_now * WAIVER_WRITEOFF_CAP * _waive_ratio)
                 if _writeoff > 0:
                     if _pop_obj_add(state, _pop, "欠税", -_writeoff) is None:
                         _pop["欠税"] = _arrears_now - _writeoff
                     _waived_off += _writeoff
-                continue
-            # A1 追缴段：紧随税征，按「可支付余力（wealth - 保底线）× ARREARS_COLLECT_RATE」回收欠税
+            # A1 追缴段：紧随税征，按「可支付余力（wealth - 保底线）× ARREARS_COLLECT_RATE」回收欠税；
+            # 蠲免强度 >0 时只回收剩余 `(1−强度)` 份额（强度 1.0 ⇒ 0，等同旧「暂停追缴」）
             _recoverable = max(0, _pop["wealth"] - _min_wealth)
             _recover = min(_pop.get("欠税", 0), int(_recoverable * ARREARS_COLLECT_RATE))
+            if _waive_ratio > 0.0 and _recover > 0:
+                _recover = int(_recover * (1.0 - _waive_ratio))
             if _recover > 0:
                 if _pop_obj_add(state, _pop, "wealth", -_recover) is None:
                     _pop["wealth"] -= _recover
@@ -1486,8 +1536,8 @@ def _settle_finance(state, log):
                     _pop["欠税"] = _pop.get("欠税", 0) - _recover
                 actual_tax += _recover
 
-    if _waive_arrears:
-        log.append(f"[蠲免] 天道准予蠲免陈欠：本月暂停追缴，核销欠税存量 {_waived_off} 贯")
+    if _waive_ratio > 0.0:
+        log.append(f"[蠲免] 天道准予蠲免陈欠：本月追缴按强度减免，核销欠税存量 {_waived_off} 贯")
 
     # ---- M34-① D6′：地方附加收入（独立池，直接入府库）——须在支用腿**之前**入账 ----
     _settle_local_extra_income(state, log)

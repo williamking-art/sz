@@ -12,7 +12,7 @@
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $py = Join-Path (Split-Path -Parent $RepoRoot) '.audit-venv\Scripts\python.exe'
-$node = Join-Path (Split-Path -Parent $RepoRoot) 'tools\nodejs\node-v20.19.5-win-x64\node.exe'
+$node = Join-Path (Split-Path -Parent $RepoRoot) 'tools\nodejs\node-v24.22.1-win-x64\node.exe'
 $game = Join-Path $RepoRoot 'game'
 $fe = Join-Path $game 'frontend'
 

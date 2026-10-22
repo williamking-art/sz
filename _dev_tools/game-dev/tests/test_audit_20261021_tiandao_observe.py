@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""D 首批（Jev A 0.799）：10 个天道门面方法只读接线——记录裁决、不改数值。"""
+"""D 首批（Jev A 0.799）：11 个天道门面方法只读接线——记录裁决、不改数值。
+
+2026-10-21 L0 补入第 11 项 `labor_service_policy`（objective=`labor_policy`）：
+此前只声明、未进观察名单/决策日志，是 objective 覆盖的缺口。
+"""
 from __future__ import annotations
 
 import sys
@@ -10,13 +14,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "game"))
 _OBS = (
     "tax_collection_stance", "should_waive_ancient_arrears",
     "merchant_trade_or_hoard", "changping_intervene_gate",
-    "canal_reroute_choice", "granary_corruption_check",
-    "farmer_destitution_path", "gentry_charity_vs_annex",
-    "reform_compliance_gate", "recruit_refugees_to_soldiers_gate",
+    "labor_service_policy", "canal_reroute_choice",
+    "granary_corruption_check", "farmer_destitution_path",
+    "gentry_charity_vs_annex", "reform_compliance_gate",
+    "recruit_refugees_to_soldiers_gate",
 )
 
 
-def test_observe_monthly_is_read_only_and_records_all_ten():
+def test_observe_monthly_is_read_only_and_records_all_eleven():
     from core.ai.tiandao_facade import TianDaoFacade
     from core.commands import new_game
 
@@ -28,6 +33,9 @@ def test_observe_monthly_is_read_only_and_records_all_ten():
              sum(p["pops"]["农"]["wealth"] for p in s.prefectures.values()))
     assert before == after, "只读观察不得改任何数值"
     assert set(rec["decisions"]) == set(_OBS)
+    assert len(_OBS) == 11, "观察项 10 → 11（2026-10-21 L0 补 labor_service_policy）"
+    # 第 11 项必须真的给出劳役抉择（不是 error 占位、也不是空串）
+    assert rec["decisions"]["labor_service_policy"] in ("corvee", "hired")
     assert rec["read_only"] is True
     assert s._tiandao_observe["decisions"] == rec["decisions"]
 

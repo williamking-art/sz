@@ -1,0 +1,99 @@
+{
+  "id": "JEV-天道L3接线口径-2026-10-22",
+  "title": "天道 L3 接线批：优先级与三处落点/口径裁定",
+  "status": "decided",
+  "askedAt": "2026-10-22T00:00:00+08:00",
+  "askedBy": "DSH-lead / impl-granary-effects",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose ×1 + choose ×2（实施期落点）",
+  "context": "承接 JEV-天道L1实现口径-2026-10-21。L0/L1/L2 已落地，本批把余下 5 个门面的裁决接成数值效果。",
+  "rulings": [
+    {
+      "topic": "下一批优先事项",
+      "question": "下一批应优先推进哪一项？",
+      "options": {
+        "A": "接余 5 项门面的数值效果（让裁决真正影响玩法）",
+        "B": "重标 SEED_* 四阈值（修奏报事实签量纲）",
+        "C": "建标签数据源（让回测能出 Brier/命中率）",
+        "D": "外部真 Jev 特化（score 题型 / 弃权项 / 世界观 criteria）"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.7767, "B": 0.1490, "C": 0.0356, "D": 0.0387},
+      "premises_verified_by_me": [
+        "11 个门面里只有 5 个有数值消费方（实测 grep 消费点），余 5 项算完即丢 ⇒ 裁决对玩法零影响",
+        "接线受 POP 挂载律与守恒断言约束，但既有通道齐备（`_pop_obj_add` / `grain_bridge` / `ArmyUnit.add_troops` / `local_treasury_bridge`）",
+        "结算期禁同步 HTTP 不构成障碍：消费方只读 `state._tiandao_observe` 副本"
+      ],
+      "applied_in": ["本批全部 5 项接线（见 tasks.md §5c）"]
+    },
+    {
+      "topic": "和籴补粮的落点（运期太仓装满后余容为 0）",
+      "question": "和籴补粮应放在漕运段之前还是本色支取之后？",
+      "askedBy": "impl-granary-effects",
+      "verdict": "本色支取之后（余容约 108 万石，支线才真落地）",
+      "probabilities": {"holds": 0.992},
+      "premises_verified_by_me": [
+        "实测运期漕运即把太仓填满 20,000,000 石 ⇒ 紧跟漕运则余容恒 0、和籴支线纯空转",
+        "放在本色支取后才有约 108 万石余容；且只对**实收**石数付钱（宁少买不造粮）"
+      ]
+    },
+    {
+      "topic": "陆运脚钱的对手方账户",
+      "question": "陆运脚钱从国库支出后应记给谁？",
+      "askedBy": "impl-granary-effects",
+      "verdict": "A：国库 → 商人 POP（走 `_distribute_pop_wealth` 既有分摊单点）",
+      "probabilities": {"A": 0.705},
+      "premises_verified_by_me": [
+        "直接 burn 会让 M_ALL 掉、月度对账报「凭空销毁」",
+        "商人 POP 是既有账户，分摊单点与 settlement_finance 同源（尾差归最大府）"
+      ]
+    }
+  ],
+  "tie": false,
+  "premises_verified_by_me_lead": [
+    "中性档 ≡ 无记录 ≡ 改前：两侧各自实测 sha256 逐字节相同（经济域 3 函数 + 3 个月全流水线；仓储域 6 个月摘要）",
+    "Lead 独立 6 个月复核：M_ALL 残差 中性 −3,006,634 vs 真实 −3,007,879 ⇒ 本批净贡献约 −1,245，残差主体为**既有**问题（两种跑法都在）",
+    "Lead 独立复核：兵额逐路 `兵.size == Σtroops` 0 违例；人口只在池间移动",
+    "Lead 独立复核：`self_farm+gentry+official+imperial == land` **不是**本仓库全局不变量（初始 0/20，6 个月后中性档与真实档都 20/20 违例）⇒ 不得作验收断言，正确断言是「转移成对 Δself == −Δgentry」"
+  ],
+  "corrections": [
+    {
+      "what": "Lead 在任务书里对「田产集中」写的是「只抬 gentry_land、不改 p[land]」，实施方改为「自耕田扣同额、士绅田加同额」（p[land] 仍不动）",
+      "why": "实施方指出 self_farm+gentry+official+imperial 是收获月分粮的归属分母；只抬 gentry 会让 Σ归属 > land ⇒ 收获月凭空多分粮",
+      "verdict": "采纳实施方（成对转移）。Lead 的原写法是错的：它把「集中度上升」误当成「无来源的归属增加」。",
+      "evidence": "test_tiandao_effects_econ.py：20 路逐路 Δgentry == +int(land×0.3%)、Δself == −同额、Σ归属前后相等、p[land] 不变"
+    },
+    {
+      "what": "Lead 的 L3 任务书只把「逃亡放大」指到 `settlement_econ._ext_econ_phases`（外邦省域），漏了宋侧",
+      "why": "宋侧饥荒逃散在 `settlement_granary` 的饥荒段，不在同一函数内",
+      "verdict": "Lead 亲自补接宋侧（复用同一倍数），并把 `FLEE_VERDICT_MULT` 收敛到 `core/ai/tiandao_effects` 单点，避免两处同名不同义",
+      "evidence": "settlement_granary._flee_after_verdict + test_song_side_famine_flee_amplified（1000→1500/路，mortgage_land 不变，人总量不变）"
+    }
+  ],
+  "known_limits": [
+    "重灾时逃散已顶 FLEE_CAP_PER_ROUTE(5 万) ⇒ 逃亡档只在中度饥荒（缺粮 < 33,333/地）可见；上限是防爆版，不被档位突破（有意）",
+    "8/20 路无实体军 ⇒ 该路流民不募、不造单位、流民原样保留（要覆盖需建军，属兵制内容）",
+    "statistics[total_expenditure] 混入地方府库支出，已用 canal_overland_cost / canal_borrow_cost / canal_borrow_grain 三个子键区分",
+    "三项漕运代价不计入 last_monthly_expense（不改财政刚性口径）"
+  ],
+  "integration_fixes": [
+    {
+      "what": "既有测试 test_dynamic_completion_defense_add_actually_raises_troops 由「Δ 恰好 +1000」变红（实测 +1005）",
+      "cause": "天道「募流民为厢军」档在同月也给该路加兵 5 人",
+      "verdict": "在该测试内把天道观测置为中性（monkeypatch observe_monthly 写 decisions={}）——本条测的是蓝图完工效果，不该与募兵档耦合",
+      "evidence": "test_dynamic_blueprint.py:289 起，docstring 写明隔离理由"
+    },
+    {
+      "what": "朝代字面量棘轮（test_p0_dynasty_guard）因新日志里的「路/州府」上涨（econ 路 +4/州府 +1；granary 路 +10）",
+      "cause": "新接线代码的日志与 docstring 用了「N 路」「本路」「陆路」「州府真账」等措辞",
+      "verdict": "**不重建基线**（另一会话工作区仍有未提交改动，重建会把它的增量一并吞掉）⇒ 按守卫本意改中性措辞：陆路→陆运、本路→本地、N 路→N 个地方/N 处、州府真账→真账；并同步 2 处测试断言",
+      "evidence": "dynasty 增量脚本复查 0 条；test_p0_dynasty_guard 绿"
+    }
+  ],
+  "reopen_if": [
+    "若给无军之路建军，重开「募流民覆盖度」并复核兵额派生。",
+    "若把 FLEE_CAP_PER_ROUTE 改为按路人口比例，重开「逃亡档可见区间」。",
+    "若上游能产出 ground truth 标签，重开 C 案（回测出 Brier/命中率）。"
+  ],
+  "collision_check": "与 JEV-天道L1实现口径-2026-10-21 同批承接，不冲突；golden 重建沿用该档的 A 0.997 裁定（同一类行为变更）。"
+}

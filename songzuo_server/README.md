@@ -12,7 +12,7 @@
 |---|---|
 | `Cargo.toml` / `Cargo.lock` | crate 定义与锁定 |
 | `src/` | 源码（见 `src/README.md`） |
-| `Dockerfile` / `.dockerignore` / `cloudbaserc.json` | 云端构建（CloudBase）相关 |
+| `Dockerfile` / `.dockerignore` / `cloudbaserc.json` | 容器构建相关；`cloudbaserc.json` 是**历史（已停用 2026-10-22）**的 CloudBase 云托管本地配置，本目录现行**无云端部署目标**（见 `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` §8.3） |
 | `target/` | Rust 构建缓存（可通过 Cargo 重建；是否生成由本机环境决定） |
 
 ## 常用命令

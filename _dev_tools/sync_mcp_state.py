@@ -4,7 +4,11 @@
 ② 将来真要恢复云端时的现成客户端。**不要再拿它当交接入口**——
 它的 `/mcp` 端点现在返回 HTTP 410（带/不带 token 一致，同域其他路径是结构化 404）。
 
-（以下原文保留）把 CloudBase 交接状态（state / context / worklog）拉到本地镜像，供**没有 MCP 的 agent/离线场景**读取。
+> **云侧迁移标注（2026-10-22，用户裁定）**：项目已从「腾讯云开发 CloudBase」全面转向**阿里云**
+> （交接 MCP 自托管于阿里云 ECS，见 `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` §8.1）。
+> 本脚本面向的 CloudBase 端点/环境**全部停用且不会恢复**，代码仅按裁定原样留档（**不删除**）。
+
+（以下原文保留，属**历史资料**）把 CloudBase 交接状态（state / context / worklog）拉到本地镜像，供**没有 MCP 的 agent/离线场景**读取。
 
 为什么需要它：交接状态在云端 MCP（`cloudbase-state-mcp`）里，但并非每个 agent
 都能配 MCP。本脚本把 `project=<name>` 的

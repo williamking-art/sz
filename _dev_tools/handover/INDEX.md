@@ -1,13 +1,14 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-20T17:02:39Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-22T14:38:00Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-Audit**（updatedAt=2026-10-20T15:45:00Z）：2026-10-20 全审完成（只审不改）：sz 游戏本体四维并行审查 + Lead 实测复跑。必修 4：外贸货腿造币链（12月 cum_residual +13,470,432）、陆路榷税无付款方、长期案卷专款双扣+账外余额、天道档位槽失败不清空；应修含 AI 生产者签名错配/_ai_failures 不清、案卷页数
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
+- **DSH-lead**（updatedAt=2026-10-22T21:30:00+08:00）：结算幂等守卫落地（审查遗留唯一硬项）：expect_turn 判重 + 装饰器 kwargs + 日志存副本；全量 4477 tests 全绿
 - **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序『可自决部分』全部收口并终局认证（M37–M293，会话 256 轮）。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
@@ -30,29 +31,26 @@
 - `M41-market-p1-first-slice` 统一民间市场 P1 第一条纵向切片（开工门已出；剩余缺口见 inventory-market.md 2026-10-13 复核） ｜status=**in_progress**｜claimedBy=DSH
 - `M42-stock-flow-ledger` 逐维商品流量账（P1 第一句「逐月复原商品库存恒等式」的**缺失前置**） ｜status=**in_progress**｜claimedBy=DSH
 - `M50-job-track-config-fallback` 岗位轨「缺政权专档 ⇒ 静默套 default」去静默（主线C 通过标准②的前半步） ｜status=**pending**｜claimedBy=（未认领）
+- `M50b-regime-job-track-shards` 补齐 28 类政权岗位轨专档（M50 拒绝产出的前置；本批只登记） ｜status=**pending**｜claimedBy=（未认领）
+- `RUST-IDEMPOTENCY-GAP` Rust 实验后端的结算幂等语义未与 Python 侧对齐（本批只登记） ｜status=**open-registered**｜claimedBy=（未认领）
 - `WIRING-GAPS-antigravity-2026-10-20` 未接线模块收口清单（M298-M325 审计 §9 剩余项） ｜status=**open-registered**｜claimedBy=（未认领）
 
 ## 待裁 / 未闭环决策
 
-- `AGENT-DSH-NAME-COLLISION` [待裁定] 两个并发会话共用 `DSH` 名字，`phase/DSH.json` 被互相覆盖（需裁定归属规则）
-- `C-invest` [recommended-no] invest_decide 回报来源守恒
-- `M38c-crop-buildings-authorization` [待裁定] M38c 建筑语汇统一（桑/麻/果/蔗/茶园各成一建）· 是否需要该阶段单独授权？
-- `MIG-COMPAT-RETENTION` [待裁定] 迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API
-- `POP-faction` [design-done] POP 增派系子池（与阶层分离）
-- `地方支出V2-D1-D5` [待裁定] 地方支出 V2（M34-①）：行政/治安/水利/救灾/仓廪五条消费性出口的接入口径 D1–D5
+- （无）
 
 ## 最近 8 条工作日志
 
-- `20261020T135740Z-DSH` → [`worklog/20261020T135740Z-DSH.md`](worklog/20261020T135740Z-DSH.md)
-- `20261020T140027Z-DSH` → [`worklog/20261020T140027Z-DSH.md`](worklog/20261020T140027Z-DSH.md)
-- `20261020T142156Z-DSH` → [`worklog/20261020T142156Z-DSH.md`](worklog/20261020T142156Z-DSH.md)
-- `20261020T154957Z-DSH` → [`worklog/20261020T154957Z-DSH.md`](worklog/20261020T154957Z-DSH.md)
-- `20261020T161141Z-DSH` → [`worklog/20261020T161141Z-DSH.md`](worklog/20261020T161141Z-DSH.md)
-- `20261020T164559Z-DSH` → [`worklog/20261020T164559Z-DSH.md`](worklog/20261020T164559Z-DSH.md)
-- `20261020T164811Z-DSH` → [`worklog/20261020T164811Z-DSH.md`](worklog/20261020T164811Z-DSH.md)
-- `20261020T165016Z-DSH` → [`worklog/20261020T165016Z-DSH.md`](worklog/20261020T165016Z-DSH.md)
+- `20261021T150632Z-DSH-lead` → [`worklog/20261021T150632Z-DSH-lead.md`](worklog/20261021T150632Z-DSH-lead.md)
+- `20261021T154210Z-DSH-lead` → [`worklog/20261021T154210Z-DSH-lead.md`](worklog/20261021T154210Z-DSH-lead.md)
+- `20261021T173854Z-DSH-lead` → [`worklog/20261021T173854Z-DSH-lead.md`](worklog/20261021T173854Z-DSH-lead.md)
+- `20261021T224621Z-DSH-lead` → [`worklog/20261021T224621Z-DSH-lead.md`](worklog/20261021T224621Z-DSH-lead.md)
+- `20261022T080134Z-DSH-lead` → [`worklog/20261022T080134Z-DSH-lead.md`](worklog/20261022T080134Z-DSH-lead.md)
+- `20261022T112435Z-DSH-lead` → [`worklog/20261022T112435Z-DSH-lead.md`](worklog/20261022T112435Z-DSH-lead.md)
+- `20261022T124528Z-DSH-lead` → [`worklog/20261022T124528Z-DSH-lead.md`](worklog/20261022T124528Z-DSH-lead.md)
+- `20261022T132841Z-DSH-lead` → [`worklog/20261022T132841Z-DSH-lead.md`](worklog/20261022T132841Z-DSH-lead.md)
 
 ## 计数
 
-- tasks 213（未完成 18）· decisions 229（未闭环 6）· worklog 768 · phase 文件 5
+- tasks 215（未完成 20）· decisions 257（未闭环 0）· worklog 816 · phase 文件 6
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

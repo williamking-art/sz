@@ -54,10 +54,12 @@ songzuo_server/run*.out
 songzuo_server/run*.err
 songzuo_server/deploy.log.err
 
-# --- 云托管部署工具生成的本地配置（不入库） ---
-# 背景：2026-09-23 首次把 Rust 后端发布到云托管时，CloudBase MCP 的 manageCloudRun
-# 会在 targetPath 下自动生成 cloudbaserc.json（内容仅本机 envId + 服务名）。
-# 它属"本机部署上下文"而非项目源码，故不入库；不带斜杠的写法可匹配任意层级。
+# --- 云部署工具生成的本地配置（不入库） ---
+# 历史（已停用 2026-10-22）：2026-09-23 首次把 Rust 后端发布到 CloudBase 云托管时，
+# CloudBase MCP 的 manageCloudRun 会在 targetPath 下自动生成 cloudbaserc.json（仅本机 envId + 服务名）。
+# 云侧已于 2026-10-22 迁到阿里云（见 _dev_tools/game-docs/docs/开发服务器与回归测试说明.md §八），
+# 该文件**不再产生**；规则保留只为忽略历史工作区残留（清掉也不影响任何流程）。
+# 不带斜杠的写法可匹配任意层级。
 cloudbaserc.json
 songzuo/宋祚.exe.lnk
 game/assets/map/web/tiles/
@@ -80,9 +82,10 @@ assets/map/web/tiles/
 # 不锚定根目录：harness 的嵌套 .qoder/ 副本同样覆盖。
 .qoder/
 
-# --- CloudBase MCP 项目级绑定（本机机器管理文件，不入库） ---
-# MCP 从 .cloudbase/project.json 读 envId/site/region，实现「打开仓库即连对环境」。
-# 它绑定的是本机环境、属机器配置而非源码，故不入库。
+# --- 历史（已停用 2026-10-22）：CloudBase MCP 的项目级绑定目录（机器配置，不入库） ---
+# 旧 CloudBase MCP 从 .cloudbase/project.json 读 envId/site/region，实现「打开仓库即连对环境」。
+# 2026-10-22 起云侧改用阿里云（交接 MCP 自托管于 ECS，见文档 §8.1），该目录**已无工具读写**。
+# 规则保留只为忽略历史残留；本机可直接删 `D:\codebuddy\.cloudbase\` 与 `D:\codebuddy\sz\.cloudbase\`。
 .cloudbase/
 
 # --- 操作系统 / 编辑器 ---
@@ -117,9 +120,10 @@ _dev_tools/*
 !_dev_tools/agnes_gen.py
 !_dev_tools/dev-env.ps1
 # 开发期交接：把 CloudBase 交接状态（state/context/worklog）拉到本地镜像 tmp/mcp_sync/，
-# 供没有 MCP 的 agent 直接读——与 cloudbase-check.ps1 / verify-all.ps1 同类，故放行入库。
+# 供没有 MCP 的 agent 直接读——与 aliyun-check.ps1 / verify-all.ps1 同类，故放行入库。
 # ⚠️ 2026-10-09 起交接通道已从云端 MCP 换成本机文件（见 _dev_tools/handover/NOTICE.md）；
-# 本脚本保留只作历史与将来恢复用，现行工具是 `_dev_tools/handover.py`。
+# 本脚本保留只作历史与将来恢复用（**已停用**），现行工具是 `_dev_tools/handover.py`
+# 与阿里云 ECS 上的自托管 MCP（见文档 §8.1）。
 !_dev_tools/sync_mcp_state.py
 # 本机交接层：phase/tasks/decisions/worklog **一条一文件** + 云端存量归档 JSON，
 # 全部入库——AGENTS.md §1 直接把它当唯一权威入口，不入库就等于"跨会话结论只存在本机"。
@@ -127,8 +131,8 @@ _dev_tools/*
 !_dev_tools/handover/**
 # 交接工具本体（AGENTS.md 与 NOTICE.md 都按路径引用它）
 !_dev_tools/handover.py
-# 开发辅助工具链自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，可 -Fix 自动修可修项）
-!_dev_tools/cloudbase-check.ps1
+# 开发辅助工具链 + 阿里云侧资产自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，-Fix 只重建知识库）
+!_dev_tools/aliyun-check.ps1
 # 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：
 # `game/README.md`（**入库**文档）已引用它 —— 若不入库，新克隆者按文档跑会找不到文件。
 !_dev_tools/verify-all.ps1
@@ -159,7 +163,8 @@ _dev_tools/game-assets-src/ministers-layers/_src/_verify.png
 !_dev_tools/game-docs/
 !_dev_tools/game-docs/**
 _dev_tools/game-docs/**/__pycache__/
-# 再排除可再生的分析产物（脚本见 analysis/econ_pg_export.py，数据已落 CloudBase PG，见文档 §8.9）。
+# 再排除可再生的分析产物（脚本见 analysis/econ_pg_export.py；历史入库目标是 CloudBase PG，
+# 已停用 2026-10-22 —— 见文档 §8.8.10；本机重跑产物同样不入库）。
 # 注意：必须放在上面 `!_dev_tools/game-docs/**` 之后 —— git 以最后匹配的规则为准。
 _dev_tools/game-docs/analysis/econ_monthly.json
 
@@ -174,6 +179,12 @@ _dev_tools/game-dev/*
 !_dev_tools/game-dev/requirements-dev.txt
 # B-1 字段注册 golden 的产出脚本（**单文件**放行；本目录其余根级脚本仍不入库）
 !_dev_tools/game-dev/b1_baseline_probe.py
+# 放行 tools/（**离线工具**：要驱动结算/读档，故不能住在 game/core，见 tools/README.md）
+# 2026-10-22：天道回测标签生成器 tiandao_labels.py 在此。不放行则工具只在建者机器上，
+# 换工作树取不到；又因 core/ai 只留纯逻辑（架构守卫禁止它 import 结算），缺它标签链路就断。
+!_dev_tools/game-dev/tools/
+!_dev_tools/game-dev/tools/**
+_dev_tools/game-dev/tools/__pycache__/
 # 放行 tests/** 会连带纳入 __pycache__，须显式排除（每次跑测试都变）
 _dev_tools/game-dev/tests/__pycache__/
 

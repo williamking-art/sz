@@ -1,5 +1,5 @@
 {
- "army_troops": 748800,
+ "army_troops": 751728,
  "era_name": "崇宁",
  "finance": {
   "collection_rate": 0.625,
@@ -9,8 +9,8 @@
   "tax_version": 1.0,
   "transfer_rate": 0.94
  },
- "granary": 4073668.0,
- "imperial_treasury": 5497479.0,
+ "granary": 4101439.0,
+ "imperial_treasury": 5537013.0,
  "month": 1,
  "pops_grain": 0.0,
  "pops_size": 0.0,
@@ -117,7 +117,7 @@
    "treasury": null
   }
  },
- "treasury": 129061.0,
+ "treasury": 129335.0,
  "turn": 12,
  "year": 1102
 }

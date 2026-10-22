@@ -3,8 +3,17 @@
   "title": "度量衡统一转换引擎、公制双轨接口与体制变法博弈",
   "status": "in_progress",
   "claimedBy": "antigravity",
-  "audit_status": "【2026-10-17 审计降级】度量衡双轨换算引擎与单元测试已就绪，但变法效果参数（制造/物流/清丈/吏治）尚未接入主线月度结算管线，待后续专项任务接线。",
-  "description": "构建度量衡系统：1. 创建 core/foundation/metrology.py，实现宋制容积(石/斗/升)、重量(石/斤/两)、长度(丈/尺/寸)、地积(顷/亩/步)与现代公制(L/kg/m/m²)双向转换；2. 支持动态自定义换算比，绝不写死单一死数；3. 预留公制度量衡体制接口，挂载生产标准化(机械/作坊效率+30%)、清丈抗隐田(+12%赋税)与吏胥阻力(+grip/激化吏治)机制；4. 编写专属单元测试验证。",
+  "audit_status": "【2026-10-22 复核：原「变法效果参数尚未接入主线月度结算管线」部分不准确，按代码逐项改判】度量衡双轨换算引擎与单测就绪（tests/test_metrology_engine.py、_dev_tools/game-dev/tests/test_audit_metrology_wiring.py）。4 项变法效果：① logistics_loss_reduction 已接（spatial_warehouse_bridge.py:314，管线 spatial_logistics 步）；② clerk_grip_resistance 已接（clerks.py:406，管线 clerks 步）；③ tax_leakage_resistance 的读取点在 land_tenure.py:188-190，但宿主 apply_fangtian_survey 无生产调用方（WIRING-GAPS ② 未收口）⇒ 当前不生效；④ gentry_unrest_spike 只在 MetrologyEngine.apply_reform（metrology.py:357-361）一次性生效，而 apply_reform 无生产调用方（仅测试调用）⇒ 当前不触发。制造倍率 manufacturing_mult 基线已接（settlement_econ.py:2042，管线 workshops 步）。⇒ 结论：2/4 已收口、1 项待上游（方田清丈）接线、1 项待改制入口接线。",
+  "audit_updated_at": "2026-10-22T14:40:00Z",
+  "audit_evidence": [
+    "game/core/foundation/ledger/spatial_warehouse_bridge.py:314 → logistics_loss_reduction（advance_in_transit_batches）",
+    "game/core/clerks.py:404-407 → clerk_grip_resistance（settle_clerks，管线 clerks 步）",
+    "game/core/domains/economy/land_tenure.py:188-190 → tax_leakage_resistance 读取点（宿主 apply_fangtian_survey 全库无生产调用方，仅测试）",
+    "game/core/foundation/metrology.py:325/357-361 → MetrologyEngine.apply_reform 内 gentry_unrest_spike（全库仅测试调用 apply_reform）",
+    "game/core/settlement_econ.py:2042 → manufacturing_mult（作坊产出倍率）",
+    "game/core/settlement_pipeline.py:234/240/248 → 管线步 spatial_logistics / civil_construction / clerks"
+  ],
+  "description": "构建度量衡系统：1. 创建 core/foundation/metrology.py，实现宋制容积(石/斗/升)、重量(石/斤/两)、长度(丈/尺/寸)、地积(顷/亩/步)与现代公制(L/kg/m²)双向转换；2. 支持动态自定义换算比，绝不写死单一死数；3. 预留公制度量衡体制接口，挂载生产标准化(机械/作坊效率+30%)、清丈抗隐田(+12%赋税)与吏胥阻力(+grip/激化吏治)机制；4. 编写专属单元测试验证。",
   "created_at": "2026-10-17T17:15:00Z",
   "dependencies": [
     "M323-qianzhong-circuit-complete-data"

@@ -5,5 +5,39 @@
   "claimedBy": null,
   "created_at": "2026-10-20T13:40:00Z",
   "description": "审计报告 analysis/review_antigravity_M298-M325_2026-10-17.md §9 复核后仍仅「模块就绪、无生产调用」的项，需接线或降级任务状态：① check_countersign（知通连署判定，当前只在 decree_effect 读静态 countersigned 字段）；② apply_fangtian_survey / derive_national_tenure（方田清丈/田制派生）；③ reclaim_land_government / get_circuit_wasteland（垦荒）；④ advance_livestock_production（畜牧生产）；⑤ derive_macro_climate / vignette_of_circuit（宏观物候，derive_circuit_climate 已接）；⑥ MetrologyEngine 4 项未消费效果（logistics_loss_reduction / tax_leakage_resistance / clerk_grip_resistance / gentry_unrest_spike，制造倍率已接）。验收：每项给出生产调用点（从 run_monthly_settlement 或诏令链进入）或有据地降级为「仅声明」；不得只加单测。",
-  "note": "与 M300/M317/M324（antigravity，in_progress）重叠的部分由该批收口，本任务只兜底剩余无人认领项。"
+  "note": "与 M300/M317/M324（antigravity，in_progress）重叠的部分由该批收口，本任务只兜底剩余无人认领项。",
+  "audit_status": "【2026-10-22 逐项复核】6 项中 2 项已收口、1 项部分收口、2 项仍开放、1 项分拆（2 项已收口 / 1 项待上游 / 1 项待入口）——逐项见 audit_items。要点：① check_countersign 已有生产调用（不止 decree_effect 读静态字段）；③ reclaim_land_government 已由结算管线 officialdom 步调用；⑤ derive_circuit_climate 已接生产、仅 derive_macro_climate 全国汇总未接；⑥ 度量衡 4 效果中 logistics_loss_reduction 与 clerk_grip_resistance 已由生产模块按 active_effects 读取，tax_leakage_resistance 的读取点存在但其宿主 apply_fangtian_survey 未接线（与②同源），gentry_unrest_spike 只在无生产入口的 MetrologyEngine.apply_reform 内生效。",
+  "audit_updated_at": "2026-10-22T14:40:00Z",
+  "audit_items": [
+    {
+      "item": "① check_countersign（知通连署判定）",
+      "verdict": "已收口",
+      "evidence": "core/domains/administration/prefect_officials.py:101 定义、:249（init_all_prefect_officials 建 136 席时调用）/ :319（appoint_prefect_official 授职） / :379（dismiss_prefect_official 罢免）；生产入口：application/game_init.py:173 新局初始化 ＋ core/personnel_order.py:110/120（settle_personnel_orders，由 settlement_officialdom.py:176-177 在管线 officialdom 步内调用）；席位记录存档于 save_load.py:332/876-878，多模块消费（decree_effect/incident/impeachment 等）"
+    },
+    {
+      "item": "② apply_fangtian_survey / derive_national_tenure（方田清丈 / 田制派生）",
+      "verdict": "仍开放",
+      "evidence": "core/domains/economy/land_tenure.py:136 定义 derive_national_tenure、:168 定义 apply_fangtian_survey；全库生产代码零调用（仅 tests/test_m299_stage2_land_and_industry.py、tests/test_audit_metrology_wiring.py 调用）；注意 derive_circuit_tenure 已被 industry_chains/pop_livelihood 生产读用，缺口仅在这两个写/汇总函数"
+    },
+    {
+      "item": "③ reclaim_land_government / get_circuit_wasteland（垦荒）",
+      "verdict": "已收口",
+      "evidence": "core/domains/administration/settlement_officialdom.py:120-164 _run_annual_reclamation（调用 reclaim_land_government 于 :152），由 _settle_officialdom:207 调用；_settle_officialdom 是声明式管线 officialdom 步（core/settlement_pipeline.py:246）。注意默认制度参数 gov_reclamation_share=0 时该函数早退（需显式开启才真跑）"
+    },
+    {
+      "item": "④ advance_livestock_production（畜牧生产）",
+      "verdict": "仍开放",
+      "evidence": "core/domains/economy/livestock_and_escort.py:90 定义；生产代码零调用（仅 tests/test_livestock_and_escort.py 调用）"
+    },
+    {
+      "item": "⑤ derive_macro_climate / vignette_of_circuit（宏观物候）",
+      "verdict": "部分收口",
+      "evidence": "derive_circuit_climate 已由 core/domains/economy/pop_livelihood.py:61 生产调用（管线 pop_livelihood 步 settlement_pipeline.py:245）；vignette_of_circuit 由 macro_climate.py:167 在 derive_circuit_climate 内部调用；derive_macro_climate（全国汇总）仍仅 tests/test_m298_batch1_core_loop.py 调用"
+    },
+    {
+      "item": "⑥ MetrologyEngine 4 项未消费效果",
+      "verdict": "2 项已收口 / 1 项待上游 / 1 项待入口",
+      "evidence": "logistics_loss_reduction → core/foundation/ledger/spatial_warehouse_bridge.py:314（管线 spatial_logistics 步）；clerk_grip_resistance → core/clerks.py:406（管线 clerks 步）；tax_leakage_resistance → core/domains/economy/land_tenure.py:189，但宿主 apply_fangtian_survey 无生产调用方（见②）⇒ 当前不生效；gentry_unrest_spike → core/foundation/metrology.py:357-361（MetrologyEngine.apply_reform 无生产调用方，仅测试调用）⇒ 当前不触发"
+    }
+  ]
 }

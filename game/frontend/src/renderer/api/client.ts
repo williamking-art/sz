@@ -904,8 +904,15 @@ export class ApiClient {
     });
   }
 
-  async advance(): Promise<AdvanceResult> {
-    return this.request("/api/advance", { method: "POST" });
+  /** 回合推进。`expectTurn` ＝ **UI 正在展示的回合**，服务端据此判重：
+   *  落后（响应丢失后的重发）⇒ 幂等重放历史日志、不再推进；超前 ⇒ 409。
+   *  缺省不发，服务端按旧行为推进（向后兼容）。 */
+  async advance(expectTurn?: number): Promise<AdvanceResult> {
+    const body =
+      typeof expectTurn === "number" && Number.isFinite(expectTurn)
+        ? JSON.stringify({ expect_turn: expectTurn })
+        : undefined;
+    return this.request("/api/advance", { method: "POST", body });
   }
 
   /** 朝情富化轮询（两段式回合推进 round2；GET 幂等可重复拉）。

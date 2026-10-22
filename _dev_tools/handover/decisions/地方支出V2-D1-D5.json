@@ -1,7 +1,7 @@
 {
  "id": "地方支出V2-D1-D5",
  "title": "地方支出 V2（M34-①）：行政/治安/水利/救灾/仓廪五条消费性出口的接入口径 D1–D5",
- "status": "待裁定",
+ "status": "已裁定",
  "registeredBy": "DSH",
  "registeredAt": "2026-10-13",
  "blocks": "M37c-2（阻塞记录 §五-5『settlement_finance / granary 的府库收支分腿』）；主线 B 后续『仓储/商品存量』『真实交易与州府价格』的府库出口侧口径",
@@ -47,5 +47,7 @@
  },
  "engineering_ready": "M37 已把工程前置做齐（治所真账/写点全桥/治所级账户），V2 接入时**不需要**新账本或新写口，只需在既有 transfer_money 单点上按裁决口径增加支出腿。",
  "ruler": "",
- "verdict": ""
+ "verdict": "Jev A 0.840：本批只裁口径并登记，不接线",
+ "verdictBy": "Jev(tokenrhythm)",
+ "verdictAt": "2026-10-22T14:04:12Z"
 }

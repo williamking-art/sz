@@ -1,0 +1,65 @@
+{
+  "id": "JEV-民怨动力学与奏报阈值-2026-10-22",
+  "title": "民怨动力学补齐 + 奏报四类签阈值重标（相对锚）",
+  "status": "decided",
+  "askedAt": "2026-10-22T15:20:00+08:00",
+  "askedBy": "DSH-lead",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose ×1 + gate ×1",
+  "context": "承接 Jev B（重标 SEED_* 四阈值 0.805）。实测发现根因不是阈值而是民怨动力学缺失。",
+  "rulings": [
+    {
+      "topic": "民怨与内容档位不匹配，本批做到哪一档",
+      "options": {
+        "A": "只重标 SEED_* 并登记不可达事实",
+        "B": "A + 补民怨上行动力让 0-100 可用",
+        "C": "A + 只解耦治安支出与军额"
+      },
+      "verdict": "B",
+      "probabilities": {"A": 0.1428, "B": 0.7571, "C": 0.1001},
+      "premises_verified_by_me": [
+        "民怨只会被 `settlement_finance:1047`（治安支出 runner_pay，按军费份额）单向抵减 ⇒ 有实体军的 12 地一年内归零（实测京畿 12→0、陕西 24→0、河北 24→1.0）",
+        "上行动力极弱（military +1.2 / procurement +0.2）⇒ 净效果单向下降",
+        "**8/20 地永久冻结**：无实体军之地无治安支出 ⇒ 民怨一位不动（实测京东东/京东西/淮南东/淮南西/利州/夔州/广南西 恒为初始值，利州路与广南西路恒 24.0；\"有军⇒降、无军⇒冻结\"相关性零例外）",
+        "内容已按高民怨设档：situation_seeds >=30/85、local_agent_decisions >=30/45/60/85、settlement_econ:274 >=20 —— 全部不可达"
+      ],
+      "applied_in": ["settlement_econ._unrest_pressure_target + _settle_region_deepen 第 6 项（民怨向压力目标缓动 10%/月）"]
+    },
+    {
+      "topic": "财政签判据（结构性死签）",
+      "question": "财政签判据应改为按「府库不足 0.1 月本地月税」触发，民怨只作严重度修饰",
+      "verdict": "成立",
+      "probabilities": {"holds": 0.9937},
+      "threshold": 0.4,
+      "premises_verified_by_me": [
+        "原判据「民怨>40 且 府库<50000 贯」实测两条件**从不同时成立**：太平 24 月里 19 月有府库见底（75 地月），其间民怨 min=0 med=2.1 max=11.3；危机 12 月府库一次不见底（粮价高⇒卖粮收入高），民怨却升到 58",
+        "⇒ 该签在两种场景下都永不触发，属结构性死签",
+        "深度判据有天然量纲锚（本地月税，自校准）：实测 <0.10 月税在 24 月出现 11 地月（≈2%），既不刷屏也不沉寂"
+      ],
+      "applied_in": ["TianDaoFacade.scan_memorial_seeds 第 1 段（见底深度判据 + 民怨作严重度修饰）"]
+    }
+  ],
+  "tie": false,
+  "implementation": {
+    "unrest_dynamics": "民怨每月向压力目标缓动 UNREST_DRIFT_RATE=0.10；目标 = 粮价溢价×20 + 灾情级×8 + 流民占比(满10%)×25 + 治理不足×20，钳 [0,100]；单项读数缺失 ⇒ 该项不计；一项都取不到 ⇒ 目标 None（不动作）",
+    "seed_anchors": "SEED_FIN_TREASURY_TAX_MONTHS=0.10（不足 0.1 月本地月税）；SEED_REFUGEE_POP_RATIO=0.004（占本地人口 0.4%）；SEED_FIN_UNREST=40、SEED_UNREST_ALERT=50 保留 0–100 绝对刻度（现已可达）",
+    "why_relative": "绝对贯数/人数与地方级真账脱节（旧 SEED_FIN_TREASURY=50000 对路库 27 万~195 万）；相对锚用既有读数（monthly_tax / population）自校准，缺失则该地不计"
+  },
+  "measurements": {
+    "peaceful_24m": "民怨中位 15→4.1（max 29.6，年末流民 23.9 万推高）",
+    "crisis_12m": "灾5+粮价×3：最高民怨 26.5→57.7；30/45 档可达；60/85 需持续 2 年以上（目标 90 时 24 月到 83、36 月到 87）",
+    "frozen_routes": "8 地全部解冻（逐地断言 abs(Δ)>0）",
+    "golden_impact": "army_troops −64 / granary +72 / imperial_treasury +8 / treasury +9；finance 与 20 路全同",
+    "golden_note": "影响极小 ⇒ 说明民怨此前几乎没有经济下游消费者；本批价值在「局势/推演档位首次可达」，不在账本数字"
+  },
+  "known_limits": [
+    "四个压力权重（20/8/25/20）与缓动率 0.10 均标「待校准」：无历史数据可标定，回测标签就绪后须复核",
+    "60/85 档需要持续 2 年以上的极端灾情+失治才可达；若希望危机更快见顶，调 UNREST_DRIFT_RATE（会改变 golden）",
+    "民怨经济下游消费者仍少（这是产品设计缺口，不是本批引入）"
+  ],
+  "reopen_if": [
+    "若给民怨增加经济/军事消费者（如民怨抬升治安支出、降低税入），需重估权重与爆发阈值。",
+    "若引入真实灾荒频率数据，重标 UNREST_DISASTER_W。"
+  ],
+  "collision_check": "与 JEV-天道概率加权-2026-10-22 同批承接（该档改的是效果幅度，本档改的是读数动力学与奏报判据）；不冲突。"
+}

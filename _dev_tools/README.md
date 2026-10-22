@@ -18,7 +18,7 @@
 
 ## 根级工具
 
-可用脚本包括 `cloudbase-check.ps1`、`verify-all.ps1`、`dev-env.ps1`、`handover.py`（本机交接层，2026-10-09 起为交接唯一入口）、`sync_mcp_state.py`（**已停用**，保留作恢复参考）、`agnes_gen.py` 等。运行前先阅读脚本帮助/源码，尤其是会联网、删除或写入外部状态的工具；不要把凭据放入脚本或输出。
+可用脚本包括 `aliyun-check.ps1`（**阿里云侧资产 + 本机工具链一键自检**；原 `cloudbase-check.ps1` 已随 CloudBase 停用删除，历史见 `game-docs/docs/开发服务器与回归测试说明.md` §8.8）、`verify-all.ps1`、`dev-env.ps1`、`handover.py`（本机交接层，2026-10-09 起为交接唯一入口）、`sync_mcp_state.py`（**已停用**，保留作恢复参考）、`agnes_gen.py` 等。运行前先阅读脚本帮助/源码，尤其是会联网、删除或写入外部状态的工具；不要把凭据放入脚本或输出。
 
 ## 约定
 
@@ -27,7 +27,9 @@
 - **新增数据资产目录（如 `sources/`）必须同时建 README**：写清来源出处、粒度、规模、用法与「只增不改」纪律 —— 否则入库后无人知道它是什么。（2026-10-03 补：`sources/` 归档《宋史》地理志与贡物数据集时立此规）
 - 新增开发文件时先确认跟踪/忽略策略；目录中实际存在不表示它已提交或发行。
 - 对机制改动保持开发文档、规格状态和游戏模块 README 同步。
-- 🔴 **2026-10-09：交接通道从 CloudBase MCP 换成本机 `_dev_tools/handover/`（工具 `handover.py`）**。下面这条对 `sync_mcp_state.py` 的加固记录仍是有效教训——它正是本地层坚持「一条一文件 + 写后回读」的原因；但该脚本本身已停用
+- 🔴 **2026-10-09（历史）：交接通道从 CloudBase MCP 换成本机 `_dev_tools/handover/`（工具 `handover.py`）**。
+  2026-10-22 起云侧全面转**阿里云**（ECS 自托管 MCP 只作跨设备只读快照，见 `game-docs/docs/开发服务器与回归测试说明.md` §8.1）；
+  CloudBase 已停用。下面这条对 `sync_mcp_state.py` 的加固记录仍是有效教训——它正是本地层坚持「一条一文件 + 写后回读」的原因；但该脚本本身已停用
 - **`sync_mcp_state.py`：失败绝不伪装成"云端为空"**（2026-10-03 加固写盘守卫；2026-10-07 R4 加固传输层）。
   历史两代病灶：① 旧 `call()` 在云端超时/HTTP 433 时返回 `None`，`or {}` 把失败伪装成「云端为空」，
   再无条件 `_write` 就**把 `tmp/mcp_sync/` 镜像清空**（实测 `worklog.json` 32.8KB→2B、`SUMMARY.md` 37.9KB→6KB；

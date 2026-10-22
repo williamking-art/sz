@@ -21,7 +21,8 @@ def test_provider_contract_value():
     assert res["verdict"] is True
 
     choose_res = EmbeddedJevEngine.choose(
-        {"treasury": 10000.0}, "劳役政策", {"corvee": 0.5, "hired": 0.5})
+        {"treasury": 1_500_000, "monthly_expense": 400_000}, "劳役政策",
+        {"corvee": 0.5, "hired": 0.5})
     assert choose_res["provider"] == "tiandao_local"
     assert choose_res["verdict"] == "hired"
 
@@ -29,7 +30,7 @@ def test_provider_contract_value():
 def test_legacy_keyword_arguments_still_accepted():
     """`clerk_decision` / `merchant_decision` 用 `state_context=` 关键字调用。"""
     res = EmbeddedJevEngine.choose(
-        state_context={"treasury": 10000.0},
+        state_context={"treasury": 1_500_000, "monthly_expense": 400_000},
         instructions="劳役政策",
         criteria={"corvee": 0.5, "hired": 0.5},
     )
@@ -71,8 +72,12 @@ def test_facade_market_domain():
 
 
 def test_facade_logistics_domain():
-    assert EmbeddedDecisionFacade.labor_service_policy({"treasury": 8000.0}) == "hired"
-    assert EmbeddedDecisionFacade.labor_service_policy({"treasury": 200.0}) == "corvee"
+    # 旧断言用 8000/200 贯，量纲比真实路库低 2 个数量级，且会把 corvee 分支夹成死分支；
+    # 2026-10-21 L1 参数外置后改按真实量纲（路库 27万~195万贯；月支 40 万 ⇒ 3 个月线）。
+    assert EmbeddedDecisionFacade.labor_service_policy(
+        {"treasury": 1_500_000, "monthly_expense": 400_000}) == "hired"
+    assert EmbeddedDecisionFacade.labor_service_policy(
+        {"treasury": 300_000, "monthly_expense": 400_000}) == "corvee"
     blocked = EmbeddedDecisionFacade.canal_reroute_choice({"block_rate": 95})
     assert blocked in ("overland_cart", "borrow_grain")
 

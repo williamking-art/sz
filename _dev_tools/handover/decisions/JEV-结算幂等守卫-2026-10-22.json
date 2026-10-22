@@ -1,0 +1,52 @@
+{
+  "id": "JEV-结算幂等守卫-2026-10-22",
+  "title": "月度结算幂等：按 expect_turn 判重（三近手，按自己论证择 B）",
+  "status": "decided",
+  "askedAt": "2026-10-22T20:50:00+08:00",
+  "askedBy": "DSH-lead（承外部审查遗留硬项）",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose",
+  "context": "外部审查指出：`run_monthly_settlement` 末尾 state.turn += 1 且无幂等守卫；审查方的 econ_probe 里连续两次调用实际推进两个月，不构成同回合重试幂等证据。该硬项至今未验证/未处理。",
+  "question": "同一回合重复结算的幂等性，本批怎么处置？",
+  "options": {
+    "A": "加 request_id 幂等令牌（同 id 二次调用返回上次日志、不推进）",
+    "B": "服务端按调用方声明的 expect_turn 判重（等于 state.turn 才结算，否则视为重试/过期）",
+    "C": "不改代码，只加回归测试把「重复调用=多推一月」钉成已知行为并登记风险"
+  },
+  "verdict": "B",
+  "probabilities": {"A": 0.2437, "B": 0.5143, "C": 0.2420},
+  "tie_note": "⚠️ **三近手**（0.514 / 0.244 / 0.242，B 仅过半）。按纪律自行再论证后择 B：① `state.settlement_log` 本就按回合 append，重放取 `settlement_log[turn]` 即可，无需新状态字段；② A 的令牌同样要前端生成并复用 UUID，却多一层不透明状态且在本地单机场景下无额外收益；③ C 把可达风险留在原地（成功+重发是真实路径，不是理论风险）。同时采纳 C 的产物：测试钉住「无参数时仍会推进」的旧行为。",
+  "premises_verified_by_me": [
+    "实测改前：`settle_local` 连续两次调用 ⇒ turn 0→1→2（双重结算成立）",
+    "`settle_local` 已有异常回滚（`_snapshot_state` / `_restore_state`）⇒ 失败的结算可安全重试，缺口只在「成功但响应丢失」",
+    "`state.settlement_log` 每次结算 append，索引即回合号 ⇒ 重放无需新字段",
+    "实测改后：settle(expect_turn=0) → turn 1；再次 settle(expect_turn=0) → turn 仍 1 且日志逐条相同；settle(expect_turn=99) → 拒绝且状态不变；无参数 → 仍推进"
+  ],
+  "implementation": {
+    "signature": "run_monthly_settlement(state, seed_offset=0, expect_turn=None)；commands.settle_local(state, expect_turn=None) 透传",
+    "semantics": "None ⇒ 旧行为；==turn ⇒ 结算；<turn 且有日志 ⇒ 幂等重放（返回副本）；<turn 无日志 ⇒ 拒绝+warning；>turn ⇒ 拒绝+warning",
+    "side_fix": "settlement_log 存副本（改前 append(log) 与 return log 同一对象 ⇒ 调用方就地修改会污染存档历史）"
+  },
+  "pitfall_recorded": {
+    "what": "`run_monthly_settlement` 被 `@_isolated_rng` 装饰，wrapper 只转固定参数",
+    "symptom": "`functools.wraps` 让 `inspect.signature` 跟随 `__wrapped__` 显示新签名，但运行时抛 `unexpected keyword argument: expect_turn` —— 表现为「签名正确、调用报错」，极易误判为字节码缓存",
+    "fix": "wrapper 增加 `**kwargs` 并转发"
+  },
+  "applied_in": [
+    "game/core/settlement.py（expect_turn 守卫 + 装饰器转发 kwargs + 日志存副本）",
+    "game/core/commands.py（settle_local 透传）",
+    "_dev_tools/game-dev/tests/test_settle_idempotency.py（9 例）",
+    "_dev_tools/game-docs/docs/游戏机制说明.md §1.1（语义表 + 未启用声明）",
+    "tiandao-engine/tasks.md §5h"
+  ],
+  "known_limits": [
+    "**前端/HTTP 层未传 expect_turn ⇒ 守卫待启用**，不能宣称「已防住重发」；接线需在结算请求里带上 UI 正在展示的回合（前后端契约变更）",
+    "只覆盖「成功但重发」；中途异常仍靠 settle_local 的快照回滚（既有机制）",
+    "若将来引入并发/多进程结算，回合判重不足以防并发双写，需要额外锁或事务"
+  ],
+  "reopen_if": [
+    "若前端接入 expect_turn，应同时加端到端回归（重发请求 ⇒ 回合不变、返回原日志）。",
+    "若 Rust 后端 settle.rs 独立实现推进，需在 Rust 侧实现同一语义，否则双端仍会漂移。"
+  ],
+  "collision_check": "与 JEV-外部审查B1处置-2026-10-22 同轮承接（那一档修的是契约层，本档补的是审查遗留的幂等硬项）；不改结算步序、不改 golden。"
+}

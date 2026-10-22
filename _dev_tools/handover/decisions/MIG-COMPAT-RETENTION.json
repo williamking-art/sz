@@ -1,10 +1,13 @@
 {
  "title": "迁移期兼容入口(core/* 旧路径转发桩)保留多久；是否列为稳定公共 API",
- "status": "待裁定",
+ "status": "已裁定",
  "raisedBy": "Qoder",
  "raisedAt": "2026-10-07",
  "context": "架构方案 §11#4。现状：8 个已迁模块的旧路径全部为薄转发桩且生产调用 100% 走旧路径（阶段2迁移期形态）。选项：甲=阶段4全仓切新路径后保留薄桩为稳定公共API（外部脚本/测试兼容）；乙=设日落期(如两个大版本)后删桩；丙=按模块分级(settlement 入口稳、内部工具桩随时删)。影响：§10『旧入口退役』条款、AGENTS §3-2 口径单点的表述。",
  "blocks": [],
  "id": "MIG-COMPAT-RETENTION",
- "_source": "cloud:decisions.items"
+ "_source": "cloud:decisions.items",
+ "verdict": "Jev A 0.828：保留到旧路径 import 归零+一个大版本，并加棘轮（只减不增）",
+ "verdictBy": "Jev(tokenrhythm)",
+ "verdictAt": "2026-10-22T14:04:12Z"
 }

@@ -9,6 +9,11 @@
 5. `score` 两分支单调方向相反（灾情越重反而评"上考"）；
 6. Softmax 舍入残差 ⇒ 概率和 0.9999，"严格归一"是假的；
 7. 三个 `choose` 目标在引擎里**没有分支** ⇒ 恒定档位；`defiant` 永不可达。
+
+2026-10-21 L1-a 追加（参数外置批）：本文件同步改写了**编码旧量纲**的劳役断言
+（`test_labor_policy_uses_real_treasury_key`，见该用例 docstring 的"为什么改"），
+并补了常平仓库存口径（B5）。B1/B2/B4 与"参数外置是否真生效"由
+`test_tiandao_params_contract.py` 覆盖——两份文件合起来才是本批契约。
 """
 import math
 
@@ -209,14 +214,33 @@ def test_defiant_compliance_reachable():
 # 8. 劳役抉择：读真实财力键、缺失不冒充"没钱"
 # =============================================================================
 def test_labor_policy_uses_real_treasury_key():
-    hired = TianDaoEngine.choose({"treasury": 8000}, "劳役",
-                                 {"corvee": 0.5, "hired": 0.5},
-                                 objective="labor_policy")["verdict"]
-    corvee = TianDaoEngine.choose({"local_treasury": 200}, "劳役",
-                                  {"corvee": 0.5, "hired": 0.5},
-                                  objective="labor_policy")["verdict"]
+    """B3（2026-10-21 L1）：**真实量纲**下的劳役判定。
+
+    为什么改（旧断言编码了错量纲）：旧断言用 `treasury=8000` / `local_treasury=200`（贯），
+    而局内真实国库是 5,000,000 贯、路库实测 270,000~1,950,000 贯——旧值低 2~3 个数量级。
+    旧实现阈值 `treasury >= 5000` 配上这个量纲，看似 8000⇒hired / 200⇒corvee 都对，
+    但任何**真实**局面都远在 5000 之上 ⇒ `corvee` 分支在生产里从不触发（死分支）。
+    现按「府库 / 月度刚性支出 = 可支撑月数」判（>= 3 个月 ⇒ 雇役），
+    无月支出读数时退回路库量级绝对线 `PARAMS.LABOR_ABSOLUTE_TREASURY`（**200,000 贯 = 路库见底线**；
+    2026-10-21 Jev A 0.742：曾试 100 万≈路库中位，但会让 `procurement.py` 的路级调用在开局
+    大面积由雇役翻差役（工费 40%→0），属无依据的大幅数值摆动）。
+    """
+    gut = {"corvee": 0.5, "hired": 0.5}
+    # 150 万贯 ÷ 月支 40 万 = 3.75 个月 ⇒ 财政撑得住，雇役
+    hired = TianDaoEngine.choose({"treasury": 1_500_000, "monthly_expense": 400_000},
+                                 "劳役", gut, objective="labor_policy")["verdict"]
+    # 30 万贯 ÷ 月支 40 万 = 0.75 个月 ⇒ 撑不住，只能征差役
+    corvee = TianDaoEngine.choose({"treasury": 300_000, "monthly_expense": 400_000},
+                                  "劳役", gut, objective="labor_policy")["verdict"]
+    # 无月支出读数 ⇒ 按路库见底线（20 万贯）判
+    abs_hired = TianDaoEngine.choose({"local_treasury": 1_500_000}, "劳役", gut,
+                                     objective="labor_policy")["verdict"]
+    abs_corvee = TianDaoEngine.choose({"local_treasury": 150_000}, "劳役", gut,
+                                      objective="labor_policy")["verdict"]
     assert hired == "hired"
     assert corvee == "corvee"
+    assert abs_hired == "hired"
+    assert abs_corvee == "corvee"
 
 
 def test_labor_policy_missing_treasury_adds_no_bias():
@@ -225,3 +249,23 @@ def test_labor_policy_missing_treasury_adds_no_bias():
     probs = res["probabilities"]
     assert probs["corvee"] == pytest.approx(probs["hired"], abs=1e-6), \
         "缺失财力不得被当成『没钱』（旧实现恒判差役）"
+
+
+# =============================================================================
+# 9. 常平仓库存口径（B5 · 2026-10-21 L1）
+# =============================================================================
+def test_changping_stock_missing_is_not_treated_as_empty():
+    """`stock is None` 不得当成 0 —— 缺失走粮价公式，真空仓（stock=0）才硬否决。
+
+    退化图景：若把取数写成 `stock or 0`（或 `stock <= 0` 前先补 0），
+    "没有库存读数"会被静默判成"仓里一粒米都没有"⇒ 平粜闸门恒不通过。
+    正确口径：`stock is None` ⇒ 不参与判定（退回 price_ratio 公式）；
+    `stock == 0` ⇒ 真空仓 ⇒ 否决。
+    """
+    none_gate = TianDaoEngine.gate({"price_ratio": 1.9}, objective="changping_open")
+    empty_gate = TianDaoEngine.gate({"stock": 0, "price_ratio": 1.9},
+                                    objective="changping_open")
+    assert none_gate["defined"] is True
+    assert none_gate["verdict"] is True, "stock 缺失时应按粮价公式判（高价 ⇒ 开仓），而不是判空仓"
+    assert empty_gate["verdict"] is False, "真空仓（stock=0）必须否决"
+    assert none_gate["probability"] > empty_gate["probability"]

@@ -1,0 +1,35 @@
+{
+  "id": "M50b-regime-job-track-shards",
+  "title": "补齐 28 类政权岗位轨专档（M50 拒绝产出的前置；本批只登记）",
+  "status": "pending",
+  "claimedBy": "",
+  "registeredAt": "2026-10-22T22:40:00+08:00",
+  "registeredBy": "DSH-lead",
+  "source": "M50 影响面实测（2026-10-22）",
+  "evidence": [
+    "`content/data_external.py` 的 `PER_WORKER_OUTPUT` 只有 4 个键：`default` / 党项蕃国 / 游牧帝国 / 西南属国。",
+    "`EXTERNAL_REGIMES` 出现的政权类型共 **31 类** ⇒ **28 类无专档**：东方藩属、东蒙部族、中亚大国、中南部族、交趾属国、交趾李朝、南印度大国、南洋岛国、南海古国、南海大国、南海小国、喀喇契丹、天竺诸邦、女真诸部、婆罗洲岛国、山南列邦、暹罗列邦、海东岛国、海岛番社、漠北游牧、漠北部族、漠南游牧、蒙古本部、西南邻国、西域汗国、香料群岛、高原诸部、高棉帝国。",
+    "`core/building_jobs.py` 已把「缺专档回落 default」改成**计数 + WARNING + 结构化留痕**（`job_track_config_fallbacks()`）；实测 24 个月宋侧长局该项为 **0 条**（宋侧有专档），说明缺口在**外邦**生产路径。",
+    "若按 M50 原计划实施「拒绝产出（return {}）」，这 28 类政权的岗位轨产出将直接归零。"
+  ],
+  "verdict": {
+    "by": "Jev(tokenrhythm)",
+    "mode": "gate",
+    "probabilities": {"holds": 0.9670},
+    "ruling": "M50 的「拒绝产出」本批**不实施**；改为登记「补齐 28 类政权专档」为后续任务"
+  },
+  "next": [
+    "① 先量外邦影响面：对含外邦生产的局面统计 `job_track_config_fallbacks()` 逐政权次数与对应产出量（现在已有读数口）；",
+    "② 按量级排序，为高频政权补 `PER_WORKER_OUTPUT` 专档（参照 default 的维/速率，必要时按史实物产调整）；",
+    "③ 28 类全部有专档后，再把「缺专档 ⇒ 拒绝产出」作为**正确语义**启用，并加回归断言。"
+  ],
+  "acceptance": [
+    "在外邦生产路径上统计到 fallback 次数与产出量（有实测数字）；",
+    "补档后 `job_track_config_fallbacks()` 在长局中为 0；",
+    "切换拒绝产出前后长局产出对比表 + 定向回归。"
+  ],
+  "reopenIf": [
+    "外邦生产路径本身不存在（`produce_job_track` 无外邦调用方）⇒ 本任务可降级为口径备忘；",
+    "史实物产表可直接给出 28 类专档（比逐类试算更快）。"
+  ]
+}

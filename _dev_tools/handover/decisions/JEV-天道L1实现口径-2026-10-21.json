@@ -1,0 +1,86 @@
+{
+  "id": "JEV-天道L1实现口径-2026-10-21",
+  "title": "内置天道 L0/L1/L2 实现期的三处口径裁定（golden 重建 / 劳役阈值 / 兼容别名）",
+  "status": "decided",
+  "askedAt": "2026-10-21T22:15:00+08:00",
+  "askedBy": "DSH-lead",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose ×2 + gate（别名由 impl-context 提问，Lead 复核采纳）",
+  "context": "承接 decisions/JEV-天道特化加强优先级-2026-10-21.json（A 0.969：先修读数键与统一 facts 契约）。本档记录落地期三个必须留痕的口径选择。",
+  "rulings": [
+    {
+      "topic": "golden 12 月基线如何处置",
+      "question": "12 月 golden 基线应如何处理？",
+      "options": {
+        "A": "按新口径重建 testdata/p0_golden_12m.json，并在提交正文与 golden 文件旁注明原因",
+        "B": "只比对未受天道影响的字段，把变化字段移出 golden",
+        "C": "回滚本批改动以保基线不变"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.9974, "B": 0.0020, "C": 0.0006},
+      "premises_verified_by_me": [
+        "golden 测试文档字符串原文即『行为变化必须显式更新基线并说明原因』——本批是**有意的**行为变更，不是回归",
+        "实测影响面：treasury 129,061→129,481（+420）、imperial_treasury 5,497,479→5,481,338（−16,141）；granary、finance.*、routes.*(20/20)、其余 8 个顶层字段**全同**",
+        "5 个有生产消费方的裁决在新局下 verdict 与旧一致，只有 reform_compliance 概率 0.505→0.805，故结算路径未分叉",
+        "确定性回放未破：同 seed 同结果，重建后复验通过"
+      ],
+      "applied_in": [
+        "_dev_tools/game-dev/tests/testdata/p0_golden_12m.json（已重建）",
+        "_dev_tools/game-dev/tests/testdata/p0_golden_12m.CHANGELOG.md（新建：逐项写明为什么变、影响面、重建命令）",
+        "_dev_tools/game-docs/specs/cross-cutting/tiandao-engine/tasks.md §5b"
+      ]
+    },
+    {
+      "topic": "labor_policy 绝对兜底阈值取哪一档",
+      "question": "绝对兜底阈值（仅在没有 monthly_expense 读数时生效）应取哪一档？",
+      "options": {
+        "A": "200,000 贯（路库见底线，约 1/3 中位）：开局行为不变，差役仅在路库被掏空后出现",
+        "B": "1,000,000 贯（路库中位线）：差役成为多数路常态，工费 40%→0、物料采购大增",
+        "C": "改按『该路府库 ÷ 全路府库中位数』自校准（需门面提供新读数）"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.7416, "B": 0.1771, "C": 0.0813},
+      "premises_verified_by_me": [
+        "调用现场实测：core/domains/economy/procurement.py:106-113 传 route 级 ctx，只有 treasury=该路 local_treasury，**无 monthly_expense** ⇒ 绝对线直接决定玩法",
+        "路库实测区间 270,000–1,950,000、中位约 690,000 贯（new_game 20 路）",
+        "按 B（100 万）会使京畿以外多数路在开局由雇役翻差役：工费 40%→0、预算全买物料 ⇒ 无依据的大幅数值摆动",
+        "设计原意（引擎 docstring）：『府库有钱则雇募，无钱则差役』——目标是让 corvee 分支可达，不是让差役成常态",
+        "按 A 改后复测：test_tiandao_engine_core / test_tiandao_params_contract / test_embedded_decision_facade / test_micro_entity_decisions 共 74 项全绿"
+      ],
+      "applied_in": [
+        "game/content/data_tiandao.py::LABOR_ABSOLUTE_TREASURY = 200_000.0（注释写明 Jev 裁定与两档后果对比，带 # 待校准）",
+        "_dev_tools/game-dev/tests/test_tiandao_engine_core.py:216-241（绝对线用例 300k→150k）",
+        "_dev_tools/game-dev/tests/test_tiandao_params_contract.py:272-286（同上）"
+      ],
+      "conflict_note": "Lead 最初在任务书里给 impl-engine 的**建议值**是 1,000,000（当时只算了『路库量级』，没算 procurement 的路级调用后果）。Jev 裁定 A 后由 Lead 亲自改回 200,000——属**建议值被裁定推翻**，不是实施偏差。"
+    },
+    {
+      "topic": "facts 契约的过渡别名是否可留在门面上下文里",
+      "question": "build_state_context 是否可同时返回 canonical 键与过渡别名（stock/supervision）？",
+      "askedBy": "impl-context",
+      "verdict": "允许（canonical 投影必须契约合规，非 canonical 键集必须恰为已知别名集）",
+      "probabilities": {"holds": 0.882},
+      "premises_verified_by_me": [
+        "stock/supervision 是引擎的旧读取别名（_get_num 走 ('stock','storage') / ('has_inspector','supervision')），且 changping 闸门的历史口径就写作 stock",
+        "若强行让门面只吐 canonical 键，旧消费方与既有测试会破，且 changping 闸门口径断链",
+        "Lead 的补强：在 tiandao_facts 增加 COMPAT_ALIASES（stock/storage/supervision/stability）并让 validate_facts 视其为合法别名——于是『字面合规』与『保留别名』**不再冲突**"
+      ],
+      "applied_in": [
+        "game/core/ai/tiandao_facts.py（新增 COMPAT_ALIASES + validate_facts 容忍 + 文档说明『生产者不得直接写别名』）",
+        "impl-context 侧测试保留『非 canonical 键集恰为 {stock, supervision}』的双向严格断言（比原计划更严）"
+      ]
+    }
+  ],
+  "tie": false,
+  "notes": [
+    "Jev 概率不可跨供应商沿用；本档均走 tokenrhythm（阈值 0.40）。",
+    "第一问 A 0.9974 与第三问 p 0.882 都不是平手，无需额外自证。",
+    "第二问曾有 Lead 建议值与裁定冲突，已在 conflict_note 写明『实测优先于建议』。"
+  ],
+  "reopen_if": [
+    "若日后门面能稳定提供路级月度支出读数（如 seats 级 expense 汇总），则 absolute fallback 退居兜底，应重开『月数线』的阈值口径。",
+    "若 golden 语义改为『分域基线』（每域一份），则第一问的选择可重开。",
+    "若引擎彻底改读 canonical 键并移除别名（契约第 11 条落地），第三问的兼容层可删除。"
+  ],
+  "collision_check": "与 JEV-天道特化加强优先级-2026-10-21 同批，不冲突；与 JEV-DEC-天道档位化边界-2026-10-19（否决全部随机数改天道）不冲突。"
+}

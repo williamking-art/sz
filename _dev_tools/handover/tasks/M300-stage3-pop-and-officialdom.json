@@ -2,7 +2,15 @@
   "id": "M300-stage3-pop-and-officialdom",
   "title": "Stage 3: POP 微观生计闭环（告别强行运转）+ 科举三级取士唱名与官员三级差遣考课磨勘",
   "status": "in_progress",
-  "audit_status": "【2026-10-17 审计降级】pop_livelihood 已接线，但 imperial_exam 与 official_appraisal（三年考课磨勘）尚未插入结算管线，待后续专项任务接入 36 月节律。",
+  "audit_status": "【2026-10-22 复核：原「科举与三年磨勘尚未插入结算管线」已过期，改判「已接线」】科举：officialdom.settle_officialdom 在科次年正月（month==1 且 Calendar.exam_cycle(EXAM_INTERVAL_YEARS)）调 _triennial_exam_wired（officialdom.py:877 定义 / :998 调用），后者调 imperial_exam.run_triennial_exam_full（officialdom.py:902-903），并以 exam.last_exam_year 幂等。三年磨勘：settlement_officialdom._run_personnel_cycle 在 turn>=18 且 turn%36==18 时调 official_appraisal.run_triennial_appraisal（settlement_officialdom.py:98-105，statistics.last_appraisal_turn 幂等），由 _settle_officialdom:206 调用；而 _settle_officialdom 是声明式管线正式步 settlement_pipeline.py 的 officialdom 步（:246）。pop_livelihood 亦已是管线步 pop_livelihood（:245）。⇒ 剩余缺口仅是「节律已接、尚未跑满 36 月长局校准」，不再是「未插入管线」。",
+  "audit_updated_at": "2026-10-22T14:40:00Z",
+  "audit_evidence": [
+    "game/core/domains/administration/officialdom.py:998 → _triennial_exam_wired（科次年正月触发）",
+    "game/core/domains/administration/officialdom.py:902-903 → imperial_exam.run_triennial_exam_full",
+    "game/core/domains/administration/settlement_officialdom.py:98-105 → official_appraisal.run_triennial_appraisal（turn%36==18）",
+    "game/core/domains/administration/settlement_officialdom.py:206-207 → _run_personnel_cycle / _run_annual_reclamation 调用点",
+    "game/core/settlement_pipeline.py:245-246 → 管线步 pop_livelihood / officialdom"
+  ],
   "registeredBy": "Antigravity",
   "registeredAt": "2026-10-15",
   "authority": "decisions/JEV-台账-经济产业链与POP生计重塑演进-2026-10-15.json（Jev A 案 0.963 裁定）· decisions/JEV-台账-科举取士与官员磨勘机制设计-2026-10-15.json（Jev A 案 0.801 裁定）· 用户全案落地授权",

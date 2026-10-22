@@ -16,9 +16,9 @@
 | 🔴 **天道裁决 = 游戏内嵌 `game/ai/jev_gate.py`** | 与 `tools/jev` 同一套 SystemOne API；所有 `_*_ai` 槽位的档位由它裁决/注入。**结算期禁止同步 HTTP**（Jev 结论须在结算前置步骤或离线批注入，结算只读 `state._*_ai`）。档位→数值的换算表集中在 `core/` 各域模块。 |
 | `game/backend/` | FastAPI 薄壳（`/api/action` 等；`client.py` 是动作分派表） |
 | `game/frontend/` | Electron + React（`src/renderer/` 地图/HUD/面板） |
-| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-19 实测 **4051 tests / 0 failed / 0 errors / 3 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
+| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-22 实测 **4489 tests / 0 failed / 0 errors / 3 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
 | `_dev_tools/game-docs/docs/` | **权威机制文档**（见 §2） |
-| `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、CloudBase 检查、Rust 实验后端）——**不接游戏运行时** |
+| `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、**阿里云 ECS 检查**、Rust 实验后端）——**不接游戏运行时** |
 
 🔴 **模块级 scoped 指令（薄路由层）**：改 `game/core/` 或 `game/frontend/` 前先分别读
 `game/core/AGENTS.md`、`game/frontend/AGENTS.md`——只放各自的范围/验证路径/禁区指针，
@@ -88,7 +88,7 @@ sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令�
 | `_dev_tools/game-docs/docs/游戏机制说明.md` | **当前机制总览（精简版）**：核心循环/权限/派系/科举/奏报/经济/天道与边界；设计稿与未落地状态见 `specs/` 与 `reviews/未落地设计裁定与实施路线.md`；旧全量版在 `archive/` |
 | `_dev_tools/game-docs/docs/局势系统实施规范.md` | 局势系统 v1/v2 唯一规范（注意：`<工作区根>\宋祚局势系统实施规范.md` 是**失效路径**） |
 | `_dev_tools/game-docs/docs/货币口径规范_M0M1M2.md` | M0–M3 口径与月度对账恒等式 |
-| `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` | 开发/测试环境 + CloudBase 接入现状（§8） |
+| `_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` | 开发/测试环境 + **阿里云接入现状**（§八；CloudBase 已停用，降为历史小节） |
 | `game/README.md` | 游戏本体说明（含「舆图资源需重建」「后端连接」） |
 | `game/游戏审查整改实施指南.md` | 2026-09 审查整改任务书（**已执行完**，留作口径参考） |
 | `README.md`（sz 根） | 工具脚本清单与分工 |
@@ -150,9 +150,9 @@ sz/_dev_tools/handover/README.md    ← 本协议细节（目录形态、命令�
 $repo = git rev-parse --show-toplevel
 $ws   = Split-Path $repo -Parent
 $py   = Join-Path $ws ".audit-venv\Scripts\python.exe"
-$node = Join-Path $ws "tools\nodejs\node-v20.19.5-win-x64\node.exe"
+$node = Join-Path $ws "tools\nodejs\node-v24.22.1-win-x64\node.exe"
 
-# 后端全量测试（最近 2026-10-19 实测 4051 tests / 0 failed / 0 errors / 3 skipped；干净 clone 3535 / 0 failed / 12 skipped（舆图产物未重建）；用例数会变，以本次输出为准；
+# 后端全量测试（最近 2026-10-22 实测 4489 tests / 0 failed / 0 errors / 3 skipped；干净 clone 3535 / 0 failed / 12 skipped（舆图产物未重建）；用例数会变，以本次输出为准；
 #            唯一基线出处见 _dev_tools/game-docs/README.md §验证基线（各文档内的用例数多为历史快照）；
 #            先清 shim，否则 pytest tmp_path 会 PermissionError）
 $env:PYTHONPATH=""; $env:CODEBUDDY_SAFE_DELETE_ENABLED="0"
@@ -184,7 +184,7 @@ cd frontend
 
 ## 5. 环境要点（踩过的坑，省你半小时）
 
-- **无系统 node** → 用便携版 `<工作区>\tools\nodejs\node-v20.19.5-win-x64\node.exe`（含 npm/npx）。
+- **无系统 node** → 用便携版 `<工作区>\tools\nodejs\node-v24.22.1-win-x64\node.exe`（含 npm/npx）。
 - **`frontend/node_modules/electron/dist`**：2026-10-18 已从本机
   `%LOCALAPPDATA%\electron\Cache\electron-v33.0.0-win32-x64.zip` 解压恢复，并写
   `node_modules/electron/path.txt = electron.exe`；现可 `electron-builder` 打包。
@@ -237,59 +237,51 @@ cd frontend
   （实例：engine README 原把 `NON_NEG_PREFIXES` 写成 `NON_NEGATIVE_PATHS`；core README
   说 `construction.py` 是"只读纯函数"，而它自 2026-10-01 起已是立项写入点。）
 
-## 7. 交接 MCP 连接片段（**已停用，仅留作恢复参考**）
+## 7. MCP 通道现状（**阿里云 ECS 自托管**，2026-10-22 改为现行口径）
 
-> 2026-10-09 起交接走本机文件（§1）。下面这段**不要再接**——它的 URL 现在对 `/mcp`
-> 返回 HTTP 410（函数/触发器 Gone）。保留只为将来真要恢复云端通道时不必重新考古。
+交接状态本身**不再走 MCP**（2026-10-09 起是本机文件层，见 §1）。MCP 现在只剩一个用途：
+给外部 agent 提供**跨设备只读快照**。
+
+| 项 | 值 |
+|---|---|
+| 端点 | `http://120.25.223.23:18080/mcp`（Streamable HTTP，stateless）⚠️ **2026-10-22 23:12 实测 /healthz 与 /mcp 均 502（上游宕/未起）**，见下行 |
+| 部署 | 阿里云 ECS `120.25.223.23`（cn-shenzhen）· `/opt/mcp-songzuo` · docker compose（mcp + nginx） |
+| 源码 | `_dev_tools/mcp-songzuo/`（`app/index.js` 提供 8 个工具 + 多 token 鉴权；`storage.js` 支持 local/oss 两种存储） |
+| 运维台账 | `D:\codebuddy\_credentials\mcp_songzuo.md`（**含逐 agent token，不入库**） |
+| 域名入口（实测冲突，待复核） | `songzuo.online` **已备案上线**（备案号 鄂ICP备2026058515号，worklog 2026-10-13 记「备案闸门解除」）。⚠️ **可用性两次实测冲突**：2026-10-22 22:34 一次实测官网 200 / http→301 / `mcp.songzuo.online:8443/healthz` 200 且证书通过；**23:12 主会话复测**：`http://120.25.223.23:18080/healthz` → **502**、`https://mcp.songzuo.online:8443/healthz` 与 `https://songzuo.online/` → **TLS 握手失败(000)**、`http://songzuo.online/` → 502；端口 22/80/443/8443/18080 均**可达**、SSH banner 正常。⇒ **当前对外入口不可用（nginx 在、上游 502）**，原因未定位；不要据此断言"域名不可用"或"可用"，以最新一次实测为准并通知运维 |
+
+连接片段（客户端侧；token 走环境变量，**不要写进仓库**）：
 
 ```json
 {
   "mcpServers": {
-    "cloudbase": {
+    "songzuo-state": {
       "type": "streamable-http",
-      "url": "https://william-1-d5grtya3z0b5e143d-1440445995.ap-singapore.app.tcloudbase.com/mcp",
-      "headers": { "Authorization": "Bearer ${CLOUDBASE_MCP_TOKEN}" },
-      "_status": "DEPRECATED 2026-10-09：交接改走 _dev_tools/handover/，本端点 /mcp 返回 410"
+      "url": "http://120.25.223.23:18080/mcp",
+      "headers": { "Authorization": "Bearer ${SONGZUO_MCP_TOKEN}" }
     }
   }
 }
 ```
 
-- **DSH**：已配（`mcp-cloudbase`，token 走环境变量），重启会话后工具体现为 `mcp__cloudbase__*`。
-- **Claude Code / Cursor / Codex**：写入各自的 MCP 配置（`mcpServers` 同名段），token 用环境变量引用。
-- **CodeBuddy**：它走**内置 CloudBase 连接器**（`~/.codebuddy/integration/tcb.json`）；该文件 2026-09-29 已由"指向已删除环境"改为当前环境（但内置连接器给的是**官方管理面**能力，不是本交接 MCP——要用本 MCP 需按上面通用格式另配）。
+- 部署/更新：在 ECS 上跑 `_dev_tools/mcp-songzuo/deploy.sh`（幂等：build + up + 等健康检查），
+  或 `deploy_from_git.sh`（从仓库稀疏检出本目录后部署）；验证用 `verify.sh`。
+- 本机没有阿里云 OSS / RDS / 函数计算的凭据，**相关托管服务未开通/未验证**——
+  文档里只能登记为「待开通」，不得写成已落地（Jev p=0.9655）。
 
-## 8. CloudBase 环境现状（2026-09-29 复核）
+## 8. 云服务现状（阿里云为主；CloudBase 已停用）
 
-**当前唯一有效环境**：`william-1-d5grtya3z0b5e143d`（别名 `william-1`）· 账号=国内站 · 地域=**ap-singapore**（体验版）
-· PG 后端可用 · **该地域不支持云托管**（`queryCloudRun envStatus` 报
-`region ap-singapore not in config support region`）。详见
-`_dev_tools/game-docs/docs/开发服务器与回归测试说明.md` §8.0（环境表）与 §8.7（PG HTTP 直连备用通路）。
+**现行（已核实可用）**
 
 | 项 | 状态 |
 |---|---|
-| 旧环境 `william-1-d6genf4wb9988a74a` + 云托管 `songzuo-server` + 其域名 | **已删除**——任何引用都别照抄（2026-09-29 已修 2 处，见下） |
-| `.cloudbase/project.json`（sz 根 与 `<工作区>\.cloudbase`） | `site: domestic` + `region: ap-singapore` 是**实测可用的组合**（国内账号 + 新加坡地域体验版），**不是**冲突；此前把它当"site/region 冲突"是误判，**不要改** |
-| `~/.codebuddy/integration/tcb.json` | 🔴 **2026-10-09 实测：该文件已不存在**（本行原记 2026-09-29 的改法，已随文件删除而失效）。要用 CodeBuddy 内置连接器得重新配置，别照抄本行 |
-| `songzuo_server/cloudbaserc.json` | `envId` 已改为当前环境并加 `_note`（提示该地域不支持云托管）。注意**该文件被 `.gitignore:59 cloudbaserc.json` 全局忽略**，改动只在本机生效 |
-| `tcb` CLI | **未登录**，且 2026-10-09 实测 **本机连 `~/.tcb` 目录都不存在**（= 从未在这台机器登录过，不只是设备码过期）。要管环境/PG 需 `tcb login --key` 或给 william-1 建环境级 API Key |
-| CloudBase 官方管理面 MCP | 本项目**未接入可用登录**：2026-10-09 实测插件为账号级 device 登录，但 `queryEnv(list, region=ap-singapore)` 返回 `EnvList: []`（该登录账号看不到 william-1），且 william-1 的环境级 key 未在本机任何凭据位出现（`settings.json` 里只有 cloud1 环境的 AI provider key）。管环境/PG 需先补 william-1 凭据 |
-| **交接状态库 `cloudbase-state-mcp`** | 🔴 **2026-10-09 停用**：`/mcp` 网关侧 410（带/不带 token 一致，同域其他路径为结构化 404 ⇒ 不是凭据问题）。存量已导出到 `_dev_tools/handover/`（含 `archive/cloud_2026-10-09/` 原始 JSON），现行协议见 §1 与 `_dev_tools/handover/NOTICE.md` |
+| 阿里云 ECS `120.25.223.23` | ✅ 运行 MCP（见 §7）；Rust 实验后端曾在此编译（§4.3 流程可复用） |
+| `songzuo.online` | 阿里云侧；**已备案上线**（鄂ICP备2026058515号）。⚠️ **2026-10-22 23:12 实测：官网与 MCP 入口均 502 / TLS 握手失败（端口可达）** ⇒ 当前不可用，待运维定位；同日 22:34 另一次实测曾 200（两次冲突已登记，勿引用旧结论） |
+| CloudBase（腾讯云开发） | 🔴 **已停用，不再是现行方案**。原用途仅两类：①交接 MCP（`/mcp` 网关侧 410，函数/触发器已 Gone）；②开发辅助（PG 分析数据导出 / 静态托管 / 云托管——云托管在该地域本就不支持，实例 `william-1-d6genf4wb9988a74a` 与域名均已删除）。**任何新文档不得再把它写成现行方案**；历史材料在 `_dev_tools/game-docs/archive/` 与 worklog/decisions 里，按只读留档保留 |
+| 阿里云 OSS / RDS / 函数计算 | ⚠️ **未开通/未验证**（无凭据）⇒ 只登记为「待开通」，不写具体配置 |
 
-> **交接协议「解封规则已就位，但文件尚未入库」（2026-10-03 复核更正）**：
-> 2026-09-29 用户决定让协议随仓库分发，`.gitignore` **末尾**的 `!/AGENTS.md` 覆盖了上方
-> "根文件忽略"块里的 `/AGENTS.md`（git 以最后匹配为准，**该行必须留在文件末尾**），
-> `_dev_tools/sync_mcp_state.py` 同理经 `!_dev_tools/...` 白名单放行（现已加停用注释，保留作恢复用）；
-> 2026-10-09 起本机交接层同样放行入库：`!_dev_tools/handover/` + `!_dev_tools/handover/**` +
-> `!_dev_tools/handover.py`（规则必须排在 `_dev_tools/*` 之后，git 以最后匹配为准）。
-> **规则层面完好**（`git check-ignore -v AGENTS.md` 命中末尾否定规则）。
->
-> ✅ **已入库（2026-10-03 实测更正）**：`AGENTS.md` 与 `_dev_tools/sync_mcp_state.py` **现已 `git add` 入库**
-> （`git ls-files --error-unmatch` 返回 rc=0），干净 clone 可取得协议与同步脚本。
-> ⚠️ 前一版本此处曾记「两文件仍是未跟踪状态」——那是 2026-09-29 的事实，**已于同日提交中解决，此处更正以免误导**。
->
-> 另注：`README.md` 与 `game/*/README.md` 现已入库（`.gitignore:317/321` 的否定规则）；
-> `game/README.md` 外链 `game/frontend/README.md` 不再构成干净 clone 断链。
+> 迁移判据（Jev p=0.9655）：现行文档/脚本/配置一律写**已核实可用的阿里云口径**；
+> 未验证的托管服务只登记待开通。历史归档保留原样、显式标注停用。
 
 ## 9. 共享记忆（跨项目，2026-10-01 接入）
 

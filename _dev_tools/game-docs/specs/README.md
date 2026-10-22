@@ -40,6 +40,7 @@
 
 - [`market-civilian-economy/`](./economy/market-civilian-economy/)
 - [`unified-civilian-market/`](./economy/unified-civilian-market/)
+- [`produce-space-price/`](./economy/produce-space-price/) —— 《物产新篇》商品模型融合（价格空间维度／需求地域维度／品目层／品类物流属性／品目驱动税目）：⬜ 设计稿 **v2**，**尚未实施**
 - [`地方府库下沉州府级_阻塞记录.md`](./economy/地方府库下沉州府级_阻塞记录.md)
 - [`消费端实测_真在消费吗与能否复购.md`](./economy/消费端实测_真在消费吗与能否复购.md)
 

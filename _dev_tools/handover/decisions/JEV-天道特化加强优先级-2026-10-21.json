@@ -1,0 +1,69 @@
+{
+  "id": "JEV-天道特化加强优先级-2026-10-21",
+  "title": "内置天道层「特化加强」第一批优先级（Lead 审计后裁定）",
+  "status": "decided",
+  "askedAt": "2026-10-21T21:20:00+08:00",
+  "askedBy": "DSH-lead",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose+gate（三问）",
+  "context": "用户提问「游戏内置的天道 jev 模型可以特化加强吗」。Lead 组织三线只读审计（引擎能力边界实测 / git 与文档考古 / 外部 Jev 供应商边界），并对关键结论亲自复跑复核。本裁定只定「第一批先做什么」，不代替落地实施。",
+  "question": "内置天道层的第一批加强，应先做哪一项？",
+  "options": {
+    "A": "修读数键与统一 facts 契约（接线优先）",
+    "B": "参数外置 + decision_log 落盘 + 回测校准",
+    "C": "外部 Jev 特化（state/criteria/score 题型/弃权项）",
+    "D": "训练或微调本地特化模型"
+  },
+  "verdict": "A",
+  "probabilities": {
+    "A": 0.9692,
+    "D": 0.0146,
+    "B": 0.0131,
+    "C": 0.0031
+  },
+  "second_ruling": {
+    "question": "现阶段（短板未修、历史语料未落盘）就投入训练或微调本地特化模型，是明智投入",
+    "mode": "gate",
+    "p": 0.3587,
+    "threshold": 0.4,
+    "holds": false,
+    "note": "与 A 案 0.969 同向：先修供给，不先训模型。"
+  },
+  "third_ruling": {
+    "question": "内置天道当下的能力短板，主要矛盾在输入供给与契约统一，而不在模型能力本身",
+    "mode": "gate",
+    "p": 0.9795,
+    "threshold": 0.4,
+    "holds": true,
+    "note": "引擎本体（纯函数/确定性/性能/softmax 归一）实测无缺陷，短板全在输入侧。"
+  },
+  "tie": false,
+  "premises_verified_by_me": [
+    "引擎性能与确定性：gate 10.8µs / choose 19.8µs，同输入两次 100% 一致，softmax 归一=1.0（A 线实测 + Lead 抽样复核）",
+    "内联数值：ast 统计 gate/choose/score 方法体内 132 个数值常量，无一处来自 content 配置（Lead 亲自 ast 计数）",
+    "objective 可达性：13 个中 5 个真改数值、4 个真实读数下恒定、3 个选项数学不可达；Lead 复跑确认 tax_stance.lenient 在 integrity 0..1 的 101 点上 0 命中，注入 disaster 后 134/303 命中",
+    "真 bug：tiandao_engine.py:472-473 运算符优先级，disaster=None 时 unrest 被丢弃；Lead 复跑确认 score({})=上考1.0、score({unrest:160})=上考1.0",
+    "上下文契约三套并存：Facade 15 处 + clerk_decision/merchant_decision 自建 ctx + decree_gates 的 dice；Lead 复跑 clerk_decision 路径确认 integrity/disaster 重复计入（纯 softmax lenient 0.458 → 引擎 0.57）",
+    "disaster 读错键：build_state_context 读 statistics[disaster_level]（无人写入），真实字段 state.disaster_severity（Lead 复跑 new_game 确认 ctx.disaster 恒 None）",
+    "decision_log：只写内存、上限 200、读档即失、生产读方为 0（B 线 grep 全仓确认）",
+    "阈值校准 24 条样例，其中约 4 条属本项目域，且校准任务（是否需人工介入）与生产任务（原文是否有据）错配（B 线逐条清点）",
+    "外部：TypeSafe OpenAPI 仅 2 个操作、无 fine-tune 端点；NeoHorse-Jev-4B 为 Apache-2.0 可自托管微调；项目未用 score 题型、未加弃权项（C 线查官方文档）",
+    "硬边界：结算期禁同步 HTTP；游戏内在线学习在 v1 P1-13 明文不做（396112aa15:145）"
+  ],
+  "applied_in": [
+    "未落地。本轮为只读审计，未改任何仓库文件；裁定作为下一批的排序依据。",
+    "建议实施顺序：A-1 修 build_state_context 的 disaster 键 + 补 debt/gap/block_rate/faction/local_treasury → A-2 统一 facts 契约（把 clerk_decision/merchant_decision 的自建 ctx 收敛到同一 schema）→ A-3 修 score 优先级 bug 与 integrity 缺失回落 → 之后才进 B（参数外置 + 日志落盘 + 回测）"
+  ],
+  "rationale": "三问同向：能力短板在输入供给与契约，不在模型。在读数键错、契约三套、日志不落盘的前提下，任何训练/微调都缺标签来源，且会与「确定性回放」冲突。",
+  "notes": [
+    "Jev 概率不可跨供应商沿用；本档三问均走 tokenrhythm（p 标度阈值 0.40）。",
+    "A 线/ B 线原报告有一处需 Lead 更正：『diligence/debt/gap 全库不存在』不准确——diligence 由 clerk_decision.py:48 生产、gap 由 merchant_decision.py:43 生产、debt 确无生产者。故『分支恒不生效』只成立于 observe_monthly 这条路径，不成立于全部调用点。",
+    "B 线指出 v2 计划把 v1 P1-13 压缩成一行 W8-05，丢了三条边界（离线历史战例 / decisions.json facts schema / 不做在线学习）；重开此事应从 396112aa15 取回原文。"
+  ],
+  "reopen_if": [
+    "若 decision_log 已落盘且积累 ≥6 个月真实对局（≥60 局 × ≥120 月），可重开是否进 B/是否值得训练。",
+    "若引擎读数键与 facts 契约修完，重跑可达性扫描后 objective 的答案分布仍呈单值（≥4 个恒定），则说明瓶颈已从输入侧转移到公式/标尺，此时重开参数校准。",
+    "若未来转向端侧本地 LLM 推理（见 JEV-DEC-内嵌决策引擎与全域门面方案的 reopen_if），D 案的约束条件改变，需重新裁定。"
+  ],
+  "collision_check": "文件名唯一；与既有 JEV-DEC-天道档位化边界-2026-10-19（否决全部随机数改天道）不冲突——本条只谈加强顺序，不改随机数边界。"
+}

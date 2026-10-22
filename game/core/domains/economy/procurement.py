@@ -110,7 +110,18 @@ def create_procurement_order(
         "unrest": float(pdata.get("unrest", 0.0) or 0.0) if isinstance(pdata, dict) else 0.0,
         "turn": turn,
     }
-    labor_mode = EmbeddedDecisionFacade.labor_service_policy(state_ctx)
+    # 口径（2026-10-22，Jev p=0.9915）：**优先读当月观测副本**（与 `decision_log` 同源），
+    # 无记录（首月/未观察/读旧档）才回落直调门面 —— 保住旧行为与确定性。
+    # 之前这里每次都重调门面，日志记的 labor_policy 与结算实际用的可能不是同一个裁决。
+    labor_mode = None
+    try:
+        from core.ai.tiandao_effects import observe_verdict as _observe_verdict
+        labor_mode = _observe_verdict(state, "labor_service_policy",
+                                      ("corvee", "hired"))
+    except Exception:  # noqa: BLE001 —— 观测层不可用不得阻断采购
+        labor_mode = None
+    if labor_mode is None:
+        labor_mode = EmbeddedDecisionFacade.labor_service_policy(state_ctx)
 
     # 3. 决定采购物料类型（木/石/铁 —— 必须用 `material_holding.MATERIAL_DIMS` 权威中文轨）
     goods_dims = list(MATERIAL_DIMS)

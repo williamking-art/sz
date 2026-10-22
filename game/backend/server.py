@@ -36,7 +36,10 @@ import threading
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from typing import Optional
+
 from ai.client import AIClient
+from core.commands import StaleAdvanceError
 from ai.client_utils import (
     _ai_config_path as _ai_config_path_impl, resolve_ai_config_path, validate_outbound_url,
 )
@@ -545,8 +548,19 @@ def api_new_game(req: NewGameReq, request: Request):
         return {"state": _state_to_dict(_state)}
 
 
+class AdvanceReq(BaseModel):
+    """`/api/advance` 可选请求体（2026-10-22 幂等）。
+
+    `expect_turn` = 前端**正在展示的回合**。服务端据此判重：
+    落后 ⇒ 幂等重放历史日志（不推进）；超前 ⇒ 409（避免两端漂移后跳过一个月）。
+    缺省（不发 body）⇒ 与改前完全一致。
+    """
+
+    expect_turn: Optional[int] = None
+
+
 @app.post("/api/advance")
-def api_advance(request: Request):
+def api_advance(request: Request, req: Optional[AdvanceReq] = None):
     global _state
     _require_auth(request)
     # D 修复（并发一致性）：状态判空必须与后续读写同在锁内。原实现在 `with _lock`
@@ -555,8 +569,18 @@ def api_advance(request: Request):
     # 对旧 state 执行动作）。
     with _lock:
         _require_settle_idle()
+        _expect = getattr(req, "expect_turn", None) if req is not None else None
         try:
-            events, log, report, _state = _backend.advance(_state, _get_ai())
+            events, log, report, _state = _backend.advance(
+                _state, _get_ai(), expect_turn=_expect)
+        except StaleAdvanceError as e:
+            # 客户端声明了一个比服务器更靠后的回合（两端漂移）——拒绝，避免跳过一个月。
+            # 落后（重发）不在这里：那条路径由核心幂等重放成 200 + 历史日志。
+            raise HTTPException(
+                status_code=409,
+                detail={"error_code": "STALE_TURN",
+                        "message": str(e) or "回合状态已变化，请刷新后重试"},
+            ) from e
         except AIRuntimeError as e:
             # 审查 I-2 / E-2 修复（2026-09-18）：回合推演是「全游戏级强制 AI → 拒绝式」，
             # 原先此处无人接管 → FastAPI 回 500 裸 "Internal Server Error"。

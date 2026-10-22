@@ -24,7 +24,15 @@ from content.data import (
 
 from core.settlement_common import (
     _collect_from_pops,
+    FLEE_CAP_PER_ROUTE,
 )
+
+# 天道门面裁决的**共享读取点**（2026-10-21 L3-a）：缺失/非法 ⇒ `None`，各消费方按**中性**
+# 处理（乘子 1.0 / 不动作），不回落任何默认档位。结算期只读 `state._tiandao_observe`
+# 副本（`TianDaoFacade.observe_monthly` 月初写入），**不得在结算步骤里重新裁决**。
+# 2026-10-22：除裁决词外还要读**概率**（`observe_mix`）当权重，并用 `jitter` 做确定性扰动。
+from core.ai.tiandao_effects import (FLEE_JITTER, FLEE_VERDICT_MULT,
+                                     jitter, observe_mix)
 
 # G-3 粮迁移（2026-10-04 · H 裁定为甲）：POP 存粮的读写统一走桥接层，
 # 写只落一个载体（`goods[米]` 或旧 `.grain`），**绝不双写**。
@@ -56,6 +64,155 @@ from core.foundation.ledger.pop_structure import move_pop_people  # B1d-b：跨 
 # 宋侧岗位配置：模块级构建一次（`song_job_cfg()` 返回新 dict，不污染外邦 `EXTERNAL_ECON`
 # 全局表；只需改 `core/building_jobs.song_job_cfg` 一处即可换口径）。
 _SONG_JOB_CFG = song_job_cfg()
+
+# ============================================================================
+# 天道门面 → 经济数值效果（2026-10-21 L3-a；裁决读取点见 core/ai/tiandao_effects.py）
+# ----------------------------------------------------------------------------
+# **口径**（三项效果共用）：
+# 1. 裁决来源 `state._tiandao_observe["decisions"]`（月初 `TianDaoFacade.observe_monthly`
+#    写入的只读副本）；**缺失/非法 ⇒ 中性**（乘子 1.0 / 不动作），**不回落默认档位**。
+# 2. 乘子/比例只作用于**本月本路**的力度，**不改** `TIER_RANGE` / `FLEE_CAP_PER_ROUTE` 本体，
+#    也不影响这些表的其他调用点；每月每路只乘一次（单点计算，见各应用点注释）。
+# 3. 守恒：钱/粮只在既有账户间**成对**划转；田亩只在归属份额间转移（Σ田亩归属不变）、
+#    不改路级总田亩 `p["land"]`；人（POP size）只转移不凭空造。
+# ============================================================================
+
+#: ① `merchant_trade_or_hoard` → 士绅/商帮**囤抛力度乘子**
+#:   🔴 2026-10-22 改法（用户当场指出"这不都固定数？权重呢？"）：
+#:   **不再查固定挡位表**，改为按 choose 的**概率分布加权**——
+#:     `net = p(hoard) − p(local_sell) ∈ [−1, +1]`（`ship` 不指方向，只稀释两侧）；
+#:     囤侧乘子 = `1 + SPAN×net`、抛侧 = `1 − SPAN×net`，再乘「天意机变」确定性扰子。
+#:   ⇒ (0.70,0.20) 与 (0.40,0.35) 两组的幅度**不同**，而不是同一个 ×1.20。
+MERCHANT_TILT_SPAN = 0.30      # 概率差 → 力度差的最大幅度（net=±1 时 ±30%）
+MERCHANT_JITTER = 0.10         # 天意扰子幅度（每地每月不同、同种子可复现）
+
+#: 囤抛乘子的钳位区间（倍于 base）：防极端概率把力度放大/压死到偏离量级。
+MERCHANT_TILT_BOUNDS = (0.85, 1.25)
+
+#: ② 田产集中（兼并/典田）：每月每地把**在册田**的至多 0.3% 由自耕田转入士绅田。
+#:   🔴 2026-10-22：0.3% 是**上限**；实际比例 = 上限 × 两裁决概率的**并集强度**
+#:      `1 − (1−p_annex)(1−p_mortgage)`。为什么用并集：两条裁决共用一条通道，
+#:      同月双命中不该叠成 0.6%，但也不该像固定表那样"任一命中就满额"。
+LAND_CONCENTRATION_CAP = 0.003
+
+#: ③ 士绅捐输（义庄赈济）：每月每地士绅把囤粮的至多 2% 捐给本地农户（成对划转）。
+#:   🔴 2026-10-22：2% 是**上限**；实际 = 上限 × `p(charity_relief)` × 天意扰子。
+GENTRY_RELIEF_CAP = 0.02
+
+#: ④ 破产逃亡放大：`farmer_destitution_path == "flee_refugee"` 时灾荒逃散人数 ×1.5
+#:   （放大后仍受 `FLEE_CAP_PER_ROUTE` 封顶与农 POP size 约束）。
+#:   🔴 值本身**不在此定义**——单点在 `core/ai/tiandao_effects.FLEE_VERDICT_MULT`，
+#:   与宋侧 `settlement_granary` 的饥荒逃散共用同一倍数（避免同名不同义）。
+
+# ----------------------------------------------------------------------------
+# 民怨动力学（2026-10-22 新增，Jev B 0.757：让 0–100 真正可用）
+# ----------------------------------------------------------------------------
+#: 压力权重（**待校准**：目前按"危机时目标能到 60~100、太平年景回落到 0"定，
+#:   无历史数据可标定，回测标签就绪后须复核）。
+UNREST_PRICE_W = 20.0            # 粮价高出平价每 1.0 倍 → +20（价 3.0 ⇒ +40）
+UNREST_DISASTER_W = 8.0          # 灾情每级 → +8（0~5 级 ⇒ 0~40）
+UNREST_REFUGEE_W = 25.0          # 流民占人口满 10% → +25
+UNREST_GOVERN_W = 20.0           # 治理低于 50 的部分（缺一半 ⇒ +10）
+UNREST_REFUGEE_FULL_RATIO = 0.10  # 「流民占比记满」的阈值（10% 人口）
+#: 每月向压力目标靠拢的比例（缓动，防跳变；与同函数 `fiscal` 的 0.05 同型）
+UNREST_DRIFT_RATE = 0.10
+
+
+def _merchant_tilt_mult(state, route, act):
+    """① 囤抛力度乘子单点：**按选择概率加权**（不再查固定表）。
+
+    `net = p(hoard) − p(local_sell) ∈ [−1,1]`；囤侧 `1+SPAN·net`、抛侧 `1−SPAN·net`，
+    最后钳到 `MERCHANT_TILT_BOUNDS`。缺失分布 / 未知动作 / 观望 ⇒ 1.0（中性）。
+
+    🔴 2026-10-22（审查 D2）：天意扰子**必须乘在增量上**（`SPAN*net*jitter`），
+    不能写成 `base *= jitter`——否则 `net == 0`（多空均衡、天道无方向）时仍被扰子
+    推离 1.0，"中性"就不再精确等于 1.0，与「缺失/无信号 ⇒ 不动作」的契约冲突。
+    """
+    mix = observe_mix(state, "merchant_trade", ("ship", "hoard", "local_sell"))
+    if not mix or act not in ("囤", "抛"):
+        return 1.0
+    net = float(mix.get("hoard", 0.0)) - float(mix.get("local_sell", 0.0))
+    _delta = MERCHANT_TILT_SPAN * net * jitter(state, "merchant_trade", route, MERCHANT_JITTER)
+    base = 1.0 + _delta if act == "囤" else 1.0 - _delta
+    _lo, _hi = MERCHANT_TILT_BOUNDS
+    return max(_lo, min(_hi, base))
+
+
+def _settle_tiandao_land_relief(state, log):
+    """②③ 士绅兼并/典田 + 义庄赈济（天道乡村两项裁决；2026-10-21 L3-a）。
+
+    🔴 2026-10-22：幅度改为**概率加权**（不再"任一命中即满额"）。
+    —— 兼并通道：`强度 = 1 − (1−p_annex)(1−p_mortgage)` ∈ [0,1]，实际比例 =
+       `LAND_CONCENTRATION_CAP × 强度 × 天意扰子`，仍受月度上限与双重余量约束。
+    —— 义庄赈济：`give = 士绅囤粮 × GENTRY_RELIEF_CAP × p(charity_relief) × 扰子`。
+
+    ② **田产集中**：成对转移 `self_farm_land −= n` / `gentry_land += n`，
+       Σ田亩归属不变、`p["land"]` 不动。
+       ⚠️ 口径：只加 `gentry_land` 而不减来源，会让
+       `self_farm + gentry + official + imperial > land`，收获月按归属分粮就会凭空多粮
+       ⇒ 必须从自耕田扣同额，并受 `self_farm_land` / `land − gentry_land` 双重余量约束。
+    ③ **义庄赈济**：士绅 grain −＝give、本地农 POP grain ＋＝give（走 `grain_bridge`，
+       给了 `state` 即落真账并刷新镜像），粮不凭空增减。
+
+    裁决与分布全缺失 ⇒ 直接返回（**不动作**，不回落默认档位）。
+    """
+    _gmix = observe_mix(state, "gentry_charity_vs_annex", ("charity_relief", "usury_annex"))
+    _fmix = observe_mix(state, "farmer_destitution_path", ("mortgage_land", "flee_refugee"))
+    if not _gmix and not _fmix:
+        return
+    _p_annex = (_gmix or {}).get("usury_annex", 0.0)
+    _p_mortgage = (_fmix or {}).get("mortgage_land", 0.0)
+    _p_relief = (_gmix or {}).get("charity_relief", 0.0)
+    # 并集强度：两条裁决共用一条通道，双命中不叠加成 2 倍，但也随概率升档
+    _annex_strength = 1.0 - (1.0 - _p_annex) * (1.0 - _p_mortgage)
+    _annex = _annex_strength > 0.0
+    _relief = _p_relief > 0.0
+    if not _annex and not _relief:
+        return
+    _annex_routes = 0
+    _annex_mu = 0
+    _relief_routes = 0
+    _relief_stone = 0
+    for _rname, p in state.prefectures.items():
+        if not isinstance(p, dict):
+            continue
+        # ---- ② 兼并/典田：自耕田 → 士绅田（Σ田亩归属守恒）----
+        if _annex:
+            _land = int(p.get("land", 0) or 0)
+            _self = int(p.get("self_farm_land", 0) or 0)
+            _gentry = int(p.get("gentry_land", 0) or 0)
+            _cap = int(_land * LAND_CONCENTRATION_CAP * _annex_strength
+                       * jitter(state, "land_concentration", _rname, MERCHANT_JITTER))
+            # 月度上限再受「自耕田余量」「士绅田可容（≤land）」双重约束
+            _n = min(_cap, _self, max(0, _land - _gentry))
+            if _n > 0:
+                p["self_farm_land"] = _self - _n
+                p["gentry_land"] = _gentry + _n
+                _annex_routes += 1
+                _annex_mu += _n
+        # ---- ③ 义庄赈济：士绅囤粮 → 本路农 POP（成对划转）----
+        if _relief:
+            _pops = p.get("pops") or {}
+            _genty = _pops.get("士绅")
+            _nong = _pops.get("农")
+            if isinstance(_genty, dict) and isinstance(_nong, dict):
+                _rate = (GENTRY_RELIEF_CAP * _p_relief
+                         * jitter(state, "gentry_relief", _rname, MERCHANT_JITTER))
+                _give = int((_grain_get(_genty) or 0) * _rate)
+                if _give > 0:
+                    # 桥接：给了 state ⇒ grain_bridge 委派 pop_bridge 写州府真账并刷镜像
+                    _grain_add(_genty, -_give, state)
+                    _grain_add(_nong, _give, state)
+                    _relief_routes += 1
+                    _relief_stone += _give
+    if _annex_routes > 0 and log is not None:
+        log.append(f"[天道] 士绅兼并/典田：{_annex_routes} 处自耕田转士绅 "
+                   f"{_annex_mu:,} 亩（强度 {_annex_strength:.2f}×上限 "
+                   f"{LAND_CONCENTRATION_CAP:.1%} 在册田）")
+    if _relief_routes > 0 and log is not None:
+        log.append(f"[天道] 士绅义庄赈济：{_relief_routes} 处捐输 {_relief_stone:,} 石入农户"
+                   f"（强度 {_p_relief:.2f}×上限 {GENTRY_RELIEF_CAP:.1%}）")
+
 
 def _settle_economy(state, log):
     """经济基础结算"""
@@ -202,6 +359,11 @@ def _settle_land_local(state, log):
         _conceal = int(p.get("gentry_land", 0) * 0.001 * (0.5 + _gentry_power))
         p["gentry_land"] = max(0, p.get("gentry_land", 0) - _conceal)
         p["hidden_land"] = p.get("hidden_land", 0) + _conceal
+
+    # ---- 天道 ②③：士绅兼并/典田 + 义庄赈济（2026-10-21 L3-a）----
+    # 位置：紧接「自然兼并」之后、收获按月亩归属分粮**之前** —— 与自然兼并同口径，
+    # 本月转移当月即计入归属分配；每月每路只调用一次（月度结算单点）。
+    _settle_tiandao_land_relief(state, log)
 
     _, grain_by = state.calc_monthly_grain()
     land_grain = int(sum(grain_by.values()))
@@ -500,6 +662,73 @@ def _settle_region_deepen(state, log):
 
         # 5. 控制势力：默认宋，领土争夺由事件/命令改写（此处不主动改）
         p.setdefault("controlled_by", "宋")
+
+        # 6. 民怨：向**压力目标**月度缓动（2026-10-22 新增；与本函数 fiscal/public_support 同型）
+        #    为什么需要：改前民怨只会被"治安支出"单向抵减（`settlement_finance` runner_pay），
+        #    而该支出按军费份额算 ⇒ ①有军的地方一年内衰减到 0；②**无实体军的 8 个地方一位不动**
+        #    （实测利州路/广南西路 24 个月恒 24）。结果内容里 `situation_seeds`(>=30/85) 与
+        #    `local_agent_decisions`(>=30/45/60/85) 的档位**永不可达**，那些分支是死代码。
+        #    现改为「压力 → 目标值 → 每月靠拢 RATE」，既保留治安支出的抵减（额外下行），
+        #    又让危机（灾/粮价/流民/失治）能真的把民怨推上去，且**对无军之地同样生效**。
+        #    🔴 口径：每一项都是**既有读数**，缺失 ⇒ 该项不计（不按 0 处理，也不造读数）；
+        #       目标钳 [0,100]，`unrest` 结果钳 [0,100]；纯确定性、无随机（回放不变）。
+        _target = _unrest_pressure_target(state, p)
+        if _target is not None:
+            _cur = p.get("unrest", 15)
+            try:
+                _cur = float(_cur)
+            except (TypeError, ValueError):
+                _cur = None
+            if _cur is not None:
+                p["unrest"] = max(0.0, min(100.0, _cur + (_target - _cur) * UNREST_DRIFT_RATE))
+
+
+def _num_or_none(v):
+    """读数 → float；不可解析 ⇒ None（**缺失不充当 0**）。"""
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f else None
+
+
+def _unrest_pressure_target(state, p) -> Optional[float]:
+    """某地当月的**民怨压力目标**（0~100）；一项读数都取不到 ⇒ None（不动作）。
+
+    口径（每项都是既有读数，缺失 ⇒ 该项不计）：
+    - 粮价：高出平价 1.0 的部分 × `UNREST_PRICE_W`（平价 1.0 时贡献 0，价 3.0 时 +40）；
+    - 灾情：`state.disaster_severity`（0~5）× `UNREST_DISASTER_W`；
+    - 流民：`refugees / population`，占人口 `UNREST_REFUGEE_FULL_RATIO`(10%) 记满 × `UNREST_REFUGEE_W`；
+    - 治理：`govern` 低于 50 的部分（占 50 的比例）× `UNREST_GOVERN_W`。
+    目标钳 [0,100]。**这是"应有水平"，不是增量**——由调用方按月向它靠拢。
+    """
+    terms = []
+
+    price = _num_or_none(p.get("grain_price"))
+    if price is None:
+        price = _num_or_none(getattr(state, "grain_price", None))
+    if price is not None:
+        terms.append(max(0.0, price - 1.0) * UNREST_PRICE_W)
+
+    sev = _num_or_none(getattr(state, "disaster_severity", None))
+    if sev is not None:
+        terms.append(max(0.0, min(5.0, sev)) * UNREST_DISASTER_W)
+
+    ref = _num_or_none(p.get("refugees"))
+    pop = _num_or_none(p.get("population"))
+    if ref is not None and pop is not None and pop > 0:
+        share = max(0.0, ref) / pop
+        terms.append(min(1.0, share / UNREST_REFUGEE_FULL_RATIO) * UNREST_REFUGEE_W)
+
+    govern = _num_or_none(p.get("govern"))
+    if govern is not None:
+        terms.append(max(0.0, (50.0 - govern) / 50.0) * UNREST_GOVERN_W)
+
+    if not terms:
+        return None
+    return max(0.0, min(100.0, sum(terms)))
 
 
 def _settle_extensions(state, log):
@@ -1012,6 +1241,24 @@ def _ext_econ_phases(pop, cfg, gy, cmul, price, pay_cfg, dz_hit=False, rtype="",
     _dz_cfg = cfg.get("disaster", {})
     if dz_hit:
         _flee = int(int(_nong.get("size", 0) or 0) * float(_dz_cfg.get("flee_rate", 0.01)))
+        # ---- ④ 天道"破产小农举家逃亡"→ 灾荒逃散放大（2026-10-21 接线 / 10-22 改概率加权）----
+        # 放大倍数随 `p(flee_refugee)` **连续变化**：`1 + (MULT−1)×p`
+        #   p=0（或缺失）⇒ ×1.0（与改前逐字节一致）；p=1 ⇒ ×FLEE_VERDICT_MULT。
+        # 再乘天意扰子（同回合同地可复现）；放大后仍受 `FLEE_CAP_PER_ROUTE` 与农 size 约束。
+        _flee_amp = 1.0
+        if state is not None:
+            _fmix = observe_mix(state, "farmer_destitution_path",
+                                ("mortgage_land", "flee_refugee"))
+            _p_flee = float((_fmix or {}).get("flee_refugee", 0.0))
+            if _p_flee > 0.0:
+                _flee_amp = (1.0 + (FLEE_VERDICT_MULT - 1.0) * _p_flee
+                             * jitter(state, "farmer_flee", rtype, FLEE_JITTER))
+        if _flee_amp != 1.0:
+            _flee = min(int(_flee * _flee_amp), FLEE_CAP_PER_ROUTE,
+                        int(_nong.get("size", 0) or 0))
+            if _flee > 0 and log is not None:
+                # 玩家可见：只写档位词（"举家逃亡"），不写概率/乘子
+                log.append(f"[天道] 破产小农举家逃亡：省域灾荒逃散加剧（{_flee:,} 人）")
         if _flee > 0:
             _nong["size"] = int(_nong.get("size", 0) or 0) - _flee
             disaster_loss = _flee
@@ -1560,6 +1807,9 @@ def _settle_civilian_hoard(state, log):
     # 无 AI（本地降级/_economy_ai 缺该键）默认「无」= 冻结不动用（藏富不到最后关头不用）。
     _draw_tier = _eco.get("窖银") if _eco.get("窖银") in HOARD_DRAW_RATE else "小"   # no-AI 被动缓释 0.5%/月（防永久抽水；有 AI 由档位决定）
     _draw_rate = HOARD_DRAW_RATE.get(_draw_tier, 0.0)
+    # ① 天道商贾乘子：本月实际生效的路数（仅用于一行汇总日志；乘子本身逐路算、逐路用）
+    #    2026-10-22：幅度由概率分布算出（`_merchant_tilt_mult`），此处不再读裁决词。
+    _tilted_routes = 0
     for name, p in state.prefectures.items():
         genty = p["pops"]["士绅"]
         price = p.get("grain_price", state.grain_price)
@@ -1601,6 +1851,15 @@ def _settle_civilian_hoard(state, log):
                 # 粮价平稳：士绅卖囤粮换钱（买商品/维持现金流），卖 5%/月使囤粮存量稳定
                 act, tier = "抛", "中"
         mult = TIER_RANGE.get(tier, 0.5) * 0.05   # 囤/抛比例：微0.0125/小0.025/中0.05/大0.09（不 round）
+        # ---- ① 天道商贾裁决 → 本月本路囤抛力度乘子（2026-10-21 接线 / 10-22 改概率加权）----
+        # 单点：每路每月只在这里乘一次；乘子由 `p(hoard) − p(local_sell)` 与天意扰子算出，
+        # **不再查固定挡位表**。不写回 `TIER_RANGE`，故不影响其他调用点。
+        # 分布缺失 ⇒ 乘子 1.0 ⇒ 与未接线前逐字节一致。
+        _m_tilt = _merchant_tilt_mult(state, name, act)
+        if _m_tilt != 1.0:
+            mult = mult * _m_tilt
+            _tilted_routes += 1
+
         # 囤粮上限（A1 定案·软约束）：软上限 = 士绅田产年产 × HOARD_CAP_MULT（0.3），
         # 硬上限 = 软上限 × 1.5。超软上限先售买方池、未售保留（囤积居奇机制保留）；
         # 仅超硬上限强制出清，未售按 3% 损耗核销（防无限囤积）。
@@ -1676,6 +1935,13 @@ def _settle_civilian_hoard(state, log):
                 _art["wealth"] += _half
             if _pop_obj_add(state, _mer, "wealth", _half) is None:
                 _mer["wealth"] += _half
+    # ① 一行汇总（玩家可见：只写档位词，不写概率/乘子数值）
+    if _tilted_routes > 0 and log is not None:
+        _mix_done = observe_mix(state, "merchant_trade", ("ship", "hoard", "local_sell")) or {}
+        _net_done = (float(_mix_done.get("hoard", 0.0))
+                     - float(_mix_done.get("local_sell", 0.0)))
+        _m_label = "居奇囤积" if _net_done >= 0 else "就地抛售"
+        log.append(f"[天道] 商贾{_m_label}：{_tilted_routes} 处士绅囤抛力度已按概率调整")
 
 
 def _input_scale(got_dims: dict, got_grain: float, recipe: dict) -> float:

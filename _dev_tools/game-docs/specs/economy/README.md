@@ -66,6 +66,7 @@
 |---|---|---|
 | [`market-civilian-economy/`](market-civilian-economy/) | 民间经济与营造市场：B0–B5 批次、验收门与未闭合项 | B0–B5 主体完成；未闭合项见其 `tasks.md` 收口章节 |
 | [`unified-civilian-market/`](unified-civilian-market/) | 全商品州府级与统一市场：**P0–P6** 阶段骨架 | **P0 已通过**；**P1–P6 未开工** |
+| [`produce-space-price/`](produce-space-price/) | 《物产新篇》商品模型融合（价格空间维度 / 需求地域维度 / 品目层 / 品类物流属性 / 品目驱动税目）：**P-A / P-B0 / P-B1 / P-C / P-D** | ⬜ **设计稿 v2，零代码改动（尚未实施）**；待裁 D1–D7（含载体、粮载体、品目层、需求篮子四项前置） |
 
 ## 阅读纪律
 

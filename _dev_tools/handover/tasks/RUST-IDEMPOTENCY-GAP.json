@@ -1,0 +1,26 @@
+{
+  "id": "RUST-IDEMPOTENCY-GAP",
+  "title": "Rust 实验后端的结算幂等语义未与 Python 侧对齐（本批只登记）",
+  "status": "open-registered",
+  "claimedBy": "",
+  "registeredAt": "2026-10-22T22:35:00+08:00",
+  "registeredBy": "DSH-lead",
+  "source": "外部审查遗留 A4 核查（2026-10-22）",
+  "evidence": [
+    "songzuo_server/src/settle.rs 共 868 行、23 个函数，**独立实现结算**并在末尾 `turn += 1`（实测：`turn += 1` 命中 1 次）；被 main.rs / server.rs 引用。",
+    "Python 侧同日已加幂等守卫：`run_monthly_settlement(state, seed_offset=0, expect_turn=None)`、`advance_two_phase(..., expect_turn=None)`、`/api/advance` 透传；实测重发 ⇒ 回合不变、返回历史日志。",
+    "`BackendClient.create()` 可返回 HttpBackend（远程）或 LocalBackend；项目 AGENTS.md 把 Rust 后端定义为「实验后端，不接游戏运行时」。"
+  ],
+  "risk": "若以 Rust 后端对外提供 /api/advance，则「结算成功但响应丢失后重发」仍会双推一个月（Python 侧已修，Rust 侧未修）。发行版若不含 Rust 后端则风险不落地。",
+  "verdict": {
+    "by": "Jev(tokenrhythm)",
+    "mode": "gate",
+    "probabilities": {"holds": 0.9957},
+    "ruling": "本批**只登记不对齐**，不改 Rust 代码"
+  },
+  "nextAction": "Rust 侧正式接入运行时（或对外提供 advance）之前，必须实现同一 expect_turn 语义并加回归；做法可参照 Python：None=旧行为、==turn=结算、<turn 且有历史=幂等重放、其它=拒绝。",
+  "reopenIf": [
+    "Rust 后端被纳入发行包或对外暴露 /api/advance；",
+    "出现双端共用同一存档的部署形态。"
+  ]
+}

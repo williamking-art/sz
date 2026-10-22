@@ -69,7 +69,8 @@ export default function Dock() {
     // 迁移补齐：结算前抓关键指标快照，供浮层展示本月涨跌（原 Tk 有、Web 缺）
     const before = snapshotHud(state);
     try {
-      const res = await getApiClient().advance();
+      // 幂等：把当前展示的回合发过去，重发时服务端只重放日志、不再推演一回合
+      const res = await getApiClient().advance(turnRef.current);
       setState(res.state);
       audioEngine.playSfx("sfx_gong", { volumeBias: 0.6 });
       // 迁移补齐：即时回执（原 Tk `_log_lines`）——朝报面板「近日机务回执」可查

@@ -286,13 +286,17 @@ def test_dynamic_building_registers_on_completion():
     assert b["海塘"] >= 1
 
 
-def test_dynamic_completion_defense_add_actually_raises_troops():
+def test_dynamic_completion_defense_add_actually_raises_troops(monkeypatch):
     """【2026-10-03 修】厢军构件完工后**真的加兵**。
 
     原实现读 `out["defense_routes"]`，而该键**全库无生产者**（全仓只有那一行读它）
     ⇒ 循环体永不执行：厢军构件完工后 Σtroops Δ=0，而面板按 plan_readout 把
     `output={"defense_add":N}` 报成「效果生效」——机制建好却没落地。
     现改用**项目自带的地点**（`propose_project` 已落档 `proj["route"]`）。
+
+    🔴 2026-10-22 测试隔离：天道「募流民为厢军」档在 2026-10-22 接线后，同月也会给
+    该路加兵（本项目实测 +5），会把本条「Δ 必须恰好 +1000」的断言打红。本条测的是
+    **蓝图完工效果**，故显式把天道观测置为中性（`decisions={}`），不与其他系统耦合。
     """
     s = _state()
     register_dynamic_blueprint(s, _bp(name="厢军营", effects=[
@@ -308,6 +312,16 @@ def test_dynamic_completion_defense_add_actually_raises_troops():
                    if u.station == route and u.tier == "厢军")
 
     before = _troops()
+    # 天道中性化（见 docstring：本条只验蓝图完工效果，不与「募流民」档耦合）
+    from core.ai.tiandao_facade import TianDaoFacade as _TDF
+
+    def _neutral_observe(cls, state):
+        rec = {"turn": int(getattr(state, "turn", 0) or 0), "read_only": True,
+               "decisions": {}, "context_defined": True}
+        state._tiandao_observe = rec
+        return rec
+
+    monkeypatch.setattr(_TDF, "observe_monthly", classmethod(_neutral_observe))
     for _ in range(3):
         run_monthly_settlement(s)
         if s.projects[pid].get("status") == "operating":

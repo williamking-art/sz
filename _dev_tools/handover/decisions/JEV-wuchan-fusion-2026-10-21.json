@@ -1,0 +1,88 @@
+{
+  "id": "JEV-wuchan-fusion-2026-10-21",
+  "topic": "《物产新篇》商品模型融合设计（宋祚 specs/economy/produce-space-price）",
+  "date": "2026-10-21",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B（阈值 0.4）",
+  "rulings": [
+    {
+      "id": "J1",
+      "kind": "gate",
+      "question": "融合设计稿第一批应限定为只增补价格的空间维度与需求的地域维度、不动 POP/库存/物流主链，是/否？",
+      "verdict": "是",
+      "p": 0.9684,
+      "holds": true
+    },
+    {
+      "id": "J2",
+      "kind": "choose",
+      "question": "该设计稿落哪个位置最合适？",
+      "options": [
+        "A=续写 unified-civilian-market",
+        "B=新立专题 specs/economy/produce-space-price",
+        "C=只落 docs 暂不入 specs"
+      ],
+      "verdict": "B",
+      "probabilities": { "A": 0.0499, "B": 0.7585, "C": 0.1916 },
+      "note": "非压倒性（0.759），故落库位置仍列为可复核项：若用户裁定改为续写 unified 专题，迁移成本低（本专题为纯增量文档）。"
+    },
+    {
+      "id": "J3",
+      "kind": "gate",
+      "question": "应直接把物产新篇的产地与年产量数据搬入宋祚，是/否？",
+      "verdict": "否",
+      "p": 0.0281,
+      "holds": false,
+      "note": "与宋祚「不臆造」「缺失≠0」纪律一致：源模型为明末断代（1550—1640）、95 地区、446 货；宋祚为北宋、约 62 商品维、产地证据来自《宋史·地理志》贡物（只作存在性权重）。"
+    },
+    {
+      "id": "J4",
+      "kind": "choose",
+      "question": "品质/规模第一批取哪种做法？",
+      "options": [
+        "A=拆商品维",
+        "B=只作产地属性乘子（不拆维）",
+        "C=先不做品质规模"
+      ],
+      "verdict": "B",
+      "probabilities": { "A": 0.2854, "B": 0.6435, "C": 0.0711 },
+      "note": "非压倒性（0.643 vs 拆维 0.285）。拆维会乘 62 维并波及库存/成交/守恒/类目/税目/存档迁移全部按维契约，故列为待裁定 D3，须用户裁。"
+    }
+  ],
+  "premises_verified_by_me": [
+    "【我方直读抽检】宋祚商品目录单点 GOODS_DIMS 实测约 62 维（RAW 28 + FINISHED 37 + 米/麦 2，去重 5）：game/content/data_constants.py:520-525,543-551,574,677",
+    "【我方直读抽检】价格现状为路级唯一价 + 基准价 + 全国乘子，无产地价/品质/品类运值比；跳数与邻接图已存在但未进价格：core/market_price.py:56-78,110-158,210-219,299-321；core/game_state_econ.py:277；core/transport.py:66,203-220",
+    "【我方直读抽检】唯一成交入口与三重上限：core/domains/economy/market.py:150,220-247；四态价格与月封顶 ±15% 与绝对边界 (0.5,2.0)：core/market_price.py:46,53,306-316",
+    "【我方直读抽检】需求实现是财富口径；且价格发现循环只遍历绸/布两维：core/settlement_granary.py:419-474,440-448,514-515；阶层偏好仅绸/布：data_constants.py:760-767",
+    "【我方直读抽检】在途腐坏只对 goods_dim=grain 生效（沈括口粮），并乘度量衡折减：core/foundation/ledger/spatial_warehouse_bridge.py:306-349,312-316,322-327",
+    "【我方直读抽检】类目层尚未覆盖：GOODS_CLASSES 仅「食品/粮」两词条（约 12 维），COMMODITY_KINDS 仅 4 类（粮/原料/成品/军需）：data_constants.py:582-603,629-658",
+    "【只读侦察，子代理】载体冲突（未裁定）：goods[治所] 州府桶 vs seats[治所].warehouses 四仓位，且 2026-10-18 取证「州府桶 0 个」",
+    "【只读侦察，子代理】粮载体四说法并存（条文/甲·乙·丙/用户口径/运行态）：G-3 未实施",
+    "【只读侦察，子代理】运费按货值比例（陆2%/水0.5%/海0.3%/驿5%）：core/transport.py:918-932",
+    "【我方实测脚本，v4】图规模：21 路 / 136 治所 / 210 路对（prefecture_entity.all_seats/seats_of 实测）",
+    "【我方实测脚本，v4】路级跳数分布（min over 两路治所对的 route_path.hops）：min 1 / 中位 4 / 均值 4.62 / max 11；hops≤4 占 52.9%、≤6 占 74.3%、≤10 占 99.5%。故源模型 1.43^n（23 大区、0–6 跳、封顶 10.5×）不可直套（1.43^11≈55×）",
+    "【我方实测脚本，v4】KM_PER_MONTH=2400（core/transport.py:52，设定值），国内路对 route_path.days 恒为 1 ⇒「月数」不能当稀缺依据，只能用品目运值比 + 路级跳数",
+    "【我方直读抽检，v4】宋祚无按货/按类税目：工商税＝Σ(工匠.size+商人.size)×CRAFT_OUTPUT_PER_CAPITA×税率（core/settlement_finance.py:1397-1402）；全库 grep TAX_BY* 0 命中 ⇒ 源模型「税目按类征 → 新增维漏征」的前提在宋祚不成立",
+    "【我方直读抽检，v4】seats_of 返回 dict 列表（含 seat_id 键），非 id 列表：core/foundation/ledger/prefecture_entity.py:146-165；route_path 的键集为 _seat_index() 的 seat_id（transport.py:98-115）",
+    "【我方直读抽检，v4】discover_price 的绝对边界相对「传入的 base」计算（core/market_price.py:141），故把 base 换成空间价后，[0.5,2.0] 不再锚定全国基准价"
+  ],
+  "applied_in": [
+    "_dev_tools/game-docs/specs/economy/produce-space-price/design.md（v4：§1 Jev 台账、§2.1 实测口径、§4 P-A/P-B0/P-B1/P-C/P-D、§6 断言 1–18、§7 待裁定 D1–D8、§10 修订记录）",
+    "_dev_tools/game-docs/specs/economy/produce-space-price/tasks.md（状态表、触点清单、验收门）",
+    "_dev_tools/game-docs/specs/economy/README.md 与 specs/README.md 子专题索引"
+  ],
+  "reopen_if": [
+    "用户裁定 D3 改为拆商品维（则 J4 的前提失效，需重评 P-A 的迁移与守恒成本）",
+    "D1 载体裁定为 seats.warehouses 四仓位（则 P-A 的落桶与读写单点须改走 transfer_goods_ownership 路径）",
+    "G-3 粮载体裁定为乙/丙（则米/麦不进入空间价差，P-A 范围收窄）",
+    "D4 稀缺曲线定标结果使「最优路 ROI」与既有商路量级不兼容（则 P-A 需重新扫描或改用里程/运值比主导）",
+    "稀缺系数被要求必须有史料依据（ADJACENT_KM=200 与 KM_PER_MONTH=2400 均为设定值；若要求史料则 P-A 开工门不通过）",
+    "D6 品目层若裁定沿用 COMMODITY_KINDS 的 4 类（则 P-B1/P-C/P-D 的粒度需重估，源模型为 40 类）",
+    "D7 需求篮子不扩容（则 P-B1 的嗜好/流行只对绸/布生效，应降级为只读展示）",
+    "D8 若裁定「真按品目分征」（则须重评与 commerce_tax 的替代/叠加关系、税基口径与 M0/M1 对账）",
+    "D5 若裁定「入市率 None → 不可售」（则须先保证 62 维品目全填，否则商品会从市场消失）"
+  ],
+  "limits": [
+    "Jev 只给类型化判断与概率，不给理由；本台账的 premises_verified_by_me 由我方实测核验，与裁定冲突时以实测与 sz/AGENTS.md 硬约束为准。",
+    "本台账与设计稿均为只读设计产物：零代码改动、未跑 pytest、未触碰任何库存/钱载体。"
+  ]
+}

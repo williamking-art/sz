@@ -1,0 +1,58 @@
+{
+  "id": "JEV-外部审查B1处置-2026-10-22",
+  "title": "外部审查阻断项 B1 的处置口径（改代码 vs 标注例外）",
+  "status": "decided",
+  "askedAt": "2026-10-22T19:40:00+08:00",
+  "askedBy": "DSH-lead（承外部审查 B1）",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose + gate",
+  "context": "外部独立审查（outputs/songzuo-review-20261022）判定阻断：概率加权只落地新接的 5 项，原已接线的 5 个消费点仍按裁决词查固定表，违反 core/ai/README 契约第 14 条。报告同时提出「改代码 还是 文档标注例外」需裁定。",
+  "rulings": [
+    {
+      "topic": "B1 处置方向",
+      "options": {
+        "A": "改代码：5 个旧消费点全部改概率连续",
+        "B": "改文档：声明这 5 项为「裁决词口径」的已知例外"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.6739, "B": 0.3261},
+      "honesty_note": "⚠️ 实施先行、裁定事后确认：本轮先按契约第 14 条把 5 处改成概率连续，再补问 Jev。Jev 与实施一致（A 0.674），但**不是压倒性**（B 仍占 0.326）——说明「标注例外」确有可辩护的一面（若这 5 项被产品裁定为确定性玩法，B 才成立）。当前无此裁定，故按 A 保留。",
+      "premises_verified_by_me": [
+        "概率数据已在观测副本里（第 6 个月 distributions/strengths 齐全，实测）⇒ 不是「数据不足」而是「消费方不读」",
+        "契约第 14 条是本轮自己写入 README 的硬纪律，标例外等于自订例外，后续无人会再遵守",
+        "5 处改动量小（每处 3~8 行）且都能以「中性精确恒等 + 同档不同概率」两条断言验收",
+        "旧格式（只有 decisions 无 strengths）保留二值回退，故不会破坏既有手工注入测试"
+      ],
+      "applied_in": ["settlement_finance / settlement_decree / settlement_granary 五处消费点"]
+    },
+    {
+      "topic": "旧格式观测副本（无 strengths）如何兼容",
+      "question": "有 decisions 但无 strengths 的旧观测副本，应回退旧二值，还是按缺失中性处理",
+      "verdict": "回退旧二值（A）",
+      "probabilities": {"holds": 0.9923},
+      "threshold": 0.4,
+      "premises_verified_by_me": [
+        "若按缺失中性处理，两个既有 gate 测试的手工注入（只给 decisions）会静默失去效果，且改前行为不可复现",
+        "生产 observe_monthly 同批写 decisions 与 strengths，实机不存在该形态 ⇒ 兼容分支只服务测试/旧存档路径"
+      ],
+      "applied_in": ["settlement_granary._changping_sell_ratio / _granary_corruption_factor 的兼容分支"]
+    }
+  ],
+  "tie": false,
+  "post_fix_evidence": {
+    "full_pytest": "4469 tests / 0 failed / 0 errors / 3 skipped（EXIT=0，651.86s，junit 取数）",
+    "neutral_identity": "无观测副本路径状态指纹 == 改前实测 sha256（财政域 4 个值逐字节相同）",
+    "same_tier_diff_probability": "田赋 net 0.30 vs 0.85 因子不同且等于公式值；变法 p=0.6/0.95 ⇒ 实放量 0.06/0.095；蠲免 p=0.6/0.9 ⇒ 核销 406,397 / 1,625,648 贯",
+    "golden_impact": "imperial_treasury −824 / treasury +57；finance 与 20 路全同"
+  },
+  "known_limits": [
+    "F5（缺项分布被当 0 概率）当前不可达，仅记档",
+    "D-2（appraisal / decree_compliance 不进日志）只做显式声明，未强行接线——需要逐官/逐路上下文，属下一批决策",
+    "同一回合重复调用月结算的幂等性仍未验证（审查方原指出的口径问题）"
+  ],
+  "reopen_if": [
+    "若将来真要让 appraisal/decree_compliance 进 decision_log，需先决定其上下文来源与记录键，并重估回测 MODE 表。",
+    "若给民怨/商贾等效果增加新消费方，须遵循契约第 14 条（概率连续 + 中性精确恒等 + 常数锁值测试）。"
+  ],
+  "collision_check": "与 JEV-天道概率加权-2026-10-22 同源（该档定义了契约第 14 条，本档把它推到全部 11 个消费点）；不冲突。"
+}

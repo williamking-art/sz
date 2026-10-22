@@ -120,21 +120,31 @@
   · **效果构件注册表当前为空**：故任何带 `effects` 的动作判 `unsupported`。这是**故意**的
     诚实行为（规格非目标第 2 条：未注册构件不得靠改名或叙述落地），待任务 3/4 注册后自动可执行。
 
-## 3. 接通动态蓝图注册与多地点项目 → ❌ **未做**
+## 3. 接通动态蓝图注册与多地点项目 → ~~❌ **未做**~~（**2026-10-22 更正：此结论已过期**，实际已落地，见下文 §3「✅ 已落地」）
 
-- [ ] 安全蓝图 schema 与效果构件 DSL（只接收已注册 operator，不运行生成代码）
-- [ ] 扩展 `resolve_blueprint/can_build/propose_project` 支持存档内动态蓝图与权威地点 id
-- [ ] 一旨多址生成独立 project；预检资金/地利/科技/材料并返回逐项结果
-- _需求：2、3、4、10_
+> 🔴 **文档勘误（2026-10-22 复核 · D-5）**：本节是**落地前的历史快照**，结论「❌ 未做」已不成立。
+> 任务 3 实际已落地（32 例定向测试 2026-10-22 实测全绿），**现行状态以下一节「✅ 已落地」为准**；
+> 原文保留并逐行加删除线，供追溯，不再作为现状引用。
+> 复核锚点：`game/core/blueprint_dynamic.py`（295 行：`validate_dynamic_blueprint` /
+> `register_dynamic_blueprint` / `resolve_dynamic_blueprint` / `dynamic_blueprint_output` /
+> `dynamic_blueprint_cost`）· `game/core/decree_plan.py`（`_ensure_builtin_operators` ＋内建构件
+> `仓容/厢军/酒课`）· `game/core/construction.py`（`resolve_blueprint` 动态表优先、`propose_projects`）·
+> `game/core/save_load.py` / `game_state.py`（`dynamic_blueprints` 存档 round-trip）·
+> `game/core/domains/construction/settlement_tech.py:568-569`（完工登记识别动态蓝图键）。
 
-**部分前置已就位（本次交付）**：效果构件注册表 API（`core.decree_plan.register_operator`）
+- [ ] ~~安全蓝图 schema 与效果构件 DSL（只接收已注册 operator，不运行生成代码）~~
+- [ ] ~~扩展 `resolve_blueprint/can_build/propose_project` 支持存档内动态蓝图与权威地点 id~~
+- [ ] ~~一旨多址生成独立 project；预检资金/地利/科技/材料并返回逐项结果~~
+- ~~_需求：2、3、4、10_~~
+
+~~**部分前置已就位（本次交付）**：效果构件注册表 API（`core.decree_plan.register_operator`）
 与 `blueprint_proposal` 结构校验（仅「营建」类可带、构件逐个过注册表）已可用；
-本任务需补的是**注册具体构件**、**动态蓝图注册表**与**多地点立项**。
+本任务需补的是**注册具体构件**、**动态蓝图注册表**与**多地点立项**。~~
 
-**证据（改造前）**：
+~~**证据（改造前）**：
 `resolve_blueprint(name, key)` —— 无 `state`、只查 `BUILDING_BLUEPRINTS` ＋ `BUILDING_STD`；
 `can_build(state, route, name, key)`、`propose_project(state, route, name, key, levels)`
-—— 只吃**名字/键**，无动态蓝图注册表、无权威 `location_id`。
+—— 只吃**名字/键**，无动态蓝图注册表、无权威 `location_id`。~~
 
 ## 3. 接通动态蓝图注册与多地点项目 → ✅ **已落地**
 
@@ -155,8 +165,9 @@
     新增 `propose_projects`（一旨多址）；`propose_project` 带出动态产出与效果清单。
   · `game/core/game_state.py` ＋ `save_load.py`：`dynamic_blueprints` 字段与存档 round-trip
     （**读档逐条重过校验器**，坏项丢弃留痕，不整档失败）。
-  · `game/core/settlement_tech.py`：完工落成登记识别动态蓝图键。
-  · `_dev_tools/game-dev/tests/test_dynamic_blueprint.py`（**新，31 例全绿**）。
+  · `game/core/domains/construction/settlement_tech.py:568-569`（`game/core/settlement_tech.py` 只是薄转发桩）：
+    完工落成登记识别动态蓝图键。
+  · `_dev_tools/game-dev/tests/test_dynamic_blueprint.py`（**32 例全绿**，2026-10-22 实测；原写 31 例）。
 
 **过程中挖出的两个真坑（都有测试锁定）**：
 

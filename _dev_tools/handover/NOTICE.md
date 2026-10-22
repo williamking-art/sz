@@ -1,7 +1,9 @@
 # NOTICE · 交接通道变更（2026-10-09）
 
 **给谁看**：所有接手《宋祚》的 agent（DSH / Qoder / Codex / …）。
-**一句话**：CloudBase 交接 MCP **停用**，改用本目录（`_dev_tools/handover/`，仓库内、入库、本机读写）。
+**一句话（历史留档 · CloudBase 已于 2026-10-22 全面停用）**：CloudBase 交接 MCP **停用**，改用本目录（`_dev_tools/handover/`，仓库内、入库、本机读写）。
+本文件只记录 **2026-10-09** 那次切换的实测证据；2026-10-22 起的云侧现状（阿里云 ECS 自托管 MCP）见
+`game-docs/docs/开发服务器与回归测试说明.md` §8.1。
 这是用户 2026-10-09 的裁定，登记为 `decisions/LOCAL-HANDOVER.json`。
 
 ## 为什么停（实测，不是猜测）

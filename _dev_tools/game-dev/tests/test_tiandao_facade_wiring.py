@@ -4,12 +4,15 @@
 覆盖：
 1. 三大 AI 管道函数**真实接线**所需契约（事实签用真在任主官、不编人；月报档位；召对定势）；
 2. 动态财政安全垫线：**真有写入方**才算动态（旧实现读一个全库没人写的字段）；
-3. 门面方法不再恒定档位（见 test_tiandao_engine_core）。
+3. 门面方法不再恒定档位（见 test_tiandao_engine_core）；
+4. 读数供给（2026-10-21 L0）：`build_state_context` 的唯一生产入口是 facts 契约，
+   旧消费方直接读的键**仍然存在**（过渡期向后兼容）；口径细节见 test_tiandao_facts_wiring。
 """
 import pytest
 
 from application.game_init import new_game
 from core.ai.tiandao_facade import (MEMORIAL_DOMAINS, TianDaoFacade)
+from core.ai.tiandao_facts import FACT_KEYS, build_facts
 
 
 @pytest.fixture()
@@ -150,3 +153,29 @@ def test_compliance_returns_documented_multipliers(state):
     assert res["verdict"] in ("vigorous", "compliant", "passive", "defiant")
     assert res["mult"] in (1.05, 0.90, 0.65, 0.40)
     assert sum(res["probabilities"].values()) == pytest.approx(1.0, abs=1e-6)
+
+
+# =============================================================================
+# 6. 读数供给（2026-10-21 L0）：build_state_context = facts 契约的引擎视图
+# =============================================================================
+def test_build_state_context_keeps_legacy_keys_for_backward_compat(state):
+    """旧消费方/测试直接按这些键取值 ⇒ 键必须仍在（值取不到时是 None，不是缺失键）。
+
+    ⚠️ 这是**过渡期兼容**要求（`LEGACY_CONTEXT_KEYS`），不代表这些键是契约主键；
+    新代码请直接读 `tiandao_facts.FACT_KEYS` 里的 canonical 键。
+    """
+    ctx = TianDaoFacade.build_state_context(state)
+    for key in TianDaoFacade.LEGACY_CONTEXT_KEYS:
+        assert key in ctx, f"旧键 {key} 不见了（会打爆既有消费方）"
+    # 别名只允许 to_engine_context 给的两个（stock/supervision），不许再塞别的
+    assert set(ctx) - set(FACT_KEYS) == {"stock", "supervision"}
+
+
+def test_build_state_context_is_pure_read_of_facts_contract(state):
+    """同一 state 下，context 的 canonical 部分必须与 `build_facts` 逐键一致。"""
+    ctx = TianDaoFacade.build_state_context(state)
+    facts = build_facts(state)
+    for key in FACT_KEYS:
+        assert ctx.get(key) == facts[key], f"{key} 与契约不一致（门面又在自算口径？）"
+    # 门面不得写 state：再取一次事实，摘要必须不变
+    assert build_facts(state) == facts

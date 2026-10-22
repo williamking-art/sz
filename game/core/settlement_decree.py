@@ -30,6 +30,17 @@ from core.settlement_common import (
     _levy_men,
 )
 
+# 天道门面裁决的**共享读取点**（2026-10-22 B1-a）：变法遵从门走 gate 的**超阈强度**
+# （p=0.51 与 0.99 幅度不同），缺失 ⇒ None ⇒ 中性 1.0；不再「argmax 档位 → 固定倍率表」。
+from core.ai.tiandao_effects import observe_strength
+
+#: 新政遵从度的**下限系数**：`factor = 0.5 + 0.5 × 强度`。
+#: 口径：强度 0（未过判定线）⇒ 改革只落一半（旧「未切实执行 ⇒ ×0.5」是本式在强度 0 的端点）；
+#: 强度 1（p→1）⇒ 全额落地。因 `0.5 + 0.5·(p−thr)/(1−thr)` 在 p ≥ thr 时恒等于 p，
+#: 故日志里的系数**就是**遵从概率本身（不再有"档位"中间层）。
+REFORM_COMPLIANCE_FLOOR = 0.5
+
+
 # ------------------------------------------------------------
 # Step 1: 诏令执行
 # ------------------------------------------------------------
@@ -722,27 +733,28 @@ def project_economic_action_path(state, decree) -> dict:
 
 
 def _reform_compliance_factor(state) -> float:
-    """D 数值接线（2026-10-21，Jev A 0.464）：新政遵从门的财政改革幅度系数。
+    """新政遵从度对财政改革幅度的系数（B1-a：概率连续，2026-10-22）。
 
-    读 `TianDaoFacade.observe_monthly` 本回合记录：
-    - 无记录 / 未定义 → 1.0（回落现状）；
-    - `reform_compliance_gate=False` → **×0.5**（表面敷衍，改革只落一半）；
-    - True → 1.0。
-    只作用于 `finance_rates` 财政改革轴，不扩大范围。
+    `factor = REFORM_COMPLIANCE_FLOOR + (1 − REFORM_COMPLIANCE_FLOOR) × 强度 = 0.5 + 0.5 × 强度`
+
+    - 强度读 `observe_strength(state, "reform_compliance", 阈值)`（gate 超阈强度
+      `(p−thr)/(1−thr)`，阈值取 `tiandao_decision.THRESHOLDS` 单一出处）：
+      p=0.51 ⇒ 系数 0.51（只多落一点点）、p=0.99 ⇒ 0.99（几乎全落）——**同为"通过"幅度不同**；
+    - **缺失/未定义 ⇒ 1.0**（中性；含"有 decisions 无 strengths"的旧副本——与 finance 同款
+      取舍说明：把布尔断重回填成 0.5/1.0 等于恢复档位表，B1 禁止）；
+    - 只作用于 `finance_rates` 财政改革轴，不扩大范围。
     """
-    rec = getattr(state, "_tiandao_observe", None)
-    if not isinstance(rec, dict):
+    _thr = 0.5
+    try:                                  # 口径单点：阈值以 tiandao_decision.THRESHOLDS 为准
+        from core.ai.tiandao_decision import THRESHOLDS as _THR
+        _thr = float(_THR.get("reform_compliance", 0.5))
+    except Exception:  # noqa: BLE001 —— 取不到登记就用判定线默认值
+        _thr = 0.5
+    _strength = observe_strength(state, "reform_compliance", _thr)
+    if _strength is None:
         return 1.0
-    dec = (rec.get("decisions") or {}).get("reform_compliance_gate")
-    verdict, defined = None, False
-    if isinstance(dec, bool):
-        verdict, defined = dec, True
-    elif isinstance(dec, dict):
-        verdict = dec.get("verdict")
-        defined = bool(dec.get("defined", True))
-    if defined and verdict is False:
-        return 0.5
-    return 1.0
+    _s = max(0.0, min(1.0, float(_strength)))
+    return REFORM_COMPLIANCE_FLOOR + (1.0 - REFORM_COMPLIANCE_FLOOR) * _s
 
 
 def _apply_decree_effect(state, decree, log):
@@ -780,12 +792,12 @@ def _apply_decree_effect(state, decree, log):
     if isinstance(_raw, dict) and "finance_rates" in _raw:
         _fr = _raw["finance_rates"]
         if isinstance(_fr, dict):
-            # D 数值接线（Jev A 0.464）：新政未切实执行 ⇒ 财政改革幅度 ×0.5（只此一处）
+            # B1-a（2026-10-22）：新政遵从度 ⇒ 财政改革幅度按**概率连续**系数缩放（只此一处）
             _rcf = _reform_compliance_factor(state)
             if _rcf != 1.0:
                 _fr = {k: (v * _rcf if isinstance(v, (int, float)) and not isinstance(v, bool)
                            else v) for k, v in _fr.items()}
-                log.append(f"[改革] 天道判新政未切实执行 ⇒ 财政改革幅度 ×{_rcf:g}")
+                log.append(f"[改革] 天道新政遵从度 ⇒ 财政改革幅度 ×{_rcf:.3f}")
             _rf = state.apply_finance_reform(_fr)
             if _rf.get("applied"):
                 _af = _rf["after"]

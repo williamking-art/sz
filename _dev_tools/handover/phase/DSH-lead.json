@@ -1,0 +1,27 @@
+{
+ "phase": "结算幂等守卫落地（审查遗留唯一硬项）：expect_turn 判重 + 装饰器 kwargs + 日志存副本；全量 4477 tests 全绿",
+ "updatedAt": "2026-10-22T21:30:00+08:00",
+ "agent": "DSH-lead",
+ "verification": {
+  "pytest": "4477 tests / 0 failed / 0 errors / 3 skipped（EXIT=0，658.46s，junit 取数）",
+  "tsc": "未跑（本批未改前端）",
+  "vitest": "未跑（本批未改前端）",
+  "build": "未跑（本批未改构建）"
+ },
+ "delivered": [
+  "run_monthly_settlement(state, seed_offset=0, expect_turn=None)：None⇒旧行为逐字节一致；==turn⇒结算；<turn 且有历史日志⇒幂等重放（返回副本）；<turn 无日志⇒拒绝+warning；>turn⇒拒绝+warning",
+  "commands.settle_local 透传 expect_turn",
+  "修既有别名：settlement_log 存副本（改前 append(log) 与 return log 同一对象，调用方就地改会污染存档历史）",
+  "修 @_isolated_rng 不转发 kwargs 的坑（functools.wraps 让内省签名正确但运行丢参）",
+  "新增 test_settle_idempotency.py（9 例）",
+  "文档：游戏机制说明 §1.1 语义表 + 未启用声明；tasks.md §5h",
+  "裁定台账 JEV-结算幂等守卫-2026-10-22（Jev B 0.514 三近手 + 自论证）"
+ ],
+ "next": [
+  "**前端/HTTP 未传 expect_turn ⇒ 守卫待启用**：接线需在结算请求里带上 UI 正在展示的回合，并加端到端回归（重发⇒回合不变、返回原日志）",
+  "Rust 后端 settle.rs 若独立实现推进，需实现同一语义，否则双端仍漂移",
+  "并发/多进程结算不适用回合判重，需锁或事务（当前为单线程回合制，未触发）",
+  "外部审查整理版的「未完成」节需回填本项状态（原为唯一硬项，现已落地但待前端启用）",
+  "文档类待办（他人范围）：produce-space-price 头尾矛盾、decree-action-chain 任务 3 重复、market-civilian-economy 行号陈旧、unified-civilian-market 21 vs 28、M300/M324/WIRING-GAPS stale"
+ ]
+}

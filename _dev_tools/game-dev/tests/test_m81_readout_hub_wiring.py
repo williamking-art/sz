@@ -53,7 +53,8 @@ def test_all_readouts_shape_and_readonly():
     before = copy.deepcopy({r: p.get("seats") for r, p in s.prefectures.items()})
     rep = rh.collect(s)
     # 2026-10-17 全审：M299-M325 批次新增读数后为 27（21 为 M227 旧快照）
-    assert len(rep["readouts"]) == len(rh.READOUTS) == 27
+    # 2026-10-21 P-D 首批：新增 `tax_base_value`（只读应税产值分解）→ 28
+    assert len(rep["readouts"]) == len(rh.READOUTS) == 28
     assert rep["frontend_wired"] is False
     for k, v in rep["readouts"].items():
         assert set(v) >= {"label", "value", "display", "unit", "source", "reason"}

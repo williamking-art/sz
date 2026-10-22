@@ -14,6 +14,16 @@
 > **纪律**：§14.1「开工门」要求先核状态——**禁止把"有代码"当"已落地"**；
 > 每个实现批次开工前，先按「定义存在 / 已接线 / 账本闭合 / 长局校准 / 玩家可观察」五态核实，
 > 并回填 §1 台账。不得因设计稿写了同一机制就重写一遍。
+>
+> 🔴 **读数计数勘误（2026-10-22 复核 · D-7）**：本文多处（M227/M228/M243/M266 的验收与截图记录、
+> 以及 P5 状态行）写「读数 **21 项**」，那是**当时的快照**；现行
+> `core/domains/economy/readout_hub.py::READOUTS` 实注册 **28 项**
+> （`len(READOUTS)==28`，2026-10-22 实测；注册表位置 `readout_hub.py:742-799`，顺序即展示顺序）。
+> M228 之后新增 7 项：`public_depot_materials` / `public_granary_grain` /
+> `spatial_in_transit_batches` / `settlement_pipeline_steps` / `court_vs_system_contrast` /
+> `court_blurred_pop_ledger` / `tax_base_value`（**第 28 项**）。
+> **现行计数一律以 28 为准**；上文历史记录保留原样不改写（历史证据不追改），
+> 但引用「21 项」时必须注明"当时快照"。
 
 ---
 
@@ -297,7 +307,7 @@ POP 生计/持钱
 | P2 建筑—经营并轨 | ⬜ 未开工 | 待定：建筑实例 schema + `workshops` **地点解析迁移**（🟢 **已落地第一片（M91–M94）＋ 后续三项（M96/M99/M100，2026-10-13）**：**① 作坊（经营记录）投影已补**（M96：规格原文是「建筑/**经营记录**」，107 座作坊逐字段就绪度**与建筑分列**）；**② `completed_month` 已可如实读取**（M99：非岗位类建筑写结构化 `{"lv","built_month"}`，`built_month`＝**绝对月序**；岗位类为标量 ⇒ 该情形仍 `undefined` + reason）；**③ `blueprint` 已取证**（M100：静态表 `BUILDING_STD`（键即名）· 动态注册表 `state.dynamic_blueprints` · 工程档案带 `proj["blueprint_key"]`，**但落成只写等级、不写 key** ⇒ 建筑条目无蓝图版本；两条路径（只读派生需先裁 `{key,version}` 语义／持久化属改 state 批）已登记，**本批不做**）。读数层可见：`p2_readiness`（建筑）· `workshop_readiness`（作坊）· `building_owned`（归属率 1.0）。**④ M104–M111 又落三项只读派生＋两项取证**：`maintenance`＝**与 owner 同责**（Jev 甲 0.907）；`methods`＝`{active: workshops[wid].recipe, available: 内置 WORKSHOP_RECIPES ∪ 本作坊 active}`（**外邦 `WORKSHOP_RECIPES_EXT` 形态不同 ⇒ 不并入**，Jev 同族口径）；`blueprint`＝静态表 `BUILDING_STD`（**键即中文名**）命中 ⇒ `{key, scope:"static", version:None}` 且**明写「版本号未登记」**（Jev 甲 0.908；动态 `dyn:` 蓝图仍 undefined）。`income_to` 取证＝**待 M71 营运资金来源口径**（由 owner 直接映射＝假装利润已归主，M71 实测民营 12 月 **0/20** 路满覆盖）；`jobs_filled` **写入**方案＝**设计已出**（M102：容器沿用 `building_meta`、桥接、先算后写、**读侧优先纯函数**，标定硬门＝同种子 A/B 恒等 + ≥60 月长局）但**未实施**（改数值批）。**当前就绪度：建筑 7/14 · 作坊 7/14**。🔴 原第一片：：① **建筑归属**已登记（`seats[治所].building_meta`，**保形态**、**非账本**；规则 7 类型逐条带依据：水利/常平仓→`local:<路>`、农田/农庄/庄园→`pop:<路>:农`、工坊→工匠、商铺→商人），**新局 40/40 建筑已登记**、幂等迁移接新局+读档；② `entity_projection` 只读投影 + **M92 派生 `operator`/`operation_mode`**（local:→官营 · pop:商人→民营雇工 · 其它 pop:→家庭兼业）⇒ **P2 就绪度 5/14**（seat/level/owner/operator/operation_mode）；③ 读数可见化：`p2_readiness`（M87）与 `building_owned=1.0`（M94）已进 `/api/readouts::hub`。🔴 **仍未落地**：`jobs_filled`（只读已可算，**写入**需桥接+同种子标定）· `blueprint`/`completed_month`/`maintenance`/`methods`/`recipe`/`io_stock`/`income_to`（待口径）。**A/B 同种子 3 月恒等**（零数值变化已证）。🟡 取证与最小主体设计（M76）：：见 [P2_主体_取证与最小设计_2026-10-13.md](./P2_主体_取证与最小设计_2026-10-13.md)；🔴 实测治所 `buildings` 仅 `{建筑名:等级}`、**无就业/主体实例容器** ⇒ 「实到岗位」在缺口 1 解决前**不可得**，须标 `undefined`） | P1；必须先解决"按人口占比分派"（缺口 1） |
 | P3 旨意/Agent 接线 | ⬜ 未开工 | 待定 | P2；复用 `decree-action-chain` |
 | P4 府际/边境/远方市场 | 🟡 **外贸逐笔真账已接线（M176–M179）**：载体甲（`state.trade_journal` 无余额 append-only）+ 维度分配甲（产能×进口品种数，**Σ≡总量**）+ 存档两侧登记（`[-2000:]` 有界）+ **A/B 恒等**已证（只记不二次入账） | 20/20 | P0 可达性 + P2 主体（🟡 **设计切片已出 M75**：见 [P4_府际市场_设计切片_2026-10-13.md](./P4_府际市场_设计切片_2026-10-13.md)；🔴 第①段落地前须先定主体口径或用 M66 的作坊 owner） |
-| P5 界面与月报 | 🟢 **后端+前端+月报已收口（M54–M166）** | **21 项**读数与端点契约已**用例强制**（M125–M127/M129/M130；项数 12→19(M148)→20(M152)→**21**(M227 链级诊断)）；月报归因已接（M166） | P1–P4 有读可显 · ✅ **截图台已跑通**（M243：`SHOT EXIT=0`，15 张 PNG，含 **`readouthub.png`**；🔴 **cwd 必须在 `game/frontend`**——`shoot.mjs` 只 import node 内建模块，在 `sz` 根跑不存在的路径会得 `MODULE_NOT_FOUND` 且 `requireStack` 为空，那是**路径问题不是缺依赖**）· **能力边界（如实）**：截图台**只能验挂载与布局**（dev 首行 `store ok`），**不能验数据内容**（面板走 HTTP `/api/readouts`，截图台无后端 ⇒ 停留加载态）⇒ **「21 项正确显示」的验收靠契约用例**（M125–M127/M129/M130 + 三处计数断言）· 面板失败行为已按 Jev 甲落地（失败提示 + 重试，M246） |
+| P5 界面与月报 | 🟢 **后端+前端+月报已收口（M54–M166）** | **21 项**读数与端点契约已**用例强制**（M125–M127/M129/M130；项数 12→19(M148)→20(M152)→**21**(M227 链级诊断)）；月报归因已接（M166）。🔴 **现行 = 28 项**（2026-10-22 复核，见文首勘误 D-7） | P1–P4 有读可显 · ✅ **截图台已跑通**（M243：`SHOT EXIT=0`，15 张 PNG，含 **`readouthub.png`**；🔴 **cwd 必须在 `game/frontend`**——`shoot.mjs` 只 import node 内建模块，在 `sz` 根跑不存在的路径会得 `MODULE_NOT_FOUND` 且 `requireStack` 为空，那是**路径问题不是缺依赖**）· **能力边界（如实）**：截图台**只能验挂载与布局**（dev 首行 `store ok`），**不能验数据内容**（面板走 HTTP `/api/readouts`，截图台无后端 ⇒ 停留加载态）⇒ **「读数正确显示」的验收靠契约用例**（M125–M127/M129/M130 + 计数断言）· 面板失败行为已按 Jev 甲落地（失败提示 + 重试，M246） |
 | P6 校准与放行 | ⬜ 全程 | 各阶段定向回归 + 60/240 月长局 | — |
 
 **继承自前序规格的未闭合项**（本规格须一并处理或明确移交）：
@@ -1156,7 +1166,7 @@ Step 3.85 民间营造与 Step 4.5 工程**之前**（消费侧读到分摊后�
 | **实测** | ✅ | 开局 `value=4`（四环全 0 · `all_readable=True` · 缺失环 `[]`）· **3 月：产地丝 5,842,101 · 成品绸 12,435** |
 | 契约 | ✅ | 由既有守卫用例**自动覆盖**（M125 `drill_down` 类型 · M126 载荷可序列化 · M129/130）；三处计数断言同步（**20 → 21**） |
 
-**读数总数：21 项**（ok=20 / undefined=1：**仅 `jobs_capacity`**（非岗位建筑；`reason` 已写明）⇒ **`tax_scope_contrast` 实测有值**（6 月 9,834,320.67））。
+**读数总数：21 项**（**M227 当时的快照**；2026-10-22 复核现行 `readout_hub.READOUTS` = **28 项**，见文首勘误）（ok=20 / undefined=1：**仅 `jobs_capacity`**（非岗位建筑；`reason` 已写明）⇒ **`tax_scope_contrast` 实测有值**（6 月 9,834,320.67））。
 ---
 
 ## P2 · 就绪度**口径修正**（M231–M239）
@@ -1177,7 +1187,7 @@ Step 3.85 民间营造与 Step 4.5 工程**之前**（消费侧读到分摊后�
 
 ```powershell
 $py = "D:\codebuddy\.audit-venv\Scripts\python.exe"
-$node = "D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe"
+$node = "D:\codebuddy\tools\nodejs\node-v24.22.1-win-x64\node.exe"
 $env:SHOT_PYTHON = $py
 $env:SHOT_OUT = "D:\codebuddy\sz\_dev_tools\analysis-shots\panels_cn"
 cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
@@ -1250,7 +1260,7 @@ cd D:\codebuddy\sz\game\frontend            # 🔴 必须在此目录
 
 | 项 | 现行层文档值 | **本次复跑实测** | 判定 |
 |---|---|---|---|
-| 读数项数 | 21 | **21** | ✅ |
+| 读数项数 | 21 | **21** | ⚠️ **M228 当时一致**；2026-10-22 复核现行 `readout_hub.READOUTS` = **28**（见文首勘误），本行不改写历史实测 |
 | 读数 `ok/undefined` | 曾写 `ok=19 / undefined=2` | **ok=20 / undefined=1** | 🔴 **已修**（M228 修好链级诊断后 `market_chain_diagnosis` 有值 ⇒ 唯一 undefined 是 `jobs_capacity`） |
 | `pilot_chain_gap` | `4,546,230 → 4,555,510`（产能批 A/B 那次） | **6 月 = 4,545,108**（下钻：成品 **11,071** · 需求 **4,556,179** · 作坊数 **28** · 样本路 两浙路） | ⚠️ **量级一致、尾数不同** ⇒ 上列为**不同月份/批次**的读数，本行为**同种子 6 月**复现值 |
 | P1 需求 | `4,556,740` | **6 月 = 4,556,179** | ⚠️ 同上（4.5567M 与 4.5562M 属同量级，差值来自月份/批次） |

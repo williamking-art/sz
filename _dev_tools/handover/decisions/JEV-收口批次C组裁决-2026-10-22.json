@@ -1,0 +1,91 @@
+{
+  "id": "JEV-收口批次C组裁决-2026-10-22",
+  "title": "收口长期任务 C 组六项待裁（C1–C6）",
+  "status": "decided",
+  "askedAt": "2026-10-22T22:05:00+08:00",
+  "askedBy": "DSH-lead",
+  "ruler": "tokenrhythm/NeoHorse-Jev-4B",
+  "mode": "choose ×4 + gate ×2",
+  "note": "全部为**真调用**（tools/jev/jev_cli.py，provider=tokenrhythm，阈值 0.40）；概率为模型原始输出，非折算值。",
+  "rulings": [
+    {
+      "id": "C1",
+      "subject": "AGENT-DSH-NAME-COLLISION（两会话共用 DSH 名，phase/DSH.json 互相覆盖）",
+      "options": {
+        "A": "维持约定（并发会话自带后缀）并写进 handover/README",
+        "B": "handover.py 硬校验：写 phase 前检查占用，冲突即拒写",
+        "C": "注销 DSH 名，只留 DSH-lead，历史 phase 归档"
+      },
+      "verdict": "B",
+      "probabilities": {"A": 0.1807, "B": 0.6765, "C": 0.1428},
+      "why": "静默覆盖属结构性问题，靠约定（A）会被遗忘；注销（C）会破坏既有 worklog/phase 引用。B 用程序化拒绝把问题变成可见错误。",
+      "applied_in": ["_dev_tools/handover.py phase 写入前的占用校验（pid 侧车 + 新鲜窗口）"]
+    },
+    {
+      "id": "C2",
+      "subject": "C-invest：invest_decide 回报来源守恒",
+      "proposition": "invest_decide 的 AI 回报来源应维持「不接线（recommended-no）」现状，本批不做因果回填",
+      "verdict": "成立（维持现状）",
+      "probabilities": {"holds": 0.9703},
+      "threshold": 0.40,
+      "applied_in": ["decisions/C-invest.json 状态维持 recommended-no；本批零代码"]
+    },
+    {
+      "id": "C3",
+      "subject": "M38c 建筑语汇统一（桑/麻/果/蔗/茶园各成一建）",
+      "proposition": "M38c 建筑语汇统一需要单独授权（不由本收口批次顺手执行）",
+      "verdict": "成立（需单独授权）",
+      "probabilities": {"holds": 0.9987},
+      "threshold": 0.40,
+      "applied_in": ["tasks/M38-building-sink 保持他人 in_progress，不接手；M38c 标注待授权"]
+    },
+    {
+      "id": "C4",
+      "subject": "MIG-COMPAT-RETENTION（迁移期兼容入口保留多久）",
+      "options": {
+        "A": "保留到「旧路径 import 归零 + 至少一个大版本发行」为止，并加棘轮（只减不增）",
+        "B": "定到期日 2026-12-31 后删除",
+        "C": "立即 deprecate，下次发行移除"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.8278, "B": 0.1037, "C": 0.0685},
+      "applied_in": ["兼容入口棘轮守卫（计数只减不增）+ 文档写清保留条件"]
+    },
+    {
+      "id": "C5",
+      "subject": "POP 增派系子池（与阶层分离，design-done）",
+      "options": {"A": "本批不实施（保持设计态）", "B": "只做口径裁定 + 迁移骨架", "C": "本批完整实施"},
+      "verdict": "A",
+      "probabilities": {"A": 0.6989, "B": 0.2778, "C": 0.0233},
+      "applied_in": ["保持 design-done；不进发行版"]
+    },
+    {
+      "id": "C6",
+      "subject": "地方支出 V2（M34-①）五条消费出口接入口径 D1–D5",
+      "options": {
+        "A": "本批只裁口径并登记，不接线",
+        "B": "接「治安 + 救灾」两条（与民怨耦合最强）",
+        "C": "五条全接线"
+      },
+      "verdict": "A",
+      "probabilities": {"A": 0.8401, "B": 0.1479, "C": 0.0121},
+      "applied_in": ["只登记口径，不接线；留待专项批次"]
+    }
+  ],
+  "premises_verified_by_me": [
+    "C1：实测 phase/DSH.json 与 worklog 中存在同名两会话痕迹；本会话使用 DSH-lead 且 9 条日志无冲突",
+    "C2：`invest_decide` 当前无生产调用方回填链路，审查方亦标「材料不足」",
+    "C3：M38 建筑下沉在 Antigravity 名下 in_progress（交接板实测），跨批扩范围应授权",
+    "C4：兼容入口仍被部分测试/脚本 import（可计数），故不能立即删",
+    "C5：设计稿 design-done，POP 挂载律变更需口径裁定",
+    "C6：M34-① 批次 1 已在生产（地方府库支用），但 V2 五出口未接线"
+  ],
+  "known_limits": [
+    "C1 的占用校验是**尽力而为**：跨机/跨用户同名无法感知，只覆盖同机并发；侧车新鲜窗口到期后允许接管（避免死锁）。",
+    "C4 的棘轮只统计 game/ 下 `core.*` 旧路径 import 数，外部脚本不在统计内。"
+  ],
+  "reopen_if": [
+    "若并发会话仍出现静默覆盖（说明 pid 侧车在该环境下不可靠），改为显式 session id 传参。",
+    "若兼容入口计数在两次发行间归零，按 A 的条件可提前清理。"
+  ]
+}

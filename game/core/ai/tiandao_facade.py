@@ -12,6 +12,11 @@
 3. **不编人**：事实签的受命大臣取自 `state.central_orgs[*]["lead"]`（在任真账），
    名册里没有该人就不生成，不硬编码历史人名；
 4. **只读**：本门面不写 state、不碰账本（裁决交业务域落地）。
+
+读数口径纪律（2026-10-21 L0）：
+5. **读数只有一套口径**——`build_state_context` 不再自算，唯一生产入口是
+   `core.ai.tiandao_facts`（`build_facts` → `to_engine_context`）。键名、量纲、
+   缺失语义都只在契约模块定义，本文件只透传，避免出现"第三套 context"。
 """
 from __future__ import annotations
 
@@ -19,16 +24,47 @@ import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.ai.tiandao_engine import TianDaoEngine
+from core.ai.tiandao_facts import build_facts, to_engine_context
 
 __all__ = ["TianDaoFacade"]
 
 # =============================================================================
 # 奏折事实签阈值（原散落在代码里的 40 / 50000 / 3000 魔数，集中声明便于校准）
 # =============================================================================
-SEED_FIN_UNREST = 40.0           # 民怨阈值（0~100）
-SEED_FIN_TREASURY = 50000        # 路级府库"见底"阈值（贯）
-SEED_REFUGEE_COUNT = 3000        # 流民阈值（人）
-SEED_UNREST_ALERT = 50.0         # 月报民怨告警阈值（0~100）
+# 🔴 2026-10-22 重标（Jev B 0.757）：上一次审计说"与地方级真账量纲脱节"是对的一半——
+#    根因其实是**民怨动力学缺失**（只会被治安支出单向抵减 ⇒ 有军之地一年归零、
+#    无实体军的 8 地永久冻结在初始值 ≤24），所以按 0~24 重标绝对值只会把阈值调到
+#    "恒真"。本批先补齐民怨压力目标（`settlement_econ._unrest_pressure_target`，
+#    太平回落 / 危机升到 60~90），再按**实际可达区间**定阈值：
+#
+#   · 民怨两档仍用 0~100 绝对刻度（实测危机第 12 月最高 ~58、极端两年半 ~85）；
+#   · **钱与人改成相对锚**，不再拿绝对数对地方级真账：
+#       - 财政见底 = 地方府库 < `SEED_FIN_TREASURY_TAX_MONTHS` 个月的**本地月税**
+#         （月税是既有读数 `prefectures[*]["monthly_tax"]`，天然随路级量纲缩放）；
+#       - 流民告警 = 流民 > `SEED_REFUGEE_POP_RATIO` × **本地人口**
+#         （人口是既有读数；0.4% 千万口 ≈ 4 万人，等同"就食者众"）。
+#     两者读数缺失 ⇒ 该地**不计入**（缺失≠0，不臆造告警）。
+SEED_FIN_UNREST = 40.0           # 民怨阈值（0~100；实测危机可达 40~90）
+SEED_FIN_TREASURY_TAX_MONTHS = 0.10  # 府库"见底" = 不足 **0.1 个月本地月税**（约三日支应；实测 24 月出现 11 地月 ≈2%，既不刷屏也不沉寂）
+SEED_REFUGEE_POP_RATIO = 0.004       # 流民"就食者众" = 超过本地人口的 0.4%
+SEED_UNREST_ALERT = 50.0         # 月报民怨告警阈值（0~100；实测危机第 8 月起可达）
+
+def _gate_threshold(objective: str) -> float:
+    """某 gate objective 的判定阈值——**单一出处** = `tiandao_decision.THRESHOLDS`。
+
+    🔴 为什么要有这层（审查报告 E4）：门面 4 个 gate 方法原先各自让引擎用默认 0.5，
+    而 `THRESHOLDS` 只被 `decide_and_log` 读。两处恰好都等于 0.5，但改一处就会
+    **日志 verdict 与结算行为分叉**。现统一从这里取；表里没有的仍走引擎默认 0.5。
+    """
+    try:
+        from core.ai.tiandao_decision import THRESHOLDS
+    except Exception:  # noqa: BLE001 —— 常量导入失败不得阻断结算
+        return 0.5
+    try:
+        return float(THRESHOLDS.get(objective, 0.5))
+    except (TypeError, ValueError):
+        return 0.5
+
 
 # 路级遵从度 → 吏治通道乘数（**只在 decree_effect 合成层使用**，不改 clerks_mult 本体）
 COMPLIANCE_MULT = {"vigorous": 1.05, "compliant": 0.90, "passive": 0.65, "defiant": 0.40}
@@ -67,7 +103,8 @@ class TianDaoFacade:
     def should_waive_ancient_arrears(cls, state_context: Dict[str, Any]) -> bool:
         """是否豁免三年以上百姓陈年积欠 (恩泽蠲免)。"""
         return TianDaoEngine.gate(
-            state_context, "是否准予蠲免陈年逋欠", objective="waive_arrears")["verdict"]
+            state_context, "是否准予蠲免陈年逋欠", objective="waive_arrears",
+            threshold=_gate_threshold("waive_arrears"))["verdict"]
 
     @classmethod
     def dynamic_treasury_crisis_line(cls, state: Any = None, safety_months: int = 3) -> int:
@@ -125,9 +162,15 @@ class TianDaoFacade:
 
     @classmethod
     def changping_intervene_gate(cls, state_context: Dict[str, Any]) -> bool:
-        """常平仓是否立即平粜开仓抛售以压制粮价 (触发阈值由 `content.data.CHANGPING_*` 定义)。"""
+        """常平仓是否立即平粜开仓抛售以压制粮价 (触发阈值由 `content.data.CHANGPING_*` 定义)。
+
+        ⚠️ **库存口径**：本闸门读的 `stock` 是**常平仓合计**（Σ 地方级 `changping_stock`），
+        **不是**太仓 `granary`（2026-10-21 L0 契约更正：旧 `build_state_context` 把
+        `stock` 指向 `state.granary`＝太仓 15,000,000 石，与常平仓 14,735,443 石混为一谈）。
+        """
         return TianDaoEngine.gate(
-            state_context, "是否平粜开仓压制粮价", objective="changping_open")["verdict"]
+            state_context, "是否平粜开仓压制粮价", objective="changping_open",
+            threshold=_gate_threshold("changping_open"))["verdict"]
 
     # =========================================================================
     # 3. 仓储与物流领域 (Storage & Logistics)
@@ -154,7 +197,8 @@ class TianDaoFacade:
     def granary_corruption_check(cls, state_context: Dict[str, Any]) -> bool:
         """仓吏是否借雀鼠耗之名私吞公粮转入私邸地窖（无依据时**不判贪墨**）。"""
         return TianDaoEngine.gate(
-            state_context, "是否存在雀鼠耗贪墨虚报", objective="granary_corruption")["verdict"]
+            state_context, "是否存在雀鼠耗贪墨虚报", objective="granary_corruption",
+            threshold=_gate_threshold("granary_corruption"))["verdict"]
 
     # =========================================================================
     # 4. 乡村阶层与社会博弈 (Social Classes & Rural)
@@ -180,7 +224,8 @@ class TianDaoFacade:
     def reform_compliance_gate(cls, state_context: Dict[str, Any]) -> bool:
         """知州对朝廷变法新政是否切实遵旨执行 (还是表面敷衍阳奉阴违)。"""
         return TianDaoEngine.gate(
-            state_context, "是否切实贯彻朝廷变法新政", objective="reform_compliance")["verdict"]
+            state_context, "是否切实贯彻朝廷变法新政", objective="reform_compliance",
+            threshold=_gate_threshold("reform_compliance"))["verdict"]
 
     @classmethod
     def circuit_decree_compliance(cls, state_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -222,7 +267,8 @@ class TianDaoFacade:
     def recruit_refugees_to_soldiers_gate(cls, state_context: Dict[str, Any]) -> bool:
         """灾荒断粮时，知州是否开启太祖祖宗之法'招募饥民为地方厢军'以消弭民变。"""
         return TianDaoEngine.gate(
-            state_context, "是否招募流民充为地方厢军", objective="recruit_refugees")["verdict"]
+            state_context, "是否招募流民充为地方厢军", objective="recruit_refugees",
+            threshold=_gate_threshold("recruit_refugees"))["verdict"]
 
     # =========================================================================
     # 7. 天道 × 大模型 AI 叙事三管道 (AI Narrative Coupling Pipelines)
@@ -264,50 +310,61 @@ class TianDaoFacade:
         gov_lead = cls._org_lead(state, "中书省", "尚书省")
         mil_lead = cls._org_lead(state, "枢密院", "兵部", "枢密院事")
 
-        # 1. 财政/仓储危机：民怨高 + 路级府库见底（按民怨降序取最激化的一条）
+        # 1. 财政危机：地方府库**见底深度**（2026-10-22 改判据；Jev p=0.994）
+        #    为什么不再用「民怨>40 AND 府库<绝对额」：实测两条件从不同时成立
+        #    （太平 24 月里 19 月有府库见底，其间民怨 max 仅 11.3；危机 12 月则府库一次不见底）
+        #    ⇒ 该签是结构性死签。现按「不足 SEED_FIN_TREASURY_TAX_MONTHS 个月本地月税」
+        #    触发，民怨只进严重度与文案（不再是门槛）；缺月税/府库读数 ⇒ 该地不计（缺失≠0）。
         fin_rows = []
         for r_name, p in prefs.items():
             if not isinstance(p, dict):
                 continue
             unrest = _pct(p.get("unrest"))
-            treasury = p.get("local_treasury")
             try:
-                treasury_v = float(treasury) if treasury is not None else None
+                treasury_v = float(p["local_treasury"]) \
+                    if p.get("local_treasury") is not None else None
+                tax_v = float(p["monthly_tax"]) if p.get("monthly_tax") is not None else None
             except (TypeError, ValueError):
-                treasury_v = None
-            if unrest is None or treasury_v is None:
                 continue
-            if unrest > SEED_FIN_UNREST and treasury_v < SEED_FIN_TREASURY:
-                fin_rows.append((unrest, r_name, treasury_v))
+            if treasury_v is None or tax_v is None or tax_v <= 0:
+                continue
+            _depth = 1.0 - max(0.0, treasury_v) / tax_v      # 见底深度 0~1
+            if _depth > 1.0 - SEED_FIN_TREASURY_TAX_MONTHS:  # 即 府库 < 阈值月数的月税
+                fin_rows.append((_depth, r_name, treasury_v, unrest or 0.0))
         fin_rows.sort(reverse=True)
         if fin_rows and finance_lead:
-            unrest, r_name, treasury_v = fin_rows[0]
+            _depth, r_name, treasury_v, unrest = fin_rows[0]
+            _sev = round(100.0 * _depth + 0.2 * float(unrest), 2)
+            _unrest_txt = (f"，民怨升至{int(unrest)}" if unrest > SEED_FIN_UNREST else "")
             seeds.append({
                 "seed_id": f"seed_{turn}_{r_name}_fin",
                 "target_minister": finance_lead,
                 "matter_domain": "finance",
-                "trigger_fact": (f"{r_name}府库见底（仅存{int(treasury_v)}贯），"
-                                 f"民怨升至{int(unrest)}，请敕拨太仓现钱济急"),
+                "trigger_fact": (f"{r_name}府库见底（仅存{int(treasury_v)}贯，"
+                                 f"不足{SEED_FIN_TREASURY_TAX_MONTHS:g}月税入）{_unrest_txt}，"
+                                 f"请敕拨太仓现钱济急"),
                 "core_claim": "请移拨国库封桩钱蠲济州司",
                 "suggested_title": f"请拨帑银赈济{r_name}司库匮乏疏",
-                "severity": round(unrest, 2),
+                "severity": _sev,
             })
 
-        # 2. 流民与军事：流民就食者众（按人数降序）
+        # 2. 流民与军事：流民就食者众（按**占本地人口比例**降序；比例判据取代绝对人数）
         ref_rows = []
         for r_name, p in prefs.items():
             if not isinstance(p, dict):
                 continue
-            ref = p.get("refugees")
             try:
-                ref_v = float(ref) if ref is not None else None
+                ref_v = float(p.get("refugees")) if p.get("refugees") is not None else None
+                pop_v = float(p.get("population")) if p.get("population") is not None else None
             except (TypeError, ValueError):
-                ref_v = None
-            if ref_v is not None and ref_v > SEED_REFUGEE_COUNT:
-                ref_rows.append((ref_v, r_name))
+                continue
+            if ref_v is None or pop_v is None or pop_v <= 0:
+                continue          # 缺人口读数 ⇒ 不计（缺失≠0，不臆造"就食者众"）
+            if ref_v > pop_v * SEED_REFUGEE_POP_RATIO:
+                ref_rows.append((ref_v, ref_v / pop_v, r_name))
         ref_rows.sort(reverse=True)
         if ref_rows:
-            ref_v, r_name = ref_rows[0]
+            ref_v, _share, r_name = ref_rows[0]
             lead = mil_lead or gov_lead
             if lead:
                 seeds.append({
@@ -466,85 +523,57 @@ class TianDaoFacade:
     # =========================================================================
     # 8. 只读观察接线（2026-10-21，Jev A 0.799）
     # -------------------------------------------------------------------------
-    # 纪律：本批只把 10 个"已声明、零生产调用"的门面方法接进月度结算，
+    # 纪律：本批把 11 个"已声明、零生产调用"的门面方法接进月度结算，
     # 记录裁决供观测/校准；**不改任何数值、不写经济账本**。数值效果下一批再接。
     # =========================================================================
-    #: 只读观察的 10 个方法（与 tasks.md §2 末段一一对应）
+    #: 只读观察的 11 个方法（与 tasks.md §2 末段一一对应；2026-10-21 L0 补入
+    #: `labor_service_policy`——此前只声明、未进观察名单，是 objective 覆盖的缺口）
     OBSERVE_METHODS = (
         "tax_collection_stance", "should_waive_ancient_arrears",
         "merchant_trade_or_hoard", "changping_intervene_gate",
-        "canal_reroute_choice", "granary_corruption_check",
-        "farmer_destitution_path", "gentry_charity_vs_annex",
-        "reform_compliance_gate", "recruit_refugees_to_soldiers_gate",
+        "labor_service_policy", "canal_reroute_choice",
+        "granary_corruption_check", "farmer_destitution_path",
+        "gentry_charity_vs_annex", "reform_compliance_gate",
+        "recruit_refugees_to_soldiers_gate",
+    )
+
+    #: 过渡期兼容：旧消费方/测试**直接按这些键取值** ⇒ `build_state_context`
+    #: 保证"键存在"（真取不到时值为 `None`，**不回落 0/1.0**）。
+    #: 除 canonical 键与 `to_engine_context` 的 `stock`/`supervision` 别名外，
+    #: 不得再往 context 里塞任何东西（多余键 `validate_facts` 会判"未登记"）。
+    LEGACY_CONTEXT_KEYS = (
+        "treasury", "imperial_treasury", "granary", "granary_cap",
+        "unrest", "refugees", "price_ratio", "integrity", "oversight",
+        "has_inspector", "prestige", "disaster", "stock", "turn",
     )
 
     @classmethod
     def build_state_context(cls, state: Any) -> Dict[str, Any]:
-        """聚合真实读数，供 10 个门面方法只读观察（**不写 state**）。
+        """聚合真实读数，供 11 个门面方法只读观察（**不写 state**）。
 
-        口径：缺失一律 `None`（不回落 0/1.0）；`integrity = 1 − 平均贪腐`;
-        `has_inspector` 用既有 `oversight`（≥0.5 视为有巡按/监察）。
+        **唯一生产入口 = `core.ai.tiandao_facts`**（2026-10-21 L0）：本方法只做
+        `to_engine_context(build_facts(state))`，**不再自己算任何口径**——旧实现是
+        "第三套 context"，与契约实测有三处不一致：
+        1. `disaster` 读 `statistics["disaster_level"]`（**全库无人写入**）⇒ 恒 `None`；
+        2. `integrity` 无贪腐读数时回落 **1.0**（＝假装"吏治完美"，违反硬约束）；
+        3. `stock` 指向太仓 `state.granary`，而常平仓口径应是 Σ 地方级 `changping_stock`。
+
+        口径（全部由契约定义，此处只透传，缺失一律 `None`、`0` 是合法值）：
+        - `integrity`：无贪腐读数 ⇒ `None`（**不得**回落 1.0）；
+        - `disaster`：`state.disaster_severity / 5`（0~5 等级 → 0~1）；
+        - `stock`：**常平仓合计**（Σ 地方级 `changping_stock`），**不是**太仓 `granary`；
+        - `has_inspector`：`oversight ≥ 0.5`（布尔无缺失态，缺失由 `oversight=None` 表达）；
+        - 另有 canonical 读数可直接读：`local_treasury` / `monthly_expense` /
+          `changping_stock` / `block_rate` / `refugees_max_route` / `faction` /
+          `diligence` / `debt` / `gap` / `tax_completion` / `official_integrity` 等。
+
+        返回：canonical 键的引擎视图 + `stock`/`supervision` 过渡别名 +
+        `LEGACY_CONTEXT_KEYS` 占位（键存在、值可为 `None`）。
         """
-        prefs = getattr(state, "prefectures", None) or {}
-        unrest_vals: List[float] = []
-        refugees: List[float] = []
-        prices: List[float] = []
-        if isinstance(prefs, dict):
-            for p in prefs.values():
-                if not isinstance(p, dict):
-                    continue
-                u = _pct(p.get("unrest"))
-                if u is not None:
-                    unrest_vals.append(u)
-                try:
-                    if p.get("refugees") is not None:
-                        refugees.append(max(0.0, float(p.get("refugees"))))
-                except (TypeError, ValueError):
-                    pass
-                try:
-                    if p.get("grain_price") is not None:
-                        prices.append(float(p.get("grain_price")))
-                except (TypeError, ValueError):
-                    pass
-
-        corr = getattr(state, "corruption", None) or {}
-        corr_vals = [float(v) for v in corr.values() if isinstance(v, (int, float))] \
-            if isinstance(corr, dict) else []
-        avg_corr = (sum(corr_vals) / len(corr_vals)) if corr_vals else 0.0
-        integrity = max(0.0, min(1.0, 1.0 - avg_corr))
-
-        grain_price = getattr(state, "grain_price", None)
-        try:
-            base_price = float(grain_price) if grain_price is not None else None
-        except (TypeError, ValueError):
-            base_price = None
-        avg_price = (sum(prices) / len(prices)) if prices else None
-        price_ratio = (avg_price / base_price) if (avg_price is not None
-                                                  and base_price and base_price > 0) else None
-
-        stats = getattr(state, "statistics", None) or {}
-        oversight = getattr(state, "oversight", None)
-        try:
-            oversight_f = float(oversight) if oversight is not None else None
-        except (TypeError, ValueError):
-            oversight_f = None
-
-        return {
-            "treasury": getattr(state, "treasury", None),
-            "imperial_treasury": getattr(state, "imperial_treasury", None),
-            "granary": getattr(state, "granary", None),
-            "granary_cap": getattr(state, "granary_cap", None),
-            "unrest": (sum(unrest_vals) / len(unrest_vals)) if unrest_vals else None,
-            "refugees": sum(refugees) if refugees else None,
-            "price_ratio": price_ratio,
-            "integrity": integrity,
-            "oversight": oversight_f,
-            "has_inspector": bool(oversight_f is not None and oversight_f >= 0.5),
-            "prestige": getattr(state, "prestige", None),
-            "disaster": stats.get("disaster_level", stats.get("disaster")),
-            "stock": getattr(state, "granary", None),
-            "turn": getattr(state, "turn", None),
-        }
+        ctx = to_engine_context(build_facts(state))
+        for key in cls.LEGACY_CONTEXT_KEYS:
+            ctx.setdefault(key, None)
+        return ctx
 
     #: 门面方法 → 显式 objective（P1 决策日志接线；只读，不改判定）
     OBSERVE_OBJECTIVES = {
@@ -552,6 +581,7 @@ class TianDaoFacade:
         "should_waive_ancient_arrears": "waive_arrears",
         "merchant_trade_or_hoard": "merchant_trade",
         "changping_intervene_gate": "changping_open",
+        "labor_service_policy": "labor_policy",
         "canal_reroute_choice": "canal_reroute",
         "granary_corruption_check": "granary_corruption",
         "farmer_destitution_path": "farmer_path",
@@ -562,11 +592,34 @@ class TianDaoFacade:
 
     @classmethod
     def observe_monthly(cls, state: Any) -> Dict[str, Any]:
-        """**只读**观察本月 10 个门面裁决；结果挂 `state._tiandao_observe`（不入存档）。
+        """**只读**观察本月 11 个门面裁决；结果挂 `state._tiandao_observe`（不入存档）。
 
         2026-10-21 P1：额外走 `DecisionService` 写 `state.decision_log`（只记录，不改判定）。
+
+        ⚠️ **已知双算**（本批不改）：同一个月内 `OBSERVE_METHODS` 已经用同一份 `ctx`
+        跑过一遍门面，下面 `decide_and_log` 走 `DecisionService` 时**又算一遍**（同样的
+        objective + 同样的 ctx）。两次结果一致（`test_p1_tiandao_decision_adapter` 守着），
+        单次成本实测约 0.2ms，属可接受冗余；要省这次冗余需让适配层直接复用上面的
+        `out`，那是下一批的收敛项，本批**不动判定分支**。
+        🔴 2026-10-22（审查 S1）：进入时**先清空** `state._tiandao_observe`。
+        为什么：`settlement.py` 刻意放行观测异常（"失败不阻断结算"），而此前
+        `build_state_context` 是唯一未包 try 的步骤——它一旦抛错，`_tiandao_observe`
+        会**保留上月副本**，消费方继续按上月概率结算（违反 `tiandao_effects` 契约
+        "缺失 ⇒ None ⇒ 中性"与机制文档"与无记录逐字节等价"）。现在失败 ⇒ 置 None ⇒ 中性。
         """
-        ctx = cls.build_state_context(state)
+        # 先清上月副本：任何失败路径都不得让本月"继承"上月裁决
+        try:
+            state._tiandao_observe = None
+        except Exception:  # noqa: BLE001 —— 只读副本清空失败不应阻断结算
+            logging.getLogger("tiandao").warning("清空上月观测副本失败", exc_info=True)
+        try:
+            ctx = cls.build_state_context(state)
+        except Exception as exc:  # noqa: BLE001 —— 契约：观测失败 ≡ 无记录
+            logging.getLogger("tiandao").warning(
+                "只读观察：上下文构建失败，本月按「无记录」处理：%r", exc, exc_info=True)
+            return {"turn": int(getattr(state, "turn", 0) or 0), "read_only": True,
+                    "decisions": {}, "distributions": {}, "strengths": {},
+                    "context_defined": False, "error": type(exc).__name__}
         out: Dict[str, Any] = {}
         for name in cls.OBSERVE_METHODS:
             try:
@@ -581,8 +634,40 @@ class TianDaoFacade:
                 decide_and_log(state, objective, ctx)
         except Exception:  # noqa: BLE001 — 决策日志失败不得影响结算
             logging.getLogger("tiandao").warning("决策日志接线失败", exc_info=True)
+        # 🔴 2026-10-22：把「强度」也记下来 —— 只记 verdict 等于把天道的概率丢掉，
+        # 消费方就只能查固定倍率表（用户当场指出："这不都固定数？权重呢？"）。
+        # 这里按 `tiandao_decision.SPECS`（**唯一 criteria 出处**）重算一次取概率：
+        #   · gate  → `strengths[objective] = p`（消费方用 gate_intensity 换算超阈强度）
+        #   · choose → `distributions[objective] = {option: p}`
+        # 重算成本同既有双算（每项 ~20µs），只进诊断副本、不入存档、不改判定。
+        strengths: Dict[str, float] = {}
+        distributions: Dict[str, Dict[str, float]] = {}
+        try:
+            from core.ai.tiandao_decision import SPECS as _SPECS
+            from core.ai.tiandao_decision import THRESHOLDS as _THR
+            for _name, _obj in cls.OBSERVE_OBJECTIVES.items():
+                _spec = _SPECS.get(_obj)
+                if not _spec:
+                    continue
+                _mode, _options, _criteria, _cond = _spec
+                if _mode == "choose":
+                    _r = TianDaoEngine.choose(ctx, _cond, dict(_criteria), objective=_obj)
+                    _probs = _r.get("probabilities") or {}
+                    if _r.get("defined") and _probs:
+                        distributions[_obj] = {str(k): float(v) for k, v in _probs.items()}
+                elif _mode == "gate":
+                    _kw: Dict[str, Any] = {"objective": _obj}
+                    _t = _THR.get(_obj)
+                    if _t is not None:
+                        _kw["threshold"] = float(_t)
+                    _r = TianDaoEngine.gate(ctx, _cond, **_kw)
+                    if _r.get("defined") and _r.get("probability") is not None:
+                        strengths[_obj] = float(_r["probability"])
+        except Exception:  # noqa: BLE001 — 强度观测失败不得影响结算/仅降级为"无强度"
+            logging.getLogger("tiandao").warning("天道强度观测失败", exc_info=True)
         rec = {"turn": int(getattr(state, "turn", 0) or 0),
                "read_only": True, "decisions": out,
+               "strengths": strengths, "distributions": distributions,
                "context_defined": any(v is not None for v in ctx.values())}
         try:
             state._tiandao_observe = rec
