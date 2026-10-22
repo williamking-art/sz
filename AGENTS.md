@@ -244,11 +244,11 @@ cd frontend
 
 | 项 | 值 |
 |---|---|
-| 端点 | `http://120.25.223.23:18080/mcp`（Streamable HTTP，stateless）⚠️ **2026-10-22 23:12 实测 /healthz 与 /mcp 均 502（上游宕/未起）**，见下行 |
+| 端点 | `http://120.25.223.23:18080/mcp`（Streamable HTTP，stateless）✅ 2026-10-23 复测：服务器侧容器 `mcp-songzuo` healthy、容器内 `/healthz` 200、`/mcp` 无 token 405；**外网 502 是本机 `HTTP_PROXY=127.0.0.1:7890` 代理假象**（`curl --noproxy '*'` 后 200），服务本身正常 |
 | 部署 | 阿里云 ECS `120.25.223.23`（cn-shenzhen）· `/opt/mcp-songzuo` · docker compose（mcp + nginx） |
 | 源码 | `_dev_tools/mcp-songzuo/`（`app/index.js` 提供 8 个工具 + 多 token 鉴权；`storage.js` 支持 local/oss 两种存储） |
 | 运维台账 | `D:\codebuddy\_credentials\mcp_songzuo.md`（**含逐 agent token，不入库**） |
-| 域名入口（实测冲突，待复核） | `songzuo.online` **已备案上线**（备案号 鄂ICP备2026058515号，worklog 2026-10-13 记「备案闸门解除」）。⚠️ **可用性两次实测冲突**：2026-10-22 22:34 一次实测官网 200 / http→301 / `mcp.songzuo.online:8443/healthz` 200 且证书通过；**23:12 主会话复测**：`http://120.25.223.23:18080/healthz` → **502**、`https://mcp.songzuo.online:8443/healthz` 与 `https://songzuo.online/` → **TLS 握手失败(000)**、`http://songzuo.online/` → 502；端口 22/80/443/8443/18080 均**可达**、SSH banner 正常。⇒ **当前对外入口不可用（nginx 在、上游 502）**，原因未定位；不要据此断言"域名不可用"或"可用"，以最新一次实测为准并通知运维 |
+| 域名入口（2026-10-23 复测正确） | `songzuo.online` **已备案上线**（鄂ICP备2026058515号）。复测（绕过本机代理）：官网 `https://songzuo.online/` → 200、`https://mcp.songzuo.online:8443/healthz` → 200 且证书校验通过（ssl_verify_result=0）⇒ **域名 TLS 入口可用**；客户端仍配直连 IP 属历史习惯。⚠️ 2026-10-22 曾因本机 HTTP_PROXY 误判为 502/TLS 失败，已更正 |
 
 连接片段（客户端侧；token 走环境变量，**不要写进仓库**）：
 
@@ -276,7 +276,7 @@ cd frontend
 | 项 | 状态 |
 |---|---|
 | 阿里云 ECS `120.25.223.23` | ✅ 运行 MCP（见 §7）；Rust 实验后端曾在此编译（§4.3 流程可复用） |
-| `songzuo.online` | 阿里云侧；**已备案上线**（鄂ICP备2026058515号）。⚠️ **2026-10-22 23:12 实测：官网与 MCP 入口均 502 / TLS 握手失败（端口可达）** ⇒ 当前不可用，待运维定位；同日 22:34 另一次实测曾 200（两次冲突已登记，勿引用旧结论） |
+| `songzuo.online` | 阿里云侧；**已备案上线**（鄂ICP备2026058515号）。2026-10-23 复测（绕过本机代理）：官网 200、`mcp.songzuo.online:8443` 200 且证书通过 ⇒ **可用**；此前 502 系本机代理假象 |
 | CloudBase（腾讯云开发） | 🔴 **已停用，不再是现行方案**。原用途仅两类：①交接 MCP（`/mcp` 网关侧 410，函数/触发器已 Gone）；②开发辅助（PG 分析数据导出 / 静态托管 / 云托管——云托管在该地域本就不支持，实例 `william-1-d6genf4wb9988a74a` 与域名均已删除）。**任何新文档不得再把它写成现行方案**；历史材料在 `_dev_tools/game-docs/archive/` 与 worklog/decisions 里，按只读留档保留 |
 | 阿里云 OSS / RDS / 函数计算 | ⚠️ **未开通/未验证**（无凭据）⇒ 只登记为「待开通」，不写具体配置 |
 
