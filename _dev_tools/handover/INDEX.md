@@ -1,14 +1,14 @@
 # 交接索引 · 宋祚（本机交接层）
 
 > 由 `python _dev_tools/handover.py summary` 生成，**请勿手改**；
-> 生成时间：2026-10-22T14:38:00Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
+> 生成时间：2026-10-22T15:18:38Z · 协议见 [`README.md`](README.md) · 停用说明见 [`NOTICE.md`](NOTICE.md)
 
 ## 各 agent 当前阶段
 
 - **Cline**（updatedAt=2026-10-10T16:48:43Z）：阶段：全库审计 + POP 真账守卫生产化（主线A）已落地；M32(_GUARD_INSTALLED) 已销账；地方府库下沉（M33）已裁暂不排期
 - **DSH-Audit**（updatedAt=2026-10-20T15:45:00Z）：2026-10-20 全审完成（只审不改）：sz 游戏本体四维并行审查 + Lead 实测复跑。必修 4：外贸货腿造币链（12月 cum_residual +13,470,432）、陆路榷税无付款方、长期案卷专款双扣+账外余额、天道档位槽失败不清空；应修含 AI 生产者签名错配/_ai_failures 不清、案卷页数
 - **DSH-JEV**（updatedAt=2026-10-12T16:05:00Z）：Jev 决策闸门接入 decree_action_plan：对每个动作独立复核「原文是否明确支持」，不足者追加进 unresolved。已实跑验证。
-- **DSH-lead**（updatedAt=2026-10-22T21:30:00+08:00）：结算幂等守卫落地（审查遗留唯一硬项）：expect_turn 判重 + 装饰器 kwargs + 日志存副本；全量 4477 tests 全绿
+- **DSH-lead**（updatedAt=2026-10-22T23:20:00+08:00）：收口长期任务批次完成：结算幂等端到端 + 审查B1全处置 + 云口径转阿里云 + 发行打包 + Git 推送；MCP 上传阻塞（服务 502/无凭据）
 - **DSH**（updatedAt=2026-10-14）：《宋祚》主顺序『可自决部分』全部收口并终局认证（M37–M293，会话 256 轮）。P0 5/5；P1 收口（丝坊 28/总 128 · recipe 共享根因修复 · 阈值 570 · 验收 Jev 甲 0.764 · 60/240 月复测）；P2 双口径就绪度（建筑 8/9=88.9% · 作坊 8/11=72.
 - **Qoder**（updatedAt=2026-10-09T23:58:31Z）：阶段2 结构迁移：第二十二包已交付（evaluation → core/workflows/）
 
@@ -41,7 +41,6 @@
 
 ## 最近 8 条工作日志
 
-- `20261021T150632Z-DSH-lead` → [`worklog/20261021T150632Z-DSH-lead.md`](worklog/20261021T150632Z-DSH-lead.md)
 - `20261021T154210Z-DSH-lead` → [`worklog/20261021T154210Z-DSH-lead.md`](worklog/20261021T154210Z-DSH-lead.md)
 - `20261021T173854Z-DSH-lead` → [`worklog/20261021T173854Z-DSH-lead.md`](worklog/20261021T173854Z-DSH-lead.md)
 - `20261021T224621Z-DSH-lead` → [`worklog/20261021T224621Z-DSH-lead.md`](worklog/20261021T224621Z-DSH-lead.md)
@@ -49,8 +48,9 @@
 - `20261022T112435Z-DSH-lead` → [`worklog/20261022T112435Z-DSH-lead.md`](worklog/20261022T112435Z-DSH-lead.md)
 - `20261022T124528Z-DSH-lead` → [`worklog/20261022T124528Z-DSH-lead.md`](worklog/20261022T124528Z-DSH-lead.md)
 - `20261022T132841Z-DSH-lead` → [`worklog/20261022T132841Z-DSH-lead.md`](worklog/20261022T132841Z-DSH-lead.md)
+- `20261022T151741Z-DSH-lead` → [`worklog/20261022T151741Z-DSH-lead.md`](worklog/20261022T151741Z-DSH-lead.md)
 
 ## 计数
 
-- tasks 215（未完成 20）· decisions 257（未闭环 0）· worklog 816 · phase 文件 6
+- tasks 215（未完成 20）· decisions 257（未闭环 0）· worklog 817 · phase 文件 6
 - 云端原始存量：`archive/cloud_2026-10-09/`（只读留档，勿改）

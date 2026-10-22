@@ -427,3 +427,5 @@ scratch/*.asar
 /fx*.py
 /dbg*.py
 
+# phase 并发占用侧车（pid/启动时间，运行时产物，不入库）
+_dev_tools/handover/phase/.owner/

@@ -1,27 +1,38 @@
 {
- "phase": "结算幂等守卫落地（审查遗留唯一硬项）：expect_turn 判重 + 装饰器 kwargs + 日志存副本；全量 4477 tests 全绿",
- "updatedAt": "2026-10-22T21:30:00+08:00",
+ "phase": "收口长期任务批次完成：结算幂等端到端 + 审查B1全处置 + 云口径转阿里云 + 发行打包 + Git 推送；MCP 上传阻塞（服务 502/无凭据）",
+ "updatedAt": "2026-10-22T23:20:00+08:00",
  "agent": "DSH-lead",
  "verification": {
-  "pytest": "4477 tests / 0 failed / 0 errors / 3 skipped（EXIT=0，658.46s，junit 取数）",
-  "tsc": "未跑（本批未改前端）",
-  "vitest": "未跑（本批未改前端）",
-  "build": "未跑（本批未改构建）"
+  "pytest": "4491 tests / 0 failed / 0 errors / 3 skipped（junit_b1d.xml，731.7s，EXIT=0）",
+  "tsc": "tsconfig.web.json + tsconfig.node.json 均 0 错",
+  "vitest": "20 files / 111 passed",
+  "build": "build-release.ps1 EXIT=0（2.5 分钟）；SongZuo Setup 0.1.0.exe 316.2MB sha256=1CC0AB4E…F75ABA；unpacked 180.1MB；backend 14.0MB",
+  "doclinks": "1148 md / broken=0",
+  "handover": "tasks 215 / decisions 257 / worklog 817 / 问题=0",
+  "git": "c6cacc4426 已推送 origin/main（0 领先 / 0 落后）"
  },
  "delivered": [
-  "run_monthly_settlement(state, seed_offset=0, expect_turn=None)：None⇒旧行为逐字节一致；==turn⇒结算；<turn 且有历史日志⇒幂等重放（返回副本）；<turn 无日志⇒拒绝+warning；>turn⇒拒绝+warning",
-  "commands.settle_local 透传 expect_turn",
-  "修既有别名：settlement_log 存副本（改前 append(log) 与 return log 同一对象，调用方就地改会污染存档历史）",
-  "修 @_isolated_rng 不转发 kwargs 的坑（functools.wraps 让内省签名正确但运行丢参）",
-  "新增 test_settle_idempotency.py（9 例）",
-  "文档：游戏机制说明 §1.1 语义表 + 未启用声明；tasks.md §5h",
-  "裁定台账 JEV-结算幂等守卫-2026-10-22（Jev B 0.514 三近手 + 自论证）"
+  "结算幂等端到端：核心 expect_turn 守卫 + advance_two_phase 入口判重 + /api/advance 409 STALE_TURN + 前端传回合；18 例新测试",
+  "外部审查 B1 阻断全处置（5 消费点概率连续）+ 9 项建议（F1/F2/F3/F4/S2/S3/D-1/D-2/D-3）+ F6/F7 守卫",
+  "G1 采购劳动政策优先读观测副本（Jev p=0.9915）",
+  "C1 phase 占用校验（B 0.676）/ C4 兼容入口棘轮（A 0.828）/ C2 C3 C5 C6 裁决入档",
+  "M50 影响面实测（28/31 政权缺专档）→ M50b 登记；A4 三项遗留核查（Rust 幂等 gap 登记）",
+  "A3 六处文档 stale 纠偏（4 处实测更正审查说法）；§5.7 结算期只读观测副本",
+  "A2 CloudBase 全面降级为历史、现行改阿里云口径（Jev p=0.9655）；aliyun-check.ps1 取代 cloudbase-check.ps1",
+  "golden 两次重建（B1 批 + G1 批）并补 CHANGELOG 两条",
+  "文档记忆回写：AGENTS.md（测试基线 4491、node v24.22.1、§7/§8 阿里云、备案实测冲突）、game-docs 验证基线"
+ ],
+ "blocked": [
+  "MCP 上传：120.25.223.23:18080/healthz 与 /mcp 实测 502；songzuo.online 与 mcp.songzuo.online:8443 TLS 握手失败；端口 22/80/443/8443/18080 可达、SSH banner 正常；ssh 免密 Permission denied(publickey) ⇒ 无凭据无法部署或修复。所需：①ECS SSH 私钥或运维代跑 deploy.sh；②上游容器 502 原因定位；③可用后再按 _dev_tools/mcp-songzuo/README.md 部署并 verify",
+  "他人未提交改动 30 项（他人 in_progress：M300/M317/M318/M324/M36.x/M38-M42 等）——按纪律未接手、未提交",
+  "~/.codebuddy/mcp.json 6 条指向已删除 node-v20 目录（仓库外，未改；修法见 docs §8.4）",
+  "知识库 STALE=21（build_kb.py build 会改已入库二进制资产，未跑，建议下次发行前统一重建）"
  ],
  "next": [
-  "**前端/HTTP 未传 expect_turn ⇒ 守卫待启用**：接线需在结算请求里带上 UI 正在展示的回合，并加端到端回归（重发⇒回合不变、返回原日志）",
-  "Rust 后端 settle.rs 若独立实现推进，需实现同一语义，否则双端仍漂移",
-  "并发/多进程结算不适用回合判重，需锁或事务（当前为单线程回合制，未触发）",
-  "外部审查整理版的「未完成」节需回填本项状态（原为唯一硬项，现已落地但待前端启用）",
-  "文档类待办（他人范围）：produce-space-price 头尾矛盾、decree-action-chain 任务 3 重复、market-civilian-economy 行号陈旧、unified-civilian-market 21 vs 28、M300/M324/WIRING-GAPS stale"
+  "MCP 服务恢复（502）后执行部署与 verify.sh，并把入口从直连 IP 切到已备案域名（需同步各 agent mcp.json）",
+  "Rust 侧实现 expect_turn 幂等语义（RUST-IDEMPOTENCY-GAP）",
+  "M50b 补齐 28 类政权岗位轨专档后再启用「拒绝产出」",
+  "回测标签扩样本（36 月/3 种子）后再谈调参；民怨仍缺经济出口",
+  "他人 in_progress 任务按各自 owner 收口，不重复施工"
  ]
 }
