@@ -67,7 +67,7 @@ from core.settlement import run_monthly_settlement
 from core.save_load import save_game, load_game, get_save_slots
 from core.workflows.evaluation import evaluate_game, check_game_over
 from core.events import get_historical_event, get_random_event, apply_event_choice, get_strategic_branch, get_pending_break_event
-from core.foundation.common.errors import AIRuntimeError
+from core.foundation.common.errors import AIRuntimeError, StaleAdvanceError
 
 
 # ============================================================
@@ -738,7 +738,7 @@ def _async_settle(state, ai_client=None, snap=None) -> None:
     _rich_narrative(state, ai_client)
 
 
-def advance_two_phase(state, ai_client=None) -> tuple:
+def advance_two_phase(state, ai_client=None, expect_turn=None) -> tuple:
     """三段式回合推进（2026-09-21 **「点过回合 即弹民间情况」**用户定稿）。返回 (events, log, civilian)。
 
     **三段**（先快出后结算，用户语义：民间情况 **点了过回合立即可读、文本小故事串**；
@@ -766,6 +766,21 @@ def advance_two_phase(state, ai_client=None) -> tuple:
     下互斥，但 core 不知 server 锁 —— 玩家在读民间情况（加强了阈值不动锁），
     实际并发窗口 ~ 40 ms（数值段），概率低。后期 Hardening（若需要）走 server `_lock`。
     """
+    # —— 幂等守卫（2026-10-22「幂等端到端」，**必须早于 AI 预检**）——
+    # 落后 ⇒ 重放：不触发事件、不 spawn daemon、不改状态，且**不需要 AI**
+    #        （客户端重发是正常现象，重试不该因 AI 掉线而失败）；
+    # 超前 ⇒ StaleAdvanceError（server 映射 409 + STALE_TURN），避免两端漂移后跳过一个月。
+    # 索引语义：`settlement.py:705` 每次结算 append 一条，故 index == 回合号。
+    if expect_turn is not None:
+        _cur = int(getattr(state, "turn", 0) or 0)
+        _exp = int(expect_turn)
+        if _exp < _cur:
+            _logs = getattr(state, "settlement_log", None) or []
+            _replay = list(_logs[_exp]) if 0 <= _exp < len(_logs) else []
+            return [], _replay, ""
+        if _exp > _cur:
+            raise StaleAdvanceError(
+                f"结算请求超前：expect_turn={_exp} 大于当前 turn={_cur}")
     from content.data import AI_ERROR_CODES
     # —— M-1 预检：数值结算链依赖 economy 强制推演（拒绝式），AI 缺失直接拒绝 ——
     if not (ai_client and getattr(ai_client, "available", False)):
@@ -810,7 +825,7 @@ def advance_two_phase(state, ai_client=None) -> tuple:
     return events, [], civilian
 
 
-def settle_local(state) -> list:
+def settle_local(state, expect_turn=None) -> list:
     """本地 12 步结算（确定性，主线程执行）：委托 run_monthly_settlement（含回合推进）。
 
     不含终局判定/自动存档（由 finish_turn 统一收尾），供同步 settle_turn 与
@@ -822,6 +837,15 @@ def settle_local(state) -> list:
     现于结算前快照状态，异常时回滚后再抛出（记忆库等不可拷贝对象保持原引用）。
     """
     import logging as _lg
+    # —— 幂等守卫：落后即重放（该回合已结算，重复结算会重复计征/扣款）——
+    # 只处理「落后」：超前已在 advance_two_phase 拦截；此处若抛异常会打断 daemon 线程，
+    # 故不在结算入口新增异常路径。索引语义同 advance_two_phase（index == 回合号）。
+    if expect_turn is not None:
+        _cur = int(getattr(state, "turn", 0) or 0)
+        _exp = int(expect_turn)
+        if _exp < _cur:
+            _logs = getattr(state, "settlement_log", None) or []
+            return list(_logs[_exp]) if 0 <= _exp < len(_logs) else []
     snap = _snapshot_state(state)
     # 🔴 路级 `pops` 只读守卫（观察型，缺省关闭）：`SONGZUO_POPS_GUARD=1` 时在结算
     #    观察期给已下沉路装上守卫，结算后读违规汇总并**还原 plain dict**。记录型、

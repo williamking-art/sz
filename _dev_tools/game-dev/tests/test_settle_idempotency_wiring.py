@@ -28,10 +28,11 @@ def _state(turn=2, logs=(("L0",), ("L1",))):
 # ---------------------------------------------------------------- 两段式入口
 def test_advance_two_phase_replay_does_not_trigger_or_spawn():
     st = _state(turn=2)
-    events, log, report, out = advance_two_phase(st, None, expect_turn=0)
+    # 3 元组契约（与 backend/client.py:196 及 test_two_phase_advance.py 一致；
+    # backend 层负责补 state 组成统一的 (events, log, report, state) 四元组）
+    events, log, report = advance_two_phase(st, None, expect_turn=0)
     assert (events, report) == ([], "")
     assert log == ["L0"], "重放必须返回该回合历史日志"
-    assert out is st
     assert st.turn == 2, "重放不得推进回合"
     assert st._settle_in_progress is False, "重放不得进入结算窗口（=不 spawn daemon）"
     assert st.rich_ready is False, "重放不得改动富化链字段"
@@ -40,7 +41,7 @@ def test_advance_two_phase_replay_does_not_trigger_or_spawn():
 def test_advance_two_phase_replay_before_ai_precheck():
     """落后重放**不需要 AI**：守卫在 AI 预检之前（重试不该因 AI 掉线而失败）。"""
     st = _state(turn=2)
-    events, log, _, _ = advance_two_phase(st, None, expect_turn=1)   # ai_client=None
+    events, log, _ = advance_two_phase(st, None, expect_turn=1)   # ai_client=None
     assert log == ["L1"] and events == []
 
 
@@ -54,7 +55,7 @@ def test_advance_two_phase_ahead_raises_stale():
 
 def test_advance_two_phase_missing_history_returns_empty():
     st = _state(turn=5, logs=())
-    events, log, _report, _ = advance_two_phase(st, None, expect_turn=0)
+    events, log, _report = advance_two_phase(st, None, expect_turn=0)
     assert events == [] and log == []
     assert st.turn == 5
 

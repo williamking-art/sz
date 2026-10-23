@@ -19,3 +19,20 @@ class AIRuntimeError(RuntimeError):
     def __init__(self, message: str = "", code: str = ""):
         super().__init__(message)
         self.code = code or ""
+
+
+class StaleAdvanceError(RuntimeError):
+    """回合推进请求**超前**于服务端当前回合（两端漂移）。
+
+    由 `commands.advance_two_phase` 在 `expect_turn > state.turn` 时抛出，
+    `backend/server.py` 将其映射为 HTTP 409 + 错误码 `STALE_TURN`，
+    避免客户端凭陈旧视图跳过一个月。
+
+    落后（`expect_turn < state.turn`）**不走异常**：按幂等重放返回该回合历史日志
+    （重发请求是正常现象，不应报错）。
+
+    接线背景（2026-10-23）：server 侧（`server.py:42/576`）、backend 侧
+    （`client.py:189-221`）与定向测试均早已按此契约写好，本类与
+    `advance_two_phase`/`settle_local` 的 `expect_turn` 守卫是缺的最后一块——
+    缺它时 `import backend.server` 直接 ImportError，整个服务起不来。
+    """

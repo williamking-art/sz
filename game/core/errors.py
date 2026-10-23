@@ -7,4 +7,4 @@
 `core/foundation/common/errors.py`，本路径只是兼容转发桩——
 生产代码请直接引用新路径；旧路径继续供历史 import 与测试使用。
 """
-from core.foundation.common.errors import AIRuntimeError  # noqa: F401
+from core.foundation.common.errors import AIRuntimeError, StaleAdvanceError  # noqa: F401

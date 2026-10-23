@@ -602,8 +602,20 @@ def run_monthly_settlement(state, seed_offset: int = 0, expect_turn=None) -> lis
     # ---- Step 0: 破产兜底（在其它步骤补血国库前，先按真实财政恶化程度判定）----
     # B3：国库禁穿底，改以「累计亏空深度」为判据（详见 GameState.deficit_depth）。
     # 2026-10-17 审计修复（B-2）：与 _settle_finance 统一采用天道动态危机线判据，消除双判据漂移
-    from core.ai.tiandao_facade import TianDaoFacade
-    crisis_line = TianDaoFacade.dynamic_treasury_crisis_line(state)
+    # 审查修复（2026-10-23）：原为**未守卫的模块级导入** —— `tiandao_engine` 顶部
+    # `from content.data_tiandao import PARAMS`，而该模块当前不存在，于是异常一路掀掉
+    # 整个 `run_monthly_settlement`（实测：每回合结算必抛、快照回滚、回合不推进，
+    # 游戏无法推进任何一回合）。与 `:536-542` 那处「失败不得影响结算」的口径不一致。
+    # 回退值取 `dynamic_treasury_crisis_line` 自身文档写明的校准基准
+    # （读数缺失时它同样返回此值），保证判据行为可预期。
+    try:
+        from core.ai.tiandao_facade import TianDaoFacade
+        crisis_line = TianDaoFacade.dynamic_treasury_crisis_line(state)
+    except Exception as _tdc:  # noqa: BLE001 —— 天道不可用不得阻断结算
+        import logging as _lg
+        _lg.getLogger(__name__).warning(
+            "天道危机线不可用，回退校准基准 5,000,000：%r", _tdc)
+        crisis_line = 5_000_000
     collapse_line = crisis_line * 2
 
     if state.deficit_depth() > collapse_line:
