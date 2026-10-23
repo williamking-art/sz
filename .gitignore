@@ -436,3 +436,19 @@ scratch/*.asar
 
 # phase 并发占用侧车（pid/启动时间，运行时产物，不入库）
 _dev_tools/handover/phase/.owner/
+
+# 纸娃娃分层源素材（2026-10-23，Jev A 0.7015）：未被任何代码引用，留本机不入库
+# 例外：new_vector_modular 是**已在库**的运行时素材，勿被上面规则误伤
+game/assets/paperdoll/accessories/
+game/assets/paperdoll/bases/
+game/assets/paperdoll/beards/
+game/assets/paperdoll/face_bases/
+game/assets/paperdoll/faces/
+game/assets/paperdoll/features/
+game/assets/paperdoll/hands/
+game/assets/paperdoll/headwear/
+game/assets/paperdoll/mannequin/
+game/assets/paperdoll/modular_qqshow/
+game/assets/paperdoll/qqshow_master/
+game/assets/paperdoll/robes/
+_preview/
