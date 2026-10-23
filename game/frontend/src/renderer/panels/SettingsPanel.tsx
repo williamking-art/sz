@@ -190,11 +190,11 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     } catch { /* ignore */ }
     return [{
       id: "default",
-      name: "\u9ed8\u8ba4",
+      name: "默认",
       tiers: [
-        makeDefaultTier("chat", "\u804a\u5929\u6a21\u578b", "\u5927\u81e3\u53ec\u5bf9 \u00b7 \u8bb0\u5fc6\u68c0\u7d22"),
-        makeDefaultTier("sim", "\u63a8\u6f14\u6a21\u578b", "\u6708\u5ea6\u63a8\u6f14 \u00b7 \u7ed3\u7b97\uff08\u601d\u8003\u578b\u6a21\u578b\u66f4\u4f73\uff09"),
-        makeDefaultTier("advanced", "\u5176\u4ed6\u573a\u666f\uff08\u9ad8\u7ea7\uff09", "7 \u6863 \u00b7 \u5df2\u914d 0"),
+        makeDefaultTier("chat", "聊天模型", "大臣召对 · 记忆检索"),
+        makeDefaultTier("sim", "推演模型", "月度推演 · 结算（思考型模型更佳）"),
+        makeDefaultTier("advanced", "其他场景（高级）", "7 档 · 已配 0"),
       ],
     }];
   });
@@ -221,7 +221,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
   }
 
   function saveAsProfile() {
-    const name = window.prompt("\u65b0\u914d\u7f6e\u540d\u79f0\uff1a", `\u914d\u7f6e ${profiles.length + 1}`);
+    const name = window.prompt("新配置名称：", `配置 ${profiles.length + 1}`);
     if (!name?.trim()) return;
     const id = "p_" + Date.now();
     const cloned: ConfigProfile = { id, name: name.trim(), tiers: activeProfile.tiers.map((t) => ({ ...t })) };
@@ -231,7 +231,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
 
   function deleteProfile() {
     if (profiles.length <= 1) return;
-    if (!window.confirm(`\u786e\u8ba4\u5220\u9664\u914d\u7f6e\u300c${activeProfile.name}\u300d\uff1f`)) return;
+    if (!window.confirm(`确认删除配置「${activeProfile.name}」？`)) return;
     const next = profiles.filter((p) => p.id !== activeProfileId);
     persistProfiles(next);
     setActiveProfileId(next[0].id);
@@ -253,15 +253,15 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
       if (res.ok) {
         try { await getApiClient().getAiConfig(); } catch { /* ignore */ }
         if (res.available) {
-          setMsg({ type: "success", text: `AI \u63a5\u53e3\u8fde\u63a5\u6210\u529f\uff01${res.message || `\u6a21\u578b\u3010${chat?.model}\u3011\u81ea\u68c0\u901a\u8fc7\u3002`}` });
+          setMsg({ type: "success", text: `AI 接口连接成功！${res.message || `模型【${chat?.model}】自检通过。`}` });
         } else {
-          setMsg({ type: "error", text: `\u914d\u7f6e\u5df2\u4fdd\u5b58\uff0c\u4f46\u8fde\u901a\u81ea\u68c0\u672a\u901a\u8fc7\uff1a${res.message || "\u8bf7\u68c0\u67e5\u5bc6\u94a5\u3001\u5730\u5740\u6216\u6a21\u578b\u540d\u79f0\u3002"}` });
+          setMsg({ type: "error", text: `配置已保存，但连通自检未通过：${res.message || "请检查密钥、地址或模型名称。"}` });
         }
       } else {
-        setMsg({ type: "error", text: "\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4\u540e\u7aef\u670d\u52a1\u8fd0\u884c\u6b63\u5e38\u3002" });
+        setMsg({ type: "error", text: "保存配置失败，请确认后端服务运行正常。" });
       }
     } catch (e) {
-      setMsg({ type: "error", text: "\u4fdd\u5b58\u5931\u8d25\uff1a" + (e instanceof Error ? e.message : String(e)) });
+      setMsg({ type: "error", text: "保存失败：" + (e instanceof Error ? e.message : String(e)) });
     } finally {
       setBusy(false);
     }
@@ -300,13 +300,13 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
             onClick={() => updateTier(tier.id, { expanded: !tier.expanded })}
             className="flex items-center gap-1 text-[11px] text-dim hover:text-ink"
           >
-            {tier.expanded ? "\u66f4\u5c11" : "\u66f4\u591a"}
+            {tier.expanded ? "更少" : "更多"}
             <ChevronRight size={12} className={`transition-transform ${tier.expanded ? "rotate-90" : ""}`} />
           </button>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <div>
-            <label className="text-[11px] text-dim">\u4f9b\u5e94\u5546</label>
+            <label className="text-[11px] text-dim">供应商</label>
             <select
               value={tier.provider}
               onChange={(e) => updateTier(tier.id, { provider: e.target.value })}
@@ -337,7 +337,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
               />
               <button
                 className="mt-0.5 rounded border border-gold/40 px-1.5 text-[11px] text-dim hover:text-ink"
-                title="\u5237\u65b0\u6a21\u578b\u5217\u8868"
+                title="刷新模型列表"
               >
                 <RefreshCw size={11} />
               </button>
@@ -350,7 +350,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
             type={showKey ? "text" : "password"}
             value={tier.apiKey}
             onChange={(e) => updateTier(tier.id, { apiKey: e.target.value })}
-            placeholder={tier.apiKey ? "\u5df2\u8bbe\u7f6e\uff0c\u7559\u7a7a\u4fdd\u7559" : "\u8f93\u5165 Key"}
+            placeholder={tier.apiKey ? "已设置，留空保留" : "输入 Key"}
             className="flex-1 rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
           />
         </div>
@@ -362,7 +362,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
               onChange={(e) => updateTier(tier.id, { fullUrl: e.target.checked })}
               className="accent-red"
             />
-            \u5b8c\u6574 URL\uff08\u4e0d\u81ea\u52a8\u8865 /v1\uff09
+            完整 URL（不自动补 /v1）
           </label>
         </div>
       </div>
@@ -373,13 +373,13 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     <div className="space-y-4">
       {/* 说明 */}
       <p className="text-xs leading-relaxed text-dim">
-        \u4fdd\u5b58\u540e\u7acb\u5373\u751f\u6548\uff0c\u4e0b\u6b21\u542f\u52a8\u81ea\u52a8\u6cbf\u7528\u3002\u5404\u6863 API Key \u7559\u7a7a\u5219\u4fdd\u7559\u5f53\u524d\u3002
-        \u63a8\u6f14 / \u7ed3\u7b97 / \u5404\u7ed3\u7b97\u6a21\u5757\u53ef\u5206\u522b\u914d\u72ec\u7acb\u6e20\u9053\u3001\u6a21\u578b\u4e0e\u601d\u8003\u6863\uff08\u7559\u7a7a\u56de\u9000\u4e0a\u7ea7\uff09\u3002
+        保存后立即生效，下次启动自动沿用。各档 API Key 留空则保留当前。
+        推演 / 结算 / 各结算模块可分别配独立渠道、模型与思考档（留空回退上级）。
       </p>
 
       {/* 配置切换 */}
       <div className="flex items-center gap-2">
-        <span className="text-xs font-kai text-ink">\u914d\u7f6e</span>
+        <span className="text-xs font-kai text-ink">配置</span>
         <select
           value={activeProfileId}
           onChange={(e) => setActiveProfileId(e.target.value)}
@@ -393,21 +393,21 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           onClick={saveAsProfile}
           className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-gold-light"
         >
-          <Save size={12} className="mr-0.5 inline" />\u53e6\u5b58\u4e3a
+          <Save size={12} className="mr-0.5 inline" />另存为
         </button>
         <button
           onClick={deleteProfile}
           disabled={profiles.length <= 1}
           className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-red/10 disabled:opacity-40"
         >
-          <Trash2 size={12} className="mr-0.5 inline" />\u5220\u9664
+          <Trash2 size={12} className="mr-0.5 inline" />删除
         </button>
         <button
           onClick={() => setShowKey(!showKey)}
           className="rounded border border-gold/50 bg-paper px-2 py-1 text-xs text-ink hover:bg-gold-light"
         >
           {showKey ? <EyeOff size={12} className="mr-0.5 inline" /> : <Eye size={12} className="mr-0.5 inline" />}
-          {showKey ? "\u9690\u85cf Key" : "\u663e\u793a Key"}
+          {showKey ? "隐藏 Key" : "显示 Key"}
         </button>
       </div>
 
@@ -426,7 +426,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDisableThinking(e.target.checked)}
           className="accent-red"
         />
-        \u5173\u6389\u6708\u672b\u63a8\u6f14\u601d\u8003\uff08\u66f4\u5feb\uff09
+        关掉月末推演思考（更快）
       </label>
 
       {/* 状态提示 */}
@@ -449,7 +449,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           onClick={onClose}
           className="rounded border border-gold/40 bg-paper/60 px-4 py-1.5 font-kai text-xs text-ink hover:bg-gold-light"
         >
-          \u5173\u95ed
+          关闭
         </button>
         <button
           onClick={handleSave}
@@ -457,7 +457,7 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           className="flex items-center gap-2 rounded-lg bg-red px-6 py-2 font-kai text-sm font-bold tracking-widest text-paper shadow-card hover:bg-red-dark disabled:opacity-50"
         >
           {busy && <Loader2 size={15} className="animate-spin" />}
-          {busy ? "\u8fde\u901a\u6d4b\u8bd5\u4e2d\u2026" : "\u4fdd\u5b58\u5e76\u5728\u7ebf\u81ea\u68c0"}
+          {busy ? "连通测试中…" : "保存并在线自检"}
         </button>
       </div>
     </div>
