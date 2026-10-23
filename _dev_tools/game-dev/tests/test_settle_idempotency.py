@@ -94,12 +94,17 @@ def test_sequential_turns_still_advance():
 
 
 # ---------------------------------------------------------------- 异常输入
-def test_ahead_of_state_is_refused():
-    """`expect_turn > state.turn`（客户端超前/两端漂移）⇒ 拒绝推进，不跳过一月。"""
+def test_settle_local_ahead_settles_normally_by_design():
+    """`settle_local(expect_turn > turn)` **正常结算**（不是忽略、也不是跳过）。
+
+    契约分层（同步后确认）：超前拦截只在请求入口 `advance_two_phase` 做（→ StaleAdvanceError
+    → HTTP 409）。`settle_local` 在 daemon 线程里被 `_async_settle` 调用，**新增异常路径会打断
+    后台段**，所以它只处理"落后 ⇒ 重放"。本用例把这条分层钉住，防止有人误以为它会拒绝。
+    """
     st = _state()
-    before = _fp(st)
-    assert settle_local(st, expect_turn=99) == []
-    assert _fp(st) == before
+    before = st.turn
+    settle_local(st, expect_turn=99)
+    assert st.turn == before + 1, "超前声明在 settle_local 层不拦截（拦截在 advance_two_phase）"
 
 
 def test_stale_without_history_is_refused():

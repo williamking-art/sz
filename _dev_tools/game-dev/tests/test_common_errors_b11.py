@@ -20,16 +20,22 @@ NEW = 'core.foundation.common.errors'
 
 
 def test_stub_surface_exact():
-    """桩的公开面必须是**恰好** `{AIRuntimeError}`——不多不少。"""
+    """桩的公开面必须是**恰好** `{AIRuntimeError, StaleAdvanceError}`——不多不少。
+
+    2026-10-23 同步变更：远端「服务器 P0：后端无法导入」修复把 `StaleAdvanceError`
+    下沉到 `core/foundation/common/errors.py` 并让桩一并转发（服务器 409 映射要用它）。
+    桩仍必须是**薄转发**（同对象），故本测试同时锁两项身份。
+    """
     stub = importlib.import_module(OLD)
     now = {n for n in dir(stub) if not n.startswith('__')}
-    assert now == {'AIRuntimeError'}, f"公开面变了：{sorted(now)}"
+    assert now == {'AIRuntimeError', 'StaleAdvanceError'}, f"公开面变了：{sorted(now)}"
 
 
 def test_old_path_is_same_object():
-    assert getattr(importlib.import_module(OLD), 'AIRuntimeError') is \
-        getattr(importlib.import_module(NEW), 'AIRuntimeError'), \
-        "旧路径不是同一对象（桩复制了类定义 ⇒ 两份异常，except 会漏）"
+    old, new = importlib.import_module(OLD), importlib.import_module(NEW)
+    for name in ("AIRuntimeError", "StaleAdvanceError"):
+        assert getattr(old, name) is getattr(new, name), \
+            f"{name} 旧路径不是同一对象（桩复制了类定义 ⇒ 两份异常，except 会漏）"
 
 
 def test_new_module_has_zero_imports():
