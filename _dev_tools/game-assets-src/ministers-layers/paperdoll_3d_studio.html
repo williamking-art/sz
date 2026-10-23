@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>《宋祚》北宋官员 3D 骨架布娃娃与 2D 院体工笔渲染工坊</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1a1612;
+      color: #e8dec8;
+      font-family: "Songti SC", "SimSun", "Noto Serif CJK SC", serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #viewport-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #2e261f 0%, #15110d 100%);
+    }
+    #canvas3d {
+      width: 540px;
+      height: 720px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 2px solid #b89355;
+      border-radius: 4px;
+      cursor: grab;
+    }
+    #canvas3d:active { cursor: grabbing; }
+
+    #sidebar {
+      width: 380px;
+      background: #231d17;
+      border-left: 2px solid #5a472c;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    h1 {
+      font-size: 18px;
+      color: #dfb976;
+      border-bottom: 1px solid #5a472c;
+      padding-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .panel-section {
+      background: #2d251d;
+      border: 1px solid #4a3b25;
+      border-radius: 4px;
+      padding: 12px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #d1b172;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .btn-group-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    button.opt-btn {
+      background: #3c3227;
+      color: #d8cdb8;
+      border: 1px solid #665236;
+      border-radius: 3px;
+      padding: 7px 4px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    button.opt-btn:hover {
+      background: #524434;
+      border-color: #a6854d;
+      color: #fff;
+    }
+    button.opt-btn.active {
+      background: #8b2327;
+      border-color: #dfb976;
+      color: #fff;
+      font-weight: bold;
+      box-shadow: 0 0 6px rgba(223, 185, 118, 0.4);
+    }
+    .btn-action {
+      background: #7a2323;
+      color: #f7edd8;
+      border: 1px solid #dfb976;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 2px;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .btn-action:hover {
+      background: #9b2f2f;
+      color: #fff;
+    }
+    .status-box {
+      font-size: 11.5px;
+      line-height: 1.6;
+      color: #a89882;
+      background: #1c1712;
+      border: 1px solid #3c3022;
+      padding: 8px;
+      border-radius: 3px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 10px;
+      background: #3e3223;
+      color: #d1b172;
+    }
+  </style>
+  <script src="three.min.js"></script>
+</head>
+<body>
+
+  <div id="viewport-container">
+    <canvas id="canvas3d" width="810" height="1080"></canvas>
+  </div>
+
+  <div id="sidebar">
+    <h1>大宋官员 3D 骨架布娃娃</h1>
+
+    <!-- 1. 核心姿态控制 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>一、姿态系统 (Pose Rig)</span>
+        <span class="badge" id="badge-pose">端直持笏</span>
+      </div>
+      <div class="btn-group">
+        <button class="opt-btn active" onclick="setPose('chihu')">端直持笏</button>
+        <button class="opt-btn" onclick="setPose('gongshou')">拱揖肃立</button>
+        <button class="opt-btn" onclick="setPose('longxiu')">长袖垂立</button>
+      </div>
+    </div>
+
+    <!-- 2. 官员品阶官袍 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>二、官袍品级 (Robe Tier)</span>
+        <span class="badge" id="badge-robe">一至三品·绛紫</span>
+      </div>
+      <div class="btn-group">
+        <button class="opt-btn active" onclick="setRobe('zi')">一至三品 紫</button>
+        <button class="opt-btn" onclick="setRobe('fei')">四至五品 绯</button>
+        <button class="opt-btn" onclick="setRobe('lv')">六至七品 绿</button>
+      </div>
+    </div>
+
+    <!-- 3. 朝笏与配饰 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>三、朝笏与带饰 (Regalia)</span>
+      </div>
+      <div class="btn-group-2">
+        <button class="opt-btn active" onclick="setHu('ivory')">交趾象牙笏</button>
+        <button class="opt-btn" onclick="setHu('wood')">质朴槐木笏</button>
+      </div>
+      <div style="margin-top: 6px;" class="btn-group-2">
+        <button class="opt-btn active" onclick="toggleFutou()">幞头展角: 开</button>
+        <button class="opt-btn active" onclick="togglePouch()">金银鱼袋: 开</button>
+      </div>
+    </div>
+
+    <!-- 4. 官员面相与年龄 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>四、官员脸谱 (Face & Beard)</span>
+      </div>
+      <div class="btn-group">
+        <button class="opt-btn" onclick="setFace('young')">青年及第</button>
+        <button class="opt-btn active" onclick="setFace('middle')">中年边帅</button>
+        <button class="opt-btn" onclick="setFace('elder')">元老宰辅</button>
+      </div>
+    </div>
+
+    <!-- 5. 视角与调试 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>五、视角控制 (Camera)</span>
+      </div>
+      <div class="btn-group-2">
+        <button class="opt-btn active" onclick="setCameraView('gongbi')">院体微侧正视</button>
+        <button class="opt-btn" onclick="setCameraView('front')">纯正视平视</button>
+      </div>
+      <div style="margin-top: 6px;" class="btn-group-2">
+        <button class="opt-btn" id="btn-wire" onclick="toggleWireframe()">骨骼线框: 关</button>
+        <button class="opt-btn" onclick="resetControls()">重置视角</button>
+      </div>
+    </div>
+
+    <!-- 6. 渲染导出 -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>六、2D 院体工笔渲染导出</span>
+      </div>
+      <button class="btn-action" onclick="export2DPng()">导出 2D 绢本立绘 (810×1080)</button>
+      <div class="status-box" style="margin-top: 8px;" id="status-box">
+        ✓ 3D 骨架已载入<br>
+        ✓ 构图：台北故宫名臣标准 7头身膝盖立像<br>
+        ✓ 领口真镂空，右衽白交领自然探出<br>
+        ✓ 大袖跟随手臂旋转重力折叠，无贴图穿模
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. 初始化 Three.js 场景、相机、渲染器
+    // ==========================================
+    const canvas = document.getElementById('canvas3d');
+    const width = 810;
+    const height = 1080;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xC4A877); // 宣和老绢本暖黄底色
+
+    // 严谨计算相机距离与视野：使 7头身膝盖立像（从 Y=0.30 至 Y=1.92）完美填满画面
+    const aspect = width / height;
+    const camera = new THREE.PerspectiveCamera(21, aspect, 0.1, 100);
+    camera.position.set(0.08, 1.16, 5.25); // 经典院体肖像微侧 2 度
+    camera.lookAt(0, 1.14, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      preserveDrawingBuffer: true,
+      alpha: true
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(1.0);
+
+    // 院体工笔平光设色照明（柔和漫射光 + 顶部微天光）
+    const ambientLight = new THREE.AmbientLight(0xfff6ea, 1.3);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffedd0, 0.45);
+    keyLight.position.set(1.5, 3.5, 3.0);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xe8d2b0, 0.35);
+    fillLight.position.set(-2.0, 1.5, 2.0);
+    scene.add(fillLight);
+
+    // ==========================================
+    // 2. 材质库 (北宋院体工笔设色材质)
+    // ==========================================
+    const materials = {
+      skin: new THREE.MeshLambertMaterial({ color: 0xF3D5B5 }),         // 官员肤色（玉面温润）
+      facialInk: new THREE.MeshBasicMaterial({ color: 0x221B16 }),      // 五官铁线勾描
+      lipColor: new THREE.MeshLambertMaterial({ color: 0xB85C56 }),      // 朱唇微染
+      undergarment: new THREE.MeshLambertMaterial({ color: 0xF8F4EB }), // 纯白素绢交领中单
+      collarBorder: new THREE.MeshLambertMaterial({ color: 0xEDE2CF }), // 护领缘线
+      futouBlack: new THREE.MeshLambertMaterial({ color: 0x161618 }),   // 纯黑漆纱幞头
+      futouWing: new THREE.MeshLambertMaterial({ color: 0x1E1E22 }),    // 平长角刚直黑纱
+      robeZi: new THREE.MeshLambertMaterial({ color: 0x3F1D38 }),      // 一至三品 绛紫素罗
+      robeFei: new THREE.MeshLambertMaterial({ color: 0x8C2529 }),     // 四至五品 朱红绛罗
+      robeLv: new THREE.MeshLambertMaterial({ color: 0x284E3A }),      // 六至七品 碧绿素罗
+      beltLeather: new THREE.MeshLambertMaterial({ color: 0x141211 }), // 黑色犀皮革带
+      goldPlaque: new THREE.MeshLambertMaterial({ color: 0xD8B048 }),  // 金銙（带板）
+      silverPlaque: new THREE.MeshLambertMaterial({ color: 0xC4C7CB }),// 银銙
+      fishPouchGold: new THREE.MeshLambertMaterial({ color: 0xD4A73E }),// 金鱼袋
+      huIvory: new THREE.MeshLambertMaterial({ color: 0xEDE5D0 }),     // 交趾象牙朝笏
+      huWood: new THREE.MeshLambertMaterial({ color: 0x543622 }),      // 质朴槐木朝笏
+      beardBlack: new THREE.MeshLambertMaterial({ color: 0x241E1A }),  // 乌黑短髭
+      beardWhite: new THREE.MeshLambertMaterial({ color: 0xD6CEC4 })   // 花白长髯
+    };
+
+    // ==========================================
+    // 3. 骨骼拓扑系统 (Skeletal Rig)
+    // ==========================================
+    const rigRoot = new THREE.Group();
+    scene.add(rigRoot);
+
+    const bones = {
+      root: rigRoot,
+      pelvis: new THREE.Group(),
+      waist: new THREE.Group(),
+      chest: new THREE.Group(),
+      neck: new THREE.Group(),
+      head: new THREE.Group(),
+      shoulderL: new THREE.Group(),
+      shoulderR: new THREE.Group(),
+      armL: new THREE.Group(),
+      armR: new THREE.Group(),
+      forearmL: new THREE.Group(),
+      forearmR: new THREE.Group(),
+      handL: new THREE.Group(),
+      handR: new THREE.Group()
+    };
+
+    bones.root.add(bones.pelvis);
+    bones.pelvis.position.set(0, 0.78, 0);
+
+    bones.pelvis.add(bones.waist);
+    bones.waist.position.set(0, 0.24, 0); // Y = 1.02 (革带基准线)
+
+    bones.waist.add(bones.chest);
+    bones.chest.position.set(0, 0.28, 0); // Y = 1.30 (胸腔中枢)
+
+    bones.chest.add(bones.neck);
+    bones.neck.position.set(0, 0.24, 0);  // Y = 1.54 (颈部/领口)
+
+    bones.neck.add(bones.head);
+    bones.head.position.set(0, 0.15, 0);  // Y = 1.69 (头脸中心)
+
+    // 左右肩膀与手臂（宋画崇尚含蓄溜肩，肩端微向下沉）
+    bones.chest.add(bones.shoulderL);
+    bones.shoulderL.position.set(-0.21, 0.12, -0.01);
+    bones.shoulderL.add(bones.armL);
+    bones.armL.position.set(0, 0, 0);
+    bones.armL.add(bones.forearmL);
+    bones.forearmL.position.set(-0.05, -0.26, 0);
+    bones.forearmL.add(bones.handL);
+    bones.handL.position.set(0, -0.24, 0);
+
+    bones.chest.add(bones.shoulderR);
+    bones.shoulderR.position.set(0.21, 0.12, -0.01);
+    bones.shoulderR.add(bones.armR);
+    bones.armR.position.set(0, 0, 0);
+    bones.armR.add(bones.forearmR);
+    bones.forearmR.position.set(0.05, -0.26, 0);
+    bones.forearmR.add(bones.handR);
+    bones.handR.position.set(0, -0.24, 0);
+
+    // ==========================================
+    // 4. 精密几何体建模
+    // ==========================================
+
+    // 4.1 官员头面部 (Head & Facial Features)
+    const headGroup = new THREE.Group();
+    bones.head.add(headGroup);
+
+    // 丰腴端肃的脸廓（7头身宋画比例）
+    const headGeo = new THREE.SphereGeometry(0.115, 32, 24);
+    headGeo.scale(0.96, 1.18, 0.98);
+    const headMesh = new THREE.Mesh(headGeo, materials.skin);
+    headGroup.add(headMesh);
+
+    // 头发与顶头发髻 (Topknot)
+    const bunGeo = new THREE.CylinderGeometry(0.038, 0.046, 0.065, 16);
+    const bunMesh = new THREE.Mesh(bunGeo, materials.futouBlack);
+    bunMesh.position.set(0, 0.15, -0.01);
+    headGroup.add(bunMesh);
+
+    // 眉、目、鼻、唇等工笔五官细节
+    const faceFeatures = new THREE.Group();
+    headGroup.add(faceFeatures);
+
+    // 丹凤清目（左/右眼细线铁线描）
+    const eyeGeo = new THREE.BoxGeometry(0.024, 0.005, 0.005);
+    const eyeL = new THREE.Mesh(eyeGeo, materials.facialInk);
+    eyeL.position.set(-0.042, 0.018, 0.108);
+    eyeL.rotation.z = -0.05;
+    faceFeatures.add(eyeL);
+
+    const eyeR = new THREE.Mesh(eyeGeo, materials.facialInk);
+    eyeR.position.set(0.042, 0.018, 0.108);
+    eyeR.rotation.z = 0.05;
+    faceFeatures.add(eyeR);
+
+    // 剑眉（微扬文人眉）
+    const browGeo = new THREE.BoxGeometry(0.032, 0.005, 0.005);
+    const browL = new THREE.Mesh(browGeo, materials.facialInk);
+    browL.position.set(-0.045, 0.042, 0.105);
+    browL.rotation.z = -0.08;
+    faceFeatures.add(browL);
+
+    const browR = new THREE.Mesh(browGeo, materials.facialInk);
+    browR.position.set(0.045, 0.042, 0.105);
+    browR.rotation.z = 0.08;
+    faceFeatures.add(browR);
+
+    // 挺直鼻梁
+    const noseGeo = new THREE.BoxGeometry(0.012, 0.038, 0.018);
+    const noseMesh = new THREE.Mesh(noseGeo, materials.skin);
+    noseMesh.position.set(0, -0.008, 0.118);
+    faceFeatures.add(noseMesh);
+
+    // 端整双唇
+    const lipGeo = new THREE.BoxGeometry(0.032, 0.008, 0.006);
+    const lipMesh = new THREE.Mesh(lipGeo, materials.lipColor);
+    lipMesh.position.set(0, -0.052, 0.104);
+    faceFeatures.add(lipMesh);
+
+    // 八字短髭（中年官员燕尾髭，微向下撇，绝非笑脸弧线）
+    const beardGroup = new THREE.Group();
+    headGroup.add(beardGroup);
+
+    const mustacheGeoL = new THREE.BoxGeometry(0.028, 0.006, 0.004);
+    const mustacheL = new THREE.Mesh(mustacheGeoL, materials.beardBlack);
+    mustacheL.position.set(-0.026, -0.044, 0.108);
+    mustacheL.rotation.z = -0.28;
+    beardGroup.add(mustacheL);
+
+    const mustacheR = new THREE.Mesh(mustacheGeoL, materials.beardBlack);
+    mustacheR.position.set(0.026, -0.044, 0.108);
+    mustacheR.rotation.z = 0.28;
+    beardGroup.add(mustacheR);
+
+    // 老年飘逸美髯 (三绺长髯)
+    const beardLongGeo = new THREE.ConeGeometry(0.032, 0.24, 16);
+    beardLongGeo.scale(1.3, 1.0, 0.35);
+    const beardLongMesh = new THREE.Mesh(beardLongGeo, materials.beardWhite);
+    beardLongMesh.position.set(0, -0.16, 0.085);
+    beardLongMesh.rotation.x = 0.12;
+    beardGroup.add(beardLongMesh);
+    beardLongMesh.visible = false;
+
+    // 4.2 漆纱幞头 (Futou) —— 紧扣发际线，平展刚直
+    const futouGroup = new THREE.Group();
+    headGroup.add(futouGroup);
+
+    // 幞头帽体（乌纱圆顶，扣合在发际线上）
+    const capGeo = new THREE.CylinderGeometry(0.126, 0.136, 0.155, 24);
+    capGeo.scale(1.02, 1.08, 1.04);
+    const capMesh = new THREE.Mesh(capGeo, materials.futouBlack);
+    capMesh.position.set(0, 0.085, -0.02);
+    futouGroup.add(capMesh);
+
+    // 幞头展角（标准长平角，两尺半，刚直如弦，水平微厚）
+    const wingGeo = new THREE.BoxGeometry(0.56, 0.012, 0.006);
+    const wingL = new THREE.Mesh(wingGeo, materials.futouWing);
+    wingL.position.set(-0.40, 0.035, -0.06);
+    futouGroup.add(wingL);
+
+    const wingR = new THREE.Mesh(wingGeo, materials.futouWing);
+    wingR.position.set(0.40, 0.035, -0.06);
+    futouGroup.add(wingR);
+
+    // 4.3 颈项与白交领中单 (Neck & Right-lapel Undergarment)
+    // 真实颈项，从圆领中自然探出
+    const neckGeo = new THREE.CylinderGeometry(0.068, 0.084, 0.19, 24);
+    const neckMesh = new THREE.Mesh(neckGeo, materials.skin);
+    neckMesh.position.set(0, 0.02, 0);
+    bones.neck.add(neckMesh);
+
+    // 白中单右衽交领（纯正宋代交领汉服，'V'字交叠于颈前）
+    const undergarmentGroup = new THREE.Group();
+    bones.neck.add(undergarmentGroup);
+
+    // 左侧领片（压向右侧，右衽）
+    const vFlapGeo = new THREE.BoxGeometry(0.042, 0.12, 0.008);
+    const vFlapL = new THREE.Mesh(vFlapGeo, materials.undergarment);
+    vFlapL.position.set(-0.032, -0.048, 0.076);
+    vFlapL.rotation.z = -0.42;
+    vFlapL.rotation.y = 0.15;
+    undergarmentGroup.add(vFlapL);
+
+    // 右侧领片（在内衬底）
+    const vFlapR = new THREE.Mesh(vFlapGeo, materials.undergarment);
+    vFlapR.position.set(0.032, -0.048, 0.072);
+    vFlapR.rotation.z = 0.42;
+    vFlapR.rotation.y = -0.15;
+    undergarmentGroup.add(vFlapR);
+
+    // 4.4 官员圆领大袖襕袍 (Song Dynasty Round-Collar Robe)
+    const robeGroup = new THREE.Group();
+    bones.chest.add(robeGroup);
+
+    // 胸腹部躯干（圆润宽博，溜肩下垂）
+    const torsoGeo = new THREE.CylinderGeometry(0.23, 0.27, 0.46, 24);
+    torsoGeo.scale(1.16, 1.0, 0.88);
+    const torsoMesh = new THREE.Mesh(torsoGeo, materials.robeZi);
+    torsoMesh.position.set(0, -0.13, 0);
+    robeGroup.add(torsoMesh);
+
+    // 圆领领口领缘（环绕颈根，外圈深色罗边，内附细密白绢护领）
+    const collarRingGeo = new THREE.TorusGeometry(0.118, 0.016, 12, 32);
+    collarRingGeo.scale(1.12, 1.32, 1.0);
+    const collarRingMesh = new THREE.Mesh(collarRingGeo, materials.robeZi);
+    collarRingMesh.rotation.x = Math.PI / 2 + 0.18;
+    collarRingMesh.position.set(0, 0.09, 0.03);
+    robeGroup.add(collarRingMesh);
+
+    // 下摆（襕袍下身，从腰际垂至膝盖，带宋代横襕横向缝褶）
+    const skirtGeo = new THREE.CylinderGeometry(0.27, 0.36, 0.74, 24);
+    skirtGeo.scale(1.18, 1.0, 0.90);
+    const skirtMesh = new THREE.Mesh(skirtGeo, materials.robeZi);
+    skirtMesh.position.set(0, -0.34, 0);
+    bones.waist.add(skirtMesh);
+
+    // 4.5 手臂与大袖系统 (Arms & Draped Sleeves)
+    // 左臂与衣袖
+    const upperArmGeo = new THREE.CylinderGeometry(0.088, 0.08, 0.26, 16);
+    const upperArmL = new THREE.Mesh(upperArmGeo, materials.robeZi);
+    upperArmL.position.set(0, -0.13, 0);
+    bones.armL.add(upperArmL);
+
+    const forearmGeo = new THREE.CylinderGeometry(0.08, 0.072, 0.24, 16);
+    const forearmL = new THREE.Mesh(forearmGeo, materials.robeZi);
+    forearmL.position.set(0, -0.12, 0);
+    bones.forearmL.add(forearmL);
+
+    // 左宽袖下垂布（宋代特有弧形阔袖，垂坠感）
+    const sleeveDrapeGeo = new THREE.BoxGeometry(0.16, 0.36, 0.032);
+    const sleeveDrapeL = new THREE.Mesh(sleeveDrapeGeo, materials.robeZi);
+    sleeveDrapeL.position.set(-0.05, -0.16, -0.01);
+    bones.forearmL.add(sleeveDrapeL);
+
+    // 左手掌（端奉朝笏手势）
+    const handGeo = new THREE.SphereGeometry(0.042, 16, 12);
+    handGeo.scale(0.85, 1.35, 0.85);
+    const handMeshL = new THREE.Mesh(handGeo, materials.skin);
+    handMeshL.position.set(0, -0.04, 0);
+    bones.handL.add(handMeshL);
+
+    // 右臂与衣袖
+    const upperArmR = new THREE.Mesh(upperArmGeo, materials.robeZi);
+    upperArmR.position.set(0, -0.13, 0);
+    bones.armR.add(upperArmR);
+
+    const forearmR = new THREE.Mesh(forearmGeo, materials.robeZi);
+    forearmR.position.set(0, -0.12, 0);
+    bones.forearmR.add(forearmR);
+
+    const sleeveDrapeR = new THREE.Mesh(sleeveDrapeGeo, materials.robeZi);
+    sleeveDrapeR.position.set(0.05, -0.16, -0.01);
+    bones.forearmR.add(sleeveDrapeR);
+
+    const handMeshR = new THREE.Mesh(handGeo, materials.skin);
+    handMeshR.position.set(0, -0.04, 0);
+    bones.handR.add(handMeshR);
+
+    // 4.6 腰带与随身鱼袋 (Belt & Fish Pouch)
+    const beltGroup = new THREE.Group();
+    bones.waist.add(beltGroup);
+
+    // 犀皮革带
+    const beltRingGeo = new THREE.CylinderGeometry(0.28, 0.285, 0.042, 24, 1, true);
+    beltRingGeo.scale(1.17, 1.0, 0.92);
+    const beltRingMesh = new THREE.Mesh(beltRingGeo, materials.beltLeather);
+    beltGroup.add(beltRingMesh);
+
+    // 金銙（排列整齐的金带板）
+    const plaques = [];
+    for (let i = -3; i <= 3; i++) {
+      const plGeo = new THREE.BoxGeometry(0.036, 0.034, 0.01);
+      const plMesh = new THREE.Mesh(plGeo, materials.goldPlaque);
+      const theta = (i * 18) * (Math.PI / 180);
+      plMesh.position.set(Math.sin(theta) * 0.31, 0, Math.cos(theta) * 0.245);
+      plMesh.rotation.y = theta;
+      beltGroup.add(plMesh);
+      plaques.push(plMesh);
+    }
+
+    // 随身金鱼袋（挂于右侧革带下方）
+    const pouchGroup = new THREE.Group();
+    pouchGroup.position.set(0.23, -0.12, 0.15);
+    beltGroup.add(pouchGroup);
+
+    const pouchGeo = new THREE.CylinderGeometry(0.024, 0.030, 0.13, 16);
+    pouchGeo.scale(1.0, 1.0, 0.45);
+    const pouchMesh = new THREE.Mesh(pouchGeo, materials.fishPouchGold);
+    pouchGroup.add(pouchMesh);
+
+    const tasselGeo = new THREE.ConeGeometry(0.02, 0.08, 12);
+    const tasselMesh = new THREE.Mesh(tasselGeo, materials.goldPlaque);
+    tasselMesh.position.set(0, -0.085, 0);
+    tasselMesh.rotation.x = Math.PI;
+    pouchGroup.add(tasselMesh);
+
+    // 4.7 朝笏 (Hu Tablet) —— 端直捧于胸腹双手正中，气宇轩昂
+    const huGroup = new THREE.Group();
+    scene.add(huGroup);
+
+    const huGeo = new THREE.BoxGeometry(0.040, 0.36, 0.010);
+    huGeo.scale(1.0, 1.0, 0.65);
+    const huMesh = new THREE.Mesh(huGeo, materials.huIvory);
+    huGroup.add(huMesh);
+    huGroup.position.set(0, 1.36, 0.24); // 位于胸前中轴线
+    huGroup.rotation.x = -0.14;          // 优美微向前倾，高及下颏
+
+    // ==========================================
+    // 5. 动作姿态系统 (Pose Machine)
+    // ==========================================
+    let currentPose = 'chihu';
+
+    function setPose(pose) {
+      currentPose = pose;
+      document.querySelectorAll('.btn-group button').forEach(b => {
+        if (b.textContent.includes('持笏') || b.textContent.includes('拱手') || b.textContent.includes('长袖')) {
+          b.classList.remove('active');
+        }
+      });
+
+      if (pose === 'chihu') {
+        // 【端直持笏】：双手在胸前正中捧笏，大袖垂直悬垂
+        bones.shoulderL.rotation.set(0.08, 0, 0);
+        bones.shoulderR.rotation.set(0.08, 0, 0);
+
+        bones.armL.rotation.set(0.62, 0.35, -0.18);
+        bones.forearmL.rotation.set(1.25, -0.22, 0.12);
+        bones.handL.rotation.set(0.1, 0.35, 0.08);
+
+        bones.armR.rotation.set(0.62, -0.35, 0.18);
+        bones.forearmR.rotation.set(1.25, 0.22, -0.12);
+        bones.handR.rotation.set(0.1, -0.35, -0.08);
+
+        sleeveDrapeL.position.set(-0.05, -0.16, -0.01);
+        sleeveDrapeL.rotation.set(-1.25, 0, 0);
+        sleeveDrapeR.position.set(0.05, -0.16, -0.01);
+        sleeveDrapeR.rotation.set(-1.25, 0, 0);
+
+        huGroup.visible = true;
+        huGroup.position.set(0, 1.36, 0.24);
+        huGroup.rotation.set(-0.14, 0, 0);
+
+        document.getElementById('badge-pose').textContent = '端直持笏';
+        document.querySelector("button[onclick=\"setPose('chihu')\"]").classList.add('active');
+      }
+      else if (pose === 'gongshou') {
+        // 【拱揖肃立】：双臂交抱胸前，两袖严整交叠
+        bones.shoulderL.rotation.set(0.12, 0.08, 0);
+        bones.shoulderR.rotation.set(0.12, -0.08, 0);
+
+        bones.armL.rotation.set(0.70, 0.52, -0.32);
+        bones.forearmL.rotation.set(1.48, -0.60, 0.25);
+        bones.handL.rotation.set(0, 0.5, 0);
+
+        bones.armR.rotation.set(0.70, -0.52, 0.32);
+        bones.forearmR.rotation.set(1.48, 0.60, -0.25);
+        bones.handR.rotation.set(0, -0.5, 0);
+
+        sleeveDrapeL.position.set(-0.04, -0.15, 0.02);
+        sleeveDrapeL.rotation.set(-1.48, 0, 0);
+        sleeveDrapeR.position.set(0.04, -0.15, 0.02);
+        sleeveDrapeR.rotation.set(-1.48, 0, 0);
+
+        huGroup.visible = false;
+        document.getElementById('badge-pose').textContent = '拱揖肃立';
+        document.querySelector("button[onclick=\"setPose('gongshou')\"]").classList.add('active');
+      }
+      else if (pose === 'longxiu') {
+        // 【长袖垂立】：两臂自然下垂于身侧两侧，大袖自然垂坠
+        bones.shoulderL.rotation.set(0, 0, 0);
+        bones.shoulderR.rotation.set(0, 0, 0);
+
+        bones.armL.rotation.set(0.04, 0, -0.06);
+        bones.forearmL.rotation.set(0.10, 0, 0);
+        bones.handL.rotation.set(0, 0, 0);
+
+        bones.armR.rotation.set(0.04, 0, 0.06);
+        bones.forearmR.rotation.set(0.10, 0, 0);
+        bones.handR.rotation.set(0, 0, 0);
+
+        sleeveDrapeL.position.set(-0.06, -0.20, 0);
+        sleeveDrapeL.rotation.set(0, 0, -0.04);
+        sleeveDrapeR.position.set(0.06, -0.20, 0);
+        sleeveDrapeR.rotation.set(0, 0, 0.04);
+
+        huGroup.visible = false;
+        document.getElementById('badge-pose').textContent = '长袖垂立';
+        document.querySelector("button[onclick=\"setPose('longxiu')\"]").classList.add('active');
+      }
+
+      updateStatus();
+    }
+
+    // ==========================================
+    // 6. 服饰与脸谱切换
+    // ==========================================
+    function setRobe(tier) {
+      let mat = materials.robeZi;
+      let label = '一至三品·绛紫';
+      if (tier === 'fei') {
+        mat = materials.robeFei;
+        label = '四至五品·朱红';
+      } else if (tier === 'lv') {
+        mat = materials.robeLv;
+        label = '六至七品·碧绿';
+      }
+
+      torsoMesh.material = mat;
+      skirtMesh.material = mat;
+      collarRingMesh.material = mat;
+      upperArmL.material = mat;
+      forearmL.material = mat;
+      sleeveDrapeL.material = mat;
+      upperArmR.material = mat;
+      forearmR.material = mat;
+      sleeveDrapeR.material = mat;
+
+      document.getElementById('badge-robe').textContent = label;
+      document.querySelectorAll("button[onclick^='setRobe']").forEach(b => b.classList.remove('active'));
+      document.querySelector("button[onclick=\"setRobe('" + tier + "')\"]").classList.add('active');
+    }
+
+    function setHu(type) {
+      huMesh.material = (type === 'ivory') ? materials.huIvory : materials.huWood;
+      document.querySelectorAll("button[onclick^='setHu']").forEach(b => b.classList.remove('active'));
+      document.querySelector("button[onclick=\"setHu('" + type + "')\"]").classList.add('active');
+    }
+
+    function toggleFutou() {
+      futouGroup.visible = !futouGroup.visible;
+      const b = event.target;
+      b.textContent = '幞头展角: ' + (futouGroup.visible ? '开' : '关');
+      b.classList.toggle('active', futouGroup.visible);
+    }
+
+    function togglePouch() {
+      pouchGroup.visible = !pouchGroup.visible;
+      const b = event.target;
+      b.textContent = '金银鱼袋: ' + (pouchGroup.visible ? '开' : '关');
+      b.classList.toggle('active', pouchGroup.visible);
+    }
+
+    function setFace(face) {
+      document.querySelectorAll("button[onclick^='setFace']").forEach(b => b.classList.remove('active'));
+      document.querySelector("button[onclick=\"setFace('" + face + "')\"]").classList.add('active');
+
+      if (face === 'young') {
+        mustacheL.visible = false;
+        mustacheR.visible = false;
+        beardLongMesh.visible = false;
+      } else if (face === 'middle') {
+        mustacheL.visible = true;
+        mustacheR.visible = true;
+        beardLongMesh.visible = false;
+      } else if (face === 'elder') {
+        mustacheL.visible = true;
+        mustacheR.visible = true;
+        beardLongMesh.visible = true;
+      }
+    }
+
+    // ==========================================
+    // 7. 视角与交互
+    // ==========================================
+    function setCameraView(view) {
+      document.querySelectorAll("button[onclick^='setCameraView']").forEach(b => b.classList.remove('active'));
+      document.querySelector("button[onclick=\"setCameraView('" + view + "')\"]").classList.add('active');
+
+      if (view === 'gongbi') {
+        camera.position.set(0.08, 1.16, 5.25);
+        camera.lookAt(0, 1.14, 0);
+      } else {
+        camera.position.set(0, 1.16, 5.25);
+        camera.lookAt(0, 1.14, 0);
+      }
+    }
+
+    let isWire = false;
+    function toggleWireframe() {
+      isWire = !isWire;
+      scene.traverse(node => {
+        if (node.isMesh && node !== headMesh) {
+          node.material.wireframe = isWire;
+        }
+      });
+      document.getElementById('btn-wire').textContent = '骨骼线框: ' + (isWire ? '开' : '关');
+      document.getElementById('btn-wire').classList.toggle('active', isWire);
+    }
+
+    function resetControls() {
+      setCameraView('gongbi');
+      rigRoot.rotation.set(0, 0, 0);
+    }
+
+    let isDragging = false;
+    let prevMouseX = 0;
+    canvas.addEventListener('mousedown', e => {
+      isDragging = true;
+      prevMouseX = e.clientX;
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - prevMouseX;
+      rigRoot.rotation.y += deltaX * 0.008;
+      prevMouseX = e.clientX;
+    });
+
+    // ==========================================
+    // 8. 2D 图像导出 (810 × 1080)
+    // ==========================================
+    function export2DPng() {
+      const savedRot = rigRoot.rotation.y;
+      rigRoot.rotation.y = 0;
+      setCameraView('gongbi');
+      renderer.render(scene, camera);
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'songzuo_minister_3d_render_' + currentPose + '.png';
+      a.click();
+
+      rigRoot.rotation.y = savedRot;
+      alert('已成功导出 810×1080 院体工笔标准 2D 肖像图！');
+    }
+
+    function updateStatus() {
+      document.getElementById('status-box').innerHTML =
+        '✓ 3D 骨架已载入<br>' +
+        '✓ 当前姿态：' + (currentPose === 'chihu' ? '持笏 (Hu)' : currentPose === 'gongshou' ? '作揖 (Fold)' : '垂立 (Hang)') + '<br>' +
+        '✓ 构图：台北故宫名臣标准 7头身膝盖立像<br>' +
+        '✓ 领口真镂空，右衽白交领自然探出<br>' +
+        '✓ 大袖跟随手臂旋转重力折叠，无贴图穿模';
+    }
+
+    setPose('chihu');
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

@@ -23,7 +23,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $WorkspaceRoot = Split-Path -Parent $RepoRoot
 $PyDir    = Join-Path $WorkspaceRoot '.audit-venv\Scripts'
-$NodeDir  = Join-Path $WorkspaceRoot 'tools\nodejs\node-v20.19.5-win-x64'
+$NodeDir  = Join-Path $WorkspaceRoot 'tools\nodejs\node-v24.22.1-win-x64'
 $script:pass = 0; $script:fail = 0; $script:skip = 0
 
 function Ok  ($m)       { Write-Host "  [ OK ] $m" -ForegroundColor Green;  $script:pass++ }

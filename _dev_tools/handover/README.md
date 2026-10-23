@@ -152,3 +152,19 @@ if ($diffExit -ne 0 -or $fullExit -ne 0) { "❌ 门禁未过：不提交"; exit 
 - 🔴 **碰了 `game/` 下任何代码或数据** ⇒ 全量回归**不可省**（判定以**暂存文件清单**为准）；
   「纯文档批是否免全量」**待用户裁定**（见 `specs/cross-cutting/对照借鉴_外部交接项目handoff_2026-10-13.md` 第三节）。
 - 提交正文写明 **Jev 概率 + 实测数字 + 纪律声明**（只写正文不算留痕 ⇒ 裁定必须同时落 `decisions/`）。
+
+## 本目录文件索引（全审要求：每个文件都要能被找到）
+
+| 文件 | 作用 |
+|---|---|
+| `INDEX.md` | 派生索引（`handover.py summary` 重建，勿手改） |
+| `HANDOFF.md` | 一页接手页（`make_handoff.py` 生成） |
+| `DECISIONS-INDEX.md` | 决策台账导航（权威仍是各 `decisions/*.json`） |
+| [`PROGRAM-2026-10-22.md`](PROGRAM-2026-10-22.md) | **收口长期任务目标清单**（A–F 六组：来源/证据/验收/状态；含「两个 Jev 不要混」与 B1/S1 级别来源） |
+| `tasks/*.json` | 任务板（一条一文件） |
+| `decisions/*.json` | 决策/裁定台账（一条一文件） |
+| `phase/*.json` | 各 agent 独占的当前阶段 |
+| `worklog/*.md` | 追加式日志（新写=新建文件） |
+| `agents.json` | agent 注册表与文件归属 |
+| `NOTICE.md` | 通道变更说明（历史） |
+| `archive/` | 历史留档（只读，勿改勿删） |

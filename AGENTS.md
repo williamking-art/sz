@@ -16,7 +16,7 @@
 | 🔴 **天道裁决 = 游戏内嵌 `game/ai/jev_gate.py`** | 与 `tools/jev` 同一套 SystemOne API；所有 `_*_ai` 槽位的档位由它裁决/注入。**结算期禁止同步 HTTP**（Jev 结论须在结算前置步骤或离线批注入，结算只读 `state._*_ai`）。档位→数值的换算表集中在 `core/` 各域模块。 |
 | `game/backend/` | FastAPI 薄壳（`/api/action` 等；`client.py` 是动作分派表） |
 | `game/frontend/` | Electron + React（`src/renderer/` 地图/HUD/面板） |
-| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-22 实测 **4489 tests / 0 failed / 0 errors / 3 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
+| `_dev_tools/game-dev/tests/` | pytest 全量（**用例数会变，以本次实测输出为准**；最近 2026-10-22 实测 **4491 tests / 0 failed / 0 errors / 3 skipped**；唯一基线出处见 `_dev_tools/game-docs/README.md` §验证基线） |
 | `_dev_tools/game-docs/docs/` | **权威机制文档**（见 §2） |
 | `_dev_tools/`、`songzuo_server/` | 开发辅助（截图台、地图生成、**阿里云 ECS 检查**、Rust 实验后端）——**不接游戏运行时** |
 
@@ -152,7 +152,7 @@ $ws   = Split-Path $repo -Parent
 $py   = Join-Path $ws ".audit-venv\Scripts\python.exe"
 $node = Join-Path $ws "tools\nodejs\node-v24.22.1-win-x64\node.exe"
 
-# 后端全量测试（最近 2026-10-22 实测 4489 tests / 0 failed / 0 errors / 3 skipped；干净 clone 3535 / 0 failed / 12 skipped（舆图产物未重建）；用例数会变，以本次输出为准；
+# 后端全量测试（最近 2026-10-22 实测 4491 tests / 0 failed / 0 errors / 3 skipped；干净 clone 3535 / 0 failed / 12 skipped（舆图产物未重建）；用例数会变，以本次输出为准；
 #            唯一基线出处见 _dev_tools/game-docs/README.md §验证基线（各文档内的用例数多为历史快照）；
 #            先清 shim，否则 pytest tmp_path 会 PermissionError）
 $env:PYTHONPATH=""; $env:CODEBUDDY_SAFE_DELETE_ENABLED="0"

@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """宋祚 · 本地交接层（2026-10-09 起取代 CloudBase 交接 MCP）
 
+> **云侧迁移标注（2026-10-22）**：被取代的 CloudBase 已随「云侧全面转阿里云」**停用并归档**；
+> 云侧现行方案是阿里云 ECS 上的自托管 MCP（见 `game-docs/docs/开发服务器与回归测试说明.md` §8.1）。
+> 本模块的定位不变：**交接状态唯一权威仍是本机文件层**，MCP 只作跨设备只读快照。
+
 **为什么换**：交接 MCP 的 `/mcp` 路由在网关侧返回 410（同域其它路径是结构化 404，
 带/不带 token 结果一致 ⇒ 不是凭据问题，是函数/触发器 Gone），云端读写通道不可用。
 用户裁定：**本项目放弃 MCP，改用本机交接**；载体 = 仓库内 `_dev_tools/handover/`（入库），
@@ -236,6 +240,67 @@ def cmd_log(args) -> int:
     return 0
 
 
+def _pid_alive(pid) -> bool:
+    """尽力判断进程是否仍存活（失败偏向"存活"）。C1（Jev B 0.676）。"""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return True
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except OSError as e:
+        if getattr(e, "errno", None) == 3 or getattr(e, "winerror", None) == 87:
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        return True
+    return True
+
+
+#: 侧车新鲜窗口：超过则视为可接管（防崩溃后永久锁死）
+OWNER_TTL_SECONDS = 6 * 3600
+
+
+def _owner_path(agent: str) -> str:
+    return os.path.join(HERE, "phase", ".owner", agent + ".json")
+
+
+def _check_phase_owner(agent: str) -> tuple:
+    """(allow, reason)：同机另一会话仍在写该 agent 的 phase 时 allow=False。"""
+    path = _owner_path(agent)
+    if not os.path.isfile(path):
+        return True, ""
+    obj = read_json(path)
+    if not isinstance(obj, dict):
+        return True, ""
+    pid = obj.get("pid")
+    started = obj.get("startedAt") or ""
+    try:
+        import calendar
+        import time as _t
+        ts = calendar.timegm(_t.strptime(started, "%Y-%m-%dT%H:%M:%SZ"))
+    except Exception:  # noqa: BLE001
+        ts = 0
+    age = int(__import__("time").time()) - ts
+    if pid == os.getpid():
+        return True, ""
+    if age > OWNER_TTL_SECONDS:
+        return True, "owner 侧车已过期（%ss），可接管" % age
+    if not _pid_alive(pid):
+        return True, "owner 进程 %s 已不存在，可接管" % pid
+    return False, ("phase/%s.json 正被同机进程 %s 占用（起始 %s）；"
+                   "并发同名会话请换名（如 DSH-lead2），确需接管加 --force"
+                   % (agent, pid, started or "?"))
+
+
+def _mark_phase_owner(agent: str) -> None:
+    path = _owner_path(agent)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_json(path, {"agent": agent, "pid": os.getpid(), "startedAt": now_utc()})
+
+
 def cmd_phase(args) -> int:
     src = args.file
     if not src or not os.path.isfile(src):
@@ -245,12 +310,19 @@ def cmd_phase(args) -> int:
     if not isinstance(obj, dict):
         print("phase 值必须是 object")
         return 2
+    allow, reason = _check_phase_owner(args.agent)
+    if not allow and not getattr(args, "force", False):
+        print("PHASE verdict=blocked（%s）" % reason)
+        return 3
+    if reason:
+        print("PHASE note=%s" % reason)
     obj.setdefault("agent", args.agent)
     obj["updatedAt"] = obj.get("updatedAt") or now_utc()
     p = os.path.join(HERE, "phase", args.agent + ".json")
     if not write_json(p, obj):
         print("PHASE verdict=failed")
         return 3
+    _mark_phase_owner(args.agent)
     print("PHASE verdict=landed key=phase/%s" % args.agent)
     return 0
 
@@ -415,6 +487,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("phase", help="写自己独占的 phase 文件")
     p.add_argument("agent")
     p.add_argument("--file", required=True)
+    p.add_argument("--force", action="store_true",
+                   help="强制接管同机被占用的同名 phase（默认拒绝，见 C1）")
     p = sub.add_parser("claim", help="认领任务")
     p.add_argument("action", choices=["claim", "finish"])
     p.add_argument("task_id")
