@@ -133,6 +133,10 @@ _dev_tools/*
 !_dev_tools/handover.py
 # 开发辅助工具链 + 阿里云侧资产自检脚本（把历次踩坑变成一条命令的 PASS/FAIL，-Fix 只重建知识库）
 !_dev_tools/aliyun-check.ps1
+# MCP 健康检查（代理假象免疫）：AGENTS.md §7、开发服务器说明 §8.1 与 _dev_tools/README.md
+# 均按路径引用它。「服务端 502 / TLS 失败实为本机 HTTP_PROXY 代理程序未运行」这个误判
+# 已发生三次（本机 2026-10-23 + 远端记录两次），排障命令须随仓库分发，否则新克隆者无从复用。
+!_dev_tools/mcp-check.ps1
 # 代码全量验证入口（后端 pytest + 前端 vitest + tsc 双配置 + 面板截图矩阵）：
 # `game/README.md`（**入库**文档）已引用它 —— 若不入库，新克隆者按文档跑会找不到文件。
 !_dev_tools/verify-all.ps1
