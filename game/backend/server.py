@@ -256,6 +256,17 @@ def _merge_ai_config(req, old_cfg: dict) -> dict:
     if _explicit("enable_tools") and tools_in in ("auto", "on", "off", "simple"):
         merged["enable_tools"] = tools_in
     merged.setdefault("enable_tools", "auto")
+    # 结算专用 provider（可选覆盖，2026-10-23 用户裁定 B）：仅显式提交才动；
+    # 空串 ⇒ 删除该键 ⇒ 结算期回落主配置（`ai/client.py` 里 settle_model 为空即不切换）。
+    for _fld in ("settle_api_key", "settle_base_url", "settle_model"):
+        if _explicit(_fld):
+            _val = str(getattr(req, _fld, "") or "").strip()
+            if _fld == "settle_base_url" and _val:
+                _val = _validate_base_url(_val)
+            if _val:
+                merged[_fld] = _val
+            else:
+                merged.pop(_fld, None)
     return merged
 
 
@@ -527,6 +538,12 @@ class AiConfigReq(BaseModel):
     model: str = ""
     # 迁移补齐：大臣办差工具（function calling）三档（auto/on/off），对齐 Tk 设置面板
     enable_tools: str = ""
+    # 结算专用 provider（**可选覆盖**，2026-10-23 用户裁定 B 方案）：
+    #   三者留空 ⇒ 结算期跟随主配置（`ai/client.py` 的 `settle_model` 为空即不切换）；
+    #   填了 ⇒ 回合结算（prelude + 12 步推演 + 月报）整体切到该 provider/模型，召对等仍用主配置。
+    settle_api_key: str = ""
+    settle_base_url: str = ""
+    settle_model: str = ""
 
 class FetchModelsReq(BaseModel):
     api_key: str = ""
@@ -1482,6 +1499,7 @@ def api_ai_config_get(request: Request):
         err = "AI 配置读取异常"
     if not isinstance(cfg, dict):
         cfg = {}
+    _settle_has_key = bool(str(cfg.get("settle_api_key") or "").strip())
     if not cfg and os.path.exists(_ai_config_path()):
         # 文件在、配置空 → 只有"损坏/清空"这一种解释（正常缺文件时 cfg 也为 {}，但无文件）
         err = err or "AI 配置已损坏或为空（请重存配置或删除 ai_config.json 后重配）"
@@ -1492,6 +1510,10 @@ def api_ai_config_get(request: Request):
         "base_url": str(cfg.get("base_url", "") or ""),
         "model": str(cfg.get("model", "") or ""),
         "enable_tools": str(cfg.get("enable_tools", "") or "auto"),
+        # 结算专用 provider（可选覆盖）：只回传地址/模型与"是否配了独立 key"，绝不回传 key 本身
+        "settle_base_url": str(cfg.get("settle_base_url", "") or ""),
+        "settle_model": str(cfg.get("settle_model", "") or ""),
+        "settle_has_key": bool(str(cfg.get("settle_api_key", "") or "").strip()),
         "error": err,
     }
 

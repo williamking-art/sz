@@ -207,6 +207,11 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     localStorage.getItem("songzuo_disable_thinking") === "1"
   );
   const [busy, setBusy] = useState(false);
+  // 结算专用 provider（可选覆盖，2026-10-23 用户裁定 B）：留空＝跟随主配置。
+  // 独立 state 而非塞进 tier：避免与"唯一生效的主配置"混在一起被误当成第二套主配置。
+  const [settleOpen, setSettleOpen] = useState(false);
+  const [settle, setSettle] = useState({ baseUrl: "", model: "", apiKey: "" });
+  const [settleHasKey, setSettleHasKey] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? profiles[0];
@@ -250,7 +255,13 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
         chat?.apiKey.trim() ?? "",
         chat?.baseUrl.trim() ?? "",
         chat?.model.trim() ?? "",
-        "auto"
+        "auto",
+        // 三项全空 ⇒ 后端删键 ⇒ 结算跟随主配置（这就是"默认跟随"）
+        {
+          api_key: settle.apiKey.trim(),
+          base_url: settle.baseUrl.trim(),
+          model: settle.model.trim(),
+        }
       );
       localStorage.setItem("songzuo_disable_thinking", disableThinking ? "1" : "0");
       if (res.ok) {
@@ -275,7 +286,17 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
     (async () => {
       try {
         const res = await getApiClient().getAiConfig();
-        if (!alive || !res.base_url) return;
+        if (!alive) return;
+        if (res.settle_base_url || res.settle_model || res.settle_has_key) {
+          setSettle({
+            baseUrl: res.settle_base_url ?? "",
+            model: res.settle_model ?? "",
+            apiKey: "",
+          });
+          setSettleHasKey(Boolean(res.settle_has_key));
+          setSettleOpen(true);
+        }
+        if (!res.base_url) return;
         persistProfiles(profiles.map((p) => {
           if (p.id !== activeProfileId) return p;
           return {
@@ -463,6 +484,61 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
           disabled={busy}
           className="flex items-center gap-2 rounded-lg bg-red px-6 py-2 font-kai text-sm font-bold tracking-widest text-paper shadow-card hover:bg-red-dark disabled:opacity-50"
         >
+      {/* 结算模型（可选覆盖）—— 留空则跟随主配置 */}
+      <div className="mt-3 rounded-lg border border-gold/40 bg-card/80 p-3">
+        <button
+          onClick={() => setSettleOpen((v) => !v)}
+          className="flex w-full items-center justify-between text-left"
+        >
+          <div>
+            <span className="font-kai text-sm font-bold text-ink">结算模型（可选覆盖）</span>
+            <span className="ml-2 text-[11px] text-dim">
+              {settle.baseUrl || settle.model || settleHasKey
+                ? "已配独立渠道：回合结算用它，召对等仍用上面的主配置"
+                : "留空＝跟随主配置（大多数情况保持留空即可）"}
+            </span>
+          </div>
+          <span className="text-[11px] text-dim">{settleOpen ? "收起" : "展开"}</span>
+        </button>
+        {settleOpen && (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[11px] text-dim">Base URL（留空跟随）</label>
+              <input
+                type="text"
+                value={settle.baseUrl}
+                onChange={(e) => setSettle({ ...settle, baseUrl: e.target.value })}
+                placeholder="https://apihub.agnes-ai.com/v1"
+                className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-dim">Model（留空跟随）</label>
+              <input
+                type="text"
+                value={settle.model}
+                onChange={(e) => setSettle({ ...settle, model: e.target.value })}
+                placeholder="agnes-3.0-flash"
+                className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-dim">
+                API Key（留空 {settleHasKey ? "沿用已存" : "跟随主配置"}）
+              </label>
+              <input
+                type="password"
+                value={settle.apiKey}
+                onChange={(e) => setSettle({ ...settle, apiKey: e.target.value })}
+                placeholder={settleHasKey ? "已配置（不回显）" : "留空跟随主配置"}
+                className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+
           {busy && <Loader2 size={15} className="animate-spin" />}
           {busy ? "连通测试中…" : "保存并在线自检"}
         </button>

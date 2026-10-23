@@ -627,6 +627,10 @@ export interface AiConfigResult {
   available?: boolean;
   /** 大臣办差工具（function calling）三档：auto/on/off */
   enable_tools?: string;
+  /** 结算专用 provider（可选覆盖；留空＝跟随主配置） */
+  settle_base_url?: string;
+  settle_model?: string;
+  settle_has_key?: boolean;
 }
 
 export type ActionName =
@@ -1051,11 +1055,19 @@ export class ApiClient {
     api_key: string,
     base_url: string,
     model: string,
-    enable_tools = "auto"
+    enable_tools = "auto",
+    settle?: { api_key?: string; base_url?: string; model?: string }
   ): Promise<{ ok: boolean; available: boolean; message?: string }> {
+    // settle_*：结算专用 provider（可选覆盖，留空＝跟随主配置；后端 `ai/client.py` 语义）
+    const body: Record<string, string> = { api_key, base_url, model, enable_tools };
+    if (settle) {
+      body.settle_api_key = settle.api_key ?? "";
+      body.settle_base_url = settle.base_url ?? "";
+      body.settle_model = settle.model ?? "";
+    }
     return this.request("/api/ai_config", {
       method: "POST",
-      body: JSON.stringify({ api_key, base_url, model, enable_tools })
+      body: JSON.stringify(body)
     });
   }
 
