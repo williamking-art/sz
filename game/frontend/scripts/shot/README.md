@@ -26,7 +26,7 @@
 ```powershell
 $env:SHOT_PYTHON = "D:\codebuddy\.audit-venv\Scripts\python.exe"
 $env:SHOT_OUT    = "D:\codebuddy\sz\_dev_tools\analysis-shots\panels"
-& "D:\codebuddy\tools\nodejs\node-v20.19.5-win-x64\node.exe" scripts/shot/shoot.mjs
+& "D:\codebuddy\tools\nodejs\node-v24.22.1-win-x64\node.exe" scripts/shot/shoot.mjs
 ```
 
 ## 纪律

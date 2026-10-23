@@ -99,6 +99,13 @@ def load_game(slot: int = 1):
     """
     from core.save_load import _load_with_data
 
+    # 🔴 2026-10-21 修复潜伏 NameError：本函数下方 12 个 `except` 分支都引用 `_dlog`，
+    # 但 `_dlog` 原先只在 `restore_dynamic_blueprints` 内定义（本函数取不到）⇒
+    # **任何一条下沉/迁移失败都会抛 NameError 打断读档**，与各处注释承诺的
+    # 「失败不拒档」正好相反。这里补本函数的 logger（正常路径零行为变更）。
+    import logging as _lg
+    _dlog = _lg.getLogger("save_load")
+
     state, data = _load_with_data(slot)
     if state is None:
         return None

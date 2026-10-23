@@ -723,6 +723,21 @@ def _court_blurred_pop_ledger(state) -> Tuple[Optional[str], Optional[str], Any]
         return None, f"朝廷民间模糊账目异常：{type(e).__name__}", {"drill": src}
 
 
+def _tax_base_value(state) -> Tuple[Optional[float], Optional[str], Any]:
+    """应税产值合计（P-D 首批：**只读分解，不改税制**）。
+
+    口径：只含「有静态年产量（产地 yields）且可定价（base_price 非 None）」的维；
+    无产量源或不可定价的维如实列在 drill_down 里，**不当 0**。
+    """
+    src = "core.domains.economy.tax_base_readout:survey_tax_base"
+    try:
+        from core.domains.economy import tax_base_readout as tbr
+        return tbr.readout_tax_base(state)
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("readout_hub: 应税产值分解读数失败", exc_info=True)
+        return None, f"应税产值分解异常：{type(e).__name__}", {"drill": src}
+
+
 #: 读数注册表（**顺序即展示顺序**）。 `fn` 返回 `(value|None, reason|None, drill_down)`。
 READOUTS: Tuple[Dict[str, Any], ...] = (
     {"key": "money_total", "label": "货币总量（M_ALL）", "unit": "贯", "fn": _money_total,
@@ -779,6 +794,8 @@ READOUTS: Tuple[Dict[str, Any], ...] = (
      "fn": _court_vs_system_contrast, "source": "core.domains.economy.spatial_warehouse_readout:court_vs_system_contrast"},
     {"key": "court_blurred_pop_ledger", "label": "朝廷版籍民间POP奏报估算（含隐匿与模糊区间）", "unit": "区间",
      "fn": _court_blurred_pop_ledger, "source": "core.domains.economy.spatial_warehouse_readout:court_blurred_pop_ledger"},
+    {"key": "tax_base_value", "label": "应税产值合计（原料口径·按品目·只读）", "unit": "贯",
+     "fn": _tax_base_value, "source": "core.domains.economy.tax_base_readout:survey_tax_base"},
 )
 
 

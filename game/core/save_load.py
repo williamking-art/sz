@@ -84,6 +84,48 @@ def _migrate_finance(raw) -> dict:
     return out
 
 
+def _decision_log_cap() -> int:
+    """决策日志**随档上限**——与写入端 `core.ai.tiandao_decision.MAX_LOG` 同源。
+
+    延迟导入避免顶层环（`core.ai.tiandao_decision` 只依赖引擎与内核契约，不依赖本模块，
+    但本模块被大量模块在顶层导入，故不在顶层拉进来）。导入失败**不静默**：记 warning
+    并回落 200（等于写入端常量当前值），保证落盘的仍是有界副本。
+    """
+    try:
+        from core.ai.tiandao_decision import MAX_LOG
+        return int(MAX_LOG)
+    except Exception:  # noqa: BLE001 —— 上限取不到仍须落盘，回落并留痕
+        import logging
+        logging.getLogger("save_load").warning(
+            "决策日志上限常量（core.ai.tiandao_decision.MAX_LOG）导入失败，"
+            "回落 200（随档日志仍为有界副本）", exc_info=True)
+        return 200
+
+
+def _decision_log_snapshot(state) -> list:
+    """存档用决策日志快照：**只读副本**（不改 state）+ 只收 dict 条目 + 截断到上限。
+
+    纪律：`decision_log` 是 P1 只读观测副本，**不参与结算、不改变任何数值**；
+    本函数只做 `list()` 浅拷贝与切片，绝不回写 `state.decision_log`。
+    """
+    raw = getattr(state, "decision_log", None)
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        import logging
+        logging.getLogger("save_load").warning(
+            "state.decision_log 非 list（%s），存档按空表写入", type(raw).__name__)
+        return []
+    rows = [r for r in raw if isinstance(r, dict)]
+    if len(rows) != len(raw):
+        import logging
+        logging.getLogger("save_load").warning(
+            "state.decision_log 含 %d 条非 dict 条目，已丢弃（不写入存档）",
+            len(raw) - len(rows))
+    cap = _decision_log_cap()
+    return rows[-cap:] if cap > 0 else []
+
+
 def save_game(state, slot: int = 1) -> bool:
     """保存游戏到指定槽位（含记忆知识库同步写盘）。
 
@@ -112,7 +154,9 @@ def save_game(state, slot: int = 1) -> bool:
 
     data = {
         "version": "0.1.0",
-        "schema_version": 4,  # v4：财政四率容器 state.finance（P1 双层税基，V1.3 终稿 §11）
+        # v4：财政四率容器 state.finance（P1 双层税基，V1.3 终稿 §11）
+        # v5：决策日志 decision_log 落盘（旧档缺键 ⇒ 空列表；**纯增量、向后兼容**）
+        "schema_version": 5,
         "pack_id": (getattr(state, "meta", None) or {}).get("pack_id", "song_1101"),
         "pack_version": (getattr(state, "meta", None) or {}).get("pack_version", "1"),
         "save_time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -153,6 +197,10 @@ def save_game(state, slot: int = 1) -> bool:
         "longterm_effects": getattr(state, "longterm_effects", []),
         "short_term_log": getattr(state, "short_term_log", []),
         "monthly_gazette": getattr(state, "monthly_gazette", [])[-12:],
+        # 决策日志（schema v5，P1 只读观测副本）：随档持久化，**不参与结算、不改任何数值**。
+        # 截断到与写入端同源上限（tiandao_decision.MAX_LOG）；旧档缺键读回 `[]`（不拒档）。
+        # 读档侧见 `_load_with_data`（非 list 脏值 ⇒ 空表 + warning 留痕）。
+        "decision_log": _decision_log_snapshot(state),
         # 🔴 M179：外贸逐笔流水（主线 F · 载体甲）——**只记不二次入账**的 append-only 事件流。
         # 容量有界：只落**最近 2000 笔**（设计档 §8.3「流水不删但有界」；更早部分可由月/总量重算）。
         "trade_journal": getattr(state, "trade_journal", [])[-2000:],
@@ -451,10 +499,13 @@ def _load_with_data(slot: int = 1):
         except OSError:
             pass
         return None, None
-    if _ver > 4:
+    # 版本门：**只有上界**（`_ver > 支持版本` 才拒载），没有"必须等于"的硬校验。
+    # 故 v5 加字段属**向后兼容的纯增量**：v1…v4 旧档照常读入，缺的新字段按各字段
+    # 约定补默认（缺失 ≠ 0 ≠ 1.0；本批新增的 `decision_log` 缺键 ⇒ `[]`）。
+    if _ver > 5:
         import logging
         logging.getLogger("save_load").error(
-            "存档 schema_version=%s 高于本程序支持的 4，拒绝加载", _ver)
+            "存档 schema_version=%s 高于本程序支持的 5，拒绝加载", _ver)
         return None, None
 
     # 延迟导入避免循环
@@ -495,7 +546,11 @@ def _load_with_data(slot: int = 1):
         from core.foundation.kernel.calendar import sync_state as _sync_calendar
         _sync_calendar(state)
     except Exception:  # noqa: BLE001 —— 读档日历失败留痕，不阻断
-        _slog.warning("读档 calendar 镜像同步失败", exc_info=True)
+        # 🔴 2026-10-21 修复潜伏 NameError：`_slog` 是 `save_game` 的**局部**变量
+        # （本函数 `_load_with_data` 作用域取不到）⇒ 日历镜像同步一旦失败，这里会
+        # 抛 NameError 打断读档，而不是"留痕后继续"。改用本函数自己的 logger。
+        import logging as _lgc
+        _lgc.getLogger("save_load").warning("读档 calendar 镜像同步失败", exc_info=True)
 
     # 恢复皇帝
     state.emperor_name = data.get("emperor_name", "赵佶")
@@ -704,6 +759,31 @@ def _load_with_data(slot: int = 1):
     state.spy_network = data.get("spy_network", state.spy_network)
     state.settlement_log = data.get("settlement_log", [])
     state.monthly_gazette = data.get("monthly_gazette", []) or []
+    # 决策日志（schema v5，P1 只读观测副本；**不参与结算、不改任何数值**）：
+    # · 旧档（v1…v4）无该键 ⇒ `[]`，**不拒档**；
+    # · 脏档（非 list）⇒ `[]` + warning 留痕（不静默 pass，也不因单字段坏值丢整档）；
+    # · list 内非 dict 条目 ⇒ 隔离丢弃并留痕；条数按写入端上限截断（防手改档撑爆内存）。
+    _raw_dlog = data.get("decision_log")
+    if isinstance(_raw_dlog, list):
+        _dlog_rows = [r for r in _raw_dlog if isinstance(r, dict)]
+        _dlog_dropped = len(_raw_dlog) - len(_dlog_rows)
+        _dlog_cap = _decision_log_cap()
+        if _dlog_cap > 0 and len(_dlog_rows) > _dlog_cap:
+            _dlog_dropped += len(_dlog_rows) - _dlog_cap
+            _dlog_rows = _dlog_rows[-_dlog_cap:]
+        if _dlog_dropped:
+            import logging as _lg_dlog
+            _lg_dlog.getLogger("save_load").warning(
+                "存档 decision_log 丢弃 %d 条（非 dict 或超出上限 %d），保留 %d 条",
+                _dlog_dropped, _dlog_cap, len(_dlog_rows))
+        state.decision_log = _dlog_rows
+    else:
+        if _raw_dlog is not None:
+            import logging as _lg_dlog2
+            _lg_dlog2.getLogger("save_load").warning(
+                "存档 decision_log 非法（应为 list，实为 %s），按空表载入"
+                "（只读观测副本，不影响其余字段）", type(_raw_dlog).__name__)
+        state.decision_log = []
     # 🔴 M179：外贸逐笔流水（旧档无此字段 ⇒ 空表，**不拒档、不臆造历史**）
     state.trade_journal = data.get("trade_journal", []) or []
     state.rich_report_scenes = data.get("rich_report_scenes", []) or []

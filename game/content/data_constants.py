@@ -713,6 +713,25 @@ POP_SHARE = {                 # 开局各 POP 占在籍人口比例（官僚/兵
 RAW_UNITS = {"盐": "斤", "茶": "斤", "丝": "匹", "麻": "匹", "蔗": "斤",
              "果": "斤", "木": "根", "石": "方", "铁": "斤", "绸": "匹", "布": "匹"}
 
+#: 🔴 **维注册钩子（P-B0 2026-10-21）**：`content.goods_category` 载入时把自己的
+#: 品目校验函数登记进来；**本模块不 import 它**（否则 `data_constants ↔ goods_category`
+#: 成环，被 `test_architecture_import_guard::test_no_new_cyclic_modules` 当场拦下）。
+#: 纪律同「往下沉，不横着抓；抓不到就注册」——数据层只发通知，不反向依赖上层口径。
+DIM_REGISTERED_HOOKS = []
+
+
+def _notify_dim_registered(dim, where=""):
+    """通知已登记的钩子（当前只有品目校验）。**钩子失败不得打断注册**，但必须留痕。"""
+    for hook in tuple(DIM_REGISTERED_HOOKS):
+        try:
+            hook(dim)
+        except Exception as _e:                              # noqa: BLE001
+            import logging as _lg
+            _lg.getLogger(__name__).warning(
+                "%s: 维注册钩子失败 dim=%s (%s)", where or "register", dim,
+                type(_e).__name__, exc_info=True)
+
+
 def register_raw_material(dim, unit, price, default_yield=0, state=None):
     """预留接口：注册新作物 / 新矿（AI 拟诏开发时调用）。
 
@@ -735,6 +754,10 @@ def register_raw_material(dim, unit, price, default_yield=0, state=None):
         res = getattr(state, "resources", None)
         if isinstance(res, dict):
             res.setdefault(dim, {"stock": 0, "cap": 0})
+    # P-B0：新维须有品目，否则不参与品目口径的口味/应税分解。**只告警、不拒绝**
+    # （拒绝会打断 AI 建新货的既有通道；这层是口径提示，不是账本校验）。
+    # 实现走**钩子注册**（见 `DIM_REGISTERED_HOOKS`）——本模块不 import 品目表，避免成环。
+    _notify_dim_registered(dim, "register_raw_material")
     return dim
 
 
@@ -752,6 +775,8 @@ def register_finished_good(dim, unit, price, demand=None):
     MATERIAL_PRICE_BASE[dim] = price
     RAW_UNITS[dim] = unit
     GOODS_DEMAND.setdefault(dim, demand or {"农": 0.5, "兵": 0.5})
+    # P-B0：同 register_raw_material —— 新维须有品目；只告警、不拒绝（走钩子注册，不成环）。
+    _notify_dim_registered(dim, "register_finished_good")
     return dim
 
 
