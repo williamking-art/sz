@@ -30,7 +30,14 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", "dist", "build", ".venv",
              # —— 2026-10-21 归档时相对链接未重写，实测 15 处断链全部落在
              #    `archive/2026-10-21-historical/`（指向已迁走的 specs/docs/analysis）。
              #    按"历史档不追改"的既有规矩跳过；现行文档断链仍会被本脚本拦下。
-             "archive"}
+             "archive",
+             # vendored 第三方仓库的**本机副本**：deepseek-ai/deepseek-harness 及其市场件。
+             # 两者 `git ls-files` 均为 **0**（不在本仓库内），本机解包后会被 os.walk
+             # 从仓库根扫到；其内部相对链接断不断不归我们管。实测（2026-10-23）37 处
+             # 断链**全部**落在这两处，使门禁在本机恒失败（EXIT=1）——而干净克隆/CI
+             # 没有这两个目录、本来会通过 ⇒ 属"本机噪声淹没真信号"，与 .cloudbase 同理。
+             # 我们自己的文档实测 0 断链（2186 个 md）。
+             "deepseek-harness-master", "dsh-market"}
 
 
 def iter_markdown(root: str):
