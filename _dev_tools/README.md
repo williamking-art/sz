@@ -18,7 +18,7 @@
 
 ## 根级工具
 
-可用脚本包括 `aliyun-check.ps1`（**阿里云侧资产 + 本机工具链一键自检**；原 `cloudbase-check.ps1` 已随 CloudBase 停用删除，历史见 `game-docs/docs/开发服务器与回归测试说明.md` §8.8）、`verify-all.ps1`、`dev-env.ps1`、`handover.py`（本机交接层，2026-10-09 起为交接唯一入口）、`sync_mcp_state.py`（**已停用**，保留作恢复参考）、`agnes_gen.py` 等。运行前先阅读脚本帮助/源码，尤其是会联网、删除或写入外部状态的工具；不要把凭据放入脚本或输出。
+可用脚本包括 `aliyun-check.ps1`（**阿里云侧资产 + 本机工具链一键自检**；原 `cloudbase-check.ps1` 已随 CloudBase 停用删除，历史见 `game-docs/docs/开发服务器与回归测试说明.md` §8.8）、`mcp-check.ps1`（**MCP 健康检查 · 代理假象免疫**：先自省本机代理配置（环境变量 + `git http.proxy`），再以 `curl --noproxy '*'` 探 `/healthz` 与 TCP 端口；`-Deep` 加验 `/mcp` 的 initialize + tools/list（token 只从 `$env:SONGZUO_MCP_TOKEN` 读）。专治「服务端 502 / TLS 失败，实为本机 `HTTP_PROXY=127.0.0.1:7890` 代理程序未运行」这类误判——AGENTS.md §7 与开发服务器说明 §8.1 已各记两次。实测 2026-10-23：`ok=true, tools=8, storage=local`）、`verify-all.ps1`、`dev-env.ps1`、`handover.py`（本机交接层，2026-10-09 起为交接唯一入口）、`sync_mcp_state.py`（**已停用**，保留作恢复参考）、`agnes_gen.py` 等。运行前先阅读脚本帮助/源码，尤其是会联网、删除或写入外部状态的工具；不要把凭据放入脚本或输出。
 
 ## 约定
 
