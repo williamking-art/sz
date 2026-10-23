@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
-  Loader2, Bot, Volume2, CheckCircle2, AlertCircle, Sparkles, RefreshCw,
-  ChevronDown, Type, Eye, EyeOff, Plus, Trash2, Save, ChevronRight
+  Loader2, Bot, Volume2, CheckCircle2, AlertCircle, RefreshCw,
+  Type, Eye, EyeOff, Trash2, Save
 } from "lucide-react";
-import { getApiClient, type AiConfigResult } from "../api/client";
+import { getApiClient } from "../api/client";
 import { useGameStore } from "../store/gameStore";
 import { audioEngine } from "../audio/engine";
 
@@ -161,14 +161,6 @@ interface ConfigProfile {
   tiers: ModelTier[];
 }
 
-const PROVIDER_OPTIONS = [
-  { value: "custom", label: "自定义 / 自建网关" },
-  { value: "steam", label: "Steam 联机" },
-  { value: "deepseek", label: "DeepSeek 官方" },
-  { value: "openai", label: "OpenAI 官方" },
-  { value: "ollama", label: "本地 Ollama / vLLM" },
-];
-
 function makeDefaultTier(id: string, label: string, sub: string): ModelTier {
   return {
     id, label, sub,
@@ -186,15 +178,26 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
   const [profiles, setProfiles] = useState<ConfigProfile[]>(() => {
     try {
       const raw = localStorage.getItem("songzuo_ai_profiles");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ConfigProfile[];
+        // 迁移（2026-10-23）：只保留 chat 档——旧版残留的 sim/advanced 档后端从不消费，
+        // 留着会让玩家以为"配了就在生效"。
+        const migrated = (Array.isArray(parsed) ? parsed : []).map((pr) => ({
+          ...pr,
+          tiers: (pr.tiers || []).filter((x) => x.id === "chat"),
+        })).filter((pr) => (pr.tiers || []).length > 0);
+        if (migrated.length) return migrated;
+      }
     } catch { /* ignore */ }
     return [{
       id: "default",
       name: "默认",
       tiers: [
-        makeDefaultTier("chat", "聊天模型", "大臣召对 · 记忆检索"),
-        makeDefaultTier("sim", "推演模型", "月度推演 · 结算（思考型模型更佳）"),
-        makeDefaultTier("advanced", "其他场景（高级）", "7 档 · 已配 0"),
+        // 2026-10-23 按用户口径收敛：**只配一套**。
+        //   · 保存只发 api_key/base_url/model（后端只认这几个键）；
+        //   · 推演/结算/叙述**共用**这一套 —— 不再显示会被后端忽略的"独立档"；
+        //   · 原「其他场景（高级）7 档」是空壳占位（后端无字段），已删除。
+        makeDefaultTier("chat", "模型配置", "唯一生效：召对 / 推演 / 结算 / 叙述共用"),
       ],
     }];
   });
@@ -296,24 +299,28 @@ function AiConfigDirectView({ onClose }: { onClose: () => void }) {
             <span className="font-kai text-sm font-bold text-ink">{tier.label}</span>
             <span className="ml-2 text-[11px] text-dim">{tier.sub}</span>
           </div>
-          <button
-            onClick={() => updateTier(tier.id, { expanded: !tier.expanded })}
-            className="flex items-center gap-1 text-[11px] text-dim hover:text-ink"
-          >
-            {tier.expanded ? "更少" : "更多"}
-            <ChevronRight size={12} className={`transition-transform ${tier.expanded ? "rotate-90" : ""}`} />
-          </button>
+
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <div>
             <label className="text-[11px] text-dim">供应商</label>
             <select
               value={tier.provider}
-              onChange={(e) => updateTier(tier.id, { provider: e.target.value })}
+              onChange={(e) => {
+                const name = e.target.value;
+                const preset = PROVIDER_PRESETS.find((x) => x.name === name);
+                // 联动（修 2026-10-23）：切供应商必须同时换 Base URL 与 Model，
+                // 否则"换到 DeepSeek 却仍用 Agnes 地址"必然连不通。
+                updateTier(tier.id, {
+                  provider: name,
+                  ...(preset?.baseUrl ? { baseUrl: preset.baseUrl } : {}),
+                  ...(preset?.model ? { model: preset.model } : {}),
+                });
+              }}
               className="mt-0.5 w-full rounded border border-gold/40 bg-paper px-2 py-1 text-xs text-ink"
             >
-              {PROVIDER_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              {PROVIDER_PRESETS.map((o) => (
+                <option key={o.name} value={o.name}>{o.name}</option>
               ))}
             </select>
           </div>
