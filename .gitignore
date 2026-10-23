@@ -167,6 +167,9 @@ _dev_tools/game-assets-src/ministers-layers/_src/_verify.png
 !_dev_tools/game-docs/
 !_dev_tools/game-docs/**
 _dev_tools/game-docs/**/__pycache__/
+# analysis/ 下的行内临时产物（`_replay_head/out/out2.txt`、`_tmp_analyze.py`，下划线前缀=可弃）：
+# 它们是审查过程的中间输出而非文档，入库只会污染文档目录；同目录的正式分析文档照常入库。
+_dev_tools/game-docs/analysis/_*
 # 再排除可再生的分析产物（脚本见 analysis/econ_pg_export.py；历史入库目标是 CloudBase PG，
 # 已停用 2026-10-22 —— 见文档 §8.8.10；本机重跑产物同样不入库）。
 # 注意：必须放在上面 `!_dev_tools/game-docs/**` 之后 —— git 以最后匹配的规则为准。
